@@ -1,0 +1,113 @@
+{
+  "sources": [
+    {
+      "session": "session-01",
+      "sourceSha256": "13b42b85442a5d5ec0c7a3a83bceaaac61fd51ecbbb44ff8995a2275655e4549"
+    },
+    {
+      "session": "session-02",
+      "sourceSha256": "5b902d5089715839714fb711bb0245def2017695b21b9154f9f12898a5e52e36"
+    },
+    {
+      "session": "session-03",
+      "sourceSha256": "bde32e68337904d9294a931a24daea04c76f8be8f1a380561d4988d7a174d4cc"
+    },
+    {
+      "session": "session-04",
+      "sourceSha256": "6fe86224f0c5259ccbb80637d67fac43f88f72ad004ca536d3ec97c12d6ded2b"
+    },
+    {
+      "session": "session-05",
+      "sourceSha256": "3681214585c406352a8160d0fea6ea05b5ef7be77f4a22b64d63013a54b22fde"
+    },
+    {
+      "session": "session-06",
+      "sourceSha256": "36b6ba2bc017cc6cb42de1bcbc1de7ad6d79c12cb2d9bd4d89525d746e3af785"
+    }
+  ],
+  "notificationCount": 32856,
+  "redaction": "Only role, relative time, seq, wire notifications; no identifiers/authentication",
+  "startVectors": [
+    {
+      "session": "session-05",
+      "seq": 3497,
+      "hex": "02175B006C005A410000015E1600AA00000000DA",
+      "uiSnapshot": {
+        "seq": 3496,
+        "state": {
+          "segNum": 2,
+          "press1": 9,
+          "flow1": 35,
+          "time1": 22,
+          "press2": 6.5,
+          "flow2": 17,
+          "press3": 0,
+          "flow3": 0,
+          "press4": 0,
+          "flow4": 0,
+          "totalFlow": 52,
+          "totalWeight": 27,
+          "waitTime": 0,
+          "tempSv": 91,
+          "pressMode": false,
+          "flowMode": false,
+          "seg1FlowMode": false
+        }
+      }
+    },
+    {
+      "session": "session-06",
+      "seq": 4382,
+      "hex": "02DF5C0046001426140000A0050190008C000059",
+      "uiSnapshot": {
+        "seq": 4381,
+        "state": {
+          "segNum": 3,
+          "press1": 2,
+          "flow1": 16,
+          "time1": 5,
+          "press2": 3.8000000000000003,
+          "flow2": 40,
+          "press3": 2,
+          "flow3": 14,
+          "press4": 0,
+          "flow4": 0,
+          "totalFlow": 70,
+          "totalWeight": 0,
+          "waitTime": 0,
+          "tempSv": 92,
+          "pressMode": true,
+          "flowMode": true,
+          "seg1FlowMode": false
+        }
+      }
+    },
+    {
+      "session": "session-06",
+      "seq": 12273,
+      "hex": "02DF5C00880014231200009605019000820000AC",
+      "uiSnapshot": {
+        "seq": 12272,
+        "state": {
+          "segNum": 3,
+          "press1": 2,
+          "flow1": 15,
+          "time1": 5,
+          "press2": 3.5,
+          "flow2": 40,
+          "press3": 1.8,
+          "flow3": 13,
+          "press4": 0,
+          "flow4": 0,
+          "totalFlow": 68,
+          "totalWeight": 34,
+          "waitTime": 0,
+          "tempSv": 92,
+          "pressMode": true,
+          "flowMode": true,
+          "seg1FlowMode": false
+        }
+      }
+    }
+  ]
+}

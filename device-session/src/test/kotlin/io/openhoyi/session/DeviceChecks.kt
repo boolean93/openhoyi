@@ -1,0 +1,46 @@
+package io.openhoyi.session
+
+import java.time.LocalDateTime
+private class SessionDriver:GattDriver {
+    val calls=mutableListOf<Triple<Long,Long,GattOperation>>()
+    override fun execute(generation:Long,token:Long,operation:GattOperation):Boolean {calls+=Triple(generation,token,operation);return true}
+    override fun close(generation:Long){}
+}
+fun deviceChecks():Int {
+    var tests=0
+    fun case(name:String,f:()->Unit){f();tests++;println("PASS $name")}
+    fun hex(s:String)=s.chunked(2).map{it.toInt(16).toByte()}.toByteArray()
+    case("coffee ready requires authentication transport and fresh settings on matching endpoint") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
+        complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();check(s.state==DeviceState.INITIALIZING)
+        val settings=hex("830113FD5C007D0F350019006E")
+        s.onNotification(s.generation,KnownGatt.bookooNotify,settings);check(s.state!=DeviceState.READY)
+        complete();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.READY)
+        s.disconnect();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.DISCONNECTED)
+    }
+    case("BOOKOO initialization is paced and requires sample after completed initialization") {
+        val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.BOOKOO,d,{now})
+        s.connect("scale")
+        fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
+        complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
+        complete();val initial=d.calls.size
+        now=499;s.tick();check(d.calls.size==initial)
+        val frame=hex("030B000000012D007A3A2D03424600C803010084")
+        s.onNotification(s.generation,KnownGatt.bookooNotify,frame);check(s.state!=DeviceState.READY)
+        repeat(4){now+=501;s.tick();check(d.calls.last().third is GattOperation.Write);complete()}
+        check(s.state==DeviceState.SYNCHRONIZING)
+        s.onNotification(s.generation,KnownGatt.bookooNotify,frame);check(s.state==DeviceState.READY)
+    }
+    case("unsupported coffee firmware never opens control gate") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0});s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
+        complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))));complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830114FD5C007D0F350019006E"))
+        check(s.state==DeviceState.UNSUPPORTED)
+        var result:OperationResult?=null;s.stopExtraction{result=it};check(result is OperationResult.Failed)
+    }
+    return tests
+}

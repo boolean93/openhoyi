@@ -1,0 +1,5 @@
+# role	hex	manual expectation
+coffee	830113FD5C007D0F350019006E	firmware=1.1.3;flags=253;brewC=92;steamC=125;cups=25
+coffee	400024BF2F1C770B00000000000000190321AF	brewHundredthsC=9407;steamHundredthsC=12060;pressureTenthsBar=119;extraRaw=801
+coffee	80080700000000052421325103	slotOrPhase=7;seconds=0;waterTenthsMl=5;brewHundredthsC=9249;flowTenths=50;status=81
+scale	030B000000012D007A3A2D03424600C803010084	weightHundredthsGram=-31290;flowHundredthsRaw=-834;ASCII-sign interpretation inferred, known-mass test pending
