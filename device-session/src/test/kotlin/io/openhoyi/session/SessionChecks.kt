@@ -71,6 +71,7 @@ fun main() {
         q.complete(g,d.sent.first().second,OperationResult.Success())
         check(d.sent.last().third is GattOperation.Write && displaced==1)
     }
+    tests += wireTraceChecks()
     tests += policyChecks()
     tests += deviceChecks()
     tests += extractionChecks()

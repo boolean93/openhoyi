@@ -1,24 +1,53 @@
-# Native BLE handoff
+# Native BLE / Lab handoff
 
-分支 `feature/native-ble`，worktree `../openhoyi-native`，基于独立openhoyi仓库初始LICENSE。旧hoyi-project未改动。
+分支 `feature/native-ble`，worktree `../openhoyi-native`，基于独立openhoyi仓库。旧hoyi-project未改动。前一阶段核心提交363cea5；本轮新增原生Lab诊断APK。
 
-本轮交付可构建的三个库模块，无APK、无新代码实机控制验证。使用README命令运行全部门禁，不能只运行Gradle默认test而漏掉verify。
+## 当前交付
 
-重点文件：
-- protocol-core/.../Protocol.kt：真实帧长度、BOOKOO ASCII符号。CoffeeCommands.kt：数值密码认证和20字节编码。
-- device-session/.../GattQueue.kt：连接代次、串行、超时关闭、取消排队启动。
-- DeviceSession.kt：固定GATT端点，1.1.3能力门禁，BOOKOO初始化后才Ready。
-- ExtractionPolicy.kt / ExtractionController.kt：定点重量单位0.01g、去皮确认、样本时效、一次停止、结果未知。
-- bluetooth-android/.../NativeDeviceHub.kt：service-owned双设备集成、前台窗口自动连秤。
+四模块：protocol-core → device-session → bluetooth-android → app。纯Kotlin模块无Android依赖；app为原生View、Activity、本地Binder和connectedDevice前台Service，没有UniApp/JS/WebView。独立包 `io.openhoyi.lab`，不覆盖旧App。
 
-当前策略常数不是硬件认证规格：样本1.5s过期；启动后1.5s请求去皮；去皮后新样本绝对值≤0.5g确认；启动4s未确认则尝试停止；至少7s才允许目标重量停止；明确idle帧且距最后阀开帧>2.8s才结算。均须实机标定。
+Lab仅提供授权/扫描/手动连接/断开/实时数据/日志导出/停止服务。没有萃取、设置、校准、OTA按钮。咖啡机连接必须输入6位密码（数字字节0..9），认证并同步时间；BOOKOO按500ms间隔执行4条初始化写入，收到之后的新样本才Ready。连接并非完全只读，以上初始化是明确例外。
 
-控制入口仅开放三个实采曲线包。不要为了UI演示移除门禁。其他固件为Unsupported但可解析已知长度帧；其他秤没有适配实现。设置编码存在不等于设备会话开放设置控制。
+- `app/.../LabActivity.kt`：界面、权限、扫描设备选择、内存密码、未知/过期/断线显示。UI按250ms刷新，不持有Gatt。
+- `LabService.kt`：前台通知、双设备Hub、成功秤地址持久化、会话快照；页面离开不关闭连接；旋转不重置重连窗口。
+- `LabApplication.kt` / `TraceStore.kt`：进程唯一日志队列，避免Service快速重启多writer；导出独立于服务，SAF期间停止服务也可完成。
+- `device-session/.../WireTrace.kt`：认证01/改密0B整帧脱敏（含XOR），只在coffeeWrite识别；最大512bytes。Driver真实边界调用，观测异常隔离。
+- `protocol-core/.../Protocol.kt`：已观察帧长度、BOOKOO ASCII符号与定点单位。
+- `device-session/.../GattQueue.kt`：连接代次、串行、超时关闭、取消排队启动。
+- `ExtractionController.kt`：去皮确认/样本时效/一次停止/结果未知；本轮修复断线重连后允许显式手动停止、未发出的启动被取消后可凭新idle结算；近期活动帧优先，不能误解锁。
 
-回放资料：protocol-core/src/test/resources/notifications.tsv（匿名role/seq/相对时刻/原始通知）；provenance.json（来源哈希、曲线UI参数）；device-session/src/test/resources/shots.tsv（三次窗口）。原始日志仍在父目录captures，不提交全量私有日志。
+## 控制边界
 
-可重新提取：`python3 scripts/extract_fixtures.py ../captures/2026-09-20/protocol-recordings`；`python3 scripts/extract_shots.py ...`。生成后检查provenance UI快照非空。
+设备会话仅对HOYI固件1.1.3开放控制，且启动限定三条已采集曲线包；Lab不暴露这些控制入口。其他固件仅看已知帧/Unsupported；其他秤未实现。不要为了UI演示移除门禁。
 
-已发现并处理：密码数字字节与ASCII区分、符号编码差异、队列回调异常卡住、非法参数残留启动状态、停止后旧排队启动再次发送、启动后早到idle误结算。上述故障均有回归测试；另补满队列停止优先级测试。最终25个命名会话场景通过，协议34,991次断言通过，AAR和lint通过（0错误2警告）。
+策略阈值不是厂家认证规格：样本1.5s过期；启动后1.5s请求去皮；去皮后新样本绝对值≤0.5g确认；启动4s未确认则尝试停止；至少7s才允许目标重量停止；通常idle需距最后阀开帧>2.8s才结算。取消确定未发出的start且stop传输成功后，可由新idle结算，前提无活动帧证据。均须实机标定。
 
-新模块的独立审查和新代码实机测试仍待完成，详见docs/coverage.md。当前代码未推送GitHub；没有触碰原App安装。
+回放重量停止17.786s，旧记录17.887s，相差101ms，未证明物理等效。断线或进程被杀无法保证停液，不恢复/重放启动命令。
+
+## 验证与审查
+
+完整命令在README；不能只运行Gradle默认test而漏掉纯Kotlin verify。
+
+- 协议34,991次断言，其中32,856条匿名通知（不是同等数量的独立用例）。
+- 会话/策略/回放/trace共32个命名场景通过。
+- App JUnit 9项通过（日志顺序/转义/轮转/重开session/IO失败/队列满/关闭/时效与单位）。
+- app APK、AndroidTest APK构建通过。App lint 0错误5警告（中文诊断文案未资源化、版本提示）。
+- 独立审查确认核心停止边界；独立App范围及两轮生命周期复核已完成。第二位代码质量审查启动后因服务额度中断，不能计为通过；主任务补做最终检查。
+- **ADB无在线设备；未安装或运行新APK。** UI测试APK仅构建，未执行。未发送新版本实机控制命令。
+
+## 下一步
+
+1. 设备接入后按 `docs/native-lab.md` 验证权限、初始化、双连接、旋转/锁屏、断线、日志导出；先只用Lab观察，不开放萃取UI。
+2. 导出新版连接记录，与旧记录对照；实物核对BOOKOO负重量、单位、时效。
+3. 在人工监督下验证停止与去皮，再验证三条曲线；记录最后杯重与时序差异。
+4. 证据足够后再接入曲线库、原生萃取页面、设置读回事务与更多秤型号。
+
+## 构建与资料
+
+Java17、SDK35、min26、Gradle8.11.1、Kotlin2.0.21、AGP8.10.0。本机local.properties不提交。Google不可达时 `-PgoogleMirror=aliyun`；全局旧代理通过命令行 `-Dhttp.proxyHost= -Dhttps.proxyHost=` 绕开，不改全局配置。首次补依赖后可offline。
+
+APK：`app/build/outputs/apk/debug/app-debug.apk`。独立包可以直接adb install -r，不用卸载旧App。debug签名为本机调试密钥；未来签名迁移需单独规划，不能承诺任意机器产物可覆盖。
+
+fixture：protocol-core/src/test/resources/notifications.tsv、provenance.json；device-session/src/test/resources/shots.tsv。原始私人日志仍在父目录captures，不提交。scripts/extract_fixtures.py / extract_shots.py可重新提取。
+
+日志最多8×4MiB；队列512项；丢失/错误/淘汰显式统计。sessionId标识日志实例、ownerId标识服务实例、role/generation/token标识传输。突发进程终止可能丢队尾，统计仅当前实例，不代表所有历史的完整性证明。未推送GitHub。

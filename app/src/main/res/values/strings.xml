@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">OpenHOYI Lab</string>
+    <style name="LabThemeBase" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#175FC7</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:statusBarColor">#F1F5FA</item>
+        <item name="android:navigationBarColor">#F1F5FA</item>
+    </style>
+    <style name="LabTheme" parent="LabThemeBase" />
+</resources>

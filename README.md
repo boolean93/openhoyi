@@ -1,16 +1,17 @@
-# OpenHOYI 原生通信核心
+# OpenHOYI Native / Lab
 
-纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。这是架构升级第一阶段，不是可安装的完整 App，也尚未验证新代码的实机控制。
+纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。已提供独立可安装的诊断 App `OpenHOYI Lab`，包名 `io.openhoyi.lab`。尚未验证新代码的实机连接或控制；不是完整咖啡制作 App。
 
 ## 模块
 
 | 模块 | 边界 |
 |---|---|
+| `app` | 原生 Activity + Binder + connectedDevice 前台服务，实时数据显示、权限请求、日志导出 |
 | `protocol-core` | HOYI / BOOKOO 编解码、整数单位、不可变字节、格式校验、未支持命令清单。无 Android 依赖 |
 | `device-session` | 串行 GATT 队列、独立连接代次、初始化就绪、重连策略、去皮及停止策略、真实时序回放。无 Android 依赖 |
 | `bluetooth-android` | Android GATT 回调桥接、订阅、扫描、权限检查、主线程调度；`NativeDeviceHub` 连接上述模块 |
 
-`NativeDeviceHub` 应由应用或前台服务持有，不能随页面销毁。宿主负责权限请求、前台服务生命周期、设备地址持久化与 UI；本库只检查权限，不弹出页面。Android 最低版本26（Android8），Java17；使用 `java.time` 因而不声称支持旧版App的API21。
+`NativeDeviceHub` 应由应用或前台服务持有，不能随页面销毁。`app` 模块实现权限请求、前台服务生命周期、成功连接的秤地址持久化与 UI；库只检查权限，不弹出页面。Android 最低版本26（Android8），Java17；使用 `java.time` 因而不声称支持旧版App的API21。
 
 设备会话只对已采集的 HOYI 固件1.1.3开放控制；其他固件只读/不支持。第一版启动控制严格限定三条已采集的完整曲线包。编解码器可以处理其他合法字段，但业务发送入口不会因此自动开放。BOOKOO仅接受已采集的ASCII正负号帧，其他型号和符号编码明确不支持。
 
@@ -20,14 +21,33 @@ Java17、Android SDK35、Gradle wrapper8.11.1、Kotlin2.0.21、AGP8.10.0。
 设置 `ANDROID_HOME`，或在不提交的 `local.properties` 配置 `sdk.dir`。
 
 ```sh
-./gradlew :protocol-core:check :device-session:check :bluetooth-android:assembleDebug :bluetooth-android:lintDebug
+./gradlew :protocol-core:check :device-session:check :bluetooth-android:assembleDebug :bluetooth-android:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
 ```
 
-`check` 包含确定性 JVM `verify` 任务；断言失败即构建失败。不是JUnit测试报告，不能把逐帧断言数量称为独立测试案例数。
+两个纯 Kotlin 模块的 `check` 包含确定性 JVM `verify` 任务；断言失败即构建失败。逐帧断言不是独立案例；App 的日志/数据展示使用 JUnit 测试。
 
 Google Maven 无法访问时可显式使用 `-PgoogleMirror=aliyun`。本机全局Gradle代理指向未启动的127.0.0.1:7890，本次仅命令行加 `-Dhttp.proxyHost= -Dhttps.proxyHost=` 绕过，没有修改全局配置。Google依赖首次通过可选阿里云镜像获取；默认仍使用官方仓库。
 
-产物：`bluetooth-android/build/outputs/aar/bluetooth-android-debug.aar`。AAR不是自包含APK，使用时需同时包含协议和会话模块；Gradle项目依赖通过 `api` 传递。
+APK：`app/build/outputs/apk/debug/app-debug.apk`；离线 UI 冒烟测试包：`app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`。
+
+库产物：`bluetooth-android/build/outputs/aar/bluetooth-android-debug.aar`。AAR不是自包含APK，使用时需同时包含协议和会话模块；Gradle项目依赖通过 `api` 传递。
+
+## 使用诊断 App
+
+安装新包，不覆盖旧App：
+
+```sh
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n io.openhoyi.lab/.LabActivity
+```
+
+点击扫描并授权，选择 HOYI 或 BOOKOO。咖啡机需要六位设备密码，仅内存使用；连接会认证和同步时间。秤连接会执行四条初始化写入。只显示已接收的数据；未收到显示未知，超过1.5秒标陈旧，断线保留历史标记。独立包不读取旧App数据，也不保存机器密码。
+
+连接属于前台服务，离开/旋转页面不主动断链；通知或页面可停止服务。进程被杀后不会自动重启或恢复机器连接。成功连接过的秤地址仅保存在本App，进入前台10分钟内、咖啡机就绪后尝试重连；手动断秤取消该窗口。
+
+通过系统文件选择器导出 ZIP。日志按 GATT 请求/接受/完成/通知区分，密码指令整帧脱敏；最多保留8个4MiB文件。后台有界队列满时丢记录并统计，不阻塞蓝牙；metadata包含当前日志sessionId、丢失/错误/淘汰统计。每条服务记录ownerId区分Service重建，generation/token关联操作。进程突然终止可能丢失尚未落盘记录，不能视为完整黑匣子。
+
+诊断 App 的范围与手工验证步骤见 [Lab说明](docs/native-lab.md)。
 
 ## 证据与限制
 

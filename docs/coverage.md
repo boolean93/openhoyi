@@ -17,14 +17,20 @@
 | 三次萃取链路 | ReplayChecks + shots.tsv | 手动44.098s；流量结束无额外stop；重量17.786s | 不等于物理咖啡机回放；最终杯重未认证 |
 | Android连接/服务/CCCD/写入 | AndroidGattDriver | SDK35编译、AAR构建、lint | 真机permission/revoke/disconnect/GATT回调 |
 | 扫描 | ScanCoordinator | Android编译/lint；统一扫描两角色 | 真机扫描频率、位置权限与开关验证 |
-| Android后台 | NativeDeviceHub宿主契约 | 不依赖Activity、主线程定时 | 前台Service宿主未实现，不能承诺进程被杀后的停液 |
-| 日志 | diagnostic回调、codec原始帧、fixture来源哈希 | 密码默认toString脱敏 | 新版持久化结构化传输日志尚未实现；hex显式导出含密码，调用者不得直接记录认证帧 |
+| Android后台 | LabService + NativeDeviceHub | connectedDevice前台服务、Binder与页面解耦；静态独立审查 | 真机锁屏/旋转/权限撤销；不能承诺进程被杀后的停液 |
+| 日志 | WireTrace + LabApplication + TraceStore | 真实传输边界、密码整帧脱敏、进程单写队列、顺序/轮转/导出/失败测试 | 真机导出；崩溃前未落盘记录可丢失，codec.hex本身不脱敏 |
 | 设置写入结果 | OperationResult | 区分Failed/Unknown/Cancelled/transport Success | 不提供“已应用”假状态；设置回读事务未实现 |
 | 大包/MTU/通用Read | 首版明确不支持 | Android写入限制20字节 | 后续需真实协议分片证据后实现 |
 | 管理命令/OTA | UnsupportedCommandGroup | 无执行入口 | 密码修改、校准、出厂、OTA独立验证 |
-| 原生UI/持久化 | 不在第一阶段库范围 | 无 | 后续工程 |
+| 原生诊断UI/持久化 | LabActivity / LabService | 独立APK、未知/过期/断开显示、成功秤地址、离线UI测试APK | 冒烟APK已构建未执行；实机布局、权限、连接和导出 |
 
-## 本轮结果（2026-09-22）
+## 本轮 Lab 结果（2026-09-22）
+
+原生APK及AndroidTest APK构建通过；会话/策略/集成/回放/trace共32个命名场景；App JUnit 9个测试通过；App lint 0错误5警告（版本提示与中文诊断文案未资源化）。协议断言仍为34,991次。完成独立范围审查及两轮生命周期复核，修复断线后手动停止失效、取消未发送启动后卡住停止、导出期间停止服务挂起、重启并发日志写入。
+
+本机ADB无设备，Android UI冒烟测试仅构建未执行；无原生连接/控制实测。
+
+## 前一轮核心结果（2026-09-22）
 
 标准Gradle全量命令成功。协议34,991次断言（其中32,856条通知，不是34,991个独立用例）；会话/策略/集成/回放共25个命名场景；Android debug AAR成功；lint 0 errors / 2 warnings。首次使用网络补齐依赖后，最终验证在offline模式完成。
 
@@ -36,11 +42,11 @@
 4. 规格核对：Android与纯Kotlin依赖边界、公开API传递依赖、控制能力门禁、未知结果、后台宿主边界、未验证功能清单。
 5. 构建门禁：Gradle check、Android assembleDebug、lintDebug。lint 0错误，2警告为跨API属性与Gradle更新提示。
 
-独立子智能体完成了部分协议开发后因服务额度限制中断，独立审查未完成。主任务接管并完成本轮规格核对与代码检查，不能将此记为独立审查通过。
+前一轮核心阶段独立审查曾因服务额度中断。本轮已补独立核心停止语义审查与App范围/生命周期静态审查；静态通过不代表硬件等效验证。
 
 ## 发布前必须完成
 
-- 另一个审查者独立复核控制和断线语义。
+- 继续在实机验证已审查的控制和断线语义。
 - 通过可安装测试宿主，先只连设备/接收，再人工控制下验证停止、去皮及三条曲线。
 - 校准新旧时序差异、BOOKOO负值与重量单位；验证回到前台、锁屏及断连。
-- 新UI接入前实现真实Android前台服务及持久化，明确断连/杀进程时的能力边界。
+- 在已有诊断Service和持久日志基础上，验证系统后台限制后再开放正式萃取UI。

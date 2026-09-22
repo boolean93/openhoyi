@@ -53,5 +53,34 @@ fun extractionChecks():Int {
         c.machineFrame(io.openhoyi.protocol.ExtractionTelemetry(8,1,20,1,9200,20,64,0,raw),now)
         now=3000;c.machineFrame(idle,now);check(c.state==ExtractionState.ENDED_OBSERVED)
     }
+    case("explicit manual stop works after uncertain disconnect and reconnect") {
+        val coffee=CoffeeFake();val scale=ScaleFake();val c=ExtractionController(coffee,scale,{0})
+        c.weight(WeightReading(0,0));check(c.start(profile,3400,0));coffee.ready=false;c.tick()
+        coffee.ready=true;c.manualStop();c.manualStop()
+        check(coffee.stops==1 && coffee.starts==1 && c.state==ExtractionState.STOP_REQUESTED)
+    }
+    case("cancelled unsent start can settle on fresh idle after stop completion") {
+        var pending:((OperationResult)->Unit)?=null;var now=0L
+        val coffee=object:CoffeeControl {
+            override val ready=true
+            override fun start(parameters:StartParameters,done:(OperationResult)->Unit){pending=done}
+            override fun stop(done:(OperationResult)->Unit){pending!!(OperationResult.Cancelled("superseded"));done(OperationResult.Success())}
+        }
+        val c=ExtractionController(coffee,ScaleFake(),{now});c.weight(WeightReading(0,0));check(c.start(profile,3400,0));c.manualStop()
+        now=100;c.machineFrame(io.openhoyi.protocol.IdleTelemetry(9200,12000,10,10,0,0,0,0,io.openhoyi.protocol.ByteFrame(byteArrayOf())),now)
+        check(c.state==ExtractionState.ENDED_OBSERVED);check(c.start(profile,3400,0))
+    }
+    case("active evidence prevents cancelled start from settling early") {
+        var pending:((OperationResult)->Unit)?=null;var now=0L
+        val coffee=object:CoffeeControl {
+            override val ready=true
+            override fun start(parameters:StartParameters,done:(OperationResult)->Unit){pending=done}
+            override fun stop(done:(OperationResult)->Unit){pending!!(OperationResult.Cancelled("superseded"));done(OperationResult.Success())}
+        }
+        val c=ExtractionController(coffee,ScaleFake(),{now});c.weight(WeightReading(0,0));check(c.start(profile,3400,0));c.manualStop()
+        now=50;c.machineFrame(io.openhoyi.protocol.ExtractionTelemetry(8,1,20,1,9200,20,64,0,io.openhoyi.protocol.ByteFrame(byteArrayOf())),now)
+        now=100;c.machineFrame(io.openhoyi.protocol.IdleTelemetry(9200,12000,10,10,0,0,0,0,io.openhoyi.protocol.ByteFrame(byteArrayOf())),now)
+        check(c.state==ExtractionState.STOP_REQUESTED);check(!c.start(profile,3400,0))
+    }
     return count
 }
