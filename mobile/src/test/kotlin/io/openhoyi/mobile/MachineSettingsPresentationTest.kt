@@ -32,7 +32,7 @@ class MachineSettingsPresentationTest {
 
     @Test fun weeklyScheduleRequiresBothPartsAndKeepsUnknownEnabledMaskRaw() {
         val day = SleepDay(22, 30, 7, 15)
-        val first = SleepPart(0, 254, List(4) { day }, raw)
+        val first = SleepPart(0, 0xA0, List(4) { day }, raw)
         val second = SleepPart(4, null, List(3) { day }, raw)
         assertTrue(MachineSettingsPresentation.schedule(first, null).contains("后 3 天尚未收到"))
         val text = MachineSettingsPresentation.schedule(first, second)
@@ -40,6 +40,9 @@ class MachineSettingsPresentationTest {
         assertTrue(text.contains("周六"))
         assertTrue(text.contains("22:30"))
         assertTrue(text.contains("07:15"))
-        assertTrue(text.contains("0xFE"))
+        assertTrue(text.contains("0xA0"))
+        assertTrue(text.contains("周日  开启"))
+        assertTrue(text.contains("周一  关闭"))
+        assertTrue(text.contains("周二  开启"))
     }
 }

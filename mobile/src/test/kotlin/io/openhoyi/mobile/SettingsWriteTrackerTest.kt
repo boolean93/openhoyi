@@ -65,4 +65,14 @@ class SettingsWriteTrackerTest {
         assertTrue(tracker.observe(8, initial.copy(standbyMinutes = 30)))
         assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
+
+    @Test fun sleepScheduleToggleNeedsNewMatchingFlags() {
+        val tracker = SettingsWriteTracker()
+        val token = requireNotNull(tracker.begin(MachineSettingChange.SleepScheduleEnabled(false)))
+        assertTrue(tracker.written(token, OperationResult.Success(), 20))
+        assertFalse(tracker.observe(20, initial.copy(flags = initial.flags and 0x01.inv())))
+        assertFalse(tracker.observe(21, initial))
+        assertTrue(tracker.observe(22, initial.copy(flags = initial.flags and 0x01.inv())))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
+    }
 }

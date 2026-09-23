@@ -19,6 +19,7 @@ object MachineSettingsPresentation {
         }
     }
     fun change(value: MachineSettingChange): String = when (value) {
+        is MachineSettingChange.SleepScheduleEnabled -> "每周睡眠计划${if (value.enabled) "开启" else "关闭"}"
         is MachineSettingChange.StandbyDelay -> "自动待机：" + when (value.minutes) {
             0 -> "永不"
             60 -> "1 小时"
@@ -74,10 +75,11 @@ object MachineSettingsPresentation {
             }
         }
         return buildString {
-            appendLine("启用位原值  ${first?.enabledBits?.let { "0x%02X".format(it) } ?: "尚未收到"}（逐日含义待验证）")
+            appendLine("每日启用位  ${first?.enabledBits?.let { "0x%02X".format(it) } ?: "尚未收到"}（周日到周六对应 bit7–bit1）")
             for (index in 0..6) {
                 val day = days[index]
-                appendLine("${names[index]}  ${day?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" } ?: "尚未收到"}")
+                val enabled = first?.enabledBits?.let { if (it and (0x80 shr index) != 0) "开启" else "关闭" } ?: "未知"
+                appendLine("${names[index]}  $enabled · ${day?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" } ?: "尚未收到"}")
             }
             if (first == null) append("前 4 天尚未收到")
             else if (second == null) append("后 3 天尚未收到")

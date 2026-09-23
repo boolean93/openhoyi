@@ -5,4 +5,7 @@
     <string name="setting_light">照明</string>
     <string name="setting_on">开启</string>
     <string name="setting_off">关闭</string>
+    <string name="setting_sleep_schedule_on">睡眠计划总开关 · 已开启，点击关闭</string>
+    <string name="setting_sleep_schedule_off">睡眠计划总开关 · 已关闭，点击开启</string>
+    <string name="setting_sleep_schedule_unknown">睡眠计划总开关 · 未知</string>
 </resources>

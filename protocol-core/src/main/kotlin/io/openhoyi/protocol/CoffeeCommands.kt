@@ -13,6 +13,9 @@ data class StartParameters(
 /** Only settings whose 0x83 readback fields and legacy write bytes are both known. */
 sealed interface MachineSettingChange {
     fun matches(settings: Settings): Boolean
+    data class SleepScheduleEnabled(val enabled: Boolean) : MachineSettingChange {
+        override fun matches(settings: Settings) = (settings.flags and 0x01 != 0) == enabled
+    }
     /** Legacy write uses 0..4 while 0x83 reports 0/15/30/60/120 minutes. Keep the observed temperature unchanged. */
     data class StandbyDelay(val minutes: Int, val temperatureC: Int) : MachineSettingChange {
         init {
@@ -72,6 +75,7 @@ object CoffeeCommands {
     fun brewTemperature(celsius:Int):EncodedCommand = command(4,2,0,range(celsius,255,"temperatureC"),0)
     fun brewHeating(enabled:Boolean):EncodedCommand=command(12,2,0,if(enabled)1 else 0,0)
     fun setting(change: MachineSettingChange): EncodedCommand = when (change) {
+        is MachineSettingChange.SleepScheduleEnabled -> command(21,2,0,if(change.enabled)1 else 0,0)
         is MachineSettingChange.StandbyDelay -> command(20,2,change.wireCode,change.temperatureC,0)
         is MachineSettingChange.LeverMode -> command(3,2,if(change.pressure)1 else 0,if(change.flow)1 else 0,0)
         is MachineSettingChange.BrewTemperature -> brewTemperature(change.celsius)

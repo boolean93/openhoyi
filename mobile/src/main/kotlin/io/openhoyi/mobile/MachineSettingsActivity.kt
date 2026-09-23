@@ -41,6 +41,7 @@ class MachineSettingsActivity : Activity() {
     private lateinit var brewHeatingButton: Button
     private lateinit var steamHeatingButton: Button
     private lateinit var lightButton: Button
+    private lateinit var sleepScheduleButton: Button
     private val controlButtons = mutableListOf<Button>()
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -110,6 +111,12 @@ class MachineSettingsActivity : Activity() {
         controlButtons += action(controls, "设置自动待机时间") { chooseStandbyDelay() }
         val sleepCard = card(body, "每周睡眠计划")
         schedule = text(sleepCard, "尚未收到睡眠计划", 16)
+        sleepScheduleButton = action(sleepCard, "切换睡眠计划总开关") {
+            service?.snapshot?.settings?.let {
+                confirm(MachineSettingChange.SleepScheduleEnabled(it.flags and 0x01 == 0))
+            }
+        }
+        controlButtons += sleepScheduleButton
         Button(this).apply {
             text = "返回首页"
             setOnClickListener { finish() }
@@ -156,6 +163,9 @@ class MachineSettingsActivity : Activity() {
         val editable = ready && snapshot.settings != null && owner?.shotState?.let(ShotGate::active) != true &&
             pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         controlButtons.forEach { it.isEnabled = editable }
+        sleepScheduleButton.isEnabled = editable &&
+            (snapshot.settings?.flags?.and(0x01) == 1 ||
+                SleepScheduleSafety.canEnable(snapshot.sleepFirst, snapshot.sleepSecond))
         brewHeatingButton.text = getString(R.string.setting_toggle_status,
             getString(R.string.setting_brew_heating),
             getString(if (snapshot.settings?.brewHeating == true) R.string.setting_on else R.string.setting_off))
@@ -165,6 +175,11 @@ class MachineSettingsActivity : Activity() {
         lightButton.text = getString(R.string.setting_toggle_status,
             getString(R.string.setting_light),
             getString(if (snapshot.settings?.flags?.and(0x08) == 0x08) R.string.setting_on else R.string.setting_off))
+        sleepScheduleButton.setText(when (snapshot.settings?.flags?.and(0x01)) {
+            1 -> R.string.setting_sleep_schedule_on
+            0 -> R.string.setting_sleep_schedule_off
+            else -> R.string.setting_sleep_schedule_unknown
+        })
     }
     private fun confirm(change: MachineSettingChange) {
         AlertDialog.Builder(this).setTitle("确认修改机器设置")
