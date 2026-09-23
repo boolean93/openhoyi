@@ -12,7 +12,7 @@
 
 六模块：protocol-core → device-session → bluetooth-android，另有trace-core供app（Lab）/mobile（Alpha）共用。纯Kotlin模块无Android依赖；两款App均为原生View、Activity、本地Binder和connectedDevice前台Service，没有UniApp/JS/WebView。独立包 `io.openhoyi.lab` 和 `io.openhoyi.mobile`，均不覆盖旧App。
 
-`mobile` 第一段原生日常版已有首页连接、实时状态、传输日志导出、三条采集曲线与100条工厂曲线、五个快捷槽位、常用机器设置写入与回读状态、萃取实时图、历史列表及曲线详情；见 `docs/mobile-alpha.md`。工厂曲线在有秤/无秤两种模式共200条临时启动帧及1000条快捷槽位帧与旧版编码函数逐字节对照，并在发送前再次核对曲线、帧和秤模式；报文不符即拒绝。萃取开始需显式确认，服务层要求咖啡机新鲜待机数据，重量模式要求新鲜秤数据；运行中拦截主动断链和停服务。用户要求暂不安装，因此尚无Alpha实机启动或控制证据。不能把代码验收当成硬件等效或完整替代App。
+`mobile` 第一段原生日常版已有首页连接、实时状态、传输日志导出、三条采集曲线与100条工厂曲线（分类及名称查找）、五个快捷槽位、常用机器设置写入与回读状态、萃取实时图、历史列表及曲线详情；见 `docs/mobile-alpha.md`。工厂曲线在有秤/无秤两种模式共200条临时启动帧及1000条快捷槽位帧与旧版编码函数逐字节对照，并在发送前再次核对曲线、帧和秤模式；报文不符即拒绝。萃取开始需显式确认，服务层要求咖啡机新鲜待机数据，重量模式要求新鲜秤数据；运行中拦截主动断链和停服务。用户要求暂不安装，因此尚无Alpha实机启动或控制证据。不能把代码验收当成硬件等效或完整替代App。
 
 工厂曲线的逐字节许可集合必须从 `MobileApplication.curves` 注入 `NativeDeviceHub`，最终到 `DeviceSession.startExtraction`。若仅在页面和服务层放行，会话层仍拒绝工厂帧。默认无注入时会话仍只接受三条采集帧；不要移除此写入门禁。
 

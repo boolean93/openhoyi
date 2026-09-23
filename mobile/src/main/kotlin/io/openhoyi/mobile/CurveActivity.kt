@@ -6,9 +6,12 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.WindowInsets
 import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.ScrollView
@@ -22,6 +25,8 @@ class CurveActivity : Activity() {
     private lateinit var select: Button
     private lateinit var assignPreset: Button
     private lateinit var adapter: ArrayAdapter<String>
+    private lateinit var search: EditText
+    private var category = "全部"
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
     private val library get() = (application as MobileApplication).curves
@@ -46,6 +51,11 @@ class CurveActivity : Activity() {
         setContentView(root)
         label(root, "曲线库", 28, true)
         label(root, "3 条采集曲线 · 100 条旧版工厂曲线 · 5 个快捷槽位", 14)
+        search = EditText(this).apply {
+            hint = "搜索曲线名称"
+            setSingleLine(true)
+        }
+        root.addView(search)
         val categories = listOf("全部", "已采集验证", "深烘", "中烘", "浅烘", "超萃")
         val filter = Spinner(this)
         filter.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
@@ -88,12 +98,17 @@ class CurveActivity : Activity() {
         root.addView(assignPreset)
         filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                visibleItems = library.items.filter { position == 0 || it.category == categories[position] }
-                adapter.clear()
-                adapter.addAll(visibleItems.map { "${it.name}  ·  ${it.category}${if (!library.canStart(it)) " · 仅浏览" else ""}" })
+                category = categories[position]
+                refreshList()
             }
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
         }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = refreshList()
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        refreshList()
         val initialId = savedInstanceState?.getString("selected")
             ?: getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
         initialId?.let(library::find)?.let(::show)
@@ -102,9 +117,22 @@ class CurveActivity : Activity() {
     private fun show(item: CurveLibraryItem) {
         selected = item
         details.text = "${item.name}\n${item.category}\n\n${item.details}"
-        select.isEnabled = true
+        select.isEnabled = library.canStart(item)
         select.text = if (!library.canStart(item)) "设为当前曲线（不可萃取）" else "设为当前曲线"
         assignPreset.isEnabled = item.factoryCurve != null && library.canStart(item)
+    }
+
+    private fun refreshList() {
+        if (!::adapter.isInitialized || !::search.isInitialized) return
+        visibleItems = CurveSearch.filter(library.items, category, search.text.toString())
+        adapter.clear()
+        adapter.addAll(visibleItems.map { "${it.name}  ·  ${it.category}${if (!library.canStart(it)) " · 仅浏览" else ""}" })
+        if (selected != null && selected !in visibleItems) {
+            selected = null
+            details.text = "点选曲线查看详情"
+            select.isEnabled = false
+            assignPreset.isEnabled = false
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
