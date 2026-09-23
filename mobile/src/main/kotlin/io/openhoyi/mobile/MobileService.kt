@@ -78,6 +78,7 @@ class MobileService : Service() {
     private var hub: NativeDeviceHub? = null
     private val visibleScreens = VisibleScreens()
     private var hubForeground = false
+    private var safetyMessage: String? = null
     private var automaticScaleOnly = false
     private val stopAutomaticScale = object : Runnable {
         override fun run() {
@@ -132,6 +133,7 @@ class MobileService : Service() {
                 }
                 if (current == ExtractionState.OUTCOME_UNKNOWN) saveSeriesCheckpoint(force = true)
                 event("萃取状态：${current.name}", "shot.state")
+                refreshSafetyNotification()
             }
             handler.postDelayed(this, 100)
         }
@@ -152,16 +154,12 @@ class MobileService : Service() {
             return START_NOT_STICKY
         }
         automaticScaleOnly = intent?.action == AUTO_SCALE
+        safetyMessage = null
         try {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "设备连接", NotificationManager.IMPORTANCE_LOW))
-            val open = PendingIntent.getActivity(this, 0, Intent(this, HomeActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            val stop = PendingIntent.getService(this, 1, Intent(this, MobileService::class.java).setAction(STOP), PendingIntent.FLAG_IMMUTABLE)
-            val note = Notification.Builder(this, CHANNEL)
-                .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-                .setContentTitle("OpenHOYI Alpha").setContentText("设备连接运行中")
-                .setContentIntent(open).setOngoing(true)
-                .addAction(Notification.Action.Builder(null, "断开设备", stop).build()).build()
+            manager.createNotificationChannel(NotificationChannel(SAFETY_CHANNEL, "萃取安全提醒", NotificationManager.IMPORTANCE_HIGH))
+            val note = connectionNotification(null)
             if (Build.VERSION.SDK_INT >= 29) startForeground(1, note, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
             else startForeground(1, note)
             val prefs = getSharedPreferences("devices", MODE_PRIVATE)
@@ -188,6 +186,7 @@ class MobileService : Service() {
                     }
                     else snapshot.copy(scaleState = state)
                     event("${role.name}: ${state.name}")
+                    if (role == DeviceRole.COFFEE) refreshSafetyNotification()
                 },
                 onCoffee = { frame ->
                     snapshot = when (frame) {
@@ -677,6 +676,40 @@ class MobileService : Service() {
         logs.record(kind, mapOf("message" to message, "ownerId" to ownerId))
         Log.i(TAG, message)
     }
+    private fun connectionNotification(warning: String?): Notification {
+        val open = PendingIntent.getActivity(this, 0, Intent(this, HomeActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val stop = PendingIntent.getService(this, 1, Intent(this, MobileService::class.java).setAction(STOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        return Notification.Builder(this, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
+            .setContentTitle(if (warning == null) "OpenHOYI Alpha" else "萃取状态需人工确认")
+            .setContentText(warning ?: "设备连接运行中")
+            .setStyle(warning?.let { Notification.BigTextStyle().bigText(it) })
+            .setContentIntent(open).setOngoing(true)
+            .addAction(Notification.Action.Builder(null, "断开设备", stop).build()).build()
+    }
+    private fun refreshSafetyNotification() {
+        val warning = ShotSafetyAlert.message(shotState, snapshot.coffeeState)
+        if (warning == safetyMessage) return
+        safetyMessage = warning
+        if (!running) return
+        val manager = getSystemService(NotificationManager::class.java)
+        runCatching { manager.notify(1, connectionNotification(warning)) }
+            .onFailure { event("前台安全提醒更新失败", "shot.safety_notify_error") }
+        if (warning == null) manager.cancel(SAFETY_NOTIFICATION)
+        else runCatching {
+            val open = PendingIntent.getActivity(this, 2, Intent(this, ExtractionActivity::class.java),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            manager.notify(SAFETY_NOTIFICATION, Notification.Builder(this, SAFETY_CHANNEL)
+                .setSmallIcon(android.R.drawable.stat_sys_warning)
+                .setContentTitle("请立即检查咖啡机")
+                .setContentText(warning)
+                .setStyle(Notification.BigTextStyle().bigText(warning))
+                .setContentIntent(open).setCategory(Notification.CATEGORY_ALARM)
+                .setOngoing(true).build())
+        }.onFailure { event("安全提醒通知不可用", "shot.safety_notify_error") }
+    }
     fun shutdown() {
         if (cupResetBusy) {
             event("累计杯数重置尚未确认，设备服务保持运行", "service.stop_deferred")
@@ -697,6 +730,8 @@ class MobileService : Service() {
             return
         }
         hub?.close(); hub = null; running = false
+        safetyMessage = null
+        getSystemService(NotificationManager::class.java).cancel(SAFETY_NOTIFICATION)
         handler.removeCallbacks(leaveForeground)
         handler.removeCallbacks(stopAutomaticScale)
         hubForeground = false
@@ -706,6 +741,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        getSystemService(NotificationManager::class.java).cancel(SAFETY_NOTIFICATION)
         handler.removeCallbacks(watchShot)
         handler.removeCallbacks(leaveForeground)
         handler.removeCallbacks(stopAutomaticScale)
@@ -717,5 +753,7 @@ class MobileService : Service() {
         const val AUTO_SCALE = "io.openhoyi.mobile.AUTO_SCALE"
         const val TAG = "OpenHoyiMobile"
         private const val CHANNEL = "connections"
+        private const val SAFETY_CHANNEL = "shot_safety"
+        private const val SAFETY_NOTIFICATION = 2
     }
 }

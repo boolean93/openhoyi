@@ -22,6 +22,7 @@ import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
+import io.openhoyi.session.ExtractionState
 import java.util.Locale
 
 /** First native product screen: BLE connection, live values, and a selected captured curve. */
@@ -33,6 +34,7 @@ class HomeActivity : Activity() {
     private val visibilityToken = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var status: TextView
+    private lateinit var safetyWarning: TextView
     private lateinit var coffee: TextView
     private lateinit var leverStatus: TextView
     private lateinit var leverButton: Button
@@ -79,6 +81,10 @@ class HomeActivity : Activity() {
         scroll.addView(content); setContentView(scroll)
         text(content, "OpenHOYI Alpha", 28, true)
         text(content, "原生连接与实时状态", 14)
+        safetyWarning = text(content, "", 18, true).apply {
+            setTextColor(Color.rgb(150, 30, 30))
+            visibility = View.GONE
+        }
         val connectionCard = card(content, "设备")
         status = text(connectionCard, "尚未连接", 16)
         scanButton = button(connectionCard, "扫描并连接设备") { enableAndScan() }
@@ -229,6 +235,9 @@ class HomeActivity : Activity() {
         val s = owner?.snapshot ?: MobileSnapshot()
         val now = SystemClock.elapsedRealtime()
         val running = owner?.running == true
+        val warning = ShotSafetyAlert.message(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)
+        safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
+        safetyWarning.show(warning.orEmpty())
         status.show(if (running) s.message else "点击扫描启动设备服务")
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
