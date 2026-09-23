@@ -9,6 +9,7 @@ import io.openhoyi.bluetooth.DiscoveredDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.BookooSample
 import io.openhoyi.protocol.HoyiMessage
+import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.protocol.Settings
 import io.openhoyi.protocol.SleepPart
@@ -43,6 +44,9 @@ class MobileService : Service() {
     private val series = ShotSeries()
     private val standaloneTare = StandaloneTare()
     private val settingsWrite = SettingsWriteTracker()
+    private val sleepNow = SleepNowTracker()
+    private var sleepSampleSerial = 0L
+    val sleepNowState: SleepNowTracker.State get() = sleepNow.state
     private var settingsSampleSerial = 0L
     val settingWriteState: SettingsWriteTracker.State get() = settingsWrite.state
     val pendingSetting: MachineSettingChange? get() = settingsWrite.change
@@ -116,7 +120,10 @@ class MobileService : Service() {
                 onScaleRemembered = { prefs.edit().putString("scale", it).apply() },
                 onState = { role, state ->
                     snapshot = if (role == DeviceRole.COFFEE) {
-                        if (state != DeviceState.READY) settingsWrite.disconnected()
+                        if (state != DeviceState.READY) {
+                            settingsWrite.disconnected()
+                            sleepNow.disconnected()
+                        }
                         if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
                             snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
                                 settings = null, sleepFirst = null, sleepSecond = null)
@@ -137,7 +144,12 @@ class MobileService : Service() {
                         }
                         is SleepPart -> if (frame.firstDaySundayIndex == 0) snapshot.copy(sleepFirst = frame)
                             else snapshot.copy(sleepSecond = frame)
-                        is io.openhoyi.protocol.IdleTelemetry, is io.openhoyi.protocol.ExtractionTelemetry ->
+                        is IdleTelemetry -> {
+                            if (sleepNow.observe(++sleepSampleSerial, frame.sleepStateRaw))
+                                event("机器已回报进入睡眠", "sleep.confirmed")
+                            snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
+                        }
+                        is io.openhoyi.protocol.ExtractionTelemetry ->
                             snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
                         else -> snapshot
                     }
@@ -255,7 +267,10 @@ class MobileService : Service() {
     fun changeMachineSetting(change: MachineSettingChange): String? {
         val current = hub ?: return "设备服务尚未启动"
         if (ShotGate.active(shotState)) return "萃取期间不能修改机器设置"
+        if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
+            return "正在等待机器进入睡眠"
         if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
+        if ((snapshot.coffee as? IdleTelemetry)?.sleepStateRaw == 1) return "机器处于睡眠状态，请先用拨杆唤醒"
         val observed = snapshot.settings ?: return "尚未收到机器设置"
         if (change is MachineSettingChange.SleepScheduleEnabled && change.enabled &&
             !SleepScheduleSafety.canEnable(snapshot.sleepFirst, snapshot.sleepSecond))
@@ -281,8 +296,40 @@ class MobileService : Service() {
         }
         return null
     }
+    fun enterSleepNow(): String? {
+        val current = hub ?: return "设备服务尚未启动"
+        if (ShotGate.active(shotState)) return "萃取期间不能让机器睡眠"
+        if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
+            return "正在等待机器设置回读"
+        if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
+        val now = SystemClock.elapsedRealtime()
+        val idle = snapshot.coffee as? IdleTelemetry ?: return "等待咖啡机待机数据"
+        val observedAt = snapshot.coffeeAt ?: return "等待咖啡机待机数据"
+        if (observedAt > now || now - observedAt > 1500) return "咖啡机待机数据已过期"
+        if (idle.sleepStateRaw == 1) return "机器已经入睡；请用拨杆唤醒"
+        if (idle.sleepStateRaw != 0) return "机器睡眠状态未知，暂不发送"
+        val token = sleepNow.begin() ?: return "正在等待本次入睡结果"
+        event("立即睡眠命令已排队", "sleep.requested")
+        current.enterSleep done@{ result ->
+            if (!sleepNow.written(token, result, sleepSampleSerial)) return@done
+            when (sleepNow.state) {
+                SleepNowTracker.State.WAITING_ASLEEP -> {
+                    event("命令已写入，等待机器回报睡眠", "sleep.written")
+                    handler.postDelayed({
+                        if (sleepNow.timeout(token)) event("机器未回报睡眠，结果未知", "sleep.unknown")
+                    }, 12_000)
+                }
+                SleepNowTracker.State.FAILED -> event("立即睡眠命令未写入", "sleep.failed")
+                SleepNowTracker.State.UNKNOWN -> event("立即睡眠结果未知，请查看机器", "sleep.unknown")
+                else -> Unit
+            }
+        }
+        return null
+    }
     fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
         val current = hub ?: return "设备服务尚未启动"
+        if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
+            return "正在等待机器进入睡眠，不能启动萃取"
         val selectedId = if (slot == 7)
             getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
         else if (slot in 1..5)

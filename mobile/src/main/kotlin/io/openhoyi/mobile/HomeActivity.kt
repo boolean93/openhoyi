@@ -36,6 +36,8 @@ class HomeActivity : Activity() {
     private lateinit var coffee: TextView
     private lateinit var leverStatus: TextView
     private lateinit var leverButton: Button
+    private lateinit var sleepStatus: TextView
+    private lateinit var sleepButton: Button
     private lateinit var scale: TextView
     private lateinit var tareStatus: TextView
     private lateinit var selection: TextView
@@ -85,6 +87,8 @@ class HomeActivity : Activity() {
         coffee = text(coffeeCard, "未连接", 20)
         leverStatus = text(coffeeCard, "拨杆模式：尚未收到设置", 14)
         leverButton = button(coffeeCard, "切换拨杆模式") { chooseLeverMode() }
+        sleepStatus = text(coffeeCard, "睡眠状态：未知", 14)
+        sleepButton = button(coffeeCard, "立即睡眠") { confirmSleepNow() }
         button(coffeeCard, "查看机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(coffeeCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
         val scaleCard = card(content, "电子秤")
@@ -193,6 +197,12 @@ class HomeActivity : Activity() {
                     .setNegativeButton("取消", null).show()
             }.show()
     }
+    private fun confirmSleepNow() {
+        AlertDialog.Builder(this).setTitle("让咖啡机立即睡眠")
+            .setMessage("机器入睡后，App 没有唤醒命令。需要用机器拨杆唤醒。")
+            .setPositiveButton("发送入睡命令") { _, _ -> service?.enterSleepNow()?.let(::toast); render() }
+            .setNegativeButton("取消", null).show()
+    }
     private fun render() {
         if (!::status.isInitialized) return
         val owner = service
@@ -231,6 +241,24 @@ class HomeActivity : Activity() {
             StandaloneTare.State.UNKNOWN -> "结果未知，请查看秤"
         })
         val coffeeFresh = s.coffeeAt?.let { now >= it && now - it <= 1500 } == true && s.coffeeState == DeviceState.READY
+        val idle = s.coffee as? IdleTelemetry
+        val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
+        sleepButton.isEnabled = running && !shotActive && !settingBusy && !sleepBusy && coffeeFresh &&
+            idle?.sleepStateRaw == 0
+        val reportedSleep = if (!coffeeFresh) "暂无新鲜状态" else when (idle?.sleepStateRaw) {
+            0 -> "已唤醒"
+            1 -> "已入睡 · 用机器拨杆唤醒"
+            else -> "未知"
+        }
+        val sleepProgress = when (owner?.sleepNowState) {
+            SleepNowTracker.State.WRITING -> " · 正在写入"
+            SleepNowTracker.State.WAITING_ASLEEP -> " · 等待机器回报"
+            SleepNowTracker.State.CONFIRMED -> if (idle?.sleepStateRaw == 1) " · 已确认" else ""
+            SleepNowTracker.State.FAILED -> " · 写入失败"
+            SleepNowTracker.State.UNKNOWN -> " · 上次结果未知"
+            else -> ""
+        }
+        sleepStatus.show("睡眠状态：$reportedSleep$sleepProgress")
         val machine = when (val frame = s.coffee) {
             is IdleTelemetry -> "冲泡 ${number(frame.brewTemperatureHundredthsC)} °C · ${frame.brewPressureTenthsBar / 10.0} bar\n蒸汽 ${number(frame.steamTemperatureHundredthsC)} °C · ${frame.steamPressureTenthsBar / 10.0} bar"
             is ExtractionTelemetry -> "萃取 ${frame.elapsedSeconds} s · ${frame.pressureTenthsBar / 10.0} bar\n冲泡 ${number(frame.brewTemperatureHundredthsC)} °C"

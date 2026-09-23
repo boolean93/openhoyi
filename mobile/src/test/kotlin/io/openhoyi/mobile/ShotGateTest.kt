@@ -39,4 +39,8 @@ class ShotGateTest {
         assertTrue(ShotGate.mayReconnectCoffee(ExtractionState.OUTCOME_UNKNOWN))
         assertNull(block(flow, shot = ExtractionState.ENDED_OBSERVED))
     }
+    @Test fun sleepingOrUnknownMachineStateCannotStart() {
+        assertEquals("咖啡机处于睡眠状态", block(flow, coffeeFrame = idleFrame.copy(sleepStateRaw = 1)))
+        assertEquals("咖啡机睡眠状态未知", block(flow, coffeeFrame = idleFrame.copy(sleepStateRaw = 2)))
+    }
 }

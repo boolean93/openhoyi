@@ -23,6 +23,8 @@ object ShotGate {
         active(shot) -> "上一杯尚未确认结束"
         coffee != DeviceState.READY -> "咖啡机尚未就绪"
         coffeeFrame !is IdleTelemetry || coffeeAt == null || coffeeAt > now || now - coffeeAt > 1500 -> "等待咖啡机新鲜待机数据"
+        coffeeFrame.sleepStateRaw == 1 -> "咖啡机处于睡眠状态"
+        coffeeFrame.sleepStateRaw != 0 -> "咖啡机睡眠状态未知"
         profile.targetHundredthsGram > 0 && scale != DeviceState.READY -> "目标重量萃取需要电子秤"
         profile.targetHundredthsGram > 0 && (weightAt == null || weightAt > now || now - weightAt > 1500) -> "电子秤数据已过期"
         else -> null

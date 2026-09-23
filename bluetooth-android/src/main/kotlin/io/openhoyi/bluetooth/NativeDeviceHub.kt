@@ -61,6 +61,14 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         }
         coffee.session.writeSetting(change,done)
     }
+    fun enterSleep(done:(OperationResult)->Unit){
+        usable()
+        if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
+                ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
+            done(OperationResult.Failed("extraction active"));return
+        }
+        coffee.session.enterSleep(done)
+    }
     fun disconnectCoffee(){usable();coffee.session.disconnect()}
     override fun close(){
         usable();closed=true;handler.removeCallbacks(ticker);reconnect.background();scanner.close();coffee.close();scale.close()
