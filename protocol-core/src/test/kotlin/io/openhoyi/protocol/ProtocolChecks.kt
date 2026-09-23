@@ -56,6 +56,8 @@ fun main() {
     verify(CoffeeCommands.setting(MachineSettingChange.StandbyDelay(120, 92)).frame.hex()=="1402045C00")
     verify(CoffeeCommands.setting(MachineSettingChange.SleepScheduleEnabled(true)).frame.hex()=="1502000100")
     verify(CoffeeCommands.setting(MachineSettingChange.SleepScheduleEnabled(false)).frame.hex()=="1502000000")
+    verify(CoffeeCommands.setting(MachineSettingChange.WaterSupply(piped = false)).frame.hex()=="1002000000")
+    verify(CoffeeCommands.setting(MachineSettingChange.WaterSupply(piped = true)).frame.hex()=="1002000100")
     rejected { MachineSettingChange.StandbyDelay(45, 92) }
     rejected { MachineSettingChange.StandbyDelay(15, 256) }
     rejected { MachineSettingChange.LeverMode(false,true) }
@@ -66,7 +68,7 @@ fun main() {
     val settingLines = settingOracle.bufferedReader().use { it.readLines() }
     verify(settingLines.first() ==
         "# machine-setting-wire-v1\tsource-sha256=b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037")
-    verify(settingLines.size == 89)
+    verify(settingLines.size == 91)
     settingLines.drop(1).forEach { line ->
         val parts = line.split('\t')
         verify(parts.size == 3)
@@ -80,6 +82,7 @@ fun main() {
             "lever" -> MachineSettingChange.LeverMode(value >= 10, value % 10 == 1)
             "standby" -> MachineSettingChange.StandbyDelay(listOf(0, 15, 30, 60, 120)[value / 256], value % 256)
             "sleep_enabled" -> MachineSettingChange.SleepScheduleEnabled(value == 1)
+            "water_supply" -> MachineSettingChange.WaterSupply(value == 1)
             else -> error("Unknown setting oracle kind")
         }
         verify(CoffeeCommands.setting(change).frame.hex() == parts[2])

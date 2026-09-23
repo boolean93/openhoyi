@@ -13,6 +13,10 @@ data class StartParameters(
 /** Only settings whose 0x83 readback fields and legacy write bytes are both known. */
 sealed interface MachineSettingChange {
     fun matches(settings: Settings): Boolean
+    /** Physical inlet choice; this is setWaterInMode (0x10), never the drainage control 0x12. */
+    data class WaterSupply(val piped: Boolean) : MachineSettingChange {
+        override fun matches(settings: Settings) = (settings.flags and 0x02 != 0) == piped
+    }
     data class SleepScheduleEnabled(val enabled: Boolean) : MachineSettingChange {
         override fun matches(settings: Settings) = (settings.flags and 0x01 != 0) == enabled
     }
@@ -75,6 +79,7 @@ object CoffeeCommands {
     fun brewTemperature(celsius:Int):EncodedCommand = command(4,2,0,range(celsius,255,"temperatureC"),0)
     fun brewHeating(enabled:Boolean):EncodedCommand=command(12,2,0,if(enabled)1 else 0,0)
     fun setting(change: MachineSettingChange): EncodedCommand = when (change) {
+        is MachineSettingChange.WaterSupply -> command(16,2,0,if(change.piped)1 else 0,0)
         is MachineSettingChange.SleepScheduleEnabled -> command(21,2,0,if(change.enabled)1 else 0,0)
         is MachineSettingChange.StandbyDelay -> command(20,2,change.wireCode,change.temperatureC,0)
         is MachineSettingChange.LeverMode -> command(3,2,if(change.pressure)1 else 0,if(change.flow)1 else 0,0)

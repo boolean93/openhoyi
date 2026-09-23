@@ -16,6 +16,8 @@ class MachineSettingsPresentationTest {
         assertTrue(text.contains("1.1.3"))
         assertTrue(text.contains("93 °C"))
         assertTrue(text.contains("125 °C"))
+        assertTrue(text.contains("供水方式  水箱"))
+        assertTrue(MachineSettingsPresentation.settings(settings.copy(flags = settings.flags or 0x02)).contains("供水方式  外接水管"))
         assertTrue(text.contains("30 分钟"))
         assertTrue(MachineSettingsPresentation.settings(settings.copy(standbyMinutes = 0)).contains("自动待机  永不"))
         assertTrue(MachineSettingsPresentation.settings(settings.copy(standbyMinutes = 120)).contains("自动待机  2 小时"))

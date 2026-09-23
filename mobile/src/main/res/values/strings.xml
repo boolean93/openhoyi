@@ -8,4 +8,7 @@
     <string name="setting_sleep_schedule_on">睡眠计划总开关 · 已开启，点击关闭</string>
     <string name="setting_sleep_schedule_off">睡眠计划总开关 · 已关闭，点击开启</string>
     <string name="setting_sleep_schedule_unknown">睡眠计划总开关 · 未知</string>
+    <string name="setting_water_supply_status">供水方式：%1$s · 点击切换</string>
+    <string name="setting_water_tank">水箱</string>
+    <string name="setting_water_piped">外接水管</string>
 </resources>

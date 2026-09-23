@@ -41,6 +41,7 @@ class MachineSettingsActivity : Activity() {
     private lateinit var brewHeatingButton: Button
     private lateinit var steamHeatingButton: Button
     private lateinit var lightButton: Button
+    private lateinit var waterSupplyButton: Button
     private lateinit var sleepScheduleButton: Button
     private val controlButtons = mutableListOf<Button>()
     private val connection = object : ServiceConnection {
@@ -107,7 +108,10 @@ class MachineSettingsActivity : Activity() {
         lightButton = action(controls, "切换照明") {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.Light(it.flags and 0x08 == 0)) }
         }
-        controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton)
+        waterSupplyButton = action(controls, "切换供水方式") {
+            service?.snapshot?.settings?.let { confirm(MachineSettingChange.WaterSupply(it.flags and 0x02 == 0)) }
+        }
+        controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton)
         controlButtons += action(controls, "设置自动待机时间") { chooseStandbyDelay() }
         val sleepCard = card(body, "每周睡眠计划")
         schedule = text(sleepCard, "尚未收到睡眠计划", 16)
@@ -175,6 +179,9 @@ class MachineSettingsActivity : Activity() {
         lightButton.text = getString(R.string.setting_toggle_status,
             getString(R.string.setting_light),
             getString(if (snapshot.settings?.flags?.and(0x08) == 0x08) R.string.setting_on else R.string.setting_off))
+        waterSupplyButton.text = getString(R.string.setting_water_supply_status,
+            getString(if (snapshot.settings?.flags?.and(0x02) == 0x02)
+                R.string.setting_water_piped else R.string.setting_water_tank))
         sleepScheduleButton.setText(when (snapshot.settings?.flags?.and(0x01)) {
             1 -> R.string.setting_sleep_schedule_on
             0 -> R.string.setting_sleep_schedule_off
@@ -183,7 +190,10 @@ class MachineSettingsActivity : Activity() {
     }
     private fun confirm(change: MachineSettingChange) {
         AlertDialog.Builder(this).setTitle("确认修改机器设置")
-            .setMessage(MachineSettingsPresentation.change(change) + "\n写入后需等待机器回读确认。")
+            .setMessage(MachineSettingsPresentation.change(change) +
+                if (change is MachineSettingChange.WaterSupply)
+                    "\n请先核对机器实际进水方式；设置错误可能导致缺水。写入后等待机器回读确认。"
+                else "\n写入后需等待机器回读确认。")
             .setPositiveButton("发送") { _, _ ->
                 service?.changeMachineSetting(change)?.let {
                     Toast.makeText(this, it, Toast.LENGTH_SHORT).show()

@@ -75,4 +75,14 @@ class SettingsWriteTrackerTest {
         assertTrue(tracker.observe(22, initial.copy(flags = initial.flags and 0x01.inv())))
         assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
+
+    @Test fun waterSupplyNeedsNewMatchingReadbackBit() {
+        val tracker = SettingsWriteTracker()
+        val token = requireNotNull(tracker.begin(MachineSettingChange.WaterSupply(piped = true)))
+        assertTrue(tracker.written(token, OperationResult.Success(), 30))
+        assertFalse(tracker.observe(30, initial.copy(flags = initial.flags or 0x02)))
+        assertFalse(tracker.observe(31, initial.copy(flags = initial.flags and 0x02.inv())))
+        assertTrue(tracker.observe(32, initial.copy(flags = initial.flags or 0x02)))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
+    }
 }

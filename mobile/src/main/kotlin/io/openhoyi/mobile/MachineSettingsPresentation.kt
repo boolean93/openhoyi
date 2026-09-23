@@ -19,6 +19,7 @@ object MachineSettingsPresentation {
         }
     }
     fun change(value: MachineSettingChange): String = when (value) {
+        is MachineSettingChange.WaterSupply -> "供水方式：${if (value.piped) "外接水管" else "水箱"}"
         is MachineSettingChange.SleepScheduleEnabled -> "每周睡眠计划${if (value.enabled) "开启" else "关闭"}"
         is MachineSettingChange.StandbyDelay -> "自动待机：" + when (value.minutes) {
             0 -> "永不"
@@ -48,6 +49,7 @@ object MachineSettingsPresentation {
             appendLine("萃取加热  ${enabled(0x20)}")
             appendLine("蒸汽加热  ${enabled(0x10)}")
             appendLine("照明  ${enabled(0x08)}")
+            appendLine("供水方式  ${if (value.flags and 0x02 != 0) "外接水管" else "水箱"}")
             appendLine(leverMode(value))
             appendLine("睡眠计划总开关  ${enabled(0x01)}")
             appendLine("自动待机  " + when (value.standbyMinutes) {
@@ -60,7 +62,7 @@ object MachineSettingsPresentation {
             appendLine("待机温度  ${value.standbyTemperatureC} °C")
             appendLine("累计杯数  ${value.cupCount}")
             value.filterInstalled?.let { appendLine("滤芯状态  ${if (it) "已安装" else "未安装"}") }
-            append("运行模式位  ${if (value.flags and 0x04 != 0) 1 else 0} · 供水模式位  ${if (value.flags and 0x02 != 0) 1 else 0}")
+            append("运行模式位  ${if (value.flags and 0x04 != 0) 1 else 0}")
         }
     }
 
