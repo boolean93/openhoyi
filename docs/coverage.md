@@ -26,6 +26,7 @@
 | 原生日常版基础流程 | mobile/HomeActivity、MobileService、CurveActivity、ExtractionActivity、CurveCatalog、ShotGate | 独立APK、曲线和启动门禁单测、此前构建和Lint通过；复用已验证会话控制 | UI/连接/真实萃取未实机验收；未知进程终止无法保证停液 |
 | 旧版工厂曲线萃取入口 | FactoryCurveCatalog、FactoryCurveAdapter、FactoryWireProof、CurveLibrary、factory_wire_v1.tsv | 100条元数据与旧版归一化一致；分类与名称搜索，未通过报文校验的曲线只可浏览；有秤/无秤200帧和旧版编码函数逐字节对照；发送前复核曲线、帧和秤模式 | Alpha尚未实机萃取；用户自定义曲线未导入，曲线编辑后置 |
 | 首页五个快捷槽位 | PresetSlots、factory_slot_wire_v1.tsv、DeviceSession、ExtractionActivity | 100条×5槽位×2秤模式共1000帧与旧版 `startChart` 对照；本地映射、确认页、停止槽位和历史记录接入 | 尚未实机验证槽位启停与机器显示；用户自定义曲线未导入 |
+| 已记住电子秤自动连接 | ReconnectPolicy、NativeDeviceHub、HomeActivity、MobileService | 前台10分钟窗口，咖啡机未连接时也尝试；失败退避、手动断开取消；冷启动自动拉起服务，空闲超时或退出前台后停止自动服务 | 尚未在Alpha实机确认冷启动权限、连接时延及后台行为 |
 | 独立电子秤去皮 | StandaloneTare、MobileService、NativeDeviceHub、BOOKOO去皮帧 | 写入结果与归零读数分离；要求写入后新鲜近零读数；超时/断线保留未知，阻止同时重复发送 | 尚未用实机确认去皮响应和归零时延 |
 | 常用机器设置与拨杆模式 | MachineSettingChange、SettingsWriteTracker、MachineSettingsActivity、HomeActivity | 萃取/蒸汽温度、冲泡温差补偿、两路加热、照明、自动待机时间、待机温度、睡眠计划总开关、供水来源、咖啡馆/工作室模式、手动/自动压力/自动流量共593条允许参数报文与旧版编码函数对照；要求新鲜唤醒待机遥测，写入后以新鲜匹配0x83回读确认 | 尚未实机验证设置回读时序；其它低频设置写入未开放 |
 | 累计杯数重置 | CoffeeCommands、CupResetTracker、MachineSettingsActivity | 固定5字节命令与旧版编码函数对照；输入当前杯数并二次确认；新鲜且一致的设置/待机杯数，写入后只有新报文归零才确认 | 无真实重置采集样本，未在Alpha实机执行 |

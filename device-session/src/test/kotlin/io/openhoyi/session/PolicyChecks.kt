@@ -28,12 +28,15 @@ fun policyChecks():Int {
         check(p.checkHealth(4,60000)==null)
         check(p.sample(4,WeightReading(5000,61000),61000)==null)
     }
-    case("foreground reconnect is bounded and manual disconnect cancels") {
-        val r=ReconnectPolicy();r.foreground(100,hasRememberedScale=true)
-        check(r.shouldAttempt(100,coffeeReady=true,scaleReady=false));r.attemptFinished(100)
-        check(!r.shouldAttempt(101,true,false));check(r.shouldAttempt(5100,true,false))
-        r.manualDisconnect();check(!r.shouldAttempt(9000,true,false))
-        r.foreground(10000,true);check(r.shouldAttempt(10000,true,false));check(!r.shouldAttempt(610000,true,false))
+    case("remembered scale reconnect works without coffee and remains bounded") {
+        val r=ReconnectPolicy();r.foreground(100,hasRememberedScale=false)
+        check(!r.shouldAttempt(100,scaleReady=false))
+        r.foreground(100,hasRememberedScale=true)
+        check(r.shouldAttempt(100,scaleReady=false));r.attemptFinished(100)
+        check(!r.shouldAttempt(101,scaleReady=false));check(r.shouldAttempt(5100,scaleReady=false))
+        r.manualDisconnect();check(!r.shouldAttempt(9000,scaleReady=false))
+        r.foreground(10000,true);check(r.shouldAttempt(10000,scaleReady=false))
+        check(!r.shouldAttempt(610000,scaleReady=false))
     }
     return n
 }

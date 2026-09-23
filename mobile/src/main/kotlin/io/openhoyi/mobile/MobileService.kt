@@ -78,12 +78,36 @@ class MobileService : Service() {
     private var hub: NativeDeviceHub? = null
     private val visibleScreens = VisibleScreens()
     private var hubForeground = false
+    private var automaticScaleOnly = false
+    private val stopAutomaticScale = object : Runnable {
+        override fun run() {
+            if (!automaticScaleOnly || !running) return
+            if (snapshot.coffeeState == DeviceState.READY || snapshot.scaleState == DeviceState.READY ||
+                snapshot.scanning || snapshot.scaleState !in setOf(DeviceState.DISCONNECTED, DeviceState.FAILED)) {
+                handler.postDelayed(this, 30_000)
+            } else {
+                shutdown()
+                if (running) handler.postDelayed(this, 30_000)
+            }
+        }
+    }
+    private fun manualDeviceUse() {
+        automaticScaleOnly = false
+        handler.removeCallbacks(stopAutomaticScale)
+    }
+    private fun scheduleAutomaticScaleStop() {
+        if (!automaticScaleOnly) return
+        handler.removeCallbacks(stopAutomaticScale)
+        handler.postDelayed(stopAutomaticScale, 600_000)
+    }
     private val leaveForeground = object : Runnable {
         override fun run() {
             if (visibleScreens.visible || !hubForeground) return
             hub?.background()
             hubForeground = false
             snapshot = snapshot.copy(scanning = false)
+            if (automaticScaleOnly && snapshot.coffeeState != DeviceState.READY &&
+                snapshot.scaleState in setOf(DeviceState.DISCONNECTED, DeviceState.FAILED)) shutdown()
         }
     }
     private var lastShotState = ExtractionState.IDLE
@@ -123,7 +147,11 @@ class MobileService : Service() {
     override fun onBind(intent: Intent): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
-        if (running) return START_NOT_STICKY
+        if (running) {
+            if (intent?.action != AUTO_SCALE) manualDeviceUse()
+            return START_NOT_STICKY
+        }
+        automaticScaleOnly = intent?.action == AUTO_SCALE
         try {
             val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "设备连接", NotificationManager.IMPORTANCE_LOW))
@@ -234,6 +262,7 @@ class MobileService : Service() {
             )
             running = true
             event("服务已启动")
+            scheduleAutomaticScaleStop()
             if (visibleScreens.visible) {
                 hub?.foreground()
                 hubForeground = true
@@ -251,6 +280,7 @@ class MobileService : Service() {
             if (!hubForeground && hub != null) {
                 hub?.foreground()
                 hubForeground = true
+                scheduleAutomaticScaleStop()
             }
         } else if (hubForeground) {
             // Activity transitions may briefly have no resumed screen.
@@ -260,6 +290,7 @@ class MobileService : Service() {
     }
     fun scan() {
         val current = hub ?: return
+        manualDeviceUse()
         if (snapshot.scanning) return
         snapshot = snapshot.copy(scanning = true, candidates = emptyList(), message = "正在扫描…")
         Log.i(TAG, "scan start")
@@ -273,6 +304,7 @@ class MobileService : Service() {
     }
     fun connectCoffee(address: String, password: String) {
         require(password.matches(Regex("[0-9]{6}")))
+        manualDeviceUse()
         if (cupResetBusy) { event("等待累计杯数归零回报，暂不切换咖啡机"); return }
         if (scheduleBusy) { event("睡眠计划尚未确认，暂不切换咖啡机"); return }
         if (!ShotGate.mayReconnectCoffee(shotState)) {
@@ -290,6 +322,7 @@ class MobileService : Service() {
         current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password))
     }
     fun connectScale(address: String) {
+        manualDeviceUse()
         if (ShotGate.active(shotState)) { event("萃取尚未结束，不能切换电子秤"); return }
         val current = hub ?: return
         snapshot = snapshot.copy(weight = null, weightAt = null)
@@ -665,6 +698,7 @@ class MobileService : Service() {
         }
         hub?.close(); hub = null; running = false
         handler.removeCallbacks(leaveForeground)
+        handler.removeCallbacks(stopAutomaticScale)
         hubForeground = false
         snapshot = snapshot.copy(coffeeState = DeviceState.DISCONNECTED, scaleState = DeviceState.DISCONNECTED,
             coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null, scanning = false)
@@ -674,8 +708,14 @@ class MobileService : Service() {
     override fun onDestroy() {
         handler.removeCallbacks(watchShot)
         handler.removeCallbacks(leaveForeground)
+        handler.removeCallbacks(stopAutomaticScale)
         hub?.close(); hub = null; hubForeground = false
         super.onDestroy()
     }
-    companion object { const val STOP = "io.openhoyi.mobile.STOP"; const val TAG = "OpenHoyiMobile"; private const val CHANNEL = "connections" }
+    companion object {
+        const val STOP = "io.openhoyi.mobile.STOP"
+        const val AUTO_SCALE = "io.openhoyi.mobile.AUTO_SCALE"
+        const val TAG = "OpenHoyiMobile"
+        private const val CHANNEL = "connections"
+    }
 }

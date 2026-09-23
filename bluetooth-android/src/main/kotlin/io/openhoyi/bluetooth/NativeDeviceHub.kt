@@ -17,7 +17,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     legacyVerifiedStartFrames:Set<String> = emptySet()) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
-    private var remembered=rememberedScaleAddress
+    private var remembered=rememberedScaleAddress?.takeIf { android.bluetooth.BluetoothAdapter.checkBluetoothAddress(it) }
     private var candidate:String?=null
     private var closed=false
     private val reconnect=ReconnectPolicy()
@@ -39,8 +39,14 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
             if(closed)return
             extraction.tick()
             val idleScale=scale.session.state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)
-            if(idleScale&&reconnect.shouldAttempt(SystemClock.elapsedRealtime(),coffee.session.state==DeviceState.READY,false)) {
-                remembered?.let{connectScale(it)}?:reconnect.manualDisconnect()
+            if(idleScale&&reconnect.shouldAttempt(SystemClock.elapsedRealtime(),false)) {
+                val address=remembered
+                if(address==null) reconnect.manualDisconnect()
+                else try { connectScale(address) }
+                catch(error:RuntimeException) {
+                    reconnect.attemptFinished(SystemClock.elapsedRealtime())
+                    diagnostic("remembered scale reconnect failed: ${error.javaClass.simpleName}")
+                }
             }
             handler.postDelayed(this,50)
         }

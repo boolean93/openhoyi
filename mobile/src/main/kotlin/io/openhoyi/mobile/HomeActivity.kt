@@ -123,13 +123,31 @@ class HomeActivity : Activity() {
         }
         render()
     }
-    override fun onStart() { super.onStart(); visible = true; bindExisting(); handler.post(refresh) }
+    override fun onStart() {
+        super.onStart()
+        visible = true
+        if (!startRememberedScaleService()) bindExisting()
+        handler.post(refresh)
+    }
     override fun onStop() {
         visible = false; handler.removeCallbacks(refresh)
         service?.screenVisible(visibilityToken, false)
         release(); super.onStop()
     }
     private fun bindExisting() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0) }
+    private fun startRememberedScaleService(): Boolean {
+        val address = getSharedPreferences("devices", MODE_PRIVATE).getString("scale", null)
+        if (address == null || !BluetoothAdapter.checkBluetoothAddress(address) || missingBle().isNotEmpty())
+            return false
+        val adapter = getSystemService(BluetoothManager::class.java)?.adapter ?: return false
+        return try {
+            if (!adapter.isEnabled) return false
+            startForegroundService(Intent(this, MobileService::class.java).setAction(MobileService.AUTO_SCALE))
+            if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, Context.BIND_AUTO_CREATE)
+            bound
+        } catch (_: SecurityException) { false }
+        catch (_: RuntimeException) { false }
+    }
     private fun release() { if (bound) { unbindService(connection); bound = false }; service = null }
     private fun missingBle(): List<String> {
         val required = if (Build.VERSION.SDK_INT >= 31) listOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
