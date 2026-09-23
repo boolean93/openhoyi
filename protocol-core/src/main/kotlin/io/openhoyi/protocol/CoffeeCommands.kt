@@ -112,6 +112,8 @@ object CoffeeCommands {
         is MachineSettingChange.Light -> command(14,2,0,if(change.enabled)1 else 0,0)
     }
     fun sleepNow():EncodedCommand=command(32,1,165,165,33)
+    /** Fixed legacy maintenance command; caller must require explicit confirmation. */
+    fun resetCupCount(): EncodedCommand = command(10,1,165,165,0)
     /** Legacy setSleepArrTime writes Sunday-Wednesday, then Thursday-Saturday. */
     fun sleepSchedule(schedule: WeeklySleepSchedule): List<EncodedCommand> =
         listOf(schedule.days.subList(0, 4), schedule.days.subList(4, 7)).map { days ->

@@ -38,6 +38,9 @@ fun deviceChecks():Int {
         s.setBrewWait(0) { sleepResult=it }
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("1102000000")))
         complete();check(sleepResult is OperationResult.Success)
+        s.resetCupCount { sleepResult=it }
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0A01A5A500")))
+        complete();check(sleepResult is OperationResult.Success)
         s.disconnect();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.DISCONNECTED)
     }
     case("weekly sleep write waits 500ms and never sends second fragment after a failed first") {
@@ -102,6 +105,7 @@ fun deviceChecks():Int {
         s.writeSetting(MachineSettingChange.SteamHeating(false)){result=it};check(result is OperationResult.Failed)
         s.enterSleep {result=it};check(result is OperationResult.Failed)
         s.setBrewWait(92) {result=it};check(result is OperationResult.Failed)
+        s.resetCupCount { result=it };check(result is OperationResult.Failed)
     }
     case("live unauthenticated telemetry never opens ready gate or triggers extra writes") {
         val d=SessionDriver();var now=0L;var telemetry=0

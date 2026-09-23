@@ -42,6 +42,8 @@ class MachineSettingsActivity : Activity() {
     private lateinit var schedule: TextView
     private lateinit var writeStatus: TextView
     private lateinit var scheduleWriteStatus: TextView
+    private lateinit var cupResetStatus: TextView
+    private lateinit var cupResetButton: Button
     private lateinit var brewInput: EditText
     private lateinit var compensationInput: EditText
     private lateinit var steamInput: EditText
@@ -156,6 +158,9 @@ class MachineSettingsActivity : Activity() {
             scheduleButtons += action(sleepCard, "编辑 $name 的睡眠/唤醒时间") { editScheduleDay(index, name) }
         }
         controlButtons += scheduleButtons
+        val cupCard = card(body, "累计杯数")
+        cupResetStatus = text(cupCard, "尚未重置", 14)
+        cupResetButton = action(cupCard, "重置累计杯数") { confirmCupReset() }
         Button(this).apply {
             text = "返回首页"
             setOnClickListener { finish() }
@@ -199,6 +204,14 @@ class MachineSettingsActivity : Activity() {
             else -> "尚未修改"
         })
         val pending = owner?.settingWriteState ?: SettingsWriteTracker.State.IDLE
+        cupResetStatus.update("重置状态：" + when (owner?.cupResetState) {
+            CupResetTracker.State.WRITING -> "正在写入命令"
+            CupResetTracker.State.WAITING_ZERO -> "已写入，等待机器回报 0 杯"
+            CupResetTracker.State.CONFIRMED -> "机器已回报 0 杯"
+            CupResetTracker.State.FAILED -> "命令未写入"
+            CupResetTracker.State.UNKNOWN -> "结果未知，请查看机器杯数"
+            else -> "尚未重置"
+        })
         writeStatus.update("设置状态：${owner?.pendingSetting?.let(MachineSettingsPresentation::change) ?: "尚未修改"} · " +
             when (pending) {
                 SettingsWriteTracker.State.IDLE -> "尚未修改"
@@ -216,8 +229,12 @@ class MachineSettingsActivity : Activity() {
             owner?.brewPreparationState == BrewPreparation.State.IDLE &&
             pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK) &&
             owner?.scheduleWriteState !in setOf(SleepScheduleWriteTracker.State.WRITING,
-                SleepScheduleWriteTracker.State.WAITING_READBACK)
+                SleepScheduleWriteTracker.State.WAITING_READBACK) &&
+            owner?.cupResetState !in setOf(CupResetTracker.State.WRITING,
+                CupResetTracker.State.WAITING_ZERO)
         controlButtons.forEach { it.isEnabled = editable }
+        cupResetButton.isEnabled = editable && snapshot.settings?.cupCount?.let { it > 0 && it == idle?.cupCount } == true &&
+            owner?.sleepNowState !in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
         scheduleButtons.forEach { it.isEnabled = editable &&
             owner?.scheduleWriteState != SleepScheduleWriteTracker.State.UNKNOWN &&
             WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond) != null }
@@ -262,6 +279,35 @@ class MachineSettingsActivity : Activity() {
                 render()
             }
             .setNegativeButton("取消", null).show()
+    }
+    private fun confirmCupReset() {
+        val expected = service?.snapshot?.settings?.cupCount ?: return
+        val input = EditText(this).apply {
+            hint = "输入当前杯数 $expected"
+            inputType = InputType.TYPE_CLASS_NUMBER
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
+        val dialog = AlertDialog.Builder(this).setTitle("核对累计杯数")
+            .setMessage("请输入机器当前累计杯数。重置后无法恢复。")
+            .setView(input).setPositiveButton("下一步", null).setNegativeButton("取消", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                if (input.text.toString().toIntOrNull() != expected) {
+                    input.error = "请输入 $expected"
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                AlertDialog.Builder(this).setTitle("确认重置累计杯数")
+                    .setMessage("机器当前回报 $expected 杯。发送后杯数将归零，无法撤销。只有机器重新回报 0 杯才会显示成功。")
+                    .setPositiveButton("发送重置命令") { _, _ ->
+                        service?.resetCupCount(expected)?.let {
+                            Toast.makeText(this, it, Toast.LENGTH_LONG).show()
+                        }
+                        render()
+                    }.setNegativeButton("取消", null).show()
+            }
+        }
+        dialog.show()
     }
     private fun chooseStandbyDelay() {
         val values = listOf(15, 30, 60, 120, 0)

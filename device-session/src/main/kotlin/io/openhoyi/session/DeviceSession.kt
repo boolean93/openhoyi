@@ -178,6 +178,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
         else send(CoffeeCommands.sleepNow(),DeviceRole.COFFEE,callback=callback)
     }
+    fun resetCupCount(callback:(OperationResult)->Unit) {
+        if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
+        else send(CoffeeCommands.resetCupCount(),DeviceRole.COFFEE,callback=callback)
+    }
     fun setBrewWait(targetC:Int,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
         else send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,callback=callback)

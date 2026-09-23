@@ -47,6 +47,11 @@ class MobileService : Service() {
     private val series = ShotSeries()
     private val standaloneTare = StandaloneTare()
     private val settingsWrite = SettingsWriteTracker()
+    private val cupReset = CupResetTracker()
+    val cupResetState: CupResetTracker.State get() = cupReset.state
+    private val cupResetBusy: Boolean get() = cupReset.state in
+        setOf(CupResetTracker.State.WRITING, CupResetTracker.State.WAITING_ZERO)
+    private var cupSampleSerial = 0L
     private val scheduleWrite = SleepScheduleWriteTracker()
     private val sleepNow = SleepNowTracker()
     private val brewPreparation = BrewPreparation()
@@ -137,6 +142,7 @@ class MobileService : Service() {
                     snapshot = if (role == DeviceRole.COFFEE) {
                         if (state != DeviceState.READY) {
                             settingsWrite.disconnected()
+                            cupReset.disconnected()
                             scheduleWrite.disconnected(firstSleepSerial, secondSleepSerial)
                             sleepNow.disconnected()
                             brewPreparation.disconnected()
@@ -156,6 +162,8 @@ class MobileService : Service() {
                 onCoffee = { frame ->
                     snapshot = when (frame) {
                         is Settings -> {
+                            if (cupReset.observe(++cupSampleSerial, frame.cupCount))
+                                event("机器已回报累计杯数归零", "cups.confirmed")
                             if (settingsWrite.observe(++settingsSampleSerial, frame))
                                 event("机器回读已确认设置", "settings.confirmed")
                             snapshot.copy(settings = frame)
@@ -177,6 +185,8 @@ class MobileService : Service() {
                             snapshot
                         }
                         is IdleTelemetry -> {
+                            if (cupReset.observe(++cupSampleSerial, frame.cupCount))
+                                event("机器已回报累计杯数归零", "cups.confirmed")
                             if (sleepNow.observe(++sleepSampleSerial, frame.sleepStateRaw))
                                 event("机器已回报进入睡眠", "sleep.confirmed")
                             val currentSettings = snapshot.settings
@@ -259,6 +269,7 @@ class MobileService : Service() {
     }
     fun connectCoffee(address: String, password: String) {
         require(password.matches(Regex("[0-9]{6}")))
+        if (cupResetBusy) { event("等待累计杯数归零回报，暂不切换咖啡机"); return }
         if (scheduleBusy) { event("睡眠计划尚未确认，暂不切换咖啡机"); return }
         if (!ShotGate.mayReconnectCoffee(shotState)) {
             event("萃取尚未结束，不能重连咖啡机"); return
@@ -283,6 +294,9 @@ class MobileService : Service() {
     }
     fun disconnect(role: DeviceRole) {
         if (ShotGate.active(shotState)) { event("萃取尚未结束，先停止萃取"); return }
+        if (role == DeviceRole.COFFEE && cupResetBusy) {
+            event("等待累计杯数归零回报，暂不断开咖啡机"); return
+        }
         if (role == DeviceRole.COFFEE && scheduleBusy) {
             event("睡眠计划尚未确认，暂不断开咖啡机"); return
         }
@@ -320,6 +334,7 @@ class MobileService : Service() {
     }
     fun changeMachineSetting(change: MachineSettingChange): String? {
         val current = hub ?: return "设备服务尚未启动"
+        if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
         if (ShotGate.active(shotState)) return "萃取期间不能修改机器设置"
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
@@ -358,8 +373,43 @@ class MobileService : Service() {
         }
         return null
     }
+    fun resetCupCount(expectedCount: Int): String? {
+        val current = hub ?: return "设备服务尚未启动"
+        if (cupResetBusy) return "正在等待本次杯数重置结果"
+        if (scheduleBusy || settingWriteState in
+            setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK) ||
+            sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
+            return "请等待当前机器操作完成"
+        if (brewPreparation.active || ShotGate.active(shotState)) return "请先结束预热或萃取"
+        if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
+        val idle = snapshot.coffee as? IdleTelemetry ?: return "等待咖啡机待机数据"
+        val now = SystemClock.elapsedRealtime()
+        if (snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true || idle.sleepStateRaw != 0)
+            return "需要新鲜、已唤醒的待机状态"
+        val settingsCount = snapshot.settings?.cupCount ?: return "尚未收到机器杯数"
+        if (expectedCount !in 1..65535 || settingsCount != expectedCount || idle.cupCount != expectedCount)
+            return "机器杯数已变化，请重新核对"
+        val token = cupReset.begin(expectedCount) ?: return "正在等待本次杯数重置结果"
+        event("累计杯数重置命令已排队", "cups.requested")
+        current.resetCupCount done@{ result ->
+            if (!cupReset.written(token, result, cupSampleSerial)) return@done
+            when (cupReset.state) {
+                CupResetTracker.State.WAITING_ZERO -> {
+                    event("重置命令已写入，等待机器回报归零", "cups.written")
+                    handler.postDelayed({
+                        if (cupReset.timeout(token)) event("机器未回报归零，重置结果未知", "cups.unknown")
+                    }, 12_000)
+                }
+                CupResetTracker.State.FAILED -> event("累计杯数重置命令未写入", "cups.failed")
+                CupResetTracker.State.UNKNOWN -> event("累计杯数重置结果未知", "cups.unknown")
+                else -> Unit
+            }
+        }
+        return null
+    }
     fun changeSleepSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule): String? {
         val current = hub ?: return "设备服务尚未启动"
+        if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (ShotGate.active(shotState)) return "萃取期间不能修改睡眠计划"
         if (scheduleWriteState == SleepScheduleWriteTracker.State.UNKNOWN)
             return "上次计划结果未知，请重新连接并等待两段完整回报"
@@ -405,6 +455,7 @@ class MobileService : Service() {
     }
     fun enterSleepNow(): String? {
         val current = hub ?: return "设备服务尚未启动"
+        if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
         if (ShotGate.active(shotState)) return "萃取期间不能让机器睡眠"
         if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
@@ -459,6 +510,7 @@ class MobileService : Service() {
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
         val current = hub ?: return "设备服务尚未启动"
+        if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
         if (brewPreparation.active) return "已有预热请求，请先取消"
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
@@ -516,6 +568,7 @@ class MobileService : Service() {
     }
     fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
         val current = hub ?: return "设备服务尚未启动"
+        if (cupResetBusy) return "正在等待累计杯数归零回报，不能启动萃取"
         if (scheduleBusy) return "正在等待睡眠计划回读，不能启动萃取"
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
             return "正在等待机器进入睡眠，不能启动萃取"
@@ -582,6 +635,10 @@ class MobileService : Service() {
         Log.i(TAG, message)
     }
     fun shutdown() {
+        if (cupResetBusy) {
+            event("累计杯数重置尚未确认，设备服务保持运行", "service.stop_deferred")
+            return
+        }
         if (scheduleBusy) {
             event("睡眠计划尚未确认，设备服务保持运行", "service.stop_deferred")
             return

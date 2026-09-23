@@ -145,6 +145,13 @@ fun main() {
                 listOf(0, 15, 30, 60, 120)[value / 256])).frame.hex() == parts[2])
     }
     verify(CoffeeCommands.sleepNow().frame.hex()=="2001A5A521")
+    verify(CoffeeCommands.resetCupCount().frame.hex()=="0A01A5A500")
+    val cupResetOracle = object {}.javaClass.getResourceAsStream("/cup_reset_wire.tsv")
+        ?: error("Missing legacy cup reset oracle")
+    val cupResetLines = cupResetOracle.bufferedReader().use { it.readLines() }
+    verify(cupResetLines.first() ==
+        "# cup-reset-wire-v1\tsource-sha256=b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037")
+    verify(cupResetLines.size == 2 && cupResetLines[1] == CoffeeCommands.resetCupCount().frame.hex())
     val auth=CoffeeCommands.authenticate(LocalDateTime.of(2026,9,20,12,30,5),"123456")
     verify(auth.frame.toByteArray().size == 15 && !auth.toString().contains("123456") && !auth.frame.toString().contains("313233343536"))
     verify(auth.frame.hex() == "010C1A09140C1E050102030405061A")
