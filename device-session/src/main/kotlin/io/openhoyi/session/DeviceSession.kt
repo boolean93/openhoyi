@@ -18,7 +18,15 @@ object KnownGatt {
 /** All methods run on one owner thread. Host ticks with a monotonic clock, not Activity lifecycle. */
 class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->Long,
     private val stateChanged:(DeviceState)->Unit={}, private val coffeeFrame:(HoyiMessage,Long)->Unit={_,_->},
-    private val weightFrame:(BookooSample,Long)->Unit={_,_->},private val diagnostic:(String)->Unit={}) {
+    private val weightFrame:(BookooSample,Long)->Unit={_,_->},private val diagnostic:(String)->Unit={},
+    legacyVerifiedStartFrames:Set<String> = emptySet()) {
+    private val additionalStartFrames = legacyVerifiedStartFrames.toSet().also { frames ->
+        require(frames.size <= 200 && frames.all { hex ->
+            hex.matches(Regex("02[0-9A-F]{38}")) &&
+                hex.chunked(2).map { it.toInt(16) }.reduce(Int::xor) == 0 &&
+                hex.substring(2, 4).toInt(16) and 7 == 7
+        }) { "Invalid legacy start-frame permit" }
+    }
     private val queue=GattQueue(driver,clock){fail(it)}
     val generation:Long get()=queue.generation
     var state=DeviceState.DISCONNECTED;private set
@@ -110,10 +118,12 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         queue.enqueue(GattOperation.Write(writeEndpoint,command.frame.toByteArray(),withResponse),5000,urgent,callback)
     }
     fun startExtraction(parameters:StartParameters,callback:(OperationResult)->Unit) {
-        // Narrow first-release hardware envelope: the three observed wire profiles only.
+        // Product host supplies only frames checked against the extracted legacy encoder.
         val command=CoffeeCommands.start(parameters)
         val allowed=setOf("02175B006C005A410000015E1600AA00000000DA","02DF5C0046001426140000A0050190008C000059","02DF5C00880014231200009605019000820000AC")
-        if(command.frame.hex() !in allowed){callback(OperationResult.Failed("curve outside validated profile set"));return}
+        if(command.frame.hex() !in allowed && command.frame.hex() !in additionalStartFrames){
+            callback(OperationResult.Failed("curve outside validated profile set"));return
+        }
         send(command,DeviceRole.COFFEE,callback=callback)
     }
     fun stopExtraction(callback:(OperationResult)->Unit) {

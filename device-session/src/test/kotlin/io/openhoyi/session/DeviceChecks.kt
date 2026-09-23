@@ -1,6 +1,7 @@
 package io.openhoyi.session
 
 import java.time.LocalDateTime
+import io.openhoyi.protocol.StartParameters
 private class SessionDriver:GattDriver {
     val calls=mutableListOf<Triple<Long,Long,GattOperation>>()
     override fun execute(generation:Long,token:Long,operation:GattOperation):Boolean {calls+=Triple(generation,token,operation);return true}
@@ -55,6 +56,30 @@ fun deviceChecks():Int {
         var result:OperationResult?=null;s.stopExtraction{result=it};check(result is OperationResult.Failed)
         check(d.calls.count{it.third is GattOperation.Write}==1)
         now=10_000;s.tick();check(s.state==DeviceState.FAILED)
+    }
+    case("verified factory frame passes session gate while neighboring frame stays blocked") {
+        val factoryHex="02175C0046005A3C000001F41900C8000000004D"
+        val profile=StartParameters(false,false,2,7,92,70,false,0,90,60,0,0,500,25,200,0,0)
+        val d=SessionDriver()
+        val s=DeviceSession(DeviceRole.COFFEE,d,{0},legacyVerifiedStartFrames=setOf(factoryHex))
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        check(s.state==DeviceState.READY)
+        var result:OperationResult?=null
+        s.startExtraction(profile){result=it}
+        check(d.calls.last().third is GattOperation.Write)
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex(factoryHex)))
+        complete();check(result is OperationResult.Success)
+        val writes=d.calls.size
+        s.startExtraction(profile.copy(maximumWaterMl=71)){result=it}
+        check(result is OperationResult.Failed && d.calls.size==writes)
     }
     return tests
 }

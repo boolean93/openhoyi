@@ -13,6 +13,7 @@ data class CurveLibraryItem(
 )
 
 class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWireProof? = null) {
+    val legacyVerifiedStartFrames: Set<String> get() = proof?.allowedFrames() ?: emptySet()
     val items: List<CurveLibraryItem> = java.util.Collections.unmodifiableList(
         CurveCatalog.profiles.map { profile ->
             CurveLibraryItem(profile.id, profile.name, "已采集验证",

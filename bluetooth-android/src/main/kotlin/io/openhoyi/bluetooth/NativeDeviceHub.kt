@@ -13,7 +13,8 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     private val onState:(DeviceRole,DeviceState)->Unit={_,_->},
     private val onCoffee:(HoyiMessage)->Unit={},private val onWeight:(BookooSample)->Unit={},
     private val diagnostic:(String)->Unit={},
-    trace:(DeviceRole,WireTrace)->Unit={_,_->}) : AutoCloseable {
+    trace:(DeviceRole,WireTrace)->Unit={_,_->},
+    legacyVerifiedStartFrames:Set<String> = emptySet()) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var remembered=rememberedScaleAddress
@@ -23,7 +24,8 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     val scanner=ScanCoordinator(context)
     private val coffee:AndroidDevice=AndroidDevice(context,DeviceRole.COFFEE,
         stateChanged={onState(DeviceRole.COFFEE,it)},
-        coffeeFrame={frame,time->extraction.machineFrame(frame,time);onCoffee(frame)},diagnostic=diagnostic,trace={trace(DeviceRole.COFFEE,it)})
+        coffeeFrame={frame,time->extraction.machineFrame(frame,time);onCoffee(frame)},diagnostic=diagnostic,
+        trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames)
     private val scale:AndroidDevice=AndroidDevice(context,DeviceRole.BOOKOO,
         stateChanged={state->
             if(state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED))extraction.scaleDisconnected()

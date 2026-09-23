@@ -144,6 +144,7 @@ class MobileService : Service() {
                         trace.detail?.let { put("detail", it) }
                     })
                 },
+                legacyVerifiedStartFrames = (application as MobileApplication).curves.legacyVerifiedStartFrames,
             )
             running = true
             event("服务已启动")

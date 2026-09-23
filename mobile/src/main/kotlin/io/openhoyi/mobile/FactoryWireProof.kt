@@ -29,6 +29,7 @@ class FactoryWireProof private constructor(
     private val factory: Map<String, FactoryCurve>,
     private val frames: Map<String, Pair<String, String>>,
 ) {
+    fun allowedFrames(): Set<String> = frames.values.flatMap { listOf(it.first, it.second) }.toSet()
     fun expected(id: String, scaleConnected: Boolean): String? =
         frames[id]?.let { if (scaleConnected) it.second else it.first }
 

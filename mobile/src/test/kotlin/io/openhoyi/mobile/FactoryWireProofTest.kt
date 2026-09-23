@@ -13,6 +13,9 @@ class FactoryWireProofTest {
     @Test fun twoHundredFramesMatchExtractedLegacyEncoder() {
         val curves = factory()
         val oracle = proof(curves)
+        assertTrue(oracle.allowedFrames().contains(oracle.expected("factory-v3-001", false)))
+        assertTrue(oracle.allowedFrames().contains(oracle.expected("factory-v3-001", true)))
+        assertTrue(oracle.allowedFrames().size in 100..200)
         for (curve in curves) for (scale in listOf(false, true)) {
             val profile = FactoryCurveAdapter.profile(curve, scale)
             assertTrue(curve.id, oracle.validated(profile))
