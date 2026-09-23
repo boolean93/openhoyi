@@ -76,6 +76,16 @@ class SettingsWriteTrackerTest {
         assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
 
+    @Test fun brewCompensationNeedsNewMatchingMachineValue() {
+        val tracker = SettingsWriteTracker()
+        val token = requireNotNull(tracker.begin(MachineSettingChange.BrewCompensation(5)))
+        assertTrue(tracker.written(token, OperationResult.Success(), 10))
+        assertFalse(tracker.observe(10, initial.copy(brewCompensationTenthsC = 50)))
+        assertFalse(tracker.observe(11, initial.copy(brewCompensationTenthsC = 40)))
+        assertTrue(tracker.observe(12, initial.copy(brewCompensationTenthsC = 50)))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
+    }
+
     @Test fun sleepScheduleToggleNeedsNewMatchingFlags() {
         val tracker = SettingsWriteTracker()
         val token = requireNotNull(tracker.begin(MachineSettingChange.SleepScheduleEnabled(false)))

@@ -43,6 +43,7 @@ class MachineSettingsActivity : Activity() {
     private lateinit var writeStatus: TextView
     private lateinit var scheduleWriteStatus: TextView
     private lateinit var brewInput: EditText
+    private lateinit var compensationInput: EditText
     private lateinit var steamInput: EditText
     private lateinit var standbyTemperatureInput: EditText
     private lateinit var brewHeatingButton: Button
@@ -101,6 +102,12 @@ class MachineSettingsActivity : Activity() {
             val c = brewInput.text.toString().toIntOrNull()
             if (c == null || c !in 75..105) brewInput.error = "请输入 75–105"
             else confirm(MachineSettingChange.BrewTemperature(c))
+        }
+        compensationInput = temperatureInput(controls, "冲泡温差补偿（0–5 °C）")
+        controlButtons += action(controls, "设置温差补偿") {
+            val c = compensationInput.text.toString().toIntOrNull()
+            if (c == null || c !in 0..5) compensationInput.error = "请输入 0–5"
+            else confirm(MachineSettingChange.BrewCompensation(c))
         }
         steamInput = temperatureInput(controls, "蒸汽设定温度（110–145 °C）")
         controlButtons += action(controls, "设置蒸汽温度") {
@@ -245,6 +252,8 @@ class MachineSettingsActivity : Activity() {
                     "\n请先核对机器实际进水方式；设置错误可能导致缺水。写入后等待机器回读确认。"
                 else if (change is MachineSettingChange.RunMode)
                     "\n工作室模式下，曲线温度未到达目标时需先预热，达到后才能启动萃取。写入后等待机器回读确认。"
+                else if (change is MachineSettingChange.BrewCompensation)
+                    "\n此值会影响显示的冲泡温度和工作室模式的预热判断。写入后等待机器回读确认。"
                 else "\n写入后需等待机器回读确认。")
             .setPositiveButton("发送") { _, _ ->
                 service?.changeMachineSetting(change)?.let {

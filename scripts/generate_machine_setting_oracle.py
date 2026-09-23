@@ -18,10 +18,11 @@ def main() -> None:
     source_hash = hashlib.sha256(bundle.read_bytes()).hexdigest()
     module = source[source.index("8625: function"):source.index("8625: function") + 100000]
     methods = {name: function(module, f"{name}: function", False) for name in
-               ("setTemp", "setSteamTemp", "setTempPowerEn", "setSteamPowerEn", "setLedEn", "setPress", "setStandby", "setSleepEn", "setWaterInMode", "setRunMode", "ten2Hex")}
+               ("setTemp", "setBlewTemp", "setSteamTemp", "setTempPowerEn", "setSteamPowerEn", "setLedEn", "setPress", "setStandby", "setSleepEn", "setWaterInMode", "setRunMode", "ten2Hex")}
     harness = "(function(){return {" + ",".join(f"{name}: {body}" for name, body in methods.items()) + "};})()"
     cases = (
         [["brew", value, "setTemp"] for value in range(75, 106)] +
+        [["brew_comp", value * 10, "setBlewTemp"] for value in range(6)] +
         [["steam", value, "setSteamTemp"] for value in range(110, 146)] +
         [[kind, value, method] for kind, method in
          (("brew_heat", "setTempPowerEn"), ("steam_heat", "setSteamPowerEn"), ("light", "setLedEn"))
@@ -55,8 +56,8 @@ process.stdin.on('data',chunk=>input+=chunk).on('end',()=>{
     result = subprocess.run(["node", "-e", node], input=json.dumps({"harness": harness, "cases": cases}),
                             text=True, capture_output=True, check=True, timeout=20)
     rows = json.loads(result.stdout)
-    if len(rows) != 587:
-        raise ValueError("expected 587 setting frames")
+    if len(rows) != 593:
+        raise ValueError("expected 593 setting frames")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("# machine-setting-wire-v1\tsource-sha256=" + source_hash + "\n" +
                       "\n".join("\t".join(row) for row in rows) + "\n", encoding="utf-8")

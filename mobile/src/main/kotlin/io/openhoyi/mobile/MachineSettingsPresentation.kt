@@ -35,6 +35,7 @@ object MachineSettingsPresentation {
             else -> "手动"
         }
         is MachineSettingChange.BrewTemperature -> "萃取温度 ${value.celsius} °C"
+        is MachineSettingChange.BrewCompensation -> "冲泡温差补偿 ${value.celsius} °C"
         is MachineSettingChange.SteamTemperature -> "蒸汽温度 ${value.celsius} °C"
         is MachineSettingChange.BrewHeating -> "萃取加热${if (value.enabled) "开启" else "关闭"}"
         is MachineSettingChange.SteamHeating -> "蒸汽加热${if (value.enabled) "开启" else "关闭"}"

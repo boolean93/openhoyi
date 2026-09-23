@@ -54,6 +54,11 @@ sealed interface MachineSettingChange {
         init { require(celsius in 75..105) }
         override fun matches(settings: Settings) = settings.brewTemperatureC == celsius
     }
+    /** Legacy brewTempDelta picker is 0..5°C, written in tenths through opcode 0x05. */
+    data class BrewCompensation(val celsius: Int) : MachineSettingChange {
+        init { require(celsius in 0..5) }
+        override fun matches(settings: Settings) = settings.brewCompensationTenthsC == celsius * 10
+    }
     data class SteamTemperature(val celsius: Int) : MachineSettingChange {
         init { require(celsius in 110..145) }
         override fun matches(settings: Settings) = settings.steamTemperatureC == celsius
@@ -100,6 +105,7 @@ object CoffeeCommands {
         is MachineSettingChange.StandbyTemperature -> command(20,2,change.wireCode,change.celsius,0)
         is MachineSettingChange.LeverMode -> command(3,2,if(change.pressure)1 else 0,if(change.flow)1 else 0,0)
         is MachineSettingChange.BrewTemperature -> brewTemperature(change.celsius)
+        is MachineSettingChange.BrewCompensation -> command(5,2,0,change.celsius * 10,0)
         is MachineSettingChange.SteamTemperature -> command(6,2,0,change.celsius,0)
         is MachineSettingChange.BrewHeating -> brewHeating(change.enabled)
         is MachineSettingChange.SteamHeating -> command(13,2,0,if(change.enabled)1 else 0,0)
@@ -138,5 +144,5 @@ enum class UnsupportedCommandGroup(val reason:String) {
     OTA("No recoverable hardware validation"), PASSWORD_CHANGE("Legacy encoded/write length mismatch"),
     LEVER_CALIBRATION("Legacy encoded/write length mismatch"), FACTORY_RESET_AND_ALARM_IGNORE("Opcode 0x17 conflict"),
     CURVE_COPY("Competing 14/20 byte formats"),
-    STEAM_AND_COMPENSATION_SETTINGS("No captured setting/writeback pair"), OTHER_SETTINGS("Outside captured safe subset"),
+    OTHER_SETTINGS("Outside captured safe subset"),
 }

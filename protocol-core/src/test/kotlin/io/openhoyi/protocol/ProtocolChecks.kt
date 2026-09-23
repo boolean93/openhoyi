@@ -74,6 +74,7 @@ fun main() {
     verify(CoffeeCommands.brewHeating(false).frame.hex()=="0C02000000")
     verify(CoffeeCommands.brewHeating(true).frame.hex()=="0C02000100")
     verify(CoffeeCommands.setting(MachineSettingChange.BrewTemperature(92)).frame.hex()=="0402005C00")
+    verify(CoffeeCommands.setting(MachineSettingChange.BrewCompensation(5)).frame.hex()=="0502003200")
     verify(CoffeeCommands.setting(MachineSettingChange.SteamTemperature(125)).frame.hex()=="0602007D00")
     verify(CoffeeCommands.setting(MachineSettingChange.BrewHeating(true)).frame.hex()=="0C02000100")
     verify(CoffeeCommands.setting(MachineSettingChange.SteamHeating(false)).frame.hex()=="0D02000000")
@@ -111,19 +112,22 @@ fun main() {
     rejected { MachineSettingChange.StandbyTemperature(70, 45) }
     rejected { MachineSettingChange.LeverMode(false,true) }
     rejected { MachineSettingChange.BrewTemperature(74) }
+    rejected { MachineSettingChange.BrewCompensation(-1) }
+    rejected { MachineSettingChange.BrewCompensation(6) }
     rejected { MachineSettingChange.SteamTemperature(146) }
     val settingOracle = object {}.javaClass.getResourceAsStream("/machine_settings_wire.tsv")
         ?: error("Missing legacy setting oracle")
     val settingLines = settingOracle.bufferedReader().use { it.readLines() }
     verify(settingLines.first() ==
         "# machine-setting-wire-v1\tsource-sha256=b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037")
-    verify(settingLines.size == 588)
+    verify(settingLines.size == 594)
     settingLines.drop(1).forEach { line ->
         val parts = line.split('\t')
         verify(parts.size == 3)
         val value = parts[1].toInt()
         val change = when (parts[0]) {
             "brew" -> MachineSettingChange.BrewTemperature(value)
+            "brew_comp" -> MachineSettingChange.BrewCompensation(value / 10)
             "steam" -> MachineSettingChange.SteamTemperature(value)
             "brew_heat" -> MachineSettingChange.BrewHeating(value == 1)
             "steam_heat" -> MachineSettingChange.SteamHeating(value == 1)
