@@ -38,6 +38,19 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var initDue=0L
     private var initBusy=false
     private var pendingSettings:Settings?=null
+    private class SleepWrite(val frames: List<EncodedCommand>, val generation: Long,
+        val callback: (OperationResult)->Unit) {
+        var secondDue: Long? = null
+    }
+    private var sleepWrite: SleepWrite? = null
+    private fun finishSleepWrite(write: SleepWrite, result: OperationResult) {
+        if (sleepWrite !== write) return
+        sleepWrite = null
+        write.callback(result)
+    }
+    private fun cancelSleepWrite(reason: String) {
+        sleepWrite?.let { finishSleepWrite(it, OperationResult.Unknown(reason)) }
+    }
     private fun setState(value:DeviceState){state=value;stateChanged(value)}
     fun connect(address:String,authentication:CoffeeAuthentication?=null) {
         require(address.isNotBlank())
@@ -102,6 +115,15 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     fun tick() {
         queue.tick()
         if(!queue.active)return
+        sleepWrite?.let { write ->
+            if(write.secondDue?.let { clock() >= it } == true && write.generation == generation) {
+                write.secondDue = null
+                send(write.frames[1],DeviceRole.COFFEE) { result ->
+                    finishSleepWrite(write, if (result is OperationResult.Success) result
+                        else OperationResult.Unknown("weekly sleep schedule may be partially applied"))
+                }
+            }
+        }
         if(state in listOf(DeviceState.INITIALIZING,DeviceState.SYNCHRONIZING)&&clock()>=stageDeadline){fail("protocol initialization timeout");return}
         if(role==DeviceRole.BOOKOO&&state==DeviceState.INITIALIZING&&!initBusy&&clock()>=initDue){
             val commands=BookooCodec.initializationCommands();val cmd=commands[initNext]
@@ -118,6 +140,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         queue.enqueue(GattOperation.Write(writeEndpoint,command.frame.toByteArray(),withResponse),5000,urgent,callback)
     }
     fun startExtraction(parameters:StartParameters,callback:(OperationResult)->Unit) {
+        if (sleepWrite != null) { callback(OperationResult.Failed("weekly sleep write active")); return }
         // Product host supplies only frames checked against the extracted legacy encoder.
         val command=CoffeeCommands.start(parameters)
         val allowed=setOf("02175B006C005A410000015E1600AA00000000DA","02DF5C0046001426140000A0050190008C000059","02DF5C00880014231200009605019000820000AC")
@@ -128,15 +151,37 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     fun stopExtraction(slot:Int=7,callback:(OperationResult)->Unit) {
         require(slot in 1..5 || slot == 7)
+        cancelSleepWrite("stop requested during weekly sleep write")
         queue.cancelPending { it is GattOperation.Write && it.bytes.size==20 && it.bytes[0].toInt()==2 }
         send(CoffeeCommands.stop(slot),DeviceRole.COFFEE,true,callback)
     }
     fun tare(callback:(OperationResult)->Unit)=send(BookooCodec.tare(),DeviceRole.BOOKOO,callback=callback)
-    fun writeSetting(change: MachineSettingChange,callback:(OperationResult)->Unit)=
-        send(CoffeeCommands.setting(change),DeviceRole.COFFEE,callback=callback)
-    fun enterSleep(callback:(OperationResult)->Unit)=send(CoffeeCommands.sleepNow(),DeviceRole.COFFEE,callback=callback)
-    fun setBrewWait(targetC:Int,callback:(OperationResult)->Unit)=
-        send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,callback=callback)
-    fun disconnect(){setState(DeviceState.DISCONNECTED);queue.disconnect("user disconnect");pendingSettings=null;initBusy=false}
-    private fun fail(reason:String){setState(DeviceState.FAILED);queue.disconnect(reason);pendingSettings=null;diagnostic(reason)}
+    fun writeSetting(change: MachineSettingChange,callback:(OperationResult)->Unit) {
+        if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
+        else send(CoffeeCommands.setting(change),DeviceRole.COFFEE,callback=callback)
+    }
+    fun writeSleepSchedule(schedule: WeeklySleepSchedule, callback:(OperationResult)->Unit) {
+        if (role!=DeviceRole.COFFEE || state!=DeviceState.READY || sleepWrite!=null) {
+            callback(OperationResult.Failed("coffee not ready or weekly sleep write active"));return
+        }
+        val write=SleepWrite(CoffeeCommands.sleepSchedule(schedule),generation,callback)
+        sleepWrite=write
+        send(write.frames[0],DeviceRole.COFFEE) { result ->
+            if (result is OperationResult.Success) {
+                if (sleepWrite === write) {
+                    write.secondDue=clock()+500
+                }
+            } else finishSleepWrite(write,result)
+        }
+    }
+    fun enterSleep(callback:(OperationResult)->Unit) {
+        if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
+        else send(CoffeeCommands.sleepNow(),DeviceRole.COFFEE,callback=callback)
+    }
+    fun setBrewWait(targetC:Int,callback:(OperationResult)->Unit) {
+        if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
+        else send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,callback=callback)
+    }
+    fun disconnect(){setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");pendingSettings=null;initBusy=false}
+    private fun fail(reason:String){setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);pendingSettings=null;diagnostic(reason)}
 }

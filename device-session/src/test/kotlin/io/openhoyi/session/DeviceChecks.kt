@@ -3,6 +3,9 @@ package io.openhoyi.session
 import java.time.LocalDateTime
 import io.openhoyi.protocol.StartParameters
 import io.openhoyi.protocol.MachineSettingChange
+import io.openhoyi.protocol.SleepDay
+import io.openhoyi.protocol.WeeklySleepDay
+import io.openhoyi.protocol.WeeklySleepSchedule
 private class SessionDriver:GattDriver {
     val calls=mutableListOf<Triple<Long,Long,GattOperation>>()
     override fun execute(generation:Long,token:Long,operation:GattOperation):Boolean {calls+=Triple(generation,token,operation);return true}
@@ -36,6 +39,45 @@ fun deviceChecks():Int {
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("1102000000")))
         complete();check(sleepResult is OperationResult.Success)
         s.disconnect();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.DISCONNECTED)
+    }
+    case("weekly sleep write waits 500ms and never sends second fragment after a failed first") {
+        val d=SessionDriver();var now=0L
+        val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
+        complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete();s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(true,SleepDay(22,15,7,30))})
+        var result:OperationResult?=null
+        s.writeSleepSchedule(plan){result=it}
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0910960F071E960F071E960F071E960F071E00")))
+        val firstCount=d.calls.size
+        complete();now=499;s.tick();check(d.calls.size==firstCount && result==null)
+        var overlapping:OperationResult?=null
+        s.writeSetting(MachineSettingChange.Light(true)){overlapping=it}
+        check(overlapping is OperationResult.Failed && d.calls.size==firstCount)
+        now=500;s.tick();check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("090C960F071E960F071E960F071E00")))
+        complete();check(result is OperationResult.Success)
+        s.writeSleepSchedule(plan){result=it};complete(OperationResult.Failed("write failed"))
+        val failedCount=d.calls.size;now=2000;s.tick()
+        check(result is OperationResult.Failed && d.calls.size==failedCount)
+        s.writeSleepSchedule(plan){result=it};complete()
+        now=2500;s.tick();complete(OperationResult.Failed("second write failed"))
+        check(result is OperationResult.Unknown)
+    }
+    case("weekly sleep write cancels pending second fragment on disconnect") {
+        val d=SessionDriver();var now=0L
+        val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
+        complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete();s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
+        val outcomes=mutableListOf<OperationResult>()
+        s.writeSleepSchedule(plan){outcomes+=it};complete()
+        val sent=d.calls.size
+        s.disconnect();now=600;s.tick()
+        check(outcomes.size==1 && outcomes.single() is OperationResult.Unknown && d.calls.size==sent)
     }
     case("BOOKOO initialization is paced and requires sample after completed initialization") {
         val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.BOOKOO,d,{now})

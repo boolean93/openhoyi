@@ -25,6 +25,31 @@ fun main() {
     val extraction = (HoyiCodec.decode(hex("80080700000000052421325103")) as DecodeResult.Valid).value as ExtractionTelemetry
     verify(extraction.slotOrPhase == 7 && extraction.totalWaterTenthsMl == 5 && extraction.statusBits == 81 && extraction.valveOpen)
     val sleep = (HoyiCodec.decode(hex("8340FE0A00071E0A00071E0A00071E0A00071E3D")) as DecodeResult.Valid).value as SleepPart
+    val sleepTail = (HoyiCodec.decode(hex("83800A00071E0A00071E0A00071E10")) as DecodeResult.Valid).value as SleepPart
+    val weekly = WeeklySleepSchedule.fromReadback(sleep, sleepTail) ?: error("Known weekly schedule not decoded")
+    verify(weekly.days.size == 7 && weekly.days.all { it.enabled && it.time == SleepDay(10, 0, 7, 30) })
+    val scheduleOracle = object {}.javaClass.getResourceAsStream("/sleep_schedule_wire.tsv")
+        ?: error("Missing legacy sleep schedule oracle")
+    val scheduleLines = scheduleOracle.bufferedReader().use { it.readLines() }
+    verify(scheduleLines.first() ==
+        "# sleep-schedule-wire-v1\tsource-sha256=b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037")
+    verify(scheduleLines.size == 4)
+    scheduleLines.drop(1).forEach { line ->
+        val parts = line.split('\t')
+        verify(parts.size == 4)
+        val days = when (parts[0]) {
+            "all_enabled" -> List(7) { WeeklySleepDay(true, SleepDay(22, 15, 7, 30)) }
+            "all_disabled" -> List(7) { WeeklySleepDay(false, SleepDay(0, 0, 0, 0)) }
+            "distinct_days" -> List(7) { i ->
+                WeeklySleepDay(i % 2 == 1, SleepDay(i + 1, i + 10, 12 + i, 40 + i))
+            }
+            else -> error("Unexpected schedule oracle case")
+        }
+        val frames = CoffeeCommands.sleepSchedule(WeeklySleepSchedule(days))
+        verify(frames.size == 2 && frames[0].frame.hex() == parts[2] && frames[1].frame.hex() == parts[3])
+    }
+    rejected { WeeklySleepSchedule(List(6) { WeeklySleepDay(true, SleepDay(10, 0, 7, 30)) }) }
+    rejected { WeeklySleepSchedule(List(7) { WeeklySleepDay(true, SleepDay(24, 0, 7, 30)) }) }
     verify(sleep.enabledBits == 254 && sleep.firstDaySundayIndex == 0 && sleep.days[0] == SleepDay(10,0,7,30))
     verify((HoyiCodec.decode(hex("83800A00071E0A00071E0A00071E10")) as DecodeResult.Valid).value is SleepPart)
     val negative = hex("030B000000012D007A3A2D03424600C803010084")

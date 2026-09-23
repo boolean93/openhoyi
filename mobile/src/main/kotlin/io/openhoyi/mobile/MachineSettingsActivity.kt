@@ -16,14 +16,19 @@ import android.os.Looper
 import android.text.InputType
 import android.view.WindowInsets
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import io.openhoyi.protocol.MachineSettingChange
+import io.openhoyi.protocol.SleepDay
+import io.openhoyi.protocol.WeeklySleepDay
+import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.DeviceState
 import java.util.UUID
+import java.util.Locale
 
 /** Only known setting commands are exposed; applied state requires a subsequent 0x83 readback. */
 class MachineSettingsActivity : Activity() {
@@ -36,6 +41,7 @@ class MachineSettingsActivity : Activity() {
     private lateinit var settings: TextView
     private lateinit var schedule: TextView
     private lateinit var writeStatus: TextView
+    private lateinit var scheduleWriteStatus: TextView
     private lateinit var brewInput: EditText
     private lateinit var steamInput: EditText
     private lateinit var brewHeatingButton: Button
@@ -45,6 +51,7 @@ class MachineSettingsActivity : Activity() {
     private lateinit var runModeButton: Button
     private lateinit var sleepScheduleButton: Button
     private val controlButtons = mutableListOf<Button>()
+    private val scheduleButtons = mutableListOf<Button>()
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
@@ -119,12 +126,17 @@ class MachineSettingsActivity : Activity() {
         controlButtons += action(controls, "设置自动待机时间") { chooseStandbyDelay() }
         val sleepCard = card(body, "每周睡眠计划")
         schedule = text(sleepCard, "尚未收到睡眠计划", 16)
+        scheduleWriteStatus = text(sleepCard, "时间修改：尚未修改", 14)
         sleepScheduleButton = action(sleepCard, "切换睡眠计划总开关") {
             service?.snapshot?.settings?.let {
                 confirm(MachineSettingChange.SleepScheduleEnabled(it.flags and 0x01 == 0))
             }
         }
         controlButtons += sleepScheduleButton
+        listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六").forEachIndexed { index, name ->
+            scheduleButtons += action(sleepCard, "编辑 $name 的睡眠/唤醒时间") { editScheduleDay(index, name) }
+        }
+        controlButtons += scheduleButtons
         Button(this).apply {
             text = "返回首页"
             setOnClickListener { finish() }
@@ -158,6 +170,15 @@ class MachineSettingsActivity : Activity() {
         connectionState.update("${snapshot.coffeeState.name}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
         settings.update(MachineSettingsPresentation.settings(snapshot.settings))
         schedule.update(MachineSettingsPresentation.schedule(snapshot.sleepFirst, snapshot.sleepSecond))
+        scheduleWriteStatus.update("时间修改：" + when (owner?.scheduleWriteState) {
+            SleepScheduleWriteTracker.State.WRITING -> "正在顺序写入两包计划"
+            SleepScheduleWriteTracker.State.WAITING_READBACK -> "已写入，等待两段机器回报"
+            SleepScheduleWriteTracker.State.CONFIRMED -> "整周回读已确认"
+            SleepScheduleWriteTracker.State.FAILED -> "首包写入失败"
+            SleepScheduleWriteTracker.State.UNKNOWN -> "结果未知，请核对机器上的整周计划"
+            SleepScheduleWriteTracker.State.RECONCILED -> "已重新读取整周计划，请核对后再编辑"
+            else -> "尚未修改"
+        })
         val pending = owner?.settingWriteState ?: SettingsWriteTracker.State.IDLE
         writeStatus.update("设置状态：${owner?.pendingSetting?.let(MachineSettingsPresentation::change) ?: "尚未修改"} · " +
             when (pending) {
@@ -174,8 +195,13 @@ class MachineSettingsActivity : Activity() {
             snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } == true
         val editable = ready && snapshot.settings != null && freshIdle && owner?.shotState?.let(ShotGate::active) != true &&
             owner?.brewPreparationState == BrewPreparation.State.IDLE &&
-            pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
+            pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK) &&
+            owner?.scheduleWriteState !in setOf(SleepScheduleWriteTracker.State.WRITING,
+                SleepScheduleWriteTracker.State.WAITING_READBACK)
         controlButtons.forEach { it.isEnabled = editable }
+        scheduleButtons.forEach { it.isEnabled = editable &&
+            owner?.scheduleWriteState != SleepScheduleWriteTracker.State.UNKNOWN &&
+            WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond) != null }
         sleepScheduleButton.isEnabled = editable &&
             (snapshot.settings?.flags?.and(0x01) == 1 ||
                 SleepScheduleSafety.canEnable(snapshot.sleepFirst, snapshot.sleepSecond))
@@ -225,6 +251,58 @@ class MachineSettingsActivity : Activity() {
                 if (temperature == null) Toast.makeText(this, "尚未收到机器设置", Toast.LENGTH_SHORT).show()
                 else confirm(MachineSettingChange.StandbyDelay(values[index], temperature))
             }.show()
+    }
+    private fun editScheduleDay(index: Int, name: String) {
+        val baseline = service?.snapshot?.let {
+            WeeklySleepSchedule.fromReadback(it.sleepFirst, it.sleepSecond)
+        } ?: return
+        val previous = baseline.days[index]
+        val form = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(4))
+        }
+        val enabled = CheckBox(this).apply { text = "当天启用"; isChecked = previous.enabled; form.addView(this) }
+        val sleepHour = numberInput(form, "睡眠时（0–23）", previous.time.sleepHour)
+        val sleepMinute = numberInput(form, "睡眠分（0–59）", previous.time.sleepMinute)
+        val wakeHour = numberInput(form, "唤醒时（0–23）", previous.time.wakeHour)
+        val wakeMinute = numberInput(form, "唤醒分（0–59）", previous.time.wakeMinute)
+        val dialog = AlertDialog.Builder(this).setTitle("编辑 $name")
+            .setMessage("旧版协议会重写整周计划；其他六天保持机器当前回报值。")
+            .setView(form).setPositiveButton("核对计划", null).setNegativeButton("取消", null).create()
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val sh = sleepHour.text.toString().toIntOrNull()
+                val sm = sleepMinute.text.toString().toIntOrNull()
+                val wh = wakeHour.text.toString().toIntOrNull()
+                val wm = wakeMinute.text.toString().toIntOrNull()
+                if (sh == null || sh !in 0..23 || wh == null || wh !in 0..23 ||
+                    sm == null || sm !in 0..59 || wm == null || wm !in 0..59) {
+                    Toast.makeText(this, "请输入有效的 24 小时时间", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                val target = WeeklySleepSchedule(baseline.days.toMutableList().apply {
+                    this[index] = WeeklySleepDay(enabled.isChecked, SleepDay(sh, sm, wh, wm))
+                })
+                dialog.dismiss()
+                AlertDialog.Builder(this).setTitle("确认写入整周睡眠计划")
+                    .setMessage(String.format(Locale.CHINA,
+                        "$name ${if (enabled.isChecked) "启用" else "关闭"}：%02d:%02d 睡眠，%02d:%02d 唤醒。\n将发送两包计划，并等待机器回报整周内容。",
+                        sh, sm, wh, wm))
+                    .setPositiveButton("发送") { _, _ ->
+                        service?.changeSleepSchedule(baseline, target)?.let {
+                            Toast.makeText(this, it, Toast.LENGTH_LONG).show()
+                        }
+                        render()
+                    }.setNegativeButton("取消", null).show()
+            }
+        }
+        dialog.show()
+    }
+    private fun numberInput(parent: LinearLayout, label: String, value: Int): EditText = EditText(this).apply {
+        hint = label
+        inputType = InputType.TYPE_CLASS_NUMBER
+        setText(String.format(Locale.getDefault(), "%d", value))
+        parent.addView(this, LinearLayout.LayoutParams(-1, -2))
     }
     private fun temperatureInput(parent: LinearLayout, hintText: String): EditText = EditText(this).apply {
         hint = hintText

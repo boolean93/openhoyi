@@ -94,6 +94,19 @@ object CoffeeCommands {
         is MachineSettingChange.Light -> command(14,2,0,if(change.enabled)1 else 0,0)
     }
     fun sleepNow():EncodedCommand=command(32,1,165,165,33)
+    /** Legacy setSleepArrTime writes Sunday-Wednesday, then Thursday-Saturday. */
+    fun sleepSchedule(schedule: WeeklySleepSchedule): List<EncodedCommand> =
+        listOf(schedule.days.subList(0, 4), schedule.days.subList(4, 7)).map { days ->
+            val bytes = mutableListOf(9, days.size * 4)
+            days.forEach { day ->
+                bytes += day.time.sleepHour or (if (day.enabled) 0x80 else 0)
+                bytes += day.time.sleepMinute
+                bytes += day.time.wakeHour
+                bytes += day.time.wakeMinute
+            }
+            bytes += 0
+            EncodedCommand(ByteFrame(bytes.map(Int::toByte).toByteArray()))
+        }
     /** Studio-mode temperature preparation; zero cancels the legacy wait. */
     fun brewWait(targetC: Int): EncodedCommand {
         require(targetC == 0 || targetC in 75..105)
@@ -112,6 +125,6 @@ object CoffeeCommands {
 enum class UnsupportedCommandGroup(val reason:String) {
     OTA("No recoverable hardware validation"), PASSWORD_CHANGE("Legacy encoded/write length mismatch"),
     LEVER_CALIBRATION("Legacy encoded/write length mismatch"), FACTORY_RESET_AND_ALARM_IGNORE("Opcode 0x17 conflict"),
-    CURVE_COPY("Competing 14/20 byte formats"), SLEEP_SCHEDULE_WRITE("Single-day semantics and write evidence incomplete"),
+    CURVE_COPY("Competing 14/20 byte formats"),
     STEAM_AND_COMPENSATION_SETTINGS("No captured setting/writeback pair"), OTHER_SETTINGS("Outside captured safe subset"),
 }

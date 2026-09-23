@@ -46,6 +46,32 @@ data class SleepDay(val sleepHour: Int, val sleepMinute: Int, val wakeHour: Int,
 class SleepPart(val firstDaySundayIndex: Int, val enabledBits: Int?, days: List<SleepDay>, override val raw: ByteFrame) : HoyiMessage {
     val days: List<SleepDay> = java.util.Collections.unmodifiableList(days.toList())
 }
+data class WeeklySleepDay(val enabled: Boolean, val time: SleepDay)
+
+/** Sunday-first schedule. A complete readback needs both 0x83 sleep fragments. */
+class WeeklySleepSchedule(days: List<WeeklySleepDay>) {
+    val days: List<WeeklySleepDay> = java.util.Collections.unmodifiableList(days.toList())
+
+    init {
+        require(this.days.size == 7) { "Weekly sleep schedule requires seven days" }
+        require(this.days.all { day ->
+            day.time.sleepHour in 0..23 && day.time.sleepMinute in 0..59 &&
+                day.time.wakeHour in 0..23 && day.time.wakeMinute in 0..59
+        }) { "Weekly sleep schedule contains an invalid time" }
+    }
+
+    companion object {
+        fun fromReadback(first: SleepPart?, second: SleepPart?): WeeklySleepSchedule? {
+            if (first == null || second == null || first.firstDaySundayIndex != 0 ||
+                first.enabledBits == null || first.days.size != 4 ||
+                second.firstDaySundayIndex != 4 || second.days.size != 3) return null
+            val days = (first.days + second.days).mapIndexed { index, time ->
+                WeeklySleepDay(first.enabledBits and (0x80 shr index) != 0, time)
+            }
+            return runCatching { WeeklySleepSchedule(days) }.getOrNull()
+        }
+    }
+}
 object HoyiCodec {
     fun decode(bytes: ByteArray): DecodeResult<HoyiMessage> {
         val raw=ByteFrame(bytes); val b=raw.toByteArray()
