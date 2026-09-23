@@ -24,6 +24,7 @@ class ShotHistory(
         val status: Status,
         val reason: String?,
         val weightHundredthsGram: Int?,
+        val slot: Int? = null,
     )
 
     private val records = decode(storage.read()).toMutableList()
@@ -43,12 +44,13 @@ class ShotHistory(
         if (changed) persist()
     }
 
-    fun begin(curveId: String, atMs: Long = now()): String {
+    fun begin(curveId: String, atMs: Long = now(), slot: Int = 7): String {
         require(activeId == null) { "Previous shot has not been resolved in the history" }
         require(CurveCatalog.find(curveId) != null || curveId.matches(Regex("factory-v3-(00[1-9]|0[1-9][0-9]|100)")))
+        require(slot in 1..5 || slot == 7)
         val id = newId()
         require(id.isNotBlank() && records.none { it.id == id })
-        records.add(Entry(id, curveId, atMs, null, null, Status.STARTING, null, null))
+        records.add(Entry(id, curveId, atMs, null, null, Status.STARTING, null, null, slot))
         activeId = id
         persist()
         return id
@@ -102,17 +104,20 @@ class ShotHistory(
         safe(value.id), safe(value.curveId), value.startedAtMs.toString(),
         value.endedAtMs?.toString().orEmpty(), value.elapsedMs?.toString().orEmpty(),
         value.status.name, safe(value.reason.orEmpty()), value.weightHundredthsGram?.toString().orEmpty(),
+        value.slot?.toString().orEmpty(),
     ).joinToString("\t")
 
     private fun decode(value: String): List<Entry> = value.lineSequence().mapNotNull { line ->
         val fields = line.split('\t')
-        if (fields.size != 8) return@mapNotNull null
+        if (fields.size !in 8..9) return@mapNotNull null
         runCatching {
             Entry(unsafe(fields[0]), unsafe(fields[1]), fields[2].toLong(),
                 fields[3].takeIf(String::isNotEmpty)?.toLong(), fields[4].takeIf(String::isNotEmpty)?.toLong(),
                 Status.valueOf(fields[5]), unsafe(fields[6]).ifEmpty { null },
-                fields[7].takeIf(String::isNotEmpty)?.toInt())
-        }.getOrNull()?.takeIf { it.id.isNotBlank() && it.curveId.isNotBlank() && it.startedAtMs >= 0 }
+                fields[7].takeIf(String::isNotEmpty)?.toInt(),
+                fields.getOrNull(8)?.takeIf(String::isNotEmpty)?.toInt())
+        }.getOrNull()?.takeIf { it.id.isNotBlank() && it.curveId.isNotBlank() && it.startedAtMs >= 0 &&
+            (it.slot == null || it.slot in 1..5 || it.slot == 7) }
     }.toList()
 
     private fun safe(value: String): String = Base64.getUrlEncoder().withoutPadding()

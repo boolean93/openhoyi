@@ -14,9 +14,13 @@ interface CoffeeControl {
 interface ScaleControl {val ready:Boolean;fun tare(done:(OperationResult)->Unit)}
 class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     init{require(session.role==DeviceRole.COFFEE)}
+    private var activeSlot=7
     override val ready get()=session.state==DeviceState.READY
-    override fun start(parameters:StartParameters,done:(OperationResult)->Unit)=session.startExtraction(parameters,done)
-    override fun stop(done:(OperationResult)->Unit)=session.stopExtraction(done)
+    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){
+        activeSlot=parameters.slot
+        session.startExtraction(parameters,done)
+    }
+    override fun stop(done:(OperationResult)->Unit)=session.stopExtraction(activeSlot,done)
 }
 class ScaleSessionControl(private val session:DeviceSession):ScaleControl {
     init{require(session.role==DeviceRole.BOOKOO)}

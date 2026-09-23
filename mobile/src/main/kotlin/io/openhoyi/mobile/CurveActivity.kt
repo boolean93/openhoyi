@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -13,11 +14,13 @@ import android.widget.ListView
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
 
-/** Browsing and selection have no BLE side effects. Only captured profiles are executable. */
+/** Browsing and shortcut assignment have no BLE side effects. */
 class CurveActivity : Activity() {
     private lateinit var details: TextView
     private lateinit var select: Button
+    private lateinit var assignPreset: Button
     private lateinit var adapter: ArrayAdapter<String>
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
@@ -42,7 +45,7 @@ class CurveActivity : Activity() {
         }
         setContentView(root)
         label(root, "曲线库", 28, true)
-        label(root, "3 条采集曲线可用于萃取 · 100 条旧版工厂曲线仅供浏览", 14)
+        label(root, "3 条采集曲线 · 100 条旧版工厂曲线 · 5 个快捷槽位", 14)
         val categories = listOf("全部", "已采集验证", "深烘", "中烘", "浅烘", "超萃")
         val filter = Spinner(this)
         filter.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
@@ -69,6 +72,20 @@ class CurveActivity : Activity() {
             }
         }
         root.addView(select)
+        assignPreset = Button(this).apply {
+            text = "放入快捷槽位"; isEnabled = false
+            setOnClickListener {
+                val item = selected?.takeIf { it.factoryCurve != null && library.canStart(it) } ?: return@setOnClickListener
+                AlertDialog.Builder(this@CurveActivity).setTitle("选择快捷槽位")
+                    .setItems(arrayOf("槽位 1", "槽位 2", "槽位 3", "槽位 4", "槽位 5")) { _, index ->
+                        val slot = index + 1
+                        getSharedPreferences("presets", MODE_PRIVATE).edit()
+                            .putString(PresetSlots.key(slot), item.id).apply()
+                        Toast.makeText(this@CurveActivity, "已将${item.name}放入槽位 $slot", Toast.LENGTH_SHORT).show()
+                    }.show()
+            }
+        }
+        root.addView(assignPreset)
         filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                 visibleItems = library.items.filter { position == 0 || it.category == categories[position] }
@@ -87,6 +104,7 @@ class CurveActivity : Activity() {
         details.text = "${item.name}\n${item.category}\n\n${item.details}"
         select.isEnabled = true
         select.text = if (!library.canStart(item)) "设为当前曲线（不可萃取）" else "设为当前曲线"
+        assignPreset.isEnabled = item.factoryCurve != null && library.canStart(item)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

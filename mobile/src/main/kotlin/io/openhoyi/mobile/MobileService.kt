@@ -242,12 +242,17 @@ class MobileService : Service() {
         }
         return null
     }
-    fun startShot(profileId: String, expectedScaleMode: Boolean? = null): String? {
+    fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
         val current = hub ?: return "设备服务尚未启动"
-        val selectedId = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
+        val selectedId = if (slot == 7)
+            getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
+        else if (slot in 1..5)
+            PresetSlots.curveId(slot, getSharedPreferences("presets", MODE_PRIVATE)
+                .getString(PresetSlots.key(slot), null))
+        else null
         val library = (application as MobileApplication).curves
         val scaleMode = snapshot.scaleState == DeviceState.READY
-        val profile = profileId.takeIf { it == selectedId }?.let { library.resolve(it, scaleMode) }
+        val profile = profileId.takeIf { it == selectedId }?.let { library.resolve(it, scaleMode, slot) }
         if (profile != null && profile.scaleMode != expectedScaleMode) {
             event("电子秤连接状态已变化，请重新确认", "shot.rejected")
             return "电子秤连接状态已变化，请重新确认"
@@ -264,13 +269,13 @@ class MobileService : Service() {
         }
         logs.record("shot.start.attempt", mapOf("ownerId" to ownerId, "curveId" to profile.id,
             "targetHundredthsGram" to profile.targetHundredthsGram.toString(),
-            "scaleMode" to (profile.scaleMode?.toString() ?: "captured")))
+            "scaleMode" to (profile.scaleMode?.toString() ?: "captured"), "slot" to slot.toString()))
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) ||
             current.extraction.state == ExtractionState.IDLE) {
             event("启动未被会话层接受", "shot.rejected")
             return "启动未被会话层接受"
         }
-        val shotId = runCatching { history?.begin(profile.id) }
+        val shotId = runCatching { history?.begin(profile.id, slot = slot) }
             .onFailure { event("历史记录失败", "shot.history_error") }
             .getOrNull() ?: java.util.UUID.randomUUID().toString()
         series.begin(shotId, SystemClock.elapsedRealtime())

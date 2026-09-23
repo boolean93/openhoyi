@@ -54,6 +54,16 @@ class ShotHistoryTest {
         assertThrows(IllegalArgumentException::class.java) { history.begin("factory-v3-101") }
     }
 
+    @Test fun slotIsPersistedAndOldEightFieldRowsRemainReadable() {
+        val disk = Memory()
+        val history = ShotHistory(disk, now = { 1_000_000L }, newId = { "preset-shot" })
+        history.begin("factory-v3-001", slot = 3)
+        history.transition(ExtractionState.ENDED_OBSERVED, null, null)
+        assertEquals(3, ShotHistory(disk, now = { 1_000_000L }).entries.single().slot)
+        disk.value = disk.value.trimEnd().substringBeforeLast('\t') + "\n"
+        assertNull(ShotHistory(disk, now = { 1_000_000L }).entries.single().slot)
+    }
+
     @Test fun retainsAtMostFiveHundredRecentEntries() {
         val disk = Memory()
         var time = 100_000_000L

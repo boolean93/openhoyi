@@ -70,7 +70,7 @@ class HistoryActivity : Activity() {
         val library = runCatching { (application as MobileApplication).curves }.getOrNull()
         adapter.clear()
         adapter.addAll(rows.map { entry ->
-            "${date(entry.startedAtMs)}   ${status(entry.status)}\n${library?.find(entry.curveId)?.name ?: entry.curveId}"
+            "${date(entry.startedAtMs)}   ${status(entry.status)}\n${library?.find(entry.curveId)?.name ?: entry.curveId}${entry.slot?.let { " · 槽位 $it" } ?: ""}"
         })
     }
 

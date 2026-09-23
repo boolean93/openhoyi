@@ -64,9 +64,10 @@ def normalized_rows(path: Path) -> tuple[str, list[dict]]:
 
 
 def main() -> None:
-    if len(sys.argv) != 4:
-        raise SystemExit("usage: generate_factory_wire_oracle.py app-service.js factory_curves_v3.tsv output.tsv")
-    bundle, catalog, output = map(Path, sys.argv[1:])
+    if len(sys.argv) not in (4, 5):
+        raise SystemExit("usage: generate_factory_wire_oracle.py app-service.js factory_curves_v3.tsv temp.tsv [slots.tsv]")
+    bundle, catalog, output = map(Path, sys.argv[1:4])
+    slot_output = Path(sys.argv[4]) if len(sys.argv) == 5 else None
     source = bundle.read_text(encoding="utf-8")
     expected_hash, rows = normalized_rows(catalog)
     if hashlib.sha256(bundle.read_bytes()).hexdigest() != expected_hash:
@@ -74,7 +75,7 @@ def main() -> None:
     module = source[source.index("8625: function"):source.index("8625: function") + 100000]
     helpers = "\n".join(function(module, f"function {name}(", True) for name in ("m", "g", "w", "_", "b", "x"))
     methods = {name: function(module, f"{name}: function", False)
-               for name in ("startTempChart", "ten2Hex", "xor_fun")}
+               for name in ("startTempChart", "startChart", "ten2Hex", "xor_fun")}
     harness = "(function(){\n" + helpers + "\nreturn {" + ",".join(
         f"{name}: {body}" for name, body in methods.items()) + "};})()"
     node = r'''
@@ -85,7 +86,7 @@ process.stdin.on('data',chunk=>input+=chunk).on('end',()=>{
   const data={scaleSta:false};
   const context={getApp:()=>({globalData:data}),e:()=>{}};
   const legacy=vm.runInNewContext(harness,context,{timeout:1000});
-  const result=[];
+  const result=[],slotResult=[];
   for(const item of rows){
     const frames=[];
     for(const scale of [false,true]){
@@ -98,18 +99,43 @@ process.stdin.on('data',chunk=>input+=chunk).on('end',()=>{
       frames.push(writes[0].hex.toUpperCase());
     }
     result.push([item.id,...frames]);
+    for(let slot=1;slot<=5;slot++){
+      const slotFrames=[];
+      for(const scale of [false,true]){
+        data.scaleSta=scale;
+        data.chartList=Array(5).fill(null);
+        data.chartList[slot-1]=item.curve;
+        const writes=[];
+        legacy.BleWrite=(hex,size)=>writes.push({hex,size});
+        legacy.startChart(slot,1);
+        if(writes.length!==1||writes[0].size!==20||!/^[0-9a-f]{40}$/i.test(writes[0].hex))
+          throw new Error('invalid legacy slot write '+item.id+'/'+slot);
+        slotFrames.push(writes[0].hex.toUpperCase());
+      }
+      slotResult.push([item.id,String(slot),...slotFrames]);
+    }
   }
-  process.stdout.write(JSON.stringify(result));
+  process.stdout.write(JSON.stringify({result,slotResult}));
 });
 '''
     result = subprocess.run(["node", "-e", node], input=json.dumps({"harness": harness, "rows": rows}),
                             text=True, capture_output=True, check=True, timeout=20)
-    frames = json.loads(result.stdout)
+    decoded = json.loads(result.stdout)
+    frames = decoded["result"]
     lines = [f"# factory-wire-v1\tsource-sha256={expected_hash}"]
     lines += ["\t".join(item) for item in frames]
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"generated {len(frames)} two-mode factory frames: {output}")
+    if slot_output is not None:
+        slot_rows = decoded["slotResult"]
+        if len(slot_rows) != 500:
+            raise ValueError("expected 500 slot rows")
+        slot_lines = [f"# factory-slot-wire-v1\tsource-sha256={expected_hash}"]
+        slot_lines += ["\t".join(item) for item in slot_rows]
+        slot_output.parent.mkdir(parents=True, exist_ok=True)
+        slot_output.write_text("\n".join(slot_lines) + "\n", encoding="utf-8")
+        print(f"generated {len(slot_rows)} two-mode slot rows: {slot_output}")
 
 
 if __name__ == "__main__":

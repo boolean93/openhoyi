@@ -27,11 +27,12 @@ class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWirePr
     fun find(id: String): CurveLibraryItem? = items.firstOrNull { it.id == id }
     fun canStart(item: CurveLibraryItem): Boolean = item.controlProfile?.let(CurveCatalog::validated) == true ||
         (item.factoryCurve != null && proof != null)
-    fun resolve(id: String, scaleConnected: Boolean): CurveProfile? {
+    fun resolve(id: String, scaleConnected: Boolean, slot: Int = 7): CurveProfile? {
         val item = find(id) ?: return null
-        item.controlProfile?.let { return it.takeIf(CurveCatalog::validated) }
+        item.controlProfile?.let { return it.takeIf { slot == 7 && CurveCatalog.validated(it) } }
         val curve = item.factoryCurve ?: return null
-        return FactoryCurveAdapter.profile(curve, scaleConnected).takeIf { proof?.validated(it) == true }
+        if (slot !in 1..5 && slot != 7) return null
+        return FactoryCurveAdapter.profile(curve, scaleConnected, slot).takeIf { proof?.validated(it) == true }
     }
     fun validated(profile: CurveProfile): Boolean = CurveCatalog.validated(profile) || proof?.validated(profile) == true
     companion object {

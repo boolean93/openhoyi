@@ -6,14 +6,15 @@ import java.io.InputStream
 
 /** Adapts local factory metadata to the exact temporary-curve command used by the old app. */
 object FactoryCurveAdapter {
-    fun profile(curve: FactoryCurve, scaleConnected: Boolean): CurveProfile {
+    fun profile(curve: FactoryCurve, scaleConnected: Boolean, slot: Int = 7): CurveProfile {
+        require(slot in 1..5 || slot == 7)
         // Legacy m(curve): when a scale is connected, max(flow, ceil(4 * target grams)).
         val maximumWater = if (scaleConnected && curve.weightTenthsGram > 0)
             maxOf(curve.flowMl, (curve.weightTenthsGram * 2 + 4) / 5)
         else curve.flowMl
         val targets = curve.targets
         val flows = curve.segmentFlowMl
-        val parameters = StartParameters(curve.pressureLogic, curve.variableFlowLogic, curve.segmentCount, 7,
+        val parameters = StartParameters(curve.pressureLogic, curve.variableFlowLogic, curve.segmentCount, slot,
             curve.temperatureC, maximumWater, false, curve.preinfusionSeconds,
             targets[0], targets[1], targets[2], targets[3],
             flows[0] * 10, curve.firstDurationSeconds, flows[1] * 10, flows[2] * 10, flows[3] * 10)
@@ -28,21 +29,25 @@ object FactoryCurveAdapter {
 class FactoryWireProof private constructor(
     private val factory: Map<String, FactoryCurve>,
     private val frames: Map<String, Pair<String, String>>,
+    private val slotFrames: Map<Pair<String, Int>, Pair<String, String>>,
 ) {
-    fun allowedFrames(): Set<String> = frames.values.flatMap { listOf(it.first, it.second) }.toSet()
-    fun expected(id: String, scaleConnected: Boolean): String? =
-        frames[id]?.let { if (scaleConnected) it.second else it.first }
+    fun allowedFrames(): Set<String> = (frames.values + slotFrames.values)
+        .flatMap { listOf(it.first, it.second) }.toSet()
+    fun expected(id: String, scaleConnected: Boolean, slot: Int = 7): String? =
+        (if (slot == 7) frames[id] else slotFrames[id to slot])?.let { if (scaleConnected) it.second else it.first }
 
     fun validated(profile: CurveProfile): Boolean {
         val mode = profile.scaleMode ?: return false
         val curve = factory[profile.id] ?: return false
-        if (profile != FactoryCurveAdapter.profile(curve, mode)) return false
+        val slot = profile.parameters.slot
+        if (slot !in 1..5 && slot != 7) return false
+        if (profile != FactoryCurveAdapter.profile(curve, mode, slot)) return false
         return runCatching { CoffeeCommands.start(profile.parameters).frame.hex() }.getOrNull() ==
-            expected(profile.id, mode)
+            expected(profile.id, mode, slot)
     }
 
     companion object {
-        fun load(input: InputStream, curves: List<FactoryCurve>): FactoryWireProof {
+        fun load(input: InputStream, curves: List<FactoryCurve>, slotInput: InputStream? = null): FactoryWireProof {
             require(curves.size == 100 && curves.map { it.id }.toSet().size == 100)
             val lines = input.bufferedReader(Charsets.UTF_8).use { it.readLines() }
             require(lines.firstOrNull() == "# factory-wire-v1\tsource-sha256=${FactoryCurveCatalog.SOURCE_SHA256}")
@@ -58,7 +63,25 @@ class FactoryWireProof private constructor(
                 }
                 frames[curve.id] = fields[1] to fields[2]
             }
-            return FactoryWireProof(curves.associateBy(FactoryCurve::id), frames)
+            val slots = linkedMapOf<Pair<String, Int>, Pair<String, String>>()
+            if (slotInput != null) {
+                val slotLines = slotInput.bufferedReader(Charsets.UTF_8).use { it.readLines() }
+                require(slotLines.firstOrNull() == "# factory-slot-wire-v1\tsource-sha256=${FactoryCurveCatalog.SOURCE_SHA256}")
+                require(slotLines.size == curves.size * 5 + 1)
+                for ((curveIndex, curve) in curves.withIndex()) for (slot in 1..5) {
+                    val fields = slotLines[curveIndex * 5 + slot].split('\t')
+                    require(fields.size == 4 && fields[0] == curve.id && fields[1] == slot.toString())
+                    require(fields.drop(2).all { it.matches(Regex("02[0-9A-F]{38}")) })
+                    for (mode in listOf(false, true)) {
+                        val actual = CoffeeCommands.start(FactoryCurveAdapter.profile(curve, mode, slot).parameters).frame.hex()
+                        require(actual == fields[if (mode) 3 else 2]) {
+                            "factory slot wire mismatch at ${curve.id} slot=$slot scale=$mode"
+                        }
+                    }
+                    slots[curve.id to slot] = fields[2] to fields[3]
+                }
+            }
+            return FactoryWireProof(curves.associateBy(FactoryCurve::id), frames, slots)
         }
     }
 }

@@ -25,6 +25,7 @@
 | 原生诊断UI/持久化 | LabActivity / LabService | 独立APK、未知/过期/断开显示、成功秤地址、离线UI测试APK | 冒烟APK已构建未执行；实机布局、权限、连接和导出 |
 | 原生日常版基础流程 | mobile/HomeActivity、MobileService、CurveActivity、ExtractionActivity、CurveCatalog、ShotGate | 独立APK、曲线和启动门禁单测、此前构建和Lint通过；复用已验证会话控制 | UI/连接/真实萃取未实机验收；未知进程终止无法保证停液 |
 | 旧版工厂曲线萃取入口 | FactoryCurveCatalog、FactoryCurveAdapter、FactoryWireProof、CurveLibrary、factory_wire_v1.tsv | 100条元数据与旧版归一化一致；有秤/无秤200帧和旧版编码函数逐字节对照；发送前复核曲线、帧和秤模式 | Alpha尚未实机萃取；用户自定义曲线未导入，曲线编辑后置 |
+| 首页五个快捷槽位 | PresetSlots、factory_slot_wire_v1.tsv、DeviceSession、ExtractionActivity | 100条×5槽位×2秤模式共1000帧与旧版 `startChart` 对照；本地映射、确认页、停止槽位和历史记录接入 | 尚未实机验证槽位启停与机器显示；用户自定义曲线未导入 |
 | 独立电子秤去皮 | StandaloneTare、MobileService、NativeDeviceHub、BOOKOO去皮帧 | 写入结果与归零读数分离；要求写入后新鲜近零读数；超时/断线保留未知，阻止同时重复发送 | 尚未用实机确认去皮响应和归零时延 |
 | 机器设置只读页 | MobileSnapshot、MachineSettingsActivity、MachineSettingsPresentation | 显示已解码设置与两段睡眠计划；格式和缺段单测通过 | 逐日启用位未验证，不开放写入；UI待实机验收 |
 | 多页面前台状态 | VisibleScreens、MobileService | 独立页面token、切页500毫秒缓冲；多页面交叠单测通过 | 需实机验证切页对自动连秤窗口的影响 |
@@ -35,7 +36,7 @@
 
 见[实机报告](validation-2026-09-23.md)。咖啡机认证/设置/遥测有实机证据；新增仪器测试的4项检查通过。纯Kotlin会话回归增至33场景。BLE两次status=8断线未定位，未通过长期稳定性验收；08:42双设备并行约2分钟无断线，后因测试重启进程中断。秤负重量/自动重连及SAF系统选择器流程未完成。下方首轮结果为历史记录，不能代替最新报告。
 
-Alpha 日常版第一段功能见[说明](mobile-alpha.md)。工厂曲线会话门禁与独立去皮接入后，会话检查34项、Alpha单测22项通过，debug构建成功，Lint 0错误、2条警告。当前用户要求暂不安装，尚无Alpha实机萃取或独立去皮证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
+Alpha 日常版第一段功能见[说明](mobile-alpha.md)。五个快捷槽位接入后，会话检查34项、Alpha单测25项通过，debug构建成功，Lint 0错误、2条警告。当前用户要求暂不安装，尚无Alpha实机萃取、槽位启停或独立去皮证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
 
 ## 本轮 Lab 结果（2026-09-22）
 

@@ -13,7 +13,10 @@ class MobileApplication : Application() {
     val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces")) }
     val curves: CurveLibrary by lazy {
         val factory = FactoryCurveCatalog.load(assets.open("factory_curves_v3.tsv"))
-        val proof = runCatching { FactoryWireProof.load(assets.open("factory_wire_v1.tsv"), factory) }
+        val proof = runCatching {
+            FactoryWireProof.load(assets.open("factory_wire_v1.tsv"), factory,
+                assets.open("factory_slot_wire_v1.tsv"))
+        }
             .onFailure { logs.record("factory.wire_proof_failed", mapOf("type" to it.javaClass.simpleName)) }
             .getOrNull()
         CurveLibrary(factory, proof)

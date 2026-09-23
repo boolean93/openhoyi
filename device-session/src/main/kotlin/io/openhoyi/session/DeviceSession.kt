@@ -21,10 +21,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private val weightFrame:(BookooSample,Long)->Unit={_,_->},private val diagnostic:(String)->Unit={},
     legacyVerifiedStartFrames:Set<String> = emptySet()) {
     private val additionalStartFrames = legacyVerifiedStartFrames.toSet().also { frames ->
-        require(frames.size <= 200 && frames.all { hex ->
+        require(frames.size <= 1200 && frames.all { hex ->
             hex.matches(Regex("02[0-9A-F]{38}")) &&
                 hex.chunked(2).map { it.toInt(16) }.reduce(Int::xor) == 0 &&
-                hex.substring(2, 4).toInt(16) and 7 == 7
+                (hex.substring(2, 4).toInt(16) and 7).let { it in 1..5 || it == 7 }
         }) { "Invalid legacy start-frame permit" }
     }
     private val queue=GattQueue(driver,clock){fail(it)}
@@ -126,9 +126,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
         send(command,DeviceRole.COFFEE,callback=callback)
     }
-    fun stopExtraction(callback:(OperationResult)->Unit) {
+    fun stopExtraction(slot:Int=7,callback:(OperationResult)->Unit) {
+        require(slot in 1..5 || slot == 7)
         queue.cancelPending { it is GattOperation.Write && it.bytes.size==20 && it.bytes[0].toInt()==2 }
-        send(CoffeeCommands.stop(),DeviceRole.COFFEE,true,callback)
+        send(CoffeeCommands.stop(slot),DeviceRole.COFFEE,true,callback)
     }
     fun tare(callback:(OperationResult)->Unit)=send(BookooCodec.tare(),DeviceRole.BOOKOO,callback=callback)
     fun disconnect(){setState(DeviceState.DISCONNECTED);queue.disconnect("user disconnect");pendingSettings=null;initBusy=false}

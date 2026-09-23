@@ -36,6 +36,7 @@ class HomeActivity : Activity() {
     private lateinit var scale: TextView
     private lateinit var tareStatus: TextView
     private lateinit var selection: TextView
+    private lateinit var presetButtons: List<Button>
     private lateinit var candidates: LinearLayout
     private lateinit var scanButton: Button
     private lateinit var coffeeDisconnect: Button
@@ -92,6 +93,13 @@ class HomeActivity : Activity() {
         button(curveCard, "进入萃取页面") { startActivity(Intent(this, ExtractionActivity::class.java)) }
         button(curveCard, "萃取历史") { startActivity(Intent(this, HistoryActivity::class.java)) }
         text(curveCard, "工厂曲线经旧版启动报文逐字节校验；实际机器行为仍待验收。", 13)
+        val presets = card(content, "五个快捷槽位")
+        text(presets, "点选槽位进入萃取确认；可在曲线库中更换各槽位曲线。", 13)
+        presetButtons = (1..5).map { slot ->
+            button(presets, "槽位 $slot") {
+                startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
+            }
+        }
         button(content, "导出操作记录 ZIP") {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
@@ -198,6 +206,14 @@ class HomeActivity : Activity() {
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         selection.show(selected?.let { "当前：${it.name} · ${if (!library.canStart(it)) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
+        val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
+        presetButtons.forEachIndexed { index, button ->
+            val slot = index + 1
+            val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null))
+            val item = library.find(id)
+            val label = "槽位 $slot · ${item?.name ?: id}"
+            if (button.text.toString() != label) button.text = label
+        }
         val keys = s.candidates.map { "${it.address}:${it.advertisedName}" }
         if (keys != candidateKeys) {
             candidateKeys = keys; candidates.removeAllViews()

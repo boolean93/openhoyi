@@ -57,9 +57,9 @@ fun deviceChecks():Int {
         check(d.calls.count{it.third is GattOperation.Write}==1)
         now=10_000;s.tick();check(s.state==DeviceState.FAILED)
     }
-    case("verified factory frame passes session gate while neighboring frame stays blocked") {
-        val factoryHex="02175C0046005A3C000001F41900C8000000004D"
-        val profile=StartParameters(false,false,2,7,92,70,false,0,90,60,0,0,500,25,200,0,0)
+    case("verified factory slot frame passes session gate and stop uses active slot") {
+        val factoryHex="02115C0046005A3C000001F41900C8000000004B"
+        val profile=StartParameters(false,false,2,1,92,70,false,0,90,60,0,0,500,25,200,0,0)
         val d=SessionDriver()
         val s=DeviceSession(DeviceRole.COFFEE,d,{0},legacyVerifiedStartFrames=setOf(factoryHex))
         s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
@@ -73,13 +73,16 @@ fun deviceChecks():Int {
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
         check(s.state==DeviceState.READY)
         var result:OperationResult?=null
-        s.startExtraction(profile){result=it}
+        val control=CoffeeSessionControl(s)
+        control.start(profile){result=it}
         check(d.calls.last().third is GattOperation.Write)
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex(factoryHex)))
         complete();check(result is OperationResult.Success)
         val writes=d.calls.size
         s.startExtraction(profile.copy(maximumWaterMl=71)){result=it}
         check(result is OperationResult.Failed && d.calls.size==writes)
+        control.stop {}
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0200010000")))
     }
     return tests
 }

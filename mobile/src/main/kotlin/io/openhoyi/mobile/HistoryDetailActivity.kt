@@ -49,6 +49,7 @@ class HistoryDetailActivity : Activity() {
         val curve = runCatching { app.curves.find(entry.curveId)?.name }.getOrNull() ?: entry.curveId
         val detail = buildString {
             appendLine("曲线：$curve")
+            entry.slot?.let { appendLine("槽位：$it") }
             appendLine("开始请求：${date(entry.startedAtMs)}")
             appendLine("状态：${status(entry.status)}")
             entry.endedAtMs?.let { appendLine("观察到结束：${date(it)}") }
