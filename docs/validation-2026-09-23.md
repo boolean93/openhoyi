@@ -16,6 +16,7 @@
 | 前后台生命周期 | instrumentation切HOME/返回，确认同一Service保持；显式shutdown后停止 |
 | 停止服务后日志导出 | 在真实Android运行Application日志队列，导出ZIP至内存流，检查metadata和测试标记存在 |
 | 服务持久性 | 隔夜约11小时后仍可读取同一前台Service；这不代表BLE持续连接 |
+| 双设备实连（后续核对） | 08:42:51咖啡机Ready、08:42:59 BOOKOO Ready。随后约2分钟内分别收到115/1072条通知，无断线回调。BOOKOO四条初始化写入在08:42:57.953、58.552、59.166、59.775开始，顺序及约500ms间隔符合设计 |
 
 自动测试输出：
 
@@ -26,15 +27,17 @@ PASS background/return preserves Service; explicit shutdown stops it
 PASS Android ZIP export after Service stop (in-process stream, not SAF picker)
 ```
 
-测试在BLE权限已授予、蓝牙开启的平板上运行，调用扫描但不选择/连接硬件。没有权限或蓝牙未开启会显式SKIP生命周期测试，不应当作通过。测试会终止Lab原进程，所以不应在正在进行真实设备操作时运行。
+测试在BLE权限已授予、蓝牙开启的平板上运行，调用扫描但不选择/连接硬件。没有权限或蓝牙未开启会显式SKIP生命周期测试，不应当作通过。测试会终止Lab原进程。08:44对正在双设备连接的实例运行测试，确实中断了用户的连接；这是本轮操作失误，不属于设备自然断线。后续必须先运行保护脚本检查Service未存在，不能直接运行`am instrument`。
 
 ## 未解决 / 未验证
 
 - 两次已认证连接分别观察到约80秒和51秒通知后收到GATT status=8，根因未定位。第二次断开是21:25:22，页面进入后台是21:25:46，故不能归因于切后台。不能声称已实现长期稳定连接，也不能根据该状态码认定唯一原因。
-- 电子秤未扫描到，BOOKOO初始化/双连接/重量/自动重连仍待实测。
+- BOOKOO扫描、四条初始化写入、Ready和双设备并行遥测已实测；已知负重量的实物校准及自动重连仍待实测。
 - 本轮自动化验证的是Android流导出，**不是SAF系统文件选择器全流程**；SAF取消、存储提供方异常、选择期间停服务的端到端验证待做。
 - 未验证真正锁屏后的BLE连接；Activity.recreate不是物理旋转的全部系统行为。
 - 未测试真实萃取、去皮或停止控制，更未完成新旧App物理等效验收。
+
+08:50尝试恢复连接时5秒扫描未发现候选设备；当前页面显示未连接。该时刻状态与08:42成功双连分别记录，不能用现在的未连接否定之前的成功。
 
 ## 本轮修订
 
@@ -52,5 +55,5 @@ LabActivity只在文本变化时setText，避免250ms轮询反复产生布局/�
 ./gradlew :protocol-core:check :device-session:check :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
 adb -s <device> install -r app/build/outputs/apk/debug/app-debug.apk
 adb -s <device> install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-adb -s <device> shell am instrument -w io.openhoyi.lab.test/io.openhoyi.lab.LabSmokeInstrumentation
+scripts/run_lab_smoke.sh <device>
 ```
