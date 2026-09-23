@@ -18,7 +18,7 @@ def main() -> None:
     source_hash = hashlib.sha256(bundle.read_bytes()).hexdigest()
     module = source[source.index("8625: function"):source.index("8625: function") + 100000]
     methods = {name: function(module, f"{name}: function", False) for name in
-               ("setTemp", "setSteamTemp", "setTempPowerEn", "setSteamPowerEn", "setLedEn", "setPress", "ten2Hex")}
+               ("setTemp", "setSteamTemp", "setTempPowerEn", "setSteamPowerEn", "setLedEn", "setPress", "setStandby", "ten2Hex")}
     harness = "(function(){return {" + ",".join(f"{name}: {body}" for name, body in methods.items()) + "};})()"
     cases = (
         [["brew", value, "setTemp"] for value in range(75, 106)] +
@@ -26,7 +26,8 @@ def main() -> None:
         [[kind, value, method] for kind, method in
          (("brew_heat", "setTempPowerEn"), ("steam_heat", "setSteamPowerEn"), ("light", "setLedEn"))
          for value in (0, 1)] +
-        [["lever", value, "setPress"] for value in (0, 10, 11)]
+        [["lever", value, "setPress"] for value in (0, 10, 11)] +
+        [["standby", code * 256 + temperature, "setStandby"] for code in range(5) for temperature in (70, 92)]
     )
     node = r'''
 const vm=require('node:vm');
@@ -39,6 +40,7 @@ process.stdin.on('data',chunk=>input+=chunk).on('end',()=>{
     const writes=[];
     legacy.BleWrite=(hex,size)=>writes.push([hex.toUpperCase(),size]);
     if(kind==='lever') legacy.setPress(value>=10,value%10===1);
+    else if(kind==='standby') legacy.setStandby(Math.floor(value/256),value%256);
     else legacy[method](value);
     if(writes.length!==1||writes[0][1]!==5||!/^[0-9A-F]{10}$/.test(writes[0][0]))
       throw new Error('bad write '+kind+'/'+value);
@@ -50,8 +52,8 @@ process.stdin.on('data',chunk=>input+=chunk).on('end',()=>{
     result = subprocess.run(["node", "-e", node], input=json.dumps({"harness": harness, "cases": cases}),
                             text=True, capture_output=True, check=True, timeout=20)
     rows = json.loads(result.stdout)
-    if len(rows) != 76:
-        raise ValueError("expected 76 setting frames")
+    if len(rows) != 86:
+        raise ValueError("expected 86 setting frames")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("# machine-setting-wire-v1\tsource-sha256=" + source_hash + "\n" +
                       "\n".join("\t".join(row) for row in rows) + "\n", encoding="utf-8")

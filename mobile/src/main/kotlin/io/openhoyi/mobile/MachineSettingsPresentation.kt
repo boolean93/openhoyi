@@ -19,6 +19,12 @@ object MachineSettingsPresentation {
         }
     }
     fun change(value: MachineSettingChange): String = when (value) {
+        is MachineSettingChange.StandbyDelay -> "自动待机：" + when (value.minutes) {
+            0 -> "永不"
+            60 -> "1 小时"
+            120 -> "2 小时"
+            else -> "${value.minutes} 分钟"
+        }
         is MachineSettingChange.LeverMode -> "拨杆模式：" + when {
             value.flow -> "自动流量"
             value.pressure -> "自动压力"
@@ -43,7 +49,13 @@ object MachineSettingsPresentation {
             appendLine("照明  ${enabled(0x08)}")
             appendLine(leverMode(value))
             appendLine("睡眠计划总开关  ${enabled(0x01)}")
-            appendLine("待机时间  ${value.standbyMinutes} 分钟")
+            appendLine("自动待机  " + when (value.standbyMinutes) {
+                0 -> "永不"
+                60 -> "1 小时"
+                120 -> "2 小时"
+                15, 30 -> "${value.standbyMinutes} 分钟"
+                else -> "机器回读 ${value.standbyMinutes} 分钟（非旧版预设）"
+            })
             appendLine("待机温度  ${value.standbyTemperatureC} °C")
             appendLine("累计杯数  ${value.cupCount}")
             value.filterInstalled?.let { appendLine("滤芯状态  ${if (it) "已安装" else "未安装"}") }

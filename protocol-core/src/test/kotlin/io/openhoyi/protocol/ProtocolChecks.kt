@@ -52,6 +52,10 @@ fun main() {
     verify(CoffeeCommands.setting(MachineSettingChange.LeverMode(false,false)).frame.hex()=="0302000000")
     verify(CoffeeCommands.setting(MachineSettingChange.LeverMode(true,false)).frame.hex()=="0302010000")
     verify(CoffeeCommands.setting(MachineSettingChange.LeverMode(true,true)).frame.hex()=="0302010100")
+    verify(CoffeeCommands.setting(MachineSettingChange.StandbyDelay(15, 92)).frame.hex()=="1402015C00")
+    verify(CoffeeCommands.setting(MachineSettingChange.StandbyDelay(120, 92)).frame.hex()=="1402045C00")
+    rejected { MachineSettingChange.StandbyDelay(45, 92) }
+    rejected { MachineSettingChange.StandbyDelay(15, 256) }
     rejected { MachineSettingChange.LeverMode(false,true) }
     rejected { MachineSettingChange.BrewTemperature(74) }
     rejected { MachineSettingChange.SteamTemperature(146) }
@@ -60,7 +64,7 @@ fun main() {
     val settingLines = settingOracle.bufferedReader().use { it.readLines() }
     verify(settingLines.first() ==
         "# machine-setting-wire-v1\tsource-sha256=b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037")
-    verify(settingLines.size == 77)
+    verify(settingLines.size == 87)
     settingLines.drop(1).forEach { line ->
         val parts = line.split('\t')
         verify(parts.size == 3)
@@ -72,6 +76,7 @@ fun main() {
             "steam_heat" -> MachineSettingChange.SteamHeating(value == 1)
             "light" -> MachineSettingChange.Light(value == 1)
             "lever" -> MachineSettingChange.LeverMode(value >= 10, value % 10 == 1)
+            "standby" -> MachineSettingChange.StandbyDelay(listOf(0, 15, 30, 60, 120)[value / 256], value % 256)
             else -> error("Unknown setting oracle kind")
         }
         verify(CoffeeCommands.setting(change).frame.hex() == parts[2])

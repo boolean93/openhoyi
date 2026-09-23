@@ -17,6 +17,8 @@ class MachineSettingsPresentationTest {
         assertTrue(text.contains("93 °C"))
         assertTrue(text.contains("125 °C"))
         assertTrue(text.contains("30 分钟"))
+        assertTrue(MachineSettingsPresentation.settings(settings.copy(standbyMinutes = 0)).contains("自动待机  永不"))
+        assertTrue(MachineSettingsPresentation.settings(settings.copy(standbyMinutes = 120)).contains("自动待机  2 小时"))
         assertTrue(text.contains("128"))
         assertTrue(text.contains("开启"))
         assertFalse(text.contains("已应用"))

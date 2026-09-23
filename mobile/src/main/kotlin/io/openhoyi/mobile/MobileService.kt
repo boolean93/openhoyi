@@ -257,6 +257,8 @@ class MobileService : Service() {
         if (ShotGate.active(shotState)) return "萃取期间不能修改机器设置"
         if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
         val observed = snapshot.settings ?: return "尚未收到机器设置"
+        if (change is MachineSettingChange.StandbyDelay &&
+            change.temperatureC != observed.standbyTemperatureC) return "机器待机温度已变化，请重新选择"
         if (change.matches(observed)) return "机器回读已是该设置"
         val token = settingsWrite.begin(change) ?: return "正在等待上一次设置的结果"
         event("机器设置命令已排队：${MachineSettingsPresentation.change(change)}", "settings.requested")

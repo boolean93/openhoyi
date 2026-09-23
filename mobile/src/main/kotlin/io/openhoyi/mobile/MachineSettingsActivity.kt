@@ -107,6 +107,7 @@ class MachineSettingsActivity : Activity() {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.Light(it.flags and 0x08 == 0)) }
         }
         controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton)
+        controlButtons += action(controls, "设置自动待机时间") { chooseStandbyDelay() }
         val sleepCard = card(body, "每周睡眠计划")
         schedule = text(sleepCard, "尚未收到睡眠计划", 16)
         Button(this).apply {
@@ -175,6 +176,16 @@ class MachineSettingsActivity : Activity() {
                 render()
             }
             .setNegativeButton("取消", null).show()
+    }
+    private fun chooseStandbyDelay() {
+        val values = listOf(15, 30, 60, 120, 0)
+        val labels = arrayOf("15 分钟", "30 分钟", "1 小时", "2 小时", "永不")
+        AlertDialog.Builder(this).setTitle("自动待机时间")
+            .setItems(labels) { _, index ->
+                val temperature = service?.snapshot?.settings?.standbyTemperatureC
+                if (temperature == null) Toast.makeText(this, "尚未收到机器设置", Toast.LENGTH_SHORT).show()
+                else confirm(MachineSettingChange.StandbyDelay(values[index], temperature))
+            }.show()
     }
     private fun temperatureInput(parent: LinearLayout, hintText: String): EditText = EditText(this).apply {
         hint = hintText

@@ -55,4 +55,14 @@ class SettingsWriteTrackerTest {
         assertTrue(tracker.observe(12, initial.copy(flags = initial.flags and 0x3F)))
         assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
+
+    @Test fun standbyDelayRequiresCorrectMinutesAndPreservedTemperature() {
+        val tracker = SettingsWriteTracker()
+        val token = requireNotNull(tracker.begin(MachineSettingChange.StandbyDelay(30, initial.standbyTemperatureC)))
+        assertTrue(tracker.written(token, OperationResult.Success(), 5))
+        assertFalse(tracker.observe(6, initial.copy(standbyMinutes = 15)))
+        assertFalse(tracker.observe(7, initial.copy(standbyMinutes = 30, standbyTemperatureC = 90)))
+        assertTrue(tracker.observe(8, initial.copy(standbyMinutes = 30)))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
+    }
 }
