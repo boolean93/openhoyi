@@ -45,4 +45,14 @@ class SettingsWriteTrackerTest {
         assertTrue(tracker.timeout(token))
         assertEquals(SettingsWriteTracker.State.UNKNOWN, tracker.state)
     }
+
+    @Test fun leverModeRequiresNewMatchingFlags() {
+        val tracker = SettingsWriteTracker()
+        val token = requireNotNull(tracker.begin(MachineSettingChange.LeverMode(false, false)))
+        assertTrue(tracker.written(token, OperationResult.Success(), 10))
+        assertFalse(tracker.observe(10, initial.copy(flags = initial.flags and 0x3F)))
+        assertFalse(tracker.observe(11, initial))
+        assertTrue(tracker.observe(12, initial.copy(flags = initial.flags and 0x3F)))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
+    }
 }

@@ -21,6 +21,11 @@ class MachineSettingsPresentationTest {
         assertTrue(text.contains("开启"))
         assertFalse(text.contains("已应用"))
         assertEquals("尚未收到机器设置", MachineSettingsPresentation.settings(null))
+        assertEquals("拨杆模式：尚未收到设置", MachineSettingsPresentation.leverMode(null))
+        assertEquals("拨杆模式：手动", MachineSettingsPresentation.leverMode(settings))
+        assertEquals("拨杆模式：自动压力", MachineSettingsPresentation.leverMode(settings.copy(flags = 0x80)))
+        assertEquals("拨杆模式：自动流量", MachineSettingsPresentation.leverMode(settings.copy(flags = 0xC0)))
+        assertTrue(MachineSettingsPresentation.leverMode(settings.copy(flags = 0x40)).contains("未知组合"))
     }
 
     @Test fun weeklyScheduleRequiresBothPartsAndKeepsUnknownEnabledMaskRaw() {

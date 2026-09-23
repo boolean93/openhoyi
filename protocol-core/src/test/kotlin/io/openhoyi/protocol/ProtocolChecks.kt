@@ -49,6 +49,10 @@ fun main() {
     verify(CoffeeCommands.setting(MachineSettingChange.BrewHeating(true)).frame.hex()=="0C02000100")
     verify(CoffeeCommands.setting(MachineSettingChange.SteamHeating(false)).frame.hex()=="0D02000000")
     verify(CoffeeCommands.setting(MachineSettingChange.Light(true)).frame.hex()=="0E02000100")
+    verify(CoffeeCommands.setting(MachineSettingChange.LeverMode(false,false)).frame.hex()=="0302000000")
+    verify(CoffeeCommands.setting(MachineSettingChange.LeverMode(true,false)).frame.hex()=="0302010000")
+    verify(CoffeeCommands.setting(MachineSettingChange.LeverMode(true,true)).frame.hex()=="0302010100")
+    rejected { MachineSettingChange.LeverMode(false,true) }
     rejected { MachineSettingChange.BrewTemperature(74) }
     rejected { MachineSettingChange.SteamTemperature(146) }
     val settingOracle = object {}.javaClass.getResourceAsStream("/machine_settings_wire.tsv")
@@ -56,7 +60,7 @@ fun main() {
     val settingLines = settingOracle.bufferedReader().use { it.readLines() }
     verify(settingLines.first() ==
         "# machine-setting-wire-v1\tsource-sha256=b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037")
-    verify(settingLines.size == 74)
+    verify(settingLines.size == 77)
     settingLines.drop(1).forEach { line ->
         val parts = line.split('\t')
         verify(parts.size == 3)
@@ -67,6 +71,7 @@ fun main() {
             "brew_heat" -> MachineSettingChange.BrewHeating(value == 1)
             "steam_heat" -> MachineSettingChange.SteamHeating(value == 1)
             "light" -> MachineSettingChange.Light(value == 1)
+            "lever" -> MachineSettingChange.LeverMode(value >= 10, value % 10 == 1)
             else -> error("Unknown setting oracle kind")
         }
         verify(CoffeeCommands.setting(change).frame.hex() == parts[2])

@@ -7,7 +7,23 @@ import io.openhoyi.protocol.SleepPart
 
 /** Formats decoded device values; it never creates a command or claims that a setting was applied. */
 object MachineSettingsPresentation {
+    fun leverMode(value: Settings?): String {
+        if (value == null) return "拨杆模式：尚未收到设置"
+        val pressure = value.flags and 0x80 != 0
+        val flow = value.flags and 0x40 != 0
+        return "拨杆模式：" + when {
+            !pressure && flow -> "未知组合（原始 0x%02X）".format(value.flags and 0xC0)
+            flow -> "自动流量"
+            pressure -> "自动压力"
+            else -> "手动"
+        }
+    }
     fun change(value: MachineSettingChange): String = when (value) {
+        is MachineSettingChange.LeverMode -> "拨杆模式：" + when {
+            value.flow -> "自动流量"
+            value.pressure -> "自动压力"
+            else -> "手动"
+        }
         is MachineSettingChange.BrewTemperature -> "萃取温度 ${value.celsius} °C"
         is MachineSettingChange.SteamTemperature -> "蒸汽温度 ${value.celsius} °C"
         is MachineSettingChange.BrewHeating -> "萃取加热${if (value.enabled) "开启" else "关闭"}"
@@ -25,6 +41,7 @@ object MachineSettingsPresentation {
             appendLine("萃取加热  ${enabled(0x20)}")
             appendLine("蒸汽加热  ${enabled(0x10)}")
             appendLine("照明  ${enabled(0x08)}")
+            appendLine(leverMode(value))
             appendLine("睡眠计划总开关  ${enabled(0x01)}")
             appendLine("待机时间  ${value.standbyMinutes} 分钟")
             appendLine("待机温度  ${value.standbyTemperatureC} °C")

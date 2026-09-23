@@ -19,6 +19,7 @@ import android.widget.*
 import io.openhoyi.bluetooth.DiscoveredDevice
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
+import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
 import java.util.Locale
@@ -33,6 +34,8 @@ class HomeActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var status: TextView
     private lateinit var coffee: TextView
+    private lateinit var leverStatus: TextView
+    private lateinit var leverButton: Button
     private lateinit var scale: TextView
     private lateinit var tareStatus: TextView
     private lateinit var selection: TextView
@@ -80,6 +83,8 @@ class HomeActivity : Activity() {
         connectionCard.addView(candidates)
         val coffeeCard = card(content, "咖啡机")
         coffee = text(coffeeCard, "未连接", 20)
+        leverStatus = text(coffeeCard, "拨杆模式：尚未收到设置", 14)
+        leverButton = button(coffeeCard, "切换拨杆模式") { chooseLeverMode() }
         button(coffeeCard, "查看机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(coffeeCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
         val scaleCard = card(content, "电子秤")
@@ -173,6 +178,21 @@ class HomeActivity : Activity() {
         dialog.setOnDismissListener { input.text.clear() }
         dialog.show()
     }
+    private fun chooseLeverMode() {
+        val modes = listOf(
+            MachineSettingChange.LeverMode(false, false),
+            MachineSettingChange.LeverMode(true, false),
+            MachineSettingChange.LeverMode(true, true),
+        )
+        AlertDialog.Builder(this).setTitle("选择拨杆模式")
+            .setItems(modes.map { MachineSettingsPresentation.change(it).substringAfter('：') }.toTypedArray()) { _, index ->
+                val change = modes[index]
+                AlertDialog.Builder(this).setTitle("确认修改拨杆模式")
+                    .setMessage("${MachineSettingsPresentation.change(change)}\n机器回读后才能确认生效。")
+                    .setPositiveButton("发送") { _, _ -> service?.changeMachineSetting(change)?.let(::toast); render() }
+                    .setNegativeButton("取消", null).show()
+            }.show()
+    }
     private fun render() {
         if (!::status.isInitialized) return
         val owner = service
@@ -182,6 +202,22 @@ class HomeActivity : Activity() {
         status.show(if (running) s.message else "点击扫描启动设备服务")
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
+        val settingBusy = owner?.settingWriteState in setOf(
+            SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
+        leverButton.isEnabled = running && !shotActive && !settingBusy &&
+            s.coffeeState == DeviceState.READY && s.settings != null
+        leverStatus.show(MachineSettingsPresentation.leverMode(s.settings) +
+            when (owner?.pendingSetting) {
+                is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {
+                    SettingsWriteTracker.State.WRITING -> "正在写入"
+                    SettingsWriteTracker.State.WAITING_READBACK -> "等待机器回读"
+                    SettingsWriteTracker.State.CONFIRMED -> "已回读确认"
+                    SettingsWriteTracker.State.FAILED -> "写入失败"
+                    SettingsWriteTracker.State.UNKNOWN -> "结果未知，请查看机器"
+                    SettingsWriteTracker.State.IDLE, null -> ""
+                }
+                else -> ""
+            })
         coffeeDisconnect.isEnabled = running && !shotActive && s.coffeeState != DeviceState.DISCONNECTED
         scaleDisconnect.isEnabled = running && !shotActive && s.scaleState != DeviceState.DISCONNECTED
         tareButton.isEnabled = running && !shotActive && s.scaleState == DeviceState.READY &&
