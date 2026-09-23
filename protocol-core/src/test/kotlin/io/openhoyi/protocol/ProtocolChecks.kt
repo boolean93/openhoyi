@@ -58,6 +58,22 @@ fun main() {
     verify(CoffeeCommands.setting(MachineSettingChange.SleepScheduleEnabled(false)).frame.hex()=="1502000000")
     verify(CoffeeCommands.setting(MachineSettingChange.WaterSupply(piped = false)).frame.hex()=="1002000000")
     verify(CoffeeCommands.setting(MachineSettingChange.WaterSupply(piped = true)).frame.hex()=="1002000100")
+    verify(CoffeeCommands.setting(MachineSettingChange.RunMode(studio = false)).frame.hex()=="0F02000000")
+    verify(CoffeeCommands.setting(MachineSettingChange.RunMode(studio = true)).frame.hex()=="0F02000100")
+    verify(CoffeeCommands.brewWait(92).frame.hex()=="1102005C00")
+    verify(CoffeeCommands.brewWait(0).frame.hex()=="1102000000")
+    rejected { CoffeeCommands.brewWait(74) }
+    val brewWaitOracle = object {}.javaClass.getResourceAsStream("/brew_wait_wire.tsv")
+        ?: error("Missing brew wait oracle")
+    val brewWaitLines = brewWaitOracle.bufferedReader().use { it.readLines() }
+    verify(brewWaitLines.first() ==
+        "# brew-wait-wire-v1\tsource-sha256=b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037")
+    verify(brewWaitLines.size == 33)
+    brewWaitLines.drop(1).forEach { line ->
+        val parts = line.split('\t')
+        verify(parts.size == 2)
+        verify(CoffeeCommands.brewWait(parts[0].toInt()).frame.hex() == parts[1])
+    }
     rejected { MachineSettingChange.StandbyDelay(45, 92) }
     rejected { MachineSettingChange.StandbyDelay(15, 256) }
     rejected { MachineSettingChange.LeverMode(false,true) }
@@ -68,7 +84,7 @@ fun main() {
     val settingLines = settingOracle.bufferedReader().use { it.readLines() }
     verify(settingLines.first() ==
         "# machine-setting-wire-v1\tsource-sha256=b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037")
-    verify(settingLines.size == 91)
+    verify(settingLines.size == 93)
     settingLines.drop(1).forEach { line ->
         val parts = line.split('\t')
         verify(parts.size == 3)
@@ -83,6 +99,7 @@ fun main() {
             "standby" -> MachineSettingChange.StandbyDelay(listOf(0, 15, 30, 60, 120)[value / 256], value % 256)
             "sleep_enabled" -> MachineSettingChange.SleepScheduleEnabled(value == 1)
             "water_supply" -> MachineSettingChange.WaterSupply(value == 1)
+            "run_mode" -> MachineSettingChange.RunMode(value == 1)
             else -> error("Unknown setting oracle kind")
         }
         verify(CoffeeCommands.setting(change).frame.hex() == parts[2])

@@ -19,6 +19,7 @@ object MachineSettingsPresentation {
         }
     }
     fun change(value: MachineSettingChange): String = when (value) {
+        is MachineSettingChange.RunMode -> "运行模式：${if (value.studio) "工作室" else "咖啡馆"}"
         is MachineSettingChange.WaterSupply -> "供水方式：${if (value.piped) "外接水管" else "水箱"}"
         is MachineSettingChange.SleepScheduleEnabled -> "每周睡眠计划${if (value.enabled) "开启" else "关闭"}"
         is MachineSettingChange.StandbyDelay -> "自动待机：" + when (value.minutes) {
@@ -62,7 +63,7 @@ object MachineSettingsPresentation {
             appendLine("待机温度  ${value.standbyTemperatureC} °C")
             appendLine("累计杯数  ${value.cupCount}")
             value.filterInstalled?.let { appendLine("滤芯状态  ${if (it) "已安装" else "未安装"}") }
-            append("运行模式位  ${if (value.flags and 0x04 != 0) 1 else 0}")
+            append("运行模式  ${if (value.flags and 0x04 != 0) "工作室" else "咖啡馆"}")
         }
     }
 

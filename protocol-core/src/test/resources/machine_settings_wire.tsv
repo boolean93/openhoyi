@@ -89,3 +89,5 @@ sleep_enabled	0	1502000000
 sleep_enabled	1	1502000100
 water_supply	0	1002000000
 water_supply	1	1002000100
+run_mode	0	0F02000000
+run_mode	1	0F02000100

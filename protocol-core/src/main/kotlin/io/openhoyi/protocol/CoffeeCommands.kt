@@ -13,6 +13,9 @@ data class StartParameters(
 /** Only settings whose 0x83 readback fields and legacy write bytes are both known. */
 sealed interface MachineSettingChange {
     fun matches(settings: Settings): Boolean
+    data class RunMode(val studio: Boolean) : MachineSettingChange {
+        override fun matches(settings: Settings) = (settings.flags and 0x04 != 0) == studio
+    }
     /** Physical inlet choice; this is setWaterInMode (0x10), never the drainage control 0x12. */
     data class WaterSupply(val piped: Boolean) : MachineSettingChange {
         override fun matches(settings: Settings) = (settings.flags and 0x02 != 0) == piped
@@ -79,6 +82,7 @@ object CoffeeCommands {
     fun brewTemperature(celsius:Int):EncodedCommand = command(4,2,0,range(celsius,255,"temperatureC"),0)
     fun brewHeating(enabled:Boolean):EncodedCommand=command(12,2,0,if(enabled)1 else 0,0)
     fun setting(change: MachineSettingChange): EncodedCommand = when (change) {
+        is MachineSettingChange.RunMode -> command(15,2,0,if(change.studio)1 else 0,0)
         is MachineSettingChange.WaterSupply -> command(16,2,0,if(change.piped)1 else 0,0)
         is MachineSettingChange.SleepScheduleEnabled -> command(21,2,0,if(change.enabled)1 else 0,0)
         is MachineSettingChange.StandbyDelay -> command(20,2,change.wireCode,change.temperatureC,0)
@@ -90,6 +94,11 @@ object CoffeeCommands {
         is MachineSettingChange.Light -> command(14,2,0,if(change.enabled)1 else 0,0)
     }
     fun sleepNow():EncodedCommand=command(32,1,165,165,33)
+    /** Studio-mode temperature preparation; zero cancels the legacy wait. */
+    fun brewWait(targetC: Int): EncodedCommand {
+        require(targetC == 0 || targetC in 75..105)
+        return command(17,2,0,targetC,0)
+    }
     /** Six ASCII decimal digits. Password omitted from diagnostic strings and error messages. */
     fun authenticate(time:LocalDateTime,password:String):EncodedCommand {
         require(password.length==6 && password.all { it in '0'..'9' }) { "Password must contain exactly six ASCII digits" }

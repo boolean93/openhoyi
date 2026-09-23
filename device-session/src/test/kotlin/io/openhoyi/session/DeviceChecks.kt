@@ -29,6 +29,12 @@ fun deviceChecks():Int {
         s.enterSleep { sleepResult=it }
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("2001A5A521")))
         complete();check(sleepResult is OperationResult.Success)
+        s.setBrewWait(92) { sleepResult=it }
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("1102005C00")))
+        complete();check(sleepResult is OperationResult.Success)
+        s.setBrewWait(0) { sleepResult=it }
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("1102000000")))
+        complete();check(sleepResult is OperationResult.Success)
         s.disconnect();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.DISCONNECTED)
     }
     case("BOOKOO initialization is paced and requires sample after completed initialization") {
@@ -53,6 +59,7 @@ fun deviceChecks():Int {
         var result:OperationResult?=null;s.stopExtraction{result=it};check(result is OperationResult.Failed)
         s.writeSetting(MachineSettingChange.SteamHeating(false)){result=it};check(result is OperationResult.Failed)
         s.enterSleep {result=it};check(result is OperationResult.Failed)
+        s.setBrewWait(92) {result=it};check(result is OperationResult.Failed)
     }
     case("live unauthenticated telemetry never opens ready gate or triggers extra writes") {
         val d=SessionDriver();var now=0L;var telemetry=0

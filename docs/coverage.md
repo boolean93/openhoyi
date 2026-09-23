@@ -27,8 +27,9 @@
 | 旧版工厂曲线萃取入口 | FactoryCurveCatalog、FactoryCurveAdapter、FactoryWireProof、CurveLibrary、factory_wire_v1.tsv | 100条元数据与旧版归一化一致；有秤/无秤200帧和旧版编码函数逐字节对照；发送前复核曲线、帧和秤模式 | Alpha尚未实机萃取；用户自定义曲线未导入，曲线编辑后置 |
 | 首页五个快捷槽位 | PresetSlots、factory_slot_wire_v1.tsv、DeviceSession、ExtractionActivity | 100条×5槽位×2秤模式共1000帧与旧版 `startChart` 对照；本地映射、确认页、停止槽位和历史记录接入 | 尚未实机验证槽位启停与机器显示；用户自定义曲线未导入 |
 | 独立电子秤去皮 | StandaloneTare、MobileService、NativeDeviceHub、BOOKOO去皮帧 | 写入结果与归零读数分离；要求写入后新鲜近零读数；超时/断线保留未知，阻止同时重复发送 | 尚未用实机确认去皮响应和归零时延 |
-| 常用机器设置与拨杆模式 | MachineSettingChange、SettingsWriteTracker、MachineSettingsActivity、HomeActivity | 萃取/蒸汽温度、两路加热、照明、自动待机时间、睡眠计划总开关、供水来源、手动/自动压力/自动流量共90条允许参数报文与旧版编码函数对照；写入后以新鲜匹配0x83回读确认 | 尚未实机验证设置回读时序；运行模式位0x04及每日睡眠时间、待机温度、温差补偿等写入未开放 |
+| 常用机器设置与拨杆模式 | MachineSettingChange、SettingsWriteTracker、MachineSettingsActivity、HomeActivity | 萃取/蒸汽温度、两路加热、照明、自动待机时间、睡眠计划总开关、供水来源、咖啡馆/工作室模式、手动/自动压力/自动流量共92条允许参数报文与旧版编码函数对照；要求新鲜唤醒待机遥测，写入后以新鲜匹配0x83回读确认 | 尚未实机验证设置回读时序；每日睡眠时间、待机温度、温差补偿等写入未开放 |
 | 首页立即睡眠 | CoffeeCommands.sleepNow、DeviceSession、SleepNowTracker、HomeActivity | 旧版固定5字节命令；新鲜待机遥测、显式确认、萃取/设置事务门禁；写入后须新鲜0x40睡眠状态1确认 | 尚未实机验证入睡/唤醒；App没有唤醒命令，需机器拨杆 |
+| 工作室曲线预热 | CoffeeCommands.brewWait、BrewPreparation、StudioStartGate、MobileService、ExtractionActivity | 0/75–105°C共32帧与旧版编码对照；模式位回读、补偿后±1°C判定、新鲜温度确认、显式启动、取消及10分钟自动取消 | 取消命令无独立回读；实机预热/取消/启动时序未验收 |
 | 多页面前台状态 | VisibleScreens、MobileService | 独立页面token、切页500毫秒缓冲；多页面交叠单测通过 | 需实机验证切页对自动连秤窗口的影响 |
 | 原生萃取历史基础页 | ShotHistory、HistoryActivity、MobileService | 持久化请求及终态，未知结果不标完成；状态/重启/坏行/保留上限单测通过 | 旧App数据未迁移，异步SharedPreferences落盘前突然断电可能丢最后写入；UI待实机验收 |
 | 实时和历史曲线 | ShotSeries、ShotChartView、ShotSamplesStore、HistoryDetailActivity | 只处理0x80已解码字段，新鲜秤重合并；2000点上限、时间顺序、文件往返与清理单测通过；构建/Lint通过 | 采样只在明确结束后异步落盘，进程中断可能没有曲线文件；图表待实机验收 |
@@ -37,7 +38,7 @@
 
 见[实机报告](validation-2026-09-23.md)。咖啡机认证/设置/遥测有实机证据；新增仪器测试的4项检查通过。纯Kotlin会话回归增至33场景。BLE两次status=8断线未定位，未通过长期稳定性验收；08:42双设备并行约2分钟无断线，后因测试重启进程中断。秤负重量/自动重连及SAF系统选择器流程未完成。下方首轮结果为历史记录，不能代替最新报告。
 
-Alpha 日常版第一段功能见[说明](mobile-alpha.md)。供水来源接入后，协议检查35,192项、会话检查34项、Alpha单测36项通过，debug构建成功，Lint 0错误、2条警告。当前用户要求暂不安装，尚无Alpha实机萃取、槽位启停、独立去皮、睡眠或设置回读证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
+Alpha 日常版第一段功能见[说明](mobile-alpha.md)。运行模式与曲线预热接入后，协议检查35,267项、会话检查34项、Alpha单测41项通过，debug构建成功，Lint 0错误、2条警告。当前用户要求暂不安装，尚无Alpha实机萃取、槽位启停、独立去皮、睡眠或设置回读证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
 
 ## 本轮 Lab 结果（2026-09-22）
 

@@ -116,7 +116,7 @@ class HomeActivity : Activity() {
         button(content, "停止设备服务") {
             val owner = service
             owner?.shutdown()
-            if (owner?.running == true) toast("萃取结果未确认，服务保持运行") else release()
+            if (owner?.running == true) toast("设备操作仍在处理，服务保持运行") else release()
             render()
         }
         render()
@@ -214,8 +214,11 @@ class HomeActivity : Activity() {
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
-        leverButton.isEnabled = running && !shotActive && !settingBusy &&
-            s.coffeeState == DeviceState.READY && s.settings != null
+        val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE
+        val freshAwakeIdle = s.coffee is IdleTelemetry && s.coffee.sleepStateRaw == 0 &&
+            s.coffeeAt?.let { now >= it && now - it <= 1500 } == true
+        leverButton.isEnabled = running && !shotActive && !settingBusy && preparationIdle &&
+            s.coffeeState == DeviceState.READY && s.settings != null && freshAwakeIdle
         leverStatus.show(MachineSettingsPresentation.leverMode(s.settings) +
             when (owner?.pendingSetting) {
                 is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {
@@ -243,7 +246,7 @@ class HomeActivity : Activity() {
         val coffeeFresh = s.coffeeAt?.let { now >= it && now - it <= 1500 } == true && s.coffeeState == DeviceState.READY
         val idle = s.coffee as? IdleTelemetry
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
-        sleepButton.isEnabled = running && !shotActive && !settingBusy && !sleepBusy && coffeeFresh &&
+        sleepButton.isEnabled = running && !shotActive && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
             idle?.sleepStateRaw == 0
         val reportedSleep = if (!coffeeFresh) "暂无新鲜状态" else when (idle?.sleepStateRaw) {
             0 -> "已唤醒"

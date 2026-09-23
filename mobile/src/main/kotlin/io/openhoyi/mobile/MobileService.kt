@@ -45,6 +45,11 @@ class MobileService : Service() {
     private val standaloneTare = StandaloneTare()
     private val settingsWrite = SettingsWriteTracker()
     private val sleepNow = SleepNowTracker()
+    private val brewPreparation = BrewPreparation()
+    private var idleSampleSerial = 0L
+    val brewPreparationState: BrewPreparation.State get() = brewPreparation.state
+    val brewPreparationProfileId: String? get() = brewPreparation.profileId
+    val brewPreparationTargetC: Int? get() = brewPreparation.targetC
     private var sleepSampleSerial = 0L
     val sleepNowState: SleepNowTracker.State get() = sleepNow.state
     private var settingsSampleSerial = 0L
@@ -123,6 +128,7 @@ class MobileService : Service() {
                         if (state != DeviceState.READY) {
                             settingsWrite.disconnected()
                             sleepNow.disconnected()
+                            brewPreparation.disconnected()
                         }
                         if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
                             snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
@@ -147,6 +153,11 @@ class MobileService : Service() {
                         is IdleTelemetry -> {
                             if (sleepNow.observe(++sleepSampleSerial, frame.sleepStateRaw))
                                 event("机器已回报进入睡眠", "sleep.confirmed")
+                            val currentSettings = snapshot.settings
+                            if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
+                                    BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
+                                        currentSettings.brewCompensationTenthsC)))
+                                event("冲泡温度已达到曲线目标", "brew_wait.ready")
                             snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
                         }
                         is io.openhoyi.protocol.ExtractionTelemetry ->
@@ -223,6 +234,11 @@ class MobileService : Service() {
         if (!ShotGate.mayReconnectCoffee(shotState)) {
             event("萃取尚未结束，不能重连咖啡机"); return
         }
+        if (brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
+            cancelBrewPreparation()
+            event("正在取消预热，请确认结果后再切换咖啡机", "brew_wait.connect_deferred")
+            return
+        }
         val current = hub ?: return
         snapshot = snapshot.copy(coffee = null, coffeeAt = null, settings = null, sleepFirst = null, sleepSecond = null)
         event("连接咖啡机")
@@ -237,6 +253,11 @@ class MobileService : Service() {
     }
     fun disconnect(role: DeviceRole) {
         if (ShotGate.active(shotState)) { event("萃取尚未结束，先停止萃取"); return }
+        if (role == DeviceRole.COFFEE && brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
+            cancelBrewPreparation()
+            event("正在取消预热，请确认结果后再断开", "brew_wait.disconnect_deferred")
+            return
+        }
         event("断开 ${role.name}")
         if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
     }
@@ -269,8 +290,13 @@ class MobileService : Service() {
         if (ShotGate.active(shotState)) return "萃取期间不能修改机器设置"
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
             return "正在等待机器进入睡眠"
+        if (brewPreparation.active) return "请先取消曲线预热"
         if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
-        if ((snapshot.coffee as? IdleTelemetry)?.sleepStateRaw == 1) return "机器处于睡眠状态，请先用拨杆唤醒"
+        val now = SystemClock.elapsedRealtime()
+        val idle = snapshot.coffee as? IdleTelemetry ?: return "等待咖啡机待机数据"
+        if (snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true)
+            return "咖啡机待机数据已过期"
+        if (idle.sleepStateRaw != 0) return "机器未明确处于唤醒待机状态，暂不修改设置"
         val observed = snapshot.settings ?: return "尚未收到机器设置"
         if (change is MachineSettingChange.SleepScheduleEnabled && change.enabled &&
             !SleepScheduleSafety.canEnable(snapshot.sleepFirst, snapshot.sleepSecond))
@@ -301,6 +327,7 @@ class MobileService : Service() {
         if (ShotGate.active(shotState)) return "萃取期间不能让机器睡眠"
         if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
             return "正在等待机器设置回读"
+        if (brewPreparation.active) return "请先取消曲线预热"
         if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
         val now = SystemClock.elapsedRealtime()
         val idle = snapshot.coffee as? IdleTelemetry ?: return "等待咖啡机待机数据"
@@ -326,19 +353,92 @@ class MobileService : Service() {
         }
         return null
     }
-    fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
-        val current = hub ?: return "设备服务尚未启动"
-        if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
-            return "正在等待机器进入睡眠，不能启动萃取"
+    private fun selectedCurve(profileId: String, slot: Int): CurveProfile? {
         val selectedId = if (slot == 7)
             getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
         else if (slot in 1..5)
             PresetSlots.curveId(slot, getSharedPreferences("presets", MODE_PRIVATE)
                 .getString(PresetSlots.key(slot), null))
         else null
+        return profileId.takeIf { it == selectedId }?.let {
+            (application as MobileApplication).curves.resolve(it, snapshot.scaleState == DeviceState.READY, slot)
+        }
+    }
+    fun currentCorrectedBrewTemperature(): Int? {
+        val frame = snapshot.coffee as? IdleTelemetry ?: return null
+        val settings = snapshot.settings ?: return null
+        val now = SystemClock.elapsedRealtime()
+        if (snapshot.coffeeState != DeviceState.READY ||
+            snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true) return null
+        return BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
+            settings.brewCompensationTenthsC)
+    }
+    fun studioStartBlock(profile: CurveProfile): String? = StudioStartGate.block(
+        snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
+    fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
+        val current = hub ?: return "设备服务尚未启动"
+        if (brewPreparation.active) return "已有预热请求，请先取消"
+        if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
+            return "正在等待机器进入睡眠"
+        if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
+            return "正在等待机器设置回读"
+        val settings = snapshot.settings ?: return "尚未收到机器设置"
+        if (settings.flags and 0x04 == 0) return "当前是咖啡馆模式，无需曲线预热"
+        val profile = selectedCurve(profileId, slot)
+        if (profile != null && profile.scaleMode != expectedScaleMode) return "电子秤状态已变化，请重新确认"
         val library = (application as MobileApplication).curves
-        val scaleMode = snapshot.scaleState == DeviceState.READY
-        val profile = profileId.takeIf { it == selectedId }?.let { library.resolve(it, scaleMode, slot) }
+        val blocked = ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
+            snapshot.scaleState, snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
+            validated = profile?.let(library::validated) == true)
+        if (blocked != null) return blocked
+        requireNotNull(profile)
+        val actual = currentCorrectedBrewTemperature() ?: return "等待新鲜冲泡温度"
+        if (BrewPreparation.isAtTarget(actual, profile.temperatureC)) return "温度已达到目标，可直接确认萃取"
+        val token = brewPreparation.begin(profile.id, profile.temperatureC) ?: return "无法开始预热"
+        event("曲线预热命令已排队：${profile.temperatureC} °C", "brew_wait.requested")
+        current.setBrewWait(profile.temperatureC) done@{ result ->
+            if (!brewPreparation.written(token, result, idleSampleSerial)) return@done
+            when (brewPreparation.state) {
+                BrewPreparation.State.WAITING_TEMP -> {
+                    event("预热命令已写入，等待温度到达", "brew_wait.written")
+                    handler.postDelayed({
+                        if (brewPreparation.isActive(token)) {
+                            event("预热超过10分钟，正在取消", "brew_wait.timeout")
+                            cancelBrewPreparation()
+                        }
+                    }, 600_000)
+                }
+                BrewPreparation.State.FAILED -> event("预热命令未写入", "brew_wait.failed")
+                BrewPreparation.State.UNKNOWN -> event("预热写入结果未知，请查看机器", "brew_wait.unknown")
+                else -> Unit
+            }
+        }
+        return null
+    }
+    fun cancelBrewPreparation(): String? {
+        if (!brewPreparation.active) return "当前没有预热请求"
+        val current = hub ?: return "设备服务尚未启动，预热结果未知"
+        if (snapshot.coffeeState != DeviceState.READY) return "咖啡机未就绪，无法确认取消预热"
+        val token = brewPreparation.beginCancel() ?: return "正在取消预热"
+        event("取消预热命令已排队", "brew_wait.cancel_requested")
+        current.setBrewWait(0) done@{ result ->
+            if (!brewPreparation.cancelled(token, result)) return@done
+            when (brewPreparation.state) {
+                BrewPreparation.State.IDLE -> event("取消预热命令已写入；机器状态无独立回读", "brew_wait.cancel_written")
+                BrewPreparation.State.UNKNOWN -> event("取消预热结果未知，请查看机器", "brew_wait.cancel_unknown")
+                else -> Unit
+            }
+        }
+        return null
+    }
+    fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
+        val current = hub ?: return "设备服务尚未启动"
+        if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
+            return "正在等待机器进入睡眠，不能启动萃取"
+        if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
+            return "正在等待机器设置回读，不能启动萃取"
+        val library = (application as MobileApplication).curves
+        val profile = selectedCurve(profileId, slot)
         if (profile != null && profile.scaleMode != expectedScaleMode) {
             event("电子秤连接状态已变化，请重新确认", "shot.rejected")
             return "电子秤连接状态已变化，请重新确认"
@@ -348,6 +448,7 @@ class MobileService : Service() {
             validated = profile?.let(library::validated) == true)
         if (blocked != null) { event("启动被阻止：$blocked", "shot.rejected"); return blocked }
         requireNotNull(profile)
+        studioStartBlock(profile)?.let { return it }
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
             runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null) }
                 .onFailure { event("历史记录失败", "shot.history_error") }
@@ -361,6 +462,7 @@ class MobileService : Service() {
             event("启动未被会话层接受", "shot.rejected")
             return "启动未被会话层接受"
         }
+        if (brewPreparation.active) brewPreparation.consumed()
         val shotId = runCatching { history?.begin(profile.id, slot = slot) }
             .onFailure { event("历史记录失败", "shot.history_error") }
             .getOrNull() ?: java.util.UUID.randomUUID().toString()
@@ -399,6 +501,11 @@ class MobileService : Service() {
         if (ShotGate.active(shotState)) {
             stopShot()
             event("萃取结果未确认，设备服务保持运行", "service.stop_deferred")
+            return
+        }
+        if (brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
+            cancelBrewPreparation()
+            event("正在取消曲线预热，设备服务保持运行", "service.stop_deferred")
             return
         }
         hub?.close(); hub = null; running = false

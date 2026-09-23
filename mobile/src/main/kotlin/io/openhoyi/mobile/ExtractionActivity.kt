@@ -25,9 +25,12 @@ class ExtractionActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var readiness: TextView
     private lateinit var live: TextView
+    private lateinit var preparationStatus: TextView
     private lateinit var chart: ShotChartView
     private lateinit var start: Button
     private lateinit var stop: Button
+    private lateinit var prepare: Button
+    private lateinit var cancelPrepare: Button
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
@@ -59,8 +62,11 @@ class ExtractionActivity : Activity() {
         val card = card(content)
         readiness = text(card, "等待设备服务", 18)
         live = text(card, "暂无实时数据", 22)
+        preparationStatus = text(card, "温度准备：尚未连接", 14)
         chart = ShotChartView(this)
         card.addView(chart, LinearLayout.LayoutParams(-1, dp(260)).apply { topMargin = dp(12) })
+        prepare = button(card, "预热到曲线温度") { confirmPrepare() }
+        cancelPrepare = button(card, "取消预热") { service?.cancelBrewPreparation()?.let(::toast); render() }
         start = button(card, "开始萃取") { confirmStart() }
         stop = button(card, "立即停止") { service?.stopShot(); render() }
         button(content, "返回首页") { finish() }
@@ -93,10 +99,27 @@ class ExtractionActivity : Activity() {
             validated = profile?.let(library::validated) == true)
         if (blocked != null) { toast(blocked); render(); return }
         requireNotNull(profile)
+        owner.studioStartBlock(profile)?.let { toast(it); render(); return }
         AlertDialog.Builder(this).setTitle("确认开始萃取")
             .setMessage("${profile.name} · 槽位 ${profile.parameters.slot} · ${profile.temperatureC} °C\n最大水量：${profile.maximumWaterMl} ml\n目标重量：${if (profile.targetHundredthsGram > 0) "${number(profile.targetHundredthsGram)} g（电子秤）" else "不使用（由咖啡机按水量结束）"}\n将向咖啡机发送已校验的启动命令。")
             .setPositiveButton("确认启动") { _, _ ->
                 owner.startShot(profile.id, profile.scaleMode, presetSlot)?.let(::toast)
+                render()
+            }
+            .setNegativeButton("取消", null).show()
+    }
+    private fun confirmPrepare() {
+        val owner = service ?: return
+        val profile = selected()?.let {
+            (application as MobileApplication).curves.resolve(it.id,
+                owner.snapshot.scaleState == DeviceState.READY, presetSlot)
+        } ?: run { toast("请先选择可萃取曲线"); return }
+        val corrected = owner.currentCorrectedBrewTemperature()
+        val current = corrected?.let { number(it) + " °C" } ?: "未知"
+        AlertDialog.Builder(this).setTitle("预热到曲线目标温度")
+            .setMessage("当前冲泡温度：$current\n曲线目标：${profile.temperatureC} °C\n机器写入预热命令后，仍需看到新的温度数据才可启动。")
+            .setPositiveButton("发送预热命令") { _, _ ->
+                owner.prepareBrew(profile.id, profile.scaleMode, presetSlot)?.let(::toast)
                 render()
             }
             .setNegativeButton("取消", null).show()
@@ -115,7 +138,27 @@ class ExtractionActivity : Activity() {
                 validated = profile?.let(library::validated) == true)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
             "\n连接中断且结果未知；先检查咖啡机，再重连后尝试停止。" else ""
-        readiness.show("曲线：${item?.name ?: "未选择"} · 槽位 $presetSlot\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: "设备与曲线已就绪"}$unknownAdvice")
+        val studio = snapshot.settings?.flags?.and(0x04) == 0x04
+        val corrected = owner?.currentCorrectedBrewTemperature()
+        val temperatureReady = profile != null && corrected != null &&
+            BrewPreparation.isAtTarget(corrected, profile.temperatureC)
+        val preparation = owner?.brewPreparationState ?: BrewPreparation.State.IDLE
+        val studioBlocked = if (owner != null && profile != null) owner.studioStartBlock(profile) else null
+        val settingBusy = owner?.settingWriteState in setOf(
+            SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
+        val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
+        readiness.show("曲线：${item?.name ?: "未选择"} · 槽位 $presetSlot\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
+        preparationStatus.show(if (snapshot.settings == null) "运行模式尚未回读" else if (!studio) "咖啡馆模式 · 按曲线正常启动" else
+            "工作室模式 · 当前 ${corrected?.let(::number) ?: "—"} °C / 目标 ${profile?.temperatureC ?: "—"} °C\n" +
+                when (preparation) {
+                    BrewPreparation.State.IDLE -> if (temperatureReady) "温度已就绪" else "温度未就绪，可先预热"
+                    BrewPreparation.State.WRITING -> "正在写入预热命令"
+                    BrewPreparation.State.WAITING_TEMP -> "正在等待新鲜温度数据"
+                    BrewPreparation.State.READY -> if (temperatureReady) "目标温度已达到，仍需确认启动" else "温度已偏离目标"
+                    BrewPreparation.State.CANCELLING -> "正在取消预热"
+                    BrewPreparation.State.FAILED -> "预热命令未写入，请取消后重试"
+                    BrewPreparation.State.UNKNOWN -> "预热结果未知，请查看机器并取消"
+                })
         val machine = when (val frame = snapshot.coffee) {
             is ExtractionTelemetry -> "${frame.elapsedSeconds} s · ${frame.pressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"
             is IdleTelemetry -> "待机 · ${frame.brewPressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"
@@ -126,7 +169,13 @@ class ExtractionActivity : Activity() {
         live.show("$machine\n重量：${snapshot.weight?.let { number(it.weightHundredthsGram) } ?: "—"} g${if (weightFresh) "" else "（非实时）"}")
         val points = owner?.chartPoints ?: emptyList()
         if (chart.points != points) chart.points = points
-        start.isEnabled = owner?.running == true && blocked == null
+        prepare.isEnabled = owner?.running == true && blocked == null && studio && !temperatureReady &&
+            !settingBusy && !sleepBusy &&
+            preparation == BrewPreparation.State.IDLE
+        cancelPrepare.isEnabled = owner?.running == true && preparation != BrewPreparation.State.IDLE &&
+            snapshot.coffeeState == DeviceState.READY && !ShotGate.active(state)
+        start.isEnabled = owner?.running == true && blocked == null && studioBlocked == null &&
+            !settingBusy && !sleepBusy
         stop.isEnabled = owner?.running == true && ShotGate.active(state) &&
             (state != ExtractionState.OUTCOME_UNKNOWN || snapshot.coffeeState == io.openhoyi.session.DeviceState.READY)
     }

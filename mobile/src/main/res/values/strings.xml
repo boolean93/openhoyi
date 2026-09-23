@@ -11,4 +11,7 @@
     <string name="setting_water_supply_status">供水方式：%1$s · 点击切换</string>
     <string name="setting_water_tank">水箱</string>
     <string name="setting_water_piped">外接水管</string>
+    <string name="setting_run_mode_status">运行模式：%1$s · 点击切换</string>
+    <string name="setting_run_cafe">咖啡馆</string>
+    <string name="setting_run_studio">工作室</string>
 </resources>

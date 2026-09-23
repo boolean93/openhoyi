@@ -85,4 +85,13 @@ class SettingsWriteTrackerTest {
         assertTrue(tracker.observe(32, initial.copy(flags = initial.flags or 0x02)))
         assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
+
+    @Test fun runModeRequiresNewMatchingReadbackBit() {
+        val tracker = SettingsWriteTracker()
+        val token = requireNotNull(tracker.begin(MachineSettingChange.RunMode(studio = false)))
+        assertTrue(tracker.written(token, OperationResult.Success(), 40))
+        assertFalse(tracker.observe(41, initial))
+        assertTrue(tracker.observe(42, initial.copy(flags = initial.flags and 0x04.inv())))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
+    }
 }

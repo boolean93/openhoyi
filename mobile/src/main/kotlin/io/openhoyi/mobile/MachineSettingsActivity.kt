@@ -42,6 +42,7 @@ class MachineSettingsActivity : Activity() {
     private lateinit var steamHeatingButton: Button
     private lateinit var lightButton: Button
     private lateinit var waterSupplyButton: Button
+    private lateinit var runModeButton: Button
     private lateinit var sleepScheduleButton: Button
     private val controlButtons = mutableListOf<Button>()
     private val connection = object : ServiceConnection {
@@ -111,7 +112,10 @@ class MachineSettingsActivity : Activity() {
         waterSupplyButton = action(controls, "切换供水方式") {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.WaterSupply(it.flags and 0x02 == 0)) }
         }
-        controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton)
+        runModeButton = action(controls, "切换运行模式") {
+            service?.snapshot?.settings?.let { confirm(MachineSettingChange.RunMode(it.flags and 0x04 == 0)) }
+        }
+        controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton)
         controlButtons += action(controls, "设置自动待机时间") { chooseStandbyDelay() }
         val sleepCard = card(body, "每周睡眠计划")
         schedule = text(sleepCard, "尚未收到睡眠计划", 16)
@@ -164,7 +168,12 @@ class MachineSettingsActivity : Activity() {
                 SettingsWriteTracker.State.FAILED -> "写入失败"
                 SettingsWriteTracker.State.UNKNOWN -> "结果未知，请查看机器"
             })
-        val editable = ready && snapshot.settings != null && owner?.shotState?.let(ShotGate::active) != true &&
+        val idle = snapshot.coffee as? io.openhoyi.protocol.IdleTelemetry
+        val now = android.os.SystemClock.elapsedRealtime()
+        val freshIdle = idle?.sleepStateRaw == 0 &&
+            snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } == true
+        val editable = ready && snapshot.settings != null && freshIdle && owner?.shotState?.let(ShotGate::active) != true &&
+            owner?.brewPreparationState == BrewPreparation.State.IDLE &&
             pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         controlButtons.forEach { it.isEnabled = editable }
         sleepScheduleButton.isEnabled = editable &&
@@ -182,6 +191,9 @@ class MachineSettingsActivity : Activity() {
         waterSupplyButton.text = getString(R.string.setting_water_supply_status,
             getString(if (snapshot.settings?.flags?.and(0x02) == 0x02)
                 R.string.setting_water_piped else R.string.setting_water_tank))
+        runModeButton.text = getString(R.string.setting_run_mode_status,
+            getString(if (snapshot.settings?.flags?.and(0x04) == 0x04)
+                R.string.setting_run_studio else R.string.setting_run_cafe))
         sleepScheduleButton.setText(when (snapshot.settings?.flags?.and(0x01)) {
             1 -> R.string.setting_sleep_schedule_on
             0 -> R.string.setting_sleep_schedule_off
@@ -193,6 +205,8 @@ class MachineSettingsActivity : Activity() {
             .setMessage(MachineSettingsPresentation.change(change) +
                 if (change is MachineSettingChange.WaterSupply)
                     "\n请先核对机器实际进水方式；设置错误可能导致缺水。写入后等待机器回读确认。"
+                else if (change is MachineSettingChange.RunMode)
+                    "\n工作室模式下，曲线温度未到达目标时需先预热，达到后才能启动萃取。写入后等待机器回读确认。"
                 else "\n写入后需等待机器回读确认。")
             .setPositiveButton("发送") { _, _ ->
                 service?.changeMachineSetting(change)?.let {
