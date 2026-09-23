@@ -24,4 +24,15 @@ class ShotSamplesStoreTest {
             assertThrows(IllegalArgumentException::class.java) { store.load("../outside") }
         } finally { dir.deleteRecursively() }
     }
+
+    @Test fun interruptedShotRetainsLastCompleteCheckpoint() {
+        val dir = Files.createTempDirectory("openhoyi-partial").toFile()
+        try {
+            val point = ShotPoint(100, 90, 20, 0, 9200, null)
+            val firstProcess = ShotSamplesStore(dir)
+            firstProcess.save("shot-interrupted", listOf(point))
+            val afterRestart = ShotSamplesStore(dir)
+            assertEquals(listOf(point), afterRestart.load("shot-interrupted"))
+        } finally { dir.deleteRecursively() }
+    }
 }

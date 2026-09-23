@@ -37,4 +37,19 @@ class ShotSeriesTest {
         series.machine(frame, 10_100, null, null)
         assertEquals(before, series.points.size)
     }
+
+    @Test fun checkpointsFirstPointThenAtBoundedIntervalsAndKeepsPartialHistory() {
+        val series = ShotSeries()
+        series.begin("shot-partial", 1_000)
+        assertNull(series.checkpoint(1_000))
+        series.machine(frame, 1_100, null, null)
+        assertEquals(1, series.checkpoint(1_100)?.second?.size)
+        series.machine(frame, 5_900, null, null)
+        assertNull(series.checkpoint(5_900))
+        series.machine(frame, 6_100, null, null)
+        assertEquals(3, series.checkpoint(6_100)?.second?.size)
+        assertEquals(3, series.checkpoint(6_100, force = true)?.second?.size)
+        assertEquals("shot-partial", series.finish()?.first)
+        assertNull(series.checkpoint(7_000, force = true))
+    }
 }

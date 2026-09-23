@@ -106,6 +106,7 @@ class MobileService : Service() {
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
                 }
+                if (current == ExtractionState.OUTCOME_UNKNOWN) saveSeriesCheckpoint(force = true)
                 event("萃取状态：${current.name}", "shot.state")
             }
             handler.postDelayed(this, 100)
@@ -141,6 +142,7 @@ class MobileService : Service() {
                 onState = { role, state ->
                     snapshot = if (role == DeviceRole.COFFEE) {
                         if (state != DeviceState.READY) {
+                            saveSeriesCheckpoint(force = true)
                             settingsWrite.disconnected()
                             cupReset.disconnected()
                             scheduleWrite.disconnected(firstSleepSerial, secondSleepSerial)
@@ -203,9 +205,11 @@ class MobileService : Service() {
                         else -> snapshot
                     }
                     if (frame is io.openhoyi.protocol.ExtractionTelemetry) {
-                        series.machine(frame, SystemClock.elapsedRealtime(),
+                        val observedAt = SystemClock.elapsedRealtime()
+                        series.machine(frame, observedAt,
                             snapshot.weight?.weightHundredthsGram?.takeIf { snapshot.scaleState == DeviceState.READY },
                             snapshot.weightAt)
+                        saveSeriesCheckpoint(observedAt)
                     }
                 },
                 onWeight = {
@@ -628,6 +632,12 @@ class MobileService : Service() {
             app.samples.save(finished.first, finished.second)
         }
         history?.entries?.map(ShotHistory.Entry::id)?.toSet()?.let(app.samples::prune)
+    }
+    private fun saveSeriesCheckpoint(atElapsedMs: Long = SystemClock.elapsedRealtime(), force: Boolean = false) {
+        series.checkpoint(atElapsedMs, force)?.let { (id, points) ->
+            runCatching { (application as MobileApplication).samples.save(id, points) }
+                .onFailure { event("曲线采样暂存失败", "shot.samples_error") }
+        }
     }
     private fun event(message: String, kind: String = "mobile.event") {
         snapshot = snapshot.copy(message = message)

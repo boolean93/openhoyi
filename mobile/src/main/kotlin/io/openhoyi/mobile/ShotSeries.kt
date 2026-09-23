@@ -16,6 +16,7 @@ class ShotSeries {
     private var id: String? = null
     private var startedAtMs = 0L
     private var minimumGapMs = 0L
+    private var lastCheckpointAtMs: Long? = null
     private val recorded = mutableListOf<ShotPoint>()
     val points: List<ShotPoint> get() = recorded.toList()
 
@@ -24,7 +25,17 @@ class ShotSeries {
         id = shotId
         startedAtMs = atElapsedMs
         minimumGapMs = 0
+        lastCheckpointAtMs = null
         recorded.clear()
+    }
+
+    /** The first observed point and then at most one snapshot per five seconds. */
+    fun checkpoint(atElapsedMs: Long, force: Boolean = false): Pair<String, List<ShotPoint>>? {
+        val shotId = id ?: return null
+        if (recorded.isEmpty()) return null
+        if (!force && lastCheckpointAtMs?.let { atElapsedMs - it < 5_000 } == true) return null
+        lastCheckpointAtMs = atElapsedMs
+        return shotId to recorded.toList()
     }
 
     fun machine(frame: ExtractionTelemetry, atElapsedMs: Long, weightHundredthsGram: Int?, weightAtElapsedMs: Long?) {
