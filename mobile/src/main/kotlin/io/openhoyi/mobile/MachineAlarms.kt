@@ -27,6 +27,11 @@ object MachineAlarms {
         if (bits and 0x8000 != 0) add(Alarm("bit15", "未知告警位 15（原始 0x%04X）".format(bits and 0xFFFF)))
     }
 
+    /** C16 explicitly permits the last cup; all faults and the unknown bit require inspection. */
+    fun startBlock(bits: Int): String? = active(bits).firstOrNull { it.code != "C16" }?.let {
+        "机器告警 ${it.code} ${it.description}，暂不启动萃取"
+    }
+
     fun describe(bits: Int?, receivedAt: Long?, now: Long): String {
         if (bits == null) return "尚未收到机器告警状态"
         val fresh = receivedAt != null && receivedAt <= now && now - receivedAt <= 1500

@@ -5,7 +5,7 @@ import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 
-/** Host-side preflight; the lower session repeats the actual safety checks at the send boundary. */
+/** Host-side preflight; session also checks readiness and allowed wire frames at send time. */
 object ShotGate {
     /** Unknown outcome must permit reconnection so a user can explicitly retry Stop. */
     fun mayReconnectCoffee(state: ExtractionState): Boolean = state !in setOf(
@@ -27,6 +27,6 @@ object ShotGate {
         coffeeFrame.sleepStateRaw != 0 -> "咖啡机睡眠状态未知"
         profile.targetHundredthsGram > 0 && scale != DeviceState.READY -> "目标重量萃取需要电子秤"
         profile.targetHundredthsGram > 0 && (weightAt == null || weightAt > now || now - weightAt > 1500) -> "电子秤数据已过期"
-        else -> null
+        else -> MachineAlarms.startBlock(coffeeFrame.alarmBits)
     }
 }

@@ -43,4 +43,12 @@ class ShotGateTest {
         assertEquals("咖啡机处于睡眠状态", block(flow, coffeeFrame = idleFrame.copy(sleepStateRaw = 1)))
         assertEquals("咖啡机睡眠状态未知", block(flow, coffeeFrame = idleFrame.copy(sleepStateRaw = 2)))
     }
+    @Test fun freshFaultAlarmsBlockStartButTailWaterWarningRemainsAdvisory() {
+        assertTrue(block(flow, coffeeFrame = idleFrame.copy(alarmBits = 1))!!.contains("C1"))
+        assertTrue(block(flow, coffeeFrame = idleFrame.copy(alarmBits = 1 shl 8))!!.contains("C9"))
+        assertTrue(block(flow, coffeeFrame = idleFrame.copy(alarmBits = 0x8000))!!.contains("未知告警"))
+        assertNull(block(flow, coffeeFrame = idleFrame.copy(alarmBits = 1 shl 14)))
+        assertEquals("等待咖啡机新鲜待机数据", block(flow,
+            coffeeFrame = idleFrame.copy(alarmBits = 0), coffeeAt = 1000, now = 2501))
+    }
 }

@@ -34,7 +34,7 @@
 | 每周睡眠时间编辑 | WeeklySleepSchedule、DeviceSession、SleepScheduleWriteTracker、MachineSettingsActivity | 旧版整周两包写入样本逐字节对照；500ms顺序写入、禁止并发、两段新回报全周匹配才确认 | 写入期间机器端行为及两段回报时序尚未实机验收；部分成功无自动回滚 |
 | 首页立即睡眠 | CoffeeCommands.sleepNow、DeviceSession、SleepNowTracker、HomeActivity | 旧版固定5字节命令；新鲜待机遥测、显式确认、萃取/设置事务门禁；写入后须新鲜0x40睡眠状态1确认 | 尚未实机验证入睡/唤醒；App没有唤醒命令，需机器拨杆 |
 | 工作室曲线预热 | CoffeeCommands.brewWait、BrewPreparation、StudioStartGate、MobileService、ExtractionActivity | 0/75–105°C共32帧与旧版编码对照；模式位回读、补偿后±1°C判定、新鲜温度确认、显式启动、取消及10分钟自动取消 | 取消命令无独立回读；实机预热/取消/启动时序未验收 |
-| 机器告警显示 | HoyiCodec、MachineAlarms、HomeActivity、ExtractionActivity | `0x40` bit0–14与旧版C1–C14/C16映射对照；合成帧及新鲜/过期状态单测；bit15保留未知 | 采集记录没有非零告警帧，尚无实机告警验证；没有忽略告警入口 |
+| 机器告警显示 | HoyiCodec、MachineAlarms、HomeActivity、ExtractionActivity | `0x40` bit0–14与旧版C1–C14/C16映射对照；合成帧及新鲜/过期状态单测；新鲜C1–C14和未知bit15阻止启动，C16保留警示 | 采集记录没有非零告警帧，尚无实机告警验证；没有忽略告警入口 |
 | 多页面前台状态 | VisibleScreens、MobileService | 独立页面token、切页500毫秒缓冲；多页面交叠单测通过 | 需实机验证切页对自动连秤窗口的影响 |
 | 原生萃取历史基础页 | ShotHistory、HistoryActivity、MobileService | 持久化请求及终态，未知结果不标完成；状态/重启/坏行/保留上限单测通过 | 旧App数据未迁移，异步SharedPreferences落盘前突然断电可能丢最后写入；UI待实机验收 |
 | 实时和历史曲线 | ShotSeries、ShotChartView、ShotSamplesStore、HistoryDetailActivity | 只处理0x80已解码字段，新鲜秤重合并；2000点上限、时间顺序、首次与约每5秒异步暂存、最终文件往返与清理单测通过；构建/Lint通过 | 最后一次暂存后的点及尚未完成的异步写入可能因进程中断丢失；图表待实机验收 |
@@ -43,7 +43,7 @@
 
 见[实机报告](validation-2026-09-23.md)。咖啡机认证/设置/遥测有实机证据；新增仪器测试的4项检查通过。纯Kotlin会话回归增至33场景。BLE两次status=8断线未定位，未通过长期稳定性验收；08:42双设备并行约2分钟无断线，后因测试重启进程中断。秤负重量/自动重连及SAF系统选择器流程未完成。下方首轮结果为历史记录，不能代替最新报告。
 
-Alpha 日常版第一段功能见[说明](mobile-alpha.md)。累计杯数重置接入后，协议检查36,796项、会话检查36项、Alpha单测55项通过，debug构建成功，Lint 0错误、2条警告。当前用户要求暂不安装，尚无Alpha实机萃取、槽位启停、独立去皮、睡眠、睡眠计划写入、设置回读或告警证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
+Alpha 日常版第一段功能见[说明](mobile-alpha.md)。累计杯数重置接入后，协议检查36,796项、会话检查36项、Alpha单测56项通过，debug构建成功，Lint 0错误、2条警告。当前用户要求暂不安装，尚无Alpha实机萃取、槽位启停、独立去皮、睡眠、睡眠计划写入、设置回读或告警证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
 
 ## 本轮 Lab 结果（2026-09-22）
 
