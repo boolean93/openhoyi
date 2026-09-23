@@ -1,5 +1,7 @@
 package io.openhoyi.lab
 
+import io.openhoyi.trace.TraceStore
+
 import org.junit.Assert.*
 import org.junit.Test
 import java.io.ByteArrayOutputStream

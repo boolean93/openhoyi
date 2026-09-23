@@ -11,6 +11,7 @@
 | `protocol-core` | HOYI / BOOKOO 编解码、整数单位、不可变字节、格式校验、未支持命令清单。无 Android 依赖 |
 | `device-session` | 串行 GATT 队列、独立连接代次、初始化就绪、重连策略、去皮及停止策略、真实时序回放。无 Android 依赖 |
 | `bluetooth-android` | Android GATT 回调桥接、订阅、扫描、权限检查、主线程调度；`NativeDeviceHub` 连接上述模块 |
+| `trace-core` | 两款App共用的有界异步JSONL日志与ZIP导出；无Android依赖 |
 
 `NativeDeviceHub` 应由应用或前台服务持有，不能随页面销毁。`app` 模块实现权限请求、前台服务生命周期、成功连接的秤地址持久化与 UI；库只检查权限，不弹出页面。Android 最低版本26（Android8），Java17；使用 `java.time` 因而不声称支持旧版App的API21。
 
@@ -38,7 +39,7 @@ adb install -r mobile/build/outputs/apk/debug/mobile-debug.apk
 adb shell am start -n io.openhoyi.mobile/.HomeActivity
 ```
 
-Alpha 与 Lab、旧版 HOYI 分包安装。首页可扫描、手动连接咖啡机和秤、查看实时温度/压力/重量；成功连接过的秤地址只保存在 Alpha 自身。曲线库目前展示三条已采集且逐字节校验的启动参数，使用临时编号，不冒充旧版完整曲线库。选择曲线只保存其 ID，不向咖啡机发送命令。连接同一设备前应关闭其他 App 对该设备的连接。
+Alpha 与 Lab、旧版 HOYI 分包安装。首页可扫描、手动连接咖啡机和秤、查看实时温度/压力/重量，并通过系统选择器导出本包的传输与操作日志；成功连接过的秤地址只保存在 Alpha 自身。曲线库目前展示三条已采集且逐字节校验的启动参数，使用临时编号，不冒充旧版完整曲线库。选择曲线只保存其 ID，不向咖啡机发送命令。连接同一设备前应关闭其他 App 对该设备的连接。
 
 库产物：`bluetooth-android/build/outputs/aar/bluetooth-android-debug.aar`。AAR不是自包含APK，使用时需同时包含协议和会话模块；Gradle项目依赖通过 `api` 传递。
 

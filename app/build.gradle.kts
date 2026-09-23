@@ -15,5 +15,6 @@ android {
 }
 dependencies {
     implementation(project(":bluetooth-android"))
+    implementation(project(":trace-core"))
     testImplementation("junit:junit:4.13.2")
 }

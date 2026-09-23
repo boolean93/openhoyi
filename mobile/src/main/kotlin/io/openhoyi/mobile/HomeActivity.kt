@@ -84,6 +84,10 @@ class HomeActivity : Activity() {
         selection = text(curveCard, "尚未选择曲线", 16)
         button(curveCard, "查看曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
         text(curveCard, "当前版本只展示已采集并校验的三条曲线。萃取控制尚未在产品页开放。", 13)
+        button(content, "导出操作记录 ZIP") {
+            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
+        }
         button(content, "停止设备服务") { service?.shutdown(); release(); render() }
         render()
     }
@@ -126,6 +130,7 @@ class HomeActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == ENABLE && resultCode == RESULT_OK) enableAndScan()
+        if (requestCode == EXPORT && resultCode == RESULT_OK) data?.data?.let { (application as MobileApplication).export(it) }
     }
     private fun choose(device: DiscoveredDevice) {
         if (device.candidateRole == DeviceRole.BOOKOO) { service?.connectScale(device.address); return }
@@ -200,5 +205,5 @@ class HomeActivity : Activity() {
         text = value; setOnClickListener { action() }
         parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
     }
-    companion object { private const val PERMISSIONS = 12; private const val ENABLE = 13 }
+    companion object { private const val PERMISSIONS = 12; private const val ENABLE = 13; private const val EXPORT = 14 }
 }

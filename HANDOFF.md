@@ -10,15 +10,15 @@
 
 ## 当前交付
 
-五模块：protocol-core → device-session → bluetooth-android → app（Lab）/mobile（Alpha）。纯Kotlin模块无Android依赖；两款App均为原生View、Activity、本地Binder和connectedDevice前台Service，没有UniApp/JS/WebView。独立包 `io.openhoyi.lab` 和 `io.openhoyi.mobile`，均不覆盖旧App。
+六模块：protocol-core → device-session → bluetooth-android，另有trace-core供app（Lab）/mobile（Alpha）共用。纯Kotlin模块无Android依赖；两款App均为原生View、Activity、本地Binder和connectedDevice前台Service，没有UniApp/JS/WebView。独立包 `io.openhoyi.lab` 和 `io.openhoyi.mobile`，均不覆盖旧App。
 
-`mobile` 第一段原生日常版已完成首页连接、实时状态和三条采集曲线浏览/选择；见 `docs/mobile-alpha.md`。`mobile:testDebugUnitTest`、`mobile:assembleDebug`、`mobile:lintDebug` 均通过。平板两次拒绝安装新包（`INSTALL_FAILED_USER_RESTRICTED`），因此尚无Alpha的实机启动证据；APK位于`mobile/build/outputs/apk/debug/mobile-debug.apk`。此包未开放萃取控制，不能当成完整替代App。
+`mobile` 第一段原生日常版已完成首页连接、实时状态、传输日志导出和三条采集曲线浏览/选择；见 `docs/mobile-alpha.md`。`trace-core`从Lab抽取后，两款App的单测、构建、Lint均通过。平板两次拒绝安装新包（`INSTALL_FAILED_USER_RESTRICTED`），因此尚无Alpha的实机启动证据；APK位于`mobile/build/outputs/apk/debug/mobile-debug.apk`。此包未开放萃取控制，不能当成完整替代App。
 
 Lab仅提供授权/扫描/手动连接/断开/实时数据/日志导出/停止服务。没有萃取、设置、校准、OTA按钮。咖啡机连接必须输入6位密码（数字字节0..9），认证并同步时间；BOOKOO按500ms间隔执行4条初始化写入，收到之后的新样本才Ready。连接并非完全只读，以上初始化是明确例外。
 
 - `app/.../LabActivity.kt`：界面、权限、扫描设备选择、内存密码、未知/过期/断线显示。UI按250ms刷新，不持有Gatt。
 - `LabService.kt`：前台通知、双设备Hub、成功秤地址持久化、会话快照；页面离开不关闭连接；旋转不重置重连窗口。
-- `LabApplication.kt` / `TraceStore.kt`：进程唯一日志队列，避免Service快速重启多writer；导出独立于服务，SAF期间停止服务也可完成。
+- `LabApplication.kt` / `trace-core/TraceStore.kt`：进程唯一日志队列，避免Service快速重启多writer；导出独立于服务，SAF期间停止服务也可完成。Alpha由`MobileApplication`持有自己的实例。
 - `device-session/.../WireTrace.kt`：认证01/改密0B整帧脱敏（含XOR），只在coffeeWrite识别；最大512bytes。Driver真实边界调用，观测异常隔离。
 - `protocol-core/.../Protocol.kt`：已观察帧长度、BOOKOO ASCII符号与定点单位。
 - `device-session/.../GattQueue.kt`：连接代次、串行、超时关闭、取消排队启动。

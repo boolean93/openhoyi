@@ -13,6 +13,7 @@ import io.openhoyi.protocol.Settings
 import io.openhoyi.session.CoffeeAuthentication
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
+import io.openhoyi.trace.TraceStore
 import java.time.LocalDateTime
 
 data class MobileSnapshot(
@@ -32,11 +33,14 @@ data class MobileSnapshot(
 class MobileService : Service() {
     inner class LocalBinder : Binder() { val service: MobileService get() = this@MobileService }
     private val binder = LocalBinder()
+    private lateinit var logs: TraceStore
+    private val ownerId = java.util.UUID.randomUUID().toString()
     private var hub: NativeDeviceHub? = null
     private var visible = false
     var running = false; private set
     var snapshot = MobileSnapshot(); private set
 
+    override fun onCreate() { super.onCreate(); logs = (application as MobileApplication).logs }
     override fun onBind(intent: Intent): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
@@ -71,6 +75,16 @@ class MobileService : Service() {
                 },
                 onWeight = { snapshot = snapshot.copy(weight = it, weightAt = SystemClock.elapsedRealtime()) },
                 diagnostic = { event("设备通信异常") },
+                trace = { role, trace ->
+                    logs.record("wire.${trace.kind}", buildMap {
+                        put("ownerId", ownerId); put("role", role.name); put("generation", trace.generation.toString())
+                        trace.token?.let { put("token", it.toString()) }
+                        trace.endpoint?.let { put("endpoint", it) }
+                        trace.hex?.let { put("hex", it) }
+                        trace.size?.let { put("size", it.toString()) }
+                        trace.detail?.let { put("detail", it) }
+                    })
+                },
             )
             running = true
             event("服务已启动")
@@ -121,6 +135,7 @@ class MobileService : Service() {
     }
     private fun event(message: String) {
         snapshot = snapshot.copy(message = message)
+        logs.record("mobile.event", mapOf("message" to message, "ownerId" to ownerId))
         Log.i(TAG, message)
     }
     fun shutdown() {

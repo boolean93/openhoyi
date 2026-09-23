@@ -7,6 +7,7 @@ import android.os.*
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
+import io.openhoyi.trace.TraceStore
 import java.time.LocalDateTime
 
 /** One owner for both links. Binding/unbinding a screen never owns a GATT connection. */
