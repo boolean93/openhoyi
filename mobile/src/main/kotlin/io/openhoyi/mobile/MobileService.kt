@@ -112,7 +112,9 @@ class MobileService : Service() {
                             snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
                                 settings = null, sleepFirst = null, sleepSecond = null)
                         else snapshot.copy(coffeeState = state)
-                    } else snapshot.copy(scaleState = state)
+                    } else if (state != DeviceState.READY)
+                        snapshot.copy(scaleState = state, weight = null, weightAt = null)
+                    else snapshot.copy(scaleState = state)
                     event("${role.name}: ${state.name}")
                 },
                 onCoffee = { frame ->
@@ -204,12 +206,19 @@ class MobileService : Service() {
         event("断开 ${role.name}")
         if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
     }
-    fun startShot(profileId: String): String? {
+    fun startShot(profileId: String, expectedScaleMode: Boolean? = null): String? {
         val current = hub ?: return "设备服务尚未启动"
         val selectedId = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
-        val profile = CurveCatalog.find(profileId)?.takeIf { it.id == selectedId }
+        val library = (application as MobileApplication).curves
+        val scaleMode = snapshot.scaleState == DeviceState.READY
+        val profile = profileId.takeIf { it == selectedId }?.let { library.resolve(it, scaleMode) }
+        if (profile != null && profile.scaleMode != expectedScaleMode) {
+            event("电子秤连接状态已变化，请重新确认", "shot.rejected")
+            return "电子秤连接状态已变化，请重新确认"
+        }
         val blocked = ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
-            snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state)
+            snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
+            validated = profile?.let(library::validated) == true)
         if (blocked != null) { event("启动被阻止：$blocked", "shot.rejected"); return blocked }
         requireNotNull(profile)
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
@@ -218,8 +227,9 @@ class MobileService : Service() {
             finishSeries(true)
         }
         logs.record("shot.start.attempt", mapOf("ownerId" to ownerId, "curveId" to profile.id,
-            "targetHundredthsGram" to profile.targetHundredthsGram.toString()))
-        if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, 0) ||
+            "targetHundredthsGram" to profile.targetHundredthsGram.toString(),
+            "scaleMode" to (profile.scaleMode?.toString() ?: "captured")))
+        if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) ||
             current.extraction.state == ExtractionState.IDLE) {
             event("启动未被会话层接受", "shot.rejected")
             return "启动未被会话层接受"

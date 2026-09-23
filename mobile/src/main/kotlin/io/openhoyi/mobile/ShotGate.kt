@@ -16,9 +16,10 @@ object ShotGate {
         ExtractionState.STOP_REQUESTED, ExtractionState.OUTCOME_UNKNOWN,
     )
     fun startBlock(profile: CurveProfile?, coffee: DeviceState, coffeeFrame: HoyiMessage?, coffeeAt: Long?,
-        scale: DeviceState, weightAt: Long?, now: Long, shot: ExtractionState): String? = when {
+        scale: DeviceState, weightAt: Long?, now: Long, shot: ExtractionState,
+        validated: Boolean = profile?.let(CurveCatalog::validated) == true): String? = when {
         profile == null -> "请先选择曲线"
-        !CurveCatalog.validated(profile) -> "曲线未通过采集帧校验"
+        !validated -> "曲线未通过报文校验"
         active(shot) -> "上一杯尚未确认结束"
         coffee != DeviceState.READY -> "咖啡机尚未就绪"
         coffeeFrame !is IdleTelemetry || coffeeAt == null || coffeeAt > now || now - coffeeAt > 1500 -> "等待咖啡机新鲜待机数据"

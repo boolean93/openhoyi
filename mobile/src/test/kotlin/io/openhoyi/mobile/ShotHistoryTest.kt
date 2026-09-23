@@ -46,10 +46,12 @@ class ShotHistoryTest {
         assertEquals(1, history.entries.size)
     }
 
-    @Test fun onlyCapturedCurveCanEnterHistory() {
+    @Test fun capturedAndFactoryCurvesCanEnterHistoryButUnknownIdsCannot() {
         val history = ShotHistory(Memory(), now = { 1_000_000L })
-        assertThrows(IllegalArgumentException::class.java) { history.begin("factory-v3-001") }
-        assertTrue(history.entries.isEmpty())
+        history.begin("factory-v3-001")
+        assertEquals("factory-v3-001", history.entries.single().curveId)
+        history.transition(ExtractionState.ENDED_OBSERVED, null, null)
+        assertThrows(IllegalArgumentException::class.java) { history.begin("factory-v3-101") }
     }
 
     @Test fun retainsAtMostFiveHundredRecentEntries() {

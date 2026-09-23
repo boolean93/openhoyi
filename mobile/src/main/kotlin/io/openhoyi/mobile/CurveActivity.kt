@@ -73,7 +73,7 @@ class CurveActivity : Activity() {
             override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
                 visibleItems = library.items.filter { position == 0 || it.category == categories[position] }
                 adapter.clear()
-                adapter.addAll(visibleItems.map { "${it.name}  ·  ${it.category}${if (it.controlProfile == null) " · 仅浏览" else ""}" })
+                adapter.addAll(visibleItems.map { "${it.name}  ·  ${it.category}${if (!library.canStart(it)) " · 仅浏览" else ""}" })
             }
             override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
         }
@@ -86,7 +86,7 @@ class CurveActivity : Activity() {
         selected = item
         details.text = "${item.name}\n${item.category}\n\n${item.details}"
         select.isEnabled = true
-        select.text = if (item.controlProfile == null) "设为当前曲线（不可萃取）" else "设为当前曲线"
+        select.text = if (!library.canStart(item)) "设为当前曲线（不可萃取）" else "设为当前曲线"
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

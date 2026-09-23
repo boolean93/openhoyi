@@ -87,7 +87,7 @@ class HomeActivity : Activity() {
         button(curveCard, "查看曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
         button(curveCard, "进入萃取页面") { startActivity(Intent(this, ExtractionActivity::class.java)) }
         button(curveCard, "萃取历史") { startActivity(Intent(this, HistoryActivity::class.java)) }
-        text(curveCard, "100 条工厂曲线可浏览；目前只有 3 条采集曲线可用于萃取。", 13)
+        text(curveCard, "工厂曲线经旧版启动报文逐字节校验；实际机器行为仍待验收。", 13)
         button(content, "导出操作记录 ZIP") {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
@@ -183,7 +183,7 @@ class HomeActivity : Activity() {
         scale.show("${label(s.scaleState)} · ${if (scaleFresh) "实时" else "暂无实时数据"}\n${s.weight?.let { number(it.weightHundredthsGram) } ?: "—"} g")
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
-        selection.show(selected?.let { "当前：${it.name} · ${if (it.controlProfile == null) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
+        selection.show(selected?.let { "当前：${it.name} · ${if (!library.canStart(it)) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
         val keys = s.candidates.map { "${it.address}:${it.advertisedName}" }
         if (keys != candidateKeys) {
             candidateKeys = keys; candidates.removeAllViews()

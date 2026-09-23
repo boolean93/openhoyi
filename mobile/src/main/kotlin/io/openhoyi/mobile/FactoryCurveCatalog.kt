@@ -25,10 +25,11 @@ data class FactoryCurve(
 
 object FactoryCurveCatalog {
     const val VERSION = 3
+    const val SOURCE_SHA256 = "b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037"
     private val categories = setOf("dark", "medium", "light", "super")
     fun load(input: InputStream): List<FactoryCurve> {
         val lines = input.bufferedReader(Charsets.UTF_8).use { it.readLines() }
-        require(lines.firstOrNull()?.matches(Regex("# factory-v3\\tsource-sha256=[0-9a-f]{64}")) == true)
+        require(lines.firstOrNull() == "# factory-v3\tsource-sha256=$SOURCE_SHA256")
         val curves = lines.drop(1).mapIndexed { index, line ->
             val fields = line.split('\t')
             require(fields.size == 22) { "factory curve field count at $index" }

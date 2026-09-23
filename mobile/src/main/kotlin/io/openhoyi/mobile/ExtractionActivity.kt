@@ -12,6 +12,7 @@ import android.widget.*
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.session.ExtractionState
+import io.openhoyi.session.DeviceState
 import java.util.Locale
 
 /** A screen never owns BLE. Start requires an explicit confirmation; Stop is one tap. */
@@ -80,15 +81,18 @@ class ExtractionActivity : Activity() {
         return getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
     }
     private fun confirmStart() {
-        val profile = selected()?.controlProfile ?: return
         val owner = service ?: return
+        val library = (application as MobileApplication).curves
+        val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY) }
         val blocked = ShotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
-            owner.snapshot.weightAt, SystemClock.elapsedRealtime(), owner.shotState)
+            owner.snapshot.weightAt, SystemClock.elapsedRealtime(), owner.shotState,
+            validated = profile?.let(library::validated) == true)
         if (blocked != null) { toast(blocked); render(); return }
+        requireNotNull(profile)
         AlertDialog.Builder(this).setTitle("确认开始萃取")
-            .setMessage("${profile.name} · ${profile.temperatureC} °C\n目标重量：${if (profile.targetHundredthsGram > 0) "${number(profile.targetHundredthsGram)} g" else "不使用"}\n将向咖啡机发送已校验的启动命令。")
+            .setMessage("${profile.name} · ${profile.temperatureC} °C\n最大水量：${profile.maximumWaterMl} ml\n目标重量：${if (profile.targetHundredthsGram > 0) "${number(profile.targetHundredthsGram)} g（电子秤）" else "不使用（由咖啡机按水量结束）"}\n将向咖啡机发送已校验的启动命令。")
             .setPositiveButton("确认启动") { _, _ ->
-                owner.startShot(profile.id)?.let(::toast)
+                owner.startShot(profile.id, profile.scaleMode)?.let(::toast)
                 render()
             }
             .setNegativeButton("取消", null).show()
@@ -99,10 +103,12 @@ class ExtractionActivity : Activity() {
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val state = owner?.shotState ?: ExtractionState.IDLE
         val item = selected()
-        val profile = item?.controlProfile
-        val blocked = if (item != null && profile == null) "这条工厂曲线尚未验证下发，暂不可萃取"
+        val library = (application as MobileApplication).curves
+        val profile = item?.let { library.resolve(it.id, snapshot.scaleState == DeviceState.READY) }
+        val blocked = if (item != null && profile == null) "这条曲线未通过报文校验，暂不可萃取"
             else ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
-                snapshot.weightAt, SystemClock.elapsedRealtime(), state)
+                snapshot.weightAt, SystemClock.elapsedRealtime(), state,
+                validated = profile?.let(library::validated) == true)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
             "\n连接中断且结果未知；先检查咖啡机，再重连后尝试停止。" else ""
         readiness.show("曲线：${item?.name ?: "未选择"}\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: "设备与曲线已就绪"}$unknownAdvice")

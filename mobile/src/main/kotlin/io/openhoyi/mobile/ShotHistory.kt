@@ -45,7 +45,7 @@ class ShotHistory(
 
     fun begin(curveId: String, atMs: Long = now()): String {
         require(activeId == null) { "Previous shot has not been resolved in the history" }
-        require(CurveCatalog.find(curveId) != null)
+        require(CurveCatalog.find(curveId) != null || curveId.matches(Regex("factory-v3-(00[1-9]|0[1-9][0-9]|100)")))
         val id = newId()
         require(id.isNotBlank() && records.none { it.id == id })
         records.add(Entry(id, curveId, atMs, null, null, Status.STARTING, null, null))

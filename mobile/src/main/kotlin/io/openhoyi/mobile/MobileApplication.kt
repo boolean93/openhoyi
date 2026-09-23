@@ -11,7 +11,13 @@ import java.io.File
 /** Process-owned writer, independent of Activity and service restarts. */
 class MobileApplication : Application() {
     val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces")) }
-    val curves: CurveLibrary by lazy { CurveLibrary(FactoryCurveCatalog.load(assets.open("factory_curves_v3.tsv"))) }
+    val curves: CurveLibrary by lazy {
+        val factory = FactoryCurveCatalog.load(assets.open("factory_curves_v3.tsv"))
+        val proof = runCatching { FactoryWireProof.load(assets.open("factory_wire_v1.tsv"), factory) }
+            .onFailure { logs.record("factory.wire_proof_failed", mapOf("type" to it.javaClass.simpleName)) }
+            .getOrNull()
+        CurveLibrary(factory, proof)
+    }
     val samples: ShotSamplesRepository by lazy {
         ShotSamplesRepository(File(filesDir, "shot_samples")) { error ->
             logs.record("shot.samples_error", mapOf("type" to error.javaClass.simpleName))
