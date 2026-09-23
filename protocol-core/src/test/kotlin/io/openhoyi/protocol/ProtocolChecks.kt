@@ -18,6 +18,10 @@ fun main() {
     val idle = (HoyiCodec.decode(hex("400024BF2F1C770B00000000000000190321AF")) as DecodeResult.Valid).value as IdleTelemetry
     verify(idle.brewTemperatureHundredthsC == 9407 && idle.steamTemperatureHundredthsC == 12060)
     verify(idle.brewPressureTenthsBar == 119 && idle.extraSensorRaw == 801)
+    val alarmFrame = hex("400024BF2F1C770B00000000000000190321AF")
+    alarmFrame[12] = 0x42
+    alarmFrame[13] = 0x01
+    verify(((HoyiCodec.decode(alarmFrame) as DecodeResult.Valid).value as IdleTelemetry).alarmBits == 0x4201)
     val extraction = (HoyiCodec.decode(hex("80080700000000052421325103")) as DecodeResult.Valid).value as ExtractionTelemetry
     verify(extraction.slotOrPhase == 7 && extraction.totalWaterTenthsMl == 5 && extraction.statusBits == 81 && extraction.valveOpen)
     val sleep = (HoyiCodec.decode(hex("8340FE0A00071E0A00071E0A00071E0A00071E3D")) as DecodeResult.Valid).value as SleepPart

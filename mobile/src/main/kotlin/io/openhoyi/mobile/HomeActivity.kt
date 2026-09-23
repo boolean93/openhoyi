@@ -38,6 +38,7 @@ class HomeActivity : Activity() {
     private lateinit var leverButton: Button
     private lateinit var sleepStatus: TextView
     private lateinit var sleepButton: Button
+    private lateinit var alarmStatus: TextView
     private lateinit var scale: TextView
     private lateinit var tareStatus: TextView
     private lateinit var selection: TextView
@@ -89,6 +90,7 @@ class HomeActivity : Activity() {
         leverButton = button(coffeeCard, "切换拨杆模式") { chooseLeverMode() }
         sleepStatus = text(coffeeCard, "睡眠状态：未知", 14)
         sleepButton = button(coffeeCard, "立即睡眠") { confirmSleepNow() }
+        alarmStatus = text(coffeeCard, "尚未收到机器告警状态", 14)
         button(coffeeCard, "查看机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(coffeeCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
         val scaleCard = card(content, "电子秤")
@@ -262,6 +264,7 @@ class HomeActivity : Activity() {
             else -> ""
         }
         sleepStatus.show("睡眠状态：$reportedSleep$sleepProgress")
+        alarmStatus.show(MachineAlarms.describe(s.alarmBits, s.alarmAt, now))
         val machine = when (val frame = s.coffee) {
             is IdleTelemetry -> "冲泡 ${number(frame.brewTemperatureHundredthsC)} °C · ${frame.brewPressureTenthsBar / 10.0} bar\n蒸汽 ${number(frame.steamTemperatureHundredthsC)} °C · ${frame.steamPressureTenthsBar / 10.0} bar"
             is ExtractionTelemetry -> "萃取 ${frame.elapsedSeconds} s · ${frame.pressureTenthsBar / 10.0} bar\n冲泡 ${number(frame.brewTemperatureHundredthsC)} °C"

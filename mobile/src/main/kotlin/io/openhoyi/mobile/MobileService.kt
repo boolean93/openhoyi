@@ -25,6 +25,8 @@ data class MobileSnapshot(
     val scaleState: DeviceState = DeviceState.DISCONNECTED,
     val coffee: HoyiMessage? = null,
     val coffeeAt: Long? = null,
+    val alarmBits: Int? = null,
+    val alarmAt: Long? = null,
     val settings: Settings? = null,
     val sleepFirst: SleepPart? = null,
     val sleepSecond: SleepPart? = null,
@@ -132,6 +134,7 @@ class MobileService : Service() {
                         }
                         if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
                             snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
+                                alarmBits = null, alarmAt = null,
                                 settings = null, sleepFirst = null, sleepSecond = null)
                         else snapshot.copy(coffeeState = state)
                     } else if (state != DeviceState.READY) {
@@ -158,7 +161,9 @@ class MobileService : Service() {
                                     BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
                                         currentSettings.brewCompensationTenthsC)))
                                 event("冲泡温度已达到曲线目标", "brew_wait.ready")
-                            snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
+                            val observedAt = SystemClock.elapsedRealtime()
+                            snapshot.copy(coffee = frame, coffeeAt = observedAt,
+                                alarmBits = frame.alarmBits, alarmAt = observedAt)
                         }
                         is io.openhoyi.protocol.ExtractionTelemetry ->
                             snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
@@ -240,7 +245,8 @@ class MobileService : Service() {
             return
         }
         val current = hub ?: return
-        snapshot = snapshot.copy(coffee = null, coffeeAt = null, settings = null, sleepFirst = null, sleepSecond = null)
+        snapshot = snapshot.copy(coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null,
+            settings = null, sleepFirst = null, sleepSecond = null)
         event("连接咖啡机")
         current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password))
     }
@@ -511,7 +517,8 @@ class MobileService : Service() {
         hub?.close(); hub = null; running = false
         handler.removeCallbacks(leaveForeground)
         hubForeground = false
-        snapshot = snapshot.copy(coffeeState = DeviceState.DISCONNECTED, scaleState = DeviceState.DISCONNECTED, scanning = false)
+        snapshot = snapshot.copy(coffeeState = DeviceState.DISCONNECTED, scaleState = DeviceState.DISCONNECTED,
+            coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null, scanning = false)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

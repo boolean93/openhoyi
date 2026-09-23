@@ -26,6 +26,7 @@ class ExtractionActivity : Activity() {
     private lateinit var readiness: TextView
     private lateinit var live: TextView
     private lateinit var preparationStatus: TextView
+    private lateinit var alarmStatus: TextView
     private lateinit var chart: ShotChartView
     private lateinit var start: Button
     private lateinit var stop: Button
@@ -63,6 +64,7 @@ class ExtractionActivity : Activity() {
         readiness = text(card, "等待设备服务", 18)
         live = text(card, "暂无实时数据", 22)
         preparationStatus = text(card, "温度准备：尚未连接", 14)
+        alarmStatus = text(card, "尚未收到机器告警状态", 14)
         chart = ShotChartView(this)
         card.addView(chart, LinearLayout.LayoutParams(-1, dp(260)).apply { topMargin = dp(12) })
         prepare = button(card, "预热到曲线温度") { confirmPrepare() }
@@ -159,6 +161,8 @@ class ExtractionActivity : Activity() {
                     BrewPreparation.State.FAILED -> "预热命令未写入，请取消后重试"
                     BrewPreparation.State.UNKNOWN -> "预热结果未知，请查看机器并取消"
                 })
+        alarmStatus.show(MachineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
+            SystemClock.elapsedRealtime()))
         val machine = when (val frame = snapshot.coffee) {
             is ExtractionTelemetry -> "${frame.elapsedSeconds} s · ${frame.pressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"
             is IdleTelemetry -> "待机 · ${frame.brewPressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"
