@@ -52,6 +52,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     fun foreground(){usable();reconnect.foreground(SystemClock.elapsedRealtime(),remembered!=null)}
     fun background(){usable();reconnect.background();scanner.close()}
     fun disconnectScale(){usable();reconnect.manualDisconnect();scale.session.disconnect()}
+    fun tareScale(done:(OperationResult)->Unit){usable();scale.session.tare(done)}
     fun disconnectCoffee(){usable();coffee.session.disconnect()}
     override fun close(){
         usable();closed=true;handler.removeCallbacks(ticker);reconnect.background();scanner.close();coffee.close();scale.close()

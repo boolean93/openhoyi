@@ -34,11 +34,13 @@ class HomeActivity : Activity() {
     private lateinit var status: TextView
     private lateinit var coffee: TextView
     private lateinit var scale: TextView
+    private lateinit var tareStatus: TextView
     private lateinit var selection: TextView
     private lateinit var candidates: LinearLayout
     private lateinit var scanButton: Button
     private lateinit var coffeeDisconnect: Button
     private lateinit var scaleDisconnect: Button
+    private lateinit var tareButton: Button
     private var candidateKeys = emptyList<String>()
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -81,6 +83,8 @@ class HomeActivity : Activity() {
         coffeeDisconnect = button(coffeeCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
         val scaleCard = card(content, "电子秤")
         scale = text(scaleCard, "未连接", 20)
+        tareStatus = text(scaleCard, "去皮状态：尚未操作", 14)
+        tareButton = button(scaleCard, "电子秤去皮") { service?.tareScale()?.let(::toast); render() }
         scaleDisconnect = button(scaleCard, "断开电子秤") { service?.disconnect(DeviceRole.BOOKOO) }
         val curveCard = card(content, "曲线库")
         selection = text(curveCard, "尚未选择曲线", 16)
@@ -172,6 +176,16 @@ class HomeActivity : Activity() {
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
         coffeeDisconnect.isEnabled = running && !shotActive && s.coffeeState != DeviceState.DISCONNECTED
         scaleDisconnect.isEnabled = running && !shotActive && s.scaleState != DeviceState.DISCONNECTED
+        tareButton.isEnabled = running && !shotActive && s.scaleState == DeviceState.READY &&
+            owner?.tareState !in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO)
+        tareStatus.show("去皮状态：" + when (owner?.tareState ?: StandaloneTare.State.IDLE) {
+            StandaloneTare.State.IDLE -> "尚未操作"
+            StandaloneTare.State.WRITING -> "正在发送"
+            StandaloneTare.State.WAITING_ZERO -> "已写入，等待归零"
+            StandaloneTare.State.CONFIRMED -> "已收到归零读数"
+            StandaloneTare.State.FAILED -> "写入失败"
+            StandaloneTare.State.UNKNOWN -> "结果未知，请查看秤"
+        })
         val coffeeFresh = s.coffeeAt?.let { now >= it && now - it <= 1500 } == true && s.coffeeState == DeviceState.READY
         val machine = when (val frame = s.coffee) {
             is IdleTelemetry -> "冲泡 ${number(frame.brewTemperatureHundredthsC)} °C · ${frame.brewPressureTenthsBar / 10.0} bar\n蒸汽 ${number(frame.steamTemperatureHundredthsC)} °C · ${frame.steamPressureTenthsBar / 10.0} bar"

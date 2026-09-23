@@ -40,6 +40,9 @@ class MobileService : Service() {
     private lateinit var logs: TraceStore
     private var history: ShotHistory? = null
     private val series = ShotSeries()
+    private val standaloneTare = StandaloneTare()
+    private var scaleSampleSerial = 0L
+    val tareState: StandaloneTare.State get() = standaloneTare.state
     val chartPoints: List<ShotPoint> get() = series.points
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
@@ -112,8 +115,10 @@ class MobileService : Service() {
                             snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
                                 settings = null, sleepFirst = null, sleepSecond = null)
                         else snapshot.copy(coffeeState = state)
-                    } else if (state != DeviceState.READY)
+                    } else if (state != DeviceState.READY) {
+                        standaloneTare.disconnected()
                         snapshot.copy(scaleState = state, weight = null, weightAt = null)
+                    }
                     else snapshot.copy(scaleState = state)
                     event("${role.name}: ${state.name}")
                 },
@@ -132,7 +137,13 @@ class MobileService : Service() {
                             snapshot.weightAt)
                     }
                 },
-                onWeight = { snapshot = snapshot.copy(weight = it, weightAt = SystemClock.elapsedRealtime()) },
+                onWeight = {
+                    val before = standaloneTare.state
+                    standaloneTare.sample(++scaleSampleSerial, it.weightHundredthsGram)
+                    if (before != standaloneTare.state && standaloneTare.state == StandaloneTare.State.CONFIRMED)
+                        event("电子秤已归零", "scale.tare_confirmed")
+                    snapshot = snapshot.copy(weight = it, weightAt = SystemClock.elapsedRealtime())
+                },
                 diagnostic = { event("设备通信异常") },
                 trace = { role, trace ->
                     logs.record("wire.${trace.kind}", buildMap {
@@ -206,6 +217,30 @@ class MobileService : Service() {
         if (ShotGate.active(shotState)) { event("萃取尚未结束，先停止萃取"); return }
         event("断开 ${role.name}")
         if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
+    }
+    fun tareScale(): String? {
+        val current = hub ?: return "设备服务尚未启动"
+        if (ShotGate.active(shotState)) return "萃取期间不能手动去皮"
+        if (snapshot.scaleState != DeviceState.READY) return "电子秤尚未就绪"
+        val token = standaloneTare.begin() ?: return "正在等待本次去皮结果"
+        event("电子秤去皮命令已排队", "scale.tare_requested")
+        current.tareScale done@{ result ->
+            if (!standaloneTare.written(token, result, scaleSampleSerial)) return@done
+            when (standaloneTare.state) {
+                StandaloneTare.State.WAITING_ZERO -> {
+                    event("去皮命令已写入，等待电子秤归零", "scale.tare_written")
+                    handler.postDelayed({
+                        val before = standaloneTare.state
+                        standaloneTare.timeout(token)
+                        if (before != standaloneTare.state) event("等待归零超时，去皮结果未知", "scale.tare_unknown")
+                    }, 5000)
+                }
+                StandaloneTare.State.FAILED -> event("去皮命令未写入", "scale.tare_failed")
+                StandaloneTare.State.UNKNOWN -> event("去皮结果未知", "scale.tare_unknown")
+                else -> Unit
+            }
+        }
+        return null
     }
     fun startShot(profileId: String, expectedScaleMode: Boolean? = null): String? {
         val current = hub ?: return "设备服务尚未启动"
