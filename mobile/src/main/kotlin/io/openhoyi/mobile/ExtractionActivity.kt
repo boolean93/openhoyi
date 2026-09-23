@@ -19,6 +19,7 @@ class ExtractionActivity : Activity() {
     private var service: MobileService? = null
     private var bound = false
     private var visible = false
+    private val visibilityToken = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var readiness: TextView
     private lateinit var live: TextView
@@ -27,7 +28,7 @@ class ExtractionActivity : Activity() {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
-            service?.screenVisible(visible); render()
+            service?.screenVisible(visibilityToken, visible); render()
         }
         override fun onServiceDisconnected(name: ComponentName) { service = null; render() }
         override fun onBindingDied(name: ComponentName) { release(); render() }
@@ -67,14 +68,16 @@ class ExtractionActivity : Activity() {
     }
     override fun onStop() {
         visible = false; handler.removeCallbacks(refresh)
-        if (!isChangingConfigurations) service?.screenVisible(false)
+        service?.screenVisible(visibilityToken, false)
         release(); super.onStop()
     }
     private fun release() { if (bound) { unbindService(connection); bound = false }; service = null }
-    private fun selected(): CurveProfile? = getSharedPreferences("curves", MODE_PRIVATE)
-        .getString("selected", null)?.let(CurveCatalog::find)
+    private fun selected(): CurveLibraryItem? {
+        val library = (application as MobileApplication).curves
+        return getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
+    }
     private fun confirmStart() {
-        val profile = selected() ?: return
+        val profile = selected()?.controlProfile ?: return
         val owner = service ?: return
         val blocked = ShotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
             owner.snapshot.weightAt, SystemClock.elapsedRealtime(), owner.shotState)
@@ -92,12 +95,14 @@ class ExtractionActivity : Activity() {
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val state = owner?.shotState ?: ExtractionState.IDLE
-        val profile = selected()
-        val blocked = ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
-            snapshot.weightAt, SystemClock.elapsedRealtime(), state)
+        val item = selected()
+        val profile = item?.controlProfile
+        val blocked = if (item != null && profile == null) "这条工厂曲线尚未验证下发，暂不可萃取"
+            else ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
+                snapshot.weightAt, SystemClock.elapsedRealtime(), state)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
             "\n连接中断且结果未知；先检查咖啡机，再重连后尝试停止。" else ""
-        readiness.show("曲线：${profile?.name ?: "未选择"}\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: "设备与曲线已就绪"}$unknownAdvice")
+        readiness.show("曲线：${item?.name ?: "未选择"}\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: "设备与曲线已就绪"}$unknownAdvice")
         val machine = when (val frame = snapshot.coffee) {
             is ExtractionTelemetry -> "${frame.elapsedSeconds} s · ${frame.pressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"
             is IdleTelemetry -> "待机 · ${frame.brewPressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"

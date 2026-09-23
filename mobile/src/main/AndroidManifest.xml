@@ -5,6 +5,8 @@
     <application android:name=".MobileApplication" android:label="OpenHOYI Alpha" android:theme="@style/MobileTheme" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@drawable/ic_mobile" android:supportsRtl="true">
         <activity android:name=".CurveActivity" android:exported="false" />
         <activity android:name=".ExtractionActivity" android:exported="false" />
+        <activity android:name=".MachineSettingsActivity" android:exported="false" />
+        <activity android:name=".HistoryActivity" android:exported="false" />
         <activity android:name=".HomeActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

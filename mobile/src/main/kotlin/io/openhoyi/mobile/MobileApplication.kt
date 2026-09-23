@@ -11,6 +11,14 @@ import java.io.File
 /** Process-owned writer, independent of Activity and service restarts. */
 class MobileApplication : Application() {
     val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces")) }
+    val curves: CurveLibrary by lazy { CurveLibrary(FactoryCurveCatalog.load(assets.open("factory_curves_v3.tsv"))) }
+    val history: ShotHistory by lazy {
+        val prefs = getSharedPreferences("shot_history", MODE_PRIVATE)
+        ShotHistory(object : ShotHistory.Storage {
+            override fun read(): String = prefs.getString("entries_v1", "") ?: ""
+            override fun write(value: String) { prefs.edit().putString("entries_v1", value).apply() }
+        })
+    }
     fun export(uri: Uri) {
         logs.record("ui.export")
         try {

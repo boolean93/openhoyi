@@ -1,6 +1,6 @@
 # OpenHOYI Native
 
-纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。仓库提供两套独立 Android 包：`OpenHOYI Lab`（`io.openhoyi.lab`）用于诊断与采集；`OpenHOYI Alpha`（`io.openhoyi.mobile`）是日常使用版的第一段原生功能。Lab 已实测咖啡机和 BOOKOO 双设备连接、后台及短时锁屏收数。Alpha 已具备首页连接/实时状态、三条采集曲线的浏览/选择，以及需要显式确认的萃取与手动停止页面；Alpha 的实机启动和控制尚未验收。
+纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。仓库提供两套独立 Android 包：`OpenHOYI Lab`（`io.openhoyi.lab`）用于诊断与采集；`OpenHOYI Alpha`（`io.openhoyi.mobile`）是日常使用版的第一段原生功能。Lab 已实测咖啡机和 BOOKOO 双设备连接、后台及短时锁屏收数。Alpha 已具备首页连接/实时状态、三条采集曲线控制参数与100条只读工厂曲线浏览、机器设置只读页、萃取历史基础页，以及需要显式确认的萃取与手动停止页面；最新改动已编译和通过单测、Lint，Alpha 的实机启动和控制尚未验收。
 
 ## 模块
 
@@ -39,7 +39,7 @@ adb install -r mobile/build/outputs/apk/debug/mobile-debug.apk
 adb shell am start -n io.openhoyi.mobile/.HomeActivity
 ```
 
-Alpha 与 Lab、旧版 HOYI 分包安装。首页可扫描、手动连接咖啡机和秤、查看实时温度/压力/重量，并通过系统选择器导出本包的传输与操作日志；成功连接过的秤地址只保存在 Alpha 自身。曲线库目前展示三条已采集且逐字节校验的启动参数，使用临时编号，不冒充旧版完整曲线库。选择曲线只保存其 ID；进入萃取页并确认启动后才可能发送控制。产品层要求已验证固件、咖啡机新鲜待机遥测；重量模式还要求秤的新鲜数据。连接同一设备前应关闭其他 App 对该设备的连接。Alpha 的真实萃取尚未验收，不应把编译通过视为硬件等效。
+Alpha 与 Lab、旧版 HOYI 分包安装。首页可扫描、手动连接咖啡机和秤、查看实时温度/压力/重量，并通过系统选择器导出本包的传输与操作日志；成功连接过的秤地址只保存在 Alpha 自身。曲线库展示三条已采集且逐字节校验的启动参数，以及100条仅供浏览的旧版工厂曲线。机器设置页只展示收到的设定值和睡眠计划，不写入设备。萃取历史页记录 Alpha 自身发起的请求和观察到的结果，未知状态明确保留为未知。选择曲线只保存其 ID；只有已采集曲线在萃取页明确确认后才可能发送控制。产品层要求已验证固件、咖啡机新鲜待机遥测；重量模式还要求秤的新鲜数据。连接同一设备前应关闭其他 App 对该设备的连接。Alpha 的真实萃取尚未验收，不应把编译通过视为硬件等效。
 
 库产物：`bluetooth-android/build/outputs/aar/bluetooth-android-debug.aar`。AAR不是自包含APK，使用时需同时包含协议和会话模块；Gradle项目依赖通过 `api` 传递。
 

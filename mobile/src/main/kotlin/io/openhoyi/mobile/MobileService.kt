@@ -10,6 +10,7 @@ import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.BookooSample
 import io.openhoyi.protocol.HoyiMessage
 import io.openhoyi.protocol.Settings
+import io.openhoyi.protocol.SleepPart
 import io.openhoyi.session.CoffeeAuthentication
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
@@ -23,6 +24,8 @@ data class MobileSnapshot(
     val coffee: HoyiMessage? = null,
     val coffeeAt: Long? = null,
     val settings: Settings? = null,
+    val sleepFirst: SleepPart? = null,
+    val sleepSecond: SleepPart? = null,
     val weight: BookooSample? = null,
     val weightAt: Long? = null,
     val candidates: List<DiscoveredDevice> = emptyList(),
@@ -30,15 +33,25 @@ data class MobileSnapshot(
     val message: String = "尚未连接设备",
 )
 
-/** Product-app BLE owner. Screens only observe snapshots; no extraction command is exposed yet. */
+/** Product-app BLE owner. Screens observe snapshots; explicit controls remain gated in this service. */
 class MobileService : Service() {
     inner class LocalBinder : Binder() { val service: MobileService get() = this@MobileService }
     private val binder = LocalBinder()
     private lateinit var logs: TraceStore
+    private var history: ShotHistory? = null
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private var hub: NativeDeviceHub? = null
-    private var visible = false
+    private val visibleScreens = VisibleScreens()
+    private var hubForeground = false
+    private val leaveForeground = object : Runnable {
+        override fun run() {
+            if (visibleScreens.visible || !hubForeground) return
+            hub?.background()
+            hubForeground = false
+            snapshot = snapshot.copy(scanning = false)
+        }
+    }
     private var lastShotState = ExtractionState.IDLE
     var running = false; private set
     var snapshot = MobileSnapshot(); private set
@@ -49,13 +62,26 @@ class MobileService : Service() {
             val current = shotState
             if (current != lastShotState) {
                 lastShotState = current
+                val now = SystemClock.elapsedRealtime()
+                val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
+                    snapshot.scaleState == DeviceState.READY &&
+                        snapshot.weightAt?.let { received -> received <= now && now - received <= 1500 } == true
+                }
+                runCatching { history?.transition(current, stopReason, weight) }
+                    .onFailure { event("历史记录失败", "shot.history_error") }
                 event("萃取状态：${current.name}", "shot.state")
             }
             handler.postDelayed(this, 100)
         }
     }
 
-    override fun onCreate() { super.onCreate(); logs = (application as MobileApplication).logs; handler.post(watchShot) }
+    override fun onCreate() {
+        super.onCreate()
+        val app = application as MobileApplication
+        logs = app.logs
+        history = runCatching { app.history }.getOrNull()
+        handler.post(watchShot)
+    }
     override fun onBind(intent: Intent): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
@@ -76,13 +102,19 @@ class MobileService : Service() {
             hub = NativeDeviceHub(applicationContext, prefs.getString("scale", null),
                 onScaleRemembered = { prefs.edit().putString("scale", it).apply() },
                 onState = { role, state ->
-                    snapshot = if (role == DeviceRole.COFFEE) snapshot.copy(coffeeState = state)
-                        else snapshot.copy(scaleState = state)
+                    snapshot = if (role == DeviceRole.COFFEE) {
+                        if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
+                            snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
+                                settings = null, sleepFirst = null, sleepSecond = null)
+                        else snapshot.copy(coffeeState = state)
+                    } else snapshot.copy(scaleState = state)
                     event("${role.name}: ${state.name}")
                 },
                 onCoffee = { frame ->
                     snapshot = when (frame) {
                         is Settings -> snapshot.copy(settings = frame)
+                        is SleepPart -> if (frame.firstDaySundayIndex == 0) snapshot.copy(sleepFirst = frame)
+                            else snapshot.copy(sleepSecond = frame)
                         is io.openhoyi.protocol.IdleTelemetry, is io.openhoyi.protocol.ExtractionTelemetry ->
                             snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
                         else -> snapshot
@@ -103,19 +135,28 @@ class MobileService : Service() {
             )
             running = true
             event("服务已启动")
-            if (visible) hub?.foreground()
+            if (visibleScreens.visible) {
+                hub?.foreground()
+                hubForeground = true
+            }
         } catch (error: RuntimeException) {
             event("服务启动失败：${error.javaClass.simpleName}")
             shutdown()
         }
         return START_NOT_STICKY
     }
-    fun screenVisible(value: Boolean) {
-        if (visible == value) return
-        visible = value
-        if (value) hub?.foreground() else {
-            hub?.background()
-            snapshot = snapshot.copy(scanning = false)
+    fun screenVisible(owner: String, value: Boolean) {
+        visibleScreens.set(owner, value)
+        if (visibleScreens.visible) {
+            handler.removeCallbacks(leaveForeground)
+            if (!hubForeground && hub != null) {
+                hub?.foreground()
+                hubForeground = true
+            }
+        } else if (hubForeground) {
+            // Activity transitions may briefly have no resumed screen.
+            handler.removeCallbacks(leaveForeground)
+            handler.postDelayed(leaveForeground, 500)
         }
     }
     fun scan() {
@@ -137,7 +178,7 @@ class MobileService : Service() {
             event("萃取尚未结束，不能重连咖啡机"); return
         }
         val current = hub ?: return
-        snapshot = snapshot.copy(coffee = null, coffeeAt = null, settings = null)
+        snapshot = snapshot.copy(coffee = null, coffeeAt = null, settings = null, sleepFirst = null, sleepSecond = null)
         event("连接咖啡机")
         current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password))
     }
@@ -161,6 +202,10 @@ class MobileService : Service() {
             snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state)
         if (blocked != null) { event("启动被阻止：$blocked", "shot.rejected"); return blocked }
         requireNotNull(profile)
+        if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
+            runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null) }
+                .onFailure { event("历史记录失败", "shot.history_error") }
+        }
         logs.record("shot.start.attempt", mapOf("ownerId" to ownerId, "curveId" to profile.id,
             "targetHundredthsGram" to profile.targetHundredthsGram.toString()))
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, 0) ||
@@ -168,6 +213,8 @@ class MobileService : Service() {
             event("启动未被会话层接受", "shot.rejected")
             return "启动未被会话层接受"
         }
+        runCatching { history?.begin(profile.id) }
+            .onFailure { event("历史记录失败", "shot.history_error") }
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
             event("启动结果未知，请检查咖啡机", "shot.unknown")
             return "启动结果未知，请检查咖啡机"
@@ -196,10 +243,17 @@ class MobileService : Service() {
             return
         }
         hub?.close(); hub = null; running = false
+        handler.removeCallbacks(leaveForeground)
+        hubForeground = false
         snapshot = snapshot.copy(coffeeState = DeviceState.DISCONNECTED, scaleState = DeviceState.DISCONNECTED, scanning = false)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
-    override fun onDestroy() { handler.removeCallbacks(watchShot); hub?.close(); hub = null; super.onDestroy() }
+    override fun onDestroy() {
+        handler.removeCallbacks(watchShot)
+        handler.removeCallbacks(leaveForeground)
+        hub?.close(); hub = null; hubForeground = false
+        super.onDestroy()
+    }
     companion object { const val STOP = "io.openhoyi.mobile.STOP"; const val TAG = "OpenHoyiMobile"; private const val CHANNEL = "connections" }
 }

@@ -1,20 +1,23 @@
 # OpenHOYI Alpha 第一段功能
 
-包名 `io.openhoyi.mobile`；独立于 `io.openhoyi.lab` 诊断包和旧 HOYI。没有 UniApp、JS 或 WebView。`HomeActivity` 只负责权限、扫描选择和展示，`MobileService` 持有 `NativeDeviceHub` 及双 BLE 连接，曲线页只读 `CurveCatalog`。设备会话和编解码复用 `device-session` / `protocol-core`；两款应用通过独立的私有目录使用共享 `trace-core` 实现记录，不混用日志文件。
+包名 `io.openhoyi.mobile`；独立于 `io.openhoyi.lab` 诊断包和旧 HOYI。没有 UniApp、JS 或 WebView。`HomeActivity` 只负责权限、扫描选择和展示，`MobileService` 持有 `NativeDeviceHub` 及双 BLE 连接，曲线页从 `CurveLibrary` 浏览旧版工厂元数据和已采集曲线。设备会话和编解码复用 `device-session` / `protocol-core`；两款应用通过独立的私有目录使用共享 `trace-core` 实现记录，不混用日志文件。
 
 ## 已实现
 
 - 原生首页：启动/停止前台设备服务、扫描 HOYI/BOOKOO、输入六位咖啡机密码并连接、分别断开设备。
 - 实时状态：咖啡机温度/压力、固件号及秤重量；超过1.5秒的数据不标为实时。
-- 曲线库：三条来自采集记录的完整参数，进入详情后可设为当前曲线。名称是临时编号，不声称对应旧版曲线名称；选择只保存 ID。
+- 机器设置只读页：展示设备返回的固件、设定温度、加热、待机、杯数和两段每周睡眠计划。逐日启用位含义未验证，保留原始位值；缺少半段时明确标注。页面没有设置写入入口。
+- 曲线库：三条来自采集记录的完整参数，以及100条旧版内置工厂曲线元数据。可按分类浏览、查看详情、设为当前曲线；选择只保存 ID。工厂曲线仅供浏览，在控制报文未验证前即使选中也不能启动萃取。三条可控制曲线仍用临时编号，不声称对应旧版曲线名称。数据来源、转换和校验见[工厂曲线导入](factory-curves.md)。
 - 记忆秤：成功 Ready 后在本包保存秤地址；前台10分钟窗口由 `NativeDeviceHub` 负责自动连接。
+- 页面可见性由每个 Activity 的独立 token 汇总；从首页切到萃取页或设置页不应因旧页面停止而立即关闭前台重连窗口。最后一个页面离开后等待500毫秒，避开页面切换间隙。
 - 操作与传输记录：共享 `TraceStore` 有界异步写入，认证帧在传输边界脱敏；首页可通过系统文件选择器导出ZIP。Alpha与Lab各有自己的日志session。
 - 萃取页：选定已采集曲线后展示连接、重量、温度、压力和萃取状态。明确确认后才调用共享 `ExtractionController`；手动停止为单击操作。服务层重复校验曲线、固件就绪、咖啡机新鲜待机帧及秤数据时效，并记录尝试/结果/传输。萃取结果未确认时阻止主动断链或停止服务；若断线导致结果未知，允许重连咖啡机后显式重试停止，不自动重放启动。
+- 萃取历史基础页：仅记录 Alpha 发起的请求，保存曲线ID、开始时间、观察到的终态、停止原因及可用时的秤读数。结果未知会保留为未知；进程中断时的未完成记录在下一次启动标为未知，不假定成功。最多保留30天/500条，目前尚无曲线采样点和历史图表。
 
 ## 仍未开放
 
-产品页没有独立去皮、设备设置、校准或 OTA 按钮。底层控制仍受已知固件和三条完整启动帧限制。萃取页已经接通启动/停止代码，但尚未在Alpha上完成真实启动、去皮确认、按重量停止和异常恢复验证；不能视为与旧App硬件等效。App进程被系统杀死时不能保证停液。
+产品页没有独立去皮、设备设置写入、校准或 OTA 按钮。底层控制仍受已知固件和三条完整启动帧限制。工厂曲线没有下发能力，也未导入旧版用户自定义曲线。萃取页已经接通启动/停止代码，但尚未在Alpha上完成真实启动、去皮确认、按重量停止和异常恢复验证；不能视为与旧App硬件等效。App进程被系统杀死时不能保证停液。
 
 ## 验证
 
-`./gradlew :protocol-core:check :device-session:check :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :mobile:testDebugUnitTest :mobile:assembleDebug :mobile:lintDebug -PgoogleMirror=aliyun -Dhttp.proxyHost= -Dhttps.proxyHost=` 已通过；新增萃取页后再次通过 `mobile:testDebugUnitTest :mobile:assembleDebug :mobile:lintDebug`。曲线单测核对三条20字节启动帧、目标重量及唯一ID；安全门禁单测覆盖未知/不支持固件、非待机或过期咖啡机帧、秤缺失/过期、未结束上一杯。Lab日志测试在抽取共享模块后仍通过。2026-09-23两次实机安装均被平板返回 `INSTALL_FAILED_USER_RESTRICTED`，因此不能声称 Alpha 的 UI 或设备连接已实机通过。Lab 的实机证据不自动等同于 Alpha 的实机验收。
+按用户要求，功能开发完成后运行 `./gradlew :mobile:testDebugUnitTest :mobile:assembleDebug :mobile:lintDebug -PgoogleMirror=aliyun -Dhttp.proxyHost= -Dhttps.proxyHost= --quiet`，全部通过；13项单测0失败，Lint 0错误、2警告。数据提取与旧版归一化函数逐条对比，100条均一致。当前用户要求暂不安装，新增页面尚未实机检查。单测覆盖三条20字节启动帧、启动门禁、工厂目录、设置展示、多页面可见性及历史状态。

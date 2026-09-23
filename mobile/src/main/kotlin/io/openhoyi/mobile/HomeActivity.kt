@@ -29,6 +29,7 @@ class HomeActivity : Activity() {
     private var bound = false
     private var visible = false
     private var scanAfterBind = false
+    private val visibilityToken = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var status: TextView
     private lateinit var coffee: TextView
@@ -42,7 +43,7 @@ class HomeActivity : Activity() {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
-            service?.screenVisible(visible)
+            service?.screenVisible(visibilityToken, visible)
             if (scanAfterBind) { scanAfterBind = false; service?.scan() }
             render()
         }
@@ -76,6 +77,7 @@ class HomeActivity : Activity() {
         connectionCard.addView(candidates)
         val coffeeCard = card(content, "咖啡机")
         coffee = text(coffeeCard, "未连接", 20)
+        button(coffeeCard, "查看机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(coffeeCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
         val scaleCard = card(content, "电子秤")
         scale = text(scaleCard, "未连接", 20)
@@ -84,7 +86,8 @@ class HomeActivity : Activity() {
         selection = text(curveCard, "尚未选择曲线", 16)
         button(curveCard, "查看曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
         button(curveCard, "进入萃取页面") { startActivity(Intent(this, ExtractionActivity::class.java)) }
-        text(curveCard, "只开放三条已采集曲线；开始萃取前会再次确认设备与曲线。", 13)
+        button(curveCard, "萃取历史") { startActivity(Intent(this, HistoryActivity::class.java)) }
+        text(curveCard, "100 条工厂曲线可浏览；目前只有 3 条采集曲线可用于萃取。", 13)
         button(content, "导出操作记录 ZIP") {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
@@ -100,7 +103,7 @@ class HomeActivity : Activity() {
     override fun onStart() { super.onStart(); visible = true; bindExisting(); handler.post(refresh) }
     override fun onStop() {
         visible = false; handler.removeCallbacks(refresh)
-        if (!isChangingConfigurations) service?.screenVisible(false)
+        service?.screenVisible(visibilityToken, false)
         release(); super.onStop()
     }
     private fun bindExisting() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0) }
@@ -178,8 +181,9 @@ class HomeActivity : Activity() {
         coffee.show("${label(s.coffeeState)} · ${if (coffeeFresh) "实时" else "暂无实时数据"}\n$machine\n${s.settings?.let { "固件 ${it.firmwareMajor}.${it.firmwareMinor}.${it.firmwarePatch}" } ?: "固件未知"}")
         val scaleFresh = s.weightAt?.let { now >= it && now - it <= 1500 } == true && s.scaleState == DeviceState.READY
         scale.show("${label(s.scaleState)} · ${if (scaleFresh) "实时" else "暂无实时数据"}\n${s.weight?.let { number(it.weightHundredthsGram) } ?: "—"} g")
-        val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(CurveCatalog::find)
-        selection.show(selected?.let { "当前：${it.name} · ${it.temperatureC} °C" } ?: "尚未选择曲线")
+        val library = (application as MobileApplication).curves
+        val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
+        selection.show(selected?.let { "当前：${it.name} · ${if (it.controlProfile == null) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
         val keys = s.candidates.map { "${it.address}:${it.advertisedName}" }
         if (keys != candidateKeys) {
             candidateKeys = keys; candidates.removeAllViews()

@@ -1,0 +1,65 @@
+package io.openhoyi.mobile
+
+import io.openhoyi.protocol.Settings
+import io.openhoyi.protocol.SleepDay
+import io.openhoyi.protocol.SleepPart
+
+/** Formats decoded device values; it never creates a command or claims that a setting was applied. */
+object MachineSettingsPresentation {
+    fun settings(value: Settings?): String {
+        if (value == null) return "尚未收到机器设置"
+        fun enabled(bit: Int) = if (value.flags and bit != 0) "开启" else "关闭"
+        return buildString {
+            appendLine("固件  ${value.firmwareMajor}.${value.firmwareMinor}.${value.firmwarePatch}")
+            appendLine("萃取设定温度  ${value.brewTemperatureC} °C")
+            appendLine("萃取温差补偿  ${value.brewCompensationTenthsC / 10.0} °C")
+            appendLine("蒸汽设定温度  ${value.steamTemperatureC} °C")
+            appendLine("萃取加热  ${enabled(0x20)}")
+            appendLine("蒸汽加热  ${enabled(0x10)}")
+            appendLine("照明  ${enabled(0x08)}")
+            appendLine("睡眠计划总开关  ${enabled(0x01)}")
+            appendLine("待机时间  ${value.standbyMinutes} 分钟")
+            appendLine("待机温度  ${value.standbyTemperatureC} °C")
+            appendLine("累计杯数  ${value.cupCount}")
+            value.filterInstalled?.let { appendLine("滤芯状态  ${if (it) "已安装" else "未安装"}") }
+            append("运行模式位  ${if (value.flags and 0x04 != 0) 1 else 0} · 供水模式位  ${if (value.flags and 0x02 != 0) 1 else 0}")
+        }
+    }
+
+    fun schedule(first: SleepPart?, second: SleepPart?): String {
+        if (first == null && second == null) return "尚未收到睡眠计划"
+        val names = listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")
+        val days = mutableMapOf<Int, SleepDay>()
+        for (part in listOfNotNull(first, second)) {
+            part.days.forEachIndexed { index, day ->
+                val offset = part.firstDaySundayIndex + index
+                if (offset in 0..6) days[offset] = day
+            }
+        }
+        return buildString {
+            appendLine("启用位原值  ${first?.enabledBits?.let { "0x%02X".format(it) } ?: "尚未收到"}（逐日含义待验证）")
+            for (index in 0..6) {
+                val day = days[index]
+                appendLine("${names[index]}  ${day?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" } ?: "尚未收到"}")
+            }
+            if (first == null) append("前 4 天尚未收到")
+            else if (second == null) append("后 3 天尚未收到")
+        }.trimEnd()
+    }
+
+    private fun time(hour: Int, minute: Int): String =
+        if (hour in 0..23 && minute in 0..59) "%02d:%02d".format(hour, minute)
+        else "原始 $hour:$minute"
+}
+
+/** A screen transition may overlap; the service is foreground-visible while any screen is visible. */
+class VisibleScreens {
+    private val owners = mutableSetOf<String>()
+    val visible: Boolean get() = owners.isNotEmpty()
+    /** Returns true only when overall visibility changes. */
+    fun set(owner: String, value: Boolean): Boolean {
+        val before = visible
+        if (value) owners.add(owner) else owners.remove(owner)
+        return before != visible
+    }
+}
