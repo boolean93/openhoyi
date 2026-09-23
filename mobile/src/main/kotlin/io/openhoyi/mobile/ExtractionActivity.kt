@@ -23,6 +23,7 @@ class ExtractionActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var readiness: TextView
     private lateinit var live: TextView
+    private lateinit var chart: ShotChartView
     private lateinit var start: Button
     private lateinit var stop: Button
     private val connection = object : ServiceConnection {
@@ -56,6 +57,8 @@ class ExtractionActivity : Activity() {
         val card = card(content)
         readiness = text(card, "等待设备服务", 18)
         live = text(card, "暂无实时数据", 22)
+        chart = ShotChartView(this)
+        card.addView(chart, LinearLayout.LayoutParams(-1, dp(260)).apply { topMargin = dp(12) })
         start = button(card, "开始萃取") { confirmStart() }
         stop = button(card, "立即停止") { service?.stopShot(); render() }
         button(content, "返回首页") { finish() }
@@ -111,6 +114,8 @@ class ExtractionActivity : Activity() {
         val now = SystemClock.elapsedRealtime()
         val weightFresh = snapshot.weightAt?.let { now >= it && now - it <= 1500 } == true
         live.show("$machine\n重量：${snapshot.weight?.let { number(it.weightHundredthsGram) } ?: "—"} g${if (weightFresh) "" else "（非实时）"}")
+        val points = owner?.chartPoints ?: emptyList()
+        if (chart.points != points) chart.points = points
         start.isEnabled = owner?.running == true && blocked == null
         stop.isEnabled = owner?.running == true && ShotGate.active(state) &&
             (state != ExtractionState.OUTCOME_UNKNOWN || snapshot.coffeeState == io.openhoyi.session.DeviceState.READY)

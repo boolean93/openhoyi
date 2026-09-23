@@ -12,12 +12,17 @@ import java.io.File
 class MobileApplication : Application() {
     val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces")) }
     val curves: CurveLibrary by lazy { CurveLibrary(FactoryCurveCatalog.load(assets.open("factory_curves_v3.tsv"))) }
+    val samples: ShotSamplesRepository by lazy {
+        ShotSamplesRepository(File(filesDir, "shot_samples")) { error ->
+            logs.record("shot.samples_error", mapOf("type" to error.javaClass.simpleName))
+        }
+    }
     val history: ShotHistory by lazy {
         val prefs = getSharedPreferences("shot_history", MODE_PRIVATE)
         ShotHistory(object : ShotHistory.Storage {
             override fun read(): String = prefs.getString("entries_v1", "") ?: ""
             override fun write(value: String) { prefs.edit().putString("entries_v1", value).apply() }
-        })
+        }).also { samples.prune(it.entries.map(ShotHistory.Entry::id).toSet()) }
     }
     fun export(uri: Uri) {
         logs.record("ui.export")

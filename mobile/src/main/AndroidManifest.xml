@@ -7,6 +7,7 @@
         <activity android:name=".ExtractionActivity" android:exported="false" />
         <activity android:name=".MachineSettingsActivity" android:exported="false" />
         <activity android:name=".HistoryActivity" android:exported="false" />
+        <activity android:name=".HistoryDetailActivity" android:exported="false" />
         <activity android:name=".HomeActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

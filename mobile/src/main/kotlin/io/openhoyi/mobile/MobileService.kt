@@ -39,6 +39,8 @@ class MobileService : Service() {
     private val binder = LocalBinder()
     private lateinit var logs: TraceStore
     private var history: ShotHistory? = null
+    private val series = ShotSeries()
+    val chartPoints: List<ShotPoint> get() = series.points
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private var hub: NativeDeviceHub? = null
@@ -69,6 +71,9 @@ class MobileService : Service() {
                 }
                 runCatching { history?.transition(current, stopReason, weight) }
                     .onFailure { event("历史记录失败", "shot.history_error") }
+                if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
+                    finishSeries(current == ExtractionState.ENDED_OBSERVED)
+                }
                 event("萃取状态：${current.name}", "shot.state")
             }
             handler.postDelayed(this, 100)
@@ -118,6 +123,11 @@ class MobileService : Service() {
                         is io.openhoyi.protocol.IdleTelemetry, is io.openhoyi.protocol.ExtractionTelemetry ->
                             snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
                         else -> snapshot
+                    }
+                    if (frame is io.openhoyi.protocol.ExtractionTelemetry) {
+                        series.machine(frame, SystemClock.elapsedRealtime(),
+                            snapshot.weight?.weightHundredthsGram?.takeIf { snapshot.scaleState == DeviceState.READY },
+                            snapshot.weightAt)
                     }
                 },
                 onWeight = { snapshot = snapshot.copy(weight = it, weightAt = SystemClock.elapsedRealtime()) },
@@ -205,6 +215,7 @@ class MobileService : Service() {
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
             runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null) }
                 .onFailure { event("历史记录失败", "shot.history_error") }
+            finishSeries(true)
         }
         logs.record("shot.start.attempt", mapOf("ownerId" to ownerId, "curveId" to profile.id,
             "targetHundredthsGram" to profile.targetHundredthsGram.toString()))
@@ -213,8 +224,10 @@ class MobileService : Service() {
             event("启动未被会话层接受", "shot.rejected")
             return "启动未被会话层接受"
         }
-        runCatching { history?.begin(profile.id) }
+        val shotId = runCatching { history?.begin(profile.id) }
             .onFailure { event("历史记录失败", "shot.history_error") }
+            .getOrNull() ?: java.util.UUID.randomUUID().toString()
+        series.begin(shotId, SystemClock.elapsedRealtime())
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
             event("启动结果未知，请检查咖啡机", "shot.unknown")
             return "启动结果未知，请检查咖啡机"
@@ -230,6 +243,15 @@ class MobileService : Service() {
         }
         event("用户请求停止萃取", "shot.manual_stop")
         hub?.extraction?.manualStop()
+    }
+    private fun finishSeries(observedEnd: Boolean) {
+        val finished = series.finish() ?: return
+        val app = application as MobileApplication
+        if (observedEnd && finished.second.isNotEmpty() &&
+            history?.entries?.any { it.id == finished.first } == true) {
+            app.samples.save(finished.first, finished.second)
+        }
+        history?.entries?.map(ShotHistory.Entry::id)?.toSet()?.let(app.samples::prune)
     }
     private fun event(message: String, kind: String = "mobile.event") {
         snapshot = snapshot.copy(message = message)

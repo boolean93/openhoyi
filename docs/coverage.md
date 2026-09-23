@@ -27,13 +27,14 @@
 | 旧版工厂曲线浏览 | FactoryCurveCatalog、CurveLibrary、factory_curves_v3.tsv | 100条与旧版归一化结果逐条一致；资源可重复生成且字节一致；单测/构建/Lint通过 | 工厂曲线不可下发，用户自定义曲线未导入；UI待实机验收 |
 | 机器设置只读页 | MobileSnapshot、MachineSettingsActivity、MachineSettingsPresentation | 显示已解码设置与两段睡眠计划；格式和缺段单测通过 | 逐日启用位未验证，不开放写入；UI待实机验收 |
 | 多页面前台状态 | VisibleScreens、MobileService | 独立页面token、切页500毫秒缓冲；多页面交叠单测通过 | 需实机验证切页对自动连秤窗口的影响 |
-| 原生萃取历史基础页 | ShotHistory、HistoryActivity、MobileService | 持久化请求及终态，未知结果不标完成；状态/重启/坏行/保留上限单测通过 | 无采样曲线和旧App数据迁移，异步SharedPreferences落盘前突然断电可能丢最后写入；UI待实机验收 |
+| 原生萃取历史基础页 | ShotHistory、HistoryActivity、MobileService | 持久化请求及终态，未知结果不标完成；状态/重启/坏行/保留上限单测通过 | 旧App数据未迁移，异步SharedPreferences落盘前突然断电可能丢最后写入；UI待实机验收 |
+| 实时和历史曲线 | ShotSeries、ShotChartView、ShotSamplesStore、HistoryDetailActivity | 只处理0x80已解码字段，新鲜秤重合并；2000点上限、时间顺序、文件往返与清理单测通过；构建/Lint通过 | 采样只在明确结束后异步落盘，进程中断可能没有曲线文件；图表待实机验收 |
 
 ## 最新实机补验（2026-09-23）
 
 见[实机报告](validation-2026-09-23.md)。咖啡机认证/设置/遥测有实机证据；新增仪器测试的4项检查通过。纯Kotlin会话回归增至33场景。BLE两次status=8断线未定位，未通过长期稳定性验收；08:42双设备并行约2分钟无断线，后因测试重启进程中断。秤负重量/自动重连及SAF系统选择器流程未完成。下方首轮结果为历史记录，不能代替最新报告。
 
-Alpha 日常版第一段功能见[说明](mobile-alpha.md)。曲线、设置只读页和历史基础页改动后，Alpha单测13项、构建和Lint通过。当前用户要求暂不安装，尚无Alpha实机证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
+Alpha 日常版第一段功能见[说明](mobile-alpha.md)。加上实时/历史图表后，Alpha单测16项、构建和Lint通过。当前用户要求暂不安装，尚无Alpha实机证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
 
 ## 本轮 Lab 结果（2026-09-22）
 

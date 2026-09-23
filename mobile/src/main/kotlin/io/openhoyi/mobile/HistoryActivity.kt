@@ -1,7 +1,7 @@
 package io.openhoyi.mobile
 
 import android.app.Activity
-import android.app.AlertDialog
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
@@ -52,7 +52,9 @@ class HistoryActivity : Activity() {
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf<String>())
         list.adapter = adapter
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
-        list.setOnItemClickListener { _, _, position, _ -> show(rows[position]) }
+        list.setOnItemClickListener { _, _, position, _ ->
+            startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", rows[position].id))
+        }
     }
     override fun onStart() { super.onStart(); render() }
 
@@ -70,24 +72,6 @@ class HistoryActivity : Activity() {
         adapter.addAll(rows.map { entry ->
             "${date(entry.startedAtMs)}   ${status(entry.status)}\n${library?.find(entry.curveId)?.name ?: entry.curveId}"
         })
-    }
-
-    private fun show(entry: ShotHistory.Entry) {
-        val curve = runCatching { (application as MobileApplication).curves.find(entry.curveId)?.name }.getOrNull()
-            ?: entry.curveId
-        val detail = buildString {
-            appendLine("曲线：$curve")
-            appendLine("开始请求：${date(entry.startedAtMs)}")
-            appendLine("状态：${status(entry.status)}")
-            entry.endedAtMs?.let { appendLine("观察到结束：${date(it)}") }
-            entry.elapsedMs?.let { appendLine("持续：${"%.1f".format(Locale.ROOT, it / 1000.0)} 秒") }
-            entry.reason?.let { appendLine("停止原因：$it") }
-            entry.weightHundredthsGram?.let {
-                appendLine("结束时秤读数：${"%.2f".format(Locale.ROOT, it / 100.0)} g（未经杯重校准）")
-            }
-            if (entry.status == ShotHistory.Status.UNKNOWN) append("结果未确认，请以咖啡机实际状态为准。")
-        }
-        AlertDialog.Builder(this).setTitle("萃取记录").setMessage(detail).setPositiveButton("关闭", null).show()
     }
 
     private fun status(value: ShotHistory.Status) = when (value) {

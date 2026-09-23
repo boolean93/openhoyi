@@ -43,7 +43,7 @@ class ShotHistory(
         if (changed) persist()
     }
 
-    fun begin(curveId: String, atMs: Long = now()) {
+    fun begin(curveId: String, atMs: Long = now()): String {
         require(activeId == null) { "Previous shot has not been resolved in the history" }
         require(CurveCatalog.find(curveId) != null)
         val id = newId()
@@ -51,6 +51,7 @@ class ShotHistory(
         records.add(Entry(id, curveId, atMs, null, null, Status.STARTING, null, null))
         activeId = id
         persist()
+        return id
     }
 
     fun transition(state: ExtractionState, reason: String?, weightHundredthsGram: Int?, atMs: Long = now()) {

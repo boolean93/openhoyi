@@ -12,7 +12,7 @@
 
 六模块：protocol-core → device-session → bluetooth-android，另有trace-core供app（Lab）/mobile（Alpha）共用。纯Kotlin模块无Android依赖；两款App均为原生View、Activity、本地Binder和connectedDevice前台Service，没有UniApp/JS/WebView。独立包 `io.openhoyi.lab` 和 `io.openhoyi.mobile`，均不覆盖旧App。
 
-`mobile` 第一段原生日常版已有首页连接、实时状态、传输日志导出、三条采集曲线与100条只读工厂曲线的浏览、机器设置只读页、萃取页和历史基础页；见 `docs/mobile-alpha.md`。萃取开始需显式确认，服务层要求咖啡机新鲜待机数据及已验证曲线，重量模式要求新鲜秤数据；运行中拦截主动断链和停服务。按用户要求，完成本轮开发后才运行Gradle：Alpha 13项单测、debug构建和Lint通过（0错误、2警告）。用户要求暂不安装，因此尚无Alpha实机启动或控制证据；最新APK位于`mobile/build/outputs/apk/debug/mobile-debug.apk`。不能把代码验收当成硬件等效或完整替代App。
+`mobile` 第一段原生日常版已有首页连接、实时状态、传输日志导出、三条采集曲线与100条只读工厂曲线的浏览、机器设置只读页、萃取实时图、历史列表及曲线详情；见 `docs/mobile-alpha.md`。萃取开始需显式确认，服务层要求咖啡机新鲜待机数据及已验证曲线，重量模式要求新鲜秤数据；运行中拦截主动断链和停服务。按用户要求，完成本轮开发后才运行Gradle：Alpha 16项单测、debug构建和Lint通过（0错误、2条原有警告）。用户要求暂不安装，因此尚无Alpha实机启动或控制证据；最新APK位于`mobile/build/outputs/apk/debug/mobile-debug.apk`。不能把代码验收当成硬件等效或完整替代App。
 
 Lab仅提供授权/扫描/手动连接/断开/实时数据/日志导出/停止服务。没有萃取、设置、校准、OTA按钮。咖啡机连接必须输入6位密码（数字字节0..9），认证并同步时间；BOOKOO按500ms间隔执行4条初始化写入，收到之后的新样本才Ready。连接并非完全只读，以上初始化是明确例外。
 
