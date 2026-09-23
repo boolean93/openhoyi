@@ -36,7 +36,7 @@ COFFEE写端点01认证、0B改密整帧脱敏，含XOR。单帧最大记录512�
 
 ## 待设备验证
 
-当前只完成编译、JVM回放/单测与静态审查，没有原生真机通信证据。
+最新结果见[实机报告](validation-2026-09-23.md)：咖啡机已认证并接收遥测；两次status=8断线待定位，秤及萃取未验证。
 
 1. 安装独立APK，确认旧App仍存在且未被覆盖。页面无权限时显示未知数据，不应扫描或连接。
 2. 拒绝/授权蓝牙权限，关闭/开启蓝牙，再扫描。拒绝通知权限也不应导致连接逻辑崩溃。
@@ -46,12 +46,12 @@ COFFEE写端点01认证、0B改密整帧脱敏，含XOR。单帧最大记录512�
 6. 文件选择器打开期间停止服务，返回后ZIP必须成功或明确报错；停止/重启服务后的日志不能相互覆盖。
 7. 导出并检查元数据、原始通知与脱敏；没有萃取、设置、校准、OTA入口。
 
-离线UI冒烟（需空闲设备，测试不请求权限/扫描/连接）：
+诊断仪器测试（需空闲设备；若已授予权限且蓝牙开启，会扫描候选设备，但不选择/连接）：
 
 ```sh
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb install -r -t app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb shell am instrument -w io.openhoyi.lab.test/io.openhoyi.lab.LabSmokeInstrumentation
 ```
 
-该测试只验证冷启动/重开页面的未知数据和禁用按钮，不验证旋转或真实服务/蓝牙生命周期。若已有Lab连接服务运行，先手动停止再执行。
+该测试覆盖未知数据、Activity重建、前后台服务保持和停止服务后的进程内ZIP导出；不验证真实BLE保持、物理旋转或SAF文件选择器。启动测试会重启Lab进程，若已有设备操作，先手动停止再执行。

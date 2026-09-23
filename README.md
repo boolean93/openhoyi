@@ -1,6 +1,6 @@
 # OpenHOYI Native / Lab
 
-纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。已提供独立可安装的诊断 App `OpenHOYI Lab`，包名 `io.openhoyi.lab`。尚未验证新代码的实机连接或控制；不是完整咖啡制作 App。
+纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。已提供独立可安装的诊断 App `OpenHOYI Lab`，包名 `io.openhoyi.lab`。已实测咖啡机认证与遥测；连接稳定性、电子秤和萃取控制仍待验证，不是完整咖啡制作 App。
 
 ## 模块
 
@@ -60,4 +60,4 @@ adb shell am start -n io.openhoyi.lab/.LabActivity
 - 认证密码是六个数字字节（0..9），不是六个ASCII码；日志字符串默认脱敏。
 - 没有向咖啡机发送本版本测试控制命令。未修改或安装旧App。
 
-完整范围、缺口和发布门禁见 [覆盖矩阵](docs/coverage.md)；接续开发见 [HANDOFF](HANDOFF.md)。
+最新实机结果见 [验证报告](docs/validation-2026-09-23.md)。完整范围、缺口和发布门禁见 [覆盖矩阵](docs/coverage.md)；接续开发见 [HANDOFF](HANDOFF.md)。

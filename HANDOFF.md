@@ -2,6 +2,10 @@
 
 分支 `feature/native-ble`，worktree `../openhoyi-native`，基于独立openhoyi仓库。旧hoyi-project未改动。前一阶段核心提交363cea5；本轮新增原生Lab诊断APK。
 
+## 最新实机进展（2026-09-23）
+
+详见 `docs/validation-2026-09-23.md`。独立APK已安装；原生咖啡机认证/设置与遥测收到，固件1.1.3。新增仪器测试实机通过：未知数据、Activity重建、前后台服务保持、停止服务后进程内ZIP导出。真实BLE出现两次status=8断线，尚未定位；第二次早于切后台24秒。秤、SAF文件选择器全流程、长期BLE和萃取尚未验收。新增认证未确认时只接收遥测也不Ready的回归，会话场景增至33。
+
 ## 当前交付
 
 四模块：protocol-core → device-session → bluetooth-android → app。纯Kotlin模块无Android依赖；app为原生View、Activity、本地Binder和connectedDevice前台Service，没有UniApp/JS/WebView。独立包 `io.openhoyi.lab`，不覆盖旧App。
@@ -33,7 +37,7 @@ Lab仅提供授权/扫描/手动连接/断开/实时数据/日志导出/停止�
 - App JUnit 9项通过（日志顺序/转义/轮转/重开session/IO失败/队列满/关闭/时效与单位）。
 - app APK、AndroidTest APK构建通过。App lint 0错误5警告（中文诊断文案未资源化、版本提示）。
 - 独立审查确认核心停止边界；独立App范围及两轮生命周期复核已完成。第二位代码质量审查启动后因服务额度中断，不能计为通过；主任务补做最终检查。
-- **ADB无在线设备；未安装或运行新APK。** UI测试APK仅构建，未执行。未发送新版本实机控制命令。
+- 上述为首轮构建时状态；本轮已通过Wi-Fi ADB安装并运行，实际验证与限制以本文顶部及实机报告为准。
 
 ## 下一步
 

@@ -42,5 +42,19 @@ fun deviceChecks():Int {
         check(s.state==DeviceState.UNSUPPORTED)
         var result:OperationResult?=null;s.stopExtraction{result=it};check(result is OperationResult.Failed)
     }
+    case("live unauthenticated telemetry never opens ready gate or triggers extra writes") {
+        val d=SessionDriver();var now=0L;var telemetry=0
+        val s=DeviceSession(DeviceRole.COFFEE,d,{now},coffeeFrame={_,_->telemetry++})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,22,12,0),"000000"))
+        fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
+        complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        // Real 19-byte idle notification observed even when authentication was not confirmed.
+        repeat(10){now=it*1000L;s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("40000ACA0B2A0000000000000000001E22DA47"));s.tick();check(s.state==DeviceState.SYNCHRONIZING)}
+        check(telemetry==10)
+        var result:OperationResult?=null;s.stopExtraction{result=it};check(result is OperationResult.Failed)
+        check(d.calls.count{it.third is GattOperation.Write}==1)
+        now=10_000;s.tick();check(s.state==DeviceState.FAILED)
+    }
     return tests
 }

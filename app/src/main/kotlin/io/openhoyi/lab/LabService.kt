@@ -75,6 +75,7 @@ class LabService : Service() {
     fun screenVisible(value: Boolean) {
         if (visible == value) return
         visible = value
+        event("ui.visibility", if (value) "页面进入前台" else "页面进入后台")
         if (value) hub?.foreground() else { hub?.background(); snapshot = snapshot.copy(scanning = false) }
     }
     fun scan() {

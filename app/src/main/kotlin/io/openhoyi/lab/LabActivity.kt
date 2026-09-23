@@ -178,7 +178,7 @@ class LabActivity : Activity() {
         val s = owner?.snapshot ?: LabSnapshot()
         val now = SystemClock.elapsedRealtime()
         val active = owner?.running == true
-        status.text = when { missingBle().isNotEmpty() -> "需要蓝牙权限"; s.scanning -> "正在扫描…"; active -> "诊断服务运行中 · 已发现 ${s.devices.size} 个设备"; else -> "服务未启动，点击扫描开始" }
+        status.showText(when { missingBle().isNotEmpty() -> "需要蓝牙权限"; s.scanning -> "正在扫描…"; active -> "诊断服务运行中 · 已发现 ${s.devices.size} 个设备"; else -> "服务未启动，点击扫描开始" })
         scanButton.isEnabled = !s.scanning
         exportButton.isEnabled = active; stopButton.isEnabled = active
         disconnectCoffee.isEnabled = active && s.coffeeState != DeviceState.DISCONNECTED
@@ -190,15 +190,17 @@ class LabActivity : Activity() {
             else -> "— °C  ·  — bar"
         }
         val firmware = s.settings?.let { "固件 ${it.firmwareMajor}.${it.firmwareMinor}.${it.firmwarePatch}" } ?: "固件未知"
-        machine.text = "${s.coffeeState.label()} · ${freshness(s.coffeeAt, now, machineConnected)}\n$coffeeText\n$firmware"
-        scale.text = "${s.scaleState.label()} · ${freshness(s.weightAt, now, s.scaleState == DeviceState.READY)}\n${s.weight?.let { hundredths(it.weightHundredthsGram) } ?: "—"} g"
-        logs.text = (owner?.logStatus ?: "尚未记录") + "\n" + s.events.takeLast(8).joinToString("\n")
+        machine.showText("${s.coffeeState.label()} · ${freshness(s.coffeeAt, now, machineConnected)}\n$coffeeText\n$firmware")
+        scale.showText("${s.scaleState.label()} · ${freshness(s.weightAt, now, s.scaleState == DeviceState.READY)}\n${s.weight?.let { hundredths(it.weightHundredthsGram) } ?: "—"} g")
+        logs.showText((owner?.logStatus ?: "尚未记录") + "\n" + s.events.takeLast(8).joinToString("\n"))
         val keys = s.devices.map { "${it.address}:${it.advertisedName}" }
         if (keys != deviceKeys) {
             deviceKeys = keys; devices.removeAllViews()
             s.devices.forEach { device -> button(devices, "${device.advertisedName}  ·  ${device.address}", "device_${device.address}") { choose(device) } }
         }
     }
+    /** Avoid repeated layout/accessibility events for unchanged 250ms polling results. */
+    private fun TextView.showText(value: String) { if (text.toString() != value) text = value }
     private fun title(value: String, size: Int) = text(content, value, size).apply { setTypeface(null, Typeface.BOLD) }
     private fun card(title: String): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(20),dp(16),dp(20),dp(16))
