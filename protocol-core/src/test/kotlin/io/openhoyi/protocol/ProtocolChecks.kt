@@ -44,6 +44,33 @@ fun main() {
     verify(CoffeeCommands.brewTemperature(92).frame.hex()=="0402005C00")
     verify(CoffeeCommands.brewHeating(false).frame.hex()=="0C02000000")
     verify(CoffeeCommands.brewHeating(true).frame.hex()=="0C02000100")
+    verify(CoffeeCommands.setting(MachineSettingChange.BrewTemperature(92)).frame.hex()=="0402005C00")
+    verify(CoffeeCommands.setting(MachineSettingChange.SteamTemperature(125)).frame.hex()=="0602007D00")
+    verify(CoffeeCommands.setting(MachineSettingChange.BrewHeating(true)).frame.hex()=="0C02000100")
+    verify(CoffeeCommands.setting(MachineSettingChange.SteamHeating(false)).frame.hex()=="0D02000000")
+    verify(CoffeeCommands.setting(MachineSettingChange.Light(true)).frame.hex()=="0E02000100")
+    rejected { MachineSettingChange.BrewTemperature(74) }
+    rejected { MachineSettingChange.SteamTemperature(146) }
+    val settingOracle = object {}.javaClass.getResourceAsStream("/machine_settings_wire.tsv")
+        ?: error("Missing legacy setting oracle")
+    val settingLines = settingOracle.bufferedReader().use { it.readLines() }
+    verify(settingLines.first() ==
+        "# machine-setting-wire-v1\tsource-sha256=b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037")
+    verify(settingLines.size == 74)
+    settingLines.drop(1).forEach { line ->
+        val parts = line.split('\t')
+        verify(parts.size == 3)
+        val value = parts[1].toInt()
+        val change = when (parts[0]) {
+            "brew" -> MachineSettingChange.BrewTemperature(value)
+            "steam" -> MachineSettingChange.SteamTemperature(value)
+            "brew_heat" -> MachineSettingChange.BrewHeating(value == 1)
+            "steam_heat" -> MachineSettingChange.SteamHeating(value == 1)
+            "light" -> MachineSettingChange.Light(value == 1)
+            else -> error("Unknown setting oracle kind")
+        }
+        verify(CoffeeCommands.setting(change).frame.hex() == parts[2])
+    }
     verify(CoffeeCommands.sleepNow().frame.hex()=="2001A5A521")
     val auth=CoffeeCommands.authenticate(LocalDateTime.of(2026,9,20,12,30,5),"123456")
     verify(auth.frame.toByteArray().size == 15 && !auth.toString().contains("123456") && !auth.frame.toString().contains("313233343536"))

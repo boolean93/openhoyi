@@ -9,6 +9,7 @@ import io.openhoyi.bluetooth.DiscoveredDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.BookooSample
 import io.openhoyi.protocol.HoyiMessage
+import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.protocol.Settings
 import io.openhoyi.protocol.SleepPart
 import io.openhoyi.session.CoffeeAuthentication
@@ -41,6 +42,10 @@ class MobileService : Service() {
     private var history: ShotHistory? = null
     private val series = ShotSeries()
     private val standaloneTare = StandaloneTare()
+    private val settingsWrite = SettingsWriteTracker()
+    private var settingsSampleSerial = 0L
+    val settingWriteState: SettingsWriteTracker.State get() = settingsWrite.state
+    val pendingSetting: MachineSettingChange? get() = settingsWrite.change
     private var scaleSampleSerial = 0L
     val tareState: StandaloneTare.State get() = standaloneTare.state
     val chartPoints: List<ShotPoint> get() = series.points
@@ -111,6 +116,7 @@ class MobileService : Service() {
                 onScaleRemembered = { prefs.edit().putString("scale", it).apply() },
                 onState = { role, state ->
                     snapshot = if (role == DeviceRole.COFFEE) {
+                        if (state != DeviceState.READY) settingsWrite.disconnected()
                         if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
                             snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
                                 settings = null, sleepFirst = null, sleepSecond = null)
@@ -124,7 +130,11 @@ class MobileService : Service() {
                 },
                 onCoffee = { frame ->
                     snapshot = when (frame) {
-                        is Settings -> snapshot.copy(settings = frame)
+                        is Settings -> {
+                            if (settingsWrite.observe(++settingsSampleSerial, frame))
+                                event("机器回读已确认设置", "settings.confirmed")
+                            snapshot.copy(settings = frame)
+                        }
                         is SleepPart -> if (frame.firstDaySundayIndex == 0) snapshot.copy(sleepFirst = frame)
                             else snapshot.copy(sleepSecond = frame)
                         is io.openhoyi.protocol.IdleTelemetry, is io.openhoyi.protocol.ExtractionTelemetry ->
@@ -237,6 +247,30 @@ class MobileService : Service() {
                 }
                 StandaloneTare.State.FAILED -> event("去皮命令未写入", "scale.tare_failed")
                 StandaloneTare.State.UNKNOWN -> event("去皮结果未知", "scale.tare_unknown")
+                else -> Unit
+            }
+        }
+        return null
+    }
+    fun changeMachineSetting(change: MachineSettingChange): String? {
+        val current = hub ?: return "设备服务尚未启动"
+        if (ShotGate.active(shotState)) return "萃取期间不能修改机器设置"
+        if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
+        val observed = snapshot.settings ?: return "尚未收到机器设置"
+        if (change.matches(observed)) return "机器回读已是该设置"
+        val token = settingsWrite.begin(change) ?: return "正在等待上一次设置的结果"
+        event("机器设置命令已排队：${MachineSettingsPresentation.change(change)}", "settings.requested")
+        current.writeSetting(change) done@{ result ->
+            if (!settingsWrite.written(token, result, settingsSampleSerial)) return@done
+            when (settingsWrite.state) {
+                SettingsWriteTracker.State.WAITING_READBACK -> {
+                    event("命令已写入，等待机器回读", "settings.written")
+                    handler.postDelayed({
+                        if (settingsWrite.timeout(token)) event("机器未回读，设置结果未知", "settings.unknown")
+                    }, 6000)
+                }
+                SettingsWriteTracker.State.FAILED -> event("机器设置命令未写入", "settings.failed")
+                SettingsWriteTracker.State.UNKNOWN -> event("机器设置写入结果未知", "settings.unknown")
                 else -> Unit
             }
         }

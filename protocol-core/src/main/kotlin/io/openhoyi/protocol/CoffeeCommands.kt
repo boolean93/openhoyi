@@ -10,6 +10,27 @@ data class StartParameters(
     val firstFlowTenths: Int, val firstDurationSeconds: Int, val secondFlowTenths: Int,
     val thirdFlowTenths: Int, val fourthFlowTenths: Int,
 )
+/** Only settings whose 0x83 readback fields and legacy write bytes are both known. */
+sealed interface MachineSettingChange {
+    fun matches(settings: Settings): Boolean
+    data class BrewTemperature(val celsius: Int) : MachineSettingChange {
+        init { require(celsius in 75..105) }
+        override fun matches(settings: Settings) = settings.brewTemperatureC == celsius
+    }
+    data class SteamTemperature(val celsius: Int) : MachineSettingChange {
+        init { require(celsius in 110..145) }
+        override fun matches(settings: Settings) = settings.steamTemperatureC == celsius
+    }
+    data class BrewHeating(val enabled: Boolean) : MachineSettingChange {
+        override fun matches(settings: Settings) = settings.brewHeating == enabled
+    }
+    data class SteamHeating(val enabled: Boolean) : MachineSettingChange {
+        override fun matches(settings: Settings) = settings.steamHeating == enabled
+    }
+    data class Light(val enabled: Boolean) : MachineSettingChange {
+        override fun matches(settings: Settings) = (settings.flags and 0x08 != 0) == enabled
+    }
+}
 /** Narrow API: no public arbitrary opcode builder. Unverified controls have no encoder. */
 object CoffeeCommands {
     private fun range(value:Int,maximum:Int,name:String):Int { require(value in 0..maximum) { "$name outside wire range 0..$maximum" }; return value }
@@ -34,6 +55,13 @@ object CoffeeCommands {
     fun stop(slot:Int=7):EncodedCommand { require(slot in 1..7); return command(2,0,slot,0,0) }
     fun brewTemperature(celsius:Int):EncodedCommand = command(4,2,0,range(celsius,255,"temperatureC"),0)
     fun brewHeating(enabled:Boolean):EncodedCommand=command(12,2,0,if(enabled)1 else 0,0)
+    fun setting(change: MachineSettingChange): EncodedCommand = when (change) {
+        is MachineSettingChange.BrewTemperature -> brewTemperature(change.celsius)
+        is MachineSettingChange.SteamTemperature -> command(6,2,0,change.celsius,0)
+        is MachineSettingChange.BrewHeating -> brewHeating(change.enabled)
+        is MachineSettingChange.SteamHeating -> command(13,2,0,if(change.enabled)1 else 0,0)
+        is MachineSettingChange.Light -> command(14,2,0,if(change.enabled)1 else 0,0)
+    }
     fun sleepNow():EncodedCommand=command(32,1,165,165,33)
     /** Six ASCII decimal digits. Password omitted from diagnostic strings and error messages. */
     fun authenticate(time:LocalDateTime,password:String):EncodedCommand {

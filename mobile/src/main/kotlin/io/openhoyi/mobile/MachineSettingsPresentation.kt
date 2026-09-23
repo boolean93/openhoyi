@@ -1,11 +1,19 @@
 package io.openhoyi.mobile
 
 import io.openhoyi.protocol.Settings
+import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.protocol.SleepDay
 import io.openhoyi.protocol.SleepPart
 
 /** Formats decoded device values; it never creates a command or claims that a setting was applied. */
 object MachineSettingsPresentation {
+    fun change(value: MachineSettingChange): String = when (value) {
+        is MachineSettingChange.BrewTemperature -> "萃取温度 ${value.celsius} °C"
+        is MachineSettingChange.SteamTemperature -> "蒸汽温度 ${value.celsius} °C"
+        is MachineSettingChange.BrewHeating -> "萃取加热${if (value.enabled) "开启" else "关闭"}"
+        is MachineSettingChange.SteamHeating -> "蒸汽加热${if (value.enabled) "开启" else "关闭"}"
+        is MachineSettingChange.Light -> "照明${if (value.enabled) "开启" else "关闭"}"
+    }
     fun settings(value: Settings?): String {
         if (value == null) return "尚未收到机器设置"
         fun enabled(bit: Int) = if (value.flags and bit != 0) "开启" else "关闭"

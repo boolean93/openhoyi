@@ -132,6 +132,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         send(CoffeeCommands.stop(slot),DeviceRole.COFFEE,true,callback)
     }
     fun tare(callback:(OperationResult)->Unit)=send(BookooCodec.tare(),DeviceRole.BOOKOO,callback=callback)
+    fun writeSetting(change: MachineSettingChange,callback:(OperationResult)->Unit)=
+        send(CoffeeCommands.setting(change),DeviceRole.COFFEE,callback=callback)
     fun disconnect(){setState(DeviceState.DISCONNECTED);queue.disconnect("user disconnect");pendingSettings=null;initBusy=false}
     private fun fail(reason:String){setState(DeviceState.FAILED);queue.disconnect(reason);pendingSettings=null;diagnostic(reason)}
 }

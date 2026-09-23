@@ -2,6 +2,7 @@ package io.openhoyi.session
 
 import java.time.LocalDateTime
 import io.openhoyi.protocol.StartParameters
+import io.openhoyi.protocol.MachineSettingChange
 private class SessionDriver:GattDriver {
     val calls=mutableListOf<Triple<Long,Long,GattOperation>>()
     override fun execute(generation:Long,token:Long,operation:GattOperation):Boolean {calls+=Triple(generation,token,operation);return true}
@@ -20,6 +21,10 @@ fun deviceChecks():Int {
         val settings=hex("830113FD5C007D0F350019006E")
         s.onNotification(s.generation,KnownGatt.bookooNotify,settings);check(s.state!=DeviceState.READY)
         complete();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.READY)
+        var settingResult:OperationResult?=null
+        s.writeSetting(MachineSettingChange.BrewTemperature(93)){settingResult=it}
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0402005D00")))
+        complete();check(settingResult is OperationResult.Success)
         s.disconnect();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.DISCONNECTED)
     }
     case("BOOKOO initialization is paced and requires sample after completed initialization") {
@@ -42,6 +47,7 @@ fun deviceChecks():Int {
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830114FD5C007D0F350019006E"))
         check(s.state==DeviceState.UNSUPPORTED)
         var result:OperationResult?=null;s.stopExtraction{result=it};check(result is OperationResult.Failed)
+        s.writeSetting(MachineSettingChange.SteamHeating(false)){result=it};check(result is OperationResult.Failed)
     }
     case("live unauthenticated telemetry never opens ready gate or triggers extra writes") {
         val d=SessionDriver();var now=0L;var telemetry=0

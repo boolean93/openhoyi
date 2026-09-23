@@ -1,0 +1,8 @@
+<resources>
+    <string name="setting_toggle_status">%1$s：%2$s · 点击切换</string>
+    <string name="setting_brew_heating">萃取加热</string>
+    <string name="setting_steam_heating">蒸汽加热</string>
+    <string name="setting_light">照明</string>
+    <string name="setting_on">开启</string>
+    <string name="setting_off">关闭</string>
+</resources>

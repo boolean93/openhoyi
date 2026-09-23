@@ -53,6 +53,14 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     fun background(){usable();reconnect.background();scanner.close()}
     fun disconnectScale(){usable();reconnect.manualDisconnect();scale.session.disconnect()}
     fun tareScale(done:(OperationResult)->Unit){usable();scale.session.tare(done)}
+    fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit){
+        usable()
+        if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
+                ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
+            done(OperationResult.Failed("extraction active"));return
+        }
+        coffee.session.writeSetting(change,done)
+    }
     fun disconnectCoffee(){usable();coffee.session.disconnect()}
     override fun close(){
         usable();closed=true;handler.removeCallbacks(ticker);reconnect.background();scanner.close();coffee.close();scale.close()

@@ -12,7 +12,7 @@
 
 六模块：protocol-core → device-session → bluetooth-android，另有trace-core供app（Lab）/mobile（Alpha）共用。纯Kotlin模块无Android依赖；两款App均为原生View、Activity、本地Binder和connectedDevice前台Service，没有UniApp/JS/WebView。独立包 `io.openhoyi.lab` 和 `io.openhoyi.mobile`，均不覆盖旧App。
 
-`mobile` 第一段原生日常版已有首页连接、实时状态、传输日志导出、三条采集曲线与100条工厂曲线、机器设置只读页、萃取实时图、历史列表及曲线详情；见 `docs/mobile-alpha.md`。工厂曲线在有秤/无秤两种模式共200条启动帧与旧版编码函数逐字节对照，并在发送前再次核对曲线、帧和秤模式；报文不符即拒绝。萃取开始需显式确认，服务层要求咖啡机新鲜待机数据，重量模式要求新鲜秤数据；运行中拦截主动断链和停服务。用户要求暂不安装，因此尚无Alpha实机启动或控制证据。不能把代码验收当成硬件等效或完整替代App。
+`mobile` 第一段原生日常版已有首页连接、实时状态、传输日志导出、三条采集曲线与100条工厂曲线、五个快捷槽位、常用机器设置写入与回读状态、萃取实时图、历史列表及曲线详情；见 `docs/mobile-alpha.md`。工厂曲线在有秤/无秤两种模式共200条临时启动帧及1000条快捷槽位帧与旧版编码函数逐字节对照，并在发送前再次核对曲线、帧和秤模式；报文不符即拒绝。萃取开始需显式确认，服务层要求咖啡机新鲜待机数据，重量模式要求新鲜秤数据；运行中拦截主动断链和停服务。用户要求暂不安装，因此尚无Alpha实机启动或控制证据。不能把代码验收当成硬件等效或完整替代App。
 
 工厂曲线的逐字节许可集合必须从 `MobileApplication.curves` 注入 `NativeDeviceHub`，最终到 `DeviceSession.startExtraction`。若仅在页面和服务层放行，会话层仍拒绝工厂帧。默认无注入时会话仍只接受三条采集帧；不要移除此写入门禁。
 
@@ -21,6 +21,10 @@
 后续增加了首页 BOOKOO 独立去皮：`StandaloneTare` 将 GATT 写入与新鲜归零读数分成两个阶段，写入后5秒未见归零即显示结果未知；萃取期间禁止手动去皮。会话检查34项、Alpha单测22项、debug构建及Lint通过（0错误、2条警告）。该功能尚未实机验收，实际测试需检查写入日志、归零时延和重复点击门禁。
 
 首页五个快捷槽位使用旧版 `startChart(slot,1)` 路径；`scripts/generate_factory_wire_oracle.py` 从旧版编码器另生成 `factory_slot_wire_v1.tsv`（100条×5槽×2秤模式，1000帧）。`FactoryWireProof` 在运行时核对后将帧许可传到底层会话；`CoffeeSessionControl` 保留启动槽位用于停止。快捷位默认旧版前五条曲线，曲线库可本地重指派；点击快捷位仍需显式确认。历史记录新增槽位字段，旧8字段记录继续可读。尚无实机槽位启停证据。
+
+常用机器设置新增萃取/蒸汽设定温度、两路加热与照明。独立脚本 `scripts/generate_machine_setting_oracle.py` 仅执行旧版对应编码函数，生成73条允许参数报文样本。`MachineSettingChange` 限制温度范围，`SettingsWriteTracker` 只在写入后收到新的匹配0x83设置帧时认定已应用；无回读显示未知。服务层与Hub均禁止萃取期间改设置。实机设置写入和回读时序尚未验收。
+
+设置报文资源复生成后字节一致；协议检查35,146项（含32,856条通知回放）、会话检查34项、Alpha单测28项通过，debug构建成功，Lint 0错误/2条既有警告。未安装、未发送实机设置命令。
 
 本轮离线复核：临时200帧与快捷位1000帧重新生成后均与随包资源完全一致；会话检查34项、Alpha单测25项通过，debug构建成功，Lint 0错误/2条警告。未安装、未发出实机命令。
 
