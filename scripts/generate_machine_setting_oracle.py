@@ -27,7 +27,7 @@ def main() -> None:
          (("brew_heat", "setTempPowerEn"), ("steam_heat", "setSteamPowerEn"), ("light", "setLedEn"))
          for value in (0, 1)] +
         [["lever", value, "setPress"] for value in (0, 10, 11)] +
-        [["standby", code * 256 + temperature, "setStandby"] for code in range(5) for temperature in (70, 92)] +
+        [["standby", code * 256 + temperature, "setStandby"] for code in range(5) for temperature in range(101)] +
         [["sleep_enabled", value, "setSleepEn"] for value in (0, 1)] +
         [["water_supply", value, "setWaterInMode"] for value in (0, 1)] +
         [["run_mode", value, "setRunMode"] for value in (0, 1)]
@@ -55,8 +55,8 @@ process.stdin.on('data',chunk=>input+=chunk).on('end',()=>{
     result = subprocess.run(["node", "-e", node], input=json.dumps({"harness": harness, "cases": cases}),
                             text=True, capture_output=True, check=True, timeout=20)
     rows = json.loads(result.stdout)
-    if len(rows) != 92:
-        raise ValueError("expected 92 setting frames")
+    if len(rows) != 587:
+        raise ValueError("expected 587 setting frames")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("# machine-setting-wire-v1\tsource-sha256=" + source_hash + "\n" +
                       "\n".join("\t".join(row) for row in rows) + "\n", encoding="utf-8")

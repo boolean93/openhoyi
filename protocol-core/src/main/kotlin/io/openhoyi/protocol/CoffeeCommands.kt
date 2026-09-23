@@ -11,6 +11,7 @@ data class StartParameters(
     val thirdFlowTenths: Int, val fourthFlowTenths: Int,
 )
 /** Only settings whose 0x83 readback fields and legacy write bytes are both known. */
+private val standbyDelays = listOf(0, 15, 30, 60, 120)
 sealed interface MachineSettingChange {
     fun matches(settings: Settings): Boolean
     data class RunMode(val studio: Boolean) : MachineSettingChange {
@@ -26,12 +27,22 @@ sealed interface MachineSettingChange {
     /** Legacy write uses 0..4 while 0x83 reports 0/15/30/60/120 minutes. Keep the observed temperature unchanged. */
     data class StandbyDelay(val minutes: Int, val temperatureC: Int) : MachineSettingChange {
         init {
-            require(minutes in listOf(0, 15, 30, 60, 120))
+            require(minutes in standbyDelays)
             require(temperatureC in 0..255)
         }
-        val wireCode: Int get() = listOf(0, 15, 30, 60, 120).indexOf(minutes)
+        val wireCode: Int get() = standbyDelays.indexOf(minutes)
         override fun matches(settings: Settings) =
             settings.standbyMinutes == minutes && settings.standbyTemperatureC == temperatureC
+    }
+    /** The legacy slider is 0..100°C. The same 0x14 command must carry the current delay. */
+    data class StandbyTemperature(val celsius: Int, val minutes: Int) : MachineSettingChange {
+        init {
+            require(celsius in 0..100)
+            require(minutes in standbyDelays)
+        }
+        val wireCode: Int get() = standbyDelays.indexOf(minutes)
+        override fun matches(settings: Settings) =
+            settings.standbyTemperatureC == celsius && settings.standbyMinutes == minutes
     }
     /** Legacy lever control: manual, auto pressure, or auto flow. */
     data class LeverMode(val pressure: Boolean, val flow: Boolean) : MachineSettingChange {
@@ -86,6 +97,7 @@ object CoffeeCommands {
         is MachineSettingChange.WaterSupply -> command(16,2,0,if(change.piped)1 else 0,0)
         is MachineSettingChange.SleepScheduleEnabled -> command(21,2,0,if(change.enabled)1 else 0,0)
         is MachineSettingChange.StandbyDelay -> command(20,2,change.wireCode,change.temperatureC,0)
+        is MachineSettingChange.StandbyTemperature -> command(20,2,change.wireCode,change.celsius,0)
         is MachineSettingChange.LeverMode -> command(3,2,if(change.pressure)1 else 0,if(change.flow)1 else 0,0)
         is MachineSettingChange.BrewTemperature -> brewTemperature(change.celsius)
         is MachineSettingChange.SteamTemperature -> command(6,2,0,change.celsius,0)

@@ -337,6 +337,8 @@ class MobileService : Service() {
             return "睡眠计划尚未完整回读，不能开启"
         if (change is MachineSettingChange.StandbyDelay &&
             change.temperatureC != observed.standbyTemperatureC) return "机器待机温度已变化，请重新选择"
+        if (change is MachineSettingChange.StandbyTemperature &&
+            change.minutes != observed.standbyMinutes) return "机器自动待机时间已变化，请重新选择"
         if (change.matches(observed)) return "机器回读已是该设置"
         val token = settingsWrite.begin(change) ?: return "正在等待上一次设置的结果"
         event("机器设置命令已排队：${MachineSettingsPresentation.change(change)}", "settings.requested")

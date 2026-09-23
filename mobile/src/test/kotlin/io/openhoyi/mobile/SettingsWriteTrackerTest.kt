@@ -66,6 +66,16 @@ class SettingsWriteTrackerTest {
         assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
 
+    @Test fun standbyTemperatureRequiresNewReadbackAndPreservedDelay() {
+        val tracker = SettingsWriteTracker()
+        val token = requireNotNull(tracker.begin(MachineSettingChange.StandbyTemperature(70, initial.standbyMinutes)))
+        assertTrue(tracker.written(token, OperationResult.Success(), 8))
+        assertFalse(tracker.observe(8, initial.copy(standbyTemperatureC = 70)))
+        assertFalse(tracker.observe(9, initial.copy(standbyMinutes = 30, standbyTemperatureC = 70)))
+        assertTrue(tracker.observe(10, initial.copy(standbyTemperatureC = 70)))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
+    }
+
     @Test fun sleepScheduleToggleNeedsNewMatchingFlags() {
         val tracker = SettingsWriteTracker()
         val token = requireNotNull(tracker.begin(MachineSettingChange.SleepScheduleEnabled(false)))

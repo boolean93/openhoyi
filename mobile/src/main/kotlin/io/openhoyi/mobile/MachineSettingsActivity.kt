@@ -44,6 +44,7 @@ class MachineSettingsActivity : Activity() {
     private lateinit var scheduleWriteStatus: TextView
     private lateinit var brewInput: EditText
     private lateinit var steamInput: EditText
+    private lateinit var standbyTemperatureInput: EditText
     private lateinit var brewHeatingButton: Button
     private lateinit var steamHeatingButton: Button
     private lateinit var lightButton: Button
@@ -124,6 +125,17 @@ class MachineSettingsActivity : Activity() {
         }
         controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton)
         controlButtons += action(controls, "设置自动待机时间") { chooseStandbyDelay() }
+        standbyTemperatureInput = temperatureInput(controls, "待机温度（0–100 °C）")
+        controlButtons += action(controls, "设置待机温度") {
+            val c = standbyTemperatureInput.text.toString().toIntOrNull()
+            if (c == null || c !in 0..100) standbyTemperatureInput.error = "请输入 0–100"
+            else {
+                val minutes = service?.snapshot?.settings?.standbyMinutes
+                if (minutes == null || minutes !in listOf(0, 15, 30, 60, 120))
+                    Toast.makeText(this, "机器自动待机档位未知，暂不能修改温度", Toast.LENGTH_SHORT).show()
+                else confirm(MachineSettingChange.StandbyTemperature(c, minutes))
+            }
+        }
         val sleepCard = card(body, "每周睡眠计划")
         schedule = text(sleepCard, "尚未收到睡眠计划", 16)
         scheduleWriteStatus = text(sleepCard, "时间修改：尚未修改", 14)

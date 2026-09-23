@@ -28,6 +28,7 @@ object MachineSettingsPresentation {
             120 -> "2 小时"
             else -> "${value.minutes} 分钟"
         }
+        is MachineSettingChange.StandbyTemperature -> "待机温度 ${value.celsius} °C"
         is MachineSettingChange.LeverMode -> "拨杆模式：" + when {
             value.flow -> "自动流量"
             value.pressure -> "自动压力"
