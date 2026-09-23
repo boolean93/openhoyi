@@ -23,10 +23,13 @@
 | 大包/MTU/通用Read | 首版明确不支持 | Android写入限制20字节 | 后续需真实协议分片证据后实现 |
 | 管理命令/OTA | UnsupportedCommandGroup | 无执行入口 | 密码修改、校准、出厂、OTA独立验证 |
 | 原生诊断UI/持久化 | LabActivity / LabService | 独立APK、未知/过期/断开显示、成功秤地址、离线UI测试APK | 冒烟APK已构建未执行；实机布局、权限、连接和导出 |
+| 原生日常版基础页面 | mobile/HomeActivity、MobileService、CurveActivity、CurveCatalog | 独立APK、单测校验三条采集曲线、构建和Lint通过 | 平板限制安装，UI/连接未实机验收；萃取控制未接入 |
 
 ## 最新实机补验（2026-09-23）
 
 见[实机报告](validation-2026-09-23.md)。咖啡机认证/设置/遥测有实机证据；新增仪器测试的4项检查通过。纯Kotlin会话回归增至33场景。BLE两次status=8断线未定位，未通过长期稳定性验收；08:42双设备并行约2分钟无断线，后因测试重启进程中断。秤负重量/自动重连及SAF系统选择器流程未完成。下方首轮结果为历史记录，不能代替最新报告。
+
+Alpha 日常版第一段功能见[说明](mobile-alpha.md)。新增包的单测、构建、Lint通过；两次ADB安装被系统拒绝，尚无Alpha实机证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
 
 ## 本轮 Lab 结果（2026-09-22）
 

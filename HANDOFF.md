@@ -10,7 +10,9 @@
 
 ## 当前交付
 
-四模块：protocol-core → device-session → bluetooth-android → app。纯Kotlin模块无Android依赖；app为原生View、Activity、本地Binder和connectedDevice前台Service，没有UniApp/JS/WebView。独立包 `io.openhoyi.lab`，不覆盖旧App。
+五模块：protocol-core → device-session → bluetooth-android → app（Lab）/mobile（Alpha）。纯Kotlin模块无Android依赖；两款App均为原生View、Activity、本地Binder和connectedDevice前台Service，没有UniApp/JS/WebView。独立包 `io.openhoyi.lab` 和 `io.openhoyi.mobile`，均不覆盖旧App。
+
+`mobile` 第一段原生日常版已完成首页连接、实时状态和三条采集曲线浏览/选择；见 `docs/mobile-alpha.md`。`mobile:testDebugUnitTest`、`mobile:assembleDebug`、`mobile:lintDebug` 均通过。平板两次拒绝安装新包（`INSTALL_FAILED_USER_RESTRICTED`），因此尚无Alpha的实机启动证据；APK位于`mobile/build/outputs/apk/debug/mobile-debug.apk`。此包未开放萃取控制，不能当成完整替代App。
 
 Lab仅提供授权/扫描/手动连接/断开/实时数据/日志导出/停止服务。没有萃取、设置、校准、OTA按钮。咖啡机连接必须输入6位密码（数字字节0..9），认证并同步时间；BOOKOO按500ms间隔执行4条初始化写入，收到之后的新样本才Ready。连接并非完全只读，以上初始化是明确例外。
 
@@ -44,6 +46,7 @@ Lab仅提供授权/扫描/手动连接/断开/实时数据/日志导出/停止�
 ## 下一步
 
 1. 设备接入后按 `docs/native-lab.md` 验证权限、初始化、双连接、旋转/锁屏、断线、日志导出；先只用Lab观察，不开放萃取UI。
+   Alpha安装获系统允许后，先做冷启动、曲线选择和只读连接验收，使用`OpenHoyiMobile`标签与已过滤的诊断事件，不为常规状态反复截图。
 2. 导出新版连接记录，与旧记录对照；实物核对BOOKOO负重量、单位、时效。
 3. 在人工监督下验证停止与去皮，再验证三条曲线；记录最后杯重与时序差异。
 4. 证据足够后再接入曲线库、原生萃取页面、设置读回事务与更多秤型号。

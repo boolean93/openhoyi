@@ -1,12 +1,13 @@
-# OpenHOYI Native / Lab
+# OpenHOYI Native
 
-纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。已提供独立可安装的诊断 App `OpenHOYI Lab`，包名 `io.openhoyi.lab`。已实测咖啡机认证与遥测；连接稳定性、电子秤和萃取控制仍待验证，不是完整咖啡制作 App。
+纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。仓库提供两套独立 Android 包：`OpenHOYI Lab`（`io.openhoyi.lab`）用于诊断与采集；`OpenHOYI Alpha`（`io.openhoyi.mobile`）是日常使用版的第一段原生功能。Lab 已实测咖啡机和 BOOKOO 双设备连接、后台及短时锁屏收数。Alpha 已具备首页连接/实时状态与三条采集曲线的浏览、选择；萃取控制尚未接入产品页。
 
 ## 模块
 
 | 模块 | 边界 |
 |---|---|
 | `app` | 原生 Activity + Binder + connectedDevice 前台服务，实时数据显示、权限请求、日志导出 |
+| `mobile` | 独立 Alpha 包；原生首页、设备连接、实时读数、曲线库和本地曲线选择；复用同一套协议/会话/BLE 库 |
 | `protocol-core` | HOYI / BOOKOO 编解码、整数单位、不可变字节、格式校验、未支持命令清单。无 Android 依赖 |
 | `device-session` | 串行 GATT 队列、独立连接代次、初始化就绪、重连策略、去皮及停止策略、真实时序回放。无 Android 依赖 |
 | `bluetooth-android` | Android GATT 回调桥接、订阅、扫描、权限检查、主线程调度；`NativeDeviceHub` 连接上述模块 |
@@ -21,14 +22,23 @@ Java17、Android SDK35、Gradle wrapper8.11.1、Kotlin2.0.21、AGP8.10.0。
 设置 `ANDROID_HOME`，或在不提交的 `local.properties` 配置 `sdk.dir`。
 
 ```sh
-./gradlew :protocol-core:check :device-session:check :bluetooth-android:assembleDebug :bluetooth-android:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
+./gradlew :protocol-core:check :device-session:check :bluetooth-android:assembleDebug :bluetooth-android:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :mobile:testDebugUnitTest :mobile:assembleDebug :mobile:lintDebug
 ```
 
 两个纯 Kotlin 模块的 `check` 包含确定性 JVM `verify` 任务；断言失败即构建失败。逐帧断言不是独立案例；App 的日志/数据展示使用 JUnit 测试。
 
 Google Maven 无法访问时可显式使用 `-PgoogleMirror=aliyun`。本机全局Gradle代理指向未启动的127.0.0.1:7890，本次仅命令行加 `-Dhttp.proxyHost= -Dhttps.proxyHost=` 绕过，没有修改全局配置。Google依赖首次通过可选阿里云镜像获取；默认仍使用官方仓库。
 
-APK：`app/build/outputs/apk/debug/app-debug.apk`；离线 UI 冒烟测试包：`app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`。
+APK：Lab `app/build/outputs/apk/debug/app-debug.apk`；Alpha `mobile/build/outputs/apk/debug/mobile-debug.apk`；Lab UI 冒烟测试包 `app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`。
+
+## 使用原生 Alpha
+
+```sh
+adb install -r mobile/build/outputs/apk/debug/mobile-debug.apk
+adb shell am start -n io.openhoyi.mobile/.HomeActivity
+```
+
+Alpha 与 Lab、旧版 HOYI 分包安装。首页可扫描、手动连接咖啡机和秤、查看实时温度/压力/重量；成功连接过的秤地址只保存在 Alpha 自身。曲线库目前展示三条已采集且逐字节校验的启动参数，使用临时编号，不冒充旧版完整曲线库。选择曲线只保存其 ID，不向咖啡机发送命令。连接同一设备前应关闭其他 App 对该设备的连接。
 
 库产物：`bluetooth-android/build/outputs/aar/bluetooth-android-debug.aar`。AAR不是自包含APK，使用时需同时包含协议和会话模块；Gradle项目依赖通过 `api` 传递。
 

@@ -16,4 +16,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "openhoyi"
-include(":protocol-core", ":device-session", ":bluetooth-android", ":app")
+include(":protocol-core", ":device-session", ":bluetooth-android", ":app", ":mobile")
