@@ -83,12 +83,18 @@ class HomeActivity : Activity() {
         val curveCard = card(content, "曲线库")
         selection = text(curveCard, "尚未选择曲线", 16)
         button(curveCard, "查看曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
-        text(curveCard, "当前版本只展示已采集并校验的三条曲线。萃取控制尚未在产品页开放。", 13)
+        button(curveCard, "进入萃取页面") { startActivity(Intent(this, ExtractionActivity::class.java)) }
+        text(curveCard, "只开放三条已采集曲线；开始萃取前会再次确认设备与曲线。", 13)
         button(content, "导出操作记录 ZIP") {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
         }
-        button(content, "停止设备服务") { service?.shutdown(); release(); render() }
+        button(content, "停止设备服务") {
+            val owner = service
+            owner?.shutdown()
+            if (owner?.running == true) toast("萃取结果未确认，服务保持运行") else release()
+            render()
+        }
         render()
     }
     override fun onStart() { super.onStart(); visible = true; bindExisting(); handler.post(refresh) }
@@ -160,8 +166,9 @@ class HomeActivity : Activity() {
         val running = owner?.running == true
         status.show(if (running) s.message else "点击扫描启动设备服务")
         scanButton.isEnabled = !s.scanning
-        coffeeDisconnect.isEnabled = running && s.coffeeState != DeviceState.DISCONNECTED
-        scaleDisconnect.isEnabled = running && s.scaleState != DeviceState.DISCONNECTED
+        val shotActive = owner?.shotState?.let(ShotGate::active) == true
+        coffeeDisconnect.isEnabled = running && !shotActive && s.coffeeState != DeviceState.DISCONNECTED
+        scaleDisconnect.isEnabled = running && !shotActive && s.scaleState != DeviceState.DISCONNECTED
         val coffeeFresh = s.coffeeAt?.let { now >= it && now - it <= 1500 } == true && s.coffeeState == DeviceState.READY
         val machine = when (val frame = s.coffee) {
             is IdleTelemetry -> "冲泡 ${number(frame.brewTemperatureHundredthsC)} °C · ${frame.brewPressureTenthsBar / 10.0} bar\n蒸汽 ${number(frame.steamTemperatureHundredthsC)} °C · ${frame.steamPressureTenthsBar / 10.0} bar"

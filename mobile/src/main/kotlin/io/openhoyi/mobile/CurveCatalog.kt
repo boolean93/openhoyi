@@ -25,7 +25,7 @@ object CurveCatalog {
             StartParameters(true, true, 3, 7, 92, 136, false, 0, 20, 35, 18, 0, 150, 5, 400, 130, 0)),
     )
     fun find(id: String): CurveProfile? = profiles.firstOrNull { it.id == id }
-    fun validated(profile: CurveProfile): Boolean = CoffeeCommands.start(profile.parameters).frame.hex() in setOf(
+    fun validated(profile: CurveProfile): Boolean = runCatching { CoffeeCommands.start(profile.parameters).frame.hex() }.getOrNull() in setOf(
         "02175B006C005A410000015E1600AA00000000DA",
         "02DF5C0046001426140000A0050190008C000059",
         "02DF5C00880014231200009605019000820000AC",

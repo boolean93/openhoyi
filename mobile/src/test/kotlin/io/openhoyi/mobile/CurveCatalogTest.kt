@@ -15,6 +15,7 @@ class CurveCatalogTest {
         assertEquals(listOf(2700, 0, 3400), CurveCatalog.profiles.map { it.targetHundredthsGram })
         assertEquals(3, CurveCatalog.profiles.map { it.id }.toSet().size)
         assertTrue(CurveCatalog.profiles.all(CurveCatalog::validated))
+        assertFalse(CurveCatalog.validated(CurveCatalog.profiles[0].copy(parameters = CurveCatalog.profiles[0].parameters.copy(slot = 6))))
         assertNull(CurveCatalog.find("unknown"))
     }
 }
