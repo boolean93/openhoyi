@@ -40,6 +40,7 @@ class HomeActivity : Activity() {
     private lateinit var leverButton: Button
     private lateinit var sleepStatus: TextView
     private lateinit var sleepButton: Button
+    private lateinit var emergencyStop: Button
     private lateinit var alarmStatus: TextView
     private lateinit var scale: TextView
     private lateinit var tareStatus: TextView
@@ -97,6 +98,9 @@ class HomeActivity : Activity() {
         sleepStatus = text(coffeeCard, "睡眠状态：未知", 14)
         sleepButton = button(coffeeCard, "立即睡眠") { confirmSleepNow() }
         alarmStatus = text(coffeeCard, "尚未收到机器告警状态", 14)
+        emergencyStop = button(coffeeCard, "立即停止萃取") { service?.stopShot(); render() }.apply {
+            setTextColor(Color.rgb(150, 30, 30))
+        }
         button(coffeeCard, "查看机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(coffeeCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
         val scaleCard = card(content, "电子秤")
@@ -241,6 +245,9 @@ class HomeActivity : Activity() {
         status.show(if (running) s.message else "点击扫描启动设备服务")
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
+        emergencyStop.isEnabled = running && owner?.shotState?.let { it in setOf(ExtractionState.STARTING,
+            ExtractionState.RUNNING, ExtractionState.OUTCOME_UNKNOWN) } == true &&
+            (owner?.shotState != ExtractionState.OUTCOME_UNKNOWN || s.coffeeState == DeviceState.READY)
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE

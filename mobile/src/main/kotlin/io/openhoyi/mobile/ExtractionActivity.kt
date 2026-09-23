@@ -1,8 +1,10 @@
 package io.openhoyi.mobile
 
+import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.*
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -26,6 +28,7 @@ class ExtractionActivity : Activity() {
     private lateinit var readiness: TextView
     private lateinit var live: TextView
     private lateinit var preparationStatus: TextView
+    private lateinit var notificationStatus: TextView
     private lateinit var alarmStatus: TextView
     private lateinit var chart: ShotChartView
     private lateinit var start: Button
@@ -64,6 +67,7 @@ class ExtractionActivity : Activity() {
         readiness = text(card, "等待设备服务", 18)
         live = text(card, "暂无实时数据", 22)
         preparationStatus = text(card, "温度准备：尚未连接", 14)
+        notificationStatus = text(card, "", 14)
         alarmStatus = text(card, "尚未收到机器告警状态", 14)
         chart = ShotChartView(this)
         card.addView(chart, LinearLayout.LayoutParams(-1, dp(260)).apply { topMargin = dp(12) })
@@ -78,6 +82,7 @@ class ExtractionActivity : Activity() {
         super.onStart(); visible = true
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
         handler.post(refresh)
+        requestSafetyNotificationsOnce()
     }
     override fun onStop() {
         visible = false; handler.removeCallbacks(refresh)
@@ -85,6 +90,19 @@ class ExtractionActivity : Activity() {
         release(); super.onStop()
     }
     private fun release() { if (bound) { unbindService(connection); bound = false }; service = null }
+    private fun notificationsAllowed(): Boolean = Build.VERSION.SDK_INT < 33 ||
+        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    private fun requestSafetyNotificationsOnce() {
+        if (notificationsAllowed()) return
+        val prefs = getSharedPreferences("safety", MODE_PRIVATE)
+        if (prefs.getBoolean("asked_for_notifications", false)) return
+        prefs.edit().putBoolean("asked_for_notifications", true).apply()
+        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATIONS)
+    }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == NOTIFICATIONS) render()
+    }
     private fun selected(): CurveLibraryItem? {
         val library = (application as MobileApplication).curves
         val id = if (presetSlot == 7) getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
@@ -103,7 +121,8 @@ class ExtractionActivity : Activity() {
         requireNotNull(profile)
         owner.studioStartBlock(profile)?.let { toast(it); render(); return }
         AlertDialog.Builder(this).setTitle("确认开始萃取")
-            .setMessage("${profile.name} · 槽位 ${profile.parameters.slot} · ${profile.temperatureC} °C\n最大水量：${profile.maximumWaterMl} ml\n目标重量：${if (profile.targetHundredthsGram > 0) "${number(profile.targetHundredthsGram)} g（电子秤）" else "不使用（由咖啡机按水量结束）"}\n将向咖啡机发送已校验的启动命令。")
+            .setMessage("${profile.name} · 槽位 ${profile.parameters.slot} · ${profile.temperatureC} °C\n最大水量：${profile.maximumWaterMl} ml\n目标重量：${if (profile.targetHundredthsGram > 0) "${number(profile.targetHundredthsGram)} g（电子秤）" else "不使用（由咖啡机按水量结束）"}\n将向咖啡机发送已校验的启动命令。" +
+                if (notificationsAllowed()) "" else "\n系统通知未授权，后台断链提醒可能无法显示。")
             .setPositiveButton("确认启动") { _, _ ->
                 owner.startShot(profile.id, profile.scaleMode, presetSlot)?.let(::toast)
                 render()
@@ -161,6 +180,8 @@ class ExtractionActivity : Activity() {
                     BrewPreparation.State.FAILED -> "预热命令未写入，请取消后重试"
                     BrewPreparation.State.UNKNOWN -> "预热结果未知，请查看机器并取消"
                 })
+        notificationStatus.show(if (notificationsAllowed()) "" else
+            "系统通知未授权；后台断链提醒可能被隐藏。可在系统设置中允许通知。")
         alarmStatus.show(MachineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             SystemClock.elapsedRealtime()))
         val machine = when (val frame = snapshot.coffee) {
@@ -180,13 +201,15 @@ class ExtractionActivity : Activity() {
             snapshot.coffeeState == DeviceState.READY && !ShotGate.active(state)
         start.isEnabled = owner?.running == true && blocked == null && studioBlocked == null &&
             !settingBusy && !sleepBusy
-        stop.isEnabled = owner?.running == true && ShotGate.active(state) &&
+        stop.isEnabled = owner?.running == true && state in setOf(ExtractionState.STARTING,
+            ExtractionState.RUNNING, ExtractionState.OUTCOME_UNKNOWN) &&
             (state != ExtractionState.OUTCOME_UNKNOWN || snapshot.coffeeState == io.openhoyi.session.DeviceState.READY)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun number(value: Int): String = String.format(Locale.ROOT, "%.2f", value / 100.0)
     private fun toast(value: String) = Toast.makeText(this, value, Toast.LENGTH_SHORT).show()
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
+    private companion object { const val NOTIFICATIONS = 31 }
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView = TextView(this).apply {
         text = value; textSize = size.toFloat(); setTextColor(Color.rgb(32, 38, 42))
         setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD); parent.addView(this)
