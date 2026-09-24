@@ -18,6 +18,7 @@ import io.openhoyi.session.CoffeeAuthentication
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
+import io.openhoyi.session.OperationResult
 import io.openhoyi.trace.TraceStore
 import java.time.LocalDateTime
 
@@ -96,6 +97,13 @@ class MobileService : Service() {
             if (!running) return
             val now = SystemClock.elapsedRealtime()
             refreshMock(runtime, now)
+            (snapshot.coffee as? IdleTelemetry)?.let { idle ->
+                val currentSettings = snapshot.settings
+                if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
+                        BrewPreparation.correctedTemperature(idle.brewTemperatureHundredthsC,
+                            currentSettings.brewCompensationTenthsC)))
+                    event("Mock 目标温度已达到；未发送蓝牙命令", "mock.brew_wait_ready")
+            }
             (snapshot.coffee as? io.openhoyi.protocol.ExtractionTelemetry)?.let { frame ->
                 series.machine(frame, now, snapshot.weight?.weightHundredthsGram,
                     snapshot.weightAt, snapshot.weight?.deviceFlowHundredths)
@@ -686,7 +694,24 @@ class MobileService : Service() {
     fun studioStartBlock(profile: CurveProfile): String? = StudioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
-        if (mock != null) return "Mock 版本不发送预热命令"
+        if (mock != null) {
+            if (brewPreparation.active) return "已有 Mock 预热请求，请先取消"
+            val profile = selectedCurve(profileId, slot) ?: return "请先选择曲线"
+            if (profile.scaleMode != expectedScaleMode) return "Mock 电子秤状态已变化，请重新确认"
+            val library = (application as MobileApplication).curves
+            ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
+                snapshot.scaleState, snapshot.weightAt, SystemClock.elapsedRealtime(), shotState,
+                validated = library.validated(profile))?.let { return it }
+            val now = SystemClock.elapsedRealtime()
+            val result = mock.beginPreheat(profile.temperatureC, now)
+            if (result != null) return result
+            val token = brewPreparation.begin(profile.id, profile.temperatureC)
+                ?: run { mock?.cancelPreheat(now); return "无法开始 Mock 预热" }
+            brewPreparation.written(token, OperationResult.Success(), idleSampleSerial)
+            refreshMock(mock, now)
+            event("Mock 正在模拟预热到 ${profile.temperatureC} °C；未发送蓝牙命令", "mock.brew_wait")
+            return null
+        }
         if (manualShotActive) return "手动萃取期间不能预热曲线"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
@@ -730,7 +755,17 @@ class MobileService : Service() {
         return null
     }
     fun cancelBrewPreparation(): String? {
-        if (mock != null) return "Mock 版本没有预热请求"
+        if (mock != null) {
+            if (!brewPreparation.active) return "当前没有 Mock 预热请求"
+            val now = SystemClock.elapsedRealtime()
+            val result = mock.cancelPreheat(now)
+            if (result != null) return result
+            val token = brewPreparation.beginCancel() ?: return "正在取消 Mock 预热"
+            brewPreparation.cancelled(token, OperationResult.Success())
+            refreshMock(mock, now)
+            event("Mock 预热已取消；未发送蓝牙命令", "mock.brew_wait_cancelled")
+            return null
+        }
         if (manualShotActive) return "手动萃取期间不能发送预热取消命令"
         if (!brewPreparation.active) return "当前没有预热请求"
         val current = hub ?: return "设备服务尚未启动，预热结果未知"
@@ -753,7 +788,13 @@ class MobileService : Service() {
             val profile = selectedCurve(profileId, slot) ?: return "请先选择曲线"
             if (profile.scaleMode != expectedScaleMode) return "Mock 电子秤状态已变化，请重新确认"
             if (ShotGate.active(shotState)) return "Mock 萃取正在进行"
-            mock.start(SystemClock.elapsedRealtime())
+            studioStartBlock(profile)?.let { return it }
+            val now = SystemClock.elapsedRealtime()
+            if (brewPreparation.active) {
+                mock.cancelPreheat(now)
+                brewPreparation.consumed()
+            }
+            mock.start(now)
             val shotId = runCatching { history?.begin(profile.id, slot = slot) }.getOrNull()
                 ?: java.util.UUID.randomUUID().toString()
             series.begin(shotId, SystemClock.elapsedRealtime())

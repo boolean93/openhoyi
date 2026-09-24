@@ -154,9 +154,11 @@ class ExtractionActivity : ThemedActivity() {
         } ?: run { toast("请先选择可萃取曲线"); return }
         val corrected = owner.currentCorrectedBrewTemperature()
         val current = corrected?.let { number(it) + " °C" } ?: "未知"
-        AlertDialog.Builder(this).setTitle("预热到曲线目标温度")
-            .setMessage("当前冲泡温度：$current\n曲线目标：${profile.temperatureC} °C\n机器写入预热命令后，仍需看到新的温度数据才可启动。")
-            .setPositiveButton("发送预热命令") { _, _ ->
+        AlertDialog.Builder(this).setTitle(if (BuildConfig.MOCK_MODE) "模拟预热到目标温度" else "预热到曲线目标温度")
+            .setMessage("当前冲泡温度：$current\n曲线目标：${profile.temperatureC} °C\n" +
+                if (BuildConfig.MOCK_MODE) "温度会在约 5 秒内模拟变化；不会发送蓝牙命令。"
+                else "机器写入预热命令后，仍需看到新的温度数据才可启动。")
+            .setPositiveButton(if (BuildConfig.MOCK_MODE) "开始模拟预热" else "发送预热命令") { _, _ ->
                 owner.prepareBrew(profile.id, profile.scaleMode, presetSlot)?.let(::toast)
                 render()
             }

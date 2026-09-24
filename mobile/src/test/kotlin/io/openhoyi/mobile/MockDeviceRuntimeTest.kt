@@ -7,6 +7,7 @@ import io.openhoyi.protocol.WeeklySleepDay
 import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
+import io.openhoyi.session.OperationResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
@@ -104,5 +105,52 @@ class MockDeviceRuntimeTest {
         assertTrue(mock.tare() != null)
         assertTrue(mock.sleepNow() != null)
         assertEquals(93, mock.sample(2_000).settings?.brewTemperatureC)
+    }
+
+    @Test fun studioPreheatProducesFreshTemperatureStepsAndCanBeCancelled() {
+        val mock = MockDeviceRuntime()
+        assertNull(mock.changeSetting(MachineSettingChange.RunMode(true)))
+        assertNull(mock.beginPreheat(99, 1_000))
+        assertTrue(mock.preheatActive)
+        assertEquals(9300, (mock.sample(1_000).coffee as IdleTelemetry).brewTemperatureHundredthsC)
+        assertEquals(9600, (mock.sample(3_500).coffee as IdleTelemetry).brewTemperatureHundredthsC)
+        assertEquals(9900, (mock.sample(6_000).coffee as IdleTelemetry).brewTemperatureHundredthsC)
+        assertTrue(mock.changeSetting(MachineSettingChange.BrewTemperature(95)) != null)
+        assertNull(mock.cancelPreheat(6_000))
+        assertEquals(9900, (mock.sample(8_000).coffee as IdleTelemetry).brewTemperatureHundredthsC)
+        assertTrue(!mock.preheatActive)
+    }
+
+    @Test fun preheatUsesTemperatureCompensationAndRejectsInvalidState() {
+        val mock = MockDeviceRuntime()
+        assertTrue(mock.beginPreheat(99, 1_000) != null)
+        assertNull(mock.changeSetting(MachineSettingChange.RunMode(true)))
+        assertNull(mock.changeSetting(MachineSettingChange.BrewCompensation(2)))
+        assertNull(mock.beginPreheat(99, 1_000))
+        val arrived = mock.sample(6_000).coffee as IdleTelemetry
+        assertEquals(10100, arrived.brewTemperatureHundredthsC)
+        assertEquals(9900, BrewPreparation.correctedTemperature(arrived.brewTemperatureHundredthsC,
+            requireNotNull(mock.sample(6_000).settings).brewCompensationTenthsC))
+        assertTrue(mock.beginPreheat(99, 6_000) != null)
+        assertNull(mock.cancelPreheat(6_000))
+        mock.start(7_000)
+        assertTrue(mock.beginPreheat(100, 7_000) != null)
+    }
+
+    @Test fun syntheticTemperatureCanDriveTheSamePreparationStateMachine() {
+        val mock = MockDeviceRuntime()
+        val preparation = BrewPreparation()
+        assertNull(mock.changeSetting(MachineSettingChange.RunMode(true)))
+        val token = requireNotNull(preparation.begin("factory-v3-001", 99))
+        assertNull(mock.beginPreheat(99, 1_000))
+        assertTrue(preparation.written(token, OperationResult.Success(), 0))
+        val early = mock.sample(2_000).coffee as IdleTelemetry
+        assertTrue(!preparation.observe(1, early.brewTemperatureHundredthsC))
+        val ready = mock.sample(6_000).coffee as IdleTelemetry
+        assertTrue(preparation.observe(2, ready.brewTemperatureHundredthsC))
+        assertTrue(preparation.matches("factory-v3-001", 99))
+        assertNull(mock.cancelPreheat(6_000))
+        preparation.consumed()
+        assertEquals(BrewPreparation.State.IDLE, preparation.state)
     }
 }

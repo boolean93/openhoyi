@@ -21,6 +21,10 @@ internal class MockDeviceRuntime {
     })
     private var settings = Settings(1, 1, 3, 0x31, 93, 0, 120, 30, 80, 42, 0, emptyFrame)
     private var idleWeightHundredths = 1250
+    private var brewTemperatureHundredths = 9300
+    private var preheatFromHundredths = 9300
+    private var preheatTargetHundredths: Int? = null
+    private var preheatStartedAtMs = 0L
     private var sleeping = false
     var lastSetting: MachineSettingChange? = null
         private set
@@ -31,6 +35,7 @@ internal class MockDeviceRuntime {
     var cupReset = false
         private set
     val isSleeping get() = sleeping
+    val preheatActive get() = preheatTargetHundredths != null
     var shotState = ExtractionState.IDLE
         private set
     private var startedAtMs = 0L
@@ -51,7 +56,35 @@ internal class MockDeviceRuntime {
     private fun editable(): String? = when {
         shotState == ExtractionState.RUNNING -> "Mock 萃取正在进行"
         sleeping -> "Mock 咖啡机已入睡；重启模拟服务可复位"
+        preheatActive -> "Mock 曲线正在预热，请先取消"
         else -> null
+    }
+
+    private fun advanceTemperature(now: Long) {
+        val target = preheatTargetHundredths ?: return
+        val elapsed = (now - preheatStartedAtMs).coerceIn(0L, 5000L)
+        brewTemperatureHundredths = preheatFromHundredths +
+            ((target - preheatFromHundredths).toLong() * elapsed / 5000L).toInt()
+    }
+
+    fun beginPreheat(targetC: Int, now: Long): String? {
+        editable()?.let { return it }
+        if (settings.flags and 0x04 == 0) return "Mock 当前不是工作室模式"
+        if (targetC !in 75..105) return "Mock 预热目标超出范围"
+        val targetRaw = targetC * 100 + settings.brewCompensationTenthsC * 10
+        if (BrewPreparation.isAtTarget(brewTemperatureHundredths - settings.brewCompensationTenthsC * 10,
+                targetC)) return "Mock 温度已达到目标"
+        preheatFromHundredths = brewTemperatureHundredths
+        preheatTargetHundredths = targetRaw
+        preheatStartedAtMs = now
+        return null
+    }
+
+    fun cancelPreheat(now: Long): String? {
+        if (!preheatActive) return "Mock 当前没有预热请求"
+        advanceTemperature(now)
+        preheatTargetHundredths = null
+        return null
     }
 
     fun changeSetting(change: MachineSettingChange): String? {
@@ -113,6 +146,7 @@ internal class MockDeviceRuntime {
     }
 
     fun sample(now: Long): MobileSnapshot {
+        advanceTemperature(now)
         val elapsed = if (shotState == ExtractionState.RUNNING) ((now - startedAtMs) / 1000).toInt().coerceAtLeast(0) else 0
         if (shotState == ExtractionState.RUNNING) {
             lastShotElapsed = elapsed.coerceAtMost(32)
@@ -121,11 +155,11 @@ internal class MockDeviceRuntime {
         val extracting = shotState == ExtractionState.RUNNING
         val coffee = if (extracting) ExtractionTelemetry(
             slotOrPhase = 1, elapsedSeconds = elapsed, pressureTenthsBar = (elapsed * 10).coerceAtMost(90),
-            totalWaterTenthsMl = elapsed * 6, brewTemperatureHundredthsC = 9300,
+            totalWaterTenthsMl = elapsed * 6, brewTemperatureHundredthsC = brewTemperatureHundredths,
             flowTenthsMlPerSecond = if (elapsed < 4) 8 else 20,
             statusBits = 64, manualStageRaw = 0, raw = emptyFrame,
         ) else IdleTelemetry(
-            brewTemperatureHundredthsC = 9300, steamTemperatureHundredthsC = 12000,
+            brewTemperatureHundredthsC = brewTemperatureHundredths, steamTemperatureHundredthsC = 12000,
             brewPressureTenthsBar = 0, steamPressureTenthsBar = 8, sleepStateRaw = if (sleeping) 1 else 0,
             alarmBits = 0, cupCount = settings.cupCount, extraSensorRaw = 0, raw = emptyFrame,
         )
