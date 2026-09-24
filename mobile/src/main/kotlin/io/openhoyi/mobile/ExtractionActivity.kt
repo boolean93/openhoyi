@@ -183,14 +183,14 @@ class ExtractionActivity : ThemedActivity() {
             "系统通知未授权；后台断链提醒可能被隐藏。可在系统设置中允许通知。")
         alarmStatus.show(MachineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             SystemClock.elapsedRealtime()))
-        val machine = when (val frame = snapshot.coffee) {
+        val now = SystemClock.elapsedRealtime()
+        val machine = when (val frame = LiveTelemetry.machine(snapshot.coffee,
+                snapshot.coffeeState, snapshot.coffeeAt, now)) {
             is ExtractionTelemetry -> "${frame.elapsedSeconds} s · ${frame.pressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"
             is IdleTelemetry -> "待机 · ${frame.brewPressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"
             else -> "时间/压力/温度：—"
         }
-        val now = SystemClock.elapsedRealtime()
-        val weightFresh = snapshot.weightAt?.let { now >= it && now - it <= 1500 } == true
-        val scale = snapshot.weight?.takeIf { weightFresh }
+        val scale = LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)
         live.show("$machine\n重量：${scale?.let { number(it.weightHundredthsGram) } ?: "—"} g" +
             " · 咖啡流速：${scale?.let { number(it.deviceFlowHundredths) } ?: "—"}（秤）")
         val points = owner?.chartPoints ?: emptyList()

@@ -286,8 +286,9 @@ class HomeActivity : ThemedActivity() {
             StandaloneTare.State.FAILED -> "写入失败"
             StandaloneTare.State.UNKNOWN -> "结果未知，请查看秤"
         })
-        val coffeeFresh = s.coffeeAt?.let { now >= it && now - it <= 1500 } == true && s.coffeeState == DeviceState.READY
-        val idle = s.coffee as? IdleTelemetry
+        val liveMachine = LiveTelemetry.machine(s.coffee, s.coffeeState, s.coffeeAt, now)
+        val coffeeFresh = liveMachine != null
+        val idle = liveMachine as? IdleTelemetry
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
         sleepButton.isEnabled = running && !shotActive && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
             idle?.sleepStateRaw == 0
@@ -306,14 +307,16 @@ class HomeActivity : ThemedActivity() {
         }
         sleepStatus.show("睡眠状态：$reportedSleep$sleepProgress")
         alarmStatus.show(MachineAlarms.describe(s.alarmBits, s.alarmAt, now))
-        val machine = when (val frame = s.coffee) {
+        val machine = when (val frame = liveMachine) {
             is IdleTelemetry -> "冲泡 ${number(frame.brewTemperatureHundredthsC)} °C · ${frame.brewPressureTenthsBar / 10.0} bar\n蒸汽 ${number(frame.steamTemperatureHundredthsC)} °C · ${frame.steamPressureTenthsBar / 10.0} bar"
             is ExtractionTelemetry -> "萃取 ${frame.elapsedSeconds} s · ${frame.pressureTenthsBar / 10.0} bar\n冲泡 ${number(frame.brewTemperatureHundredthsC)} °C"
             else -> "温度与压力：—"
         }
         coffee.show("${label(s.coffeeState)} · ${if (coffeeFresh) "实时" else "暂无实时数据"}\n$machine\n${s.settings?.let { "固件 ${it.firmwareMajor}.${it.firmwareMinor}.${it.firmwarePatch}" } ?: "固件未知"}")
-        val scaleFresh = s.weightAt?.let { now >= it && now - it <= 1500 } == true && s.scaleState == DeviceState.READY
-        scale.show("${label(s.scaleState)} · ${if (scaleFresh) "实时" else "暂无实时数据"}\n${s.weight?.let { number(it.weightHundredthsGram) } ?: "—"} g")
+        val liveScale = LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)
+        scale.show("${label(s.scaleState)} · ${if (liveScale != null) "实时" else "暂无实时数据"}\n" +
+            "重量 ${liveScale?.let { number(it.weightHundredthsGram) } ?: "—"} g · " +
+            "秤流速 ${liveScale?.let { number(it.deviceFlowHundredths) } ?: "—"}")
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         selection.show(selected?.let { "当前：${it.name} · ${if (!library.canStart(it)) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
