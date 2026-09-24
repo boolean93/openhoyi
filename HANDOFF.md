@@ -125,6 +125,8 @@ fixture：protocol-core/src/test/resources/notifications.tsv、provenance.json�
 
 新增 `scripts/generate_legacy_curve_oracle.py`：对真实旧版曲线导出生成每个非空索引在槽位7/1–5和有秤/无秤模式的旧版报文证据，绑定导出文件与编码函数哈希。4项 Python 检查中，100条已验证工厂曲线的1200帧与既有 oracle 全部一致。尚缺用户真实导出；该证明不进入 Alpha 控制许可。
 
+`LegacyCurveAdapter` 已支持把完整旧版曲线行严格转成原生候选 `StartParameters`，并核对工厂形状的1200帧及 `seg1FlowMode` 特例。它尚未接入 `CurveLibrary`、`MobileService` 或 `DeviceSession` 的授权路径；真实用户曲线的旧/新帧比对与参数安全审查仍是开放控制前的硬门槛。
+
 Alpha 首页与实时萃取页的“立即停止”入口已移至固定底部栏，只在本 App 发起的萃取仍需处理时显示。停止请求处理中或断线结果未知时保留可见但禁用，并给出原因；机器拨杆手动萃取仍使用机器拨杆停止。小屏、系统导航栏和实机点击仍待安装后核验。
 
 BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCONNECTED`（而非 `FAILED`）结束，原策略会保持 attempting，10 分钟内不再重试。Hub 现在在连接调用返回后的轮询中观察终态，避免误把 `connect()` 内同步的 DISCONNECTED 重置当失败；成功回连后重置失败退避并留5秒防抖，不支持设备停止自动重试。仍需 Alpha 实机验证断链和地址变化行为。
