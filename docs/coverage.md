@@ -19,7 +19,7 @@
 | 扫描 | ScanCoordinator | Android编译/lint；统一扫描两角色 | 真机扫描频率、位置权限与开关验证 |
 | Android后台 | LabService + NativeDeviceHub | connectedDevice前台服务、Binder与页面解耦；静态独立审查 | 真机锁屏/旋转/权限撤销；不能承诺进程被杀后的停液 |
 | 日志 | WireTrace + LabApplication + TraceStore | 真实传输边界、密码整帧脱敏、进程单写队列、顺序/轮转/导出/失败测试 | 真机导出；崩溃前未落盘记录可丢失，codec.hex本身不脱敏 |
-| 记忆秤轮询可观测性 | NativeDeviceHub / MobileService | 前台窗口打开、自动连接尝试序号、窗口关闭以低频事件输出到 `OpenHoyiMobile`；状态终态已有独立事件，详细传输仍在 trace ZIP | Alpha 实机的10分钟窗口、断链退避及手动断开待按[验收顺序](alpha-acceptance.md)核对 |
+| 记忆秤轮询可观测性 | NativeDeviceHub / MobileService | 前台窗口打开、自动连接尝试序号、窗口关闭以低频事件输出到 `OpenHoyiMobile`；2026-09-24 Alpha 冷启动第4次尝试进入 READY，详细传输保存在 trace | 10分钟窗口关闭、断链退避及手动断开待按[验收顺序](alpha-acceptance.md)核对 |
 | 设置写入结果 | OperationResult、SettingsWriteTracker | 区分Failed/Unknown/Cancelled/transport Success；常用设置需新鲜匹配0x83帧才标确认 | 其余设置的回读事务未实现；实机时序未验收 |
 | 大包/MTU/通用Read | 首版明确不支持 | Android写入限制20字节 | 后续需真实协议分片证据后实现 |
 | 管理命令/OTA | UnsupportedCommandGroup | 无执行入口 | 密码修改、校准、出厂、OTA独立验证 |
@@ -29,8 +29,8 @@
 | 实时读数时效 | LiveTelemetry、HomeActivity、ExtractionActivity | 连接就绪且时间戳在过去1.5秒内才显示当前机器/秤数字；过期、未来或断开后显示“—”；边界单测 | 页面状态变化和阈值在Alpha实机待验收 |
 | 旧版工厂曲线萃取入口 | FactoryCurveCatalog、FactoryCurveAdapter、FactoryWireProof、CurveLibrary、factory_wire_v1.tsv | 100条元数据与旧版归一化一致；分类与名称搜索，未通过报文校验的曲线只可浏览；有秤/无秤200帧和旧版编码函数逐字节对照；发送前复核曲线、帧和秤模式 | Alpha尚未实机萃取；用户自定义曲线仅可只读导入，控制与编辑后置 |
 | 首页五个快捷槽位 | PresetSlots、factory_slot_wire_v1.tsv、DeviceSession、ExtractionActivity | 100条×5槽位×2秤模式共1000帧与旧版 `startChart` 对照；本地映射、确认页、停止槽位和历史记录接入 | 尚未实机验证槽位启停与机器显示；用户自定义曲线不能放入槽位 |
-| 已记住电子秤自动连接 | ReconnectPolicy、NativeDeviceHub、DeviceSession、HomeActivity、MobileService | 前台10分钟窗口，咖啡机未连接时也尝试；失败退避、连接以 DISCONNECTED 结束后的继续重试、成功后退避重置、不支持设备停止重试、手动断开取消；冷启动自动拉起服务，空闲超时或退出前台后停止自动服务；同地址连接请求在连接中和Ready时不重启GATT | 尚未在Alpha实机确认冷启动权限、连接时延及后台行为 |
-| 独立电子秤去皮 | StandaloneTare、MobileService、NativeDeviceHub、BOOKOO去皮帧 | 写入结果与归零读数分离；要求写入后新鲜近零读数；超时/断线保留未知，阻止同时重复发送 | 尚未用实机确认去皮响应和归零时延 |
+| 已记住电子秤自动连接 | ReconnectPolicy、NativeDeviceHub、DeviceSession、HomeActivity、MobileService | 前台10分钟窗口，咖啡机未连接时也尝试；失败退避、连接以 DISCONNECTED 结束后的继续重试、成功后退避重置、不支持设备停止重试、手动断开取消；冷启动自动拉起服务；2026-09-24 Alpha 权限已授予，第4次建链成功并持续收数 | 前三次建链超时原因、完整10分钟窗口、后台及人为断链恢复尚未实测 |
+| 独立电子秤去皮 | StandaloneTare、MobileService、NativeDeviceHub、BOOKOO去皮帧 | 写入结果与归零读数分离；要求写入后新鲜近零读数；超时/断线保留未知，阻止同时重复发送；2026-09-24 Alpha 两次去皮分别在写入后约62毫秒与53毫秒收到归零通知 | 尚需核对秤屏实际读数、负重量及异常路径 |
 | 常用机器设置与拨杆模式 | MachineSettingChange、SettingsWriteTracker、MachineSettingsActivity、HomeActivity | 萃取/蒸汽温度、冲泡温差补偿、两路加热、照明、自动待机时间、待机温度、睡眠计划总开关、供水来源、咖啡馆/工作室模式、手动/自动压力/自动流量共593条允许参数报文与旧版编码函数对照；要求新鲜唤醒待机遥测，写入后以新鲜匹配0x83回读确认 | 尚未实机验证设置回读时序；其它低频设置写入未开放 |
 | 累计杯数重置 | CoffeeCommands、CupResetTracker、MachineSettingsActivity | 固定5字节命令与旧版编码函数对照；输入当前杯数并二次确认；新鲜且一致的设置/待机杯数，写入后只有新报文归零才确认 | 无真实重置采集样本，未在Alpha实机执行 |
 | 每周睡眠时间编辑 | WeeklySleepSchedule、DeviceSession、SleepScheduleWriteTracker、MachineSettingsActivity | 旧版整周两包写入样本逐字节对照；500ms顺序写入、禁止并发、两段新回报全周匹配才确认 | 写入期间机器端行为及两段回报时序尚未实机验收；部分成功无自动回滚 |
@@ -55,7 +55,7 @@
 
 见[实机报告](validation-2026-09-23.md)。咖啡机认证/设置/遥测有实机证据；新增仪器测试的4项检查通过。纯Kotlin会话回归增至33场景。BLE两次status=8断线未定位，未通过长期稳定性验收；08:42双设备并行约2分钟无断线，后因测试重启进程中断。秤负重量/自动重连及SAF系统选择器流程未完成。下方首轮结果为历史记录，不能代替最新报告。
 
-Alpha 日常版第一段功能见[说明](mobile-alpha.md)。历史与曲线导出接入后，协议检查36,796项、会话检查39项、Alpha与Mock各96项单测（95通过、1项真实导出条件测试跳过），双变体构建成功，Lint 0错误、2条警告。当前用户要求暂不安装，尚无Alpha实机萃取、槽位启停、独立去皮、睡眠、睡眠计划写入、设置回读或告警证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
+Alpha 日常版第一段功能见[说明](mobile-alpha.md)。历史与曲线导出接入后，协议检查36,796项、会话检查39项、Alpha与Mock各96项单测（95通过、1项真实导出条件测试跳过），双变体构建成功，Lint 0错误、2条警告。2026-09-24 Alpha 已安装并完成电子秤冷启动自动连接观察，见[验收记录](alpha-acceptance.md)；仍无Alpha实机萃取、槽位启停、独立去皮、睡眠、睡眠计划写入、设置回读或告警证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
 
 ## 本轮 Lab 结果（2026-09-22）
 
