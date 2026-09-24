@@ -86,7 +86,9 @@ class MobileService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var hub: NativeDeviceHub? = null
     private val coffeeCredentials by lazy { CoffeeCredentialStore(this) }
-    private val coffeeCredentialRetries = CoffeeCredentialRetryGate()
+    private val coffeeCredentialRetries by lazy {
+        CoffeeCredentialRetryGate(store = SharedPreferencesCoffeeFailureStore(this))
+    }
     private data class PendingCoffeeCredential(val address: String, val password: String, val remembered: Boolean)
     private var pendingCoffeeCredential: PendingCoffeeCredential? = null
     private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime() else null

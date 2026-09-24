@@ -38,14 +38,35 @@ object CoffeeCredentialCodec {
     }.getOrNull()
 }
 
+interface CoffeeCredentialFailureStore {
+    fun read(address: String): Int
+    fun write(address: String, count: Int)
+}
+
+private class MemoryCoffeeCredentialFailureStore : CoffeeCredentialFailureStore {
+    private val counts = mutableMapOf<String, Int>()
+    override fun read(address: String) = counts[address] ?: 0
+    override fun write(address: String, count: Int) { counts[address] = count }
+}
+
 /** A transport failure never deletes a valid credential. Prompt again after two silent failures. */
-class CoffeeCredentialRetryGate(private val maxFailures: Int = 2) {
+class CoffeeCredentialRetryGate(private val maxFailures: Int = 2,
+                                private val store: CoffeeCredentialFailureStore = MemoryCoffeeCredentialFailureStore()) {
     init { require(maxFailures > 0) }
-    private val failures = mutableMapOf<String, Int>()
     private fun key(address: String) = address.uppercase(Locale.ROOT)
-    fun mayUse(address: String): Boolean = (failures[key(address)] ?: 0) < maxFailures
-    fun failed(address: String) { failures[key(address)] = (failures[key(address)] ?: 0) + 1 }
-    fun succeeded(address: String) { failures.remove(key(address)) }
+    fun mayUse(address: String): Boolean = store.read(key(address)) < maxFailures
+    fun failed(address: String) { val key = key(address); store.write(key, (store.read(key) + 1).coerceAtMost(maxFailures)) }
+    fun succeeded(address: String) { store.write(key(address), 0) }
+}
+
+class SharedPreferencesCoffeeFailureStore(context: Context) : CoffeeCredentialFailureStore {
+    private val prefs = context.applicationContext.getSharedPreferences("coffee_credential_failures", Context.MODE_PRIVATE)
+    override fun read(address: String) = prefs.getInt(address, 0)
+    override fun write(address: String, count: Int) {
+        val edit = prefs.edit()
+        if (count == 0) edit.remove(address) else edit.putInt(address, count)
+        edit.commit()
+    }
 }
 
 class CoffeeCredentialStore(context: Context) {

@@ -30,7 +30,7 @@
 | 旧版工厂曲线萃取入口 | FactoryCurveCatalog、FactoryCurveAdapter、FactoryWireProof、CurveLibrary、factory_wire_v1.tsv | 100条元数据与旧版归一化一致；分类与名称搜索，未通过报文校验的曲线只可浏览；有秤/无秤200帧和旧版编码函数逐字节对照；发送前复核曲线、帧和秤模式 | 工厂曲线槽位5已实机启动并手动停止，其他曲线及目标重量自动停止仍待验；用户自定义曲线仅可只读导入，控制与编辑后置 |
 | 首页五个快捷槽位 | PresetSlots、factory_slot_wire_v1.tsv、DeviceSession、ExtractionActivity | 100条×5槽位×2秤模式共1000帧与旧版 `startChart` 对照；本地映射、确认页、停止槽位和历史记录接入 | 槽位5已实机启停，但其它槽位及机器屏幕显示待验；用户自定义曲线不能放入槽位 |
 | 已记住电子秤自动连接 | ReconnectPolicy、NativeDeviceHub、DeviceSession、HomeActivity、MobileService | 前台10分钟窗口，咖啡机未连接时也尝试；失败退避、连接以 DISCONNECTED 结束后的继续重试、成功后退避重置、不支持设备停止重试、手动断开取消；冷启动自动拉起服务；2026-09-24 Alpha 权限已授予，第4次建链成功并持续收数 | 前三次建链超时原因、完整10分钟窗口、后台及人为断链恢复尚未实测 |
-| 咖啡机密码记忆 | CoffeeCredentialStore、CoffeeCredentialRetryGate、MobileService、HomeActivity | 成功进入 READY 后按地址用 Android Keystore AES-GCM 保存；密文地址绑定和两次失败回退单测通过；2026-09-24 首次真机连接 READY 后确认本机存在 1 条密文且无明文密码 | 第二次选择同一 HOYI 时免输密码及失败回退仍待实机核对 |
+| 咖啡机密码记忆 | CoffeeCredentialStore、CoffeeCredentialRetryGate、MobileService、HomeActivity | 成功进入 READY 后按地址用 Android Keystore AES-GCM 保存；密文地址绑定、两次失败回退及失败计数跨 Service 重启单测通过；2026-09-24 首次真机连接 READY 后确认本机存在 1 条密文且无明文密码 | 第二次选择同一 HOYI 时免输密码及失败回退仍待实机核对 |
 | 独立电子秤去皮 | StandaloneTare、MobileService、NativeDeviceHub、BOOKOO去皮帧 | 写入结果与归零读数分离；要求写入后新鲜近零读数；超时/断线保留未知，阻止同时重复发送；2026-09-24 Alpha 两次去皮分别在写入后约62毫秒与53毫秒收到归零通知 | 负重量与移走杯子的实际动作相符；仍需核对秤屏、掉线恢复及异常路径 |
 | 常用机器设置与拨杆模式 | MachineSettingChange、SettingsWriteTracker、MachineSettingsActivity、HomeActivity | 萃取/蒸汽温度、冲泡温差补偿、两路加热、照明、自动待机时间、待机温度、睡眠计划总开关、供水来源、咖啡馆/工作室模式、手动/自动压力/自动流量共593条允许参数报文与旧版编码函数对照；要求新鲜唤醒待机遥测，写入后以新鲜匹配0x83回读确认 | 尚未实机验证设置回读时序；其它低频设置写入未开放 |
 | 累计杯数重置 | CoffeeCommands、CupResetTracker、MachineSettingsActivity | 固定5字节命令与旧版编码函数对照；输入当前杯数并二次确认；新鲜且一致的设置/待机杯数，写入后只有新报文归零才确认 | 无真实重置采集样本，未在Alpha实机执行 |

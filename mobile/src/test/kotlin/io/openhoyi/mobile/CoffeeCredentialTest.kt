@@ -24,4 +24,20 @@ class CoffeeCredentialTest {
         gate.failed(address.lowercase()); assertFalse(gate.mayUse(address))
         gate.succeeded(address.lowercase()); assertTrue(gate.mayUse(address))
     }
+
+    @Test fun failureCountSurvivesAServiceRestart() {
+        val counts = mutableMapOf<String, Int>()
+        val store = object : CoffeeCredentialFailureStore {
+            override fun read(address: String) = counts[address] ?: 0
+            override fun write(address: String, count: Int) { counts[address] = count }
+        }
+        val address = "AA:BB:CC:DD:EE:01"
+        CoffeeCredentialRetryGate(store = store).failed(address)
+        val resumed = CoffeeCredentialRetryGate(store = store)
+        assertTrue(resumed.mayUse(address.lowercase()))
+        resumed.failed(address.lowercase())
+        assertFalse(CoffeeCredentialRetryGate(store = store).mayUse(address))
+        resumed.succeeded(address)
+        assertTrue(CoffeeCredentialRetryGate(store = store).mayUse(address))
+    }
 }
