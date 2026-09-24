@@ -3,6 +3,7 @@ package io.openhoyi.session
 data class WeightReading(val hundredthsGram:Int,val receivedAtMs:Long)
 enum class StopReason { TARGET_WEIGHT, SCALE_UNAVAILABLE, TARE_UNCONFIRMED, MANUAL }
 /** Policy only: caller must transmit the returned stop and separately observe device state. */
+// The legacy chartlib stop path also requires its shot timer to reach seven seconds.
 class ExtractionPolicy(private val maxSampleAgeMs:Long=1500,private val minimumBrewMs:Long=7000) {
     private var shot:Long?=null
     private var started=0L
@@ -11,6 +12,8 @@ class ExtractionPolicy(private val maxSampleAgeMs:Long=1500,private val minimumB
     private var baseline:Int?=null
     private var tareAt=0L
     private var lastWeightAt:Long?=null
+    private var machineElapsedSeconds:Int?=null
+    private var machineElapsedAtMs:Long?=null
     private var stopIssued=false
     fun begin(id:Long,targetHundredthsGram:Int,compensationHundredthsGram:Int,now:Long) {
         require(targetHundredthsGram in 0..600_000)
@@ -18,7 +21,13 @@ class ExtractionPolicy(private val maxSampleAgeMs:Long=1500,private val minimumB
         require(targetHundredthsGram==0 || compensationHundredthsGram<targetHundredthsGram)
         check(shot==null){"previous extraction not ended"}
         shot=id;started=now;target=targetHundredthsGram;compensation=compensationHundredthsGram
-        baseline=null;tareAt=0;lastWeightAt=null;stopIssued=false
+        baseline=null;tareAt=0;lastWeightAt=null;machineElapsedSeconds=null;machineElapsedAtMs=null;stopIssued=false
+    }
+    fun observeMachineElapsed(id:Long,seconds:Int,receivedAtMs:Long) {
+        if(shot==id&&!stopIssued&&seconds>=0&&receivedAtMs>=started&&
+            (machineElapsedAtMs==null||receivedAtMs>machineElapsedAtMs!!)) {
+            machineElapsedSeconds=seconds;machineElapsedAtMs=receivedAtMs
+        }
     }
     fun confirmTare(id:Long,baselineHundredthsGram:Int,atMs:Long) {
         if(shot!=id||stopIssued||baseline!=null||atMs<started)return
@@ -32,7 +41,13 @@ class ExtractionPolicy(private val maxSampleAgeMs:Long=1500,private val minimumB
         if(lastWeightAt!=null&&reading.receivedAtMs<=lastWeightAt!!)return null
         lastWeightAt=reading.receivedAtMs
         val net=reading.hundredthsGram.toLong()-baseline!!+compensation
-        return if(now-started>=minimumBrewMs&&net>=target) issue(StopReason.TARGET_WEIGHT) else null
+        // Prefer fresh machine time; use monotonic time if telemetry has gone stale.
+        val freshMachineSeconds=machineElapsedSeconds?.takeIf {
+            machineElapsedAtMs?.let { at -> at<=now&&now-at<=maxSampleAgeMs } == true
+        }
+        val elapsedEnough=freshMachineSeconds?.let { it.toLong()*1000>=minimumBrewMs }
+            ?: (now-started>=minimumBrewMs)
+        return if(elapsedEnough&&net>=target) issue(StopReason.TARGET_WEIGHT) else null
     }
     fun checkHealth(id:Long,now:Long):StopReason? {
         if(shot!=id||stopIssued||target==0)return null

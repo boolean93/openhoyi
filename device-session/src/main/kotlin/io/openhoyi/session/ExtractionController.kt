@@ -142,7 +142,10 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     fun machineFrame(frame:HoyiMessage,receivedAtMs:Long) {
         val now=clock()
         if(receivedAtMs<started||receivedAtMs>now||now-receivedAtMs>1500)return
-        if(frame is ExtractionTelemetry && frame.valveOpen)lastActiveFrame=receivedAtMs
+        if(frame is ExtractionTelemetry){
+            policy.observeMachineElapsed(serial,frame.elapsedSeconds,receivedAtMs)
+            if(frame.valveOpen)lastActiveFrame=receivedAtMs
+        }
         val active=lastActiveFrame
         val stoppedUnsentStart=active==null&&startNotSubmitted&&stopWrittenAt?.let{receivedAtMs>it}==true
         if(frame is IdleTelemetry && ((active!=null && receivedAtMs-active>2800)||stoppedUnsentStart))machineIdle()

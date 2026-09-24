@@ -227,7 +227,7 @@ class ExtractionActivity : ThemedActivity() {
                 owner?.stopReason == StopReason.TARGET_WEIGHT.name -> "已按目标重量发出停止命令；请确认机器停水"
                 owner?.stopReason == StopReason.MANUAL.name -> "已手动请求停止；请确认机器停水"
                 owner?.stopReason == StopReason.SCALE_UNAVAILABLE.name -> "秤数据不可用，已发安全停止；请确认机器停水"
-                state == ExtractionState.RUNNING -> "达到目标重量后自动停止；请守在机器旁"
+                state == ExtractionState.RUNNING -> "萃取满 7 秒且达到目标重量后自动停止；请守在机器旁"
                 state == ExtractionState.STOP_REQUESTED -> "停止命令处理中；请确认机器停水"
                 else -> "使用电子秤控制停止"
             }

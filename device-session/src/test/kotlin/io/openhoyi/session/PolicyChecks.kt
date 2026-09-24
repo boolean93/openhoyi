@@ -23,6 +23,12 @@ fun policyChecks():Int {
         check(p.sample(3,WeightReading(3400,6000),6000)==null)
         check(p.sample(3,WeightReading(3300,7100),7100)==StopReason.TARGET_WEIGHT)
     }
+    case("stale machine timer falls back to monotonic time at target weight") {
+        val p=ExtractionPolicy();p.begin(5,3400,0,0);p.confirmTare(5,0,100)
+        p.observeMachineElapsed(5,3,7200)
+        check(p.sample(5,WeightReading(3430,7200),7200)==null)
+        check(p.sample(5,WeightReading(3440,9000),9000)==StopReason.TARGET_WEIGHT)
+    }
     case("flow-only extraction does not depend on weight readiness") {
         val p=ExtractionPolicy();p.begin(4,0,0,0)
         check(p.checkHealth(4,60000)==null)

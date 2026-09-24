@@ -60,6 +60,21 @@ fun extractionChecks():Int {
         check(c.state==ExtractionState.STOP_REQUESTED)
         c.machineIdle();check(c.state==ExtractionState.ENDED_OBSERVED)
     }
+    case("machine brew timer gates target stop after a delayed start") {
+        val coffee=CoffeeFake();val scale=ScaleFake();var now=0L
+        val c=ExtractionController(coffee,scale,{now})
+        val raw=io.openhoyi.protocol.ByteFrame(byteArrayOf())
+        c.weight(WeightReading(0,0));check(c.start(profile,3400,0))
+        now=100;c.weight(WeightReading(0,now));check(coffee.starts==1)
+        now=7_200
+        c.machineFrame(io.openhoyi.protocol.ExtractionTelemetry(1,3,20,1,9200,20,64,0,raw),now)
+        c.weight(WeightReading(3_450,now))
+        check(coffee.stops==0)
+        now=7_300
+        c.machineFrame(io.openhoyi.protocol.ExtractionTelemetry(1,7,20,1,9200,20,64,0,raw),now)
+        c.weight(WeightReading(3_460,now))
+        check(coffee.stops==1 && c.stopReason==StopReason.TARGET_WEIGHT)
+    }
     case("stale scale prevents start without any write") {
         val coffee=CoffeeFake();val scale=ScaleFake();var now=0L;val c=ExtractionController(coffee,scale,{now})
         c.weight(WeightReading(0,0));now=2000;check(!c.start(profile,3400,0));check(coffee.starts==0)

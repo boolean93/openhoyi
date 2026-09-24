@@ -13,7 +13,7 @@
 | 队列与超时 | GattQueue | 串行、旧代次、超时关闭、异常回调、取消旧启动 | Android回调行为实测 |
 | 协议就绪 | DeviceSession | 咖啡机认证+设置、秤四条初始化+首个样本真机均Ready | 其他型号与长时间运行 |
 | 自动连秤 | ReconnectPolicy + NativeDeviceHub | 10分钟窗口、退避、DISCONNECTED/FAILED终态恢复、成功后退避重置、不支持设备停止重试及手动取消测试 | 地址变化时重新扫描/绑定；宿主生命周期实测 |
-| 去皮与重量停止 | ExtractionController / Policy | 去皮写成功后等待近零通知、重量时效、去重、掉秤保护停止、停止未知结果 | 真实秤延迟和业务阈值标定 |
+| 去皮与重量停止 | ExtractionController / Policy | 去皮写成功后等待近零通知、重量时效、去重、优先按新鲜机器萃取计时执行7秒门槛、机器计时过期时单调时钟兜底、掉秤保护停止、停止未知结果 | 真实秤延迟和业务阈值标定 |
 | 三次萃取链路 | ReplayChecks + shots.tsv | 手动44.098s；流量结束无额外stop；重量17.786s | 不等于物理咖啡机回放；最终杯重未认证 |
 | Android连接/服务/CCCD/写入 | AndroidGattDriver | SDK35编译、AAR构建、lint | 真机permission/revoke/disconnect/GATT回调 |
 | 扫描 | ScanCoordinator | Android编译/lint；统一扫描两角色 | 真机扫描频率、位置权限与开关验证 |
