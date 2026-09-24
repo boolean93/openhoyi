@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowInsets
 import android.widget.ArrayAdapter
+import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -48,6 +49,15 @@ class HistoryActivity : Activity() {
             setPadding(0, dp(12), 0, dp(8))
         }
         root.addView(count)
+        root.addView(Button(this).apply {
+            setText(R.string.history_export_zip)
+            setOnClickListener {
+                startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("application/zip")
+                    .putExtra(Intent.EXTRA_TITLE, "openhoyi-history-${System.currentTimeMillis()}.zip"), EXPORT_HISTORY)
+            }
+        })
         val list = ListView(this)
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf<String>())
         list.adapter = adapter
@@ -57,6 +67,13 @@ class HistoryActivity : Activity() {
         }
     }
     override fun onStart() { super.onStart(); render() }
+
+    @Deprecated("Platform activity results")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == EXPORT_HISTORY && resultCode == RESULT_OK)
+            data?.data?.let { (application as MobileApplication).exportHistory(it) }
+    }
 
     private fun render() {
         val history = runCatching { (application as MobileApplication).history }.getOrNull()
@@ -84,6 +101,7 @@ class HistoryActivity : Activity() {
     }
     private fun date(epochMs: Long) = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(epochMs))
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
+    private companion object { const val EXPORT_HISTORY = 41 }
     private fun title(parent: LinearLayout, value: String, size: Int, bold: Boolean = false) {
         parent.addView(TextView(this).apply {
             text = value

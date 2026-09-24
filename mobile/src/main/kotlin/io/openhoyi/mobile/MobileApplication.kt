@@ -45,4 +45,21 @@ class MobileApplication : Application() {
             Toast.makeText(this, "导出未开始：${error.javaClass.simpleName}", Toast.LENGTH_LONG).show()
         }
     }
+    fun exportHistory(uri: Uri) {
+        val entries = history.entries
+        Thread({
+            val result = runCatching {
+                val stream = contentResolver.openOutputStream(uri, "wt") ?: error("No output stream")
+                ShotHistoryArchive.write(entries, samples::load, stream)
+            }
+            logs.record(if (result.isSuccess) "history.export_finished" else "history.export_failed",
+                mapOf("result" to result.fold({ "${it.records} records, ${it.sampleFiles} sample files, ${it.unavailable} unavailable" },
+                    { it.javaClass.simpleName })))
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(this, result.fold(
+                    { "已导出 ${it.records} 条历史、${it.sampleFiles} 份曲线${if (it.unavailable > 0) "；${it.unavailable} 份采样不可用" else ""}" },
+                    { "历史导出失败：${it.javaClass.simpleName}" }), Toast.LENGTH_LONG).show()
+            }
+        }, "history-export").start()
+    }
 }
