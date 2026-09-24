@@ -25,7 +25,7 @@
 | 管理命令/OTA | UnsupportedCommandGroup | 无执行入口 | 密码修改、校准、出厂、OTA独立验证 |
 | 原生诊断UI/持久化 | LabActivity / LabService | 独立APK、未知/过期/断开显示、成功秤地址、离线UI测试APK | 冒烟APK已构建未执行；实机布局、权限、连接和导出 |
 | 萃取断链人工提醒 | ShotSafetyAlert、MobileService、HomeActivity | 启动/萃取/停止期间断链或结果未知时保留警示；前台服务通知更新、高优先级提醒、首页提示，以及首页和萃取页固定底部停止入口；StopActionPresentation 测试涵盖运行中、停止处理中、断线结果未知和重连恢复；萃取页申请一次通知权限并提示拒绝后的限制；明确终态后清除 | Android通知权限或系统策略可能阻止独立高优先级通知；尚未实机验证后台提醒 |
-| 原生日常版基础流程 | mobile/HomeActivity、MobileService、CurveActivity、ExtractionActivity、CurveCatalog、ShotGate | 独立APK、曲线和启动门禁单测、此前构建和Lint通过；复用已验证会话控制 | UI/连接/真实萃取未实机验收；未知进程终止无法保证停液 |
+| 原生日常版基础流程 | mobile/HomeActivity、MobileService、CurveActivity、ExtractionActivity、CurveCatalog、ShotGate | 独立APK、曲线和启动门禁单测、此前构建和Lint通过；2026-09-24 Alpha 实机完成 HOYI 与 BOOKOO 连接和持续通知 | 其它 UI、真实萃取及异常路径未实机验收；未知进程终止无法保证停液 |
 | 实时读数时效 | LiveTelemetry、HomeActivity、ExtractionActivity | 连接就绪且时间戳在过去1.5秒内才显示当前机器/秤数字；过期、未来或断开后显示“—”；边界单测 | 页面状态变化和阈值在Alpha实机待验收 |
 | 旧版工厂曲线萃取入口 | FactoryCurveCatalog、FactoryCurveAdapter、FactoryWireProof、CurveLibrary、factory_wire_v1.tsv | 100条元数据与旧版归一化一致；分类与名称搜索，未通过报文校验的曲线只可浏览；有秤/无秤200帧和旧版编码函数逐字节对照；发送前复核曲线、帧和秤模式 | Alpha尚未实机萃取；用户自定义曲线仅可只读导入，控制与编辑后置 |
 | 首页五个快捷槽位 | PresetSlots、factory_slot_wire_v1.tsv、DeviceSession、ExtractionActivity | 100条×5槽位×2秤模式共1000帧与旧版 `startChart` 对照；本地映射、确认页、停止槽位和历史记录接入 | 尚未实机验证槽位启停与机器显示；用户自定义曲线不能放入槽位 |
