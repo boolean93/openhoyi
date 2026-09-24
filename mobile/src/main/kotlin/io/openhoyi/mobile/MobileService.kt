@@ -51,7 +51,8 @@ class MobileService : Service() {
     private val standaloneTare = StandaloneTare()
     private val settingsWrite = SettingsWriteTracker()
     private val cupReset = CupResetTracker()
-    val cupResetState: CupResetTracker.State get() = cupReset.state
+    val cupResetState: CupResetTracker.State get() = if (mock?.cupReset == true)
+        CupResetTracker.State.CONFIRMED else cupReset.state
     private val cupResetBusy: Boolean get() = cupReset.state in
         setOf(CupResetTracker.State.WRITING, CupResetTracker.State.WAITING_ZERO)
     private var cupSampleSerial = 0L
@@ -63,31 +64,38 @@ class MobileService : Service() {
     val brewPreparationProfileId: String? get() = brewPreparation.profileId
     val brewPreparationTargetC: Int? get() = brewPreparation.targetC
     private var sleepSampleSerial = 0L
-    val sleepNowState: SleepNowTracker.State get() = sleepNow.state
+    val sleepNowState: SleepNowTracker.State get() = if (mock?.isSleeping == true)
+        SleepNowTracker.State.CONFIRMED else sleepNow.state
     private var settingsSampleSerial = 0L
-    val settingWriteState: SettingsWriteTracker.State get() = settingsWrite.state
-    val pendingSetting: MachineSettingChange? get() = settingsWrite.change
-    val scheduleWriteState: SleepScheduleWriteTracker.State get() = scheduleWrite.state
+    val settingWriteState: SettingsWriteTracker.State get() = if (mock?.lastSetting != null)
+        SettingsWriteTracker.State.CONFIRMED else settingsWrite.state
+    val pendingSetting: MachineSettingChange? get() = mock?.lastSetting ?: settingsWrite.change
+    val scheduleWriteState: SleepScheduleWriteTracker.State get() = if (mock?.scheduleChanged == true)
+        SleepScheduleWriteTracker.State.CONFIRMED else scheduleWrite.state
     val pendingSchedule: WeeklySleepSchedule? get() = scheduleWrite.target
     private val scheduleBusy: Boolean get() = scheduleWrite.state in
         setOf(SleepScheduleWriteTracker.State.WRITING, SleepScheduleWriteTracker.State.WAITING_READBACK)
     private var firstSleepSerial = 0L
     private var secondSleepSerial = 0L
     private var scaleSampleSerial = 0L
-    val tareState: StandaloneTare.State get() = standaloneTare.state
+    val tareState: StandaloneTare.State get() = if (mock?.tareChanged == true)
+        StandaloneTare.State.CONFIRMED else standaloneTare.state
     val chartPoints: List<ShotPoint> get() = series.points
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private var hub: NativeDeviceHub? = null
     private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime() else null
+    private fun refreshMock(runtime: MockDeviceRuntime, now: Long = SystemClock.elapsedRealtime()) {
+        val previous = snapshot
+        snapshot = runtime.sample(now).copy(candidates = previous.candidates,
+            scanning = previous.scanning, message = previous.message)
+    }
     private val mockTick = object : Runnable {
         override fun run() {
             val runtime = mock ?: return
             if (!running) return
             val now = SystemClock.elapsedRealtime()
-            val previous = snapshot
-            snapshot = runtime.sample(now).copy(candidates = previous.candidates,
-                scanning = previous.scanning, message = previous.message)
+            refreshMock(runtime, now)
             (snapshot.coffee as? io.openhoyi.protocol.ExtractionTelemetry)?.let { frame ->
                 series.machine(frame, now, snapshot.weight?.weightHundredthsGram,
                     snapshot.weightAt, snapshot.weight?.deviceFlowHundredths)
@@ -433,7 +441,14 @@ class MobileService : Service() {
         if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
     }
     fun tareScale(): String? {
-        if (mock != null) return "Mock 电子秤不发送去皮命令"
+        if (mock != null) {
+            val result = mock.tare()
+            if (result == null) {
+                refreshMock(mock)
+                event("Mock 电子秤已归零；未发送蓝牙命令", "mock.tare")
+            }
+            return result
+        }
         if (manualShotActive) return "手动萃取期间不能手动去皮"
         val current = hub ?: return "设备服务尚未启动"
         if (ShotGate.active(shotState)) return "萃取期间不能手动去皮"
@@ -459,7 +474,14 @@ class MobileService : Service() {
         return null
     }
     fun changeMachineSetting(change: MachineSettingChange): String? {
-        if (mock != null) return "Mock 版本不发送机器设置命令"
+        if (mock != null) {
+            val result = mock.changeSetting(change)
+            if (result == null) {
+                refreshMock(mock)
+                event("Mock 设置已更新：${MachineSettingsPresentation.change(change)}；未发送蓝牙命令", "mock.setting")
+            }
+            return result
+        }
         if (manualShotActive) return "手动萃取期间不能修改机器设置"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
@@ -502,7 +524,14 @@ class MobileService : Service() {
         return null
     }
     fun resetCupCount(expectedCount: Int): String? {
-        if (mock != null) return "Mock 版本不发送杯数重置命令"
+        if (mock != null) {
+            val result = mock.resetCupCount(expectedCount)
+            if (result == null) {
+                refreshMock(mock)
+                event("Mock 杯数已归零；未发送蓝牙命令", "mock.cups")
+            }
+            return result
+        }
         if (manualShotActive) return "手动萃取期间不能重置杯数"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待本次杯数重置结果"
@@ -538,7 +567,14 @@ class MobileService : Service() {
         return null
     }
     fun changeSleepSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule): String? {
-        if (mock != null) return "Mock 版本不发送睡眠计划命令"
+        if (mock != null) {
+            val result = mock.changeSchedule(expected, target)
+            if (result == null) {
+                refreshMock(mock)
+                event("Mock 睡眠计划已更新；未发送蓝牙命令", "mock.sleep_schedule")
+            }
+            return result
+        }
         if (manualShotActive) return "手动萃取期间不能修改睡眠计划"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
@@ -586,7 +622,14 @@ class MobileService : Service() {
         return null
     }
     fun enterSleepNow(): String? {
-        if (mock != null) return "Mock 版本不发送睡眠命令"
+        if (mock != null) {
+            val result = mock.sleepNow()
+            if (result == null) {
+                refreshMock(mock)
+                event("Mock 咖啡机已入睡；未发送蓝牙命令", "mock.sleep")
+            }
+            return result
+        }
         if (manualShotActive) return "手动萃取期间不能让机器睡眠"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
@@ -706,7 +749,9 @@ class MobileService : Service() {
     }
     fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
         if (mock != null) {
+            if (mock.isSleeping) return "Mock 咖啡机已入睡；重启模拟服务可复位"
             val profile = selectedCurve(profileId, slot) ?: return "请先选择曲线"
+            if (profile.scaleMode != expectedScaleMode) return "Mock 电子秤状态已变化，请重新确认"
             if (ShotGate.active(shotState)) return "Mock 萃取正在进行"
             mock.start(SystemClock.elapsedRealtime())
             val shotId = runCatching { history?.begin(profile.id, slot = slot) }.getOrNull()
