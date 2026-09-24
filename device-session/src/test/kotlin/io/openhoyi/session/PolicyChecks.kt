@@ -38,5 +38,28 @@ fun policyChecks():Int {
         r.foreground(10000,true);check(r.shouldAttempt(10000,scaleReady=false))
         check(!r.shouldAttempt(610000,scaleReady=false))
     }
+    case("remembered scale retries after a terminal disconnect instead of remaining in flight") {
+        val r=ReconnectPolicy();r.foreground(100,true)
+        check(r.shouldAttempt(100,false))
+        r.observeScaleState(101,DeviceState.CONNECTING)
+        check(!r.shouldAttempt(101,false))
+        r.observeScaleState(200,DeviceState.DISCONNECTED)
+        check(!r.shouldAttempt(5199,false))
+        check(r.shouldAttempt(5200,false))
+    }
+    case("successful scale reconnect resets failure backoff but avoids immediate flapping") {
+        val r=ReconnectPolicy();r.foreground(100,true)
+        check(r.shouldAttempt(100,false));r.observeScaleState(200,DeviceState.FAILED)
+        check(r.shouldAttempt(5200,false));r.observeScaleState(5300,DeviceState.READY)
+        check(!r.shouldAttempt(5301,false))
+        check(r.shouldAttempt(10300,false));r.observeScaleState(10400,DeviceState.FAILED)
+        check(r.shouldAttempt(15400,false))
+    }
+    case("unsupported remembered scale stops automatic retries") {
+        val r=ReconnectPolicy();r.foreground(100,true)
+        check(r.shouldAttempt(100,false))
+        r.observeScaleState(200,DeviceState.UNSUPPORTED)
+        check(!r.shouldAttempt(10000,false))
+    }
     return n
 }

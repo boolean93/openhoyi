@@ -29,8 +29,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     private val scale:AndroidDevice=AndroidDevice(context,DeviceRole.BOOKOO,
         stateChanged={state->
             if(state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED))extraction.scaleDisconnected()
-            if(state==DeviceState.READY){candidate?.let{remembered=it;onScaleRemembered(it)};reconnect.attemptFinished(SystemClock.elapsedRealtime())}
-            if(state==DeviceState.FAILED)reconnect.attemptFinished(SystemClock.elapsedRealtime())
+            if(state==DeviceState.READY)candidate?.let{remembered=it;onScaleRemembered(it)}
             onState(DeviceRole.BOOKOO,state)
         },weightFrame={sample,time->extraction.weight(WeightReading(sample.weightHundredthsGram,time));onWeight(sample)},diagnostic=diagnostic,trace={trace(DeviceRole.BOOKOO,it)})
     val extraction:ExtractionController=ExtractionController(CoffeeSessionControl(coffee.session),ScaleSessionControl(scale.session),{SystemClock.elapsedRealtime()})
@@ -38,8 +37,12 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         override fun run(){
             if(closed)return
             extraction.tick()
+            val now=SystemClock.elapsedRealtime()
+            // Poll the terminal state after connectScale returns: DeviceSession.connect emits a
+            // synchronous DISCONNECTED reset before CONNECTING, which is not a failed attempt.
+            reconnect.observeScaleState(now,scale.session.state)
             val idleScale=scale.session.state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)
-            if(idleScale&&reconnect.shouldAttempt(SystemClock.elapsedRealtime(),false)) {
+            if(idleScale&&reconnect.shouldAttempt(now,false)) {
                 val address=remembered
                 if(address==null) reconnect.manualDisconnect()
                 else try { connectScale(address) }

@@ -14,5 +14,21 @@ class ReconnectPolicy {
         if(!enabled||attempting||scaleReady||now>=until||now<next)return false
         attempting=true;return true
     }
-    fun attemptFinished(now:Long){attempting=false;failures=(failures+1).coerceAtMost(4);next=now+(5000L shl (failures-1)).coerceAtMost(30_000)}
+    fun observeScaleState(now:Long,state:DeviceState){
+        if(!attempting)return
+        when(state){
+            DeviceState.READY->finish(now,true)
+            DeviceState.DISCONNECTED,DeviceState.FAILED->finish(now,false)
+            DeviceState.UNSUPPORTED->manualDisconnect()
+            else->Unit
+        }
+    }
+    fun attemptFinished(now:Long)=finish(now,false)
+    private fun finish(now:Long,succeeded:Boolean){
+        if(!attempting)return
+        attempting=false
+        if(succeeded){failures=0;next=now+5000;return}
+        failures=(failures+1).coerceAtMost(4)
+        next=now+(5000L shl (failures-1)).coerceAtMost(30_000)
+    }
 }
