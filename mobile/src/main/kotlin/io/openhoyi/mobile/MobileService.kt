@@ -85,6 +85,10 @@ class MobileService : Service() {
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private var hub: NativeDeviceHub? = null
+    private val coffeeCredentials by lazy { CoffeeCredentialStore(this) }
+    private val coffeeCredentialRetries = CoffeeCredentialRetryGate()
+    private data class PendingCoffeeCredential(val address: String, val password: String, val remembered: Boolean)
+    private var pendingCoffeeCredential: PendingCoffeeCredential? = null
     private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime() else null
     private fun refreshMock(runtime: MockDeviceRuntime, now: Long = SystemClock.elapsedRealtime()) {
         val previous = snapshot
@@ -235,6 +239,19 @@ class MobileService : Service() {
                         snapshot.copy(scaleState = state, weight = null, weightAt = null)
                     }
                     else snapshot.copy(scaleState = state)
+                    if (role == DeviceRole.COFFEE) when (state) {
+                        DeviceState.READY -> pendingCoffeeCredential?.let { credential ->
+                            if (!credential.remembered && !coffeeCredentials.save(credential.address, credential.password))
+                                event("咖啡机已连接，但本机未能保存密码", "coffee.credential_save_failed")
+                            coffeeCredentialRetries.succeeded(credential.address)
+                            pendingCoffeeCredential = null
+                        }
+                        DeviceState.FAILED, DeviceState.UNSUPPORTED -> pendingCoffeeCredential?.let { credential ->
+                            if (credential.remembered) coffeeCredentialRetries.failed(credential.address)
+                            pendingCoffeeCredential = null
+                        }
+                        else -> Unit
+                    }
                     if (role == DeviceRole.COFFEE && state != DeviceState.READY &&
                         passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
                         passiveHistoryId?.let { id ->
@@ -407,7 +424,14 @@ class MobileService : Service() {
             event(error ?: "扫描完成：${snapshot.candidates.size} 台候选设备")
         })
     }
-    fun connectCoffee(address: String, password: String) {
+    fun connectRememberedCoffee(address: String): Boolean {
+        if (mock != null || !coffeeCredentialRetries.mayUse(address)) return false
+        val password = coffeeCredentials.read(address) ?: return false
+        connectCoffee(address, password, remembered = true)
+        return true
+    }
+    fun connectCoffee(address: String, password: String) = connectCoffee(address, password, remembered = false)
+    private fun connectCoffee(address: String, password: String, remembered: Boolean) {
         if (mock != null) { event("Mock 咖啡机已就绪；未连接蓝牙", "mock.connect"); return }
         if (manualShotActive) { event("手动萃取进行中，请先用机器拨杆结束"); return }
         require(password.matches(Regex("[0-9]{6}")))
@@ -425,8 +449,13 @@ class MobileService : Service() {
         val current = hub ?: return
         snapshot = snapshot.copy(coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null,
             settings = null, sleepFirst = null, sleepSecond = null)
-        event("连接咖啡机")
-        current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password))
+        event(if (remembered) "使用本机保存的密码连接咖啡机" else "连接咖啡机")
+        pendingCoffeeCredential = PendingCoffeeCredential(address, password, remembered)
+        try { current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password)) }
+        catch (error: RuntimeException) {
+            pendingCoffeeCredential = null
+            event("连接咖啡机失败：${error.javaClass.simpleName}", "coffee.connect_failed")
+        }
     }
     fun connectScale(address: String) {
         if (mock != null) { event("Mock 电子秤已就绪；未连接蓝牙", "mock.connect"); return }

@@ -241,13 +241,14 @@ class HomeActivity : ThemedActivity() {
             return
         }
         if (device.candidateRole == DeviceRole.BOOKOO) { service?.connectScale(device.address); return }
+        if (service?.connectRememberedCoffee(device.address) == true) return
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
             filters = arrayOf(InputFilter.LengthFilter(6)); hint = "六位设备密码"
             isSaveEnabled = false; importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
         }
         val dialog = AlertDialog.Builder(this).setTitle("连接咖啡机")
-            .setMessage("密码只在本次认证中使用，不会保存。")
+            .setMessage("首次连接需要输入设备密码。连接成功后会加密保存在本机，下次无需重复输入；连续连接失败时会重新询问。")
             .setView(input).setPositiveButton("连接", null).setNegativeButton("取消", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
