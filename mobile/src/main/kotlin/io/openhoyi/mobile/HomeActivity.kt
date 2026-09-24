@@ -79,7 +79,7 @@ class HomeActivity : ThemedActivity() {
         }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(28)) }
         scroll.addView(content); setContentView(scroll)
-        text(content, "OpenHOYI Alpha", 28, true)
+        text(content, getString(R.string.app_name), 28, true)
         content.addView(Switch(this).apply {
             setText(R.string.theme_dark_mode)
             isChecked = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
@@ -153,6 +153,11 @@ class HomeActivity : ThemedActivity() {
     }
     private fun bindExisting() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0) }
     private fun startRememberedScaleService(): Boolean {
+        if (BuildConfig.MOCK_MODE) {
+            startService(Intent(this, MobileService::class.java))
+            if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, Context.BIND_AUTO_CREATE)
+            return bound
+        }
         val address = getSharedPreferences("devices", MODE_PRIVATE).getString("scale", null)
         if (address == null || !BluetoothAdapter.checkBluetoothAddress(address) || missingBle().isNotEmpty())
             return false
@@ -172,6 +177,15 @@ class HomeActivity : ThemedActivity() {
         return required.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
     }
     private fun enableAndScan() {
+        if (BuildConfig.MOCK_MODE) {
+            if (service?.running == true) service?.scan()
+            else {
+                startService(Intent(this, MobileService::class.java))
+                scanAfterBind = true
+                if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, Context.BIND_AUTO_CREATE)
+            }
+            return
+        }
         val missing = missingBle()
         if (missing.isNotEmpty()) { requestPermissions(missing.toTypedArray(), PERMISSIONS); return }
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
@@ -200,6 +214,12 @@ class HomeActivity : ThemedActivity() {
         if (requestCode == EXPORT && resultCode == RESULT_OK) data?.data?.let { (application as MobileApplication).export(it) }
     }
     private fun choose(device: DiscoveredDevice) {
+        if (BuildConfig.MOCK_MODE) {
+            if (device.candidateRole == DeviceRole.BOOKOO) service?.connectScale(device.address)
+            else service?.connectCoffee(device.address, "000000")
+            render()
+            return
+        }
         if (device.candidateRole == DeviceRole.BOOKOO) { service?.connectScale(device.address); return }
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD

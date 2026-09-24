@@ -76,6 +76,23 @@ class MobileService : Service() {
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private var hub: NativeDeviceHub? = null
+    private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime() else null
+    private val mockTick = object : Runnable {
+        override fun run() {
+            val runtime = mock ?: return
+            if (!running) return
+            val now = SystemClock.elapsedRealtime()
+            val previous = snapshot
+            snapshot = runtime.sample(now).copy(candidates = previous.candidates,
+                scanning = previous.scanning, message = previous.message)
+            (snapshot.coffee as? io.openhoyi.protocol.ExtractionTelemetry)?.let { frame ->
+                series.machine(frame, now, snapshot.weight?.weightHundredthsGram,
+                    snapshot.weightAt, snapshot.weight?.deviceFlowHundredths)
+                saveSeriesCheckpoint(now)
+            }
+            handler.postDelayed(this, 250)
+        }
+    }
     private val visibleScreens = VisibleScreens()
     private var hubForeground = false
     private var safetyMessage: String? = null
@@ -114,7 +131,7 @@ class MobileService : Service() {
     private var lastShotState = ExtractionState.IDLE
     var running = false; private set
     var snapshot = MobileSnapshot(); private set
-    val shotState: ExtractionState get() = hub?.extraction?.state ?: ExtractionState.IDLE
+    val shotState: ExtractionState get() = mock?.shotState ?: hub?.extraction?.state ?: ExtractionState.IDLE
     val stopReason: String? get() = hub?.extraction?.stopReason?.name
     private val watchShot = object : Runnable {
         override fun run() {
@@ -151,6 +168,13 @@ class MobileService : Service() {
         if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
         if (running) {
             if (intent?.action != AUTO_SCALE) manualDeviceUse()
+            return START_NOT_STICKY
+        }
+        if (mock != null) {
+            running = true
+            snapshot = mock.sample(SystemClock.elapsedRealtime())
+            handler.post(mockTick)
+            event("Mock 数据已启动；所有设备命令均为模拟", "mock.started")
             return START_NOT_STICKY
         }
         automaticScaleOnly = intent?.action == AUTO_SCALE
@@ -289,6 +313,14 @@ class MobileService : Service() {
         }
     }
     fun scan() {
+        if (mock != null) {
+            snapshot = snapshot.copy(candidates = listOf(
+                DiscoveredDevice("02:00:00:00:00:01", "HOYI Mock", -42, DeviceRole.COFFEE),
+                DiscoveredDevice("02:00:00:00:00:02", "BOOKOO Mock", -45, DeviceRole.BOOKOO)),
+                scanning = false)
+            event("Mock 候选设备已就绪", "mock.scan")
+            return
+        }
         val current = hub ?: return
         manualDeviceUse()
         if (snapshot.scanning) return
@@ -303,6 +335,7 @@ class MobileService : Service() {
         })
     }
     fun connectCoffee(address: String, password: String) {
+        if (mock != null) { event("Mock 咖啡机已就绪；未连接蓝牙", "mock.connect"); return }
         require(password.matches(Regex("[0-9]{6}")))
         manualDeviceUse()
         if (cupResetBusy) { event("等待累计杯数归零回报，暂不切换咖啡机"); return }
@@ -322,6 +355,7 @@ class MobileService : Service() {
         current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password))
     }
     fun connectScale(address: String) {
+        if (mock != null) { event("Mock 电子秤已就绪；未连接蓝牙", "mock.connect"); return }
         manualDeviceUse()
         if (ShotGate.active(shotState)) { event("萃取尚未结束，不能切换电子秤"); return }
         val current = hub ?: return
@@ -330,6 +364,7 @@ class MobileService : Service() {
         event("连接电子秤")
     }
     fun disconnect(role: DeviceRole) {
+        if (mock != null) { event("Mock 设备保持就绪；未连接蓝牙", "mock.disconnect"); return }
         if (ShotGate.active(shotState)) { event("萃取尚未结束，先停止萃取"); return }
         if (role == DeviceRole.COFFEE && cupResetBusy) {
             event("等待累计杯数归零回报，暂不断开咖啡机"); return
@@ -346,6 +381,7 @@ class MobileService : Service() {
         if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
     }
     fun tareScale(): String? {
+        if (mock != null) return "Mock 电子秤不发送去皮命令"
         val current = hub ?: return "设备服务尚未启动"
         if (ShotGate.active(shotState)) return "萃取期间不能手动去皮"
         if (snapshot.scaleState != DeviceState.READY) return "电子秤尚未就绪"
@@ -370,6 +406,7 @@ class MobileService : Service() {
         return null
     }
     fun changeMachineSetting(change: MachineSettingChange): String? {
+        if (mock != null) return "Mock 版本不发送机器设置命令"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
@@ -411,6 +448,7 @@ class MobileService : Service() {
         return null
     }
     fun resetCupCount(expectedCount: Int): String? {
+        if (mock != null) return "Mock 版本不发送杯数重置命令"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待本次杯数重置结果"
         if (scheduleBusy || settingWriteState in
@@ -445,6 +483,7 @@ class MobileService : Service() {
         return null
     }
     fun changeSleepSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule): String? {
+        if (mock != null) return "Mock 版本不发送睡眠计划命令"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (ShotGate.active(shotState)) return "萃取期间不能修改睡眠计划"
@@ -491,6 +530,7 @@ class MobileService : Service() {
         return null
     }
     fun enterSleepNow(): String? {
+        if (mock != null) return "Mock 版本不发送睡眠命令"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
@@ -546,6 +586,7 @@ class MobileService : Service() {
     fun studioStartBlock(profile: CurveProfile): String? = StudioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
+        if (mock != null) return "Mock 版本不发送预热命令"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
@@ -588,6 +629,7 @@ class MobileService : Service() {
         return null
     }
     fun cancelBrewPreparation(): String? {
+        if (mock != null) return "Mock 版本没有预热请求"
         if (!brewPreparation.active) return "当前没有预热请求"
         val current = hub ?: return "设备服务尚未启动，预热结果未知"
         if (snapshot.coffeeState != DeviceState.READY) return "咖啡机未就绪，无法确认取消预热"
@@ -604,6 +646,16 @@ class MobileService : Service() {
         return null
     }
     fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
+        if (mock != null) {
+            val profile = selectedCurve(profileId, slot) ?: return "请先选择曲线"
+            if (ShotGate.active(shotState)) return "Mock 萃取正在进行"
+            mock.start(SystemClock.elapsedRealtime())
+            val shotId = runCatching { history?.begin(profile.id, slot = slot) }.getOrNull()
+                ?: java.util.UUID.randomUUID().toString()
+            series.begin(shotId, SystemClock.elapsedRealtime())
+            event("Mock 萃取已开始：${profile.name}；未发送蓝牙命令", "mock.shot_started")
+            return null
+        }
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报，不能启动萃取"
         if (scheduleBusy) return "正在等待睡眠计划回读，不能启动萃取"
@@ -649,6 +701,13 @@ class MobileService : Service() {
         return null
     }
     fun stopShot() {
+        if (mock != null) {
+            if (ShotGate.active(shotState)) {
+                mock.stop()
+                event("Mock 萃取已停止；未发送蓝牙命令", "mock.shot_stopped")
+            }
+            return
+        }
         if (!ShotGate.active(shotState)) return
         if (shotState == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != DeviceState.READY) {
             event("咖啡机未连接，无法发送停止命令；请先重连并检查机器", "shot.stop_unavailable")
@@ -691,6 +750,7 @@ class MobileService : Service() {
             .addAction(Notification.Action.Builder(null, "断开设备", stop).build()).build()
     }
     private fun refreshSafetyNotification() {
+        if (mock != null) return
         val warning = ShotSafetyAlert.message(shotState, snapshot.coffeeState)
         if (warning == safetyMessage) return
         safetyMessage = warning
@@ -712,6 +772,14 @@ class MobileService : Service() {
         }.onFailure { event("安全提醒通知不可用", "shot.safety_notify_error") }
     }
     fun shutdown() {
+        if (mock != null) {
+            if (ShotGate.active(shotState)) mock.stop()
+            running = false
+            handler.removeCallbacks(mockTick)
+            snapshot = MobileSnapshot(message = "Mock 数据已停止")
+            stopSelf()
+            return
+        }
         if (cupResetBusy) {
             event("累计杯数重置尚未确认，设备服务保持运行", "service.stop_deferred")
             return
@@ -742,6 +810,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        handler.removeCallbacks(mockTick)
         getSystemService(NotificationManager::class.java).cancel(SAFETY_NOTIFICATION)
         handler.removeCallbacks(watchShot)
         handler.removeCallbacks(leaveForeground)
