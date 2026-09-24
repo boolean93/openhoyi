@@ -54,7 +54,12 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     init {handler.post(ticker)}
     private fun usable(){check(Looper.myLooper()==Looper.getMainLooper());check(!closed){"Hub closed"}}
     fun connectCoffee(address:String,authentication:CoffeeAuthentication){usable();coffee.session.connect(address,authentication)}
-    fun connectScale(address:String){usable();require(android.bluetooth.BluetoothAdapter.checkBluetoothAddress(address)){"Invalid Bluetooth address"};candidate=address;scale.session.connect(address)}
+    fun connectScale(address:String):Boolean {
+        usable();require(android.bluetooth.BluetoothAdapter.checkBluetoothAddress(address)){"Invalid Bluetooth address"}
+        if(candidate==address && scale.session.state !in listOf(
+                DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED)) return false
+        candidate=address;scale.session.connect(address);return true
+    }
     fun foreground(){usable();reconnect.foreground(SystemClock.elapsedRealtime(),remembered!=null)}
     fun background(){usable();reconnect.background();scanner.close()}
     fun disconnectScale(){usable();reconnect.manualDisconnect();scale.session.disconnect()}

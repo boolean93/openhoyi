@@ -85,6 +85,9 @@ fun deviceChecks():Int {
     case("BOOKOO initialization is paced and requires sample after completed initialization") {
         val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.BOOKOO,d,{now})
         s.connect("scale")
+        val firstGeneration=s.generation
+        s.connect("scale")
+        check(s.generation==firstGeneration && d.calls.size==1)
         fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
         complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
         complete();val initial=d.calls.size
@@ -94,6 +97,11 @@ fun deviceChecks():Int {
         repeat(4){now+=501;s.tick();check(d.calls.last().third is GattOperation.Write);complete()}
         check(s.state==DeviceState.SYNCHRONIZING)
         s.onNotification(s.generation,KnownGatt.bookooNotify,frame);check(s.state==DeviceState.READY)
+        val readyCalls=d.calls.size
+        s.connect("scale")
+        check(s.generation==firstGeneration && d.calls.size==readyCalls && s.state==DeviceState.READY)
+        s.connect("other-scale")
+        check(s.generation!=firstGeneration && d.calls.size==readyCalls+1 && s.state==DeviceState.CONNECTING)
     }
     case("unsupported coffee firmware never opens control gate") {
         val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0});s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))

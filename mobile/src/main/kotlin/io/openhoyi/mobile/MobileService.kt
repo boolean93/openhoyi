@@ -324,9 +324,9 @@ class MobileService : Service() {
         manualDeviceUse()
         if (ShotGate.active(shotState)) { event("萃取尚未结束，不能切换电子秤"); return }
         val current = hub ?: return
+        if (!current.connectScale(address)) { event("电子秤已连接或正在连接"); return }
         snapshot = snapshot.copy(weight = null, weightAt = null)
         event("连接电子秤")
-        current.connectScale(address)
     }
     fun disconnect(role: DeviceRole) {
         if (ShotGate.active(shotState)) { event("萃取尚未结束，先停止萃取"); return }
