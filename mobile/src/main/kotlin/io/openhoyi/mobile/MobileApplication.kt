@@ -33,6 +33,24 @@ class MobileApplication : Application() {
             override fun write(value: String) { prefs.edit().putString("entries_v1", value).apply() }
         }).also { samples.prune(it.entries.map(ShotHistory.Entry::id).toSet()) }
     }
+    val legacyHistory: LegacyHistoryStore by lazy { LegacyHistoryStore(File(filesDir, "legacy_history.json")) }
+    fun importLegacyHistory(uri: Uri) {
+        Thread({
+            val result = runCatching {
+                val input = contentResolver.openInputStream(uri) ?: error("No input stream")
+                legacyHistory.import(input)
+            }
+            logs.record(if (result.isSuccess) "legacy.import_finished" else "legacy.import_failed",
+                mapOf("result" to result.fold({ "${it.added} added, ${it.total} total" },
+                    { it.javaClass.simpleName })))
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(this, result.fold(
+                    { "旧版历史新增 ${it.added} 条，共 ${it.total} 条" },
+                    { "导入失败：${it.message ?: it.javaClass.simpleName}；原有数据未改变" }),
+                    Toast.LENGTH_LONG).show()
+            }
+        }, "legacy-history-import").start()
+    }
     fun export(uri: Uri) {
         logs.record("ui.export")
         try {

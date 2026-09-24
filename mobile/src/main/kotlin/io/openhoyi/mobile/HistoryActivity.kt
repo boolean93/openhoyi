@@ -15,7 +15,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Local Alpha-only shot outcomes; no legacy import and no BLE commands. */
+/** Native outcomes and an explicit, separately labeled legacy-history import entry. */
 class HistoryActivity : ThemedActivity() {
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var count: TextView
@@ -58,6 +58,17 @@ class HistoryActivity : ThemedActivity() {
                     .putExtra(Intent.EXTRA_TITLE, "openhoyi-history-${System.currentTimeMillis()}.zip"), EXPORT_HISTORY)
             }
         })
+        root.addView(Button(this).apply {
+            setText(R.string.history_import_legacy)
+            setOnClickListener {
+                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
+                    .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
+            }
+        })
+        root.addView(Button(this).apply {
+            setText(R.string.history_view_legacy)
+            setOnClickListener { startActivity(Intent(this@HistoryActivity, LegacyHistoryActivity::class.java)) }
+        })
         val list = ListView(this)
         adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf<String>())
         list.adapter = adapter
@@ -73,6 +84,8 @@ class HistoryActivity : ThemedActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == EXPORT_HISTORY && resultCode == RESULT_OK)
             data?.data?.let { (application as MobileApplication).exportHistory(it) }
+        if (requestCode == IMPORT_LEGACY && resultCode == RESULT_OK)
+            data?.data?.let { (application as MobileApplication).importLegacyHistory(it) }
     }
 
     private fun render() {
@@ -101,7 +114,7 @@ class HistoryActivity : ThemedActivity() {
     }
     private fun date(epochMs: Long) = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(epochMs))
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
-    private companion object { const val EXPORT_HISTORY = 41 }
+    private companion object { const val EXPORT_HISTORY = 41; const val IMPORT_LEGACY = 42 }
     private fun title(parent: LinearLayout, value: String, size: Int, bold: Boolean = false) {
         parent.addView(TextView(this).apply {
             text = value

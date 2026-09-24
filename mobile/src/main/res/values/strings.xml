@@ -2,6 +2,8 @@
     <string name="app_name">OpenHOYI Alpha</string>
     <string name="theme_dark_mode">深色模式</string>
     <string name="history_export_zip">导出历史与曲线 ZIP</string>
+    <string name="history_import_legacy">导入旧版历史 JSON</string>
+    <string name="history_view_legacy">查看旧版历史</string>
     <string name="setting_toggle_status">%1$s：%2$s · 点击切换</string>
     <string name="setting_brew_heating">萃取加热</string>
     <string name="setting_steam_heating">蒸汽加热</string>
