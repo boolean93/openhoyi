@@ -13,8 +13,9 @@ object ShotHistoryArchive {
         var unavailable = 0
         val rows = StringBuilder("id,curveId,startedAtMs,endedAtMs,elapsedMs,status,reason,weightHundredthsGram,slot,samplesFile,samplesState\n")
         ZipOutputStream(output).use { zip ->
-            zip.text("README.txt", "OpenHOYI Alpha 萃取历史 v1\n" +
-                "时间为毫秒；重量为 0.01 g，压力为 0.1 bar，水量为 0.1 ml，机器水流为 0.1 ml/s，温度为 0.01 °C。开始/结束时间是 Unix 时间戳。\n" +
+            zip.text("README.txt", "OpenHOYI Alpha 萃取历史 v2\n" +
+                "时间为毫秒；重量为 0.01 g，压力为 0.1 bar，水量为 0.1 ml，机器水流为 0.1 ml/s，秤报告的咖啡流速为设备值的 0.01 倍（物理单位待实机校准），温度为 0.01 °C。开始/结束时间是 Unix 时间戳。\n" +
+                "秤读数超过 1.5 秒未更新时，重量和咖啡流速均留空；旧版采样文件没有咖啡流速字段。\n" +
                 "UNKNOWN 表示结果未确认；对应采样文件可能只是中断前保存的部分曲线。\n" +
                 "samplesState=none 表示读取结果无采样；unavailable 表示读取失败或数据无效。\n")
             entries.forEachIndexed { index, entry ->
@@ -31,11 +32,12 @@ object ShotHistoryArchive {
                 val path = if (state == "available") "shots/%04d.tsv".format(index + 1) else ""
                 if (path.isNotEmpty()) {
                     val body = buildString {
-                        append("elapsedMs\tpressureTenthsBar\tmachineFlowTenthsMlPerSecond\twaterTenthsMl\ttemperatureHundredthsC\tweightHundredthsGram\n")
+                        append("elapsedMs\tpressureTenthsBar\tmachineFlowTenthsMlPerSecond\twaterTenthsMl\ttemperatureHundredthsC\tweightHundredthsGram\tscaleFlowHundredths\n")
                         points!!.forEach { point ->
                             append(listOf(point.elapsedMs, point.pressureTenthsBar,
                                 point.machineFlowTenthsMlPerSecond, point.waterTenthsMl,
-                                point.temperatureHundredthsC, point.weightHundredthsGram ?: "").joinToString("\t"))
+                                point.temperatureHundredthsC, point.weightHundredthsGram ?: "",
+                                point.scaleFlowHundredths ?: "").joinToString("\t"))
                             append('\n')
                         }
                     }

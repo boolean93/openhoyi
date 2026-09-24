@@ -10,6 +10,7 @@ data class ShotPoint(
     val waterTenthsMl: Int,
     val temperatureHundredthsC: Int,
     val weightHundredthsGram: Int?,
+    val scaleFlowHundredths: Int? = null,
 )
 
 class ShotSeries {
@@ -38,7 +39,8 @@ class ShotSeries {
         return shotId to recorded.toList()
     }
 
-    fun machine(frame: ExtractionTelemetry, atElapsedMs: Long, weightHundredthsGram: Int?, weightAtElapsedMs: Long?) {
+    fun machine(frame: ExtractionTelemetry, atElapsedMs: Long, weightHundredthsGram: Int?,
+        weightAtElapsedMs: Long?, scaleFlowHundredths: Int? = null) {
         if (id == null || atElapsedMs < startedAtMs) return
         val elapsed = atElapsedMs - startedAtMs
         val last = recorded.lastOrNull()
@@ -47,7 +49,8 @@ class ShotSeries {
             weightAtElapsedMs != null && weightAtElapsedMs <= atElapsedMs && atElapsedMs - weightAtElapsedMs <= 1500
         }
         val point = ShotPoint(elapsed, frame.pressureTenthsBar, frame.flowTenthsMlPerSecond,
-            frame.totalWaterTenthsMl, frame.brewTemperatureHundredthsC, freshWeight)
+            frame.totalWaterTenthsMl, frame.brewTemperatureHundredthsC, freshWeight,
+            scaleFlowHundredths.takeIf { freshWeight != null })
         if (last != null && elapsed - last.elapsedMs < minimumGapMs) {
             recorded[recorded.lastIndex] = point
             return

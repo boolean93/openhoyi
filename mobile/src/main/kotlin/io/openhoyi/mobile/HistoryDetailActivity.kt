@@ -77,7 +77,7 @@ class HistoryDetailActivity : Activity() {
                     chart.points = it
                     chartStatus.text = if (it.isEmpty()) "暂无保存的采样点" else
                         "${it.size} 个${if (entry.status == ShotHistory.Status.ENDED) "" else "部分"}采样点 · " +
-                            "蓝色压力 / 绿色机器水流 / 橙色秤重"
+                            "蓝色压力 / 绿色机器水流 / 紫色咖啡流速 / 橙色秤重"
                 }.onFailure { chartStatus.text = "采样读取失败" }
             }
         }, "history-detail-reader").start()

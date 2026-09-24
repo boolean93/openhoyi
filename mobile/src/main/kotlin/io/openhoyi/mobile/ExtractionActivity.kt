@@ -191,7 +191,9 @@ class ExtractionActivity : Activity() {
         }
         val now = SystemClock.elapsedRealtime()
         val weightFresh = snapshot.weightAt?.let { now >= it && now - it <= 1500 } == true
-        live.show("$machine\n重量：${snapshot.weight?.let { number(it.weightHundredthsGram) } ?: "—"} g${if (weightFresh) "" else "（非实时）"}")
+        val scale = snapshot.weight?.takeIf { weightFresh }
+        live.show("$machine\n重量：${scale?.let { number(it.weightHundredthsGram) } ?: "—"} g" +
+            " · 咖啡流速：${scale?.let { number(it.deviceFlowHundredths) } ?: "—"}（秤）")
         val points = owner?.chartPoints ?: emptyList()
         if (chart.points != points) chart.points = points
         prepare.isEnabled = owner?.running == true && blocked == null && studio && !temperatureReady &&

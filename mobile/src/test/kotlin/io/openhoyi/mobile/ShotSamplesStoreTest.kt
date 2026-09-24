@@ -14,7 +14,7 @@ class ShotSamplesStoreTest {
             val store = ShotSamplesStore(dir)
             val points = listOf(
                 ShotPoint(0, 90, 20, 0, 9200, null),
-                ShotPoint(100, 91, 21, 10, 9201, -20),
+                ShotPoint(100, 91, 21, 10, 9201, -20, 135),
             )
             store.save("shot-1", points)
             store.save("shot-2", points)
@@ -39,6 +39,17 @@ class ShotSamplesStoreTest {
         } finally { dir.deleteRecursively() }
     }
 
+    @Test fun readsLegacySixColumnSamplesWithoutInventingScaleFlow() {
+        val dir = Files.createTempDirectory("openhoyi-samples-v1").toFile()
+        try {
+            dir.resolve("samples-shot-old.tsv").writeText(
+                "# openhoyi-shot-points-v1\n100\t90\t20\t30\t9200\t2500\n")
+            val point = ShotSamplesStore(dir).load("shot-old").single()
+            assertEquals(2500, point.weightHundredthsGram)
+            assertNull(point.scaleFlowHundredths)
+        } finally { dir.deleteRecursively() }
+    }
+
     @Test fun malformedExistingSampleFileIsNotReportedAsEmpty() {
         val dir = Files.createTempDirectory("openhoyi-corrupt-samples").toFile()
         try {
@@ -49,6 +60,8 @@ class ShotSamplesStoreTest {
             file.writeText("# openhoyi-shot-points-v1\n100\t90\t20\t30\t9200\t\ninvalid row\n")
             assertThrows(IOException::class.java) { store.load("shot-corrupt") }
             file.writeText("# openhoyi-shot-points-v1\n100\t90\t20\t30\t9200\t\n100\t91\t21\t31\t9201\t\n")
+            assertThrows(IOException::class.java) { store.load("shot-corrupt") }
+            file.writeText("# openhoyi-shot-points-v2\n100\t90\t20\t30\t9200\t2500\tbad\n")
             assertThrows(IOException::class.java) { store.load("shot-corrupt") }
         } finally { dir.deleteRecursively() }
     }

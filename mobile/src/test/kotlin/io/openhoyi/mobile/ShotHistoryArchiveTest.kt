@@ -16,7 +16,7 @@ class ShotHistoryArchiveTest {
         )
         val output = ByteArrayOutputStream()
         val report = ShotHistoryArchive.write(entries, { id ->
-            if (id == "../shot-1") listOf(ShotPoint(100, 90, 20, 30, 9200, null)) else emptyList()
+            if (id == "../shot-1") listOf(ShotPoint(100, 90, 20, 30, 9200, 2510, 145)) else emptyList()
         }, output)
         assertEquals(2, report.records)
         assertEquals(1, report.sampleFiles)
@@ -31,7 +31,8 @@ class ShotHistoryArchiveTest {
         assertTrue(files.getValue("history.csv").contains("UNKNOWN"))
         assertTrue(files.getValue("history.csv").contains("\"link, \"\"lost\"\"\ncheck machine\""))
         assertTrue(files.getValue("history.csv").contains("shots/0001.tsv"))
-        assertTrue(files.getValue("shots/0001.tsv").contains("100\t90\t20\t30\t9200\t"))
+        assertTrue(files.getValue("shots/0001.tsv").contains("scaleFlowHundredths"))
+        assertTrue(files.getValue("shots/0001.tsv").contains("100\t90\t20\t30\t9200\t2510\t145"))
     }
 
     @Test fun oneUnreadableCurveDoesNotLoseTheRestOfHistory() {

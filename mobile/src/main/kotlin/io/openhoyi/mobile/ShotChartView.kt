@@ -26,6 +26,9 @@ class ShotChartView(context: Context) : View(context) {
     private val flow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(40, 145, 107); strokeWidth = dp(2f); style = Paint.Style.STROKE
     }
+    private val coffeeFlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.rgb(135, 79, 177); strokeWidth = dp(2f); style = Paint.Style.STROKE
+    }
     private val weight = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = Color.rgb(204, 112, 39); strokeWidth = dp(2.4f); style = Paint.Style.STROKE
     }
@@ -40,12 +43,15 @@ class ShotChartView(context: Context) : View(context) {
         }
         val left = dp(42)
         val right = width - dp(18)
-        val top = dp(38)
+        val top = dp(56)
         val bottom = height - dp(28)
         if (right <= left || bottom <= top) return
         val maximumMs = max(1000L, points.last().elapsedMs)
         val pressureMax = nice(max(12f, points.maxOf { it.pressureTenthsBar }.toFloat() / 10f))
         val flowMax = nice(max(6f, points.maxOf { it.machineFlowTenthsMlPerSecond }.toFloat() / 10f))
+        val coffeeFlows = points.mapNotNull { it.scaleFlowHundredths }
+        val coffeeFlowMin = min(0f, (coffeeFlows.minOrNull() ?: 0).toFloat() / 100f)
+        val coffeeFlowMax = nice(max(6f, (coffeeFlows.maxOrNull() ?: 0).toFloat() / 100f))
         val weights = points.mapNotNull { it.weightHundredthsGram }
         val weightMin = min(0f, (weights.minOrNull() ?: 0).toFloat() / 100f)
         val weightMax = nice(max(50f, (weights.maxOrNull() ?: 0).toFloat() / 100f))
@@ -59,12 +65,16 @@ class ShotChartView(context: Context) : View(context) {
         }
         canvas.drawLine(left.toFloat(), top.toFloat(), left.toFloat(), bottom.toFloat(), axis)
         canvas.drawLine(left.toFloat(), bottom.toFloat(), right.toFloat(), bottom.toFloat(), axis)
-        canvas.drawText("${pressureMax.toInt()} bar", left.toFloat(), dp(17), pressure.apply { style = Paint.Style.FILL; textSize = dp(11) })
-        canvas.drawText("${flowMax.toInt()} ml/s", left + dp(92f), dp(17), flow.apply { style = Paint.Style.FILL; textSize = dp(11) })
-        if (weights.isNotEmpty()) canvas.drawText("${weightMax.toInt()} g", right - dp(42f), dp(17),
+        val legendMid = (left + right) / 2f
+        canvas.drawText("${pressureMax.toInt()} bar 压力", left.toFloat(), dp(17), pressure.apply { style = Paint.Style.FILL; textSize = dp(11) })
+        canvas.drawText("${flowMax.toInt()} ml/s 水流", legendMid, dp(17), flow.apply { style = Paint.Style.FILL; textSize = dp(11) })
+        if (coffeeFlows.isNotEmpty()) canvas.drawText("${coffeeFlowMax.toInt()} 秤流速", left.toFloat(), dp(35),
+            coffeeFlow.apply { style = Paint.Style.FILL; textSize = dp(11) })
+        if (weights.isNotEmpty()) canvas.drawText("${weightMax.toInt()} g 重量", legendMid, dp(35),
             weight.apply { style = Paint.Style.FILL; textSize = dp(11) })
         pressure.style = Paint.Style.STROKE
         flow.style = Paint.Style.STROKE
+        coffeeFlow.style = Paint.Style.STROKE
         weight.style = Paint.Style.STROKE
         canvas.drawText("0", dp(16), bottom.toFloat(), label)
         canvas.drawText("${maximumMs / 1000}s", right - dp(28f), height - dp(8f), label)
@@ -91,6 +101,8 @@ class ShotChartView(context: Context) : View(context) {
         }
         drawSeries(pressure, { it.pressureTenthsBar / 10f }, 0f, pressureMax)
         drawSeries(flow, { it.machineFlowTenthsMlPerSecond / 10f }, 0f, flowMax)
+        if (coffeeFlows.isNotEmpty()) drawSeries(coffeeFlow,
+            { it.scaleFlowHundredths?.div(100f) }, coffeeFlowMin, coffeeFlowMax)
         if (weights.isNotEmpty()) drawSeries(weight, { it.weightHundredthsGram?.div(100f) }, weightMin, weightMax)
     }
 

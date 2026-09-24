@@ -235,7 +235,8 @@ class MobileService : Service() {
                         val observedAt = SystemClock.elapsedRealtime()
                         series.machine(frame, observedAt,
                             snapshot.weight?.weightHundredthsGram?.takeIf { snapshot.scaleState == DeviceState.READY },
-                            snapshot.weightAt)
+                            snapshot.weightAt,
+                            snapshot.weight?.deviceFlowHundredths?.takeIf { snapshot.scaleState == DeviceState.READY })
                         saveSeriesCheckpoint(observedAt)
                     }
                 },
