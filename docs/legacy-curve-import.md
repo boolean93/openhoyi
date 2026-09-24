@@ -21,3 +21,12 @@ python3 scripts/generate_legacy_curve_oracle.py /path/to/app-service.js /path/to
 `python3 -m unittest scripts/test_legacy_curve_oracle.py` 用已验证的100条工厂曲线资源核对1200条旧版启动帧，并检查格式错误、编码函数改变和空槽位。这个 TSV 是**旧版发了什么**的离线证据，不是原生控制许可；还需将真实用户曲线逐项转为原生参数，与原生编码器逐字节比较，并按导出文件哈希绑定后，才能讨论开放启动。
 
 原生版已有独立的 `LegacyCurveAdapter` 用于**离线比较候选参数**，不由 `CurveLibrary` 或服务层调用。它只接受完整、无歧义的整数字段及布尔模式，保留旧版 `seg1FlowMode` 的条件位；缺字段、模糊字符串、越界参数或空槽位均不能转为候选。单测用100条工厂曲线的1200帧及一条开启首段流量模式的旧版向量核对。候选可编码不等于可启动；真实导出文件仍需逐项与上面的旧版 TSV 对照，且尚无用户数据完成这一步。
+
+`LegacyCurveWireAudit` 把上述 TSV 与**同一份导出文件的原始字节**绑定：校验文件哈希、固定旧版编码器哈希、非空索引及六个槽位的完整顺序，再逐条比较原生编码器在有秤/无秤下的12帧。缺行、重复/错序、帧差异或任一曲线无法严格转换都会整体失败。拿到真实文件后可离线执行：
+
+```sh
+python3 scripts/generate_legacy_curve_oracle.py /path/to/app-service.js /path/to/legacy-curves.json /path/to/legacy-proof.tsv
+HOYI_LEGACY_CURVE_EXPORT=/path/to/legacy-curves.json HOYI_LEGACY_CURVE_PROOF=/path/to/legacy-proof.tsv ./gradlew :mobile:testDebugUnitTest --tests io.openhoyi.mobile.LegacyCurveWireAuditTest
+```
+
+第二条命令中的可选实物测试仅在同时设置两个环境变量时运行。比较通过仍**不**把用户曲线接入控制层；需另行审查设备允许范围、实际参数和逐杯安全行为。
