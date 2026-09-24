@@ -25,12 +25,13 @@
 | 管理命令/OTA | UnsupportedCommandGroup | 无执行入口 | 密码修改、校准、出厂、OTA独立验证 |
 | 原生诊断UI/持久化 | LabActivity / LabService | 独立APK、未知/过期/断开显示、成功秤地址、离线UI测试APK | 冒烟APK已构建未执行；实机布局、权限、连接和导出 |
 | 萃取断链人工提醒 | ShotSafetyAlert、MobileService、HomeActivity | 启动/萃取/停止期间断链或结果未知时保留警示；前台服务通知更新、高优先级提醒、首页提示，以及首页和萃取页固定底部停止入口；StopActionPresentation 测试涵盖运行中、停止处理中、断线结果未知和重连恢复；萃取页申请一次通知权限并提示拒绝后的限制；明确终态后清除 | Android通知权限或系统策略可能阻止独立高优先级通知；尚未实机验证后台提醒 |
-| 原生日常版基础流程 | mobile/HomeActivity、MobileService、CurveActivity、ExtractionActivity、CurveCatalog、ShotGate | 独立APK、曲线和启动门禁单测、此前构建和Lint通过；2026-09-24 Alpha 实机完成 HOYI 与 BOOKOO 连接和持续通知 | 其它 UI、真实萃取及异常路径未实机验收；未知进程终止无法保证停液 |
+| 原生日常版基础流程 | mobile/HomeActivity、MobileService、CurveActivity、ExtractionActivity、CurveCatalog、ShotGate | 独立APK、曲线和启动门禁单测、此前构建和Lint通过；2026-09-24 Alpha 实机完成 HOYI 与 BOOKOO 连接和持续通知 | 已验证三次受监护实杯的启动与手动停止；目标重量自动停止、异常断链和其它 UI 仍待实机验收；未知进程终止无法保证停液 |
 | 实时读数时效 | LiveTelemetry、HomeActivity、ExtractionActivity | 连接就绪且时间戳在过去1.5秒内才显示当前机器/秤数字；过期、未来或断开后显示“—”；边界单测 | 页面状态变化和阈值在Alpha实机待验收 |
-| 旧版工厂曲线萃取入口 | FactoryCurveCatalog、FactoryCurveAdapter、FactoryWireProof、CurveLibrary、factory_wire_v1.tsv | 100条元数据与旧版归一化一致；分类与名称搜索，未通过报文校验的曲线只可浏览；有秤/无秤200帧和旧版编码函数逐字节对照；发送前复核曲线、帧和秤模式 | Alpha尚未实机萃取；用户自定义曲线仅可只读导入，控制与编辑后置 |
-| 首页五个快捷槽位 | PresetSlots、factory_slot_wire_v1.tsv、DeviceSession、ExtractionActivity | 100条×5槽位×2秤模式共1000帧与旧版 `startChart` 对照；本地映射、确认页、停止槽位和历史记录接入 | 尚未实机验证槽位启停与机器显示；用户自定义曲线不能放入槽位 |
+| 旧版工厂曲线萃取入口 | FactoryCurveCatalog、FactoryCurveAdapter、FactoryWireProof、CurveLibrary、factory_wire_v1.tsv | 100条元数据与旧版归一化一致；分类与名称搜索，未通过报文校验的曲线只可浏览；有秤/无秤200帧和旧版编码函数逐字节对照；发送前复核曲线、帧和秤模式 | 工厂曲线槽位5已实机启动并手动停止，其他曲线及目标重量自动停止仍待验；用户自定义曲线仅可只读导入，控制与编辑后置 |
+| 首页五个快捷槽位 | PresetSlots、factory_slot_wire_v1.tsv、DeviceSession、ExtractionActivity | 100条×5槽位×2秤模式共1000帧与旧版 `startChart` 对照；本地映射、确认页、停止槽位和历史记录接入 | 槽位5已实机启停，但其它槽位及机器屏幕显示待验；用户自定义曲线不能放入槽位 |
 | 已记住电子秤自动连接 | ReconnectPolicy、NativeDeviceHub、DeviceSession、HomeActivity、MobileService | 前台10分钟窗口，咖啡机未连接时也尝试；失败退避、连接以 DISCONNECTED 结束后的继续重试、成功后退避重置、不支持设备停止重试、手动断开取消；冷启动自动拉起服务；2026-09-24 Alpha 权限已授予，第4次建链成功并持续收数 | 前三次建链超时原因、完整10分钟窗口、后台及人为断链恢复尚未实测 |
-| 独立电子秤去皮 | StandaloneTare、MobileService、NativeDeviceHub、BOOKOO去皮帧 | 写入结果与归零读数分离；要求写入后新鲜近零读数；超时/断线保留未知，阻止同时重复发送；2026-09-24 Alpha 两次去皮分别在写入后约62毫秒与53毫秒收到归零通知 | 尚需核对秤屏实际读数、负重量及异常路径 |
+| 咖啡机密码记忆 | CoffeeCredentialStore、CoffeeCredentialRetryGate、MobileService、HomeActivity | 成功进入 READY 后按地址用 Android Keystore AES-GCM 保存；密文地址绑定和两次失败回退单测通过；2026-09-24 首次真机连接 READY 后确认本机存在 1 条密文且无明文密码 | 第二次选择同一 HOYI 时免输密码及失败回退仍待实机核对 |
+| 独立电子秤去皮 | StandaloneTare、MobileService、NativeDeviceHub、BOOKOO去皮帧 | 写入结果与归零读数分离；要求写入后新鲜近零读数；超时/断线保留未知，阻止同时重复发送；2026-09-24 Alpha 两次去皮分别在写入后约62毫秒与53毫秒收到归零通知 | 负重量与移走杯子的实际动作相符；仍需核对秤屏、掉线恢复及异常路径 |
 | 常用机器设置与拨杆模式 | MachineSettingChange、SettingsWriteTracker、MachineSettingsActivity、HomeActivity | 萃取/蒸汽温度、冲泡温差补偿、两路加热、照明、自动待机时间、待机温度、睡眠计划总开关、供水来源、咖啡馆/工作室模式、手动/自动压力/自动流量共593条允许参数报文与旧版编码函数对照；要求新鲜唤醒待机遥测，写入后以新鲜匹配0x83回读确认 | 尚未实机验证设置回读时序；其它低频设置写入未开放 |
 | 累计杯数重置 | CoffeeCommands、CupResetTracker、MachineSettingsActivity | 固定5字节命令与旧版编码函数对照；输入当前杯数并二次确认；新鲜且一致的设置/待机杯数，写入后只有新报文归零才确认 | 无真实重置采集样本，未在Alpha实机执行 |
 | 每周睡眠时间编辑 | WeeklySleepSchedule、DeviceSession、SleepScheduleWriteTracker、MachineSettingsActivity | 旧版整周两包写入样本逐字节对照；500ms顺序写入、禁止并发、两段新回报全周匹配才确认 | 写入期间机器端行为及两段回报时序尚未实机验收；部分成功无自动回滚 |
@@ -51,11 +52,11 @@
 | Mock 设置与预热交互 | MockDeviceRuntime、BrewPreparation | 常用设置、单日睡眠计划、杯数重置、去皮、立即睡眠修改纯内存回读；工作室预热约5秒达到目标，支持取消并复用预热状态机；萃取中、预热中和入睡后禁止不合时序的设置操作；模拟萃取保留结束重量；无BLE权限和Hub | 未安装设备检查按钮、文案与小屏布局；模拟时序不是机器行为证据 |
 | 旧版历史显式导入 | LegacyHistoryCodec/Store、LegacyHistoryActivity | 按旧版 `brew_history_v1` 保存结构构造 JSON；严格校验、独立存储、冲突拒绝、重复导入与图表单位说明；Alpha/Mock 单测各72项通过 | 已修改旧版有显式导出入口，但缺少真实导出文件；未实机验证分享、SAF 和旧数据兼容 |
 
-## 最新实机补验（2026-09-23）
+## 最新实机补验（2026-09-24）
 
 见[实机报告](validation-2026-09-23.md)。咖啡机认证/设置/遥测有实机证据；新增仪器测试的4项检查通过。纯Kotlin会话回归增至33场景。BLE两次status=8断线未定位，未通过长期稳定性验收；08:42双设备并行约2分钟无断线，后因测试重启进程中断。秤负重量/自动重连及SAF系统选择器流程未完成。下方首轮结果为历史记录，不能代替最新报告。
 
-Alpha 日常版第一段功能见[说明](mobile-alpha.md)。历史与曲线导出接入后，协议检查36,796项、会话检查39项、Alpha与Mock各96项单测（95通过、1项真实导出条件测试跳过），双变体构建成功，Lint 0错误、2条警告。2026-09-24 Alpha 已安装并完成电子秤冷启动自动连接观察，见[验收记录](alpha-acceptance.md)；仍无Alpha实机萃取、槽位启停、独立去皮、睡眠、睡眠计划写入、设置回读或告警证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
+Alpha 日常版第一段功能见[说明](mobile-alpha.md)。历史与曲线导出接入后，协议检查36,796项、会话检查39项、Alpha与Mock各96项单测（95通过、1项真实导出条件测试跳过），双变体构建成功，Lint 0错误、2条警告。2026-09-24 Alpha 已安装，完成 HOYI/BOOKOO 同时 READY、三次受监护实杯的启动与手动停止、两次独立秤去皮，并修正了重量目标曲线启动前的去皮时序，见[验收记录](alpha-acceptance.md)。目标重量自动停止、睡眠、睡眠计划写入、设置回读与后台断链提醒仍缺实机证据；最新 Lint 因 Gradle 代理不可用而未重跑。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
 
 ## 本轮 Lab 结果（2026-09-22）
 
