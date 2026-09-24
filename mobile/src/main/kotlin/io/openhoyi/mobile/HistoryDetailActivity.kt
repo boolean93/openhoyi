@@ -1,7 +1,6 @@
 package io.openhoyi.mobile
 
 import android.app.Activity
-import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -15,11 +14,11 @@ import java.util.Date
 import java.util.Locale
 
 /** Historical chart is decoded from the app's own bounded sample file off the UI thread. */
-class HistoryDetailActivity : Activity() {
+class HistoryDetailActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val root = ScrollView(this).apply {
-            setBackgroundColor(Color.rgb(244, 241, 235))
+            setBackgroundColor(getColor(R.color.mobile_background))
             setOnApplyWindowInsetsListener { view, insets ->
                 if (Build.VERSION.SDK_INT >= 30) {
                     val area = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
@@ -95,7 +94,7 @@ class HistoryDetailActivity : Activity() {
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView = TextView(this).apply {
         text = value
         textSize = size.toFloat()
-        setTextColor(Color.rgb(32, 38, 42))
+        setTextColor(getColor(R.color.mobile_text))
         setPadding(0, dp(8), 0, dp(8))
         if (bold) setTypeface(null, Typeface.BOLD)
         parent.addView(this)

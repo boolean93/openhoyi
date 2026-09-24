@@ -1,4 +1,5 @@
 <resources>
+    <string name="theme_dark_mode">深色模式</string>
     <string name="history_export_zip">导出历史与曲线 ZIP</string>
     <string name="setting_toggle_status">%1$s：%2$s · 点击切换</string>
     <string name="setting_brew_heating">萃取加热</string>

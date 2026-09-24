@@ -2,7 +2,6 @@ package io.openhoyi.mobile
 
 import android.content.Context
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.view.View
@@ -17,26 +16,26 @@ class ShotChartView(context: Context) : View(context) {
             field = value
             invalidate()
         }
-    private val axis = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(130, 137, 144); strokeWidth = dp(1) }
-    private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(224, 225, 226); strokeWidth = dp(1) }
-    private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(68, 72, 76); textSize = dp(11) }
+    private val axis = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = context.getColor(R.color.chart_axis); strokeWidth = dp(1) }
+    private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = context.getColor(R.color.chart_grid); strokeWidth = dp(1) }
+    private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = context.getColor(R.color.chart_label); textSize = dp(11) }
     private val pressure = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(48, 102, 209); strokeWidth = dp(2.4f); style = Paint.Style.STROKE
+        color = context.getColor(R.color.chart_pressure); strokeWidth = dp(2.4f); style = Paint.Style.STROKE
     }
     private val flow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(40, 145, 107); strokeWidth = dp(2f); style = Paint.Style.STROKE
+        color = context.getColor(R.color.chart_water); strokeWidth = dp(2f); style = Paint.Style.STROKE
     }
     private val coffeeFlow = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(135, 79, 177); strokeWidth = dp(2f); style = Paint.Style.STROKE
+        color = context.getColor(R.color.chart_coffee); strokeWidth = dp(2f); style = Paint.Style.STROKE
     }
     private val weight = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.rgb(204, 112, 39); strokeWidth = dp(2.4f); style = Paint.Style.STROKE
+        color = context.getColor(R.color.chart_weight); strokeWidth = dp(2.4f); style = Paint.Style.STROKE
     }
     private val seriesPath = Path()
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        canvas.drawColor(Color.WHITE)
+        canvas.drawColor(context.getColor(R.color.mobile_surface))
         if (points.isEmpty()) {
             canvas.drawText("暂无萃取采样", dp(16), height / 2f, label)
             return

@@ -1,0 +1,13 @@
+<resources>
+    <color name="mobile_background">#F4F1EB</color>
+    <color name="mobile_surface">#FFFFFF</color>
+    <color name="mobile_text">#20262A</color>
+    <color name="mobile_danger">#961E1E</color>
+    <color name="chart_axis">#828990</color>
+    <color name="chart_grid">#E0E1E2</color>
+    <color name="chart_label">#44484C</color>
+    <color name="chart_pressure">#3066D1</color>
+    <color name="chart_water">#28916B</color>
+    <color name="chart_coffee">#874FB1</color>
+    <color name="chart_weight">#CC7027</color>
+</resources>

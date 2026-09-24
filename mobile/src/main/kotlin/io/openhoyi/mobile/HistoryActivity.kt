@@ -2,7 +2,6 @@ package io.openhoyi.mobile
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -17,7 +16,7 @@ import java.util.Date
 import java.util.Locale
 
 /** Local Alpha-only shot outcomes; no legacy import and no BLE commands. */
-class HistoryActivity : Activity() {
+class HistoryActivity : ThemedActivity() {
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var count: TextView
     private var rows = emptyList<ShotHistory.Entry>()
@@ -26,7 +25,7 @@ class HistoryActivity : Activity() {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(244, 241, 235))
+            setBackgroundColor(getColor(R.color.mobile_background))
             setOnApplyWindowInsetsListener { view, insets ->
                 val bars = if (Build.VERSION.SDK_INT >= 30) {
                     val area = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
@@ -45,7 +44,7 @@ class HistoryActivity : Activity() {
         title(root, "仅记录原生 Alpha 发起的萃取；结果未知时不会标为成功。", 14)
         count = TextView(this).apply {
             textSize = 15f
-            setTextColor(Color.rgb(32, 38, 42))
+            setTextColor(getColor(R.color.mobile_text))
             setPadding(0, dp(12), 0, dp(8))
         }
         root.addView(count)
@@ -106,7 +105,7 @@ class HistoryActivity : Activity() {
         parent.addView(TextView(this).apply {
             text = value
             textSize = size.toFloat()
-            setTextColor(Color.rgb(32, 38, 42))
+            setTextColor(getColor(R.color.mobile_text))
             setPadding(0, dp(4), 0, dp(4))
             if (bold) setTypeface(null, Typeface.BOLD)
         })

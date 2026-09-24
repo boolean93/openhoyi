@@ -5,7 +5,6 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.*
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.*
@@ -18,7 +17,7 @@ import io.openhoyi.session.DeviceState
 import java.util.Locale
 
 /** A screen never owns BLE. Start requires an explicit confirmation; Stop is one tap. */
-class ExtractionActivity : Activity() {
+class ExtractionActivity : ThemedActivity() {
     private val presetSlot: Int by lazy { intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7).takeIf { it in 1..5 } ?: 7 }
     private var service: MobileService? = null
     private var bound = false
@@ -48,7 +47,7 @@ class ExtractionActivity : Activity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val scroll = ScrollView(this).apply { setBackgroundColor(Color.rgb(244, 241, 235)) }
+        val scroll = ScrollView(this).apply { setBackgroundColor(getColor(R.color.mobile_background)) }
         scroll.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
@@ -213,12 +212,12 @@ class ExtractionActivity : Activity() {
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private companion object { const val NOTIFICATIONS = 31 }
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView = TextView(this).apply {
-        text = value; textSize = size.toFloat(); setTextColor(Color.rgb(32, 38, 42))
+        text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
         setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD); parent.addView(this)
     }
     private fun card(parent: LinearLayout): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(16))
-        background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(18).toFloat() }
+        background = GradientDrawable().apply { setColor(getColor(R.color.mobile_surface)); cornerRadius = dp(18).toFloat() }
         parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18) })
     }
     private fun button(parent: LinearLayout, value: String, action: () -> Unit): Button = Button(this).apply {

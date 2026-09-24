@@ -7,7 +7,6 @@ import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.content.*
 import android.content.pm.PackageManager
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.*
@@ -26,7 +25,7 @@ import io.openhoyi.session.ExtractionState
 import java.util.Locale
 
 /** First native product screen: BLE connection, live values, and a selected captured curve. */
-class HomeActivity : Activity() {
+class HomeActivity : ThemedActivity() {
     private var service: MobileService? = null
     private var bound = false
     private var visible = false
@@ -67,7 +66,7 @@ class HomeActivity : Activity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val scroll = ScrollView(this).apply { isFillViewport = true; setBackgroundColor(Color.rgb(244, 241, 235)) }
+        val scroll = ScrollView(this).apply { isFillViewport = true; setBackgroundColor(getColor(R.color.mobile_background)) }
         scroll.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
@@ -81,9 +80,17 @@ class HomeActivity : Activity() {
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(28)) }
         scroll.addView(content); setContentView(scroll)
         text(content, "OpenHOYI Alpha", 28, true)
+        content.addView(Switch(this).apply {
+            setText(R.string.theme_dark_mode)
+            isChecked = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
+            setOnCheckedChangeListener { _, dark ->
+                getSharedPreferences("appearance", MODE_PRIVATE).edit().putBoolean("dark", dark).apply()
+                recreate()
+            }
+        })
         text(content, "原生连接与实时状态", 14)
         safetyWarning = text(content, "", 18, true).apply {
-            setTextColor(Color.rgb(150, 30, 30))
+            setTextColor(getColor(R.color.mobile_danger))
             visibility = View.GONE
         }
         val connectionCard = card(content, "设备")
@@ -99,7 +106,7 @@ class HomeActivity : Activity() {
         sleepButton = button(coffeeCard, "立即睡眠") { confirmSleepNow() }
         alarmStatus = text(coffeeCard, "尚未收到机器告警状态", 14)
         emergencyStop = button(coffeeCard, "立即停止萃取") { service?.stopShot(); render() }.apply {
-            setTextColor(Color.rgb(150, 30, 30))
+            setTextColor(getColor(R.color.mobile_danger))
         }
         button(coffeeCard, "查看机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(coffeeCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
@@ -336,13 +343,13 @@ class HomeActivity : Activity() {
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView =
         TextView(this).apply {
-            text = value; textSize = size.toFloat(); setTextColor(Color.rgb(32, 38, 42))
+            text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
             setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD)
             parent.addView(this)
         }
     private fun card(parent: LinearLayout, title: String): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(16))
-        background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(18).toFloat() }
+        background = GradientDrawable().apply { setColor(getColor(R.color.mobile_surface)); cornerRadius = dp(18).toFloat() }
         parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18) })
         text(this, title, 18, true)
     }

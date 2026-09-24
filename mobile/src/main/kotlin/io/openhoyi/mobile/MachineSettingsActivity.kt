@@ -5,7 +5,6 @@ import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
-import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -31,7 +30,7 @@ import java.util.UUID
 import java.util.Locale
 
 /** Only known setting commands are exposed; applied state requires a subsequent 0x83 readback. */
-class MachineSettingsActivity : Activity() {
+class MachineSettingsActivity : ThemedActivity() {
     private var service: MobileService? = null
     private var bound = false
     private var visible = false
@@ -72,7 +71,7 @@ class MachineSettingsActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val scroll = ScrollView(this).apply {
-            setBackgroundColor(Color.rgb(244, 241, 235))
+            setBackgroundColor(getColor(R.color.mobile_background))
             setOnApplyWindowInsetsListener { view, insets ->
                 if (Build.VERSION.SDK_INT >= 30) {
                     val area = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
@@ -386,7 +385,7 @@ class MachineSettingsActivity : Activity() {
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView = TextView(this).apply {
         text = value
         textSize = size.toFloat()
-        setTextColor(Color.rgb(32, 38, 42))
+        setTextColor(getColor(R.color.mobile_text))
         setPadding(0, dp(6), 0, dp(6))
         if (bold) setTypeface(null, Typeface.BOLD)
         parent.addView(this)
@@ -394,7 +393,7 @@ class MachineSettingsActivity : Activity() {
     private fun card(parent: LinearLayout, title: String): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(20), dp(16), dp(20), dp(16))
-        background = GradientDrawable().apply { setColor(Color.WHITE); cornerRadius = dp(18).toFloat() }
+        background = GradientDrawable().apply { setColor(getColor(R.color.mobile_surface)); cornerRadius = dp(18).toFloat() }
         parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18) })
         text(this, title, 18, true)
     }

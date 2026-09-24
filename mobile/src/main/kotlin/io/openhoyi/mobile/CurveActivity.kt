@@ -2,7 +2,6 @@ package io.openhoyi.mobile
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -20,7 +19,7 @@ import android.widget.TextView
 import android.widget.Toast
 
 /** Browsing and shortcut assignment have no BLE side effects. */
-class CurveActivity : Activity() {
+class CurveActivity : ThemedActivity() {
     private lateinit var details: TextView
     private lateinit var select: Button
     private lateinit var assignPreset: Button
@@ -35,7 +34,7 @@ class CurveActivity : Activity() {
         super.onCreate(savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(244, 241, 235))
+            setBackgroundColor(getColor(R.color.mobile_background))
             setOnApplyWindowInsetsListener { view, insets ->
                 val bars = if (Build.VERSION.SDK_INT >= 30) {
                     val area = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
@@ -67,7 +66,7 @@ class CurveActivity : Activity() {
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
         val detailScroll = ScrollView(this)
         details = TextView(this).apply {
-            textSize = 15f; setTextColor(Color.rgb(32, 38, 42)); setPadding(dp(12), dp(8), dp(12), dp(8))
+            textSize = 15f; setTextColor(getColor(R.color.mobile_text)); setPadding(dp(12), dp(8), dp(12), dp(8))
             text = "点选曲线查看详情"
         }
         detailScroll.addView(details)
@@ -143,7 +142,7 @@ class CurveActivity : Activity() {
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun label(parent: LinearLayout, value: String, size: Int, bold: Boolean = false) {
         parent.addView(TextView(this).apply {
-            text = value; textSize = size.toFloat(); setTextColor(Color.rgb(32, 38, 42))
+            text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
             setPadding(0, dp(4), 0, dp(4))
             if (bold) setTypeface(null, Typeface.BOLD)
         })

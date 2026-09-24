@@ -36,6 +36,7 @@
 | 工作室曲线预热 | CoffeeCommands.brewWait、BrewPreparation、StudioStartGate、MobileService、ExtractionActivity | 0/75–105°C共32帧与旧版编码对照；模式位回读、补偿后±1°C判定、新鲜温度确认、显式启动、取消及10分钟自动取消 | 取消命令无独立回读；实机预热/取消/启动时序未验收 |
 | 机器告警显示 | HoyiCodec、MachineAlarms、HomeActivity、ExtractionActivity | `0x40` bit0–14与旧版C1–C14/C16映射对照；合成帧及新鲜/过期状态单测；新鲜C1–C14和未知bit15阻止启动，C16保留警示 | 采集记录没有非零告警帧，尚无实机告警验证；没有忽略告警入口 |
 | 多页面前台状态 | VisibleScreens、MobileService | 独立页面token、切页500毫秒缓冲；多页面交叠单测通过 | 需实机验证切页对自动连秤窗口的影响 |
+| 原生深浅色主题 | ThemedActivity、昼夜色板、HomeActivity | 首页 Switch 保存偏好；六个 Activity 统一使用当前模式的主题与色板；设备 Service 不因页面重建而重置 | 深浅色页面对比度、图表和系统栏需实机验收 |
 | 原生萃取历史基础页 | ShotHistory、HistoryActivity、MobileService | 持久化请求及终态，未知结果不标完成；状态/重启/坏行/保留上限单测通过 | 旧App数据未迁移，异步SharedPreferences落盘前突然断电可能丢最后写入；UI待实机验收 |
 | 历史与曲线导出 | ShotHistoryArchive、HistoryActivity、MobileApplication | SAF创建ZIP，CSV保留原始状态和单位，每杯采样独立TSV；路径用固定编号，单杯读取失败不丢其它记录，ZIP结构单测 | 系统文件选择器及外部提供方写入尚未实机验收；导出时进行中的曲线只是快照 |
 | 实时和历史曲线 | ShotSeries、ShotChartView、ShotSamplesStore、HistoryDetailActivity | 只处理0x80已解码字段，新鲜秤重及秤报告流速合并；2000点上限、时间顺序、首次与约每5秒异步暂存、七列文件及旧六列兼容、最终文件往返与清理单测通过；损坏文件明确报错，不静默跳行或截断；构建/Lint通过 | 最后一次暂存后的点及尚未完成的异步写入可能因进程中断丢失；秤流速物理单位及图表待实机验收 |
