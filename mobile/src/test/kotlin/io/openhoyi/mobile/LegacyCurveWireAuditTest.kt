@@ -84,4 +84,12 @@ class LegacyCurveWireAuditTest {
         assertTrue(report.curveCount > 0)
         assertEquals(report.curveCount * 12, report.frameCount)
     }
+
+    @Test fun edgeCorpusFromOldEncoderMatchesNativeAcrossAllSlotsAndScaleModes() {
+        val export = File("src/test/resources/legacy_curve_edges.json").readBytes()
+        val proof = File("src/test/resources/legacy_curve_edges.tsv").readText()
+        val report = LegacyCurveWireAudit.verify(export, proof)
+        assertEquals(128, report.curveCount)
+        assertEquals(1536, report.frameCount)
+    }
 }

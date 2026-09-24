@@ -30,3 +30,5 @@ HOYI_LEGACY_CURVE_EXPORT=/path/to/legacy-curves.json HOYI_LEGACY_CURVE_PROOF=/pa
 ```
 
 第二条命令中的可选实物测试仅在同时设置两个环境变量时运行。比较通过仍**不**把用户曲线接入控制层；需另行审查设备允许范围、实际参数和逐杯安全行为。
+
+另有128条确定性合成曲线，覆盖重量与最大水量取整、1至4段、布尔模式、首段流量模式及字段边界。`scripts/generate_legacy_curve_edge_fixture.py` 从旧版编码器生成测试资源，原生单测把六槽位与两种秤模式的1536帧全部送入同一个 `LegacyCurveWireAudit`。这些曲线含仅为编码边界检查的极端值，不可当作机器安全参数，也不能代替真实用户导出。
