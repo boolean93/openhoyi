@@ -45,6 +45,9 @@ class MobileService : Service() {
     private lateinit var logs: TraceStore
     private var history: ShotHistory? = null
     private val series = ShotSeries()
+    private val passiveShot = PassiveShotDetector()
+    private var passiveHistoryId: String? = null
+    val manualShotActive: Boolean get() = passiveShot.active
     private val standaloneTare = StandaloneTare()
     private val settingsWrite = SettingsWriteTracker()
     private val cupReset = CupResetTracker()
@@ -96,6 +99,8 @@ class MobileService : Service() {
     private val visibleScreens = VisibleScreens()
     private var hubForeground = false
     private var safetyMessage: String? = null
+    var manualSafetyMessage: String? = null
+        private set
     private var automaticScaleOnly = false
     private val stopAutomaticScale = object : Runnable {
         override fun run() {
@@ -209,6 +214,18 @@ class MobileService : Service() {
                         snapshot.copy(scaleState = state, weight = null, weightAt = null)
                     }
                     else snapshot.copy(scaleState = state)
+                    if (role == DeviceRole.COFFEE && state != DeviceState.READY &&
+                        passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
+                        passiveHistoryId?.let { id ->
+                            runCatching { history?.abandon(id, "连接中断") }
+                                .onFailure { event("手动萃取历史保存失败", "shot.history_error") }
+                        }
+                        passiveHistoryId = null
+                        saveSeriesCheckpoint(force = true)
+                        finishSeries(false)
+                        manualSafetyMessage = "手动萃取时连接中断，结果未知；请检查机器并用拨杆确认停止。"
+                        event("手动萃取连接中断，结果未知", "shot.passive_unknown")
+                    }
                     event("${role.name}: ${state.name}")
                     if (role == DeviceRole.COFFEE) refreshSafetyNotification()
                 },
@@ -255,13 +272,45 @@ class MobileService : Service() {
                             snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
                         else -> snapshot
                     }
-                    if (frame is io.openhoyi.protocol.ExtractionTelemetry) {
-                        val observedAt = SystemClock.elapsedRealtime()
-                        series.machine(frame, observedAt,
-                            snapshot.weight?.weightHundredthsGram?.takeIf { snapshot.scaleState == DeviceState.READY },
-                            snapshot.weightAt,
-                            snapshot.weight?.deviceFlowHundredths?.takeIf { snapshot.scaleState == DeviceState.READY })
-                        saveSeriesCheckpoint(observedAt)
+                    val observedAt = snapshot.coffeeAt ?: SystemClock.elapsedRealtime()
+                    val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
+                        lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
+                    val passiveEvent = if (snapshot.coffeeState == DeviceState.READY)
+                        passiveShot.observe(frame, observedAt, appShotInProgress) else null
+                    when (passiveEvent) {
+                        is PassiveShotDetector.Event.Started -> {
+                            manualSafetyMessage = null
+                            refreshSafetyNotification()
+                            passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
+                                .onFailure { event("手动萃取历史暂不可写", "shot.history_error") }.getOrNull()
+                            val id = passiveHistoryId ?: java.util.UUID.randomUUID().toString()
+                            series.begin(id, passiveEvent.first.atMs)
+                            recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
+                            recordMachinePoint(passiveEvent.second.frame, passiveEvent.second.atMs)
+                            passiveHistoryId?.let {
+                                runCatching { history?.transition(ExtractionState.RUNNING, "机器手动萃取", null) }
+                                    .onFailure { event("手动萃取历史保存失败", "shot.history_error") }
+                            }
+                            event("检测到机器手动萃取；仅记录，不发送控制命令", "shot.passive_started")
+                        }
+                        is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
+                            passiveEvent.value.atMs)
+                        PassiveShotDetector.Event.Ended -> {
+                            val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
+                                snapshot.scaleState == DeviceState.READY &&
+                                    snapshot.weightAt?.let { time -> observedAt >= time && observedAt - time <= 1500 } == true
+                            }
+                            passiveHistoryId?.let {
+                                runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
+                                    "机器待机回报", weight) }
+                                    .onFailure { event("手动萃取历史保存失败", "shot.history_error") }
+                            }
+                            passiveHistoryId = null
+                            finishSeries(true)
+                            event("机器已回报手动萃取结束", "shot.passive_ended")
+                        }
+                        else -> if (frame is io.openhoyi.protocol.ExtractionTelemetry && !passiveShot.active)
+                            recordMachinePoint(frame, observedAt)
                     }
                 },
                 onWeight = {
@@ -336,6 +385,7 @@ class MobileService : Service() {
     }
     fun connectCoffee(address: String, password: String) {
         if (mock != null) { event("Mock 咖啡机已就绪；未连接蓝牙", "mock.connect"); return }
+        if (manualShotActive) { event("手动萃取进行中，请先用机器拨杆结束"); return }
         require(password.matches(Regex("[0-9]{6}")))
         manualDeviceUse()
         if (cupResetBusy) { event("等待累计杯数归零回报，暂不切换咖啡机"); return }
@@ -356,6 +406,7 @@ class MobileService : Service() {
     }
     fun connectScale(address: String) {
         if (mock != null) { event("Mock 电子秤已就绪；未连接蓝牙", "mock.connect"); return }
+        if (manualShotActive) { event("手动萃取进行中，暂不切换电子秤"); return }
         manualDeviceUse()
         if (ShotGate.active(shotState)) { event("萃取尚未结束，不能切换电子秤"); return }
         val current = hub ?: return
@@ -365,6 +416,7 @@ class MobileService : Service() {
     }
     fun disconnect(role: DeviceRole) {
         if (mock != null) { event("Mock 设备保持就绪；未连接蓝牙", "mock.disconnect"); return }
+        if (manualShotActive) { event("手动萃取进行中，请先用机器拨杆结束"); return }
         if (ShotGate.active(shotState)) { event("萃取尚未结束，先停止萃取"); return }
         if (role == DeviceRole.COFFEE && cupResetBusy) {
             event("等待累计杯数归零回报，暂不断开咖啡机"); return
@@ -382,6 +434,7 @@ class MobileService : Service() {
     }
     fun tareScale(): String? {
         if (mock != null) return "Mock 电子秤不发送去皮命令"
+        if (manualShotActive) return "手动萃取期间不能手动去皮"
         val current = hub ?: return "设备服务尚未启动"
         if (ShotGate.active(shotState)) return "萃取期间不能手动去皮"
         if (snapshot.scaleState != DeviceState.READY) return "电子秤尚未就绪"
@@ -407,6 +460,7 @@ class MobileService : Service() {
     }
     fun changeMachineSetting(change: MachineSettingChange): String? {
         if (mock != null) return "Mock 版本不发送机器设置命令"
+        if (manualShotActive) return "手动萃取期间不能修改机器设置"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
@@ -449,6 +503,7 @@ class MobileService : Service() {
     }
     fun resetCupCount(expectedCount: Int): String? {
         if (mock != null) return "Mock 版本不发送杯数重置命令"
+        if (manualShotActive) return "手动萃取期间不能重置杯数"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待本次杯数重置结果"
         if (scheduleBusy || settingWriteState in
@@ -484,6 +539,7 @@ class MobileService : Service() {
     }
     fun changeSleepSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule): String? {
         if (mock != null) return "Mock 版本不发送睡眠计划命令"
+        if (manualShotActive) return "手动萃取期间不能修改睡眠计划"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (ShotGate.active(shotState)) return "萃取期间不能修改睡眠计划"
@@ -531,6 +587,7 @@ class MobileService : Service() {
     }
     fun enterSleepNow(): String? {
         if (mock != null) return "Mock 版本不发送睡眠命令"
+        if (manualShotActive) return "手动萃取期间不能让机器睡眠"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
@@ -587,6 +644,7 @@ class MobileService : Service() {
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
         if (mock != null) return "Mock 版本不发送预热命令"
+        if (manualShotActive) return "手动萃取期间不能预热曲线"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
@@ -630,6 +688,7 @@ class MobileService : Service() {
     }
     fun cancelBrewPreparation(): String? {
         if (mock != null) return "Mock 版本没有预热请求"
+        if (manualShotActive) return "手动萃取期间不能发送预热取消命令"
         if (!brewPreparation.active) return "当前没有预热请求"
         val current = hub ?: return "设备服务尚未启动，预热结果未知"
         if (snapshot.coffeeState != DeviceState.READY) return "咖啡机未就绪，无法确认取消预热"
@@ -656,6 +715,7 @@ class MobileService : Service() {
             event("Mock 萃取已开始：${profile.name}；未发送蓝牙命令", "mock.shot_started")
             return null
         }
+        if (manualShotActive) return "机器手动萃取进行中，请先用拨杆结束"
         val current = hub ?: return "设备服务尚未启动"
         if (cupResetBusy) return "正在等待累计杯数归零回报，不能启动萃取"
         if (scheduleBusy) return "正在等待睡眠计划回读，不能启动萃取"
@@ -708,6 +768,7 @@ class MobileService : Service() {
             }
             return
         }
+        if (manualShotActive) { event("手动萃取请使用机器拨杆停止；App 未发送命令"); return }
         if (!ShotGate.active(shotState)) return
         if (shotState == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != DeviceState.READY) {
             event("咖啡机未连接，无法发送停止命令；请先重连并检查机器", "shot.stop_unavailable")
@@ -724,6 +785,13 @@ class MobileService : Service() {
             app.samples.save(finished.first, finished.second)
         }
         history?.entries?.map(ShotHistory.Entry::id)?.toSet()?.let(app.samples::prune)
+    }
+    private fun recordMachinePoint(frame: io.openhoyi.protocol.ExtractionTelemetry, atMs: Long) {
+        series.machine(frame, atMs,
+            snapshot.weight?.weightHundredthsGram?.takeIf { snapshot.scaleState == DeviceState.READY },
+            snapshot.weightAt,
+            snapshot.weight?.deviceFlowHundredths?.takeIf { snapshot.scaleState == DeviceState.READY })
+        saveSeriesCheckpoint(atMs)
     }
     private fun saveSeriesCheckpoint(atElapsedMs: Long = SystemClock.elapsedRealtime(), force: Boolean = false) {
         series.checkpoint(atElapsedMs, force)?.let { (id, points) ->
@@ -751,7 +819,7 @@ class MobileService : Service() {
     }
     private fun refreshSafetyNotification() {
         if (mock != null) return
-        val warning = ShotSafetyAlert.message(shotState, snapshot.coffeeState)
+        val warning = ShotSafetyAlert.message(shotState, snapshot.coffeeState) ?: manualSafetyMessage
         if (warning == safetyMessage) return
         safetyMessage = warning
         if (!running) return
@@ -771,6 +839,12 @@ class MobileService : Service() {
                 .setOngoing(true).build())
         }.onFailure { event("安全提醒通知不可用", "shot.safety_notify_error") }
     }
+    fun acknowledgeManualSafety() {
+        if (manualSafetyMessage == null) return
+        manualSafetyMessage = null
+        event("用户已检查手动萃取状态", "shot.passive_acknowledged")
+        refreshSafetyNotification()
+    }
     fun shutdown() {
         if (mock != null) {
             if (ShotGate.active(shotState)) mock.stop()
@@ -780,6 +854,7 @@ class MobileService : Service() {
             stopSelf()
             return
         }
+        if (manualShotActive) { event("手动萃取进行中，请先用机器拨杆结束", "service.stop_deferred"); return }
         if (cupResetBusy) {
             event("累计杯数重置尚未确认，设备服务保持运行", "service.stop_deferred")
             return
@@ -810,6 +885,11 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        if (passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
+            passiveHistoryId?.let { id -> runCatching { history?.abandon(id, "设备服务停止") } }
+            saveSeriesCheckpoint(force = true)
+            finishSeries(false)
+        }
         handler.removeCallbacks(mockTick)
         getSystemService(NotificationManager::class.java).cancel(SAFETY_NOTIFICATION)
         handler.removeCallbacks(watchShot)

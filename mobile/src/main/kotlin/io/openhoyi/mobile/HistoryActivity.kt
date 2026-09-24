@@ -42,7 +42,7 @@ class HistoryActivity : ThemedActivity() {
         setContentView(root)
         title(root, "萃取历史", 28, true)
         title(root, if (BuildConfig.MOCK_MODE) "仅记录本包的模拟萃取，与 Alpha 历史分开。"
-            else "仅记录原生 Alpha 发起的萃取；结果未知时不会标为成功。", 14)
+            else "记录 Alpha 发起及机器拨杆发起的萃取；结果未知时不会标为成功。", 14)
         count = TextView(this).apply {
             textSize = 15f
             setTextColor(getColor(R.color.mobile_text))
@@ -87,7 +87,7 @@ class HistoryActivity : ThemedActivity() {
         val library = runCatching { (application as MobileApplication).curves }.getOrNull()
         adapter.clear()
         adapter.addAll(rows.map { entry ->
-            "${date(entry.startedAtMs)}   ${status(entry.status)}\n${library?.find(entry.curveId)?.name ?: entry.curveId}${entry.slot?.let { " · 槽位 $it" } ?: ""}"
+            "${date(entry.startedAtMs)}   ${status(entry.status)}\n${if (entry.curveId == "manual") "机器手动萃取" else library?.find(entry.curveId)?.name ?: entry.curveId}${entry.slot?.takeIf { it != 6 }?.let { " · 槽位 $it" } ?: ""}"
         })
     }
 

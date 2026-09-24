@@ -45,10 +45,11 @@ class HistoryDetailActivity : ThemedActivity() {
             text(body, "记录不存在或已过保留期限", 17)
             return
         }
-        val curve = runCatching { app.curves.find(entry.curveId)?.name }.getOrNull() ?: entry.curveId
+        val curve = if (entry.curveId == "manual") "机器手动萃取" else
+            runCatching { app.curves.find(entry.curveId)?.name }.getOrNull() ?: entry.curveId
         val detail = buildString {
             appendLine("曲线：$curve")
-            entry.slot?.let { appendLine("槽位：$it") }
+            entry.slot?.takeIf { it != 6 }?.let { appendLine("槽位：$it") }
             appendLine("开始请求：${date(entry.startedAtMs)}")
             appendLine("状态：${status(entry.status)}")
             entry.endedAtMs?.let { appendLine("观察到结束：${date(it)}") }

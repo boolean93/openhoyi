@@ -155,12 +155,14 @@ class ExtractionActivity : ThemedActivity() {
         val item = selected()
         val library = (application as MobileApplication).curves
         val profile = item?.let { library.resolve(it.id, snapshot.scaleState == DeviceState.READY, presetSlot) }
-        val blocked = if (item != null && profile == null) "这条曲线未通过报文校验，暂不可萃取"
+        val blocked = if (owner?.manualShotActive == true) "机器手动萃取中，请使用机器拨杆停止；App 只记录数据"
+            else if (item != null && profile == null) "这条曲线未通过报文校验，暂不可萃取"
             else ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
                 snapshot.weightAt, SystemClock.elapsedRealtime(), state,
                 validated = profile?.let(library::validated) == true)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
-            "\n连接中断且结果未知；先检查咖啡机，再重连后尝试停止。" else ""
+            "\n连接中断且结果未知；先检查咖啡机，再重连后尝试停止。" else
+            owner?.manualSafetyMessage?.let { "\n$it" }.orEmpty()
         val studio = snapshot.settings?.flags?.and(0x04) == 0x04
         val corrected = owner?.currentCorrectedBrewTemperature()
         val temperatureReady = profile != null && corrected != null &&
@@ -170,7 +172,7 @@ class ExtractionActivity : ThemedActivity() {
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
-        readiness.show("曲线：${item?.name ?: "未选择"} · 槽位 $presetSlot\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
+        readiness.show("曲线：${item?.name ?: "未选择"} · 槽位 $presetSlot\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${if (owner?.manualShotActive == true) "机器手动萃取" else state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
         preparationStatus.show(if (snapshot.settings == null) "运行模式尚未回读" else if (!studio) "咖啡馆模式 · 按曲线正常启动" else
             "工作室模式 · 当前 ${corrected?.let(::number) ?: "—"} °C / 目标 ${profile?.temperatureC ?: "—"} °C\n" +
                 when (preparation) {
@@ -201,7 +203,7 @@ class ExtractionActivity : ThemedActivity() {
         prepare.isEnabled = owner?.running == true && blocked == null && studio && !temperatureReady &&
             !settingBusy && !sleepBusy &&
             preparation == BrewPreparation.State.IDLE
-        cancelPrepare.isEnabled = owner?.running == true && preparation != BrewPreparation.State.IDLE &&
+        cancelPrepare.isEnabled = owner?.running == true && owner?.manualShotActive != true && preparation != BrewPreparation.State.IDLE &&
             snapshot.coffeeState == DeviceState.READY && !ShotGate.active(state)
         start.isEnabled = owner?.running == true && blocked == null && studioBlocked == null &&
             !settingBusy && !sleepBusy

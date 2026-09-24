@@ -226,7 +226,8 @@ class MachineSettingsActivity : ThemedActivity() {
         val now = android.os.SystemClock.elapsedRealtime()
         val freshIdle = idle?.sleepStateRaw == 0 &&
             snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } == true
-        val editable = ready && snapshot.settings != null && freshIdle && owner?.shotState?.let(ShotGate::active) != true &&
+        val editable = ready && snapshot.settings != null && freshIdle && owner?.manualShotActive != true &&
+            owner?.shotState?.let(ShotGate::active) != true &&
             owner?.brewPreparationState == BrewPreparation.State.IDLE &&
             pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK) &&
             owner?.scheduleWriteState !in setOf(SleepScheduleWriteTracker.State.WRITING,

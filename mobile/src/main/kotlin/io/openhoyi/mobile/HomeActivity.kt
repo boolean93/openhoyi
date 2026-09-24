@@ -34,6 +34,7 @@ class HomeActivity : ThemedActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var status: TextView
     private lateinit var safetyWarning: TextView
+    private lateinit var acknowledgeManual: Button
     private lateinit var coffee: TextView
     private lateinit var leverStatus: TextView
     private lateinit var leverButton: Button
@@ -94,6 +95,12 @@ class HomeActivity : ThemedActivity() {
             setTextColor(getColor(R.color.mobile_danger))
             visibility = View.GONE
         }
+        acknowledgeManual = button(content, "已检查机器，清除提示") {
+            AlertDialog.Builder(this).setTitle("确认已检查机器")
+                .setMessage("这只会清除 App 提示，不会改变机器状态或历史中的“结果未知”。")
+                .setPositiveButton("清除提示") { _, _ -> service?.acknowledgeManualSafety(); render() }
+                .setNegativeButton("取消", null).show()
+        }.apply { visibility = View.GONE }
         val connectionCard = card(content, "设备")
         status = text(connectionCard, "尚未连接", 16)
         scanButton = button(connectionCard, "扫描并连接设备") { enableAndScan() }
@@ -270,9 +277,12 @@ class HomeActivity : ThemedActivity() {
         val now = SystemClock.elapsedRealtime()
         val running = owner?.running == true
         val warning = ShotSafetyAlert.message(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)
+            ?: owner?.manualSafetyMessage
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
-        status.show(if (running) s.message else "点击扫描启动设备服务")
+        acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null) View.GONE else View.VISIBLE
+        status.show(if (owner?.manualShotActive == true)
+            "机器手动萃取中 · 正在被动记录；请用机器拨杆停止" else if (running) s.message else "点击扫描启动设备服务")
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
         emergencyStop.isEnabled = running && owner?.shotState?.let { it in setOf(ExtractionState.STARTING,
@@ -283,7 +293,7 @@ class HomeActivity : ThemedActivity() {
         val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE
         val freshAwakeIdle = s.coffee is IdleTelemetry && s.coffee.sleepStateRaw == 0 &&
             s.coffeeAt?.let { now >= it && now - it <= 1500 } == true
-        leverButton.isEnabled = running && !shotActive && !settingBusy && preparationIdle &&
+        leverButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && !settingBusy && preparationIdle &&
             s.coffeeState == DeviceState.READY && s.settings != null && freshAwakeIdle
         leverStatus.show(MachineSettingsPresentation.leverMode(s.settings) +
             when (owner?.pendingSetting) {
@@ -297,9 +307,9 @@ class HomeActivity : ThemedActivity() {
                 }
                 else -> ""
             })
-        coffeeDisconnect.isEnabled = running && !shotActive && s.coffeeState != DeviceState.DISCONNECTED
-        scaleDisconnect.isEnabled = running && !shotActive && s.scaleState != DeviceState.DISCONNECTED
-        tareButton.isEnabled = running && !shotActive && s.scaleState == DeviceState.READY &&
+        coffeeDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.coffeeState != DeviceState.DISCONNECTED
+        scaleDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState != DeviceState.DISCONNECTED
+        tareButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState == DeviceState.READY &&
             owner?.tareState !in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO)
         tareStatus.show("去皮状态：" + when (owner?.tareState ?: StandaloneTare.State.IDLE) {
             StandaloneTare.State.IDLE -> "尚未操作"
@@ -313,7 +323,7 @@ class HomeActivity : ThemedActivity() {
         val coffeeFresh = liveMachine != null
         val idle = liveMachine as? IdleTelemetry
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
-        sleepButton.isEnabled = running && !shotActive && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
+        sleepButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
             idle?.sleepStateRaw == 0
         val reportedSleep = if (!coffeeFresh) "暂无新鲜状态" else when (idle?.sleepStateRaw) {
             0 -> "已唤醒"

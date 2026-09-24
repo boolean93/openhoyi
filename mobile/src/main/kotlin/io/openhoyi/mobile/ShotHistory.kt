@@ -46,8 +46,9 @@ class ShotHistory(
 
     fun begin(curveId: String, atMs: Long = now(), slot: Int = 7): String {
         require(activeId == null) { "Previous shot has not been resolved in the history" }
-        require(CurveCatalog.find(curveId) != null || curveId.matches(Regex("factory-v3-(00[1-9]|0[1-9][0-9]|100)")))
-        require(slot in 1..5 || slot == 7)
+        require(curveId == "manual" || CurveCatalog.find(curveId) != null ||
+            curveId.matches(Regex("factory-v3-(00[1-9]|0[1-9][0-9]|100)")))
+        require(if (curveId == "manual") slot == 6 else slot in 1..5 || slot == 7)
         val id = newId()
         require(id.isNotBlank() && records.none { it.id == id })
         records.add(Entry(id, curveId, atMs, null, null, Status.STARTING, null, null, slot))
@@ -84,6 +85,13 @@ class ShotHistory(
         if (terminal) activeId = null
     }
 
+    /** A disconnected passive shot has no session to reconcile; retain UNKNOWN and free the next slot. */
+    fun abandon(id: String, reason: String, atMs: Long = now()) {
+        if (activeId != id) return
+        transition(ExtractionState.OUTCOME_UNKNOWN, reason, null, atMs)
+        activeId = null
+    }
+
     private fun persist() {
         trim()
         storage.write(records.joinToString("\n", postfix = if (records.isEmpty()) "" else "\n", transform = ::encode))
@@ -117,7 +125,8 @@ class ShotHistory(
                 fields[7].takeIf(String::isNotEmpty)?.toInt(),
                 fields.getOrNull(8)?.takeIf(String::isNotEmpty)?.toInt())
         }.getOrNull()?.takeIf { it.id.isNotBlank() && it.curveId.isNotBlank() && it.startedAtMs >= 0 &&
-            (it.slot == null || it.slot in 1..5 || it.slot == 7) }
+            (it.slot == null || if (it.curveId == "manual") it.slot == 6
+                else it.slot in 1..5 || it.slot == 7) }
     }.toList()
 
     private fun safe(value: String): String = Base64.getUrlEncoder().withoutPadding()

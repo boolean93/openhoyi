@@ -78,4 +78,19 @@ class ShotHistoryTest {
         assertNull(history.entries.find { it.id == "shot-1" })
         assertNotNull(history.entries.find { it.id == "shot-501" })
     }
+
+    @Test fun passiveManualShotCanBecomeUnknownThenAllowAnotherShot() {
+        val disk = Memory()
+        var serial = 0
+        val history = ShotHistory(disk, now = { 1_000_000L }, newId = { "shot-${++serial}" })
+        val id = history.begin("manual", slot = 6)
+        history.transition(ExtractionState.RUNNING, "机器手动萃取", null)
+        history.abandon(id, "连接中断")
+        assertEquals(ShotHistory.Status.UNKNOWN, history.entries.single().status)
+        assertEquals("连接中断", history.entries.single().reason)
+        assertNull(history.entries.single().endedAtMs)
+        assertEquals(6, ShotHistory(disk, now = { 1_000_000L }).entries.single().slot)
+        history.begin("factory-v3-001")
+        assertEquals(2, history.entries.size)
+    }
 }
