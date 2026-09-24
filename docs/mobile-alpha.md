@@ -2,7 +2,7 @@
 
 包名 `io.openhoyi.mobile`；独立于 `io.openhoyi.lab` 诊断包和旧 HOYI。没有 UniApp、JS 或 WebView。`HomeActivity` 只负责权限、扫描选择和展示，`MobileService` 持有 `NativeDeviceHub` 及双 BLE 连接，曲线页从 `CurveLibrary` 浏览旧版工厂元数据和已采集曲线。设备会话和编解码复用 `device-session` / `protocol-core`；两款应用通过独立的私有目录使用共享 `trace-core` 实现记录，不混用日志文件。
 
-UI 测试变体 `:mobile:assembleMock` 生成独立包 `io.openhoyi.mobile.mock`，桌面名称 `HOYI Mock`。首页启动后直接显示合成 HOYI/BOOKOO 就绪数据；扫描提供两条虚拟候选设备；选曲线后可模拟约32秒萃取、实时图和本包独立历史。机器设置、睡眠、去皮、预热等控制入口明确拒绝发送。Mock 在服务启动前分流，不创建 `NativeDeviceHub`，合并清单移除了蓝牙权限与 BLE 硬件要求，不能访问真实 GATT。Mock 的历史与 Alpha 互不共享，也不代表协议或硬件验收。尚未安装到设备检查 UI。
+UI 测试变体 `:mobile:assembleMock` 生成独立包 `io.openhoyi.mobile.mock`，桌面名称 `HOYI Mock`。首页启动后直接显示合成 HOYI/BOOKOO 就绪数据；扫描提供两条虚拟候选设备；选曲线后可模拟约32秒萃取、实时图和本包独立历史。设置页另提供一周模拟睡眠计划以检查完整展示。Mock 页面和确认框明确提示模拟，萃取页不申请后台断链通知；机器设置、睡眠、去皮、预热等控制入口拒绝发送。Mock 在服务启动前分流，不创建 `NativeDeviceHub`，合并清单移除了蓝牙权限与 BLE 硬件要求，不能访问真实 GATT。Mock 的历史与 Alpha 互不共享，也不代表协议或硬件验收。尚未安装到设备检查 UI。
 
 ## 已实现
 

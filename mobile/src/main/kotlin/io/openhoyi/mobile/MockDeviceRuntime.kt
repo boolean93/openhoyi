@@ -5,12 +5,15 @@ import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.protocol.Settings
+import io.openhoyi.protocol.SleepDay
+import io.openhoyi.protocol.SleepPart
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 
 /** Deterministic UI fixture. It has no Bluetooth transport and cannot encode a GATT command. */
 internal class MockDeviceRuntime {
     private val emptyFrame = ByteFrame(byteArrayOf())
+    private val sleepDays = List(7) { SleepDay(23, 0, 7, 0) }
     var shotState = ExtractionState.IDLE
         private set
     private var startedAtMs = 0L
@@ -39,7 +42,9 @@ internal class MockDeviceRuntime {
         return MobileSnapshot(
             coffeeState = DeviceState.READY, scaleState = DeviceState.READY,
             coffee = coffee, coffeeAt = now, alarmBits = 0, alarmAt = now,
-            settings = Settings(1, 1, 3, 0x30, 93, 0, 120, 30, 80, 42, 0, emptyFrame),
+            settings = Settings(1, 1, 3, 0x31, 93, 0, 120, 30, 80, 42, 0, emptyFrame),
+            sleepFirst = SleepPart(0, 0x7c, sleepDays.take(4), emptyFrame),
+            sleepSecond = SleepPart(4, null, sleepDays.drop(4), emptyFrame),
             weight = BookooSample(if (extracting) elapsed * 70 else 0, if (extracting) 70 else 0,
                 43, 43, emptyFrame), weightAt = now,
             message = "Mock 数据 · 不连接蓝牙设备",

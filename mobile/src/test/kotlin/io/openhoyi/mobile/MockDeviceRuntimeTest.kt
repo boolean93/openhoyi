@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
+import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 import org.junit.Assert.assertEquals
@@ -16,6 +17,9 @@ class MockDeviceRuntimeTest {
         assertEquals(DeviceState.READY, idle.scaleState)
         assertTrue(idle.coffee is IdleTelemetry)
         assertEquals(0, idle.weight?.weightHundredthsGram)
+        val schedule = WeeklySleepSchedule.fromReadback(idle.sleepFirst, idle.sleepSecond)
+        assertEquals(7, schedule?.days?.size)
+        assertEquals(5, schedule?.days?.count { it.enabled })
 
         mock.start(2_000)
         val running = mock.sample(7_000)

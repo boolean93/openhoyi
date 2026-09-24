@@ -88,7 +88,8 @@ class HomeActivity : ThemedActivity() {
                 recreate()
             }
         })
-        text(content, "原生连接与实时状态", 14)
+        text(content, if (BuildConfig.MOCK_MODE) "仅显示模拟设备数据，不会连接蓝牙或向机器发送命令。"
+            else "原生连接与实时状态", 14)
         safetyWarning = text(content, "", 18, true).apply {
             setTextColor(getColor(R.color.mobile_danger))
             visibility = View.GONE
@@ -240,6 +241,7 @@ class HomeActivity : ThemedActivity() {
         dialog.show()
     }
     private fun chooseLeverMode() {
+        if (BuildConfig.MOCK_MODE) { toast("Mock 版本不修改机器拨杆模式"); return }
         val modes = listOf(
             MachineSettingChange.LeverMode(false, false),
             MachineSettingChange.LeverMode(true, false),
@@ -255,6 +257,7 @@ class HomeActivity : ThemedActivity() {
             }.show()
     }
     private fun confirmSleepNow() {
+        if (BuildConfig.MOCK_MODE) { toast("Mock 版本不发送入睡命令"); return }
         AlertDialog.Builder(this).setTitle("让咖啡机立即睡眠")
             .setMessage("机器入睡后，App 没有唤醒命令。需要用机器拨杆唤醒。")
             .setPositiveButton("发送入睡命令") { _, _ -> service?.enterSleepNow()?.let(::toast); render() }

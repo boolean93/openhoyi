@@ -61,7 +61,8 @@ class ExtractionActivity : ThemedActivity() {
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(28)) }
         scroll.addView(content); setContentView(scroll)
         text(content, "实时萃取", 28, true)
-        text(content, "连接、曲线和重量由服务层再次校验。页面退出不会断开正在运行的连接。", 14)
+        text(content, if (BuildConfig.MOCK_MODE) "模拟萃取仅在本机生成数据，不发送蓝牙命令。"
+            else "连接、曲线和重量由服务层再次校验。页面退出不会断开正在运行的连接。", 14)
         val card = card(content)
         readiness = text(card, "等待设备服务", 18)
         live = text(card, "暂无实时数据", 22)
@@ -81,7 +82,7 @@ class ExtractionActivity : ThemedActivity() {
         super.onStart(); visible = true
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
         handler.post(refresh)
-        requestSafetyNotificationsOnce()
+        if (!BuildConfig.MOCK_MODE) requestSafetyNotificationsOnce()
     }
     override fun onStop() {
         visible = false; handler.removeCallbacks(refresh)
@@ -89,7 +90,7 @@ class ExtractionActivity : ThemedActivity() {
         release(); super.onStop()
     }
     private fun release() { if (bound) { unbindService(connection); bound = false }; service = null }
-    private fun notificationsAllowed(): Boolean = Build.VERSION.SDK_INT < 33 ||
+    private fun notificationsAllowed(): Boolean = BuildConfig.MOCK_MODE || Build.VERSION.SDK_INT < 33 ||
         checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     private fun requestSafetyNotificationsOnce() {
         if (notificationsAllowed()) return
@@ -119,10 +120,12 @@ class ExtractionActivity : ThemedActivity() {
         if (blocked != null) { toast(blocked); render(); return }
         requireNotNull(profile)
         owner.studioStartBlock(profile)?.let { toast(it); render(); return }
-        AlertDialog.Builder(this).setTitle("确认开始萃取")
-            .setMessage("${profile.name} · 槽位 ${profile.parameters.slot} · ${profile.temperatureC} °C\n最大水量：${profile.maximumWaterMl} ml\n目标重量：${if (profile.targetHundredthsGram > 0) "${number(profile.targetHundredthsGram)} g（电子秤）" else "不使用（由咖啡机按水量结束）"}\n将向咖啡机发送已校验的启动命令。" +
+        val effect = if (BuildConfig.MOCK_MODE) "仅在本机模拟萃取；不会连接设备或发送蓝牙命令。"
+            else "将向咖啡机发送已校验的启动命令。"
+        AlertDialog.Builder(this).setTitle(if (BuildConfig.MOCK_MODE) "确认模拟萃取" else "确认开始萃取")
+            .setMessage("${profile.name} · 槽位 ${profile.parameters.slot} · ${profile.temperatureC} °C\n最大水量：${profile.maximumWaterMl} ml\n目标重量：${if (profile.targetHundredthsGram > 0) "${number(profile.targetHundredthsGram)} g（电子秤）" else "不使用（由咖啡机按水量结束）"}\n$effect" +
                 if (notificationsAllowed()) "" else "\n系统通知未授权，后台断链提醒可能无法显示。")
-            .setPositiveButton("确认启动") { _, _ ->
+            .setPositiveButton(if (BuildConfig.MOCK_MODE) "开始模拟" else "确认启动") { _, _ ->
                 owner.startShot(profile.id, profile.scaleMode, presetSlot)?.let(::toast)
                 render()
             }
@@ -179,7 +182,7 @@ class ExtractionActivity : ThemedActivity() {
                     BrewPreparation.State.FAILED -> "预热命令未写入，请取消后重试"
                     BrewPreparation.State.UNKNOWN -> "预热结果未知，请查看机器并取消"
                 })
-        notificationStatus.show(if (notificationsAllowed()) "" else
+        notificationStatus.show(if (BuildConfig.MOCK_MODE || notificationsAllowed()) "" else
             "系统通知未授权；后台断链提醒可能被隐藏。可在系统设置中允许通知。")
         alarmStatus.show(MachineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             SystemClock.elapsedRealtime()))

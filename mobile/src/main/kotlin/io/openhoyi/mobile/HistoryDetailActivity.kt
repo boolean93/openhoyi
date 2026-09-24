@@ -37,7 +37,7 @@ class HistoryDetailActivity : ThemedActivity() {
         }
         root.addView(body)
         setContentView(root)
-        text(body, "萃取详情", 28, true)
+        text(body, if (BuildConfig.MOCK_MODE) "模拟萃取详情" else "萃取详情", 28, true)
         val shotId = intent.getStringExtra("shotId")
         val app = application as MobileApplication
         val entry = runCatching { app.history.entries.firstOrNull { it.id == shotId } }.getOrNull()

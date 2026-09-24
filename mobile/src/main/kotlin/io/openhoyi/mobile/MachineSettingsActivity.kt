@@ -91,7 +91,8 @@ class MachineSettingsActivity : ThemedActivity() {
         scroll.addView(body)
         setContentView(scroll)
         text(body, "机器设置", 28, true)
-        text(body, "更改后等待机器回读确认；蓝牙写入成功不代表设置已生效。", 14)
+        text(body, if (BuildConfig.MOCK_MODE) "以下为模拟设置与睡眠计划；修改操作不会发送蓝牙命令。"
+            else "更改后等待机器回读确认；蓝牙写入成功不代表设置已生效。", 14)
         val summaryCard = card(body, "连接状态")
         connectionState = text(summaryCard, "未连接", 16)
         val settingsCard = card(body, "当前设置")
@@ -190,7 +191,8 @@ class MachineSettingsActivity : ThemedActivity() {
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val ready = snapshot.coffeeState == DeviceState.READY
-        connectionState.update("${snapshot.coffeeState.name}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
+        connectionState.update(if (BuildConfig.MOCK_MODE) "Mock 模拟设备 · 无蓝牙连接" else
+            "${snapshot.coffeeState.name}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
         settings.update(MachineSettingsPresentation.settings(snapshot.settings))
         schedule.update(MachineSettingsPresentation.schedule(snapshot.sleepFirst, snapshot.sleepSecond))
         scheduleWriteStatus.update("时间修改：" + when (owner?.scheduleWriteState) {
@@ -262,6 +264,12 @@ class MachineSettingsActivity : ThemedActivity() {
         })
     }
     private fun confirm(change: MachineSettingChange) {
+        if (BuildConfig.MOCK_MODE) {
+            AlertDialog.Builder(this).setTitle("模拟设置确认")
+                .setMessage("${MachineSettingsPresentation.change(change)}\n仅检查界面流程；模拟值保持不变，不发送蓝牙命令。")
+                .setPositiveButton("完成", null).show()
+            return
+        }
         AlertDialog.Builder(this).setTitle("确认修改机器设置")
             .setMessage(MachineSettingsPresentation.change(change) +
                 if (change is MachineSettingChange.WaterSupply)
@@ -280,6 +288,10 @@ class MachineSettingsActivity : ThemedActivity() {
             .setNegativeButton("取消", null).show()
     }
     private fun confirmCupReset() {
+        if (BuildConfig.MOCK_MODE) {
+            Toast.makeText(this, "Mock 版本不重置机器杯数", Toast.LENGTH_SHORT).show()
+            return
+        }
         val expected = service?.snapshot?.settings?.cupCount ?: return
         val input = EditText(this).apply {
             hint = "输入当前杯数 $expected"
@@ -333,7 +345,8 @@ class MachineSettingsActivity : ThemedActivity() {
         val wakeHour = numberInput(form, "唤醒时（0–23）", previous.time.wakeHour)
         val wakeMinute = numberInput(form, "唤醒分（0–59）", previous.time.wakeMinute)
         val dialog = AlertDialog.Builder(this).setTitle("编辑 $name")
-            .setMessage("旧版协议会重写整周计划；其他六天保持机器当前回报值。")
+            .setMessage(if (BuildConfig.MOCK_MODE) "模拟计划仅用于检查界面；提交后不会发送蓝牙命令。"
+                else "旧版协议会重写整周计划；其他六天保持机器当前回报值。")
             .setView(form).setPositiveButton("核对计划", null).setNegativeButton("取消", null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -350,6 +363,14 @@ class MachineSettingsActivity : ThemedActivity() {
                     this[index] = WeeklySleepDay(enabled.isChecked, SleepDay(sh, sm, wh, wm))
                 })
                 dialog.dismiss()
+                if (BuildConfig.MOCK_MODE) {
+                    AlertDialog.Builder(this).setTitle("模拟计划预览")
+                        .setMessage(String.format(Locale.CHINA,
+                            "$name ${if (enabled.isChecked) "启用" else "关闭"}：%02d:%02d 睡眠，%02d:%02d 唤醒。\n模拟值保持不变，不发送蓝牙命令。",
+                            sh, sm, wh, wm))
+                        .setPositiveButton("完成", null).show()
+                    return@setOnClickListener
+                }
                 AlertDialog.Builder(this).setTitle("确认写入整周睡眠计划")
                     .setMessage(String.format(Locale.CHINA,
                         "$name ${if (enabled.isChecked) "启用" else "关闭"}：%02d:%02d 睡眠，%02d:%02d 唤醒。\n将发送两包计划，并等待机器回报整周内容。",

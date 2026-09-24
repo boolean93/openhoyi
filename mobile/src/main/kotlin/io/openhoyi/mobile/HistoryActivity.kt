@@ -41,7 +41,8 @@ class HistoryActivity : ThemedActivity() {
         }
         setContentView(root)
         title(root, "萃取历史", 28, true)
-        title(root, "仅记录原生 Alpha 发起的萃取；结果未知时不会标为成功。", 14)
+        title(root, if (BuildConfig.MOCK_MODE) "仅记录本包的模拟萃取，与 Alpha 历史分开。"
+            else "仅记录原生 Alpha 发起的萃取；结果未知时不会标为成功。", 14)
         count = TextView(this).apply {
             textSize = 15f
             setTextColor(getColor(R.color.mobile_text))
