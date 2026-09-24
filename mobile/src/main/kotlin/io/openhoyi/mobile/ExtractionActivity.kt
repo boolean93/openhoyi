@@ -189,7 +189,7 @@ class ExtractionActivity : ThemedActivity() {
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
-        readiness.show("曲线：${item?.name ?: "未选择"} · 槽位 $presetSlot\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${if (owner?.manualShotActive == true) "机器手动萃取" else state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
+        readiness.show("曲线：${item?.name ?: "未选择"} · 槽位 $presetSlot\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${if (owner?.scalePreflight == true) "等待电子秤归零后启动" else if (owner?.manualShotActive == true) "机器手动萃取" else state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
         preparationStatus.show(if (snapshot.settings == null) "运行模式尚未回读" else if (!studio) "咖啡馆模式 · 按曲线正常启动" else
             "工作室模式 · 当前 ${corrected?.let(::number) ?: "—"} °C / 目标 ${profile?.temperatureC ?: "—"} °C\n" +
                 when (preparation) {
@@ -227,7 +227,7 @@ class ExtractionActivity : ThemedActivity() {
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
-        stop.text = stopAction.label
+        stop.text = if (owner?.scalePreflight == true) "取消启动" else stopAction.label
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun number(value: Int): String = String.format(Locale.ROOT, "%.2f", value / 100.0)

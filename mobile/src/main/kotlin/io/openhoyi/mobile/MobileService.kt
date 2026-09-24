@@ -154,10 +154,12 @@ class MobileService : Service() {
     var snapshot = MobileSnapshot(); private set
     val shotState: ExtractionState get() = mock?.shotState ?: hub?.extraction?.state ?: ExtractionState.IDLE
     val stopReason: String? get() = hub?.extraction?.stopReason?.name
+    val scalePreflight: Boolean get() = hub?.extraction?.preparingScale == true
     private val watchShot = object : Runnable {
         override fun run() {
             val current = shotState
             if (current != lastShotState) {
+                val previous = lastShotState
                 lastShotState = current
                 val now = SystemClock.elapsedRealtime()
                 val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
@@ -171,6 +173,9 @@ class MobileService : Service() {
                 }
                 if (current == ExtractionState.OUTCOME_UNKNOWN) saveSeriesCheckpoint(force = true)
                 event("萃取状态：${current.name}", "shot.state")
+                if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
+                    stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
+                    event("电子秤去皮未确认，咖啡机未启动", "shot.preflight_failed")
                 refreshSafetyNotification()
             }
             handler.postDelayed(this, 100)
@@ -846,7 +851,8 @@ class MobileService : Service() {
             event("启动结果未知，请检查咖啡机", "shot.unknown")
             return "启动结果未知，请检查咖啡机"
         }
-        event("已提交萃取请求：${profile.name}", "shot.requested")
+        event(if (current.extraction.preparingScale) "正在确认电子秤归零；确认后启动：${profile.name}"
+            else "已提交萃取请求：${profile.name}", "shot.requested")
         return null
     }
     fun stopShot() {

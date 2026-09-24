@@ -301,7 +301,7 @@ class HomeActivity : ThemedActivity() {
             s.coffeeState, running)
         emergencyStop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         emergencyStop.isEnabled = stopAction.enabled
-        emergencyStop.text = stopAction.label
+        emergencyStop.text = if (owner?.scalePreflight == true) "取消启动" else stopAction.label
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE
