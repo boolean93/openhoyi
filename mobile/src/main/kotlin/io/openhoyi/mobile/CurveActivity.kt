@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -48,7 +49,13 @@ class CurveActivity : ThemedActivity() {
             }
         }
         setContentView(root)
-        label(root, "曲线库", 28, true)
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        label(header, "曲线库", 28, true)
+        header.addView(Button(this).apply {
+            setText(R.string.curve_view_legacy)
+            setOnClickListener { startActivity(Intent(this@CurveActivity, LegacyCurveActivity::class.java)) }
+        })
+        root.addView(header)
         label(root, "3 条采集曲线 · 100 条旧版工厂曲线 · 5 个快捷槽位", 14)
         search = EditText(this).apply {
             hint = "搜索曲线名称"

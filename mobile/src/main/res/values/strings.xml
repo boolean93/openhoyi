@@ -4,6 +4,11 @@
     <string name="history_export_zip">导出历史与曲线 ZIP</string>
     <string name="history_import_legacy">导入旧版历史 JSON</string>
     <string name="history_view_legacy">查看旧版历史</string>
+    <string name="curve_view_legacy">旧版曲线</string>
+    <string name="curve_import_legacy">导入旧版曲线库 JSON</string>
+    <string name="legacy_curve_factory">工厂</string>
+    <string name="legacy_curve_user">用户</string>
+    <string name="legacy_curve_detail">%1$s\n分类：%2$s · 原位置 %3$d\n来源：旧版%4$s曲线\n温度：%5$s · 水量：%6$s\n目标重量：%7$s · 分段：%8$s\n\n仅供核对；尚未完成该曲线启动报文的逐字节对照，不能设为当前曲线。</string>
     <string name="setting_toggle_status">%1$s：%2$s · 点击切换</string>
     <string name="setting_brew_heating">萃取加热</string>
     <string name="setting_steam_heating">蒸汽加热</string>

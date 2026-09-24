@@ -72,3 +72,5 @@ adb shell am start -n io.openhoyi.lab/.LabActivity
 - 没有向咖啡机发送本版本测试控制命令。未修改或安装旧App。
 
 最新实机结果见 [验证报告](docs/validation-2026-09-23.md)。完整范围、缺口和发布门禁见 [覆盖矩阵](docs/coverage.md) 与 [功能状态](docs/native-feature-status.md)；接续开发见 [HANDOFF](HANDOFF.md)。
+
+旧版曲线库的显式导出与原生只读导入见 [迁移说明](docs/legacy-curve-import.md)；导入曲线暂不能控制机器。

@@ -34,6 +34,7 @@ class MobileApplication : Application() {
         }).also { samples.prune(it.entries.map(ShotHistory.Entry::id).toSet()) }
     }
     val legacyHistory: LegacyHistoryStore by lazy { LegacyHistoryStore(File(filesDir, "legacy_history.json")) }
+    val legacyCurves: LegacyCurveStore by lazy { LegacyCurveStore(File(filesDir, "legacy_curves.json")) }
     fun importLegacyHistory(uri: Uri) {
         Thread({
             val result = runCatching {

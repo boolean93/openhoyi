@@ -120,3 +120,5 @@ APK：`app/build/outputs/apk/debug/app-debug.apk`。独立包可以直接adb ins
 fixture：protocol-core/src/test/resources/notifications.tsv、provenance.json；device-session/src/test/resources/shots.tsv。原始私人日志仍在父目录captures，不提交。scripts/extract_fixtures.py / extract_shots.py可重新提取。
 
 日志最多8×4MiB；队列512项；丢失/错误/淘汰显式统计。sessionId标识日志实例、ownerId标识服务实例、role/generation/token标识传输。突发进程终止可能丢队尾，统计仅当前实例，不代表所有历史的完整性证明。未推送GitHub。
+
+旧版 `hy_chartLib` 迁移已接入修改版显式 JSON 导出和 Alpha 独立只读导入/浏览，见 `docs/legacy-curve-import.md`。源数组与分类配置完整保存，不参与 `CurveLibrary`/启动许可；真实用户文件、SAF与分享流程未实机验证，曲线编辑继续后置。
