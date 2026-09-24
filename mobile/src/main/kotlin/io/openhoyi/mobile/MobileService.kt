@@ -157,6 +157,7 @@ class MobileService : Service() {
     var running = false; private set
     var snapshot = MobileSnapshot(); private set
     val shotState: ExtractionState get() = mock?.shotState ?: hub?.extraction?.state ?: ExtractionState.IDLE
+    var activeShotTargetHundredthsGram: Int? = null; private set
     val stopReason: String? get() = hub?.extraction?.stopReason?.name
     val scalePreflight: Boolean get() = hub?.extraction?.preparingScale == true
     private val watchShot = object : Runnable {
@@ -832,6 +833,7 @@ class MobileService : Service() {
                 brewPreparation.consumed()
             }
             mock.start(now)
+            activeShotTargetHundredthsGram = profile.targetHundredthsGram
             val shotId = runCatching { history?.begin(profile.id, slot = slot) }.getOrNull()
                 ?: java.util.UUID.randomUUID().toString()
             series.begin(shotId, SystemClock.elapsedRealtime())
@@ -871,6 +873,7 @@ class MobileService : Service() {
             event("启动未被会话层接受", "shot.rejected")
             return "启动未被会话层接受"
         }
+        activeShotTargetHundredthsGram = profile.targetHundredthsGram
         if (brewPreparation.active) brewPreparation.consumed()
         val shotId = runCatching { history?.begin(profile.id, slot = slot) }
             .onFailure { event("历史记录失败", "shot.history_error") }

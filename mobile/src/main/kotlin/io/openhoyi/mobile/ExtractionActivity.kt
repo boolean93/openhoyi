@@ -15,6 +15,7 @@ import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.session.ExtractionState
 import io.openhoyi.session.DeviceState
+import io.openhoyi.session.StopReason
 import java.util.Locale
 
 /** A screen never owns BLE. Start requires an explicit confirmation; Stop is one tap. */
@@ -27,6 +28,7 @@ class ExtractionActivity : ThemedActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var readiness: TextView
     private lateinit var live: TextView
+    private lateinit var weightTarget: TextView
     private lateinit var preparationStatus: TextView
     private lateinit var notificationStatus: TextView
     private lateinit var alarmStatus: TextView
@@ -82,6 +84,7 @@ class ExtractionActivity : ThemedActivity() {
         val card = card(content)
         readiness = text(card, "等待设备服务", 18)
         live = text(card, "暂无实时数据", 22)
+        weightTarget = text(card, "", 16)
         preparationStatus = text(card, "温度准备：尚未连接", 14)
         notificationStatus = text(card, "", 14)
         alarmStatus = text(card, "尚未收到机器告警状态", 14)
@@ -215,6 +218,21 @@ class ExtractionActivity : ThemedActivity() {
         val scale = LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)
         live.show("$machine\n重量：${scale?.let { number(it.weightHundredthsGram) } ?: "—"} g" +
             " · 咖啡流速：${scale?.let { number(it.deviceFlowHundredths) } ?: "—"}（秤）")
+        val target = if (state != ExtractionState.IDLE) owner?.activeShotTargetHundredthsGram
+            else profile?.targetHundredthsGram
+        weightTarget.show(if (owner?.manualShotActive != true && target != null && target > 0) {
+            val progress = "当前 ${scale?.let { number(it.weightHundredthsGram) } ?: "—"} g / 目标 ${number(target)} g"
+            val advice = when {
+                owner?.scalePreflight == true -> "秤归零后才会启动咖啡机"
+                owner?.stopReason == StopReason.TARGET_WEIGHT.name -> "已按目标重量发出停止命令；请确认机器停水"
+                owner?.stopReason == StopReason.MANUAL.name -> "已手动请求停止；请确认机器停水"
+                owner?.stopReason == StopReason.SCALE_UNAVAILABLE.name -> "秤数据不可用，已发安全停止；请确认机器停水"
+                state == ExtractionState.RUNNING -> "达到目标重量后自动停止；请守在机器旁"
+                state == ExtractionState.STOP_REQUESTED -> "停止命令处理中；请确认机器停水"
+                else -> "使用电子秤控制停止"
+            }
+            "$progress\n$advice"
+        } else if (target == 0 && profile != null) "这条曲线不按秤重停机，由咖啡机按曲线结束" else "")
         val points = owner?.chartPoints ?: emptyList()
         if (chart.points != points) chart.points = points
         prepare.isEnabled = owner?.running == true && blocked == null && studio && !temperatureReady &&
