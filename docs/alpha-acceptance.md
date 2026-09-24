@@ -1,6 +1,8 @@
 # Alpha 实机功能验收顺序
 
-当前仅是待执行清单。用户尚未要求安装；以下命令和控制操作不得提前运行。旧版 App 连接会影响独占 BLE 扫描，测试时先确认没有萃取，再由用户决定何时暂停旧版。
+用户已于 2026-09-24 授权安装，Alpha 已安装到平板。以下未完成的控制操作仍按清单顺序执行；旧版 App 连接会影响独占 BLE 扫描，测试时先确认没有萃取。
+
+2026-09-24 冷启动记录：`a1706b9` 的 `mobile-debug.apk` 经 USB ADB 安装成功，`HomeActivity` 正常启动，进程存活。蓝牙开启，`BLUETOOTH_SCAN` 和 `BLUETOOTH_CONNECT` 均已授权。`scale.auto_reconnect.window_open=600s` 后，第 1–3 次尝试在约 22 秒的建链超时后进入 FAILED；第 4 次依次完成 GATT connect/discover/subscribe/初始化写入，20:41:32 到达 `BOOKOO: READY`，随后持续收到秤通知。首次失败原因未定，不应归因于权限或协议。尚未执行咖啡机连接、去皮或控制命令。
 
 ## 观察方式
 
