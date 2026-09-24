@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import java.io.File
+import java.io.IOException
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -36,20 +37,26 @@ class ShotSamplesStore(private val directory: File) {
 
     fun load(id: String): List<ShotPoint> {
         val source = file(id)
-        if (!source.isFile) return emptyList()
-        if (source.length() > 512L * 1024) return emptyList()
+        if (!source.exists()) return emptyList()
+        if (!source.isFile || source.length() > 512L * 1024) throw IOException("Invalid shot samples file")
         val lines = source.readLines(Charsets.UTF_8)
-        if (lines.firstOrNull() != HEADER) return emptyList()
-        val points = lines.drop(1).take(ShotSeries.MAX_POINTS).mapNotNull { line ->
+        if (lines.firstOrNull() != HEADER || lines.size > ShotSeries.MAX_POINTS + 1)
+            throw IOException("Invalid shot samples header or size")
+        val points = lines.drop(1).map { line ->
             val fields = line.split('\t')
-            if (fields.size != 6) return@mapNotNull null
-            runCatching {
-                ShotPoint(fields[0].toLong(), fields[1].toInt(), fields[2].toInt(), fields[3].toInt(),
-                    fields[4].toInt(), fields[5].takeIf(String::isNotEmpty)?.toInt())
-            }.getOrNull()
+            if (fields.size != 6) throw IOException("Invalid shot sample row")
+            val numbers = fields.take(5).map { it.toLongOrNull() ?: throw IOException("Invalid shot sample value") }
+            val weight = fields[5].takeIf(String::isNotEmpty)?.toIntOrNull()
+            if (fields[5].isNotEmpty() && weight == null) throw IOException("Invalid shot sample weight")
+            try {
+                ShotPoint(numbers[0], Math.toIntExact(numbers[1]), Math.toIntExact(numbers[2]),
+                    Math.toIntExact(numbers[3]), Math.toIntExact(numbers[4]), weight)
+            } catch (_: ArithmeticException) { throw IOException("Shot sample value outside integer range") }
         }
-        return if (points.all { it.elapsedMs >= 0 } &&
-            points.zipWithNext().all { (a, b) -> a.elapsedMs < b.elapsedMs }) points else emptyList()
+        if (points.any { it.elapsedMs < 0 } ||
+            points.zipWithNext().any { (a, b) -> a.elapsedMs >= b.elapsedMs })
+            throw IOException("Invalid shot sample times")
+        return points
     }
 
     fun prune(retainedIds: Set<String>) {
@@ -76,21 +83,25 @@ class ShotSamplesStore(private val directory: File) {
 /** BLE callbacks enqueue disk work; an in-memory pending copy keeps new history immediately readable. */
 class ShotSamplesRepository(directory: File, private val onError: (Throwable) -> Unit = {}) {
     private val store = ShotSamplesStore(directory)
-    private val pending = ConcurrentHashMap<String, List<ShotPoint>>()
+    private class Pending(val points: List<ShotPoint>)
+    private val pending = ConcurrentHashMap<String, Pending>()
     private val writer = Executors.newSingleThreadExecutor { task ->
         Thread(task, "shot-samples").apply { isDaemon = true }
     }
     fun save(id: String, points: List<ShotPoint>) {
-        val copied = points.toList()
-        pending[id] = copied
+        val latest = Pending(points.toList())
+        pending[id] = latest
         writer.execute {
             try {
-                store.save(id, copied)
-                pending.remove(id, copied)
-            } catch (error: Throwable) { onError(error) }
+                store.save(id, latest.points)
+                pending.remove(id, latest)
+            } catch (error: Throwable) {
+                pending.remove(id, latest)
+                onError(error)
+            }
         }
     }
-    fun load(id: String): List<ShotPoint> = pending[id] ?: store.load(id)
+    fun load(id: String): List<ShotPoint> = pending[id]?.points ?: store.load(id)
     fun prune(retainedIds: Set<String>) {
         writer.execute { try { store.prune(retainedIds) } catch (error: Throwable) { onError(error) } }
     }

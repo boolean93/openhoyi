@@ -2,7 +2,10 @@ package io.openhoyi.mobile
 
 import org.junit.Assert.*
 import org.junit.Test
+import java.io.IOException
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class ShotSamplesStoreTest {
     @Test fun roundTripsSamplesAndPrunesOnlyKnownSampleFiles() {
@@ -34,5 +37,39 @@ class ShotSamplesStoreTest {
             val afterRestart = ShotSamplesStore(dir)
             assertEquals(listOf(point), afterRestart.load("shot-interrupted"))
         } finally { dir.deleteRecursively() }
+    }
+
+    @Test fun malformedExistingSampleFileIsNotReportedAsEmpty() {
+        val dir = Files.createTempDirectory("openhoyi-corrupt-samples").toFile()
+        try {
+            val store = ShotSamplesStore(dir)
+            val file = dir.resolve("samples-shot-corrupt.tsv")
+            file.writeText("invalid header\n")
+            assertThrows(IOException::class.java) { store.load("shot-corrupt") }
+            file.writeText("# openhoyi-shot-points-v1\n100\t90\t20\t30\t9200\t\ninvalid row\n")
+            assertThrows(IOException::class.java) { store.load("shot-corrupt") }
+            file.writeText("# openhoyi-shot-points-v1\n100\t90\t20\t30\t9200\t\n100\t91\t21\t31\t9201\t\n")
+            assertThrows(IOException::class.java) { store.load("shot-corrupt") }
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test fun oversizedExistingSampleFileIsNotSilentlyTruncated() {
+        val dir = Files.createTempDirectory("openhoyi-oversized-samples").toFile()
+        try {
+            val store = ShotSamplesStore(dir)
+            dir.resolve("samples-shot-large.tsv").writeText("x".repeat(512 * 1024 + 1))
+            assertThrows(IOException::class.java) { store.load("shot-large") }
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test fun failedAsyncSaveDoesNotMasqueradeAsPersistedSamples() {
+        val parent = Files.createTempFile("openhoyi-unwritable-samples", ".tmp").toFile()
+        try {
+            val failure = CountDownLatch(1)
+            val repository = ShotSamplesRepository(parent) { failure.countDown() }
+            repository.save("shot-1", listOf(ShotPoint(0, 90, 20, 0, 9200, null)))
+            assertTrue(failure.await(3, TimeUnit.SECONDS))
+            assertTrue(repository.load("shot-1").isEmpty())
+        } finally { parent.delete() }
     }
 }
