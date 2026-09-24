@@ -23,7 +23,7 @@
 | 大包/MTU/通用Read | 首版明确不支持 | Android写入限制20字节 | 后续需真实协议分片证据后实现 |
 | 管理命令/OTA | UnsupportedCommandGroup | 无执行入口 | 密码修改、校准、出厂、OTA独立验证 |
 | 原生诊断UI/持久化 | LabActivity / LabService | 独立APK、未知/过期/断开显示、成功秤地址、离线UI测试APK | 冒烟APK已构建未执行；实机布局、权限、连接和导出 |
-| 萃取断链人工提醒 | ShotSafetyAlert、MobileService、HomeActivity | 启动/萃取/停止期间断链或结果未知时保留警示；前台服务通知更新、高优先级提醒、首页提示和首页紧急停止入口；萃取页申请一次通知权限并提示拒绝后的限制；明确终态后清除 | Android通知权限或系统策略可能阻止独立高优先级通知；尚未实机验证后台提醒 |
+| 萃取断链人工提醒 | ShotSafetyAlert、MobileService、HomeActivity | 启动/萃取/停止期间断链或结果未知时保留警示；前台服务通知更新、高优先级提醒、首页提示，以及首页和萃取页固定底部停止入口；StopActionPresentation 测试涵盖运行中、停止处理中、断线结果未知和重连恢复；萃取页申请一次通知权限并提示拒绝后的限制；明确终态后清除 | Android通知权限或系统策略可能阻止独立高优先级通知；尚未实机验证后台提醒 |
 | 原生日常版基础流程 | mobile/HomeActivity、MobileService、CurveActivity、ExtractionActivity、CurveCatalog、ShotGate | 独立APK、曲线和启动门禁单测、此前构建和Lint通过；复用已验证会话控制 | UI/连接/真实萃取未实机验收；未知进程终止无法保证停液 |
 | 实时读数时效 | LiveTelemetry、HomeActivity、ExtractionActivity | 连接就绪且时间戳在过去1.5秒内才显示当前机器/秤数字；过期、未来或断开后显示“—”；边界单测 | 页面状态变化和阈值在Alpha实机待验收 |
 | 旧版工厂曲线萃取入口 | FactoryCurveCatalog、FactoryCurveAdapter、FactoryWireProof、CurveLibrary、factory_wire_v1.tsv | 100条元数据与旧版归一化一致；分类与名称搜索，未通过报文校验的曲线只可浏览；有秤/无秤200帧和旧版编码函数逐字节对照；发送前复核曲线、帧和秤模式 | Alpha尚未实机萃取；用户自定义曲线未导入，曲线编辑后置 |
@@ -49,7 +49,7 @@
 
 见[实机报告](validation-2026-09-23.md)。咖啡机认证/设置/遥测有实机证据；新增仪器测试的4项检查通过。纯Kotlin会话回归增至33场景。BLE两次status=8断线未定位，未通过长期稳定性验收；08:42双设备并行约2分钟无断线，后因测试重启进程中断。秤负重量/自动重连及SAF系统选择器流程未完成。下方首轮结果为历史记录，不能代替最新报告。
 
-Alpha 日常版第一段功能见[说明](mobile-alpha.md)。历史与曲线导出接入后，协议检查36,796项、会话检查36项、Alpha与Mock各75项单测通过，双变体构建成功，Lint 0错误、2条警告。当前用户要求暂不安装，尚无Alpha实机萃取、槽位启停、独立去皮、睡眠、睡眠计划写入、设置回读或告警证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
+Alpha 日常版第一段功能见[说明](mobile-alpha.md)。历史与曲线导出接入后，协议检查36,796项、会话检查36项、Alpha与Mock各79项单测通过，双变体构建成功，Lint 0错误、2条警告。当前用户要求暂不安装，尚无Alpha实机萃取、槽位启停、独立去皮、睡眠、睡眠计划写入、设置回读或告警证据。Lab独占连接约6分钟、后台/锁屏各约1分钟持续收数，见上方报告。
 
 ## 本轮 Lab 结果（2026-09-22）
 

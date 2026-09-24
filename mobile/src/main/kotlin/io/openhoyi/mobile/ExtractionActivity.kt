@@ -9,6 +9,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.*
 import android.view.WindowInsets
+import android.view.View
 import android.widget.*
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
@@ -47,8 +48,12 @@ class ExtractionActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(getColor(R.color.mobile_background))
+        }
         val scroll = ScrollView(this).apply { setBackgroundColor(getColor(R.color.mobile_background)) }
-        scroll.setOnApplyWindowInsetsListener { view, insets ->
+        root.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
                 view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
@@ -59,7 +64,18 @@ class ExtractionActivity : ThemedActivity() {
             insets
         }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(28)) }
-        scroll.addView(content); setContentView(scroll)
+        scroll.addView(content)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        stop = Button(this).apply {
+            text = "立即停止"
+            setTextColor(getColor(R.color.mobile_danger))
+            visibility = View.GONE
+            setOnClickListener { service?.stopShot(); render() }
+        }
+        root.addView(stop, LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(dp(24), dp(4), dp(24), dp(12))
+        })
+        setContentView(root)
         text(content, "实时萃取", 28, true)
         text(content, if (BuildConfig.MOCK_MODE) "模拟萃取仅在本机生成数据，不发送蓝牙命令。"
             else "连接、曲线和重量由服务层再次校验。页面退出不会断开正在运行的连接。", 14)
@@ -74,7 +90,6 @@ class ExtractionActivity : ThemedActivity() {
         prepare = button(card, "预热到曲线温度") { confirmPrepare() }
         cancelPrepare = button(card, "取消预热") { service?.cancelBrewPreparation()?.let(::toast); render() }
         start = button(card, "开始萃取") { confirmStart() }
-        stop = button(card, "立即停止") { service?.stopShot(); render() }
         button(content, "返回首页") { finish() }
         render()
     }
@@ -207,9 +222,10 @@ class ExtractionActivity : ThemedActivity() {
             snapshot.coffeeState == DeviceState.READY && !ShotGate.active(state)
         start.isEnabled = owner?.running == true && blocked == null && studioBlocked == null &&
             !settingBusy && !sleepBusy
-        stop.isEnabled = owner?.running == true && state in setOf(ExtractionState.STARTING,
-            ExtractionState.RUNNING, ExtractionState.OUTCOME_UNKNOWN) &&
-            (state != ExtractionState.OUTCOME_UNKNOWN || snapshot.coffeeState == io.openhoyi.session.DeviceState.READY)
+        val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
+        stop.isEnabled = stopAction.enabled
+        stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
+        stop.text = stopAction.label
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun number(value: Int): String = String.format(Locale.ROOT, "%.2f", value / 100.0)

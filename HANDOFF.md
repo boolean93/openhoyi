@@ -122,3 +122,5 @@ fixture：protocol-core/src/test/resources/notifications.tsv、provenance.json�
 日志最多8×4MiB；队列512项；丢失/错误/淘汰显式统计。sessionId标识日志实例、ownerId标识服务实例、role/generation/token标识传输。突发进程终止可能丢队尾，统计仅当前实例，不代表所有历史的完整性证明。未推送GitHub。
 
 旧版 `hy_chartLib` 迁移已接入修改版显式 JSON 导出和 Alpha 独立只读导入/浏览，见 `docs/legacy-curve-import.md`。源数组与分类配置完整保存，不参与 `CurveLibrary`/启动许可；真实用户文件、SAF与分享流程未实机验证，曲线编辑继续后置。
+
+Alpha 首页与实时萃取页的“立即停止”入口已移至固定底部栏，只在本 App 发起的萃取仍需处理时显示。停止请求处理中或断线结果未知时保留可见但禁用，并给出原因；机器拨杆手动萃取仍使用机器拨杆停止。小屏、系统导航栏和实机点击仍待安装后核验。

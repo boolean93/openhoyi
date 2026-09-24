@@ -67,8 +67,12 @@ class HomeActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(getColor(R.color.mobile_background))
+        }
         val scroll = ScrollView(this).apply { isFillViewport = true; setBackgroundColor(getColor(R.color.mobile_background)) }
-        scroll.setOnApplyWindowInsetsListener { view, insets ->
+        root.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
                 view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
@@ -79,7 +83,18 @@ class HomeActivity : ThemedActivity() {
             insets
         }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(28)) }
-        scroll.addView(content); setContentView(scroll)
+        scroll.addView(content)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        emergencyStop = Button(this).apply {
+            text = "立即停止萃取"
+            setTextColor(getColor(R.color.mobile_danger))
+            visibility = View.GONE
+            setOnClickListener { service?.stopShot(); render() }
+        }
+        root.addView(emergencyStop, LinearLayout.LayoutParams(-1, -2).apply {
+            setMargins(dp(24), dp(4), dp(24), dp(12))
+        })
+        setContentView(root)
         text(content, getString(R.string.app_name), 28, true)
         content.addView(Switch(this).apply {
             setText(R.string.theme_dark_mode)
@@ -113,9 +128,6 @@ class HomeActivity : ThemedActivity() {
         sleepStatus = text(coffeeCard, "睡眠状态：未知", 14)
         sleepButton = button(coffeeCard, "立即睡眠") { confirmSleepNow() }
         alarmStatus = text(coffeeCard, "尚未收到机器告警状态", 14)
-        emergencyStop = button(coffeeCard, "立即停止萃取") { service?.stopShot(); render() }.apply {
-            setTextColor(getColor(R.color.mobile_danger))
-        }
         button(coffeeCard, "查看机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
         coffeeDisconnect = button(coffeeCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
         val scaleCard = card(content, "电子秤")
@@ -285,9 +297,11 @@ class HomeActivity : ThemedActivity() {
             "机器手动萃取中 · 正在被动记录；请用机器拨杆停止" else if (running) s.message else "点击扫描启动设备服务")
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
-        emergencyStop.isEnabled = running && owner?.shotState?.let { it in setOf(ExtractionState.STARTING,
-            ExtractionState.RUNNING, ExtractionState.OUTCOME_UNKNOWN) } == true &&
-            (owner?.shotState != ExtractionState.OUTCOME_UNKNOWN || s.coffeeState == DeviceState.READY)
+        val stopAction = StopActionPresentation.describe(owner?.shotState ?: ExtractionState.IDLE,
+            s.coffeeState, running)
+        emergencyStop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
+        emergencyStop.isEnabled = stopAction.enabled
+        emergencyStop.text = stopAction.label
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE
