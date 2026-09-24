@@ -19,6 +19,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     private val handler=Handler(Looper.getMainLooper())
     private var remembered=rememberedScaleAddress?.takeIf { android.bluetooth.BluetoothAdapter.checkBluetoothAddress(it) }
     private var candidate:String?=null
+    private var automaticScaleAttempts=0
     private var closed=false
     private val reconnect=ReconnectPolicy()
     val scanner=ScanCoordinator(context)
@@ -45,7 +46,10 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
             if(idleScale&&reconnect.shouldAttempt(now,false)) {
                 val address=remembered
                 if(address==null) reconnect.manualDisconnect()
-                else try { connectScale(address) }
+                else try {
+                    diagnostic("scale.auto_reconnect.attempt=${++automaticScaleAttempts}")
+                    connectScale(address)
+                }
                 catch(error:RuntimeException) {
                     reconnect.attemptFinished(SystemClock.elapsedRealtime())
                     diagnostic("remembered scale reconnect failed: ${error.javaClass.simpleName}")
@@ -63,8 +67,12 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
                 DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED)) return false
         candidate=address;scale.session.connect(address);return true
     }
-    fun foreground(){usable();reconnect.foreground(SystemClock.elapsedRealtime(),remembered!=null)}
-    fun background(){usable();reconnect.background();scanner.close()}
+    fun foreground(){
+        usable();automaticScaleAttempts=0
+        reconnect.foreground(SystemClock.elapsedRealtime(),remembered!=null)
+        if(remembered!=null)diagnostic("scale.auto_reconnect.window_open=600s")
+    }
+    fun background(){usable();reconnect.background();scanner.close();diagnostic("scale.auto_reconnect.window_closed")}
     fun disconnectScale(){usable();reconnect.manualDisconnect();scale.session.disconnect()}
     fun tareScale(done:(OperationResult)->Unit){usable();scale.session.tare(done)}
     fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit){

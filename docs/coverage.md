@@ -19,6 +19,7 @@
 | 扫描 | ScanCoordinator | Android编译/lint；统一扫描两角色 | 真机扫描频率、位置权限与开关验证 |
 | Android后台 | LabService + NativeDeviceHub | connectedDevice前台服务、Binder与页面解耦；静态独立审查 | 真机锁屏/旋转/权限撤销；不能承诺进程被杀后的停液 |
 | 日志 | WireTrace + LabApplication + TraceStore | 真实传输边界、密码整帧脱敏、进程单写队列、顺序/轮转/导出/失败测试 | 真机导出；崩溃前未落盘记录可丢失，codec.hex本身不脱敏 |
+| 记忆秤轮询可观测性 | NativeDeviceHub / MobileService | 前台窗口打开、自动连接尝试序号、窗口关闭以低频事件输出到 `OpenHoyiMobile`；状态终态已有独立事件，详细传输仍在 trace ZIP | Alpha 实机的10分钟窗口、断链退避及手动断开待按[验收顺序](alpha-acceptance.md)核对 |
 | 设置写入结果 | OperationResult、SettingsWriteTracker | 区分Failed/Unknown/Cancelled/transport Success；常用设置需新鲜匹配0x83帧才标确认 | 其余设置的回读事务未实现；实机时序未验收 |
 | 大包/MTU/通用Read | 首版明确不支持 | Android写入限制20字节 | 后续需真实协议分片证据后实现 |
 | 管理命令/OTA | UnsupportedCommandGroup | 无执行入口 | 密码修改、校准、出厂、OTA独立验证 |

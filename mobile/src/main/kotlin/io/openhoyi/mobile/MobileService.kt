@@ -336,7 +336,10 @@ class MobileService : Service() {
                         event("电子秤已归零", "scale.tare_confirmed")
                     snapshot = snapshot.copy(weight = it, weightAt = SystemClock.elapsedRealtime())
                 },
-                diagnostic = { event("设备通信异常") },
+                diagnostic = { detail ->
+                    if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
+                    else event("设备通信异常", "ble.diagnostic")
+                },
                 trace = { role, trace ->
                     logs.record("wire.${trace.kind}", buildMap {
                         put("ownerId", ownerId); put("role", role.name); put("generation", trace.generation.toString())
