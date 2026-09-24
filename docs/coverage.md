@@ -43,6 +43,7 @@
 | 实时和历史曲线 | ShotSeries、ShotChartView、ShotSamplesStore、HistoryDetailActivity | 只处理0x80已解码字段，新鲜秤重及秤报告流速合并；原生图展示压力、机器水流、秤流速、重量及萃取温度，温度使用独立动态刻度；2000点上限、时间顺序、首次与约每5秒异步暂存、七列文件及旧六列兼容、最终文件往返与清理单测通过；损坏文件明确报错，不静默跳行或截断；构建/Lint通过 | 最后一次暂存后的点及尚未完成的异步写入可能因进程中断丢失；秤流速物理单位及图表待实机验收 |
 
 | 旧版曲线库只读迁移 | 旧版 `exportLegacyCurves`、LegacyCurveCodec/Store、LegacyCurveActivity | 完整保存 `hy_chartLib` 数组与分类配置；格式、重复导入、损坏替换测试；旧版分享链路16项测试通过；未进入任何BLE控制许可 | 缺真实导出文件与分享/SAF实机验证；开放启动前须逐条旧版报文对照 |
+| 旧版用户曲线报文采样 | `generate_legacy_curve_oracle.py` | 固定旧版编码函数哈希和导出文件哈希；100条工厂曲线×6槽位×2秤模式共1200帧与现有 oracle 一致；空槽位和损坏输入检查 | 缺真实用户曲线导出；尚未完成原生参数转换及逐字节对照，不开放控制 |
 | 旧版历史显式导入 | LegacyHistoryCodec/Store、LegacyHistoryActivity | 按旧版 `brew_history_v1` 保存结构构造 JSON；严格校验、独立存储、冲突拒绝、重复导入与图表单位说明；Alpha/Mock 单测各72项通过 | 已修改旧版有显式导出入口，但缺少真实导出文件；未实机验证分享、SAF 和旧数据兼容 |
 
 ## 最新实机补验（2026-09-23）

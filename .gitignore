@@ -3,3 +3,4 @@
 **/build/
 local.properties
 captures/
+__pycache__/
