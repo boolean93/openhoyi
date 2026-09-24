@@ -10,4 +10,5 @@
     <color name="chart_water">#28916B</color>
     <color name="chart_coffee">#874FB1</color>
     <color name="chart_weight">#CC7027</color>
+    <color name="chart_temperature">#B4414C</color>
 </resources>

@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.view.View
 import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 
@@ -31,6 +32,9 @@ class ShotChartView(context: Context) : View(context) {
     private val weight = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = context.getColor(R.color.chart_weight); strokeWidth = dp(2.4f); style = Paint.Style.STROKE
     }
+    private val temperature = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = context.getColor(R.color.chart_temperature); strokeWidth = dp(2f); style = Paint.Style.STROKE
+    }
     private val seriesPath = Path()
 
     override fun onDraw(canvas: Canvas) {
@@ -42,7 +46,7 @@ class ShotChartView(context: Context) : View(context) {
         }
         val left = dp(42)
         val right = width - dp(18)
-        val top = dp(56)
+        val top = dp(74)
         val bottom = height - dp(28)
         if (right <= left || bottom <= top) return
         val maximumMs = max(1000L, points.last().elapsedMs)
@@ -54,6 +58,9 @@ class ShotChartView(context: Context) : View(context) {
         val weights = points.mapNotNull { it.weightHundredthsGram }
         val weightMin = min(0f, (weights.minOrNull() ?: 0).toFloat() / 100f)
         val weightMax = nice(max(50f, (weights.maxOrNull() ?: 0).toFloat() / 100f))
+        val temperatureValues = points.map { it.temperatureHundredthsC / 100f }
+        val temperatureMin = max(0f, floor(temperatureValues.minOrNull()!! / 10f) * 10f - 10f)
+        val temperatureMax = nice(max(temperatureMin + 20f, temperatureValues.maxOrNull()!! + 5f))
         val widthPx = (right - left).toFloat()
         val heightPx = (bottom - top).toFloat()
         fun x(t: Long) = left + widthPx * t.toFloat() / maximumMs
@@ -71,10 +78,13 @@ class ShotChartView(context: Context) : View(context) {
             coffeeFlow.apply { style = Paint.Style.FILL; textSize = dp(11) })
         if (weights.isNotEmpty()) canvas.drawText("${weightMax.toInt()} g 重量", legendMid, dp(35),
             weight.apply { style = Paint.Style.FILL; textSize = dp(11) })
+        canvas.drawText("${temperatureMin.toInt()}–${temperatureMax.toInt()} °C 温度", left.toFloat(), dp(53),
+            temperature.apply { style = Paint.Style.FILL; textSize = dp(11) })
         pressure.style = Paint.Style.STROKE
         flow.style = Paint.Style.STROKE
         coffeeFlow.style = Paint.Style.STROKE
         weight.style = Paint.Style.STROKE
+        temperature.style = Paint.Style.STROKE
         canvas.drawText("0", dp(16), bottom.toFloat(), label)
         canvas.drawText("${maximumMs / 1000}s", right - dp(28f), height - dp(8f), label)
         fun drawSeries(paint: Paint, values: (ShotPoint) -> Float?, low: Float, high: Float) {
@@ -103,6 +113,7 @@ class ShotChartView(context: Context) : View(context) {
         if (coffeeFlows.isNotEmpty()) drawSeries(coffeeFlow,
             { it.scaleFlowHundredths?.div(100f) }, coffeeFlowMin, coffeeFlowMax)
         if (weights.isNotEmpty()) drawSeries(weight, { it.weightHundredthsGram?.div(100f) }, weightMin, weightMax)
+        drawSeries(temperature, { it.temperatureHundredthsC / 100f }, temperatureMin, temperatureMax)
     }
 
     private fun nice(value: Float): Float = max(1f, ceil(value / 5f) * 5f)
