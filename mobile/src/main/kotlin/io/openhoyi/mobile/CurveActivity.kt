@@ -30,10 +30,12 @@ class CurveActivity : ThemedActivity() {
     private var category = "全部"
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
+    private var detailBackCallback: android.window.OnBackInvokedCallback? = null
     private val library get() = (application as MobileApplication).curves
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        category = savedInstanceState?.getString("category") ?: "全部"
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -172,10 +174,7 @@ class CurveActivity : ThemedActivity() {
         list.emptyView = emptyState
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
 
-        if (compact) HoyiUi.button(this, detailPane, "返回曲线列表") {
-            detailScroll.visibility = View.GONE
-            browserPane.visibility = View.VISIBLE
-        }
+        if (compact) HoyiUi.button(this, detailPane, "返回曲线列表") { showBrowser() }
         val preview = HoyiUi.card(this, detailPane, "曲线详情")
         detailTitle = HoyiUi.label(this, preview, "点选左侧曲线", 21, true)
         detailCategory = HoyiUi.label(this, preview, "查看参数与可用状态", 14, muted = true)
@@ -208,10 +207,45 @@ class CurveActivity : ThemedActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = refreshList()
             override fun afterTextChanged(s: Editable?) = Unit
         })
+        search.setText(savedInstanceState?.getString("query").orEmpty())
         refreshList()
         val initialId = savedInstanceState?.getString("selected")
             ?: getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
-        initialId?.let(library::find)?.let(::show)
+        initialId?.let(library::find)?.let { item ->
+            if (!compact || savedInstanceState?.getBoolean("detailVisible") == true) show(item)
+            else { selected = item; adapter.notifyDataSetChanged() }
+        }
+    }
+
+    private fun showBrowser() {
+        detailScroll.visibility = View.GONE
+        browserPane.visibility = View.VISIBLE
+        unregisterDetailBack()
+    }
+
+    private fun registerDetailBack() {
+        if (Build.VERSION.SDK_INT < 33 || detailBackCallback != null) return
+        val callback = android.window.OnBackInvokedCallback { showBrowser() }
+        onBackInvokedDispatcher.registerOnBackInvokedCallback(
+            android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, callback)
+        detailBackCallback = callback
+    }
+
+    private fun unregisterDetailBack() {
+        if (Build.VERSION.SDK_INT < 33) return
+        detailBackCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+        detailBackCallback = null
+    }
+
+    @Deprecated("Platform back callback")
+    override fun onBackPressed() {
+        if (compact && detailScroll.visibility == View.VISIBLE) showBrowser()
+        else super.onBackPressed()
+    }
+
+    override fun onDestroy() {
+        unregisterDetailBack()
+        super.onDestroy()
     }
 
     private fun show(item: CurveLibraryItem) {
@@ -223,6 +257,7 @@ class CurveActivity : ThemedActivity() {
             browserPane.visibility = View.GONE
             detailScroll.visibility = View.VISIBLE
             detailScroll.scrollTo(0, 0)
+            registerDetailBack()
         }
         val canStart = library.canStart(item)
         detailTitle.text = item.name
@@ -267,6 +302,9 @@ class CurveActivity : ThemedActivity() {
             } ?: emptyList()
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("selected", selected?.id)
+        outState.putString("category", category)
+        outState.putString("query", search.text.toString())
+        outState.putBoolean("detailVisible", compact && detailScroll.visibility == View.VISIBLE)
         super.onSaveInstanceState(outState)
     }
     private fun dp(value: Int) = HoyiUi.dp(this, value)
