@@ -191,6 +191,7 @@ class CurveActivity : ThemedActivity() {
         availability.setTextColor(getColor(if (canStart) R.color.mobile_accent else R.color.mobile_muted))
         availability.visibility = View.VISIBLE
         select.isEnabled = canStart
+        select.visibility = View.VISIBLE
         select.text = if (canStart) "使用此曲线" else "此曲线不可萃取"
         assignPreset.visibility = if (item.factoryCurve != null) View.VISIBLE else View.GONE
         assignPreset.isEnabled = item.factoryCurve != null && canStart
@@ -213,6 +214,7 @@ class CurveActivity : ThemedActivity() {
             details.text = ""
             availability.visibility = View.GONE
             select.isEnabled = false
+            select.visibility = View.GONE
             assignPreset.isEnabled = false
             assignPreset.visibility = View.GONE
         }
