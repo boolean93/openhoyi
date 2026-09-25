@@ -13,6 +13,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.text.InputType
+import android.view.View
 import android.view.WindowInsets
 import android.widget.Button
 import android.widget.CheckBox
@@ -38,6 +39,9 @@ class MachineSettingsActivity : ThemedActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var connectionState: TextView
     private lateinit var settings: TextView
+    private lateinit var settingsOverview: TextView
+    private lateinit var settingsToggle: Button
+    private var detailsExpanded = false
     private lateinit var schedule: TextView
     private lateinit var writeStatus: TextView
     private lateinit var scheduleWriteStatus: TextView
@@ -70,6 +74,7 @@ class MachineSettingsActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        detailsExpanded = savedInstanceState?.getBoolean("settingsExpanded") ?: false
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -112,7 +117,15 @@ class MachineSettingsActivity : ThemedActivity() {
         val summaryCard = card(overview, "连接状态")
         connectionState = text(summaryCard, "未连接", 16)
         val settingsCard = card(overview, "当前设置")
-        settings = text(settingsCard, "尚未收到机器设置", 16)
+        settingsOverview = text(settingsCard, "尚未收到机器设置", 16)
+        settings = text(settingsCard, "", 14).apply {
+            visibility = if (detailsExpanded) View.VISIBLE else View.GONE
+        }
+        settingsToggle = action(settingsCard, if (detailsExpanded) "收起完整回读" else "查看完整回读") {
+            detailsExpanded = !detailsExpanded
+            settings.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
+            settingsToggle.text = if (detailsExpanded) "收起完整回读" else "查看完整回读"
+        }
         val controls = card(controlsPane, "常用设置")
         writeStatus = text(controls, "尚未修改", 14)
         HoyiUi.label(this, controls, "温度", 16, true).apply { setPadding(0, dp(14), 0, dp(4)) }
@@ -205,6 +218,10 @@ class MachineSettingsActivity : ThemedActivity() {
         release()
         super.onStop()
     }
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("settingsExpanded", detailsExpanded)
+        super.onSaveInstanceState(outState)
+    }
     private fun release() {
         if (bound) { unbindService(connection); bound = false }
         service = null
@@ -216,6 +233,7 @@ class MachineSettingsActivity : ThemedActivity() {
         val ready = snapshot.coffeeState == DeviceState.READY
         connectionState.update(if (BuildConfig.MOCK_MODE) "Mock 模拟设备 · 无蓝牙连接" else
             "${snapshot.coffeeState.name}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
+        settingsOverview.update(MachineSettingsPresentation.overview(snapshot.settings))
         settings.update(MachineSettingsPresentation.settings(snapshot.settings))
         schedule.update(MachineSettingsPresentation.schedule(snapshot.sleepFirst, snapshot.sleepSecond))
         scheduleWriteStatus.update("时间修改：" + when (owner?.scheduleWriteState) {

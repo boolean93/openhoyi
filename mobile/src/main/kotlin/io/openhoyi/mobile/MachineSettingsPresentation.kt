@@ -7,6 +7,15 @@ import io.openhoyi.protocol.SleepPart
 
 /** Formats decoded device values; it never creates a command or claims that a setting was applied. */
 object MachineSettingsPresentation {
+    fun overview(value: Settings?): String {
+        if (value == null) return "尚未收到机器设置"
+        val mode = if (value.flags and 0x04 != 0) "工作室" else "咖啡馆"
+        val supply = if (value.flags and 0x02 != 0) "外接水管" else "水箱"
+        val standby = if (value.standbyMinutes == 0) "永不" else "${value.standbyMinutes} 分钟"
+        return "萃取 ${value.brewTemperatureC} °C · 蒸汽 ${value.steamTemperatureC} °C\n" +
+            "运行模式 $mode · 供水 $supply\n" +
+            "自动待机 $standby · 累计 ${value.cupCount} 杯"
+    }
     fun leverMode(value: Settings?): String {
         if (value == null) return "拨杆模式：尚未收到设置"
         val pressure = value.flags and 0x80 != 0
