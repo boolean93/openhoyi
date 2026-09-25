@@ -6,9 +6,10 @@ import android.content.Intent
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.view.WindowInsets
 import android.widget.ArrayAdapter
-import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
@@ -17,8 +18,13 @@ import java.util.Locale
 
 /** Imported rows are browse-only and never feed the machine-control curve library. */
 class LegacyCurveActivity : ThemedActivity() {
+    private data class RowViews(val title: TextView, val subtitle: TextView)
     private lateinit var count: TextView
     private lateinit var adapter: ArrayAdapter<String>
+    private lateinit var list: ListView
+    private lateinit var emptyState: LinearLayout
+    private lateinit var emptyTitle: TextView
+    private lateinit var emptyMessage: TextView
     private var bundle: LegacyCurveBundle? = null
     private var refreshGeneration = 0
 
@@ -49,18 +55,45 @@ class LegacyCurveActivity : ThemedActivity() {
                 startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                     .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_CURVES)
         }
-        val list = ListView(this)
+        val content = FrameLayout(this)
+        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(14) })
+        list = ListView(this).apply { divider = null; dividerHeight = dp(8) }
         adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
-            override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View =
-                (convertView as? TextView ?: TextView(this@LegacyCurveActivity)).apply {
-                    text = getItem(position); textSize = 15f
-                    setTextColor(getColor(R.color.mobile_text))
-                    minHeight = dp(54); setPadding(dp(14), dp(8), dp(14), dp(8))
+            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                val card = convertView as? LinearLayout ?: LinearLayout(this@LegacyCurveActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    minimumHeight = dp(72)
+                    setPadding(dp(18), dp(13), dp(18), dp(13))
                     background = HoyiUi.shape(this@LegacyCurveActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+                    val title = HoyiUi.label(this@LegacyCurveActivity, this, "", 17, true)
+                    val subtitle = HoyiUi.label(this@LegacyCurveActivity, this, "", 13, muted = true)
+                    subtitle.setPadding(0, dp(7), 0, 0)
+                    tag = RowViews(title, subtitle)
                 }
+                val curve = bundle?.curves?.getOrNull(position)
+                val views = card.tag as RowViews
+                views.title.text = curve?.name ?: getItem(position)
+                val category = curve?.let { bundle?.categoryLabels?.get(it.category) ?: it.category.ifBlank { "未分类" } }
+                views.subtitle.text = "${category ?: "未分类"} · ${if (curve?.factory == true) "旧版工厂曲线" else "旧版用户曲线"} · 仅浏览"
+                return card
+            }
         }
         list.adapter = adapter
-        root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
+        content.addView(list, FrameLayout.LayoutParams(-1, -1))
+        emptyState = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+            visibility = View.GONE
+        }
+        content.addView(emptyState, FrameLayout.LayoutParams(-1, -1))
+        val emptyCard = HoyiUi.card(this, emptyState)
+        if (HoyiUi.wide(this)) (emptyCard.layoutParams as LinearLayout.LayoutParams).apply {
+            width = dp(520)
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+        }.also { emptyCard.layoutParams = it }
+        emptyTitle = HoyiUi.label(this, emptyCard, "尚无旧版曲线", 19, true)
+        emptyMessage = HoyiUi.label(this, emptyCard, "可从旧版 App 导出曲线文件后，在上方选择导入。", 15, muted = true)
+        emptyMessage.setPadding(0, dp(10), 0, 0)
         HoyiUi.navigation(this, root, CurveActivity::class.java)
         list.setOnItemClickListener { _, _, position, _ ->
             val data = bundle ?: return@setOnItemClickListener
@@ -107,6 +140,8 @@ class LegacyCurveActivity : ThemedActivity() {
     private fun refresh() {
         val generation = ++refreshGeneration
         count.text = "正在读取旧版曲线库…"
+        emptyState.visibility = View.GONE
+        list.visibility = View.GONE
         Thread({
             val result = runCatching { (application as MobileApplication).legacyCurves.load() }
             runOnUiThread {
@@ -122,6 +157,11 @@ class LegacyCurveActivity : ThemedActivity() {
                         ?: curve.category.ifBlank { "未分类" }
                     "${curve.index + 1}. ${curve.name} · $category · 仅浏览"
                 } ?: emptyList())
+                emptyTitle.text = if (result.isFailure) "旧版曲线读取失败" else "尚无旧版曲线"
+                emptyMessage.text = if (result.isFailure) "读取失败，原有文件未修改。请返回后重试。"
+                    else "可从旧版 App 导出曲线文件后，在上方选择导入。"
+                emptyState.visibility = if (adapter.count == 0) View.VISIBLE else View.GONE
+                list.visibility = if (adapter.count == 0) View.GONE else View.VISIBLE
             }
         }, "legacy-curve-list").start()
     }
