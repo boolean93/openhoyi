@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.*
+import android.util.TypedValue
 import android.view.WindowInsets
 import android.view.View
 import android.widget.*
@@ -123,7 +124,11 @@ class ExtractionActivity : ThemedActivity() {
                 }
                 row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
                 HoyiUi.label(this, box, title, 13, muted = true)
-                return HoyiUi.label(this, box, "—", 27, true).apply { setPadding(0, dp(8), 0, 0) }
+                return HoyiUi.label(this, box, "—", 27, true).apply {
+                    setPadding(0, dp(8), 0, 0)
+                    setSingleLine(true)
+                    setAutoSizeTextTypeUniformWithConfiguration(16, 27, 1, TypedValue.COMPLEX_UNIT_SP)
+                }
             }
             return cell(a) to cell(b)
         }
