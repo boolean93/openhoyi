@@ -188,7 +188,7 @@ class ExtractionActivity : ThemedActivity() {
         val effect = if (BuildConfig.MOCK_MODE) "仅在本机模拟萃取；不会连接设备或发送蓝牙命令。"
             else "将向咖啡机发送已校验的启动命令。"
         AlertDialog.Builder(this).setTitle(if (BuildConfig.MOCK_MODE) "确认模拟萃取" else "确认开始萃取")
-            .setMessage("${profile.name} · 槽位 ${profile.parameters.slot} · ${profile.temperatureC} °C\n最大水量：${profile.maximumWaterMl} ml\n目标重量：${if (profile.targetHundredthsGram > 0) "${number(profile.targetHundredthsGram)} g（电子秤）" else "不使用（由咖啡机按水量结束）"}\n$effect" +
+            .setMessage("${profile.name} · ${if (profile.parameters.slot == 7) "当前曲线" else "快捷槽位 ${profile.parameters.slot}"} · ${profile.temperatureC} °C\n最大水量：${profile.maximumWaterMl} ml\n目标重量：${if (profile.targetHundredthsGram > 0) "${number(profile.targetHundredthsGram)} g（电子秤）" else "不使用（由咖啡机按水量结束）"}\n$effect" +
                 if (notificationsAllowed()) "" else "\n系统通知未授权，后台断链提醒可能无法显示。")
             .setPositiveButton(if (BuildConfig.MOCK_MODE) "开始模拟" else "确认启动") { _, _ ->
                 owner.startShot(profile.id, profile.scaleMode, presetSlot)?.let(::toast)
@@ -239,7 +239,8 @@ class ExtractionActivity : ThemedActivity() {
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
-        readiness.show("曲线：${item?.name ?: "未选择"} · 槽位 $presetSlot\n咖啡机：${snapshot.coffeeState.name} · 电子秤：${snapshot.scaleState.name}\n萃取状态：${if (owner?.scalePreflight == true) "等待电子秤归零后启动" else if (owner?.manualShotActive == true) "机器手动萃取" else state.name}${owner?.stopReason?.let { " · 停止原因：$it" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
+        val slotLabel = if (presetSlot == 7) "" else " · 快捷槽位 $presetSlot"
+        readiness.show("曲线：${item?.name ?: "未选择"}$slotLabel\n咖啡机：${deviceLabel(snapshot.coffeeState)} · 电子秤：${deviceLabel(snapshot.scaleState)}\n萃取状态：${if (owner?.scalePreflight == true) "等待电子秤归零后启动" else if (owner?.manualShotActive == true) "机器手动萃取" else shotLabel(state)}${owner?.stopReason?.let { " · 停止原因：${stopLabel(it)}" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
         preparationStatus.show(if (snapshot.settings == null) "运行模式尚未回读" else if (!studio) "咖啡馆模式 · 按曲线正常启动" else
             "工作室模式 · 当前 ${corrected?.let(::number) ?: "—"} °C / 目标 ${profile?.temperatureC ?: "—"} °C\n" +
                 when (preparation) {
@@ -302,6 +303,32 @@ class ExtractionActivity : ThemedActivity() {
         stop.text = if (owner?.scalePreflight == true) "取消启动" else stopAction.label
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
+    private fun deviceLabel(state: DeviceState) = when (state) {
+        DeviceState.DISCONNECTED -> "未连接"
+        DeviceState.CONNECTING -> "连接中"
+        DeviceState.DISCOVERING -> "查找服务中"
+        DeviceState.SUBSCRIBING -> "订阅数据中"
+        DeviceState.INITIALIZING -> "初始化中"
+        DeviceState.SYNCHRONIZING -> "同步中"
+        DeviceState.READY -> "已就绪"
+        DeviceState.UNSUPPORTED -> "不支持"
+        DeviceState.FAILED -> "连接失败"
+    }
+    private fun shotLabel(state: ExtractionState) = when (state) {
+        ExtractionState.IDLE -> "待机"
+        ExtractionState.STARTING -> "启动中"
+        ExtractionState.RUNNING -> "萃取中"
+        ExtractionState.STOP_REQUESTED -> "正在停止"
+        ExtractionState.ENDED_OBSERVED -> "已结束"
+        ExtractionState.OUTCOME_UNKNOWN -> "结果未知"
+    }
+    private fun stopLabel(reason: String) = when (reason) {
+        StopReason.TARGET_WEIGHT.name -> "达到目标重量"
+        StopReason.SCALE_UNAVAILABLE.name -> "电子秤数据不可用"
+        StopReason.TARE_UNCONFIRMED.name -> "电子秤归零未确认"
+        StopReason.MANUAL.name -> "手动停止"
+        else -> "结果待确认"
+    }
     private fun number(value: Int): String = String.format(Locale.ROOT, "%.2f", value / 100.0)
     private fun toast(value: String) = Toast.makeText(this, value, Toast.LENGTH_SHORT).show()
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
