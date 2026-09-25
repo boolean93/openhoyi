@@ -212,7 +212,7 @@ class HomeActivity : ThemedActivity() {
         }
         browseCurvesButton = button(curveCard, "浏览曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
         val presets = card(right, "快捷曲线")
-        HoyiUi.label(this, presets, "点选后进入萃取确认；可在曲线库更换。", 13, muted = true)
+        HoyiUi.label(this, presets, "点选后查看萃取准备，再确认启动。", 13, muted = true)
         val buttons = mutableListOf<Button>()
         val columns = if (resources.configuration.screenWidthDp >= 1000) 2 else 1
         (1..5).chunked(columns).forEach { slots ->
@@ -481,7 +481,7 @@ class HomeActivity : ThemedActivity() {
         brewButton.text = when {
             selected == null -> "选择曲线"
             !library.canStart(selected) -> "更换可萃取曲线"
-            else -> "开始萃取"
+            else -> "查看萃取准备"
         }
         browseCurvesButton.visibility = if (selected == null) View.GONE else View.VISIBLE
         val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)

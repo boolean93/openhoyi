@@ -81,10 +81,42 @@ class CurveActivity : ThemedActivity() {
         }
         browser.addView(search, LinearLayout.LayoutParams(-1, dp(52)))
         val categories = listOf("全部", "已采集验证", "深烘", "中烘", "浅烘", "超萃")
-        val filter = Spinner(this)
-        filter.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
-        browser.addView(filter, LinearLayout.LayoutParams(-1, dp(48)))
+        val filter = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        filter.addView(filterRow)
+        browser.addView(filter, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(10) })
+        val filterChips = mutableListOf<TextView>()
+        fun updateFilterChips() {
+            filterChips.forEachIndexed { index, chip ->
+                val chosen = categories[index] == category
+                chip.setTextColor(getColor(if (chosen) R.color.mobile_accent else R.color.mobile_muted))
+                chip.background = HoyiUi.shape(this, if (chosen) R.color.mobile_accent_soft else R.color.mobile_surface,
+                    10, R.color.mobile_border)
+                chip.contentDescription = "${categories[index]}分类${if (chosen) "，已选中" else ""}"
+            }
+        }
+        categories.forEach { name ->
+            filterChips += TextView(this).apply {
+                text = name
+                textSize = 15f
+                gravity = android.view.Gravity.CENTER
+                minHeight = dp(44)
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    category = name
+                    updateFilterChips()
+                    refreshList()
+                }
+                filterRow.addView(this, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
+            }
+        }
+        updateFilterChips()
         resultCount = HoyiUi.label(this, browser, "", 13, muted = true)
+        HoyiUi.button(this, browser, "查看旧版导入曲线") {
+            startActivity(Intent(this, LegacyCurveActivity::class.java))
+        }
         val list = ListView(this).apply {
             divider = null
             dividerHeight = dp(6)
@@ -149,16 +181,6 @@ class CurveActivity : ThemedActivity() {
                     Toast.makeText(this, "已将${item.name}放入槽位 $slot", Toast.LENGTH_SHORT).show()
                 }.show()
         }.apply { isEnabled = false }
-        HoyiUi.button(this, detailPane, "查看旧版导入曲线") {
-            startActivity(Intent(this, LegacyCurveActivity::class.java))
-        }
-        filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                category = categories[position]
-                refreshList()
-            }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
-        }
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = refreshList()
