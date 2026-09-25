@@ -12,7 +12,10 @@ import android.widget.*
 
 /** Library browsing and selection are local only; no BLE command is sent here. */
 class CurveActivity : ThemedActivity() {
+    private lateinit var detailTitle: TextView
+    private lateinit var detailCategory: TextView
     private lateinit var details: TextView
+    private lateinit var availability: TextView
     private lateinit var select: Button
     private lateinit var assignPreset: Button
     private lateinit var adapter: ArrayAdapter<String>
@@ -120,11 +123,14 @@ class CurveActivity : ThemedActivity() {
             browserPane.visibility = View.VISIBLE
         }
         val preview = HoyiUi.card(this, detailPane, "曲线详情")
+        detailTitle = HoyiUi.label(this, preview, "点选左侧曲线", 21, true)
+        detailCategory = HoyiUi.label(this, preview, "查看参数与可用状态", 14, muted = true)
         stageChart = CurveStageView(this).apply { visibility = View.GONE }
-        preview.addView(stageChart, LinearLayout.LayoutParams(-1, dp(150)))
+        preview.addView(stageChart, LinearLayout.LayoutParams(-1, dp(150)).apply { topMargin = dp(14) })
         stageCaption = HoyiUi.label(this, preview, "分段目标示意 · 不是实际萃取曲线", 12, muted = true)
             .apply { visibility = View.GONE }
-        details = HoyiUi.label(this, preview, "点选左侧曲线查看参数和可用状态", 16)
+        details = HoyiUi.label(this, preview, "", 15)
+        availability = HoyiUi.label(this, preview, "", 15, true).apply { visibility = View.GONE }
         val spacer = Space(this)
         if (HoyiUi.wide(this)) detailPane.addView(spacer, LinearLayout.LayoutParams(1, 0, 1f))
         select = HoyiUi.button(this, detailPane, "使用此曲线", primary = true) {
@@ -132,7 +138,7 @@ class CurveActivity : ThemedActivity() {
                 getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
                 finish()
             }
-        }.apply { isEnabled = false }
+        }.apply { isEnabled = false; visibility = View.GONE }
         assignPreset = HoyiUi.button(this, detailPane, "放入快捷槽位") {
             val item = selected?.takeIf { it.factoryCurve != null && library.canStart(it) } ?: return@button
             AlertDialog.Builder(this).setTitle("选择快捷槽位")
@@ -177,11 +183,17 @@ class CurveActivity : ThemedActivity() {
             detailScroll.visibility = View.VISIBLE
             detailScroll.scrollTo(0, 0)
         }
-        details.text = "${item.name}\n${item.category}\n\n${item.details}\n\n" +
-            if (library.canStart(item)) "可用于萃取" else "仅可浏览，不能发送至机器"
-        select.isEnabled = library.canStart(item)
-        select.text = if (library.canStart(item)) "使用此曲线" else "此曲线不可萃取"
-        assignPreset.isEnabled = item.factoryCurve != null && library.canStart(item)
+        val canStart = library.canStart(item)
+        detailTitle.text = item.name
+        detailCategory.text = item.category
+        details.text = item.details
+        availability.text = if (canStart) "✓ 已通过报文校验，可用于萃取" else "仅可浏览 · 启动报文校验不可用"
+        availability.setTextColor(getColor(if (canStart) R.color.mobile_accent else R.color.mobile_muted))
+        availability.visibility = View.VISIBLE
+        select.isEnabled = canStart
+        select.text = if (canStart) "使用此曲线" else "此曲线不可萃取"
+        assignPreset.visibility = if (item.factoryCurve != null) View.VISIBLE else View.GONE
+        assignPreset.isEnabled = item.factoryCurve != null && canStart
         adapter.notifyDataSetChanged()
     }
 
@@ -196,9 +208,13 @@ class CurveActivity : ThemedActivity() {
             stageChart.targets = emptyList()
             stageChart.visibility = View.GONE
             stageCaption.visibility = View.GONE
-            details.text = "点选曲线查看详情"
+            detailTitle.text = "点选左侧曲线"
+            detailCategory.text = "查看参数与可用状态"
+            details.text = ""
+            availability.visibility = View.GONE
             select.isEnabled = false
             assignPreset.isEnabled = false
+            assignPreset.visibility = View.GONE
         }
     }
     override fun onSaveInstanceState(outState: Bundle) {
