@@ -41,7 +41,10 @@ class ShotChartView(context: Context) : View(context) {
         super.onDraw(canvas)
         canvas.drawColor(context.getColor(R.color.mobile_surface))
         if (points.isEmpty()) {
-            canvas.drawText("暂无萃取采样", dp(16), height / 2f, label)
+            val emptyText = Paint(label).apply { textAlign = Paint.Align.CENTER; textSize = dp(14) }
+            canvas.drawText("尚无萃取采样", width / 2f, height / 2f - dp(4), emptyText)
+            emptyText.textSize = dp(11)
+            canvas.drawText("开始后显示压力、流速、温度与秤重", width / 2f, height / 2f + dp(20), emptyText)
             return
         }
         val left = dp(42)
@@ -74,7 +77,7 @@ class ShotChartView(context: Context) : View(context) {
         val legendMid = (left + right) / 2f
         canvas.drawText("${pressureMax.toInt()} bar 压力", left.toFloat(), dp(17), pressure.apply { style = Paint.Style.FILL; textSize = dp(11) })
         canvas.drawText("${flowMax.toInt()} ml/s 水流", legendMid, dp(17), flow.apply { style = Paint.Style.FILL; textSize = dp(11) })
-        if (coffeeFlows.isNotEmpty()) canvas.drawText("${coffeeFlowMax.toInt()} 秤流速", left.toFloat(), dp(35),
+        if (coffeeFlows.isNotEmpty()) canvas.drawText("${coffeeFlowMax.toInt()} g/s 秤流速", left.toFloat(), dp(35),
             coffeeFlow.apply { style = Paint.Style.FILL; textSize = dp(11) })
         if (weights.isNotEmpty()) canvas.drawText("${weightMax.toInt()} g 重量", legendMid, dp(35),
             weight.apply { style = Paint.Style.FILL; textSize = dp(11) })
