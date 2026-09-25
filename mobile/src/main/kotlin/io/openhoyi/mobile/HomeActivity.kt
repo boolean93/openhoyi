@@ -36,6 +36,7 @@ class HomeActivity : ThemedActivity() {
     private lateinit var safetyWarning: TextView
     private lateinit var acknowledgeManual: Button
     private lateinit var coffee: TextView
+    private lateinit var coffeeDot: View
     private lateinit var brewTemperature: TextView
     private lateinit var brewPressure: TextView
     private lateinit var steamTemperature: TextView
@@ -47,6 +48,7 @@ class HomeActivity : ThemedActivity() {
     private lateinit var emergencyStop: Button
     private lateinit var alarmStatus: TextView
     private lateinit var scale: TextView
+    private lateinit var scaleDot: View
     private lateinit var scaleWeight: TextView
     private lateinit var tareStatus: TextView
     private lateinit var selection: TextView
@@ -131,11 +133,13 @@ class HomeActivity : ThemedActivity() {
         status = text(deviceCard, "尚未连接", 14)
         val deviceRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         deviceCard.addView(deviceRow)
-        val machineChip = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val scaleChip = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val machineChip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
+        val scaleChip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         deviceRow.addView(machineChip, LinearLayout.LayoutParams(0, -2, 1f))
         deviceRow.addView(scaleChip, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(12) })
+        coffeeDot = statusDot(machineChip)
         coffee = text(machineChip, "咖啡机 · 未连接", 15, true)
+        scaleDot = statusDot(scaleChip)
         scale = text(scaleChip, "电子秤 · 未连接", 15, true)
         scanButton = button(deviceCard, "扫描并连接设备") { enableAndScan() }
         candidates = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -154,14 +158,25 @@ class HomeActivity : ThemedActivity() {
             workArea.addView(left, LinearLayout.LayoutParams(-1, -2))
         }
         val machineCard = card(left, "咖啡机")
-        machineCard.addView(MachineIllustrationView(this), LinearLayout.LayoutParams(-1, dp(if (wide) 180 else 130)))
+        machineCard.addView(ImageView(this).apply {
+            setImageResource(R.drawable.hoyi_machine)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "HOYI 咖啡机外观"
+        }, LinearLayout.LayoutParams(-1, dp(if (wide) 240 else 150)))
         alarmStatus = text(machineCard, "尚未收到机器告警状态", 14)
         leverStatus = text(machineCard, "拨杆模式：尚未收到设置", 14)
         sleepStatus = text(machineCard, "睡眠状态：未知", 14)
-        leverButton = button(machineCard, "拨杆模式") { chooseLeverMode() }
-        sleepButton = button(machineCard, "立即睡眠") { confirmSleepNow() }
-        button(machineCard, "机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
-        coffeeDisconnect = button(machineCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
+        val machineControls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+        val controlsToggle = button(machineCard, "展开设备控制") {}
+        controlsToggle.setOnClickListener {
+            machineControls.visibility = if (machineControls.visibility == View.GONE) View.VISIBLE else View.GONE
+            controlsToggle.text = if (machineControls.visibility == View.VISIBLE) "收起设备控制" else "展开设备控制"
+        }
+        machineCard.addView(machineControls)
+        leverButton = button(machineControls, "拨杆模式") { chooseLeverMode() }
+        sleepButton = button(machineControls, "立即睡眠") { confirmSleepNow() }
+        button(machineControls, "机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
+        coffeeDisconnect = button(machineControls, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
         val scaleCard = card(left, "电子秤")
         scaleWeight = text(scaleCard, "— g", 27, true)
         tareStatus = text(scaleCard, "去皮状态：尚未操作", 14)
@@ -410,6 +425,11 @@ class HomeActivity : ThemedActivity() {
         sleepStatus.show("睡眠状态：$reportedSleep$sleepProgress")
         alarmStatus.show(MachineAlarms.describe(s.alarmBits, s.alarmAt, now))
         coffee.show("咖啡机 · ${label(s.coffeeState)}${if (coffeeFresh) " · 实时" else ""}")
+        coffeeDot.background = dotShape(when (s.coffeeState) {
+            DeviceState.READY -> R.color.mobile_success
+            DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
+            else -> R.color.mobile_muted
+        })
         when (val frame = liveMachine) {
             is IdleTelemetry -> {
                 brewTemperature.show("${number(frame.brewTemperatureHundredthsC)} °C")
@@ -427,6 +447,11 @@ class HomeActivity : ThemedActivity() {
         }
         val liveScale = LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)
         scale.show("电子秤 · ${label(s.scaleState)}${if (liveScale != null) " · 实时" else ""}")
+        scaleDot.background = dotShape(when (s.scaleState) {
+            DeviceState.READY -> R.color.mobile_success
+            DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
+            else -> R.color.mobile_muted
+        })
         scaleWeight.show("${liveScale?.let { number(it.weightHundredthsGram) } ?: "—"} g" +
             "  ·  ${liveScale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
         val library = (application as MobileApplication).curves
@@ -456,6 +481,14 @@ class HomeActivity : ThemedActivity() {
     private fun number(hundredths: Int) = String.format(Locale.ROOT, "%.2f", hundredths / 100.0)
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
+    private fun dotShape(color: Int) = GradientDrawable().apply {
+        shape = GradientDrawable.OVAL
+        setColor(getColor(color))
+    }
+    private fun statusDot(parent: LinearLayout): View = View(this).apply {
+        background = dotShape(R.color.mobile_muted)
+        parent.addView(this, LinearLayout.LayoutParams(dp(9), dp(9)).apply { marginEnd = dp(8) })
+    }
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView =
         TextView(this).apply {
             text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))

@@ -98,11 +98,22 @@ class MachineSettingsActivity : ThemedActivity() {
         HoyiUi.header(this, body, "机器设置", "修改后等待机器回读确认", back = true)
         text(body, if (BuildConfig.MOCK_MODE) "以下为模拟设置与睡眠计划；修改操作不会发送蓝牙命令。"
             else "更改后等待机器回读确认；蓝牙写入成功不代表设置已生效。", 14)
-        val summaryCard = card(body, "连接状态")
+        val overview = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val controlsPane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        if (HoyiUi.wide(this)) {
+            val columns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            body.addView(columns)
+            columns.addView(overview, LinearLayout.LayoutParams(0, -2, .8f))
+            columns.addView(controlsPane, LinearLayout.LayoutParams(0, -2, 1.2f).apply { marginStart = dp(16) })
+        } else {
+            body.addView(overview)
+            body.addView(controlsPane)
+        }
+        val summaryCard = card(overview, "连接状态")
         connectionState = text(summaryCard, "未连接", 16)
-        val settingsCard = card(body, "当前设置")
+        val settingsCard = card(overview, "当前设置")
         settings = text(settingsCard, "尚未收到机器设置", 16)
-        val controls = card(body, "常用设置")
+        val controls = card(controlsPane, "常用设置")
         writeStatus = text(controls, "尚未修改", 14)
         HoyiUi.label(this, controls, "温度", 16, true).apply { setPadding(0, dp(14), 0, dp(4)) }
         brewInput = temperatureInput(controls, "萃取设定温度（75–105 °C）")
@@ -153,7 +164,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 else confirm(MachineSettingChange.StandbyTemperature(c, minutes))
             }
         }
-        val sleepCard = card(body, "每周睡眠计划")
+        val sleepCard = card(controlsPane, "每周睡眠计划")
         schedule = text(sleepCard, "尚未收到睡眠计划", 16)
         scheduleWriteStatus = text(sleepCard, "时间修改：尚未修改", 14)
         sleepScheduleButton = action(sleepCard, "切换睡眠计划总开关") {
@@ -162,11 +173,20 @@ class MachineSettingsActivity : ThemedActivity() {
             }
         }
         controlButtons += sleepScheduleButton
+        val scheduleEditor = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = android.view.View.GONE }
+        val scheduleToggle = action(sleepCard, "编辑每周时间") {}
+        scheduleToggle.setOnClickListener {
+            scheduleEditor.visibility = if (scheduleEditor.visibility == android.view.View.GONE)
+                android.view.View.VISIBLE else android.view.View.GONE
+            scheduleToggle.text = if (scheduleEditor.visibility == android.view.View.VISIBLE)
+                "收起每周编辑" else "编辑每周时间"
+        }
+        sleepCard.addView(scheduleEditor)
         listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六").forEachIndexed { index, name ->
-            scheduleButtons += action(sleepCard, "编辑 $name 的睡眠/唤醒时间") { editScheduleDay(index, name) }
+            scheduleButtons += action(scheduleEditor, "编辑 $name 的睡眠/唤醒时间") { editScheduleDay(index, name) }
         }
         controlButtons += scheduleButtons
-        val cupCard = card(body, "累计杯数")
+        val cupCard = card(overview, "累计杯数")
         cupResetStatus = text(cupCard, "尚未重置", 14)
         cupResetButton = action(cupCard, "重置累计杯数") { confirmCupReset() }
         render()

@@ -18,6 +18,7 @@ class CurveActivity : ThemedActivity() {
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var search: EditText
     private lateinit var resultCount: TextView
+    private lateinit var stageChart: CurveStageView
     private lateinit var browserPane: LinearLayout
     private lateinit var detailScroll: ScrollView
     private var compact = false
@@ -108,6 +109,9 @@ class CurveActivity : ThemedActivity() {
             browserPane.visibility = View.VISIBLE
         }
         val preview = HoyiUi.card(this, detailPane, "曲线详情")
+        stageChart = CurveStageView(this)
+        preview.addView(stageChart, LinearLayout.LayoutParams(-1, dp(150)))
+        HoyiUi.label(this, preview, "分段目标示意 · 不是实际萃取曲线", 12, muted = true)
         details = HoyiUi.label(this, preview, "点选左侧曲线查看参数和可用状态", 16)
         val spacer = Space(this)
         if (HoyiUi.wide(this)) detailPane.addView(spacer, LinearLayout.LayoutParams(1, 0, 1f))
@@ -150,6 +154,10 @@ class CurveActivity : ThemedActivity() {
 
     private fun show(item: CurveLibraryItem) {
         selected = item
+        stageChart.targets = item.factoryCurve?.targets?.take(item.factoryCurve.segmentCount)
+            ?: item.controlProfile?.parameters?.let {
+                listOf(it.target1, it.target2, it.target3, it.target4).take(it.segmentCount)
+            } ?: emptyList()
         if (compact) {
             browserPane.visibility = View.GONE
             detailScroll.visibility = View.VISIBLE
@@ -171,6 +179,7 @@ class CurveActivity : ThemedActivity() {
         adapter.addAll(visibleItems.map { "${it.name}\n${it.category}${if (!library.canStart(it)) " · 仅浏览" else ""}" })
         if (selected != null && selected !in visibleItems) {
             selected = null
+            stageChart.targets = emptyList()
             details.text = "点选曲线查看详情"
             select.isEnabled = false
             assignPreset.isEnabled = false
