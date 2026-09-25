@@ -59,7 +59,24 @@ class HistoryActivity : ThemedActivity() {
             }
         }
         list.adapter = adapter
-        body.addView(list, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
+        val content = FrameLayout(this)
+        body.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
+        content.addView(list, FrameLayout.LayoutParams(-1, -1))
+        val emptyHolder = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = android.view.Gravity.CENTER
+        }
+        content.addView(emptyHolder, FrameLayout.LayoutParams(-1, -1))
+        val emptyCard = HoyiUi.card(this, emptyHolder, "还没有萃取记录")
+        if (HoyiUi.wide(this)) (emptyCard.layoutParams as LinearLayout.LayoutParams).apply {
+            width = dp(520)
+            gravity = android.view.Gravity.CENTER_HORIZONTAL
+        }.also { emptyCard.layoutParams = it }
+        HoyiUi.label(this, emptyCard, "完成第一杯后，这里会显示使用的曲线、萃取状态和采样数据。", 16, muted = true)
+        HoyiUi.button(this, emptyCard, "去曲线库选一条曲线", primary = true) {
+            startActivity(Intent(this, CurveActivity::class.java))
+        }
+        list.emptyView = emptyHolder
         list.setOnItemClickListener { _, _, position, _ ->
             startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", rows[position].id))
         }

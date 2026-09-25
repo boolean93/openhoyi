@@ -19,6 +19,7 @@ class CurveActivity : ThemedActivity() {
     private lateinit var search: EditText
     private lateinit var resultCount: TextView
     private lateinit var stageChart: CurveStageView
+    private lateinit var stageCaption: TextView
     private lateinit var browserPane: LinearLayout
     private lateinit var detailScroll: ScrollView
     private var compact = false
@@ -109,9 +110,10 @@ class CurveActivity : ThemedActivity() {
             browserPane.visibility = View.VISIBLE
         }
         val preview = HoyiUi.card(this, detailPane, "曲线详情")
-        stageChart = CurveStageView(this)
+        stageChart = CurveStageView(this).apply { visibility = View.GONE }
         preview.addView(stageChart, LinearLayout.LayoutParams(-1, dp(150)))
-        HoyiUi.label(this, preview, "分段目标示意 · 不是实际萃取曲线", 12, muted = true)
+        stageCaption = HoyiUi.label(this, preview, "分段目标示意 · 不是实际萃取曲线", 12, muted = true)
+            .apply { visibility = View.GONE }
         details = HoyiUi.label(this, preview, "点选左侧曲线查看参数和可用状态", 16)
         val spacer = Space(this)
         if (HoyiUi.wide(this)) detailPane.addView(spacer, LinearLayout.LayoutParams(1, 0, 1f))
@@ -158,6 +160,8 @@ class CurveActivity : ThemedActivity() {
             ?: item.controlProfile?.parameters?.let {
                 listOf(it.target1, it.target2, it.target3, it.target4).take(it.segmentCount)
             } ?: emptyList()
+        stageChart.visibility = View.VISIBLE
+        stageCaption.visibility = View.VISIBLE
         if (compact) {
             browserPane.visibility = View.GONE
             detailScroll.visibility = View.VISIBLE
@@ -180,6 +184,8 @@ class CurveActivity : ThemedActivity() {
         if (selected != null && selected !in visibleItems) {
             selected = null
             stageChart.targets = emptyList()
+            stageChart.visibility = View.GONE
+            stageCaption.visibility = View.GONE
             details.text = "点选曲线查看详情"
             select.isEnabled = false
             assignPreset.isEnabled = false

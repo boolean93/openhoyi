@@ -52,6 +52,8 @@ class HomeActivity : ThemedActivity() {
     private lateinit var scaleWeight: TextView
     private lateinit var tareStatus: TextView
     private lateinit var selection: TextView
+    private lateinit var brewButton: Button
+    private lateinit var browseCurvesButton: Button
     private lateinit var presetButtons: List<Button>
     private lateinit var candidates: LinearLayout
     private lateinit var scanButton: Button
@@ -162,7 +164,7 @@ class HomeActivity : ThemedActivity() {
             setImageResource(R.drawable.hoyi_machine)
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = "HOYI 咖啡机外观"
-        }, LinearLayout.LayoutParams(-1, dp(if (wide) 240 else 150)))
+        }, LinearLayout.LayoutParams(-1, dp(if (wide) 190 else 150)))
         alarmStatus = text(machineCard, "尚未收到机器告警状态", 14)
         leverStatus = text(machineCard, "拨杆模式：尚未收到设置", 14)
         sleepStatus = text(machineCard, "睡眠状态：未知", 14)
@@ -202,8 +204,13 @@ class HomeActivity : ThemedActivity() {
         metricRow("蒸汽温度", "蒸汽压力").also { steamTemperature = it.first; steamPressure = it.second }
         val curveCard = card(right, "当前曲线")
         selection = text(curveCard, "尚未选择曲线", 19, true)
-        button(curveCard, "开始萃取") { startActivity(Intent(this, ExtractionActivity::class.java)) }
-        button(curveCard, "浏览曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
+        brewButton = button(curveCard, "选择曲线") {
+            val library = (application as MobileApplication).curves
+            val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
+            startActivity(Intent(this, if (item != null && library.canStart(item))
+                ExtractionActivity::class.java else CurveActivity::class.java))
+        }
+        browseCurvesButton = button(curveCard, "浏览曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
         val presets = card(right, "快捷曲线")
         HoyiUi.label(this, presets, "点选后进入萃取确认；可在曲线库更换。", 13, muted = true)
         presetButtons = (1..5).map { slot ->
@@ -211,10 +218,8 @@ class HomeActivity : ThemedActivity() {
                 startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
             }
         }
-        if (!wide) {
-            right.removeView(curveCard)
-            right.addView(curveCard, 0)
-        }
+        right.removeView(curveCard)
+        right.addView(curveCard, 0)
         val tools = card(content, "记录与维护")
         button(tools, "萃取历史") { startActivity(Intent(this, HistoryActivity::class.java)) }
         button(tools, "导出操作记录 ZIP") {
@@ -365,6 +370,10 @@ class HomeActivity : ThemedActivity() {
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null) View.GONE else View.VISIBLE
         status.show(if (owner?.manualShotActive == true)
             "机器手动萃取中 · 正在被动记录；请用机器拨杆停止" else if (running) s.message else "点击扫描启动设备服务")
+        val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
+        status.visibility = if (bothReady && !s.scanning && owner?.manualShotActive != true)
+            View.GONE else View.VISIBLE
+        scanButton.visibility = if (bothReady && !s.scanning) View.GONE else View.VISIBLE
         scanButton.isEnabled = !s.scanning
         val shotActive = owner?.shotState?.let(ShotGate::active) == true
         val stopAction = StopActionPresentation.describe(owner?.shotState ?: ExtractionState.IDLE,
@@ -457,6 +466,12 @@ class HomeActivity : ThemedActivity() {
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         selection.show(selected?.let { "当前：${it.name} · ${if (!library.canStart(it)) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
+        brewButton.text = when {
+            selected == null -> "选择曲线"
+            !library.canStart(selected) -> "更换可萃取曲线"
+            else -> "开始萃取"
+        }
+        browseCurvesButton.visibility = if (selected == null) View.GONE else View.VISIBLE
         val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
         presetButtons.forEachIndexed { index, button ->
             val slot = index + 1
@@ -497,6 +512,6 @@ class HomeActivity : ThemedActivity() {
         }
     private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)
     private fun button(parent: LinearLayout, value: String, action: () -> Unit) =
-        HoyiUi.button(this, parent, value, primary = value == "开始萃取", action = action)
+        HoyiUi.button(this, parent, value, primary = value == "选择曲线", action = action)
     companion object { private const val PERMISSIONS = 12; private const val ENABLE = 13; private const val EXPORT = 14 }
 }
