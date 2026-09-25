@@ -10,6 +10,7 @@ import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -102,38 +103,46 @@ internal object HoyiUi {
         }
         parent.addView(bar, LinearLayout.LayoutParams(-1, dp(activity, 62)))
         val items = listOf(
-            Triple("⌂  首页", HomeActivity::class.java, "首页"),
-            Triple("⌁  曲线", CurveActivity::class.java, "曲线库"),
-            Triple("▷  萃取", ExtractionActivity::class.java, "实时萃取"),
-            Triple("◷  历史", HistoryActivity::class.java, "萃取历史"),
-            Triple("⚙  设置", MachineSettingsActivity::class.java, "机器设置"),
+            Triple(R.drawable.nav_home, "首页", HomeActivity::class.java),
+            Triple(R.drawable.nav_curves, "曲线", CurveActivity::class.java),
+            Triple(R.drawable.nav_extraction, "萃取", ExtractionActivity::class.java),
+            Triple(R.drawable.nav_history, "历史", HistoryActivity::class.java),
+            Triple(R.drawable.nav_settings, "设置", MachineSettingsActivity::class.java),
         )
-        items.forEach { (title, target, description) ->
-            TextView(activity).apply {
-                text = if (wide(activity)) title else when (target) {
-                    HomeActivity::class.java -> "首页"
-                    CurveActivity::class.java -> "曲线"
-                    ExtractionActivity::class.java -> "萃取"
-                    HistoryActivity::class.java -> "历史"
-                    else -> "设置"
-                }
-                textSize = if (wide(activity)) 14f else 12f
+        val wide = wide(activity)
+        items.forEach { (icon, label, target) ->
+            val active = selected == target
+            val tint = activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
+            val item = LinearLayout(activity).apply {
+                orientation = if (wide) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                contentDescription = description
-                setTextColor(activity.getColor(if (selected == target) R.color.mobile_accent else R.color.mobile_muted))
-                if (selected == target) {
-                    typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                    background = shape(activity, R.color.mobile_accent_soft, 10)
-                }
+                contentDescription = label
+                isClickable = true
+                isFocusable = true
+                if (active) background = shape(activity, R.color.mobile_accent_soft, 10)
                 setOnClickListener {
                     if (activity.javaClass != target) {
                         activity.startActivity(Intent(activity, target).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
                     }
                 }
-                bar.addView(this, LinearLayout.LayoutParams(0, -1, 1f).apply {
-                    marginStart = dp(activity, 2); marginEnd = dp(activity, 2)
-                })
             }
+            item.addView(ImageView(activity).apply {
+                setImageResource(icon)
+                imageTintList = ColorStateList.valueOf(tint)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(dp(activity, 20), dp(activity, 20)))
+            item.addView(TextView(activity).apply {
+                text = label
+                textSize = if (wide) 14f else 11f
+                setTextColor(tint)
+                if (active) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(-2, -2).apply {
+                if (wide) marginStart = dp(activity, 8) else topMargin = dp(activity, 2)
+            })
+            bar.addView(item, LinearLayout.LayoutParams(0, -1, 1f).apply {
+                marginStart = dp(activity, 2); marginEnd = dp(activity, 2)
+            })
         }
     }
 }
