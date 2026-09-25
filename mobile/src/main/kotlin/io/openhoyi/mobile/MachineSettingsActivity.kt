@@ -15,11 +15,13 @@ import android.os.Looper
 import android.text.InputType
 import android.view.View
 import android.view.WindowInsets
+import android.view.Gravity
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import android.widget.HorizontalScrollView
 import android.widget.TextView
 import android.widget.Toast
 import io.openhoyi.protocol.MachineSettingChange
@@ -57,6 +59,9 @@ class MachineSettingsActivity : ThemedActivity() {
     private lateinit var waterSupplyButton: Button
     private lateinit var runModeButton: Button
     private lateinit var sleepScheduleButton: Button
+    private var selectedSettingsSection = 0
+    private val settingSections = mutableListOf<LinearLayout>()
+    private val settingTabs = mutableListOf<TextView>()
     private val controlButtons = mutableListOf<Button>()
     private val scheduleButtons = mutableListOf<Button>()
     private val connection = object : ServiceConnection {
@@ -75,6 +80,7 @@ class MachineSettingsActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         detailsExpanded = savedInstanceState?.getBoolean("settingsExpanded") ?: false
+        selectedSettingsSection = savedInstanceState?.getInt("settingsSection") ?: 0
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -126,9 +132,36 @@ class MachineSettingsActivity : ThemedActivity() {
             settings.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
             settingsToggle.text = if (detailsExpanded) "收起完整回读" else "查看完整回读"
         }
-        val controls = card(controlsPane, "常用设置")
-        writeStatus = text(controls, "尚未修改", 14)
-        HoyiUi.label(this, controls, "温度", 16, true).apply { setPadding(0, dp(14), 0, dp(4)) }
+        val writeCard = card(controlsPane, "设置反馈")
+        writeStatus = text(writeCard, "尚未修改机器设置", 14)
+        val tabsScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        controlsPane.addView(tabsScroll, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14) })
+        val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        tabsScroll.addView(tabs)
+        fun section(label: String): LinearLayout {
+            val index = settingSections.size
+            val tab = TextView(this).apply {
+                text = label
+                textSize = 15f
+                gravity = Gravity.CENTER
+                minHeight = dp(48)
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                setOnClickListener { showSettingsSection(index) }
+            }
+            tabs.addView(tab, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
+            settingTabs += tab
+            return LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                controlsPane.addView(this)
+                settingSections += this
+            }
+        }
+        val temperatureSection = section("温度")
+        val functionsSection = section("机器功能")
+        val standbySection = section("待机")
+        val sleepSection = section("每周计划")
+        val maintenanceSection = section("维护")
+        val controls = card(temperatureSection, "温度设置")
         brewInput = temperatureInput(controls, "萃取设定温度（75–105 °C）")
         controlButtons += action(controls, "设置萃取温度") {
             val c = brewInput.text.toString().toIntOrNull()
@@ -147,27 +180,27 @@ class MachineSettingsActivity : ThemedActivity() {
             if (c == null || c !in 110..145) steamInput.error = "请输入 110–145"
             else confirm(MachineSettingChange.SteamTemperature(c))
         }
-        HoyiUi.label(this, controls, "加热与机器功能", 16, true).apply { setPadding(0, dp(18), 0, dp(4)) }
-        brewHeatingButton = action(controls, "切换萃取加热") {
+        val functionsCard = card(functionsSection, "加热与机器功能")
+        brewHeatingButton = action(functionsCard, "切换萃取加热") {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.BrewHeating(!it.brewHeating)) }
         }
-        steamHeatingButton = action(controls, "切换蒸汽加热") {
+        steamHeatingButton = action(functionsCard, "切换蒸汽加热") {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.SteamHeating(!it.steamHeating)) }
         }
-        lightButton = action(controls, "切换照明") {
+        lightButton = action(functionsCard, "切换照明") {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.Light(it.flags and 0x08 == 0)) }
         }
-        waterSupplyButton = action(controls, "切换供水方式") {
+        waterSupplyButton = action(functionsCard, "切换供水方式") {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.WaterSupply(it.flags and 0x02 == 0)) }
         }
-        runModeButton = action(controls, "切换运行模式") {
+        runModeButton = action(functionsCard, "切换运行模式") {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.RunMode(it.flags and 0x04 == 0)) }
         }
         controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton)
-        HoyiUi.label(this, controls, "待机", 16, true).apply { setPadding(0, dp(18), 0, dp(4)) }
-        controlButtons += action(controls, "设置自动待机时间") { chooseStandbyDelay() }
-        standbyTemperatureInput = temperatureInput(controls, "待机温度（0–100 °C）")
-        controlButtons += action(controls, "设置待机温度") {
+        val standbyCard = card(standbySection, "自动待机")
+        controlButtons += action(standbyCard, "设置自动待机时间") { chooseStandbyDelay() }
+        standbyTemperatureInput = temperatureInput(standbyCard, "待机温度（0–100 °C）")
+        controlButtons += action(standbyCard, "设置待机温度") {
             val c = standbyTemperatureInput.text.toString().toIntOrNull()
             if (c == null || c !in 0..100) standbyTemperatureInput.error = "请输入 0–100"
             else {
@@ -177,7 +210,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 else confirm(MachineSettingChange.StandbyTemperature(c, minutes))
             }
         }
-        val sleepCard = card(controlsPane, "每周睡眠计划")
+        val sleepCard = card(sleepSection, "每周睡眠计划")
         schedule = text(sleepCard, "尚未收到睡眠计划", 16)
         scheduleWriteStatus = text(sleepCard, "时间修改：尚未修改", 14)
         sleepScheduleButton = action(sleepCard, "切换睡眠计划总开关") {
@@ -199,9 +232,10 @@ class MachineSettingsActivity : ThemedActivity() {
             scheduleButtons += action(scheduleEditor, "编辑 $name 的睡眠/唤醒时间") { editScheduleDay(index, name) }
         }
         controlButtons += scheduleButtons
-        val cupCard = card(overview, "累计杯数")
+        val cupCard = card(maintenanceSection, "累计杯数")
         cupResetStatus = text(cupCard, "尚未重置", 14)
         cupResetButton = action(cupCard, "重置累计杯数") { confirmCupReset() }
+        showSettingsSection(selectedSettingsSection)
         render()
     }
 
@@ -220,7 +254,21 @@ class MachineSettingsActivity : ThemedActivity() {
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("settingsExpanded", detailsExpanded)
+        outState.putInt("settingsSection", selectedSettingsSection)
         super.onSaveInstanceState(outState)
+    }
+    private fun showSettingsSection(index: Int) {
+        selectedSettingsSection = index.coerceIn(settingSections.indices)
+        settingSections.forEachIndexed { position, section ->
+            val selected = position == selectedSettingsSection
+            section.visibility = if (selected) View.VISIBLE else View.GONE
+            settingTabs[position].apply {
+                setTextColor(getColor(if (selected) R.color.mobile_accent else R.color.mobile_muted))
+                background = HoyiUi.shape(this@MachineSettingsActivity,
+                    if (selected) R.color.mobile_accent_soft else R.color.mobile_surface,
+                    10, R.color.mobile_border)
+            }
+        }
     }
     private fun release() {
         if (bound) { unbindService(connection); bound = false }
@@ -254,7 +302,8 @@ class MachineSettingsActivity : ThemedActivity() {
             CupResetTracker.State.UNKNOWN -> "结果未知，请查看机器杯数"
             else -> "尚未重置"
         })
-        writeStatus.update("设置状态：${owner?.pendingSetting?.let(MachineSettingsPresentation::change) ?: "尚未修改"} · " +
+        writeStatus.update(if (owner?.pendingSetting == null && pending == SettingsWriteTracker.State.IDLE)
+            "尚未修改机器设置" else "${owner?.pendingSetting?.let(MachineSettingsPresentation::change) ?: "设置"} · " +
             when (pending) {
                 SettingsWriteTracker.State.IDLE -> "尚未修改"
                 SettingsWriteTracker.State.WRITING -> "正在写入"
