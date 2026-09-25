@@ -27,6 +27,9 @@ class ExtractionActivity : ThemedActivity() {
     private var visible = false
     private val visibilityToken = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
+    private lateinit var curveSummary: TextView
+    private lateinit var deviceSummary: TextView
+    private lateinit var shotSummary: TextView
     private lateinit var readiness: TextView
     private lateinit var live: TextView
     private lateinit var elapsedValue: TextView
@@ -106,8 +109,14 @@ class ExtractionActivity : ThemedActivity() {
             columns!!.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(10) })
         } else content
         val stateCard = card(left)
-        HoyiUi.label(this, stateCard, "准备状态", 19, true)
-        readiness = text(stateCard, "等待设备服务", 16)
+        HoyiUi.label(this, stateCard, "萃取概览", 19, true)
+        curveSummary = text(stateCard, "曲线：未选择", 18, true)
+        deviceSummary = text(stateCard, "咖啡机：未连接 · 电子秤：未连接", 14)
+        shotSummary = text(stateCard, "萃取状态：待机", 14)
+        readiness = text(stateCard, "等待设备服务", 16, true).apply {
+            setPadding(dp(14), dp(12), dp(14), dp(12))
+            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 12)
+        }
         preparationStatus = text(stateCard, "温度准备：尚未连接", 14)
         notificationStatus = text(stateCard, "", 14)
         alarmStatus = text(stateCard, "尚未收到机器告警状态", 14)
@@ -245,7 +254,23 @@ class ExtractionActivity : ThemedActivity() {
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
         val slotLabel = if (presetSlot == 7) "" else " · 快捷槽位 $presetSlot"
-        readiness.show("曲线：${item?.name ?: "未选择"}$slotLabel\n咖啡机：${DeviceStatusText.label(snapshot.coffeeState)} · 电子秤：${DeviceStatusText.label(snapshot.scaleState)}\n萃取状态：${if (owner?.scalePreflight == true) "等待电子秤归零后启动" else if (owner?.manualShotActive == true) "机器手动萃取" else shotLabel(state)}${owner?.stopReason?.let { " · 停止原因：${stopLabel(it)}" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
+        curveSummary.show("曲线：${item?.name ?: "未选择"}$slotLabel")
+        deviceSummary.show("咖啡机：${DeviceStatusText.label(snapshot.coffeeState)} · 电子秤：${DeviceStatusText.label(snapshot.scaleState)}")
+        shotSummary.show("萃取状态：${if (owner?.scalePreflight == true) "等待电子秤归零后启动" else if (owner?.manualShotActive == true) "机器手动萃取" else shotLabel(state)}${owner?.stopReason?.let { " · 停止原因：${stopLabel(it)}" } ?: ""}")
+        val guidance = when {
+            owner?.manualShotActive == true -> "机器手动萃取中；请用机器拨杆停止"
+            owner?.scalePreflight == true -> "正在等待电子秤归零，尚未启动咖啡机"
+            state == ExtractionState.STARTING -> "启动命令处理中，请留意咖啡机"
+            state == ExtractionState.RUNNING -> "正在萃取，请守在机器旁"
+            state == ExtractionState.STOP_REQUESTED -> "停止命令处理中，请确认机器停水"
+            state == ExtractionState.OUTCOME_UNKNOWN -> "结果未知，请先检查咖啡机"
+            state == ExtractionState.ENDED_OBSERVED -> "上一杯已结束；确认机器停水后，可开始下一杯"
+            else -> blocked ?: studioBlocked ?: "设备与曲线已就绪"
+        }
+        readiness.show(guidance + unknownAdvice)
+        readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
+            (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)))
+            R.color.mobile_danger else R.color.mobile_text))
         preparationStatus.show(if (snapshot.settings == null) "运行模式尚未回读" else if (!studio) "咖啡馆模式 · 按曲线正常启动" else
             "工作室模式 · 当前 ${corrected?.let(::number) ?: "—"} °C / 目标 ${profile?.temperatureC ?: "—"} °C\n" +
                 when (preparation) {
