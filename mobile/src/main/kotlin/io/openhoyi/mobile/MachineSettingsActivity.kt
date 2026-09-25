@@ -42,6 +42,10 @@ class MachineSettingsActivity : ThemedActivity() {
     private lateinit var connectionState: TextView
     private lateinit var settings: TextView
     private lateinit var settingsOverview: TextView
+    private lateinit var brewTemperatureValue: TextView
+    private lateinit var steamTemperatureValue: TextView
+    private lateinit var runModeValue: TextView
+    private lateinit var supplyValue: TextView
     private lateinit var settingsToggle: Button
     private var detailsExpanded = false
     private lateinit var schedule: TextView
@@ -122,8 +126,29 @@ class MachineSettingsActivity : ThemedActivity() {
         }
         val summaryCard = card(overview, "连接状态")
         connectionState = text(summaryCard, "未连接", 16)
-        val settingsCard = card(overview, "当前设置")
-        settingsOverview = text(settingsCard, "尚未收到机器设置", 16)
+        val settingsCard = card(overview, "机器回读设置")
+        settingsOverview = text(settingsCard, "尚未收到机器设置", 14)
+        fun settingRow(first: String, second: String): Pair<TextView, TextView> {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            settingsCard.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+            fun tile(label: String): TextView {
+                val box = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(14), dp(12), dp(14), dp(12))
+                    background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_accent_soft, 12)
+                }
+                row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
+                HoyiUi.label(this, box, label, 13, muted = true)
+                return HoyiUi.label(this, box, "—", 21, true).apply { setPadding(0, dp(8), 0, 0) }
+            }
+            return tile(first) to tile(second)
+        }
+        settingRow("萃取温度", "蒸汽温度").also {
+            brewTemperatureValue = it.first; steamTemperatureValue = it.second
+        }
+        settingRow("运行模式", "供水方式").also {
+            runModeValue = it.first; supplyValue = it.second
+        }
         settings = text(settingsCard, "", 14).apply {
             visibility = if (detailsExpanded) View.VISIBLE else View.GONE
         }
@@ -281,8 +306,16 @@ class MachineSettingsActivity : ThemedActivity() {
         val ready = snapshot.coffeeState == DeviceState.READY
         connectionState.update(if (BuildConfig.MOCK_MODE) "Mock 模拟设备 · 无蓝牙连接" else
             "${DeviceStatusText.label(snapshot.coffeeState)}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
-        settingsOverview.update(MachineSettingsPresentation.overview(snapshot.settings))
+        val reported = snapshot.settings
+        settingsOverview.update(if (reported == null) "尚未收到机器设置" else
+            "${if (ready) "当前回读" else "上次回读"} · 自动待机 ${if (reported.standbyMinutes == 0) "永不" else "${reported.standbyMinutes} 分钟"} · 累计 ${reported.cupCount} 杯")
+        brewTemperatureValue.update(reported?.let { "${it.brewTemperatureC} °C" } ?: "—")
+        steamTemperatureValue.update(reported?.let { "${it.steamTemperatureC} °C" } ?: "—")
+        runModeValue.update(reported?.let { if (it.flags and 0x04 != 0) "工作室" else "咖啡馆" } ?: "—")
+        supplyValue.update(reported?.let { if (it.flags and 0x02 != 0) "外接水管" else "水箱" } ?: "—")
         settings.update(MachineSettingsPresentation.settings(snapshot.settings))
+        settingsToggle.visibility = if (reported == null) View.GONE else View.VISIBLE
+        settings.visibility = if (reported != null && detailsExpanded) View.VISIBLE else View.GONE
         schedule.update(MachineSettingsPresentation.scheduleDays(snapshot.sleepFirst, snapshot.sleepSecond))
         scheduleWriteStatus.update("时间修改：" + when (owner?.scheduleWriteState) {
             SleepScheduleWriteTracker.State.WRITING -> "正在顺序写入两包计划"
