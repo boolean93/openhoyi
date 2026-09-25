@@ -54,5 +54,8 @@ class MachineSettingsPresentationTest {
         assertTrue(text.contains("周日  开启"))
         assertTrue(text.contains("周一  关闭"))
         assertTrue(text.contains("周二  开启"))
+        val dayList = MachineSettingsPresentation.scheduleDays(first, second)
+        assertTrue(dayList.contains("周日  开启"))
+        assertFalse(dayList.contains("0xA0"))
     }
 }

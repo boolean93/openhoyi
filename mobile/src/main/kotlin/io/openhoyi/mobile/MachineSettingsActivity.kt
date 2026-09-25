@@ -283,7 +283,7 @@ class MachineSettingsActivity : ThemedActivity() {
             "${DeviceStatusText.label(snapshot.coffeeState)}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
         settingsOverview.update(MachineSettingsPresentation.overview(snapshot.settings))
         settings.update(MachineSettingsPresentation.settings(snapshot.settings))
-        schedule.update(MachineSettingsPresentation.schedule(snapshot.sleepFirst, snapshot.sleepSecond))
+        schedule.update(MachineSettingsPresentation.scheduleDays(snapshot.sleepFirst, snapshot.sleepSecond))
         scheduleWriteStatus.update("时间修改：" + when (owner?.scheduleWriteState) {
             SleepScheduleWriteTracker.State.WRITING -> "正在顺序写入两包计划"
             SleepScheduleWriteTracker.State.WAITING_READBACK -> "已写入，等待两段机器回报"

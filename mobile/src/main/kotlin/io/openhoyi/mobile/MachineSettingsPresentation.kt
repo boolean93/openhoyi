@@ -100,6 +100,13 @@ object MachineSettingsPresentation {
         }.trimEnd()
     }
 
+    /** The day list shown in the UI; the raw enable mask remains available in schedule(). */
+    fun scheduleDays(first: SleepPart?, second: SleepPart?): String {
+        val full = schedule(first, second)
+        if (first == null && second == null) return full
+        return full.lineSequence().drop(1).joinToString("\n")
+    }
+
     private fun time(hour: Int, minute: Int): String =
         if (hour in 0..23 && minute in 0..59) "%02d:%02d".format(hour, minute)
         else "原始 $hour:$minute"
