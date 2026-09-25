@@ -102,7 +102,17 @@ class CurveActivity : ThemedActivity() {
             }
         }
         list.adapter = adapter
-        browser.addView(list, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
+        val listHolder = FrameLayout(this)
+        browser.addView(listHolder, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
+        listHolder.addView(list, FrameLayout.LayoutParams(-1, -1))
+        val emptyState = TextView(this).apply {
+            text = "没有找到匹配的曲线\n试试其他名称或切换分类"
+            textSize = 16f
+            gravity = android.view.Gravity.CENTER
+            setTextColor(getColor(R.color.mobile_muted))
+        }
+        listHolder.addView(emptyState, FrameLayout.LayoutParams(-1, -1))
+        list.emptyView = emptyState
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
 
         if (compact) HoyiUi.button(this, detailPane, "返回曲线列表") {

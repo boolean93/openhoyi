@@ -6,6 +6,7 @@ import android.view.WindowInsets
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import io.openhoyi.session.StopReason
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -53,11 +54,11 @@ class HistoryDetailActivity : ThemedActivity() {
             setTextColor(getColor(if (entry.status == ShotHistory.Status.UNKNOWN) R.color.mobile_danger else R.color.mobile_accent))
         }
         val detail = buildString {
-            entry.slot?.takeIf { it != 6 }?.let { appendLine("快捷槽位：$it") }
+            entry.slot?.takeIf { it in 1..5 }?.let { appendLine("快捷槽位：$it") }
             appendLine("开始请求：${date(entry.startedAtMs)}")
             entry.endedAtMs?.let { appendLine("观察到结束：${date(it)}") }
             entry.elapsedMs?.let { appendLine("持续：${"%.1f".format(Locale.ROOT, it / 1000.0)} 秒") }
-            entry.reason?.let { appendLine("停止原因：$it") }
+            entry.reason?.let { appendLine("停止原因：${reasonLabel(it)}") }
             entry.weightHundredthsGram?.let {
                 appendLine("结束时秤读数：${"%.2f".format(Locale.ROOT, it / 100.0)} g（未经杯重校准）")
             }
@@ -89,6 +90,13 @@ class HistoryDetailActivity : ThemedActivity() {
         ShotHistory.Status.ENDED -> "已观察结束"
         ShotHistory.Status.UNKNOWN -> "结果未知"
         ShotHistory.Status.NOT_STARTED -> "未启动"
+    }
+    private fun reasonLabel(value: String) = when (value) {
+        StopReason.TARGET_WEIGHT.name -> "达到目标重量"
+        StopReason.SCALE_UNAVAILABLE.name -> "电子秤数据不可用"
+        StopReason.TARE_UNCONFIRMED.name -> "电子秤归零未确认"
+        StopReason.MANUAL.name -> "手动停止"
+        else -> value
     }
     private fun date(epochMs: Long) = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(epochMs))
     private fun dp(value: Int) = HoyiUi.dp(this, value)

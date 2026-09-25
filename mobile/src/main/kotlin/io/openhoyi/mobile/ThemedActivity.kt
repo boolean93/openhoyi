@@ -13,4 +13,12 @@ abstract class ThemedActivity : Activity() {
             (if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
         super.attachBaseContext(newBase.createConfigurationContext(config))
     }
+
+    override fun onResume() {
+        super.onResume()
+        val preferredDark = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
+        val currentDark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+            Configuration.UI_MODE_NIGHT_YES
+        if (preferredDark != currentDark) recreate()
+    }
 }

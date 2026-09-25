@@ -123,7 +123,7 @@ class HistoryActivity : ThemedActivity() {
         adapter.addAll(rows.map { entry ->
             "${date(entry.startedAtMs)}    ${status(entry.status)}\n" +
                 (if (entry.curveId == "manual") "机器手动萃取" else library?.find(entry.curveId)?.name ?: entry.curveId) +
-                (entry.slot?.takeIf { it != 6 }?.let { " · 槽位 $it" } ?: "")
+                (entry.slot?.takeIf { it in 1..5 }?.let { " · 快捷槽位 $it" } ?: "")
         })
     }
     private fun status(value: ShotHistory.Status) = when (value) {
