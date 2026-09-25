@@ -12,7 +12,8 @@ import java.util.Locale
 
 /** Native extraction outcomes with separate legacy import actions. */
 class HistoryActivity : ThemedActivity() {
-    private lateinit var adapter: ArrayAdapter<String>
+    private data class RowViews(val title: TextView, val status: TextView, val meta: TextView)
+    private lateinit var adapter: ArrayAdapter<ShotHistory.Entry>
     private lateinit var count: TextView
     private lateinit var emptyTitle: TextView
     private lateinit var emptyMessage: TextView
@@ -49,16 +50,50 @@ class HistoryActivity : ThemedActivity() {
             divider = null
             dividerHeight = dp(8)
         }
-        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
+        adapter = object : ArrayAdapter<ShotHistory.Entry>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
-                return (convertView as? TextView ?: TextView(this@HistoryActivity)).apply {
-                    text = getItem(position)
-                    textSize = 16f
-                    setTextColor(getColor(R.color.mobile_text))
-                    minHeight = dp(70)
-                    setPadding(dp(18), dp(12), dp(18), dp(12))
+                val card = convertView as? LinearLayout ?: LinearLayout(this@HistoryActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    minimumHeight = dp(80)
+                    setPadding(dp(18), dp(13), dp(18), dp(13))
                     background = HoyiUi.shape(this@HistoryActivity, R.color.mobile_surface, 14, R.color.mobile_border)
+                    val header = LinearLayout(this@HistoryActivity).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        gravity = android.view.Gravity.CENTER_VERTICAL
+                    }
+                    addView(header)
+                    val title = TextView(this@HistoryActivity).apply {
+                        textSize = 17f
+                        setTextColor(getColor(R.color.mobile_text))
+                        maxLines = 2
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    }
+                    header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+                    val state = TextView(this@HistoryActivity).apply { textSize = 13f }
+                    header.addView(state, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12) })
+                    val meta = TextView(this@HistoryActivity).apply {
+                        textSize = 13f
+                        setTextColor(getColor(R.color.mobile_muted))
+                        setPadding(0, dp(8), 0, 0)
+                    }
+                    addView(meta)
+                    tag = RowViews(title, state, meta)
                 }
+                val entry = requireNotNull(getItem(position))
+                val views = card.tag as RowViews
+                val library = runCatching { (application as MobileApplication).curves }.getOrNull()
+                views.title.text = if (entry.curveId == "manual") "机器手动萃取"
+                    else library?.find(entry.curveId)?.name ?: entry.curveId
+                views.status.text = status(entry.status)
+                views.status.setTextColor(getColor(if (entry.status == ShotHistory.Status.UNKNOWN)
+                    R.color.mobile_danger else R.color.mobile_accent))
+                views.meta.text = buildString {
+                    append(date(entry.startedAtMs))
+                    entry.elapsedMs?.let { append(" · %.1f 秒".format(Locale.ROOT, it / 1000.0)) }
+                    entry.weightHundredthsGram?.let { append(" · 秤读数 %.2f g".format(Locale.ROOT, it / 100.0)) }
+                    entry.slot?.takeIf { it in 1..5 }?.let { append(" · 快捷槽位 $it") }
+                }
+                return card
             }
         }
         list.adapter = adapter
@@ -129,13 +164,8 @@ class HistoryActivity : ThemedActivity() {
             emptyMessage.text = "完成第一杯后，这里会显示使用的曲线、萃取状态和采样数据。"
             emptyAction.visibility = View.VISIBLE
         }
-        val library = runCatching { (application as MobileApplication).curves }.getOrNull()
         adapter.clear()
-        adapter.addAll(rows.map { entry ->
-            "${date(entry.startedAtMs)}    ${status(entry.status)}\n" +
-                (if (entry.curveId == "manual") "机器手动萃取" else library?.find(entry.curveId)?.name ?: entry.curveId) +
-                (entry.slot?.takeIf { it in 1..5 }?.let { " · 快捷槽位 $it" } ?: "")
-        })
+        adapter.addAll(rows)
     }
     private fun status(value: ShotHistory.Status) = when (value) {
         ShotHistory.Status.STARTING -> "启动中"
