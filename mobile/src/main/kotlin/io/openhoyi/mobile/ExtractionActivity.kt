@@ -91,13 +91,26 @@ class ExtractionActivity : ThemedActivity() {
         setContentView(root)
         HoyiUi.header(this, content, "实时萃取",
             if (BuildConfig.MOCK_MODE) "模拟模式 · 不发送蓝牙命令" else "确认设备与曲线后开始；请守在机器旁", back = true)
-        val stateCard = card(content)
+        val wide = HoyiUi.wide(this)
+        val columns = if (wide) LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            content.addView(this, LinearLayout.LayoutParams(-1, -2))
+        } else null
+        val left = if (wide) LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            columns!!.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(10) })
+        } else content
+        val right = if (wide) LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            columns!!.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(10) })
+        } else content
+        val stateCard = card(left)
         HoyiUi.label(this, stateCard, "准备状态", 19, true)
         readiness = text(stateCard, "等待设备服务", 16)
         preparationStatus = text(stateCard, "温度准备：尚未连接", 14)
         notificationStatus = text(stateCard, "", 14)
         alarmStatus = text(stateCard, "尚未收到机器告警状态", 14)
-        val metrics = card(content)
+        val metrics = card(left)
         HoyiUi.label(this, metrics, "实时数据", 19, true)
         fun metricRow(a: String, b: String): Pair<TextView, TextView> {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -118,13 +131,13 @@ class ExtractionActivity : ThemedActivity() {
         metricRow("电子秤重量", "秤流速").also { weightValue = it.first; flowValue = it.second }
         live = text(metrics, "", 13)
         weightTarget = text(metrics, "", 15, true)
-        val chartCard = card(content)
+        val chartCard = card(right)
         HoyiUi.label(this, chartCard, "萃取曲线", 19, true)
         chart = ShotChartView(this)
         chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(if (HoyiUi.wide(this)) 260 else 220)).apply {
             topMargin = dp(12)
         })
-        val actions = card(content)
+        val actions = card(right)
         HoyiUi.label(this, actions, "温度准备", 19, true)
         prepare = button(actions, "预热到曲线温度") { confirmPrepare() }
         cancelPrepare = button(actions, "取消预热") { service?.cancelBrewPreparation()?.let(::toast); render() }
