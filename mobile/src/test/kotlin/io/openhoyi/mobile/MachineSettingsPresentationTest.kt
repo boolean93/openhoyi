@@ -58,4 +58,22 @@ class MachineSettingsPresentationTest {
         assertTrue(dayList.contains("周日  开启"))
         assertFalse(dayList.contains("0xA0"))
     }
+
+    @Test fun weeklyCardsShowPartialReadbackWithoutInventingMissingValues() {
+        val first = SleepPart(0, 0x80, List(4) { SleepDay(22, 30, 7, 15) }, raw)
+        val onlyFirst = MachineSettingsPresentation.scheduleDaySummaries(first, null)
+        assertEquals(7, onlyFirst.size)
+        assertEquals(MachineSettingsPresentation.SleepDaySummary("周日", "开启", "22:30 → 07:15"), onlyFirst[0])
+        assertEquals("关闭", onlyFirst[4].state)
+        assertEquals("时间尚未回读", onlyFirst[4].period)
+        val onlySecond = MachineSettingsPresentation.scheduleDaySummaries(
+            null, SleepPart(4, null, List(3) { SleepDay(21, 0, 8, 0) }, raw))
+        assertEquals("状态未知", onlySecond[4].state)
+        assertEquals("21:00 → 08:00", onlySecond[4].period)
+        assertTrue(MachineSettingsPresentation.scheduleDaySummaries(null, null)
+            .all { it.state == "状态未知" && it.period == "时间尚未回读" })
+        val malformedFirst = SleepPart(2, 0x80, List(4) { SleepDay(22, 30, 7, 15) }, raw)
+        assertTrue(MachineSettingsPresentation.scheduleDaySummaries(malformedFirst, null)
+            .all { it.state == "状态未知" })
+    }
 }

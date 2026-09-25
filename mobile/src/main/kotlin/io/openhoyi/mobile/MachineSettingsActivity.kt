@@ -34,6 +34,7 @@ import java.util.Locale
 
 /** Only known setting commands are exposed; applied state requires a subsequent 0x83 readback. */
 class MachineSettingsActivity : ThemedActivity() {
+    private data class ScheduleCard(val heading: TextView, val period: TextView)
     private var service: MobileService? = null
     private var bound = false
     private var visible = false
@@ -49,6 +50,8 @@ class MachineSettingsActivity : ThemedActivity() {
     private lateinit var settingsToggle: Button
     private var detailsExpanded = false
     private lateinit var schedule: TextView
+    private lateinit var scheduleGrid: LinearLayout
+    private val scheduleCards = mutableListOf<ScheduleCard>()
     private lateinit var writeStatus: TextView
     private lateinit var scheduleWriteStatus: TextView
     private lateinit var cupResetStatus: TextView
@@ -244,6 +247,30 @@ class MachineSettingsActivity : ThemedActivity() {
             }
         }
         controlButtons += sleepScheduleButton
+        scheduleGrid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        sleepCard.addView(scheduleGrid, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        val scheduleColumns = if (resources.configuration.screenWidthDp >= 900) 2 else 1
+        (0..6).chunked(scheduleColumns).forEach { days ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            scheduleGrid.addView(row)
+            days.forEach { day ->
+                val cell = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(14), dp(10), dp(14), dp(10))
+                    background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_accent_soft, 12)
+                }
+                row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    topMargin = dp(8)
+                    if (day != days.last()) marginEnd = dp(8)
+                })
+                val heading = HoyiUi.label(this, cell, "", 15, true)
+                val period = HoyiUi.label(this, cell, "", 13, muted = true).apply {
+                    setPadding(0, dp(6), 0, 0)
+                }
+                scheduleCards += ScheduleCard(heading, period)
+            }
+            if (days.size < scheduleColumns) row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+        }
         val scheduleEditor = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = android.view.View.GONE }
         val scheduleToggle = action(sleepCard, "编辑每周时间") {}
         scheduleToggle.setOnClickListener {
@@ -316,7 +343,20 @@ class MachineSettingsActivity : ThemedActivity() {
         settings.update(MachineSettingsPresentation.settings(snapshot.settings))
         settingsToggle.visibility = if (reported == null) View.GONE else View.VISIBLE
         settings.visibility = if (reported != null && detailsExpanded) View.VISIBLE else View.GONE
-        schedule.update(MachineSettingsPresentation.scheduleDays(snapshot.sleepFirst, snapshot.sleepSecond))
+        schedule.update(when {
+            snapshot.sleepFirst == null && snapshot.sleepSecond == null -> "尚未收到睡眠计划"
+            WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond) == null ->
+                "计划回读不完整或异常；请核对机器，未知内容已标出"
+            else -> "整周计划已回读 · 周日到周六"
+        })
+        scheduleGrid.visibility = if (snapshot.sleepFirst == null && snapshot.sleepSecond == null) View.GONE else View.VISIBLE
+        MachineSettingsPresentation.scheduleDaySummaries(snapshot.sleepFirst, snapshot.sleepSecond)
+            .forEachIndexed { index, day ->
+                scheduleCards[index].heading.update("${day.name} · ${day.state}")
+                scheduleCards[index].heading.setTextColor(getColor(if (day.state == "开启")
+                    R.color.mobile_accent else R.color.mobile_text))
+                scheduleCards[index].period.update(day.period)
+            }
         scheduleWriteStatus.update("时间修改：" + when (owner?.scheduleWriteState) {
             SleepScheduleWriteTracker.State.WRITING -> "正在顺序写入两包计划"
             SleepScheduleWriteTracker.State.WAITING_READBACK -> "已写入，等待两段机器回报"

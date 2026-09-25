@@ -7,6 +7,8 @@ import io.openhoyi.protocol.SleepPart
 
 /** Formats decoded device values; it never creates a command or claims that a setting was applied. */
 object MachineSettingsPresentation {
+    data class SleepDaySummary(val name: String, val state: String, val period: String)
+
     fun overview(value: Settings?): String {
         if (value == null) return "尚未收到机器设置"
         val mode = if (value.flags and 0x04 != 0) "工作室" else "咖啡馆"
@@ -105,6 +107,25 @@ object MachineSettingsPresentation {
         val full = schedule(first, second)
         if (first == null && second == null) return full
         return full.lineSequence().drop(1).joinToString("\n")
+    }
+
+    fun scheduleDaySummaries(first: SleepPart?, second: SleepPart?): List<SleepDaySummary> {
+        val names = listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")
+        val enabledBits = first?.takeIf { it.firstDaySundayIndex == 0 }?.enabledBits
+        val days = mutableMapOf<Int, SleepDay>()
+        listOfNotNull(first, second).forEach { part ->
+            part.days.forEachIndexed { index, day ->
+                (part.firstDaySundayIndex + index).takeIf { it in 0..6 }?.let { days[it] = day }
+            }
+        }
+        return names.mapIndexed { index, name ->
+            val state = enabledBits?.let {
+                if (it and (0x80 shr index) != 0) "开启" else "关闭"
+            } ?: "状态未知"
+            val period = days[index]?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" }
+                ?: "时间尚未回读"
+            SleepDaySummary(name, state, period)
+        }
     }
 
     private fun time(hour: Int, minute: Int): String =
