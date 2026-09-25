@@ -232,7 +232,7 @@ class MachineSettingsActivity : ThemedActivity() {
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val ready = snapshot.coffeeState == DeviceState.READY
         connectionState.update(if (BuildConfig.MOCK_MODE) "Mock 模拟设备 · 无蓝牙连接" else
-            "${snapshot.coffeeState.name}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
+            "${DeviceStatusText.label(snapshot.coffeeState)}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
         settingsOverview.update(MachineSettingsPresentation.overview(snapshot.settings))
         settings.update(MachineSettingsPresentation.settings(snapshot.settings))
         schedule.update(MachineSettingsPresentation.schedule(snapshot.sleepFirst, snapshot.sleepSecond))

@@ -245,7 +245,7 @@ class ExtractionActivity : ThemedActivity() {
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
         val slotLabel = if (presetSlot == 7) "" else " · 快捷槽位 $presetSlot"
-        readiness.show("曲线：${item?.name ?: "未选择"}$slotLabel\n咖啡机：${deviceLabel(snapshot.coffeeState)} · 电子秤：${deviceLabel(snapshot.scaleState)}\n萃取状态：${if (owner?.scalePreflight == true) "等待电子秤归零后启动" else if (owner?.manualShotActive == true) "机器手动萃取" else shotLabel(state)}${owner?.stopReason?.let { " · 停止原因：${stopLabel(it)}" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
+        readiness.show("曲线：${item?.name ?: "未选择"}$slotLabel\n咖啡机：${DeviceStatusText.label(snapshot.coffeeState)} · 电子秤：${DeviceStatusText.label(snapshot.scaleState)}\n萃取状态：${if (owner?.scalePreflight == true) "等待电子秤归零后启动" else if (owner?.manualShotActive == true) "机器手动萃取" else shotLabel(state)}${owner?.stopReason?.let { " · 停止原因：${stopLabel(it)}" } ?: ""}\n${blocked ?: studioBlocked ?: "设备与曲线已就绪"}$unknownAdvice")
         preparationStatus.show(if (snapshot.settings == null) "运行模式尚未回读" else if (!studio) "咖啡馆模式 · 按曲线正常启动" else
             "工作室模式 · 当前 ${corrected?.let(::number) ?: "—"} °C / 目标 ${profile?.temperatureC ?: "—"} °C\n" +
                 when (preparation) {
@@ -308,17 +308,6 @@ class ExtractionActivity : ThemedActivity() {
         stop.text = if (owner?.scalePreflight == true) "取消启动" else stopAction.label
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
-    private fun deviceLabel(state: DeviceState) = when (state) {
-        DeviceState.DISCONNECTED -> "未连接"
-        DeviceState.CONNECTING -> "连接中"
-        DeviceState.DISCOVERING -> "查找服务中"
-        DeviceState.SUBSCRIBING -> "订阅数据中"
-        DeviceState.INITIALIZING -> "初始化中"
-        DeviceState.SYNCHRONIZING -> "同步中"
-        DeviceState.READY -> "已就绪"
-        DeviceState.UNSUPPORTED -> "不支持"
-        DeviceState.FAILED -> "连接失败"
-    }
     private fun shotLabel(state: ExtractionState) = when (state) {
         ExtractionState.IDLE -> "待机"
         ExtractionState.STARTING -> "启动中"

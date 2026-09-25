@@ -14,6 +14,9 @@ import java.util.Locale
 class HistoryActivity : ThemedActivity() {
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var count: TextView
+    private lateinit var emptyTitle: TextView
+    private lateinit var emptyMessage: TextView
+    private lateinit var emptyAction: Button
     private var rows = emptyList<ShotHistory.Entry>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,13 +70,15 @@ class HistoryActivity : ThemedActivity() {
             gravity = android.view.Gravity.CENTER
         }
         content.addView(emptyHolder, FrameLayout.LayoutParams(-1, -1))
-        val emptyCard = HoyiUi.card(this, emptyHolder, "还没有萃取记录")
+        val emptyCard = HoyiUi.card(this, emptyHolder)
         if (HoyiUi.wide(this)) (emptyCard.layoutParams as LinearLayout.LayoutParams).apply {
             width = dp(520)
             gravity = android.view.Gravity.CENTER_HORIZONTAL
         }.also { emptyCard.layoutParams = it }
-        HoyiUi.label(this, emptyCard, "完成第一杯后，这里会显示使用的曲线、萃取状态和采样数据。", 16, muted = true)
-        HoyiUi.button(this, emptyCard, "去曲线库选一条曲线", primary = true) {
+        emptyTitle = HoyiUi.label(this, emptyCard, "还没有萃取记录", 19, true)
+        emptyMessage = HoyiUi.label(this, emptyCard,
+            "完成第一杯后，这里会显示使用的曲线、萃取状态和采样数据。", 16, muted = true)
+        emptyAction = HoyiUi.button(this, emptyCard, "去曲线库选一条曲线", primary = true) {
             startActivity(Intent(this, CurveActivity::class.java))
         }
         list.emptyView = emptyHolder
@@ -114,9 +119,15 @@ class HistoryActivity : ThemedActivity() {
         val history = runCatching { (application as MobileApplication).history }.getOrNull()
         if (history == null) {
             count.text = "历史记录暂不可用"; rows = emptyList()
+            emptyTitle.text = "历史记录暂不可用"
+            emptyMessage.text = "请稍后重新打开；当前无法判断本机记录是否为空。"
+            emptyAction.visibility = View.GONE
         } else {
             rows = history.entries
             count.text = if (rows.isEmpty()) "暂无本机记录" else "本机记录 ${rows.size} 条 · 最多保留 30 天 / 500 条"
+            emptyTitle.text = "还没有萃取记录"
+            emptyMessage.text = "完成第一杯后，这里会显示使用的曲线、萃取状态和采样数据。"
+            emptyAction.visibility = View.VISIBLE
         }
         val library = runCatching { (application as MobileApplication).curves }.getOrNull()
         adapter.clear()
