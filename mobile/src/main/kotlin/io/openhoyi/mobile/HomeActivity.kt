@@ -213,11 +213,23 @@ class HomeActivity : ThemedActivity() {
         browseCurvesButton = button(curveCard, "浏览曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
         val presets = card(right, "快捷曲线")
         HoyiUi.label(this, presets, "点选后进入萃取确认；可在曲线库更换。", 13, muted = true)
-        presetButtons = (1..5).map { slot ->
-            button(presets, "槽位 $slot") {
-                startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
+        val buttons = mutableListOf<Button>()
+        val columns = if (resources.configuration.screenWidthDp >= 1000) 2 else 1
+        (1..5).chunked(columns).forEach { slots ->
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            presets.addView(row)
+            slots.forEach { slot ->
+                val cell = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    if (slot != slots.last()) marginEnd = dp(10)
+                })
+                buttons += button(cell, "槽位 $slot") {
+                    startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
+                }
             }
+            if (slots.size < columns) row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         }
+        presetButtons = buttons
         right.removeView(curveCard)
         right.addView(curveCard, 0)
         val tools = card(content, "记录与维护")
@@ -465,7 +477,7 @@ class HomeActivity : ThemedActivity() {
             "  ·  ${liveScale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
-        selection.show(selected?.let { "当前：${it.name} · ${if (!library.canStart(it)) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
+        selection.show(selected?.let { "${it.name} · ${if (!library.canStart(it)) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
         brewButton.text = when {
             selected == null -> "选择曲线"
             !library.canStart(selected) -> "更换可萃取曲线"
