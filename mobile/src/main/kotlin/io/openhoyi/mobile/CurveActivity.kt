@@ -12,6 +12,7 @@ import android.widget.*
 
 /** Library browsing and selection are local only; no BLE command is sent here. */
 class CurveActivity : ThemedActivity() {
+    private data class RowViews(val title: TextView, val subtitle: TextView, val preview: CurveStageView)
     private lateinit var detailTitle: TextView
     private lateinit var detailCategory: TextView
     private lateinit var details: TextView
@@ -124,16 +125,37 @@ class CurveActivity : ThemedActivity() {
         }
         adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
-                return (convertView as? TextView ?: TextView(this@CurveActivity)).apply {
-                    text = getItem(position)
-                    textSize = 16f
-                    minHeight = dp(58)
-                    setTextColor(getColor(R.color.mobile_text))
-                    setPadding(dp(16), dp(10), dp(16), dp(10))
-                    background = HoyiUi.shape(this@CurveActivity,
-                        if (visibleItems.getOrNull(position)?.id == selected?.id) R.color.mobile_accent_soft
-                        else R.color.mobile_surface, 12, R.color.mobile_border)
+                val row = convertView as? LinearLayout ?: LinearLayout(this@CurveActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    minimumHeight = dp(76)
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    val thumbnail = CurveStageView(this@CurveActivity).apply {
+                        compact = true
+                        background = HoyiUi.shape(this@CurveActivity, R.color.mobile_accent_soft, 10)
+                        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    }
+                    addView(thumbnail, LinearLayout.LayoutParams(dp(78), dp(52)).apply { marginEnd = dp(12) })
+                    val words = LinearLayout(this@CurveActivity).apply { orientation = LinearLayout.VERTICAL }
+                    addView(words, LinearLayout.LayoutParams(0, -2, 1f))
+                    val title = HoyiUi.label(this@CurveActivity, words, "", 16, true).apply {
+                        maxLines = 2
+                        ellipsize = android.text.TextUtils.TruncateAt.END
+                    }
+                    val subtitle = HoyiUi.label(this@CurveActivity, words, "", 13, muted = true).apply {
+                        setPadding(0, dp(5), 0, 0)
+                    }
+                    tag = RowViews(title, subtitle, thumbnail)
                 }
+                val item = visibleItems[position]
+                val views = row.tag as RowViews
+                views.title.text = item.name
+                views.subtitle.text = "${item.category} · ${if (library.canStart(item)) "可萃取" else "仅浏览"}"
+                views.preview.targets = stageTargets(item)
+                row.background = HoyiUi.shape(this@CurveActivity,
+                    if (item.id == selected?.id) R.color.mobile_accent_soft else R.color.mobile_surface,
+                    12, R.color.mobile_border)
+                return row
             }
         }
         list.adapter = adapter
@@ -194,10 +216,7 @@ class CurveActivity : ThemedActivity() {
 
     private fun show(item: CurveLibraryItem) {
         selected = item
-        stageChart.targets = item.factoryCurve?.targets?.take(item.factoryCurve.segmentCount)
-            ?: item.controlProfile?.parameters?.let {
-                listOf(it.target1, it.target2, it.target3, it.target4).take(it.segmentCount)
-            } ?: emptyList()
+        stageChart.targets = stageTargets(item)
         stageChart.visibility = View.VISIBLE
         stageCaption.visibility = View.VISIBLE
         if (compact) {
@@ -225,7 +244,7 @@ class CurveActivity : ThemedActivity() {
         visibleItems = CurveSearch.filter(library.items, category, search.text.toString())
         resultCount.text = "找到 ${visibleItems.size} 条曲线"
         adapter.clear()
-        adapter.addAll(visibleItems.map { "${it.name}\n${it.category}${if (!library.canStart(it)) " · 仅浏览" else ""}" })
+        adapter.addAll(visibleItems.map { it.id })
         if (selected != null && selected !in visibleItems) {
             selected = null
             stageChart.targets = emptyList()
@@ -241,6 +260,11 @@ class CurveActivity : ThemedActivity() {
             assignPreset.visibility = View.GONE
         }
     }
+    private fun stageTargets(item: CurveLibraryItem): List<Int> =
+        item.factoryCurve?.targets?.take(item.factoryCurve.segmentCount)
+            ?: item.controlProfile?.parameters?.let {
+                listOf(it.target1, it.target2, it.target3, it.target4).take(it.segmentCount)
+            } ?: emptyList()
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("selected", selected?.id)
         super.onSaveInstanceState(outState)
