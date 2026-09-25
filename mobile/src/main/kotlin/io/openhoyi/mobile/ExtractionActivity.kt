@@ -28,6 +28,10 @@ class ExtractionActivity : ThemedActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var readiness: TextView
     private lateinit var live: TextView
+    private lateinit var elapsedValue: TextView
+    private lateinit var pressureValue: TextView
+    private lateinit var weightValue: TextView
+    private lateinit var flowValue: TextView
     private lateinit var weightTarget: TextView
     private lateinit var preparationStatus: TextView
     private lateinit var notificationStatus: TextView
@@ -70,30 +74,60 @@ class ExtractionActivity : ThemedActivity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         stop = Button(this).apply {
             text = "立即停止"
-            setTextColor(getColor(R.color.mobile_danger))
+            isAllCaps = false
+            textSize = 18f
+            minHeight = dp(56)
+            setTextColor(getColor(android.R.color.white))
+            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_stop_button, 12)
             visibility = View.GONE
             setOnClickListener { service?.stopShot(); render() }
         }
+        start = HoyiUi.button(this, root, "开始萃取", primary = true) { confirmStart() }
+        (start.layoutParams as LinearLayout.LayoutParams).setMargins(dp(24), dp(4), dp(24), dp(8))
         root.addView(stop, LinearLayout.LayoutParams(-1, -2).apply {
             setMargins(dp(24), dp(4), dp(24), dp(12))
         })
+        HoyiUi.navigation(this, root, ExtractionActivity::class.java)
         setContentView(root)
-        text(content, "实时萃取", 28, true)
-        text(content, if (BuildConfig.MOCK_MODE) "模拟萃取仅在本机生成数据，不发送蓝牙命令。"
-            else "连接、曲线和重量由服务层再次校验。页面退出不会断开正在运行的连接。", 14)
-        val card = card(content)
-        readiness = text(card, "等待设备服务", 18)
-        live = text(card, "暂无实时数据", 22)
-        weightTarget = text(card, "", 16)
-        preparationStatus = text(card, "温度准备：尚未连接", 14)
-        notificationStatus = text(card, "", 14)
-        alarmStatus = text(card, "尚未收到机器告警状态", 14)
+        HoyiUi.header(this, content, "实时萃取",
+            if (BuildConfig.MOCK_MODE) "模拟模式 · 不发送蓝牙命令" else "确认设备与曲线后开始；请守在机器旁", back = true)
+        val stateCard = card(content)
+        HoyiUi.label(this, stateCard, "准备状态", 19, true)
+        readiness = text(stateCard, "等待设备服务", 16)
+        preparationStatus = text(stateCard, "温度准备：尚未连接", 14)
+        notificationStatus = text(stateCard, "", 14)
+        alarmStatus = text(stateCard, "尚未收到机器告警状态", 14)
+        val metrics = card(content)
+        HoyiUi.label(this, metrics, "实时数据", 19, true)
+        fun metricRow(a: String, b: String): Pair<TextView, TextView> {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            metrics.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+            fun cell(title: String): TextView {
+                val box = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(dp(16), dp(12), dp(16), dp(12))
+                    background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 12)
+                }
+                row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
+                HoyiUi.label(this, box, title, 13, muted = true)
+                return HoyiUi.label(this, box, "—", 27, true).apply { setPadding(0, dp(8), 0, 0) }
+            }
+            return cell(a) to cell(b)
+        }
+        metricRow("萃取时间", "实时压力").also { elapsedValue = it.first; pressureValue = it.second }
+        metricRow("电子秤重量", "秤流速").also { weightValue = it.first; flowValue = it.second }
+        live = text(metrics, "", 13)
+        weightTarget = text(metrics, "", 15, true)
+        val chartCard = card(content)
+        HoyiUi.label(this, chartCard, "萃取曲线", 19, true)
         chart = ShotChartView(this)
-        card.addView(chart, LinearLayout.LayoutParams(-1, dp(260)).apply { topMargin = dp(12) })
-        prepare = button(card, "预热到曲线温度") { confirmPrepare() }
-        cancelPrepare = button(card, "取消预热") { service?.cancelBrewPreparation()?.let(::toast); render() }
-        start = button(card, "开始萃取") { confirmStart() }
-        button(content, "返回首页") { finish() }
+        chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(if (HoyiUi.wide(this)) 260 else 220)).apply {
+            topMargin = dp(12)
+        })
+        val actions = card(content)
+        HoyiUi.label(this, actions, "温度准备", 19, true)
+        prepare = button(actions, "预热到曲线温度") { confirmPrepare() }
+        cancelPrepare = button(actions, "取消预热") { service?.cancelBrewPreparation()?.let(::toast); render() }
         render()
     }
     override fun onStart() {
@@ -209,15 +243,21 @@ class ExtractionActivity : ThemedActivity() {
         alarmStatus.show(MachineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             SystemClock.elapsedRealtime()))
         val now = SystemClock.elapsedRealtime()
-        val machine = when (val frame = LiveTelemetry.machine(snapshot.coffee,
-                snapshot.coffeeState, snapshot.coffeeAt, now)) {
-            is ExtractionTelemetry -> "${frame.elapsedSeconds} s · ${frame.pressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"
-            is IdleTelemetry -> "待机 · ${frame.brewPressureTenthsBar / 10.0} bar · ${number(frame.brewTemperatureHundredthsC)} °C"
-            else -> "时间/压力/温度：—"
-        }
+        val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
+        elapsedValue.show(if (frame is ExtractionTelemetry) "${frame.elapsedSeconds} s" else "—")
+        pressureValue.show(when (frame) {
+            is ExtractionTelemetry -> "${frame.pressureTenthsBar / 10.0} bar"
+            is IdleTelemetry -> "${frame.brewPressureTenthsBar / 10.0} bar"
+            else -> "—"
+        })
         val scale = LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)
-        live.show("$machine\n重量：${scale?.let { number(it.weightHundredthsGram) } ?: "—"} g" +
-            " · 咖啡流速：${scale?.let { number(it.deviceFlowHundredths) } ?: "—"}（秤）")
+        weightValue.show("${scale?.let { number(it.weightHundredthsGram) } ?: "—"} g")
+        flowValue.show("${scale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
+        live.show("冲泡温度  ${when (frame) {
+            is ExtractionTelemetry -> number(frame.brewTemperatureHundredthsC)
+            is IdleTelemetry -> number(frame.brewTemperatureHundredthsC)
+            else -> "—"
+        }} °C")
         val target = if (state != ExtractionState.IDLE) owner?.activeShotTargetHundredthsGram
             else profile?.targetHundredthsGram
         weightTarget.show(if (owner?.manualShotActive != true && target != null && target > 0) {
@@ -245,6 +285,7 @@ class ExtractionActivity : ThemedActivity() {
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
+        start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
         stop.text = if (owner?.scalePreflight == true) "取消启动" else stopAction.label
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
@@ -256,13 +297,7 @@ class ExtractionActivity : ThemedActivity() {
         text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
         setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD); parent.addView(this)
     }
-    private fun card(parent: LinearLayout): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(16))
-        background = GradientDrawable().apply { setColor(getColor(R.color.mobile_surface)); cornerRadius = dp(18).toFloat() }
-        parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18) })
-    }
-    private fun button(parent: LinearLayout, value: String, action: () -> Unit): Button = Button(this).apply {
-        text = value; setOnClickListener { action() }
-        parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-    }
+    private fun card(parent: LinearLayout) = HoyiUi.card(this, parent)
+    private fun button(parent: LinearLayout, value: String, action: () -> Unit) =
+        HoyiUi.button(this, parent, value, action = action)
 }

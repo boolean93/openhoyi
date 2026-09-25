@@ -14,7 +14,8 @@ import java.util.Locale
 class LegacyHistoryDetailActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = ScrollView(this).apply {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
             setOnApplyWindowInsetsListener { view, insets ->
                 val bars = if (Build.VERSION.SDK_INT >= 30) {
@@ -32,8 +33,12 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(20), dp(24), dp(28))
         }
-        root.addView(body); setContentView(root)
-        text(body, "旧版萃取详情", 28, true)
+        val scroll = ScrollView(this)
+        scroll.addView(body)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        HoyiUi.navigation(this, root, HistoryActivity::class.java)
+        setContentView(root)
+        HoyiUi.header(this, body, "旧版萃取详情", "只读记录", back = true)
         val id = intent.getStringExtra("legacyId")
         val status = TextView(this).apply {
             text = "正在读取旧版记录…"; textSize = 16f; setTextColor(getColor(R.color.mobile_text))
@@ -52,12 +57,14 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
     }
 
     private fun showShot(body: LinearLayout, shot: LegacyShot) {
-        text(body, "${shot.profileName.ifBlank { "未命名曲线" }}\n" +
+        val summary = HoyiUi.card(this, body, "记录")
+        text(summary, "${shot.profileName.ifBlank { "未命名曲线" }}\n" +
             "${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(shot.createdAtMs))} · ${shot.durationSec} 秒\n" +
             "来源：旧版 UniApp · 只读记录", 16)
-        body.addView(LegacyShotChartView(this).apply { points = shot.points },
-            LinearLayout.LayoutParams(-1, dp(300)).apply { topMargin = dp(16) })
-        text(body, "蓝线为旧版压力（bar），绿线为旧版机器水流（ml/s）。" +
+        val chart = HoyiUi.card(this, body, "旧版曲线")
+        chart.addView(LegacyShotChartView(this).apply { points = shot.points },
+            LinearLayout.LayoutParams(-1, dp(300)))
+        text(chart, "蓝线为旧版压力（bar），绿线为旧版机器水流（ml/s）。" +
             "原始 wFlow/wTrend 已保留，但旧版计算含平滑和基线处理，不等同原生秤重或秤流速；" +
             "旧记录没有原生机器温度、累计水量及结束确认，不能据此证明机器实际停止。", 14)
     }

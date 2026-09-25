@@ -36,6 +36,10 @@ class HomeActivity : ThemedActivity() {
     private lateinit var safetyWarning: TextView
     private lateinit var acknowledgeManual: Button
     private lateinit var coffee: TextView
+    private lateinit var brewTemperature: TextView
+    private lateinit var brewPressure: TextView
+    private lateinit var steamTemperature: TextView
+    private lateinit var steamPressure: TextView
     private lateinit var leverStatus: TextView
     private lateinit var leverButton: Button
     private lateinit var sleepStatus: TextView
@@ -43,6 +47,7 @@ class HomeActivity : ThemedActivity() {
     private lateinit var emergencyStop: Button
     private lateinit var alarmStatus: TextView
     private lateinit var scale: TextView
+    private lateinit var scaleWeight: TextView
     private lateinit var tareStatus: TextView
     private lateinit var selection: TextView
     private lateinit var presetButtons: List<Button>
@@ -87,28 +92,33 @@ class HomeActivity : ThemedActivity() {
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         emergencyStop = Button(this).apply {
             text = "立即停止萃取"
-            setTextColor(getColor(R.color.mobile_danger))
+            isAllCaps = false
+            textSize = 18f
+            minHeight = dp(56)
+            setTextColor(getColor(android.R.color.white))
+            background = HoyiUi.shape(this@HomeActivity, R.color.mobile_stop_button, 12)
             visibility = View.GONE
             setOnClickListener { service?.stopShot(); render() }
         }
         root.addView(emergencyStop, LinearLayout.LayoutParams(-1, -2).apply {
             setMargins(dp(24), dp(4), dp(24), dp(12))
         })
+        HoyiUi.navigation(this, root, HomeActivity::class.java)
         setContentView(root)
-        text(content, getString(R.string.app_name), 28, true)
-        content.addView(Switch(this).apply {
-            setText(R.string.theme_dark_mode)
+        HoyiUi.header(this, content, "HOYI", if (BuildConfig.MOCK_MODE) "Mock · 本机模拟，不发送蓝牙命令" else "咖啡工作台")
+        val themeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
+        content.addView(themeRow)
+        HoyiUi.label(this, themeRow, "深色模式", 14, muted = true)
+        themeRow.addView(Switch(this).apply {
+            contentDescription = "切换深色模式"
             isChecked = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
             setOnCheckedChangeListener { _, dark ->
                 getSharedPreferences("appearance", MODE_PRIVATE).edit().putBoolean("dark", dark).apply()
                 recreate()
             }
         })
-        text(content, if (BuildConfig.MOCK_MODE) "仅显示模拟设备数据，不会连接蓝牙或向机器发送命令。"
-            else "原生连接与实时状态", 14)
-        safetyWarning = text(content, "", 18, true).apply {
-            setTextColor(getColor(R.color.mobile_danger))
-            visibility = View.GONE
+        safetyWarning = text(content, "", 17, true).apply {
+            setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
         }
         acknowledgeManual = button(content, "已检查机器，清除提示") {
             AlertDialog.Builder(this).setTitle("确认已检查机器")
@@ -116,43 +126,87 @@ class HomeActivity : ThemedActivity() {
                 .setPositiveButton("清除提示") { _, _ -> service?.acknowledgeManualSafety(); render() }
                 .setNegativeButton("取消", null).show()
         }.apply { visibility = View.GONE }
-        val connectionCard = card(content, "设备")
-        status = text(connectionCard, "尚未连接", 16)
-        scanButton = button(connectionCard, "扫描并连接设备") { enableAndScan() }
+
+        val deviceCard = card(content, "设备连接")
+        status = text(deviceCard, "尚未连接", 14)
+        val deviceRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        deviceCard.addView(deviceRow)
+        val machineChip = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val scaleChip = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        deviceRow.addView(machineChip, LinearLayout.LayoutParams(0, -2, 1f))
+        deviceRow.addView(scaleChip, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(12) })
+        coffee = text(machineChip, "咖啡机 · 未连接", 15, true)
+        scale = text(scaleChip, "电子秤 · 未连接", 15, true)
+        scanButton = button(deviceCard, "扫描并连接设备") { enableAndScan() }
         candidates = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        connectionCard.addView(candidates)
-        val coffeeCard = card(content, "咖啡机")
-        coffee = text(coffeeCard, "未连接", 20)
-        leverStatus = text(coffeeCard, "拨杆模式：尚未收到设置", 14)
-        leverButton = button(coffeeCard, "切换拨杆模式") { chooseLeverMode() }
-        sleepStatus = text(coffeeCard, "睡眠状态：未知", 14)
-        sleepButton = button(coffeeCard, "立即睡眠") { confirmSleepNow() }
-        alarmStatus = text(coffeeCard, "尚未收到机器告警状态", 14)
-        button(coffeeCard, "查看机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
-        coffeeDisconnect = button(coffeeCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
-        val scaleCard = card(content, "电子秤")
-        scale = text(scaleCard, "未连接", 20)
+        deviceCard.addView(candidates)
+
+        val wide = HoyiUi.wide(this)
+        val workArea = LinearLayout(this).apply { orientation = if (wide) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
+        content.addView(workArea)
+        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        if (wide) {
+            workArea.addView(left, LinearLayout.LayoutParams(0, -2, .9f))
+            workArea.addView(right, LinearLayout.LayoutParams(0, -2, 1.1f).apply { marginStart = dp(16) })
+        } else {
+            workArea.addView(right, LinearLayout.LayoutParams(-1, -2))
+            workArea.addView(left, LinearLayout.LayoutParams(-1, -2))
+        }
+        val machineCard = card(left, "咖啡机")
+        machineCard.addView(MachineIllustrationView(this), LinearLayout.LayoutParams(-1, dp(if (wide) 180 else 130)))
+        alarmStatus = text(machineCard, "尚未收到机器告警状态", 14)
+        leverStatus = text(machineCard, "拨杆模式：尚未收到设置", 14)
+        sleepStatus = text(machineCard, "睡眠状态：未知", 14)
+        leverButton = button(machineCard, "拨杆模式") { chooseLeverMode() }
+        sleepButton = button(machineCard, "立即睡眠") { confirmSleepNow() }
+        button(machineCard, "机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
+        coffeeDisconnect = button(machineCard, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
+        val scaleCard = card(left, "电子秤")
+        scaleWeight = text(scaleCard, "— g", 27, true)
         tareStatus = text(scaleCard, "去皮状态：尚未操作", 14)
         tareButton = button(scaleCard, "电子秤去皮") { service?.tareScale()?.let(::toast); render() }
         scaleDisconnect = button(scaleCard, "断开电子秤") { service?.disconnect(DeviceRole.BOOKOO) }
-        val curveCard = card(content, "曲线库")
-        selection = text(curveCard, "尚未选择曲线", 16)
-        button(curveCard, "查看曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
-        button(curveCard, "进入萃取页面") { startActivity(Intent(this, ExtractionActivity::class.java)) }
-        button(curveCard, "萃取历史") { startActivity(Intent(this, HistoryActivity::class.java)) }
-        text(curveCard, "工厂曲线经旧版启动报文逐字节校验；实际机器行为仍待验收。", 13)
-        val presets = card(content, "五个快捷槽位")
-        text(presets, "点选槽位进入萃取确认；可在曲线库中更换各槽位曲线。", 13)
+
+        val metrics = card(right, "实时状态")
+        fun metricRow(first: String, second: String): Pair<TextView, TextView> {
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            metrics.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+            fun item(label: String): TextView {
+                val box = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12))
+                    background = HoyiUi.shape(this@HomeActivity, R.color.mobile_accent_soft, 12)
+                }
+                row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
+                HoyiUi.label(this, box, label, 13, muted = true)
+                return HoyiUi.label(this, box, "—", 25, true).apply { setPadding(0, dp(8), 0, 0) }
+            }
+            return item(first) to item(second)
+        }
+        metricRow("冲泡温度", "冲泡压力").also { brewTemperature = it.first; brewPressure = it.second }
+        metricRow("蒸汽温度", "蒸汽压力").also { steamTemperature = it.first; steamPressure = it.second }
+        val curveCard = card(right, "当前曲线")
+        selection = text(curveCard, "尚未选择曲线", 19, true)
+        button(curveCard, "开始萃取") { startActivity(Intent(this, ExtractionActivity::class.java)) }
+        button(curveCard, "浏览曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
+        val presets = card(right, "快捷曲线")
+        HoyiUi.label(this, presets, "点选后进入萃取确认；可在曲线库更换。", 13, muted = true)
         presetButtons = (1..5).map { slot ->
             button(presets, "槽位 $slot") {
                 startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
             }
         }
-        button(content, "导出操作记录 ZIP") {
+        if (!wide) {
+            right.removeView(curveCard)
+            right.addView(curveCard, 0)
+        }
+        val tools = card(content, "记录与维护")
+        button(tools, "萃取历史") { startActivity(Intent(this, HistoryActivity::class.java)) }
+        button(tools, "导出操作记录 ZIP") {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
         }
-        button(content, "停止设备服务") {
+        button(tools, "停止设备服务") {
             val owner = service
             owner?.shutdown()
             if (owner?.running == true) toast("设备操作仍在处理，服务保持运行") else release()
@@ -355,16 +409,26 @@ class HomeActivity : ThemedActivity() {
         }
         sleepStatus.show("睡眠状态：$reportedSleep$sleepProgress")
         alarmStatus.show(MachineAlarms.describe(s.alarmBits, s.alarmAt, now))
-        val machine = when (val frame = liveMachine) {
-            is IdleTelemetry -> "冲泡 ${number(frame.brewTemperatureHundredthsC)} °C · ${frame.brewPressureTenthsBar / 10.0} bar\n蒸汽 ${number(frame.steamTemperatureHundredthsC)} °C · ${frame.steamPressureTenthsBar / 10.0} bar"
-            is ExtractionTelemetry -> "萃取 ${frame.elapsedSeconds} s · ${frame.pressureTenthsBar / 10.0} bar\n冲泡 ${number(frame.brewTemperatureHundredthsC)} °C"
-            else -> "温度与压力：—"
+        coffee.show("咖啡机 · ${label(s.coffeeState)}${if (coffeeFresh) " · 实时" else ""}")
+        when (val frame = liveMachine) {
+            is IdleTelemetry -> {
+                brewTemperature.show("${number(frame.brewTemperatureHundredthsC)} °C")
+                brewPressure.show("${frame.brewPressureTenthsBar / 10.0} bar")
+                steamTemperature.show("${number(frame.steamTemperatureHundredthsC)} °C")
+                steamPressure.show("${frame.steamPressureTenthsBar / 10.0} bar")
+            }
+            is ExtractionTelemetry -> {
+                brewTemperature.show("${number(frame.brewTemperatureHundredthsC)} °C")
+                brewPressure.show("${frame.pressureTenthsBar / 10.0} bar")
+                steamTemperature.show("—")
+                steamPressure.show("—")
+            }
+            else -> listOf(brewTemperature, brewPressure, steamTemperature, steamPressure).forEach { it.show("—") }
         }
-        coffee.show("${label(s.coffeeState)} · ${if (coffeeFresh) "实时" else "暂无实时数据"}\n$machine\n${s.settings?.let { "固件 ${it.firmwareMajor}.${it.firmwareMinor}.${it.firmwarePatch}" } ?: "固件未知"}")
         val liveScale = LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)
-        scale.show("${label(s.scaleState)} · ${if (liveScale != null) "实时" else "暂无实时数据"}\n" +
-            "重量 ${liveScale?.let { number(it.weightHundredthsGram) } ?: "—"} g · " +
-            "秤流速 ${liveScale?.let { number(it.deviceFlowHundredths) } ?: "—"}")
+        scale.show("电子秤 · ${label(s.scaleState)}${if (liveScale != null) " · 实时" else ""}")
+        scaleWeight.show("${liveScale?.let { number(it.weightHundredthsGram) } ?: "—"} g" +
+            "  ·  ${liveScale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         selection.show(selected?.let { "当前：${it.name} · ${if (!library.canStart(it)) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
@@ -398,15 +462,8 @@ class HomeActivity : ThemedActivity() {
             setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD)
             parent.addView(this)
         }
-    private fun card(parent: LinearLayout, title: String): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(16), dp(20), dp(16))
-        background = GradientDrawable().apply { setColor(getColor(R.color.mobile_surface)); cornerRadius = dp(18).toFloat() }
-        parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18) })
-        text(this, title, 18, true)
-    }
-    private fun button(parent: LinearLayout, value: String, action: () -> Unit): Button = Button(this).apply {
-        text = value; setOnClickListener { action() }
-        parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-    }
+    private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)
+    private fun button(parent: LinearLayout, value: String, action: () -> Unit) =
+        HoyiUi.button(this, parent, value, primary = value == "开始萃取", action = action)
     companion object { private const val PERMISSIONS = 12; private const val ENABLE = 13; private const val EXPORT = 14 }
 }

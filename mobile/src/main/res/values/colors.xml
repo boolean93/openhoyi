@@ -1,8 +1,15 @@
 <resources>
-    <color name="mobile_background">#F4F1EB</color>
+    <color name="mobile_background">#F6F4F0</color>
     <color name="mobile_surface">#FFFFFF</color>
-    <color name="mobile_text">#20262A</color>
-    <color name="mobile_danger">#961E1E</color>
+    <color name="mobile_text">#1C2631</color>
+    <color name="mobile_muted">#647183</color>
+    <color name="mobile_border">#E0E5EA</color>
+    <color name="mobile_accent">#2865DE</color>
+    <color name="mobile_primary_button">#2865DE</color>
+    <color name="mobile_accent_soft">#E9F0FF</color>
+    <color name="mobile_success">#0B9D70</color>
+    <color name="mobile_danger">#C73D38</color>
+    <color name="mobile_stop_button">#D9413C</color>
     <color name="chart_axis">#828990</color>
     <color name="chart_grid">#E0E1E2</color>
     <color name="chart_label">#44484C</color>

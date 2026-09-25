@@ -70,27 +70,32 @@ class MachineSettingsActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val scroll = ScrollView(this).apply {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
             setOnApplyWindowInsetsListener { view, insets ->
-                if (Build.VERSION.SDK_INT >= 30) {
-                    val area = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                    view.setPadding(area.left, area.top, area.right, area.bottom)
+                val area = if (Build.VERSION.SDK_INT >= 30) {
+                    val x = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                    intArrayOf(x.left, x.top, x.right, x.bottom)
                 } else {
                     @Suppress("DEPRECATION")
-                    view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
+                    intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
                         insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
                 }
+                view.setPadding(area[0], area[1], area[2], area[3])
                 insets
             }
         }
+        val scroll = ScrollView(this)
+        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        HoyiUi.navigation(this, root, MachineSettingsActivity::class.java)
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(20), dp(24), dp(28))
         }
         scroll.addView(body)
-        setContentView(scroll)
-        text(body, "机器设置", 28, true)
+        setContentView(root)
+        HoyiUi.header(this, body, "机器设置", "修改后等待机器回读确认", back = true)
         text(body, if (BuildConfig.MOCK_MODE) "以下为模拟设置与睡眠计划；修改操作不会发送蓝牙命令。"
             else "更改后等待机器回读确认；蓝牙写入成功不代表设置已生效。", 14)
         val summaryCard = card(body, "连接状态")
@@ -99,6 +104,7 @@ class MachineSettingsActivity : ThemedActivity() {
         settings = text(settingsCard, "尚未收到机器设置", 16)
         val controls = card(body, "常用设置")
         writeStatus = text(controls, "尚未修改", 14)
+        HoyiUi.label(this, controls, "温度", 16, true).apply { setPadding(0, dp(14), 0, dp(4)) }
         brewInput = temperatureInput(controls, "萃取设定温度（75–105 °C）")
         controlButtons += action(controls, "设置萃取温度") {
             val c = brewInput.text.toString().toIntOrNull()
@@ -117,6 +123,7 @@ class MachineSettingsActivity : ThemedActivity() {
             if (c == null || c !in 110..145) steamInput.error = "请输入 110–145"
             else confirm(MachineSettingChange.SteamTemperature(c))
         }
+        HoyiUi.label(this, controls, "加热与机器功能", 16, true).apply { setPadding(0, dp(18), 0, dp(4)) }
         brewHeatingButton = action(controls, "切换萃取加热") {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.BrewHeating(!it.brewHeating)) }
         }
@@ -133,6 +140,7 @@ class MachineSettingsActivity : ThemedActivity() {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.RunMode(it.flags and 0x04 == 0)) }
         }
         controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton)
+        HoyiUi.label(this, controls, "待机", 16, true).apply { setPadding(0, dp(18), 0, dp(4)) }
         controlButtons += action(controls, "设置自动待机时间") { chooseStandbyDelay() }
         standbyTemperatureInput = temperatureInput(controls, "待机温度（0–100 °C）")
         controlButtons += action(controls, "设置待机温度") {
@@ -161,11 +169,6 @@ class MachineSettingsActivity : ThemedActivity() {
         val cupCard = card(body, "累计杯数")
         cupResetStatus = text(cupCard, "尚未重置", 14)
         cupResetButton = action(cupCard, "重置累计杯数") { confirmCupReset() }
-        Button(this).apply {
-            text = "返回首页"
-            setOnClickListener { finish() }
-            body.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(20) })
-        }
         render()
     }
 
@@ -390,18 +393,21 @@ class MachineSettingsActivity : ThemedActivity() {
         hint = label
         inputType = InputType.TYPE_CLASS_NUMBER
         setText(String.format(Locale.getDefault(), "%d", value))
+        minHeight = dp(48)
+        setPadding(dp(14), dp(8), dp(14), dp(8))
+        background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         parent.addView(this, LinearLayout.LayoutParams(-1, -2))
     }
     private fun temperatureInput(parent: LinearLayout, hintText: String): EditText = EditText(this).apply {
         hint = hintText
         inputType = InputType.TYPE_CLASS_NUMBER
+        minHeight = dp(48)
+        setPadding(dp(14), dp(8), dp(14), dp(8))
+        background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         parent.addView(this, LinearLayout.LayoutParams(-1, -2))
     }
-    private fun action(parent: LinearLayout, title: String, onClick: () -> Unit): Button = Button(this).apply {
-        text = title
-        setOnClickListener { onClick() }
-        parent.addView(this, LinearLayout.LayoutParams(-1, -2))
-    }
+    private fun action(parent: LinearLayout, title: String, onClick: () -> Unit): Button =
+        HoyiUi.button(this, parent, title, action = onClick)
     private fun TextView.update(value: String) { if (text.toString() != value) text = value }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView = TextView(this).apply {
@@ -412,11 +418,5 @@ class MachineSettingsActivity : ThemedActivity() {
         if (bold) setTypeface(null, Typeface.BOLD)
         parent.addView(this)
     }
-    private fun card(parent: LinearLayout, title: String): LinearLayout = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        setPadding(dp(20), dp(16), dp(20), dp(16))
-        background = GradientDrawable().apply { setColor(getColor(R.color.mobile_surface)); cornerRadius = dp(18).toFloat() }
-        parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(18) })
-        text(this, title, 18, true)
-    }
+    private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)
 }

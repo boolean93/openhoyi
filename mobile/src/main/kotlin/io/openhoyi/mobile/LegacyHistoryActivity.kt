@@ -38,13 +38,18 @@ class LegacyHistoryActivity : ThemedActivity() {
             }
         }
         setContentView(root)
-        root.addView(TextView(this).apply {
-            text = "旧版历史"; textSize = 28f; setTypeface(null, Typeface.BOLD)
-            setTextColor(getColor(R.color.mobile_text))
-        })
+        HoyiUi.header(this, root, "旧版历史", "导入自旧版应用的只读记录", back = true)
         count = TextView(this).apply { textSize = 15f; setTextColor(getColor(R.color.mobile_text)) }
         root.addView(count)
-        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
+        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
+            override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View =
+                (convertView as? TextView ?: TextView(this@LegacyHistoryActivity)).apply {
+                    text = getItem(position); textSize = 15f
+                    setTextColor(getColor(R.color.mobile_text)); minHeight = dp(68)
+                    setPadding(dp(14), dp(8), dp(14), dp(8))
+                    background = HoyiUi.shape(this@LegacyHistoryActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+                }
+        }
         root.addView(ListView(this).apply {
             this.adapter = this@LegacyHistoryActivity.adapter
             setOnItemClickListener { _, _, position, _ ->
@@ -52,6 +57,7 @@ class LegacyHistoryActivity : ThemedActivity() {
                     .putExtra("legacyId", rows[position].id))
             }
         }, LinearLayout.LayoutParams(-1, 0, 1f))
+        HoyiUi.navigation(this, root, HistoryActivity::class.java)
     }
 
     override fun onStart() {

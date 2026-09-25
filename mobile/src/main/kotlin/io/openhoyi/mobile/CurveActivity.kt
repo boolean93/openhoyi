@@ -1,31 +1,26 @@
 package io.openhoyi.mobile
 
-import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
-import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.View
 import android.view.WindowInsets
-import android.widget.ArrayAdapter
-import android.widget.Button
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ListView
-import android.widget.ScrollView
-import android.widget.Spinner
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 
-/** Browsing and shortcut assignment have no BLE side effects. */
+/** Library browsing and selection are local only; no BLE command is sent here. */
 class CurveActivity : ThemedActivity() {
     private lateinit var details: TextView
     private lateinit var select: Button
     private lateinit var assignPreset: Button
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var search: EditText
+    private lateinit var resultCount: TextView
+    private lateinit var browserPane: LinearLayout
+    private lateinit var detailScroll: ScrollView
+    private var compact = false
     private var category = "全部"
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
@@ -38,72 +33,105 @@ class CurveActivity : ThemedActivity() {
             setBackgroundColor(getColor(R.color.mobile_background))
             setOnApplyWindowInsetsListener { view, insets ->
                 val bars = if (Build.VERSION.SDK_INT >= 30) {
-                    val area = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                    intArrayOf(area.left, area.top, area.right, area.bottom)
+                    val a = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                    intArrayOf(a.left, a.top, a.right, a.bottom)
                 } else {
                     @Suppress("DEPRECATION")
-                    intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+                    intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
+                        insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
                 }
-                view.setPadding(dp(20) + bars[0], dp(12) + bars[1], dp(20) + bars[2], dp(12) + bars[3])
+                view.setPadding(bars[0], bars[1], bars[2], bars[3])
                 insets
             }
         }
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(16), dp(20), dp(12))
+        }
+        root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
+        HoyiUi.navigation(this, root, CurveActivity::class.java)
         setContentView(root)
-        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        label(header, "曲线库", 28, true)
-        header.addView(Button(this).apply {
-            setText(R.string.curve_view_legacy)
-            setOnClickListener { startActivity(Intent(this@CurveActivity, LegacyCurveActivity::class.java)) }
-        })
-        root.addView(header)
-        label(root, "3 条采集曲线 · 100 条旧版工厂曲线 · 5 个快捷槽位", 14)
+        HoyiUi.header(this, body, "曲线库", "搜索、预览并选用曲线")
+        val work = LinearLayout(this).apply { orientation = if (HoyiUi.wide(this@CurveActivity)) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
+        body.addView(work, LinearLayout.LayoutParams(-1, 0, 1f))
+        compact = !HoyiUi.wide(this)
+        val browser = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        browserPane = browser
+        val detailPane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        detailScroll = ScrollView(this).apply { addView(detailPane) }
+        if (!compact) {
+            work.addView(browser, LinearLayout.LayoutParams(0, -1, .95f))
+            work.addView(detailScroll, LinearLayout.LayoutParams(0, -1, 1.05f).apply { marginStart = dp(16) })
+        } else {
+            work.addView(browser, LinearLayout.LayoutParams(-1, -1))
+            work.addView(detailScroll, LinearLayout.LayoutParams(-1, -1))
+            detailScroll.visibility = View.GONE
+        }
         search = EditText(this).apply {
             hint = "搜索曲线名称"
             setSingleLine(true)
+            textSize = 16f
+            setPadding(dp(16), 0, dp(16), 0)
+            background = HoyiUi.shape(this@CurveActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         }
-        root.addView(search)
+        browser.addView(search, LinearLayout.LayoutParams(-1, dp(52)))
         val categories = listOf("全部", "已采集验证", "深烘", "中烘", "浅烘", "超萃")
         val filter = Spinner(this)
         filter.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, categories)
-        root.addView(filter)
-        val list = ListView(this).apply { dividerHeight = dp(1) }
-        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf<String>())
-        list.adapter = adapter
-        root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
-        list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
-        val detailScroll = ScrollView(this)
-        details = TextView(this).apply {
-            textSize = 15f; setTextColor(getColor(R.color.mobile_text)); setPadding(dp(12), dp(8), dp(12), dp(8))
-            text = "点选曲线查看详情"
+        browser.addView(filter, LinearLayout.LayoutParams(-1, dp(48)))
+        resultCount = HoyiUi.label(this, browser, "", 13, muted = true)
+        val list = ListView(this).apply {
+            divider = null
+            dividerHeight = dp(6)
+            selector = HoyiUi.shape(this@CurveActivity, R.color.mobile_accent_soft, 12)
         }
-        detailScroll.addView(details)
-        root.addView(detailScroll, LinearLayout.LayoutParams(-1, dp(180)))
-        select = Button(this).apply {
-            text = "设为当前曲线"; isEnabled = false
-            setOnClickListener {
-                selected?.let { item ->
-                    getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
-                    finish()
+        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
+            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                return (convertView as? TextView ?: TextView(this@CurveActivity)).apply {
+                    text = getItem(position)
+                    textSize = 16f
+                    minHeight = dp(58)
+                    setTextColor(getColor(R.color.mobile_text))
+                    setPadding(dp(16), dp(10), dp(16), dp(10))
+                    background = HoyiUi.shape(this@CurveActivity,
+                        if (visibleItems.getOrNull(position)?.id == selected?.id) R.color.mobile_accent_soft
+                        else R.color.mobile_surface, 12, R.color.mobile_border)
                 }
             }
         }
-        root.addView(select)
-        assignPreset = Button(this).apply {
-            text = "放入快捷槽位"; isEnabled = false
-            setOnClickListener {
-                val item = selected?.takeIf { it.factoryCurve != null && library.canStart(it) } ?: return@setOnClickListener
-                AlertDialog.Builder(this@CurveActivity).setTitle("选择快捷槽位")
-                    .setItems(arrayOf("槽位 1", "槽位 2", "槽位 3", "槽位 4", "槽位 5")) { _, index ->
-                        val slot = index + 1
-                        getSharedPreferences("presets", MODE_PRIVATE).edit()
-                            .putString(PresetSlots.key(slot), item.id).apply()
-                        Toast.makeText(this@CurveActivity, "已将${item.name}放入槽位 $slot", Toast.LENGTH_SHORT).show()
-                    }.show()
-            }
+        list.adapter = adapter
+        browser.addView(list, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
+        list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
+
+        if (compact) HoyiUi.button(this, detailPane, "返回曲线列表") {
+            detailScroll.visibility = View.GONE
+            browserPane.visibility = View.VISIBLE
         }
-        root.addView(assignPreset)
+        val preview = HoyiUi.card(this, detailPane, "曲线详情")
+        details = HoyiUi.label(this, preview, "点选左侧曲线查看参数和可用状态", 16)
+        val spacer = Space(this)
+        if (HoyiUi.wide(this)) detailPane.addView(spacer, LinearLayout.LayoutParams(1, 0, 1f))
+        select = HoyiUi.button(this, detailPane, "使用此曲线", primary = true) {
+            selected?.let { item ->
+                getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
+                finish()
+            }
+        }.apply { isEnabled = false }
+        assignPreset = HoyiUi.button(this, detailPane, "放入快捷槽位") {
+            val item = selected?.takeIf { it.factoryCurve != null && library.canStart(it) } ?: return@button
+            AlertDialog.Builder(this).setTitle("选择快捷槽位")
+                .setItems(arrayOf("槽位 1", "槽位 2", "槽位 3", "槽位 4", "槽位 5")) { _, index ->
+                    val slot = index + 1
+                    getSharedPreferences("presets", MODE_PRIVATE).edit()
+                        .putString(PresetSlots.key(slot), item.id).apply()
+                    Toast.makeText(this, "已将${item.name}放入槽位 $slot", Toast.LENGTH_SHORT).show()
+                }.show()
+        }.apply { isEnabled = false }
+        HoyiUi.button(this, detailPane, "查看旧版导入曲线") {
+            startActivity(Intent(this, LegacyCurveActivity::class.java))
+        }
         filter.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
                 category = categories[position]
                 refreshList()
             }
@@ -122,17 +150,25 @@ class CurveActivity : ThemedActivity() {
 
     private fun show(item: CurveLibraryItem) {
         selected = item
-        details.text = "${item.name}\n${item.category}\n\n${item.details}"
+        if (compact) {
+            browserPane.visibility = View.GONE
+            detailScroll.visibility = View.VISIBLE
+            detailScroll.scrollTo(0, 0)
+        }
+        details.text = "${item.name}\n${item.category}\n\n${item.details}\n\n" +
+            if (library.canStart(item)) "可用于萃取" else "仅可浏览，不能发送至机器"
         select.isEnabled = library.canStart(item)
-        select.text = if (!library.canStart(item)) "设为当前曲线（不可萃取）" else "设为当前曲线"
+        select.text = if (library.canStart(item)) "使用此曲线" else "此曲线不可萃取"
         assignPreset.isEnabled = item.factoryCurve != null && library.canStart(item)
+        adapter.notifyDataSetChanged()
     }
 
     private fun refreshList() {
         if (!::adapter.isInitialized || !::search.isInitialized) return
         visibleItems = CurveSearch.filter(library.items, category, search.text.toString())
+        resultCount.text = "找到 ${visibleItems.size} 条曲线"
         adapter.clear()
-        adapter.addAll(visibleItems.map { "${it.name}  ·  ${it.category}${if (!library.canStart(it)) " · 仅浏览" else ""}" })
+        adapter.addAll(visibleItems.map { "${it.name}\n${it.category}${if (!library.canStart(it)) " · 仅浏览" else ""}" })
         if (selected != null && selected !in visibleItems) {
             selected = null
             details.text = "点选曲线查看详情"
@@ -140,18 +176,9 @@ class CurveActivity : ThemedActivity() {
             assignPreset.isEnabled = false
         }
     }
-
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("selected", selected?.id)
         super.onSaveInstanceState(outState)
     }
-
-    private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
-    private fun label(parent: LinearLayout, value: String, size: Int, bold: Boolean = false) {
-        parent.addView(TextView(this).apply {
-            text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
-            setPadding(0, dp(4), 0, dp(4))
-            if (bold) setTypeface(null, Typeface.BOLD)
-        })
-    }
+    private fun dp(value: Int) = HoyiUi.dp(this, value)
 }

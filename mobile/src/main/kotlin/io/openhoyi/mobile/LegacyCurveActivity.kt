@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Typeface
 import android.os.Build
@@ -10,7 +11,6 @@ import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ListView
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.util.Locale
@@ -18,7 +18,6 @@ import java.util.Locale
 /** Imported rows are browse-only and never feed the machine-control curve library. */
 class LegacyCurveActivity : ThemedActivity() {
     private lateinit var count: TextView
-    private lateinit var detail: TextView
     private lateinit var adapter: ArrayAdapter<String>
     private var bundle: LegacyCurveBundle? = null
     private var refreshGeneration = 0
@@ -42,35 +41,39 @@ class LegacyCurveActivity : ThemedActivity() {
             }
         }
         setContentView(root)
-        root.addView(label("旧版曲线库", 28, true))
+        HoyiUi.header(this, root, "旧版曲线库", "导入内容只供浏览，不发送到咖啡机", back = true)
         count = label("正在读取…", 14)
         root.addView(count)
-        root.addView(Button(this).apply {
-            setText(R.string.curve_import_legacy)
-            setOnClickListener {
+        HoyiUi.button(this, root, getString(R.string.curve_import_legacy)) {
                 @Suppress("DEPRECATION")
                 startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                     .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_CURVES)
-            }
-        })
+        }
         val list = ListView(this)
-        adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, mutableListOf())
+        adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
+            override fun getView(position: Int, convertView: android.view.View?, parent: android.view.ViewGroup): android.view.View =
+                (convertView as? TextView ?: TextView(this@LegacyCurveActivity)).apply {
+                    text = getItem(position); textSize = 15f
+                    setTextColor(getColor(R.color.mobile_text))
+                    minHeight = dp(54); setPadding(dp(14), dp(8), dp(14), dp(8))
+                    background = HoyiUi.shape(this@LegacyCurveActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+                }
+        }
         list.adapter = adapter
         root.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
-        val scroll = ScrollView(this)
-        detail = label("点选曲线查看原始参数。导入曲线暂不发送到咖啡机。", 15)
-        scroll.addView(detail)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, dp(160)))
+        HoyiUi.navigation(this, root, CurveActivity::class.java)
         list.setOnItemClickListener { _, _, position, _ ->
             val data = bundle ?: return@setOnItemClickListener
             val curve = data.curves[position]
             val category = data.categoryLabels[curve.category] ?: curve.category.ifBlank { "未分类" }
-            detail.text = getString(R.string.legacy_curve_detail, curve.name, category, position + 1,
+            val detail = getString(R.string.legacy_curve_detail, curve.name, category, position + 1,
                 getString(if (curve.factory) R.string.legacy_curve_factory else R.string.legacy_curve_user),
                 curve.temperatureC?.let { "$it °C" } ?: "未知",
                 curve.waterMl?.let { "$it ml" } ?: "未知",
                 curve.weightTenthsGram?.let { String.format(Locale.CHINA, "%.1f g", it / 10.0) } ?: "未知",
                 curve.segments?.toString() ?: "未知")
+            AlertDialog.Builder(this).setTitle(curve.name).setMessage(detail)
+                .setPositiveButton("关闭", null).show()
         }
     }
 
