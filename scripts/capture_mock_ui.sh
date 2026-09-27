@@ -60,6 +60,7 @@ capture() {
     home-*) expected=HomeActivity ;;
     curves-*|curve-detail-*) expected=CurveActivity ;;
     extraction-*) expected=ExtractionActivity ;;
+    history-detail-*) expected=HistoryDetailActivity ;;
     history-*) expected=HistoryActivity ;;
     settings-*) expected=MachineSettingsActivity ;;
     *) echo "Unknown screenshot name: $name" >&2; return 1 ;;
@@ -131,3 +132,6 @@ sleep 34
 capture extraction-ended-dark
 tap_nav 3 HistoryActivity
 capture history-list-dark
+adb shell input tap 600 390
+assert_activity HistoryDetailActivity
+capture history-detail-dark
