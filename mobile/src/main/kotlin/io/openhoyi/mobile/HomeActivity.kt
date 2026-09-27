@@ -73,7 +73,10 @@ class HomeActivity : ThemedActivity() {
         override fun onBindingDied(name: ComponentName) { release(); render() }
     }
     private val refresh = object : Runnable {
-        override fun run() { render(); if (visible) handler.postDelayed(this, 250) }
+        override fun run() {
+            render()
+            if (visible) handler.postDelayed(this, if (BuildConfig.MOCK_MODE) 1_000L else 250L)
+        }
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
