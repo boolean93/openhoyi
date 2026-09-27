@@ -54,6 +54,7 @@ tap_nav() {
   # Five equal native navigation targets occupy the bar above the AVD taskbar.
   adb shell input tap "$((160 * (2 * index + 1)))" 888
   assert_activity "$expected"
+  sleep 2
 }
 
 capture() {
