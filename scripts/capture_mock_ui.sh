@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 output_dir="$PWD/build/mock-ui-screenshots"
 mkdir -p "$output_dir"
@@ -8,19 +8,16 @@ test -s "$apk"
 
 on_error() {
   local status=$?
+  trap - ERR
   adb exec-out screencap -p > "$output_dir/failure.png" 2>/dev/null || true
   adb logcat -d -s AndroidRuntime:E ActivityTaskManager:I ActivityManager:I OpenHoyiMobile:D > \
     "$output_dir/app-logcat.txt" 2>/dev/null || true
   adb shell dumpsys activity activities > "$output_dir/activity.txt" 2>/dev/null || true
-  echo '=== UI dump ===' >&2
-  tail -12 "$output_dir/uiautomator.txt" >&2 2>/dev/null || true
   echo '=== Foreground activity ===' >&2
   grep -E 'mResumedActivity|topResumedActivity|mFocusedApp|mCurrentFocus' "$output_dir/activity.txt" | tail -8 >&2 || true
   echo '=== App errors and launch ===' >&2
   grep -E -A 12 'FATAL EXCEPTION|Process: io.openhoyi|ANR in io.openhoyi|START u0|Displayed io.openhoyi' \
     "$output_dir/app-logcat.txt" | tail -45 >&2 || true
-  echo '=== UI hierarchy preview ===' >&2
-  head -c 800 "$output_dir/hierarchy.xml" >&2 2>/dev/null || true
   echo '=== Theme preference ===' >&2
   cat "$output_dir/theme-pref.xml" >&2 2>/dev/null || true
   echo >&2
@@ -58,9 +55,19 @@ tap_nav() {
 }
 
 capture() {
-  local name="$1" path="$output_dir/$1.png"
+  local name="$1" path="$output_dir/$1.png" expected
+  case "$name" in
+    home-*) expected=HomeActivity ;;
+    curves-*|curve-detail-*) expected=CurveActivity ;;
+    extraction-*) expected=ExtractionActivity ;;
+    history-*) expected=HistoryActivity ;;
+    settings-*) expected=MachineSettingsActivity ;;
+    *) echo "Unknown screenshot name: $name" >&2; return 1 ;;
+  esac
   sleep 2
+  assert_activity "$expected"
   adb exec-out screencap -p > "$path"
+  assert_activity "$expected"
   python3 - "$path" <<'PY'
 import struct
 import sys
