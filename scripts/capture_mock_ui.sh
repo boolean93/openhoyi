@@ -122,3 +122,12 @@ capture extraction-ready-dark
 adb shell input tap 800 805
 sleep 2
 capture extraction-confirm-dark
+adb logcat -c
+adb shell input tap 1150 575
+sleep 3
+adb logcat -d -s OpenHoyiMobile:I | grep 'Mock 萃取已开始' > "$output_dir/shot-start-log.txt"
+capture extraction-running-dark
+sleep 34
+capture extraction-ended-dark
+tap_nav 3 HistoryActivity
+capture history-list-dark
