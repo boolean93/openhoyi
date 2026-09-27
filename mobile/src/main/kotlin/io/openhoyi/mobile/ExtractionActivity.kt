@@ -32,6 +32,7 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var shotSummary: TextView
     private lateinit var readiness: TextView
     private lateinit var chooseCurve: Button
+    private lateinit var connectDevices: Button
     private lateinit var live: TextView
     private lateinit var elapsedValue: TextView
     private lateinit var pressureValue: TextView
@@ -120,6 +121,9 @@ class ExtractionActivity : ThemedActivity() {
         }
         chooseCurve = HoyiUi.button(this, stateCard, "去曲线库选择曲线") {
             startActivity(Intent(this, CurveActivity::class.java))
+        }.apply { visibility = View.GONE }
+        connectDevices = HoyiUi.button(this, stateCard, "去首页连接设备") {
+            startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
         }.apply { visibility = View.GONE }
         preparationStatus = text(stateCard, "温度准备：尚未连接", 14)
         notificationStatus = text(stateCard, "", 14)
@@ -278,6 +282,17 @@ class ExtractionActivity : ThemedActivity() {
         chooseCurve.visibility = if (presetSlot == 7 && (item == null || profile == null || !library.canStart(item)) &&
             !ShotGate.active(state) && owner?.manualShotActive != true) View.VISIBLE else View.GONE
         chooseCurve.show(if (item == null) "去曲线库选择曲线" else "更换可萃取曲线")
+        val coffeeMissing = snapshot.coffeeState != DeviceState.READY
+        val requiredScaleMissing = profile?.targetHundredthsGram?.let { it > 0 } == true &&
+            snapshot.scaleState != DeviceState.READY
+        connectDevices.visibility = if (!ShotGate.active(state) && owner?.manualShotActive != true &&
+            (coffeeMissing || requiredScaleMissing))
+            View.VISIBLE else View.GONE
+        connectDevices.show(when {
+            coffeeMissing && requiredScaleMissing -> "去首页连接咖啡机和电子秤"
+            coffeeMissing -> "去首页连接咖啡机"
+            else -> "去首页连接电子秤"
+        })
         preparationStatus.show(if (snapshot.settings == null) "运行模式尚未回读" else if (!studio) "咖啡馆模式 · 按曲线正常启动" else
             "工作室模式 · 当前 ${corrected?.let(::number) ?: "—"} °C / 目标 ${profile?.temperatureC ?: "—"} °C\n" +
                 when (preparation) {
