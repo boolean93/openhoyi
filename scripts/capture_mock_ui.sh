@@ -12,6 +12,16 @@ on_error() {
   adb logcat -d -s AndroidRuntime:E ActivityTaskManager:I ActivityManager:I OpenHoyiMobile:D > \
     "$output_dir/app-logcat.txt" 2>/dev/null || true
   adb shell dumpsys activity activities > "$output_dir/activity.txt" 2>/dev/null || true
+  echo '=== UI dump ===' >&2
+  tail -12 "$output_dir/uiautomator.txt" >&2 2>/dev/null || true
+  echo '=== Foreground activity ===' >&2
+  grep -E 'mResumedActivity|topResumedActivity|mFocusedApp|mCurrentFocus' "$output_dir/activity.txt" | tail -8 >&2 || true
+  echo '=== App errors and launch ===' >&2
+  grep -E -A 12 'FATAL EXCEPTION|Process: io.openhoyi|ANR in io.openhoyi|START u0|Displayed io.openhoyi' \
+    "$output_dir/app-logcat.txt" | tail -45 >&2 || true
+  echo '=== UI hierarchy preview ===' >&2
+  head -c 800 "$output_dir/hierarchy.xml" >&2 2>/dev/null || true
+  echo >&2
   exit "$status"
 }
 trap on_error ERR
