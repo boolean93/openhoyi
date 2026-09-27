@@ -53,18 +53,43 @@ class HistoryDetailActivity : ThemedActivity() {
         HoyiUi.label(this, summary, status(entry.status), 20, true).apply {
             setTextColor(getColor(if (entry.status == ShotHistory.Status.UNKNOWN) R.color.mobile_danger else R.color.mobile_accent))
         }
-        val detail = buildString {
-            entry.slot?.takeIf { it in 1..5 }?.let { appendLine("快捷槽位：$it") }
-            appendLine("开始请求：${date(entry.startedAtMs)}")
-            entry.endedAtMs?.let { appendLine("观察到结束：${date(it)}") }
-            entry.elapsedMs?.let { appendLine("持续：${"%.1f".format(Locale.ROOT, it / 1000.0)} 秒") }
-            entry.reason?.let { appendLine("停止原因：${reasonLabel(it)}") }
-            entry.weightHundredthsGram?.let {
-                appendLine("结束时秤读数：${"%.2f".format(Locale.ROOT, it / 100.0)} g（未经杯重校准）")
-            }
-            if (entry.status == ShotHistory.Status.UNKNOWN) append("结果未确认，请以咖啡机实际状态为准。")
+        HoyiUi.label(this, summary, "开始请求：${date(entry.startedAtMs)}", 14, muted = true).apply {
+            setPadding(0, dp(8), 0, 0)
         }
-        HoyiUi.label(this, summary, detail, 15).apply { setPadding(0, dp(12), 0, 0) }
+        val metrics = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        summary.addView(metrics, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14) })
+        fun metric(label: String, value: String): TextView {
+            val box = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(14), dp(12), dp(14), dp(12))
+                background = HoyiUi.shape(this@HistoryDetailActivity, R.color.mobile_accent_soft, 12)
+            }
+            metrics.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
+            HoyiUi.label(this, box, label, 13, muted = true)
+            return HoyiUi.label(this, box, value, 21, true).apply { setPadding(0, dp(7), 0, 0) }
+        }
+        metric("萃取时长", entry.elapsedMs?.let { "%.1f 秒".format(Locale.ROOT, it / 1000.0) } ?: "—")
+        metric("结束时秤读数", entry.weightHundredthsGram?.let {
+            "%.2f g".format(Locale.ROOT, it / 100.0)
+        } ?: "—")
+        if (entry.weightHundredthsGram != null) HoyiUi.label(this, summary,
+            "秤读数未经杯重校准，不等同于实际出品重量。", 13, muted = true).apply {
+            setPadding(0, dp(8), 0, 0)
+        }
+        entry.slot?.takeIf { it in 1..5 }?.let {
+            HoyiUi.label(this, summary, "快捷槽位：$it", 14).apply { setPadding(0, dp(10), 0, 0) }
+        }
+        entry.endedAtMs?.let {
+            HoyiUi.label(this, summary, "观察到结束：${date(it)}", 14).apply { setPadding(0, dp(8), 0, 0) }
+        }
+        entry.reason?.let {
+            HoyiUi.label(this, summary, "停止原因：${reasonLabel(it)}", 14).apply { setPadding(0, dp(8), 0, 0) }
+        }
+        if (entry.status == ShotHistory.Status.UNKNOWN) HoyiUi.label(this, summary,
+            "结果未确认，请以咖啡机实际状态为准。", 15, true).apply {
+            setPadding(0, dp(12), 0, 0)
+            setTextColor(getColor(R.color.mobile_danger))
+        }
         val chartCard = HoyiUi.card(this, body, "萃取曲线")
         val chart = ShotChartView(this)
         chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(300)))
