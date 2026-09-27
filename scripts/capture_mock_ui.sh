@@ -101,3 +101,8 @@ tap_nav 3 HistoryActivity
 capture history-empty-dark
 tap_nav 4 MachineSettingsActivity
 capture settings-dark
+
+tap_nav 1 CurveActivity
+adb shell input tap 250 515
+sleep 2
+capture curve-detail-dark
