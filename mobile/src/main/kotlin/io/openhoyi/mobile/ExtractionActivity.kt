@@ -31,6 +31,7 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var deviceSummary: TextView
     private lateinit var shotSummary: TextView
     private lateinit var readiness: TextView
+    private lateinit var chooseCurve: Button
     private lateinit var live: TextView
     private lateinit var elapsedValue: TextView
     private lateinit var pressureValue: TextView
@@ -117,6 +118,9 @@ class ExtractionActivity : ThemedActivity() {
             setPadding(dp(14), dp(12), dp(14), dp(12))
             background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 12)
         }
+        chooseCurve = HoyiUi.button(this, stateCard, "去曲线库选择曲线") {
+            startActivity(Intent(this, CurveActivity::class.java))
+        }.apply { visibility = View.GONE }
         preparationStatus = text(stateCard, "温度准备：尚未连接", 14)
         notificationStatus = text(stateCard, "", 14)
         alarmStatus = text(stateCard, "尚未收到机器告警状态", 14)
@@ -271,6 +275,9 @@ class ExtractionActivity : ThemedActivity() {
         readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
             (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)))
             R.color.mobile_danger else R.color.mobile_text))
+        chooseCurve.visibility = if (presetSlot == 7 && (item == null || profile == null || !library.canStart(item)) &&
+            !ShotGate.active(state) && owner?.manualShotActive != true) View.VISIBLE else View.GONE
+        chooseCurve.show(if (item == null) "去曲线库选择曲线" else "更换可萃取曲线")
         preparationStatus.show(if (snapshot.settings == null) "运行模式尚未回读" else if (!studio) "咖啡馆模式 · 按曲线正常启动" else
             "工作室模式 · 当前 ${corrected?.let(::number) ?: "—"} °C / 目标 ${profile?.temperatureC ?: "—"} °C\n" +
                 when (preparation) {
