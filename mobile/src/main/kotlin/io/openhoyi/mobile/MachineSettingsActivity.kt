@@ -340,6 +340,14 @@ class MachineSettingsActivity : ThemedActivity() {
         steamTemperatureValue.update(reported?.let { "${it.steamTemperatureC} °C" } ?: "—")
         runModeValue.update(reported?.let { if (it.flags and 0x04 != 0) "工作室" else "咖啡馆" } ?: "—")
         supplyValue.update(reported?.let { if (it.flags and 0x02 != 0) "外接水管" else "水箱" } ?: "—")
+        if (ready && reported != null) {
+            prefill(brewInput, reported.brewTemperatureC)
+            prefill(steamInput, reported.steamTemperatureC)
+            prefill(standbyTemperatureInput, reported.standbyTemperatureC)
+            reported.brewCompensationTenthsC.takeIf { it % 10 == 0 }?.let {
+                prefill(compensationInput, it / 10)
+            }
+        }
         settings.update(MachineSettingsPresentation.settings(snapshot.settings))
         settingsToggle.visibility = if (reported == null) View.GONE else View.VISIBLE
         settings.visibility = if (reported != null && detailsExpanded) View.VISIBLE else View.GONE
@@ -565,6 +573,12 @@ class MachineSettingsActivity : ThemedActivity() {
         setPadding(dp(14), dp(8), dp(14), dp(8))
         background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         parent.addView(this, LinearLayout.LayoutParams(-1, -2))
+    }
+    private fun prefill(input: EditText, readback: Int) {
+        val current = input.text.toString()
+        val suggestion = ReadbackPrefill.next(current, input.tag as? String, readback, input.hasFocus()) ?: return
+        if (current != suggestion) input.setText(suggestion)
+        input.tag = suggestion
     }
     private fun action(parent: LinearLayout, title: String, onClick: () -> Unit): Button =
         HoyiUi.button(this, parent, title, action = onClick)
