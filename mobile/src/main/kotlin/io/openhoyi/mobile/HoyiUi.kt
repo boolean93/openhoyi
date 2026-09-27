@@ -80,13 +80,18 @@ internal object HoyiUi {
                back: Boolean = false) {
         val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(activity, 12) })
-        if (back) label(activity, row, "‹", 34).apply {
+        if (back) row.addView(ImageView(activity).apply {
+            setImageResource(R.drawable.nav_back)
+            imageTintList = ColorStateList.valueOf(activity.getColor(R.color.mobile_text))
             contentDescription = "返回"
-            minWidth = dp(activity, 48)
-            minHeight = dp(activity, 48)
-            gravity = Gravity.CENTER_VERTICAL
+            isClickable = true
+            isFocusable = true
+            setPadding(dp(activity, 12), dp(activity, 12), dp(activity, 12), dp(activity, 12))
+            background = shape(activity, R.color.mobile_surface, 12, R.color.mobile_border)
             setOnClickListener { activity.finish() }
-        }
+        }, LinearLayout.LayoutParams(dp(activity, 48), dp(activity, 48)).apply {
+            marginEnd = dp(activity, 12)
+        })
         val words = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         row.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
         label(activity, words, title, 28, true)
