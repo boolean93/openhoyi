@@ -79,22 +79,23 @@ class HistoryDetailActivity : ThemedActivity() {
         entry.slot?.takeIf { it in 1..5 }?.let {
             HoyiUi.label(this, summary, "快捷槽位：$it", 14).apply { setPadding(0, dp(10), 0, 0) }
         }
-        entry.endedAtMs?.let {
-            HoyiUi.label(this, summary, "观察到结束：${date(it)}", 14).apply { setPadding(0, dp(8), 0, 0) }
-        }
-        entry.reason?.let {
-            HoyiUi.label(this, summary, "停止原因：${reasonLabel(it)}", 14).apply { setPadding(0, dp(8), 0, 0) }
-        }
-        if (entry.status == ShotHistory.Status.UNKNOWN) HoyiUi.label(this, summary,
-            "结果未确认，请以咖啡机实际状态为准。", 15, true).apply {
-            setPadding(0, dp(12), 0, 0)
-            setTextColor(getColor(R.color.mobile_danger))
-        }
         val chartCard = HoyiUi.card(this, body, "萃取曲线")
         val chart = ShotChartView(this)
         chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(300)))
         val chartStatus = HoyiUi.label(this, chartCard, "正在读取本机采样…", 13, muted = true)
-        HoyiUi.button(this, body, "返回历史") { finish() }
+        val outcome = HoyiUi.card(this, body, "结束信息")
+        HoyiUi.label(this, outcome,
+            entry.reason?.let(::reasonLabel) ?: "未记录 App 停止原因", 16, true)
+        entry.endedAtMs?.let {
+            HoyiUi.label(this, outcome, "观察到结束：${date(it)}", 14, muted = true).apply {
+                setPadding(0, dp(8), 0, 0)
+            }
+        }
+        if (entry.status == ShotHistory.Status.UNKNOWN) HoyiUi.label(this, outcome,
+            "结果未确认，请以咖啡机实际状态为准。", 15, true).apply {
+            setPadding(0, dp(12), 0, 0)
+            setTextColor(getColor(R.color.mobile_danger))
+        }
         Thread({
             val points = runCatching { app.samples.load(entry.id) }
             runOnUiThread {
@@ -102,8 +103,7 @@ class HistoryDetailActivity : ThemedActivity() {
                 points.onSuccess {
                     chart.points = it
                     chartStatus.text = if (it.isEmpty()) "暂无保存的采样点" else
-                        "${it.size} 个${if (entry.status == ShotHistory.Status.ENDED) "" else "部分"}采样点 · " +
-                            "蓝色压力 / 绿色机器水流 / 紫色秤流速 / 橙色秤重 / 红色温度"
+                        "${it.size} 个${if (entry.status == ShotHistory.Status.ENDED) "" else "部分"}采样点 · 已保存在本机"
                 }.onFailure { chartStatus.text = "采样读取失败" }
             }
         }, "history-detail-reader").start()

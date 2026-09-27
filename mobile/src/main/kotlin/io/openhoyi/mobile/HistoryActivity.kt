@@ -46,6 +46,25 @@ class HistoryActivity : ThemedActivity() {
         setContentView(root)
         HoyiUi.header(this, body, "萃取历史", "每杯记录的状态与曲线采样")
         count = HoyiUi.label(this, body, "", 14, muted = true)
+        HoyiUi.tabs(this, body, listOf("本机记录", "旧版只读记录"), selected = 0) {
+            if (it == 1) startActivity(Intent(this, LegacyHistoryActivity::class.java))
+        }
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        body.addView(actions)
+        fun action(title: String, click: () -> Unit) {
+            val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+            actions.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
+            HoyiUi.button(this, box, title, action = click)
+        }
+        action("导出历史 ZIP") {
+            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
+                .putExtra(Intent.EXTRA_TITLE, "openhoyi-history-${System.currentTimeMillis()}.zip"), EXPORT_HISTORY)
+        }
+        action("导入旧版历史") {
+            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
+        }
         val list = ListView(this).apply {
             divider = null
             dividerHeight = dp(8)
@@ -119,25 +138,6 @@ class HistoryActivity : ThemedActivity() {
         list.emptyView = emptyHolder
         list.setOnItemClickListener { _, _, position, _ ->
             startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", rows[position].id))
-        }
-        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        body.addView(actions)
-        fun action(title: String, click: () -> Unit) {
-            val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            actions.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
-            HoyiUi.button(this, box, title, action = click)
-        }
-        action(if (HoyiUi.wide(this)) "导出历史 ZIP" else "导出") {
-            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
-                .putExtra(Intent.EXTRA_TITLE, "openhoyi-history-${System.currentTimeMillis()}.zip"), EXPORT_HISTORY)
-        }
-        action(if (HoyiUi.wide(this)) "导入旧版历史" else "导入") {
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
-        }
-        action(if (HoyiUi.wide(this)) "查看旧版历史" else "旧版") {
-            startActivity(Intent(this, LegacyHistoryActivity::class.java))
         }
     }
     override fun onStart() { super.onStart(); render() }

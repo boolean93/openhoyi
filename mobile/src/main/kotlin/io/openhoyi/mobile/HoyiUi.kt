@@ -76,6 +76,31 @@ internal object HoyiUi {
         parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(activity, 10) })
     }
 
+    fun tabs(activity: Activity, parent: LinearLayout, labels: List<String>, selected: Int,
+             onSelect: (Int) -> Unit) {
+        val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+        parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(activity, 12) })
+        labels.forEachIndexed { index, label ->
+            val active = index == selected
+            row.addView(TextView(activity).apply {
+                text = label
+                textSize = 15f
+                gravity = Gravity.CENTER
+                minHeight = dp(activity, 48)
+                isClickable = !active
+                isFocusable = true
+                isSelected = active
+                contentDescription = "$label${if (active) "，当前页面" else ""}"
+                setTextColor(activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted))
+                background = shape(activity,
+                    if (active) R.color.mobile_accent_soft else R.color.mobile_surface, 12, R.color.mobile_border)
+                if (!active) setOnClickListener { onSelect(index) }
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (index < labels.lastIndex) marginEnd = dp(activity, 8)
+            })
+        }
+    }
+
     fun header(activity: Activity, parent: LinearLayout, title: String, subtitle: String? = null,
                back: Boolean = false) {
         val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }

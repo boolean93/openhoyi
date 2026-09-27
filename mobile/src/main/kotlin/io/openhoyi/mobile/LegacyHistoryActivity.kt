@@ -48,6 +48,9 @@ class LegacyHistoryActivity : ThemedActivity() {
         HoyiUi.header(this, root, "旧版历史", "导入自旧版应用的只读记录", back = true)
         count = TextView(this).apply { textSize = 15f; setTextColor(getColor(R.color.mobile_text)) }
         root.addView(count)
+        HoyiUi.tabs(this, root, listOf("本机记录", "旧版只读记录"), selected = 1) {
+            if (it == 0) finish()
+        }
         adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
                 val card = convertView as? LinearLayout ?: LinearLayout(this@LegacyHistoryActivity).apply {
