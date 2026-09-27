@@ -1,0 +1,39 @@
+name: Verify native app
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Verify protocol, session, transport, and apps
+        run: |
+          ./gradlew --no-daemon --console=plain \
+            :protocol-core:test \
+            :device-session:test \
+            :trace-core:test \
+            :bluetooth-android:testDebugUnitTest \
+            :app:testDebugUnitTest \
+            :mobile:testDebugUnitTest \
+            :mobile:testMockUnitTest \
+            :app:assembleDebug \
+            :mobile:assembleDebug \
+            :mobile:assembleMock
