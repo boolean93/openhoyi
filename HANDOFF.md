@@ -1,5 +1,14 @@
 # Native BLE / Lab handoff
 
+## 当前状态（2026-09-27）
+
+当前工作分支是 `feature/native-ble`，已推送至 `boolean93/openhoyi`。后文记录了各开发阶段的历史状态；其中“尚未安装”“未推送”等句子仅描述当时，不代表当前状态。以本节和所链接的专题文档为准。
+
+- 原生 Alpha 已完成 HOYI 与 BOOKOO 双设备 READY、受监护实杯启动及手动停止、独立去皮的部分实机验证，证据与未验项目见 `docs/alpha-acceptance.md`、`docs/native-feature-status.md`。这不等于硬件等效或完整发布验收。
+- 深浅色首页、曲线库、实时萃取、历史、设置及旧版只读页面已按 `docs/ui/native-redesign.md` 改造；设计参考图在 `docs/ui/`。萃取页对缺失的必需设备提供连接入口，首页在主操作前显示新鲜机器告警。
+- 用户短期不提供测试设备。继续离线开发、Mock 与自动化验证；不运行 ADB、实机萃取或需要设备的检查。曲线编辑按用户要求后置；其他需要真机证据的项目不得因本地测试通过而标为已验收。
+- 本地离线验证命令为 `./gradlew --offline --no-daemon :protocol-core:test :device-session:test :trace-core:test :bluetooth-android:testDebugUnitTest :app:testDebugUnitTest :mobile:testDebugUnitTest :mobile:testMockUnitTest :app:assembleDebug :mobile:assembleDebug :mobile:assembleMock`。GitHub Actions `Verify native app` 在提交与 PR 上跑对应任务；[首次云端验证](https://github.com/boolean93/openhoyi/actions/runs/36289381688)通过。工作流不连接设备、不发布 APK。
+
 分支 `feature/native-ble`，worktree `../openhoyi-native`，基于独立openhoyi仓库。旧hoyi-project未改动。前一阶段核心提交363cea5；本轮新增原生Lab诊断APK。
 
 ## 最新实机进展（2026-09-23）
