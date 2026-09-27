@@ -25,6 +25,7 @@ class CurveActivity : ThemedActivity() {
     private lateinit var stageChart: CurveStageView
     private lateinit var stageCaption: TextView
     private lateinit var browserPane: LinearLayout
+    private lateinit var detailPanel: LinearLayout
     private lateinit var detailScroll: ScrollView
     private var compact = false
     private var category = "全部"
@@ -65,15 +66,18 @@ class CurveActivity : ThemedActivity() {
         compact = !HoyiUi.wide(this)
         val browser = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         browserPane = browser
+        detailPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val detailPane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        detailScroll = ScrollView(this).apply { addView(detailPane) }
+        detailScroll = ScrollView(this).apply { isFillViewport = true; addView(detailPane) }
+        if (compact) HoyiUi.button(this, detailPanel, "返回曲线列表") { showBrowser() }
+        detailPanel.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         if (!compact) {
             work.addView(browser, LinearLayout.LayoutParams(0, -1, .95f))
-            work.addView(detailScroll, LinearLayout.LayoutParams(0, -1, 1.05f).apply { marginStart = dp(16) })
+            work.addView(detailPanel, LinearLayout.LayoutParams(0, -1, 1.05f).apply { marginStart = dp(16) })
         } else {
             work.addView(browser, LinearLayout.LayoutParams(-1, -1))
-            work.addView(detailScroll, LinearLayout.LayoutParams(-1, -1))
-            detailScroll.visibility = View.GONE
+            work.addView(detailPanel, LinearLayout.LayoutParams(-1, -1))
+            detailPanel.visibility = View.GONE
         }
         search = EditText(this).apply {
             hint = "搜索曲线名称"
@@ -116,10 +120,27 @@ class CurveActivity : ThemedActivity() {
             }
         }
         updateFilterChips()
-        resultCount = HoyiUi.label(this, browser, "", 13, muted = true)
-        HoyiUi.button(this, browser, "查看旧版导入曲线") {
-            startActivity(Intent(this, LegacyCurveActivity::class.java))
+        val listHeader = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
         }
+        browser.addView(listHeader, LinearLayout.LayoutParams(-1, dp(48)))
+        resultCount = HoyiUi.label(this, listHeader, "", 13, muted = true).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            setSingleLine(true)
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        listHeader.addView(TextView(this).apply {
+            text = "旧版导入曲线"
+            textSize = 14f
+            gravity = android.view.Gravity.CENTER
+            minHeight = dp(48)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "查看旧版导入曲线，只读"
+            setTextColor(getColor(R.color.mobile_accent))
+            setOnClickListener { startActivity(Intent(this@CurveActivity, LegacyCurveActivity::class.java)) }
+        }, LinearLayout.LayoutParams(-2, -1).apply { marginStart = dp(8) })
         val list = ListView(this).apply {
             divider = null
             dividerHeight = dp(6)
@@ -174,7 +195,6 @@ class CurveActivity : ThemedActivity() {
         list.emptyView = emptyState
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
 
-        if (compact) HoyiUi.button(this, detailPane, "返回曲线列表") { showBrowser() }
         val preview = HoyiUi.card(this, detailPane, "曲线详情")
         detailTitle = HoyiUi.label(this, preview, "点选左侧曲线", 21, true)
         detailCategory = HoyiUi.label(this, preview, "查看参数与可用状态", 14, muted = true)
@@ -184,15 +204,17 @@ class CurveActivity : ThemedActivity() {
             .apply { visibility = View.GONE }
         details = HoyiUi.label(this, preview, "", 15)
         availability = HoyiUi.label(this, preview, "", 15, true).apply { visibility = View.GONE }
-        val spacer = Space(this)
-        if (HoyiUi.wide(this)) detailPane.addView(spacer, LinearLayout.LayoutParams(1, 0, 1f))
-        select = HoyiUi.button(this, detailPane, "使用此曲线", primary = true) {
+        val actions = if (compact) detailPanel else LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            detailPanel.addView(this)
+        }
+        select = HoyiUi.button(this, actions, "使用此曲线", primary = true) {
             selected?.let { item ->
                 getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
                 finish()
             }
         }.apply { isEnabled = false; visibility = View.GONE }
-        assignPreset = HoyiUi.button(this, detailPane, "放入快捷槽位") {
+        assignPreset = HoyiUi.button(this, actions, "放入快捷槽位") {
             val item = selected?.takeIf { it.factoryCurve != null && library.canStart(it) } ?: return@button
             AlertDialog.Builder(this).setTitle("选择快捷槽位")
                 .setItems(arrayOf("槽位 1", "槽位 2", "槽位 3", "槽位 4", "槽位 5")) { _, index ->
@@ -201,7 +223,13 @@ class CurveActivity : ThemedActivity() {
                         .putString(PresetSlots.key(slot), item.id).apply()
                     Toast.makeText(this, "已将${item.name}放入槽位 $slot", Toast.LENGTH_SHORT).show()
                 }.show()
-        }.apply { isEnabled = false }
+        }.apply { isEnabled = false; visibility = View.GONE }
+        if (!compact) {
+            select.layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
+                topMargin = dp(10); marginEnd = dp(8)
+            }
+            assignPreset.layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(10) }
+        }
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) = refreshList()
@@ -218,7 +246,7 @@ class CurveActivity : ThemedActivity() {
     }
 
     private fun showBrowser() {
-        detailScroll.visibility = View.GONE
+        detailPanel.visibility = View.GONE
         browserPane.visibility = View.VISIBLE
         unregisterDetailBack()
     }
@@ -239,7 +267,7 @@ class CurveActivity : ThemedActivity() {
 
     @Deprecated("Platform back callback")
     override fun onBackPressed() {
-        if (compact && detailScroll.visibility == View.VISIBLE) showBrowser()
+        if (compact && detailPanel.visibility == View.VISIBLE) showBrowser()
         else super.onBackPressed()
     }
 
@@ -255,7 +283,7 @@ class CurveActivity : ThemedActivity() {
         stageCaption.visibility = View.VISIBLE
         if (compact) {
             browserPane.visibility = View.GONE
-            detailScroll.visibility = View.VISIBLE
+            detailPanel.visibility = View.VISIBLE
             detailScroll.scrollTo(0, 0)
             registerDetailBack()
         }
@@ -304,7 +332,7 @@ class CurveActivity : ThemedActivity() {
         outState.putString("selected", selected?.id)
         outState.putString("category", category)
         outState.putString("query", search.text.toString())
-        outState.putBoolean("detailVisible", compact && detailScroll.visibility == View.VISIBLE)
+        outState.putBoolean("detailVisible", compact && detailPanel.visibility == View.VISIBLE)
         super.onSaveInstanceState(outState)
     }
     private fun dp(value: Int) = HoyiUi.dp(this, value)
