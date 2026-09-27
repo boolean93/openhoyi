@@ -34,6 +34,7 @@ class HomeActivity : ThemedActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var status: TextView
     private lateinit var safetyWarning: TextView
+    private lateinit var prominentAlarm: TextView
     private lateinit var acknowledgeManual: Button
     private lateinit var coffee: TextView
     private lateinit var coffeeDot: View
@@ -130,6 +131,14 @@ class HomeActivity : ThemedActivity() {
                 .setPositiveButton("清除提示") { _, _ -> service?.acknowledgeManualSafety(); render() }
                 .setNegativeButton("取消", null).show()
         }.apply { visibility = View.GONE }
+        prominentAlarm = TextView(this).apply {
+            textSize = 16f
+            setTypeface(null, Typeface.BOLD)
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+            background = HoyiUi.shape(this@HomeActivity, R.color.mobile_accent_soft, 12, R.color.mobile_border)
+            visibility = View.GONE
+        }
+        content.addView(prominentAlarm, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
 
         val deviceCard = card(content, "设备连接")
         status = text(deviceCard, "尚未连接", 14)
@@ -380,6 +389,11 @@ class HomeActivity : ThemedActivity() {
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null) View.GONE else View.VISIBLE
+        val alarmBanner = MachineAlarms.banner(s.alarmBits, s.alarmAt, now)
+        prominentAlarm.visibility = if (alarmBanner == null) View.GONE else View.VISIBLE
+        prominentAlarm.show(alarmBanner?.message.orEmpty())
+        prominentAlarm.setTextColor(getColor(if (alarmBanner?.blocking == true)
+            R.color.mobile_danger else R.color.mobile_accent))
         status.show(if (owner?.manualShotActive == true)
             "机器手动萃取中 · 正在被动记录；请用机器拨杆停止" else if (running) s.message else "点击扫描启动设备服务")
         val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
