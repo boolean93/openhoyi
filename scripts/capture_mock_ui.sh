@@ -21,6 +21,8 @@ on_error() {
     "$output_dir/app-logcat.txt" | tail -45 >&2 || true
   echo '=== UI hierarchy preview ===' >&2
   head -c 800 "$output_dir/hierarchy.xml" >&2 2>/dev/null || true
+  echo '=== Theme preference ===' >&2
+  cat "$output_dir/theme-pref.xml" >&2 2>/dev/null || true
   echo >&2
   exit "$status"
 }
@@ -85,10 +87,11 @@ tap_nav 4 MachineSettingsActivity
 capture settings-light
 
 tap_nav 0 HomeActivity
-adb shell input tap 125 162
+adb shell input tap 120 175
 sleep 2
-adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml | grep -q 'name="dark" value="true"'
 capture home-dark
+adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/theme-pref.xml"
+grep 'name="dark" value="true"' "$output_dir/theme-pref.xml" >/dev/null
 tap_nav 1 CurveActivity
 capture curves-dark
 tap_nav 2 ExtractionActivity
