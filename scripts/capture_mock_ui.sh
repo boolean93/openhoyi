@@ -6,19 +6,29 @@ mkdir -p "$output_dir"
 apk="mobile/build/outputs/apk/mock/mobile-mock.apk"
 test -s "$apk"
 
+on_error() {
+  local status=$?
+  adb exec-out screencap -p > "$output_dir/failure.png" 2>/dev/null || true
+  adb logcat -d -s AndroidRuntime:E ActivityTaskManager:I ActivityManager:I OpenHoyiMobile:D > \
+    "$output_dir/app-logcat.txt" 2>/dev/null || true
+  adb shell dumpsys activity activities > "$output_dir/activity.txt" 2>/dev/null || true
+  exit "$status"
+}
+trap on_error ERR
+
 # A phone AVD with a tablet-sized landscape display exercises the two-column layout.
 adb shell wm size 1000x1600
 adb shell wm density 200
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1
 adb install -r "$apk"
-adb shell am start -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
-sleep 4
+adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
+sleep 15
 
 tap_node() {
   local attribute="$1" target="$2" point="" attempt
-  for attempt in 1 2 3 4 5; do
-    adb shell uiautomator dump /sdcard/openhoyi-ui.xml >/dev/null 2>&1 || true
+  for attempt in 1 2 3; do
+    adb shell uiautomator dump /sdcard/openhoyi-ui.xml > "$output_dir/uiautomator.txt" 2>&1 || true
     adb exec-out cat /sdcard/openhoyi-ui.xml > "$output_dir/hierarchy.xml" || true
     point="$(python3 - "$output_dir/hierarchy.xml" "$attribute" "$target" <<'PY'
 import re
