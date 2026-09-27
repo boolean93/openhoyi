@@ -36,7 +36,6 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
         val scroll = ScrollView(this)
         scroll.addView(body)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        HoyiUi.navigation(this, root, HistoryActivity::class.java)
         setContentView(root)
         HoyiUi.header(this, body, "旧版萃取详情", "只读记录", back = true)
         val id = intent.getStringExtra("legacyId")

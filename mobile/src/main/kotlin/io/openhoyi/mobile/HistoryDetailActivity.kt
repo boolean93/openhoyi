@@ -37,7 +37,6 @@ class HistoryDetailActivity : ThemedActivity() {
         }
         scroll.addView(body)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        HoyiUi.navigation(this, root, HistoryActivity::class.java)
         setContentView(root)
         HoyiUi.header(this, body, if (BuildConfig.MOCK_MODE) "模拟萃取详情" else "萃取详情", back = true)
         val shotId = intent.getStringExtra("shotId")
