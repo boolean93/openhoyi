@@ -44,7 +44,7 @@ class HistoryActivity : ThemedActivity() {
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         HoyiUi.navigation(this, root, HistoryActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, body, "萃取历史", "每杯记录的状态与曲线采样", back = true)
+        HoyiUi.header(this, body, "萃取历史", "每杯记录的状态与曲线采样")
         count = HoyiUi.label(this, body, "", 14, muted = true)
         val list = ListView(this).apply {
             divider = null

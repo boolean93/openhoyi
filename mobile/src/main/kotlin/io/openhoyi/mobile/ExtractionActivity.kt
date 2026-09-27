@@ -95,7 +95,7 @@ class ExtractionActivity : ThemedActivity() {
         HoyiUi.navigation(this, root, ExtractionActivity::class.java)
         setContentView(root)
         HoyiUi.header(this, content, "实时萃取",
-            if (BuildConfig.MOCK_MODE) "模拟模式 · 不发送蓝牙命令" else "确认设备与曲线后开始；请守在机器旁", back = true)
+            if (BuildConfig.MOCK_MODE) "模拟模式 · 不发送蓝牙命令" else "确认设备与曲线后开始；请守在机器旁")
         val wide = HoyiUi.wide(this)
         val columns = if (wide) LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL

@@ -113,7 +113,7 @@ class MachineSettingsActivity : ThemedActivity() {
         }
         scroll.addView(body)
         setContentView(root)
-        HoyiUi.header(this, body, "机器设置", "修改后等待机器回读确认", back = true)
+        HoyiUi.header(this, body, "机器设置", "修改后等待机器回读确认")
         text(body, if (BuildConfig.MOCK_MODE) "以下为模拟设置与睡眠计划；修改操作不会发送蓝牙命令。"
             else "更改后等待机器回读确认；蓝牙写入成功不代表设置已生效。", 14)
         val overview = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
