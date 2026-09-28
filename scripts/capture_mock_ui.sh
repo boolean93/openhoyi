@@ -118,7 +118,7 @@ adb shell input tap 1160 800
 sleep 2
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/curves.xml > "$output_dir/selected-curve.xml"
 grep 'name="selected">capture-2<' "$output_dir/selected-curve.xml" >/dev/null
-assert_activity HomeActivity
+tap_nav 0 HomeActivity
 capture home-selected-dark
 tap_nav 2 ExtractionActivity
 capture extraction-ready-dark
