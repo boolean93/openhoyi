@@ -2,50 +2,84 @@ package io.openhoyi.mobile
 
 import io.openhoyi.session.OperationResult
 
-/** The fixed reset write is only transport evidence; a new zero cup-count frame confirms it. */
+/** A reset needs matching post-write settings and idle counts; transport alone proves nothing. */
 class CupResetTracker {
-    enum class State { IDLE, WRITING, WAITING_ZERO, CONFIRMED, FAILED, UNKNOWN }
+    enum class State { IDLE, WRITING, WAITING_ZERO, CONFIRMED, FAILED, UNKNOWN, RECONCILED }
     var state = State.IDLE
         private set
     var expectedCount: Int? = null
         private set
     private var serial = 0L
-    private var afterSample = 0L
+    private var afterSettings = 0L
+    private var afterIdle = 0L
+    private var freshSettingsCount: Int? = null
+    private var freshIdleCount: Int? = null
 
     fun begin(count: Int): Long? {
         require(count in 1..65535)
-        if (state == State.WRITING || state == State.WAITING_ZERO) return null
+        if (state == State.WRITING || state == State.WAITING_ZERO || state == State.UNKNOWN) return null
         expectedCount = count
         state = State.WRITING
         return ++serial
     }
 
-    fun written(token: Long, result: OperationResult, sampleSerial: Long): Boolean {
+    fun written(token: Long, result: OperationResult, settingsSerial: Long, idleSerial: Long): Boolean {
         if (token != serial || state != State.WRITING) return false
         state = when (result) {
             is OperationResult.Success -> {
-                afterSample = sampleSerial
+                markAfter(settingsSerial, idleSerial)
                 State.WAITING_ZERO
             }
             is OperationResult.Failed, is OperationResult.Cancelled -> State.FAILED
-            is OperationResult.Unknown -> State.UNKNOWN
+            is OperationResult.Unknown -> {
+                markAfter(settingsSerial, idleSerial)
+                State.UNKNOWN
+            }
         }
         return true
     }
 
-    fun observe(sampleSerial: Long, count: Int): Boolean {
-        if (state != State.WAITING_ZERO || sampleSerial <= afterSample || count != 0) return false
-        state = State.CONFIRMED
-        return true
+    fun observeSettings(sampleSerial: Long, count: Int): Boolean {
+        if (state !in setOf(State.WAITING_ZERO, State.UNKNOWN) || sampleSerial <= afterSettings) return false
+        freshSettingsCount = count
+        return resolve()
     }
 
-    fun timeout(token: Long): Boolean {
+    fun observeIdle(sampleSerial: Long, count: Int): Boolean {
+        if (state !in setOf(State.WAITING_ZERO, State.UNKNOWN) || sampleSerial <= afterIdle) return false
+        freshIdleCount = count
+        return resolve()
+    }
+
+    private fun resolve(): Boolean {
+        val settings = freshSettingsCount ?: return false
+        val idle = freshIdleCount ?: return false
+        if (settings == 0 && idle == 0) {
+            state = State.CONFIRMED
+            return true
+        }
+        if (state == State.UNKNOWN && settings == idle) state = State.RECONCILED
+        return false
+    }
+
+    private fun markAfter(settingsSerial: Long, idleSerial: Long) {
+        afterSettings = settingsSerial
+        afterIdle = idleSerial
+        freshSettingsCount = null
+        freshIdleCount = null
+    }
+
+    fun timeout(token: Long, settingsSerial: Long, idleSerial: Long): Boolean {
         if (token != serial || state != State.WAITING_ZERO) return false
+        markAfter(settingsSerial, idleSerial)
         state = State.UNKNOWN
         return true
     }
 
-    fun disconnected() {
-        if (state == State.WRITING || state == State.WAITING_ZERO) state = State.UNKNOWN
+    fun disconnected(settingsSerial: Long, idleSerial: Long) {
+        if (state == State.WRITING || state == State.WAITING_ZERO) {
+            markAfter(settingsSerial, idleSerial)
+            state = State.UNKNOWN
+        }
     }
 }

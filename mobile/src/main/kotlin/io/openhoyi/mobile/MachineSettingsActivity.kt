@@ -381,6 +381,7 @@ class MachineSettingsActivity : ThemedActivity() {
             CupResetTracker.State.CONFIRMED -> "机器已回报 0 杯"
             CupResetTracker.State.FAILED -> "命令未写入"
             CupResetTracker.State.UNKNOWN -> "结果未知，请查看机器杯数"
+            CupResetTracker.State.RECONCILED -> "已重新回读杯数；上次重置未获确认"
             else -> "尚未重置"
         })
         writeStatus.update(if (owner?.pendingSetting == null && pending == SettingsWriteTracker.State.IDLE)
@@ -409,6 +410,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 CupResetTracker.State.WAITING_ZERO)
         controlButtons.forEach { it.isEnabled = editable }
         cupResetButton.isEnabled = editable && snapshot.settings?.cupCount?.let { it > 0 && it == idle?.cupCount } == true &&
+            owner?.cupResetState != CupResetTracker.State.UNKNOWN &&
             owner?.sleepNowState !in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
         scheduleButtons.forEach { it.isEnabled = editable &&
             owner?.scheduleWriteState != SleepScheduleWriteTracker.State.UNKNOWN &&

@@ -56,7 +56,16 @@ class MobileService : Service() {
         CupResetTracker.State.CONFIRMED else cupReset.state
     private val cupResetBusy: Boolean get() = cupReset.state in
         setOf(CupResetTracker.State.WRITING, CupResetTracker.State.WAITING_ZERO)
-    private var cupSampleSerial = 0L
+    private var cupSettingsSerial = 0L
+    private var cupIdleSerial = 0L
+    private fun observeCupCount(settingsFrame: Boolean, count: Int) {
+        val previous = cupReset.state
+        val confirmed = if (settingsFrame) cupReset.observeSettings(++cupSettingsSerial, count)
+            else cupReset.observeIdle(++cupIdleSerial, count)
+        if (confirmed) event("机器设置与待机数据均回报累计杯数归零", "cups.confirmed")
+        else if (previous == CupResetTracker.State.UNKNOWN && cupReset.state == CupResetTracker.State.RECONCILED)
+            event("机器杯数已重新回读；上次重置未获确认", "cups.reconciled")
+    }
     private val scheduleWrite = SleepScheduleWriteTracker()
     private val sleepNow = SleepNowTracker()
     private val brewPreparation = BrewPreparation()
@@ -229,7 +238,7 @@ class MobileService : Service() {
                         if (state != DeviceState.READY) {
                             saveSeriesCheckpoint(force = true)
                             settingsWrite.disconnected(settingsSampleSerial)
-                            cupReset.disconnected()
+                            cupReset.disconnected(cupSettingsSerial, cupIdleSerial)
                             scheduleWrite.disconnected(firstSleepSerial, secondSleepSerial)
                             sleepNow.disconnected()
                             brewPreparation.disconnected()
@@ -275,8 +284,7 @@ class MobileService : Service() {
                 onCoffee = { frame ->
                     snapshot = when (frame) {
                         is Settings -> {
-                            if (cupReset.observe(++cupSampleSerial, frame.cupCount))
-                                event("机器已回报累计杯数归零", "cups.confirmed")
+                            observeCupCount(true, frame.cupCount)
                             val previousSettingState = settingsWrite.state
                             if (settingsWrite.observe(++settingsSampleSerial, frame))
                                 event("机器回读已确认设置", "settings.confirmed")
@@ -302,8 +310,7 @@ class MobileService : Service() {
                             snapshot
                         }
                         is IdleTelemetry -> {
-                            if (cupReset.observe(++cupSampleSerial, frame.cupCount))
-                                event("机器已回报累计杯数归零", "cups.confirmed")
+                            observeCupCount(false, frame.cupCount)
                             if (sleepNow.observe(++sleepSampleSerial, frame.sleepStateRaw))
                                 event("机器已回报进入睡眠", "sleep.confirmed")
                             val currentSettings = snapshot.settings
@@ -591,6 +598,8 @@ class MobileService : Service() {
         if (manualShotActive) return "手动萃取期间不能重置杯数"
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
+        if (cupReset.state == CupResetTracker.State.UNKNOWN)
+            return "上次杯数重置结果未知，请等待机器设置与待机杯数重新回读或重新连接"
         if (cupResetBusy) return "正在等待本次杯数重置结果"
         if (scheduleBusy || settingWriteState in
             setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK) ||
@@ -608,12 +617,13 @@ class MobileService : Service() {
         val token = cupReset.begin(expectedCount) ?: return "正在等待本次杯数重置结果"
         event("累计杯数重置命令已排队", "cups.requested")
         current.resetCupCount done@{ result ->
-            if (!cupReset.written(token, result, cupSampleSerial)) return@done
+            if (!cupReset.written(token, result, cupSettingsSerial, cupIdleSerial)) return@done
             when (cupReset.state) {
                 CupResetTracker.State.WAITING_ZERO -> {
                     event("重置命令已写入，等待机器回报归零", "cups.written")
                     handler.postDelayed({
-                        if (cupReset.timeout(token)) event("机器未回报归零，重置结果未知", "cups.unknown")
+                        if (cupReset.timeout(token, cupSettingsSerial, cupIdleSerial))
+                            event("机器未完整回报归零，重置结果未知", "cups.unknown")
                     }, 12_000)
                 }
                 CupResetTracker.State.FAILED -> event("累计杯数重置命令未写入", "cups.failed")
