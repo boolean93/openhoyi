@@ -97,7 +97,7 @@ capture settings-light
 
 tap_nav 0 HomeActivity
 adb shell input tap 1530 103
-sleep 2
+sleep 5
 capture home-dark
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/theme-pref.xml"
 grep 'name="dark" value="true"' "$output_dir/theme-pref.xml" >/dev/null
@@ -118,6 +118,8 @@ adb shell input tap 1160 800
 sleep 2
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/curves.xml > "$output_dir/selected-curve.xml"
 grep 'name="selected">capture-2<' "$output_dir/selected-curve.xml" >/dev/null
+assert_activity HomeActivity
+capture home-selected-dark
 tap_nav 2 ExtractionActivity
 capture extraction-ready-dark
 adb shell input tap 800 805
