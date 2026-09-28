@@ -57,7 +57,7 @@ tap_nav() {
 capture() {
   local name="$1" path="$output_dir/$1.png" expected
   case "$name" in
-    home-*) expected=HomeActivity ;;
+    home-*|portrait-home-*) expected=HomeActivity ;;
     curves-*|curve-detail-*) expected=CurveActivity ;;
     extraction-*) expected=ExtractionActivity ;;
     history-detail-*) expected=HistoryDetailActivity ;;
@@ -69,7 +69,7 @@ capture() {
   assert_activity "$expected"
   adb exec-out screencap -p > "$path"
   assert_activity "$expected"
-  python3 - "$path" <<'PY'
+  python3 - "$path" "$name" <<'PY'
 import struct
 import sys
 from pathlib import Path
@@ -79,7 +79,10 @@ if len(image) < 10000 or image[:8] != b'\x89PNG\r\n\x1a\n':
     raise SystemExit('empty or invalid screenshot')
 width, height = struct.unpack('>II', image[16:24])
 print(f'{sys.argv[1]}: {width}x{height}')
-if width <= height:
+if sys.argv[2].startswith('portrait-'):
+    if width >= height:
+        raise SystemExit('emulator is not in portrait layout')
+elif width <= height:
     raise SystemExit('emulator is not in landscape layout')
 PY
 }
@@ -137,3 +140,8 @@ capture history-list-dark
 adb shell input tap 600 390
 assert_activity HistoryDetailActivity
 capture history-detail-dark
+
+adb shell wm size 600x1000
+adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
+sleep 3
+capture portrait-home-dark
