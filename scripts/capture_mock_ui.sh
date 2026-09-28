@@ -66,9 +66,9 @@ capture() {
   local name="$1" path="$output_dir/$1.png" expected
   case "$name" in
     home-*|portrait-home-*) expected=HomeActivity ;;
-    curves-*|curve-detail-*|portrait-curves-*) expected=CurveActivity ;;
+    curves-*|curve-detail-*|portrait-curves-*|portrait-curve-detail-*) expected=CurveActivity ;;
     extraction-*|portrait-extraction-*) expected=ExtractionActivity ;;
-    history-detail-*) expected=HistoryDetailActivity ;;
+    history-detail-*|portrait-history-detail-*) expected=HistoryDetailActivity ;;
     history-*|portrait-history-*) expected=HistoryActivity ;;
     settings-*|portrait-settings-*) expected=MachineSettingsActivity ;;
     *) echo "Unknown screenshot name: $name" >&2; return 1 ;;
@@ -162,3 +162,28 @@ tap_portrait_nav 3 HistoryActivity
 capture portrait-history-dark
 tap_portrait_nav 4 MachineSettingsActivity
 capture portrait-settings-dark
+tap_portrait_nav 3 HistoryActivity
+adb shell input tap 220 400
+capture portrait-history-detail-dark
+adb shell input keyevent KEYCODE_BACK
+assert_activity HistoryActivity
+tap_portrait_nav 1 CurveActivity
+adb shell input tap 220 410
+capture portrait-curve-detail-dark
+adb shell input keyevent KEYCODE_BACK
+assert_activity CurveActivity
+
+tap_portrait_nav 0 HomeActivity
+adb shell input tap 130 173
+sleep 5
+capture portrait-home-light
+adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/portrait-theme-pref.xml"
+grep 'name="dark" value="false"' "$output_dir/portrait-theme-pref.xml" >/dev/null
+tap_portrait_nav 1 CurveActivity
+capture portrait-curves-light
+tap_portrait_nav 2 ExtractionActivity
+capture portrait-extraction-light
+tap_portrait_nav 3 HistoryActivity
+capture portrait-history-light
+tap_portrait_nav 4 MachineSettingsActivity
+capture portrait-settings-light
