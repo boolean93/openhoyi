@@ -2,7 +2,7 @@
 
 2026-09-28 核对发现：仓库纯 Kotlin `protocol-core` 与 `device-session` 的关键断言由自定义 `verify` 任务执行，原先单独运行 Gradle `test` 不会执行它们。此前云端 `Verify native app` 只调用这两个模块的 `test`，绿灯不能证明下表的协议报文和会话回归已通过。现已把云端任务改为 `check`，同时令两个模块的 `test` 依赖 `verify`；在本地强制重跑 `test` 时，日志确认两个 `verify` 都执行。今后引用 CI 结果须使用改正后的运行记录。
 
-[修正后的云端运行](https://github.com/boolean93/openhoyi/actions/runs/36396261710)日志确认 `:protocol-core:verify` 实际执行 36,797 次检查（含 32,856 条通知回放），`:device-session:verify` 执行 45 个会话场景。对当前已修改的旧版 `hoyi-project/app/assets/apps/__UNI__7D80DAB/www/app-service.js` 再次执行旧编码函数，重生成 593 条设置帧、100 行有/无秤工厂帧（200 帧）和 500 行有/无秤快捷槽位帧（1,000 帧）；与随包许可样本逐行逐字节相同。当前旧版 JS 的整个文件哈希为 `1451bddc95735fdc86b071aef98d9d5b88add12b0b3612c66f666faca7572ddc`，与样本头记录的 `b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037` 不同，故本次对比明确排除来源头，仅证明这 1,793 条帧内容相同，不冒称整个源文件相同或硬件效果相同。
+[修正后的云端运行](https://github.com/boolean93/openhoyi/actions/runs/36397161654)日志确认 `:protocol-core:verify` 实际执行 36,797 次检查（含 32,856 条通知回放），`:device-session:verify` 执行 45 个会话场景。对当前已修改的旧版 `hoyi-project/app/assets/apps/__UNI__7D80DAB/www/app-service.js` 再次执行旧编码函数，重生成 593 条设置帧、100 行有/无秤工厂帧（200 帧）和 500 行有/无秤快捷槽位帧（1,000 帧）；与随包许可样本逐行逐字节相同。当前旧版 JS 的整个文件哈希为 `1451bddc95735fdc86b071aef98d9d5b88add12b0b3612c66f666faca7572ddc`，与样本头记录的 `b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037` 不同，故本次对比明确排除来源头，仅证明这 1,793 条帧内容相同，不冒称整个源文件相同或硬件效果相同。
 
 这不是百分比覆盖率。包数量、断言数量、功能数量分别计算，不把回调success当作硬件执行成功。
 
@@ -15,7 +15,7 @@
 | 字节防篡改 | ByteFrame / GattOperation.Write | 输入、输出数组修改回归 | 无 |
 | 双设备隔离 | 两个GattQueue/AndroidGattDriver | 独立队列测试；08:42双设备Ready并行通知约2分钟 | 长时间并行/掉线后恢复 |
 | 队列与超时 | GattQueue | 串行、旧代次、超时关闭、异常回调、取消旧启动 | Android回调行为实测 |
-| 协议就绪 | DeviceSession | 咖啡机认证+设置、秤四条初始化+首个样本真机均Ready | 其他型号与长时间运行 |
+| 协议就绪 | DeviceSession | 咖啡机认证写入完成后须收到新的 `0x83` 才 Ready；认证前的设置帧单独到达会超时且不开放后续写入。秤四条初始化+首个样本真机均 Ready | 其他型号与长时间运行；新门禁尚待真机复验 |
 | 自动连秤 | ReconnectPolicy + NativeDeviceHub | 10分钟窗口、退避、DISCONNECTED/FAILED终态恢复、成功后退避重置、不支持设备停止重试及手动取消测试 | 地址变化时重新扫描/绑定；宿主生命周期实测 |
 | 去皮与重量停止 | ExtractionController / Policy | 去皮写成功后等待近零通知、重量时效、去重、优先按新鲜机器萃取计时执行7秒门槛、机器计时过期时单调时钟兜底、掉秤保护停止、停止未知结果 | 真实秤延迟和业务阈值标定 |
 | 三次萃取链路 | ReplayChecks + shots.tsv | 手动44.098s；流量结束无额外stop；重量17.786s | 不等于物理咖啡机回放；最终杯重未认证 |

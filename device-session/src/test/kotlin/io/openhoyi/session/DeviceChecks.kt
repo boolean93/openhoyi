@@ -23,7 +23,9 @@ fun deviceChecks():Int {
         complete();check(s.state==DeviceState.INITIALIZING)
         val settings=hex("830113FD5C007D0F350019006E")
         s.onNotification(s.generation,KnownGatt.bookooNotify,settings);check(s.state!=DeviceState.READY)
-        complete();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.READY)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state!=DeviceState.READY)
+        complete();check(s.state==DeviceState.SYNCHRONIZING)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.READY)
         var settingResult:OperationResult?=null
         s.writeSetting(MachineSettingChange.BrewTemperature(93)){settingResult=it}
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0402005D00")))
@@ -42,6 +44,28 @@ fun deviceChecks():Int {
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0A01A5A500")))
         complete();check(sleepResult is OperationResult.Success)
         s.disconnect();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.DISCONNECTED)
+    }
+    case("pre-auth settings alone time out without enabling coffee writes") {
+        val d=SessionDriver();var now=0L
+        val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(result:OperationResult=OperationResult.Success()){
+            val(g,t,_)=d.calls.last();s.onComplete(g,t,result)
+        }
+        complete()
+        complete(OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        complete()
+        check(s.state==DeviceState.SYNCHRONIZING)
+        now=10_001;s.tick()
+        check(s.state==DeviceState.FAILED)
+        val before=d.calls.size
+        var result:OperationResult?=null
+        s.writeSetting(MachineSettingChange.BrewTemperature(93)){result=it}
+        check(result is OperationResult.Failed && d.calls.size==before)
     }
     case("weekly sleep write waits 500ms and never sends second fragment after a failed first") {
         val d=SessionDriver();var now=0L

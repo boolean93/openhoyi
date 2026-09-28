@@ -38,7 +38,6 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var initNext=0
     private var initDue=0L
     private var initBusy=false
-    private var pendingSettings:Settings?=null
     private class SleepWrite(val frames: List<EncodedCommand>, val generation: Long,
         val callback: (OperationResult)->Unit) {
         var secondDue: Long? = null
@@ -74,7 +73,6 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     if(role==DeviceRole.COFFEE){
                         step(GattOperation.Write(writeEndpoint,auth!!.frame.toByteArray(),withResponse),5000){
                             setState(DeviceState.SYNCHRONIZING);stageDeadline=clock()+10_000
-                            pendingSettings?.let { acceptSettings(it) }
                         }
                     }else{initNext=0;initBusy=false;initDue=clock()+500}
                 }
@@ -97,7 +95,6 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             is DecodeResult.Valid -> {
                 val frame=decoded.value
                 if(frame is Settings){
-                    if(state==DeviceState.INITIALIZING)pendingSettings=frame
                     if(state==DeviceState.SYNCHRONIZING||state==DeviceState.READY)acceptSettings(frame)
                 }
                 coffeeFrame(frame,now)
@@ -189,6 +186,6 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
         else send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,callback=callback)
     }
-    fun disconnect(){activeAddress=null;setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");pendingSettings=null;initBusy=false}
-    private fun fail(reason:String){activeAddress=null;setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);pendingSettings=null;diagnostic(reason)}
+    fun disconnect(){activeAddress=null;setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
+    private fun fail(reason:String){activeAddress=null;setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}
 }
