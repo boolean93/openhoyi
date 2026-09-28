@@ -8,7 +8,7 @@
 - 深浅色首页、曲线库、实时萃取、历史、设置及旧版只读页面已按 `docs/ui/native-redesign.md` 改造；设计参考图在 `docs/ui/`。萃取页对缺失的必需设备提供连接入口，首页在主操作前显示新鲜机器告警。
 - 原生 UI 的 1600×1000 横屏深浅色五个主页面、曲线详情、选曲线、模拟萃取二次确认、运行中固定停止、自动结束及历史详情，已在无蓝牙权限的云端 AOSP Mock 包完成截图检查；600×1000 竖屏深浅色五个主页面及深色曲线/历史详情也已截图核对。另以 450×900（360dp 宽）检查浅色五个主页面；窄屏设备状态改为单行实时标签，空通知不再占萃取概览空间。首页主操作、竖屏曲线详情固定操作和各主页面底栏完整可见；[最新完整运行](https://github.com/boolean93/openhoyi/actions/runs/36373527863)。历史详情与旧版历史详情已去掉重复底栏，首页曲线操作和主题开关改为横屏紧凑布局。
 - 用户短期不提供测试设备。继续离线开发、Mock 与自动化验证；不对用户真机运行 ADB、实机萃取或需要设备的检查。曲线编辑按用户要求后置；其他需要真机证据的项目不得因本地测试通过而标为已验收。
-- 本地离线验证命令为 `./gradlew --offline --no-daemon :protocol-core:test :device-session:test :trace-core:test :bluetooth-android:testDebugUnitTest :app:testDebugUnitTest :mobile:testDebugUnitTest :mobile:testMockUnitTest :app:assembleDebug :mobile:assembleDebug :mobile:assembleMock`。GitHub Actions `Verify native app` 在提交与 PR 上跑对应任务；[首次云端验证](https://github.com/boolean93/openhoyi/actions/runs/36289381688)通过。工作流不连接设备、不发布 APK。
+- 本地离线验证命令为 `./gradlew --offline --no-daemon :protocol-core:check :device-session:check :trace-core:test :bluetooth-android:testDebugUnitTest :app:testDebugUnitTest :mobile:testDebugUnitTest :mobile:testMockUnitTest :app:assembleDebug :mobile:assembleDebug :mobile:assembleMock`。GitHub Actions `Verify native app` 在提交与 PR 上跑对应任务；此前只调用纯 Kotlin 模块的 `test`，漏跑了其自定义 `verify` 报文和会话检查，现已改为 `check`。工作流不连接设备、不发布 APK。
 
 分支 `feature/native-ble`，worktree `../openhoyi-native`，基于独立openhoyi仓库。旧hoyi-project未改动。前一阶段核心提交363cea5；本轮新增原生Lab诊断APK。
 

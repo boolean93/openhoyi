@@ -27,8 +27,8 @@ jobs:
       - name: Verify protocol, session, transport, and apps
         run: |
           ./gradlew --no-daemon --console=plain \
-            :protocol-core:test \
-            :device-session:test \
+            :protocol-core:check \
+            :device-session:check \
             :trace-core:test \
             :bluetooth-android:testDebugUnitTest \
             :app:testDebugUnitTest \

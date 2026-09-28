@@ -499,6 +499,8 @@ class MachineSettingsActivity : ThemedActivity() {
             .setItems(labels) { _, index ->
                 val temperature = service?.snapshot?.settings?.standbyTemperatureC
                 if (temperature == null) Toast.makeText(this, "尚未收到机器设置", Toast.LENGTH_SHORT).show()
+                else if (temperature !in 0..100) Toast.makeText(this,
+                    "机器待机温度超出旧版允许范围，暂不能修改自动待机时间", Toast.LENGTH_LONG).show()
                 else confirm(MachineSettingChange.StandbyDelay(values[index], temperature))
             }.show()
     }

@@ -106,6 +106,7 @@ fun main() {
         verify(CoffeeCommands.brewWait(parts[0].toInt()).frame.hex() == parts[1])
     }
     rejected { MachineSettingChange.StandbyDelay(45, 92) }
+    rejected { MachineSettingChange.StandbyDelay(15, 101) }
     rejected { MachineSettingChange.StandbyDelay(15, 256) }
     rejected { MachineSettingChange.StandbyTemperature(-1, 15) }
     rejected { MachineSettingChange.StandbyTemperature(101, 15) }

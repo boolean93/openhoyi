@@ -28,7 +28,7 @@ sealed interface MachineSettingChange {
     data class StandbyDelay(val minutes: Int, val temperatureC: Int) : MachineSettingChange {
         init {
             require(minutes in standbyDelays)
-            require(temperatureC in 0..255)
+            require(temperatureC in 0..100)
         }
         val wireCode: Int get() = standbyDelays.indexOf(minutes)
         override fun matches(settings: Settings) =

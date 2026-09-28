@@ -1,5 +1,7 @@
 # 覆盖矩阵与多轮核验
 
+2026-09-28 核对发现：仓库纯 Kotlin `protocol-core` 与 `device-session` 的关键断言由自定义 `verify` 任务执行，单独运行 Gradle `test` 不会执行它们。此前云端 `Verify native app` 只调用这两个模块的 `test`，绿灯不能证明下表的协议报文和会话回归已通过；现已改为 `check`（依赖 `verify`），并在修改前后本地显式运行 `:protocol-core:verify :device-session:verify`。今后引用 CI 结果须使用改正后的运行记录。
+
 这不是百分比覆盖率。包数量、断言数量、功能数量分别计算，不把回调success当作硬件执行成功。
 
 | 要求 | 实现入口 | 证据 | 未完成项 |
