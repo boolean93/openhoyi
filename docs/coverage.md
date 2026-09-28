@@ -28,6 +28,7 @@
 | 大包/MTU/通用Read | 首版明确不支持 | Android写入限制20字节 | 后续需真实协议分片证据后实现 |
 | 管理命令/OTA | UnsupportedCommandGroup | 无执行入口 | 密码修改、校准、出厂、OTA独立验证 |
 | 原生诊断UI/持久化 | LabActivity / LabService | 独立APK、未知/过期/断开显示、成功秤地址、离线UI测试APK | 冒烟APK已构建未执行；实机布局、权限、连接和导出 |
+| 进程重启萃取提醒 | ShotRecoveryState、MobileService | 真实启动报文前用同步持久化记录未确认萃取；进程重启恢复警示并阻止新萃取，只有观察到机器结束或用户在新鲜待机回报后确认才清除；存储失败时拒绝启动，状态机单测覆盖重启和读写失败 | Android 强制停止或进程被杀后无法代替机器物理停止；安全标记写入后的实际系统断电行为待实机验收 |
 | 萃取断链人工提醒 | ShotSafetyAlert、MobileService、HomeActivity | 启动/萃取/停止期间断链或结果未知时保留警示；前台服务通知更新、高优先级提醒、首页提示，以及首页和萃取页固定底部停止入口；StopActionPresentation 测试涵盖运行中、停止处理中、断线结果未知和重连恢复；萃取页申请一次通知权限并提示拒绝后的限制；明确终态后清除 | Android通知权限或系统策略可能阻止独立高优先级通知；尚未实机验证后台提醒 |
 | 原生日常版基础流程 | mobile/HomeActivity、MobileService、CurveActivity、ExtractionActivity、CurveCatalog、ShotGate | 独立APK、曲线和启动门禁单测、此前构建和Lint通过；2026-09-24 Alpha 实机完成 HOYI 与 BOOKOO 连接和持续通知 | 已验证三次受监护实杯的启动与手动停止；目标重量自动停止、异常断链和其它 UI 仍待实机验收；未知进程终止无法保证停液 |
 | 实时读数时效 | LiveTelemetry、HomeActivity、ExtractionActivity | 连接就绪且时间戳在过去1.5秒内才显示当前机器/秤数字；过期、未来或断开后显示“—”；边界单测 | 页面状态变化和阈值在Alpha实机待验收 |

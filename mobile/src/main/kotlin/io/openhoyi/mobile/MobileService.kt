@@ -50,6 +50,15 @@ class MobileService : Service() {
     private var passiveHistoryId: String? = null
     val manualShotActive: Boolean get() = passiveShot.active
     private val standaloneTare = StandaloneTare()
+    private val shotRecovery by lazy {
+        val prefs = getSharedPreferences("shot_safety", MODE_PRIVATE)
+        ShotRecoveryState(object : ShotRecoveryState.Storage {
+            override fun read(): Boolean = prefs.getBoolean("unresolved_shot", false)
+            override fun write(pending: Boolean): Boolean =
+                prefs.edit().putBoolean("unresolved_shot", pending).commit()
+        })
+    }
+    private val restartShotWarning = "上次萃取未确认结束。请检查咖啡机，重新连接并等待待机回报后再清除提示。"
     private val settingsWrite = SettingsWriteTracker()
     private val cupReset = CupResetTracker()
     val cupResetState: CupResetTracker.State get() = if (mock?.cupReset == true)
@@ -190,6 +199,8 @@ class MobileService : Service() {
                     .onFailure { event("历史记录失败", "shot.history_error") }
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
+                    if (!shotRecovery.clear())
+                        manualSafetyMessage = "无法清除萃取安全记录；请检查机器并重试。"
                 }
                 if (current == ExtractionState.OUTCOME_UNKNOWN) saveSeriesCheckpoint(force = true)
                 event("萃取状态：${current.name}", "shot.state")
@@ -207,6 +218,7 @@ class MobileService : Service() {
         val app = application as MobileApplication
         logs = app.logs
         history = runCatching { app.history }.getOrNull()
+        if (mock == null && shotRecovery.pending) manualSafetyMessage = restartShotWarning
         handler.post(watchShot)
     }
     override fun onBind(intent: Intent): IBinder = binder
@@ -339,7 +351,10 @@ class MobileService : Service() {
                         passiveShot.observe(frame, observedAt, appShotInProgress) else null
                     when (passiveEvent) {
                         is PassiveShotDetector.Event.Started -> {
-                            manualSafetyMessage = null
+                            val previousRecovery = shotRecovery.pending
+                            if (!previousRecovery) manualSafetyMessage = null
+                            if (!shotRecovery.arm())
+                                manualSafetyMessage = "无法保存萃取安全记录；请守在机器旁并用拨杆停止。"
                             refreshSafetyNotification()
                             passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
                                 .onFailure { event("手动萃取历史暂不可写", "shot.history_error") }.getOrNull()
@@ -356,6 +371,8 @@ class MobileService : Service() {
                         is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
                             passiveEvent.value.atMs)
                         PassiveShotDetector.Event.Ended -> {
+                            if (!shotRecovery.clear())
+                                manualSafetyMessage = "无法清除萃取安全记录；请检查机器并重试。"
                             val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
                                 snapshot.scaleState == DeviceState.READY &&
                                     snapshot.weightAt?.let { time -> observedAt >= time && observedAt - time <= 1500 } == true
@@ -398,6 +415,7 @@ class MobileService : Service() {
             )
             running = true
             event("服务已启动")
+            refreshSafetyNotification()
             scheduleAutomaticScaleStop()
             if (visibleScreens.visible) {
                 hub?.foreground()
@@ -877,6 +895,7 @@ class MobileService : Service() {
             return null
         }
         if (manualShotActive) return "机器手动萃取进行中，请先用拨杆结束"
+        if (shotRecovery.pending) return restartShotWarning
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -906,8 +925,10 @@ class MobileService : Service() {
         logs.record("shot.start.attempt", mapOf("ownerId" to ownerId, "curveId" to profile.id,
             "targetHundredthsGram" to profile.targetHundredthsGram.toString(),
             "scaleMode" to (profile.scaleMode?.toString() ?: "captured"), "slot" to slot.toString()))
+        if (!shotRecovery.arm()) return "无法可靠保存萃取安全状态，已阻止启动"
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) ||
             current.extraction.state == ExtractionState.IDLE) {
+            if (!shotRecovery.clear()) manualSafetyMessage = restartShotWarning
             event("启动未被会话层接受", "shot.rejected")
             return "启动未被会话层接受"
         }
@@ -1006,6 +1027,18 @@ class MobileService : Service() {
     }
     fun acknowledgeManualSafety() {
         if (manualSafetyMessage == null) return
+        if (shotRecovery.pending) {
+            val now = SystemClock.elapsedRealtime()
+            if (snapshot.coffeeState != DeviceState.READY || snapshot.coffee !is IdleTelemetry ||
+                snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true) {
+                event("请先连接咖啡机并等待新的待机回报，再清除安全提示", "shot.recovery_waiting")
+                return
+            }
+            if (!shotRecovery.clear()) {
+                event("萃取安全记录未能保存清除，请重试", "shot.recovery_clear_failed")
+                return
+            }
+        }
         manualSafetyMessage = null
         event("用户已检查手动萃取状态", "shot.passive_acknowledged")
         refreshSafetyNotification()
@@ -1031,6 +1064,10 @@ class MobileService : Service() {
         if (ShotGate.active(shotState)) {
             stopShot()
             event("萃取结果未确认，设备服务保持运行", "service.stop_deferred")
+            return
+        }
+        if (shotRecovery.pending) {
+            event("上次萃取未确认结束，设备服务保持运行", "service.stop_deferred")
             return
         }
         if (brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {

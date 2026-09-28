@@ -129,7 +129,7 @@ class HomeActivity : ThemedActivity() {
         }
         acknowledgeManual = button(content, "已检查机器，清除提示") {
             AlertDialog.Builder(this).setTitle("确认已检查机器")
-                .setMessage("这只会清除 App 提示，不会改变机器状态或历史中的“结果未知”。")
+                .setMessage("请先检查机器，并重新连接直到显示新的待机状态。清除提示不会改变机器状态或历史中的“结果未知”。")
                 .setPositiveButton("清除提示") { _, _ -> service?.acknowledgeManualSafety(); render() }
                 .setNegativeButton("取消", null).show()
         }.apply { visibility = View.GONE }
