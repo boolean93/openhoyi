@@ -142,6 +142,7 @@ assert_activity HistoryDetailActivity
 capture history-detail-dark
 
 adb shell wm size 600x1000
+adb shell am force-stop io.openhoyi.mobile.mock
 adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
 sleep 3
 capture portrait-home-dark
