@@ -1,6 +1,8 @@
 # 覆盖矩阵与多轮核验
 
-2026-09-28 核对发现：仓库纯 Kotlin `protocol-core` 与 `device-session` 的关键断言由自定义 `verify` 任务执行，单独运行 Gradle `test` 不会执行它们。此前云端 `Verify native app` 只调用这两个模块的 `test`，绿灯不能证明下表的协议报文和会话回归已通过；现已改为 `check`（依赖 `verify`），并在修改前后本地显式运行 `:protocol-core:verify :device-session:verify`。今后引用 CI 结果须使用改正后的运行记录。
+2026-09-28 核对发现：仓库纯 Kotlin `protocol-core` 与 `device-session` 的关键断言由自定义 `verify` 任务执行，原先单独运行 Gradle `test` 不会执行它们。此前云端 `Verify native app` 只调用这两个模块的 `test`，绿灯不能证明下表的协议报文和会话回归已通过。现已把云端任务改为 `check`，同时令两个模块的 `test` 依赖 `verify`；在本地强制重跑 `test` 时，日志确认两个 `verify` 都执行。今后引用 CI 结果须使用改正后的运行记录。
+
+[修正后的云端运行](https://github.com/boolean93/openhoyi/actions/runs/36396261710)日志确认 `:protocol-core:verify` 实际执行 36,797 次检查（含 32,856 条通知回放），`:device-session:verify` 执行 45 个会话场景。对当前已修改的旧版 `hoyi-project/app/assets/apps/__UNI__7D80DAB/www/app-service.js` 再次执行旧编码函数，重生成 593 条设置帧、100 行有/无秤工厂帧（200 帧）和 500 行有/无秤快捷槽位帧（1,000 帧）；与随包许可样本逐行逐字节相同。当前旧版 JS 的整个文件哈希为 `1451bddc95735fdc86b071aef98d9d5b88add12b0b3612c66f666faca7572ddc`，与样本头记录的 `b55c8b125d272fcb04e81a9b968dfa193202d94bbd1f1f245bacb33896164037` 不同，故本次对比明确排除来源头，仅证明这 1,793 条帧内容相同，不冒称整个源文件相同或硬件效果相同。
 
 这不是百分比覆盖率。包数量、断言数量、功能数量分别计算，不把回调success当作硬件执行成功。
 

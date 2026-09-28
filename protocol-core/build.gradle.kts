@@ -5,4 +5,5 @@ tasks.register<JavaExec>("verify") {
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass.set("io.openhoyi.protocol.ProtocolChecksKt")
 }
+tasks.named("test") { dependsOn("verify") }
 tasks.check { dependsOn("verify") }

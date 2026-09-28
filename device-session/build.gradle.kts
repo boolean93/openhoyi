@@ -6,4 +6,5 @@ tasks.register<JavaExec>("verify") {
     classpath = sourceSets.test.get().runtimeClasspath
     mainClass.set("io.openhoyi.session.SessionChecksKt")
 }
+tasks.named("test") { dependsOn("verify") }
 tasks.check { dependsOn("verify") }
