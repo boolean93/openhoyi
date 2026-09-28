@@ -34,6 +34,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
             onState(DeviceRole.BOOKOO,state)
         },weightFrame={sample,time->extraction.weight(WeightReading(sample.weightHundredthsGram,time));onWeight(sample)},diagnostic=diagnostic,trace={trace(DeviceRole.BOOKOO,it)})
     val extraction:ExtractionController=ExtractionController(CoffeeSessionControl(coffee.session),ScaleSessionControl(scale.session),{SystemClock.elapsedRealtime()})
+    val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }
     private val ticker=object:Runnable {
         override fun run(){
             if(closed)return

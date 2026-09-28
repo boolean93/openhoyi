@@ -48,14 +48,17 @@ class MobileService : Service() {
     private val series = ShotSeries()
     private val passiveShot = PassiveShotDetector()
     private var passiveHistoryId: String? = null
+    private var passiveMayClearRecovery = false
     val manualShotActive: Boolean get() = passiveShot.active
     private val standaloneTare = StandaloneTare()
     private val shotRecovery by lazy {
         val prefs = getSharedPreferences("shot_safety", MODE_PRIVATE)
         ShotRecoveryState(object : ShotRecoveryState.Storage {
-            override fun read(): Boolean = prefs.getBoolean("unresolved_shot", false)
-            override fun write(pending: Boolean): Boolean =
-                prefs.edit().putBoolean("unresolved_shot", pending).commit()
+            override fun read(): ShotRecoveryState.Record = ShotRecoveryState.Record(
+                prefs.getBoolean("unresolved_shot", false), prefs.getString("unresolved_shot_address", null))
+            override fun write(record: ShotRecoveryState.Record): Boolean =
+                prefs.edit().putBoolean("unresolved_shot", record.pending)
+                    .putString("unresolved_shot_address", record.address).commit()
         })
     }
     private val restartShotWarning = "上次萃取未确认结束。请检查咖啡机，重新连接并等待待机回报后再清除提示。"
@@ -287,6 +290,7 @@ class MobileService : Service() {
                                 .onFailure { event("手动萃取历史保存失败", "shot.history_error") }
                         }
                         passiveHistoryId = null
+                        passiveMayClearRecovery = false
                         saveSeriesCheckpoint(force = true)
                         finishSeries(false)
                         manualSafetyMessage = "手动萃取时连接中断，结果未知；请检查机器并用拨杆确认停止。"
@@ -353,7 +357,11 @@ class MobileService : Service() {
                         is PassiveShotDetector.Event.Started -> {
                             val previousRecovery = shotRecovery.pending
                             if (!previousRecovery) manualSafetyMessage = null
-                            if (!shotRecovery.arm())
+                            val currentAddress = hub?.coffeeAddress
+                            val armed = shotRecovery.arm(currentAddress)
+                            passiveMayClearRecovery = armed &&
+                                shotRecovery.mayClearAfterPassiveShot(previousRecovery, currentAddress)
+                            if (!armed)
                                 manualSafetyMessage = "无法保存萃取安全记录；请守在机器旁并用拨杆停止。"
                             refreshSafetyNotification()
                             passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
@@ -371,8 +379,10 @@ class MobileService : Service() {
                         is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
                             passiveEvent.value.atMs)
                         PassiveShotDetector.Event.Ended -> {
-                            if (!shotRecovery.clear())
+                            if (!passiveMayClearRecovery || !shotRecovery.matchesDevice(hub?.coffeeAddress) ||
+                                !shotRecovery.clear())
                                 manualSafetyMessage = "无法清除萃取安全记录；请检查机器并重试。"
+                            passiveMayClearRecovery = false
                             val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
                                 snapshot.scaleState == DeviceState.READY &&
                                     snapshot.weightAt?.let { time -> observedAt >= time && observedAt - time <= 1500 } == true
@@ -465,7 +475,7 @@ class MobileService : Service() {
         })
     }
     fun connectRememberedCoffee(address: String): Boolean {
-        if (mock != null || !coffeeCredentialRetries.mayUse(address)) return false
+        if (mock != null || !shotRecovery.matchesDevice(address) || !coffeeCredentialRetries.mayUse(address)) return false
         val password = coffeeCredentials.read(address) ?: return false
         connectCoffee(address, password, remembered = true)
         return true
@@ -474,6 +484,9 @@ class MobileService : Service() {
     private fun connectCoffee(address: String, password: String, remembered: Boolean) {
         if (mock != null) { event("Mock 咖啡机已就绪；未连接蓝牙", "mock.connect"); return }
         if (manualShotActive) { event("手动萃取进行中，请先用机器拨杆结束"); return }
+        if (!shotRecovery.matchesDevice(address)) {
+            event("上一杯未确认结束，只能重新连接原咖啡机", "shot.device_mismatch"); return
+        }
         require(password.matches(Regex("[0-9]{6}")))
         manualDeviceUse()
         if (cupResetBusy) { event("等待累计杯数归零回报，暂不切换咖啡机"); return }
@@ -925,7 +938,8 @@ class MobileService : Service() {
         logs.record("shot.start.attempt", mapOf("ownerId" to ownerId, "curveId" to profile.id,
             "targetHundredthsGram" to profile.targetHundredthsGram.toString(),
             "scaleMode" to (profile.scaleMode?.toString() ?: "captured"), "slot" to slot.toString()))
-        if (!shotRecovery.arm()) return "无法可靠保存萃取安全状态，已阻止启动"
+        val coffeeAddress=current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止启动"
+        if (!shotRecovery.arm(coffeeAddress)) return "无法可靠保存萃取安全状态，已阻止启动"
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) ||
             current.extraction.state == ExtractionState.IDLE) {
             if (!shotRecovery.clear()) manualSafetyMessage = restartShotWarning
@@ -1029,6 +1043,10 @@ class MobileService : Service() {
         if (manualSafetyMessage == null) return
         if (shotRecovery.pending) {
             val now = SystemClock.elapsedRealtime()
+            if (!shotRecovery.matchesDevice(hub?.coffeeAddress)) {
+                event("请先连接上一杯使用的咖啡机，再清除安全提示", "shot.recovery_device_mismatch")
+                return
+            }
             if (snapshot.coffeeState != DeviceState.READY || snapshot.coffee !is IdleTelemetry ||
                 snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true) {
                 event("请先连接咖啡机并等待新的待机回报，再清除安全提示", "shot.recovery_waiting")

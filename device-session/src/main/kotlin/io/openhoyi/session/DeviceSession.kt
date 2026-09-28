@@ -31,6 +31,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     val generation:Long get()=queue.generation
     var state=DeviceState.DISCONNECTED;private set
     private var activeAddress:String?=null
+    val address:String? get()=activeAddress
     private var lastIdle:IdleTelemetry?=null
     private var lastIdleAtMs:Long?=null
     private var notifyEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeNotify else KnownGatt.bookooNotify
