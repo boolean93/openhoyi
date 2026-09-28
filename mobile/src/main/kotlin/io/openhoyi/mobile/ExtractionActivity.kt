@@ -306,6 +306,7 @@ class ExtractionActivity : ThemedActivity() {
                 })
         notificationStatus.show(if (BuildConfig.MOCK_MODE || notificationsAllowed()) "" else
             "系统通知未授权；后台断链提醒可能被隐藏。可在系统设置中允许通知。")
+        notificationStatus.visibility = if (notificationStatus.text.isEmpty()) View.GONE else View.VISIBLE
         alarmStatus.show(MachineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             SystemClock.elapsedRealtime()))
         val now = SystemClock.elapsedRealtime()

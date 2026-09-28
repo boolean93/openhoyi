@@ -470,7 +470,9 @@ class HomeActivity : ThemedActivity() {
         }
         sleepStatus.show("睡眠状态：$reportedSleep$sleepProgress")
         alarmStatus.show(MachineAlarms.describe(s.alarmBits, s.alarmAt, now))
-        coffee.show("咖啡机 · ${label(s.coffeeState)}${if (coffeeFresh) " · 实时" else ""}")
+        val compactStatus = resources.configuration.screenWidthDp < 400
+        coffee.show(if (compactStatus) "咖啡机·${if (coffeeFresh) "实时" else label(s.coffeeState)}"
+            else "咖啡机 · ${label(s.coffeeState)}${if (coffeeFresh) " · 实时" else ""}")
         coffeeDot.background = dotShape(when (s.coffeeState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
@@ -492,7 +494,8 @@ class HomeActivity : ThemedActivity() {
             else -> listOf(brewTemperature, brewPressure, steamTemperature, steamPressure).forEach { it.show("—") }
         }
         val liveScale = LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)
-        scale.show("电子秤 · ${label(s.scaleState)}${if (liveScale != null) " · 实时" else ""}")
+        scale.show(if (compactStatus) "电子秤·${if (liveScale != null) "实时" else label(s.scaleState)}"
+            else "电子秤 · ${label(s.scaleState)}${if (liveScale != null) " · 实时" else ""}")
         scaleDot.background = dotShape(when (s.scaleState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
