@@ -16,16 +16,22 @@ fun deviceChecks():Int {
     fun case(name:String,f:()->Unit){f();tests++;println("PASS $name")}
     fun hex(s:String)=s.chunked(2).map{it.toInt(16).toByte()}.toByteArray()
     case("coffee ready requires authentication transport and fresh settings on matching endpoint") {
-        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        val d=SessionDriver();val received=mutableListOf<io.openhoyi.protocol.HoyiMessage>()
+        val s=DeviceSession(DeviceRole.COFFEE,d,{0},coffeeFrame={frame,_->received+=frame})
         s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
         fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
         complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
         complete();check(s.state==DeviceState.INITIALIZING)
         val settings=hex("830113FD5C007D0F350019006E")
         s.onNotification(s.generation,KnownGatt.bookooNotify,settings);check(s.state!=DeviceState.READY)
-        s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state!=DeviceState.READY)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
+        check(s.state!=DeviceState.READY && received.isEmpty())
         complete();check(s.state==DeviceState.SYNCHRONIZING)
-        s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.READY)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,
+            hex("40000ACA0B2A0000000000000000001E22DA47"))
+        check(received.isEmpty())
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
+        check(s.state==DeviceState.READY && received.size==1)
         var settingResult:OperationResult?=null
         s.writeSetting(MachineSettingChange.BrewTemperature(93)){settingResult=it}
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0402005D00")))
@@ -139,7 +145,7 @@ fun deviceChecks():Int {
         s.setBrewWait(92) {result=it};check(result is OperationResult.Failed)
         s.resetCupCount { result=it };check(result is OperationResult.Failed)
     }
-    case("live unauthenticated telemetry never opens ready gate or triggers extra writes") {
+    case("live unauthenticated telemetry never reaches product state or triggers extra writes") {
         val d=SessionDriver();var now=0L;var telemetry=0
         val s=DeviceSession(DeviceRole.COFFEE,d,{now},coffeeFrame={_,_->telemetry++})
         s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,22,12,0),"000000"))
@@ -148,7 +154,7 @@ fun deviceChecks():Int {
         complete();complete()
         // Real 19-byte idle notification observed even when authentication was not confirmed.
         repeat(10){now=it*1000L;s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("40000ACA0B2A0000000000000000001E22DA47"));s.tick();check(s.state==DeviceState.SYNCHRONIZING)}
-        check(telemetry==10)
+        check(telemetry==0)
         var result:OperationResult?=null;s.stopExtraction{result=it};check(result is OperationResult.Failed)
         check(d.calls.count{it.third is GattOperation.Write}==1)
         now=10_000;s.tick();check(s.state==DeviceState.FAILED)

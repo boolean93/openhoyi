@@ -94,10 +94,13 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(role==DeviceRole.COFFEE)when(val decoded=HoyiCodec.decode(bytes)) {
             is DecodeResult.Valid -> {
                 val frame=decoded.value
+                // Notifications received before this connection is READY must not populate
+                // product telemetry or satisfy readback checks.
+                val authenticated=state==DeviceState.SYNCHRONIZING||state==DeviceState.READY
                 if(frame is Settings){
-                    if(state==DeviceState.SYNCHRONIZING||state==DeviceState.READY)acceptSettings(frame)
+                    if(authenticated)acceptSettings(frame)
                 }
-                coffeeFrame(frame,now)
+                if(state==DeviceState.READY)coffeeFrame(frame,now)
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
         }else when(val decoded=BookooCodec.decode(bytes)) {
