@@ -30,7 +30,9 @@ class MobileApplication : Application() {
         val prefs = getSharedPreferences("shot_history", MODE_PRIVATE)
         ShotHistory(object : ShotHistory.Storage {
             override fun read(): String = prefs.getString("entries_v1", "") ?: ""
-            override fun write(value: String) { prefs.edit().putString("entries_v1", value).apply() }
+            override fun write(value: String) {
+                check(prefs.edit().putString("entries_v1", value).commit()) { "Cannot save shot history" }
+            }
         }).also { samples.prune(it.entries.map(ShotHistory.Entry::id).toSet()) }
     }
     val legacyHistory: LegacyHistoryStore by lazy { LegacyHistoryStore(File(filesDir, "legacy_history.json")) }

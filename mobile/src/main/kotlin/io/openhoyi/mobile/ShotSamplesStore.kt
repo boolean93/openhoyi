@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 /** One bounded file per shot. This contains decoded observations, never raw BLE frames. */
-class ShotSamplesStore(private val directory: File) {
+class ShotSamplesStore(private val directory: File, private val now: () -> Long = System::currentTimeMillis) {
     fun save(id: String, points: List<ShotPoint>) {
         val target = file(id)
         require(points.size <= ShotSeries.MAX_POINTS)
@@ -70,9 +70,13 @@ class ShotSamplesStore(private val directory: File) {
 
     fun prune(retainedIds: Set<String>) {
         if (!directory.isDirectory) return
+        // A missing/corrupt history index must not erase recoverable recent samples.
+        val cutoff = now() - 30L * 24 * 60 * 60 * 1000
         directory.listFiles()?.filter { it.isFile && it.name.matches(FILE_PATTERN) }?.forEach { file ->
             val id = file.name.removePrefix("samples-").removeSuffix(".tsv")
-            if (id !in retainedIds) check(file.delete()) { "Cannot prune samples" }
+            val modifiedAt = file.lastModified()
+            if (id !in retainedIds && modifiedAt > 0 && modifiedAt <= cutoff)
+                check(file.delete()) { "Cannot prune samples" }
         }
         directory.listFiles()?.filter { it.isFile && it.name.startsWith("samples-") && it.name.endsWith(".tmp") }
             ?.forEach { check(it.delete()) { "Cannot prune temporary sample file" } }

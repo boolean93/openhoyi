@@ -36,4 +36,5 @@ jobs:
             :mobile:testMockUnitTest \
             :app:assembleDebug \
             :mobile:assembleDebug \
-            :mobile:assembleMock
+            :mobile:assembleMock \
+            :mobile:lintDebug

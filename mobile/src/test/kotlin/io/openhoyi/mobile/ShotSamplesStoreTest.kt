@@ -8,10 +8,11 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class ShotSamplesStoreTest {
-    @Test fun roundTripsSamplesAndPrunesOnlyKnownSampleFiles() {
+    @Test fun recentOrphanedSamplesSurviveMissingHistoryIndexButExpiredOnesArePruned() {
         val dir = Files.createTempDirectory("openhoyi-samples").toFile()
         try {
-            val store = ShotSamplesStore(dir)
+            val now=System.currentTimeMillis()
+            val store = ShotSamplesStore(dir) { now }
             val points = listOf(
                 ShotPoint(0, 90, 20, 0, 9200, null),
                 ShotPoint(100, 91, 21, 10, 9201, -20, 135),
@@ -20,9 +21,15 @@ class ShotSamplesStoreTest {
             store.save("shot-2", points)
             assertEquals(points, store.load("shot-1"))
             dir.resolve("unrelated.txt").writeText("keep")
+            store.prune(emptySet())
+            assertEquals(points,store.load("shot-1"))
+            assertEquals(points,store.load("shot-2"))
+            store.prune(setOf("shot-2"))
+            assertEquals(points,store.load("shot-1"))
+            assertEquals(points, store.load("shot-2"))
+            assertTrue(dir.resolve("samples-shot-1.tsv").setLastModified(now - 31L * 24 * 60 * 60 * 1000))
             store.prune(setOf("shot-2"))
             assertTrue(store.load("shot-1").isEmpty())
-            assertEquals(points, store.load("shot-2"))
             assertTrue(dir.resolve("unrelated.txt").exists())
             assertThrows(IllegalArgumentException::class.java) { store.load("../outside") }
         } finally { dir.deleteRecursively() }
