@@ -112,6 +112,18 @@ fun extractionChecks():Int {
         coffee.ready=true;c.manualStop();c.manualStop()
         check(coffee.stops==1 && coffee.starts==1 && c.state==ExtractionState.STOP_REQUESTED)
     }
+    case("unconfirmed stop becomes unknown and only explicit retry sends another stop") {
+        val coffee=CoffeeFake();val scale=ScaleFake();var now=0L;val c=ExtractionController(coffee,scale,{now})
+        c.weight(WeightReading(0,now));check(c.start(profile,3400,0))
+        now=10;c.weight(WeightReading(0,now));c.manualStop()
+        check(coffee.stops==1 && c.state==ExtractionState.STOP_REQUESTED)
+        now=5_009;c.tick();check(c.state==ExtractionState.STOP_REQUESTED && coffee.stops==1)
+        now=5_010;c.tick();check(c.state==ExtractionState.OUTCOME_UNKNOWN && coffee.stops==1)
+        c.tick();check(coffee.stops==1 && !c.start(profile,3400,0))
+        c.manualStop();check(coffee.stops==2 && c.state==ExtractionState.STOP_REQUESTED)
+        now=5_011;c.tick();check(c.state==ExtractionState.STOP_REQUESTED)
+        now=10_010;c.tick();check(c.state==ExtractionState.OUTCOME_UNKNOWN && coffee.stops==2)
+    }
     case("cancelled unsent start can settle on fresh idle after stop completion") {
         var pending:((OperationResult)->Unit)?=null;var now=0L
         val coffee=object:CoffeeControl {

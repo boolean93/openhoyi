@@ -28,6 +28,7 @@ class ScaleSessionControl(private val session:DeviceSession):ScaleControl {
     override fun tare(done:(OperationResult)->Unit)=session.tare(done)
 }
 enum class ExtractionState { IDLE, STARTING, RUNNING, STOP_REQUESTED, ENDED_OBSERVED, OUTCOME_UNKNOWN }
+private const val STOP_CONFIRMATION_TIMEOUT_MS=5_000L
 /** Caller forwards fresh decoded weights and explicit machine-state observations; no Activity timers. */
 class ExtractionController(private val coffee:CoffeeControl,private val scale:ScaleControl,private val clock:()->Long) {
     var state=ExtractionState.IDLE;private set
@@ -112,6 +113,10 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
             return
         }
         if(!coffee.ready){state=ExtractionState.OUTCOME_UNKNOWN;return}
+        if(state==ExtractionState.STOP_REQUESTED){
+            stopWrittenAt?.let { if(clock()-it>=STOP_CONFIRMATION_TIMEOUT_MS)state=ExtractionState.OUTCOME_UNKNOWN }
+            return
+        }
         if(state!=ExtractionState.RUNNING)return
         val now=clock()
         // Flow-only profiles retain the observed legacy tare timing; weight-target profiles
@@ -130,7 +135,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     }
     private fun requestStop(reason:StopReason,explicitRetry:Boolean=false){
         if(state==ExtractionState.STOP_REQUESTED||(state==ExtractionState.OUTCOME_UNKNOWN&&!explicitRetry))return
-        stopReason=reason;state=ExtractionState.STOP_REQUESTED
+        stopReason=reason;stopWrittenAt=null;state=ExtractionState.STOP_REQUESTED
         val id=serial
         coffee.stop { result->
             if(id==serial&&state==ExtractionState.STOP_REQUESTED){
