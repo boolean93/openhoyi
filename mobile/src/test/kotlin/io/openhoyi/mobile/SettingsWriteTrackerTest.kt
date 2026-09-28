@@ -29,21 +29,31 @@ class SettingsWriteTrackerTest {
         val first = requireNotNull(tracker.begin(MachineSettingChange.BrewHeating(false)))
         assertTrue(tracker.written(first, OperationResult.Unknown("link"), 0))
         assertEquals(SettingsWriteTracker.State.UNKNOWN, tracker.state)
-        val second = requireNotNull(tracker.begin(MachineSettingChange.Light(false)))
+        assertNull(tracker.begin(MachineSettingChange.Light(false)))
         assertFalse(tracker.written(first, OperationResult.Success(), 0))
-        assertFalse(tracker.timeout(first))
+        assertFalse(tracker.timeout(first, 0))
+        assertFalse(tracker.observe(0, initial))
+        assertFalse(tracker.observe(1, initial))
+        assertEquals(SettingsWriteTracker.State.RECONCILED, tracker.state)
+        val second = requireNotNull(tracker.begin(MachineSettingChange.Light(false)))
         assertTrue(tracker.written(second, OperationResult.Success(), 0))
-        tracker.disconnected()
+        tracker.disconnected(1)
         assertFalse(tracker.observe(1, initial.copy(flags = initial.flags and 0x08.inv())))
         assertEquals(SettingsWriteTracker.State.UNKNOWN, tracker.state)
+        assertTrue(tracker.observe(2, initial.copy(flags = initial.flags and 0x08.inv())))
+        assertEquals(SettingsWriteTracker.State.CONFIRMED, tracker.state)
     }
 
     @Test fun readbackTimeoutRemainsUnknown() {
         val tracker = SettingsWriteTracker()
         val token = requireNotNull(tracker.begin(MachineSettingChange.SteamHeating(false)))
         tracker.written(token, OperationResult.Success(), 0)
-        assertTrue(tracker.timeout(token))
+        assertTrue(tracker.timeout(token, 5))
         assertEquals(SettingsWriteTracker.State.UNKNOWN, tracker.state)
+        assertNull(tracker.begin(MachineSettingChange.Light(false)))
+        assertFalse(tracker.observe(5, initial))
+        assertFalse(tracker.observe(6, initial))
+        assertEquals(SettingsWriteTracker.State.RECONCILED, tracker.state)
     }
 
     @Test fun leverModeRequiresNewMatchingFlags() {

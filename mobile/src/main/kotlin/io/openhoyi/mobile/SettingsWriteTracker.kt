@@ -6,7 +6,7 @@ import io.openhoyi.session.OperationResult
 
 /** BLE write completion is transport evidence; a newer matching 0x83 frame confirms application. */
 class SettingsWriteTracker {
-    enum class State { IDLE, WRITING, WAITING_READBACK, CONFIRMED, FAILED, UNKNOWN }
+    enum class State { IDLE, WRITING, WAITING_READBACK, CONFIRMED, FAILED, UNKNOWN, RECONCILED }
     var state = State.IDLE
         private set
     var change: MachineSettingChange? = null
@@ -15,7 +15,7 @@ class SettingsWriteTracker {
     private var afterSample = 0L
 
     fun begin(value: MachineSettingChange): Long? {
-        if (state == State.WRITING || state == State.WAITING_READBACK) return null
+        if (state == State.WRITING || state == State.WAITING_READBACK || state == State.UNKNOWN) return null
         change = value
         state = State.WRITING
         return ++serial
@@ -29,25 +29,36 @@ class SettingsWriteTracker {
                 State.WAITING_READBACK
             }
             is OperationResult.Failed, is OperationResult.Cancelled -> State.FAILED
-            is OperationResult.Unknown -> State.UNKNOWN
+            is OperationResult.Unknown -> {
+                afterSample = sampleSerial
+                State.UNKNOWN
+            }
         }
         return true
     }
 
     fun observe(sampleSerial: Long, settings: Settings): Boolean {
-        if (state != State.WAITING_READBACK || sampleSerial <= afterSample ||
-            change?.matches(settings) != true) return false
+        if (state !in setOf(State.WAITING_READBACK, State.UNKNOWN) || sampleSerial <= afterSample)
+            return false
+        if (change?.matches(settings) != true) {
+            if (state == State.UNKNOWN) state = State.RECONCILED
+            return false
+        }
         state = State.CONFIRMED
         return true
     }
 
-    fun timeout(token: Long): Boolean {
+    fun timeout(token: Long, sampleSerial: Long): Boolean {
         if (token != serial || state != State.WAITING_READBACK) return false
+        afterSample = sampleSerial
         state = State.UNKNOWN
         return true
     }
 
-    fun disconnected() {
-        if (state == State.WRITING || state == State.WAITING_READBACK) state = State.UNKNOWN
+    fun disconnected(sampleSerial: Long) {
+        if (state == State.WRITING || state == State.WAITING_READBACK) {
+            afterSample = sampleSerial
+            state = State.UNKNOWN
+        }
     }
 }

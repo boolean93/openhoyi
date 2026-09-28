@@ -419,7 +419,8 @@ class HomeActivity : ThemedActivity() {
         emergencyStop.isEnabled = stopAction.enabled
         emergencyStop.text = if (owner?.scalePreflight == true) "取消启动" else stopAction.label
         val settingBusy = owner?.settingWriteState in setOf(
-            SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
+            SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+            SettingsWriteTracker.State.UNKNOWN)
         val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE
         val freshAwakeIdle = s.coffee is IdleTelemetry && s.coffee.sleepStateRaw == 0 &&
             s.coffeeAt?.let { now >= it && now - it <= 1500 } == true
@@ -433,6 +434,7 @@ class HomeActivity : ThemedActivity() {
                     SettingsWriteTracker.State.CONFIRMED -> "已回读确认"
                     SettingsWriteTracker.State.FAILED -> "写入失败"
                     SettingsWriteTracker.State.UNKNOWN -> "结果未知，请查看机器"
+                    SettingsWriteTracker.State.RECONCILED -> "已重新回读，请核对设置"
                     SettingsWriteTracker.State.IDLE, null -> ""
                 }
                 else -> ""

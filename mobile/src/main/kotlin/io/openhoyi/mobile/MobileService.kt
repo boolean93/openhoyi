@@ -68,6 +68,8 @@ class MobileService : Service() {
     val sleepNowState: SleepNowTracker.State get() = if (mock?.isSleeping == true)
         SleepNowTracker.State.CONFIRMED else sleepNow.state
     private var settingsSampleSerial = 0L
+    private val settingWriteUnresolved: Boolean get() = settingsWrite.state == SettingsWriteTracker.State.UNKNOWN
+    private val settingWriteUnresolvedMessage = "上次机器设置结果未知，请等待新的设置回读或重新连接"
     val settingWriteState: SettingsWriteTracker.State get() = if (mock?.lastSetting != null)
         SettingsWriteTracker.State.CONFIRMED else settingsWrite.state
     val pendingSetting: MachineSettingChange? get() = mock?.lastSetting ?: settingsWrite.change
@@ -226,7 +228,7 @@ class MobileService : Service() {
                     snapshot = if (role == DeviceRole.COFFEE) {
                         if (state != DeviceState.READY) {
                             saveSeriesCheckpoint(force = true)
-                            settingsWrite.disconnected()
+                            settingsWrite.disconnected(settingsSampleSerial)
                             cupReset.disconnected()
                             scheduleWrite.disconnected(firstSleepSerial, secondSleepSerial)
                             sleepNow.disconnected()
@@ -275,8 +277,12 @@ class MobileService : Service() {
                         is Settings -> {
                             if (cupReset.observe(++cupSampleSerial, frame.cupCount))
                                 event("机器已回报累计杯数归零", "cups.confirmed")
+                            val previousSettingState = settingsWrite.state
                             if (settingsWrite.observe(++settingsSampleSerial, frame))
                                 event("机器回读已确认设置", "settings.confirmed")
+                            else if (previousSettingState == SettingsWriteTracker.State.UNKNOWN &&
+                                settingsWrite.state == SettingsWriteTracker.State.RECONCILED)
+                                event("机器设置已重新回读；上次写入未获确认", "settings.reconciled")
                             snapshot.copy(settings = frame)
                         }
                         is SleepPart -> {
@@ -532,6 +538,7 @@ class MobileService : Service() {
         }
         if (manualShotActive) return "手动萃取期间不能修改机器设置"
         val current = hub ?: return "设备服务尚未启动"
+        if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
         if (ShotGate.active(shotState)) return "萃取期间不能修改机器设置"
@@ -561,7 +568,8 @@ class MobileService : Service() {
                 SettingsWriteTracker.State.WAITING_READBACK -> {
                     event("命令已写入，等待机器回读", "settings.written")
                     handler.postDelayed({
-                        if (settingsWrite.timeout(token)) event("机器未回读，设置结果未知", "settings.unknown")
+                        if (settingsWrite.timeout(token, settingsSampleSerial))
+                            event("机器未回读，设置结果未知", "settings.unknown")
                     }, 6000)
                 }
                 SettingsWriteTracker.State.FAILED -> event("机器设置命令未写入", "settings.failed")
@@ -582,6 +590,7 @@ class MobileService : Service() {
         }
         if (manualShotActive) return "手动萃取期间不能重置杯数"
         val current = hub ?: return "设备服务尚未启动"
+        if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (cupResetBusy) return "正在等待本次杯数重置结果"
         if (scheduleBusy || settingWriteState in
             setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK) ||
@@ -625,6 +634,7 @@ class MobileService : Service() {
         }
         if (manualShotActive) return "手动萃取期间不能修改睡眠计划"
         val current = hub ?: return "设备服务尚未启动"
+        if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (ShotGate.active(shotState)) return "萃取期间不能修改睡眠计划"
         if (scheduleWriteState == SleepScheduleWriteTracker.State.UNKNOWN)
@@ -680,6 +690,7 @@ class MobileService : Service() {
         }
         if (manualShotActive) return "手动萃取期间不能让机器睡眠"
         val current = hub ?: return "设备服务尚未启动"
+        if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
         if (ShotGate.active(shotState)) return "萃取期间不能让机器睡眠"
@@ -754,6 +765,7 @@ class MobileService : Service() {
         }
         if (manualShotActive) return "手动萃取期间不能预热曲线"
         val current = hub ?: return "设备服务尚未启动"
+        if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (cupResetBusy) return "正在等待累计杯数归零回报"
         if (scheduleBusy) return "正在等待睡眠计划回读"
         if (brewPreparation.active) return "已有预热请求，请先取消"
@@ -844,6 +856,7 @@ class MobileService : Service() {
         }
         if (manualShotActive) return "机器手动萃取进行中，请先用拨杆结束"
         val current = hub ?: return "设备服务尚未启动"
+        if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (cupResetBusy) return "正在等待累计杯数归零回报，不能启动萃取"
         if (scheduleBusy) return "正在等待睡眠计划回读，不能启动萃取"
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))

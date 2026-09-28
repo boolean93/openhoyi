@@ -24,7 +24,7 @@
 | Android后台 | LabService + NativeDeviceHub | connectedDevice前台服务、Binder与页面解耦；静态独立审查 | 真机锁屏/旋转/权限撤销；不能承诺进程被杀后的停液 |
 | 日志 | WireTrace + LabApplication + TraceStore | 真实传输边界、密码整帧脱敏、进程单写队列、顺序/轮转/导出/失败测试 | 真机导出；崩溃前未落盘记录可丢失，codec.hex本身不脱敏 |
 | 记忆秤轮询可观测性 | NativeDeviceHub / MobileService | 前台窗口打开、自动连接尝试序号、窗口关闭以低频事件输出到 `OpenHoyiMobile`；2026-09-24 Alpha 冷启动第4次尝试进入 READY，详细传输保存在 trace | 10分钟窗口关闭、断链退避及手动断开待按[验收顺序](alpha-acceptance.md)核对 |
-| 设置写入结果 | OperationResult、SettingsWriteTracker | 区分Failed/Unknown/Cancelled/transport Success；常用设置需新鲜匹配0x83帧才标确认 | 其余设置的回读事务未实现；实机时序未验收 |
+| 设置写入结果 | OperationResult、SettingsWriteTracker | 区分Failed/Unknown/Cancelled/transport Success；常用设置需新鲜匹配0x83帧才标确认；结果未知后阻止新控制直到新的0x83回报，同值确认、异值标为已重新回读但不冒称写入失败 | 其余设置的回读事务未实现；实机时序未验收 |
 | 大包/MTU/通用Read | 首版明确不支持 | Android写入限制20字节 | 后续需真实协议分片证据后实现 |
 | 管理命令/OTA | UnsupportedCommandGroup | 无执行入口 | 密码修改、校准、出厂、OTA独立验证 |
 | 原生诊断UI/持久化 | LabActivity / LabService | 独立APK、未知/过期/断开显示、成功秤地址、离线UI测试APK | 冒烟APK已构建未执行；实机布局、权限、连接和导出 |

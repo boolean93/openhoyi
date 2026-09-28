@@ -392,6 +392,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 SettingsWriteTracker.State.CONFIRMED -> "机器回读已确认"
                 SettingsWriteTracker.State.FAILED -> "写入失败"
                 SettingsWriteTracker.State.UNKNOWN -> "结果未知，请查看机器"
+                SettingsWriteTracker.State.RECONCILED -> "已重新回读，请核对后再修改"
             })
         val idle = snapshot.coffee as? io.openhoyi.protocol.IdleTelemetry
         val now = android.os.SystemClock.elapsedRealtime()
@@ -400,7 +401,8 @@ class MachineSettingsActivity : ThemedActivity() {
         val editable = ready && snapshot.settings != null && freshIdle && owner?.manualShotActive != true &&
             owner?.shotState?.let(ShotGate::active) != true &&
             owner?.brewPreparationState == BrewPreparation.State.IDLE &&
-            pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK) &&
+            pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+                SettingsWriteTracker.State.UNKNOWN) &&
             owner?.scheduleWriteState !in setOf(SleepScheduleWriteTracker.State.WRITING,
                 SleepScheduleWriteTracker.State.WAITING_READBACK) &&
             owner?.cupResetState !in setOf(CupResetTracker.State.WRITING,

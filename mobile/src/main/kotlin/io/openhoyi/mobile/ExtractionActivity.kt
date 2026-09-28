@@ -259,7 +259,8 @@ class ExtractionActivity : ThemedActivity() {
         val preparation = owner?.brewPreparationState ?: BrewPreparation.State.IDLE
         val studioBlocked = if (owner != null && profile != null) owner.studioStartBlock(profile) else null
         val settingBusy = owner?.settingWriteState in setOf(
-            SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
+            SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
+            SettingsWriteTracker.State.UNKNOWN)
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
         val slotLabel = if (presetSlot == 7) "" else " · 快捷槽位 $presetSlot"
         curveSummary.show("曲线：${item?.name ?: "未选择"}$slotLabel")
