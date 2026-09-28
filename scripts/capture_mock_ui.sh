@@ -62,6 +62,14 @@ tap_portrait_nav() {
   sleep 2
 }
 
+tap_phone_nav() {
+  local index="$1" expected="$2"
+  # 450x900 at 200 dpi is a 360 dp-wide phone with the same five-item bar.
+  adb shell input tap "$((45 * (2 * index + 1)))" 785
+  assert_activity "$expected"
+  sleep 2
+}
+
 capture() {
   local name="$1" path="$output_dir/$1.png" expected
   case "$name" in
@@ -189,3 +197,17 @@ tap_portrait_nav 3 HistoryActivity
 capture portrait-history-light
 tap_portrait_nav 4 MachineSettingsActivity
 capture portrait-settings-light
+
+adb shell wm size 450x900
+adb shell am force-stop io.openhoyi.mobile.mock
+adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
+sleep 3
+capture portrait-home-phone-light
+tap_phone_nav 1 CurveActivity
+capture portrait-curves-phone-light
+tap_phone_nav 2 ExtractionActivity
+capture portrait-extraction-phone-light
+tap_phone_nav 3 HistoryActivity
+capture portrait-history-phone-light
+tap_phone_nav 4 MachineSettingsActivity
+capture portrait-settings-phone-light
