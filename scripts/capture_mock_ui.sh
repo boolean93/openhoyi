@@ -54,15 +54,23 @@ tap_nav() {
   sleep 2
 }
 
+tap_portrait_nav() {
+  local index="$1" expected="$2"
+  # The five targets span the 600 px portrait app bar above system navigation.
+  adb shell input tap "$((60 * (2 * index + 1)))" 900
+  assert_activity "$expected"
+  sleep 2
+}
+
 capture() {
   local name="$1" path="$output_dir/$1.png" expected
   case "$name" in
     home-*|portrait-home-*) expected=HomeActivity ;;
-    curves-*|curve-detail-*) expected=CurveActivity ;;
-    extraction-*) expected=ExtractionActivity ;;
+    curves-*|curve-detail-*|portrait-curves-*) expected=CurveActivity ;;
+    extraction-*|portrait-extraction-*) expected=ExtractionActivity ;;
     history-detail-*) expected=HistoryDetailActivity ;;
-    history-*) expected=HistoryActivity ;;
-    settings-*) expected=MachineSettingsActivity ;;
+    history-*|portrait-history-*) expected=HistoryActivity ;;
+    settings-*|portrait-settings-*) expected=MachineSettingsActivity ;;
     *) echo "Unknown screenshot name: $name" >&2; return 1 ;;
   esac
   sleep 2
@@ -146,3 +154,11 @@ adb shell am force-stop io.openhoyi.mobile.mock
 adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
 sleep 3
 capture portrait-home-dark
+tap_portrait_nav 1 CurveActivity
+capture portrait-curves-dark
+tap_portrait_nav 2 ExtractionActivity
+capture portrait-extraction-dark
+tap_portrait_nav 3 HistoryActivity
+capture portrait-history-dark
+tap_portrait_nav 4 MachineSettingsActivity
+capture portrait-settings-dark

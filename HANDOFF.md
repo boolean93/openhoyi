@@ -1,12 +1,13 @@
 # Native BLE / Lab handoff
 
-## 当前状态（2026-09-27）
+## 当前状态（2026-09-28）
 
 当前工作分支是 `feature/native-ble`，已推送至 `boolean93/openhoyi`。后文记录了各开发阶段的历史状态；其中“尚未安装”“未推送”等句子仅描述当时，不代表当前状态。以本节和所链接的专题文档为准。
 
 - 原生 Alpha 已完成 HOYI 与 BOOKOO 双设备 READY、受监护实杯启动及手动停止、独立去皮的部分实机验证，证据与未验项目见 `docs/alpha-acceptance.md`、`docs/native-feature-status.md`。这不等于硬件等效或完整发布验收。
 - 深浅色首页、曲线库、实时萃取、历史、设置及旧版只读页面已按 `docs/ui/native-redesign.md` 改造；设计参考图在 `docs/ui/`。萃取页对缺失的必需设备提供连接入口，首页在主操作前显示新鲜机器告警。
-- 用户短期不提供测试设备。继续离线开发、Mock 与自动化验证；不运行 ADB、实机萃取或需要设备的检查。曲线编辑按用户要求后置；其他需要真机证据的项目不得因本地测试通过而标为已验收。
+- 原生 UI 的 1600×1000 横屏深浅色五个主页面、曲线详情、选曲线、模拟萃取二次确认、运行中固定停止、自动结束及历史详情，已在无蓝牙权限的云端 AOSP Mock 包完成截图检查；[横屏与 600×1000 竖屏首页运行记录](https://github.com/boolean93/openhoyi/actions/runs/36370963195)。历史详情与旧版历史详情已去掉重复底栏，首页曲线操作和主题开关改为横屏紧凑布局。竖屏首页主操作与底栏均完整可见，其余竖屏主页面正在补充自动截图。
+- 用户短期不提供测试设备。继续离线开发、Mock 与自动化验证；不对用户真机运行 ADB、实机萃取或需要设备的检查。曲线编辑按用户要求后置；其他需要真机证据的项目不得因本地测试通过而标为已验收。
 - 本地离线验证命令为 `./gradlew --offline --no-daemon :protocol-core:test :device-session:test :trace-core:test :bluetooth-android:testDebugUnitTest :app:testDebugUnitTest :mobile:testDebugUnitTest :mobile:testMockUnitTest :app:assembleDebug :mobile:assembleDebug :mobile:assembleMock`。GitHub Actions `Verify native app` 在提交与 PR 上跑对应任务；[首次云端验证](https://github.com/boolean93/openhoyi/actions/runs/36289381688)通过。工作流不连接设备、不发布 APK。
 
 分支 `feature/native-ble`，worktree `../openhoyi-native`，基于独立openhoyi仓库。旧hoyi-project未改动。前一阶段核心提交363cea5；本轮新增原生Lab诊断APK。
