@@ -102,7 +102,7 @@ internal object HoyiUi {
     }
 
     fun header(activity: Activity, parent: LinearLayout, title: String, subtitle: String? = null,
-               back: Boolean = false) {
+               back: Boolean = false): LinearLayout {
         val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(activity, 12) })
         if (back) row.addView(ImageView(activity).apply {
@@ -123,6 +123,7 @@ internal object HoyiUi {
         subtitle?.let { label(activity, words, it, 13, muted = true).apply {
             setPadding(0, dp(activity, 4), 0, 0)
         } }
+        return row
     }
 
     fun navigation(activity: Activity, parent: LinearLayout, selected: Class<out Activity>) {

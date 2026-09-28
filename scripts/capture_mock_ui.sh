@@ -96,7 +96,7 @@ tap_nav 4 MachineSettingsActivity
 capture settings-light
 
 tap_nav 0 HomeActivity
-adb shell input tap 120 175
+adb shell input tap 1530 103
 sleep 2
 capture home-dark
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/theme-pref.xml"

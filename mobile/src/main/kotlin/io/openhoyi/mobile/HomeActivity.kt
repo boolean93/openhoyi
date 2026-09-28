@@ -110,9 +110,11 @@ class HomeActivity : ThemedActivity() {
         })
         HoyiUi.navigation(this, root, HomeActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, content, "HOYI", if (BuildConfig.MOCK_MODE) "Mock · 本机模拟，不发送蓝牙命令" else "咖啡工作台")
+        val header = HoyiUi.header(this, content, "HOYI",
+            if (BuildConfig.MOCK_MODE) "Mock · 本机模拟，不发送蓝牙命令" else "咖啡工作台")
         val themeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
-        content.addView(themeRow)
+        if (HoyiUi.wide(this)) header.addView(themeRow)
+        else content.addView(themeRow)
         HoyiUi.label(this, themeRow, "深色模式", 14, muted = true)
         themeRow.addView(Switch(this).apply {
             contentDescription = "切换深色模式"
@@ -212,12 +214,21 @@ class HomeActivity : ThemedActivity() {
         metricRow("冲泡温度", "冲泡压力").also { brewTemperature = it.first; brewPressure = it.second }
         metricRow("蒸汽温度", "蒸汽压力").also { steamTemperature = it.first; steamPressure = it.second }
         val curveCard = card(right, "当前曲线")
-        selection = text(curveCard, "尚未选择曲线", 19, true)
-        brewButton = button(curveCard, "选择曲线") {
+        val curveActionRow = if (wide) LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            curveCard.addView(this)
+        } else curveCard
+        selection = text(curveActionRow, "尚未选择曲线", 19, true)
+        if (wide) selection.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        brewButton = button(curveActionRow, "选择曲线") {
             val library = (application as MobileApplication).curves
             val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
             startActivity(Intent(this, if (item != null && library.canStart(item))
                 ExtractionActivity::class.java else CurveActivity::class.java))
+        }
+        if (wide) brewButton.layoutParams = LinearLayout.LayoutParams(dp(236), -2).apply {
+            marginStart = dp(16)
         }
         browseCurvesButton = button(curveCard, "浏览曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
         val presets = card(right, "快捷曲线")
