@@ -8,6 +8,39 @@ private fun verify(value: Boolean) { checks++; check(value) { "Protocol check $c
 private fun hex(s: String) = s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 private fun rejected(block: () -> Unit) { verify(runCatching(block).exceptionOrNull() is IllegalArgumentException) }
 fun main() {
+    // Legacy scale formats are offline candidates only. They must never feed the live stop policy.
+    val acaiaPositive = LegacyScaleCandidateCodec.decode(LegacyScaleFamily.ACAIA,
+        hex("EFDD0C08053930000002000000"))
+    verify(acaiaPositive is DecodeResult.Valid && acaiaPositive.value.weightGrams == 123.45)
+    val acaiaNegative = LegacyScaleCandidateCodec.decode(LegacyScaleFamily.ACAIA,
+        hex("EFDD0C08053930000002020000"))
+    verify(acaiaNegative is DecodeResult.Valid && acaiaNegative.value.weightGrams == -123.45)
+    verify(LegacyScaleCandidateCodec.decode(LegacyScaleFamily.ACAIA, hex("EFDD0C08050039")) is DecodeResult.Invalid)
+    verify(LegacyScaleCandidateCodec.decode(LegacyScaleFamily.ACAIA, hex("EFDD0000")) is DecodeResult.Unknown)
+    val felicita = LegacyScaleCandidateCodec.decode(LegacyScaleFamily.FELICITA, hex("3039ABCD"))
+    verify(felicita is DecodeResult.Valid && felicita.value.weightGrams == 123.45)
+    verify(LegacyScaleCandidateCodec.decode(LegacyScaleFamily.FELICITA, hex("30")) is DecodeResult.Invalid)
+    val difluid = LegacyScaleCandidateCodec.decode(LegacyScaleFamily.DIFLUID,
+        hex("DFDF030000000003E8"))
+    verify(difluid is DecodeResult.Valid && difluid.value.weightGrams == 100.0)
+    verify(LegacyScaleCandidateCodec.decode(LegacyScaleFamily.DIFLUID,
+        hex("DFDF01000101C1")) is DecodeResult.Unknown)
+    verify(LegacyScaleCandidateCodec.decode(LegacyScaleFamily.DIFLUID, hex("DFDF03")) is DecodeResult.Invalid)
+    verify(LegacyScaleCandidateCodec.decode(LegacyScaleFamily.DIFLUID,
+        hex("DFDF030000800003E8")) is DecodeResult.Unknown)
+    verify(LegacyScaleCandidateCodec.decode(LegacyScaleFamily.DIFLUID,
+        hex("DFDF0300000000FFFF")) is DecodeResult.Unknown)
+    verify(LegacyScaleCandidateCodec.decode(LegacyScaleFamily.ACAIA,
+        hex("EFDD0C08053930000005000000")) is DecodeResult.Unknown)
+    verify(LegacyScaleCandidateCodec.decode(LegacyScaleFamily.ACAIA,
+        hex("EFDD0C08063930000002000000")) is DecodeResult.Unknown)
+    repeat(1_000) {
+        val randomFrame = Random(it).nextBytes(it % 24)
+        LegacyScaleFamily.entries.forEach { family ->
+            LegacyScaleCandidateCodec.decode(family, randomFrame)
+            checks++
+        }
+    }
     val original = hex("830113FD5C007D0F350019006E")
     val immutable = ByteFrame(original); original[0] = 0
     verify(immutable.hex() == "830113FD5C007D0F350019006E")
