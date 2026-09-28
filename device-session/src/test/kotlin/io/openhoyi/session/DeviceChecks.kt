@@ -38,6 +38,7 @@ fun deviceChecks():Int {
         check(received.isEmpty())
         s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
         check(s.state==DeviceState.READY && received.size==1)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         var settingResult:OperationResult?=null
         s.writeSetting(MachineSettingChange.BrewTemperature(93)){settingResult=it}
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0402005D00")))
@@ -86,6 +87,7 @@ fun deviceChecks():Int {
         fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
         complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
         complete();complete();s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(true,SleepDay(22,15,7,30))})
         var result:OperationResult?=null
         s.writeSleepSchedule(plan){result=it}
@@ -97,9 +99,11 @@ fun deviceChecks():Int {
         check(overlapping is OperationResult.Failed && d.calls.size==firstCount)
         now=500;s.tick();check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("090C960F071E960F071E960F071E00")))
         complete();check(result is OperationResult.Success)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         s.writeSleepSchedule(plan){result=it};complete(OperationResult.Failed("write failed"))
         val failedCount=d.calls.size;now=2000;s.tick()
         check(result is OperationResult.Failed && d.calls.size==failedCount)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         s.writeSleepSchedule(plan){result=it};complete()
         now=2500;s.tick();complete(OperationResult.Failed("second write failed"))
         check(result is OperationResult.Unknown)
@@ -111,6 +115,7 @@ fun deviceChecks():Int {
         fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
         complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
         complete();complete();s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
         val outcomes=mutableListOf<OperationResult>()
         s.writeSleepSchedule(plan){outcomes+=it};complete()
@@ -255,6 +260,115 @@ fun deviceChecks():Int {
         complete();complete()
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
         rejectedStart()
+    }
+    case("queued machine settings do not dispatch after idle evidence expires") {
+        val d=SessionDriver();var now=0L
+        val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        var pending:OperationResult?=null
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val submitted=d.calls.size
+        s.resetCupCount { pending=it }
+        check(pending==null && d.calls.size==submitted)
+        now=1_501;complete()
+        check(pending is OperationResult.Failed && d.calls.size==submitted)
+    }
+    case("all non-recovery coffee controls require fresh idle at submission") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
+        val before=d.calls.size
+        val rejected=mutableListOf<OperationResult>()
+        s.writeSetting(MachineSettingChange.Light(true)){rejected+=it}
+        s.writeSleepSchedule(plan){rejected+=it}
+        s.enterSleep {rejected+=it}
+        s.resetCupCount {rejected+=it}
+        s.setBrewWait(92){rejected+=it}
+        check(rejected.size==5 && rejected.all{it is OperationResult.Failed} && d.calls.size==before)
+        s.setBrewWait(0){}
+        check(d.calls.size==before+1)
+    }
+    case("weekly sleep second fragment is withheld when machine starts extracting") {
+        val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
+        var result:OperationResult?=null
+        s.writeSleepSchedule(plan){result=it};complete()
+        val submitted=d.calls.size
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("80080700000000052421325103"))
+        now=500;s.tick()
+        check(result is OperationResult.Unknown && d.calls.size==submitted)
+    }
+    case("emergency stop cancels queued sleep write before it reaches the machine") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
+        var planResult:OperationResult?=null
+        s.writeSleepSchedule(plan){planResult=it}
+        val beforeStop=d.calls.size
+        s.stopExtraction { }
+        check(planResult is OperationResult.Unknown && d.calls.size==beforeStop)
+        complete()
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(
+            io.openhoyi.protocol.CoffeeCommands.stop(7).frame.toByteArray()))
+        complete()
+        check(d.calls.size==beforeStop+1)
+    }
+    case("a failing sleep observer cannot prevent emergency stop") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
+        s.writeSleepSchedule(plan){error("observer failed")}
+        s.stopExtraction { }
+        complete()
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(
+            io.openhoyi.protocol.CoffeeCommands.stop(7).frame.toByteArray()))
     }
     return tests
 }
