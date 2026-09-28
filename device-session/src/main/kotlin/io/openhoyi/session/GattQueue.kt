@@ -2,7 +2,8 @@ package io.openhoyi.session
 
 /** Thread-confined queue; elapsed time must come from a monotonic clock. Never retries writes. */
 class GattQueue(private val driver: GattDriver, private val clock: () -> Long, private val invalidated: (String) -> Unit = {}) {
-    private data class Pending(val token:Long,val operation:GattOperation,val timeout:Long,val callback:(OperationResult)->Unit)
+    private data class Pending(val token:Long,val operation:GattOperation,val timeout:Long,
+        val beforeDispatch:()->Boolean,val callback:(OperationResult)->Unit)
     private val owner=Thread.currentThread()
     private val pending=ArrayDeque<Pending>()
     private var current:Pending?=null
@@ -15,11 +16,12 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     fun open():Long {
         assertThread(); disconnect("replaced"); generation++; active=true;return generation
     }
-    fun enqueue(operation:GattOperation, timeoutMs:Long, urgent:Boolean=false, callback:(OperationResult)->Unit) {
+    fun enqueue(operation:GattOperation, timeoutMs:Long, urgent:Boolean=false,
+                beforeDispatch:()->Boolean={true}, callback:(OperationResult)->Unit) {
         assertThread(); require(timeoutMs in 1..120_000)
         if(!active){callback(OperationResult.Cancelled("not connected"));return}
         if(pending.size>=64 && !urgent){callback(OperationResult.Failed("queue full"));return}
-        val p=Pending(++serial,operation,timeoutMs,callback)
+        val p=Pending(++serial,operation,timeoutMs,beforeDispatch,callback)
         val displaced=if(pending.size>=64)pending.removeLast() else null
         if(urgent)pending.addFirst(p) else pending.addLast(p)
         displaced?.let{deliver(it,OperationResult.Cancelled("displaced by urgent stop"))}
@@ -33,7 +35,13 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     }
     private fun pump() {
         if(!active||current!=null||pending.isEmpty())return
-        val p=pending.removeFirst();current=p;deadline=clock()+p.timeout
+        val p=pending.removeFirst()
+        if(!runCatching(p.beforeDispatch).getOrDefault(false)) {
+            deliver(p,OperationResult.Failed("pre-dispatch guard rejected operation"))
+            pump();return
+        }
+        if(!active)return
+        current=p;deadline=clock()+p.timeout
         val accepted=try{driver.execute(generation,p.token,p.operation)}catch(e:Exception){false}
         if(!accepted && current===p) {
             current=null

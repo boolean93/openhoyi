@@ -31,6 +31,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     val generation:Long get()=queue.generation
     var state=DeviceState.DISCONNECTED;private set
     private var activeAddress:String?=null
+    private var lastIdle:IdleTelemetry?=null
+    private var lastIdleAtMs:Long?=null
     private var notifyEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeNotify else KnownGatt.bookooNotify
     private var writeEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeWrite else KnownGatt.bookooWrite
     private var withResponse=true
@@ -59,7 +61,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED)) return
         // Validate credentials before disturbing an existing connection.
         val auth=authentication?.encode()
-        disconnect();activeAddress=address;queue.open();setState(DeviceState.CONNECTING);stageDeadline=clock()+22_000
+        disconnect();lastIdle=null;lastIdleAtMs=null;activeAddress=address;queue.open();setState(DeviceState.CONNECTING);stageDeadline=clock()+22_000
         step(GattOperation.Connect(address),22_000) {
             setState(DeviceState.DISCOVERING)
             step(GattOperation.Discover,10_000){ result ->
@@ -100,7 +102,14 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 if(frame is Settings){
                     if(authenticated)acceptSettings(frame)
                 }
-                if(state==DeviceState.READY)coffeeFrame(frame,now)
+                if(state==DeviceState.READY){
+                    when(frame){
+                        is IdleTelemetry -> {lastIdle=frame;lastIdleAtMs=now}
+                        is ExtractionTelemetry -> {lastIdle=null;lastIdleAtMs=null}
+                        else -> Unit
+                    }
+                    coffeeFrame(frame,now)
+                }
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
         }else when(val decoded=BookooCodec.decode(bytes)) {
@@ -138,25 +147,36 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             }
         }
     }
-    private fun send(command:EncodedCommand,expectedRole:DeviceRole,urgent:Boolean=false,callback:(OperationResult)->Unit) {
+    private fun send(command:EncodedCommand,expectedRole:DeviceRole,urgent:Boolean=false,
+        beforeDispatch:()->Boolean={true},callback:(OperationResult)->Unit) {
         if(role!=expectedRole||state!=DeviceState.READY){callback(OperationResult.Failed("device not ready or wrong role"));return}
-        queue.enqueue(GattOperation.Write(writeEndpoint,command.frame.toByteArray(),withResponse),5000,urgent,callback)
+        queue.enqueue(GattOperation.Write(writeEndpoint,command.frame.toByteArray(),withResponse),5000,urgent,beforeDispatch,callback)
+    }
+    private fun canStartFromIdle():Boolean {
+        val idle=lastIdle ?: return false
+        val observedAt=lastIdleAtMs ?: return false
+        val now=clock()
+        return role==DeviceRole.COFFEE && state==DeviceState.READY && observedAt<=now &&
+            now-observedAt<=1500 && idle.sleepStateRaw==0 && idle.alarmBits and 0xBFFF==0
     }
     fun startExtraction(parameters:StartParameters,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) { callback(OperationResult.Failed("weekly sleep write active")); return }
+        if (!canStartFromIdle()) {
+            callback(OperationResult.Failed("fresh awake idle telemetry without blocking alarms required")); return
+        }
         // Product host supplies only frames checked against the extracted legacy encoder.
         val command=CoffeeCommands.start(parameters)
         val allowed=setOf("02175B006C005A410000015E1600AA00000000DA","02DF5C0046001426140000A0050190008C000059","02DF5C00880014231200009605019000820000AC")
         if(command.frame.hex() !in allowed && command.frame.hex() !in additionalStartFrames){
             callback(OperationResult.Failed("curve outside validated profile set"));return
         }
-        send(command,DeviceRole.COFFEE,callback=callback)
+        send(command,DeviceRole.COFFEE,beforeDispatch=::canStartFromIdle,callback=callback)
     }
     fun stopExtraction(slot:Int=7,callback:(OperationResult)->Unit) {
         require(slot in 1..5 || slot == 7)
         cancelSleepWrite("stop requested during weekly sleep write")
         queue.cancelPending { it is GattOperation.Write && it.bytes.size==20 && it.bytes[0].toInt()==2 }
-        send(CoffeeCommands.stop(slot),DeviceRole.COFFEE,true,callback)
+        send(CoffeeCommands.stop(slot),DeviceRole.COFFEE,urgent=true,callback=callback)
     }
     fun tare(callback:(OperationResult)->Unit)=send(BookooCodec.tare(),DeviceRole.BOOKOO,callback=callback)
     fun writeSetting(change: MachineSettingChange,callback:(OperationResult)->Unit) {
@@ -189,6 +209,6 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
         else send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,callback=callback)
     }
-    fun disconnect(){activeAddress=null;setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
-    private fun fail(reason:String){activeAddress=null;setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}
+    fun disconnect(){activeAddress=null;lastIdle=null;lastIdleAtMs=null;setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
+    private fun fail(reason:String){activeAddress=null;lastIdle=null;lastIdleAtMs=null;setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}
 }

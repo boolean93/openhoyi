@@ -180,6 +180,7 @@ fun deviceChecks():Int {
         complete();complete()
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
         check(s.state==DeviceState.READY)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         var result:OperationResult?=null
         val control=CoffeeSessionControl(s)
         control.start(profile){result=it}
@@ -191,6 +192,69 @@ fun deviceChecks():Int {
         check(result is OperationResult.Failed && d.calls.size==writes)
         control.stop {}
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0200010000")))
+    }
+    case("session start requires fresh awake idle without blocking alarms") {
+        val d=SessionDriver();var now=0L
+        val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        val profile=StartParameters(false,false,2,7,91,108,false,0,90,65,0,0,350,22,170,0,0)
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        check(s.state==DeviceState.READY)
+        var result:OperationResult?=null
+        fun rejectedStart() {
+            val before=d.calls.size
+            result=null;s.startExtraction(profile){result=it}
+            check(result is OperationResult.Failed && d.calls.size==before)
+        }
+        fun idle(sleep:Int=0,alarm:Int=0) {
+            val b=hex("400024BF2F1C770B00000000000000190321AF")
+            b[8]=sleep.toByte();b[12]=(alarm shr 8).toByte();b[13]=alarm.toByte()
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,b)
+        }
+        rejectedStart()
+        idle();now=1501;rejectedStart()
+        idle(sleep=1);rejectedStart()
+        idle(alarm=1);rejectedStart()
+        idle(alarm=0x4000)
+        result=null;s.startExtraction(profile){result=it}
+        check(result==null && (d.calls.last().third as GattOperation.Write).bytes[0].toInt()==2)
+        complete();check(result is OperationResult.Success)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("80080700000000052421325103"))
+        rejectedStart()
+        // A fresh observation at enqueue time is insufficient if another GATT write delays dispatch.
+        idle()
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val beforeQueued=d.calls.size
+        result=null;s.startExtraction(profile){result=it}
+        check(result==null && d.calls.size==beforeQueued)
+        now+=1501;complete()
+        check(result is OperationResult.Failed && d.calls.size==beforeQueued)
+        // An extraction notification also revokes a queued start, even while its idle is fresh.
+        idle()
+        s.writeSetting(MachineSettingChange.Light(false)){}
+        val beforeActive=d.calls.size
+        result=null;s.startExtraction(profile){result=it}
+        check(result==null && d.calls.size==beforeActive)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("80080700000000052421325103"))
+        complete()
+        check(result is OperationResult.Failed && d.calls.size==beforeActive)
+        s.disconnect()
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        complete()
+        val(g2,t2,_)=d.calls.last()
+        s.onComplete(g2,t2,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        rejectedStart()
     }
     return tests
 }
