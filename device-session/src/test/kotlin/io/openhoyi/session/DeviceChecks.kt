@@ -15,6 +15,12 @@ fun deviceChecks():Int {
     var tests=0
     fun case(name:String,f:()->Unit){f();tests++;println("PASS $name")}
     fun hex(s:String)=s.chunked(2).map{it.toInt(16).toByte()}.toByteArray()
+    case("accepted write with a failed GATT callback has an unknown device outcome") {
+        val write=GattOperation.Write(KnownGatt.coffeeWrite,hex("0402005D00"),true)
+        check(GattCallbackResult.fromStatus(write,0) is OperationResult.Success)
+        check(GattCallbackResult.fromStatus(write,133) is OperationResult.Unknown)
+        check(GattCallbackResult.fromStatus(GattOperation.Discover,133) is OperationResult.Failed)
+    }
     case("coffee ready requires authentication transport and fresh settings on matching endpoint") {
         val d=SessionDriver();val received=mutableListOf<io.openhoyi.protocol.HoyiMessage>()
         val s=DeviceSession(DeviceRole.COFFEE,d,{0},coffeeFrame={frame,_->received+=frame})

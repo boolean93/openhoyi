@@ -89,7 +89,7 @@ class AndroidGattDriver(context:Context, private val events:Events, private val 
         private fun finish(status:Int,extra:List<CharacteristicInfo> = emptyList()) {
             val p=pending?:return;pending=null
             record("completed",gen,p.token,p.op,"status=$status")
-            events.complete(gen,p.token,if(status==BluetoothGatt.GATT_SUCCESS)OperationResult.Success(extra)else OperationResult.Failed("GATT status $status"))
+            events.complete(gen,p.token,GattCallbackResult.fromStatus(p.op,status,extra))
         }
         override fun onConnectionStateChange(g:BluetoothGatt,status:Int,newState:Int)=dispatch(g){
             if(status!=BluetoothGatt.GATT_SUCCESS||newState==BluetoothProfile.STATE_DISCONNECTED){

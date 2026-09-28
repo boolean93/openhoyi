@@ -14,12 +14,12 @@
 | BOOKOO | BookooCodec | 18,840条通知、XOR、正负号、去皮初始化 | 已知负质量对照、其他固件/其他秤 |
 | 字节防篡改 | ByteFrame / GattOperation.Write | 输入、输出数组修改回归 | 无 |
 | 双设备隔离 | 两个GattQueue/AndroidGattDriver | 独立队列测试；08:42双设备Ready并行通知约2分钟 | 长时间并行/掉线后恢复 |
-| 队列与超时 | GattQueue | 串行、旧代次、超时关闭、异常回调、取消旧启动 | Android回调行为实测 |
+| 队列与超时 | GattQueue | 串行、旧代次、超时关闭、异常回调、取消旧启动；已接受的写入回调非零状态按结果未知分类 | Android回调行为实测 |
 | 协议就绪 | DeviceSession | 咖啡机认证写入完成后须收到新的 `0x83` 才 Ready；READY 前的通知不进入产品遥测或回读判断，认证前的设置帧单独到达会超时且不开放后续写入。秤四条初始化+首个样本真机均 Ready | 其他型号与长时间运行；新门禁尚待真机复验 |
 | 自动连秤 | ReconnectPolicy + NativeDeviceHub | 10分钟窗口、退避、DISCONNECTED/FAILED终态恢复、成功后退避重置、不支持设备停止重试及手动取消测试 | 地址变化时重新扫描/绑定；宿主生命周期实测 |
 | 去皮与重量停止 | ExtractionController / Policy | 去皮写成功后等待近零通知、重量时效、去重、优先按新鲜机器萃取计时执行7秒门槛、机器计时过期时单调时钟兜底、掉秤保护停止、停止未知结果 | 真实秤延迟和业务阈值标定 |
 | 三次萃取链路 | ReplayChecks + shots.tsv | 手动44.098s；流量结束无额外stop；重量17.786s | 不等于物理咖啡机回放；最终杯重未认证 |
-| Android连接/服务/CCCD/写入 | AndroidGattDriver | SDK35编译、AAR构建、lint | 真机permission/revoke/disconnect/GATT回调 |
+| Android连接/服务/CCCD/写入 | AndroidGattDriver | SDK35编译、AAR构建、lint；写请求已接受而回调报错时不冒称设备未执行 | 真机permission/revoke/disconnect/GATT回调 |
 | 扫描 | ScanCoordinator | Android编译/lint；统一扫描两角色 | 真机扫描频率、位置权限与开关验证 |
 | Android后台 | LabService + NativeDeviceHub | connectedDevice前台服务、Binder与页面解耦；静态独立审查 | 真机锁屏/旋转/权限撤销；不能承诺进程被杀后的停液 |
 | 日志 | WireTrace + LabApplication + TraceStore | 真实传输边界、密码整帧脱敏、进程单写队列、顺序/轮转/导出/失败测试 | 真机导出；崩溃前未落盘记录可丢失，codec.hex本身不脱敏 |
