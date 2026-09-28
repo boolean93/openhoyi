@@ -261,7 +261,8 @@ class ExtractionActivity : ThemedActivity() {
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
-        val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
+        val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,
+            SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
         val slotLabel = if (presetSlot == 7) "" else " · 快捷槽位 $presetSlot"
         curveSummary.show("曲线：${item?.name ?: "未选择"}$slotLabel")
         deviceSummary.show("咖啡机：${DeviceStatusText.label(snapshot.coffeeState)} · 电子秤：${DeviceStatusText.label(snapshot.scaleState)}")

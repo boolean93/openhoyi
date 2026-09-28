@@ -424,7 +424,8 @@ class HomeActivity : ThemedActivity() {
         val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE
         val freshAwakeIdle = s.coffee is IdleTelemetry && s.coffee.sleepStateRaw == 0 &&
             s.coffeeAt?.let { now >= it && now - it <= 1500 } == true
-        leverButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && !settingBusy && preparationIdle &&
+        leverButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && !settingBusy &&
+            owner?.sleepNowState != SleepNowTracker.State.UNKNOWN && preparationIdle &&
             s.coffeeState == DeviceState.READY && s.settings != null && freshAwakeIdle
         leverStatus.show(MachineSettingsPresentation.leverMode(s.settings) +
             when (owner?.pendingSetting) {
@@ -454,7 +455,8 @@ class HomeActivity : ThemedActivity() {
         val liveMachine = LiveTelemetry.machine(s.coffee, s.coffeeState, s.coffeeAt, now)
         val coffeeFresh = liveMachine != null
         val idle = liveMachine as? IdleTelemetry
-        val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
+        val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,
+            SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
         sleepButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
             idle?.sleepStateRaw == 0
         val reportedSleep = if (!coffeeFresh) "暂无新鲜状态" else when (idle?.sleepStateRaw) {
@@ -468,6 +470,7 @@ class HomeActivity : ThemedActivity() {
             SleepNowTracker.State.CONFIRMED -> if (idle?.sleepStateRaw == 1) " · 已确认" else ""
             SleepNowTracker.State.FAILED -> " · 写入失败"
             SleepNowTracker.State.UNKNOWN -> " · 上次结果未知"
+            SleepNowTracker.State.RECONCILED -> " · 已重新回报清醒"
             else -> ""
         }
         sleepStatus.show("睡眠状态：$reportedSleep$sleepProgress")

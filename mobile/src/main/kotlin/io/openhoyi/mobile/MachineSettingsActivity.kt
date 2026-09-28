@@ -407,7 +407,9 @@ class MachineSettingsActivity : ThemedActivity() {
             owner?.scheduleWriteState !in setOf(SleepScheduleWriteTracker.State.WRITING,
                 SleepScheduleWriteTracker.State.WAITING_READBACK) &&
             owner?.cupResetState !in setOf(CupResetTracker.State.WRITING,
-                CupResetTracker.State.WAITING_ZERO)
+                CupResetTracker.State.WAITING_ZERO) &&
+            owner?.sleepNowState !in setOf(SleepNowTracker.State.WRITING,
+                SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
         controlButtons.forEach { it.isEnabled = editable }
         cupResetButton.isEnabled = editable && snapshot.settings?.cupCount?.let { it > 0 && it == idle?.cupCount } == true &&
             owner?.cupResetState != CupResetTracker.State.UNKNOWN &&

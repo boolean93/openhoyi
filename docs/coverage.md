@@ -39,7 +39,7 @@
 | 常用机器设置与拨杆模式 | MachineSettingChange、SettingsWriteTracker、MachineSettingsActivity、HomeActivity | 萃取/蒸汽温度、冲泡温差补偿、两路加热、照明、自动待机时间、待机温度、睡眠计划总开关、供水来源、咖啡馆/工作室模式、手动/自动压力/自动流量共593条允许参数报文与旧版编码函数对照；要求新鲜唤醒待机遥测，写入后以新鲜匹配0x83回读确认 | 尚未实机验证设置回读时序；其它低频设置写入未开放 |
 | 累计杯数重置 | CoffeeCommands、CupResetTracker、MachineSettingsActivity | 固定5字节命令与旧版编码函数对照；输入当前杯数并二次确认；发起前要求新鲜且一致的设置/待机杯数；写入后两类新报文都归零才确认；结果未知时须重新取得两类一致回报才允许再次重置 | 无真实重置采集样本，未在Alpha实机执行 |
 | 每周睡眠时间编辑 | WeeklySleepSchedule、DeviceSession、SleepScheduleWriteTracker、MachineSettingsActivity | 旧版整周两包写入样本逐字节对照；500ms顺序写入、禁止并发、两段新回报全周匹配才确认 | 写入期间机器端行为及两段回报时序尚未实机验收；部分成功无自动回滚 |
-| 首页立即睡眠 | CoffeeCommands.sleepNow、DeviceSession、SleepNowTracker、HomeActivity | 旧版固定5字节命令；新鲜待机遥测、显式确认、萃取/设置事务门禁；写入后须新鲜0x40睡眠状态1确认 | 尚未实机验证入睡/唤醒；App没有唤醒命令，需机器拨杆 |
+| 首页立即睡眠 | CoffeeCommands.sleepNow、DeviceSession、SleepNowTracker、HomeActivity | 旧版固定5字节命令；新鲜待机遥测、显式确认、萃取/设置事务门禁；写入后须新鲜0x40睡眠状态1确认；结果未知时阻止后续机器控制，直到新的0x40明确回报清醒或已入睡 | 尚未实机验证入睡/唤醒；App没有唤醒命令，需机器拨杆 |
 | 工作室曲线预热 | CoffeeCommands.brewWait、BrewPreparation、StudioStartGate、MobileService、ExtractionActivity | 0/75–105°C共32帧与旧版编码对照；模式位回读、补偿后±1°C判定、新鲜温度确认、显式启动、取消及10分钟自动取消 | 取消命令无独立回读；实机预热/取消/启动时序未验收 |
 | 机器告警显示 | HoyiCodec、MachineAlarms、HomeActivity、ExtractionActivity | `0x40` bit0–14与旧版C1–C14/C16映射对照；合成帧及新鲜/过期状态单测；新鲜C1–C14和未知bit15阻止启动，C16保留警示 | 采集记录没有非零告警帧，尚无实机告警验证；没有忽略告警入口 |
 | 多页面前台状态 | VisibleScreens、MobileService | 独立页面token、切页500毫秒缓冲；多页面交叠单测通过 | 需实机验证切页对自动连秤窗口的影响 |
