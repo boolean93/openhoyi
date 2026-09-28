@@ -22,6 +22,38 @@ fun main() {
         check((driver.sent.last().third as GattOperation.Write).bytes.contentEquals(byteArrayOf(1)))
         check(outcomes.size==2)
     }
+    case("a pre-dispatch guard cannot cause overlapping GATT operations") {
+        val d=FakeDriver();val q=GattQueue(d,{0});val g=q.open()
+        q.enqueue(GattOperation.Discover,100,beforeDispatch={
+            q.enqueue(GattOperation.Write(Endpoint("s","w"),byteArrayOf(1)),100){}
+            true
+        }){}
+        check(d.sent.size==1 && d.sent.single().third is GattOperation.Discover)
+        q.complete(g,d.sent.single().second,OperationResult.Success())
+        check(d.sent.size==2 && d.sent.last().third is GattOperation.Write)
+    }
+    case("guard rejection leaves the queue usable without sending the rejected write") {
+        val d=FakeDriver();val q=GattQueue(d,{0});val g=q.open()
+        val results=mutableListOf<OperationResult>()
+        q.enqueue(GattOperation.Write(Endpoint("s","w"),byteArrayOf(2,1)),100,beforeDispatch={
+            q.enqueue(GattOperation.Discover,100){results+=it}
+            false
+        }){results+=it}
+        check(results.single() is OperationResult.Failed)
+        check(d.sent.size==1 && d.sent.single().third is GattOperation.Discover)
+        q.complete(g,d.sent.single().second,OperationResult.Success())
+        check(results.size==2 && results.last() is OperationResult.Success)
+    }
+    case("guard disconnect never dispatches a queued command on the old connection") {
+        val d=FakeDriver();val q=GattQueue(d,{0});val g=q.open()
+        val results=mutableListOf<OperationResult>()
+        q.enqueue(GattOperation.Write(Endpoint("s","w"),byteArrayOf(2,1)),100,beforeDispatch={
+            q.disconnect("link lost")
+            true
+        }){results+=it}
+        check(d.sent.isEmpty() && d.closed==listOf(g))
+        check(results.single() is OperationResult.Unknown)
+    }
     case("timeout invalidates generation and never sends queued side effects") {
         val d=FakeDriver();var now=0L;val results=mutableListOf<OperationResult>();val q=GattQueue(d,{now}); val gen=q.open()
         q.enqueue(GattOperation.Write(Endpoint("s","w"),byteArrayOf(2)),100){results+=it}

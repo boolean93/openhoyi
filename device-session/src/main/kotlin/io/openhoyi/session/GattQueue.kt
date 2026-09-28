@@ -36,12 +36,14 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     private fun pump() {
         if(!active||current!=null||pending.isEmpty())return
         val p=pending.removeFirst()
-        if(!runCatching(p.beforeDispatch).getOrDefault(false)) {
+        current=p;deadline=clock()+p.timeout
+        val permitted=runCatching(p.beforeDispatch).getOrDefault(false)
+        if(current!==p)return // The guard may have invalidated the connection.
+        if(!permitted) {
+            current=null
             deliver(p,OperationResult.Failed("pre-dispatch guard rejected operation"))
             pump();return
         }
-        if(!active)return
-        current=p;deadline=clock()+p.timeout
         val accepted=try{driver.execute(generation,p.token,p.operation)}catch(e:Exception){false}
         if(!accepted && current===p) {
             current=null
