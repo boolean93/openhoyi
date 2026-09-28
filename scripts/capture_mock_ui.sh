@@ -167,11 +167,13 @@ adb shell input tap 220 400
 capture portrait-history-detail-dark
 adb shell input keyevent KEYCODE_BACK
 assert_activity HistoryActivity
+sleep 2
 tap_portrait_nav 1 CurveActivity
 adb shell input tap 220 410
 capture portrait-curve-detail-dark
 adb shell input keyevent KEYCODE_BACK
 assert_activity CurveActivity
+sleep 2
 
 tap_portrait_nav 0 HomeActivity
 adb shell input tap 130 173
