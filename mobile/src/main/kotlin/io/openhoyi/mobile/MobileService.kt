@@ -86,6 +86,10 @@ class MobileService : Service() {
             "上次睡眠计划可能只写入一部分。请连接原咖啡机，核对整周计划后再清除提示。"
         MachineWriteRecoveryState.Kind.SLEEP_NOW ->
             "上次立即睡眠未确认。请检查机器，并在原咖啡机回报明确睡眠状态后清除提示。"
+        MachineWriteRecoveryState.Kind.BREW_WAIT -> if (brewPreparation.state in setOf(
+                BrewPreparation.State.WRITING, BrewPreparation.State.WAITING_TEMP,
+                BrewPreparation.State.READY)) null else
+            "预热或取消结果未确认。请检查原咖啡机是否仍在预热；可发送取消命令，待机器回报已唤醒待机后人工确认。"
         MachineWriteRecoveryState.Kind.UNKNOWN ->
             "机器写入安全记录无法识别，已阻止新的控制命令。"
         null -> null
@@ -97,6 +101,10 @@ class MobileService : Service() {
         MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> !scheduleBusy
         MachineWriteRecoveryState.Kind.SLEEP_NOW -> sleepNow.state !in setOf(
             SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
+        MachineWriteRecoveryState.Kind.BREW_WAIT -> !shotRecovery.pending &&
+            !ShotGate.active(shotState) && brewPreparation.state in setOf(
+            BrewPreparation.State.IDLE, BrewPreparation.State.FAILED,
+            BrewPreparation.State.UNKNOWN, BrewPreparation.State.CANCEL_WRITTEN)
         else -> false
     }
     val machineWriteRecoveryKind: MachineWriteRecoveryState.Kind? get() = machineWriteRecovery.kind
@@ -130,6 +138,8 @@ class MobileService : Service() {
     private val sleepNow = SleepNowTracker()
     private val brewPreparation = BrewPreparation()
     private var idleSampleSerial = 0L
+    private var recoveryAfterBrewWaitIdleSerial = 0L
+    private var brewWaitShotStarted = false
     val brewPreparationState: BrewPreparation.State get() = brewPreparation.state
     val brewPreparationProfileId: String? get() = brewPreparation.profileId
     val brewPreparationTargetC: Int? get() = brewPreparation.targetC
@@ -250,8 +260,16 @@ class MobileService : Service() {
                     .onFailure { event("历史记录失败", "shot.history_error") }
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
-                    if (!shotRecovery.clear())
+                    val shotRecordCleared = shotRecovery.clear()
+                    if (!shotRecordCleared)
                         manualSafetyMessage = "无法清除萃取安全记录；请检查机器并重试。"
+                    if (current == ExtractionState.ENDED_OBSERVED && shotRecordCleared && brewWaitShotStarted &&
+                        machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
+                        machineWriteRecovery.matchesDevice(hub?.coffeeAddress)) {
+                        if (!machineWriteRecovery.clear())
+                            event("无法清除预热安全记录；请核对机器", "brew_wait.recovery_clear_failed")
+                        brewWaitShotStarted = false
+                    }
                 }
                 if (current == ExtractionState.OUTCOME_UNKNOWN) saveSeriesCheckpoint(force = true)
                 event("萃取状态：${current.name}", "shot.state")
@@ -993,7 +1011,14 @@ class MobileService : Service() {
         requireNotNull(profile)
         val actual = currentCorrectedBrewTemperature() ?: return "等待新鲜冲泡温度"
         if (BrewPreparation.isAtTarget(actual, profile.temperatureC)) return "温度已达到目标，可直接确认萃取"
+        val coffeeAddress = current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止预热"
         val token = brewPreparation.begin(profile.id, profile.temperatureC) ?: return "无法开始预热"
+        if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.BREW_WAIT, coffeeAddress)) {
+            brewPreparation.consumed()
+            return "无法可靠保存预热安全状态，已阻止预热"
+        }
+        recoveryAfterBrewWaitIdleSerial = idleSampleSerial
+        refreshSafetyNotification()
         event("曲线预热命令已排队：${profile.temperatureC} °C", "brew_wait.requested")
         current.setBrewWait(profile.temperatureC) done@{ result ->
             if (!brewPreparation.written(token, result, idleSampleSerial)) return@done
@@ -1011,6 +1036,7 @@ class MobileService : Service() {
                 BrewPreparation.State.UNKNOWN -> event("预热写入结果未知，请查看机器", "brew_wait.unknown")
                 else -> Unit
             }
+            refreshSafetyNotification()
         }
         return null
     }
@@ -1022,23 +1048,31 @@ class MobileService : Service() {
             if (result != null) return result
             val token = brewPreparation.beginCancel() ?: return "正在取消 Mock 预热"
             brewPreparation.cancelled(token, OperationResult.Success())
+            brewPreparation.consumed()
             refreshMock(mock, now)
             event("Mock 预热已取消；未发送蓝牙命令", "mock.brew_wait_cancelled")
             return null
         }
         if (manualShotActive) return "手动萃取期间不能发送预热取消命令"
-        if (!brewPreparation.active) return "当前没有预热请求"
+        val recovering = machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT
+        if (!brewPreparation.active && !recovering) return "当前没有预热请求"
         val current = hub ?: return "设备服务尚未启动，预热结果未知"
         if (snapshot.coffeeState != DeviceState.READY) return "咖啡机未就绪，无法确认取消预热"
-        val token = brewPreparation.beginCancel() ?: return "正在取消预热"
+        if (!machineWriteRecovery.matchesDevice(current.coffeeAddress)) return "请先连接预热使用的原咖啡机"
+        if (!brewPreparation.active && recovering) {
+            if (!brewPreparation.restoreUnknown()) return "无法进入预热恢复状态"
+        }
+        val token = brewPreparation.beginCancel() ?: return "取消命令已写入或正在取消；请检查机器"
+        recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         event("取消预热命令已排队", "brew_wait.cancel_requested")
         current.setBrewWait(0) done@{ result ->
             if (!brewPreparation.cancelled(token, result)) return@done
             when (brewPreparation.state) {
-                BrewPreparation.State.IDLE -> event("取消预热命令已写入；机器状态无独立回读", "brew_wait.cancel_written")
+                BrewPreparation.State.CANCEL_WRITTEN -> event("取消预热命令已写入；请检查机器，回报待机后人工确认", "brew_wait.cancel_written")
                 BrewPreparation.State.UNKNOWN -> event("取消预热结果未知，请查看机器", "brew_wait.cancel_unknown")
                 else -> Unit
             }
+            refreshSafetyNotification()
         }
         return null
     }
@@ -1063,7 +1097,10 @@ class MobileService : Service() {
             return null
         }
         if (manualShotActive) return "机器手动萃取进行中，请先用拨杆结束"
-        machineWriteSafetyMessage?.let { return it }
+        if (machineWriteRecovery.kind != MachineWriteRecoveryState.Kind.BREW_WAIT ||
+            !machineWriteRecovery.matchesDevice(hub?.coffeeAddress) ||
+            !brewPreparation.matches(profileId, selectedCurve(profileId, slot)?.temperatureC ?: -1))
+            machineWriteSafetyMessage?.let { return it }
         if (shotRecovery.pending) return restartShotWarning
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
@@ -1104,6 +1141,8 @@ class MobileService : Service() {
         }
         activeShotTargetHundredthsGram = profile.targetHundredthsGram
         if (brewPreparation.active) brewPreparation.consumed()
+        if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
+            brewWaitShotStarted = true
         val shotId = runCatching { history?.begin(profile.id, slot = slot) }
             .onFailure { event("历史记录失败", "shot.history_error") }
             .getOrNull() ?: java.util.UUID.randomUUID().toString()
@@ -1200,6 +1239,33 @@ class MobileService : Service() {
         }.onFailure { event("安全提醒通知不可用", "shot.safety_notify_error") }
     }
     fun acknowledgeManualSafety() {
+        if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
+            if (shotRecovery.pending || ShotGate.active(shotState)) {
+                event("请先确认萃取结束，再核对预热状态", "brew_wait.recovery_shot_active")
+                return
+            }
+            val now = SystemClock.elapsedRealtime()
+            val idle = snapshot.coffee as? IdleTelemetry
+            val state = brewPreparation.state
+            val evidence = MachineWriteRecoveryState.BrewWaitEvidence(hub?.coffeeAddress,
+                idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
+                idleSampleSerial, snapshot.coffeeAt, now,
+                state !in setOf(BrewPreparation.State.IDLE, BrewPreparation.State.FAILED,
+                    BrewPreparation.State.UNKNOWN, BrewPreparation.State.CANCEL_WRITTEN))
+            if (snapshot.coffeeState != DeviceState.READY ||
+                !machineWriteRecovery.canClearBrewWait(evidence, recoveryAfterBrewWaitIdleSerial)) {
+                event("请连接原咖啡机，检查预热状态并等待新的已唤醒待机回报", "brew_wait.recovery_waiting")
+                return
+            }
+            if (!machineWriteRecovery.clear()) {
+                event("无法保存预热安全记录的清除状态", "brew_wait.recovery_clear_failed")
+                return
+            }
+            brewPreparation.consumed()
+            event("用户已核对机器预热状态，清除上次预热提醒", "brew_wait.recovery_acknowledged")
+            refreshSafetyNotification()
+            return
+        }
         if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET) {
             val now = SystemClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry

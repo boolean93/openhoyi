@@ -275,7 +275,7 @@ class ExtractionActivity : ThemedActivity() {
             state == ExtractionState.STOP_REQUESTED -> "停止命令处理中，请确认机器停水"
             state == ExtractionState.OUTCOME_UNKNOWN -> "结果未知，请先检查咖啡机"
             state == ExtractionState.ENDED_OBSERVED -> "上一杯已结束；确认机器停水后，可开始下一杯"
-            else -> blocked ?: studioBlocked ?: "设备与曲线已就绪"
+            else -> owner?.machineWriteSafetyMessage ?: blocked ?: studioBlocked ?: "设备与曲线已就绪"
         }
         readiness.show(guidance + unknownAdvice)
         readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
@@ -303,6 +303,7 @@ class ExtractionActivity : ThemedActivity() {
                     BrewPreparation.State.WAITING_TEMP -> "正在等待新鲜温度数据"
                     BrewPreparation.State.READY -> if (temperatureReady) "目标温度已达到，仍需确认启动" else "温度已偏离目标"
                     BrewPreparation.State.CANCELLING -> "正在取消预热"
+                    BrewPreparation.State.CANCEL_WRITTEN -> "取消命令已写入，需检查机器并在首页确认"
                     BrewPreparation.State.FAILED -> "预热命令未写入，请取消后重试"
                     BrewPreparation.State.UNKNOWN -> "预热结果未知，请查看机器并取消"
                 })
@@ -344,12 +345,16 @@ class ExtractionActivity : ThemedActivity() {
         } else if (target == 0 && profile != null) "这条曲线不按秤重停机，由咖啡机按曲线结束" else "")
         val points = owner?.chartPoints ?: emptyList()
         if (chart.points != points) chart.points = points
-        prepare.isEnabled = owner?.running == true && blocked == null && studio && !temperatureReady &&
+        prepare.isEnabled = owner?.running == true && owner.machineWriteSafetyMessage == null &&
+            blocked == null && studio && !temperatureReady &&
             !settingBusy && !sleepBusy &&
             preparation == BrewPreparation.State.IDLE
-        cancelPrepare.isEnabled = owner?.running == true && owner?.manualShotActive != true && preparation != BrewPreparation.State.IDLE &&
+        cancelPrepare.isEnabled = owner?.running == true && owner?.manualShotActive != true &&
+            (preparation !in setOf(BrewPreparation.State.IDLE, BrewPreparation.State.CANCEL_WRITTEN) ||
+                owner?.machineWriteRecoveryKind == MachineWriteRecoveryState.Kind.BREW_WAIT && preparation == BrewPreparation.State.IDLE) &&
             snapshot.coffeeState == DeviceState.READY && !ShotGate.active(state)
-        start.isEnabled = owner?.running == true && blocked == null && studioBlocked == null &&
+        start.isEnabled = owner?.running == true && owner.machineWriteSafetyMessage == null &&
+            blocked == null && studioBlocked == null &&
             !settingBusy && !sleepBusy
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
         stop.isEnabled = stopAction.enabled

@@ -2,7 +2,7 @@ package io.openhoyi.mobile
 
 /** Durable intent written before a machine control whose outcome may outlive the Service. */
 class MachineWriteRecoveryState(private val storage: Storage) {
-    enum class Kind { CUP_RESET, SETTING, SLEEP_SCHEDULE, SLEEP_NOW, UNKNOWN }
+    enum class Kind { CUP_RESET, SETTING, SLEEP_SCHEDULE, SLEEP_NOW, BREW_WAIT, UNKNOWN }
     data class Record(val kind: Kind?, val address: String?) {
         val pending: Boolean get() = kind != null
     }
@@ -60,6 +60,14 @@ class MachineWriteRecoveryState(private val storage: Storage) {
         evidence.sleepSerial>afterSleepSerial &&
         (evidence.sleepStateRaw==0 || evidence.sleepStateRaw==1) &&
         evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
+
+    /** No independent preheat-cancel readback exists: this only enables explicit human acknowledgement. */
+    data class BrewWaitEvidence(val address: String?, val idleAwake: Boolean, val idleSerial: Long,
+        val idleAtMs: Long?, val nowMs: Long, val writeActive: Boolean)
+    fun canClearBrewWait(evidence: BrewWaitEvidence, afterIdleSerial: Long): Boolean =
+        kind == Kind.BREW_WAIT && matchesDevice(evidence.address) && !evidence.writeActive &&
+        evidence.idleAwake && evidence.idleSerial > afterIdleSerial &&
+        evidence.idleAtMs?.let { it <= evidence.nowMs && evidence.nowMs - it <= 1500 } == true
 
     fun arm(kind: Kind,address: String?): Boolean {
         if (kind==Kind.UNKNOWN || pending) return false

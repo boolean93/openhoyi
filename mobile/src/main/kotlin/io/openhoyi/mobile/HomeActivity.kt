@@ -135,6 +135,7 @@ class HomeActivity : ThemedActivity() {
                 MachineWriteRecoveryState.Kind.SETTING -> "核对机器设置"
                 MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> "核对整周睡眠计划"
                 MachineWriteRecoveryState.Kind.SLEEP_NOW -> "核对机器睡眠状态"
+                MachineWriteRecoveryState.Kind.BREW_WAIT -> "核对机器预热状态"
                 else -> "确认已检查机器"
             }
             val message = when (recoveryKind) {
@@ -146,6 +147,8 @@ class HomeActivity : ThemedActivity() {
                     "计划可能只写入了一部分。请在机器上核对整周计划；重新连接原机器并等两段新的完整计划回报后才能清除提醒，清除不会补发计划。"
                 MachineWriteRecoveryState.Kind.SLEEP_NOW ->
                     "请检查机器是否已入睡；App 不能唤醒机器，需要时请用拨杆唤醒。重新连接原机器并等新的明确睡眠状态后才能清除提醒，清除不会重发入睡命令。"
+                MachineWriteRecoveryState.Kind.BREW_WAIT ->
+                    "请检查原咖啡机是否仍在预热。需要时先在萃取页点“取消预热”；取消写入成功不等于机器已取消。等新的已唤醒待机回报，且确认机器安全后再清除；清除不会发送命令。"
                 else -> "请先检查机器，并重新连接直到显示新的待机状态。清除提示不会改变机器状态或历史中的“结果未知”。"
             }
             AlertDialog.Builder(this).setTitle(title).setMessage(message)

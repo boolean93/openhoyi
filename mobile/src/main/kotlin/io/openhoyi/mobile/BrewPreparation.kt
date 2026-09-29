@@ -5,7 +5,7 @@ import kotlin.math.abs
 
 /** Studio preheat: transport result and post-write temperature evidence remain separate. */
 class BrewPreparation {
-    enum class State { IDLE, WRITING, WAITING_TEMP, READY, CANCELLING, FAILED, UNKNOWN }
+    enum class State { IDLE, WRITING, WAITING_TEMP, READY, CANCELLING, CANCEL_WRITTEN, FAILED, UNKNOWN }
     var state = State.IDLE
         private set
     var profileId: String? = null
@@ -50,17 +50,25 @@ class BrewPreparation {
 
     fun isActive(token: Long): Boolean = token == serial && state in setOf(State.WAITING_TEMP, State.READY)
 
+    /** The durable intent has no trustworthy profile or target after a process restart. */
+    fun restoreUnknown(): Boolean {
+        if (state != State.IDLE) return false
+        state = State.UNKNOWN
+        profileId = null
+        targetC = null
+        ++serial
+        return true
+    }
+
     fun beginCancel(): Long? {
-        if (state == State.IDLE || state == State.CANCELLING) return null
+        if (state == State.IDLE || state == State.CANCELLING || state == State.CANCEL_WRITTEN) return null
         state = State.CANCELLING
         return ++serial
     }
 
     fun cancelled(token: Long, result: OperationResult): Boolean {
         if (token != serial || state != State.CANCELLING) return false
-        if (result is OperationResult.Success) {
-            consumed()
-        } else state = State.UNKNOWN
+        state = if (result is OperationResult.Success) State.CANCEL_WRITTEN else State.UNKNOWN
         return true
     }
 

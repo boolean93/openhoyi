@@ -107,4 +107,20 @@ class MachineWriteRecoveryStateTest {
         assertFalse(state.canClearSleep(good.copy(idleAtMs=0,nowMs=1_501),3))
         assertFalse(state.canClearSleep(good.copy(writeActive=true),3))
     }
+
+    @Test fun brewWaitIntentSurvivesRestartAndNeedsFreshIdlePlusHumanCheck() {
+        val disk = Memory()
+        assertTrue(MachineWriteRecoveryState(disk).arm(MachineWriteRecoveryState.Kind.BREW_WAIT,
+            "AA:BB:CC:DD:EE:01"))
+        val restarted = MachineWriteRecoveryState(disk)
+        assertEquals(MachineWriteRecoveryState.Kind.BREW_WAIT, restarted.kind)
+        val good = MachineWriteRecoveryState.BrewWaitEvidence("AA:BB:CC:DD:EE:01",
+            true, 4, 100, 100, false)
+        assertTrue(restarted.canClearBrewWait(good, 3))
+        assertFalse(restarted.canClearBrewWait(good.copy(address = "AA:BB:CC:DD:EE:02"), 3))
+        assertFalse(restarted.canClearBrewWait(good.copy(idleSerial = 3), 3))
+        assertFalse(restarted.canClearBrewWait(good.copy(idleAwake = false), 3))
+        assertFalse(restarted.canClearBrewWait(good.copy(idleAtMs = 0, nowMs = 1_501), 3))
+        assertFalse(restarted.canClearBrewWait(good.copy(writeActive = true), 3))
+    }
 }
