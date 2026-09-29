@@ -32,7 +32,9 @@ class BrewPreparationTest {
         assertTrue(preparation.cancelled(retry, OperationResult.Success()))
         assertEquals(BrewPreparation.State.CANCEL_WRITTEN, preparation.state)
         assertNull(preparation.begin("curve-b", 90))
-        assertNull(preparation.beginCancel())
+        val explicitRetry = requireNotNull(preparation.beginCancel())
+        assertTrue(preparation.cancelled(explicitRetry, OperationResult.Success()))
+        assertEquals(BrewPreparation.State.CANCEL_WRITTEN, preparation.state)
         preparation.consumed()
         val second = requireNotNull(preparation.begin("curve-b", 90))
         assertTrue(preparation.written(second, OperationResult.Success(), 0))
@@ -49,6 +51,16 @@ class BrewPreparationTest {
         val token = requireNotNull(preparation.beginCancel())
         assertTrue(preparation.cancelled(token, OperationResult.Success()))
         assertEquals(BrewPreparation.State.CANCEL_WRITTEN, preparation.state)
+    }
+
+    @Test fun timeoutWithoutSafeCancellationBecomesUnknown() {
+        val preparation = BrewPreparation()
+        val token = requireNotNull(preparation.begin("curve-a", 92))
+        assertTrue(preparation.written(token, OperationResult.Success(), 0))
+        assertTrue(preparation.timedOut(token))
+        assertEquals(BrewPreparation.State.UNKNOWN, preparation.state)
+        assertFalse(preparation.timedOut(token))
+        assertNotNull(preparation.beginCancel())
     }
 
     @Test fun correctedTemperatureUsesSameOneDegreeRuleAsLegacy() {

@@ -350,9 +350,11 @@ class ExtractionActivity : ThemedActivity() {
             !settingBusy && !sleepBusy &&
             preparation == BrewPreparation.State.IDLE
         cancelPrepare.isEnabled = owner?.running == true && owner?.manualShotActive != true &&
-            (preparation !in setOf(BrewPreparation.State.IDLE, BrewPreparation.State.CANCEL_WRITTEN) ||
+            (preparation != BrewPreparation.State.IDLE ||
                 owner?.machineWriteRecoveryKind == MachineWriteRecoveryState.Kind.BREW_WAIT && preparation == BrewPreparation.State.IDLE) &&
-            snapshot.coffeeState == DeviceState.READY && !ShotGate.active(state)
+            owner?.brewWaitCancelBlock == null
+        cancelPrepare.text = if (preparation == BrewPreparation.State.CANCEL_WRITTEN)
+            "再次发送取消预热" else "取消预热"
         start.isEnabled = owner?.running == true && owner.machineWriteSafetyMessage == null &&
             blocked == null && studioBlocked == null &&
             !settingBusy && !sleepBusy

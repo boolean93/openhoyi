@@ -50,6 +50,13 @@ class BrewPreparation {
 
     fun isActive(token: Long): Boolean = token == serial && state in setOf(State.WAITING_TEMP, State.READY)
 
+    fun timedOut(token: Long): Boolean {
+        if (!isActive(token)) return false
+        state = State.UNKNOWN
+        ++serial
+        return true
+    }
+
     /** The durable intent has no trustworthy profile or target after a process restart. */
     fun restoreUnknown(): Boolean {
         if (state != State.IDLE) return false
@@ -61,7 +68,7 @@ class BrewPreparation {
     }
 
     fun beginCancel(): Long? {
-        if (state == State.IDLE || state == State.CANCELLING || state == State.CANCEL_WRITTEN) return null
+        if (state == State.IDLE || state == State.CANCELLING) return null
         state = State.CANCELLING
         return ++serial
     }

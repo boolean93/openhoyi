@@ -282,7 +282,7 @@ fun deviceChecks():Int {
         now=1_501;complete()
         check(pending is OperationResult.Failed && d.calls.size==submitted)
     }
-    case("all non-recovery coffee controls require fresh idle at submission") {
+    case("all coffee writes except emergency stop require fresh idle at submission") {
         val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
         s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
         fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
@@ -302,8 +302,31 @@ fun deviceChecks():Int {
         s.resetCupCount {rejected+=it}
         s.setBrewWait(92){rejected+=it}
         check(rejected.size==5 && rejected.all{it is OperationResult.Failed} && d.calls.size==before)
-        s.setBrewWait(0){}
-        check(d.calls.size==before+1)
+        s.setBrewWait(0){rejected+=it}
+        check(rejected.size==6 && rejected.last() is OperationResult.Failed && d.calls.size==before)
+    }
+    case("preheat cancel is rechecked before a queued GATT write") {
+        val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val submitted=d.calls.size
+        var cancellation:OperationResult?=null
+        s.setBrewWait(0){cancellation=it}
+        check(cancellation==null && d.calls.size==submitted)
+        now=100
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,
+            hex("80080700000000052421325103"))
+        complete()
+        check(cancellation is OperationResult.Failed && d.calls.size==submitted)
     }
     case("weekly sleep second fragment is withheld when machine starts extracting") {
         val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})

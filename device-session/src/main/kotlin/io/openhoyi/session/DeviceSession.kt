@@ -163,6 +163,14 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         return role==DeviceRole.COFFEE && state==DeviceState.READY && observedAt<=now &&
             now-observedAt<=1500 && idle.sleepStateRaw==0 && idle.alarmBits and 0xBFFF==0
     }
+    private fun canCancelBrewWait():Boolean {
+        val idle=lastIdle ?: return false
+        val observedAt=lastIdleAtMs ?: return false
+        val now=clock()
+        // Cancellation is allowed during an alarm, but never from stale or extraction telemetry.
+        return role==DeviceRole.COFFEE && state==DeviceState.READY && observedAt<=now &&
+            now-observedAt<=1500 && idle.sleepStateRaw==0
+    }
     fun startExtraction(parameters:StartParameters,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) { callback(OperationResult.Failed("weekly sleep write active")); return }
         if (!canControlFromIdle()) {
@@ -222,7 +230,11 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     fun setBrewWait(targetC:Int,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
-        else if (targetC==0) send(CoffeeCommands.brewWait(0),DeviceRole.COFFEE,callback=callback)
+        else if (targetC==0) {
+            if (!canCancelBrewWait()) callback(OperationResult.Failed("fresh awake idle telemetry required for preheat cancel"))
+            else send(CoffeeCommands.brewWait(0),DeviceRole.COFFEE,
+                beforeDispatch=::canCancelBrewWait,callback=callback)
+        }
         else sendFromIdle(CoffeeCommands.brewWait(targetC),callback)
     }
     fun disconnect(){activeAddress=null;lastIdle=null;lastIdleAtMs=null;setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}

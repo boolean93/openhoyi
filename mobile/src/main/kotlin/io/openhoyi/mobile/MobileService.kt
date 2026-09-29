@@ -143,6 +143,9 @@ class MobileService : Service() {
     val brewPreparationState: BrewPreparation.State get() = brewPreparation.state
     val brewPreparationProfileId: String? get() = brewPreparation.profileId
     val brewPreparationTargetC: Int? get() = brewPreparation.targetC
+    val brewWaitCancelBlock: String? get() = if (mock != null) null else
+        BrewWaitCancelGate.block(snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
+            SystemClock.elapsedRealtime(), shotState, shotRecovery.pending)
     private var sleepSampleSerial = 0L
     private val sleepNowUnresolved: Boolean get() = sleepNow.state == SleepNowTracker.State.UNKNOWN
     private val sleepNowUnresolvedMessage = "上次立即睡眠结果未知，请等待新的机器待机状态或重新连接"
@@ -1027,8 +1030,13 @@ class MobileService : Service() {
                     event("预热命令已写入，等待温度到达", "brew_wait.written")
                     handler.postDelayed({
                         if (brewPreparation.isActive(token)) {
-                            event("预热超过10分钟，正在取消", "brew_wait.timeout")
-                            cancelBrewPreparation()
+                            val blocked = cancelBrewPreparation()
+                            if (blocked == null && brewPreparation.state != BrewPreparation.State.UNKNOWN)
+                                event("预热超过10分钟，已请求取消", "brew_wait.timeout_cancel_requested")
+                            else if (brewPreparation.timedOut(token)) {
+                                event("预热超时，取消命令未发送：$blocked。请检查机器", "brew_wait.timeout_cancel_blocked")
+                                refreshSafetyNotification()
+                            }
                         }
                     }, 600_000)
                 }
@@ -1057,8 +1065,8 @@ class MobileService : Service() {
         val recovering = machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT
         if (!brewPreparation.active && !recovering) return "当前没有预热请求"
         val current = hub ?: return "设备服务尚未启动，预热结果未知"
-        if (snapshot.coffeeState != DeviceState.READY) return "咖啡机未就绪，无法确认取消预热"
         if (!machineWriteRecovery.matchesDevice(current.coffeeAddress)) return "请先连接预热使用的原咖啡机"
+        brewWaitCancelBlock?.let { return it }
         if (!brewPreparation.active && recovering) {
             if (!brewPreparation.restoreUnknown()) return "无法进入预热恢复状态"
         }
