@@ -65,4 +65,33 @@ class MachineWriteRecoveryStateTest {
         assertFalse(state.canClearCupReset(good.copy(idleAtMs=0,nowMs=1_501),3,6))
         assertFalse(state.canClearCupReset(good.copy(writeActive=true),3,6))
     }
+
+    @Test fun ordinarySettingNeedsNewReadbackAndUserAcknowledgementAfterRestart() {
+        val disk=Memory()
+        assertTrue(MachineWriteRecoveryState(disk).arm(MachineWriteRecoveryState.Kind.SETTING,
+            "AA:BB:CC:DD:EE:01"))
+        val restarted=MachineWriteRecoveryState(disk)
+        val good=MachineWriteRecoveryState.SettingEvidence("AA:BB:CC:DD:EE:01",true,1,true,100,100,false)
+        assertTrue(restarted.canClearSetting(good,0))
+        assertFalse(restarted.canClearSetting(good.copy(address="AA:BB:CC:DD:EE:02"),0))
+        assertFalse(restarted.canClearSetting(good.copy(settingsSerial=0),0))
+        assertFalse(restarted.canClearSetting(good.copy(settingsPresent=false),0))
+        assertFalse(restarted.canClearSetting(good.copy(idleAwake=false),0))
+        assertFalse(restarted.canClearSetting(good.copy(idleAtMs=0,nowMs=1_501),0))
+        assertFalse(restarted.canClearSetting(good.copy(writeActive=true),0))
+    }
+
+    @Test fun splitSleepScheduleNeedsBothFreshFragmentsFromOriginalMachine() {
+        val state=MachineWriteRecoveryState(Memory())
+        assertTrue(state.arm(MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE,"AA:BB:CC:DD:EE:01"))
+        val good=MachineWriteRecoveryState.ScheduleEvidence("AA:BB:CC:DD:EE:01",true,4,7,
+            true,100,100,false)
+        assertTrue(state.canClearSchedule(good,3,6))
+        assertFalse(state.canClearSchedule(good.copy(address="AA:BB:CC:DD:EE:02"),3,6))
+        assertFalse(state.canClearSchedule(good.copy(firstSerial=3),3,6))
+        assertFalse(state.canClearSchedule(good.copy(secondSerial=6),3,6))
+        assertFalse(state.canClearSchedule(good.copy(completePlan=false),3,6))
+        assertFalse(state.canClearSchedule(good.copy(idleAwake=false),3,6))
+        assertFalse(state.canClearSchedule(good.copy(writeActive=true),3,6))
+    }
 }

@@ -2,7 +2,7 @@ package io.openhoyi.mobile
 
 /** Durable intent written before a machine control whose outcome may outlive the Service. */
 class MachineWriteRecoveryState(private val storage: Storage) {
-    enum class Kind { CUP_RESET, UNKNOWN }
+    enum class Kind { CUP_RESET, SETTING, SLEEP_SCHEDULE, UNKNOWN }
     data class Record(val kind: Kind?, val address: String?) {
         val pending: Boolean get() = kind != null
     }
@@ -35,6 +35,22 @@ class MachineWriteRecoveryState(private val storage: Storage) {
         kind==Kind.CUP_RESET && matchesDevice(evidence.address) && !evidence.writeActive &&
         evidence.settingsSerial>afterSettingsSerial && evidence.idleSerial>afterIdleSerial &&
         evidence.settingsCount!=null && evidence.settingsCount==evidence.idleCount &&
+        evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
+
+    data class SettingEvidence(val address: String?, val settingsPresent: Boolean, val settingsSerial: Long,
+        val idleAwake: Boolean, val idleAtMs: Long?, val nowMs: Long, val writeActive: Boolean)
+    fun canClearSetting(evidence: SettingEvidence, afterSettingsSerial: Long): Boolean =
+        kind==Kind.SETTING && matchesDevice(evidence.address) && !evidence.writeActive &&
+        evidence.settingsPresent && evidence.settingsSerial>afterSettingsSerial && evidence.idleAwake &&
+        evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
+
+    data class ScheduleEvidence(val address: String?, val completePlan: Boolean,
+        val firstSerial: Long, val secondSerial: Long, val idleAwake: Boolean,
+        val idleAtMs: Long?, val nowMs: Long, val writeActive: Boolean)
+    fun canClearSchedule(evidence: ScheduleEvidence, afterFirstSerial: Long, afterSecondSerial: Long): Boolean =
+        kind==Kind.SLEEP_SCHEDULE && matchesDevice(evidence.address) && !evidence.writeActive &&
+        evidence.completePlan && evidence.firstSerial>afterFirstSerial &&
+        evidence.secondSerial>afterSecondSerial && evidence.idleAwake &&
         evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
 
     fun arm(kind: Kind,address: String?): Boolean {

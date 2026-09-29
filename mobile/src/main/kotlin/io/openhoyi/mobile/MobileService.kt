@@ -80,14 +80,26 @@ class MobileService : Service() {
     val machineWriteSafetyMessage: String? get() = when (machineWriteRecovery.kind) {
         MachineWriteRecoveryState.Kind.CUP_RESET ->
             "上次杯数重置未确认。请连接原咖啡机，核对设置与待机杯数后再清除提示。"
+        MachineWriteRecoveryState.Kind.SETTING ->
+            "上次机器设置未确认。请连接原咖啡机，核对当前设置后再清除提示。"
+        MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE ->
+            "上次睡眠计划可能只写入一部分。请连接原咖啡机，核对整周计划后再清除提示。"
         MachineWriteRecoveryState.Kind.UNKNOWN ->
             "机器写入安全记录无法识别，已阻止新的控制命令。"
         null -> null
     }
-    val machineWriteAcknowledgementAvailable: Boolean get() =
-        machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET
+    val machineWriteAcknowledgementAvailable: Boolean get() = when (machineWriteRecovery.kind) {
+        MachineWriteRecoveryState.Kind.CUP_RESET -> !cupResetBusy
+        MachineWriteRecoveryState.Kind.SETTING -> settingsWrite.state !in setOf(
+            SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
+        MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> !scheduleBusy
+        else -> false
+    }
+    val machineWriteRecoveryKind: MachineWriteRecoveryState.Kind? get() = machineWriteRecovery.kind
     private var recoveryAfterSettingsSerial = 0L
     private var recoveryAfterIdleSerial = 0L
+    private var recoveryAfterFirstSleepSerial = 0L
+    private var recoveryAfterSecondSleepSerial = 0L
     private val settingsWrite = SettingsWriteTracker()
     private val cupReset = CupResetTracker()
     val cupResetState: CupResetTracker.State get() = if (mock?.cupReset == true)
@@ -100,7 +112,7 @@ class MobileService : Service() {
         val previous = cupReset.state
         val confirmed = if (settingsFrame) cupReset.observeSettings(++cupSettingsSerial, count)
             else cupReset.observeIdle(++cupIdleSerial, count)
-        if (cupReset.state in setOf(CupResetTracker.State.CONFIRMED, CupResetTracker.State.RECONCILED) &&
+        if (cupReset.state == CupResetTracker.State.CONFIRMED &&
             machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET &&
             !machineWriteRecovery.clear())
             event("无法清除杯数重置安全记录；请核对机器", "cups.recovery_clear_failed")
@@ -340,6 +352,12 @@ class MobileService : Service() {
                             else if (previousSettingState == SettingsWriteTracker.State.UNKNOWN &&
                                 settingsWrite.state == SettingsWriteTracker.State.RECONCILED)
                                 event("机器设置已重新回读；上次写入未获确认", "settings.reconciled")
+                            if (settingsWrite.state == SettingsWriteTracker.State.CONFIRMED &&
+                                machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
+                                if (!machineWriteRecovery.clear())
+                                    event("无法清除机器设置安全记录", "settings.recovery_clear_failed")
+                                refreshSafetyNotification()
+                            }
                             snapshot.copy(settings = frame)
                         }
                         is SleepPart -> {
@@ -355,6 +373,12 @@ class MobileService : Service() {
                                 if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED)
                                     event("机器已回读完整睡眠计划", "sleep_schedule.confirmed")
                                 else event("已重新收到完整计划，请核对机器时间", "sleep_schedule.reconciled")
+                            }
+                            if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED &&
+                                machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
+                                if (!machineWriteRecovery.clear())
+                                    event("无法清除睡眠计划安全记录", "sleep_schedule.recovery_clear_failed")
+                                refreshSafetyNotification()
                             }
                             snapshot
                         }
@@ -641,7 +665,14 @@ class MobileService : Service() {
         if (change is MachineSettingChange.StandbyTemperature &&
             change.minutes != observed.standbyMinutes) return "机器自动待机时间已变化，请重新选择"
         if (change.matches(observed)) return "机器回读已是该设置"
+        val coffeeAddress = current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止设置写入"
         val token = settingsWrite.begin(change) ?: return "正在等待上一次设置的结果"
+        if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.SETTING, coffeeAddress)) {
+            settingsWrite.written(token, OperationResult.Failed("safety record unavailable"), settingsSampleSerial)
+            return "无法可靠保存设置安全状态，已阻止发送"
+        }
+        recoveryAfterSettingsSerial = settingsSampleSerial
+        refreshSafetyNotification()
         event("机器设置命令已排队：${MachineSettingsPresentation.change(change)}", "settings.requested")
         current.writeSetting(change) done@{ result ->
             if (!settingsWrite.written(token, result, settingsSampleSerial)) return@done
@@ -649,12 +680,22 @@ class MobileService : Service() {
                 SettingsWriteTracker.State.WAITING_READBACK -> {
                     event("命令已写入，等待机器回读", "settings.written")
                     handler.postDelayed({
-                        if (settingsWrite.timeout(token, settingsSampleSerial))
+                        if (settingsWrite.timeout(token, settingsSampleSerial)) {
+                            recoveryAfterSettingsSerial = settingsSampleSerial
                             event("机器未回读，设置结果未知", "settings.unknown")
+                        }
                     }, 6000)
                 }
-                SettingsWriteTracker.State.FAILED -> event("机器设置命令未写入", "settings.failed")
-                SettingsWriteTracker.State.UNKNOWN -> event("机器设置写入结果未知", "settings.unknown")
+                SettingsWriteTracker.State.FAILED -> {
+                    if (!machineWriteRecovery.clear())
+                        event("无法清除机器设置安全记录", "settings.recovery_clear_failed")
+                    refreshSafetyNotification()
+                    event("机器设置命令未写入", "settings.failed")
+                }
+                SettingsWriteTracker.State.UNKNOWN -> {
+                    recoveryAfterSettingsSerial = settingsSampleSerial
+                    event("机器设置写入结果未知", "settings.unknown")
+                }
                 else -> Unit
             }
         }
@@ -765,24 +806,49 @@ class MobileService : Service() {
         val changedDays = expected.days.indices.count { expected.days[it] != target.days[it] }
         if (changedDays == 0) return "机器回读已是该计划"
         if (changedDays != 1) return "一次只能修改一天的睡眠计划"
+        val coffeeAddress = current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止计划写入"
         val token = scheduleWrite.begin(target, firstSleepSerial, secondSleepSerial)
             ?: return "正在等待上一次睡眠计划结果"
+        if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE, coffeeAddress)) {
+            scheduleWrite.written(token, OperationResult.Failed("safety record unavailable"),
+                firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond)
+            return "无法可靠保存计划安全状态，已阻止发送"
+        }
+        recoveryAfterFirstSleepSerial = firstSleepSerial
+        recoveryAfterSecondSleepSerial = secondSleepSerial
+        refreshSafetyNotification()
         event("整周睡眠计划两包写入已排队", "sleep_schedule.requested")
         current.writeSleepSchedule(target) done@{ result ->
             if (!scheduleWrite.written(token, result, firstSleepSerial, secondSleepSerial,
                     snapshot.sleepFirst, snapshot.sleepSecond)) return@done
             when (scheduleWrite.state) {
-                SleepScheduleWriteTracker.State.CONFIRMED ->
+                SleepScheduleWriteTracker.State.CONFIRMED -> {
+                    if (!machineWriteRecovery.clear())
+                        event("无法清除睡眠计划安全记录", "sleep_schedule.recovery_clear_failed")
+                    refreshSafetyNotification()
                     event("机器已回读完整睡眠计划", "sleep_schedule.confirmed")
+                }
                 SleepScheduleWriteTracker.State.WAITING_READBACK -> {
                     event("两包计划已写入，等待机器回读整周", "sleep_schedule.written")
                     handler.postDelayed({
-                        if (scheduleWrite.timeout(token, firstSleepSerial, secondSleepSerial))
+                        if (scheduleWrite.timeout(token, firstSleepSerial, secondSleepSerial)) {
+                            recoveryAfterFirstSleepSerial = firstSleepSerial
+                            recoveryAfterSecondSleepSerial = secondSleepSerial
                             event("睡眠计划未完整回读，结果未知", "sleep_schedule.unknown")
+                        }
                     }, 8000)
                 }
-                SleepScheduleWriteTracker.State.FAILED -> event("睡眠计划首包未写入", "sleep_schedule.failed")
-                SleepScheduleWriteTracker.State.UNKNOWN -> event("睡眠计划可能部分写入，请核对机器", "sleep_schedule.unknown")
+                SleepScheduleWriteTracker.State.FAILED -> {
+                    if (!machineWriteRecovery.clear())
+                        event("无法清除睡眠计划安全记录", "sleep_schedule.recovery_clear_failed")
+                    refreshSafetyNotification()
+                    event("睡眠计划首包未写入", "sleep_schedule.failed")
+                }
+                SleepScheduleWriteTracker.State.UNKNOWN -> {
+                    recoveryAfterFirstSleepSerial = firstSleepSerial
+                    recoveryAfterSecondSleepSerial = secondSleepSerial
+                    event("睡眠计划可能部分写入，请核对机器", "sleep_schedule.unknown")
+                }
                 else -> Unit
             }
         }
@@ -1106,7 +1172,7 @@ class MobileService : Service() {
         }.onFailure { event("安全提醒通知不可用", "shot.safety_notify_error") }
     }
     fun acknowledgeManualSafety() {
-        if (manualSafetyMessage == null && machineWriteAcknowledgementAvailable) {
+        if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET) {
             val now = SystemClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.CupResetEvidence(hub?.coffeeAddress,
@@ -1123,6 +1189,52 @@ class MobileService : Service() {
                 return
             }
             event("用户已核对机器杯数，清除上次重置提醒", "cups.recovery_acknowledged")
+            refreshSafetyNotification()
+            return
+        }
+        if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
+            val now = SystemClock.elapsedRealtime()
+            val idle = snapshot.coffee as? IdleTelemetry
+            val evidence = MachineWriteRecoveryState.SettingEvidence(hub?.coffeeAddress,
+                snapshot.settings != null, settingsSampleSerial,
+                idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
+                snapshot.coffeeAt, now,
+                settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,
+                    SettingsWriteTracker.State.WAITING_READBACK))
+            if (snapshot.coffeeState != DeviceState.READY ||
+                !machineWriteRecovery.canClearSetting(evidence, recoveryAfterSettingsSerial)) {
+                event("请连接原咖啡机，等待新的设置与已唤醒待机状态后再清除提示", "settings.recovery_waiting")
+                return
+            }
+            if (!machineWriteRecovery.clear()) {
+                event("无法保存机器设置安全记录的清除状态", "settings.recovery_clear_failed")
+                return
+            }
+            event("用户已核对机器当前设置，清除上次写入提醒", "settings.recovery_acknowledged")
+            refreshSafetyNotification()
+            return
+        }
+        if (manualSafetyMessage == null &&
+            machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
+            val now = SystemClock.elapsedRealtime()
+            val idle = snapshot.coffee as? IdleTelemetry
+            val evidence = MachineWriteRecoveryState.ScheduleEvidence(hub?.coffeeAddress,
+                WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond) != null,
+                firstSleepSerial, secondSleepSerial,
+                idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
+                snapshot.coffeeAt, now, scheduleBusy)
+            if (snapshot.coffeeState != DeviceState.READY ||
+                !machineWriteRecovery.canClearSchedule(evidence,
+                    recoveryAfterFirstSleepSerial, recoveryAfterSecondSleepSerial)) {
+                event("请连接原咖啡机，等待整周计划两段新回报及唤醒待机后再清除提示",
+                    "sleep_schedule.recovery_waiting")
+                return
+            }
+            if (!machineWriteRecovery.clear()) {
+                event("无法保存睡眠计划安全记录的清除状态", "sleep_schedule.recovery_clear_failed")
+                return
+            }
+            event("用户已核对整周睡眠计划，清除上次写入提醒", "sleep_schedule.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }

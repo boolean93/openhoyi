@@ -51,12 +51,15 @@ class SleepScheduleWriteTrackerTest {
         assertEquals(SleepScheduleWriteTracker.State.RECONCILED, tracker.state)
     }
 
-    @Test fun matchingFragmentsObservedDuringTransportConfirmOnlyAfterBothWritesSucceed() {
+    @Test fun fragmentsBeforeSecondWriteCallbackCannotConfirmTheNewSchedule() {
         val tracker = SleepScheduleWriteTracker()
         val token = requireNotNull(tracker.begin(original, 4, 7))
         assertFalse(tracker.observe(5, 8, first, second))
         assertEquals(SleepScheduleWriteTracker.State.WRITING, tracker.state)
         assertTrue(tracker.written(token, OperationResult.Success(), 5, 8, first, second))
+        assertEquals(SleepScheduleWriteTracker.State.WAITING_READBACK, tracker.state)
+        assertFalse(tracker.observe(6, 8, first, second))
+        assertTrue(tracker.observe(6, 9, first, second))
         assertEquals(SleepScheduleWriteTracker.State.CONFIRMED, tracker.state)
     }
 }

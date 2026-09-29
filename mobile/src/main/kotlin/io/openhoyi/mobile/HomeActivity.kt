@@ -128,12 +128,24 @@ class HomeActivity : ThemedActivity() {
             setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
         }
         acknowledgeManual = button(content, "已检查机器，清除提示") {
-            val cupRecovery = service?.manualSafetyMessage == null &&
-                service?.machineWriteAcknowledgementAvailable == true
-            AlertDialog.Builder(this).setTitle(if (cupRecovery) "核对累计杯数" else "确认已检查机器")
-                .setMessage(if (cupRecovery)
+            val recoveryKind = if (service?.manualSafetyMessage == null)
+                service?.machineWriteRecoveryKind else null
+            val title = when (recoveryKind) {
+                MachineWriteRecoveryState.Kind.CUP_RESET -> "核对累计杯数"
+                MachineWriteRecoveryState.Kind.SETTING -> "核对机器设置"
+                MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> "核对整周睡眠计划"
+                else -> "确认已检查机器"
+            }
+            val message = when (recoveryKind) {
+                MachineWriteRecoveryState.Kind.CUP_RESET ->
                     "请先查看咖啡机屏幕的累计杯数。重新连接原机器，等待设置与待机杯数一致后才能清除提醒；清除不会再次发送重置命令。"
-                    else "请先检查机器，并重新连接直到显示新的待机状态。清除提示不会改变机器状态或历史中的“结果未知”。")
+                MachineWriteRecoveryState.Kind.SETTING ->
+                    "请核对咖啡机当前设置。重新连接原机器，等新的设置回报和已唤醒待机状态后才能清除提醒；清除不会再次发送设置命令。"
+                MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE ->
+                    "计划可能只写入了一部分。请在机器上核对整周计划；重新连接原机器并等两段新的完整计划回报后才能清除提醒，清除不会补发计划。"
+                else -> "请先检查机器，并重新连接直到显示新的待机状态。清除提示不会改变机器状态或历史中的“结果未知”。"
+            }
+            AlertDialog.Builder(this).setTitle(title).setMessage(message)
                 .setPositiveButton("清除提示") { _, _ -> service?.acknowledgeManualSafety(); render() }
                 .setNegativeButton("取消", null).show()
         }.apply { visibility = View.GONE }

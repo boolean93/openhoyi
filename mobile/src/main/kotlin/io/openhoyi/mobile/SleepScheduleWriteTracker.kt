@@ -28,8 +28,12 @@ class SleepScheduleWriteTracker {
         first: SleepPart?, second: SleepPart?): Boolean {
         if (token != serial || state != State.WRITING) return false
         state = when (result) {
-            is OperationResult.Success -> if (matches(firstSerial, secondSerial, first, second))
-                State.CONFIRMED else State.WAITING_READBACK
+            is OperationResult.Success -> {
+                // Fragments seen while the two writes were in flight may describe the old plan.
+                afterFirst = firstSerial
+                afterSecond = secondSerial
+                State.WAITING_READBACK
+            }
             is OperationResult.Failed, is OperationResult.Cancelled -> State.FAILED
             is OperationResult.Unknown -> {
                 afterFirst = firstSerial
