@@ -94,4 +94,17 @@ class MachineWriteRecoveryStateTest {
         assertFalse(state.canClearSchedule(good.copy(idleAwake=false),3,6))
         assertFalse(state.canClearSchedule(good.copy(writeActive=true),3,6))
     }
+
+    @Test fun immediateSleepNeedsFreshKnownSleepStateOnOriginalMachine() {
+        val state=MachineWriteRecoveryState(Memory())
+        assertTrue(state.arm(MachineWriteRecoveryState.Kind.SLEEP_NOW,"AA:BB:CC:DD:EE:01"))
+        val good=MachineWriteRecoveryState.SleepEvidence("AA:BB:CC:DD:EE:01",1,4,100,100,false)
+        assertTrue(state.canClearSleep(good,3))
+        assertTrue(state.canClearSleep(good.copy(sleepStateRaw=0),3))
+        assertFalse(state.canClearSleep(good.copy(address="AA:BB:CC:DD:EE:02"),3))
+        assertFalse(state.canClearSleep(good.copy(sleepSerial=3),3))
+        assertFalse(state.canClearSleep(good.copy(sleepStateRaw=2),3))
+        assertFalse(state.canClearSleep(good.copy(idleAtMs=0,nowMs=1_501),3))
+        assertFalse(state.canClearSleep(good.copy(writeActive=true),3))
+    }
 }

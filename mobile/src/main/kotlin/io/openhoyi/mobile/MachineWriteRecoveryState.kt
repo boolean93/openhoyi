@@ -2,7 +2,7 @@ package io.openhoyi.mobile
 
 /** Durable intent written before a machine control whose outcome may outlive the Service. */
 class MachineWriteRecoveryState(private val storage: Storage) {
-    enum class Kind { CUP_RESET, SETTING, SLEEP_SCHEDULE, UNKNOWN }
+    enum class Kind { CUP_RESET, SETTING, SLEEP_SCHEDULE, SLEEP_NOW, UNKNOWN }
     data class Record(val kind: Kind?, val address: String?) {
         val pending: Boolean get() = kind != null
     }
@@ -51,6 +51,14 @@ class MachineWriteRecoveryState(private val storage: Storage) {
         kind==Kind.SLEEP_SCHEDULE && matchesDevice(evidence.address) && !evidence.writeActive &&
         evidence.completePlan && evidence.firstSerial>afterFirstSerial &&
         evidence.secondSerial>afterSecondSerial && evidence.idleAwake &&
+        evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
+
+    data class SleepEvidence(val address: String?, val sleepStateRaw: Int?, val sleepSerial: Long,
+        val idleAtMs: Long?, val nowMs: Long, val writeActive: Boolean)
+    fun canClearSleep(evidence: SleepEvidence, afterSleepSerial: Long): Boolean =
+        kind==Kind.SLEEP_NOW && matchesDevice(evidence.address) && !evidence.writeActive &&
+        evidence.sleepSerial>afterSleepSerial &&
+        (evidence.sleepStateRaw==0 || evidence.sleepStateRaw==1) &&
         evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
 
     fun arm(kind: Kind,address: String?): Boolean {
