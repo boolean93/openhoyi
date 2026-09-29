@@ -128,8 +128,12 @@ class HomeActivity : ThemedActivity() {
             setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
         }
         acknowledgeManual = button(content, "已检查机器，清除提示") {
-            AlertDialog.Builder(this).setTitle("确认已检查机器")
-                .setMessage("请先检查机器，并重新连接直到显示新的待机状态。清除提示不会改变机器状态或历史中的“结果未知”。")
+            val cupRecovery = service?.manualSafetyMessage == null &&
+                service?.machineWriteAcknowledgementAvailable == true
+            AlertDialog.Builder(this).setTitle(if (cupRecovery) "核对累计杯数" else "确认已检查机器")
+                .setMessage(if (cupRecovery)
+                    "请先查看咖啡机屏幕的累计杯数。重新连接原机器，等待设置与待机杯数一致后才能清除提醒；清除不会再次发送重置命令。"
+                    else "请先检查机器，并重新连接直到显示新的待机状态。清除提示不会改变机器状态或历史中的“结果未知”。")
                 .setPositiveButton("清除提示") { _, _ -> service?.acknowledgeManualSafety(); render() }
                 .setNegativeButton("取消", null).show()
         }.apply { visibility = View.GONE }
@@ -396,10 +400,11 @@ class HomeActivity : ThemedActivity() {
         val now = SystemClock.elapsedRealtime()
         val running = owner?.running == true
         val warning = ShotSafetyAlert.message(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)
-            ?: owner?.manualSafetyMessage
+            ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
-        acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null) View.GONE else View.VISIBLE
+        acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
+            owner?.machineWriteAcknowledgementAvailable != true) View.GONE else View.VISIBLE
         val alarmBanner = MachineAlarms.banner(s.alarmBits, s.alarmAt, now)
         prominentAlarm.visibility = if (alarmBanner == null) View.GONE else View.VISIBLE
         prominentAlarm.show(alarmBanner?.message.orEmpty())
@@ -424,7 +429,8 @@ class HomeActivity : ThemedActivity() {
         val preparationIdle = owner?.brewPreparationState == BrewPreparation.State.IDLE
         val freshAwakeIdle = s.coffee is IdleTelemetry && s.coffee.sleepStateRaw == 0 &&
             s.coffeeAt?.let { now >= it && now - it <= 1500 } == true
-        leverButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && !settingBusy &&
+        leverButton.isEnabled = running && !shotActive && owner?.manualShotActive != true &&
+            owner?.machineWriteSafetyMessage == null && !settingBusy &&
             owner?.sleepNowState != SleepNowTracker.State.UNKNOWN && preparationIdle &&
             s.coffeeState == DeviceState.READY && s.settings != null && freshAwakeIdle
         leverStatus.show(MachineSettingsPresentation.leverMode(s.settings) +
@@ -457,7 +463,8 @@ class HomeActivity : ThemedActivity() {
         val idle = liveMachine as? IdleTelemetry
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,
             SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
-        sleepButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
+        sleepButton.isEnabled = running && !shotActive && owner?.manualShotActive != true &&
+            owner?.machineWriteSafetyMessage == null && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
             idle?.sleepStateRaw == 0
         val reportedSleep = if (!coffeeFresh) "暂无新鲜状态" else when (idle?.sleepStateRaw) {
             0 -> "已唤醒"

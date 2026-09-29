@@ -62,6 +62,32 @@ class MobileService : Service() {
         })
     }
     private val restartShotWarning = "上次萃取未确认结束。请检查咖啡机，重新连接并等待待机回报后再清除提示。"
+    private val machineWriteRecovery by lazy {
+        val prefs = getSharedPreferences("machine_write_safety", MODE_PRIVATE)
+        MachineWriteRecoveryState(object : MachineWriteRecoveryState.Storage {
+            override fun read(): MachineWriteRecoveryState.Record {
+                val kind = prefs.getString("pending_kind", null)?.let { raw ->
+                    runCatching { MachineWriteRecoveryState.Kind.valueOf(raw) }
+                        .getOrDefault(MachineWriteRecoveryState.Kind.UNKNOWN)
+                }
+                return MachineWriteRecoveryState.Record(kind, prefs.getString("pending_address", null))
+            }
+            override fun write(record: MachineWriteRecoveryState.Record): Boolean =
+                prefs.edit().putString("pending_kind", record.kind?.name)
+                    .putString("pending_address", record.address).commit()
+        })
+    }
+    val machineWriteSafetyMessage: String? get() = when (machineWriteRecovery.kind) {
+        MachineWriteRecoveryState.Kind.CUP_RESET ->
+            "上次杯数重置未确认。请连接原咖啡机，核对设置与待机杯数后再清除提示。"
+        MachineWriteRecoveryState.Kind.UNKNOWN ->
+            "机器写入安全记录无法识别，已阻止新的控制命令。"
+        null -> null
+    }
+    val machineWriteAcknowledgementAvailable: Boolean get() =
+        machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET
+    private var recoveryAfterSettingsSerial = 0L
+    private var recoveryAfterIdleSerial = 0L
     private val settingsWrite = SettingsWriteTracker()
     private val cupReset = CupResetTracker()
     val cupResetState: CupResetTracker.State get() = if (mock?.cupReset == true)
@@ -74,6 +100,11 @@ class MobileService : Service() {
         val previous = cupReset.state
         val confirmed = if (settingsFrame) cupReset.observeSettings(++cupSettingsSerial, count)
             else cupReset.observeIdle(++cupIdleSerial, count)
+        if (cupReset.state in setOf(CupResetTracker.State.CONFIRMED, CupResetTracker.State.RECONCILED) &&
+            machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET &&
+            !machineWriteRecovery.clear())
+            event("无法清除杯数重置安全记录；请核对机器", "cups.recovery_clear_failed")
+        refreshSafetyNotification()
         if (confirmed) event("机器设置与待机数据均回报累计杯数归零", "cups.confirmed")
         else if (previous == CupResetTracker.State.UNKNOWN && cupReset.state == CupResetTracker.State.RECONCILED)
             event("机器杯数已重新回读；上次重置未获确认", "cups.reconciled")
@@ -475,7 +506,8 @@ class MobileService : Service() {
         })
     }
     fun connectRememberedCoffee(address: String): Boolean {
-        if (mock != null || !shotRecovery.matchesDevice(address) || !coffeeCredentialRetries.mayUse(address)) return false
+        if (mock != null || !shotRecovery.matchesDevice(address) ||
+            !machineWriteRecovery.matchesDevice(address) || !coffeeCredentialRetries.mayUse(address)) return false
         val password = coffeeCredentials.read(address) ?: return false
         connectCoffee(address, password, remembered = true)
         return true
@@ -486,6 +518,9 @@ class MobileService : Service() {
         if (manualShotActive) { event("手动萃取进行中，请先用机器拨杆结束"); return }
         if (!shotRecovery.matchesDevice(address)) {
             event("上一杯未确认结束，只能重新连接原咖啡机", "shot.device_mismatch"); return
+        }
+        if (!machineWriteRecovery.matchesDevice(address)) {
+            event("上次机器写入未确认，只能重新连接原咖啡机", "machine_write.device_mismatch"); return
         }
         require(password.matches(Regex("[0-9]{6}")))
         manualDeviceUse()
@@ -581,6 +616,7 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return "手动萃取期间不能修改机器设置"
+        machineWriteSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -634,6 +670,7 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return "手动萃取期间不能重置杯数"
+        machineWriteSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -653,7 +690,16 @@ class MobileService : Service() {
         val settingsCount = snapshot.settings?.cupCount ?: return "尚未收到机器杯数"
         if (expectedCount !in 1..65535 || settingsCount != expectedCount || idle.cupCount != expectedCount)
             return "机器杯数已变化，请重新核对"
+        val coffeeAddress = current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止杯数重置"
         val token = cupReset.begin(expectedCount) ?: return "正在等待本次杯数重置结果"
+        if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.CUP_RESET, coffeeAddress)) {
+            cupReset.written(token, OperationResult.Failed("safety record unavailable"),
+                cupSettingsSerial, cupIdleSerial)
+            return "无法可靠保存杯数重置安全状态，已阻止发送"
+        }
+        recoveryAfterSettingsSerial = cupSettingsSerial
+        recoveryAfterIdleSerial = cupIdleSerial
+        refreshSafetyNotification()
         event("累计杯数重置命令已排队", "cups.requested")
         current.resetCupCount done@{ result ->
             if (!cupReset.written(token, result, cupSettingsSerial, cupIdleSerial)) return@done
@@ -661,12 +707,24 @@ class MobileService : Service() {
                 CupResetTracker.State.WAITING_ZERO -> {
                     event("重置命令已写入，等待机器回报归零", "cups.written")
                     handler.postDelayed({
-                        if (cupReset.timeout(token, cupSettingsSerial, cupIdleSerial))
+                        if (cupReset.timeout(token, cupSettingsSerial, cupIdleSerial)) {
+                            recoveryAfterSettingsSerial = cupSettingsSerial
+                            recoveryAfterIdleSerial = cupIdleSerial
                             event("机器未完整回报归零，重置结果未知", "cups.unknown")
+                        }
                     }, 12_000)
                 }
-                CupResetTracker.State.FAILED -> event("累计杯数重置命令未写入", "cups.failed")
-                CupResetTracker.State.UNKNOWN -> event("累计杯数重置结果未知", "cups.unknown")
+                CupResetTracker.State.FAILED -> {
+                    if (!machineWriteRecovery.clear())
+                        event("无法清除杯数重置安全记录", "cups.recovery_clear_failed")
+                    refreshSafetyNotification()
+                    event("累计杯数重置命令未写入", "cups.failed")
+                }
+                CupResetTracker.State.UNKNOWN -> {
+                    recoveryAfterSettingsSerial = cupSettingsSerial
+                    recoveryAfterIdleSerial = cupIdleSerial
+                    event("累计杯数重置结果未知", "cups.unknown")
+                }
                 else -> Unit
             }
         }
@@ -682,6 +740,7 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return "手动萃取期间不能修改睡眠计划"
+        machineWriteSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -739,6 +798,7 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return "手动萃取期间不能让机器睡眠"
+        machineWriteSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -816,6 +876,7 @@ class MobileService : Service() {
             return null
         }
         if (manualShotActive) return "手动萃取期间不能预热曲线"
+        machineWriteSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -908,6 +969,7 @@ class MobileService : Service() {
             return null
         }
         if (manualShotActive) return "机器手动萃取进行中，请先用拨杆结束"
+        machineWriteSafetyMessage?.let { return it }
         if (shotRecovery.pending) return restartShotWarning
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
@@ -1011,7 +1073,7 @@ class MobileService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle(if (warning == null) "OpenHOYI Alpha" else "萃取状态需人工确认")
+            .setContentTitle(if (warning == null) "OpenHOYI Alpha" else "设备状态需人工确认")
             .setContentText(warning ?: "设备连接运行中")
             .setStyle(warning?.let { Notification.BigTextStyle().bigText(it) })
             .setContentIntent(open).setOngoing(true)
@@ -1019,7 +1081,8 @@ class MobileService : Service() {
     }
     private fun refreshSafetyNotification() {
         if (mock != null) return
-        val warning = ShotSafetyAlert.message(shotState, snapshot.coffeeState) ?: manualSafetyMessage
+        val warning = ShotSafetyAlert.message(shotState, snapshot.coffeeState) ?:
+            manualSafetyMessage ?: machineWriteSafetyMessage
         if (warning == safetyMessage) return
         safetyMessage = warning
         if (!running) return
@@ -1028,7 +1091,10 @@ class MobileService : Service() {
             .onFailure { event("前台安全提醒更新失败", "shot.safety_notify_error") }
         if (warning == null) manager.cancel(SAFETY_NOTIFICATION)
         else runCatching {
-            val open = PendingIntent.getActivity(this, 2, Intent(this, ExtractionActivity::class.java),
+            val destination = if (machineWriteSafetyMessage != null && manualSafetyMessage == null &&
+                ShotSafetyAlert.message(shotState, snapshot.coffeeState) == null)
+                HomeActivity::class.java else ExtractionActivity::class.java
+            val open = PendingIntent.getActivity(this, 2, Intent(this, destination),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             manager.notify(SAFETY_NOTIFICATION, Notification.Builder(this, SAFETY_CHANNEL)
                 .setSmallIcon(android.R.drawable.stat_sys_warning)
@@ -1040,6 +1106,26 @@ class MobileService : Service() {
         }.onFailure { event("安全提醒通知不可用", "shot.safety_notify_error") }
     }
     fun acknowledgeManualSafety() {
+        if (manualSafetyMessage == null && machineWriteAcknowledgementAvailable) {
+            val now = SystemClock.elapsedRealtime()
+            val idle = snapshot.coffee as? IdleTelemetry
+            val evidence = MachineWriteRecoveryState.CupResetEvidence(hub?.coffeeAddress,
+                snapshot.settings?.cupCount, cupSettingsSerial, idle?.cupCount, cupIdleSerial,
+                snapshot.coffeeAt, now, cupResetBusy)
+            if (snapshot.coffeeState != DeviceState.READY ||
+                !machineWriteRecovery.canClearCupReset(evidence,
+                    recoveryAfterSettingsSerial, recoveryAfterIdleSerial)) {
+                event("请连接原咖啡机，等待新的设置与待机杯数一致后再清除提示", "cups.recovery_waiting")
+                return
+            }
+            if (!machineWriteRecovery.clear()) {
+                event("无法保存杯数重置安全记录的清除状态", "cups.recovery_clear_failed")
+                return
+            }
+            event("用户已核对机器杯数，清除上次重置提醒", "cups.recovery_acknowledged")
+            refreshSafetyNotification()
+            return
+        }
         if (manualSafetyMessage == null) return
         if (shotRecovery.pending) {
             val now = SystemClock.elapsedRealtime()
@@ -1086,6 +1172,10 @@ class MobileService : Service() {
         }
         if (shotRecovery.pending) {
             event("上次萃取未确认结束，设备服务保持运行", "service.stop_deferred")
+            return
+        }
+        if (machineWriteRecovery.pending) {
+            event("上次机器写入未确认，设备服务保持运行", "service.stop_deferred")
             return
         }
         if (brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
