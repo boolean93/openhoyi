@@ -448,7 +448,7 @@ class HomeActivity : ThemedActivity() {
         val freshAwakeIdle = s.coffee is IdleTelemetry && s.coffee.sleepStateRaw == 0 &&
             s.coffeeAt?.let { now >= it && now - it <= 1500 } == true
         leverButton.isEnabled = running && !shotActive && owner?.manualShotActive != true &&
-            owner?.machineWriteSafetyMessage == null && !settingBusy &&
+            owner?.machineControlSafetyMessage == null && !settingBusy &&
             owner?.sleepNowState != SleepNowTracker.State.UNKNOWN && preparationIdle &&
             s.coffeeState == DeviceState.READY && s.settings != null && freshAwakeIdle
         leverStatus.show(MachineSettingsPresentation.leverMode(s.settings) +
@@ -482,7 +482,7 @@ class HomeActivity : ThemedActivity() {
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,
             SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
         sleepButton.isEnabled = running && !shotActive && owner?.manualShotActive != true &&
-            owner?.machineWriteSafetyMessage == null && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
+            owner?.machineControlSafetyMessage == null && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
             idle?.sleepStateRaw == 0
         val reportedSleep = if (!coffeeFresh) "暂无新鲜状态" else when (idle?.sleepStateRaw) {
             0 -> "已唤醒"

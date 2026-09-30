@@ -94,6 +94,8 @@ class MobileService : Service() {
             "机器写入安全记录无法识别，已阻止新的控制命令。"
         null -> null
     }
+    val machineControlSafetyMessage: String? get() = MachineControlGate.block(
+        shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
     val machineWriteAcknowledgementAvailable: Boolean get() = when (machineWriteRecovery.kind) {
         MachineWriteRecoveryState.Kind.CUP_RESET -> !cupResetBusy
         MachineWriteRecoveryState.Kind.SETTING -> settingsWrite.state !in setOf(
@@ -672,7 +674,7 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return "手动萃取期间不能修改机器设置"
-        machineWriteSafetyMessage?.let { return it }
+        machineControlSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -743,7 +745,7 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return "手动萃取期间不能重置杯数"
-        machineWriteSafetyMessage?.let { return it }
+        machineControlSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -813,7 +815,7 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return "手动萃取期间不能修改睡眠计划"
-        machineWriteSafetyMessage?.let { return it }
+        machineControlSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -896,7 +898,7 @@ class MobileService : Service() {
             return result
         }
         if (manualShotActive) return "手动萃取期间不能让机器睡眠"
-        machineWriteSafetyMessage?.let { return it }
+        machineControlSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
@@ -991,7 +993,7 @@ class MobileService : Service() {
             return null
         }
         if (manualShotActive) return "手动萃取期间不能预热曲线"
-        machineWriteSafetyMessage?.let { return it }
+        machineControlSafetyMessage?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage

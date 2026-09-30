@@ -400,6 +400,7 @@ class MachineSettingsActivity : ThemedActivity() {
         val freshIdle = idle?.sleepStateRaw == 0 &&
             snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } == true
         val editable = ready && snapshot.settings != null && freshIdle && owner?.manualShotActive != true &&
+            owner?.machineControlSafetyMessage == null &&
             owner?.shotState?.let(ShotGate::active) != true &&
             owner?.brewPreparationState == BrewPreparation.State.IDLE &&
             pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,

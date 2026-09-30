@@ -275,7 +275,7 @@ class ExtractionActivity : ThemedActivity() {
             state == ExtractionState.STOP_REQUESTED -> "停止命令处理中，请确认机器停水"
             state == ExtractionState.OUTCOME_UNKNOWN -> "结果未知，请先检查咖啡机"
             state == ExtractionState.ENDED_OBSERVED -> "上一杯已结束；确认机器停水后，可开始下一杯"
-            else -> owner?.machineWriteSafetyMessage ?: blocked ?: studioBlocked ?: "设备与曲线已就绪"
+            else -> owner?.machineControlSafetyMessage ?: blocked ?: studioBlocked ?: "设备与曲线已就绪"
         }
         readiness.show(guidance + unknownAdvice)
         readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
@@ -345,7 +345,7 @@ class ExtractionActivity : ThemedActivity() {
         } else if (target == 0 && profile != null) "这条曲线不按秤重停机，由咖啡机按曲线结束" else "")
         val points = owner?.chartPoints ?: emptyList()
         if (chart.points != points) chart.points = points
-        prepare.isEnabled = owner?.running == true && owner.machineWriteSafetyMessage == null &&
+        prepare.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
             blocked == null && studio && !temperatureReady &&
             !settingBusy && !sleepBusy &&
             preparation == BrewPreparation.State.IDLE
@@ -355,7 +355,7 @@ class ExtractionActivity : ThemedActivity() {
             owner?.brewWaitCancelBlock == null
         cancelPrepare.text = if (preparation == BrewPreparation.State.CANCEL_WRITTEN)
             "再次发送取消预热" else "取消预热"
-        start.isEnabled = owner?.running == true && owner.machineWriteSafetyMessage == null &&
+        start.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
             blocked == null && studioBlocked == null &&
             !settingBusy && !sleepBusy
         val stopAction = StopActionPresentation.describe(state, snapshot.coffeeState, owner?.running == true)
