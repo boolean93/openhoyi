@@ -37,6 +37,27 @@ class PassiveShotDetectorTest {
         assertNull(detector.observe(idle, 50_000, false))
     }
 
+    @Test fun lateValveFrameCannotMoveLastActiveTimeBackwardsOrEndEarly() {
+        val detector=PassiveShotDetector()
+        detector.observe(extraction(0,1),1000,false)
+        detector.observe(extraction(1,2),1500,false)
+        detector.observe(extraction(2,6),4000,false)
+        detector.observe(extraction(1,2),1500,false)
+        assertNull(detector.observe(idle,5000,false))
+        assertTrue(detector.active)
+        assertNull(detector.observe(idle,6800,false))
+        assertEquals(PassiveShotDetector.Event.Ended,detector.observe(idle,6801,false))
+    }
+    @Test fun outOfOrderCandidateAndDuplicatePointDoNotReplaceFreshEvidence() {
+        val detector=PassiveShotDetector()
+        assertNull(detector.observe(extraction(0,1),2000,false))
+        assertNull(detector.observe(extraction(2,4),1000,false))
+        assertTrue(detector.observe(extraction(1,2),2500,false) is PassiveShotDetector.Event.Started)
+        assertNull(detector.observe(extraction(1,2),2500,false))
+        assertNull(detector.observe(idle,2400,false))
+        assertTrue(detector.active)
+        assertTrue(detector.observe(extraction(2,4),3000,false) is PassiveShotDetector.Event.Point)
+    }
     @Test fun disconnectMarksObservedShotUnknownRatherThanEnded() {
         val detector = PassiveShotDetector()
         detector.observe(extraction(0, 1), 1000, false)

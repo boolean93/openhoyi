@@ -16,11 +16,13 @@ class PassiveShotDetector {
 
     private var candidate: TimedFrame? = null
     private var lastActiveAtMs: Long? = null
+    private var lastObservedAtMs: Long? = null
     var active = false
         private set
 
     fun observe(frame: HoyiMessage, atMs: Long, appShotInProgress: Boolean): Event? {
-        if (atMs < 0) return null
+        if (atMs < 0 || lastObservedAtMs?.let { atMs <= it } == true) return null
+        lastObservedAtMs = atMs
         if (appShotInProgress) {
             if (!active) candidate = null
             return null
@@ -56,6 +58,7 @@ class PassiveShotDetector {
     }
 
     fun disconnected(): Event? {
+        lastObservedAtMs = null
         candidate = null
         lastActiveAtMs = null
         if (!active) return null

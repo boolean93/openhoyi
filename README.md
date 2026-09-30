@@ -28,7 +28,7 @@ Java17、Android SDK35、Gradle wrapper8.11.1、Kotlin2.0.21、AGP8.10.0。
 ./gradlew :protocol-core:check :device-session:check :bluetooth-android:assembleDebug :bluetooth-android:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :mobile:testDebugUnitTest :mobile:assembleDebug :mobile:lintDebug
 ```
 
-两个纯 Kotlin 模块的 `check` 包含确定性 JVM `verify` 任务；`device-session` 还运行26项写入确认、预热及被动萃取 JUnit 测试。断言失败即构建失败。逐帧断言不是独立案例；App 的日志/数据展示使用 JUnit 测试。
+两个纯 Kotlin 模块的 `check` 包含确定性 JVM `verify` 任务；`device-session` 还运行28项写入确认、预热及被动萃取 JUnit 测试。断言失败即构建失败。逐帧断言不是独立案例；App 的日志/数据展示使用 JUnit 测试。
 
 Google Maven 无法访问时可显式使用 `-PgoogleMirror=aliyun`。本机全局Gradle代理指向未启动的127.0.0.1:7890，本次仅命令行加 `-Dhttp.proxyHost= -Dhttps.proxyHost=` 绕过，没有修改全局配置。Google依赖首次通过可选阿里云镜像获取；默认仍使用官方仓库。
 
