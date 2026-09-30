@@ -7,7 +7,7 @@ import io.openhoyi.protocol.SleepPart
 
 /** Formats decoded device values; it never creates a command or claims that a setting was applied. */
 object MachineSettingsPresentation {
-    data class SleepDaySummary(val name: String, val state: String, val period: String)
+    data class SleepDaySummary(val name: String, val state: String, val period: String, val enabled: Boolean?)
 
     fun overview(value: Settings?): String {
         if (value == null) return "尚未收到机器设置"
@@ -119,12 +119,11 @@ object MachineSettingsPresentation {
             }
         }
         return names.mapIndexed { index, name ->
-            val state = enabledBits?.let {
-                if (it and (0x80 shr index) != 0) "开启" else "关闭"
-            } ?: "状态未知"
+            val enabled = enabledBits?.let { it and (0x80 shr index) != 0 }
+            val state = enabled?.let { if (it) "开启" else "关闭" } ?: "状态未知"
             val period = days[index]?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" }
                 ?: "时间尚未回读"
-            SleepDaySummary(name, state, period)
+            SleepDaySummary(name, state, period, enabled)
         }
     }
 

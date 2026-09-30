@@ -59,11 +59,25 @@ class MachineSettingsPresentationTest {
         assertFalse(dayList.contains("0xA0"))
     }
 
+    @Test fun weeklySemanticStateIsIndependentOfTranslatedTextAndKeepsMissingMaskUnknown() {
+        for (mask in 0..255) {
+            val first = SleepPart(0, mask, List(4) { SleepDay(22, 30, 7, 15) }, raw)
+            MachineSettingsPresentation.scheduleDaySummaries(first, null).forEachIndexed { index, day ->
+                assertEquals(mask and (0x80 shr index) != 0, day.enabled)
+                assertEquals(day.enabled, day.copy(state = "translated label").enabled)
+            }
+        }
+        assertTrue(MachineSettingsPresentation.scheduleDaySummaries(null,
+            SleepPart(4, null, List(3) { SleepDay(22, 30, 7, 15) }, raw)).all { it.enabled == null })
+        assertTrue(MachineSettingsPresentation.scheduleDaySummaries(
+            SleepPart(2, 0xFF, List(4) { SleepDay(22, 30, 7, 15) }, raw), null).all { it.enabled == null })
+    }
+
     @Test fun weeklyCardsShowPartialReadbackWithoutInventingMissingValues() {
         val first = SleepPart(0, 0x80, List(4) { SleepDay(22, 30, 7, 15) }, raw)
         val onlyFirst = MachineSettingsPresentation.scheduleDaySummaries(first, null)
         assertEquals(7, onlyFirst.size)
-        assertEquals(MachineSettingsPresentation.SleepDaySummary("周日", "开启", "22:30 → 07:15"), onlyFirst[0])
+        assertEquals(MachineSettingsPresentation.SleepDaySummary("周日", "开启", "22:30 → 07:15", true), onlyFirst[0])
         assertEquals("关闭", onlyFirst[4].state)
         assertEquals("时间尚未回读", onlyFirst[4].period)
         val onlySecond = MachineSettingsPresentation.scheduleDaySummaries(

@@ -345,10 +345,17 @@ class MachineSettingsActivity : ThemedActivity() {
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val ready = snapshot.coffeeState == DeviceState.READY
         connectionState.update(if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_mock_connection) else
-            "${DeviceStatusText.label(snapshot.coffeeState)}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
+            getString(R.string.machine_settings_connection_summary,
+                DeviceStatusText.label(snapshot.coffeeState), getString(if (ready)
+                    R.string.machine_settings_authenticated else R.string.machine_settings_not_current)))
         val reported = snapshot.settings
         settingsOverview.update(if (reported == null) getString(R.string.machine_settings_readback_missing) else
-            "${if (ready && owner?.machineSettingsFresh == true) "当前回读" else "回读已过期"} · 自动待机 ${if (reported.standbyMinutes == 0) getString(R.string.machine_settings_standby_never) else "${reported.standbyMinutes} 分钟"} · 累计 ${reported.cupCount} 杯")
+            getString(R.string.machine_settings_readback_summary,
+                getString(if (ready && owner?.machineSettingsFresh == true)
+                    R.string.machine_settings_readback_current else R.string.machine_settings_readback_stale),
+                if (reported.standbyMinutes == 0) getString(R.string.machine_settings_standby_never)
+                    else getString(R.string.machine_settings_minutes, reported.standbyMinutes.toString()),
+                reported.cupCount.toString()))
         brewTemperatureValue.update(reported?.let { "${it.brewTemperatureC} °C" } ?: "—")
         steamTemperatureValue.update(reported?.let { "${it.steamTemperatureC} °C" } ?: "—")
         runModeValue.update(reported?.let { if (it.flags and 0x04 != 0) getString(R.string.setting_run_studio) else getString(R.string.setting_run_cafe) } ?: "—")
@@ -375,7 +382,7 @@ class MachineSettingsActivity : ThemedActivity() {
         MachineSettingsPresentation.scheduleDaySummaries(snapshot.sleepFirst, snapshot.sleepSecond)
             .forEachIndexed { index, day ->
                 scheduleCards[index].heading.update("${day.name} · ${day.state}")
-                scheduleCards[index].heading.setTextColor(getColor(if (day.state == "开启")
+                scheduleCards[index].heading.setTextColor(getColor(if (day.enabled == true)
                     R.color.mobile_accent else R.color.mobile_text))
                 scheduleCards[index].period.update(day.period)
             }
@@ -561,15 +568,17 @@ class MachineSettingsActivity : ThemedActivity() {
                 if (BuildConfig.MOCK_MODE) {
                     AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_mock_title))
                         .setMessage(String.format(Locale.CHINA,
-                            "$name ${if (enabled.isChecked) "启用" else "关闭"}：%02d:%02d 睡眠，%02d:%02d 唤醒。\n模拟值保持不变，不发送蓝牙命令。",
-                            sh, sm, wh, wm))
+                            getString(R.string.machine_settings_schedule_preview_mock),
+                            name, getString(if (enabled.isChecked) R.string.machine_settings_preview_enabled
+                                else R.string.setting_off), sh, sm, wh, wm))
                         .setPositiveButton(getString(R.string.machine_settings_done), null).show()
                     return@setOnClickListener
                 }
                 AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_confirm_title))
                     .setMessage(String.format(Locale.CHINA,
-                        "$name ${if (enabled.isChecked) "启用" else "关闭"}：%02d:%02d 睡眠，%02d:%02d 唤醒。\n将发送两包计划，并等待机器回报整周内容。",
-                        sh, sm, wh, wm))
+                        getString(R.string.machine_settings_schedule_preview_real),
+                        name, getString(if (enabled.isChecked) R.string.machine_settings_preview_enabled
+                            else R.string.setting_off), sh, sm, wh, wm))
                     .setPositiveButton(getString(R.string.machine_settings_send)) { _, _ ->
                         service?.changeSleepSchedule(baseline, target)?.let {
                             Toast.makeText(this, it, Toast.LENGTH_LONG).show()
