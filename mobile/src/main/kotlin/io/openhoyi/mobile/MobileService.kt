@@ -357,8 +357,8 @@ class MobileService : Service() {
         safetyMessage = null
         try {
             val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, "设备连接", NotificationManager.IMPORTANCE_LOW))
-            manager.createNotificationChannel(NotificationChannel(SAFETY_CHANNEL, "萃取安全提醒", NotificationManager.IMPORTANCE_HIGH))
+            manager.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.home_device_connection), NotificationManager.IMPORTANCE_LOW))
+            manager.createNotificationChannel(NotificationChannel(SAFETY_CHANNEL, getString(R.string.notification_safety_channel), NotificationManager.IMPORTANCE_HIGH))
             val note = connectionNotification(null)
             if (Build.VERSION.SDK_INT >= 29) startForeground(1, note, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
             else startForeground(1, note)
@@ -1265,37 +1265,37 @@ class MobileService : Service() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle(if (warning == null) "OpenHOYI Alpha" else "设备状态需人工确认")
-            .setContentText(warning ?: "设备连接运行中")
+            .setContentTitle(if (warning == null) "OpenHOYI Alpha" else getString(R.string.notification_attention))
+            .setContentText(warning ?: getString(R.string.notification_running))
             .setStyle(warning?.let { Notification.BigTextStyle().bigText(it) })
             .setContentIntent(open).setOngoing(true)
-            .addAction(Notification.Action.Builder(null, "断开设备", stop).build()).build()
+            .addAction(Notification.Action.Builder(null, getString(R.string.notification_disconnect), stop).build()).build()
     }
     private fun refreshSafetyNotification() {
         if (mock != null) return
-        val warning = ShotSafetyAlert.message(shotState, snapshot.coffeeState) ?:
+        val warning = ShotSafetyAlert.resource(shotState, snapshot.coffeeState)?.let { getString(it) } ?:
             manualSafetyMessage ?: machineWriteSafetyMessage
         if (warning == safetyMessage) return
         safetyMessage = warning
         if (!running) return
         val manager = getSystemService(NotificationManager::class.java)
         runCatching { manager.notify(1, connectionNotification(warning)) }
-            .onFailure { event("前台安全提醒更新失败", "shot.safety_notify_error") }
+            .onFailure { event(getString(R.string.notification_update_error), "shot.safety_notify_error") }
         if (warning == null) manager.cancel(SAFETY_NOTIFICATION)
         else runCatching {
             val destination = if (machineWriteSafetyMessage != null && manualSafetyMessage == null &&
-                ShotSafetyAlert.message(shotState, snapshot.coffeeState) == null)
+                ShotSafetyAlert.resource(shotState, snapshot.coffeeState) == null)
                 HomeActivity::class.java else ExtractionActivity::class.java
             val open = PendingIntent.getActivity(this, 2, Intent(this, destination),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
             manager.notify(SAFETY_NOTIFICATION, Notification.Builder(this, SAFETY_CHANNEL)
                 .setSmallIcon(android.R.drawable.stat_sys_warning)
-                .setContentTitle("请立即检查咖啡机")
+                .setContentTitle(getString(R.string.notification_check_machine))
                 .setContentText(warning)
                 .setStyle(Notification.BigTextStyle().bigText(warning))
                 .setContentIntent(open).setCategory(Notification.CATEGORY_ALARM)
                 .setOngoing(true).build())
-        }.onFailure { event("安全提醒通知不可用", "shot.safety_notify_error") }
+        }.onFailure { event(getString(R.string.notification_unavailable), "shot.safety_notify_error") }
     }
     fun acknowledgeManualSafety() {
         if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {

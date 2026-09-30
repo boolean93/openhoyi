@@ -21,6 +21,8 @@ flowchart TD
 | `app` | Lab诊断、采集、显式操作及日志展示 | Alpha的全部产品恢复与交互协调规则 |
 | `trace-core` | 有界异步JSONL记录、轮转、统计与导出 | 以日志落盘推断设备执行结果 |
 
+`ShotSafetyPolicy` 同属纯会话层，只把当前萃取/连接状态分类为结果未知且断线、结果未知、正在萃取时断线或无此提醒。未知结果在重连后仍需核对。它没有发送、状态变更、持久化或恢复解除能力；Alpha首页与前台服务通过 `ShotSafetyAlert` 把同一原因映射成当前Context的显示资源，通知路由根据原因是否存在判断。提醒文字不提供停机许可，也不能证明机器已停水。
+
 ## 写入确认状态机的归属
 
 `SettingsWriteTracker`、`CupResetTracker`、`SleepNowTracker`、`SleepScheduleWriteTracker` 已从 `mobile` 移入 `device-session`，迁移时生产方法体与17项原测试方法体保持不变，JVM测试也迁入同一模块。它们区分写入中、等待回报、已确认、失败、未知和重新回读，不能把GATT成功直接当设备执行成功。

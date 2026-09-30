@@ -428,7 +428,7 @@ class HomeActivity : ThemedActivity() {
         val s = owner?.snapshot ?: MobileSnapshot()
         val now = SystemClock.elapsedRealtime()
         val running = owner?.running == true
-        val warning = ShotSafetyAlert.message(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)
+        val warning = ShotSafetyAlert.resource(owner?.shotState ?: ExtractionState.IDLE, s.coffeeState)?.let { getString(it) }
             ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())

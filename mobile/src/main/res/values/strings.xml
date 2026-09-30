@@ -349,4 +349,14 @@
     <string name="firmware_mock">"模拟固件 %1$s · 无蓝牙控制"</string>
     <string name="firmware_verified">"固件 %1$s · 已验证协议"</string>
     <string name="firmware_unverified">"固件 %1$s · 未验证，控制已禁用"</string>
+    <string name="shot_safety_unknown_disconnected">"萃取结果未知且连接中断。请立即检查咖啡机，必要时手动复位拨杆。"</string>
+    <string name="shot_safety_unknown">"萃取结果未知。请检查咖啡机；若仍在运行，请在确认后重试停止。"</string>
+    <string name="shot_safety_active_disconnected">"萃取中连接中断。请立即检查咖啡机，必要时手动复位拨杆。"</string>
+    <string name="notification_safety_channel">"萃取安全提醒"</string>
+    <string name="notification_attention">"设备状态需人工确认"</string>
+    <string name="notification_running">"设备连接运行中"</string>
+    <string name="notification_disconnect">"断开设备"</string>
+    <string name="notification_update_error">"前台安全提醒更新失败"</string>
+    <string name="notification_check_machine">"请立即检查咖啡机"</string>
+    <string name="notification_unavailable">"安全提醒通知不可用"</string>
 </resources>
