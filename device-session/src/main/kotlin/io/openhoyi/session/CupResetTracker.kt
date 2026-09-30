@@ -1,7 +1,9 @@
 package io.openhoyi.session
 
 
-/** A reset needs matching post-write settings and idle counts; transport alone proves nothing. */
+/** A reset needs matching post-write settings and idle counts; transport alone proves nothing.
+ * Each channel accepts only increasing host sample serials, not firmware transaction IDs.
+ */
 class CupResetTracker {
     enum class State { IDLE, WRITING, WAITING_ZERO, CONFIRMED, FAILED, UNKNOWN, RECONCILED }
     var state = State.IDLE
@@ -40,12 +42,14 @@ class CupResetTracker {
 
     fun observeSettings(sampleSerial: Long, count: Int): Boolean {
         if (state !in setOf(State.WAITING_ZERO, State.UNKNOWN) || sampleSerial <= afterSettings) return false
+        afterSettings = sampleSerial
         freshSettingsCount = count
         return resolve()
     }
 
     fun observeIdle(sampleSerial: Long, count: Int): Boolean {
         if (state !in setOf(State.WAITING_ZERO, State.UNKNOWN) || sampleSerial <= afterIdle) return false
+        afterIdle = sampleSerial
         freshIdleCount = count
         return resolve()
     }

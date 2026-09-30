@@ -17,6 +17,43 @@ class CupResetTrackerTest {
         assertEquals(CupResetTracker.State.CONFIRMED, tracker.state)
     }
 
+    @Test fun staleOrDuplicateSettingsCannotReplaceNewerNonzeroCount() {
+        val tracker = CupResetTracker()
+        val token = requireNotNull(tracker.begin(25))
+        assertTrue(tracker.written(token, OperationResult.Success(), 10, 20))
+        assertFalse(tracker.observeSettings(12, 25))
+        assertFalse(tracker.observeSettings(11, 0))
+        assertFalse(tracker.observeSettings(12, 0))
+        assertFalse(tracker.observeIdle(21, 0))
+        assertEquals(CupResetTracker.State.WAITING_ZERO, tracker.state)
+        assertTrue(tracker.observeSettings(13, 0))
+    }
+
+    @Test fun staleOrDuplicateIdleCannotConfirmAgainstNewerNonzeroCount() {
+        val tracker = CupResetTracker()
+        val token = requireNotNull(tracker.begin(25))
+        assertTrue(tracker.written(token, OperationResult.Success(), 10, 20))
+        assertFalse(tracker.observeIdle(22, 25))
+        assertFalse(tracker.observeSettings(11, 0))
+        assertFalse(tracker.observeIdle(21, 0))
+        assertFalse(tracker.observeIdle(22, 0))
+        assertEquals(CupResetTracker.State.WAITING_ZERO, tracker.state)
+        assertTrue(tracker.observeIdle(23, 0))
+    }
+
+    @Test fun staleCountCannotReconcileAnUnknownWriteAgainstDifferentFreshCount() {
+        val tracker = CupResetTracker()
+        val token = requireNotNull(tracker.begin(25))
+        assertTrue(tracker.written(token, OperationResult.Unknown("link"), 10, 20))
+        assertFalse(tracker.observeSettings(12, 2))
+        assertFalse(tracker.observeIdle(22, 3))
+        assertFalse(tracker.observeSettings(11, 3))
+        assertFalse(tracker.observeSettings(12, 3))
+        assertEquals(CupResetTracker.State.UNKNOWN, tracker.state)
+        assertFalse(tracker.observeSettings(13, 3))
+        assertEquals(CupResetTracker.State.RECONCILED, tracker.state)
+    }
+
     @Test fun disconnectTimeoutAndStaleCallbacksCannotClaimReset() {
         val tracker = CupResetTracker()
         val first = requireNotNull(tracker.begin(8))

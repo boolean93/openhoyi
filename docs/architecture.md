@@ -23,7 +23,7 @@ flowchart TD
 
 ## 写入确认状态机的归属
 
-`SettingsWriteTracker`、`CupResetTracker`、`SleepNowTracker`、`SleepScheduleWriteTracker` 已从 `mobile` 移入 `device-session`，生产方法体与17项原测试方法体保持不变，JVM测试也迁入同一模块。它们区分写入中、等待回报、已确认、失败、未知和重新回读，不能把GATT成功直接当设备执行成功。
+`SettingsWriteTracker`、`CupResetTracker`、`SleepNowTracker`、`SleepScheduleWriteTracker` 已从 `mobile` 移入 `device-session`，迁移时生产方法体与17项原测试方法体保持不变，JVM测试也迁入同一模块。它们区分写入中、等待回报、已确认、失败、未知和重新回读，不能把GATT成功直接当设备执行成功。
 
 `StandaloneTare` 同属共享模块，实际实例由Hub管理；独立去皮及萃取控制器去皮使用同一记录。四类机器写入tracker实例目前仍由Mobile服务持有，服务维护通知序号、超时调度以及同步持久化的未确认标记。移动类定义不会自动把这些运行时职责转交Hub。
 
@@ -67,3 +67,6 @@ MobileService仍持有实例，提供原SharedPreferences键、原枚举名称�
 `ShotRecoveryGate` 只判断是否允许用户显式确认：应用萃取与被动手动萃取均未进行/未知、原机器匹配、咖啡机READY且收到1.5秒内待机回报。Mobile的 `ShotRecoveryClearGate` 映射中文，服务仍负责人工确认入口和同步清除记录。门禁本身不落盘、不改变萃取状态、不发送命令。
 
 旧记录缺少机器身份时继续沿原人工核对路径处理；不能用后续无关被动萃取自动消除旧提醒。允许人工确认不是控制器的终态证据，不修改历史中的未知结果，也不能把连接恢复当作设备已停水证明。
+
+
+`CupResetTracker` 后续增加了两路回读序号水位：每路只接受比该路已接受序号更大的证据，旧零值不能替换较新非零值，未知结果也不能由倒序值错误核对解除。两路水位分别推进；仍要求写入后的设置与待机杯数同时为零才确认，不把单路/GATT成功当作结果。主机序号不能代替设备事务号或证明被重新编号的内容是最新的。
