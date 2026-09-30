@@ -894,4 +894,5 @@
     <string name="curve_details_proof_available">"启动报文对照通过，待实机验收"</string>
     <string name="curve_details_proof_missing">"报文校验不可用，仅供浏览"</string>
     <string name="curve_details_no_weight">"不使用"</string>
+    <string name="device_initial_message">"尚未连接设备"</string>
 </resources>

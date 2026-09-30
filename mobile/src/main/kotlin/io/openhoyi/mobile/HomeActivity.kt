@@ -443,7 +443,7 @@ class HomeActivity : ThemedActivity() {
         prominentAlarm.setTextColor(getColor(if (alarmBanner?.blocking == true)
             R.color.mobile_danger else R.color.mobile_accent))
         status.show(if (owner?.manualShotActive == true)
-            getString(R.string.home_manual_shot_status) else if (running) s.message else getString(R.string.home_scan_service_hint))
+            getString(R.string.home_manual_shot_status) else if (running) s.messageForDisplay { getString(it) } else getString(R.string.home_scan_service_hint))
         val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
         status.visibility = if (bothReady && !s.scanning && owner?.manualShotActive != true)
             View.GONE else View.VISIBLE

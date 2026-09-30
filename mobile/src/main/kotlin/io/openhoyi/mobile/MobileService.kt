@@ -53,8 +53,11 @@ data class MobileSnapshot(
     val weightAt: Long? = null,
     val candidates: List<DiscoveredDevice> = emptyList(),
     val scanning: Boolean = false,
-    val message: String = "尚未连接设备",
-)
+    val message: String? = null,
+) {
+    /** Null means no event yet; an explicit empty event must not be replaced. */
+    fun messageForDisplay(text: (Int) -> String): String = message ?: text(R.string.device_initial_message)
+}
 
 /** Product-app BLE owner. Screens observe snapshots; explicit controls remain gated in this service. */
 class MobileService : Service() {
