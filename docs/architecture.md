@@ -76,3 +76,5 @@ MobileService仍持有实例，提供原SharedPreferences键、原枚举名称�
 `MachineAlarms` 与 `ShotGate` 是Android产品层的资源显示适配器，按各页面/服务的Context生成提示。告警阻止位与预检原因仍来自 `CoffeeAlarmPolicy` / `ExtractionStartGate`，包括原优先级与未知bit15规则；本轮没有改实际出队检查。适配器保留可空阻止消息接口，资源为空字符串也不能将阻止转换成null。告警代码/位序保留协议含义，翻译只负责描述。
 
 `StudioStartGate`、`BrewWaitCancelGate`、`ShotRecoveryClearGate` 同样是资源适配器，由MobileService按当前Context持有。它们保持对 `PreheatGate` / `ShotRecoveryGate` 的原参数传递和可空阻止消息接口；显示检查不会写入恢复Storage，也不会清除pending。实际发送、取消与人工确认仍由原协调流程执行，资源适配不等于协调器迁移已经完成。
+
+`MachineRecoveryWarningPolicy` 只选择当前持久写入kind是否需要显示恢复提醒；BREW_WAIT正常写入、等待温度、温度就绪时显示进度而暂不显示恢复提醒，其它情况保留提醒。该分类不读取/写入Storage、不确认执行、不授予清除权限，也不重放操作。`MachineRecoveryText` 按kind提供显示资源，服务的持久化和原机核对流程仍保持原归属。服务Context相关提示在访问时解析，避免构造未附加Service实例时访问资源。

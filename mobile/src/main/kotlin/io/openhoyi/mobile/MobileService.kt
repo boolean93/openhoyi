@@ -82,7 +82,7 @@ class MobileService : Service() {
                     .putString("unresolved_shot_address", record.address).commit()
         })
     }
-    private val restartShotWarning = "上次萃取未确认结束。请检查咖啡机，重新连接并等待待机回报后再清除提示。"
+    private val restartShotWarning: String get() = getString(R.string.machine_recovery_shot_restart)
     private val machineWriteRecovery by lazy {
         val prefs = getSharedPreferences("machine_write_safety", MODE_PRIVATE)
         MachineWriteRecoveryState(object : MachineWriteRecoveryState.Storage {
@@ -98,23 +98,8 @@ class MobileService : Service() {
                     .putString("pending_address", record.address).commit()
         })
     }
-    val machineWriteSafetyMessage: String? get() = when (machineWriteRecovery.kind) {
-        MachineWriteRecoveryState.Kind.CUP_RESET ->
-            "上次杯数重置未确认。请连接原咖啡机，核对设置与待机杯数后再清除提示。"
-        MachineWriteRecoveryState.Kind.SETTING ->
-            "上次机器设置未确认。请连接原咖啡机，核对当前设置后再清除提示。"
-        MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE ->
-            "上次睡眠计划可能只写入一部分。请连接原咖啡机，核对整周计划后再清除提示。"
-        MachineWriteRecoveryState.Kind.SLEEP_NOW ->
-            "上次立即睡眠未确认。请检查机器，并在原咖啡机回报明确睡眠状态后清除提示。"
-        MachineWriteRecoveryState.Kind.BREW_WAIT -> if (brewPreparation.state in setOf(
-                BrewPreparation.State.WRITING, BrewPreparation.State.WAITING_TEMP,
-                BrewPreparation.State.READY)) null else
-            "预热或取消结果未确认。请检查原咖啡机是否仍在预热；可发送取消命令，待机器回报已唤醒待机后人工确认。"
-        MachineWriteRecoveryState.Kind.UNKNOWN ->
-            "机器写入安全记录无法识别，已阻止新的控制命令。"
-        null -> null
-    }
+    val machineWriteSafetyMessage: String? get() = MachineRecoveryText.resource(
+        machineWriteRecovery.kind, brewPreparation.state)?.let { getString(it) }
     val machineControlSafetyMessage: String? get() = MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
     val shotRecoveryClearBlock: String? get() = shotRecoveryClearGate.block(shotRecovery,
@@ -174,7 +159,7 @@ class MobileService : Service() {
             SystemClock.elapsedRealtime(), shotState, shotRecovery.pending)
     private var sleepSampleSerial = 0L
     private val sleepNowUnresolved: Boolean get() = sleepNow.state == SleepNowTracker.State.UNKNOWN
-    private val sleepNowUnresolvedMessage = "上次立即睡眠结果未知，请等待新的机器待机状态或重新连接"
+    private val sleepNowUnresolvedMessage: String get() = getString(R.string.machine_recovery_sleep_unresolved)
     val sleepNowState: SleepNowTracker.State get() = if (mock?.isSleeping == true)
         SleepNowTracker.State.CONFIRMED else sleepNow.state
     private var settingsSampleSerial = 0L
@@ -1304,7 +1289,7 @@ class MobileService : Service() {
     fun acknowledgeManualSafety() {
         if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
             if (shotRecovery.pending || ShotGate.active(shotState)) {
-                event("请先确认萃取结束，再核对预热状态", "brew_wait.recovery_shot_active")
+                event(getString(R.string.recovery_event_brew_wait_recovery_shot_active), "brew_wait.recovery_shot_active")
                 return
             }
             val now = SystemClock.elapsedRealtime()
@@ -1317,15 +1302,15 @@ class MobileService : Service() {
                     BrewPreparation.State.UNKNOWN, BrewPreparation.State.CANCEL_WRITTEN))
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearBrewWait(evidence, recoveryAfterBrewWaitIdleSerial)) {
-                event("请连接原咖啡机，检查预热状态并等待新的已唤醒待机回报", "brew_wait.recovery_waiting")
+                event(getString(R.string.recovery_event_brew_wait_recovery_waiting), "brew_wait.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event("无法保存预热安全记录的清除状态", "brew_wait.recovery_clear_failed")
+                event(getString(R.string.recovery_event_brew_wait_recovery_clear_failed), "brew_wait.recovery_clear_failed")
                 return
             }
             brewPreparation.consumed()
-            event("用户已核对机器预热状态，清除上次预热提醒", "brew_wait.recovery_acknowledged")
+            event(getString(R.string.recovery_event_brew_wait_recovery_acknowledged), "brew_wait.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1338,14 +1323,14 @@ class MobileService : Service() {
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearCupReset(evidence,
                     recoveryAfterSettingsSerial, recoveryAfterIdleSerial)) {
-                event("请连接原咖啡机，等待新的设置与待机杯数一致后再清除提示", "cups.recovery_waiting")
+                event(getString(R.string.recovery_event_cups_recovery_waiting), "cups.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event("无法保存杯数重置安全记录的清除状态", "cups.recovery_clear_failed")
+                event(getString(R.string.recovery_event_cups_recovery_clear_failed), "cups.recovery_clear_failed")
                 return
             }
-            event("用户已核对机器杯数，清除上次重置提醒", "cups.recovery_acknowledged")
+            event(getString(R.string.recovery_event_cups_recovery_acknowledged), "cups.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1360,14 +1345,14 @@ class MobileService : Service() {
                     SettingsWriteTracker.State.WAITING_READBACK))
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearSetting(evidence, recoveryAfterSettingsSerial)) {
-                event("请连接原咖啡机，等待新的设置与已唤醒待机状态后再清除提示", "settings.recovery_waiting")
+                event(getString(R.string.recovery_event_settings_recovery_waiting), "settings.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event("无法保存机器设置安全记录的清除状态", "settings.recovery_clear_failed")
+                event(getString(R.string.recovery_event_settings_recovery_clear_failed), "settings.recovery_clear_failed")
                 return
             }
-            event("用户已核对机器当前设置，清除上次写入提醒", "settings.recovery_acknowledged")
+            event(getString(R.string.recovery_event_settings_recovery_acknowledged), "settings.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1383,15 +1368,15 @@ class MobileService : Service() {
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearSchedule(evidence,
                     recoveryAfterFirstSleepSerial, recoveryAfterSecondSleepSerial)) {
-                event("请连接原咖啡机，等待整周计划两段新回报及唤醒待机后再清除提示",
+                event(getString(R.string.recovery_event_sleep_schedule_recovery_waiting),
                     "sleep_schedule.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event("无法保存睡眠计划安全记录的清除状态", "sleep_schedule.recovery_clear_failed")
+                event(getString(R.string.recovery_event_sleep_schedule_recovery_clear_failed), "sleep_schedule.recovery_clear_failed")
                 return
             }
-            event("用户已核对整周睡眠计划，清除上次写入提醒", "sleep_schedule.recovery_acknowledged")
+            event(getString(R.string.recovery_event_sleep_schedule_recovery_acknowledged), "sleep_schedule.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1404,14 +1389,14 @@ class MobileService : Service() {
                     SleepNowTracker.State.WAITING_ASLEEP))
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearSleep(evidence, recoveryAfterSleepSerial)) {
-                event("请连接原咖啡机，等待新的明确睡眠状态后再清除提示", "sleep.recovery_waiting")
+                event(getString(R.string.recovery_event_sleep_recovery_waiting), "sleep.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event("无法保存立即睡眠安全记录的清除状态", "sleep.recovery_clear_failed")
+                event(getString(R.string.recovery_event_sleep_recovery_clear_failed), "sleep.recovery_clear_failed")
                 return
             }
-            event("用户已核对机器睡眠状态，清除上次入睡提醒", "sleep.recovery_acknowledged")
+            event(getString(R.string.recovery_event_sleep_recovery_acknowledged), "sleep.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1422,12 +1407,12 @@ class MobileService : Service() {
         }
         if (shotRecovery.pending) {
             if (!shotRecovery.clear()) {
-                event("萃取安全记录未能保存清除，请重试", "shot.recovery_clear_failed")
+                event(getString(R.string.recovery_event_shot_recovery_clear_failed), "shot.recovery_clear_failed")
                 return
             }
         }
         manualSafetyMessage = null
-        event("用户已检查手动萃取状态", "shot.passive_acknowledged")
+        event(getString(R.string.recovery_event_shot_passive_acknowledged), "shot.passive_acknowledged")
         refreshSafetyNotification()
     }
     fun shutdown() {
