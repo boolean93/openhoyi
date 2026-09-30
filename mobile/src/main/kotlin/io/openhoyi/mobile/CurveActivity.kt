@@ -32,6 +32,7 @@ class CurveActivity : ThemedActivity() {
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
     private var detailBackCallback: android.window.OnBackInvokedCallback? = null
+    private val curveDetailsText by lazy { CurveDetailsText(this) }
     private val library get() = (application as MobileApplication).curves
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -290,7 +291,7 @@ class CurveActivity : ThemedActivity() {
         val canStart = library.canStart(item)
         detailTitle.text = item.name
         detailCategory.text = CurveCategoryFilter.display(this, item.category)
-        details.text = item.details
+        details.text = curveDetailsText.render(item, canStart)
         availability.text = if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
         availability.setTextColor(getColor(if (canStart) R.color.mobile_accent else R.color.mobile_muted))
         availability.visibility = View.VISIBLE

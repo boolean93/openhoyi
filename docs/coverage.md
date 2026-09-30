@@ -1,5 +1,7 @@
 # 覆盖矩阵与多轮核验
 
+2026-10-01：新增只读CurveDetailsText，资源化采集/工厂曲线详情模板及报文校验可用/缺失/不用重量共5条资源；CurveActivity仅增加lazy显示器并替换item.details显示，原canStart仍独立决定启用和槽位资格。CurveLibrary/CurveCatalog/FactoryCurveCatalog/FactoryWireProof（含FactoryCurveAdapter）文件未改，规范详情字段仍保留用于兼容/核对，工厂tips和采集endMode作为原始内容显示，尚未翻译全部元数据。三个新测试先因缺API失败，再实现后通过：103条曲线在有/无真实仓库工厂proof时206次详情比较与原字段完全相同，显示前后resolve不变；空翻译不改资格/参数/存储详情，未知元数据保留原详情。补103条总数断言后两变体再次通过。Activity正向两项声明替换核对、五条编译资源核对通过；完整离线回归协议39,823项检查/32,856条通知回放、会话92场景，Alpha/Mock各108通过、1项缺真实导出跳过，三个APK构建成功。未连接真机；初始提示及全部元数据翻译/语言选择仍待完成，软件对照不代表机器安全验收。
+
 2026-10-01：实际Mock运行器为MockDeviceRuntime（之前handoff的MockEngine称呼不准确），13条提示新增11条资源、复用2条；构造函数注入(Int)->String，Service只传延迟执行的getString lambda，初始化时不访问未附加Context。JVM原测试改读同一XML资源，不保留重复中文表。新增emptyTranslationsCannotPermitBlockedMockChanges先因缺注入API编译失败，再实现后通过；验证空翻译仍返回非null阻断萃取中设置/去皮、入睡后杯数重置及预热中设置，未错误修改数据。Runtime/Service完整源文件正向替换核对，13条XML/两包编译资源相同，Alpha/Mock各105测试通过、1项缺真实导出跳过，含10项Mock运行器测试，两包构建成功。合成遥测/状态转换及协议代码不变，本轮运行定向回归而未重复协议全回归；未连接真机。MobileSnapshot初始固定提示、库详情与完整翻译/语言选择仍待完成，真实功能和安全验收未完成。
 
 2026-10-01：MobileService运行/回读/被动萃取/启动失败/采样失败及退出阻断41项声明提示替换，新增35条资源、复用6条；萃取状态仍以current.name展示，异常仍以simpleName展示。事件code、身份和serial/确认条件、手动萃取识别、恢复clear、服务退出阻断及命令调用未改；历史reason中的连接中断/机器手动萃取/机器待机回报/设备服务停止保持原值。整个Service正向显示替换重放一致，41条XML/两包编译资源核对及10项动态格式对照通过。完整离线回归：协议39,823项检查/32,856条通知回放、会话92场景、共享JUnit61项；Alpha/Mock各104通过、1项缺真实导出跳过，三个APK构建成功。MobileSnapshot的初始默认提示仍为固定中文，MockEngine/库详情等外部来源提示及完整翻译/语言选择尚未完成；不把历史存储字段强行翻译。未连接真机，整体真实功能和安全验收未完成。

@@ -887,4 +887,11 @@
     <string name="mock_runtime_single_day_only">"一次只能修改一天的 Mock 睡眠计划"</string>
     <string name="mock_runtime_cups_changed">"Mock 杯数已变化，请重新核对"</string>
     <string name="mock_runtime_sample_notice">"Mock 数据 · 不连接蓝牙设备"</string>
+
+    <!-- Detail presentation; canonical library fields and wire eligibility remain independent. -->
+    <string name="curve_details_captured">"%1$s\n温度 %2$s °C · 最多 %3$s ml · %4$s 段\n目标重量 %5$s\n启动报文与采集样本逐字节一致。"</string>
+    <string name="curve_details_factory">"旧版工厂曲线 v3 · %1$s\n温度 %2$s °C · 水量 %3$s ml · %4$s 段\n目标重量 %5$s\n分段目标 %6$s\n分段水量 %7$s ml\n\n%8$s"</string>
+    <string name="curve_details_proof_available">"启动报文对照通过，待实机验收"</string>
+    <string name="curve_details_proof_missing">"报文校验不可用，仅供浏览"</string>
+    <string name="curve_details_no_weight">"不使用"</string>
 </resources>
