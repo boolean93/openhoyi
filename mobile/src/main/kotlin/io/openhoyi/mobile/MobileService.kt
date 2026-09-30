@@ -58,6 +58,9 @@ data class MobileSnapshot(
 
 /** Product-app BLE owner. Screens observe snapshots; explicit controls remain gated in this service. */
 class MobileService : Service() {
+    private val studioStartGate by lazy { StudioStartGate(this) }
+    private val brewWaitCancelGate by lazy { BrewWaitCancelGate(this) }
+    private val shotRecoveryClearGate by lazy { ShotRecoveryClearGate(this) }
     private val shotGate by lazy { ShotGate(this) }
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     inner class LocalBinder : Binder() { val service: MobileService get() = this@MobileService }
@@ -114,7 +117,7 @@ class MobileService : Service() {
     }
     val machineControlSafetyMessage: String? get() = MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
-    val shotRecoveryClearBlock: String? get() = ShotRecoveryClearGate.block(shotRecovery,
+    val shotRecoveryClearBlock: String? get() = shotRecoveryClearGate.block(shotRecovery,
         hub?.coffeeAddress, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
         SystemClock.elapsedRealtime(), shotState, manualShotActive)
     val machineWriteAcknowledgementAvailable: Boolean get() = when (machineWriteRecovery.kind) {
@@ -167,7 +170,7 @@ class MobileService : Service() {
     val brewPreparationProfileId: String? get() = brewPreparation.profileId
     val brewPreparationTargetC: Int? get() = brewPreparation.targetC
     val brewWaitCancelBlock: String? get() = if (mock != null) null else
-        BrewWaitCancelGate.block(snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
+        brewWaitCancelGate.block(snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
             SystemClock.elapsedRealtime(), shotState, shotRecovery.pending)
     private var sleepSampleSerial = 0L
     private val sleepNowUnresolved: Boolean get() = sleepNow.state == SleepNowTracker.State.UNKNOWN
@@ -1011,7 +1014,7 @@ class MobileService : Service() {
             settings.brewCompensationTenthsC)
     }
     fun studioStartBlock(profile: CurveProfile): String? = if (!machineSettingsFresh)
-        "机器设置回报已过期，请等待新回报" else StudioStartGate.block(
+        getString(R.string.studio_settings_stale) else studioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
         if (mock != null) {

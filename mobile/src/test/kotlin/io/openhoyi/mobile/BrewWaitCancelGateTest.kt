@@ -9,11 +9,12 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BrewWaitCancelGateTest {
+    private val gate = BrewWaitCancelGate(DefaultStringResources::resolve)
     private val idle = IdleTelemetry(9200, 12000, 10, 10, 0, 0, 0, 0, ByteFrame(byteArrayOf()))
     private fun block(frame: io.openhoyi.protocol.HoyiMessage? = idle, at: Long? = 1000,
         now: Long = 1000, coffee: DeviceState = DeviceState.READY,
         shot: ExtractionState = ExtractionState.IDLE, unresolvedShot: Boolean = false) =
-        BrewWaitCancelGate.block(coffee, frame, at, now, shot, unresolvedShot)
+        gate.block(coffee, frame, at, now, shot, unresolvedShot)
 
     @Test fun cancellationRequiresFreshAwakeMachineIdle() {
         assertNull(block())

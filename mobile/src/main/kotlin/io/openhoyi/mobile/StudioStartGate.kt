@@ -5,14 +5,17 @@ import io.openhoyi.session.PreheatGate
 import io.openhoyi.protocol.Settings
 
 /** Maps shared studio decisions to product text and curve identifiers. */
-object StudioStartGate {
+class StudioStartGate(private val resolve: (Int, Array<out Any>) -> String) {
+    constructor(context: android.content.Context) : this({ id, args -> context.getString(id, *args) })
+    private fun text(id: Int): String = resolve(id, emptyArray())
+
     fun block(settings: Settings?, correctedHundredthsC: Int?, profile: CurveProfile,
         preparation: BrewPreparation): String? = when (PreheatGate.startBlock(
             settings, correctedHundredthsC, profile.id, profile.temperatureC, preparation)) {
-        PreheatGate.StartBlock.SETTINGS_MISSING -> "尚未收到机器运行模式"
-        PreheatGate.StartBlock.MODE_CHANGED -> "运行模式已变化，请先取消预热"
-        PreheatGate.StartBlock.PREPARATION_MISMATCH -> "预热尚未就绪或曲线已变化，请先取消预热"
-        PreheatGate.StartBlock.TEMPERATURE_NOT_READY -> "工作室模式温度未达到曲线目标，请先预热"
+        PreheatGate.StartBlock.SETTINGS_MISSING -> text(R.string.studio_block_settings_missing)
+        PreheatGate.StartBlock.MODE_CHANGED -> text(R.string.studio_block_mode_changed)
+        PreheatGate.StartBlock.PREPARATION_MISMATCH -> text(R.string.studio_block_preparation_mismatch)
+        PreheatGate.StartBlock.TEMPERATURE_NOT_READY -> text(R.string.studio_block_temperature_not_ready)
         null -> null
     }
 }

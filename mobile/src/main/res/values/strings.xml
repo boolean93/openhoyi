@@ -492,4 +492,17 @@
     <string name="extraction_stop_changed">"启动条件已变化，咖啡机未启动"</string>
     <string name="extraction_stop_manual">"手动停止"</string>
     <string name="extraction_stop_unknown">"结果待确认"</string>
+    <string name="studio_block_settings_missing">"尚未收到机器运行模式"</string>
+    <string name="studio_block_mode_changed">"运行模式已变化，请先取消预热"</string>
+    <string name="studio_block_preparation_mismatch">"预热尚未就绪或曲线已变化，请先取消预热"</string>
+    <string name="studio_block_temperature_not_ready">"工作室模式温度未达到曲线目标，请先预热"</string>
+    <string name="cancel_preheat_block_extraction_unsettled">"萃取尚未确认结束，请先检查机器并用拨杆停液"</string>
+    <string name="cancel_preheat_block_coffee_not_ready">"咖啡机未就绪，无法发送取消预热"</string>
+    <string name="cancel_preheat_block_idle_missing">"等待咖啡机新的待机回报后再取消预热"</string>
+    <string name="cancel_preheat_block_idle_stale">"咖啡机待机数据已过期，请等待新回报"</string>
+    <string name="cancel_preheat_block_not_awake">"咖啡机未回报清醒待机，不能发送取消预热"</string>
+    <string name="shot_recovery_block_extraction_unsettled">"萃取尚未确认结束，请先用机器拨杆停液"</string>
+    <string name="shot_recovery_block_device_mismatch">"请先连接上一杯使用的咖啡机"</string>
+    <string name="shot_recovery_block_idle_not_fresh">"请连接原咖啡机，等待新的待机回报后再确认"</string>
+    <string name="studio_settings_stale">"机器设置回报已过期，请等待新回报"</string>
 </resources>

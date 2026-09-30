@@ -10,6 +10,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ShotRecoveryClearGateTest {
+    private val gate = ShotRecoveryClearGate(DefaultStringResources::resolve)
     private val disk = object : ShotRecoveryState.Storage {
         var value = ShotRecoveryState.Record(false, null)
         override fun read() = value
@@ -23,7 +24,7 @@ class ShotRecoveryClearGateTest {
         fun block(coffee: DeviceState = DeviceState.READY, at: Long? = 1000, now: Long = 2500,
             address: String? = "aa:bb:cc:dd:ee:01", shot: ExtractionState = ExtractionState.IDLE,
             manual: Boolean = false) =
-            ShotRecoveryClearGate.block(recovery, address, coffee, idle, at, now, shot, manual)
+            gate.block(recovery, address, coffee, idle, at, now, shot, manual)
         assertNull(block())
         assertEquals("请连接原咖啡机，等待新的待机回报后再确认", block(now = 2501))
         assertEquals("请连接原咖啡机，等待新的待机回报后再确认", block(at = null))
@@ -47,7 +48,7 @@ class ShotRecoveryClearGateTest {
         fun block(shot: ExtractionState = ExtractionState.IDLE, manual: Boolean = false,
             address: String? = "AA:BB:CC:DD:EE:01", at: Long? = 1000,
             now: Long = 1000, coffee: DeviceState = DeviceState.READY) =
-            ShotRecoveryClearGate.block(recovery, address, coffee, idle, at, now, shot, manual)
+            gate.block(recovery, address, coffee, idle, at, now, shot, manual)
         assertNull(block())
         for (state in listOf(ExtractionState.STARTING, ExtractionState.RUNNING,
             ExtractionState.STOP_REQUESTED, ExtractionState.OUTCOME_UNKNOWN))
