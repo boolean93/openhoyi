@@ -9,7 +9,7 @@
 | `app` | 原生 Activity + Binder + connectedDevice 前台服务，实时数据显示、权限请求、日志导出 |
 | `mobile` | 独立 Alpha 包；原生首页、设备连接、实时读数、曲线库、萃取页与本地曲线选择；复用同一套协议/会话/BLE 库 |
 | `protocol-core` | HOYI / BOOKOO 编解码、整数单位、不可变字节、格式校验、未支持命令清单。无 Android 依赖 |
-| `device-session` | 串行 GATT 队列、独立连接代次、初始化就绪、重连策略、去皮及停止策略、设置/杯数/睡眠写入确认状态机、真实时序回放。无 Android 依赖 |
+| `device-session` | 串行 GATT 队列、独立连接代次、初始化就绪、重连策略、去皮及停止策略、设置/杯数/睡眠写入确认状态机、预热状态与被动萃取识别、真实时序回放。无 Android 依赖 |
 | `bluetooth-android` | Android GATT 回调桥接、订阅、扫描、权限检查、主线程调度；`NativeDeviceHub` 连接上述模块 |
 | `trace-core` | 两款App共用的有界异步JSONL日志与ZIP导出；无Android依赖 |
 
@@ -28,7 +28,7 @@ Java17、Android SDK35、Gradle wrapper8.11.1、Kotlin2.0.21、AGP8.10.0。
 ./gradlew :protocol-core:check :device-session:check :bluetooth-android:assembleDebug :bluetooth-android:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :mobile:testDebugUnitTest :mobile:assembleDebug :mobile:lintDebug
 ```
 
-两个纯 Kotlin 模块的 `check` 包含确定性 JVM `verify` 任务；`device-session` 还运行迁入的17项写入确认 JUnit 测试。断言失败即构建失败。逐帧断言不是独立案例；App 的日志/数据展示使用 JUnit 测试。
+两个纯 Kotlin 模块的 `check` 包含确定性 JVM `verify` 任务；`device-session` 还运行迁入的25项写入确认、预热及被动萃取 JUnit 测试。断言失败即构建失败。逐帧断言不是独立案例；App 的日志/数据展示使用 JUnit 测试。
 
 Google Maven 无法访问时可显式使用 `-PgoogleMirror=aliyun`。本机全局Gradle代理指向未启动的127.0.0.1:7890，本次仅命令行加 `-Dhttp.proxyHost= -Dhttps.proxyHost=` 绕过，没有修改全局配置。Google依赖首次通过可选阿里云镜像获取；默认仍使用官方仓库。
 

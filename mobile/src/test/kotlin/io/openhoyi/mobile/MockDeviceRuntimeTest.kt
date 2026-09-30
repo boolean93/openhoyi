@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.BrewPreparation
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.protocol.MachineSettingChange

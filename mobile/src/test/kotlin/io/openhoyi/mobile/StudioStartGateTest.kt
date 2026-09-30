@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.BrewPreparation
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.Settings
 import io.openhoyi.session.OperationResult

@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.BrewPreparation
 import io.openhoyi.protocol.Settings
 
 /** Final studio decision is repeated in the service at the moment a start is requested. */

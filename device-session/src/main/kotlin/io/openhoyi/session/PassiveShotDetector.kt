@@ -1,4 +1,4 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.HoyiMessage

@@ -1,7 +1,5 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
-import io.openhoyi.session.OperationResult
-import io.openhoyi.session.BrewTemperaturePolicy
 
 /** Studio preheat: transport result and post-write temperature evidence remain separate. */
 class BrewPreparation {

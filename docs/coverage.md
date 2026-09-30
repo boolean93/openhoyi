@@ -1,5 +1,7 @@
 # 覆盖矩阵与多轮核验
 
+2026-09-30：`BrewPreparation`、`PassiveShotDetector` 及8项原JUnit测试迁入 `device-session`，4个生产/测试文件方法体与迁移前HEAD逐一比较一致，仅包名和导入改变。共享模块保持无Android/产品模块引用，累计25项JUnit通过；协议39,823项检查/32,856条通知回放、会话91场景通过，Alpha/Mock各104通过、1项缺真实导出跳过，三个APK构建通过。产品测试数量减少8项是迁移而非删除。`StudioStartGate`、预热发送/超时/持久化、被动历史记录继续由Mobile负责；状态机迁移不改变原时序或控制许可，不构成统一业务协调器完成。未操作真机，当前边界见 `docs/architecture.md`。
+
 2026-09-30：`SettingsWriteTracker`、`CupResetTracker`、`SleepNowTracker`、`SleepScheduleWriteTracker` 及17项原JUnit测试迁入 `device-session`。8个生产/测试文件方法体与迁移前HEAD逐一比较一致，仅包名和导入改变；Android页面改为引用共享类型。共享模块测试依赖使用现有JUnit4.13.2，不进入生产依赖。完整离线回归：共享JUnit17通过、会话91场景通过、协议39,823项检查/32,856条通知回放；Alpha/Mock各112通过、1项缺真实导出跳过，三个APK构建通过。原130项产品测试减为113项，是17项迁至核心而非删除。服务仍持有四类tracker实例、采样序号/超时/安全持久化，尚未合并成统一业务协调器。当前边界见 `docs/architecture.md`，未操作真机。
 
 2026-09-30：直接冲泡温度编码方法复用 `MachineSettingChange.BrewTemperature` 的 75–105°C 范围，不再接受仅满足单字节范围的0/1/74/106/255。合法设置范围和报文字节不变；预热取消 `brewWait(0)` 与加热开关不受影响。先复现越界值可编码，再验证拒绝及端点/旧版设置报文对照。完整离线回归39,823项协议检查、32,856条通知回放、91个会话场景，三个APK构建通过；未使用真机。前一提交 `fba2ddb` 云端Verify/Mock仍运行，未宣称云端通过。
