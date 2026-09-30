@@ -1003,9 +1003,9 @@ class MobileService : Service() {
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
         if (mock != null) {
-            if (brewPreparation.active) return "已有 Mock 预热请求，请先取消"
-            val profile = selectedCurve(profileId, slot) ?: return "请先选择曲线"
-            if (profile.scaleMode != expectedScaleMode) return "Mock 电子秤状态已变化，请重新确认"
+            if (brewPreparation.active) return getString(R.string.service_shot_preheat_mock_pending)
+            val profile = selectedCurve(profileId, slot) ?: return getString(R.string.start_block_curve_missing)
+            if (profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_mock_scale_changed)
             val library = (application as MobileApplication).curves
             shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
                 snapshot.scaleState, snapshot.weightAt, SystemClock.elapsedRealtime(), shotState,
@@ -1014,46 +1014,46 @@ class MobileService : Service() {
             val result = mock.beginPreheat(profile.temperatureC, now)
             if (result != null) return result
             val token = brewPreparation.begin(profile.id, profile.temperatureC)
-                ?: run { mock?.cancelPreheat(now); return "无法开始 Mock 预热" }
+                ?: run { mock?.cancelPreheat(now); return getString(R.string.service_shot_preheat_mock_failed) }
             brewPreparation.written(token, OperationResult.Success(), idleSampleSerial)
             refreshMock(mock, now)
-            event("Mock 正在模拟预热到 ${profile.temperatureC} °C；未发送蓝牙命令", "mock.brew_wait")
+            event(getString(R.string.service_shot_preheat_mock_target, profile.temperatureC.toString()), "mock.brew_wait")
             return null
         }
-        if (manualShotActive) return "手动萃取期间不能预热曲线"
+        if (manualShotActive) return getString(R.string.service_shot_preheat_manual_block)
         machineControlSafetyMessage?.let { return it }
-        val current = hub ?: return "设备服务尚未启动"
+        val current = hub ?: return getString(R.string.service_unavailable)
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
-        if (cupResetBusy) return "正在等待累计杯数归零回报"
-        if (scheduleBusy) return "正在等待睡眠计划回读"
-        if (brewPreparation.active) return "已有预热请求，请先取消"
+        if (cupResetBusy) return getString(R.string.service_write_cups_waiting)
+        if (scheduleBusy) return getString(R.string.service_write_schedule_waiting)
+        if (brewPreparation.active) return getString(R.string.service_shot_preheat_pending)
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
-            return "正在等待机器进入睡眠"
+            return getString(R.string.service_write_sleep_waiting)
         if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
-            return "正在等待机器设置回读"
-        val settings = snapshot.settings ?: return "尚未收到机器设置"
-        if (!machineSettingsFresh) return "机器设置回报已过期，请等待新回报后再预热"
-        if (settings.flags and 0x04 == 0) return "当前是咖啡馆模式，无需曲线预热"
+            return getString(R.string.service_write_setting_waiting)
+        val settings = snapshot.settings ?: return getString(R.string.settings_missing)
+        if (!machineSettingsFresh) return getString(R.string.service_shot_preheat_settings_stale)
+        if (settings.flags and 0x04 == 0) return getString(R.string.service_shot_preheat_cafe_mode)
         val profile = selectedCurve(profileId, slot)
-        if (profile != null && profile.scaleMode != expectedScaleMode) return "电子秤状态已变化，请重新确认"
+        if (profile != null && profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_scale_changed)
         val library = (application as MobileApplication).curves
         val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
             snapshot.scaleState, snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) return blocked
         requireNotNull(profile)
-        val actual = currentCorrectedBrewTemperature() ?: return "等待新鲜冲泡温度"
-        if (BrewPreparation.isAtTarget(actual, profile.temperatureC)) return "温度已达到目标，可直接确认萃取"
-        val coffeeAddress = current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止预热"
-        val token = brewPreparation.begin(profile.id, profile.temperatureC) ?: return "无法开始预热"
+        val actual = currentCorrectedBrewTemperature() ?: return getString(R.string.service_shot_temperature_waiting)
+        if (BrewPreparation.isAtTarget(actual, profile.temperatureC)) return getString(R.string.service_shot_preheat_already_ready)
+        val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_shot_preheat_identity_missing)
+        val token = brewPreparation.begin(profile.id, profile.temperatureC) ?: return getString(R.string.service_shot_preheat_failed)
         if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.BREW_WAIT, coffeeAddress)) {
             brewPreparation.consumed()
-            return "无法可靠保存预热安全状态，已阻止预热"
+            return getString(R.string.service_shot_preheat_record_failed)
         }
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         refreshSafetyNotification()
-        event("曲线预热命令已排队：${profile.temperatureC} °C", "brew_wait.requested")
+        event(getString(R.string.service_shot_preheat_queued, profile.temperatureC.toString()), "brew_wait.requested")
         current.setBrewWait(profile.temperatureC, {
             brewPreparation.permitsWrite(token, profile.temperatureC) && !manualShotActive &&
                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
@@ -1062,21 +1062,21 @@ class MobileService : Service() {
             if (!brewPreparation.written(token, result, idleSampleSerial)) return@done
             when (brewPreparation.state) {
                 BrewPreparation.State.WAITING_TEMP -> {
-                    event("预热命令已写入，等待温度到达", "brew_wait.written")
+                    event(getString(R.string.service_shot_preheat_written), "brew_wait.written")
                     handler.postDelayed({
                         if (brewPreparation.isActive(token)) {
                             val blocked = cancelBrewPreparation()
                             if (blocked == null && brewPreparation.state != BrewPreparation.State.UNKNOWN)
-                                event("预热超过10分钟，已请求取消", "brew_wait.timeout_cancel_requested")
+                                event(getString(R.string.service_shot_preheat_timeout_cancel), "brew_wait.timeout_cancel_requested")
                             else if (brewPreparation.timedOut(token)) {
-                                event("预热超时，取消命令未发送：$blocked。请检查机器", "brew_wait.timeout_cancel_blocked")
+                                event(getString(R.string.service_shot_preheat_timeout_blocked, blocked.toString()), "brew_wait.timeout_cancel_blocked")
                                 refreshSafetyNotification()
                             }
                         }
                     }, 600_000)
                 }
-                BrewPreparation.State.FAILED -> event("预热命令未写入", "brew_wait.failed")
-                BrewPreparation.State.UNKNOWN -> event("预热写入结果未知，请查看机器", "brew_wait.unknown")
+                BrewPreparation.State.FAILED -> event(getString(R.string.service_shot_preheat_not_written), "brew_wait.failed")
+                BrewPreparation.State.UNKNOWN -> event(getString(R.string.service_shot_preheat_unknown), "brew_wait.unknown")
                 else -> Unit
             }
             refreshSafetyNotification()
@@ -1085,29 +1085,29 @@ class MobileService : Service() {
     }
     fun cancelBrewPreparation(): String? {
         if (mock != null) {
-            if (!brewPreparation.active) return "当前没有 Mock 预热请求"
+            if (!brewPreparation.active) return getString(R.string.service_shot_cancel_mock_none)
             val now = SystemClock.elapsedRealtime()
             val result = mock.cancelPreheat(now)
             if (result != null) return result
-            val token = brewPreparation.beginCancel() ?: return "正在取消 Mock 预热"
+            val token = brewPreparation.beginCancel() ?: return getString(R.string.service_shot_cancel_mock_pending)
             brewPreparation.cancelled(token, OperationResult.Success())
             brewPreparation.consumed()
             refreshMock(mock, now)
-            event("Mock 预热已取消；未发送蓝牙命令", "mock.brew_wait_cancelled")
+            event(getString(R.string.service_shot_cancel_mock_done), "mock.brew_wait_cancelled")
             return null
         }
-        if (manualShotActive) return "手动萃取期间不能发送预热取消命令"
+        if (manualShotActive) return getString(R.string.service_shot_cancel_manual_block)
         val recovering = machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT
-        if (!brewPreparation.active && !recovering) return "当前没有预热请求"
-        val current = hub ?: return "设备服务尚未启动，预热结果未知"
-        if (!machineWriteRecovery.matchesDevice(current.coffeeAddress)) return "请先连接预热使用的原咖啡机"
+        if (!brewPreparation.active && !recovering) return getString(R.string.service_shot_cancel_none)
+        val current = hub ?: return getString(R.string.service_shot_cancel_unavailable)
+        if (!machineWriteRecovery.matchesDevice(current.coffeeAddress)) return getString(R.string.service_shot_cancel_original_device)
         brewWaitCancelBlock?.let { return it }
         if (!brewPreparation.active && recovering) {
-            if (!brewPreparation.restoreUnknown()) return "无法进入预热恢复状态"
+            if (!brewPreparation.restoreUnknown()) return getString(R.string.service_shot_cancel_restore_failed)
         }
-        val token = brewPreparation.beginCancel() ?: return "取消命令已写入或正在取消；请检查机器"
+        val token = brewPreparation.beginCancel() ?: return getString(R.string.service_shot_cancel_pending)
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
-        event("取消预热命令已排队", "brew_wait.cancel_requested")
+        event(getString(R.string.service_shot_cancel_queued), "brew_wait.cancel_requested")
         current.setBrewWait(0, {
             brewPreparation.permitsWrite(token, 0) && brewWaitCancelBlock == null &&
                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
@@ -1115,8 +1115,8 @@ class MobileService : Service() {
         }) done@{ result ->
             if (!brewPreparation.cancelled(token, result)) return@done
             when (brewPreparation.state) {
-                BrewPreparation.State.CANCEL_WRITTEN -> event("取消预热命令已写入；请检查机器，回报待机后人工确认", "brew_wait.cancel_written")
-                BrewPreparation.State.UNKNOWN -> event("取消预热结果未知，请查看机器", "brew_wait.cancel_unknown")
+                BrewPreparation.State.CANCEL_WRITTEN -> event(getString(R.string.service_shot_cancel_written), "brew_wait.cancel_written")
+                BrewPreparation.State.UNKNOWN -> event(getString(R.string.service_shot_cancel_unknown), "brew_wait.cancel_unknown")
                 else -> Unit
             }
             refreshSafetyNotification()
@@ -1125,10 +1125,10 @@ class MobileService : Service() {
     }
     fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
         if (mock != null) {
-            if (mock.isSleeping) return "Mock 咖啡机已入睡；重启模拟服务可复位"
-            val profile = selectedCurve(profileId, slot) ?: return "请先选择曲线"
-            if (profile.scaleMode != expectedScaleMode) return "Mock 电子秤状态已变化，请重新确认"
-            if (ShotGate.active(shotState)) return "Mock 萃取正在进行"
+            if (mock.isSleeping) return getString(R.string.service_shot_mock_sleeping)
+            val profile = selectedCurve(profileId, slot) ?: return getString(R.string.start_block_curve_missing)
+            if (profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_mock_scale_changed)
+            if (ShotGate.active(shotState)) return getString(R.string.service_shot_mock_running)
             studioStartBlock(profile)?.let { return it }
             val now = SystemClock.elapsedRealtime()
             if (brewPreparation.active) {
@@ -1140,84 +1140,84 @@ class MobileService : Service() {
             val shotId = runCatching { history?.begin(profile.id, slot = slot) }.getOrNull()
                 ?: java.util.UUID.randomUUID().toString()
             series.begin(shotId, SystemClock.elapsedRealtime())
-            event("Mock 萃取已开始：${profile.name}；未发送蓝牙命令", "mock.shot_started")
+            event(getString(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
             return null
         }
-        if (manualShotActive) return "机器手动萃取进行中，请先用拨杆结束"
+        if (manualShotActive) return getString(R.string.service_shot_manual_block)
         if (machineWriteRecovery.kind != MachineWriteRecoveryState.Kind.BREW_WAIT ||
             !machineWriteRecovery.matchesDevice(hub?.coffeeAddress) ||
             !brewPreparation.matches(profileId, selectedCurve(profileId, slot)?.temperatureC ?: -1))
             machineWriteSafetyMessage?.let { return it }
         if (shotRecovery.pending) return restartShotWarning
         tareStartBlock?.let { return it }
-        val current = hub ?: return "设备服务尚未启动"
+        val current = hub ?: return getString(R.string.service_unavailable)
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
-        if (cupResetBusy) return "正在等待累计杯数归零回报，不能启动萃取"
-        if (scheduleBusy) return "正在等待睡眠计划回读，不能启动萃取"
+        if (cupResetBusy) return getString(R.string.service_shot_cups_start_block)
+        if (scheduleBusy) return getString(R.string.service_shot_schedule_start_block)
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
-            return "正在等待机器进入睡眠，不能启动萃取"
+            return getString(R.string.service_shot_sleep_start_block)
         if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
-            return "正在等待机器设置回读，不能启动萃取"
+            return getString(R.string.service_shot_settings_start_block)
         val library = (application as MobileApplication).curves
         val profile = selectedCurve(profileId, slot)
         if (profile != null && profile.scaleMode != expectedScaleMode) {
-            event("电子秤连接状态已变化，请重新确认", "shot.rejected")
-            return "电子秤连接状态已变化，请重新确认"
+            event(getString(R.string.service_shot_scale_connection_changed), "shot.rejected")
+            return getString(R.string.service_shot_scale_connection_changed)
         }
         val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
             snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
-        if (blocked != null) { event("启动被阻止：$blocked", "shot.rejected"); return blocked }
+        if (blocked != null) { event(getString(R.string.service_shot_start_blocked, blocked), "shot.rejected"); return blocked }
         requireNotNull(profile)
         studioStartBlock(profile)?.let { return it }
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
             runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null) }
-                .onFailure { event("历史记录失败", "shot.history_error") }
+                .onFailure { event(getString(R.string.service_shot_history_failed), "shot.history_error") }
             finishSeries(true)
         }
         logs.record("shot.start.attempt", mapOf("ownerId" to ownerId, "curveId" to profile.id,
             "targetHundredthsGram" to profile.targetHundredthsGram.toString(),
             "scaleMode" to (profile.scaleMode?.toString() ?: "captured"), "slot" to slot.toString()))
-        val coffeeAddress=current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止启动"
-        if (!shotRecovery.arm(coffeeAddress)) return "无法可靠保存萃取安全状态，已阻止启动"
+        val coffeeAddress=current.coffeeAddress ?: return getString(R.string.service_shot_identity_missing)
+        if (!shotRecovery.arm(coffeeAddress)) return getString(R.string.service_shot_record_failed)
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) ||
             current.extraction.state == ExtractionState.IDLE) {
             if (!shotRecovery.clear()) manualSafetyMessage = restartShotWarning
-            event("启动未被会话层接受", "shot.rejected")
-            return "启动未被会话层接受"
+            event(getString(R.string.service_shot_session_rejected), "shot.rejected")
+            return getString(R.string.service_shot_session_rejected)
         }
         activeShotTargetHundredthsGram = profile.targetHundredthsGram
         if (brewPreparation.active) brewPreparation.consumed()
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
         val shotId = runCatching { history?.begin(profile.id, slot = slot) }
-            .onFailure { event("历史记录失败", "shot.history_error") }
+            .onFailure { event(getString(R.string.service_shot_history_failed), "shot.history_error") }
             .getOrNull() ?: java.util.UUID.randomUUID().toString()
         series.begin(shotId, SystemClock.elapsedRealtime())
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
-            event("启动结果未知，请检查咖啡机", "shot.unknown")
-            return "启动结果未知，请检查咖啡机"
+            event(getString(R.string.service_shot_start_unknown), "shot.unknown")
+            return getString(R.string.service_shot_start_unknown)
         }
-        event(if (current.extraction.preparingScale) "正在确认电子秤归零；确认后启动：${profile.name}"
-            else "已提交萃取请求：${profile.name}", "shot.requested")
+        event(if (current.extraction.preparingScale) getString(R.string.service_shot_waiting_tare, profile.name)
+            else getString(R.string.service_shot_requested, profile.name), "shot.requested")
         return null
     }
     fun stopShot() {
         if (mock != null) {
             if (ShotGate.active(shotState)) {
                 mock.stop()
-                event("Mock 萃取已停止；未发送蓝牙命令", "mock.shot_stopped")
+                event(getString(R.string.service_shot_mock_stopped), "mock.shot_stopped")
             }
             return
         }
-        if (manualShotActive) { event("手动萃取请使用机器拨杆停止；App 未发送命令"); return }
+        if (manualShotActive) { event(getString(R.string.service_shot_manual_stop_block)); return }
         if (!ShotGate.active(shotState)) return
         if (shotState == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != DeviceState.READY) {
-            event("咖啡机未连接，无法发送停止命令；请先重连并检查机器", "shot.stop_unavailable")
+            event(getString(R.string.service_shot_stop_unavailable), "shot.stop_unavailable")
             return
         }
-        event("用户请求停止萃取", "shot.manual_stop")
+        event(getString(R.string.service_shot_stop_requested), "shot.manual_stop")
         hub?.extraction?.manualStop()
     }
     private fun finishSeries(observedEnd: Boolean) {
