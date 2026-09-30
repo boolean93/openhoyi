@@ -837,4 +837,41 @@
     <string name="service_shot_manual_stop_block">"手动萃取请使用机器拨杆停止；App 未发送命令"</string>
     <string name="service_shot_stop_unavailable">"咖啡机未连接，无法发送停止命令；请先重连并检查机器"</string>
     <string name="service_shot_stop_requested">"用户请求停止萃取"</string>
+
+    <!-- Runtime feedback. Historical reason values and stable event identifiers are not translated. -->
+    <string name="service_event_shot_state">"萃取状态：%1$s"</string>
+    <string name="service_event_startup_failed">"服务启动失败：%1$s"</string>
+    <string name="service_event_cups_clear_failed">"无法清除杯数重置安全记录；请核对机器"</string>
+    <string name="service_event_cups_confirmed">"机器设置与待机数据均回报累计杯数归零"</string>
+    <string name="service_event_cups_reconciled">"机器杯数已重新回读；上次重置未获确认"</string>
+    <string name="service_event_mock_temperature_ready">"Mock 目标温度已达到；未发送蓝牙命令"</string>
+    <string name="service_event_shot_clear_failed">"无法清除萃取安全记录；请检查机器并重试。"</string>
+    <string name="service_event_preheat_clear_failed">"无法清除预热安全记录；请核对机器"</string>
+    <string name="service_event_tare_unconfirmed">"电子秤去皮未确认，咖啡机未启动"</string>
+    <string name="service_event_conditions_changed">"启动条件已变化，咖啡机未启动；请重新核对曲线和机器设置"</string>
+    <string name="service_event_mock_started">"Mock 数据已启动；所有设备命令均为模拟"</string>
+    <string name="service_event_credential_save_failed">"咖啡机已连接，但本机未能保存密码"</string>
+    <string name="service_event_manual_history_failed">"手动萃取历史保存失败"</string>
+    <string name="service_event_manual_disconnect_warning">"手动萃取时连接中断，结果未知；请检查机器并用拨杆确认停止。"</string>
+    <string name="service_event_manual_unknown">"手动萃取连接中断，结果未知"</string>
+    <string name="service_event_setting_confirmed">"机器回读已确认设置"</string>
+    <string name="service_event_setting_reconciled">"机器设置已重新回读；上次写入未获确认"</string>
+    <string name="service_event_schedule_reconciled">"已重新收到完整计划，请核对机器时间"</string>
+    <string name="service_event_sleep_confirmed">"机器已回报进入睡眠"</string>
+    <string name="service_event_sleep_reconciled">"机器已重新回报清醒待机；上次入睡未获确认"</string>
+    <string name="service_event_preheat_ready">"冲泡温度已达到曲线目标"</string>
+    <string name="service_event_shot_record_failed">"无法保存萃取安全记录；请守在机器旁并用拨杆停止。"</string>
+    <string name="service_event_manual_history_unwritable">"手动萃取历史暂不可写"</string>
+    <string name="service_event_manual_started">"检测到机器手动萃取；仅记录，不发送控制命令"</string>
+    <string name="service_event_manual_ended">"机器已回报手动萃取结束"</string>
+    <string name="service_event_communication_error">"设备通信异常"</string>
+    <string name="service_event_started">"服务已启动"</string>
+    <string name="service_event_sample_save_failed">"曲线采样暂存失败"</string>
+    <string name="service_event_mock_stopped">"Mock 数据已停止"</string>
+    <string name="service_event_cups_shutdown_block">"累计杯数重置尚未确认，设备服务保持运行"</string>
+    <string name="service_event_schedule_shutdown_block">"睡眠计划尚未确认，设备服务保持运行"</string>
+    <string name="service_event_shot_shutdown_block">"萃取结果未确认，设备服务保持运行"</string>
+    <string name="service_event_shot_recovery_shutdown_block">"上次萃取未确认结束，设备服务保持运行"</string>
+    <string name="service_event_write_shutdown_block">"上次机器写入未确认，设备服务保持运行"</string>
+    <string name="service_event_preheat_shutdown_block">"正在取消曲线预热，设备服务保持运行"</string>
 </resources>

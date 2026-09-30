@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-10-01：MobileService运行/回读/被动萃取/启动失败/采样失败及退出阻断41项声明提示替换，新增35条资源、复用6条；萃取状态仍以current.name展示，异常仍以simpleName展示。事件code、身份和serial/确认条件、手动萃取识别、恢复clear、服务退出阻断及命令调用未改；历史reason中的连接中断/机器手动萃取/机器待机回报/设备服务停止保持原值。整个Service正向显示替换重放一致，41条XML/两包编译资源核对及10项动态格式对照通过。完整离线回归：协议39,823项检查/32,856条通知回放、会话92场景、共享JUnit61项；Alpha/Mock各104通过、1项缺真实导出跳过，三个APK构建成功。MobileSnapshot的初始默认提示仍为固定中文，MockEngine/库详情等外部来源提示及完整翻译/语言选择尚未完成；不把历史存储字段强行翻译。未连接真机，整体真实功能和安全验收未完成。
+
 2026-10-01：MobileService.prepareBrew/cancelBrewPreparation/startShot/stopShot区域60项声明显示替换，新增53条资源、复用7条；动态温度先toString，曲线名和阻断原因作为参数，nullable超时原因仍按原插值呈现null。预热token/目标温度与最终permitsWrite、原设备匹配、10分钟取消、归零preflight、startBlock/studio门禁、安全记录arm/clear、启动请求字段/日志、历史stopReason及紧急停止路径均未改。限定区域正向替换后整个Service一致；60条XML/两包编译资源逐值核对，26项动态格式对照（含百分号/换行/null原因）通过。完整离线回归通过：协议39,823项检查/32,856条通知回放、会话92场景、共享JUnit61项；Alpha/Mock各104通过、1项缺真实导出跳过，三个APK构建成功。事件code/默认中文一致；未连接真机。运行/回读事件与Mock/库详情等剩余提示、完整翻译/语言选择仍待完成，整体真实功能与安全验收未完成。
 
 2026-10-01：MobileService.changeMachineSetting/resetCupCount/changeSleepSchedule/enterSleepNow四类机器操作的80项声明文案替换，新增77条资源、复用3条。回读新鲜度/清醒待机、expected比较、单日变化限制、原身份与安全记录arm、token/serial推进、最终发送、clear调用和6/8/12秒超时均保留；GATT写入后仍等机器回读，不把写入成功作为完成。整Service限定区域正向替换后一致，80条XML及两包编译资源逐值核对，12项动态设置名称格式对照通过。完整离线回归通过：协议39,823项检查/32,856条通知回放、会话92场景、共享JUnit61项；Alpha/Mock各104通过、1项缺真实导出跳过，三个APK构建成功。事件code/默认中文一致；未来翻译时显示message可变，诊断用code。未连接真机；预热/萃取/运行事件等服务剩余提示、库详情及完整翻译/语言选择仍待完成，整体协议和实机安全验收未完成。

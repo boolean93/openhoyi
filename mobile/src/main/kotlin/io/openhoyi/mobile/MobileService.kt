@@ -139,11 +139,11 @@ class MobileService : Service() {
         if (cupReset.state == CupResetTracker.State.CONFIRMED &&
             machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET &&
             !machineWriteRecovery.clear())
-            event("无法清除杯数重置安全记录；请核对机器", "cups.recovery_clear_failed")
+            event(getString(R.string.service_event_cups_clear_failed), "cups.recovery_clear_failed")
         refreshSafetyNotification()
-        if (confirmed) event("机器设置与待机数据均回报累计杯数归零", "cups.confirmed")
+        if (confirmed) event(getString(R.string.service_event_cups_confirmed), "cups.confirmed")
         else if (previous == CupResetTracker.State.UNKNOWN && cupReset.state == CupResetTracker.State.RECONCILED)
-            event("机器杯数已重新回读；上次重置未获确认", "cups.reconciled")
+            event(getString(R.string.service_event_cups_reconciled), "cups.reconciled")
     }
     private val scheduleWrite = SleepScheduleWriteTracker()
     private val sleepNow = SleepNowTracker()
@@ -204,7 +204,7 @@ class MobileService : Service() {
                 if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
                         BrewPreparation.correctedTemperature(idle.brewTemperatureHundredthsC,
                             currentSettings.brewCompensationTenthsC)))
-                    event("Mock 目标温度已达到；未发送蓝牙命令", "mock.brew_wait_ready")
+                    event(getString(R.string.service_event_mock_temperature_ready), "mock.brew_wait_ready")
             }
             (snapshot.coffee as? io.openhoyi.protocol.ExtractionTelemetry)?.let { frame ->
                 series.machine(frame, now, snapshot.weight?.weightHundredthsGram,
@@ -292,28 +292,28 @@ class MobileService : Service() {
                         snapshot.weightAt?.let { received -> received <= now && now - received <= 1500 } == true
                 }
                 runCatching { history?.transition(current, stopReason, weight) }
-                    .onFailure { event("历史记录失败", "shot.history_error") }
+                    .onFailure { event(getString(R.string.service_shot_history_failed), "shot.history_error") }
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
                     val shotRecordCleared = shotRecovery.clear()
                     if (!shotRecordCleared)
-                        manualSafetyMessage = "无法清除萃取安全记录；请检查机器并重试。"
+                        manualSafetyMessage = getString(R.string.service_event_shot_clear_failed)
                     if (current == ExtractionState.ENDED_OBSERVED && shotRecordCleared && brewWaitShotStarted &&
                         machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
                         machineWriteRecovery.matchesDevice(hub?.coffeeAddress)) {
                         if (!machineWriteRecovery.clear())
-                            event("无法清除预热安全记录；请核对机器", "brew_wait.recovery_clear_failed")
+                            event(getString(R.string.service_event_preheat_clear_failed), "brew_wait.recovery_clear_failed")
                         brewWaitShotStarted = false
                     }
                 }
                 if (current == ExtractionState.OUTCOME_UNKNOWN) saveSeriesCheckpoint(force = true)
-                event("萃取状态：${current.name}", "shot.state")
+                event(getString(R.string.service_event_shot_state, current.name), "shot.state")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
-                    event("电子秤去皮未确认，咖啡机未启动", "shot.preflight_failed")
+                    event(getString(R.string.service_event_tare_unconfirmed), "shot.preflight_failed")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.START_CONDITIONS_CHANGED.name)
-                    event("启动条件已变化，咖啡机未启动；请重新核对曲线和机器设置", "shot.conditions_changed")
+                    event(getString(R.string.service_event_conditions_changed), "shot.conditions_changed")
                 refreshSafetyNotification()
             }
             handler.postDelayed(this, 100)
@@ -339,7 +339,7 @@ class MobileService : Service() {
             running = true
             snapshot = mock.sample(SystemClock.elapsedRealtime())
             handler.post(mockTick)
-            event("Mock 数据已启动；所有设备命令均为模拟", "mock.started")
+            event(getString(R.string.service_event_mock_started), "mock.started")
             return START_NOT_STICKY
         }
         automaticScaleOnly = intent?.action == AUTO_SCALE
@@ -376,7 +376,7 @@ class MobileService : Service() {
                     if (role == DeviceRole.COFFEE) when (state) {
                         DeviceState.READY -> pendingCoffeeCredential?.let { credential ->
                             if (!credential.remembered && !coffeeCredentials.save(credential.address, credential.password))
-                                event("咖啡机已连接，但本机未能保存密码", "coffee.credential_save_failed")
+                                event(getString(R.string.service_event_credential_save_failed), "coffee.credential_save_failed")
                             coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
                             pendingCoffeeCredential = null
                         }
@@ -390,14 +390,14 @@ class MobileService : Service() {
                         passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
                         passiveHistoryId?.let { id ->
                             runCatching { history?.abandon(id, "连接中断") }
-                                .onFailure { event("手动萃取历史保存失败", "shot.history_error") }
+                                .onFailure { event(getString(R.string.service_event_manual_history_failed), "shot.history_error") }
                         }
                         passiveHistoryId = null
                         passiveMayClearRecovery = false
                         saveSeriesCheckpoint(force = true)
                         finishSeries(false)
-                        manualSafetyMessage = "手动萃取时连接中断，结果未知；请检查机器并用拨杆确认停止。"
-                        event("手动萃取连接中断，结果未知", "shot.passive_unknown")
+                        manualSafetyMessage = getString(R.string.service_event_manual_disconnect_warning)
+                        event(getString(R.string.service_event_manual_unknown), "shot.passive_unknown")
                     }
                     event("${role.name}: ${state.name}")
                     if (role == DeviceRole.COFFEE) refreshSafetyNotification()
@@ -408,14 +408,14 @@ class MobileService : Service() {
                             observeCupCount(true, frame.cupCount)
                             val previousSettingState = settingsWrite.state
                             if (settingsWrite.observe(++settingsSampleSerial, frame))
-                                event("机器回读已确认设置", "settings.confirmed")
+                                event(getString(R.string.service_event_setting_confirmed), "settings.confirmed")
                             else if (previousSettingState == SettingsWriteTracker.State.UNKNOWN &&
                                 settingsWrite.state == SettingsWriteTracker.State.RECONCILED)
-                                event("机器设置已重新回读；上次写入未获确认", "settings.reconciled")
+                                event(getString(R.string.service_event_setting_reconciled), "settings.reconciled")
                             if (settingsWrite.state == SettingsWriteTracker.State.CONFIRMED &&
                                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
                                 if (!machineWriteRecovery.clear())
-                                    event("无法清除机器设置安全记录", "settings.recovery_clear_failed")
+                                    event(getString(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
                                 refreshSafetyNotification()
                             }
                             snapshot.copy(settings = frame, settingsAt = SystemClock.elapsedRealtime())
@@ -431,13 +431,13 @@ class MobileService : Service() {
                             if (sleepScheduleFresh && scheduleWrite.observe(firstSleepSerial, secondSleepSerial,
                                     snapshot.sleepFirst, snapshot.sleepSecond)) {
                                 if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED)
-                                    event("机器已回读完整睡眠计划", "sleep_schedule.confirmed")
-                                else event("已重新收到完整计划，请核对机器时间", "sleep_schedule.reconciled")
+                                    event(getString(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
+                                else event(getString(R.string.service_event_schedule_reconciled), "sleep_schedule.reconciled")
                             }
                             if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED &&
                                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
                                 if (!machineWriteRecovery.clear())
-                                    event("无法清除睡眠计划安全记录", "sleep_schedule.recovery_clear_failed")
+                                    event(getString(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                                 refreshSafetyNotification()
                             }
                             snapshot
@@ -446,21 +446,21 @@ class MobileService : Service() {
                             observeCupCount(false, frame.cupCount)
                             val previousSleepState = sleepNow.state
                             if (sleepNow.observe(++sleepSampleSerial, frame.sleepStateRaw))
-                                event("机器已回报进入睡眠", "sleep.confirmed")
+                                event(getString(R.string.service_event_sleep_confirmed), "sleep.confirmed")
                             else if (previousSleepState == SleepNowTracker.State.UNKNOWN &&
                                 sleepNow.state == SleepNowTracker.State.RECONCILED)
-                                event("机器已重新回报清醒待机；上次入睡未获确认", "sleep.reconciled")
+                                event(getString(R.string.service_event_sleep_reconciled), "sleep.reconciled")
                             if (sleepNow.state == SleepNowTracker.State.CONFIRMED &&
                                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
                                 if (!machineWriteRecovery.clear())
-                                    event("无法清除立即睡眠安全记录", "sleep.recovery_clear_failed")
+                                    event(getString(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
                                 refreshSafetyNotification()
                             }
                             val currentSettings = snapshot.settings
                             if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
                                     BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
                                         currentSettings.brewCompensationTenthsC)))
-                                event("冲泡温度已达到曲线目标", "brew_wait.ready")
+                                event(getString(R.string.service_event_preheat_ready), "brew_wait.ready")
                             val observedAt = SystemClock.elapsedRealtime()
                             snapshot.copy(coffee = frame, coffeeAt = observedAt,
                                 alarmBits = frame.alarmBits, alarmAt = observedAt)
@@ -483,26 +483,26 @@ class MobileService : Service() {
                             passiveMayClearRecovery = armed &&
                                 shotRecovery.mayClearAfterPassiveShot(previousRecovery, currentAddress)
                             if (!armed)
-                                manualSafetyMessage = "无法保存萃取安全记录；请守在机器旁并用拨杆停止。"
+                                manualSafetyMessage = getString(R.string.service_event_shot_record_failed)
                             refreshSafetyNotification()
                             passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
-                                .onFailure { event("手动萃取历史暂不可写", "shot.history_error") }.getOrNull()
+                                .onFailure { event(getString(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
                             val id = passiveHistoryId ?: java.util.UUID.randomUUID().toString()
                             series.begin(id, passiveEvent.first.atMs)
                             recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
                             recordMachinePoint(passiveEvent.second.frame, passiveEvent.second.atMs)
                             passiveHistoryId?.let {
                                 runCatching { history?.transition(ExtractionState.RUNNING, "机器手动萃取", null) }
-                                    .onFailure { event("手动萃取历史保存失败", "shot.history_error") }
+                                    .onFailure { event(getString(R.string.service_event_manual_history_failed), "shot.history_error") }
                             }
-                            event("检测到机器手动萃取；仅记录，不发送控制命令", "shot.passive_started")
+                            event(getString(R.string.service_event_manual_started), "shot.passive_started")
                         }
                         is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
                             passiveEvent.value.atMs)
                         PassiveShotDetector.Event.Ended -> {
                             if (!passiveMayClearRecovery || !shotRecovery.matchesDevice(hub?.coffeeAddress) ||
                                 !shotRecovery.clear())
-                                manualSafetyMessage = "无法清除萃取安全记录；请检查机器并重试。"
+                                manualSafetyMessage = getString(R.string.service_event_shot_clear_failed)
                             passiveMayClearRecovery = false
                             val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
                                 snapshot.scaleState == DeviceState.READY &&
@@ -511,11 +511,11 @@ class MobileService : Service() {
                             passiveHistoryId?.let {
                                 runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
                                     "机器待机回报", weight) }
-                                    .onFailure { event("手动萃取历史保存失败", "shot.history_error") }
+                                    .onFailure { event(getString(R.string.service_event_manual_history_failed), "shot.history_error") }
                             }
                             passiveHistoryId = null
                             finishSeries(true)
-                            event("机器已回报手动萃取结束", "shot.passive_ended")
+                            event(getString(R.string.service_event_manual_ended), "shot.passive_ended")
                         }
                         else -> if (frame is io.openhoyi.protocol.ExtractionTelemetry && !passiveShot.active)
                             recordMachinePoint(frame, observedAt)
@@ -529,7 +529,7 @@ class MobileService : Service() {
                 },
                 diagnostic = { detail ->
                     if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
-                    else event("设备通信异常", "ble.diagnostic")
+                    else event(getString(R.string.service_event_communication_error), "ble.diagnostic")
                 },
                 trace = { role, trace ->
                     logs.record("wire.${trace.kind}", buildMap {
@@ -544,7 +544,7 @@ class MobileService : Service() {
                 legacyVerifiedStartFrames = (application as MobileApplication).curves.legacyVerifiedStartFrames,
             )
             running = true
-            event("服务已启动")
+            event(getString(R.string.service_event_started))
             refreshSafetyNotification()
             scheduleAutomaticScaleStop()
             if (visibleScreens.visible) {
@@ -552,7 +552,7 @@ class MobileService : Service() {
                 hubForeground = true
             }
         } catch (error: RuntimeException) {
-            event("服务启动失败：${error.javaClass.simpleName}")
+            event(getString(R.string.service_event_startup_failed, error.javaClass.simpleName))
             shutdown()
         }
         return START_NOT_STICKY
@@ -1239,7 +1239,7 @@ class MobileService : Service() {
     private fun saveSeriesCheckpoint(atElapsedMs: Long = SystemClock.elapsedRealtime(), force: Boolean = false) {
         series.checkpoint(atElapsedMs, force)?.let { (id, points) ->
             runCatching { (application as MobileApplication).samples.save(id, points) }
-                .onFailure { event("曲线采样暂存失败", "shot.samples_error") }
+                .onFailure { event(getString(R.string.service_event_sample_save_failed), "shot.samples_error") }
         }
     }
     private fun event(message: String, kind: String = "mobile.event") {
@@ -1420,35 +1420,35 @@ class MobileService : Service() {
             if (ShotGate.active(shotState)) mock.stop()
             running = false
             handler.removeCallbacks(mockTick)
-            snapshot = MobileSnapshot(message = "Mock 数据已停止")
+            snapshot = MobileSnapshot(message = getString(R.string.service_event_mock_stopped))
             stopSelf()
             return
         }
-        if (manualShotActive) { event("手动萃取进行中，请先用机器拨杆结束", "service.stop_deferred"); return }
+        if (manualShotActive) { event(getString(R.string.service_connection_manual_block), "service.stop_deferred"); return }
         if (cupResetBusy) {
-            event("累计杯数重置尚未确认，设备服务保持运行", "service.stop_deferred")
+            event(getString(R.string.service_event_cups_shutdown_block), "service.stop_deferred")
             return
         }
         if (scheduleBusy) {
-            event("睡眠计划尚未确认，设备服务保持运行", "service.stop_deferred")
+            event(getString(R.string.service_event_schedule_shutdown_block), "service.stop_deferred")
             return
         }
         if (ShotGate.active(shotState)) {
             stopShot()
-            event("萃取结果未确认，设备服务保持运行", "service.stop_deferred")
+            event(getString(R.string.service_event_shot_shutdown_block), "service.stop_deferred")
             return
         }
         if (shotRecovery.pending) {
-            event("上次萃取未确认结束，设备服务保持运行", "service.stop_deferred")
+            event(getString(R.string.service_event_shot_recovery_shutdown_block), "service.stop_deferred")
             return
         }
         if (machineWriteRecovery.pending) {
-            event("上次机器写入未确认，设备服务保持运行", "service.stop_deferred")
+            event(getString(R.string.service_event_write_shutdown_block), "service.stop_deferred")
             return
         }
         if (brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
             cancelBrewPreparation()
-            event("正在取消曲线预热，设备服务保持运行", "service.stop_deferred")
+            event(getString(R.string.service_event_preheat_shutdown_block), "service.stop_deferred")
             return
         }
         hub?.close(); hub = null; running = false
