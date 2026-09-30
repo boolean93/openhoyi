@@ -18,8 +18,10 @@ class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     init{require(session.role==DeviceRole.COFFEE)}
     private var activeSlot=7
     private var approvedStart:CoffeeStartContext?=null
+    var startAddress:String?=null;private set
     override fun prepareStart(parameters:StartParameters):Boolean {
         approvedStart=session.captureStartContext(parameters)
+        approvedStart?.let { startAddress=it.address }
         return approvedStart!=null
     }
     override fun startConditionsValid(parameters:StartParameters):Boolean =

@@ -94,19 +94,29 @@ class LabService : Service() {
     }
     fun connect(role: DeviceRole, address: String, password: String? = null) {
         val current = hub ?: return
-        event("ui.connect", "连接 ${role.name}")
-        if (role == DeviceRole.COFFEE) {
-            require(password != null && password.matches(Regex("[0-9]{6}")))
-            snapshot = snapshot.copy(coffee = null, coffeeAt = null, settings = null)
-            current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password))
-        } else {
-            snapshot = snapshot.copy(weight = null, weightAt = null)
-            current.connectScale(address)
+        try {
+            if (role == DeviceRole.COFFEE) {
+                require(password != null && password.matches(Regex("[0-9]{6}")))
+                current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password))
+                snapshot = snapshot.copy(coffee = null, coffeeAt = null, settings = null)
+            } else if (current.connectScale(address)) {
+                snapshot = snapshot.copy(weight = null, weightAt = null)
+            } else {
+                event("ui.connect_noop", "电子秤已连接或正在连接")
+                return
+            }
+            event("ui.connect", "连接 ${role.name}")
+        } catch (error: RuntimeException) {
+            event("ui.connect_rejected", "连接未完成：${error.javaClass.simpleName}")
         }
     }
     fun disconnect(role: DeviceRole) {
-        event("ui.disconnect", "手动断开 ${role.name}")
-        if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
+        try {
+            if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
+            event("ui.disconnect", "手动断开 ${role.name}")
+        } catch (error: RuntimeException) {
+            event("ui.disconnect_rejected", "断开未执行：${error.javaClass.simpleName}")
+        }
     }
     private fun event(kind: String, text: String) {
         logs.record(kind, mapOf("message" to text, "ownerId" to ownerId))

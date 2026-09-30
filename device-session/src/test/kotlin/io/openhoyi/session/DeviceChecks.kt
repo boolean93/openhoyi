@@ -719,8 +719,30 @@ fun deviceChecks():Int {
         result=null;control.start(profile){result=it}
         check(result is OperationResult.Failed && d.calls.size==before)
         check(control.prepareStart(profile))
+        check(control.startAddress=="other-device")
         control.start(profile){result=it}
         check(d.calls.size==before+1)
+        s.disconnect()
+        check(control.startAddress=="other-device")
+        check(!control.prepareStart(profile) && control.startAddress=="other-device")
+    }
+    case("connection recovery keeps the original coffee machine and freezes scale changes") {
+        for(state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)) {
+            check(!DeviceConnectionGate.mayConnectCoffee(state,"coffee-a","coffee-a"))
+            check(!DeviceConnectionGate.mayConnectCoffee(state,"coffee-a","coffee-b"))
+            check(!DeviceConnectionGate.mayChangeScale(state))
+            check(!DeviceConnectionGate.mayDisconnect(state))
+        }
+        check(DeviceConnectionGate.mayConnectCoffee(ExtractionState.OUTCOME_UNKNOWN,"coffee-a","coffee-a"))
+        check(!DeviceConnectionGate.mayConnectCoffee(ExtractionState.OUTCOME_UNKNOWN,"coffee-a","coffee-b"))
+        check(!DeviceConnectionGate.mayConnectCoffee(ExtractionState.OUTCOME_UNKNOWN,null,"coffee-a"))
+        check(!DeviceConnectionGate.mayConnectCoffee(ExtractionState.OUTCOME_UNKNOWN,"",""))
+        check(!DeviceConnectionGate.mayChangeScale(ExtractionState.OUTCOME_UNKNOWN))
+        check(!DeviceConnectionGate.mayDisconnect(ExtractionState.OUTCOME_UNKNOWN))
+        for(state in listOf(ExtractionState.IDLE,ExtractionState.ENDED_OBSERVED)) {
+            check(DeviceConnectionGate.mayConnectCoffee(state,"coffee-a","coffee-b"))
+            check(DeviceConnectionGate.mayChangeScale(state) && DeviceConnectionGate.mayDisconnect(state))
+        }
     }
     case("settings freshness rejects missing future and negative timestamps") {
         check(!SettingsFreshness.isFresh(null,180_000))

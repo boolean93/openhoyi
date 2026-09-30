@@ -33,7 +33,8 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
             if(state==DeviceState.READY)candidate?.let{remembered=it;onScaleRemembered(it)}
             onState(DeviceRole.BOOKOO,state)
         },weightFrame={sample,time->extraction.weight(WeightReading(sample.weightHundredthsGram,time));onWeight(sample)},diagnostic=diagnostic,trace={trace(DeviceRole.BOOKOO,it)})
-    val extraction:ExtractionController=ExtractionController(CoffeeSessionControl(coffee.session),ScaleSessionControl(scale.session),{SystemClock.elapsedRealtime()})
+    private val coffeeControl=CoffeeSessionControl(coffee.session)
+    val extraction:ExtractionController=ExtractionController(coffeeControl,ScaleSessionControl(scale.session),{SystemClock.elapsedRealtime()})
     val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }
     private val ticker=object:Runnable {
         override fun run(){
@@ -44,7 +45,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
             // synchronous DISCONNECTED reset before CONNECTING, which is not a failed attempt.
             reconnect.observeScaleState(now,scale.session.state)
             val idleScale=scale.session.state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)
-            if(idleScale&&reconnect.shouldAttempt(now,false)) {
+            if(idleScale&&DeviceConnectionGate.mayChangeScale(extraction.state)&&reconnect.shouldAttempt(now,false)) {
                 val address=remembered
                 if(address==null) reconnect.manualDisconnect()
                 else try {
@@ -61,9 +62,17 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     }
     init {handler.post(ticker)}
     private fun usable(){check(Looper.myLooper()==Looper.getMainLooper());check(!closed){"Hub closed"}}
-    fun connectCoffee(address:String,authentication:CoffeeAuthentication){usable();coffee.session.connect(address,authentication)}
+    fun connectCoffee(address:String,authentication:CoffeeAuthentication){
+        usable()
+        check(DeviceConnectionGate.mayConnectCoffee(extraction.state,coffeeControl.startAddress,address)) {
+            "unsettled extraction: coffee connection change blocked"
+        }
+        coffee.session.connect(address,authentication)
+    }
     fun connectScale(address:String):Boolean {
-        usable();require(android.bluetooth.BluetoothAdapter.checkBluetoothAddress(address)){"Invalid Bluetooth address"}
+        usable()
+        check(DeviceConnectionGate.mayChangeScale(extraction.state)){"unsettled extraction: scale connection change blocked"}
+        require(android.bluetooth.BluetoothAdapter.checkBluetoothAddress(address)){"Invalid Bluetooth address"}
         if(candidate==address && scale.session.state !in listOf(
                 DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED)) return false
         candidate=address;scale.session.connect(address);return true
@@ -74,7 +83,10 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         if(remembered!=null)diagnostic("scale.auto_reconnect.window_open=600s")
     }
     fun background(){usable();reconnect.background();scanner.close();diagnostic("scale.auto_reconnect.window_closed")}
-    fun disconnectScale(){usable();reconnect.manualDisconnect();scale.session.disconnect()}
+    fun disconnectScale(){
+        usable();check(DeviceConnectionGate.mayDisconnect(extraction.state)){"unsettled extraction: disconnect blocked"}
+        reconnect.manualDisconnect();scale.session.disconnect()
+    }
     fun tareScale(done:(OperationResult)->Unit){usable();scale.session.tare(done)}
     fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit){
         usable()
@@ -116,7 +128,10 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         }
         coffee.session.setBrewWait(targetC,done)
     }
-    fun disconnectCoffee(){usable();coffee.session.disconnect()}
+    fun disconnectCoffee(){
+        usable();check(DeviceConnectionGate.mayDisconnect(extraction.state)){"unsettled extraction: disconnect blocked"}
+        coffee.session.disconnect()
+    }
     override fun close(){
         usable();closed=true;handler.removeCallbacks(ticker);reconnect.background();scanner.close();coffee.close();scale.close()
     }
