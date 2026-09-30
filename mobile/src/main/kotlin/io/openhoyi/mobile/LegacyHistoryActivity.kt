@@ -45,10 +45,10 @@ class LegacyHistoryActivity : ThemedActivity() {
             }
         }
         setContentView(root)
-        HoyiUi.header(this, root, "旧版历史", "导入自旧版应用的只读记录", back = true)
+        HoyiUi.header(this, root, getString(R.string.legacy_history_title), getString(R.string.legacy_history_subtitle), back = true)
         count = TextView(this).apply { textSize = 15f; setTextColor(getColor(R.color.mobile_text)) }
         root.addView(count)
-        HoyiUi.tabs(this, root, listOf("本机记录", "旧版只读记录"), selected = 1) {
+        HoyiUi.tabs(this, root, listOf(getString(R.string.history_local_tab), getString(R.string.history_legacy_tab)), selected = 1) {
             if (it == 0) finish()
         }
         adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
@@ -65,8 +65,8 @@ class LegacyHistoryActivity : ThemedActivity() {
                 }
                 val item = rows[position]
                 val views = card.tag as RowViews
-                views.title.text = item.profileName.ifBlank { "未命名曲线" }
-                views.subtitle.text = "${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(item.createdAtMs))} · ${item.durationSec} 秒 · 旧版只读"
+                views.title.text = item.profileName.ifBlank { getString(R.string.legacy_history_unnamed) }
+                views.subtitle.text = getString(R.string.legacy_history_row, SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(item.createdAtMs)), item.durationSec.toString())
                 return card
             }
         }
@@ -93,8 +93,8 @@ class LegacyHistoryActivity : ThemedActivity() {
             width = dp(520)
             gravity = android.view.Gravity.CENTER_HORIZONTAL
         }.also { emptyCard.layoutParams = it }
-        emptyTitle = HoyiUi.label(this, emptyCard, "尚无旧版历史", 19, true)
-        emptyMessage = HoyiUi.label(this, emptyCard, "在萃取历史页选择“导入旧版历史”后，这里会显示只读记录。", 15, muted = true)
+        emptyTitle = HoyiUi.label(this, emptyCard, getString(R.string.legacy_history_empty_title), 19, true)
+        emptyMessage = HoyiUi.label(this, emptyCard, getString(R.string.legacy_history_empty_message), 15, muted = true)
         emptyMessage.setPadding(0, dp(10), 0, 0)
         HoyiUi.navigation(this, root, HistoryActivity::class.java)
     }
@@ -102,7 +102,7 @@ class LegacyHistoryActivity : ThemedActivity() {
     override fun onStart() {
         super.onStart()
         val generation = ++refreshGeneration
-        count.text = "正在读取旧版历史…"
+        count.text = getString(R.string.legacy_history_loading)
         emptyState.visibility = View.GONE
         list.visibility = View.GONE
         Thread({
@@ -110,13 +110,13 @@ class LegacyHistoryActivity : ThemedActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed || generation != refreshGeneration) return@runOnUiThread
                 rows = result.getOrDefault(emptyList())
-                count.text = result.fold({ "从旧版文件导入 ${it.size} 条 · 只读，不参与机器控制" },
-                    { "旧版历史读取失败：${it.message ?: it.javaClass.simpleName}" })
+                count.text = result.fold({ getString(R.string.legacy_history_count, it.size.toString()) },
+                    { getString(R.string.legacy_history_read_error, it.message ?: it.javaClass.simpleName) })
                 adapter.clear()
                 adapter.addAll(rows.map { it.id })
-                emptyTitle.text = if (result.isFailure) "旧版历史读取失败" else "尚无旧版历史"
-                emptyMessage.text = if (result.isFailure) "读取失败，原有记录未修改。请返回后重试。"
-                    else "在萃取历史页选择“导入旧版历史”后，这里会显示只读记录。"
+                emptyTitle.text = if (result.isFailure) getString(R.string.legacy_history_failed) else getString(R.string.legacy_history_empty_title)
+                emptyMessage.text = if (result.isFailure) getString(R.string.legacy_history_failed_message)
+                    else getString(R.string.legacy_history_empty_message)
                 emptyState.visibility = if (adapter.count == 0) View.VISIBLE else View.GONE
                 list.visibility = if (adapter.count == 0) View.GONE else View.VISIBLE
             }

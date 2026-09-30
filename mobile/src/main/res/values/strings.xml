@@ -611,4 +611,26 @@
     <string name="history_unknown_warning">"结果未确认，请以咖啡机实际状态为准。"</string>
     <string name="history_no_samples">"暂无保存的采样点"</string>
     <string name="history_samples_failed">"采样读取失败"</string>
+
+    <!-- Imported legacy history remains isolated and read-only. -->
+    <string name="legacy_history_unnamed">"未命名曲线"</string>
+    <string name="legacy_history_row">"%1$s · %2$s 秒 · 旧版只读"</string>
+    <string name="legacy_history_count">"从旧版文件导入 %1$s 条 · 只读，不参与机器控制"</string>
+    <string name="legacy_history_read_error">"旧版历史读取失败：%1$s"</string>
+    <string name="legacy_history_title">"旧版历史"</string>
+    <string name="legacy_history_subtitle">"导入自旧版应用的只读记录"</string>
+    <string name="legacy_history_empty_title">"尚无旧版历史"</string>
+    <string name="legacy_history_empty_message">"在萃取历史页选择“导入旧版历史”后，这里会显示只读记录。"</string>
+    <string name="legacy_history_loading">"正在读取旧版历史…"</string>
+    <string name="legacy_history_failed">"旧版历史读取失败"</string>
+    <string name="legacy_history_failed_message">"读取失败，原有记录未修改。请返回后重试。"</string>
+    <string name="legacy_history_summary">"%1$s\n%2$s · %3$s 秒\n来源：旧版 UniApp · 只读记录"</string>
+    <string name="legacy_history_chart_disclaimer">"蓝线为旧版压力（bar），绿线为旧版机器水流（ml/s）。原始 wFlow/wTrend 已保留，但旧版计算含平滑和基线处理，不等同原生秤重或秤流速；旧记录没有原生机器温度、累计水量及结束确认，不能据此证明机器实际停止。"</string>
+    <string name="legacy_history_detail_title">"旧版萃取详情"</string>
+    <string name="legacy_history_readonly">"只读记录"</string>
+    <string name="legacy_history_detail_loading">"正在读取旧版记录…"</string>
+    <string name="legacy_history_unavailable">"旧版记录不可用"</string>
+    <string name="legacy_history_record">"记录"</string>
+    <string name="legacy_history_import_result">"旧版历史新增 %1$s 条，共 %2$s 条"</string>
+    <string name="legacy_import_error">"导入失败：%1$s；原有数据未改变"</string>
 </resources>

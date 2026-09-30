@@ -48,8 +48,8 @@ class MobileApplication : Application() {
                     { it.javaClass.simpleName })))
             Handler(Looper.getMainLooper()).post {
                 Toast.makeText(this, result.fold(
-                    { "旧版历史新增 ${it.added} 条，共 ${it.total} 条" },
-                    { "导入失败：${it.message ?: it.javaClass.simpleName}；原有数据未改变" }),
+                    { getString(R.string.legacy_history_import_result, it.added.toString(), it.total.toString()) },
+                    { getString(R.string.legacy_import_error, it.message ?: it.javaClass.simpleName) }),
                     Toast.LENGTH_LONG).show()
             }
         }, "legacy-history-import").start()
