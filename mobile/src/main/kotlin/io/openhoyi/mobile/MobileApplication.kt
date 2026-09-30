@@ -60,10 +60,15 @@ class MobileApplication : Application() {
             logs.export({ contentResolver.openOutputStream(uri, "wt") ?: error("No output stream") }) { error ->
                 val message = if (error == null) "操作记录已导出" else "导出失败：${error.javaClass.simpleName}"
                 logs.record("export.finished", mapOf("message" to message))
-                Handler(Looper.getMainLooper()).post { Toast.makeText(this, message, Toast.LENGTH_LONG).show() }
+                Handler(Looper.getMainLooper()).post {
+                    // Keep diagnostic log text stable; resolve the UI text using current resources.
+                    val displayMessage = if (error == null) getString(R.string.export_trace_success)
+                        else getString(R.string.export_trace_failed, error.javaClass.simpleName)
+                    Toast.makeText(this, displayMessage, Toast.LENGTH_LONG).show()
+                }
             }
         } catch (error: RuntimeException) {
-            Toast.makeText(this, "导出未开始：${error.javaClass.simpleName}", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, getString(R.string.export_trace_not_started, error.javaClass.simpleName), Toast.LENGTH_LONG).show()
         }
     }
     fun exportHistory(uri: Uri) {
@@ -78,8 +83,10 @@ class MobileApplication : Application() {
                     { it.javaClass.simpleName })))
             Handler(Looper.getMainLooper()).post {
                 Toast.makeText(this, result.fold(
-                    { "已导出 ${it.records} 条历史、${it.sampleFiles} 份曲线${if (it.unavailable > 0) "；${it.unavailable} 份采样不可用" else ""}" },
-                    { "历史导出失败：${it.javaClass.simpleName}" }), Toast.LENGTH_LONG).show()
+                    { if (it.unavailable > 0) getString(R.string.export_history_partial,
+                        it.records.toString(), it.sampleFiles.toString(), it.unavailable.toString())
+                    else getString(R.string.export_history_success, it.records.toString(), it.sampleFiles.toString()) },
+                    { getString(R.string.export_history_failed, it.javaClass.simpleName) }), Toast.LENGTH_LONG).show()
             }
         }, "history-export").start()
     }

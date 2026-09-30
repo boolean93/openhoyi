@@ -653,4 +653,12 @@
     <string name="legacy_curve_not_imported">"尚未导入 · 旧版曲线与原生可萃取曲线分开保存"</string>
     <string name="legacy_curve_failed">"旧版曲线读取失败"</string>
     <string name="legacy_curve_failed_message">"读取失败，原有文件未修改。请返回后重试。"</string>
+
+    <!-- UI export feedback; archive contents and diagnostic logs retain their format. -->
+    <string name="export_trace_success">"操作记录已导出"</string>
+    <string name="export_trace_failed">"导出失败：%1$s"</string>
+    <string name="export_trace_not_started">"导出未开始：%1$s"</string>
+    <string name="export_history_success">"已导出 %1$s 条历史、%2$s 份曲线"</string>
+    <string name="export_history_partial">"已导出 %1$s 条历史、%2$s 份曲线；%3$s 份采样不可用"</string>
+    <string name="export_history_failed">"历史导出失败：%1$s"</string>
 </resources>

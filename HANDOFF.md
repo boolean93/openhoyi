@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-10-01：MobileApplication操作记录导出/历史ZIP导出反馈新增6条资源、4项声明显示替换，全部/部分历史分别使用完整模板。unavailable>0的原条件与数量保留；trace导出export.finished的message仍为原诊断文本，Toast在主线程读取显示资源，避免翻译改变诊断日志。Archive写入代码、CSV/TSV列与README、路径、样本有效性、UNKNOWN状态及导出日志code/result未改。整个Application正向重放一致，61项动态格式对照、6条XML/两包编译资源核对通过。Alpha/Mock各104项测试通过、1项缺真实导出跳过，两包构建成功，其中两项Archive测试覆盖UNKNOWN/路径注入及单份采样失败保留其它历史。本轮未改协议/会话，未重复完整协议回归，未连接真机。库详情/服务剩余提示、完整翻译/语言选择及实际文件选择器/导出验收仍待完成。
+
 2026-10-01：LegacyCurveActivity列表/空状态/详情回退/导入与读取反馈共19项声明显示替换，新增18条资源、复用3条。工厂/用户列表以及changed/未变化导入结果使用整句模板，判断仍为原factory/changed布尔条件；分类映射、未知值回退、详情数值及原已有legacy_curve_detail模板保持原逻辑。独立legacy_curves.json、Codec/Store边界/校验/原子落盘、导入日志code/result、线程generation、文件选择及控制曲线库未改。整个Activity正向重放与声明的显示替换一致；88项动态格式比较覆盖空白/百分号/换行名称与分类/异常文本；21条XML和两包编译资源逐值核对通过。Alpha/Mock定向离线测试各104通过、1项缺真实导出跳过，两包构建成功；未改协议/会话，未重复完整协议回归，未连接真机。库详情及服务剩余提示、导出反馈、完整翻译/语言选择仍待完成，真实旧版导出验证仍缺证据。
 
 2026-10-01：LegacyHistoryActivity、LegacyHistoryDetailActivity及MobileApplication.importLegacyHistory结果Toast共23项显示替换，新增20条资源、复用3条。列表与详情的日期、秒数、profileName空白回退、失败状态与两行换行保持原样；旧版采样单位/不证明真实结束的说明保留。独立legacy_history.json、Codec/Store大小边界/冲突/去重/原子落盘、legacyId、异步读取generation及控制库均未修改，导入日志code/result未改。74项默认格式比较（含百分号/换行名称和异常信息）、三个完整源文件正向重放、23条XML及两包编译资源逐值核对通过。Alpha/Mock定向离线测试各104通过、1项缺真实导出跳过，两包构建成功；本轮未改协议/会话，未重复全协议回归，未连接真机。旧版曲线导入浏览页、库详情/服务剩余提示、完整翻译和语言选择仍待完成；真实旧版历史/曲线导出仍缺证据。
