@@ -17,6 +17,30 @@ class ShotRecoveryClearGateTest {
     }
     private val idle = IdleTelemetry(9200, 12000, 10, 10, 0, 0, 0, 0, ByteFrame(byteArrayOf()))
 
+    @Test fun allStatesExactFreshnessAndRejectionPriorityRemainStable() {
+        val recovery = ShotRecoveryState(disk)
+        assertTrue(recovery.arm("AA:BB:CC:DD:EE:01"))
+        fun block(coffee: DeviceState = DeviceState.READY, at: Long? = 1000, now: Long = 2500,
+            address: String? = "aa:bb:cc:dd:ee:01", shot: ExtractionState = ExtractionState.IDLE,
+            manual: Boolean = false) =
+            ShotRecoveryClearGate.block(recovery, address, coffee, idle, at, now, shot, manual)
+        assertNull(block())
+        assertEquals("请连接原咖啡机，等待新的待机回报后再确认", block(now = 2501))
+        assertEquals("请连接原咖啡机，等待新的待机回报后再确认", block(at = null))
+        for (state in DeviceState.entries) {
+            assertEquals(if (state == DeviceState.READY) null else
+                "请连接原咖啡机，等待新的待机回报后再确认", block(coffee = state))
+        }
+        for (state in ExtractionState.entries) {
+            val unsettled = state in setOf(ExtractionState.STARTING, ExtractionState.RUNNING,
+                ExtractionState.STOP_REQUESTED, ExtractionState.OUTCOME_UNKNOWN)
+            assertEquals(if (unsettled) "萃取尚未确认结束，请先用机器拨杆停液" else null, block(shot = state))
+        }
+        assertEquals("萃取尚未确认结束，请先用机器拨杆停液",
+            block(coffee = DeviceState.DISCONNECTED, address = null, manual = true))
+        assertEquals("请先连接上一杯使用的咖啡机", block(coffee = DeviceState.DISCONNECTED, address = null))
+    }
+
     @Test fun freshIdleAloneCannotClearAnActiveOrWrongDeviceShot() {
         val recovery = ShotRecoveryState(disk)
         assertTrue(recovery.arm("AA:BB:CC:DD:EE:01"))
