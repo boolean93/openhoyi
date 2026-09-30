@@ -32,6 +32,7 @@ import java.util.Locale
 
 /** First native product screen: BLE connection, live values, and a selected captured curve. */
 class HomeActivity : ThemedActivity() {
+    private val machineAlarms by lazy { MachineAlarms(this) }
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     private val firmwarePresentation by lazy { FirmwarePresentation(this) }
     private var service: MobileService? = null
@@ -436,7 +437,7 @@ class HomeActivity : ThemedActivity() {
             owner?.machineWriteAcknowledgementAvailable != true) View.GONE else View.VISIBLE
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
             owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
-        val alarmBanner = MachineAlarms.banner(s.alarmBits, s.alarmAt, now)
+        val alarmBanner = machineAlarms.banner(s.alarmBits, s.alarmAt, now)
         prominentAlarm.visibility = if (alarmBanner == null) View.GONE else View.VISIBLE
         prominentAlarm.show(alarmBanner?.message.orEmpty())
         prominentAlarm.setTextColor(getColor(if (alarmBanner?.blocking == true)
@@ -513,7 +514,7 @@ class HomeActivity : ThemedActivity() {
             else -> ""
         }
         sleepStatus.show(getString(R.string.home_sleep_summary, reportedSleep, sleepProgress))
-        alarmStatus.show(MachineAlarms.describe(s.alarmBits, s.alarmAt, now))
+        alarmStatus.show(machineAlarms.describe(s.alarmBits, s.alarmAt, now))
         val compactStatus = resources.configuration.screenWidthDp < 400
         coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else label(s.coffeeState))
             else getString(R.string.home_coffee_status, label(s.coffeeState), if (coffeeFresh) getString(R.string.home_live_suffix) else ""))

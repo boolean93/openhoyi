@@ -26,6 +26,8 @@ import java.util.Locale
 
 /** A screen never owns BLE. Start requires an explicit confirmation; Stop is one tap. */
 class ExtractionActivity : ThemedActivity() {
+    private val machineAlarms by lazy { MachineAlarms(this) }
+    private val shotGate by lazy { ShotGate(this) }
     private val presetSlot: Int by lazy { intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7).takeIf { it in 1..5 } ?: 7 }
     private var service: MobileService? = null
     private var bound = false
@@ -206,7 +208,7 @@ class ExtractionActivity : ThemedActivity() {
         val owner = service ?: return
         val library = (application as MobileApplication).curves
         val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
-        val blocked = owner.tareStartBlock ?: ShotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
+        val blocked = owner.tareStartBlock ?: shotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
             owner.snapshot.weightAt, SystemClock.elapsedRealtime(), owner.shotState,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) { toast(blocked); render(); return }
@@ -251,7 +253,7 @@ class ExtractionActivity : ThemedActivity() {
         val profile = item?.let { library.resolve(it.id, snapshot.scaleState == DeviceState.READY, presetSlot) }
         val blocked = if (owner?.manualShotActive == true) "机器手动萃取中，请使用机器拨杆停止；App 只记录数据"
             else if (item != null && profile == null) "这条曲线未通过报文校验，暂不可萃取"
-            else owner?.tareStartBlock ?: ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
+            else owner?.tareStartBlock ?: shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
                 snapshot.weightAt, SystemClock.elapsedRealtime(), state,
                 validated = profile?.let(library::validated) == true)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
@@ -315,7 +317,7 @@ class ExtractionActivity : ThemedActivity() {
         notificationStatus.show(if (BuildConfig.MOCK_MODE || notificationsAllowed()) "" else
             "系统通知未授权；后台断链提醒可能被隐藏。可在系统设置中允许通知。")
         notificationStatus.visibility = if (notificationStatus.text.isEmpty()) View.GONE else View.VISIBLE
-        alarmStatus.show(MachineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
+        alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             SystemClock.elapsedRealtime()))
         val now = SystemClock.elapsedRealtime()
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)

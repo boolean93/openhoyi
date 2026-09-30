@@ -9,18 +9,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ShotGateTest {
+    private val gate = ShotGate(DefaultStringResources::resolve)
     private val weighted = CurveCatalog.profiles[2]
     private val flow = CurveCatalog.profiles[1]
     private val idleFrame = IdleTelemetry(0, 0, 0, 0, 0, 0, 0, 0, ByteFrame(byteArrayOf()))
     private fun block(profile: CurveProfile?, coffee: DeviceState = DeviceState.READY,
         scale: DeviceState = DeviceState.READY, weightAt: Long? = 1000, now: Long = 2000,
         shot: ExtractionState = ExtractionState.IDLE, coffeeFrame: IdleTelemetry? = idleFrame,
-        coffeeAt: Long? = 1000): String? = ShotGate.startBlock(profile, coffee, coffeeFrame, coffeeAt, scale, weightAt, now, shot)
+        coffeeAt: Long? = 1000): String? = gate.startBlock(profile, coffee, coffeeFrame, coffeeAt, scale, weightAt, now, shot)
     @Test fun invalidCurveAndUnsettledShotKeepOriginalRejectionPriority() {
-        assertEquals("曲线未通过报文校验", ShotGate.startBlock(flow, DeviceState.DISCONNECTED,
+        assertEquals("曲线未通过报文校验", gate.startBlock(flow, DeviceState.DISCONNECTED,
             null, null, DeviceState.DISCONNECTED, null, 2000, ExtractionState.OUTCOME_UNKNOWN,
             validated = false))
-        assertEquals("请先选择曲线", ShotGate.startBlock(null, DeviceState.DISCONNECTED,
+        assertEquals("请先选择曲线", gate.startBlock(null, DeviceState.DISCONNECTED,
             null, null, DeviceState.DISCONNECTED, null, 2000, ExtractionState.OUTCOME_UNKNOWN,
             validated = false))
         for (state in ExtractionState.entries) {
@@ -57,7 +58,7 @@ class ShotGateTest {
     @Test fun flowProfileNeedsOnlyCoffeeAndActiveOutcomeBlocksRestart() {
         assertNull(block(flow, scale = DeviceState.DISCONNECTED, weightAt = null))
         val activeFrame = ExtractionTelemetry(7, 5, 90, 20, 9200, 10, 64, 0, ByteFrame(byteArrayOf()))
-        assertEquals("等待咖啡机新鲜待机数据", ShotGate.startBlock(flow, DeviceState.READY,
+        assertEquals("等待咖啡机新鲜待机数据", gate.startBlock(flow, DeviceState.READY,
             activeFrame, 1000, DeviceState.READY, 1000, 2000, ExtractionState.IDLE))
         for (state in listOf(ExtractionState.STARTING, ExtractionState.RUNNING, ExtractionState.STOP_REQUESTED, ExtractionState.OUTCOME_UNKNOWN)) {
             assertEquals("上一杯尚未确认结束", block(flow, shot = state))

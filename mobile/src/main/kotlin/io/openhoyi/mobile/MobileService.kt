@@ -58,6 +58,7 @@ data class MobileSnapshot(
 
 /** Product-app BLE owner. Screens observe snapshots; explicit controls remain gated in this service. */
 class MobileService : Service() {
+    private val shotGate by lazy { ShotGate(this) }
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     inner class LocalBinder : Binder() { val service: MobileService get() = this@MobileService }
     private val binder = LocalBinder()
@@ -1018,7 +1019,7 @@ class MobileService : Service() {
             val profile = selectedCurve(profileId, slot) ?: return "请先选择曲线"
             if (profile.scaleMode != expectedScaleMode) return "Mock 电子秤状态已变化，请重新确认"
             val library = (application as MobileApplication).curves
-            ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
+            shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
                 snapshot.scaleState, snapshot.weightAt, SystemClock.elapsedRealtime(), shotState,
                 validated = library.validated(profile))?.let { return it }
             val now = SystemClock.elapsedRealtime()
@@ -1049,7 +1050,7 @@ class MobileService : Service() {
         val profile = selectedCurve(profileId, slot)
         if (profile != null && profile.scaleMode != expectedScaleMode) return "电子秤状态已变化，请重新确认"
         val library = (application as MobileApplication).curves
-        val blocked = ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
+        val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
             snapshot.scaleState, snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) return blocked
@@ -1176,7 +1177,7 @@ class MobileService : Service() {
             event("电子秤连接状态已变化，请重新确认", "shot.rejected")
             return "电子秤连接状态已变化，请重新确认"
         }
-        val blocked = ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
+        val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
             snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) { event("启动被阻止：$blocked", "shot.rejected"); return blocked }
