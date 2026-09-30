@@ -102,7 +102,10 @@ fun main() {
         StartParameters(true,true,3,7,92,70,false,0,20,38,20,0,160,5,400,140,0) to "02DF5C0046001426140000A0050190008C000059",
         StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0) to "02DF5C00880014231200009605019000820000AC")
     starts.forEach { (p,h) -> verify(CoffeeCommands.start(p).frame.hex()==h) }
-    verify(CoffeeCommands.stop().frame.hex()=="0200070000")
+    verify(CoffeeCommands.stop(7).frame.hex()=="0200070000")
+    verify(CoffeeCommands.stop(1).frame.hex()=="0200010000")
+    verify(CoffeeCommands.stop(5).frame.hex()=="0200050000")
+    for(slot in listOf(-1,0,6,8)) verify(runCatching { CoffeeCommands.stop(slot) }.isFailure)
     verify(CoffeeCommands.brewTemperature(92).frame.hex()=="0402005C00")
     verify(CoffeeCommands.brewHeating(false).frame.hex()=="0C02000000")
     verify(CoffeeCommands.brewHeating(true).frame.hex()=="0C02000100")

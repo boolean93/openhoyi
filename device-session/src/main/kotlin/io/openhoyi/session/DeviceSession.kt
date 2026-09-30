@@ -188,6 +188,11 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         return role==DeviceRole.COFFEE && state==DeviceState.READY && observedAt<=now &&
             now-observedAt<=1500 && idle.sleepStateRaw==0
     }
+    private fun permittedStart(parameters:StartParameters):EncodedCommand? {
+        val command=runCatching { CoffeeCommands.start(parameters) }.getOrNull() ?: return null
+        val captured=setOf("02175B006C005A410000015E1600AA00000000DA","02DF5C0046001426140000A0050190008C000059","02DF5C00880014231200009605019000820000AC")
+        return command.takeIf { it.frame.hex() in captured || it.frame.hex() in additionalStartFrames }
+    }
     private fun canStartExtraction(parameters:StartParameters):Boolean {
         if(!canControlWithFreshSettings()) return false
         val settings=lastSettings ?: return false
@@ -197,7 +202,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             idle.brewTemperatureHundredthsC,settings.brewCompensationTenthsC),parameters.temperatureC)
     }
     fun captureStartContext(parameters:StartParameters):CoffeeStartContext? {
-        if(!canStartExtraction(parameters) || sleepWrite!=null) return null
+        if(!canStartExtraction(parameters) || sleepWrite!=null || permittedStart(parameters)==null) return null
         val settings=lastSettings ?: return null
         return CoffeeStartContext(generation,address,parameters,settings.flags and 0x26,
             settings.brewTemperatureC,settings.brewCompensationTenthsC,clock())
@@ -222,22 +227,27 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             callback(OperationResult.Failed("original start context no longer valid")); return
         }
         // Product host supplies only frames checked against the extracted legacy encoder.
-        val command=CoffeeCommands.start(parameters)
-        val allowed=setOf("02175B006C005A410000015E1600AA00000000DA","02DF5C0046001426140000A0050190008C000059","02DF5C00880014231200009605019000820000AC")
-        if(command.frame.hex() !in allowed && command.frame.hex() !in additionalStartFrames){
-            callback(OperationResult.Failed("curve outside validated profile set"));return
-        }
+        val command=permittedStart(parameters)
+        if(command==null){callback(OperationResult.Failed("curve outside validated profile set"));return}
         send(command,DeviceRole.COFFEE,beforeDispatch={startConditionsValid(parameters,context)},callback=callback)
     }
-    fun stopExtraction(slot:Int=7,callback:(OperationResult)->Unit) {
+    fun stopExtraction(slot:Int,callback:(OperationResult)->Unit)=stopExtraction(slot,address,callback)
+    fun stopExtraction(slot:Int,expectedAddress:String?,callback:(OperationResult)->Unit) {
         require(slot in 1..5 || slot == 7)
-        if (role!=DeviceRole.COFFEE) {
-            callback(OperationResult.Failed("stop requires coffee session"));return
+        val stopGeneration=generation
+        fun sameTarget():Boolean = role==DeviceRole.COFFEE && state==DeviceState.READY &&
+            generation==stopGeneration && !expectedAddress.isNullOrBlank() &&
+            address?.equals(expectedAddress,ignoreCase=true)==true
+        if (!sameTarget()) {
+            callback(OperationResult.Failed("stop requires the expected ready coffee device"));return
         }
         cancelSleepWrite("stop requested during weekly sleep write")
+        if(!sameTarget()){callback(OperationResult.Failed("stop connection changed during sleep cancellation"));return}
         // An emergency stop must not be followed by older, still-queued control writes.
         queue.cancelPending { it is GattOperation.Write }
-        send(CoffeeCommands.stop(slot),DeviceRole.COFFEE,urgent=true,callback=callback)
+        if(!sameTarget()){callback(OperationResult.Failed("stop connection changed during queue cancellation"));return}
+        send(CoffeeCommands.stop(slot),DeviceRole.COFFEE,urgent=true,
+            beforeDispatch=::sameTarget,callback=callback)
     }
     fun tare(callback:(OperationResult)->Unit)=send(BookooCodec.tare(),DeviceRole.BOOKOO,callback=callback)
     private fun sendFromIdle(command:EncodedCommand,callback:(OperationResult)->Unit) {

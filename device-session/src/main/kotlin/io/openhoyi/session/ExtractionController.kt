@@ -16,7 +16,8 @@ interface CoffeeControl {
 interface ScaleControl {val ready:Boolean;fun tare(done:(OperationResult)->Unit)}
 class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     init{require(session.role==DeviceRole.COFFEE)}
-    private var activeSlot=7
+    private data class StopOwner(val address:String,val slot:Int)
+    private var stopOwner:StopOwner?=null
     private var approvedStart:CoffeeStartContext?=null
     var startAddress:String?=null;private set
     override fun prepareStart(parameters:StartParameters):Boolean {
@@ -30,11 +31,17 @@ class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     override fun start(parameters:StartParameters,done:(OperationResult)->Unit){
         val context=approvedStart
         approvedStart=null
-        if(context==null) {done(OperationResult.Failed("start context not prepared"));return}
-        activeSlot=parameters.slot
+        if(context==null || !session.startConditionsValid(parameters,context) || context.address==null) {
+            done(OperationResult.Failed("start context not prepared or no longer valid"));return
+        }
+        stopOwner=StopOwner(context.address,parameters.slot)
         session.startExtraction(parameters,context,done)
     }
-    override fun stop(done:(OperationResult)->Unit)=session.stopExtraction(activeSlot,done)
+    override fun stop(done:(OperationResult)->Unit) {
+        val owner=stopOwner
+        if(owner==null) {done(OperationResult.Failed("no submitted start owns this stop"));return}
+        session.stopExtraction(owner.slot,owner.address,done)
+    }
 }
 class ScaleSessionControl(private val session:DeviceSession):ScaleControl {
     init{require(session.role==DeviceRole.BOOKOO)}

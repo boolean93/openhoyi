@@ -164,7 +164,7 @@ fun deviceChecks():Int {
         complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))));complete();complete()
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830114FD5C007D0F350019006E"))
         check(s.state==DeviceState.UNSUPPORTED)
-        var result:OperationResult?=null;s.stopExtraction{result=it};check(result is OperationResult.Failed)
+        var result:OperationResult?=null;s.stopExtraction(7){result=it};check(result is OperationResult.Failed)
         s.writeSetting(MachineSettingChange.SteamHeating(false)){result=it};check(result is OperationResult.Failed)
         s.enterSleep {result=it};check(result is OperationResult.Failed)
         s.setBrewWait(92) {result=it};check(result is OperationResult.Failed)
@@ -180,7 +180,7 @@ fun deviceChecks():Int {
         // Real 19-byte idle notification observed even when authentication was not confirmed.
         repeat(10){now=it*1000L;s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("40000ACA0B2A0000000000000000001E22DA47"));s.tick();check(s.state==DeviceState.SYNCHRONIZING)}
         check(telemetry==0)
-        var result:OperationResult?=null;s.stopExtraction{result=it};check(result is OperationResult.Failed)
+        var result:OperationResult?=null;s.stopExtraction(7){result=it};check(result is OperationResult.Failed)
         check(d.calls.count{it.third is GattOperation.Write}==1)
         now=10_000;s.tick();check(s.state==DeviceState.FAILED)
     }
@@ -744,6 +744,107 @@ fun deviceChecks():Int {
             check(DeviceConnectionGate.mayChangeScale(state) && DeviceConnectionGate.mayDisconnect(state))
         }
     }
+    case("coffee control stop stays with the submitted machine and slot across preparations") {
+        val factoryHex="02115C0046005A3C000001F41900C8000000004B"
+        val profile=StartParameters(false,false,2,1,92,70,false,0,90,60,0,0,500,25,200,0,0)
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0},legacyVerifiedStartFrames=setOf(factoryHex))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        fun ready(address:String) {
+            s.connect(address,CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+            complete()
+            val(g,t,_)=d.calls.last()
+            s.onComplete(g,t,OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            complete();complete()
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400023F02F1C770B00000000000000190321AF"))
+        }
+        ready("coffee-a")
+        val control=CoffeeSessionControl(s)
+        var result:OperationResult?=null
+        val initial=d.calls.size
+        control.stop{result=it}
+        check(result is OperationResult.Failed && d.calls.size==initial)
+        check(!control.prepareStart(profile.copy(maximumWaterMl=71)))
+        check(control.prepareStart(profile));control.start(profile){};complete()
+        ready("coffee-b")
+        val switched=d.calls.size
+        result=null;control.stop{result=it}
+        check(result is OperationResult.Failed && d.calls.size==switched)
+        check(control.prepareStart(profile))
+        result=null;control.stop{result=it}
+        check(result is OperationResult.Failed && d.calls.size==switched)
+        ready("coffee-a")
+        val reconnected=d.calls.size
+        result=null;control.start(profile){result=it}
+        check(result is OperationResult.Failed && d.calls.size==reconnected)
+        result=null;control.stop{result=it}
+        check(result==null && d.calls.size==reconnected+1)
+        check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0200010000")))
+        complete();check(result is OperationResult.Success)
+    }
+    case("stop cannot follow a cancellation callback onto a replacement connection") {
+        for(replacement in listOf("coffee-a","coffee-b")) {
+            val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+            fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+            fun ready(address:String) {
+                s.connect(address,CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+                complete()
+                val(g,t,_)=d.calls.last()
+                s.onComplete(g,t,OperationResult.Success(listOf(
+                    CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                    CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+                complete();complete()
+                s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+                s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+            }
+            ready("coffee-a")
+            s.writeSetting(MachineSettingChange.Light(true)){}
+            s.writeSetting(MachineSettingChange.Light(false)){if(it is OperationResult.Cancelled)ready(replacement)}
+            var stopped:OperationResult?=null
+            s.stopExtraction(7){stopped=it}
+            check(stopped is OperationResult.Failed && s.address==replacement)
+            val stop=io.openhoyi.protocol.CoffeeCommands.stop(7).frame.toByteArray()
+            check(d.calls.none{(it.third as? GattOperation.Write)?.bytes?.contentEquals(stop)==true})
+            s.stopExtraction(7){stopped=it}
+            check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(stop))
+        }
+    }
+    case("sleep cancellation observer cannot make old stop cancel the new machine queue") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        fun ready(address:String) {
+            s.connect(address,CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+            complete()
+            val(g,t,_)=d.calls.last()
+            s.onComplete(g,t,OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            complete();complete()
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        }
+        ready("coffee-a")
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
+        receiveSleepReadback(s,plan)
+        var newSetting:OperationResult?=null
+        s.writeSleepSchedule(plan,plan){
+            if(it is OperationResult.Unknown) {
+                ready("coffee-b")
+                s.writeSetting(MachineSettingChange.Light(true)){}
+                s.writeSetting(MachineSettingChange.Light(false)){newSetting=it}
+            }
+        }
+        var stopped:OperationResult?=null
+        s.stopExtraction(7){stopped=it}
+        check(stopped is OperationResult.Failed && newSetting==null && s.address=="coffee-b")
+        complete();check(newSetting==null)
+        complete();check(newSetting is OperationResult.Success)
+        val stop=io.openhoyi.protocol.CoffeeCommands.stop(7).frame.toByteArray()
+        check(d.calls.none{(it.third as? GattOperation.Write)?.bytes?.contentEquals(stop)==true})
+    }
     case("settings freshness rejects missing future and negative timestamps") {
         check(!SettingsFreshness.isFresh(null,180_000))
         check(!SettingsFreshness.isFresh(-1,0))
@@ -864,7 +965,7 @@ fun deviceChecks():Int {
         var planResult:OperationResult?=null
         receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){planResult=it}
         val beforeStop=d.calls.size
-        s.stopExtraction { }
+        s.stopExtraction(7) { }
         check(planResult is OperationResult.Unknown && d.calls.size==beforeStop)
         complete()
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(
@@ -887,7 +988,7 @@ fun deviceChecks():Int {
         s.writeSetting(MachineSettingChange.Light(true)){}
         val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
         receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){error("observer failed")}
-        s.stopExtraction { }
+        s.stopExtraction(7) { }
         complete()
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(
             io.openhoyi.protocol.CoffeeCommands.stop(7).frame.toByteArray()))

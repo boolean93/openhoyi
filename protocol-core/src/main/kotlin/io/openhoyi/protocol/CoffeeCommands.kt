@@ -94,7 +94,7 @@ object CoffeeCommands {
         put(19,b.take(19).fold(0){a,v->a xor (v.toInt() and 255)})
         return EncodedCommand(ByteFrame(b))
     }
-    fun stop(slot:Int=7):EncodedCommand { require(slot in 1..7); return command(2,0,slot,0,0) }
+    fun stop(slot:Int):EncodedCommand { require(slot in 1..5 || slot == 7); return command(2,0,slot,0,0) }
     fun brewTemperature(celsius:Int):EncodedCommand = command(4,2,0,range(celsius,255,"temperatureC"),0)
     fun brewHeating(enabled:Boolean):EncodedCommand=command(12,2,0,if(enabled)1 else 0,0)
     fun setting(change: MachineSettingChange): EncodedCommand = when (change) {
