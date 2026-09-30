@@ -96,6 +96,9 @@ class MobileService : Service() {
     }
     val machineControlSafetyMessage: String? get() = MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
+    val shotRecoveryClearBlock: String? get() = ShotRecoveryClearGate.block(shotRecovery,
+        hub?.coffeeAddress, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
+        SystemClock.elapsedRealtime(), shotState, manualShotActive)
     val machineWriteAcknowledgementAvailable: Boolean get() = when (machineWriteRecovery.kind) {
         MachineWriteRecoveryState.Kind.CUP_RESET -> !cupResetBusy
         MachineWriteRecoveryState.Kind.SETTING -> settingsWrite.state !in setOf(
@@ -1363,17 +1366,11 @@ class MobileService : Service() {
             return
         }
         if (manualSafetyMessage == null) return
+        shotRecoveryClearBlock?.let {
+            event(it, "shot.recovery_waiting")
+            return
+        }
         if (shotRecovery.pending) {
-            val now = SystemClock.elapsedRealtime()
-            if (!shotRecovery.matchesDevice(hub?.coffeeAddress)) {
-                event("请先连接上一杯使用的咖啡机，再清除安全提示", "shot.recovery_device_mismatch")
-                return
-            }
-            if (snapshot.coffeeState != DeviceState.READY || snapshot.coffee !is IdleTelemetry ||
-                snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true) {
-                event("请先连接咖啡机并等待新的待机回报，再清除安全提示", "shot.recovery_waiting")
-                return
-            }
             if (!shotRecovery.clear()) {
                 event("萃取安全记录未能保存清除，请重试", "shot.recovery_clear_failed")
                 return

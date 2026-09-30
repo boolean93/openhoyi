@@ -423,6 +423,8 @@ class HomeActivity : ThemedActivity() {
         safetyWarning.show(warning.orEmpty())
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
             owner?.machineWriteAcknowledgementAvailable != true) View.GONE else View.VISIBLE
+        acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
+            owner.shotRecoveryClearBlock == null else owner?.machineWriteAcknowledgementAvailable == true
         val alarmBanner = MachineAlarms.banner(s.alarmBits, s.alarmAt, now)
         prominentAlarm.visibility = if (alarmBanner == null) View.GONE else View.VISIBLE
         prominentAlarm.show(alarmBanner?.message.orEmpty())
