@@ -38,7 +38,8 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
             onState(DeviceRole.BOOKOO,state)
         },weightFrame={sample,time->standaloneTare.sample(++scaleSampleSerial,sample.weightHundredthsGram);extraction.weight(WeightReading(sample.weightHundredthsGram,time));onWeight(sample)},diagnostic=diagnostic,trace={trace(DeviceRole.BOOKOO,it)})
     private val coffeeControl=CoffeeSessionControl(coffee.session)
-    val extraction:ExtractionController=ExtractionController(coffeeControl,ScaleSessionControl(scale.session,{!standaloneTare.unresolved}),{SystemClock.elapsedRealtime()})
+    private val scaleControl=ScaleSessionControl(scale.session,standaloneTare,{scaleSampleSerial})
+    val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()})
     val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }
     private val ticker=object:Runnable {
         override fun run(){
@@ -97,13 +98,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         if(!DeviceConnectionGate.mayChangeScale(extraction.state)){
             done(OperationResult.Failed("unsettled extraction: manual tare blocked"));return
         }
-        if(scale.session.state!=DeviceState.READY){done(OperationResult.Failed("scale not ready"));return}
-        val token=standaloneTare.begin()
-        if(token==null){done(OperationResult.Failed("tare already pending"));return}
-        scale.session.tare { result->
-            standaloneTare.written(token,result,scaleSampleSerial)
-            done(result)
-        }
+        scaleControl.tare(done)
     }
     fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit){
         usable()

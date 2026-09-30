@@ -43,11 +43,20 @@ class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
         session.stopExtraction(owner.slot,owner.address,done)
     }
 }
-class ScaleSessionControl(private val session:DeviceSession,private val allowStart:()->Boolean):ScaleControl {
-    override val startAllowed get()=allowStart()
+class ScaleSessionControl(private val session:DeviceSession,private val tareState:StandaloneTare,
+    private val sampleSerial:()->Long):ScaleControl {
+    override val startAllowed get()=!tareState.unresolved
     init{require(session.role==DeviceRole.BOOKOO)}
     override val ready get()=session.state==DeviceState.READY
-    override fun tare(done:(OperationResult)->Unit)=session.tare(done)
+    override fun tare(done:(OperationResult)->Unit) {
+        if(!ready){done(OperationResult.Failed("scale not ready"));return}
+        val token=tareState.begin()
+        if(token==null){done(OperationResult.Failed("tare already pending"));return}
+        session.tare { result->
+            tareState.written(token,result,sampleSerial())
+            done(result)
+        }
+    }
 }
 enum class ExtractionState { IDLE, STARTING, RUNNING, STOP_REQUESTED, ENDED_OBSERVED, OUTCOME_UNKNOWN }
 private const val STOP_CONFIRMATION_TIMEOUT_MS=5_000L

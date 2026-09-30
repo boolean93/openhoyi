@@ -158,6 +158,56 @@ fun deviceChecks():Int {
         s.connect("other-scale")
         check(s.generation!=firstGeneration && d.calls.size==readyCalls+1 && s.state==DeviceState.CONNECTING)
     }
+    case("cancelled preflight keeps its pending scale tare blocking the next shot") {
+        for(nextTarget in listOf(0,3400)) for(outcome in listOf(OperationResult.Success(),OperationResult.Unknown("lost result"))) {
+            val d=SessionDriver();var now=0L;var sampleSerial=0L
+            val tare=StandaloneTare { now }
+            val s=DeviceSession(DeviceRole.BOOKOO,d,{now})
+            s.connect("scale")
+            fun complete(r:OperationResult=OperationResult.Success()) {
+                val(g,t,_)=d.calls.last();s.onComplete(g,t,r)
+            }
+            complete();complete(OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
+            complete()
+            repeat(4){now+=501;s.tick();complete()}
+            s.onNotification(s.generation,KnownGatt.bookooNotify,hex("030B000000012D007A3A2D03424600C803010084"))
+            check(s.state==DeviceState.READY)
+            val scale=ScaleSessionControl(s,tare,{sampleSerial})
+            var starts=0
+            val coffee=object:CoffeeControl {
+                override val ready=true
+                override fun prepareStart(parameters:StartParameters)=true
+                override fun startConditionsValid(parameters:StartParameters)=true
+                override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
+                override fun stop(done:(OperationResult)->Unit){error("preflight must not stop the coffee machine")}
+            }
+            val profile=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
+            val c=ExtractionController(coffee,scale,{now})
+            c.weight(WeightReading(0,now))
+            check(c.start(profile,3400,0))
+            c.manualStop()
+            check(c.state==ExtractionState.IDLE && starts==0)
+            val submitted=d.calls.size
+            check(!c.start(profile,nextTarget,0))
+            check(d.calls.size==submitted && starts==0)
+            var duplicate:OperationResult?=null
+            scale.tare { duplicate=it }
+            check(duplicate is OperationResult.Failed && d.calls.size==submitted)
+            complete(outcome)
+            check(!c.start(profile,nextTarget,0))
+            now+=100;tare.sample(++sampleSerial,0);c.weight(WeightReading(0,now))
+            if(outcome is OperationResult.Unknown) {
+                check(!c.start(profile,nextTarget,0))
+                scale.tare {}
+                complete()
+                check(!c.start(profile,nextTarget,0))
+                now+=100;tare.sample(++sampleSerial,0);c.weight(WeightReading(0,now))
+            }
+            check(c.start(profile,nextTarget,0))
+        }
+    }
     case("unsupported coffee firmware never opens control gate") {
         val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0});s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
         fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
