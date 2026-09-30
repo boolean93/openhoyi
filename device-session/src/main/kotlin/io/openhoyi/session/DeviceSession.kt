@@ -179,7 +179,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val observedAt=lastIdleAtMs ?: return false
         val now=clock()
         return role==DeviceRole.COFFEE && state==DeviceState.READY && observedAt<=now &&
-            now-observedAt<=1500 && idle.sleepStateRaw==0 && idle.alarmBits and 0xBFFF==0
+            now-observedAt<=1500 && idle.sleepStateRaw==0 && CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits)
     }
     private fun canControlWithFreshSettings():Boolean =
         canControlFromIdle() && SettingsFreshness.isFresh(lastSettingsAtMs,clock())

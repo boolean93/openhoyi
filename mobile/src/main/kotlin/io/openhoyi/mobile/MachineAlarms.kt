@@ -1,5 +1,7 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.CoffeeAlarmPolicy
+
 /** Legacy home.vue maps alarmBits bit0..bit14 to C1..C14,C16; bit15 has no known label. */
 object MachineAlarms {
     data class Alarm(val code: String, val description: String)
@@ -29,15 +31,17 @@ object MachineAlarms {
     }
 
     /** C16 explicitly permits the last cup; all faults and the unknown bit require inspection. */
-    fun startBlock(bits: Int): String? = active(bits).firstOrNull { it.code != "C16" }?.let {
-        "机器告警 ${it.code} ${it.description}，暂不启动萃取"
+    fun startBlock(bits: Int): String? {
+        val bit = CoffeeAlarmPolicy.firstBlockingBit(bits) ?: return null
+        val alarm = if (bit == 15) active(bits).last() else known[bit]
+        return "机器告警 ${alarm.code} ${alarm.description}，暂不启动萃取"
     }
 
     fun banner(bits: Int?, receivedAt: Long?, now: Long): Banner? {
         if (bits == null || receivedAt == null || receivedAt > now || now - receivedAt > 1500) return null
         val alarms = active(bits)
         if (alarms.isEmpty()) return null
-        val blocking = alarms.any { it.code != "C16" }
+        val blocking = !CoffeeAlarmPolicy.permitsNewControl(bits)
         val heading = if (blocking) "机器告警 · 暂不启动萃取" else "水位预警 · 尾水允许中"
         return Banner("$heading\n" + alarms.joinToString("\n") { "${it.code} ${it.description}" }, blocking)
     }

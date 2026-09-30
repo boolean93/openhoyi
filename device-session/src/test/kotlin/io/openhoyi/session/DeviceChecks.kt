@@ -392,7 +392,18 @@ fun deviceChecks():Int {
         rejectedStart()
         idle();now=1501;rejectedStart()
         idle(sleep=1);rejectedStart()
-        idle(alarm=1);rejectedStart()
+        for (bit in 0..15) {
+            if (bit == 14) continue
+            idle(alarm=(1 shl bit) or 0x4000);rejectedStart()
+        }
+        // Unknown bit 15 appearing while a start is queued must revoke actual dispatch.
+        idle()
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val beforeAlarm=d.calls.size
+        result=null;s.startExtraction(profile){result=it}
+        check(result==null && d.calls.size==beforeAlarm)
+        idle(alarm=0x8000);complete()
+        check(result is OperationResult.Failed && d.calls.size==beforeAlarm)
         idle(alarm=0x4000)
         result=null;s.startExtraction(profile){result=it}
         check(result==null && (d.calls.last().third as GattOperation.Write).bytes[0].toInt()==2)

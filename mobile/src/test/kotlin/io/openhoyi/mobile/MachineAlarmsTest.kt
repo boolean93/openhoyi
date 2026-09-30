@@ -4,6 +4,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MachineAlarmsTest {
+    @Test fun everyWireAlarmCombinationMatchesControlMaskAndFirstFaultPriority() {
+        for (bits in 0..0xFFFF) {
+            val permitted = bits == 0 || bits == 0x4000
+            assertEquals("alarm 0x${bits.toString(16)}", permitted, MachineAlarms.startBlock(bits) == null)
+        }
+        for (bit in 0..15) {
+            if (bit == 14) continue
+            val message = requireNotNull(MachineAlarms.startBlock((1 shl bit) or 0x4000))
+            assertTrue(message.contains(if (bit == 15) "未知告警" else "C${bit + 1} "))
+        }
+        assertTrue(requireNotNull(MachineAlarms.startBlock(0xFFFF)).contains("C1 "))
+    }
+
     @Test fun homepageBannerUsesOnlyFreshAlarmsAndDistinguishesTailWater() {
         assertEquals(null, MachineAlarms.banner(1, 1000, 2501))
         assertEquals(null, MachineAlarms.banner(0, 1000, 2000))
