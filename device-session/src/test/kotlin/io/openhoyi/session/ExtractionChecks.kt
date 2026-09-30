@@ -11,6 +11,19 @@ private class ScaleFake:ScaleControl {
     override var ready=true;var tares=0
     override fun tare(done:(OperationResult)->Unit){tares++;done(OperationResult.Success())}
 }
+private class UnknownStartCoffee:CoffeeControl {
+    override var ready=true
+    var starts=0;var stops=0
+    var stopResult:OperationResult=OperationResult.Success()
+    var deferStop=false
+    var stopCallback:((OperationResult)->Unit)?=null
+    override fun prepareStart(parameters:StartParameters)=ready
+    override fun startConditionsValid(parameters:StartParameters)=ready
+    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){
+        starts++;done(OperationResult.Unknown("accepted start without outcome"))
+    }
+    override fun stop(done:(OperationResult)->Unit){stops++;if(deferStop)stopCallback=done else done(stopResult)}
+}
 private val profile=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
 fun extractionChecks():Int {
     var count=0
@@ -138,6 +151,99 @@ fun extractionChecks():Int {
         c.manualStop();check(coffee.stops==2 && c.state==ExtractionState.STOP_REQUESTED)
         now=5_011;c.tick();check(c.state==ExtractionState.STOP_REQUESTED)
         now=10_010;c.tick();check(c.state==ExtractionState.OUTCOME_UNKNOWN && coffee.stops==2)
+    }
+    case("unknown start without valve evidence settles only after manual stop and continuous idle") {
+        val coffee=UnknownStartCoffee();var now=0L
+        val c=ExtractionController(coffee,ScaleFake(),{now})
+        val idle=io.openhoyi.protocol.IdleTelemetry(9200,12000,10,10,0,0,0,0,io.openhoyi.protocol.ByteFrame(byteArrayOf()))
+        check(c.start(profile,0,0) && c.state==ExtractionState.OUTCOME_UNKNOWN)
+        for(at in listOf(100L,1100L,2100L,3100L)) {now=at;c.machineFrame(idle,now)}
+        check(c.state==ExtractionState.OUTCOME_UNKNOWN && coffee.stops==0)
+        c.manualStop()
+        for(at in listOf(3200L,4200L,5200L,6000L)) {
+            now=at;c.machineFrame(idle,now)
+            check(c.state==ExtractionState.STOP_REQUESTED)
+        }
+        now=6100;c.machineFrame(idle,now)
+        check(c.state==ExtractionState.ENDED_OBSERVED && coffee.starts==1 && coffee.stops==1)
+    }
+    case("idle before stop callback cannot count toward recovery confirmation") {
+        val coffee=UnknownStartCoffee();coffee.deferStop=true;var now=0L
+        val c=ExtractionController(coffee,ScaleFake(),{now})
+        val idle=io.openhoyi.protocol.IdleTelemetry(9200,12000,10,10,0,0,0,0,io.openhoyi.protocol.ByteFrame(byteArrayOf()))
+        check(c.start(profile,0,0));c.manualStop()
+        for(at in listOf(100L,1100L,2100L,3100L)) {now=at;c.machineFrame(idle,now)}
+        check(c.state==ExtractionState.STOP_REQUESTED)
+        coffee.stopCallback!!(OperationResult.Success())
+        c.machineFrame(idle,now)
+        for(at in listOf(3200L,4200L,5200L,6000L)) {
+            now=at;c.machineFrame(idle,now);c.tick()
+            check(c.state==ExtractionState.STOP_REQUESTED)
+        }
+        now=6100;c.machineFrame(idle,now)
+        check(c.state==ExtractionState.ENDED_OBSERVED && coffee.stops==1)
+    }
+    case("old stop callback cannot confirm or fail a newer explicit retry") {
+        for(oldSuccess in listOf(false,true)) {
+            val coffee=UnknownStartCoffee();coffee.deferStop=true;var now=0L
+            val c=ExtractionController(coffee,ScaleFake(),{now})
+            val idle=io.openhoyi.protocol.IdleTelemetry(9200,12000,10,10,0,0,0,0,io.openhoyi.protocol.ByteFrame(byteArrayOf()))
+            check(c.start(profile,0,0));c.manualStop()
+            val oldCallback=checkNotNull(coffee.stopCallback)
+            now=100;coffee.ready=false;c.tick();coffee.ready=true;c.manualStop()
+            val newCallback=checkNotNull(coffee.stopCallback)
+            oldCallback(if(oldSuccess) OperationResult.Success() else OperationResult.Unknown("old stop outcome"))
+            check(c.state==ExtractionState.STOP_REQUESTED)
+            for(at in listOf(200L,1200L,2200L,3200L)) {now=at;c.machineFrame(idle,now)}
+            check(c.state==ExtractionState.STOP_REQUESTED && coffee.stops==2)
+            newCallback(OperationResult.Success())
+            for(at in listOf(3300L,4300L,5300L)) {now=at;c.machineFrame(idle,now)}
+            check(c.state==ExtractionState.STOP_REQUESTED)
+            now=6300;c.machineFrame(idle,now)
+            check(c.state==ExtractionState.ENDED_OBSERVED && coffee.starts==1 && coffee.stops==2)
+        }
+    }
+    case("manual stop idle recovery does not bridge stale gaps phase frames or disconnects") {
+        for(interruption in 0..2) {
+            val coffee=UnknownStartCoffee();var now=0L
+            val c=ExtractionController(coffee,ScaleFake(),{now})
+            val raw=io.openhoyi.protocol.ByteFrame(byteArrayOf())
+            val idle=io.openhoyi.protocol.IdleTelemetry(9200,12000,10,10,0,0,0,0,raw)
+            check(c.start(profile,0,0));c.manualStop()
+            now=100;c.machineFrame(idle,now)
+            when(interruption) {
+                0 -> now=2000
+                1 -> {now=1000;c.machineFrame(io.openhoyi.protocol.ExtractionTelemetry(8,1,20,1,9200,20,0,0,raw),now);now=1200}
+                else -> {now=500;coffee.ready=false;c.tick();coffee.ready=true;now=1200}
+            }
+            val first=now
+            for(offset in listOf(0L,1000L,2000L)) {
+                now=first+offset;c.machineFrame(idle,now)
+                check(c.state!=ExtractionState.ENDED_OBSERVED)
+            }
+            now=first+3000;c.machineFrame(idle,now)
+            check(c.state==ExtractionState.ENDED_OBSERVED && coffee.starts==1 && coffee.stops==1)
+        }
+    }
+    case("failed stop and repeated or future idle cannot confirm unknown start recovery") {
+        val coffee=UnknownStartCoffee();coffee.stopResult=OperationResult.Unknown("stop not confirmed")
+        var now=0L;val c=ExtractionController(coffee,ScaleFake(),{now})
+        val idle=io.openhoyi.protocol.IdleTelemetry(9200,12000,10,10,0,0,0,0,io.openhoyi.protocol.ByteFrame(byteArrayOf()))
+        check(c.start(profile,0,0));c.manualStop()
+        for(at in listOf(100L,1100L,2100L,3100L)) {now=at;c.machineFrame(idle,now)}
+        check(c.state==ExtractionState.OUTCOME_UNKNOWN)
+        coffee.stopResult=OperationResult.Success();c.manualStop()
+        now=3200;c.machineFrame(idle,now)
+        now=4200;c.machineFrame(idle,3200);c.machineFrame(idle,7200)
+        now=5200;c.machineFrame(idle,4200)
+        now=6200;c.machineFrame(idle,now)
+        check(c.state==ExtractionState.STOP_REQUESTED)
+        now=7200;c.machineFrame(idle,now)
+        check(c.state==ExtractionState.STOP_REQUESTED)
+        now=8200;c.tick();c.machineFrame(idle,now)
+        check(c.state==ExtractionState.OUTCOME_UNKNOWN && coffee.stops==2)
+        now=9200;c.machineFrame(idle,now)
+        check(c.state==ExtractionState.ENDED_OBSERVED && coffee.stops==2)
     }
     case("cancelled unsent start can settle on fresh idle after stop completion") {
         var pending:((OperationResult)->Unit)?=null;var now=0L

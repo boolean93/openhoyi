@@ -54,6 +54,10 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     private var lastActiveFrame:Long?=null
     private var startNotSubmitted=false
     private var stopWrittenAt:Long?=null
+    private var stopAttempt=0L
+    private var stopIdleSince:Long?=null
+    private var lastStopIdleAt:Long?=null
+    private fun clearStopIdleEvidence(){stopIdleSince=null;lastStopIdleAt=null}
     private var target=0
     private var postStartTareSent=false
     private data class PendingStart(val parameters:StartParameters,val target:Int,val compensation:Int,val deadline:Long)
@@ -69,6 +73,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(targetHundredthsGram>0&&(!scale.ready||sample==null||sample.receivedAtMs>now||now-sample.receivedAtMs>1500))return false
         if(!coffee.prepareStart(parameters))return false
         val id=++serial
+        clearStopIdleEvidence()
         started=now;lastActiveFrame=null;startNotSubmitted=false;stopWrittenAt=null;target=targetHundredthsGram;postStartTareSent=false;stopReason=null
         state=ExtractionState.STARTING
         if(targetHundredthsGram>0){
@@ -126,6 +131,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         policy.sample(serial,reading,now)?.let{requestStop(it)}
     }
     fun tick() {
+        if(!coffee.ready)clearStopIdleEvidence()
         if(state !in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED))return
         val preparing=pendingStart
         if(preparing!=null){
@@ -156,29 +162,46 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     }
     private fun requestStop(reason:StopReason,explicitRetry:Boolean=false){
         if(state==ExtractionState.STOP_REQUESTED||(state==ExtractionState.OUTCOME_UNKNOWN&&!explicitRetry))return
+        clearStopIdleEvidence()
         stopReason=reason;stopWrittenAt=null;state=ExtractionState.STOP_REQUESTED
         val id=serial
+        val attempt=++stopAttempt
         coffee.stop { result->
-            if(id==serial&&state==ExtractionState.STOP_REQUESTED){
-                if(result is OperationResult.Success)stopWrittenAt=clock()
+            if(id==serial&&attempt==stopAttempt&&state==ExtractionState.STOP_REQUESTED){
+                if(result is OperationResult.Success){clearStopIdleEvidence();stopWrittenAt=clock()}
                 else state=ExtractionState.OUTCOME_UNKNOWN
             }
         }
     }
+    private fun observeManualStopIdle(receivedAtMs:Long):Boolean {
+        val written=stopWrittenAt ?: return false
+        if(state !in listOf(ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN) ||
+            stopReason!=StopReason.MANUAL || receivedAtMs<=written) return false
+        val previous=lastStopIdleAt
+        if(previous!=null && receivedAtMs<=previous)return false
+        if(previous==null || receivedAtMs-previous>1500)stopIdleSince=receivedAtMs
+        lastStopIdleAt=receivedAtMs
+        return receivedAtMs-(stopIdleSince ?: receivedAtMs)>2800
+    }
     fun machineFrame(frame:HoyiMessage,receivedAtMs:Long) {
+        if(!coffee.ready){clearStopIdleEvidence();return}
         val now=clock()
         if(receivedAtMs<started||receivedAtMs>now||now-receivedAtMs>1500)return
         if(frame is ExtractionTelemetry){
+            clearStopIdleEvidence()
             policy.observeMachineElapsed(serial,frame.elapsedSeconds,receivedAtMs)
             if(frame.valveOpen)lastActiveFrame=receivedAtMs
         }
         val active=lastActiveFrame
         val stoppedUnsentStart=active==null&&startNotSubmitted&&stopWrittenAt?.let{receivedAtMs>it}==true
-        if(frame is IdleTelemetry && ((active!=null && receivedAtMs-active>2800)||stoppedUnsentStart))machineIdle()
+        val recoveredManualStop=frame is IdleTelemetry && active==null && !startNotSubmitted &&
+            observeManualStopIdle(receivedAtMs)
+        if(frame is IdleTelemetry && ((active!=null && receivedAtMs-active>2800)||stoppedUnsentStart||recoveredManualStop))machineIdle()
     }
     /** Only for a host with independent, fresh machine-idle evidence; never silence/timeout. */
     fun machineIdle(){
         if(state in listOf(ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
+            clearStopIdleEvidence()
             policy.end(serial);state=ExtractionState.ENDED_OBSERVED
         }
     }
