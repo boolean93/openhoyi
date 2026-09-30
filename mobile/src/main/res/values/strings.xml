@@ -661,4 +661,20 @@
     <string name="export_history_success">"已导出 %1$s 条历史、%2$s 份曲线"</string>
     <string name="export_history_partial">"已导出 %1$s 条历史、%2$s 份曲线；%3$s 份采样不可用"</string>
     <string name="export_history_failed">"历史导出失败：%1$s"</string>
+
+    <!-- Tare and unresolved setting messages: state gates and dispatch are unchanged. -->
+    <string name="service_setting_unresolved">"上次机器设置结果未知，请等待新的设置回读或重新连接"</string>
+    <string name="service_tare_start_wait">"正在等待电子秤去皮确认，暂不能开始萃取"</string>
+    <string name="service_tare_start_unknown">"去皮结果未知，请重新去皮并确认归零后再开始"</string>
+    <string name="service_tare_confirmed">"电子秤已归零"</string>
+    <string name="service_tare_unknown">"去皮结果未知，请重新去皮并等待归零"</string>
+    <string name="service_tare_mock">"Mock 电子秤已归零；未发送蓝牙命令"</string>
+    <string name="service_tare_manual_block">"手动萃取期间不能手动去皮"</string>
+    <string name="service_unavailable">"设备服务尚未启动"</string>
+    <string name="service_tare_shot_block">"萃取期间不能手动去皮"</string>
+    <string name="service_tare_not_ready">"电子秤尚未就绪"</string>
+    <string name="service_tare_waiting">"正在等待本次去皮结果"</string>
+    <string name="service_tare_requested">"请求电子秤去皮"</string>
+    <string name="service_tare_written">"去皮命令已写入，等待电子秤归零"</string>
+    <string name="service_tare_failed">"去皮命令未写入"</string>
 </resources>

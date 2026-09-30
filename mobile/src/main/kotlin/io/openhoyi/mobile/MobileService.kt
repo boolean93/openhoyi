@@ -164,7 +164,7 @@ class MobileService : Service() {
         SleepNowTracker.State.CONFIRMED else sleepNow.state
     private var settingsSampleSerial = 0L
     private val settingWriteUnresolved: Boolean get() = settingsWrite.state == SettingsWriteTracker.State.UNKNOWN
-    private val settingWriteUnresolvedMessage = "上次机器设置结果未知，请等待新的设置回读或重新连接"
+    private val settingWriteUnresolvedMessage: String get() = getString(R.string.service_setting_unresolved)
     val settingWriteState: SettingsWriteTracker.State get() = if (mock?.lastSetting != null)
         SettingsWriteTracker.State.CONFIRMED else settingsWrite.state
     val pendingSetting: MachineSettingChange? get() = mock?.lastSetting ?: settingsWrite.change
@@ -267,8 +267,8 @@ class MobileService : Service() {
     val stopReason: String? get() = hub?.extraction?.stopReason?.name
     val scalePreflight: Boolean get() = hub?.extraction?.preparingScale == true
     val tareStartBlock: String? get() = when(tareState) {
-        StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO -> "正在等待电子秤去皮确认，暂不能开始萃取"
-        StandaloneTare.State.UNKNOWN -> "去皮结果未知，请重新去皮并确认归零后再开始"
+        StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO -> getString(R.string.service_tare_start_wait)
+        StandaloneTare.State.UNKNOWN -> getString(R.string.service_tare_start_unknown)
         else -> null
     }
     private var lastTareState = StandaloneTare.State.IDLE
@@ -276,8 +276,8 @@ class MobileService : Service() {
         val current = tareState
         if(current == lastTareState) return
         lastTareState = current
-        if(current == StandaloneTare.State.CONFIRMED) event("电子秤已归零", "scale.tare_confirmed")
-        if(current == StandaloneTare.State.UNKNOWN) event("去皮结果未知，请重新去皮并等待归零", "scale.tare_unknown")
+        if(current == StandaloneTare.State.CONFIRMED) event(getString(R.string.service_tare_confirmed), "scale.tare_confirmed")
+        if(current == StandaloneTare.State.UNKNOWN) event(getString(R.string.service_tare_unknown), "scale.tare_unknown")
     }
     private val watchShot = object : Runnable {
         override fun run() {
@@ -667,23 +667,23 @@ class MobileService : Service() {
             val result = mock.tare()
             if (result == null) {
                 refreshMock(mock)
-                event("Mock 电子秤已归零；未发送蓝牙命令", "mock.tare")
+                event(getString(R.string.service_tare_mock), "mock.tare")
             }
             return result
         }
-        if (manualShotActive) return "手动萃取期间不能手动去皮"
-        val current = hub ?: return "设备服务尚未启动"
-        if (ShotGate.active(shotState)) return "萃取期间不能手动去皮"
-        if (snapshot.scaleState != DeviceState.READY) return "电子秤尚未就绪"
+        if (manualShotActive) return getString(R.string.service_tare_manual_block)
+        val current = hub ?: return getString(R.string.service_unavailable)
+        if (ShotGate.active(shotState)) return getString(R.string.service_tare_shot_block)
+        if (snapshot.scaleState != DeviceState.READY) return getString(R.string.service_tare_not_ready)
         if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
-            return "正在等待本次去皮结果"
-        event("请求电子秤去皮", "scale.tare_requested")
+            return getString(R.string.service_tare_waiting)
+        event(getString(R.string.service_tare_requested), "scale.tare_requested")
         current.tareScale { result ->
             lastTareState = tareState
             when (tareState) {
-                StandaloneTare.State.WAITING_ZERO -> event("去皮命令已写入，等待电子秤归零", "scale.tare_written")
-                StandaloneTare.State.UNKNOWN -> event("去皮结果未知，请重新去皮并等待归零", "scale.tare_unknown")
-                else -> if (result !is OperationResult.Success) event("去皮命令未写入", "scale.tare_failed")
+                StandaloneTare.State.WAITING_ZERO -> event(getString(R.string.service_tare_written), "scale.tare_written")
+                StandaloneTare.State.UNKNOWN -> event(getString(R.string.service_tare_unknown), "scale.tare_unknown")
+                else -> if (result !is OperationResult.Success) event(getString(R.string.service_tare_failed), "scale.tare_failed")
             }
         }
         return null
