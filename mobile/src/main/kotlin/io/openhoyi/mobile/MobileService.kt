@@ -378,11 +378,11 @@ class MobileService : Service() {
                         DeviceState.READY -> pendingCoffeeCredential?.let { credential ->
                             if (!credential.remembered && !coffeeCredentials.save(credential.address, credential.password))
                                 event("咖啡机已连接，但本机未能保存密码", "coffee.credential_save_failed")
-                            coffeeCredentialRetries.succeeded(credential.address)
+                            coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
                             pendingCoffeeCredential = null
                         }
                         DeviceState.FAILED, DeviceState.UNSUPPORTED -> pendingCoffeeCredential?.let { credential ->
-                            if (credential.remembered) coffeeCredentialRetries.failed(credential.address)
+                            coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
                             pendingCoffeeCredential = null
                         }
                         else -> Unit

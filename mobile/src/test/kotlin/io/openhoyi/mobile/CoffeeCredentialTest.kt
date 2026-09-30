@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import javax.crypto.spec.SecretKeySpec
+import io.openhoyi.session.DeviceState
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -25,6 +26,30 @@ class CoffeeCredentialTest {
         gate.succeeded(address.lowercase()); assertTrue(gate.mayUse(address))
     }
 
+    @Test fun unsupportedFirmwareDoesNotConsumeRememberedCredentialFailures() {
+        val gate = CoffeeCredentialRetryGate()
+        val address = "AA:BB:CC:DD:EE:01"
+        gate.failed(address)
+        repeat(4) { gate.connectionState(address, DeviceState.UNSUPPORTED, true) }
+        assertTrue(gate.mayUse(address))
+        gate.connectionState(address, DeviceState.FAILED, true)
+        assertFalse(gate.mayUse(address))
+    }
+    @Test fun onlyRememberedConnectionFailuresAffectFallbackAndReadyResetsThem() {
+        val gate = CoffeeCredentialRetryGate()
+        val address = "AA:BB:CC:DD:EE:01"
+        gate.failed(address)
+        for(state in listOf(DeviceState.CONNECTING, DeviceState.DISCONNECTED,
+            DeviceState.SYNCHRONIZING)) gate.connectionState(address,state,true)
+        gate.connectionState(address, DeviceState.FAILED, false)
+        assertTrue(gate.mayUse(address))
+        gate.connectionState(address, DeviceState.FAILED, true)
+        assertFalse(gate.mayUse(address))
+        gate.connectionState("AA:BB:CC:DD:EE:02", DeviceState.READY, true)
+        assertFalse(gate.mayUse(address))
+        gate.connectionState(address, DeviceState.READY, false)
+        assertTrue(gate.mayUse(address))
+    }
     @Test fun failureCountSurvivesAServiceRestart() {
         val counts = mutableMapOf<String, Int>()
         val store = object : CoffeeCredentialFailureStore {

@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import android.content.Context
+import io.openhoyi.session.DeviceState
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import java.security.KeyStore
@@ -57,6 +58,13 @@ class CoffeeCredentialRetryGate(private val maxFailures: Int = 2,
     fun mayUse(address: String): Boolean = store.read(key(address)) < maxFailures
     fun failed(address: String) { val key = key(address); store.write(key, (store.read(key) + 1).coerceAtMost(maxFailures)) }
     fun succeeded(address: String) { store.write(key(address), 0) }
+    fun connectionState(address: String, state: DeviceState, remembered: Boolean) {
+        when(state) {
+            DeviceState.READY -> succeeded(address)
+            DeviceState.FAILED -> if(remembered) failed(address)
+            else -> Unit
+        }
+    }
 }
 
 class SharedPreferencesCoffeeFailureStore(context: Context) : CoffeeCredentialFailureStore {
