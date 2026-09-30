@@ -3,12 +3,15 @@ package io.openhoyi.mobile
 import io.openhoyi.session.CoffeeFirmware
 import io.openhoyi.session.DeviceState
 
-object FirmwarePresentation {
+class FirmwarePresentation(private val resolve: (Int, Array<out Any>) -> String) {
+    constructor(context: android.content.Context) : this({ id, args -> context.getString(id, *args) })
+
+    private fun text(id: Int, vararg args: Any): String = resolve(id, args)
     fun describe(firmware: CoffeeFirmware?, state: DeviceState, mock: Boolean): String {
         if(firmware==null || state !in setOf(DeviceState.READY,DeviceState.UNSUPPORTED))
-            return "固件版本：等待连接后读取"
-        if(mock) return "模拟固件 $firmware · 无蓝牙控制"
-        return if(state==DeviceState.READY) "固件 $firmware · 已验证协议"
-            else "固件 $firmware · 未验证，控制已禁用"
+            return text(R.string.home_firmware_initial)
+        if(mock) return text(R.string.firmware_mock, firmware.toString())
+        return if(state==DeviceState.READY) text(R.string.firmware_verified, firmware.toString())
+            else text(R.string.firmware_unverified, firmware.toString())
     }
 }

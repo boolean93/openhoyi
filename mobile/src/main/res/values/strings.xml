@@ -336,4 +336,17 @@
     <string name="home_live_suffix">" · 实时"</string>
     <string name="home_curve_readonly">"仅浏览，不可萃取"</string>
     <string name="home_curve_startable">"可萃取"</string>
+    <string name="ui_tab_description">"%1$s%2$s"</string>
+    <string name="ui_current_page_suffix">"，当前页面"</string>
+    <string name="ui_back">"返回"</string>
+    <string name="ui_home">"首页"</string>
+    <string name="ui_curves">"曲线"</string>
+    <string name="ui_extraction">"萃取"</string>
+    <string name="ui_history">"历史"</string>
+    <string name="ui_settings">"设置"</string>
+    <string name="stop_processing">"停止请求处理中"</string>
+    <string name="stop_interrupted">"连接中断 · 请检查机器"</string>
+    <string name="firmware_mock">"模拟固件 %1$s · 无蓝牙控制"</string>
+    <string name="firmware_verified">"固件 %1$s · 已验证协议"</string>
+    <string name="firmware_unverified">"固件 %1$s · 未验证，控制已禁用"</string>
 </resources>

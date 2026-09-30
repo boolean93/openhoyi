@@ -16,7 +16,7 @@ class StopActionPresentationTest {
         val state = StopActionPresentation.describe(ExtractionState.STOP_REQUESTED, DeviceState.READY, true)
         assertTrue(state.visible)
         assertFalse(state.enabled)
-        assertEquals("停止请求处理中", state.label)
+        assertEquals("停止请求处理中", DefaultStringResources.resolve(state.labelResource, emptyArray()))
     }
 
     @Test fun unknownDisconnectedOutcomeShowsReasonAndReconnectCanRestoreStop() {
@@ -24,7 +24,7 @@ class StopActionPresentationTest {
             DeviceState.DISCONNECTED, true)
         assertTrue(disconnected.visible)
         assertFalse(disconnected.enabled)
-        assertEquals("连接中断 · 请检查机器", disconnected.label)
+        assertEquals("连接中断 · 请检查机器", DefaultStringResources.resolve(disconnected.labelResource, emptyArray()))
         val reconnected = StopActionPresentation.describe(ExtractionState.OUTCOME_UNKNOWN,
             DeviceState.READY, true)
         assertTrue(reconnected.visible)

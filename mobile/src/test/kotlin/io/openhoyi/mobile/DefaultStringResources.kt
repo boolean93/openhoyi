@@ -5,7 +5,7 @@ import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
 
 /** JVM tests read the same default resources used by Android, without a duplicated Chinese catalog. */
-internal object SettingsResourceResolver {
+internal object DefaultStringResources {
     private val strings: Map<Int, String> by lazy {
         val file = listOf(File("src/main/res/values/strings.xml"), File("mobile/src/main/res/values/strings.xml"))
             .first { it.isFile }

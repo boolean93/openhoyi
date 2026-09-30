@@ -90,7 +90,7 @@ internal object HoyiUi {
                 isClickable = !active
                 isFocusable = true
                 isSelected = active
-                contentDescription = "$label${if (active) "，当前页面" else ""}"
+                contentDescription = activity.getString(R.string.ui_tab_description, label, if (active) activity.getString(R.string.ui_current_page_suffix) else "")
                 setTextColor(activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted))
                 background = shape(activity,
                     if (active) R.color.mobile_accent_soft else R.color.mobile_surface, 12, R.color.mobile_border)
@@ -108,7 +108,7 @@ internal object HoyiUi {
         if (back) row.addView(ImageView(activity).apply {
             setImageResource(R.drawable.nav_back)
             imageTintList = ColorStateList.valueOf(activity.getColor(R.color.mobile_text))
-            contentDescription = "返回"
+            contentDescription = activity.getString(R.string.ui_back)
             isClickable = true
             isFocusable = true
             setPadding(dp(activity, 12), dp(activity, 12), dp(activity, 12), dp(activity, 12))
@@ -134,11 +134,11 @@ internal object HoyiUi {
         }
         parent.addView(bar, LinearLayout.LayoutParams(-1, dp(activity, 62)))
         val items = listOf(
-            Triple(R.drawable.nav_home, "首页", HomeActivity::class.java),
-            Triple(R.drawable.nav_curves, "曲线", CurveActivity::class.java),
-            Triple(R.drawable.nav_extraction, "萃取", ExtractionActivity::class.java),
-            Triple(R.drawable.nav_history, "历史", HistoryActivity::class.java),
-            Triple(R.drawable.nav_settings, "设置", MachineSettingsActivity::class.java),
+            Triple(R.drawable.nav_home, activity.getString(R.string.ui_home), HomeActivity::class.java),
+            Triple(R.drawable.nav_curves, activity.getString(R.string.ui_curves), CurveActivity::class.java),
+            Triple(R.drawable.nav_extraction, activity.getString(R.string.ui_extraction), ExtractionActivity::class.java),
+            Triple(R.drawable.nav_history, activity.getString(R.string.ui_history), HistoryActivity::class.java),
+            Triple(R.drawable.nav_settings, activity.getString(R.string.ui_settings), MachineSettingsActivity::class.java),
         )
         val wide = wide(activity)
         items.forEach { (icon, label, target) ->

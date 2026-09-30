@@ -8,7 +8,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class MachineSettingsPresentationTest {
-    private val presentation = MachineSettingsPresentation(SettingsResourceResolver::resolve)
+    private val presentation = MachineSettingsPresentation(DefaultStringResources::resolve)
     private val raw = ByteFrame(byteArrayOf())
 
     @Test fun settingsAreReadOnlyAndDoNotInventUnknownModes() {

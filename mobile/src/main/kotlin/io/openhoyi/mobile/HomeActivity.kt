@@ -33,6 +33,7 @@ import java.util.Locale
 /** First native product screen: BLE connection, live values, and a selected captured curve. */
 class HomeActivity : ThemedActivity() {
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
+    private val firmwarePresentation by lazy { FirmwarePresentation(this) }
     private var service: MobileService? = null
     private var bound = false
     private var visible = false
@@ -452,7 +453,7 @@ class HomeActivity : ThemedActivity() {
             s.coffeeState, running)
         emergencyStop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         emergencyStop.isEnabled = stopAction.enabled
-        emergencyStop.text = if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else stopAction.label
+        emergencyStop.text = if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource)
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
@@ -476,7 +477,7 @@ class HomeActivity : ThemedActivity() {
                 }
                 else -> ""
             })
-        firmwareStatus.show(FirmwarePresentation.describe(owner?.coffeeFirmware,s.coffeeState,BuildConfig.MOCK_MODE))
+        firmwareStatus.show(firmwarePresentation.describe(owner?.coffeeFirmware,s.coffeeState,BuildConfig.MOCK_MODE))
         coffeeDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.coffeeState != DeviceState.DISCONNECTED
         scaleDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState != DeviceState.DISCONNECTED
         tareButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState == DeviceState.READY &&

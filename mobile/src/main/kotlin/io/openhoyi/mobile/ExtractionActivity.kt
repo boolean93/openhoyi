@@ -367,7 +367,7 @@ class ExtractionActivity : ThemedActivity() {
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
-        stop.text = if (owner?.scalePreflight == true) "取消启动" else stopAction.label
+        stop.text = if (owner?.scalePreflight == true) "取消启动" else getString(stopAction.labelResource)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun shotLabel(state: ExtractionState) = when (state) {
