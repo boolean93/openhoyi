@@ -42,9 +42,9 @@ class ShotChartView(context: Context) : View(context) {
         canvas.drawColor(context.getColor(R.color.mobile_surface))
         if (points.isEmpty()) {
             val emptyText = Paint(label).apply { textAlign = Paint.Align.CENTER; textSize = dp(14) }
-            canvas.drawText("尚无萃取采样", width / 2f, height / 2f - dp(4), emptyText)
+            canvas.drawText(context.getString(R.string.chart_empty_title), width / 2f, height / 2f - dp(4), emptyText)
             emptyText.textSize = dp(11)
-            canvas.drawText("开始后显示压力、流速、温度与秤重", width / 2f, height / 2f + dp(20), emptyText)
+            canvas.drawText(context.getString(R.string.chart_empty_message), width / 2f, height / 2f + dp(20), emptyText)
             return
         }
         val left = dp(42)
@@ -75,13 +75,13 @@ class ShotChartView(context: Context) : View(context) {
         canvas.drawLine(left.toFloat(), top.toFloat(), left.toFloat(), bottom.toFloat(), axis)
         canvas.drawLine(left.toFloat(), bottom.toFloat(), right.toFloat(), bottom.toFloat(), axis)
         val legendMid = (left + right) / 2f
-        canvas.drawText("${pressureMax.toInt()} bar 压力", left.toFloat(), dp(17), pressure.apply { style = Paint.Style.FILL; textSize = dp(11) })
-        canvas.drawText("${flowMax.toInt()} ml/s 水流", legendMid, dp(17), flow.apply { style = Paint.Style.FILL; textSize = dp(11) })
-        if (coffeeFlows.isNotEmpty()) canvas.drawText("${coffeeFlowMax.toInt()} g/s 秤流速", left.toFloat(), dp(35),
+        canvas.drawText(context.getString(R.string.chart_pressure_legend, pressureMax.toInt().toString()), left.toFloat(), dp(17), pressure.apply { style = Paint.Style.FILL; textSize = dp(11) })
+        canvas.drawText(context.getString(R.string.chart_water_legend, flowMax.toInt().toString()), legendMid, dp(17), flow.apply { style = Paint.Style.FILL; textSize = dp(11) })
+        if (coffeeFlows.isNotEmpty()) canvas.drawText(context.getString(R.string.chart_scale_flow_legend, coffeeFlowMax.toInt().toString()), left.toFloat(), dp(35),
             coffeeFlow.apply { style = Paint.Style.FILL; textSize = dp(11) })
-        if (weights.isNotEmpty()) canvas.drawText("${weightMax.toInt()} g 重量", legendMid, dp(35),
+        if (weights.isNotEmpty()) canvas.drawText(context.getString(R.string.chart_weight_legend, weightMax.toInt().toString()), legendMid, dp(35),
             weight.apply { style = Paint.Style.FILL; textSize = dp(11) })
-        canvas.drawText("${temperatureMin.toInt()}–${temperatureMax.toInt()} °C 温度", left.toFloat(), dp(53),
+        canvas.drawText(context.getString(R.string.chart_temperature_legend, temperatureMin.toInt().toString(), temperatureMax.toInt().toString()), left.toFloat(), dp(53),
             temperature.apply { style = Paint.Style.FILL; textSize = dp(11) })
         pressure.style = Paint.Style.STROKE
         flow.style = Paint.Style.STROKE

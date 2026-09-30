@@ -28,15 +28,15 @@ class LegacyShotChartView(context: Context) : View(context) {
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         canvas.drawColor(context.getColor(R.color.mobile_surface))
-        if (points.isEmpty()) { canvas.drawText("暂无旧版采样", dp(16f), height / 2f, label); return }
+        if (points.isEmpty()) { canvas.drawText(context.getString(R.string.chart_legacy_empty), dp(16f), height / 2f, label); return }
         val left = dp(42f); val right = width - dp(18f)
         val top = dp(52f); val bottom = height - dp(30f)
         if (right <= left || bottom <= top) return
         val maxTime = max(1.0, points.last().seconds)
         val maxPressure = max(12.0, points.maxOf(LegacyPoint::pressureBar))
         val maxFlow = max(6.0, points.maxOf(LegacyPoint::waterFlow))
-        canvas.drawText("压力 ${"%.1f".format(maxPressure)} bar", left, dp(20f), label)
-        canvas.drawText("机器水流 ${"%.1f".format(maxFlow)} ml/s", left, dp(40f), label)
+        canvas.drawText(context.getString(R.string.chart_legacy_pressure, "%.1f".format(maxPressure)), left, dp(20f), label)
+        canvas.drawText(context.getString(R.string.chart_legacy_water, "%.1f".format(maxFlow)), left, dp(40f), label)
         canvas.drawLine(left, top, left, bottom, axis)
         canvas.drawLine(left, bottom, right, bottom, axis)
         fun plot(paint: Paint, maximum: Double, value: (LegacyPoint) -> Double) {

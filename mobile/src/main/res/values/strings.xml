@@ -561,4 +561,17 @@
     <string name="curve_category_light">"浅烘"</string>
     <string name="curve_category_super">"超萃"</string>
     <string name="curve_category_other">"其它"</string>
+
+    <!-- Chart labels; numeric formatting and physical units remain at call sites. -->
+    <string name="chart_stage">"%1$s 段"</string>
+    <string name="chart_empty_title">"尚无萃取采样"</string>
+    <string name="chart_empty_message">"开始后显示压力、流速、温度与秤重"</string>
+    <string name="chart_pressure_legend">"%1$s bar 压力"</string>
+    <string name="chart_water_legend">"%1$s ml/s 水流"</string>
+    <string name="chart_scale_flow_legend">"%1$s g/s 秤流速"</string>
+    <string name="chart_weight_legend">"%1$s g 重量"</string>
+    <string name="chart_temperature_legend">"%1$s–%2$s °C 温度"</string>
+    <string name="chart_legacy_empty">"暂无旧版采样"</string>
+    <string name="chart_legacy_pressure">"压力 %1$s bar"</string>
+    <string name="chart_legacy_water">"机器水流 %1$s ml/s"</string>
 </resources>

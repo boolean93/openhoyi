@@ -61,7 +61,7 @@ internal class CurveStageView(context: Context) : View(context) {
             val y = bottom - (bottom - top) * (target.coerceAtLeast(0).toFloat() / maximum)
             canvas.drawCircle(x, y, dp(4f), paint)
             paint.color = context.getColor(R.color.mobile_muted)
-            canvas.drawText("${index + 1} 段", x, height - paddingBottom - dp(5f), paint)
+            canvas.drawText(context.getString(R.string.chart_stage, (index + 1).toString()), x, height - paddingBottom - dp(5f), paint)
             paint.color = context.getColor(R.color.mobile_accent)
         }
     }
