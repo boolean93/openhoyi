@@ -165,6 +165,14 @@ class MachineSettingsActivity : ThemedActivity() {
             settings.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
             settingsToggle.text = if (detailsExpanded) "收起完整回读" else "查看完整回读"
         }
+        val appInfo = card(overview, getString(R.string.application_info))
+        text(appInfo, getString(R.string.app_name), 16, true)
+        text(appInfo, getString(R.string.application_version,
+            BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), 14)
+        text(appInfo, getString(if (BuildConfig.MOCK_MODE)
+            R.string.application_mode_mock else R.string.application_mode_alpha), 14)
+        text(appInfo, getString(R.string.application_package, BuildConfig.APPLICATION_ID), 13)
+            .setTextIsSelectable(true)
         val writeCard = card(controlsPane, "设置反馈")
         writeStatus = text(writeCard, "尚未修改机器设置", 14)
         val tabsScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
