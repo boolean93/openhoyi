@@ -44,9 +44,9 @@ class HistoryActivity : ThemedActivity() {
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         HoyiUi.navigation(this, root, HistoryActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, body, "萃取历史", "每杯记录的状态与曲线采样")
+        HoyiUi.header(this, body, getString(R.string.home_history), getString(R.string.history_subtitle))
         count = HoyiUi.label(this, body, "", 14, muted = true)
-        HoyiUi.tabs(this, body, listOf("本机记录", "旧版只读记录"), selected = 0) {
+        HoyiUi.tabs(this, body, listOf(getString(R.string.history_local_tab), getString(R.string.history_legacy_tab)), selected = 0) {
             if (it == 1) startActivity(Intent(this, LegacyHistoryActivity::class.java))
         }
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -56,12 +56,12 @@ class HistoryActivity : ThemedActivity() {
             actions.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
             HoyiUi.button(this, box, title, action = click)
         }
-        action("导出历史 ZIP") {
+        action(getString(R.string.history_export)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
                 .putExtra(Intent.EXTRA_TITLE, "openhoyi-history-${System.currentTimeMillis()}.zip"), EXPORT_HISTORY)
         }
-        action("导入旧版历史") {
+        action(getString(R.string.history_import)) {
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
         }
@@ -101,16 +101,16 @@ class HistoryActivity : ThemedActivity() {
                 val entry = requireNotNull(getItem(position))
                 val views = card.tag as RowViews
                 val library = runCatching { (application as MobileApplication).curves }.getOrNull()
-                views.title.text = if (entry.curveId == "manual") "机器手动萃取"
+                views.title.text = if (entry.curveId == "manual") getString(R.string.extraction_manual_label)
                     else library?.find(entry.curveId)?.name ?: entry.curveId
                 views.status.text = status(entry.status)
                 views.status.setTextColor(getColor(if (entry.status == ShotHistory.Status.UNKNOWN)
                     R.color.mobile_danger else R.color.mobile_accent))
                 views.meta.text = buildString {
                     append(date(entry.startedAtMs))
-                    entry.elapsedMs?.let { append(" · %.1f 秒".format(Locale.ROOT, it / 1000.0)) }
-                    entry.weightHundredthsGram?.let { append(" · 秤读数 %.2f g".format(Locale.ROOT, it / 100.0)) }
-                    entry.slot?.takeIf { it in 1..5 }?.let { append(" · 快捷槽位 $it") }
+                    entry.elapsedMs?.let { append(getString(R.string.history_meta_duration, "%.1f".format(Locale.ROOT, it / 1000.0))) }
+                    entry.weightHundredthsGram?.let { append(getString(R.string.history_meta_scale, "%.2f".format(Locale.ROOT, it / 100.0))) }
+                    entry.slot?.takeIf { it in 1..5 }?.let { append(getString(R.string.extraction_slot_suffix, it.toString())) }
                 }
                 return card
             }
@@ -129,10 +129,10 @@ class HistoryActivity : ThemedActivity() {
             width = dp(520)
             gravity = android.view.Gravity.CENTER_HORIZONTAL
         }.also { emptyCard.layoutParams = it }
-        emptyTitle = HoyiUi.label(this, emptyCard, "还没有萃取记录", 19, true)
+        emptyTitle = HoyiUi.label(this, emptyCard, getString(R.string.history_empty_title), 19, true)
         emptyMessage = HoyiUi.label(this, emptyCard,
-            "完成第一杯后，这里会显示使用的曲线、萃取状态和采样数据。", 16, muted = true)
-        emptyAction = HoyiUi.button(this, emptyCard, "去曲线库选一条曲线", primary = true) {
+            getString(R.string.history_empty_message), 16, muted = true)
+        emptyAction = HoyiUi.button(this, emptyCard, getString(R.string.history_select_curve), primary = true) {
             startActivity(Intent(this, CurveActivity::class.java))
         }
         list.emptyView = emptyHolder
@@ -153,27 +153,27 @@ class HistoryActivity : ThemedActivity() {
     private fun render() {
         val history = runCatching { (application as MobileApplication).history }.getOrNull()
         if (history == null) {
-            count.text = "历史记录暂不可用"; rows = emptyList()
-            emptyTitle.text = "历史记录暂不可用"
-            emptyMessage.text = "请稍后重新打开；当前无法判断本机记录是否为空。"
+            count.text = getString(R.string.history_unavailable); rows = emptyList()
+            emptyTitle.text = getString(R.string.history_unavailable)
+            emptyMessage.text = getString(R.string.history_unavailable_message)
             emptyAction.visibility = View.GONE
         } else {
             rows = history.entries
-            count.text = if (rows.isEmpty()) "暂无本机记录" else "本机记录 ${rows.size} 条 · 最多保留 30 天 / 500 条"
-            emptyTitle.text = "还没有萃取记录"
-            emptyMessage.text = "完成第一杯后，这里会显示使用的曲线、萃取状态和采样数据。"
+            count.text = if (rows.isEmpty()) getString(R.string.history_no_local) else getString(R.string.history_count, rows.size.toString())
+            emptyTitle.text = getString(R.string.history_empty_title)
+            emptyMessage.text = getString(R.string.history_empty_message)
             emptyAction.visibility = View.VISIBLE
         }
         adapter.clear()
         adapter.addAll(rows)
     }
     private fun status(value: ShotHistory.Status) = when (value) {
-        ShotHistory.Status.STARTING -> "启动中"
-        ShotHistory.Status.RUNNING -> "萃取中"
-        ShotHistory.Status.STOP_REQUESTED -> "停止请求中"
-        ShotHistory.Status.ENDED -> "已观察结束"
-        ShotHistory.Status.UNKNOWN -> "结果未知"
-        ShotHistory.Status.NOT_STARTED -> "未启动"
+        ShotHistory.Status.STARTING -> getString(R.string.extraction_state_starting)
+        ShotHistory.Status.RUNNING -> getString(R.string.extraction_state_running)
+        ShotHistory.Status.STOP_REQUESTED -> getString(R.string.history_status_stop_requested)
+        ShotHistory.Status.ENDED -> getString(R.string.history_status_ended)
+        ShotHistory.Status.UNKNOWN -> getString(R.string.extraction_state_unknown)
+        ShotHistory.Status.NOT_STARTED -> getString(R.string.history_status_not_started)
     }
     private fun date(epochMs: Long) = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(epochMs))
     private fun dp(value: Int) = HoyiUi.dp(this, value)

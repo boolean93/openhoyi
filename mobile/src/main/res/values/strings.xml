@@ -574,4 +574,41 @@
     <string name="chart_legacy_empty">"暂无旧版采样"</string>
     <string name="chart_legacy_pressure">"压力 %1$s bar"</string>
     <string name="chart_legacy_water">"机器水流 %1$s ml/s"</string>
+
+    <!-- Local extraction history presentation. Stored keys and export formats are unchanged. -->
+    <string name="history_meta_duration">" · %1$s 秒"</string>
+    <string name="history_meta_scale">" · 秤读数 %1$s g"</string>
+    <string name="history_count">"本机记录 %1$s 条 · 最多保留 30 天 / 500 条"</string>
+    <string name="history_subtitle">"每杯记录的状态与曲线采样"</string>
+    <string name="history_local_tab">"本机记录"</string>
+    <string name="history_legacy_tab">"旧版只读记录"</string>
+    <string name="history_export">"导出历史 ZIP"</string>
+    <string name="history_import">"导入旧版历史"</string>
+    <string name="history_empty_title">"还没有萃取记录"</string>
+    <string name="history_empty_message">"完成第一杯后，这里会显示使用的曲线、萃取状态和采样数据。"</string>
+    <string name="history_select_curve">"去曲线库选一条曲线"</string>
+    <string name="history_unavailable">"历史记录暂不可用"</string>
+    <string name="history_unavailable_message">"请稍后重新打开；当前无法判断本机记录是否为空。"</string>
+    <string name="history_no_local">"暂无本机记录"</string>
+    <string name="history_status_stop_requested">"停止请求中"</string>
+    <string name="history_status_ended">"已观察结束"</string>
+    <string name="history_status_not_started">"未启动"</string>
+    <string name="history_started_at">"开始请求：%1$s"</string>
+    <string name="history_duration_value">"%1$s 秒"</string>
+    <string name="history_slot">"快捷槽位：%1$s"</string>
+    <string name="history_ended_at">"观察到结束：%1$s"</string>
+    <string name="history_samples_complete">"%1$s 个采样点 · 已保存在本机"</string>
+    <string name="history_samples_partial">"%1$s 个部分采样点 · 已保存在本机"</string>
+    <string name="history_detail_mock_title">"模拟萃取详情"</string>
+    <string name="history_detail_title">"萃取详情"</string>
+    <string name="history_missing">"记录不存在或已过保留期限"</string>
+    <string name="history_duration">"萃取时长"</string>
+    <string name="history_end_scale">"结束时秤读数"</string>
+    <string name="history_scale_disclaimer">"秤读数未经杯重校准，不等同于实际出品重量。"</string>
+    <string name="history_loading_samples">"正在读取本机采样…"</string>
+    <string name="history_outcome_title">"结束信息"</string>
+    <string name="history_no_reason">"未记录 App 停止原因"</string>
+    <string name="history_unknown_warning">"结果未确认，请以咖啡机实际状态为准。"</string>
+    <string name="history_no_samples">"暂无保存的采样点"</string>
+    <string name="history_samples_failed">"采样读取失败"</string>
 </resources>

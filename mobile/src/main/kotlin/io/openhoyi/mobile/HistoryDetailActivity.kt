@@ -38,21 +38,21 @@ class HistoryDetailActivity : ThemedActivity() {
         scroll.addView(body)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
-        HoyiUi.header(this, body, if (BuildConfig.MOCK_MODE) "模拟萃取详情" else "萃取详情", back = true)
+        HoyiUi.header(this, body, if (BuildConfig.MOCK_MODE) getString(R.string.history_detail_mock_title) else getString(R.string.history_detail_title), back = true)
         val shotId = intent.getStringExtra("shotId")
         val app = application as MobileApplication
         val entry = runCatching { app.history.entries.firstOrNull { it.id == shotId } }.getOrNull()
         if (entry == null) {
-            HoyiUi.label(this, HoyiUi.card(this, body), "记录不存在或已过保留期限", 17)
+            HoyiUi.label(this, HoyiUi.card(this, body), getString(R.string.history_missing), 17)
             return
         }
-        val curve = if (entry.curveId == "manual") "机器手动萃取" else
+        val curve = if (entry.curveId == "manual") getString(R.string.extraction_manual_label) else
             runCatching { app.curves.find(entry.curveId)?.name }.getOrNull() ?: entry.curveId
         val summary = HoyiUi.card(this, body, curve)
         HoyiUi.label(this, summary, status(entry.status), 20, true).apply {
             setTextColor(getColor(if (entry.status == ShotHistory.Status.UNKNOWN) R.color.mobile_danger else R.color.mobile_accent))
         }
-        HoyiUi.label(this, summary, "开始请求：${date(entry.startedAtMs)}", 14, muted = true).apply {
+        HoyiUi.label(this, summary, getString(R.string.history_started_at, date(entry.startedAtMs)), 14, muted = true).apply {
             setPadding(0, dp(8), 0, 0)
         }
         val metrics = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -67,31 +67,31 @@ class HistoryDetailActivity : ThemedActivity() {
             HoyiUi.label(this, box, label, 13, muted = true)
             return HoyiUi.label(this, box, value, 21, true).apply { setPadding(0, dp(7), 0, 0) }
         }
-        metric("萃取时长", entry.elapsedMs?.let { "%.1f 秒".format(Locale.ROOT, it / 1000.0) } ?: "—")
-        metric("结束时秤读数", entry.weightHundredthsGram?.let {
+        metric(getString(R.string.history_duration), entry.elapsedMs?.let { getString(R.string.history_duration_value, "%.1f".format(Locale.ROOT, it / 1000.0)) } ?: "—")
+        metric(getString(R.string.history_end_scale), entry.weightHundredthsGram?.let {
             "%.2f g".format(Locale.ROOT, it / 100.0)
         } ?: "—")
         if (entry.weightHundredthsGram != null) HoyiUi.label(this, summary,
-            "秤读数未经杯重校准，不等同于实际出品重量。", 13, muted = true).apply {
+            getString(R.string.history_scale_disclaimer), 13, muted = true).apply {
             setPadding(0, dp(8), 0, 0)
         }
         entry.slot?.takeIf { it in 1..5 }?.let {
-            HoyiUi.label(this, summary, "快捷槽位：$it", 14).apply { setPadding(0, dp(10), 0, 0) }
+            HoyiUi.label(this, summary, getString(R.string.history_slot, it.toString()), 14).apply { setPadding(0, dp(10), 0, 0) }
         }
-        val chartCard = HoyiUi.card(this, body, "萃取曲线")
+        val chartCard = HoyiUi.card(this, body, getString(R.string.extraction_chart))
         val chart = ShotChartView(this)
         chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(300)))
-        val chartStatus = HoyiUi.label(this, chartCard, "正在读取本机采样…", 13, muted = true)
-        val outcome = HoyiUi.card(this, body, "结束信息")
+        val chartStatus = HoyiUi.label(this, chartCard, getString(R.string.history_loading_samples), 13, muted = true)
+        val outcome = HoyiUi.card(this, body, getString(R.string.history_outcome_title))
         HoyiUi.label(this, outcome,
-            entry.reason?.let(::reasonLabel) ?: "未记录 App 停止原因", 16, true)
+            entry.reason?.let(::reasonLabel) ?: getString(R.string.history_no_reason), 16, true)
         entry.endedAtMs?.let {
-            HoyiUi.label(this, outcome, "观察到结束：${date(it)}", 14, muted = true).apply {
+            HoyiUi.label(this, outcome, getString(R.string.history_ended_at, date(it)), 14, muted = true).apply {
                 setPadding(0, dp(8), 0, 0)
             }
         }
         if (entry.status == ShotHistory.Status.UNKNOWN) HoyiUi.label(this, outcome,
-            "结果未确认，请以咖啡机实际状态为准。", 15, true).apply {
+            getString(R.string.history_unknown_warning), 15, true).apply {
             setPadding(0, dp(12), 0, 0)
             setTextColor(getColor(R.color.mobile_danger))
         }
@@ -101,26 +101,26 @@ class HistoryDetailActivity : ThemedActivity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 points.onSuccess {
                     chart.points = it
-                    chartStatus.text = if (it.isEmpty()) "暂无保存的采样点" else
-                        "${it.size} 个${if (entry.status == ShotHistory.Status.ENDED) "" else "部分"}采样点 · 已保存在本机"
-                }.onFailure { chartStatus.text = "采样读取失败" }
+                    chartStatus.text = if (it.isEmpty()) getString(R.string.history_no_samples) else
+                        getString(if (entry.status == ShotHistory.Status.ENDED) R.string.history_samples_complete else R.string.history_samples_partial, it.size.toString())
+                }.onFailure { chartStatus.text = getString(R.string.history_samples_failed) }
             }
         }, "history-detail-reader").start()
     }
     private fun status(value: ShotHistory.Status) = when (value) {
-        ShotHistory.Status.STARTING -> "启动中"
-        ShotHistory.Status.RUNNING -> "萃取中"
-        ShotHistory.Status.STOP_REQUESTED -> "停止请求中"
-        ShotHistory.Status.ENDED -> "已观察结束"
-        ShotHistory.Status.UNKNOWN -> "结果未知"
-        ShotHistory.Status.NOT_STARTED -> "未启动"
+        ShotHistory.Status.STARTING -> getString(R.string.extraction_state_starting)
+        ShotHistory.Status.RUNNING -> getString(R.string.extraction_state_running)
+        ShotHistory.Status.STOP_REQUESTED -> getString(R.string.history_status_stop_requested)
+        ShotHistory.Status.ENDED -> getString(R.string.history_status_ended)
+        ShotHistory.Status.UNKNOWN -> getString(R.string.extraction_state_unknown)
+        ShotHistory.Status.NOT_STARTED -> getString(R.string.history_status_not_started)
     }
     private fun reasonLabel(value: String) = when (value) {
-        StopReason.TARGET_WEIGHT.name -> "达到目标重量"
-        StopReason.SCALE_UNAVAILABLE.name -> "电子秤数据不可用"
-        StopReason.TARE_UNCONFIRMED.name -> "电子秤归零未确认"
-        StopReason.START_CONDITIONS_CHANGED.name -> "启动条件已变化，咖啡机未启动"
-        StopReason.MANUAL.name -> "手动停止"
+        StopReason.TARGET_WEIGHT.name -> getString(R.string.extraction_stop_target)
+        StopReason.SCALE_UNAVAILABLE.name -> getString(R.string.extraction_stop_scale)
+        StopReason.TARE_UNCONFIRMED.name -> getString(R.string.extraction_stop_tare)
+        StopReason.START_CONDITIONS_CHANGED.name -> getString(R.string.extraction_stop_changed)
+        StopReason.MANUAL.name -> getString(R.string.extraction_stop_manual)
         else -> value
     }
     private fun date(epochMs: Long) = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(epochMs))
