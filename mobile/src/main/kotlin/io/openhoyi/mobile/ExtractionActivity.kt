@@ -346,7 +346,7 @@ class ExtractionActivity : ThemedActivity() {
         val points = owner?.chartPoints ?: emptyList()
         if (chart.points != points) chart.points = points
         prepare.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
-            blocked == null && studio && !temperatureReady &&
+            blocked == null && owner.machineSettingsFresh && studio && !temperatureReady &&
             !settingBusy && !sleepBusy &&
             preparation == BrewPreparation.State.IDLE
         cancelPrepare.isEnabled = owner?.running == true && owner?.manualShotActive != true &&

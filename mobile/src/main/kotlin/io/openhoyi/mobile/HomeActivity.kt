@@ -452,7 +452,7 @@ class HomeActivity : ThemedActivity() {
         leverButton.isEnabled = running && !shotActive && owner?.manualShotActive != true &&
             owner?.machineControlSafetyMessage == null && !settingBusy &&
             owner?.sleepNowState != SleepNowTracker.State.UNKNOWN && preparationIdle &&
-            s.coffeeState == DeviceState.READY && s.settings != null && freshAwakeIdle
+            s.coffeeState == DeviceState.READY && owner?.machineSettingsFresh == true && freshAwakeIdle
         leverStatus.show(MachineSettingsPresentation.leverMode(s.settings) +
             when (owner?.pendingSetting) {
                 is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {

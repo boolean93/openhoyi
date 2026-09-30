@@ -34,6 +34,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     val address:String? get()=activeAddress
     private var lastIdle:IdleTelemetry?=null
     private var lastIdleAtMs:Long?=null
+    private var lastSettingsAtMs:Long?=null
+    private var lastSettings:Settings?=null
     private var notifyEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeNotify else KnownGatt.bookooNotify
     private var writeEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeWrite else KnownGatt.bookooWrite
     private var withResponse=true
@@ -64,7 +66,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED)) return
         // Validate credentials before disturbing an existing connection.
         val auth=authentication?.encode()
-        disconnect();lastIdle=null;lastIdleAtMs=null;activeAddress=address;queue.open();setState(DeviceState.CONNECTING);stageDeadline=clock()+22_000
+        disconnect();lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;activeAddress=address;queue.open();setState(DeviceState.CONNECTING);stageDeadline=clock()+22_000
         step(GattOperation.Connect(address),22_000) {
             setState(DeviceState.DISCOVERING)
             step(GattOperation.Discover,10_000){ result ->
@@ -103,7 +105,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 // product telemetry or satisfy readback checks.
                 val authenticated=state==DeviceState.SYNCHRONIZING||state==DeviceState.READY
                 if(frame is Settings){
-                    if(authenticated)acceptSettings(frame)
+                    if(authenticated){lastSettingsAtMs=now;lastSettings=frame;acceptSettings(frame)}
                 }
                 if(state==DeviceState.READY){
                     when(frame){
@@ -163,6 +165,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         return role==DeviceRole.COFFEE && state==DeviceState.READY && observedAt<=now &&
             now-observedAt<=1500 && idle.sleepStateRaw==0 && idle.alarmBits and 0xBFFF==0
     }
+    private fun canControlWithFreshSettings():Boolean =
+        canControlFromIdle() && SettingsFreshness.isFresh(lastSettingsAtMs,clock())
     private fun canCancelBrewWait():Boolean {
         val idle=lastIdle ?: return false
         val observedAt=lastIdleAtMs ?: return false
@@ -173,8 +177,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     fun startExtraction(parameters:StartParameters,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) { callback(OperationResult.Failed("weekly sleep write active")); return }
-        if (!canControlFromIdle()) {
-            callback(OperationResult.Failed("fresh awake idle telemetry without blocking alarms required")); return
+        if (!canControlWithFreshSettings()) {
+            callback(OperationResult.Failed("fresh awake idle and settings telemetry required")); return
         }
         // Product host supplies only frames checked against the extracted legacy encoder.
         val command=CoffeeCommands.start(parameters)
@@ -182,7 +186,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(command.frame.hex() !in allowed && command.frame.hex() !in additionalStartFrames){
             callback(OperationResult.Failed("curve outside validated profile set"));return
         }
-        send(command,DeviceRole.COFFEE,beforeDispatch=::canControlFromIdle,callback=callback)
+        send(command,DeviceRole.COFFEE,beforeDispatch=::canControlWithFreshSettings,callback=callback)
     }
     fun stopExtraction(slot:Int=7,callback:(OperationResult)->Unit) {
         require(slot in 1..5 || slot == 7)
@@ -202,9 +206,24 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
         send(command,DeviceRole.COFFEE,beforeDispatch=::canControlFromIdle,callback=callback)
     }
+    private fun sendWithFreshSettings(command:EncodedCommand,callback:(OperationResult)->Unit) {
+        if (!canControlWithFreshSettings()) {
+            callback(OperationResult.Failed("fresh awake idle and settings telemetry required"))
+            return
+        }
+        send(command,DeviceRole.COFFEE,beforeDispatch=::canControlWithFreshSettings,callback=callback)
+    }
+    private fun canWriteSetting(change: MachineSettingChange): Boolean =
+        canControlWithFreshSettings() && when(change) {
+            is MachineSettingChange.StandbyDelay -> lastSettings?.standbyTemperatureC == change.temperatureC
+            is MachineSettingChange.StandbyTemperature -> lastSettings?.standbyMinutes == change.minutes
+            else -> true
+        }
     fun writeSetting(change: MachineSettingChange,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
-        else sendFromIdle(CoffeeCommands.setting(change),callback)
+        else if (!canWriteSetting(change)) callback(OperationResult.Failed("fresh settings with unchanged companion value required"))
+        else send(CoffeeCommands.setting(change),DeviceRole.COFFEE,
+            beforeDispatch={canWriteSetting(change)},callback=callback)
     }
     fun writeSleepSchedule(schedule: WeeklySleepSchedule, callback:(OperationResult)->Unit) {
         if (role!=DeviceRole.COFFEE || state!=DeviceState.READY || sleepWrite!=null || !canControlFromIdle()) {
@@ -226,7 +245,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     fun resetCupCount(callback:(OperationResult)->Unit) {
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
-        else sendFromIdle(CoffeeCommands.resetCupCount(),callback)
+        else sendWithFreshSettings(CoffeeCommands.resetCupCount(),callback)
     }
     fun setBrewWait(targetC:Int,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
@@ -235,8 +254,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             else send(CoffeeCommands.brewWait(0),DeviceRole.COFFEE,
                 beforeDispatch=::canCancelBrewWait,callback=callback)
         }
-        else sendFromIdle(CoffeeCommands.brewWait(targetC),callback)
+        else sendWithFreshSettings(CoffeeCommands.brewWait(targetC),callback)
     }
-    fun disconnect(){activeAddress=null;lastIdle=null;lastIdleAtMs=null;setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
-    private fun fail(reason:String){activeAddress=null;lastIdle=null;lastIdleAtMs=null;setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}
+    fun disconnect(){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
+    private fun fail(reason:String){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}
 }

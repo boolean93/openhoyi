@@ -328,6 +328,89 @@ fun deviceChecks():Int {
         complete()
         check(cancellation is OperationResult.Failed && d.calls.size==submitted)
     }
+    case("settings freshness rejects missing future and negative timestamps") {
+        check(!SettingsFreshness.isFresh(null,180_000))
+        check(!SettingsFreshness.isFresh(-1,0))
+        check(!SettingsFreshness.isFresh(101,100))
+        check(SettingsFreshness.isFresh(0,180_000))
+        check(!SettingsFreshness.isFresh(0,180_001))
+    }
+    case("stale settings cannot authorize a paired setting write after fresh idle") {
+        val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        val settings=hex("830113FD5C007D0F350019006E")
+        val idle=hex("400024BF2F1C770B00000000000000190321AF")
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
+        now=180_001
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,idle)
+        val before=d.calls.size
+        var result:OperationResult?=null
+        s.writeSetting(MachineSettingChange.StandbyDelay(30,53)){result=it}
+        check(result is OperationResult.Failed && d.calls.size==before)
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
+        result=null
+        s.writeSetting(MachineSettingChange.StandbyDelay(30,53)){result=it}
+        check(result==null && d.calls.size==before+1)
+    }
+    case("queued setting is withheld if settings expire before GATT dispatch") {
+        val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val submitted=d.calls.size
+        var queued:OperationResult?=null
+        s.writeSetting(MachineSettingChange.StandbyDelay(30,53)){queued=it}
+        check(queued==null && d.calls.size==submitted)
+        now=180_001
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        complete()
+        check(queued is OperationResult.Failed && d.calls.size==submitted)
+    }
+    case("queued standby writes reject a newly observed companion value") {
+        for (change in listOf(MachineSettingChange.StandbyDelay(30,53),
+                MachineSettingChange.StandbyTemperature(60,15))) {
+            val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+            s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+            fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+            complete()
+            val(g,t,_)=d.calls.last()
+            s.onComplete(g,t,OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            complete();complete()
+            val settings=hex("830113FD5C007D0F350019006E")
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+            s.writeSetting(MachineSettingChange.Light(true)){}
+            val submitted=d.calls.size
+            var result:OperationResult?=null
+            s.writeSetting(change){result=it}
+            check(result==null && d.calls.size==submitted)
+            val updated=settings.copyOf()
+            if(change is MachineSettingChange.StandbyDelay) updated[8]=54 else updated[7]=30
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,updated)
+            complete()
+            check(result is OperationResult.Failed && d.calls.size==submitted)
+            result=null
+            s.writeSetting(change){result=it}
+            check(result is OperationResult.Failed && d.calls.size==submitted)
+        }
+    }
     case("weekly sleep second fragment is withheld when machine starts extracting") {
         val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})
         s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))

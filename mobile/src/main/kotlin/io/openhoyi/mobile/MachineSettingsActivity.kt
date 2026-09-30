@@ -335,7 +335,7 @@ class MachineSettingsActivity : ThemedActivity() {
             "${DeviceStatusText.label(snapshot.coffeeState)}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
         val reported = snapshot.settings
         settingsOverview.update(if (reported == null) "尚未收到机器设置" else
-            "${if (ready) "当前回读" else "上次回读"} · 自动待机 ${if (reported.standbyMinutes == 0) "永不" else "${reported.standbyMinutes} 分钟"} · 累计 ${reported.cupCount} 杯")
+            "${if (ready && owner?.machineSettingsFresh == true) "当前回读" else "回读已过期"} · 自动待机 ${if (reported.standbyMinutes == 0) "永不" else "${reported.standbyMinutes} 分钟"} · 累计 ${reported.cupCount} 杯")
         brewTemperatureValue.update(reported?.let { "${it.brewTemperatureC} °C" } ?: "—")
         steamTemperatureValue.update(reported?.let { "${it.steamTemperatureC} °C" } ?: "—")
         runModeValue.update(reported?.let { if (it.flags and 0x04 != 0) "工作室" else "咖啡馆" } ?: "—")
@@ -399,7 +399,7 @@ class MachineSettingsActivity : ThemedActivity() {
         val now = android.os.SystemClock.elapsedRealtime()
         val freshIdle = idle?.sleepStateRaw == 0 &&
             snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } == true
-        val editable = ready && snapshot.settings != null && freshIdle && owner?.manualShotActive != true &&
+        val editable = ready && owner?.machineSettingsFresh == true && freshIdle && owner.manualShotActive != true &&
             owner?.machineControlSafetyMessage == null &&
             owner?.shotState?.let(ShotGate::active) != true &&
             owner?.brewPreparationState == BrewPreparation.State.IDLE &&
