@@ -104,7 +104,7 @@ class HomeActivity : ThemedActivity() {
         scroll.addView(content)
         root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         emergencyStop = Button(this).apply {
-            text = "立即停止萃取"
+            text = getString(R.string.home_stop)
             isAllCaps = false
             textSize = 18f
             minHeight = dp(56)
@@ -119,13 +119,13 @@ class HomeActivity : ThemedActivity() {
         HoyiUi.navigation(this, root, HomeActivity::class.java)
         setContentView(root)
         val header = HoyiUi.header(this, content, "HOYI",
-            if (BuildConfig.MOCK_MODE) "Mock · 本机模拟，不发送蓝牙命令" else "咖啡工作台")
+            if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.home_subtitle))
         val themeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         if (HoyiUi.wide(this)) header.addView(themeRow)
         else content.addView(themeRow)
-        HoyiUi.label(this, themeRow, "深色模式", 14, muted = true)
+        HoyiUi.label(this, themeRow, getString(R.string.home_dark_mode), 14, muted = true)
         themeRow.addView(Switch(this).apply {
-            contentDescription = "切换深色模式"
+            contentDescription = getString(R.string.home_dark_description)
             isChecked = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
             setOnCheckedChangeListener { _, dark ->
                 getSharedPreferences("appearance", MODE_PRIVATE).edit().putBoolean("dark", dark).apply()
@@ -135,33 +135,33 @@ class HomeActivity : ThemedActivity() {
         safetyWarning = text(content, "", 17, true).apply {
             setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
         }
-        acknowledgeManual = button(content, "已检查机器，清除提示") {
+        acknowledgeManual = button(content, getString(R.string.home_recovery_button)) {
             val recoveryKind = if (service?.manualSafetyMessage == null)
                 service?.machineWriteRecoveryKind else null
             val title = when (recoveryKind) {
-                MachineWriteRecoveryState.Kind.CUP_RESET -> "核对累计杯数"
-                MachineWriteRecoveryState.Kind.SETTING -> "核对机器设置"
-                MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> "核对整周睡眠计划"
-                MachineWriteRecoveryState.Kind.SLEEP_NOW -> "核对机器睡眠状态"
-                MachineWriteRecoveryState.Kind.BREW_WAIT -> "核对机器预热状态"
-                else -> "确认已检查机器"
+                MachineWriteRecoveryState.Kind.CUP_RESET -> getString(R.string.home_recovery_cups_title)
+                MachineWriteRecoveryState.Kind.SETTING -> getString(R.string.home_recovery_setting_title)
+                MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> getString(R.string.home_recovery_schedule_title)
+                MachineWriteRecoveryState.Kind.SLEEP_NOW -> getString(R.string.home_recovery_sleep_title)
+                MachineWriteRecoveryState.Kind.BREW_WAIT -> getString(R.string.home_recovery_preheat_title)
+                else -> getString(R.string.home_recovery_shot_title)
             }
             val message = when (recoveryKind) {
                 MachineWriteRecoveryState.Kind.CUP_RESET ->
-                    "请先查看咖啡机屏幕的累计杯数。重新连接原机器，等待设置与待机杯数一致后才能清除提醒；清除不会再次发送重置命令。"
+                    getString(R.string.home_recovery_cups_message)
                 MachineWriteRecoveryState.Kind.SETTING ->
-                    "请核对咖啡机当前设置。重新连接原机器，等新的设置回报和已唤醒待机状态后才能清除提醒；清除不会再次发送设置命令。"
+                    getString(R.string.home_recovery_setting_message)
                 MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE ->
-                    "计划可能只写入了一部分。请在机器上核对整周计划；重新连接原机器并等两段新的完整计划回报后才能清除提醒，清除不会补发计划。"
+                    getString(R.string.home_recovery_schedule_message)
                 MachineWriteRecoveryState.Kind.SLEEP_NOW ->
-                    "请检查机器是否已入睡；App 不能唤醒机器，需要时请用拨杆唤醒。重新连接原机器并等新的明确睡眠状态后才能清除提醒，清除不会重发入睡命令。"
+                    getString(R.string.home_recovery_sleep_message)
                 MachineWriteRecoveryState.Kind.BREW_WAIT ->
-                    "请检查原咖啡机是否仍在预热。需要时先在萃取页点“取消预热”；取消写入成功不等于机器已取消。等新的已唤醒待机回报，且确认机器安全后再清除；清除不会发送命令。"
-                else -> "请先检查机器，并重新连接直到显示新的待机状态。清除提示不会改变机器状态或历史中的“结果未知”。"
+                    getString(R.string.home_recovery_preheat_message)
+                else -> getString(R.string.home_recovery_shot_message)
             }
             AlertDialog.Builder(this).setTitle(title).setMessage(message)
-                .setPositiveButton("清除提示") { _, _ -> service?.acknowledgeManualSafety(); render() }
-                .setNegativeButton("取消", null).show()
+                .setPositiveButton(getString(R.string.home_recovery_clear)) { _, _ -> service?.acknowledgeManualSafety(); render() }
+                .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
         }.apply { visibility = View.GONE }
         prominentAlarm = TextView(this).apply {
             textSize = 16f
@@ -172,8 +172,8 @@ class HomeActivity : ThemedActivity() {
         }
         content.addView(prominentAlarm, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
 
-        val deviceCard = card(content, "设备连接")
-        status = text(deviceCard, "尚未连接", 14)
+        val deviceCard = card(content, getString(R.string.home_device_connection))
+        status = text(deviceCard, getString(R.string.home_not_connected_initial), 14)
         val deviceRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         deviceCard.addView(deviceRow)
         val machineChip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
@@ -181,10 +181,10 @@ class HomeActivity : ThemedActivity() {
         deviceRow.addView(machineChip, LinearLayout.LayoutParams(0, -2, 1f))
         deviceRow.addView(scaleChip, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(12) })
         coffeeDot = statusDot(machineChip)
-        coffee = text(machineChip, "咖啡机 · 未连接", 15, true)
+        coffee = text(machineChip, getString(R.string.home_coffee_initial), 15, true)
         scaleDot = statusDot(scaleChip)
-        scale = text(scaleChip, "电子秤 · 未连接", 15, true)
-        scanButton = button(deviceCard, "扫描并连接设备") { enableAndScan() }
+        scale = text(scaleChip, getString(R.string.home_scale_initial), 15, true)
+        scanButton = button(deviceCard, getString(R.string.home_scan)) { enableAndScan() }
         candidates = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         deviceCard.addView(candidates)
 
@@ -200,34 +200,34 @@ class HomeActivity : ThemedActivity() {
             workArea.addView(right, LinearLayout.LayoutParams(-1, -2))
             workArea.addView(left, LinearLayout.LayoutParams(-1, -2))
         }
-        val machineCard = card(left, "咖啡机")
+        val machineCard = card(left, getString(R.string.home_coffee))
         machineCard.addView(ImageView(this).apply {
             setImageResource(R.drawable.hoyi_machine)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = "HOYI 咖啡机外观"
+            contentDescription = getString(R.string.home_machine_description)
         }, LinearLayout.LayoutParams(-1, dp(if (wide) 190 else 150)))
-        firmwareStatus = text(machineCard, "固件版本：等待连接后读取", 14)
-        alarmStatus = text(machineCard, "尚未收到机器告警状态", 14)
-        leverStatus = text(machineCard, "拨杆模式：尚未收到设置", 14)
-        sleepStatus = text(machineCard, "睡眠状态：未知", 14)
+        firmwareStatus = text(machineCard, getString(R.string.home_firmware_initial), 14)
+        alarmStatus = text(machineCard, getString(R.string.home_alarm_initial), 14)
+        leverStatus = text(machineCard, getString(R.string.settings_lever_missing), 14)
+        sleepStatus = text(machineCard, getString(R.string.home_sleep_initial), 14)
         val machineControls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
-        val controlsToggle = button(machineCard, "展开设备控制") {}
+        val controlsToggle = button(machineCard, getString(R.string.home_controls_expand)) {}
         controlsToggle.setOnClickListener {
             machineControls.visibility = if (machineControls.visibility == View.GONE) View.VISIBLE else View.GONE
-            controlsToggle.text = if (machineControls.visibility == View.VISIBLE) "收起设备控制" else "展开设备控制"
+            controlsToggle.text = if (machineControls.visibility == View.VISIBLE) getString(R.string.home_controls_collapse) else getString(R.string.home_controls_expand)
         }
         machineCard.addView(machineControls)
-        leverButton = button(machineControls, "拨杆模式") { chooseLeverMode() }
-        sleepButton = button(machineControls, "立即睡眠") { confirmSleepNow() }
-        button(machineControls, "机器设置") { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
-        coffeeDisconnect = button(machineControls, "断开咖啡机") { service?.disconnect(DeviceRole.COFFEE) }
-        val scaleCard = card(left, "电子秤")
+        leverButton = button(machineControls, getString(R.string.home_lever_button)) { chooseLeverMode() }
+        sleepButton = button(machineControls, getString(R.string.home_sleep_button)) { confirmSleepNow() }
+        button(machineControls, getString(R.string.home_settings_button)) { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
+        coffeeDisconnect = button(machineControls, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
+        val scaleCard = card(left, getString(R.string.home_scale))
         scaleWeight = text(scaleCard, "— g", 27, true)
-        tareStatus = text(scaleCard, "去皮状态：尚未操作", 14)
-        tareButton = button(scaleCard, "电子秤去皮") { service?.tareScale()?.let(::toast); render() }
-        scaleDisconnect = button(scaleCard, "断开电子秤") { service?.disconnect(DeviceRole.BOOKOO) }
+        tareStatus = text(scaleCard, getString(R.string.home_tare_initial), 14)
+        tareButton = button(scaleCard, getString(R.string.home_tare_button)) { service?.tareScale()?.let(::toast); render() }
+        scaleDisconnect = button(scaleCard, getString(R.string.home_scale_disconnect)) { service?.disconnect(DeviceRole.BOOKOO) }
 
-        val metrics = card(right, "实时状态")
+        val metrics = card(right, getString(R.string.home_live_status))
         fun metricRow(first: String, second: String): Pair<TextView, TextView> {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             metrics.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
@@ -242,17 +242,17 @@ class HomeActivity : ThemedActivity() {
             }
             return item(first) to item(second)
         }
-        metricRow("冲泡温度", "冲泡压力").also { brewTemperature = it.first; brewPressure = it.second }
-        metricRow("蒸汽温度", "蒸汽压力").also { steamTemperature = it.first; steamPressure = it.second }
-        val curveCard = card(right, "当前曲线")
+        metricRow(getString(R.string.home_brew_temperature), getString(R.string.home_brew_pressure)).also { brewTemperature = it.first; brewPressure = it.second }
+        metricRow(getString(R.string.home_steam_temperature), getString(R.string.home_steam_pressure)).also { steamTemperature = it.first; steamPressure = it.second }
+        val curveCard = card(right, getString(R.string.home_current_curve))
         val curveActionRow = if (wide) LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             curveCard.addView(this)
         } else curveCard
-        selection = text(curveActionRow, "尚未选择曲线", 19, true)
+        selection = text(curveActionRow, getString(R.string.home_curve_missing), 19, true)
         if (wide) selection.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        brewButton = button(curveActionRow, "选择曲线") {
+        brewButton = button(curveActionRow, getString(R.string.home_curve_select), primary = true) {
             val library = (application as MobileApplication).curves
             val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
             startActivity(Intent(this, if (item != null && library.canStart(item))
@@ -261,9 +261,9 @@ class HomeActivity : ThemedActivity() {
         if (wide) brewButton.layoutParams = LinearLayout.LayoutParams(dp(236), -2).apply {
             marginStart = dp(16)
         }
-        browseCurvesButton = button(curveCard, "浏览曲线库") { startActivity(Intent(this, CurveActivity::class.java)) }
-        val presets = card(right, "快捷曲线")
-        HoyiUi.label(this, presets, "点选后查看萃取准备，再确认启动。", 13, muted = true)
+        browseCurvesButton = button(curveCard, getString(R.string.home_curve_browse)) { startActivity(Intent(this, CurveActivity::class.java)) }
+        val presets = card(right, getString(R.string.home_quick_curves))
+        HoyiUi.label(this, presets, getString(R.string.home_quick_curves_hint), 13, muted = true)
         val buttons = mutableListOf<Button>()
         val columns = if (resources.configuration.screenWidthDp >= 1000) 2 else 1
         (1..5).chunked(columns).forEach { slots ->
@@ -274,7 +274,7 @@ class HomeActivity : ThemedActivity() {
                 row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply {
                     if (slot != slots.last()) marginEnd = dp(10)
                 })
-                buttons += button(cell, "槽位 $slot") {
+                buttons += button(cell, getString(R.string.home_slot, slot.toString())) {
                     startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
                 }
             }
@@ -283,16 +283,16 @@ class HomeActivity : ThemedActivity() {
         presetButtons = buttons
         right.removeView(curveCard)
         right.addView(curveCard, 0)
-        val tools = card(content, "记录与维护")
-        button(tools, "萃取历史") { startActivity(Intent(this, HistoryActivity::class.java)) }
-        button(tools, "导出操作记录 ZIP") {
+        val tools = card(content, getString(R.string.home_records))
+        button(tools, getString(R.string.home_history)) { startActivity(Intent(this, HistoryActivity::class.java)) }
+        button(tools, getString(R.string.home_export)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                 .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
         }
-        button(tools, "停止设备服务") {
+        button(tools, getString(R.string.home_shutdown)) {
             val owner = service
             owner?.shutdown()
-            if (owner?.running == true) toast("设备操作仍在处理，服务保持运行") else release()
+            if (owner?.running == true) toast(getString(R.string.home_shutdown_busy)) else release()
             render()
         }
         render()
@@ -346,7 +346,7 @@ class HomeActivity : ThemedActivity() {
         val missing = missingBle()
         if (missing.isNotEmpty()) { requestPermissions(missing.toTypedArray(), PERMISSIONS); return }
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter
-        if (adapter == null) { toast("此设备不支持蓝牙"); return }
+        if (adapter == null) { toast(getString(R.string.home_bluetooth_unsupported)); return }
         try {
             if (!adapter.isEnabled) { startActivityForResult(Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE), ENABLE); return }
             if (service?.running == true) { service?.scan(); return }
@@ -354,14 +354,14 @@ class HomeActivity : ThemedActivity() {
             startForegroundService(Intent(this, MobileService::class.java))
             scanAfterBind = true
             bound = bindService(Intent(this, MobileService::class.java), connection, Context.BIND_AUTO_CREATE)
-            if (!bound) { scanAfterBind = false; toast("无法绑定设备服务") }
-        } catch (_: SecurityException) { toast("蓝牙权限已失效") }
-        catch (error: RuntimeException) { toast("启动失败：${error.javaClass.simpleName}") }
+            if (!bound) { scanAfterBind = false; toast(getString(R.string.home_bind_failed)) }
+        } catch (_: SecurityException) { toast(getString(R.string.home_permission_expired)) }
+        catch (error: RuntimeException) { toast(getString(R.string.home_start_failed, error.javaClass.simpleName)) }
     }
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSIONS) {
-            if (missingBle().isEmpty()) enableAndScan() else toast("连接设备需要蓝牙权限")
+            if (missingBle().isEmpty()) enableAndScan() else toast(getString(R.string.home_permission_required))
         }
     }
     @Deprecated("Platform activity results")
@@ -381,16 +381,16 @@ class HomeActivity : ThemedActivity() {
         if (service?.connectRememberedCoffee(device.address) == true) return
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            filters = arrayOf(InputFilter.LengthFilter(6)); hint = "六位设备密码"
+            filters = arrayOf(InputFilter.LengthFilter(6)); hint = getString(R.string.home_password_hint)
             isSaveEnabled = false; importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
         }
-        val dialog = AlertDialog.Builder(this).setTitle("连接咖啡机")
-            .setMessage("首次连接需要输入设备密码。连接成功后会加密保存在本机，下次无需重复输入；连续连接失败时会重新询问。")
-            .setView(input).setPositiveButton("连接", null).setNegativeButton("取消", null).create()
+        val dialog = AlertDialog.Builder(this).setTitle(getString(R.string.home_connect_coffee_title))
+            .setMessage(getString(R.string.home_password_message))
+            .setView(input).setPositiveButton(getString(R.string.home_connect), null).setNegativeButton(getString(R.string.machine_settings_cancel), null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val password = input.text.toString()
-                if (!password.matches(Regex("[0-9]{6}"))) input.error = "请输入六位数字"
+                if (!password.matches(Regex("[0-9]{6}"))) input.error = getString(R.string.home_password_error)
                 else { service?.connectCoffee(device.address, password); input.text.clear(); dialog.dismiss() }
             }
         }
@@ -398,28 +398,28 @@ class HomeActivity : ThemedActivity() {
         dialog.show()
     }
     private fun chooseLeverMode() {
-        if (BuildConfig.MOCK_MODE) { toast("Mock 版本不修改机器拨杆模式"); return }
+        if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_lever_mock)); return }
         val modes = listOf(
             MachineSettingChange.LeverMode(false, false),
             MachineSettingChange.LeverMode(true, false),
             MachineSettingChange.LeverMode(true, true),
         )
-        AlertDialog.Builder(this).setTitle("选择拨杆模式")
+        AlertDialog.Builder(this).setTitle(getString(R.string.home_lever_choose_title))
             .setItems(arrayOf(getString(R.string.home_lever_manual),
                 getString(R.string.home_lever_pressure), getString(R.string.home_lever_flow))) { _, index ->
                 val change = modes[index]
-                AlertDialog.Builder(this).setTitle("确认修改拨杆模式")
-                    .setMessage("${settingsPresentation.change(change)}\n机器回读后才能确认生效。")
-                    .setPositiveButton("发送") { _, _ -> service?.changeMachineSetting(change)?.let(::toast); render() }
-                    .setNegativeButton("取消", null).show()
+                AlertDialog.Builder(this).setTitle(getString(R.string.home_lever_confirm_title))
+                    .setMessage(getString(R.string.home_lever_confirmation_message, settingsPresentation.change(change)))
+                    .setPositiveButton(getString(R.string.machine_settings_send)) { _, _ -> service?.changeMachineSetting(change)?.let(::toast); render() }
+                    .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
             }.show()
     }
     private fun confirmSleepNow() {
-        if (BuildConfig.MOCK_MODE) { toast("Mock 版本不发送入睡命令"); return }
-        AlertDialog.Builder(this).setTitle("让咖啡机立即睡眠")
-            .setMessage("机器入睡后，App 没有唤醒命令。需要用机器拨杆唤醒。")
-            .setPositiveButton("发送入睡命令") { _, _ -> service?.enterSleepNow()?.let(::toast); render() }
-            .setNegativeButton("取消", null).show()
+        if (BuildConfig.MOCK_MODE) { toast(getString(R.string.home_sleep_mock)); return }
+        AlertDialog.Builder(this).setTitle(getString(R.string.home_sleep_confirm_title))
+            .setMessage(getString(R.string.home_sleep_confirm_message))
+            .setPositiveButton(getString(R.string.home_sleep_send)) { _, _ -> service?.enterSleepNow()?.let(::toast); render() }
+            .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
     }
     private fun render() {
         if (!::status.isInitialized) return
@@ -441,7 +441,7 @@ class HomeActivity : ThemedActivity() {
         prominentAlarm.setTextColor(getColor(if (alarmBanner?.blocking == true)
             R.color.mobile_danger else R.color.mobile_accent))
         status.show(if (owner?.manualShotActive == true)
-            "机器手动萃取中 · 正在被动记录；请用机器拨杆停止" else if (running) s.message else "点击扫描启动设备服务")
+            getString(R.string.home_manual_shot_status) else if (running) s.message else getString(R.string.home_scan_service_hint))
         val bothReady = s.coffeeState == DeviceState.READY && s.scaleState == DeviceState.READY
         status.visibility = if (bothReady && !s.scanning && owner?.manualShotActive != true)
             View.GONE else View.VISIBLE
@@ -452,7 +452,7 @@ class HomeActivity : ThemedActivity() {
             s.coffeeState, running)
         emergencyStop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         emergencyStop.isEnabled = stopAction.enabled
-        emergencyStop.text = if (owner?.scalePreflight == true) "取消启动" else stopAction.label
+        emergencyStop.text = if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else stopAction.label
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
@@ -466,12 +466,12 @@ class HomeActivity : ThemedActivity() {
         leverStatus.show(settingsPresentation.leverMode(s.settings) +
             when (owner?.pendingSetting) {
                 is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {
-                    SettingsWriteTracker.State.WRITING -> "正在写入"
-                    SettingsWriteTracker.State.WAITING_READBACK -> "等待机器回读"
-                    SettingsWriteTracker.State.CONFIRMED -> "已回读确认"
-                    SettingsWriteTracker.State.FAILED -> "写入失败"
-                    SettingsWriteTracker.State.UNKNOWN -> "结果未知，请查看机器"
-                    SettingsWriteTracker.State.RECONCILED -> "已重新回读，请核对设置"
+                    SettingsWriteTracker.State.WRITING -> getString(R.string.home_setting_writing)
+                    SettingsWriteTracker.State.WAITING_READBACK -> getString(R.string.home_setting_waiting)
+                    SettingsWriteTracker.State.CONFIRMED -> getString(R.string.home_setting_confirmed)
+                    SettingsWriteTracker.State.FAILED -> getString(R.string.home_setting_failed)
+                    SettingsWriteTracker.State.UNKNOWN -> getString(R.string.home_setting_unknown)
+                    SettingsWriteTracker.State.RECONCILED -> getString(R.string.home_setting_reconciled)
                     SettingsWriteTracker.State.IDLE, null -> ""
                 }
                 else -> ""
@@ -481,13 +481,13 @@ class HomeActivity : ThemedActivity() {
         scaleDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState != DeviceState.DISCONNECTED
         tareButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState == DeviceState.READY &&
             owner?.tareState !in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO)
-        tareStatus.show("去皮状态：" + when (owner?.tareState ?: StandaloneTare.State.IDLE) {
-            StandaloneTare.State.IDLE -> "尚未操作"
-            StandaloneTare.State.WRITING -> "正在发送"
-            StandaloneTare.State.WAITING_ZERO -> "已写入，等待归零"
-            StandaloneTare.State.CONFIRMED -> "已收到归零读数"
-            StandaloneTare.State.FAILED -> "写入失败"
-            StandaloneTare.State.UNKNOWN -> "结果未知，请查看秤"
+        tareStatus.show(getString(R.string.home_tare_prefix) + when (owner?.tareState ?: StandaloneTare.State.IDLE) {
+            StandaloneTare.State.IDLE -> getString(R.string.home_tare_idle)
+            StandaloneTare.State.WRITING -> getString(R.string.home_tare_writing)
+            StandaloneTare.State.WAITING_ZERO -> getString(R.string.home_tare_waiting)
+            StandaloneTare.State.CONFIRMED -> getString(R.string.home_tare_confirmed)
+            StandaloneTare.State.FAILED -> getString(R.string.home_setting_failed)
+            StandaloneTare.State.UNKNOWN -> getString(R.string.home_tare_unknown)
         })
         val liveMachine = LiveTelemetry.machine(s.coffee, s.coffeeState, s.coffeeAt, now)
         val coffeeFresh = liveMachine != null
@@ -497,25 +497,25 @@ class HomeActivity : ThemedActivity() {
         sleepButton.isEnabled = running && !shotActive && owner?.manualShotActive != true &&
             owner?.machineControlSafetyMessage == null && !settingBusy && !sleepBusy && preparationIdle && coffeeFresh &&
             idle?.sleepStateRaw == 0
-        val reportedSleep = if (!coffeeFresh) "暂无新鲜状态" else when (idle?.sleepStateRaw) {
-            0 -> "已唤醒"
-            1 -> "已入睡 · 用机器拨杆唤醒"
-            else -> "未知"
+        val reportedSleep = if (!coffeeFresh) getString(R.string.home_sleep_stale) else when (idle?.sleepStateRaw) {
+            0 -> getString(R.string.home_sleep_awake)
+            1 -> getString(R.string.home_sleep_asleep)
+            else -> getString(R.string.settings_unknown)
         }
         val sleepProgress = when (owner?.sleepNowState) {
-            SleepNowTracker.State.WRITING -> " · 正在写入"
-            SleepNowTracker.State.WAITING_ASLEEP -> " · 等待机器回报"
-            SleepNowTracker.State.CONFIRMED -> if (idle?.sleepStateRaw == 1) " · 已确认" else ""
-            SleepNowTracker.State.FAILED -> " · 写入失败"
-            SleepNowTracker.State.UNKNOWN -> " · 上次结果未知"
-            SleepNowTracker.State.RECONCILED -> " · 已重新回报清醒"
+            SleepNowTracker.State.WRITING -> getString(R.string.home_sleep_writing_suffix)
+            SleepNowTracker.State.WAITING_ASLEEP -> getString(R.string.home_sleep_waiting_suffix)
+            SleepNowTracker.State.CONFIRMED -> if (idle?.sleepStateRaw == 1) getString(R.string.home_sleep_confirmed_suffix) else ""
+            SleepNowTracker.State.FAILED -> getString(R.string.home_sleep_failed_suffix)
+            SleepNowTracker.State.UNKNOWN -> getString(R.string.home_sleep_unknown_suffix)
+            SleepNowTracker.State.RECONCILED -> getString(R.string.home_sleep_reconciled_suffix)
             else -> ""
         }
-        sleepStatus.show("睡眠状态：$reportedSleep$sleepProgress")
+        sleepStatus.show(getString(R.string.home_sleep_summary, reportedSleep, sleepProgress))
         alarmStatus.show(MachineAlarms.describe(s.alarmBits, s.alarmAt, now))
         val compactStatus = resources.configuration.screenWidthDp < 400
-        coffee.show(if (compactStatus) "咖啡机·${if (coffeeFresh) "实时" else label(s.coffeeState)}"
-            else "咖啡机 · ${label(s.coffeeState)}${if (coffeeFresh) " · 实时" else ""}")
+        coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else label(s.coffeeState))
+            else getString(R.string.home_coffee_status, label(s.coffeeState), if (coffeeFresh) getString(R.string.home_live_suffix) else ""))
         coffeeDot.background = dotShape(when (s.coffeeState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
@@ -537,8 +537,8 @@ class HomeActivity : ThemedActivity() {
             else -> listOf(brewTemperature, brewPressure, steamTemperature, steamPressure).forEach { it.show("—") }
         }
         val liveScale = LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)
-        scale.show(if (compactStatus) "电子秤·${if (liveScale != null) "实时" else label(s.scaleState)}"
-            else "电子秤 · ${label(s.scaleState)}${if (liveScale != null) " · 实时" else ""}")
+        scale.show(if (compactStatus) getString(R.string.home_scale_compact, if (liveScale != null) getString(R.string.home_live) else label(s.scaleState))
+            else getString(R.string.home_scale_status, label(s.scaleState), if (liveScale != null) getString(R.string.home_live_suffix) else ""))
         scaleDot.background = dotShape(when (s.scaleState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
@@ -548,11 +548,11 @@ class HomeActivity : ThemedActivity() {
             "  ·  ${liveScale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
-        selection.show(selected?.let { "${it.name} · ${if (!library.canStart(it)) "仅浏览，不可萃取" else "可萃取"}" } ?: "尚未选择曲线")
+        selection.show(selected?.let { getString(R.string.home_selected_curve, it.name, getString(if (!library.canStart(it)) R.string.home_curve_readonly else R.string.home_curve_startable)) } ?: getString(R.string.home_curve_missing))
         brewButton.text = when {
-            selected == null -> "选择曲线"
-            !library.canStart(selected) -> "更换可萃取曲线"
-            else -> "查看萃取准备"
+            selected == null -> getString(R.string.home_curve_select)
+            !library.canStart(selected) -> getString(R.string.home_curve_replace)
+            else -> getString(R.string.home_curve_prepare)
         }
         browseCurvesButton.visibility = if (selected == null) View.GONE else View.VISIBLE
         val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
@@ -560,20 +560,20 @@ class HomeActivity : ThemedActivity() {
             val slot = index + 1
             val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null))
             val item = library.find(id)
-            val label = "槽位 $slot · ${item?.name ?: id}"
+            val label = getString(R.string.home_slot_curve, slot.toString(), item?.name ?: id)
             if (button.text.toString() != label) button.text = label
         }
         val keys = s.candidates.map { "${it.address}:${it.advertisedName}" }
         if (keys != candidateKeys) {
             candidateKeys = keys; candidates.removeAllViews()
             s.candidates.forEach { device ->
-                button(candidates, "${device.advertisedName} · ${if (device.candidateRole == DeviceRole.COFFEE) "咖啡机" else "电子秤"}") { choose(device) }
+                button(candidates, getString(R.string.home_candidate, device.advertisedName, getString(if (device.candidateRole == DeviceRole.COFFEE) R.string.home_coffee else R.string.home_scale))) { choose(device) }
             }
         }
     }
     private fun label(state: DeviceState): String = when (state) {
-        DeviceState.READY -> "已连接"; DeviceState.DISCONNECTED -> "未连接"; DeviceState.FAILED -> "连接失败"
-        DeviceState.UNSUPPORTED -> "固件未验证 · 只读"; else -> "连接中"
+        DeviceState.READY -> getString(R.string.home_connected); DeviceState.DISCONNECTED -> getString(R.string.device_state_disconnected); DeviceState.FAILED -> getString(R.string.device_state_failed)
+        DeviceState.UNSUPPORTED -> getString(R.string.home_firmware_readonly); else -> getString(R.string.device_state_connecting)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun number(hundredths: Int) = String.format(Locale.ROOT, "%.2f", hundredths / 100.0)
@@ -594,7 +594,7 @@ class HomeActivity : ThemedActivity() {
             parent.addView(this)
         }
     private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)
-    private fun button(parent: LinearLayout, value: String, action: () -> Unit) =
-        HoyiUi.button(this, parent, value, primary = value == "选择曲线", action = action)
+    private fun button(parent: LinearLayout, value: String, primary: Boolean = false, action: () -> Unit) =
+        HoyiUi.button(this, parent, value, primary = primary, action = action)
     companion object { private const val PERMISSIONS = 12; private const val ENABLE = 13; private const val EXPORT = 14 }
 }
