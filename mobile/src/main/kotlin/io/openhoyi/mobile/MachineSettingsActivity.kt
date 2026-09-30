@@ -39,6 +39,7 @@ import java.util.Locale
 
 /** Only known setting commands are exposed; applied state requires a subsequent 0x83 readback. */
 class MachineSettingsActivity : ThemedActivity() {
+    private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     private data class ScheduleCard(val heading: TextView, val period: TextView)
     private var service: MobileService? = null
     private var bound = false
@@ -368,7 +369,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 prefill(compensationInput, it / 10)
             }
         }
-        settings.update(MachineSettingsPresentation.settings(snapshot.settings))
+        settings.update(settingsPresentation.settings(snapshot.settings))
         settingsToggle.visibility = if (reported == null) View.GONE else View.VISIBLE
         settings.visibility = if (reported != null && detailsExpanded) View.VISIBLE else View.GONE
         schedule.update(when {
@@ -379,7 +380,7 @@ class MachineSettingsActivity : ThemedActivity() {
             else -> getString(R.string.machine_settings_schedule_current)
         })
         scheduleGrid.visibility = if (snapshot.sleepFirst == null && snapshot.sleepSecond == null) View.GONE else View.VISIBLE
-        MachineSettingsPresentation.scheduleDaySummaries(snapshot.sleepFirst, snapshot.sleepSecond)
+        settingsPresentation.scheduleDaySummaries(snapshot.sleepFirst, snapshot.sleepSecond)
             .forEachIndexed { index, day ->
                 scheduleCards[index].heading.update("${day.name} · ${day.state}")
                 scheduleCards[index].heading.setTextColor(getColor(if (day.enabled == true)
@@ -406,7 +407,7 @@ class MachineSettingsActivity : ThemedActivity() {
             else -> getString(R.string.machine_settings_cups_initial)
         })
         writeStatus.update(if (owner?.pendingSetting == null && pending == SettingsWriteTracker.State.IDLE)
-            getString(R.string.machine_settings_feedback_initial) else "${owner?.pendingSetting?.let(MachineSettingsPresentation::change) ?: "设置"} · " +
+            getString(R.string.machine_settings_feedback_initial) else "${owner?.pendingSetting?.let(settingsPresentation::change) ?: getString(R.string.machine_settings_generic_setting)} · " +
             when (pending) {
                 SettingsWriteTracker.State.IDLE -> getString(R.string.machine_settings_unchanged)
                 SettingsWriteTracker.State.WRITING -> getString(R.string.machine_settings_setting_writing)
@@ -466,12 +467,12 @@ class MachineSettingsActivity : ThemedActivity() {
     private fun confirm(change: MachineSettingChange) {
         if (BuildConfig.MOCK_MODE) {
             AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_mock_confirm_title))
-                .setMessage(getString(R.string.machine_settings_mock_confirm_message, MachineSettingsPresentation.change(change)))
+                .setMessage(getString(R.string.machine_settings_mock_confirm_message, settingsPresentation.change(change)))
                 .setPositiveButton(getString(R.string.machine_settings_done), null).show()
             return
         }
         AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_confirm_title))
-            .setMessage(MachineSettingsPresentation.change(change) +
+            .setMessage(settingsPresentation.change(change) +
                 if (change is MachineSettingChange.WaterSupply)
                     ("\n" + getString(R.string.machine_settings_water_warning))
                 else if (change is MachineSettingChange.RunMode)

@@ -58,6 +58,7 @@ data class MobileSnapshot(
 
 /** Product-app BLE owner. Screens observe snapshots; explicit controls remain gated in this service. */
 class MobileService : Service() {
+    private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     inner class LocalBinder : Binder() { val service: MobileService get() = this@MobileService }
     private val binder = LocalBinder()
     private lateinit var logs: TraceStore
@@ -703,7 +704,7 @@ class MobileService : Service() {
             val result = mock.changeSetting(change)
             if (result == null) {
                 refreshMock(mock)
-                event("Mock 设置已更新：${MachineSettingsPresentation.change(change)}；未发送蓝牙命令", "mock.setting")
+                event("Mock 设置已更新：${settingsPresentation.change(change)}；未发送蓝牙命令", "mock.setting")
             }
             return result
         }
@@ -742,7 +743,7 @@ class MobileService : Service() {
         }
         recoveryAfterSettingsSerial = settingsSampleSerial
         refreshSafetyNotification()
-        event("机器设置命令已排队：${MachineSettingsPresentation.change(change)}", "settings.requested")
+        event("机器设置命令已排队：${settingsPresentation.change(change)}", "settings.requested")
         current.writeSetting(change) done@{ result ->
             if (!settingsWrite.written(token, result, settingsSampleSerial)) return@done
             when (settingsWrite.state) {

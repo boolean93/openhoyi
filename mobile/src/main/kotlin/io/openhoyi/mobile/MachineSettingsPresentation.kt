@@ -6,83 +6,86 @@ import io.openhoyi.protocol.SleepDay
 import io.openhoyi.protocol.SleepPart
 
 /** Formats decoded device values; it never creates a command or claims that a setting was applied. */
-object MachineSettingsPresentation {
+class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> String) {
+    constructor(context: android.content.Context) : this({ id, args -> context.getString(id, *args) })
+
+    private fun text(id: Int, vararg args: Any): String = resolve(id, args)
     data class SleepDaySummary(val name: String, val state: String, val period: String, val enabled: Boolean?)
 
     fun overview(value: Settings?): String {
-        if (value == null) return "尚未收到机器设置"
-        val mode = if (value.flags and 0x04 != 0) "工作室" else "咖啡馆"
-        val supply = if (value.flags and 0x02 != 0) "外接水管" else "水箱"
-        val standby = if (value.standbyMinutes == 0) "永不" else "${value.standbyMinutes} 分钟"
-        return "萃取 ${value.brewTemperatureC} °C · 蒸汽 ${value.steamTemperatureC} °C\n" +
-            "运行模式 $mode · 供水 $supply\n" +
-            "自动待机 $standby · 累计 ${value.cupCount} 杯"
+        if (value == null) return text(R.string.settings_missing)
+        val mode = if (value.flags and 0x04 != 0) text(R.string.setting_run_studio) else text(R.string.setting_run_cafe)
+        val supply = if (value.flags and 0x02 != 0) text(R.string.setting_water_piped) else text(R.string.setting_water_tank)
+        val standby = if (value.standbyMinutes == 0) text(R.string.machine_settings_standby_never) else text(R.string.machine_settings_minutes, value.standbyMinutes.toString())
+        return text(R.string.settings_overview_temperatures, value.brewTemperatureC.toString(), value.steamTemperatureC.toString()) +
+            text(R.string.settings_overview_mode_supply, mode, supply) +
+            text(R.string.settings_overview_standby_cups, standby, value.cupCount.toString())
     }
     fun leverMode(value: Settings?): String {
-        if (value == null) return "拨杆模式：尚未收到设置"
+        if (value == null) return text(R.string.settings_lever_missing)
         val pressure = value.flags and 0x80 != 0
         val flow = value.flags and 0x40 != 0
-        return "拨杆模式：" + when {
-            !pressure && flow -> "未知组合（原始 0x%02X）".format(value.flags and 0xC0)
-            flow -> "自动流量"
-            pressure -> "自动压力"
-            else -> "手动"
+        return text(R.string.settings_lever_prefix) + when {
+            !pressure && flow -> text(R.string.settings_lever_unknown, "0x%02X".format(value.flags and 0xC0))
+            flow -> text(R.string.home_lever_flow)
+            pressure -> text(R.string.home_lever_pressure)
+            else -> text(R.string.home_lever_manual)
         }
     }
     fun change(value: MachineSettingChange): String = when (value) {
-        is MachineSettingChange.RunMode -> "运行模式：${if (value.studio) "工作室" else "咖啡馆"}"
-        is MachineSettingChange.WaterSupply -> "供水方式：${if (value.piped) "外接水管" else "水箱"}"
-        is MachineSettingChange.SleepScheduleEnabled -> "每周睡眠计划${if (value.enabled) "开启" else "关闭"}"
-        is MachineSettingChange.StandbyDelay -> "自动待机：" + when (value.minutes) {
-            0 -> "永不"
-            60 -> "1 小时"
-            120 -> "2 小时"
-            else -> "${value.minutes} 分钟"
+        is MachineSettingChange.RunMode -> text(R.string.settings_change_run, if (value.studio) text(R.string.setting_run_studio) else text(R.string.setting_run_cafe))
+        is MachineSettingChange.WaterSupply -> text(R.string.settings_change_water, if (value.piped) text(R.string.setting_water_piped) else text(R.string.setting_water_tank))
+        is MachineSettingChange.SleepScheduleEnabled -> text(R.string.settings_change_schedule, enabledText(value.enabled))
+        is MachineSettingChange.StandbyDelay -> text(R.string.settings_change_standby_prefix) + when (value.minutes) {
+            0 -> text(R.string.machine_settings_standby_never)
+            60 -> text(R.string.settings_one_hour)
+            120 -> text(R.string.settings_two_hours)
+            else -> text(R.string.machine_settings_minutes, value.minutes.toString())
         }
-        is MachineSettingChange.StandbyTemperature -> "待机温度 ${value.celsius} °C"
-        is MachineSettingChange.LeverMode -> "拨杆模式：" + when {
-            value.flow -> "自动流量"
-            value.pressure -> "自动压力"
-            else -> "手动"
+        is MachineSettingChange.StandbyTemperature -> text(R.string.settings_change_standby_temperature, value.celsius.toString())
+        is MachineSettingChange.LeverMode -> text(R.string.settings_lever_prefix) + when {
+            value.flow -> text(R.string.home_lever_flow)
+            value.pressure -> text(R.string.home_lever_pressure)
+            else -> text(R.string.home_lever_manual)
         }
-        is MachineSettingChange.BrewTemperature -> "萃取温度 ${value.celsius} °C"
-        is MachineSettingChange.BrewCompensation -> "冲泡温差补偿 ${value.celsius} °C"
-        is MachineSettingChange.SteamTemperature -> "蒸汽温度 ${value.celsius} °C"
-        is MachineSettingChange.BrewHeating -> "萃取加热${if (value.enabled) "开启" else "关闭"}"
-        is MachineSettingChange.SteamHeating -> "蒸汽加热${if (value.enabled) "开启" else "关闭"}"
-        is MachineSettingChange.Light -> "照明${if (value.enabled) "开启" else "关闭"}"
+        is MachineSettingChange.BrewTemperature -> text(R.string.settings_change_brew_temperature, value.celsius.toString())
+        is MachineSettingChange.BrewCompensation -> text(R.string.settings_change_compensation, value.celsius.toString())
+        is MachineSettingChange.SteamTemperature -> text(R.string.settings_change_steam_temperature, value.celsius.toString())
+        is MachineSettingChange.BrewHeating -> text(R.string.settings_change_brew_heating, enabledText(value.enabled))
+        is MachineSettingChange.SteamHeating -> text(R.string.settings_change_steam_heating, enabledText(value.enabled))
+        is MachineSettingChange.Light -> text(R.string.settings_change_light, enabledText(value.enabled))
     }
     fun settings(value: Settings?): String {
-        if (value == null) return "尚未收到机器设置"
-        fun enabled(bit: Int) = if (value.flags and bit != 0) "开启" else "关闭"
+        if (value == null) return text(R.string.settings_missing)
+        fun enabled(bit: Int) = if (value.flags and bit != 0) text(R.string.setting_on) else text(R.string.setting_off)
         return buildString {
-            appendLine("固件  ${value.firmwareMajor}.${value.firmwareMinor}.${value.firmwarePatch}")
-            appendLine("萃取设定温度  ${value.brewTemperatureC} °C")
-            appendLine("萃取温差补偿  ${value.brewCompensationTenthsC / 10.0} °C")
-            appendLine("蒸汽设定温度  ${value.steamTemperatureC} °C")
-            appendLine("萃取加热  ${enabled(0x20)}")
-            appendLine("蒸汽加热  ${enabled(0x10)}")
-            appendLine("照明  ${enabled(0x08)}")
-            appendLine("供水方式  ${if (value.flags and 0x02 != 0) "外接水管" else "水箱"}")
+            appendLine(text(R.string.settings_readback_firmware, "${value.firmwareMajor}.${value.firmwareMinor}.${value.firmwarePatch}"))
+            appendLine(text(R.string.settings_readback_brew_temperature, value.brewTemperatureC.toString()))
+            appendLine(text(R.string.settings_readback_compensation, (value.brewCompensationTenthsC / 10.0).toString()))
+            appendLine(text(R.string.settings_readback_steam_temperature, value.steamTemperatureC.toString()))
+            appendLine(text(R.string.settings_readback_brew_heating, enabled(0x20)))
+            appendLine(text(R.string.settings_readback_steam_heating, enabled(0x10)))
+            appendLine(text(R.string.settings_readback_light, enabled(0x08)))
+            appendLine(text(R.string.settings_readback_water, if (value.flags and 0x02 != 0) text(R.string.setting_water_piped) else text(R.string.setting_water_tank)))
             appendLine(leverMode(value))
-            appendLine("睡眠计划总开关  ${enabled(0x01)}")
-            appendLine("自动待机  " + when (value.standbyMinutes) {
-                0 -> "永不"
-                60 -> "1 小时"
-                120 -> "2 小时"
-                15, 30 -> "${value.standbyMinutes} 分钟"
-                else -> "机器回读 ${value.standbyMinutes} 分钟（非旧版预设）"
+            appendLine(text(R.string.settings_readback_schedule, enabled(0x01)))
+            appendLine(text(R.string.settings_readback_standby_prefix) + when (value.standbyMinutes) {
+                0 -> text(R.string.machine_settings_standby_never)
+                60 -> text(R.string.settings_one_hour)
+                120 -> text(R.string.settings_two_hours)
+                15, 30 -> text(R.string.machine_settings_minutes, value.standbyMinutes.toString())
+                else -> text(R.string.settings_readback_standby_nonpreset, value.standbyMinutes.toString())
             })
-            appendLine("待机温度  ${value.standbyTemperatureC} °C")
-            appendLine("累计杯数  ${value.cupCount}")
-            value.filterInstalled?.let { appendLine("滤芯状态  ${if (it) "已安装" else "未安装"}") }
-            append("运行模式  ${if (value.flags and 0x04 != 0) "工作室" else "咖啡馆"}")
+            appendLine(text(R.string.settings_readback_standby_temperature, value.standbyTemperatureC.toString()))
+            appendLine(text(R.string.settings_readback_cups, value.cupCount.toString()))
+            value.filterInstalled?.let { appendLine(text(R.string.settings_readback_filter, text(if (it) R.string.settings_filter_installed else R.string.settings_filter_absent))) }
+            append(text(R.string.settings_readback_run, if (value.flags and 0x04 != 0) text(R.string.setting_run_studio) else text(R.string.setting_run_cafe)))
         }
     }
 
     fun schedule(first: SleepPart?, second: SleepPart?): String {
-        if (first == null && second == null) return "尚未收到睡眠计划"
-        val names = listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")
+        if (first == null && second == null) return text(R.string.settings_schedule_missing)
+        val names = listOf(text(R.string.machine_settings_sunday), text(R.string.machine_settings_monday), text(R.string.machine_settings_tuesday), text(R.string.machine_settings_wednesday), text(R.string.machine_settings_thursday), text(R.string.machine_settings_friday), text(R.string.machine_settings_saturday))
         val days = mutableMapOf<Int, SleepDay>()
         for (part in listOfNotNull(first, second)) {
             part.days.forEachIndexed { index, day ->
@@ -91,14 +94,14 @@ object MachineSettingsPresentation {
             }
         }
         return buildString {
-            appendLine("每日启用位  ${first?.enabledBits?.let { "0x%02X".format(it) } ?: "尚未收到"}（周日到周六对应 bit7–bit1）")
+            appendLine(text(R.string.settings_schedule_mask, first?.enabledBits?.let { "0x%02X".format(it) } ?: text(R.string.settings_not_received)))
             for (index in 0..6) {
                 val day = days[index]
-                val enabled = first?.enabledBits?.let { if (it and (0x80 shr index) != 0) "开启" else "关闭" } ?: "未知"
-                appendLine("${names[index]}  $enabled · ${day?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" } ?: "尚未收到"}")
+                val enabled = first?.enabledBits?.let { if (it and (0x80 shr index) != 0) text(R.string.setting_on) else text(R.string.setting_off) } ?: text(R.string.settings_unknown)
+                appendLine(text(R.string.settings_schedule_day, names[index], enabled, day?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" } ?: text(R.string.settings_not_received)))
             }
-            if (first == null) append("前 4 天尚未收到")
-            else if (second == null) append("后 3 天尚未收到")
+            if (first == null) append(text(R.string.settings_schedule_first_missing))
+            else if (second == null) append(text(R.string.settings_schedule_second_missing))
         }.trimEnd()
     }
 
@@ -110,7 +113,7 @@ object MachineSettingsPresentation {
     }
 
     fun scheduleDaySummaries(first: SleepPart?, second: SleepPart?): List<SleepDaySummary> {
-        val names = listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六")
+        val names = listOf(text(R.string.machine_settings_sunday), text(R.string.machine_settings_monday), text(R.string.machine_settings_tuesday), text(R.string.machine_settings_wednesday), text(R.string.machine_settings_thursday), text(R.string.machine_settings_friday), text(R.string.machine_settings_saturday))
         val enabledBits = first?.takeIf { it.firstDaySundayIndex == 0 }?.enabledBits
         val days = mutableMapOf<Int, SleepDay>()
         listOfNotNull(first, second).forEach { part ->
@@ -120,16 +123,19 @@ object MachineSettingsPresentation {
         }
         return names.mapIndexed { index, name ->
             val enabled = enabledBits?.let { it and (0x80 shr index) != 0 }
-            val state = enabled?.let { if (it) "开启" else "关闭" } ?: "状态未知"
+            val state = enabled?.let { if (it) text(R.string.setting_on) else text(R.string.setting_off) } ?: text(R.string.settings_state_unknown)
             val period = days[index]?.let { "${time(it.sleepHour, it.sleepMinute)} → ${time(it.wakeHour, it.wakeMinute)}" }
-                ?: "时间尚未回读"
+                ?: text(R.string.settings_time_missing)
             SleepDaySummary(name, state, period, enabled)
         }
     }
 
+    private fun enabledText(enabled: Boolean): String =
+        text(if (enabled) R.string.setting_on else R.string.setting_off)
+
     private fun time(hour: Int, minute: Int): String =
         if (hour in 0..23 && minute in 0..59) "%02d:%02d".format(hour, minute)
-        else "原始 $hour:$minute"
+        else text(R.string.settings_raw_time, hour.toString(), minute.toString())
 }
 
 /** A screen transition may overlap; the service is foreground-visible while any screen is visible. */

@@ -32,6 +32,7 @@ import java.util.Locale
 
 /** First native product screen: BLE connection, live values, and a selected captured curve. */
 class HomeActivity : ThemedActivity() {
+    private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     private var service: MobileService? = null
     private var bound = false
     private var visible = false
@@ -408,7 +409,7 @@ class HomeActivity : ThemedActivity() {
                 getString(R.string.home_lever_pressure), getString(R.string.home_lever_flow))) { _, index ->
                 val change = modes[index]
                 AlertDialog.Builder(this).setTitle("确认修改拨杆模式")
-                    .setMessage("${MachineSettingsPresentation.change(change)}\n机器回读后才能确认生效。")
+                    .setMessage("${settingsPresentation.change(change)}\n机器回读后才能确认生效。")
                     .setPositiveButton("发送") { _, _ -> service?.changeMachineSetting(change)?.let(::toast); render() }
                     .setNegativeButton("取消", null).show()
             }.show()
@@ -462,7 +463,7 @@ class HomeActivity : ThemedActivity() {
             owner?.machineControlSafetyMessage == null && !settingBusy &&
             owner?.sleepNowState != SleepNowTracker.State.UNKNOWN && preparationIdle &&
             s.coffeeState == DeviceState.READY && owner?.machineSettingsFresh == true && freshAwakeIdle
-        leverStatus.show(MachineSettingsPresentation.leverMode(s.settings) +
+        leverStatus.show(settingsPresentation.leverMode(s.settings) +
             when (owner?.pendingSetting) {
                 is MachineSettingChange.LeverMode -> " · " + when (owner?.settingWriteState) {
                     SettingsWriteTracker.State.WRITING -> "正在写入"
