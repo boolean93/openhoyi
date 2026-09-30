@@ -48,6 +48,7 @@ class HomeActivity : ThemedActivity() {
     private lateinit var sleepStatus: TextView
     private lateinit var sleepButton: Button
     private lateinit var emergencyStop: Button
+    private lateinit var firmwareStatus: TextView
     private lateinit var alarmStatus: TextView
     private lateinit var scale: TextView
     private lateinit var scaleDot: View
@@ -199,6 +200,7 @@ class HomeActivity : ThemedActivity() {
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = "HOYI 咖啡机外观"
         }, LinearLayout.LayoutParams(-1, dp(if (wide) 190 else 150)))
+        firmwareStatus = text(machineCard, "固件版本：等待连接后读取", 14)
         alarmStatus = text(machineCard, "尚未收到机器告警状态", 14)
         leverStatus = text(machineCard, "拨杆模式：尚未收到设置", 14)
         sleepStatus = text(machineCard, "睡眠状态：未知", 14)
@@ -467,6 +469,7 @@ class HomeActivity : ThemedActivity() {
                 }
                 else -> ""
             })
+        firmwareStatus.show(FirmwarePresentation.describe(owner?.coffeeFirmware,s.coffeeState,BuildConfig.MOCK_MODE))
         coffeeDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.coffeeState != DeviceState.DISCONNECTED
         scaleDisconnect.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState != DeviceState.DISCONNECTED
         tareButton.isEnabled = running && !shotActive && owner?.manualShotActive != true && s.scaleState == DeviceState.READY &&

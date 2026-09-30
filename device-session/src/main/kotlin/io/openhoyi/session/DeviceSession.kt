@@ -32,6 +32,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     var state=DeviceState.DISCONNECTED;private set
     private var activeAddress:String?=null
     val address:String? get()=activeAddress
+    val observedFirmware:CoffeeFirmware? get()=lastSettings?.let {
+        CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch)
+    }
     private var lastIdle:IdleTelemetry?=null
     private var lastIdleAtMs:Long?=null
     private var lastSettingsAtMs:Long?=null

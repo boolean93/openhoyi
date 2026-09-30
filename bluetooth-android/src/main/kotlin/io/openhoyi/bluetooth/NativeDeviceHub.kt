@@ -40,6 +40,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=ScaleSessionControl(scale.session,standaloneTare,{scaleSampleSerial})
     val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()})
+    val coffeeFirmware:CoffeeFirmware? get()=coffee.session.observedFirmware
     val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }
     private val ticker=object:Runnable {
         override fun run(){

@@ -15,6 +15,7 @@ import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.protocol.Settings
 import io.openhoyi.protocol.SleepPart
 import io.openhoyi.protocol.WeeklySleepSchedule
+import io.openhoyi.session.CoffeeFirmware
 import io.openhoyi.session.CoffeeAuthentication
 import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
@@ -254,6 +255,9 @@ class MobileService : Service() {
     private var lastShotState = ExtractionState.IDLE
     var running = false; private set
     var snapshot = MobileSnapshot(); private set
+    val coffeeFirmware: CoffeeFirmware? get() = if(mock != null)
+        snapshot.settings?.let { CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch) }
+        else hub?.coffeeFirmware
     val machineSettingsFresh: Boolean get() = snapshot.settings != null &&
         SettingsFreshness.isFresh(snapshot.settingsAt, SystemClock.elapsedRealtime())
     val sleepScheduleFresh: Boolean get() = SleepScheduleFreshness.isFresh(

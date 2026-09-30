@@ -45,13 +45,14 @@ fun deviceChecks():Int {
         val settings=hex("830113FD5C007D0F350019006E")
         s.onNotification(s.generation,KnownGatt.bookooNotify,settings);check(s.state!=DeviceState.READY)
         s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
-        check(s.state!=DeviceState.READY && received.isEmpty())
+        check(s.state!=DeviceState.READY && received.isEmpty() && s.observedFirmware==null)
         complete();check(s.state==DeviceState.SYNCHRONIZING)
         s.onNotification(s.generation,KnownGatt.coffeeNotify,
             hex("40000ACA0B2A0000000000000000001E22DA47"))
         check(received.isEmpty())
         s.onNotification(s.generation,KnownGatt.coffeeNotify,settings)
         check(s.state==DeviceState.READY && received.size==1)
+        check(s.observedFirmware==CoffeeFirmware(1,1,3))
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         var settingResult:OperationResult?=null
         s.writeSetting(MachineSettingChange.BrewTemperature(93)){settingResult=it}
@@ -70,7 +71,7 @@ fun deviceChecks():Int {
         s.resetCupCount(25) { sleepResult=it }
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0A01A5A500")))
         complete();check(sleepResult is OperationResult.Success)
-        s.disconnect();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.DISCONNECTED)
+        s.disconnect();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.DISCONNECTED && s.observedFirmware==null)
     }
     case("pre-auth settings alone time out without enabling coffee writes") {
         val d=SessionDriver();var now=0L
@@ -265,11 +266,22 @@ fun deviceChecks():Int {
         complete();complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))));complete();complete()
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830114FD5C007D0F350019006E"))
         check(s.state==DeviceState.UNSUPPORTED)
-        var result:OperationResult?=null;s.stopExtraction(7){result=it};check(result is OperationResult.Failed)
+        check(s.observedFirmware==CoffeeFirmware(1,1,4))
+        check(s.observedFirmware.toString()=="1.1.4")
+        val writesBefore=d.calls.size
+        var result:OperationResult?=null
+        s.startExtraction(StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)){result=it}
+        check(result is OperationResult.Failed)
+        s.stopExtraction(7){result=it};check(result is OperationResult.Failed)
         s.writeSetting(MachineSettingChange.SteamHeating(false)){result=it};check(result is OperationResult.Failed)
         s.enterSleep {result=it};check(result is OperationResult.Failed)
         s.setBrewWait(92) {result=it};check(result is OperationResult.Failed)
         s.resetCupCount(25) { result=it };check(result is OperationResult.Failed)
+        check(d.calls.size==writesBefore)
+        val oldGeneration=s.generation
+        s.connect("other",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"654321"))
+        s.onNotification(oldGeneration,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        check(s.observedFirmware==null)
     }
     case("live unauthenticated telemetry never reaches product state or triggers extra writes") {
         val d=SessionDriver();var now=0L;var telemetry=0
