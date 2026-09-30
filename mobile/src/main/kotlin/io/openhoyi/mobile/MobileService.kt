@@ -868,7 +868,7 @@ class MobileService : Service() {
         recoveryAfterSecondSleepSerial = secondSleepSerial
         refreshSafetyNotification()
         event("整周睡眠计划两包写入已排队", "sleep_schedule.requested")
-        current.writeSleepSchedule(target) done@{ result ->
+        current.writeSleepSchedule(target,expected) done@{ result ->
             if (!scheduleWrite.written(token, result, firstSleepSerial, secondSleepSerial,
                     snapshot.sleepFirst, snapshot.sleepSecond)) return@done
             when (scheduleWrite.state) {

@@ -15,6 +15,20 @@ fun deviceChecks():Int {
     var tests=0
     fun case(name:String,f:()->Unit){f();tests++;println("PASS $name")}
     fun hex(s:String)=s.chunked(2).map{it.toInt(16).toByte()}.toByteArray()
+    fun receiveSleepReadback(session:DeviceSession,plan:WeeklySleepSchedule) {
+        val first=ByteArray(20);first[0]=0x83.toByte();first[1]=0x40
+        first[2]=plan.days.foldIndexed(0){index,bits,day->
+            bits or if(day.enabled) (0x80 shr index) else 0}.toByte()
+        val second=ByteArray(15);second[0]=0x83.toByte();second[1]=0x80.toByte()
+        plan.days.forEachIndexed { index,day ->
+            val bytes=if(index<4) first else second
+            val offset=if(index<4) 3+index*4 else 2+(index-4)*4
+            bytes[offset]=day.time.sleepHour.toByte();bytes[offset+1]=day.time.sleepMinute.toByte()
+            bytes[offset+2]=day.time.wakeHour.toByte();bytes[offset+3]=day.time.wakeMinute.toByte()
+        }
+        session.onNotification(session.generation,KnownGatt.coffeeNotify,first)
+        session.onNotification(session.generation,KnownGatt.coffeeNotify,second)
+    }
     case("accepted write with a failed GATT callback has an unknown device outcome") {
         val write=GattOperation.Write(KnownGatt.coffeeWrite,hex("0402005D00"),true)
         check(GattCallbackResult.fromStatus(write,0) is OperationResult.Success)
@@ -90,7 +104,7 @@ fun deviceChecks():Int {
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(true,SleepDay(22,15,7,30))})
         var result:OperationResult?=null
-        s.writeSleepSchedule(plan){result=it}
+        receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){result=it}
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0910960F071E960F071E960F071E960F071E00")))
         val firstCount=d.calls.size
         complete();now=499;s.tick();check(d.calls.size==firstCount && result==null)
@@ -100,11 +114,11 @@ fun deviceChecks():Int {
         now=500;s.tick();check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("090C960F071E960F071E960F071E00")))
         complete();check(result is OperationResult.Success)
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
-        s.writeSleepSchedule(plan){result=it};complete(OperationResult.Failed("write failed"))
+        receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){result=it};complete(OperationResult.Failed("write failed"))
         val failedCount=d.calls.size;now=2000;s.tick()
         check(result is OperationResult.Failed && d.calls.size==failedCount)
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
-        s.writeSleepSchedule(plan){result=it};complete()
+        receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){result=it};complete()
         now=2500;s.tick();complete(OperationResult.Failed("second write failed"))
         check(result is OperationResult.Unknown)
     }
@@ -118,7 +132,7 @@ fun deviceChecks():Int {
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
         val outcomes=mutableListOf<OperationResult>()
-        s.writeSleepSchedule(plan){outcomes+=it};complete()
+        receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){outcomes+=it};complete()
         val sent=d.calls.size
         s.disconnect();now=600;s.tick()
         check(outcomes.size==1 && outcomes.single() is OperationResult.Unknown && d.calls.size==sent)
@@ -297,7 +311,7 @@ fun deviceChecks():Int {
         val before=d.calls.size
         val rejected=mutableListOf<OperationResult>()
         s.writeSetting(MachineSettingChange.Light(true)){rejected+=it}
-        s.writeSleepSchedule(plan){rejected+=it}
+        receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){rejected+=it}
         s.enterSleep {rejected+=it}
         s.resetCupCount(25) {rejected+=it}
         s.setBrewWait(92){rejected+=it}
@@ -466,6 +480,73 @@ fun deviceChecks():Int {
         check(!SleepScheduleFreshness.isFresh(first,0,
             io.openhoyi.protocol.SleepPart(4,null,List(3){day.copy(wakeMinute=61)},raw),1_000,1_000))
     }
+    case("queued full schedule cannot overwrite newly reported untouched days") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        fun receive(value:String)=s.onNotification(s.generation,KnownGatt.coffeeNotify,hex(value))
+        receive("830113FD5C007D0F350019006E")
+        receive("400024BF2F1C770B00000000000000190321AF")
+        receive("8340FE0A00071E0A00071E0A00071E0A00071E3D")
+        receive("83800A00071E0A00071E0A00071E00")
+        val target=WeeklySleepSchedule(List(7){WeeklySleepDay(true,SleepDay(if(it==0) 11 else 10,0,7,30))})
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val submitted=d.calls.size
+        var result:OperationResult?=null
+        s.writeSleepSchedule(target,WeeklySleepSchedule(List(7){WeeklySleepDay(true,SleepDay(10,0,7,30))})){result=it}
+        check(result==null && d.calls.size==submitted)
+        receive("8340FE0A00071E0A00071E0A00071E0A00071E3D")
+        receive("83800C00071E0A00071E0A00071E00")
+        complete()
+        check(result is OperationResult.Failed && d.calls.size==submitted)
+    }
+    case("sleep tail accepts its own first readback but rejects unrelated changes and old baseline") {
+        for(mode in 0..3) {
+            val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+            s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+            fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+            complete()
+            val(g,t,_)=d.calls.last()
+            s.onComplete(g,t,OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            complete();complete()
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+            fun idle()=s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+            idle()
+            val expected=WeeklySleepSchedule(List(7){WeeklySleepDay(true,SleepDay(10,0,7,30))})
+            val target=WeeklySleepSchedule(expected.days.mapIndexed{index,day->
+                if(index==0) day.copy(time=day.time.copy(sleepHour=11)) else day})
+            receiveSleepReadback(s,expected)
+            val before=d.calls.size
+            var result:OperationResult?=null
+            s.writeSleepSchedule(target,target){result=it}
+            check(result is OperationResult.Failed && d.calls.size==before)
+            result=null
+            s.writeSleepSchedule(target,expected){result=it}
+            complete()
+            val sent=d.calls.size
+            val reported=WeeklySleepSchedule(target.days.mapIndexed{index,day->
+                if(mode==1 && index==1 || mode==2 && index==4)
+                    day.copy(time=day.time.copy(sleepHour=12)) else day})
+            receiveSleepReadback(s,reported)
+            now=if(mode==3) 180_001 else 500
+            idle();s.tick()
+            if(mode==0) {
+                check(result==null && d.calls.size==sent+1)
+                complete();check(result is OperationResult.Success)
+            } else {
+                check(result is OperationResult.Unknown && d.calls.size==sent)
+                now+=500;s.tick();check(d.calls.size==sent)
+            }
+        }
+    }
     case("settings freshness rejects missing future and negative timestamps") {
         check(!SettingsFreshness.isFresh(null,180_000))
         check(!SettingsFreshness.isFresh(-1,0))
@@ -563,7 +644,7 @@ fun deviceChecks():Int {
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
         var result:OperationResult?=null
-        s.writeSleepSchedule(plan){result=it};complete()
+        receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){result=it};complete()
         val submitted=d.calls.size
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("80080700000000052421325103"))
         now=500;s.tick()
@@ -584,7 +665,7 @@ fun deviceChecks():Int {
         s.writeSetting(MachineSettingChange.Light(true)){}
         val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
         var planResult:OperationResult?=null
-        s.writeSleepSchedule(plan){planResult=it}
+        receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){planResult=it}
         val beforeStop=d.calls.size
         s.stopExtraction { }
         check(planResult is OperationResult.Unknown && d.calls.size==beforeStop)
@@ -608,7 +689,7 @@ fun deviceChecks():Int {
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
         s.writeSetting(MachineSettingChange.Light(true)){}
         val plan=WeeklySleepSchedule(List(7){WeeklySleepDay(false,SleepDay(0,0,0,0))})
-        s.writeSleepSchedule(plan){error("observer failed")}
+        receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){error("observer failed")}
         s.stopExtraction { }
         complete()
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(

@@ -84,13 +84,13 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         }
         coffee.session.writeSetting(change,done)
     }
-    fun writeSleepSchedule(schedule:WeeklySleepSchedule,done:(OperationResult)->Unit){
+    fun writeSleepSchedule(schedule:WeeklySleepSchedule,expected:WeeklySleepSchedule,done:(OperationResult)->Unit){
         usable()
         if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
                 ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
             done(OperationResult.Failed("extraction active"));return
         }
-        coffee.session.writeSleepSchedule(schedule,done)
+        coffee.session.writeSleepSchedule(schedule,expected,done)
     }
     fun enterSleep(done:(OperationResult)->Unit){
         usable()

@@ -51,6 +51,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var initDue=0L
     private var initBusy=false
     private class SleepWrite(val frames: List<EncodedCommand>, val generation: Long,
+        val expected:WeeklySleepSchedule, val target:WeeklySleepSchedule, val baselineAt:Long,
         val callback: (OperationResult)->Unit) {
         var secondDue: Long? = null
     }
@@ -147,7 +148,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         sleepWrite?.let { write ->
             if(write.secondDue?.let { clock() >= it } == true && write.generation == generation) {
                 write.secondDue = null
-                send(write.frames[1],DeviceRole.COFFEE,beforeDispatch=::canControlFromIdle) { result ->
+                send(write.frames[1],DeviceRole.COFFEE,beforeDispatch={canContinueSleepWrite(write)}) { result ->
                     finishSleepWrite(write, if (result is OperationResult.Success) result
                         else OperationResult.Unknown("weekly sleep schedule may be partially applied"))
                 }
@@ -245,13 +246,28 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 callback=callback)
         }
     }
-    fun writeSleepSchedule(schedule: WeeklySleepSchedule, callback:(OperationResult)->Unit) {
-        if (role!=DeviceRole.COFFEE || state!=DeviceState.READY || sleepWrite!=null || !canControlFromIdle()) {
-            callback(OperationResult.Failed("coffee not ready or weekly sleep write active"));return
+    private fun canBeginSleepWrite(expected:WeeklySleepSchedule):Boolean = canControlFromIdle() &&
+        SleepScheduleFreshness.isFresh(sleepFirst,sleepFirstAtMs,sleepSecond,sleepSecondAtMs,clock()) &&
+        WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days == expected.days
+    private fun firstSleepMatches(plan:WeeklySleepSchedule):Boolean {
+        val first=sleepFirst ?: return false
+        val bits=first.enabledBits ?: return false
+        return first.firstDaySundayIndex==0 && first.days == plan.days.take(4).map(WeeklySleepDay::time) &&
+            plan.days.indices.all { ((bits and (0x80 shr it)) != 0) == plan.days[it].enabled }
+    }
+    private fun canContinueSleepWrite(write:SleepWrite):Boolean = canControlFromIdle() &&
+        SettingsFreshness.isFresh(write.baselineAt,clock()) &&
+        (firstSleepMatches(write.expected) || firstSleepMatches(write.target)) &&
+        sleepSecond?.firstDaySundayIndex==4 &&
+        sleepSecond?.days == write.expected.days.drop(4).map(WeeklySleepDay::time)
+    fun writeSleepSchedule(schedule: WeeklySleepSchedule, expected:WeeklySleepSchedule, callback:(OperationResult)->Unit) {
+        if (sleepWrite!=null || !canBeginSleepWrite(expected)) {
+            callback(OperationResult.Failed("fresh unchanged full sleep readback and awake idle required"));return
         }
-        val write=SleepWrite(CoffeeCommands.sleepSchedule(schedule),generation,callback)
+        val write=SleepWrite(CoffeeCommands.sleepSchedule(schedule),generation,expected,schedule,
+            minOf(sleepFirstAtMs!!,sleepSecondAtMs!!),callback)
         sleepWrite=write
-        send(write.frames[0],DeviceRole.COFFEE,beforeDispatch=::canControlFromIdle) { result ->
+        send(write.frames[0],DeviceRole.COFFEE,beforeDispatch={canBeginSleepWrite(expected)}) { result ->
             if (result is OperationResult.Success) {
                 if (sleepWrite === write) {
                     write.secondDue=clock()+500
