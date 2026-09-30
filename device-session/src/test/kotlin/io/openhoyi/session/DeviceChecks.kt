@@ -193,19 +193,70 @@ fun deviceChecks():Int {
             check(!c.start(profile,nextTarget,0))
             check(d.calls.size==submitted && starts==0)
             var duplicate:OperationResult?=null
-            scale.tare { duplicate=it }
+            scale.tare({true}) { duplicate=it }
             check(duplicate is OperationResult.Failed && d.calls.size==submitted)
             complete(outcome)
             check(!c.start(profile,nextTarget,0))
             now+=100;tare.sample(++sampleSerial,0);c.weight(WeightReading(0,now))
             if(outcome is OperationResult.Unknown) {
                 check(!c.start(profile,nextTarget,0))
-                scale.tare {}
+                scale.tare({true}) {}
                 complete()
                 check(!c.start(profile,nextTarget,0))
                 now+=100;tare.sample(++sampleSerial,0);c.weight(WeightReading(0,now))
             }
             check(c.start(profile,nextTarget,0))
+        }
+    }
+    case("queued tare rechecks cancelled expired changed and ended-shot intent before dispatch") {
+        for(cause in listOf("cancel","deadline","conditions","coffee_lost","flow_stop","independent")) {
+        val d=SessionDriver();var now=0L
+        val tare=StandaloneTare { now }
+        val s=DeviceSession(DeviceRole.BOOKOO,d,{now})
+        s.connect("scale")
+        fun complete(r:OperationResult=OperationResult.Success()) {
+            val(g,t,_)=d.calls.last();s.onComplete(g,t,r)
+        }
+        complete();complete(OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
+        complete();repeat(4){now+=501;s.tick();complete()}
+        s.onNotification(s.generation,KnownGatt.bookooNotify,hex("030B000000012D007A3A2D03424600C803010084"))
+        check(s.state==DeviceState.READY)
+        // A transport write occupies the queue; the new shot's tare has not been sent.
+        s.tare({true}) {}
+        val scale=ScaleSessionControl(s,tare,{0})
+        var starts=0;var conditions=true;var coffeeReady=true;var allowed=true
+        val coffee=object:CoffeeControl {
+            override val ready get()=coffeeReady
+            override fun prepareStart(parameters:StartParameters)=true
+            override fun startConditionsValid(parameters:StartParameters)=conditions
+            override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
+            override fun stop(done:(OperationResult)->Unit){check(starts>0);done(OperationResult.Success())}
+        }
+        val profile=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
+        val c=ExtractionController(coffee,scale,{now});c.weight(WeightReading(0,now))
+        val sent=d.calls.size
+        if(cause=="independent") {
+            scale.tare({allowed}) {}
+            allowed=false
+        } else if(cause=="flow_stop") {
+            check(c.start(profile,0,0));now+=1500;c.tick()
+            check(tare.state==StandaloneTare.State.WRITING && d.calls.size==sent)
+            c.manualStop()
+        } else {
+            check(c.start(profile,3400,0) && d.calls.size==sent)
+            when(cause) {
+                "cancel" -> c.manualStop()
+                "deadline" -> now+=5000 // No controller tick: the dispatch guard must suffice.
+                "conditions" -> conditions=false
+                "coffee_lost" -> coffeeReady=false
+            }
+        }
+        complete()
+        check(d.calls.size==sent && starts==if(cause=="flow_stop")1 else 0)
+        check(c.state==if(cause=="flow_stop")ExtractionState.STOP_REQUESTED else ExtractionState.IDLE)
+        check(tare.state==StandaloneTare.State.FAILED && scale.startAllowed)
         }
     }
     case("unsupported coffee firmware never opens control gate") {
@@ -707,7 +758,7 @@ fun deviceChecks():Int {
             val scale=object:ScaleControl {
                 override val startAllowed=true
                 override val ready=true
-                override fun tare(done:(OperationResult)->Unit){done(OperationResult.Success())}
+                override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){done(if(beforeDispatch())OperationResult.Success() else OperationResult.Failed("guard rejected"))}
             }
             val controller=ExtractionController(CoffeeSessionControl(s),scale,{now})
             controller.weight(WeightReading(0,0))

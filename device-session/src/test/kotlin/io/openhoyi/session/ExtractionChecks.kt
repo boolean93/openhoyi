@@ -9,7 +9,7 @@ private class CoffeeFake:CoffeeControl {
 }
 private class ScaleFake:ScaleControl {
     override var ready=true;override var startAllowed=true;var tares=0
-    override fun tare(done:(OperationResult)->Unit){tares++;done(OperationResult.Success())}
+    override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){if(beforeDispatch()){tares++;done(OperationResult.Success())}else done(OperationResult.Failed("guard rejected"))}
 }
 private class UnknownStartCoffee:CoffeeControl {
     override var ready=true
@@ -73,7 +73,7 @@ fun extractionChecks():Int {
         val scale=object:ScaleControl {
             override val ready=true
             override val startAllowed=true
-            override fun tare(done:(OperationResult)->Unit){callback=done}
+            override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){if(beforeDispatch())callback=done else done(OperationResult.Failed("guard rejected"))}
         }
         val c=ExtractionController(coffee,scale,{now})
         c.weight(WeightReading(0,now));check(c.start(profile,3400,0))

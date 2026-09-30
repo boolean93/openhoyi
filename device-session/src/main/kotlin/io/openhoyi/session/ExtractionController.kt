@@ -13,7 +13,7 @@ interface CoffeeControl {
     fun start(parameters:StartParameters,done:(OperationResult)->Unit)
     fun stop(done:(OperationResult)->Unit)
 }
-interface ScaleControl {val ready:Boolean;val startAllowed:Boolean;fun tare(done:(OperationResult)->Unit)}
+interface ScaleControl {val ready:Boolean;val startAllowed:Boolean;fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit)}
 class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     init{require(session.role==DeviceRole.COFFEE)}
     private data class StopOwner(val address:String,val slot:Int)
@@ -48,11 +48,11 @@ class ScaleSessionControl(private val session:DeviceSession,private val tareStat
     override val startAllowed get()=!tareState.unresolved
     init{require(session.role==DeviceRole.BOOKOO)}
     override val ready get()=session.state==DeviceState.READY
-    override fun tare(done:(OperationResult)->Unit) {
+    override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit) {
         if(!ready){done(OperationResult.Failed("scale not ready"));return}
         val token=tareState.begin()
         if(token==null){done(OperationResult.Failed("tare already pending"));return}
-        session.tare { result->
+        session.tare(beforeDispatch) { result->
             tareState.written(token,result,sampleSerial())
             done(result)
         }
@@ -96,7 +96,9 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(targetHundredthsGram>0){
             pendingStart=PendingStart(parameters,targetHundredthsGram,compensationHundredthsGram,now+5000)
             preflightTareWrittenAt=null
-            scale.tare { result ->
+            scale.tare({id==serial && state==ExtractionState.STARTING &&
+                pendingStart?.let { clock()<it.deadline }==true && coffee.ready &&
+                coffee.startConditionsValid(parameters)}) { result ->
                 if(id!=serial||state!=ExtractionState.STARTING||pendingStart==null)return@tare
                 if(result is OperationResult.Success)preflightTareWrittenAt=clock()
                 else abortPreflight(StopReason.TARE_UNCONFIRMED)
@@ -167,7 +169,8 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         // complete tare before any machine start frame is sent.
         if(target==0&&!postStartTareSent&&scale.ready&&now-started>=1500){
             postStartTareSent=true
-            scale.tare { }
+            val tareShot=serial
+            scale.tare({tareShot==serial && state==ExtractionState.RUNNING && coffee.ready}) { }
         }
         if(target>0&&!scale.ready){requestStop(StopReason.SCALE_UNAVAILABLE);return}
         policy.checkHealth(serial,now)?.let{requestStop(it)}

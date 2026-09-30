@@ -98,7 +98,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         if(!DeviceConnectionGate.mayChangeScale(extraction.state)){
             done(OperationResult.Failed("unsettled extraction: manual tare blocked"));return
         }
-        scaleControl.tare(done)
+        scaleControl.tare({DeviceConnectionGate.mayChangeScale(extraction.state)},done)
     }
     fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit){
         usable()

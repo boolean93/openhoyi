@@ -249,7 +249,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         send(CoffeeCommands.stop(slot),DeviceRole.COFFEE,urgent=true,
             beforeDispatch=::sameTarget,callback=callback)
     }
-    fun tare(callback:(OperationResult)->Unit)=send(BookooCodec.tare(),DeviceRole.BOOKOO,callback=callback)
+    fun tare(beforeDispatch:()->Boolean,callback:(OperationResult)->Unit)=send(BookooCodec.tare(),DeviceRole.BOOKOO,
+        beforeDispatch=beforeDispatch,callback=callback)
     private fun sendFromIdle(command:EncodedCommand,callback:(OperationResult)->Unit) {
         if (!canControlFromIdle()) {
             callback(OperationResult.Failed("fresh awake idle telemetry without blocking alarms required"))
