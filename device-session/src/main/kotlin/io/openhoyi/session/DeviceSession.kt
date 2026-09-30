@@ -326,17 +326,17 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         else send(CoffeeCommands.resetCupCount(),DeviceRole.COFFEE,
             beforeDispatch={canResetCupCount(expectedCount)},callback=callback)
     }
-    fun setBrewWait(targetC:Int,callback:(OperationResult)->Unit) {
+    fun setBrewWait(targetC:Int,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
         else if (targetC==0) {
             if (!canCancelBrewWait()) callback(OperationResult.Failed("fresh awake idle telemetry required for preheat cancel"))
             else send(CoffeeCommands.brewWait(0),DeviceRole.COFFEE,
-                beforeDispatch=::canCancelBrewWait,callback=callback)
+                beforeDispatch={beforeDispatch() && canCancelBrewWait()},callback=callback)
         }
         else if (!canStartPreheat())
             callback(OperationResult.Failed("fresh awake idle and studio settings required for preheat"))
         else send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,
-            beforeDispatch=::canStartPreheat,callback=callback)
+            beforeDispatch={beforeDispatch() && canStartPreheat()},callback=callback)
     }
     fun disconnect(){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
     private fun fail(reason:String){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}

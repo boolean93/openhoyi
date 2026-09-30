@@ -29,7 +29,7 @@ flowchart TD
 
 ## 预热与被动萃取
 
-`BrewPreparation` 与 `PassiveShotDetector` 也已迁入 `device-session`，两类生产方法体及8项原测试方法体保持不变。前者区分传输成功、温度就绪、取消已写入及未知；后者只根据机器帧发出识别事件，不发送控制命令。共享模块累计运行25项原JUnit测试。
+`BrewPreparation` 与 `PassiveShotDetector` 也已迁入 `device-session`，两类生产方法体及8项原测试方法体保持不变。前者区分传输成功、温度就绪、取消已写入及未知；后者只根据机器帧发出识别事件，不发送控制命令。共享模块累计运行26项JUnit测试，新增预热最终发送许可测试。`BrewPreparation.permitsWrite` 由产品层传入Hub/会话的实际发送前检查，绑定本次请求号、目标温度及阶段，防止取消后旧排队预热继续发送。
 
 产品层 `StudioStartGate` 仍负责把产品曲线映射到预热目标并生成页面原因；`MobileService` 仍负责发送预热/取消、采样序号、被动历史记录、超时和跨进程安全持久化。Mock复用同一预热状态机，但不能作为真实加热行为证据。
 

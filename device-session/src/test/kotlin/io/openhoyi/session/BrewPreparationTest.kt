@@ -4,6 +4,22 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class BrewPreparationTest {
+    @Test fun dispatchPermitBindsTokenTargetAndWritePhase() {
+        val preparation=BrewPreparation()
+        val first=requireNotNull(preparation.begin("curve",92))
+        assertTrue(preparation.permitsWrite(first,92))
+        assertFalse(preparation.permitsWrite(first,93))
+        assertFalse(preparation.permitsWrite(first,0))
+        val cancel=requireNotNull(preparation.beginCancel())
+        assertFalse(preparation.permitsWrite(first,92))
+        assertFalse(preparation.permitsWrite(first,0))
+        assertTrue(preparation.permitsWrite(cancel,0))
+        assertFalse(preparation.permitsWrite(cancel,92))
+        preparation.cancelled(cancel,OperationResult.Success())
+        assertFalse(preparation.permitsWrite(cancel,0))
+        preparation.disconnected()
+        assertFalse(preparation.permitsWrite(cancel,0))
+    }
     @Test fun readinessRequiresFreshCorrectedTemperatureAfterWrite() {
         val preparation = BrewPreparation()
         val token = requireNotNull(preparation.begin("curve-a", 92))

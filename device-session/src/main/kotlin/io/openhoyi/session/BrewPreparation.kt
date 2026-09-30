@@ -46,6 +46,12 @@ class BrewPreparation {
     fun matches(profile: String, target: Int): Boolean =
         state == State.READY && profileId == profile && targetC == target
 
+    fun permitsWrite(token: Long, requestedTargetC: Int): Boolean = token == serial && when(state) {
+        State.WRITING -> requestedTargetC == targetC && requestedTargetC in 75..105
+        State.CANCELLING -> requestedTargetC == 0
+        else -> false
+    }
+
     fun isActive(token: Long): Boolean = token == serial && state in setOf(State.WAITING_TEMP, State.READY)
 
     fun timedOut(token: Long): Boolean {

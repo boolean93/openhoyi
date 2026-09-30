@@ -133,13 +133,13 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         }
         coffee.session.resetCupCount(expectedCount,done)
     }
-    fun setBrewWait(targetC:Int,done:(OperationResult)->Unit){
+    fun setBrewWait(targetC:Int,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()
         if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
                 ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
             done(OperationResult.Failed("extraction active"));return
         }
-        coffee.session.setBrewWait(targetC,done)
+        coffee.session.setBrewWait(targetC,{beforeDispatch() && !DeviceConnectionGate.unsettled(extraction.state)},done)
     }
     fun disconnectCoffee(){
         usable();check(DeviceConnectionGate.mayDisconnect(extraction.state)){"unsettled extraction: disconnect blocked"}

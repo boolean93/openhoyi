@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-09-30：预热与取消增加贯穿Mobile/Hub/会话/队列的必填实际发送前检查。`BrewPreparation.permitsWrite` 绑定请求号、目标和WRITING/CANCELLING阶段，取消、消费或断线后旧排队预热不能发送；有效零取消仍沿原恢复门禁发送。Mobile复核持久预热标记、原机器地址和手动萃取门禁，Hub复核App萃取未结束状态。先复现旧排队预热出队，再验证三类失效场景与有效取消原字节。完整离线回归26项共享JUnit、92个会话场景、39,823项协议检查/32,856条通知回放；Alpha/Mock各104通过、1项缺真实导出跳过，三个APK构建通过。已经发送的预热不能撤回，取消成功仍须原回报/人工核对，不改变紧急停止。未操作真机。
+
 2026-09-30：`BrewPreparation`、`PassiveShotDetector` 及8项原JUnit测试迁入 `device-session`，4个生产/测试文件方法体与迁移前HEAD逐一比较一致，仅包名和导入改变。共享模块保持无Android/产品模块引用，累计25项JUnit通过；协议39,823项检查/32,856条通知回放、会话91场景通过，Alpha/Mock各104通过、1项缺真实导出跳过，三个APK构建通过。产品测试数量减少8项是迁移而非删除。`StudioStartGate`、预热发送/超时/持久化、被动历史记录继续由Mobile负责；状态机迁移不改变原时序或控制许可，不构成统一业务协调器完成。未操作真机，当前边界见 `docs/architecture.md`。
 
 2026-09-30：`SettingsWriteTracker`、`CupResetTracker`、`SleepNowTracker`、`SleepScheduleWriteTracker` 及17项原JUnit测试迁入 `device-session`。8个生产/测试文件方法体与迁移前HEAD逐一比较一致，仅包名和导入改变；Android页面改为引用共享类型。共享模块测试依赖使用现有JUnit4.13.2，不进入生产依赖。完整离线回归：共享JUnit17通过、会话91场景通过、协议39,823项检查/32,856条通知回放；Alpha/Mock各112通过、1项缺真实导出跳过，三个APK构建通过。原130项产品测试减为113项，是17项迁至核心而非删除。服务仍持有四类tracker实例、采样序号/超时/安全持久化，尚未合并成统一业务协调器。当前边界见 `docs/architecture.md`，未操作真机。

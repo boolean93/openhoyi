@@ -1061,7 +1061,11 @@ class MobileService : Service() {
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         refreshSafetyNotification()
         event("曲线预热命令已排队：${profile.temperatureC} °C", "brew_wait.requested")
-        current.setBrewWait(profile.temperatureC) done@{ result ->
+        current.setBrewWait(profile.temperatureC, {
+            brewPreparation.permitsWrite(token, profile.temperatureC) && !manualShotActive &&
+                machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
+                machineWriteRecovery.matchesDevice(current.coffeeAddress)
+        }) done@{ result ->
             if (!brewPreparation.written(token, result, idleSampleSerial)) return@done
             when (brewPreparation.state) {
                 BrewPreparation.State.WAITING_TEMP -> {
@@ -1111,7 +1115,11 @@ class MobileService : Service() {
         val token = brewPreparation.beginCancel() ?: return "取消命令已写入或正在取消；请检查机器"
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         event("取消预热命令已排队", "brew_wait.cancel_requested")
-        current.setBrewWait(0) done@{ result ->
+        current.setBrewWait(0, {
+            brewPreparation.permitsWrite(token, 0) && brewWaitCancelBlock == null &&
+                machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
+                machineWriteRecovery.matchesDevice(current.coffeeAddress)
+        }) done@{ result ->
             if (!brewPreparation.cancelled(token, result)) return@done
             when (brewPreparation.state) {
                 BrewPreparation.State.CANCEL_WRITTEN -> event("取消预热命令已写入；请检查机器，回报待机后人工确认", "brew_wait.cancel_written")

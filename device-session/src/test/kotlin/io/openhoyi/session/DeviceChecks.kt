@@ -62,10 +62,10 @@ fun deviceChecks():Int {
         s.enterSleep { sleepResult=it }
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("2001A5A521")))
         complete();check(sleepResult is OperationResult.Success)
-        s.setBrewWait(92) { sleepResult=it }
+        s.setBrewWait(92,{true}) { sleepResult=it }
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("1102005C00")))
         complete();check(sleepResult is OperationResult.Success)
-        s.setBrewWait(0) { sleepResult=it }
+        s.setBrewWait(0,{true}) { sleepResult=it }
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("1102000000")))
         complete();check(sleepResult is OperationResult.Success)
         s.resetCupCount(25) { sleepResult=it }
@@ -260,6 +260,43 @@ fun deviceChecks():Int {
         check(tare.state==StandaloneTare.State.FAILED && scale.startAllowed)
         }
     }
+    case("queued preheat intent cannot survive cancellation consumption or disconnection") {
+        for(action in listOf("cancel","consume","disconnect")) {
+            val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+            s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+            fun complete(r:OperationResult=OperationResult.Success()) {
+                val(g,t,_)=d.calls.last();s.onComplete(g,t,r)
+            }
+            complete();complete(OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            complete();complete()
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+            s.writeSetting(MachineSettingChange.Light(false)){}
+            val sent=d.calls.size
+            val preparation=BrewPreparation()
+            val token=requireNotNull(preparation.begin("curve",92))
+            s.setBrewWait(92,{preparation.permitsWrite(token,92)}) {
+                preparation.written(token,it,0)
+            }
+            when(action) {
+                "cancel" -> {
+                    val cancel=requireNotNull(preparation.beginCancel())
+                    s.setBrewWait(0,{preparation.permitsWrite(cancel,0)}){preparation.cancelled(cancel,it)}
+                }
+                "consume" -> preparation.consumed()
+                "disconnect" -> preparation.disconnected()
+            }
+            complete()
+            val newWrites=d.calls.drop(sent).mapNotNull { (it.third as? GattOperation.Write)?.bytes }
+            check(newWrites.none { it.contentEquals(hex("1102005C00")) })
+            if(action=="cancel") {
+                check(newWrites.size==1 && newWrites.single().contentEquals(hex("1102000000")))
+                complete();check(preparation.state==BrewPreparation.State.CANCEL_WRITTEN)
+            } else check(newWrites.isEmpty())
+        }
+    }
     case("unsupported coffee firmware never opens control gate") {
         val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0});s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
         fun complete(r:OperationResult=OperationResult.Success()){val(g,t,_)=d.calls.last();s.onComplete(g,t,r)}
@@ -275,7 +312,7 @@ fun deviceChecks():Int {
         s.stopExtraction(7){result=it};check(result is OperationResult.Failed)
         s.writeSetting(MachineSettingChange.SteamHeating(false)){result=it};check(result is OperationResult.Failed)
         s.enterSleep {result=it};check(result is OperationResult.Failed)
-        s.setBrewWait(92) {result=it};check(result is OperationResult.Failed)
+        s.setBrewWait(92,{true}) {result=it};check(result is OperationResult.Failed)
         s.resetCupCount(25) { result=it };check(result is OperationResult.Failed)
         check(d.calls.size==writesBefore)
         val oldGeneration=s.generation
@@ -429,9 +466,9 @@ fun deviceChecks():Int {
         receiveSleepReadback(s,plan);s.writeSleepSchedule(plan,plan){rejected+=it}
         s.enterSleep {rejected+=it}
         s.resetCupCount(25) {rejected+=it}
-        s.setBrewWait(92){rejected+=it}
+        s.setBrewWait(92,{true}){rejected+=it}
         check(rejected.size==5 && rejected.all{it is OperationResult.Failed} && d.calls.size==before)
-        s.setBrewWait(0){rejected+=it}
+        s.setBrewWait(0,{true}){rejected+=it}
         check(rejected.size==6 && rejected.last() is OperationResult.Failed && d.calls.size==before)
     }
     case("preheat cancel is rechecked before a queued GATT write") {
@@ -449,7 +486,7 @@ fun deviceChecks():Int {
         s.writeSetting(MachineSettingChange.Light(true)){}
         val submitted=d.calls.size
         var cancellation:OperationResult?=null
-        s.setBrewWait(0){cancellation=it}
+        s.setBrewWait(0,{true}){cancellation=it}
         check(cancellation==null && d.calls.size==submitted)
         now=100
         s.onNotification(s.generation,KnownGatt.coffeeNotify,
@@ -678,21 +715,21 @@ fun deviceChecks():Int {
         s.writeSetting(MachineSettingChange.Light(true)){}
         val submitted=d.calls.size
         var result:OperationResult?=null
-        s.setBrewWait(92){result=it}
+        s.setBrewWait(92,{true}){result=it}
         check(result==null && d.calls.size==submitted)
         receive("830113F95C007D0F350019006E")
         complete()
         check(result is OperationResult.Failed && d.calls.size==submitted)
         result=null
-        s.setBrewWait(92){result=it}
+        s.setBrewWait(92,{true}){result=it}
         check(result is OperationResult.Failed && d.calls.size==submitted)
         result=null
-        s.setBrewWait(0){result=it}
+        s.setBrewWait(0,{true}){result=it}
         check(result==null && d.calls.size==submitted+1)
         complete()
         receive("830113FD5C007D0F350019006E")
         result=null
-        s.setBrewWait(92){result=it}
+        s.setBrewWait(92,{true}){result=it}
         check(result==null && d.calls.size==submitted+2)
         complete();check(result is OperationResult.Success)
     }
