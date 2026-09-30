@@ -1,5 +1,7 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.ShotRecoveryState
+
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.session.DeviceState

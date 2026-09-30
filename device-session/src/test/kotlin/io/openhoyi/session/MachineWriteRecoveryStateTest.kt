@@ -1,4 +1,4 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
 import org.junit.Assert.*
 import org.junit.Test

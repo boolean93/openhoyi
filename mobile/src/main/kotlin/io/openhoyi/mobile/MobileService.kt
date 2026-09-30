@@ -1,5 +1,8 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.ShotRecoveryState
+import io.openhoyi.session.MachineWriteRecoveryState
+
 import io.openhoyi.session.BrewPreparation
 import io.openhoyi.session.PassiveShotDetector
 import io.openhoyi.session.SettingsWriteTracker

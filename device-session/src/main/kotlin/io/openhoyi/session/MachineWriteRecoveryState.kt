@@ -1,4 +1,4 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
 /** Durable intent written before a machine control whose outcome may outlive the Service. */
 class MachineWriteRecoveryState(private val storage: Storage) {

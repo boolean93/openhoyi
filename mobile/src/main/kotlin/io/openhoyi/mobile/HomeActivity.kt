@@ -1,5 +1,7 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.MachineWriteRecoveryState
+
 import io.openhoyi.session.BrewPreparation
 import io.openhoyi.session.SettingsWriteTracker
 import io.openhoyi.session.SleepNowTracker

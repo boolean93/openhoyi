@@ -1,4 +1,4 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
 /** Durable reminder that a started extraction may still need physical inspection after restart. */
 class ShotRecoveryState(private val storage: Storage) {
