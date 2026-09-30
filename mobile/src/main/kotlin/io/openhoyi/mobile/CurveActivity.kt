@@ -28,7 +28,7 @@ class CurveActivity : ThemedActivity() {
     private lateinit var detailPanel: LinearLayout
     private lateinit var detailScroll: ScrollView
     private var compact = false
-    private var category = "全部"
+    private var category = CurveCategoryFilter.ALL
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
     private var detailBackCallback: android.window.OnBackInvokedCallback? = null
@@ -36,7 +36,7 @@ class CurveActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        category = savedInstanceState?.getString("category") ?: "全部"
+        category = CurveCategoryFilter.restore(savedInstanceState?.getString("category"))
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -60,7 +60,7 @@ class CurveActivity : ThemedActivity() {
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         HoyiUi.navigation(this, root, CurveActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, body, "曲线库", "搜索、预览并选用曲线")
+        HoyiUi.header(this, body, getString(R.string.curve_title), getString(R.string.curve_subtitle))
         val work = LinearLayout(this).apply { orientation = if (HoyiUi.wide(this@CurveActivity)) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
         body.addView(work, LinearLayout.LayoutParams(-1, 0, 1f))
         compact = !HoyiUi.wide(this)
@@ -69,7 +69,7 @@ class CurveActivity : ThemedActivity() {
         detailPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val detailPane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         detailScroll = ScrollView(this).apply { isFillViewport = true; addView(detailPane) }
-        if (compact) HoyiUi.button(this, detailPanel, "返回曲线列表") { showBrowser() }
+        if (compact) HoyiUi.button(this, detailPanel, getString(R.string.curve_back)) { showBrowser() }
         detailPanel.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         if (!compact) {
             work.addView(browser, LinearLayout.LayoutParams(0, -1, .95f))
@@ -80,14 +80,14 @@ class CurveActivity : ThemedActivity() {
             detailPanel.visibility = View.GONE
         }
         search = EditText(this).apply {
-            hint = "搜索曲线名称"
+            hint = getString(R.string.curve_search_hint)
             setSingleLine(true)
             textSize = 16f
             setPadding(dp(16), 0, dp(16), 0)
             background = HoyiUi.shape(this@CurveActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         }
         browser.addView(search, LinearLayout.LayoutParams(-1, dp(52)))
-        val categories = listOf("全部", "已采集验证", "深烘", "中烘", "浅烘", "超萃")
+        val categories = CurveCategoryFilter.entries
         val filter = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         filter.addView(filterRow)
@@ -99,12 +99,12 @@ class CurveActivity : ThemedActivity() {
                 chip.setTextColor(getColor(if (chosen) R.color.mobile_accent else R.color.mobile_muted))
                 chip.background = HoyiUi.shape(this, if (chosen) R.color.mobile_accent_soft else R.color.mobile_surface,
                     10, R.color.mobile_border)
-                chip.contentDescription = "${categories[index]}分类${if (chosen) "，已选中" else ""}"
+                chip.contentDescription = getString(R.string.curve_filter_description, categories[index].label(this), if (chosen) getString(R.string.curve_filter_selected_suffix) else "")
             }
         }
         categories.forEach { name ->
             filterChips += TextView(this).apply {
-                text = name
+                text = name.label(this@CurveActivity)
                 textSize = 15f
                 gravity = android.view.Gravity.CENTER
                 minHeight = dp(44)
@@ -131,13 +131,13 @@ class CurveActivity : ThemedActivity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
         listHeader.addView(TextView(this).apply {
-            text = "旧版导入曲线"
+            text = getString(R.string.curve_legacy)
             textSize = 14f
             gravity = android.view.Gravity.CENTER
             minHeight = dp(48)
             isClickable = true
             isFocusable = true
-            contentDescription = "查看旧版导入曲线，只读"
+            contentDescription = getString(R.string.curve_legacy_description)
             setTextColor(getColor(R.color.mobile_accent))
             setOnClickListener { startActivity(Intent(this@CurveActivity, LegacyCurveActivity::class.java)) }
         }, LinearLayout.LayoutParams(-2, -1).apply { marginStart = dp(8) })
@@ -173,7 +173,7 @@ class CurveActivity : ThemedActivity() {
                 val item = visibleItems[position]
                 val views = row.tag as RowViews
                 views.title.text = item.name
-                views.subtitle.text = "${item.category} · ${if (library.canStart(item)) "可萃取" else "仅浏览"}"
+                views.subtitle.text = getString(R.string.curve_row_summary, CurveCategoryFilter.display(this@CurveActivity, item.category), if (library.canStart(item)) getString(R.string.home_curve_startable) else getString(R.string.curve_browse_only))
                 views.preview.targets = stageTargets(item)
                 row.background = HoyiUi.shape(this@CurveActivity,
                     if (item.id == selected?.id) R.color.mobile_accent_soft else R.color.mobile_surface,
@@ -186,7 +186,7 @@ class CurveActivity : ThemedActivity() {
         browser.addView(listHolder, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         listHolder.addView(list, FrameLayout.LayoutParams(-1, -1))
         val emptyState = TextView(this).apply {
-            text = "没有找到匹配的曲线\n试试其他名称或切换分类"
+            text = getString(R.string.curve_empty)
             textSize = 16f
             gravity = android.view.Gravity.CENTER
             setTextColor(getColor(R.color.mobile_muted))
@@ -195,12 +195,12 @@ class CurveActivity : ThemedActivity() {
         list.emptyView = emptyState
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
 
-        val preview = HoyiUi.card(this, detailPane, "曲线详情")
-        detailTitle = HoyiUi.label(this, preview, "点选左侧曲线", 21, true)
-        detailCategory = HoyiUi.label(this, preview, "查看参数与可用状态", 14, muted = true)
+        val preview = HoyiUi.card(this, detailPane, getString(R.string.curve_detail_title))
+        detailTitle = HoyiUi.label(this, preview, getString(R.string.curve_detail_initial), 21, true)
+        detailCategory = HoyiUi.label(this, preview, getString(R.string.curve_detail_hint), 14, muted = true)
         stageChart = CurveStageView(this).apply { visibility = View.GONE }
         preview.addView(stageChart, LinearLayout.LayoutParams(-1, dp(150)).apply { topMargin = dp(14) })
-        stageCaption = HoyiUi.label(this, preview, "分段目标示意 · 不是实际萃取曲线", 12, muted = true)
+        stageCaption = HoyiUi.label(this, preview, getString(R.string.curve_stage_caption), 12, muted = true)
             .apply { visibility = View.GONE }
         details = HoyiUi.label(this, preview, "", 15)
         availability = HoyiUi.label(this, preview, "", 15, true).apply { visibility = View.GONE }
@@ -208,20 +208,20 @@ class CurveActivity : ThemedActivity() {
             orientation = LinearLayout.HORIZONTAL
             detailPanel.addView(this)
         }
-        select = HoyiUi.button(this, actions, "使用此曲线", primary = true) {
+        select = HoyiUi.button(this, actions, getString(R.string.curve_use), primary = true) {
             selected?.let { item ->
                 getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
                 finish()
             }
         }.apply { isEnabled = false; visibility = View.GONE }
-        assignPreset = HoyiUi.button(this, actions, "放入快捷槽位") {
+        assignPreset = HoyiUi.button(this, actions, getString(R.string.curve_assign_slot)) {
             val item = selected?.takeIf { it.factoryCurve != null && library.canStart(it) } ?: return@button
-            AlertDialog.Builder(this).setTitle("选择快捷槽位")
-                .setItems(arrayOf("槽位 1", "槽位 2", "槽位 3", "槽位 4", "槽位 5")) { _, index ->
+            AlertDialog.Builder(this).setTitle(getString(R.string.curve_choose_slot))
+                .setItems((1..5).map { getString(R.string.home_slot, it.toString()) }.toTypedArray()) { _, index ->
                     val slot = index + 1
                     getSharedPreferences("presets", MODE_PRIVATE).edit()
                         .putString(PresetSlots.key(slot), item.id).apply()
-                    Toast.makeText(this, "已将${item.name}放入槽位 $slot", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.curve_slot_assigned, item.name, slot.toString()), Toast.LENGTH_SHORT).show()
                 }.show()
         }.apply { isEnabled = false; visibility = View.GONE }
         if (!compact) {
@@ -289,14 +289,14 @@ class CurveActivity : ThemedActivity() {
         }
         val canStart = library.canStart(item)
         detailTitle.text = item.name
-        detailCategory.text = item.category
+        detailCategory.text = CurveCategoryFilter.display(this, item.category)
         details.text = item.details
-        availability.text = if (canStart) "✓ 已通过报文校验，可用于萃取" else "仅可浏览 · 启动报文校验不可用"
+        availability.text = if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
         availability.setTextColor(getColor(if (canStart) R.color.mobile_accent else R.color.mobile_muted))
         availability.visibility = View.VISIBLE
         select.isEnabled = canStart
         select.visibility = View.VISIBLE
-        select.text = if (canStart) "使用此曲线" else "此曲线不可萃取"
+        select.text = if (canStart) getString(R.string.curve_use) else getString(R.string.curve_cannot_start)
         assignPreset.visibility = if (item.factoryCurve != null) View.VISIBLE else View.GONE
         assignPreset.isEnabled = item.factoryCurve != null && canStart
         adapter.notifyDataSetChanged()
@@ -305,7 +305,7 @@ class CurveActivity : ThemedActivity() {
     private fun refreshList() {
         if (!::adapter.isInitialized || !::search.isInitialized) return
         visibleItems = CurveSearch.filter(library.items, category, search.text.toString())
-        resultCount.text = "找到 ${visibleItems.size} 条曲线"
+        resultCount.text = getString(R.string.curve_result_count, visibleItems.size.toString())
         adapter.clear()
         adapter.addAll(visibleItems.map { it.id })
         if (selected != null && selected !in visibleItems) {
@@ -313,8 +313,8 @@ class CurveActivity : ThemedActivity() {
             stageChart.targets = emptyList()
             stageChart.visibility = View.GONE
             stageCaption.visibility = View.GONE
-            detailTitle.text = "点选左侧曲线"
-            detailCategory.text = "查看参数与可用状态"
+            detailTitle.text = getString(R.string.curve_detail_initial)
+            detailCategory.text = getString(R.string.curve_detail_hint)
             details.text = ""
             availability.visibility = View.GONE
             select.isEnabled = false
@@ -330,7 +330,7 @@ class CurveActivity : ThemedActivity() {
             } ?: emptyList()
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("selected", selected?.id)
-        outState.putString("category", category)
+        outState.putString("category", category.name)
         outState.putString("query", search.text.toString())
         outState.putBoolean("detailVisible", compact && detailPanel.visibility == View.VISIBLE)
         super.onSaveInstanceState(outState)

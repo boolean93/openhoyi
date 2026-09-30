@@ -4,6 +4,9 @@ import java.util.Locale
 
 /** Local library search never changes a curve's wire eligibility. */
 object CurveSearch {
+    fun filter(items: List<CurveLibraryItem>, category: CurveCategoryFilter, query: String): List<CurveLibraryItem> =
+        filter(items, category.legacyKey, query)
+
     fun filter(items: List<CurveLibraryItem>, category: String, query: String): List<CurveLibraryItem> {
         val needle = query.trim().lowercase(Locale.ROOT)
         return items.filter { item ->
