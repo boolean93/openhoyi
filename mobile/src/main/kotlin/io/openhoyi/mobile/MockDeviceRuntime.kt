@@ -15,7 +15,7 @@ import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 
 /** Deterministic UI fixture. It has no Bluetooth transport and cannot encode a GATT command. */
-internal class MockDeviceRuntime {
+internal class MockDeviceRuntime(private val text: (Int) -> String) {
     private val emptyFrame = ByteFrame(byteArrayOf())
     private var schedule = WeeklySleepSchedule(List(7) { index ->
         WeeklySleepDay(index in 1..5, SleepDay(23, 0, 7, 0))
@@ -55,9 +55,9 @@ internal class MockDeviceRuntime {
     }
 
     private fun editable(): String? = when {
-        shotState == ExtractionState.RUNNING -> "Mock 萃取正在进行"
-        sleeping -> "Mock 咖啡机已入睡；重启模拟服务可复位"
-        preheatActive -> "Mock 曲线正在预热，请先取消"
+        shotState == ExtractionState.RUNNING -> text(R.string.service_shot_mock_running)
+        sleeping -> text(R.string.service_shot_mock_sleeping)
+        preheatActive -> text(R.string.mock_runtime_preheating)
         else -> null
     }
 
@@ -70,11 +70,11 @@ internal class MockDeviceRuntime {
 
     fun beginPreheat(targetC: Int, now: Long): String? {
         editable()?.let { return it }
-        if (settings.flags and 0x04 == 0) return "Mock 当前不是工作室模式"
-        if (targetC !in 75..105) return "Mock 预热目标超出范围"
+        if (settings.flags and 0x04 == 0) return text(R.string.mock_runtime_not_studio)
+        if (targetC !in 75..105) return text(R.string.mock_runtime_preheat_range)
         val targetRaw = targetC * 100 + settings.brewCompensationTenthsC * 10
         if (BrewPreparation.isAtTarget(brewTemperatureHundredths - settings.brewCompensationTenthsC * 10,
-                targetC)) return "Mock 温度已达到目标"
+                targetC)) return text(R.string.mock_runtime_target_reached)
         preheatFromHundredths = brewTemperatureHundredths
         preheatTargetHundredths = targetRaw
         preheatStartedAtMs = now
@@ -82,7 +82,7 @@ internal class MockDeviceRuntime {
     }
 
     fun cancelPreheat(now: Long): String? {
-        if (!preheatActive) return "Mock 当前没有预热请求"
+        if (!preheatActive) return text(R.string.mock_runtime_no_preheat)
         advanceTemperature(now)
         preheatTargetHundredths = null
         return null
@@ -91,9 +91,9 @@ internal class MockDeviceRuntime {
     fun changeSetting(change: MachineSettingChange): String? {
         editable()?.let { return it }
         if (change is MachineSettingChange.StandbyDelay && change.temperatureC != settings.standbyTemperatureC)
-            return "Mock 待机温度已变化"
+            return text(R.string.mock_runtime_standby_temperature_changed)
         if (change is MachineSettingChange.StandbyTemperature && change.minutes != settings.standbyMinutes)
-            return "Mock 自动待机时间已变化"
+            return text(R.string.mock_runtime_standby_delay_changed)
         fun flag(mask: Int, enabled: Boolean): Int = if (enabled) settings.flags or mask else settings.flags and mask.inv()
         settings = when (change) {
             is MachineSettingChange.RunMode -> settings.copy(flags = flag(0x04, change.studio))
@@ -117,9 +117,9 @@ internal class MockDeviceRuntime {
 
     fun changeSchedule(expected: WeeklySleepSchedule, target: WeeklySleepSchedule): String? {
         editable()?.let { return it }
-        if (expected.days != schedule.days) return "Mock 睡眠计划已变化，请重新编辑"
+        if (expected.days != schedule.days) return text(R.string.mock_runtime_schedule_changed)
         if (expected.days.indices.count { expected.days[it] != target.days[it] } != 1)
-            return "一次只能修改一天的 Mock 睡眠计划"
+            return text(R.string.mock_runtime_single_day_only)
         schedule = target
         scheduleChanged = true
         return null
@@ -134,7 +134,7 @@ internal class MockDeviceRuntime {
 
     fun resetCupCount(expected: Int): String? {
         editable()?.let { return it }
-        if (expected <= 0 || settings.cupCount != expected) return "Mock 杯数已变化，请重新核对"
+        if (expected <= 0 || settings.cupCount != expected) return text(R.string.mock_runtime_cups_changed)
         settings = settings.copy(cupCount = 0)
         cupReset = true
         return null
@@ -175,7 +175,7 @@ internal class MockDeviceRuntime {
             weight = BookooSample(if (extracting) elapsed * 70 else idleWeightHundredths,
                 if (extracting) 70 else 0,
                 43, 43, emptyFrame), weightAt = now,
-            message = "Mock 数据 · 不连接蓝牙设备",
+            message = text(R.string.mock_runtime_sample_notice),
         )
     }
 }

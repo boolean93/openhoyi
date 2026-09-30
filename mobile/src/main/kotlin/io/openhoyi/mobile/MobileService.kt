@@ -187,7 +187,7 @@ class MobileService : Service() {
     }
     private data class PendingCoffeeCredential(val address: String, val password: String, val remembered: Boolean)
     private var pendingCoffeeCredential: PendingCoffeeCredential? = null
-    private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime() else null
+    private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime { getString(it) } else null
     private fun refreshMock(runtime: MockDeviceRuntime, now: Long = SystemClock.elapsedRealtime()) {
         val previous = snapshot
         snapshot = runtime.sample(now).copy(candidates = previous.candidates,

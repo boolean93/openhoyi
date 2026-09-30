@@ -874,4 +874,17 @@
     <string name="service_event_shot_recovery_shutdown_block">"上次萃取未确认结束，设备服务保持运行"</string>
     <string name="service_event_write_shutdown_block">"上次机器写入未确认，设备服务保持运行"</string>
     <string name="service_event_preheat_shutdown_block">"正在取消曲线预热，设备服务保持运行"</string>
+
+    <!-- Deterministic mock runtime feedback, resolved without a Bluetooth dependency. -->
+    <string name="mock_runtime_preheating">"Mock 曲线正在预热，请先取消"</string>
+    <string name="mock_runtime_not_studio">"Mock 当前不是工作室模式"</string>
+    <string name="mock_runtime_preheat_range">"Mock 预热目标超出范围"</string>
+    <string name="mock_runtime_target_reached">"Mock 温度已达到目标"</string>
+    <string name="mock_runtime_no_preheat">"Mock 当前没有预热请求"</string>
+    <string name="mock_runtime_standby_temperature_changed">"Mock 待机温度已变化"</string>
+    <string name="mock_runtime_standby_delay_changed">"Mock 自动待机时间已变化"</string>
+    <string name="mock_runtime_schedule_changed">"Mock 睡眠计划已变化，请重新编辑"</string>
+    <string name="mock_runtime_single_day_only">"一次只能修改一天的 Mock 睡眠计划"</string>
+    <string name="mock_runtime_cups_changed">"Mock 杯数已变化，请重新核对"</string>
+    <string name="mock_runtime_sample_notice">"Mock 数据 · 不连接蓝牙设备"</string>
 </resources>

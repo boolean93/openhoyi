@@ -15,8 +15,28 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MockDeviceRuntimeTest {
+    @Test fun emptyTranslationsCannotPermitBlockedMockChanges() {
+        val running = MockDeviceRuntime { "" }
+        running.start(1000)
+        assertEquals("", running.changeSetting(MachineSettingChange.BrewTemperature(96)))
+        assertEquals(93, running.sample(2000).settings?.brewTemperatureC)
+        assertEquals("", running.tare())
+        assertTrue(!running.tareChanged)
+
+        val sleeping = MockDeviceRuntime { "" }
+        assertNull(sleeping.sleepNow())
+        assertEquals("", sleeping.resetCupCount(42))
+        assertEquals(42, sleeping.sample(2000).settings?.cupCount)
+
+        val preheating = MockDeviceRuntime { "" }
+        assertNull(preheating.changeSetting(MachineSettingChange.RunMode(true)))
+        assertNull(preheating.beginPreheat(100, 1000))
+        assertEquals("", preheating.changeSetting(MachineSettingChange.Light(true)))
+        assertNull(preheating.lastSetting as? MachineSettingChange.Light)
+    }
+
     @Test fun idleShotAndAutomaticEndUseOnlySyntheticSamples() {
-        val mock = MockDeviceRuntime()
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         val idle = mock.sample(1_000)
         assertEquals(DeviceState.READY, idle.coffeeState)
         assertEquals(DeviceState.READY, idle.scaleState)
@@ -39,7 +59,7 @@ class MockDeviceRuntimeTest {
     }
 
     @Test fun settingsUpdateSyntheticReadbackWithoutChangingUnrelatedFields() {
-        val mock = MockDeviceRuntime()
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         val before = requireNotNull(mock.sample(1_000).settings)
         assertNull(mock.changeSetting(MachineSettingChange.BrewTemperature(96)))
         assertNull(mock.changeSetting(MachineSettingChange.Light(true)))
@@ -54,7 +74,7 @@ class MockDeviceRuntimeTest {
     }
 
     @Test fun allSettingFamiliesAppearInSyntheticReadback() {
-        val mock = MockDeviceRuntime()
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         val changes = listOf(
             MachineSettingChange.RunMode(true), MachineSettingChange.WaterSupply(true),
             MachineSettingChange.SleepScheduleEnabled(false), MachineSettingChange.StandbyTemperature(75, 30),
@@ -70,7 +90,7 @@ class MockDeviceRuntimeTest {
     }
 
     @Test fun oneDayScheduleEditPreservesOtherSixDaysAndRejectsStaleBaseline() {
-        val mock = MockDeviceRuntime()
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         val baseline = requireNotNull(WeeklySleepSchedule.fromReadback(
             mock.sample(1_000).sleepFirst, mock.sample(1_000).sleepSecond))
         val days = baseline.days.toMutableList()
@@ -85,7 +105,7 @@ class MockDeviceRuntimeTest {
     }
 
     @Test fun tareCupResetAndSleepAffectOnlyMockReadback() {
-        val mock = MockDeviceRuntime()
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         assertTrue(requireNotNull(mock.sample(1_000).weight).weightHundredthsGram > 0)
         assertNull(mock.tare())
         assertEquals(0, mock.sample(2_000).weight?.weightHundredthsGram)
@@ -100,7 +120,7 @@ class MockDeviceRuntimeTest {
     }
 
     @Test fun simulatedShotBlocksSettingAndSleepMutations() {
-        val mock = MockDeviceRuntime()
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         mock.start(1_000)
         assertTrue(mock.changeSetting(MachineSettingChange.BrewTemperature(95)) != null)
         assertTrue(mock.tare() != null)
@@ -109,7 +129,7 @@ class MockDeviceRuntimeTest {
     }
 
     @Test fun studioPreheatProducesFreshTemperatureStepsAndCanBeCancelled() {
-        val mock = MockDeviceRuntime()
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         assertNull(mock.changeSetting(MachineSettingChange.RunMode(true)))
         assertNull(mock.beginPreheat(99, 1_000))
         assertTrue(mock.preheatActive)
@@ -123,7 +143,7 @@ class MockDeviceRuntimeTest {
     }
 
     @Test fun preheatUsesTemperatureCompensationAndRejectsInvalidState() {
-        val mock = MockDeviceRuntime()
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         assertTrue(mock.beginPreheat(99, 1_000) != null)
         assertNull(mock.changeSetting(MachineSettingChange.RunMode(true)))
         assertNull(mock.changeSetting(MachineSettingChange.BrewCompensation(2)))
@@ -139,7 +159,7 @@ class MockDeviceRuntimeTest {
     }
 
     @Test fun syntheticTemperatureCanDriveTheSamePreparationStateMachine() {
-        val mock = MockDeviceRuntime()
+        val mock = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
         val preparation = BrewPreparation()
         assertNull(mock.changeSetting(MachineSettingChange.RunMode(true)))
         val token = requireNotNull(preparation.begin("factory-v3-001", 99))
