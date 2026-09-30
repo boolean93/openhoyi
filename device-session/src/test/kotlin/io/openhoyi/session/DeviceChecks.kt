@@ -53,7 +53,7 @@ fun deviceChecks():Int {
         s.setBrewWait(0) { sleepResult=it }
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("1102000000")))
         complete();check(sleepResult is OperationResult.Success)
-        s.resetCupCount { sleepResult=it }
+        s.resetCupCount(25) { sleepResult=it }
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex("0A01A5A500")))
         complete();check(sleepResult is OperationResult.Success)
         s.disconnect();s.onNotification(s.generation,KnownGatt.coffeeNotify,settings);check(s.state==DeviceState.DISCONNECTED)
@@ -154,7 +154,7 @@ fun deviceChecks():Int {
         s.writeSetting(MachineSettingChange.SteamHeating(false)){result=it};check(result is OperationResult.Failed)
         s.enterSleep {result=it};check(result is OperationResult.Failed)
         s.setBrewWait(92) {result=it};check(result is OperationResult.Failed)
-        s.resetCupCount { result=it };check(result is OperationResult.Failed)
+        s.resetCupCount(25) { result=it };check(result is OperationResult.Failed)
     }
     case("live unauthenticated telemetry never reaches product state or triggers extra writes") {
         val d=SessionDriver();var now=0L;var telemetry=0
@@ -277,7 +277,7 @@ fun deviceChecks():Int {
         var pending:OperationResult?=null
         s.writeSetting(MachineSettingChange.Light(true)){}
         val submitted=d.calls.size
-        s.resetCupCount { pending=it }
+        s.resetCupCount(25) { pending=it }
         check(pending==null && d.calls.size==submitted)
         now=1_501;complete()
         check(pending is OperationResult.Failed && d.calls.size==submitted)
@@ -299,7 +299,7 @@ fun deviceChecks():Int {
         s.writeSetting(MachineSettingChange.Light(true)){rejected+=it}
         s.writeSleepSchedule(plan){rejected+=it}
         s.enterSleep {rejected+=it}
-        s.resetCupCount {rejected+=it}
+        s.resetCupCount(25) {rejected+=it}
         s.setBrewWait(92){rejected+=it}
         check(rejected.size==5 && rejected.all{it is OperationResult.Failed} && d.calls.size==before)
         s.setBrewWait(0){rejected+=it}
@@ -327,6 +327,52 @@ fun deviceChecks():Int {
             hex("80080700000000052421325103"))
         complete()
         check(cancellation is OperationResult.Failed && d.calls.size==submitted)
+    }
+    case("queued cup reset rejects a changed device count") {
+        for (changedSettings in listOf(true,false)) {
+            val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+            s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+            fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+            complete()
+            val(g,t,_)=d.calls.last()
+            s.onComplete(g,t,OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            complete();complete()
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+            s.writeSetting(MachineSettingChange.Light(true)){}
+            val submitted=d.calls.size
+            var result:OperationResult?=null
+            s.resetCupCount(25) {result=it}
+            check(result==null && d.calls.size==submitted)
+            val updated=if(changedSettings) hex("830113FD5C007D0F35001A006E")
+                else hex("400024BF2F1C770B000000000000001A0321AF")
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,updated)
+            complete()
+            check(result is OperationResult.Failed && d.calls.size==submitted)
+        }
+    }
+    case("cup reset requires a positive confirmed count on both reports") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        val before=d.calls.size
+        for(count in listOf(-1,0,24,26,65536)) {
+            var result:OperationResult?=null
+            s.resetCupCount(count){result=it}
+            check(result is OperationResult.Failed && d.calls.size==before)
+        }
+        s.resetCupCount(25){}
+        check(d.calls.size==before+1)
     }
     case("settings freshness rejects missing future and negative timestamps") {
         check(!SettingsFreshness.isFresh(null,180_000))

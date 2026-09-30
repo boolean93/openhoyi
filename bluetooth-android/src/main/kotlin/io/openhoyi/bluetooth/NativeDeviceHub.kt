@@ -100,13 +100,13 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         }
         coffee.session.enterSleep(done)
     }
-    fun resetCupCount(done:(OperationResult)->Unit){
+    fun resetCupCount(expectedCount:Int,done:(OperationResult)->Unit){
         usable()
         if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
                 ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
             done(OperationResult.Failed("extraction active"));return
         }
-        coffee.session.resetCupCount(done)
+        coffee.session.resetCupCount(expectedCount,done)
     }
     fun setBrewWait(targetC:Int,done:(OperationResult)->Unit){
         usable()

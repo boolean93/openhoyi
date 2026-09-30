@@ -243,9 +243,15 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
         else sendFromIdle(CoffeeCommands.sleepNow(),callback)
     }
-    fun resetCupCount(callback:(OperationResult)->Unit) {
+    private fun canResetCupCount(expectedCount:Int):Boolean =
+        expectedCount in 1..65535 && canControlWithFreshSettings() &&
+            lastSettings?.cupCount == expectedCount && lastIdle?.cupCount == expectedCount
+    fun resetCupCount(expectedCount:Int,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
-        else sendWithFreshSettings(CoffeeCommands.resetCupCount(),callback)
+        else if (!canResetCupCount(expectedCount))
+            callback(OperationResult.Failed("fresh matching settings and idle cup count required"))
+        else send(CoffeeCommands.resetCupCount(),DeviceRole.COFFEE,
+            beforeDispatch={canResetCupCount(expectedCount)},callback=callback)
     }
     fun setBrewWait(targetC:Int,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))

@@ -785,7 +785,7 @@ class MobileService : Service() {
         recoveryAfterIdleSerial = cupIdleSerial
         refreshSafetyNotification()
         event("累计杯数重置命令已排队", "cups.requested")
-        current.resetCupCount done@{ result ->
+        current.resetCupCount(expectedCount) done@{ result ->
             if (!cupReset.written(token, result, cupSettingsSerial, cupIdleSerial)) return@done
             when (cupReset.state) {
                 CupResetTracker.State.WAITING_ZERO -> {
