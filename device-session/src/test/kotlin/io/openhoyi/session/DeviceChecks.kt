@@ -202,6 +202,7 @@ fun deviceChecks():Int {
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400023F02F1C770B00000000000000190321AF"))
         var result:OperationResult?=null
         val control=CoffeeSessionControl(s)
+        check(control.prepareStart(profile))
         control.start(profile){result=it}
         check(d.calls.last().third is GattOperation.Write)
         check((d.calls.last().third as GattOperation.Write).bytes.contentEquals(hex(factoryHex)))
@@ -637,6 +638,89 @@ fun deviceChecks():Int {
         check(!BrewTemperaturePolicy.isAtTarget(8999,91))
         check(!BrewTemperaturePolicy.isAtTarget(9201,91))
         check(!BrewTemperaturePolicy.isAtTarget(Int.MIN_VALUE,Int.MAX_VALUE))
+    }
+    case("tare wait keeps the originally approved machine settings") {
+        for(change in 0..5) {
+            val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+            val profile=StartParameters(false,false,2,7,91,108,false,0,90,65,0,0,350,22,170,0,0)
+            s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+            fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+            complete()
+            val(g,t,_)=d.calls.last()
+            s.onComplete(g,t,OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            complete();complete()
+            fun receive(value:String)=s.onNotification(s.generation,KnownGatt.coffeeNotify,hex(value))
+            receive("830113FD5C007D0F350019006E")
+            receive("4000238C2F1C770B00000000000000190321AF")
+            val scale=object:ScaleControl {
+                override val ready=true
+                override fun tare(done:(OperationResult)->Unit){done(OperationResult.Success())}
+            }
+            val controller=ExtractionController(CoffeeSessionControl(s),scale,{now})
+            controller.weight(WeightReading(0,0))
+            check(controller.start(profile,3400,0))
+            val before=d.calls.size
+            now=100
+            receive(when(change) {
+                0->"830113F95C007D0F350019006E"
+                1->"830113FD5C0A7D0F350019006E"
+                2->"830113FD5D007D0F350019006E"
+                3->"830113FF5C007D0F350019006E"
+                4->"830113DD5C007D0F350019006E"
+                else->"830113FD5C007D0F350019006E"
+            })
+            receive(if(change==1) "400023F02F1C770B00000000000000190321AF"
+                else "4000238C2F1C770B00000000000000190321AF")
+            controller.weight(WeightReading(0,now))
+            if(change==5) {
+                check(d.calls.size==before+1);complete()
+                check(controller.state==ExtractionState.RUNNING)
+            } else {
+                check(d.calls.size==before && controller.state==ExtractionState.IDLE &&
+                    controller.stopReason==StopReason.START_CONDITIONS_CHANGED)
+            }
+        }
+    }
+    case("start context expires and cannot migrate to a new connection or curve") {
+        val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        val profile=StartParameters(false,false,2,7,91,108,false,0,90,65,0,0,350,22,170,0,0)
+        fun ready(address:String) {
+            s.connect(address,CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+            fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+            complete()
+            val(g,t,_)=d.calls.last()
+            s.onComplete(g,t,OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+            complete();complete()
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
+            s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("4000238C2F1C770B00000000000000190321AF"))
+        }
+        fun idle()=s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("4000238C2F1C770B00000000000000190321AF"))
+        ready("device")
+        val context=checkNotNull(s.captureStartContext(profile))
+        check(s.startConditionsValid(profile,context))
+        check(!s.startConditionsValid(profile.copy(slot=1),context))
+        now=4999;idle();check(s.startConditionsValid(profile,context))
+        now=5000;idle();check(!s.startConditionsValid(profile,context))
+        val oldConnection=checkNotNull(s.captureStartContext(profile))
+        ready("device")
+        check(!s.startConditionsValid(profile,oldConnection))
+        val fresh=checkNotNull(s.captureStartContext(profile))
+        ready("other-device")
+        check(!s.startConditionsValid(profile,fresh))
+        val before=d.calls.size
+        var result:OperationResult?=null
+        s.startExtraction(profile,fresh){result=it}
+        check(result is OperationResult.Failed && d.calls.size==before)
+        val control=CoffeeSessionControl(s)
+        result=null;control.start(profile){result=it}
+        check(result is OperationResult.Failed && d.calls.size==before)
+        check(control.prepareStart(profile))
+        control.start(profile){result=it}
+        check(d.calls.size==before+1)
     }
     case("settings freshness rejects missing future and negative timestamps") {
         check(!SettingsFreshness.isFresh(null,180_000))

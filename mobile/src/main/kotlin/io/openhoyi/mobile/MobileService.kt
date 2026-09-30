@@ -294,6 +294,9 @@ class MobileService : Service() {
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
                     event("电子秤去皮未确认，咖啡机未启动", "shot.preflight_failed")
+                if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
+                    stopReason == io.openhoyi.session.StopReason.START_CONDITIONS_CHANGED.name)
+                    event("启动条件已变化，咖啡机未启动；请重新核对曲线和机器设置", "shot.conditions_changed")
                 refreshSafetyNotification()
             }
             handler.postDelayed(this, 100)

@@ -196,10 +196,30 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         return BrewTemperaturePolicy.isAtTarget(BrewTemperaturePolicy.correctedTemperature(
             idle.brewTemperatureHundredthsC,settings.brewCompensationTenthsC),parameters.temperatureC)
     }
+    fun captureStartContext(parameters:StartParameters):CoffeeStartContext? {
+        if(!canStartExtraction(parameters) || sleepWrite!=null) return null
+        val settings=lastSettings ?: return null
+        return CoffeeStartContext(generation,address,parameters,settings.flags and 0x26,
+            settings.brewTemperatureC,settings.brewCompensationTenthsC,clock())
+    }
+    fun startConditionsValid(parameters:StartParameters,context:CoffeeStartContext):Boolean {
+        val settings=lastSettings ?: return false
+        val now=clock()
+        return context.generation==generation && context.address==address && context.parameters==parameters &&
+            context.capturedAt<=now && now-context.capturedAt<5000 &&
+            settings.flags and 0x26 == context.settingsFlags &&
+            settings.brewTemperatureC==context.brewTemperatureC &&
+            settings.brewCompensationTenthsC==context.compensationTenthsC && canStartExtraction(parameters)
+    }
     fun startExtraction(parameters:StartParameters,callback:(OperationResult)->Unit) {
+        val context=captureStartContext(parameters)
+        if(context==null) {callback(OperationResult.Failed("start conditions not ready"));return}
+        startExtraction(parameters,context,callback)
+    }
+    fun startExtraction(parameters:StartParameters,context:CoffeeStartContext,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) { callback(OperationResult.Failed("weekly sleep write active")); return }
-        if (!canStartExtraction(parameters)) {
-            callback(OperationResult.Failed("fresh awake idle settings and studio target temperature required")); return
+        if (!startConditionsValid(parameters,context)) {
+            callback(OperationResult.Failed("original start context no longer valid")); return
         }
         // Product host supplies only frames checked against the extracted legacy encoder.
         val command=CoffeeCommands.start(parameters)
@@ -207,9 +227,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(command.frame.hex() !in allowed && command.frame.hex() !in additionalStartFrames){
             callback(OperationResult.Failed("curve outside validated profile set"));return
         }
-        val submittedMode=lastSettings?.flags?.and(0x04)
-        send(command,DeviceRole.COFFEE,beforeDispatch={canStartExtraction(parameters) &&
-            lastSettings?.flags?.and(0x04) == submittedMode},callback=callback)
+        send(command,DeviceRole.COFFEE,beforeDispatch={startConditionsValid(parameters,context)},callback=callback)
     }
     fun stopExtraction(slot:Int=7,callback:(OperationResult)->Unit) {
         require(slot in 1..5 || slot == 7)

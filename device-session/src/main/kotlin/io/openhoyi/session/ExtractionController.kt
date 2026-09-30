@@ -8,6 +8,8 @@ import io.openhoyi.protocol.IdleTelemetry
 
 interface CoffeeControl {
     val ready:Boolean
+    fun prepareStart(parameters:StartParameters):Boolean
+    fun startConditionsValid(parameters:StartParameters):Boolean
     fun start(parameters:StartParameters,done:(OperationResult)->Unit)
     fun stop(done:(OperationResult)->Unit)
 }
@@ -15,10 +17,20 @@ interface ScaleControl {val ready:Boolean;fun tare(done:(OperationResult)->Unit)
 class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     init{require(session.role==DeviceRole.COFFEE)}
     private var activeSlot=7
+    private var approvedStart:CoffeeStartContext?=null
+    override fun prepareStart(parameters:StartParameters):Boolean {
+        approvedStart=session.captureStartContext(parameters)
+        return approvedStart!=null
+    }
+    override fun startConditionsValid(parameters:StartParameters):Boolean =
+        approvedStart?.let { session.startConditionsValid(parameters,it) } == true
     override val ready get()=session.state==DeviceState.READY
     override fun start(parameters:StartParameters,done:(OperationResult)->Unit){
+        val context=approvedStart
+        approvedStart=null
+        if(context==null) {done(OperationResult.Failed("start context not prepared"));return}
         activeSlot=parameters.slot
-        session.startExtraction(parameters,done)
+        session.startExtraction(parameters,context,done)
     }
     override fun stop(done:(OperationResult)->Unit)=session.stopExtraction(activeSlot,done)
 }
@@ -53,6 +65,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         val now=clock();val sample=latest
         if(!coffee.ready)return false
         if(targetHundredthsGram>0&&(!scale.ready||sample==null||sample.receivedAtMs>now||now-sample.receivedAtMs>1500))return false
+        if(!coffee.prepareStart(parameters))return false
         val id=++serial
         started=now;lastActiveFrame=null;startNotSubmitted=false;stopWrittenAt=null;target=targetHundredthsGram;postStartTareSent=false;stopReason=null
         state=ExtractionState.STARTING
@@ -71,6 +84,9 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
                                   atMs:Long,baseline:WeightReading?){
         if(id!=serial||state!=ExtractionState.STARTING)return
         if(!coffee.ready){abortPreflight(StopReason.SCALE_UNAVAILABLE);return}
+        if(!coffee.startConditionsValid(parameters)) {
+            abortPreflight(StopReason.START_CONDITIONS_CHANGED);return
+        }
         pendingStart=null;preflightTareWrittenAt=null
         policy.begin(id,target,compensation,atMs)
         baseline?.let { policy.confirmTare(id,it.hundredthsGram,it.receivedAtMs) }
@@ -86,7 +102,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         }
     }
     private fun abortPreflight(reason:StopReason){
-        if(pendingStart==null)return
+        if(state!=ExtractionState.STARTING)return
         pendingStart=null;preflightTareWrittenAt=null;stopReason=reason;state=ExtractionState.IDLE
     }
     fun weight(reading:WeightReading) {
@@ -96,6 +112,9 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         latest=reading
         val preparing=pendingStart
         val written=preflightTareWrittenAt
+        if(state==ExtractionState.STARTING && preparing!=null && now>=preparing.deadline) {
+            abortPreflight(StopReason.TARE_UNCONFIRMED);return
+        }
         if(state==ExtractionState.STARTING&&preparing!=null&&written!=null&&
             reading.receivedAtMs>written&&kotlin.math.abs(reading.hundredthsGram)<=50){
             beginMachineStart(serial,preparing.parameters,preparing.target,preparing.compensation,reading.receivedAtMs,reading)

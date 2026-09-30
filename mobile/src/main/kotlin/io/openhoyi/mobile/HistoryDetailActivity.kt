@@ -119,6 +119,7 @@ class HistoryDetailActivity : ThemedActivity() {
         StopReason.TARGET_WEIGHT.name -> "达到目标重量"
         StopReason.SCALE_UNAVAILABLE.name -> "电子秤数据不可用"
         StopReason.TARE_UNCONFIRMED.name -> "电子秤归零未确认"
+        StopReason.START_CONDITIONS_CHANGED.name -> "启动条件已变化，咖啡机未启动"
         StopReason.MANUAL.name -> "手动停止"
         else -> value
     }

@@ -1,7 +1,7 @@
 package io.openhoyi.session
 
 data class WeightReading(val hundredthsGram:Int,val receivedAtMs:Long)
-enum class StopReason { TARGET_WEIGHT, SCALE_UNAVAILABLE, TARE_UNCONFIRMED, MANUAL }
+enum class StopReason { TARGET_WEIGHT, SCALE_UNAVAILABLE, TARE_UNCONFIRMED, START_CONDITIONS_CHANGED, MANUAL }
 /** Policy only: caller must transmit the returned stop and separately observe device state. */
 // The legacy chartlib stop path also requires its shot timer to reach seven seconds.
 class ExtractionPolicy(private val maxSampleAgeMs:Long=1500,private val minimumBrewMs:Long=7000) {

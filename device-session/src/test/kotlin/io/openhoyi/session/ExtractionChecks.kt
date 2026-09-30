@@ -1,7 +1,9 @@
 package io.openhoyi.session
 import io.openhoyi.protocol.StartParameters
 private class CoffeeFake:CoffeeControl {
-    override var ready=true;var starts=0;var stops=0
+    override var ready=true;var starts=0;var stops=0;var permitValid=true
+    override fun prepareStart(parameters:StartParameters)=ready
+    override fun startConditionsValid(parameters:StartParameters)=ready && permitValid
     override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
     override fun stop(done:(OperationResult)->Unit){stops++;done(OperationResult.Success())}
 }
@@ -21,6 +23,19 @@ fun extractionChecks():Int {
         check(scale.tares==1 && coffee.starts==0)
         now=100;c.weight(WeightReading(0,now))
         check(coffee.starts==1 && c.state==ExtractionState.RUNNING)
+    }
+    case("zero arriving after tare deadline cannot start before the next tick") {
+        val coffee=CoffeeFake();val scale=ScaleFake();var now=0L
+        val c=ExtractionController(coffee,scale,{now})
+        c.weight(WeightReading(0,0));check(c.start(profile,3400,0))
+        now=5000;c.weight(WeightReading(0,now))
+        check(coffee.starts==0 && coffee.stops==0 && c.state==ExtractionState.IDLE)
+    }
+    case("rejected conditions before immediate start leave idle without a machine command") {
+        val coffee=CoffeeFake();coffee.permitValid=false
+        val c=ExtractionController(coffee,ScaleFake(),{0})
+        c.start(profile,0,0)
+        check(c.state==ExtractionState.IDLE && coffee.starts==0 && coffee.stops==0)
     }
     case("unconfirmed preflight tare never starts the machine") {
         val coffee=CoffeeFake();val scale=ScaleFake();var now=0L
@@ -128,7 +143,9 @@ fun extractionChecks():Int {
         var pending:((OperationResult)->Unit)?=null;var now=0L
         val coffee=object:CoffeeControl {
             override val ready=true
-            override fun start(parameters:StartParameters,done:(OperationResult)->Unit){pending=done}
+            override fun prepareStart(parameters:StartParameters)=ready
+    override fun startConditionsValid(parameters:StartParameters)=ready
+    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){pending=done}
             override fun stop(done:(OperationResult)->Unit){pending!!(OperationResult.Cancelled("superseded"));done(OperationResult.Success())}
         }
         val c=ExtractionController(coffee,ScaleFake(),{now});c.weight(WeightReading(0,0));check(c.start(profile,3400,0));now=10;c.weight(WeightReading(0,now));c.manualStop()
@@ -139,7 +156,9 @@ fun extractionChecks():Int {
         var pending:((OperationResult)->Unit)?=null;var now=0L
         val coffee=object:CoffeeControl {
             override val ready=true
-            override fun start(parameters:StartParameters,done:(OperationResult)->Unit){pending=done}
+            override fun prepareStart(parameters:StartParameters)=ready
+    override fun startConditionsValid(parameters:StartParameters)=ready
+    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){pending=done}
             override fun stop(done:(OperationResult)->Unit){pending!!(OperationResult.Cancelled("superseded"));done(OperationResult.Success())}
         }
         val c=ExtractionController(coffee,ScaleFake(),{now});c.weight(WeightReading(0,0));check(c.start(profile,3400,0));now=10;c.weight(WeightReading(0,now));c.manualStop()

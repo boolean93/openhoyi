@@ -12,7 +12,9 @@ fun replayChecks():Int {
         var now=-2000L;var starts=0;var tares=0;val stops=mutableListOf<Long>()
         val coffee=object:CoffeeControl {
             override val ready=true
-            override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
+            override fun prepareStart(parameters:StartParameters)=ready
+    override fun startConditionsValid(parameters:StartParameters)=ready
+    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
             override fun stop(done:(OperationResult)->Unit){stops+=now;done(OperationResult.Success())}
         }
         val scale=object:ScaleControl{override val ready=true;override fun tare(done:(OperationResult)->Unit){tares++;done(OperationResult.Success())}}
