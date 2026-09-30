@@ -20,6 +20,7 @@ import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 import io.openhoyi.session.OperationResult
 import io.openhoyi.session.SettingsFreshness
+import io.openhoyi.session.SleepScheduleFreshness
 import io.openhoyi.trace.TraceStore
 import java.time.LocalDateTime
 
@@ -34,6 +35,8 @@ data class MobileSnapshot(
     val settingsAt: Long? = null,
     val sleepFirst: SleepPart? = null,
     val sleepSecond: SleepPart? = null,
+    val sleepFirstAt: Long? = null,
+    val sleepSecondAt: Long? = null,
     val weight: BookooSample? = null,
     val weightAt: Long? = null,
     val candidates: List<DiscoveredDevice> = emptyList(),
@@ -253,6 +256,9 @@ class MobileService : Service() {
     var snapshot = MobileSnapshot(); private set
     val machineSettingsFresh: Boolean get() = snapshot.settings != null &&
         SettingsFreshness.isFresh(snapshot.settingsAt, SystemClock.elapsedRealtime())
+    val sleepScheduleFresh: Boolean get() = SleepScheduleFreshness.isFresh(
+        snapshot.sleepFirst, snapshot.sleepFirstAt, snapshot.sleepSecond, snapshot.sleepSecondAt,
+        SystemClock.elapsedRealtime())
     val shotState: ExtractionState get() = mock?.shotState ?: hub?.extraction?.state ?: ExtractionState.IDLE
     var activeShotTargetHundredthsGram: Int? = null; private set
     val stopReason: String? get() = hub?.extraction?.stopReason?.name
@@ -341,7 +347,7 @@ class MobileService : Service() {
                         if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
                             snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
                                 alarmBits = null, alarmAt = null,
-                                settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null)
+                                settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
                         else snapshot.copy(coffeeState = state)
                     } else if (state != DeviceState.READY) {
                         standaloneTare.disconnected()
@@ -398,12 +404,12 @@ class MobileService : Service() {
                         is SleepPart -> {
                             if (frame.firstDaySundayIndex == 0) {
                                 firstSleepSerial++
-                                snapshot = snapshot.copy(sleepFirst = frame)
+                                snapshot = snapshot.copy(sleepFirst = frame, sleepFirstAt = SystemClock.elapsedRealtime(), sleepSecondAt = null)
                             } else {
                                 secondSleepSerial++
-                                snapshot = snapshot.copy(sleepSecond = frame)
+                                snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = SystemClock.elapsedRealtime())
                             }
-                            if (scheduleWrite.observe(firstSleepSerial, secondSleepSerial,
+                            if (sleepScheduleFresh && scheduleWrite.observe(firstSleepSerial, secondSleepSerial,
                                     snapshot.sleepFirst, snapshot.sleepSecond)) {
                                 if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED)
                                     event("机器已回读完整睡眠计划", "sleep_schedule.confirmed")
@@ -601,7 +607,7 @@ class MobileService : Service() {
         }
         val current = hub ?: return
         snapshot = snapshot.copy(coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null,
-            settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null)
+            settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
         event(if (remembered) "使用本机保存的密码连接咖啡机" else "连接咖啡机")
         pendingCoffeeCredential = PendingCoffeeCredential(address, password, remembered)
         try { current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password)) }
@@ -700,8 +706,8 @@ class MobileService : Service() {
         val observed = snapshot.settings ?: return "尚未收到机器设置"
         if (!machineSettingsFresh) return "机器设置回报已过期，请等待新回报后再修改"
         if (change is MachineSettingChange.SleepScheduleEnabled && change.enabled &&
-            !SleepScheduleSafety.canEnable(snapshot.sleepFirst, snapshot.sleepSecond))
-            return "睡眠计划尚未完整回读，不能开启"
+            !sleepScheduleFresh)
+            return "睡眠计划尚未完整、新鲜回读，不能开启"
         if (change is MachineSettingChange.StandbyDelay &&
             change.temperatureC != observed.standbyTemperatureC) return "机器待机温度已变化，请重新选择"
         if (change is MachineSettingChange.StandbyTemperature &&
@@ -843,6 +849,7 @@ class MobileService : Service() {
         val idle = snapshot.coffee as? IdleTelemetry ?: return "等待咖啡机待机数据"
         if (snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true || idle.sleepStateRaw != 0)
             return "需要新鲜、已唤醒的待机状态"
+        if (!sleepScheduleFresh) return "睡眠计划回报已过期或两段尚未配齐，请等待新回报"
         val observed = WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond)
             ?: return "睡眠计划尚未完整回读"
         if (observed.days != expected.days) return "机器睡眠计划已变化，请重新编辑"
@@ -1334,7 +1341,7 @@ class MobileService : Service() {
             val now = SystemClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.ScheduleEvidence(hub?.coffeeAddress,
-                WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond) != null,
+                sleepScheduleFresh,
                 firstSleepSerial, secondSleepSerial,
                 idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
                 snapshot.coffeeAt, now, scheduleBusy)

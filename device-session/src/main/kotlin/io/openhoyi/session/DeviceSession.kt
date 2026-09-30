@@ -36,6 +36,13 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var lastIdleAtMs:Long?=null
     private var lastSettingsAtMs:Long?=null
     private var lastSettings:Settings?=null
+    private var sleepFirst:SleepPart?=null
+    private var sleepSecond:SleepPart?=null
+    private var sleepFirstAtMs:Long?=null
+    private var sleepSecondAtMs:Long?=null
+    private fun clearSleepReadback() {
+        sleepFirst=null;sleepSecond=null;sleepFirstAtMs=null;sleepSecondAtMs=null
+    }
     private var notifyEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeNotify else KnownGatt.bookooNotify
     private var writeEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeWrite else KnownGatt.bookooWrite
     private var withResponse=true
@@ -66,7 +73,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED)) return
         // Validate credentials before disturbing an existing connection.
         val auth=authentication?.encode()
-        disconnect();lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;activeAddress=address;queue.open();setState(DeviceState.CONNECTING);stageDeadline=clock()+22_000
+        disconnect();lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();activeAddress=address;queue.open();setState(DeviceState.CONNECTING);stageDeadline=clock()+22_000
         step(GattOperation.Connect(address),22_000) {
             setState(DeviceState.DISCOVERING)
             step(GattOperation.Discover,10_000){ result ->
@@ -111,6 +118,11 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     when(frame){
                         is IdleTelemetry -> {lastIdle=frame;lastIdleAtMs=now}
                         is ExtractionTelemetry -> {lastIdle=null;lastIdleAtMs=null}
+                        is SleepPart -> if(frame.firstDaySundayIndex==0) {
+                            sleepFirst=frame;sleepFirstAtMs=now;sleepSecondAtMs=null
+                        } else {
+                            sleepSecond=frame;sleepSecondAtMs=now
+                        }
                         else -> Unit
                     }
                     coffeeFrame(frame,now)
@@ -217,13 +229,21 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         canControlWithFreshSettings() && when(change) {
             is MachineSettingChange.StandbyDelay -> lastSettings?.standbyTemperatureC == change.temperatureC
             is MachineSettingChange.StandbyTemperature -> lastSettings?.standbyMinutes == change.minutes
+            is MachineSettingChange.SleepScheduleEnabled -> !change.enabled ||
+                SleepScheduleFreshness.isFresh(sleepFirst,sleepFirstAtMs,sleepSecond,sleepSecondAtMs,clock())
             else -> true
         }
     fun writeSetting(change: MachineSettingChange,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) callback(OperationResult.Failed("weekly sleep write active"))
         else if (!canWriteSetting(change)) callback(OperationResult.Failed("fresh settings with unchanged companion value required"))
-        else send(CoffeeCommands.setting(change),DeviceRole.COFFEE,
-            beforeDispatch={canWriteSetting(change)},callback=callback)
+        else {
+            val enablingPlan = if(change is MachineSettingChange.SleepScheduleEnabled && change.enabled)
+                WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days else null
+            send(CoffeeCommands.setting(change),DeviceRole.COFFEE,
+                beforeDispatch={canWriteSetting(change) &&
+                    (enablingPlan == null || WeeklySleepSchedule.fromReadback(sleepFirst,sleepSecond)?.days == enablingPlan)},
+                callback=callback)
+        }
     }
     fun writeSleepSchedule(schedule: WeeklySleepSchedule, callback:(OperationResult)->Unit) {
         if (role!=DeviceRole.COFFEE || state!=DeviceState.READY || sleepWrite!=null || !canControlFromIdle()) {
@@ -262,6 +282,6 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
         else sendWithFreshSettings(CoffeeCommands.brewWait(targetC),callback)
     }
-    fun disconnect(){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
-    private fun fail(reason:String){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}
+    fun disconnect(){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
+    private fun fail(reason:String){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}
 }

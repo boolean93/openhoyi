@@ -166,7 +166,7 @@ internal class MockDeviceRuntime {
         return MobileSnapshot(
             coffeeState = DeviceState.READY, scaleState = DeviceState.READY,
             coffee = coffee, coffeeAt = now, alarmBits = 0, alarmAt = now,
-            settings = settings, settingsAt = now,
+            settings = settings, settingsAt = now, sleepFirstAt = now, sleepSecondAt = now,
             sleepFirst = SleepPart(0, schedule.days.foldIndexed(0) { index, bits, day ->
                 bits or if (day.enabled) (0x80 shr index) else 0
             }, schedule.days.take(4).map(WeeklySleepDay::time), emptyFrame),

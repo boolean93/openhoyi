@@ -374,6 +374,98 @@ fun deviceChecks():Int {
         s.resetCupCount(25){}
         check(d.calls.size==before+1)
     }
+    case("sleep enable requires a fresh complete pair and rechecks before dispatch") {
+        val d=SessionDriver();var now=0L;val s=DeviceSession(DeviceRole.COFFEE,d,{now})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        fun receive(value:String)=s.onNotification(s.generation,KnownGatt.coffeeNotify,hex(value))
+        val first="8340FE0A00071E0A00071E0A00071E0A00071E3D"
+        val second="83800A00071E0A00071E0A00071E00"
+        receive("830113FD5C007D0F350019006E")
+        receive("400024BF2F1C770B00000000000000190321AF")
+        val before=d.calls.size
+        var result:OperationResult?=null
+        s.writeSetting(MachineSettingChange.SleepScheduleEnabled(true)){result=it}
+        check(result is OperationResult.Failed && d.calls.size==before)
+        receive(first)
+        s.writeSetting(MachineSettingChange.SleepScheduleEnabled(true)){result=it}
+        check(result is OperationResult.Failed && d.calls.size==before)
+        now=1_000;receive(second)
+        receive("400024BF2F1C770B00000000000000190321AF")
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val submitted=d.calls.size
+        result=null
+        s.writeSetting(MachineSettingChange.SleepScheduleEnabled(true)){result=it}
+        check(result==null && d.calls.size==submitted)
+        now=1_000;receive(first)
+        complete()
+        check(result is OperationResult.Failed && d.calls.size==submitted)
+        receive(second)
+        result=null
+        s.writeSetting(MachineSettingChange.SleepScheduleEnabled(true)){result=it}
+        check(result==null && d.calls.size==submitted+1)
+        complete()
+        now=182_001
+        receive("830113FD5C007D0F350019006E")
+        receive("400024BF2F1C770B00000000000000190321AF")
+        val calls=d.calls.size
+        s.writeSetting(MachineSettingChange.SleepScheduleEnabled(true)){result=it}
+        check(result is OperationResult.Failed && d.calls.size==calls)
+        result=null
+        s.writeSetting(MachineSettingChange.SleepScheduleEnabled(false)){result=it}
+        check(result==null && d.calls.size==calls+1)
+    }
+    case("queued sleep enable cannot activate a changed complete plan") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        fun receive(value:String)=s.onNotification(s.generation,KnownGatt.coffeeNotify,hex(value))
+        receive("830113FD5C007D0F350019006E")
+        receive("400024BF2F1C770B00000000000000190321AF")
+        receive("8340FE0A00071E0A00071E0A00071E0A00071E3D")
+        receive("83800A00071E0A00071E0A00071E00")
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val submitted=d.calls.size
+        var result:OperationResult?=null
+        s.writeSetting(MachineSettingChange.SleepScheduleEnabled(true)){result=it}
+        check(result==null && d.calls.size==submitted)
+        receive("8340FE0B00071E0A00071E0A00071E0A00071E3D")
+        receive("83800A00071E0A00071E0A00071E00")
+        complete()
+        check(result is OperationResult.Failed && d.calls.size==submitted)
+    }
+    case("sleep pair freshness rejects old missing inverted separated and invalid reports") {
+        val raw=io.openhoyi.protocol.ByteFrame(byteArrayOf())
+        val day=SleepDay(22,0,8,0)
+        val first=io.openhoyi.protocol.SleepPart(0,0xFE,List(4){day},raw)
+        val second=io.openhoyi.protocol.SleepPart(4,null,List(3){day},raw)
+        fun fresh(a:Long?,b:Long?,now:Long=180_000)=
+            SleepScheduleFreshness.isFresh(first,a,second,b,now)
+        check(fresh(0,1_000))
+        check(!fresh(0,1_000,180_001))
+        check(!fresh(null,1_000) && !fresh(0,null))
+        check(!fresh(1_000,0) && !fresh(0,10_001))
+        check(fresh(0,10_000))
+        check(!fresh(-1,0) && !fresh(180_001,180_002))
+        check(!SleepScheduleFreshness.isFresh(null,0,second,1_000,1_000))
+        check(!SleepScheduleFreshness.isFresh(first,0,null,1_000,1_000))
+        check(!SleepScheduleFreshness.isFresh(io.openhoyi.protocol.SleepPart(0,0xFE,List(4){day.copy(sleepHour=25)},raw),
+            0,second,1_000,1_000))
+        check(!SleepScheduleFreshness.isFresh(first,0,
+            io.openhoyi.protocol.SleepPart(4,null,List(3){day.copy(wakeMinute=61)},raw),1_000,1_000))
+    }
     case("settings freshness rejects missing future and negative timestamps") {
         check(!SettingsFreshness.isFresh(null,180_000))
         check(!SettingsFreshness.isFresh(-1,0))

@@ -355,6 +355,7 @@ class MachineSettingsActivity : ThemedActivity() {
             snapshot.sleepFirst == null && snapshot.sleepSecond == null -> "尚未收到睡眠计划"
             WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond) == null ->
                 "计划回读不完整或异常；请核对机器，未知内容已标出"
+            owner?.sleepScheduleFresh != true -> "整周计划回报已过期或两段尚未配齐"
             else -> "整周计划已回读 · 周日到周六"
         })
         scheduleGrid.visibility = if (snapshot.sleepFirst == null && snapshot.sleepSecond == null) View.GONE else View.VISIBLE
@@ -417,10 +418,10 @@ class MachineSettingsActivity : ThemedActivity() {
             owner?.sleepNowState !in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
         scheduleButtons.forEach { it.isEnabled = editable &&
             owner?.scheduleWriteState != SleepScheduleWriteTracker.State.UNKNOWN &&
-            WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond) != null }
+            owner?.sleepScheduleFresh == true }
         sleepScheduleButton.isEnabled = editable &&
             (snapshot.settings?.flags?.and(0x01) == 1 ||
-                SleepScheduleSafety.canEnable(snapshot.sleepFirst, snapshot.sleepSecond))
+                owner?.sleepScheduleFresh == true)
         brewHeatingButton.text = getString(R.string.setting_toggle_status,
             getString(R.string.setting_brew_heating),
             getString(if (snapshot.settings?.brewHeating == true) R.string.setting_on else R.string.setting_off))
