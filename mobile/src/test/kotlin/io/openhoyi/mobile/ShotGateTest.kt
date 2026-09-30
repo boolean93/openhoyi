@@ -16,6 +16,34 @@ class ShotGateTest {
         scale: DeviceState = DeviceState.READY, weightAt: Long? = 1000, now: Long = 2000,
         shot: ExtractionState = ExtractionState.IDLE, coffeeFrame: IdleTelemetry? = idleFrame,
         coffeeAt: Long? = 1000): String? = ShotGate.startBlock(profile, coffee, coffeeFrame, coffeeAt, scale, weightAt, now, shot)
+    @Test fun invalidCurveAndUnsettledShotKeepOriginalRejectionPriority() {
+        assertEquals("曲线未通过报文校验", ShotGate.startBlock(flow, DeviceState.DISCONNECTED,
+            null, null, DeviceState.DISCONNECTED, null, 2000, ExtractionState.OUTCOME_UNKNOWN,
+            validated = false))
+        assertEquals("请先选择曲线", ShotGate.startBlock(null, DeviceState.DISCONNECTED,
+            null, null, DeviceState.DISCONNECTED, null, 2000, ExtractionState.OUTCOME_UNKNOWN,
+            validated = false))
+        for (state in ExtractionState.entries) {
+            val unsettled = state in setOf(ExtractionState.STARTING, ExtractionState.RUNNING,
+                ExtractionState.STOP_REQUESTED, ExtractionState.OUTCOME_UNKNOWN)
+            assertEquals(unsettled, ShotGate.active(state))
+            assertEquals(if (unsettled) "上一杯尚未确认结束" else null, block(flow, shot = state))
+        }
+    }
+
+    @Test fun allConnectionStatesAndExactFreshnessBoundaryPreserveEligibility() {
+        for (state in DeviceState.entries) {
+            assertEquals(if (state == DeviceState.READY) null else "咖啡机尚未就绪",
+                block(flow, coffee = state))
+            assertEquals(if (state == DeviceState.READY) null else "目标重量萃取需要电子秤",
+                block(weighted, scale = state))
+        }
+        assertNull(block(weighted, coffeeAt = 1000, weightAt = 1000, now = 2500))
+        assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeAt = 2001, now = 2000))
+        assertEquals("等待咖啡机新鲜待机数据", block(weighted, coffeeAt = null))
+        assertEquals("电子秤数据已过期", block(weighted, weightAt = null))
+    }
+
     @Test fun weightedStartRequiresFreshScaleAndVerifiedCoffee() {
         assertEquals("请先选择曲线", block(null))
         assertEquals("咖啡机尚未就绪", block(weighted, coffee = DeviceState.UNSUPPORTED))
