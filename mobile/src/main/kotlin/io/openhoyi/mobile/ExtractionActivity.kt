@@ -270,7 +270,7 @@ class ExtractionActivity : ThemedActivity() {
             SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
         val slotLabel = if (presetSlot == 7) "" else " · 快捷槽位 $presetSlot"
         curveSummary.show("曲线：${item?.name ?: "未选择"}$slotLabel")
-        deviceSummary.show("咖啡机：${DeviceStatusText.label(snapshot.coffeeState)} · 电子秤：${DeviceStatusText.label(snapshot.scaleState)}")
+        deviceSummary.show("咖啡机：${DeviceStatusText.label(this, snapshot.coffeeState)} · 电子秤：${DeviceStatusText.label(this, snapshot.scaleState)}")
         shotSummary.show("萃取状态：${if (owner?.scalePreflight == true) "等待电子秤归零后启动" else if (owner?.manualShotActive == true) "机器手动萃取" else shotLabel(state)}${owner?.stopReason?.let { " · 停止原因：${stopLabel(it)}" } ?: ""}")
         val guidance = when {
             owner?.manualShotActive == true -> "机器手动萃取中；请用机器拨杆停止"

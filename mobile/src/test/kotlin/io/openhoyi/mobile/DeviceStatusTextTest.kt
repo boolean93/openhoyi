@@ -5,10 +5,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class DeviceStatusTextTest {
-    @Test fun everyDeviceStateHasAReadableLabel() {
-        val labels = DeviceState.entries.map(DeviceStatusText::label)
+    @Test fun everyDeviceStateHasADistinctLabelResource() {
+        val labels = DeviceState.entries.map(DeviceStatusText::resource)
         assertEquals(DeviceState.entries.size, labels.distinct().size)
-        assertEquals("已就绪", DeviceStatusText.label(DeviceState.READY))
-        assertEquals("连接失败", DeviceStatusText.label(DeviceState.FAILED))
+        assertEquals(R.string.device_state_ready, DeviceStatusText.resource(DeviceState.READY))
+        assertEquals(R.string.device_state_failed, DeviceStatusText.resource(DeviceState.FAILED))
     }
 }

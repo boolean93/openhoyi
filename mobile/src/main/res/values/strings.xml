@@ -162,4 +162,16 @@
     <string name="machine_settings_preview_enabled">启用</string>
     <string name="machine_settings_schedule_preview_mock">%1$s %2$s：%3$02d:%4$02d 睡眠，%5$02d:%6$02d 唤醒。\n模拟值保持不变，不发送蓝牙命令。</string>
     <string name="machine_settings_schedule_preview_real">%1$s %2$s：%3$02d:%4$02d 睡眠，%5$02d:%6$02d 唤醒。\n将发送两包计划，并等待机器回报整周内容。</string>
+    <string name="device_state_disconnected">未连接</string>
+    <string name="device_state_connecting">连接中</string>
+    <string name="device_state_discovering">查找服务中</string>
+    <string name="device_state_subscribing">订阅数据中</string>
+    <string name="device_state_initializing">初始化中</string>
+    <string name="device_state_synchronizing">同步中</string>
+    <string name="device_state_ready">已就绪</string>
+    <string name="device_state_unsupported">不支持</string>
+    <string name="device_state_failed">连接失败</string>
+    <string name="home_lever_manual">手动</string>
+    <string name="home_lever_pressure">自动压力</string>
+    <string name="home_lever_flow">自动流量</string>
 </resources>

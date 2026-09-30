@@ -346,7 +346,7 @@ class MachineSettingsActivity : ThemedActivity() {
         val ready = snapshot.coffeeState == DeviceState.READY
         connectionState.update(if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_mock_connection) else
             getString(R.string.machine_settings_connection_summary,
-                DeviceStatusText.label(snapshot.coffeeState), getString(if (ready)
+                DeviceStatusText.label(this, snapshot.coffeeState), getString(if (ready)
                     R.string.machine_settings_authenticated else R.string.machine_settings_not_current)))
         val reported = snapshot.settings
         settingsOverview.update(if (reported == null) getString(R.string.machine_settings_readback_missing) else

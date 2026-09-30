@@ -404,7 +404,8 @@ class HomeActivity : ThemedActivity() {
             MachineSettingChange.LeverMode(true, true),
         )
         AlertDialog.Builder(this).setTitle("选择拨杆模式")
-            .setItems(modes.map { MachineSettingsPresentation.change(it).substringAfter('：') }.toTypedArray()) { _, index ->
+            .setItems(arrayOf(getString(R.string.home_lever_manual),
+                getString(R.string.home_lever_pressure), getString(R.string.home_lever_flow))) { _, index ->
                 val change = modes[index]
                 AlertDialog.Builder(this).setTitle("确认修改拨杆模式")
                     .setMessage("${MachineSettingsPresentation.change(change)}\n机器回读后才能确认生效。")
