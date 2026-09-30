@@ -1,0 +1,34 @@
+# 原版功能对标审计（2026-09-30）
+
+基线为旧项目 `docs/features.md`、`docs/bluetooth-protocol.md` 和现有拆包源码；原生基线为提交 `1437e8d`。此表检查用户能力及其当前实现入口，不把代码存在、离线通过或部分实杯记录当作全部功能验收。
+
+| 原版能力 | 当前原生入口/证据 | 当前结论与剩余工作 |
+|---|---|---|
+| 扫描、权限、咖啡机认证与初始化 | HomeActivity、MobileService、NativeDeviceHub、DeviceSession；实机报告 | 已开发，部分固件1.1.3连接已验证；权限/后台/断线完整验收未齐 |
+| 温度、压力、重量、睡眠和机器告警仪表 | HomeActivity、LiveTelemetry、MachineAlarms；共享告警规则与新鲜度测试 | 已开发；秤流速物理单位及真实仪表仍需核对 |
+| 机器手动拨杆、自动压力/流量模式 | MachineSettingsActivity、MachineSettingChange、PassiveShotDetector | 模式写入与被动历史已开发；机器手动萃取由拨杆操作，不由App启动/停止；真实被动识别样本未齐 |
+| 五个快捷槽位、曲线启动与停止 | PresetSlots、CurveLibrary、ExtractionController、CoffeeCommands；旧版报文oracle | 已开发100条工厂曲线与采集曲线；部分手动停止已有实杯证据，目标重量自动停止及各槽位未全面验收 |
+| 曲线分类、选择和显示 | CurveActivity、CurveLibrary | 已开发；分类/名称查找与报文证明不等于允许任意导入曲线控制 |
+| 曲线复制、编辑、删除、保存 | LegacyCurveActivity、LegacyCurveAdapter仅只读/离线候选 | 尚未开发完整编辑；用户明确后置。真实用户曲线旧/新报文证据不足，继续只读 |
+| 实时图表和本机历史 | ExtractionActivity、HistoryActivity、HistoryDetailActivity、ShotHistory | 已开发；保留短杯/未知记录是诊断需要的明确差异，仍有30天/500条限制 |
+| 原包历史/曲线迁移 | LegacyHistory、LegacyHistoryActivity、LegacyCurveCodec/LegacyCurveStore与导入页面 | 文件导入已开发，合成格式已测；缺两类真实导出。分包后不能直接读取旧包私有数据 |
+| 秤连接、去皮与重连 | BOOKOO、ScaleSessionControl、StandaloneTare、ReconnectPolicy | BOOKOO已开发、部分实测；其它型号只有部分只读候选解析，未实现完整BLE控制 |
+| 温控、补偿、加热、照明、拨杆/运行模式、水源与待机 | MachineSettingsActivity、MachineSettingChange、SettingsWriteTracker | 已开发受限命令和回读确认；每类真实设置/失败恢复证据未齐，不自动重试未知写入 |
+| 睡眠计划、立即睡眠、工作室预热/取消 | SleepScheduleWriteTracker、SleepNowTracker、BrewPreparation、PreheatGate | 已开发；完整生效和恢复仍需实机。没有独立取消回读，不把传输成功当作取消已生效 |
+| 累计杯数清零 | CupResetTracker、MachineWriteRecoveryState；双路新归零与序号回归 | 已开发未实机执行；旧本地设置密码确认由当前杯数输入＋二次确认替代，两路都归零才确认 |
+| 连接密码保存 | CoffeeCredentialStore、CoffeeCredentialRetryGate | 已开发成功后加密记忆；不是修改机器蓝牙密码，免输/失败回退仍需实机复验 |
+| 修改机器蓝牙密码 | 旧版setBleConPwd/0x0B；原生无执行入口 | 未开发/未开放，缺修改、确认、新旧密码重连及失败恢复的可靠序列 |
+| 拉杆校准、恢复出厂、排水、水箱滤芯及OTA | UnsupportedCommandGroup与当前无开放控制入口 | 未开发完整控制；存在旧命令不代表已有安全流程。需型号/固件、前置条件、回读或人工恢复证据 |
+| 多语言 | 旧版lang与语言模块；原生资源和Activity仍主要为简中 | 软件缺口：没有完整语言选择和资源化；错误/未知结果/确认文案都要纳入，不能仅翻译页面标签 |
+| 原生应用版本和更新 | mobile/build.gradle.kts有versionCode/versionName；固件只读版本已有 | 软件缺口：尚无应用版本/更新入口。先实现只读版本与包身份；原生分发/签名连续性独立规划，不能安装厂商旧版APK作为原生更新 |
+| 深浅色与Mock | ThemedActivity、values-night、MockDeviceRuntime、Mock构建；云端Mock截图 | 已开发并有离线视觉证据；Mock不发送蓝牙，不能替代真实控制验收 |
+| 其它本地偏好 | 旧版brewTips、brewTipsLed等键；当前未有完整对应偏好页面 | 行为核对与软件缺口：先逐项确认提示、灯光及任何自动写入路径，再规划；不能仅按键名断言为纯UI |
+
+## 开发顺序与证据边界
+
+1. 继续共享业务协调的开发：请求归属、采样序号、超时、事务互斥与安全记录清除；保留参数/固件白名单与实际出队检查。类定义迁移不等于运行时已经统一。
+2. 在无设备阶段完成只读应用版本/包身份展示、梳理完整文案资源化与语言范围、逐项定位提示偏好。它们是尚未完成的软件工作，不应标作“仅待实机”。原包本地密码的确认差异已明确，不将其与设备密码混淆。
+3. 有真实旧版文件后验证导入；编辑按用户已定优先级后置。未获得逐条字节证据之前不把用户曲线接入启动。
+4. 用户重新提供设备后补日常控制验收：自动重量停止、去皮时序、设置/睡眠/预热回读及断链恢复。高风险命令、其它秤和OTA单独取证后开发/开放。
+
+这些是当前实际未完成项。整体对标与硬件安全尚未证明；现有离线测试证明的是所覆盖的编码、状态及队列规则。详细证据见 [覆盖矩阵](coverage.md)、[原生功能状态](native-feature-status.md) 与 [Alpha验收](alpha-acceptance.md)。
