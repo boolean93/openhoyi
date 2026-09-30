@@ -1,10 +1,9 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
 import io.openhoyi.protocol.DecodeResult
 import io.openhoyi.protocol.HoyiCodec
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.protocol.Settings
-import io.openhoyi.session.OperationResult
 import org.junit.Assert.*
 import org.junit.Test
 

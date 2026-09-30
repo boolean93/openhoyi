@@ -1,6 +1,5 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
-import io.openhoyi.session.OperationResult
 
 /** A write confirms transport only; a later idle frame with sleepStateRaw=1 confirms sleep. */
 class SleepNowTracker {

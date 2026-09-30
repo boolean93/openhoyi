@@ -1,8 +1,7 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.protocol.Settings
-import io.openhoyi.session.OperationResult
 
 /** BLE write completion is transport evidence; a newer matching 0x83 frame confirms application. */
 class SettingsWriteTracker {

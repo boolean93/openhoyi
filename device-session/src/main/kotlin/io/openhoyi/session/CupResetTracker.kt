@@ -1,6 +1,5 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
-import io.openhoyi.session.OperationResult
 
 /** A reset needs matching post-write settings and idle counts; transport alone proves nothing. */
 class CupResetTracker {

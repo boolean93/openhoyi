@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-09-30：`SettingsWriteTracker`、`CupResetTracker`、`SleepNowTracker`、`SleepScheduleWriteTracker` 及17项原JUnit测试迁入 `device-session`。8个生产/测试文件方法体与迁移前HEAD逐一比较一致，仅包名和导入改变；Android页面改为引用共享类型。共享模块测试依赖使用现有JUnit4.13.2，不进入生产依赖。完整离线回归：共享JUnit17通过、会话91场景通过、协议39,823项检查/32,856条通知回放；Alpha/Mock各112通过、1项缺真实导出跳过，三个APK构建通过。原130项产品测试减为113项，是17项迁至核心而非删除。服务仍持有四类tracker实例、采样序号/超时/安全持久化，尚未合并成统一业务协调器。当前边界见 `docs/architecture.md`，未操作真机。
+
 2026-09-30：直接冲泡温度编码方法复用 `MachineSettingChange.BrewTemperature` 的 75–105°C 范围，不再接受仅满足单字节范围的0/1/74/106/255。合法设置范围和报文字节不变；预热取消 `brewWait(0)` 与加热开关不受影响。先复现越界值可编码，再验证拒绝及端点/旧版设置报文对照。完整离线回归39,823项协议检查、32,856条通知回放、91个会话场景，三个APK构建通过；未使用真机。前一提交 `fba2ddb` 云端Verify/Mock仍运行，未宣称云端通过。
 
 2026-09-30：记忆咖啡机密码的失败分类抽为 `CoffeeCredentialRetryGate.connectionState`。只有 remembered 请求进入 FAILED 才消耗两次回退预算；未验证固件 UNSUPPORTED、连接中、主动断开及手动密码失败不消耗，READY按原地址清零。UNSUPPORTED不会据此保存新密码或宣称密码已验证，固件控制许可不变。先复现未验证固件耗尽预算，再修正并核对地址隔离/READY清零。完整离线回归91个会话场景、39,816项协议检查、32,856条通知回放；Alpha/Mock各129通过、1项缺真实导出跳过，三个APK构建通过。上一提交 `1684e31` 云端 Verify/Mock均在启动阶段失败，无作业/日志，不属于已验证测试失败；只重试一次Verify。未使用真机。

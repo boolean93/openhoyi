@@ -1,4 +1,4 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
 import io.openhoyi.protocol.DecodeResult
 import io.openhoyi.protocol.HoyiCodec
@@ -6,7 +6,6 @@ import io.openhoyi.protocol.SleepDay
 import io.openhoyi.protocol.SleepPart
 import io.openhoyi.protocol.WeeklySleepDay
 import io.openhoyi.protocol.WeeklySleepSchedule
-import io.openhoyi.session.OperationResult
 import org.junit.Assert.*
 import org.junit.Test
 

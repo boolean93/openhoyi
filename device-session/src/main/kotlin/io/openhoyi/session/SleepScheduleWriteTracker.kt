@@ -1,8 +1,7 @@
-package io.openhoyi.mobile
+package io.openhoyi.session
 
 import io.openhoyi.protocol.SleepPart
 import io.openhoyi.protocol.WeeklySleepSchedule
-import io.openhoyi.session.OperationResult
 
 /** Both 0x83 sleep fragments must arrive after transport success and match the full requested week. */
 class SleepScheduleWriteTracker {
