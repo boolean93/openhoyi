@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-10-01：MobileService.scan/connectCoffee/connectScale/disconnect区域25项声明文案替换，新增24条资源、复用1条；扫描数量、失败类型及断开role.name使用字符串参数保留原ASCII/原标识。密码六位数字规则、记忆凭证重试、两类原机器身份匹配、手动/应用萃取禁止切换、杯数/计划回读阻断、预热取消后等待、候选排序/64条限制及连接回调均未改。限定区域正向替换后整个Service一致，25条默认XML与两包编译资源逐值核对通过，14项动态格式比较通过；事件code保持原样，默认中文一致。完整离线回归通过：协议39,823项检查/32,856条通知回放、会话92场景、共享JUnit61项；Alpha/Mock各104通过、1项缺真实导出跳过，三个APK构建成功。未连接真机；服务机器写入/运行事件等剩余提示、库详情和完整翻译/语言选择仍待完成，真实安全与功能对标验收未完成。
+
 2026-10-01：MobileService去皮启动阻断/独立去皮反馈及机器设置未知提醒新增14条默认资源，限定两个去皮区域及一个getter共3项声明变换。tareStartBlock的WRITING/WAITING_ZERO/UNKNOWN仍返回非null，其余null；手动/应用萃取阻断、READY判断、重复去皮、回调状态与发送均未改。settingWriteUnresolvedMessage改为访问时getter，避免Service尚未附加Context时读资源。事件code/触发条件不变，默认中文与事件message逐值一致；未来翻译时这类事件的显示message会随语言变化，诊断识别应使用事件code。整个Service正向重放与声明替换一致，14条XML/两包编译资源核对通过。完整离线回归通过：协议39,823项检查/32,856条通知回放、会话92场景、共享JUnit61项；Alpha/Mock各104通过、1项缺真实导出跳过，三个APK构建成功。会话回归包括去皮未确认阻止下一杯与排队去皮发送前重检查。本轮未连接真机；服务连接/机器写入等剩余提示、库详情、完整翻译及语言选择仍待完成。
 
 2026-10-01：MobileApplication操作记录导出/历史ZIP导出反馈新增6条资源、4项声明显示替换，全部/部分历史分别使用完整模板。unavailable>0的原条件与数量保留；trace导出export.finished的message仍为原诊断文本，Toast在主线程读取显示资源，避免翻译改变诊断日志。Archive写入代码、CSV/TSV列与README、路径、样本有效性、UNKNOWN状态及导出日志code/result未改。整个Application正向重放一致，61项动态格式对照、6条XML/两包编译资源核对通过。Alpha/Mock各104项测试通过、1项缺真实导出跳过，两包构建成功，其中两项Archive测试覆盖UNKNOWN/路径注入及单份采样失败保留其它历史。本轮未改协议/会话，未重复完整协议回归，未连接真机。库详情/服务剩余提示、完整翻译/语言选择及实际文件选择器/导出验收仍待完成。

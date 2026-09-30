@@ -677,4 +677,30 @@
     <string name="service_tare_requested">"请求电子秤去皮"</string>
     <string name="service_tare_written">"去皮命令已写入，等待电子秤归零"</string>
     <string name="service_tare_failed">"去皮命令未写入"</string>
+
+    <!-- Device connection feedback; identities, state guards and callbacks are unchanged. -->
+    <string name="service_scan_finished">"扫描完成：%1$s 台候选设备"</string>
+    <string name="service_coffee_connect_failed">"连接咖啡机失败：%1$s"</string>
+    <string name="service_disconnect">"断开 %1$s"</string>
+    <string name="service_scan_mock">"Mock 候选设备已就绪"</string>
+    <string name="service_scanning">"正在扫描…"</string>
+    <string name="service_coffee_mock">"Mock 咖啡机已就绪；未连接蓝牙"</string>
+    <string name="service_connection_manual_block">"手动萃取进行中，请先用机器拨杆结束"</string>
+    <string name="service_connection_shot_device_mismatch">"上一杯未确认结束，只能重新连接原咖啡机"</string>
+    <string name="service_connection_write_device_mismatch">"上次机器写入未确认，只能重新连接原咖啡机"</string>
+    <string name="service_connection_cups_busy">"等待累计杯数归零回报，暂不切换咖啡机"</string>
+    <string name="service_connection_schedule_busy">"睡眠计划尚未确认，暂不切换咖啡机"</string>
+    <string name="service_connection_shot_busy">"萃取尚未结束，不能重连咖啡机"</string>
+    <string name="service_connection_cancel_preheat">"正在取消预热，请确认结果后再切换咖啡机"</string>
+    <string name="service_coffee_connect_remembered">"使用本机保存的密码连接咖啡机"</string>
+    <string name="service_scale_mock">"Mock 电子秤已就绪；未连接蓝牙"</string>
+    <string name="service_scale_manual_block">"手动萃取进行中，暂不切换电子秤"</string>
+    <string name="service_scale_shot_block">"萃取尚未结束，不能切换电子秤"</string>
+    <string name="service_scale_already_connected">"电子秤已连接或正在连接"</string>
+    <string name="service_scale_connect">"连接电子秤"</string>
+    <string name="service_disconnect_mock">"Mock 设备保持就绪；未连接蓝牙"</string>
+    <string name="service_disconnect_shot_block">"萃取尚未结束，先停止萃取"</string>
+    <string name="service_disconnect_cups_busy">"等待累计杯数归零回报，暂不断开咖啡机"</string>
+    <string name="service_disconnect_schedule_busy">"睡眠计划尚未确认，暂不断开咖啡机"</string>
+    <string name="service_disconnect_cancel_preheat">"正在取消预热，请确认结果后再断开"</string>
 </resources>

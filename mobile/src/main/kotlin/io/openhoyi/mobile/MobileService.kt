@@ -578,20 +578,20 @@ class MobileService : Service() {
                 DiscoveredDevice("02:00:00:00:00:01", "HOYI Mock", -42, DeviceRole.COFFEE),
                 DiscoveredDevice("02:00:00:00:00:02", "BOOKOO Mock", -45, DeviceRole.BOOKOO)),
                 scanning = false)
-            event("Mock 候选设备已就绪", "mock.scan")
+            event(getString(R.string.service_scan_mock), "mock.scan")
             return
         }
         val current = hub ?: return
         manualDeviceUse()
         if (snapshot.scanning) return
-        snapshot = snapshot.copy(scanning = true, candidates = emptyList(), message = "正在扫描…")
+        snapshot = snapshot.copy(scanning = true, candidates = emptyList(), message = getString(R.string.service_scanning))
         Log.i(TAG, "scan start")
         current.scanner.start(onDevice = { candidate ->
             snapshot = snapshot.copy(candidates = (snapshot.candidates.filterNot { it.address == candidate.address } + candidate)
                 .sortedWith(compareBy({ it.candidateRole.name }, { it.advertisedName })).take(64))
         }, onFinished = { error ->
             snapshot = snapshot.copy(scanning = false)
-            event(error ?: "扫描完成：${snapshot.candidates.size} 台候选设备")
+            event(error ?: getString(R.string.service_scan_finished, snapshot.candidates.size.toString()))
         })
     }
     fun connectRememberedCoffee(address: String): Boolean {
@@ -603,63 +603,63 @@ class MobileService : Service() {
     }
     fun connectCoffee(address: String, password: String) = connectCoffee(address, password, remembered = false)
     private fun connectCoffee(address: String, password: String, remembered: Boolean) {
-        if (mock != null) { event("Mock 咖啡机已就绪；未连接蓝牙", "mock.connect"); return }
-        if (manualShotActive) { event("手动萃取进行中，请先用机器拨杆结束"); return }
+        if (mock != null) { event(getString(R.string.service_coffee_mock), "mock.connect"); return }
+        if (manualShotActive) { event(getString(R.string.service_connection_manual_block)); return }
         if (!shotRecovery.matchesDevice(address)) {
-            event("上一杯未确认结束，只能重新连接原咖啡机", "shot.device_mismatch"); return
+            event(getString(R.string.service_connection_shot_device_mismatch), "shot.device_mismatch"); return
         }
         if (!machineWriteRecovery.matchesDevice(address)) {
-            event("上次机器写入未确认，只能重新连接原咖啡机", "machine_write.device_mismatch"); return
+            event(getString(R.string.service_connection_write_device_mismatch), "machine_write.device_mismatch"); return
         }
         require(password.matches(Regex("[0-9]{6}")))
         manualDeviceUse()
-        if (cupResetBusy) { event("等待累计杯数归零回报，暂不切换咖啡机"); return }
-        if (scheduleBusy) { event("睡眠计划尚未确认，暂不切换咖啡机"); return }
+        if (cupResetBusy) { event(getString(R.string.service_connection_cups_busy)); return }
+        if (scheduleBusy) { event(getString(R.string.service_connection_schedule_busy)); return }
         if (!ShotGate.mayReconnectCoffee(shotState)) {
-            event("萃取尚未结束，不能重连咖啡机"); return
+            event(getString(R.string.service_connection_shot_busy)); return
         }
         if (brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
             cancelBrewPreparation()
-            event("正在取消预热，请确认结果后再切换咖啡机", "brew_wait.connect_deferred")
+            event(getString(R.string.service_connection_cancel_preheat), "brew_wait.connect_deferred")
             return
         }
         val current = hub ?: return
         snapshot = snapshot.copy(coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null,
             settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
-        event(if (remembered) "使用本机保存的密码连接咖啡机" else "连接咖啡机")
+        event(if (remembered) getString(R.string.service_coffee_connect_remembered) else getString(R.string.home_connect_coffee_title))
         pendingCoffeeCredential = PendingCoffeeCredential(address, password, remembered)
         try { current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password)) }
         catch (error: RuntimeException) {
             pendingCoffeeCredential = null
-            event("连接咖啡机失败：${error.javaClass.simpleName}", "coffee.connect_failed")
+            event(getString(R.string.service_coffee_connect_failed, error.javaClass.simpleName), "coffee.connect_failed")
         }
     }
     fun connectScale(address: String) {
-        if (mock != null) { event("Mock 电子秤已就绪；未连接蓝牙", "mock.connect"); return }
-        if (manualShotActive) { event("手动萃取进行中，暂不切换电子秤"); return }
+        if (mock != null) { event(getString(R.string.service_scale_mock), "mock.connect"); return }
+        if (manualShotActive) { event(getString(R.string.service_scale_manual_block)); return }
         manualDeviceUse()
-        if (ShotGate.active(shotState)) { event("萃取尚未结束，不能切换电子秤"); return }
+        if (ShotGate.active(shotState)) { event(getString(R.string.service_scale_shot_block)); return }
         val current = hub ?: return
-        if (!current.connectScale(address)) { event("电子秤已连接或正在连接"); return }
+        if (!current.connectScale(address)) { event(getString(R.string.service_scale_already_connected)); return }
         snapshot = snapshot.copy(weight = null, weightAt = null)
-        event("连接电子秤")
+        event(getString(R.string.service_scale_connect))
     }
     fun disconnect(role: DeviceRole) {
-        if (mock != null) { event("Mock 设备保持就绪；未连接蓝牙", "mock.disconnect"); return }
-        if (manualShotActive) { event("手动萃取进行中，请先用机器拨杆结束"); return }
-        if (ShotGate.active(shotState)) { event("萃取尚未结束，先停止萃取"); return }
+        if (mock != null) { event(getString(R.string.service_disconnect_mock), "mock.disconnect"); return }
+        if (manualShotActive) { event(getString(R.string.service_connection_manual_block)); return }
+        if (ShotGate.active(shotState)) { event(getString(R.string.service_disconnect_shot_block)); return }
         if (role == DeviceRole.COFFEE && cupResetBusy) {
-            event("等待累计杯数归零回报，暂不断开咖啡机"); return
+            event(getString(R.string.service_disconnect_cups_busy)); return
         }
         if (role == DeviceRole.COFFEE && scheduleBusy) {
-            event("睡眠计划尚未确认，暂不断开咖啡机"); return
+            event(getString(R.string.service_disconnect_schedule_busy)); return
         }
         if (role == DeviceRole.COFFEE && brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
             cancelBrewPreparation()
-            event("正在取消预热，请确认结果后再断开", "brew_wait.disconnect_deferred")
+            event(getString(R.string.service_disconnect_cancel_preheat), "brew_wait.disconnect_deferred")
             return
         }
-        event("断开 ${role.name}")
+        event(getString(R.string.service_disconnect, role.name))
         if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
     }
     fun tareScale(): String? {
