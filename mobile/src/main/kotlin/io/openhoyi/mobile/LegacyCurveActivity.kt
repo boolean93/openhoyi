@@ -47,8 +47,8 @@ class LegacyCurveActivity : ThemedActivity() {
             }
         }
         setContentView(root)
-        HoyiUi.header(this, root, "旧版曲线库", "导入内容只供浏览，不发送到咖啡机", back = true)
-        count = label("正在读取…", 14)
+        HoyiUi.header(this, root, getString(R.string.legacy_curve_title), getString(R.string.legacy_curve_subtitle), back = true)
+        count = label(getString(R.string.legacy_curve_loading_initial), 14)
         root.addView(count)
         HoyiUi.button(this, root, getString(R.string.curve_import_legacy)) {
                 @Suppress("DEPRECATION")
@@ -73,8 +73,8 @@ class LegacyCurveActivity : ThemedActivity() {
                 val curve = bundle?.curves?.getOrNull(position)
                 val views = card.tag as RowViews
                 views.title.text = curve?.name ?: getItem(position)
-                val category = curve?.let { bundle?.categoryLabels?.get(it.category) ?: it.category.ifBlank { "未分类" } }
-                views.subtitle.text = "${category ?: "未分类"} · ${if (curve?.factory == true) "旧版工厂曲线" else "旧版用户曲线"} · 仅浏览"
+                val category = curve?.let { bundle?.categoryLabels?.get(it.category) ?: it.category.ifBlank { getString(R.string.legacy_curve_uncategorized) } }
+                views.subtitle.text = if (curve?.factory == true) getString(R.string.legacy_curve_factory_row, category ?: getString(R.string.legacy_curve_uncategorized)) else getString(R.string.legacy_curve_user_row, category ?: getString(R.string.legacy_curve_uncategorized))
                 return card
             }
         }
@@ -91,22 +91,22 @@ class LegacyCurveActivity : ThemedActivity() {
             width = dp(520)
             gravity = android.view.Gravity.CENTER_HORIZONTAL
         }.also { emptyCard.layoutParams = it }
-        emptyTitle = HoyiUi.label(this, emptyCard, "尚无旧版曲线", 19, true)
-        emptyMessage = HoyiUi.label(this, emptyCard, "可从旧版 App 导出曲线文件后，在上方选择导入。", 15, muted = true)
+        emptyTitle = HoyiUi.label(this, emptyCard, getString(R.string.legacy_curve_empty_title), 19, true)
+        emptyMessage = HoyiUi.label(this, emptyCard, getString(R.string.legacy_curve_empty_message), 15, muted = true)
         emptyMessage.setPadding(0, dp(10), 0, 0)
         HoyiUi.navigation(this, root, CurveActivity::class.java)
         list.setOnItemClickListener { _, _, position, _ ->
             val data = bundle ?: return@setOnItemClickListener
             val curve = data.curves[position]
-            val category = data.categoryLabels[curve.category] ?: curve.category.ifBlank { "未分类" }
+            val category = data.categoryLabels[curve.category] ?: curve.category.ifBlank { getString(R.string.legacy_curve_uncategorized) }
             val detail = getString(R.string.legacy_curve_detail, curve.name, category, position + 1,
                 getString(if (curve.factory) R.string.legacy_curve_factory else R.string.legacy_curve_user),
-                curve.temperatureC?.let { "$it °C" } ?: "未知",
-                curve.waterMl?.let { "$it ml" } ?: "未知",
-                curve.weightTenthsGram?.let { String.format(Locale.CHINA, "%.1f g", it / 10.0) } ?: "未知",
-                curve.segments?.toString() ?: "未知")
+                curve.temperatureC?.let { "$it °C" } ?: getString(R.string.settings_unknown),
+                curve.waterMl?.let { "$it ml" } ?: getString(R.string.settings_unknown),
+                curve.weightTenthsGram?.let { String.format(Locale.CHINA, "%.1f g", it / 10.0) } ?: getString(R.string.settings_unknown),
+                curve.segments?.toString() ?: getString(R.string.settings_unknown))
             AlertDialog.Builder(this).setTitle(curve.name).setMessage(detail)
-                .setPositiveButton("关闭", null).show()
+                .setPositiveButton(getString(R.string.setting_off), null).show()
         }
     }
 
@@ -117,7 +117,7 @@ class LegacyCurveActivity : ThemedActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != IMPORT_CURVES || resultCode != Activity.RESULT_OK) return
         val uri = data?.data ?: return
-        count.text = "正在校验旧版曲线库…"
+        count.text = getString(R.string.legacy_curve_checking)
         Thread({
             val app = application as MobileApplication
             val result = runCatching {
@@ -129,8 +129,8 @@ class LegacyCurveActivity : ThemedActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 Toast.makeText(this, result.fold(
-                    { "${if (it.changed) "已导入" else "未变化"} ${it.count} 条旧版曲线；仅供浏览" },
-                    { "导入失败：${it.message ?: it.javaClass.simpleName}；原有数据未改变" }),
+                    { if (it.changed) getString(R.string.legacy_curve_import_changed, it.count.toString()) else getString(R.string.legacy_curve_import_unchanged, it.count.toString()) },
+                    { getString(R.string.legacy_import_error, it.message ?: it.javaClass.simpleName) }),
                     Toast.LENGTH_LONG).show()
                 refresh()
             }
@@ -139,7 +139,7 @@ class LegacyCurveActivity : ThemedActivity() {
 
     private fun refresh() {
         val generation = ++refreshGeneration
-        count.text = "正在读取旧版曲线库…"
+        count.text = getString(R.string.legacy_curve_loading)
         emptyState.visibility = View.GONE
         list.visibility = View.GONE
         Thread({
@@ -148,18 +148,18 @@ class LegacyCurveActivity : ThemedActivity() {
                 if (isFinishing || isDestroyed || generation != refreshGeneration) return@runOnUiThread
                 bundle = result.getOrNull()
                 count.text = result.fold({ data ->
-                    if (data == null) "尚未导入 · 旧版曲线与原生可萃取曲线分开保存"
-                    else "旧版 ${data.curves.size} 条 · 只读，不参与机器控制"
-                }, { "旧版曲线读取失败：${it.message ?: it.javaClass.simpleName}" })
+                    if (data == null) getString(R.string.legacy_curve_not_imported)
+                    else getString(R.string.legacy_curve_count, data.curves.size.toString())
+                }, { getString(R.string.legacy_curve_read_error, it.message ?: it.javaClass.simpleName) })
                 adapter.clear()
                 adapter.addAll(bundle?.curves?.map { curve ->
                     val category = bundle?.categoryLabels?.get(curve.category)
-                        ?: curve.category.ifBlank { "未分类" }
-                    "${curve.index + 1}. ${curve.name} · $category · 仅浏览"
+                        ?: curve.category.ifBlank { getString(R.string.legacy_curve_uncategorized) }
+                    getString(R.string.legacy_curve_adapter_row, (curve.index + 1).toString(), curve.name, category)
                 } ?: emptyList())
-                emptyTitle.text = if (result.isFailure) "旧版曲线读取失败" else "尚无旧版曲线"
-                emptyMessage.text = if (result.isFailure) "读取失败，原有文件未修改。请返回后重试。"
-                    else "可从旧版 App 导出曲线文件后，在上方选择导入。"
+                emptyTitle.text = if (result.isFailure) getString(R.string.legacy_curve_failed) else getString(R.string.legacy_curve_empty_title)
+                emptyMessage.text = if (result.isFailure) getString(R.string.legacy_curve_failed_message)
+                    else getString(R.string.legacy_curve_empty_message)
                 emptyState.visibility = if (adapter.count == 0) View.VISIBLE else View.GONE
                 list.visibility = if (adapter.count == 0) View.GONE else View.VISIBLE
             }
