@@ -3,6 +3,26 @@ package io.openhoyi.session
 fun policyChecks():Int {
     var n=0
     fun case(name:String,f:()->Unit){f();n++;println("PASS $name")}
+    case("shared scale eligibility keeps signed bounds and exact freshness boundary") {
+        for(weight in listOf(-50_000,-34_400,0,600_000)) {
+            check(ScaleReadingPolicy.isFresh(weight,0,1500))
+            check(!ScaleReadingPolicy.isFresh(weight,0,1501))
+        }
+        for(weight in listOf(-50_001,600_001,Int.MIN_VALUE,Int.MAX_VALUE))
+            check(!ScaleReadingPolicy.isFresh(weight,1000,1000))
+        check(!ScaleReadingPolicy.isFresh(0,null,0))
+        check(!ScaleReadingPolicy.isFresh(0,-1,0))
+        check(!ScaleReadingPolicy.isFresh(0,1,0))
+        check(!ScaleReadingPolicy.isFresh(0,0,-1))
+        check(!ScaleReadingPolicy.isFresh(0,0,Long.MAX_VALUE))
+        check(ScaleReadingPolicy.isFresh(0,Long.MAX_VALUE,Long.MAX_VALUE))
+    }
+    case("invalid weights cannot refresh the target-stop health deadline") {
+        val p=ExtractionPolicy();p.begin(20,3400,0,0);p.confirmTare(20,0,100)
+        check(p.sample(20,WeightReading(600_001,1601),1601)==null)
+        check(p.sample(20,WeightReading(Int.MIN_VALUE,1602),1602)==null)
+        check(p.checkHealth(20,1602)==StopReason.SCALE_UNAVAILABLE)
+    }
     case("weight stop requires fresh post-tare sample and fires once") {
         val p=ExtractionPolicy();p.begin(1,3400,0,100)
         check(p.sample(1,WeightReading(3500,200),200)==null)

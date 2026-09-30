@@ -87,7 +87,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(targetHundredthsGram !in 0..600_000 || compensationHundredthsGram !in -10_000..10_000 || (targetHundredthsGram>0 && compensationHundredthsGram>=targetHundredthsGram))return false
         val now=clock();val sample=latest
         if(!coffee.ready || !scale.startAllowed)return false
-        if(targetHundredthsGram>0&&(!scale.ready||sample==null||sample.receivedAtMs>now||now-sample.receivedAtMs>1500))return false
+        if(targetHundredthsGram>0&&(!scale.ready||sample==null||!ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,now)))return false
         if(!coffee.prepareStart(parameters))return false
         val id=++serial
         clearStopIdleEvidence()
@@ -133,7 +133,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     }
     fun weight(reading:WeightReading) {
         val now=clock()
-        if(!scale.ready||reading.receivedAtMs>now||now-reading.receivedAtMs>1500||reading.hundredthsGram !in -50_000..600_000)return
+        if(!scale.ready||!ScaleReadingPolicy.isFresh(reading.hundredthsGram,reading.receivedAtMs,now))return
         if(latest!=null&&reading.receivedAtMs<=latest!!.receivedAtMs)return
         latest=reading
         val preparing=pendingStart

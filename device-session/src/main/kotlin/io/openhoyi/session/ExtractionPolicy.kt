@@ -31,13 +31,13 @@ class ExtractionPolicy(private val maxSampleAgeMs:Long=1500,private val minimumB
     }
     fun confirmTare(id:Long,baselineHundredthsGram:Int,atMs:Long) {
         if(shot!=id||stopIssued||baseline!=null||atMs<started)return
-        require(baselineHundredthsGram in -50_000..600_000)
+        require(ScaleReadingPolicy.supportedWeight(baselineHundredthsGram))
         baseline=baselineHundredthsGram;tareAt=atMs;lastWeightAt=atMs
     }
     fun sample(id:Long,reading:WeightReading,now:Long):StopReason? {
         if(shot!=id||stopIssued||target==0||baseline==null)return null
-        if(reading.hundredthsGram !in -50_000..600_000)return null
-        if(reading.receivedAtMs<=tareAt||reading.receivedAtMs>now||now-reading.receivedAtMs>maxSampleAgeMs)return null
+        if(!ScaleReadingPolicy.isFresh(reading.hundredthsGram,reading.receivedAtMs,now,maxSampleAgeMs))return null
+        if(reading.receivedAtMs<=tareAt)return null
         if(lastWeightAt!=null&&reading.receivedAtMs<=lastWeightAt!!)return null
         lastWeightAt=reading.receivedAtMs
         val net=reading.hundredthsGram.toLong()-baseline!!+compensation

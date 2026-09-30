@@ -18,6 +18,16 @@ class LiveTelemetryTest {
         assertNull(LiveTelemetry.machine(machine, DeviceState.FAILED, 2490, 2500))
     }
 
+    @Test fun unsupportedWeightAndNegativeTimestampAreNotLiveReadings() {
+        for(weight in listOf(-50_001,600_001,Int.MIN_VALUE,Int.MAX_VALUE))
+            assertNull(LiveTelemetry.scale(scale.copy(weightHundredthsGram=weight),DeviceState.READY,1000,1000))
+        assertNull(LiveTelemetry.scale(scale,DeviceState.READY,-1,0))
+        assertNull(LiveTelemetry.machine(machine,DeviceState.READY,-1,0))
+        for(weight in listOf(-50_000,-34_400,0,600_000)) {
+            val sample=scale.copy(weightHundredthsGram=weight)
+            assertSame(sample,LiveTelemetry.scale(sample,DeviceState.READY,1000,2500))
+        }
+    }
     @Test fun oldFutureAndDisconnectedScaleReadingsAreNotCurrent() {
         assertSame(scale, LiveTelemetry.scale(scale, DeviceState.READY, 1000, 2500))
         assertNull(LiveTelemetry.scale(scale, DeviceState.READY, 1000, 2501))

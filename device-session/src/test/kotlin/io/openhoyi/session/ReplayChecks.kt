@@ -9,20 +9,21 @@ fun replayChecks():Int {
         StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0))
     val lines=object{}.javaClass.getResourceAsStream("/shots.tsv")!!.bufferedReader().readLines().filter{!it.startsWith("#")}.map{it.split('\t')}
     repeat(3){ index->
-        var now=-2000L;var starts=0;var tares=0;val stops=mutableListOf<Long>()
+        val replayOrigin=10_000L
+        var now=replayOrigin-2000L;var starts=0;var tares=0;val stops=mutableListOf<Long>()
         val coffee=object:CoffeeControl {
             override val ready=true
             override fun prepareStart(parameters:StartParameters)=ready
     override fun startConditionsValid(parameters:StartParameters)=ready
     override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
-            override fun stop(done:(OperationResult)->Unit){stops+=now;done(OperationResult.Success())}
+            override fun stop(done:(OperationResult)->Unit){stops+=now-replayOrigin;done(OperationResult.Success())}
         }
         val scale=object:ScaleControl{override val startAllowed=true;override val ready=true;override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){if(beforeDispatch()){tares++;done(OperationResult.Success())}else done(OperationResult.Failed("guard rejected"))}}
         val controller=ExtractionController(coffee,scale,{now})
         var started=false
         for(row in lines.filter{it[0].toInt()==index+1}){
-            val at=row[1].toLong()
-            if(!started && at>=0){now=0;check(controller.start(profiles[index],listOf(2700,0,3400)[index],0));started=true}
+            val at=replayOrigin+row[1].toLong()
+            if(!started && at>=replayOrigin){now=replayOrigin;check(controller.start(profiles[index],listOf(2700,0,3400)[index],0));started=true}
             while(started&&now+50<at){now+=50;controller.tick()}
             now=at
             val bytes=row[4].chunked(2).map{it.toInt(16).toByte()}.toByteArray()

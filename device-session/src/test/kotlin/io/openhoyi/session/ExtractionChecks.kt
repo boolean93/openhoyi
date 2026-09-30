@@ -37,6 +37,13 @@ fun extractionChecks():Int {
             check(coffee.starts==0 && scale.tares==0 && c.state==ExtractionState.IDLE)
         }
     }
+    case("negative weight timestamp cannot prepare a weight shot") {
+        val coffee=CoffeeFake();val scale=ScaleFake()
+        val c=ExtractionController(coffee,scale,{0})
+        c.weight(WeightReading(0,-1))
+        check(!c.start(profile,3400,0))
+        check(coffee.starts==0 && scale.tares==0)
+    }
     case("weight shot tares before sending the machine start frame") {
         val coffee=CoffeeFake();val scale=ScaleFake();var now=0L
         val c=ExtractionController(coffee,scale,{now})

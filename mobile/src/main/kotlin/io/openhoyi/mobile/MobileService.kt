@@ -21,6 +21,7 @@ import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 import io.openhoyi.session.OperationResult
 import io.openhoyi.session.SettingsFreshness
+import io.openhoyi.session.ScaleReadingPolicy
 import io.openhoyi.session.SleepScheduleFreshness
 import io.openhoyi.trace.TraceStore
 import java.time.LocalDateTime
@@ -519,7 +520,9 @@ class MobileService : Service() {
                 },
                 onWeight = {
                     observeTare()
-                    snapshot = snapshot.copy(weight = it, weightAt = SystemClock.elapsedRealtime())
+                    val receivedAt = SystemClock.elapsedRealtime()
+                    if (ScaleReadingPolicy.isFresh(it.weightHundredthsGram, receivedAt, receivedAt))
+                        snapshot = snapshot.copy(weight = it, weightAt = receivedAt)
                 },
                 diagnostic = { detail ->
                     if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
