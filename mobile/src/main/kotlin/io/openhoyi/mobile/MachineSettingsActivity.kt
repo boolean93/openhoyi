@@ -118,9 +118,9 @@ class MachineSettingsActivity : ThemedActivity() {
         }
         scroll.addView(body)
         setContentView(root)
-        HoyiUi.header(this, body, "机器设置", "修改后等待机器回读确认")
-        text(body, if (BuildConfig.MOCK_MODE) "以下为模拟设置与睡眠计划；修改操作不会发送蓝牙命令。"
-            else "更改后等待机器回读确认；蓝牙写入成功不代表设置已生效。", 14)
+        HoyiUi.header(this, body, getString(R.string.machine_settings_title), getString(R.string.machine_settings_subtitle))
+        text(body, if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_mock_disclaimer)
+            else getString(R.string.machine_settings_real_disclaimer), 14)
         val overview = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val controlsPane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         if (HoyiUi.wide(this)) {
@@ -132,10 +132,10 @@ class MachineSettingsActivity : ThemedActivity() {
             body.addView(overview)
             body.addView(controlsPane)
         }
-        val summaryCard = card(overview, "连接状态")
-        connectionState = text(summaryCard, "未连接", 16)
-        val settingsCard = card(overview, "机器回读设置")
-        settingsOverview = text(settingsCard, "尚未收到机器设置", 14)
+        val summaryCard = card(overview, getString(R.string.machine_settings_connection_title))
+        connectionState = text(summaryCard, getString(R.string.machine_settings_disconnected), 16)
+        val settingsCard = card(overview, getString(R.string.machine_settings_readback_title))
+        settingsOverview = text(settingsCard, getString(R.string.machine_settings_readback_missing), 14)
         fun settingRow(first: String, second: String): Pair<TextView, TextView> {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             settingsCard.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
@@ -151,19 +151,19 @@ class MachineSettingsActivity : ThemedActivity() {
             }
             return tile(first) to tile(second)
         }
-        settingRow("萃取温度", "蒸汽温度").also {
+        settingRow(getString(R.string.machine_settings_brew_label), getString(R.string.machine_settings_steam_label)).also {
             brewTemperatureValue = it.first; steamTemperatureValue = it.second
         }
-        settingRow("运行模式", "供水方式").also {
+        settingRow(getString(R.string.machine_settings_run_mode_label), getString(R.string.machine_settings_supply_label)).also {
             runModeValue = it.first; supplyValue = it.second
         }
         settings = text(settingsCard, "", 14).apply {
             visibility = if (detailsExpanded) View.VISIBLE else View.GONE
         }
-        settingsToggle = action(settingsCard, if (detailsExpanded) "收起完整回读" else "查看完整回读") {
+        settingsToggle = action(settingsCard, if (detailsExpanded) getString(R.string.machine_settings_readback_collapse) else getString(R.string.machine_settings_readback_expand)) {
             detailsExpanded = !detailsExpanded
             settings.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
-            settingsToggle.text = if (detailsExpanded) "收起完整回读" else "查看完整回读"
+            settingsToggle.text = if (detailsExpanded) getString(R.string.machine_settings_readback_collapse) else getString(R.string.machine_settings_readback_expand)
         }
         val appInfo = card(overview, getString(R.string.application_info))
         text(appInfo, getString(R.string.app_name), 16, true)
@@ -173,8 +173,8 @@ class MachineSettingsActivity : ThemedActivity() {
             R.string.application_mode_mock else R.string.application_mode_alpha), 14)
         text(appInfo, getString(R.string.application_package, BuildConfig.APPLICATION_ID), 13)
             .setTextIsSelectable(true)
-        val writeCard = card(controlsPane, "设置反馈")
-        writeStatus = text(writeCard, "尚未修改机器设置", 14)
+        val writeCard = card(controlsPane, getString(R.string.machine_settings_feedback_title))
+        writeStatus = text(writeCard, getString(R.string.machine_settings_feedback_initial), 14)
         val tabsScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         controlsPane.addView(tabsScroll, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14) })
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -197,64 +197,64 @@ class MachineSettingsActivity : ThemedActivity() {
                 settingSections += this
             }
         }
-        val temperatureSection = section("温度")
-        val functionsSection = section("机器功能")
-        val standbySection = section("待机")
-        val sleepSection = section("每周计划")
-        val maintenanceSection = section("维护")
-        val controls = card(temperatureSection, "温度设置")
-        brewInput = temperatureInput(controls, "萃取设定温度（75–105 °C）")
-        controlButtons += action(controls, "设置萃取温度") {
+        val temperatureSection = section(getString(R.string.machine_settings_tab_temperature))
+        val functionsSection = section(getString(R.string.machine_settings_tab_functions))
+        val standbySection = section(getString(R.string.machine_settings_tab_standby))
+        val sleepSection = section(getString(R.string.machine_settings_tab_schedule))
+        val maintenanceSection = section(getString(R.string.machine_settings_tab_maintenance))
+        val controls = card(temperatureSection, getString(R.string.machine_settings_temperature_title))
+        brewInput = temperatureInput(controls, getString(R.string.machine_settings_brew_input))
+        controlButtons += action(controls, getString(R.string.machine_settings_brew_set)) {
             val c = brewInput.text.toString().toIntOrNull()
-            if (c == null || c !in 75..105) brewInput.error = "请输入 75–105"
+            if (c == null || c !in 75..105) brewInput.error = getString(R.string.machine_settings_brew_error)
             else confirm(MachineSettingChange.BrewTemperature(c))
         }
-        compensationInput = temperatureInput(controls, "冲泡温差补偿（0–5 °C）")
-        controlButtons += action(controls, "设置温差补偿") {
+        compensationInput = temperatureInput(controls, getString(R.string.machine_settings_compensation_input))
+        controlButtons += action(controls, getString(R.string.machine_settings_compensation_set)) {
             val c = compensationInput.text.toString().toIntOrNull()
-            if (c == null || c !in 0..5) compensationInput.error = "请输入 0–5"
+            if (c == null || c !in 0..5) compensationInput.error = getString(R.string.machine_settings_compensation_error)
             else confirm(MachineSettingChange.BrewCompensation(c))
         }
-        steamInput = temperatureInput(controls, "蒸汽设定温度（110–145 °C）")
-        controlButtons += action(controls, "设置蒸汽温度") {
+        steamInput = temperatureInput(controls, getString(R.string.machine_settings_steam_input))
+        controlButtons += action(controls, getString(R.string.machine_settings_steam_set)) {
             val c = steamInput.text.toString().toIntOrNull()
-            if (c == null || c !in 110..145) steamInput.error = "请输入 110–145"
+            if (c == null || c !in 110..145) steamInput.error = getString(R.string.machine_settings_steam_error)
             else confirm(MachineSettingChange.SteamTemperature(c))
         }
-        val functionsCard = card(functionsSection, "加热与机器功能")
-        brewHeatingButton = action(functionsCard, "切换萃取加热") {
+        val functionsCard = card(functionsSection, getString(R.string.machine_settings_functions_title))
+        brewHeatingButton = action(functionsCard, getString(R.string.machine_settings_brew_heating_toggle)) {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.BrewHeating(!it.brewHeating)) }
         }
-        steamHeatingButton = action(functionsCard, "切换蒸汽加热") {
+        steamHeatingButton = action(functionsCard, getString(R.string.machine_settings_steam_heating_toggle)) {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.SteamHeating(!it.steamHeating)) }
         }
-        lightButton = action(functionsCard, "切换照明") {
+        lightButton = action(functionsCard, getString(R.string.machine_settings_light_toggle)) {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.Light(it.flags and 0x08 == 0)) }
         }
-        waterSupplyButton = action(functionsCard, "切换供水方式") {
+        waterSupplyButton = action(functionsCard, getString(R.string.machine_settings_supply_toggle)) {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.WaterSupply(it.flags and 0x02 == 0)) }
         }
-        runModeButton = action(functionsCard, "切换运行模式") {
+        runModeButton = action(functionsCard, getString(R.string.machine_settings_run_mode_toggle)) {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.RunMode(it.flags and 0x04 == 0)) }
         }
         controlButtons += listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton)
-        val standbyCard = card(standbySection, "自动待机")
-        controlButtons += action(standbyCard, "设置自动待机时间") { chooseStandbyDelay() }
-        standbyTemperatureInput = temperatureInput(standbyCard, "待机温度（0–100 °C）")
-        controlButtons += action(standbyCard, "设置待机温度") {
+        val standbyCard = card(standbySection, getString(R.string.machine_settings_standby_title))
+        controlButtons += action(standbyCard, getString(R.string.machine_settings_standby_delay_set)) { chooseStandbyDelay() }
+        standbyTemperatureInput = temperatureInput(standbyCard, getString(R.string.machine_settings_standby_input))
+        controlButtons += action(standbyCard, getString(R.string.machine_settings_standby_set)) {
             val c = standbyTemperatureInput.text.toString().toIntOrNull()
-            if (c == null || c !in 0..100) standbyTemperatureInput.error = "请输入 0–100"
+            if (c == null || c !in 0..100) standbyTemperatureInput.error = getString(R.string.machine_settings_standby_error)
             else {
                 val minutes = service?.snapshot?.settings?.standbyMinutes
                 if (minutes == null || minutes !in listOf(0, 15, 30, 60, 120))
-                    Toast.makeText(this, "机器自动待机档位未知，暂不能修改温度", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.machine_settings_standby_unknown), Toast.LENGTH_SHORT).show()
                 else confirm(MachineSettingChange.StandbyTemperature(c, minutes))
             }
         }
-        val sleepCard = card(sleepSection, "每周睡眠计划")
-        schedule = text(sleepCard, "尚未收到睡眠计划", 16)
-        scheduleWriteStatus = text(sleepCard, "时间修改：尚未修改", 14)
-        sleepScheduleButton = action(sleepCard, "切换睡眠计划总开关") {
+        val sleepCard = card(sleepSection, getString(R.string.machine_settings_schedule_title))
+        schedule = text(sleepCard, getString(R.string.machine_settings_schedule_missing), 16)
+        scheduleWriteStatus = text(sleepCard, getString(R.string.machine_settings_schedule_initial), 14)
+        sleepScheduleButton = action(sleepCard, getString(R.string.machine_settings_schedule_toggle)) {
             service?.snapshot?.settings?.let {
                 confirm(MachineSettingChange.SleepScheduleEnabled(it.flags and 0x01 == 0))
             }
@@ -285,21 +285,21 @@ class MachineSettingsActivity : ThemedActivity() {
             if (days.size < scheduleColumns) row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
         }
         val scheduleEditor = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = android.view.View.GONE }
-        val scheduleToggle = action(sleepCard, "编辑每周时间") {}
+        val scheduleToggle = action(sleepCard, getString(R.string.machine_settings_schedule_edit)) {}
         scheduleToggle.setOnClickListener {
             scheduleEditor.visibility = if (scheduleEditor.visibility == android.view.View.GONE)
                 android.view.View.VISIBLE else android.view.View.GONE
             scheduleToggle.text = if (scheduleEditor.visibility == android.view.View.VISIBLE)
-                "收起每周编辑" else "编辑每周时间"
+                getString(R.string.machine_settings_schedule_collapse) else getString(R.string.machine_settings_schedule_edit)
         }
         sleepCard.addView(scheduleEditor)
-        listOf("周日", "周一", "周二", "周三", "周四", "周五", "周六").forEachIndexed { index, name ->
-            scheduleButtons += action(scheduleEditor, "编辑 $name 的睡眠/唤醒时间") { editScheduleDay(index, name) }
+        listOf(getString(R.string.machine_settings_sunday), getString(R.string.machine_settings_monday), getString(R.string.machine_settings_tuesday), getString(R.string.machine_settings_wednesday), getString(R.string.machine_settings_thursday), getString(R.string.machine_settings_friday), getString(R.string.machine_settings_saturday)).forEachIndexed { index, name ->
+            scheduleButtons += action(scheduleEditor, getString(R.string.machine_settings_edit_sleep_day, name)) { editScheduleDay(index, name) }
         }
         controlButtons += scheduleButtons
-        val cupCard = card(maintenanceSection, "累计杯数")
-        cupResetStatus = text(cupCard, "尚未重置", 14)
-        cupResetButton = action(cupCard, "重置累计杯数") { confirmCupReset() }
+        val cupCard = card(maintenanceSection, getString(R.string.machine_settings_cups_title))
+        cupResetStatus = text(cupCard, getString(R.string.machine_settings_cups_initial), 14)
+        cupResetButton = action(cupCard, getString(R.string.machine_settings_cups_reset)) { confirmCupReset() }
         showSettingsSection(selectedSettingsSection)
         render()
     }
