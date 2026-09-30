@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.StandaloneTare
 import android.app.*
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -55,7 +56,6 @@ class MobileService : Service() {
     private var passiveHistoryId: String? = null
     private var passiveMayClearRecovery = false
     val manualShotActive: Boolean get() = passiveShot.active
-    private val standaloneTare = StandaloneTare()
     private val shotRecovery by lazy {
         val prefs = getSharedPreferences("shot_safety", MODE_PRIVATE)
         ShotRecoveryState(object : ShotRecoveryState.Storage {
@@ -174,9 +174,8 @@ class MobileService : Service() {
         setOf(SleepScheduleWriteTracker.State.WRITING, SleepScheduleWriteTracker.State.WAITING_READBACK)
     private var firstSleepSerial = 0L
     private var secondSleepSerial = 0L
-    private var scaleSampleSerial = 0L
     val tareState: StandaloneTare.State get() = if (mock?.tareChanged == true)
-        StandaloneTare.State.CONFIRMED else standaloneTare.state
+        StandaloneTare.State.CONFIRMED else hub?.scaleTareState ?: StandaloneTare.State.IDLE
     val chartPoints: List<ShotPoint> get() = series.points
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
@@ -263,8 +262,22 @@ class MobileService : Service() {
     var activeShotTargetHundredthsGram: Int? = null; private set
     val stopReason: String? get() = hub?.extraction?.stopReason?.name
     val scalePreflight: Boolean get() = hub?.extraction?.preparingScale == true
+    val tareStartBlock: String? get() = when(tareState) {
+        StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO -> "正在等待电子秤去皮确认，暂不能开始萃取"
+        StandaloneTare.State.UNKNOWN -> "去皮结果未知，请重新去皮并确认归零后再开始"
+        else -> null
+    }
+    private var lastTareState = StandaloneTare.State.IDLE
+    private fun observeTare() {
+        val current = tareState
+        if(current == lastTareState) return
+        lastTareState = current
+        if(current == StandaloneTare.State.CONFIRMED) event("电子秤已归零", "scale.tare_confirmed")
+        if(current == StandaloneTare.State.UNKNOWN) event("去皮结果未知，请重新去皮并等待归零", "scale.tare_unknown")
+    }
     private val watchShot = object : Runnable {
         override fun run() {
+            observeTare()
             val current = shotState
             if (current != lastShotState) {
                 val previous = lastShotState
@@ -353,7 +366,6 @@ class MobileService : Service() {
                                 settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
                         else snapshot.copy(coffeeState = state)
                     } else if (state != DeviceState.READY) {
-                        standaloneTare.disconnected()
                         snapshot.copy(scaleState = state, weight = null, weightAt = null)
                     }
                     else snapshot.copy(scaleState = state)
@@ -506,10 +518,7 @@ class MobileService : Service() {
                     }
                 },
                 onWeight = {
-                    val before = standaloneTare.state
-                    standaloneTare.sample(++scaleSampleSerial, it.weightHundredthsGram)
-                    if (before != standaloneTare.state && standaloneTare.state == StandaloneTare.State.CONFIRMED)
-                        event("电子秤已归零", "scale.tare_confirmed")
+                    observeTare()
                     snapshot = snapshot.copy(weight = it, weightAt = SystemClock.elapsedRealtime())
                 },
                 diagnostic = { detail ->
@@ -660,22 +669,15 @@ class MobileService : Service() {
         val current = hub ?: return "设备服务尚未启动"
         if (ShotGate.active(shotState)) return "萃取期间不能手动去皮"
         if (snapshot.scaleState != DeviceState.READY) return "电子秤尚未就绪"
-        val token = standaloneTare.begin() ?: return "正在等待本次去皮结果"
-        event("电子秤去皮命令已排队", "scale.tare_requested")
-        current.tareScale done@{ result ->
-            if (!standaloneTare.written(token, result, scaleSampleSerial)) return@done
-            when (standaloneTare.state) {
-                StandaloneTare.State.WAITING_ZERO -> {
-                    event("去皮命令已写入，等待电子秤归零", "scale.tare_written")
-                    handler.postDelayed({
-                        val before = standaloneTare.state
-                        standaloneTare.timeout(token)
-                        if (before != standaloneTare.state) event("等待归零超时，去皮结果未知", "scale.tare_unknown")
-                    }, 5000)
-                }
-                StandaloneTare.State.FAILED -> event("去皮命令未写入", "scale.tare_failed")
-                StandaloneTare.State.UNKNOWN -> event("去皮结果未知", "scale.tare_unknown")
-                else -> Unit
+        if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
+            return "正在等待本次去皮结果"
+        event("请求电子秤去皮", "scale.tare_requested")
+        current.tareScale { result ->
+            lastTareState = tareState
+            when (tareState) {
+                StandaloneTare.State.WAITING_ZERO -> event("去皮命令已写入，等待电子秤归零", "scale.tare_written")
+                StandaloneTare.State.UNKNOWN -> event("去皮结果未知，请重新去皮并等待归零", "scale.tare_unknown")
+                else -> if (result !is OperationResult.Success) event("去皮命令未写入", "scale.tare_failed")
             }
         }
         return null
@@ -1133,6 +1135,7 @@ class MobileService : Service() {
             !brewPreparation.matches(profileId, selectedCurve(profileId, slot)?.temperatureC ?: -1))
             machineWriteSafetyMessage?.let { return it }
         if (shotRecovery.pending) return restartShotWarning
+        tareStartBlock?.let { return it }
         val current = hub ?: return "设备服务尚未启动"
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage

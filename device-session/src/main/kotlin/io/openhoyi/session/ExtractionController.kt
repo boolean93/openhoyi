@@ -13,7 +13,7 @@ interface CoffeeControl {
     fun start(parameters:StartParameters,done:(OperationResult)->Unit)
     fun stop(done:(OperationResult)->Unit)
 }
-interface ScaleControl {val ready:Boolean;fun tare(done:(OperationResult)->Unit)}
+interface ScaleControl {val ready:Boolean;val startAllowed:Boolean;fun tare(done:(OperationResult)->Unit)}
 class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     init{require(session.role==DeviceRole.COFFEE)}
     private data class StopOwner(val address:String,val slot:Int)
@@ -43,7 +43,8 @@ class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
         session.stopExtraction(owner.slot,owner.address,done)
     }
 }
-class ScaleSessionControl(private val session:DeviceSession):ScaleControl {
+class ScaleSessionControl(private val session:DeviceSession,private val allowStart:()->Boolean):ScaleControl {
+    override val startAllowed get()=allowStart()
     init{require(session.role==DeviceRole.BOOKOO)}
     override val ready get()=session.state==DeviceState.READY
     override fun tare(done:(OperationResult)->Unit)=session.tare(done)
@@ -76,7 +77,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(runCatching { CoffeeCommands.start(parameters) }.isFailure)return false
         if(targetHundredthsGram !in 0..600_000 || compensationHundredthsGram !in -10_000..10_000 || (targetHundredthsGram>0 && compensationHundredthsGram>=targetHundredthsGram))return false
         val now=clock();val sample=latest
-        if(!coffee.ready)return false
+        if(!coffee.ready || !scale.startAllowed)return false
         if(targetHundredthsGram>0&&(!scale.ready||sample==null||sample.receivedAtMs>now||now-sample.receivedAtMs>1500))return false
         if(!coffee.prepareStart(parameters))return false
         val id=++serial

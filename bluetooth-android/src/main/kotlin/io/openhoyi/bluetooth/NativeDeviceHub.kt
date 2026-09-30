@@ -21,6 +21,9 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     private var candidate:String?=null
     private var automaticScaleAttempts=0
     private var closed=false
+    private val standaloneTare=StandaloneTare { SystemClock.elapsedRealtime() }
+    private var scaleSampleSerial=0L
+    val scaleTareState get()=standaloneTare.state
     private val reconnect=ReconnectPolicy()
     val scanner=ScanCoordinator(context)
     private val coffee:AndroidDevice=AndroidDevice(context,DeviceRole.COFFEE,
@@ -29,18 +32,20 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames)
     private val scale:AndroidDevice=AndroidDevice(context,DeviceRole.BOOKOO,
         stateChanged={state->
+            if(state!=DeviceState.READY){standaloneTare.disconnected()}
             if(state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED))extraction.scaleDisconnected()
             if(state==DeviceState.READY)candidate?.let{remembered=it;onScaleRemembered(it)}
             onState(DeviceRole.BOOKOO,state)
-        },weightFrame={sample,time->extraction.weight(WeightReading(sample.weightHundredthsGram,time));onWeight(sample)},diagnostic=diagnostic,trace={trace(DeviceRole.BOOKOO,it)})
+        },weightFrame={sample,time->standaloneTare.sample(++scaleSampleSerial,sample.weightHundredthsGram);extraction.weight(WeightReading(sample.weightHundredthsGram,time));onWeight(sample)},diagnostic=diagnostic,trace={trace(DeviceRole.BOOKOO,it)})
     private val coffeeControl=CoffeeSessionControl(coffee.session)
-    val extraction:ExtractionController=ExtractionController(coffeeControl,ScaleSessionControl(scale.session),{SystemClock.elapsedRealtime()})
+    val extraction:ExtractionController=ExtractionController(coffeeControl,ScaleSessionControl(scale.session,{!standaloneTare.unresolved}),{SystemClock.elapsedRealtime()})
     val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }
     private val ticker=object:Runnable {
         override fun run(){
             if(closed)return
             extraction.tick()
             val now=SystemClock.elapsedRealtime()
+            standaloneTare.tick()
             // Poll the terminal state after connectScale returns: DeviceSession.connect emits a
             // synchronous DISCONNECTED reset before CONNECTING, which is not a failed attempt.
             reconnect.observeScaleState(now,scale.session.state)
@@ -87,7 +92,19 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         usable();check(DeviceConnectionGate.mayDisconnect(extraction.state)){"unsettled extraction: disconnect blocked"}
         reconnect.manualDisconnect();scale.session.disconnect()
     }
-    fun tareScale(done:(OperationResult)->Unit){usable();scale.session.tare(done)}
+    fun tareScale(done:(OperationResult)->Unit){
+        usable()
+        if(!DeviceConnectionGate.mayChangeScale(extraction.state)){
+            done(OperationResult.Failed("unsettled extraction: manual tare blocked"));return
+        }
+        if(scale.session.state!=DeviceState.READY){done(OperationResult.Failed("scale not ready"));return}
+        val token=standaloneTare.begin()
+        if(token==null){done(OperationResult.Failed("tare already pending"));return}
+        scale.session.tare { result->
+            standaloneTare.written(token,result,scaleSampleSerial)
+            done(result)
+        }
+    }
     fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit){
         usable()
         if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,

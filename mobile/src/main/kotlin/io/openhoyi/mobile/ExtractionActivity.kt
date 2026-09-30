@@ -201,7 +201,7 @@ class ExtractionActivity : ThemedActivity() {
         val owner = service ?: return
         val library = (application as MobileApplication).curves
         val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
-        val blocked = ShotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
+        val blocked = owner.tareStartBlock ?: ShotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
             owner.snapshot.weightAt, SystemClock.elapsedRealtime(), owner.shotState,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) { toast(blocked); render(); return }
@@ -246,7 +246,7 @@ class ExtractionActivity : ThemedActivity() {
         val profile = item?.let { library.resolve(it.id, snapshot.scaleState == DeviceState.READY, presetSlot) }
         val blocked = if (owner?.manualShotActive == true) "机器手动萃取中，请使用机器拨杆停止；App 只记录数据"
             else if (item != null && profile == null) "这条曲线未通过报文校验，暂不可萃取"
-            else ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
+            else owner?.tareStartBlock ?: ShotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
                 snapshot.weightAt, SystemClock.elapsedRealtime(), state,
                 validated = profile?.let(library::validated) == true)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)

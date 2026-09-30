@@ -655,6 +655,7 @@ fun deviceChecks():Int {
             receive("830113FD5C007D0F350019006E")
             receive("4000238C2F1C770B00000000000000190321AF")
             val scale=object:ScaleControl {
+                override val startAllowed=true
                 override val ready=true
                 override fun tare(done:(OperationResult)->Unit){done(OperationResult.Success())}
             }

@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.StandaloneTare
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog

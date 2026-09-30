@@ -17,7 +17,7 @@ fun replayChecks():Int {
     override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
             override fun stop(done:(OperationResult)->Unit){stops+=now;done(OperationResult.Success())}
         }
-        val scale=object:ScaleControl{override val ready=true;override fun tare(done:(OperationResult)->Unit){tares++;done(OperationResult.Success())}}
+        val scale=object:ScaleControl{override val startAllowed=true;override val ready=true;override fun tare(done:(OperationResult)->Unit){tares++;done(OperationResult.Success())}}
         val controller=ExtractionController(coffee,scale,{now})
         var started=false
         for(row in lines.filter{it[0].toInt()==index+1}){

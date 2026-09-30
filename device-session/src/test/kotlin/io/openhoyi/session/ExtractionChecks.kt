@@ -8,7 +8,7 @@ private class CoffeeFake:CoffeeControl {
     override fun stop(done:(OperationResult)->Unit){stops++;done(OperationResult.Success())}
 }
 private class ScaleFake:ScaleControl {
-    override var ready=true;var tares=0
+    override var ready=true;override var startAllowed=true;var tares=0
     override fun tare(done:(OperationResult)->Unit){tares++;done(OperationResult.Success())}
 }
 private class UnknownStartCoffee:CoffeeControl {
@@ -28,6 +28,15 @@ private val profile=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,
 fun extractionChecks():Int {
     var count=0
     fun case(name:String,f:()->Unit){f();count++;println("PASS $name")}
+    case("unresolved standalone tare blocks weight and flow starts") {
+        for (target in listOf(0,3400)) {
+            val coffee=CoffeeFake();val scale=ScaleFake();scale.startAllowed=false
+            val c=ExtractionController(coffee,scale,{0})
+            c.weight(WeightReading(0,0))
+            check(!c.start(profile,target,0))
+            check(coffee.starts==0 && scale.tares==0 && c.state==ExtractionState.IDLE)
+        }
+    }
     case("weight shot tares before sending the machine start frame") {
         val coffee=CoffeeFake();val scale=ScaleFake();var now=0L
         val c=ExtractionController(coffee,scale,{now})
@@ -63,6 +72,7 @@ fun extractionChecks():Int {
         val coffee=CoffeeFake();var callback:((OperationResult)->Unit)?=null;var now=0L
         val scale=object:ScaleControl {
             override val ready=true
+            override val startAllowed=true
             override fun tare(done:(OperationResult)->Unit){callback=done}
         }
         val c=ExtractionController(coffee,scale,{now})
