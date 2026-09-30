@@ -188,10 +188,18 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         return role==DeviceRole.COFFEE && state==DeviceState.READY && observedAt<=now &&
             now-observedAt<=1500 && idle.sleepStateRaw==0
     }
+    private fun canStartExtraction(parameters:StartParameters):Boolean {
+        if(!canControlWithFreshSettings()) return false
+        val settings=lastSettings ?: return false
+        if(settings.flags and 0x04 == 0) return true
+        val idle=lastIdle ?: return false
+        return BrewTemperaturePolicy.isAtTarget(BrewTemperaturePolicy.correctedTemperature(
+            idle.brewTemperatureHundredthsC,settings.brewCompensationTenthsC),parameters.temperatureC)
+    }
     fun startExtraction(parameters:StartParameters,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) { callback(OperationResult.Failed("weekly sleep write active")); return }
-        if (!canControlWithFreshSettings()) {
-            callback(OperationResult.Failed("fresh awake idle and settings telemetry required")); return
+        if (!canStartExtraction(parameters)) {
+            callback(OperationResult.Failed("fresh awake idle settings and studio target temperature required")); return
         }
         // Product host supplies only frames checked against the extracted legacy encoder.
         val command=CoffeeCommands.start(parameters)
@@ -199,7 +207,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(command.frame.hex() !in allowed && command.frame.hex() !in additionalStartFrames){
             callback(OperationResult.Failed("curve outside validated profile set"));return
         }
-        send(command,DeviceRole.COFFEE,beforeDispatch=::canControlWithFreshSettings,callback=callback)
+        val submittedMode=lastSettings?.flags?.and(0x04)
+        send(command,DeviceRole.COFFEE,beforeDispatch={canStartExtraction(parameters) &&
+            lastSettings?.flags?.and(0x04) == submittedMode},callback=callback)
     }
     fun stopExtraction(slot:Int=7,callback:(OperationResult)->Unit) {
         require(slot in 1..5 || slot == 7)
@@ -219,13 +229,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
         send(command,DeviceRole.COFFEE,beforeDispatch=::canControlFromIdle,callback=callback)
     }
-    private fun sendWithFreshSettings(command:EncodedCommand,callback:(OperationResult)->Unit) {
-        if (!canControlWithFreshSettings()) {
-            callback(OperationResult.Failed("fresh awake idle and settings telemetry required"))
-            return
-        }
-        send(command,DeviceRole.COFFEE,beforeDispatch=::canControlWithFreshSettings,callback=callback)
-    }
+    private fun canStartPreheat():Boolean =
+        canControlWithFreshSettings() && lastSettings?.flags?.and(0x04) == 0x04
     private fun canWriteSetting(change: MachineSettingChange): Boolean =
         canControlWithFreshSettings() && when(change) {
             is MachineSettingChange.StandbyDelay -> lastSettings?.standbyTemperatureC == change.temperatureC
@@ -296,7 +301,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             else send(CoffeeCommands.brewWait(0),DeviceRole.COFFEE,
                 beforeDispatch=::canCancelBrewWait,callback=callback)
         }
-        else sendWithFreshSettings(CoffeeCommands.brewWait(targetC),callback)
+        else if (!canStartPreheat())
+            callback(OperationResult.Failed("fresh awake idle and studio settings required for preheat"))
+        else send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,
+            beforeDispatch=::canStartPreheat,callback=callback)
     }
     fun disconnect(){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
     private fun fail(reason:String){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}

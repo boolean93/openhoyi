@@ -199,7 +199,7 @@ fun deviceChecks():Int {
         complete();complete()
         s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("830113FD5C007D0F350019006E"))
         check(s.state==DeviceState.READY)
-        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400024BF2F1C770B00000000000000190321AF"))
+        s.onNotification(s.generation,KnownGatt.coffeeNotify,hex("400023F02F1C770B00000000000000190321AF"))
         var result:OperationResult?=null
         val control=CoffeeSessionControl(s)
         control.start(profile){result=it}
@@ -234,6 +234,7 @@ fun deviceChecks():Int {
         }
         fun idle(sleep:Int=0,alarm:Int=0) {
             val b=hex("400024BF2F1C770B00000000000000190321AF")
+            b[2]=0x23;b[3]=0x8C.toByte()
             b[8]=sleep.toByte();b[12]=(alarm shr 8).toByte();b[13]=alarm.toByte()
             s.onNotification(s.generation,KnownGatt.coffeeNotify,b)
         }
@@ -546,6 +547,96 @@ fun deviceChecks():Int {
                 now+=500;s.tick();check(d.calls.size==sent)
             }
         }
+    }
+    case("positive preheat requires studio mode at submission and dispatch") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        fun receive(value:String)=s.onNotification(s.generation,KnownGatt.coffeeNotify,hex(value))
+        receive("830113FD5C007D0F350019006E")
+        receive("400024BF2F1C770B00000000000000190321AF")
+        s.writeSetting(MachineSettingChange.Light(true)){}
+        val submitted=d.calls.size
+        var result:OperationResult?=null
+        s.setBrewWait(92){result=it}
+        check(result==null && d.calls.size==submitted)
+        receive("830113F95C007D0F350019006E")
+        complete()
+        check(result is OperationResult.Failed && d.calls.size==submitted)
+        result=null
+        s.setBrewWait(92){result=it}
+        check(result is OperationResult.Failed && d.calls.size==submitted)
+        result=null
+        s.setBrewWait(0){result=it}
+        check(result==null && d.calls.size==submitted+1)
+        complete()
+        receive("830113FD5C007D0F350019006E")
+        result=null
+        s.setBrewWait(92){result=it}
+        check(result==null && d.calls.size==submitted+2)
+        complete();check(result is OperationResult.Success)
+    }
+    case("studio start checks corrected temperature and queued mode before dispatch") {
+        val d=SessionDriver();val s=DeviceSession(DeviceRole.COFFEE,d,{0})
+        val profile=StartParameters(false,false,2,7,91,108,false,0,90,65,0,0,350,22,170,0,0)
+        s.connect("device",CoffeeAuthentication(LocalDateTime.of(2026,9,20,12,0),"123456"))
+        fun complete(){val(g,t,_)=d.calls.last();s.onComplete(g,t,OperationResult.Success())}
+        complete()
+        val(g,t,_)=d.calls.last()
+        s.onComplete(g,t,OperationResult.Success(listOf(
+            CharacteristicInfo(KnownGatt.coffeeWrite,true,false,false,false),
+            CharacteristicInfo(KnownGatt.coffeeNotify,false,false,true,false))))
+        complete();complete()
+        fun receive(value:String)=s.onNotification(s.generation,KnownGatt.coffeeNotify,hex(value))
+        receive("830113FD5C007D0F350019006E")
+        receive("400024BF2F1C770B00000000000000190321AF")
+        val before=d.calls.size
+        var result:OperationResult?=null
+        s.startExtraction(profile){result=it}
+        check(result is OperationResult.Failed && d.calls.size==before)
+        fun warm()=receive("4000238C2F1C770B00000000000000190321AF")
+        warm()
+        for(modeChange in 0..2) {
+            receive(if(modeChange==2) "830113F95C007D0F350019006E" else "830113FD5C007D0F350019006E");warm()
+            s.writeSetting(MachineSettingChange.Light(true)){}
+            val queued=d.calls.size
+            result=null
+            s.startExtraction(profile){result=it}
+            check(result==null && d.calls.size==queued)
+            if(modeChange==1) receive("830113F95C007D0F350019006E")
+            else if(modeChange==2) receive("830113FD5C007D0F350019006E")
+            else receive("400022C42F1C770B00000000000000190321AF")
+            complete()
+            check(result is OperationResult.Failed && d.calls.size==queued)
+        }
+        // Compensation is subtracted in tenths of a degree, never added or ignored.
+        receive("830113FD5C147D0F350019006E");warm()
+        val calls=d.calls.size
+        s.startExtraction(profile){result=it}
+        check(result is OperationResult.Failed && d.calls.size==calls)
+        receive("400024542F1C770B00000000000000190321AF")
+        result=null;s.startExtraction(profile){result=it}
+        check(result==null && d.calls.size==calls+1)
+        complete()
+        receive("830113F95C007D0F350019006E")
+        receive("400022C42F1C770B00000000000000190321AF")
+        result=null;s.startExtraction(profile){result=it}
+        check(result==null && d.calls.size==calls+2)
+        complete();check(result is OperationResult.Success)
+    }
+    case("shared brew target includes one-degree boundary and subtracts compensation") {
+        check(BrewTemperaturePolicy.correctedTemperature(9300,20)==9100)
+        check(BrewTemperaturePolicy.isAtTarget(9000,91))
+        check(BrewTemperaturePolicy.isAtTarget(9200,91))
+        check(!BrewTemperaturePolicy.isAtTarget(8999,91))
+        check(!BrewTemperaturePolicy.isAtTarget(9201,91))
+        check(!BrewTemperaturePolicy.isAtTarget(Int.MIN_VALUE,Int.MAX_VALUE))
     }
     case("settings freshness rejects missing future and negative timestamps") {
         check(!SettingsFreshness.isFresh(null,180_000))

@@ -1,7 +1,7 @@
 package io.openhoyi.mobile
 
 import io.openhoyi.session.OperationResult
-import kotlin.math.abs
+import io.openhoyi.session.BrewTemperaturePolicy
 
 /** Studio preheat: transport result and post-write temperature evidence remain separate. */
 class BrewPreparation {
@@ -95,8 +95,8 @@ class BrewPreparation {
 
     companion object {
         fun correctedTemperature(rawHundredthsC: Int, compensationTenthsC: Int): Int =
-            rawHundredthsC - compensationTenthsC * 10
+            BrewTemperaturePolicy.correctedTemperature(rawHundredthsC, compensationTenthsC)
         fun isAtTarget(correctedHundredthsC: Int, targetC: Int): Boolean =
-            abs(correctedHundredthsC - targetC * 100) <= 100
+            BrewTemperaturePolicy.isAtTarget(correctedHundredthsC, targetC)
     }
 }
