@@ -344,15 +344,15 @@ class MachineSettingsActivity : ThemedActivity() {
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val ready = snapshot.coffeeState == DeviceState.READY
-        connectionState.update(if (BuildConfig.MOCK_MODE) "Mock 模拟设备 · 无蓝牙连接" else
+        connectionState.update(if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_mock_connection) else
             "${DeviceStatusText.label(snapshot.coffeeState)}${if (ready) " · 已认证" else " · 数据不可视为当前生效配置"}")
         val reported = snapshot.settings
-        settingsOverview.update(if (reported == null) "尚未收到机器设置" else
-            "${if (ready && owner?.machineSettingsFresh == true) "当前回读" else "回读已过期"} · 自动待机 ${if (reported.standbyMinutes == 0) "永不" else "${reported.standbyMinutes} 分钟"} · 累计 ${reported.cupCount} 杯")
+        settingsOverview.update(if (reported == null) getString(R.string.machine_settings_readback_missing) else
+            "${if (ready && owner?.machineSettingsFresh == true) "当前回读" else "回读已过期"} · 自动待机 ${if (reported.standbyMinutes == 0) getString(R.string.machine_settings_standby_never) else "${reported.standbyMinutes} 分钟"} · 累计 ${reported.cupCount} 杯")
         brewTemperatureValue.update(reported?.let { "${it.brewTemperatureC} °C" } ?: "—")
         steamTemperatureValue.update(reported?.let { "${it.steamTemperatureC} °C" } ?: "—")
-        runModeValue.update(reported?.let { if (it.flags and 0x04 != 0) "工作室" else "咖啡馆" } ?: "—")
-        supplyValue.update(reported?.let { if (it.flags and 0x02 != 0) "外接水管" else "水箱" } ?: "—")
+        runModeValue.update(reported?.let { if (it.flags and 0x04 != 0) getString(R.string.setting_run_studio) else getString(R.string.setting_run_cafe) } ?: "—")
+        supplyValue.update(reported?.let { if (it.flags and 0x02 != 0) getString(R.string.setting_water_piped) else getString(R.string.setting_water_tank) } ?: "—")
         if (ready && reported != null) {
             prefill(brewInput, reported.brewTemperatureC)
             prefill(steamInput, reported.steamTemperatureC)
@@ -365,11 +365,11 @@ class MachineSettingsActivity : ThemedActivity() {
         settingsToggle.visibility = if (reported == null) View.GONE else View.VISIBLE
         settings.visibility = if (reported != null && detailsExpanded) View.VISIBLE else View.GONE
         schedule.update(when {
-            snapshot.sleepFirst == null && snapshot.sleepSecond == null -> "尚未收到睡眠计划"
+            snapshot.sleepFirst == null && snapshot.sleepSecond == null -> getString(R.string.machine_settings_schedule_missing)
             WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond) == null ->
-                "计划回读不完整或异常；请核对机器，未知内容已标出"
-            owner?.sleepScheduleFresh != true -> "整周计划回报已过期或两段尚未配齐"
-            else -> "整周计划已回读 · 周日到周六"
+                getString(R.string.machine_settings_schedule_incomplete)
+            owner?.sleepScheduleFresh != true -> getString(R.string.machine_settings_schedule_stale)
+            else -> getString(R.string.machine_settings_schedule_current)
         })
         scheduleGrid.visibility = if (snapshot.sleepFirst == null && snapshot.sleepSecond == null) View.GONE else View.VISIBLE
         MachineSettingsPresentation.scheduleDaySummaries(snapshot.sleepFirst, snapshot.sleepSecond)
@@ -379,35 +379,35 @@ class MachineSettingsActivity : ThemedActivity() {
                     R.color.mobile_accent else R.color.mobile_text))
                 scheduleCards[index].period.update(day.period)
             }
-        scheduleWriteStatus.update("时间修改：" + when (owner?.scheduleWriteState) {
-            SleepScheduleWriteTracker.State.WRITING -> "正在顺序写入两包计划"
-            SleepScheduleWriteTracker.State.WAITING_READBACK -> "已写入，等待两段机器回报"
-            SleepScheduleWriteTracker.State.CONFIRMED -> "整周回读已确认"
-            SleepScheduleWriteTracker.State.FAILED -> "首包写入失败"
-            SleepScheduleWriteTracker.State.UNKNOWN -> "结果未知，请核对机器上的整周计划"
-            SleepScheduleWriteTracker.State.RECONCILED -> "已重新读取整周计划，请核对后再编辑"
-            else -> "尚未修改"
+        scheduleWriteStatus.update(getString(R.string.machine_settings_schedule_status_prefix) + when (owner?.scheduleWriteState) {
+            SleepScheduleWriteTracker.State.WRITING -> getString(R.string.machine_settings_schedule_writing)
+            SleepScheduleWriteTracker.State.WAITING_READBACK -> getString(R.string.machine_settings_schedule_waiting)
+            SleepScheduleWriteTracker.State.CONFIRMED -> getString(R.string.machine_settings_schedule_confirmed)
+            SleepScheduleWriteTracker.State.FAILED -> getString(R.string.machine_settings_schedule_failed)
+            SleepScheduleWriteTracker.State.UNKNOWN -> getString(R.string.machine_settings_schedule_unknown)
+            SleepScheduleWriteTracker.State.RECONCILED -> getString(R.string.machine_settings_schedule_reconciled)
+            else -> getString(R.string.machine_settings_unchanged)
         })
         val pending = owner?.settingWriteState ?: SettingsWriteTracker.State.IDLE
-        cupResetStatus.update("重置状态：" + when (owner?.cupResetState) {
-            CupResetTracker.State.WRITING -> "正在写入命令"
-            CupResetTracker.State.WAITING_ZERO -> "已写入，等待机器回报 0 杯"
-            CupResetTracker.State.CONFIRMED -> "机器已回报 0 杯"
-            CupResetTracker.State.FAILED -> "命令未写入"
-            CupResetTracker.State.UNKNOWN -> "结果未知，请查看机器杯数"
-            CupResetTracker.State.RECONCILED -> "已重新回读杯数；上次重置未获确认"
-            else -> "尚未重置"
+        cupResetStatus.update(getString(R.string.machine_settings_cup_status_prefix) + when (owner?.cupResetState) {
+            CupResetTracker.State.WRITING -> getString(R.string.machine_settings_cup_writing)
+            CupResetTracker.State.WAITING_ZERO -> getString(R.string.machine_settings_cup_waiting)
+            CupResetTracker.State.CONFIRMED -> getString(R.string.machine_settings_cup_confirmed)
+            CupResetTracker.State.FAILED -> getString(R.string.machine_settings_cup_failed)
+            CupResetTracker.State.UNKNOWN -> getString(R.string.machine_settings_cup_unknown)
+            CupResetTracker.State.RECONCILED -> getString(R.string.machine_settings_cup_reconciled)
+            else -> getString(R.string.machine_settings_cups_initial)
         })
         writeStatus.update(if (owner?.pendingSetting == null && pending == SettingsWriteTracker.State.IDLE)
-            "尚未修改机器设置" else "${owner?.pendingSetting?.let(MachineSettingsPresentation::change) ?: "设置"} · " +
+            getString(R.string.machine_settings_feedback_initial) else "${owner?.pendingSetting?.let(MachineSettingsPresentation::change) ?: "设置"} · " +
             when (pending) {
-                SettingsWriteTracker.State.IDLE -> "尚未修改"
-                SettingsWriteTracker.State.WRITING -> "正在写入"
-                SettingsWriteTracker.State.WAITING_READBACK -> "已写入，等待机器回读"
-                SettingsWriteTracker.State.CONFIRMED -> "机器回读已确认"
-                SettingsWriteTracker.State.FAILED -> "写入失败"
-                SettingsWriteTracker.State.UNKNOWN -> "结果未知，请查看机器"
-                SettingsWriteTracker.State.RECONCILED -> "已重新回读，请核对后再修改"
+                SettingsWriteTracker.State.IDLE -> getString(R.string.machine_settings_unchanged)
+                SettingsWriteTracker.State.WRITING -> getString(R.string.machine_settings_setting_writing)
+                SettingsWriteTracker.State.WAITING_READBACK -> getString(R.string.machine_settings_setting_waiting)
+                SettingsWriteTracker.State.CONFIRMED -> getString(R.string.machine_settings_setting_confirmed)
+                SettingsWriteTracker.State.FAILED -> getString(R.string.machine_settings_setting_failed)
+                SettingsWriteTracker.State.UNKNOWN -> getString(R.string.machine_settings_setting_unknown)
+                SettingsWriteTracker.State.RECONCILED -> getString(R.string.machine_settings_setting_reconciled)
             })
         val idle = snapshot.coffee as? io.openhoyi.protocol.IdleTelemetry
         val now = android.os.SystemClock.elapsedRealtime()
@@ -458,70 +458,70 @@ class MachineSettingsActivity : ThemedActivity() {
     }
     private fun confirm(change: MachineSettingChange) {
         if (BuildConfig.MOCK_MODE) {
-            AlertDialog.Builder(this).setTitle("模拟设置确认")
-                .setMessage("${MachineSettingsPresentation.change(change)}\n仅检查界面流程；模拟值保持不变，不发送蓝牙命令。")
-                .setPositiveButton("完成", null).show()
+            AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_mock_confirm_title))
+                .setMessage(getString(R.string.machine_settings_mock_confirm_message, MachineSettingsPresentation.change(change)))
+                .setPositiveButton(getString(R.string.machine_settings_done), null).show()
             return
         }
-        AlertDialog.Builder(this).setTitle("确认修改机器设置")
+        AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_confirm_title))
             .setMessage(MachineSettingsPresentation.change(change) +
                 if (change is MachineSettingChange.WaterSupply)
-                    "\n请先核对机器实际进水方式；设置错误可能导致缺水。写入后等待机器回读确认。"
+                    ("\n" + getString(R.string.machine_settings_water_warning))
                 else if (change is MachineSettingChange.RunMode)
-                    "\n工作室模式下，曲线温度未到达目标时需先预热，达到后才能启动萃取。写入后等待机器回读确认。"
+                    ("\n" + getString(R.string.machine_settings_run_warning))
                 else if (change is MachineSettingChange.BrewCompensation)
-                    "\n此值会影响显示的冲泡温度和工作室模式的预热判断。写入后等待机器回读确认。"
-                else "\n写入后需等待机器回读确认。")
-            .setPositiveButton("发送") { _, _ ->
+                    ("\n" + getString(R.string.machine_settings_compensation_warning))
+                else ("\n" + getString(R.string.machine_settings_readback_warning)))
+            .setPositiveButton(getString(R.string.machine_settings_send)) { _, _ ->
                 service?.changeMachineSetting(change)?.let {
                     Toast.makeText(this, it, Toast.LENGTH_SHORT).show()
                 }
                 render()
             }
-            .setNegativeButton("取消", null).show()
+            .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
     }
     private fun confirmCupReset() {
         if (BuildConfig.MOCK_MODE) {
-            Toast.makeText(this, "Mock 版本不重置机器杯数", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.machine_settings_mock_cup_unavailable), Toast.LENGTH_SHORT).show()
             return
         }
         val expected = service?.snapshot?.settings?.cupCount ?: return
         val input = EditText(this).apply {
-            hint = "输入当前杯数 $expected"
+            hint = getString(R.string.machine_settings_cup_input_hint, expected.toString())
             inputType = InputType.TYPE_CLASS_NUMBER
             setPadding(dp(20), dp(8), dp(20), dp(8))
         }
-        val dialog = AlertDialog.Builder(this).setTitle("核对累计杯数")
-            .setMessage("请输入机器当前累计杯数。重置后无法恢复。")
-            .setView(input).setPositiveButton("下一步", null).setNegativeButton("取消", null).create()
+        val dialog = AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_cup_check_title))
+            .setMessage(getString(R.string.machine_settings_cup_check_message))
+            .setView(input).setPositiveButton(getString(R.string.machine_settings_next), null).setNegativeButton(getString(R.string.machine_settings_cancel), null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 if (input.text.toString().toIntOrNull() != expected) {
-                    input.error = "请输入 $expected"
+                    input.error = getString(R.string.machine_settings_cup_input_error, expected.toString())
                     return@setOnClickListener
                 }
                 dialog.dismiss()
-                AlertDialog.Builder(this).setTitle("确认重置累计杯数")
-                    .setMessage("机器当前回报 $expected 杯。发送后杯数将归零，无法撤销。只有机器重新回报 0 杯才会显示成功。")
-                    .setPositiveButton("发送重置命令") { _, _ ->
+                AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_cup_confirm_title))
+                    .setMessage(getString(R.string.machine_settings_cup_confirm_message, expected.toString()))
+                    .setPositiveButton(getString(R.string.machine_settings_cup_send)) { _, _ ->
                         service?.resetCupCount(expected)?.let {
                             Toast.makeText(this, it, Toast.LENGTH_LONG).show()
                         }
                         render()
-                    }.setNegativeButton("取消", null).show()
+                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
             }
         }
         dialog.show()
     }
     private fun chooseStandbyDelay() {
         val values = listOf(15, 30, 60, 120, 0)
-        val labels = arrayOf("15 分钟", "30 分钟", "1 小时", "2 小时", "永不")
-        AlertDialog.Builder(this).setTitle("自动待机时间")
+        val labels = arrayOf(getString(R.string.machine_settings_standby_15), getString(R.string.machine_settings_standby_30), getString(R.string.machine_settings_standby_60), getString(R.string.machine_settings_standby_120), getString(R.string.machine_settings_standby_never))
+        AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_standby_delay_title))
             .setItems(labels) { _, index ->
                 val temperature = service?.snapshot?.settings?.standbyTemperatureC
-                if (temperature == null) Toast.makeText(this, "尚未收到机器设置", Toast.LENGTH_SHORT).show()
+                if (temperature == null) Toast.makeText(this, getString(R.string.machine_settings_readback_missing), Toast.LENGTH_SHORT).show()
                 else if (temperature !in 0..100) Toast.makeText(this,
-                    "机器待机温度超出旧版允许范围，暂不能修改自动待机时间", Toast.LENGTH_LONG).show()
+                    getString(R.string.machine_settings_standby_temperature_invalid), Toast.LENGTH_LONG).show()
                 else confirm(MachineSettingChange.StandbyDelay(values[index], temperature))
             }.show()
     }
@@ -534,15 +534,15 @@ class MachineSettingsActivity : ThemedActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(8), dp(20), dp(4))
         }
-        val enabled = CheckBox(this).apply { text = "当天启用"; isChecked = previous.enabled; form.addView(this) }
-        val sleepHour = numberInput(form, "睡眠时（0–23）", previous.time.sleepHour)
-        val sleepMinute = numberInput(form, "睡眠分（0–59）", previous.time.sleepMinute)
-        val wakeHour = numberInput(form, "唤醒时（0–23）", previous.time.wakeHour)
-        val wakeMinute = numberInput(form, "唤醒分（0–59）", previous.time.wakeMinute)
-        val dialog = AlertDialog.Builder(this).setTitle("编辑 $name")
-            .setMessage(if (BuildConfig.MOCK_MODE) "模拟计划仅用于检查界面；提交后不会发送蓝牙命令。"
-                else "旧版协议会重写整周计划；其他六天保持机器当前回报值。")
-            .setView(form).setPositiveButton("核对计划", null).setNegativeButton("取消", null).create()
+        val enabled = CheckBox(this).apply { text = getString(R.string.machine_settings_day_enabled); isChecked = previous.enabled; form.addView(this) }
+        val sleepHour = numberInput(form, getString(R.string.machine_settings_sleep_hour), previous.time.sleepHour)
+        val sleepMinute = numberInput(form, getString(R.string.machine_settings_sleep_minute), previous.time.sleepMinute)
+        val wakeHour = numberInput(form, getString(R.string.machine_settings_wake_hour), previous.time.wakeHour)
+        val wakeMinute = numberInput(form, getString(R.string.machine_settings_wake_minute), previous.time.wakeMinute)
+        val dialog = AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_day_title, name))
+            .setMessage(if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_schedule_mock_message)
+                else getString(R.string.machine_settings_schedule_real_message))
+            .setView(form).setPositiveButton(getString(R.string.machine_settings_schedule_check), null).setNegativeButton(getString(R.string.machine_settings_cancel), null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val sh = sleepHour.text.toString().toIntOrNull()
@@ -551,7 +551,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 val wm = wakeMinute.text.toString().toIntOrNull()
                 if (sh == null || sh !in 0..23 || wh == null || wh !in 0..23 ||
                     sm == null || sm !in 0..59 || wm == null || wm !in 0..59) {
-                    Toast.makeText(this, "请输入有效的 24 小时时间", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.machine_settings_invalid_time), Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 val target = WeeklySleepSchedule(baseline.days.toMutableList().apply {
@@ -559,23 +559,23 @@ class MachineSettingsActivity : ThemedActivity() {
                 })
                 dialog.dismiss()
                 if (BuildConfig.MOCK_MODE) {
-                    AlertDialog.Builder(this).setTitle("模拟计划预览")
+                    AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_mock_title))
                         .setMessage(String.format(Locale.CHINA,
                             "$name ${if (enabled.isChecked) "启用" else "关闭"}：%02d:%02d 睡眠，%02d:%02d 唤醒。\n模拟值保持不变，不发送蓝牙命令。",
                             sh, sm, wh, wm))
-                        .setPositiveButton("完成", null).show()
+                        .setPositiveButton(getString(R.string.machine_settings_done), null).show()
                     return@setOnClickListener
                 }
-                AlertDialog.Builder(this).setTitle("确认写入整周睡眠计划")
+                AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_confirm_title))
                     .setMessage(String.format(Locale.CHINA,
                         "$name ${if (enabled.isChecked) "启用" else "关闭"}：%02d:%02d 睡眠，%02d:%02d 唤醒。\n将发送两包计划，并等待机器回报整周内容。",
                         sh, sm, wh, wm))
-                    .setPositiveButton("发送") { _, _ ->
+                    .setPositiveButton(getString(R.string.machine_settings_send)) { _, _ ->
                         service?.changeSleepSchedule(baseline, target)?.let {
                             Toast.makeText(this, it, Toast.LENGTH_LONG).show()
                         }
                         render()
-                    }.setNegativeButton("取消", null).show()
+                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
             }
         }
         dialog.show()
