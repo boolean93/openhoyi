@@ -11,6 +11,19 @@ class StudioStartGateTest {
     private val profile = CurveCatalog.profiles[1]
     private val settings = Settings(1, 1, 3, 0x04, 92, 0, 125, 15, 70, 0, 0, ByteFrame(byteArrayOf()))
 
+    @Test fun normalModeDoesNotRequirePreheatButActiveUnknownPreparationStillBlocks() {
+        val preparation = BrewPreparation()
+        assertNull(StudioStartGate.block(settings.copy(flags = 0), null, profile, preparation))
+        assertEquals("工作室模式温度未达到曲线目标，请先预热",
+            StudioStartGate.block(settings, 9301, profile, preparation))
+        assertNull(StudioStartGate.block(settings, 9300, profile, preparation))
+        preparation.restoreUnknown()
+        assertEquals("预热尚未就绪或曲线已变化，请先取消预热",
+            StudioStartGate.block(settings, 9200, profile, preparation))
+        assertEquals("运行模式已变化，请先取消预热",
+            StudioStartGate.block(settings.copy(flags = 0), 9200, profile, preparation))
+    }
+
     @Test fun studioRequiresCurrentTargetTemperatureAndMatchingPreparation() {
         val preparation = BrewPreparation()
         assertEquals("尚未收到机器运行模式", StudioStartGate.block(null, 9200, profile, preparation))

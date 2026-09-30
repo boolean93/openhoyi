@@ -26,6 +26,21 @@ class BrewWaitCancelGateTest {
         assertNotNull(block(frame = idle.copy(sleepStateRaw = 1)))
     }
 
+    @Test fun exactFreshnessBoundaryAndAllConnectionStatesPreserveDecision() {
+        assertNull(block(at = 1000, now = 2500))
+        assertEquals("咖啡机待机数据已过期，请等待新回报", block(at = null))
+        for (state in DeviceState.entries) {
+            if (state == DeviceState.READY) assertNull(block(coffee = state))
+            else assertEquals("咖啡机未就绪，无法发送取消预热", block(coffee = state))
+        }
+        for (state in ExtractionState.entries) {
+            if (state in setOf(ExtractionState.STARTING, ExtractionState.RUNNING,
+                    ExtractionState.STOP_REQUESTED, ExtractionState.OUTCOME_UNKNOWN))
+                assertEquals("萃取尚未确认结束，请先检查机器并用拨杆停液", block(shot = state))
+            else assertNull(block(shot = state))
+        }
+    }
+
     @Test fun unresolvedExtractionBlocksPreheatCancellationEvenWithFreshIdle() {
         assertNotNull(block(unresolvedShot = true))
         for (state in listOf(ExtractionState.STARTING, ExtractionState.RUNNING,
