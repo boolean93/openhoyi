@@ -693,67 +693,67 @@ class MobileService : Service() {
             val result = mock.changeSetting(change)
             if (result == null) {
                 refreshMock(mock)
-                event("Mock 设置已更新：${settingsPresentation.change(change)}；未发送蓝牙命令", "mock.setting")
+                event(getString(R.string.service_write_mock_setting, settingsPresentation.change(change)), "mock.setting")
             }
             return result
         }
-        if (manualShotActive) return "手动萃取期间不能修改机器设置"
+        if (manualShotActive) return getString(R.string.service_write_setting_manual_block)
         machineControlSafetyMessage?.let { return it }
-        val current = hub ?: return "设备服务尚未启动"
+        val current = hub ?: return getString(R.string.service_unavailable)
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
-        if (cupResetBusy) return "正在等待累计杯数归零回报"
-        if (scheduleBusy) return "正在等待睡眠计划回读"
-        if (ShotGate.active(shotState)) return "萃取期间不能修改机器设置"
+        if (cupResetBusy) return getString(R.string.service_write_cups_waiting)
+        if (scheduleBusy) return getString(R.string.service_write_schedule_waiting)
+        if (ShotGate.active(shotState)) return getString(R.string.service_write_setting_shot_block)
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
-            return "正在等待机器进入睡眠"
-        if (brewPreparation.active) return "请先取消曲线预热"
-        if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
+            return getString(R.string.service_write_sleep_waiting)
+        if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
+        if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val now = SystemClock.elapsedRealtime()
-        val idle = snapshot.coffee as? IdleTelemetry ?: return "等待咖啡机待机数据"
+        val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         if (snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true)
-            return "咖啡机待机数据已过期"
-        if (idle.sleepStateRaw != 0) return "机器未明确处于唤醒待机状态，暂不修改设置"
-        val observed = snapshot.settings ?: return "尚未收到机器设置"
-        if (!machineSettingsFresh) return "机器设置回报已过期，请等待新回报后再修改"
+            return getString(R.string.service_write_idle_stale)
+        if (idle.sleepStateRaw != 0) return getString(R.string.service_write_setting_awake_block)
+        val observed = snapshot.settings ?: return getString(R.string.settings_missing)
+        if (!machineSettingsFresh) return getString(R.string.service_write_settings_stale)
         if (change is MachineSettingChange.SleepScheduleEnabled && change.enabled &&
             !sleepScheduleFresh)
-            return "睡眠计划尚未完整、新鲜回读，不能开启"
+            return getString(R.string.service_write_schedule_enable_block)
         if (change is MachineSettingChange.StandbyDelay &&
-            change.temperatureC != observed.standbyTemperatureC) return "机器待机温度已变化，请重新选择"
+            change.temperatureC != observed.standbyTemperatureC) return getString(R.string.service_write_standby_temperature_changed)
         if (change is MachineSettingChange.StandbyTemperature &&
-            change.minutes != observed.standbyMinutes) return "机器自动待机时间已变化，请重新选择"
-        if (change.matches(observed)) return "机器回读已是该设置"
-        val coffeeAddress = current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止设置写入"
-        val token = settingsWrite.begin(change) ?: return "正在等待上一次设置的结果"
+            change.minutes != observed.standbyMinutes) return getString(R.string.service_write_standby_delay_changed)
+        if (change.matches(observed)) return getString(R.string.service_write_setting_already_observed)
+        val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_setting_identity_missing)
+        val token = settingsWrite.begin(change) ?: return getString(R.string.service_write_setting_pending)
         if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.SETTING, coffeeAddress)) {
             settingsWrite.written(token, OperationResult.Failed("safety record unavailable"), settingsSampleSerial)
-            return "无法可靠保存设置安全状态，已阻止发送"
+            return getString(R.string.service_write_setting_record_failed)
         }
         recoveryAfterSettingsSerial = settingsSampleSerial
         refreshSafetyNotification()
-        event("机器设置命令已排队：${settingsPresentation.change(change)}", "settings.requested")
+        event(getString(R.string.service_write_setting_queued, settingsPresentation.change(change)), "settings.requested")
         current.writeSetting(change) done@{ result ->
             if (!settingsWrite.written(token, result, settingsSampleSerial)) return@done
             when (settingsWrite.state) {
                 SettingsWriteTracker.State.WAITING_READBACK -> {
-                    event("命令已写入，等待机器回读", "settings.written")
+                    event(getString(R.string.service_write_setting_written), "settings.written")
                     handler.postDelayed({
                         if (settingsWrite.timeout(token, settingsSampleSerial)) {
                             recoveryAfterSettingsSerial = settingsSampleSerial
-                            event("机器未回读，设置结果未知", "settings.unknown")
+                            event(getString(R.string.service_write_setting_no_readback), "settings.unknown")
                         }
                     }, 6000)
                 }
                 SettingsWriteTracker.State.FAILED -> {
                     if (!machineWriteRecovery.clear())
-                        event("无法清除机器设置安全记录", "settings.recovery_clear_failed")
+                        event(getString(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event("机器设置命令未写入", "settings.failed")
+                    event(getString(R.string.service_write_setting_not_written), "settings.failed")
                 }
                 SettingsWriteTracker.State.UNKNOWN -> {
                     recoveryAfterSettingsSerial = settingsSampleSerial
-                    event("机器设置写入结果未知", "settings.unknown")
+                    event(getString(R.string.service_write_setting_unknown), "settings.unknown")
                 }
                 else -> Unit
             }
@@ -765,66 +765,66 @@ class MobileService : Service() {
             val result = mock.resetCupCount(expectedCount)
             if (result == null) {
                 refreshMock(mock)
-                event("Mock 杯数已归零；未发送蓝牙命令", "mock.cups")
+                event(getString(R.string.service_write_cups_mock), "mock.cups")
             }
             return result
         }
-        if (manualShotActive) return "手动萃取期间不能重置杯数"
+        if (manualShotActive) return getString(R.string.service_write_cups_manual_block)
         machineControlSafetyMessage?.let { return it }
-        val current = hub ?: return "设备服务尚未启动"
+        val current = hub ?: return getString(R.string.service_unavailable)
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
         if (cupReset.state == CupResetTracker.State.UNKNOWN)
-            return "上次杯数重置结果未知，请等待机器设置与待机杯数重新回读或重新连接"
-        if (cupResetBusy) return "正在等待本次杯数重置结果"
+            return getString(R.string.service_write_cups_previous_unknown)
+        if (cupResetBusy) return getString(R.string.service_write_cups_pending)
         if (scheduleBusy || settingWriteState in
             setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK) ||
             sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
-            return "请等待当前机器操作完成"
-        if (brewPreparation.active || ShotGate.active(shotState)) return "请先结束预热或萃取"
-        if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
-        val idle = snapshot.coffee as? IdleTelemetry ?: return "等待咖啡机待机数据"
+            return getString(R.string.service_write_operation_pending)
+        if (brewPreparation.active || ShotGate.active(shotState)) return getString(R.string.service_write_preheat_or_shot_block)
+        if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
+        val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         val now = SystemClock.elapsedRealtime()
         if (snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true || idle.sleepStateRaw != 0)
-            return "需要新鲜、已唤醒的待机状态"
-        val settingsCount = snapshot.settings?.cupCount ?: return "尚未收到机器杯数"
-        if (!machineSettingsFresh) return "机器设置回报已过期，请等待新杯数回报"
+            return getString(R.string.service_write_awake_idle_needed)
+        val settingsCount = snapshot.settings?.cupCount ?: return getString(R.string.service_write_cups_missing)
+        if (!machineSettingsFresh) return getString(R.string.service_write_cups_settings_stale)
         if (expectedCount !in 1..65535 || settingsCount != expectedCount || idle.cupCount != expectedCount)
-            return "机器杯数已变化，请重新核对"
-        val coffeeAddress = current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止杯数重置"
-        val token = cupReset.begin(expectedCount) ?: return "正在等待本次杯数重置结果"
+            return getString(R.string.service_write_cups_changed)
+        val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_cups_identity_missing)
+        val token = cupReset.begin(expectedCount) ?: return getString(R.string.service_write_cups_pending)
         if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.CUP_RESET, coffeeAddress)) {
             cupReset.written(token, OperationResult.Failed("safety record unavailable"),
                 cupSettingsSerial, cupIdleSerial)
-            return "无法可靠保存杯数重置安全状态，已阻止发送"
+            return getString(R.string.service_write_cups_record_failed)
         }
         recoveryAfterSettingsSerial = cupSettingsSerial
         recoveryAfterIdleSerial = cupIdleSerial
         refreshSafetyNotification()
-        event("累计杯数重置命令已排队", "cups.requested")
+        event(getString(R.string.service_write_cups_queued), "cups.requested")
         current.resetCupCount(expectedCount) done@{ result ->
             if (!cupReset.written(token, result, cupSettingsSerial, cupIdleSerial)) return@done
             when (cupReset.state) {
                 CupResetTracker.State.WAITING_ZERO -> {
-                    event("重置命令已写入，等待机器回报归零", "cups.written")
+                    event(getString(R.string.service_write_cups_written), "cups.written")
                     handler.postDelayed({
                         if (cupReset.timeout(token, cupSettingsSerial, cupIdleSerial)) {
                             recoveryAfterSettingsSerial = cupSettingsSerial
                             recoveryAfterIdleSerial = cupIdleSerial
-                            event("机器未完整回报归零，重置结果未知", "cups.unknown")
+                            event(getString(R.string.service_write_cups_no_readback), "cups.unknown")
                         }
                     }, 12_000)
                 }
                 CupResetTracker.State.FAILED -> {
                     if (!machineWriteRecovery.clear())
-                        event("无法清除杯数重置安全记录", "cups.recovery_clear_failed")
+                        event(getString(R.string.service_write_cups_clear_failed), "cups.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event("累计杯数重置命令未写入", "cups.failed")
+                    event(getString(R.string.service_write_cups_not_written), "cups.failed")
                 }
                 CupResetTracker.State.UNKNOWN -> {
                     recoveryAfterSettingsSerial = cupSettingsSerial
                     recoveryAfterIdleSerial = cupIdleSerial
-                    event("累计杯数重置结果未知", "cups.unknown")
+                    event(getString(R.string.service_write_cups_unknown), "cups.unknown")
                 }
                 else -> Unit
             }
@@ -836,79 +836,79 @@ class MobileService : Service() {
             val result = mock.changeSchedule(expected, target)
             if (result == null) {
                 refreshMock(mock)
-                event("Mock 睡眠计划已更新；未发送蓝牙命令", "mock.sleep_schedule")
+                event(getString(R.string.service_write_schedule_mock), "mock.sleep_schedule")
             }
             return result
         }
-        if (manualShotActive) return "手动萃取期间不能修改睡眠计划"
+        if (manualShotActive) return getString(R.string.service_write_schedule_manual_block)
         machineControlSafetyMessage?.let { return it }
-        val current = hub ?: return "设备服务尚未启动"
+        val current = hub ?: return getString(R.string.service_unavailable)
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
-        if (cupResetBusy) return "正在等待累计杯数归零回报"
-        if (ShotGate.active(shotState)) return "萃取期间不能修改睡眠计划"
+        if (cupResetBusy) return getString(R.string.service_write_cups_waiting)
+        if (ShotGate.active(shotState)) return getString(R.string.service_write_schedule_shot_block)
         if (scheduleWriteState == SleepScheduleWriteTracker.State.UNKNOWN)
-            return "上次计划结果未知，请重新连接并等待两段完整回报"
+            return getString(R.string.service_write_schedule_previous_unknown)
         if (scheduleBusy || settingWriteState in
             setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
-            return "正在等待上一次机器设置回读"
+            return getString(R.string.service_write_setting_previous_pending)
         if (sleepNow.state in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP))
-            return "正在等待机器进入睡眠"
-        if (brewPreparation.active) return "请先取消曲线预热"
-        if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
+            return getString(R.string.service_write_sleep_waiting)
+        if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
+        if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val now = SystemClock.elapsedRealtime()
-        val idle = snapshot.coffee as? IdleTelemetry ?: return "等待咖啡机待机数据"
+        val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         if (snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true || idle.sleepStateRaw != 0)
-            return "需要新鲜、已唤醒的待机状态"
-        if (!sleepScheduleFresh) return "睡眠计划回报已过期或两段尚未配齐，请等待新回报"
+            return getString(R.string.service_write_awake_idle_needed)
+        if (!sleepScheduleFresh) return getString(R.string.service_write_schedule_stale)
         val observed = WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond)
-            ?: return "睡眠计划尚未完整回读"
-        if (observed.days != expected.days) return "机器睡眠计划已变化，请重新编辑"
+            ?: return getString(R.string.service_write_schedule_missing)
+        if (observed.days != expected.days) return getString(R.string.service_write_schedule_changed)
         val changedDays = expected.days.indices.count { expected.days[it] != target.days[it] }
-        if (changedDays == 0) return "机器回读已是该计划"
-        if (changedDays != 1) return "一次只能修改一天的睡眠计划"
-        val coffeeAddress = current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止计划写入"
+        if (changedDays == 0) return getString(R.string.service_write_schedule_already_observed)
+        if (changedDays != 1) return getString(R.string.service_write_schedule_one_day_only)
+        val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_schedule_identity_missing)
         val token = scheduleWrite.begin(target, firstSleepSerial, secondSleepSerial)
-            ?: return "正在等待上一次睡眠计划结果"
+            ?: return getString(R.string.service_write_schedule_pending)
         if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE, coffeeAddress)) {
             scheduleWrite.written(token, OperationResult.Failed("safety record unavailable"),
                 firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond)
-            return "无法可靠保存计划安全状态，已阻止发送"
+            return getString(R.string.service_write_schedule_record_failed)
         }
         recoveryAfterFirstSleepSerial = firstSleepSerial
         recoveryAfterSecondSleepSerial = secondSleepSerial
         refreshSafetyNotification()
-        event("整周睡眠计划两包写入已排队", "sleep_schedule.requested")
+        event(getString(R.string.service_write_schedule_queued), "sleep_schedule.requested")
         current.writeSleepSchedule(target,expected) done@{ result ->
             if (!scheduleWrite.written(token, result, firstSleepSerial, secondSleepSerial,
                     snapshot.sleepFirst, snapshot.sleepSecond)) return@done
             when (scheduleWrite.state) {
                 SleepScheduleWriteTracker.State.CONFIRMED -> {
                     if (!machineWriteRecovery.clear())
-                        event("无法清除睡眠计划安全记录", "sleep_schedule.recovery_clear_failed")
+                        event(getString(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event("机器已回读完整睡眠计划", "sleep_schedule.confirmed")
+                    event(getString(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
                 }
                 SleepScheduleWriteTracker.State.WAITING_READBACK -> {
-                    event("两包计划已写入，等待机器回读整周", "sleep_schedule.written")
+                    event(getString(R.string.service_write_schedule_written), "sleep_schedule.written")
                     handler.postDelayed({
                         if (scheduleWrite.timeout(token, firstSleepSerial, secondSleepSerial)) {
                             recoveryAfterFirstSleepSerial = firstSleepSerial
                             recoveryAfterSecondSleepSerial = secondSleepSerial
-                            event("睡眠计划未完整回读，结果未知", "sleep_schedule.unknown")
+                            event(getString(R.string.service_write_schedule_no_readback), "sleep_schedule.unknown")
                         }
                     }, 8000)
                 }
                 SleepScheduleWriteTracker.State.FAILED -> {
                     if (!machineWriteRecovery.clear())
-                        event("无法清除睡眠计划安全记录", "sleep_schedule.recovery_clear_failed")
+                        event(getString(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event("睡眠计划首包未写入", "sleep_schedule.failed")
+                    event(getString(R.string.service_write_schedule_first_not_written), "sleep_schedule.failed")
                 }
                 SleepScheduleWriteTracker.State.UNKNOWN -> {
                     recoveryAfterFirstSleepSerial = firstSleepSerial
                     recoveryAfterSecondSleepSerial = secondSleepSerial
-                    event("睡眠计划可能部分写入，请核对机器", "sleep_schedule.unknown")
+                    event(getString(R.string.service_write_schedule_partial_unknown), "sleep_schedule.unknown")
                 }
                 else -> Unit
             }
@@ -920,58 +920,58 @@ class MobileService : Service() {
             val result = mock.sleepNow()
             if (result == null) {
                 refreshMock(mock)
-                event("Mock 咖啡机已入睡；未发送蓝牙命令", "mock.sleep")
+                event(getString(R.string.service_write_sleep_mock), "mock.sleep")
             }
             return result
         }
-        if (manualShotActive) return "手动萃取期间不能让机器睡眠"
+        if (manualShotActive) return getString(R.string.service_write_sleep_manual_block)
         machineControlSafetyMessage?.let { return it }
-        val current = hub ?: return "设备服务尚未启动"
+        val current = hub ?: return getString(R.string.service_unavailable)
         if (settingWriteUnresolved) return settingWriteUnresolvedMessage
         if (sleepNowUnresolved) return sleepNowUnresolvedMessage
-        if (cupResetBusy) return "正在等待累计杯数归零回报"
-        if (scheduleBusy) return "正在等待睡眠计划回读"
-        if (ShotGate.active(shotState)) return "萃取期间不能让机器睡眠"
+        if (cupResetBusy) return getString(R.string.service_write_cups_waiting)
+        if (scheduleBusy) return getString(R.string.service_write_schedule_waiting)
+        if (ShotGate.active(shotState)) return getString(R.string.service_write_sleep_shot_block)
         if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
-            return "正在等待机器设置回读"
-        if (brewPreparation.active) return "请先取消曲线预热"
-        if (snapshot.coffeeState != DeviceState.READY) return "咖啡机尚未就绪"
+            return getString(R.string.service_write_setting_waiting)
+        if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
+        if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val now = SystemClock.elapsedRealtime()
-        val idle = snapshot.coffee as? IdleTelemetry ?: return "等待咖啡机待机数据"
-        val observedAt = snapshot.coffeeAt ?: return "等待咖啡机待机数据"
-        if (observedAt > now || now - observedAt > 1500) return "咖啡机待机数据已过期"
-        if (idle.sleepStateRaw == 1) return "机器已经入睡；请用拨杆唤醒"
-        if (idle.sleepStateRaw != 0) return "机器睡眠状态未知，暂不发送"
-        val coffeeAddress = current.coffeeAddress ?: return "无法确认咖啡机身份，已阻止入睡命令"
-        val token = sleepNow.begin() ?: return "正在等待本次入睡结果"
+        val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
+        val observedAt = snapshot.coffeeAt ?: return getString(R.string.service_write_idle_waiting)
+        if (observedAt > now || now - observedAt > 1500) return getString(R.string.service_write_idle_stale)
+        if (idle.sleepStateRaw == 1) return getString(R.string.service_write_sleep_already_asleep)
+        if (idle.sleepStateRaw != 0) return getString(R.string.service_write_sleep_state_unknown)
+        val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_sleep_identity_missing)
+        val token = sleepNow.begin() ?: return getString(R.string.service_write_sleep_pending)
         if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.SLEEP_NOW, coffeeAddress)) {
             sleepNow.written(token, OperationResult.Failed("safety record unavailable"), sleepSampleSerial)
-            return "无法可靠保存入睡安全状态，已阻止发送"
+            return getString(R.string.service_write_sleep_record_failed)
         }
         recoveryAfterSleepSerial = sleepSampleSerial
         refreshSafetyNotification()
-        event("立即睡眠命令已排队", "sleep.requested")
+        event(getString(R.string.service_write_sleep_queued), "sleep.requested")
         current.enterSleep done@{ result ->
             if (!sleepNow.written(token, result, sleepSampleSerial)) return@done
             when (sleepNow.state) {
                 SleepNowTracker.State.WAITING_ASLEEP -> {
-                    event("命令已写入，等待机器回报睡眠", "sleep.written")
+                    event(getString(R.string.service_write_sleep_written), "sleep.written")
                     handler.postDelayed({
                         if (sleepNow.timeout(token, sleepSampleSerial)) {
                             recoveryAfterSleepSerial = sleepSampleSerial
-                            event("机器未回报睡眠，结果未知", "sleep.unknown")
+                            event(getString(R.string.service_write_sleep_no_readback), "sleep.unknown")
                         }
                     }, 12_000)
                 }
                 SleepNowTracker.State.FAILED -> {
                     if (!machineWriteRecovery.clear())
-                        event("无法清除立即睡眠安全记录", "sleep.recovery_clear_failed")
+                        event(getString(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event("立即睡眠命令未写入", "sleep.failed")
+                    event(getString(R.string.service_write_sleep_not_written), "sleep.failed")
                 }
                 SleepNowTracker.State.UNKNOWN -> {
                     recoveryAfterSleepSerial = sleepSampleSerial
-                    event("立即睡眠结果未知，请查看机器", "sleep.unknown")
+                    event(getString(R.string.service_write_sleep_unknown), "sleep.unknown")
                 }
                 else -> Unit
             }
