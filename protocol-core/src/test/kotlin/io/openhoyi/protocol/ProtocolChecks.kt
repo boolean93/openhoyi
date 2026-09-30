@@ -195,6 +195,9 @@ fun main() {
     verify(auth.frame.toByteArray().fold(0){a,b->a xor (b.toInt() and 255)}==0)
     rejected { CoffeeCommands.authenticate(LocalDateTime.now(),"12abc6") }; rejected { CoffeeCommands.authenticate(LocalDateTime.now(),"12345") }
     rejected { CoffeeCommands.brewTemperature(-1) }; rejected { CoffeeCommands.brewTemperature(256) }
+    listOf(0,1,74,106,255).forEach { value -> rejected { CoffeeCommands.brewTemperature(value) } }
+    verify(CoffeeCommands.brewTemperature(75).frame.hex()=="0402004B00")
+    verify(CoffeeCommands.brewTemperature(105).frame.hex()=="0402006900")
     rejected { CoffeeCommands.start(starts[0].first.copy(maximumWaterMl=65536)) }
     rejected { CoffeeCommands.start(starts[0].first.copy(segmentCount=5)) }
     verify(BookooCodec.initializationCommands().map { it.frame.hex() } == listOf("030A02000308","030A0300141E","030A0700000E","030A08010000"))

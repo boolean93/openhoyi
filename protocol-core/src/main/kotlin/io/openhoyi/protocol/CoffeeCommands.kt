@@ -95,7 +95,9 @@ object CoffeeCommands {
         return EncodedCommand(ByteFrame(b))
     }
     fun stop(slot:Int):EncodedCommand { require(slot in 1..5 || slot == 7); return command(2,0,slot,0,0) }
-    fun brewTemperature(celsius:Int):EncodedCommand = command(4,2,0,range(celsius,255,"temperatureC"),0)
+    /** Share the validated setting range even when callers use the direct encoder. */
+    fun brewTemperature(celsius:Int):EncodedCommand =
+        command(4,2,0,MachineSettingChange.BrewTemperature(celsius).celsius,0)
     fun brewHeating(enabled:Boolean):EncodedCommand=command(12,2,0,if(enabled)1 else 0,0)
     fun setting(change: MachineSettingChange): EncodedCommand = when (change) {
         is MachineSettingChange.RunMode -> command(15,2,0,if(change.studio)1 else 0,0)
