@@ -1,0 +1,83 @@
+{
+  "source": "hoyi-project/app/assets/apps/__UNI__7D80DAB/www/app-service.js",
+  "sha256": "1451bddc95735fdc86b071aef98d9d5b88add12b0b3612c66f666faca7572ddc",
+  "kind": "static analysis, not live capture",
+  "locations": [
+    {
+      "symbol": "tankPressLimitSwitchEnabled: function",
+      "characterOffset": 11077,
+      "line": 343
+    },
+    {
+      "symbol": "tankPressLimitSwitchChange: function",
+      "characterOffset": 22619,
+      "line": 605
+    },
+    {
+      "symbol": "tankFilterSwitchChange: function",
+      "characterOffset": 23851,
+      "line": 634
+    },
+    {
+      "symbol": "setTankPressLimitEn: function",
+      "characterOffset": 2101576,
+      "line": 42167
+    },
+    {
+      "symbol": "setTankFilterEn: function",
+      "characterOffset": 2101812,
+      "line": 42175
+    },
+    {
+      "symbol": "syncTankPressLimitFrom83: function",
+      "characterOffset": 2074932,
+      "line": 41494
+    },
+    {
+      "symbol": "pressBarMaxInput: function",
+      "characterOffset": 1522603,
+      "line": 28158
+    },
+    {
+      "symbol": "brewPressNormMax: function",
+      "characterOffset": 3550817,
+      "line": 70117
+    },
+    {
+      "symbol": "uni.setStorageSync(\"appPressLimitWarn\", e)",
+      "characterOffset": 2202383,
+      "line": 43708
+    }
+  ],
+  "filterFrames": [
+    {
+      "enabled": false,
+      "frameHex": "1802000000",
+      "length": 5
+    },
+    {
+      "enabled": true,
+      "frameHex": "1802000100",
+      "length": 5
+    }
+  ],
+  "filterReadback": {
+    "opcode": 131,
+    "versionByteIndices": [
+      1,
+      2
+    ],
+    "minimumCombinedValue": 276,
+    "minimumLength": 13,
+    "flagByteIndex": 11,
+    "bit": 1,
+    "conflictingReadbackSuppressionMs": 4500
+  },
+  "pressurePreference": {
+    "storageKey": "appPressLimitWarn",
+    "inputMaxEnabled": 10,
+    "inputMaxDisabled": 12,
+    "livePlotMaxEnabled": 10,
+    "livePlotMaxDisabled": 13
+  }
+}
