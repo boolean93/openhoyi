@@ -34,7 +34,6 @@ import io.openhoyi.protocol.SleepDay
 import io.openhoyi.protocol.WeeklySleepDay
 import io.openhoyi.protocol.WeeklySleepSchedule
 import io.openhoyi.session.DeviceState
-import java.util.UUID
 import java.util.Locale
 
 /** Only known setting commands are exposed; applied state requires a subsequent 0x83 readback. */
@@ -44,7 +43,6 @@ class MachineSettingsActivity : ThemedActivity() {
     private var service: MobileService? = null
     private var bound = false
     private var visible = false
-    private val visibilityToken = UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var connectionState: TextView
     private lateinit var settings: TextView
@@ -80,7 +78,6 @@ class MachineSettingsActivity : ThemedActivity() {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
-            service?.screenVisible(visibilityToken, visible)
             render()
         }
         override fun onServiceDisconnected(name: ComponentName) { service = null; render() }
@@ -314,7 +311,6 @@ class MachineSettingsActivity : ThemedActivity() {
     override fun onStop() {
         visible = false
         handler.removeCallbacks(refresh)
-        service?.screenVisible(visibilityToken, false)
         release()
         super.onStop()
     }

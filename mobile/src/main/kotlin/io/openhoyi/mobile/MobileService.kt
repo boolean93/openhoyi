@@ -225,7 +225,7 @@ class MobileService : Service() {
             handler.postDelayed(this, 250)
         }
     }
-    private val visibleScreens = VisibleScreens()
+    private val appVisibility: AppVisibility get() = (application as MobileApplication).visibility
     private var hubForeground = false
     private var safetyMessage: String? = null
     private var manualSafetyResource: Int? = null
@@ -254,7 +254,7 @@ class MobileService : Service() {
     }
     private val leaveForeground = object : Runnable {
         override fun run() {
-            if (visibleScreens.visible || !hubForeground) return
+            if (appVisibility.visible || !hubForeground) return
             hub?.background()
             hubForeground = false
             snapshot = snapshot.copy(scanning = false)
@@ -338,6 +338,7 @@ class MobileService : Service() {
         history = runCatching { app.history }.getOrNull()
         if (mock == null && shotRecovery.pending) manualSafetyResource = R.string.machine_recovery_shot_restart
         handler.post(watchShot)
+        app.visibility.observe(ownerId, ::onAppVisibilityChanged)
     }
     override fun onBind(intent: Intent): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -557,7 +558,7 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_event_started))
             refreshSafetyNotification()
             scheduleAutomaticScaleStop()
-            if (visibleScreens.visible) {
+            if (appVisibility.visible) {
                 hub?.foreground()
                 hubForeground = true
             }
@@ -567,9 +568,8 @@ class MobileService : Service() {
         }
         return START_NOT_STICKY
     }
-    fun screenVisible(owner: String, value: Boolean) {
-        visibleScreens.set(owner, value)
-        if (visibleScreens.visible) {
+    private fun onAppVisibilityChanged(visible: Boolean) {
+        if (visible) {
             handler.removeCallbacks(leaveForeground)
             if (!hubForeground && hub != null) {
                 hub?.foreground()
@@ -577,7 +577,7 @@ class MobileService : Service() {
                 scheduleAutomaticScaleStop()
             }
         } else if (hubForeground) {
-            // Activity transitions may briefly have no resumed screen.
+            // Normal navigation may briefly have no started screen; configuration replacement stays visible.
             handler.removeCallbacks(leaveForeground)
             handler.postDelayed(leaveForeground, 500)
         }
@@ -1506,6 +1506,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        appVisibility.unobserve(ownerId)
         if (passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
             passiveHistoryId?.let { id -> runCatching { history?.abandon(id, "设备服务停止") } }
             saveSeriesCheckpoint(force = true)

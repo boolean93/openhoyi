@@ -39,7 +39,6 @@ class HomeActivity : ThemedActivity() {
     private var bound = false
     private var visible = false
     private var scanAfterBind = false
-    private val visibilityToken = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var status: TextView
     private lateinit var safetyWarning: TextView
@@ -75,7 +74,6 @@ class HomeActivity : ThemedActivity() {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
-            service?.screenVisible(visibilityToken, visible)
             if (scanAfterBind) { scanAfterBind = false; service?.scan() }
             render()
         }
@@ -307,7 +305,6 @@ class HomeActivity : ThemedActivity() {
     }
     override fun onStop() {
         visible = false; handler.removeCallbacks(refresh)
-        service?.screenVisible(visibilityToken, false)
         release(); super.onStop()
     }
     private fun bindExisting() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0) }

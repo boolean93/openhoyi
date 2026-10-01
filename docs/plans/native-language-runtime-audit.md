@@ -8,7 +8,7 @@
 - `MobileApplication`资源读取已走原始base构造的语言Context provider；Service动态资源读取同一Application资源。独立app_language/tag偏好仅成功commit后发布进程值。Toast/通知实际一致性和缓存配置失效仍待Android验证，详见unified-language-context.md。
 - `MobileSnapshot.message` 已改为 `SnapshotMessage`：资源事件保留ID/冻结参数，日志使用产生时的 `initialText`，Home只重新解析显示。140处直接资源事件、3处条件资源事件、扫描/Mock直存消息已迁移；外部诊断、运行时/gate返回的String仍为raw。恢复阻止提示已保留资源ID，设置变更嵌套资源已通过ResourceText/ResourceSequence及changeMessage保存；启动拒绝/告警已保留嵌套资源身份（见start-rejection-resource-messages.md）；预热取消及超时嵌套原因也已迁移（见preheat-cancel-resource-messages.md）；其他raw诊断与外部返回仍需逐项核对，因此当前还不能声称全部持续提示可刷新。
 - `manualSafetyMessage`已由资源ID动态解析，服务内部警告存在性检查使用ID，避免依赖显示文字。设置未知结果提示和 `safetyMessage` 也参与通知刷新。`refreshSafetyNotification`仍用警告字符串是否变化避免重复通知。新增尚无调用方的`refreshNotificationDisplay`，供Service语言Context更新后强制刷新同ID通道和通知；错误只诊断，不重放事件或改未确认状态。Android异常与重响仍待运行时验证。
-- `screenVisible` 在无页面可见后延迟500毫秒调用hub.background。切换语言导致重建时要覆盖此过渡，不能把显示重建变成新的扫描/自动连接窗口或停止现有设备会话。
+- 可见性已从三个绑定页的screenVisible改为Application统一生命周期跟踪全部页面；配置重建保存逻辑owner维持同一前台会话，普通导航空隙仍延迟500毫秒调用hub.background。模型回归已覆盖慢重建/重叠/后台/服务订阅，Android回调桥接、重建中断、Home/锁屏和多窗口仍待验（application-visibility.md），不能把纯测试当成不会重开扫描窗口的完整运行时证明。
 - Manifest已经supportsRtl=true；不能据此认定当前固定宽度、左右位置、长标签和横屏布局都通过阿语验收。
 - app_name在default为OpenHOYI Alpha，Mock资源覆盖为HOYI Mock。正式转换语言资源时须从共享翻译目录排除app_name，保留变体身份；完整草稿中的中文源身份不是覆盖Mock名称的指令。
 

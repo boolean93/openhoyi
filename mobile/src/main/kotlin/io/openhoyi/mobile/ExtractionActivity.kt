@@ -32,7 +32,6 @@ class ExtractionActivity : ThemedActivity() {
     private var service: MobileService? = null
     private var bound = false
     private var visible = false
-    private val visibilityToken = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var curveSummary: TextView
     private lateinit var deviceSummary: TextView
@@ -57,7 +56,7 @@ class ExtractionActivity : ThemedActivity() {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
-            service?.screenVisible(visibilityToken, visible); render()
+            render()
         }
         override fun onServiceDisconnected(name: ComponentName) { service = null; render() }
         override fun onBindingDied(name: ComponentName) { release(); render() }
@@ -180,7 +179,6 @@ class ExtractionActivity : ThemedActivity() {
     }
     override fun onStop() {
         visible = false; handler.removeCallbacks(refresh)
-        service?.screenVisible(visibilityToken, false)
         release(); super.onStop()
     }
     private fun release() { if (bound) { unbindService(connection); bound = false }; service = null }

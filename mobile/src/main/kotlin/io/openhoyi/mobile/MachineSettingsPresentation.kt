@@ -143,15 +143,3 @@ class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> 
         if (hour in 0..23 && minute in 0..59) "%02d:%02d".format(hour, minute)
         else text(R.string.settings_raw_time, hour.toString(), minute.toString())
 }
-
-/** A screen transition may overlap; the service is foreground-visible while any screen is visible. */
-class VisibleScreens {
-    private val owners = mutableSetOf<String>()
-    val visible: Boolean get() = owners.isNotEmpty()
-    /** Returns true only when overall visibility changes. */
-    fun set(owner: String, value: Boolean): Boolean {
-        val before = visible
-        if (value) owners.add(owner) else owners.remove(owner)
-        return before != visible
-    }
-}

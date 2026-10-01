@@ -15,6 +15,12 @@ class MobileApplication : Application() {
     internal lateinit var languagePreferences: AppLanguagePreference
         private set
     private lateinit var languageContext: AppLanguageContextProvider
+    internal val visibility = AppVisibility()
+
+    override fun onCreate() {
+        super.onCreate()
+        registerActivityLifecycleCallbacks(AppVisibilityCallbacks(visibility))
+    }
 
     override fun attachBaseContext(base: Context) {
         val prefs = base.getSharedPreferences("app_language", MODE_PRIVATE)
