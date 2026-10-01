@@ -1,0 +1,27 @@
+# 统一语言偏好与资源 Context
+
+延续native-language-parity.md第2、3项。默认简中，设置入口尚未开放；七语言JSON草稿尚未转换Android资源。本阶段接入资源读取基础，不宣称完整语言体验。
+
+## 进程与持久偏好
+
+AppLanguagePreference使用独立Storage，Android适配只读写app_language/tag，与设备、密码、外观、曲线、历史和恢复键分开。读值异常或非规范tag恢复简中，不自动修改存储。select只有commit成功才将volatile进程当前值切换；失败/RuntimeException返回SAVE_FAILED，绝不重读可能已变更的SharedPreferences内存缓存。同语言返回UNCHANGED，不再写入。select同步，提交过程中读者仍看到原语言。
+
+这是同进程生效语义；重启仍以实际持久值恢复，不承诺底层失败写入的磁盘原子性。不自动导入旧包偏好，也不监听或采用其它调用方直接写SharedPreferences的缓存。
+
+## Context
+
+AppLanguageContext复制base Configuration，设置所选Locale/布局方向；Activity同时设置既有night mask，其它属性保留。不调用Locale.setDefault或Resources.updateConfiguration，不改变用户系统语言。
+
+Application在attachBaseContext使用原始base创建偏好和provider，super仍附着原始base。getResources读取provider；provider只依据原始base资源与当前语言生成完整desired Configuration，以该配置缓存Context。复制后的配置随字体/密度/方向/夜间等字段变化失效；不从Application自身资源override反向构建，避免递归。启动期间未初始化provider时回退super。
+
+Service getResources读取Application的动态资源，没有重启、重新bind、扫描或命令重放。现有长期显示器持有Service Context时，每次getString也走统一资源。Application导入导出Toast读取相同资源，诊断日志和原历史值未改。
+
+ThemedActivity.attachBaseContext同时应用语言与原主题；onResume发现主题或Locale与当前偏好不同才recreate。目前无select调用方，不新增语言触发的重建；正式入口接入时必须单独验证500ms页面过渡、停止按钮可达及BLE前后台窗口不重置。提交成功后更新Service通知显示也由后续入口处理，本轮不会自动调用。
+
+## 验证
+
+4项纯偏好测试覆盖八规范tag/非法值、不重读外部缓存、commit false与异常仍旧语言、重试成功、相同值不写、成功恢复、读取异常默认及提交期间未提前发布。最初新测试因缺API失败，实现后通过。
+
+从da82d59整份Service正向核对只新增getResources覆写；整份Application除两import和偏好/provider初始化/资源覆写外一致，原导入导出、日志与共享恢复控制代码未改。ThemedActivity显示配置改动经独立静态审查，未发现实质问题。
+
+完整离线协议39,823检查/32,856通知回放、会话92场景、共享JUnit69项及Lab/Alpha/Mock三个构建通过；后追加读取异常测试两变体再跑，各133项（132通过、1缺真实旧导出跳过）。这些测试不执行Android Configuration/Context/Service初始化。Context缓存失效、运行时资源匹配、重建循环/前后台过渡、Toast/通知一致性及RTL仍缺运行时证据；本轮未连接真机。正式语言资源转换、剩余嵌套参数刷新、入口和完整安全验收继续待完成。

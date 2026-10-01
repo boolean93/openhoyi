@@ -4,8 +4,8 @@
 
 ## 当前调用事实
 
-- `ThemedActivity.attachBaseContext` 只覆盖深浅色，`onResume` 只比较主题后重建；没有统一应用语言Context。
-- `MobileApplication` 的导入导出Toast和 `MobileService` 的动态消息/通知独立读取自己的Context。只修改Activity语言会产生页面、服务、Toast和通知混用。
+- `ThemedActivity.attachBaseContext`已统一语言/深浅色配置，`onResume`比较主题及Locale后重建；当前无语言选择调用方，重建/前后台过渡仍待Android验证。
+- `MobileApplication`资源读取已走原始base构造的语言Context provider；Service动态资源读取同一Application资源。独立app_language/tag偏好仅成功commit后发布进程值。Toast/通知实际一致性和缓存配置失效仍待Android验证，详见unified-language-context.md。
 - `MobileSnapshot.message` 已改为 `SnapshotMessage`：资源事件保留ID/冻结参数，日志使用产生时的 `initialText`，Home只重新解析显示。140处直接资源事件、3处条件资源事件、扫描/Mock直存消息已迁移；外部诊断、运行时/gate返回的String仍为raw。恢复阻止提示已保留资源ID，其他gate返回的String仍有raw，因此当前还不能声称全部持续提示可刷新。
 - `manualSafetyMessage`已由资源ID动态解析，服务内部警告存在性检查使用ID，避免依赖显示文字。设置未知结果提示和 `safetyMessage` 也参与通知刷新。`refreshSafetyNotification`仍用警告字符串是否变化避免重复通知。新增尚无调用方的`refreshNotificationDisplay`，供Service语言Context更新后强制刷新同ID通道和通知；错误只诊断，不重放事件或改未确认状态。Android异常与重响仍待运行时验证。
 - `screenVisible` 在无页面可见后延迟500毫秒调用hub.background。切换语言导致重建时要覆盖此过渡，不能把显示重建变成新的扫描/自动连接窗口或停止现有设备会话。
@@ -21,4 +21,4 @@
 5. 以Mock离线/云端验证每语言深浅色、紧凑/横屏、长确认/未知结果、RTL与图表。科学时间轴、原始HEX/包名/单位按各自语义显示，不反转数值和点序列。
 6. 曲线/历史模板可翻译；原曲线名字、用户输入、厂商tips和规范历史原因不能直接重写成译文。内置稳定ID可加展示映射，但必须与控制元数据独立。
 
-消息存储阶段已修改Service显示代码，但不改蓝牙命令、资格判断、定时器和恢复状态。不启用运行时切换、不新增Android语言资源；剩余安全提示/通知及语言Context接入后，仍须先验证显示生命周期不触发设备操作，再开放入口。
+消息存储阶段已修改Service显示代码，但不改蓝牙命令、资格判断、定时器和恢复状态。统一资源Context已接入；没有选择入口或正式Android语言资源。剩余嵌套提示与通知/显示生命周期验证完成后再开放入口，不能仅凭纯偏好测试声明运行时切换安全。

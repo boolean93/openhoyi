@@ -62,6 +62,10 @@ data class MobileSnapshot(
 
 /** Product-app BLE owner. Screens observe snapshots; explicit controls remain gated in this service. */
 class MobileService : Service() {
+    // Resource reads follow the process language authority without restarting this service or BLE.
+    override fun getResources(): android.content.res.Resources =
+        (application as? MobileApplication)?.resources ?: super.getResources()
+
     private val studioStartGate by lazy { StudioStartGate(this) }
     private val brewWaitCancelGate by lazy { BrewWaitCancelGate(this) }
     private val shotRecoveryClearGate by lazy { ShotRecoveryClearGate(this) }

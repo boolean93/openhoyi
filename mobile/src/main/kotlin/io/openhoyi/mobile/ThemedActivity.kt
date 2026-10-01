@@ -8,10 +8,8 @@ import android.content.res.Configuration
 abstract class ThemedActivity : Activity() {
     override fun attachBaseContext(newBase: Context) {
         val dark = newBase.getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
-        val config = Configuration(newBase.resources.configuration)
-        config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
-            (if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
-        super.attachBaseContext(newBase.createConfigurationContext(config))
+        val language = (newBase.applicationContext as MobileApplication).languagePreferences.current
+        super.attachBaseContext(AppLanguageContext.wrap(newBase, language, dark))
     }
 
     override fun onResume() {
@@ -19,6 +17,8 @@ abstract class ThemedActivity : Activity() {
         val preferredDark = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
         val currentDark = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
             Configuration.UI_MODE_NIGHT_YES
-        if (preferredDark != currentDark) recreate()
+        val language = (application as MobileApplication).languagePreferences.current
+        val currentLanguage = resources.configuration.locales[0]
+        if (preferredDark != currentDark || currentLanguage != language.locale) recreate()
     }
 }

@@ -1,6 +1,8 @@
 package io.openhoyi.mobile
 
 import android.app.Application
+import android.content.Context
+import android.content.res.Resources
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -10,6 +12,22 @@ import java.io.File
 
 /** Process-owned writer, independent of Activity and service restarts. */
 class MobileApplication : Application() {
+    internal lateinit var languagePreferences: AppLanguagePreference
+        private set
+    private lateinit var languageContext: AppLanguageContextProvider
+
+    override fun attachBaseContext(base: Context) {
+        val prefs = base.getSharedPreferences("app_language", MODE_PRIVATE)
+        languagePreferences = AppLanguagePreference(object : AppLanguagePreference.Storage {
+            override fun read(): String? = prefs.getString("tag", null)
+            override fun write(tag: String): Boolean = prefs.edit().putString("tag", tag).commit()
+        })
+        languageContext = AppLanguageContextProvider(base) { languagePreferences.current }
+        super.attachBaseContext(base)
+    }
+    override fun getResources(): Resources =
+        if (::languageContext.isInitialized) languageContext.context().resources else super.getResources()
+
     val logs: TraceStore by lazy { TraceStore(File(filesDir, "traces")) }
     val curves: CurveLibrary by lazy {
         val factory = FactoryCurveCatalog.load(assets.open("factory_curves_v3.tsv"))
