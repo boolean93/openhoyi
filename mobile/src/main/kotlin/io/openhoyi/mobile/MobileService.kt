@@ -53,10 +53,11 @@ data class MobileSnapshot(
     val weightAt: Long? = null,
     val candidates: List<DiscoveredDevice> = emptyList(),
     val scanning: Boolean = false,
-    val message: String? = null,
+    val message: SnapshotMessage? = null,
 ) {
     /** Null means no event yet; an explicit empty event must not be replaced. */
-    fun messageForDisplay(text: (Int) -> String): String = message ?: text(R.string.device_initial_message)
+    fun messageForDisplay(text: (Int, Array<out Any?>) -> String): String =
+        message?.render(text) ?: text(R.string.device_initial_message, emptyArray())
 }
 
 /** Product-app BLE owner. Screens observe snapshots; explicit controls remain gated in this service. */
@@ -142,11 +143,11 @@ class MobileService : Service() {
         if (cupReset.state == CupResetTracker.State.CONFIRMED &&
             machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET &&
             !machineWriteRecovery.clear())
-            event(getString(R.string.service_event_cups_clear_failed), "cups.recovery_clear_failed")
+            event(ResourceMessage(R.string.service_event_cups_clear_failed), "cups.recovery_clear_failed")
         refreshSafetyNotification()
-        if (confirmed) event(getString(R.string.service_event_cups_confirmed), "cups.confirmed")
+        if (confirmed) event(ResourceMessage(R.string.service_event_cups_confirmed), "cups.confirmed")
         else if (previous == CupResetTracker.State.UNKNOWN && cupReset.state == CupResetTracker.State.RECONCILED)
-            event(getString(R.string.service_event_cups_reconciled), "cups.reconciled")
+            event(ResourceMessage(R.string.service_event_cups_reconciled), "cups.reconciled")
     }
     private val scheduleWrite = SleepScheduleWriteTracker()
     private val sleepNow = SleepNowTracker()
@@ -207,7 +208,7 @@ class MobileService : Service() {
                 if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
                         BrewPreparation.correctedTemperature(idle.brewTemperatureHundredthsC,
                             currentSettings.brewCompensationTenthsC)))
-                    event(getString(R.string.service_event_mock_temperature_ready), "mock.brew_wait_ready")
+                    event(ResourceMessage(R.string.service_event_mock_temperature_ready), "mock.brew_wait_ready")
             }
             (snapshot.coffee as? io.openhoyi.protocol.ExtractionTelemetry)?.let { frame ->
                 series.machine(frame, now, snapshot.weight?.weightHundredthsGram,
@@ -279,8 +280,8 @@ class MobileService : Service() {
         val current = tareState
         if(current == lastTareState) return
         lastTareState = current
-        if(current == StandaloneTare.State.CONFIRMED) event(getString(R.string.service_tare_confirmed), "scale.tare_confirmed")
-        if(current == StandaloneTare.State.UNKNOWN) event(getString(R.string.service_tare_unknown), "scale.tare_unknown")
+        if(current == StandaloneTare.State.CONFIRMED) event(ResourceMessage(R.string.service_tare_confirmed), "scale.tare_confirmed")
+        if(current == StandaloneTare.State.UNKNOWN) event(ResourceMessage(R.string.service_tare_unknown), "scale.tare_unknown")
     }
     private val watchShot = object : Runnable {
         override fun run() {
@@ -295,7 +296,7 @@ class MobileService : Service() {
                         snapshot.weightAt?.let { received -> received <= now && now - received <= 1500 } == true
                 }
                 runCatching { history?.transition(current, stopReason, weight) }
-                    .onFailure { event(getString(R.string.service_shot_history_failed), "shot.history_error") }
+                    .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
                     val shotRecordCleared = shotRecovery.clear()
@@ -305,18 +306,18 @@ class MobileService : Service() {
                         machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
                         machineWriteRecovery.matchesDevice(hub?.coffeeAddress)) {
                         if (!machineWriteRecovery.clear())
-                            event(getString(R.string.service_event_preheat_clear_failed), "brew_wait.recovery_clear_failed")
+                            event(ResourceMessage(R.string.service_event_preheat_clear_failed), "brew_wait.recovery_clear_failed")
                         brewWaitShotStarted = false
                     }
                 }
                 if (current == ExtractionState.OUTCOME_UNKNOWN) saveSeriesCheckpoint(force = true)
-                event(getString(R.string.service_event_shot_state, current.name), "shot.state")
+                event(ResourceMessage(R.string.service_event_shot_state, current.name), "shot.state")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
-                    event(getString(R.string.service_event_tare_unconfirmed), "shot.preflight_failed")
+                    event(ResourceMessage(R.string.service_event_tare_unconfirmed), "shot.preflight_failed")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.START_CONDITIONS_CHANGED.name)
-                    event(getString(R.string.service_event_conditions_changed), "shot.conditions_changed")
+                    event(ResourceMessage(R.string.service_event_conditions_changed), "shot.conditions_changed")
                 refreshSafetyNotification()
             }
             handler.postDelayed(this, 100)
@@ -342,7 +343,7 @@ class MobileService : Service() {
             running = true
             snapshot = mock.sample(SystemClock.elapsedRealtime())
             handler.post(mockTick)
-            event(getString(R.string.service_event_mock_started), "mock.started")
+            event(ResourceMessage(R.string.service_event_mock_started), "mock.started")
             return START_NOT_STICKY
         }
         automaticScaleOnly = intent?.action == AUTO_SCALE
@@ -379,7 +380,7 @@ class MobileService : Service() {
                     if (role == DeviceRole.COFFEE) when (state) {
                         DeviceState.READY -> pendingCoffeeCredential?.let { credential ->
                             if (!credential.remembered && !coffeeCredentials.save(credential.address, credential.password))
-                                event(getString(R.string.service_event_credential_save_failed), "coffee.credential_save_failed")
+                                event(ResourceMessage(R.string.service_event_credential_save_failed), "coffee.credential_save_failed")
                             coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
                             pendingCoffeeCredential = null
                         }
@@ -393,14 +394,14 @@ class MobileService : Service() {
                         passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
                         passiveHistoryId?.let { id ->
                             runCatching { history?.abandon(id, "连接中断") }
-                                .onFailure { event(getString(R.string.service_event_manual_history_failed), "shot.history_error") }
+                                .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
                         }
                         passiveHistoryId = null
                         passiveMayClearRecovery = false
                         saveSeriesCheckpoint(force = true)
                         finishSeries(false)
                         manualSafetyMessage = getString(R.string.service_event_manual_disconnect_warning)
-                        event(getString(R.string.service_event_manual_unknown), "shot.passive_unknown")
+                        event(ResourceMessage(R.string.service_event_manual_unknown), "shot.passive_unknown")
                     }
                     event("${role.name}: ${state.name}")
                     if (role == DeviceRole.COFFEE) refreshSafetyNotification()
@@ -411,14 +412,14 @@ class MobileService : Service() {
                             observeCupCount(true, frame.cupCount)
                             val previousSettingState = settingsWrite.state
                             if (settingsWrite.observe(++settingsSampleSerial, frame))
-                                event(getString(R.string.service_event_setting_confirmed), "settings.confirmed")
+                                event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
                             else if (previousSettingState == SettingsWriteTracker.State.UNKNOWN &&
                                 settingsWrite.state == SettingsWriteTracker.State.RECONCILED)
-                                event(getString(R.string.service_event_setting_reconciled), "settings.reconciled")
+                                event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
                             if (settingsWrite.state == SettingsWriteTracker.State.CONFIRMED &&
                                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
                                 if (!machineWriteRecovery.clear())
-                                    event(getString(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
+                                    event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
                                 refreshSafetyNotification()
                             }
                             snapshot.copy(settings = frame, settingsAt = SystemClock.elapsedRealtime())
@@ -434,13 +435,13 @@ class MobileService : Service() {
                             if (sleepScheduleFresh && scheduleWrite.observe(firstSleepSerial, secondSleepSerial,
                                     snapshot.sleepFirst, snapshot.sleepSecond)) {
                                 if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED)
-                                    event(getString(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
-                                else event(getString(R.string.service_event_schedule_reconciled), "sleep_schedule.reconciled")
+                                    event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
+                                else event(ResourceMessage(R.string.service_event_schedule_reconciled), "sleep_schedule.reconciled")
                             }
                             if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED &&
                                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
                                 if (!machineWriteRecovery.clear())
-                                    event(getString(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
+                                    event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                                 refreshSafetyNotification()
                             }
                             snapshot
@@ -449,21 +450,21 @@ class MobileService : Service() {
                             observeCupCount(false, frame.cupCount)
                             val previousSleepState = sleepNow.state
                             if (sleepNow.observe(++sleepSampleSerial, frame.sleepStateRaw))
-                                event(getString(R.string.service_event_sleep_confirmed), "sleep.confirmed")
+                                event(ResourceMessage(R.string.service_event_sleep_confirmed), "sleep.confirmed")
                             else if (previousSleepState == SleepNowTracker.State.UNKNOWN &&
                                 sleepNow.state == SleepNowTracker.State.RECONCILED)
-                                event(getString(R.string.service_event_sleep_reconciled), "sleep.reconciled")
+                                event(ResourceMessage(R.string.service_event_sleep_reconciled), "sleep.reconciled")
                             if (sleepNow.state == SleepNowTracker.State.CONFIRMED &&
                                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
                                 if (!machineWriteRecovery.clear())
-                                    event(getString(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
+                                    event(ResourceMessage(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
                                 refreshSafetyNotification()
                             }
                             val currentSettings = snapshot.settings
                             if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
                                     BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
                                         currentSettings.brewCompensationTenthsC)))
-                                event(getString(R.string.service_event_preheat_ready), "brew_wait.ready")
+                                event(ResourceMessage(R.string.service_event_preheat_ready), "brew_wait.ready")
                             val observedAt = SystemClock.elapsedRealtime()
                             snapshot.copy(coffee = frame, coffeeAt = observedAt,
                                 alarmBits = frame.alarmBits, alarmAt = observedAt)
@@ -489,16 +490,16 @@ class MobileService : Service() {
                                 manualSafetyMessage = getString(R.string.service_event_shot_record_failed)
                             refreshSafetyNotification()
                             passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
-                                .onFailure { event(getString(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
+                                .onFailure { event(ResourceMessage(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
                             val id = passiveHistoryId ?: java.util.UUID.randomUUID().toString()
                             series.begin(id, passiveEvent.first.atMs)
                             recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
                             recordMachinePoint(passiveEvent.second.frame, passiveEvent.second.atMs)
                             passiveHistoryId?.let {
                                 runCatching { history?.transition(ExtractionState.RUNNING, "机器手动萃取", null) }
-                                    .onFailure { event(getString(R.string.service_event_manual_history_failed), "shot.history_error") }
+                                    .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
                             }
-                            event(getString(R.string.service_event_manual_started), "shot.passive_started")
+                            event(ResourceMessage(R.string.service_event_manual_started), "shot.passive_started")
                         }
                         is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
                             passiveEvent.value.atMs)
@@ -514,11 +515,11 @@ class MobileService : Service() {
                             passiveHistoryId?.let {
                                 runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
                                     "机器待机回报", weight) }
-                                    .onFailure { event(getString(R.string.service_event_manual_history_failed), "shot.history_error") }
+                                    .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
                             }
                             passiveHistoryId = null
                             finishSeries(true)
-                            event(getString(R.string.service_event_manual_ended), "shot.passive_ended")
+                            event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
                         }
                         else -> if (frame is io.openhoyi.protocol.ExtractionTelemetry && !passiveShot.active)
                             recordMachinePoint(frame, observedAt)
@@ -532,7 +533,7 @@ class MobileService : Service() {
                 },
                 diagnostic = { detail ->
                     if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
-                    else event(getString(R.string.service_event_communication_error), "ble.diagnostic")
+                    else event(ResourceMessage(R.string.service_event_communication_error), "ble.diagnostic")
                 },
                 trace = { role, trace ->
                     logs.record("wire.${trace.kind}", buildMap {
@@ -547,7 +548,7 @@ class MobileService : Service() {
                 legacyVerifiedStartFrames = (application as MobileApplication).curves.legacyVerifiedStartFrames,
             )
             running = true
-            event(getString(R.string.service_event_started))
+            event(ResourceMessage(R.string.service_event_started))
             refreshSafetyNotification()
             scheduleAutomaticScaleStop()
             if (visibleScreens.visible) {
@@ -555,7 +556,7 @@ class MobileService : Service() {
                 hubForeground = true
             }
         } catch (error: RuntimeException) {
-            event(getString(R.string.service_event_startup_failed, error.javaClass.simpleName))
+            event(ResourceMessage(R.string.service_event_startup_failed, error.javaClass.simpleName))
             shutdown()
         }
         return START_NOT_STICKY
@@ -581,20 +582,21 @@ class MobileService : Service() {
                 DiscoveredDevice("02:00:00:00:00:01", "HOYI Mock", -42, DeviceRole.COFFEE),
                 DiscoveredDevice("02:00:00:00:00:02", "BOOKOO Mock", -45, DeviceRole.BOOKOO)),
                 scanning = false)
-            event(getString(R.string.service_scan_mock), "mock.scan")
+            event(ResourceMessage(R.string.service_scan_mock), "mock.scan")
             return
         }
         val current = hub ?: return
         manualDeviceUse()
         if (snapshot.scanning) return
-        snapshot = snapshot.copy(scanning = true, candidates = emptyList(), message = getString(R.string.service_scanning))
+        snapshot = snapshot.copy(scanning = true, candidates = emptyList(), message = resolvedMessage(ResourceMessage(R.string.service_scanning)))
         Log.i(TAG, "scan start")
         current.scanner.start(onDevice = { candidate ->
             snapshot = snapshot.copy(candidates = (snapshot.candidates.filterNot { it.address == candidate.address } + candidate)
                 .sortedWith(compareBy({ it.candidateRole.name }, { it.advertisedName })).take(64))
         }, onFinished = { error ->
             snapshot = snapshot.copy(scanning = false)
-            event(error ?: getString(R.string.service_scan_finished, snapshot.candidates.size.toString()))
+            if (error == null) event(ResourceMessage(R.string.service_scan_finished, snapshot.candidates.size.toString()))
+            else event(error)
         })
     }
     fun connectRememberedCoffee(address: String): Boolean {
@@ -606,63 +608,63 @@ class MobileService : Service() {
     }
     fun connectCoffee(address: String, password: String) = connectCoffee(address, password, remembered = false)
     private fun connectCoffee(address: String, password: String, remembered: Boolean) {
-        if (mock != null) { event(getString(R.string.service_coffee_mock), "mock.connect"); return }
-        if (manualShotActive) { event(getString(R.string.service_connection_manual_block)); return }
+        if (mock != null) { event(ResourceMessage(R.string.service_coffee_mock), "mock.connect"); return }
+        if (manualShotActive) { event(ResourceMessage(R.string.service_connection_manual_block)); return }
         if (!shotRecovery.matchesDevice(address)) {
-            event(getString(R.string.service_connection_shot_device_mismatch), "shot.device_mismatch"); return
+            event(ResourceMessage(R.string.service_connection_shot_device_mismatch), "shot.device_mismatch"); return
         }
         if (!machineWriteRecovery.matchesDevice(address)) {
-            event(getString(R.string.service_connection_write_device_mismatch), "machine_write.device_mismatch"); return
+            event(ResourceMessage(R.string.service_connection_write_device_mismatch), "machine_write.device_mismatch"); return
         }
         require(password.matches(Regex("[0-9]{6}")))
         manualDeviceUse()
-        if (cupResetBusy) { event(getString(R.string.service_connection_cups_busy)); return }
-        if (scheduleBusy) { event(getString(R.string.service_connection_schedule_busy)); return }
+        if (cupResetBusy) { event(ResourceMessage(R.string.service_connection_cups_busy)); return }
+        if (scheduleBusy) { event(ResourceMessage(R.string.service_connection_schedule_busy)); return }
         if (!ShotGate.mayReconnectCoffee(shotState)) {
-            event(getString(R.string.service_connection_shot_busy)); return
+            event(ResourceMessage(R.string.service_connection_shot_busy)); return
         }
         if (brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
             cancelBrewPreparation()
-            event(getString(R.string.service_connection_cancel_preheat), "brew_wait.connect_deferred")
+            event(ResourceMessage(R.string.service_connection_cancel_preheat), "brew_wait.connect_deferred")
             return
         }
         val current = hub ?: return
         snapshot = snapshot.copy(coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null,
             settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
-        event(if (remembered) getString(R.string.service_coffee_connect_remembered) else getString(R.string.home_connect_coffee_title))
+        event(ResourceMessage(if (remembered) R.string.service_coffee_connect_remembered else R.string.home_connect_coffee_title))
         pendingCoffeeCredential = PendingCoffeeCredential(address, password, remembered)
         try { current.connectCoffee(address, CoffeeAuthentication(LocalDateTime.now(), password)) }
         catch (error: RuntimeException) {
             pendingCoffeeCredential = null
-            event(getString(R.string.service_coffee_connect_failed, error.javaClass.simpleName), "coffee.connect_failed")
+            event(ResourceMessage(R.string.service_coffee_connect_failed, error.javaClass.simpleName), "coffee.connect_failed")
         }
     }
     fun connectScale(address: String) {
-        if (mock != null) { event(getString(R.string.service_scale_mock), "mock.connect"); return }
-        if (manualShotActive) { event(getString(R.string.service_scale_manual_block)); return }
+        if (mock != null) { event(ResourceMessage(R.string.service_scale_mock), "mock.connect"); return }
+        if (manualShotActive) { event(ResourceMessage(R.string.service_scale_manual_block)); return }
         manualDeviceUse()
-        if (ShotGate.active(shotState)) { event(getString(R.string.service_scale_shot_block)); return }
+        if (ShotGate.active(shotState)) { event(ResourceMessage(R.string.service_scale_shot_block)); return }
         val current = hub ?: return
-        if (!current.connectScale(address)) { event(getString(R.string.service_scale_already_connected)); return }
+        if (!current.connectScale(address)) { event(ResourceMessage(R.string.service_scale_already_connected)); return }
         snapshot = snapshot.copy(weight = null, weightAt = null)
-        event(getString(R.string.service_scale_connect))
+        event(ResourceMessage(R.string.service_scale_connect))
     }
     fun disconnect(role: DeviceRole) {
-        if (mock != null) { event(getString(R.string.service_disconnect_mock), "mock.disconnect"); return }
-        if (manualShotActive) { event(getString(R.string.service_connection_manual_block)); return }
-        if (ShotGate.active(shotState)) { event(getString(R.string.service_disconnect_shot_block)); return }
+        if (mock != null) { event(ResourceMessage(R.string.service_disconnect_mock), "mock.disconnect"); return }
+        if (manualShotActive) { event(ResourceMessage(R.string.service_connection_manual_block)); return }
+        if (ShotGate.active(shotState)) { event(ResourceMessage(R.string.service_disconnect_shot_block)); return }
         if (role == DeviceRole.COFFEE && cupResetBusy) {
-            event(getString(R.string.service_disconnect_cups_busy)); return
+            event(ResourceMessage(R.string.service_disconnect_cups_busy)); return
         }
         if (role == DeviceRole.COFFEE && scheduleBusy) {
-            event(getString(R.string.service_disconnect_schedule_busy)); return
+            event(ResourceMessage(R.string.service_disconnect_schedule_busy)); return
         }
         if (role == DeviceRole.COFFEE && brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
             cancelBrewPreparation()
-            event(getString(R.string.service_disconnect_cancel_preheat), "brew_wait.disconnect_deferred")
+            event(ResourceMessage(R.string.service_disconnect_cancel_preheat), "brew_wait.disconnect_deferred")
             return
         }
-        event(getString(R.string.service_disconnect, role.name))
+        event(ResourceMessage(R.string.service_disconnect, role.name))
         if (role == DeviceRole.COFFEE) hub?.disconnectCoffee() else hub?.disconnectScale()
     }
     fun tareScale(): String? {
@@ -670,7 +672,7 @@ class MobileService : Service() {
             val result = mock.tare()
             if (result == null) {
                 refreshMock(mock)
-                event(getString(R.string.service_tare_mock), "mock.tare")
+                event(ResourceMessage(R.string.service_tare_mock), "mock.tare")
             }
             return result
         }
@@ -680,13 +682,13 @@ class MobileService : Service() {
         if (snapshot.scaleState != DeviceState.READY) return getString(R.string.service_tare_not_ready)
         if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
             return getString(R.string.service_tare_waiting)
-        event(getString(R.string.service_tare_requested), "scale.tare_requested")
+        event(ResourceMessage(R.string.service_tare_requested), "scale.tare_requested")
         current.tareScale { result ->
             lastTareState = tareState
             when (tareState) {
-                StandaloneTare.State.WAITING_ZERO -> event(getString(R.string.service_tare_written), "scale.tare_written")
-                StandaloneTare.State.UNKNOWN -> event(getString(R.string.service_tare_unknown), "scale.tare_unknown")
-                else -> if (result !is OperationResult.Success) event(getString(R.string.service_tare_failed), "scale.tare_failed")
+                StandaloneTare.State.WAITING_ZERO -> event(ResourceMessage(R.string.service_tare_written), "scale.tare_written")
+                StandaloneTare.State.UNKNOWN -> event(ResourceMessage(R.string.service_tare_unknown), "scale.tare_unknown")
+                else -> if (result !is OperationResult.Success) event(ResourceMessage(R.string.service_tare_failed), "scale.tare_failed")
             }
         }
         return null
@@ -696,7 +698,7 @@ class MobileService : Service() {
             val result = mock.changeSetting(change)
             if (result == null) {
                 refreshMock(mock)
-                event(getString(R.string.service_write_mock_setting, settingsPresentation.change(change)), "mock.setting")
+                event(ResourceMessage(R.string.service_write_mock_setting, settingsPresentation.change(change)), "mock.setting")
             }
             return result
         }
@@ -735,28 +737,28 @@ class MobileService : Service() {
         }
         recoveryAfterSettingsSerial = settingsSampleSerial
         refreshSafetyNotification()
-        event(getString(R.string.service_write_setting_queued, settingsPresentation.change(change)), "settings.requested")
+        event(ResourceMessage(R.string.service_write_setting_queued, settingsPresentation.change(change)), "settings.requested")
         current.writeSetting(change) done@{ result ->
             if (!settingsWrite.written(token, result, settingsSampleSerial)) return@done
             when (settingsWrite.state) {
                 SettingsWriteTracker.State.WAITING_READBACK -> {
-                    event(getString(R.string.service_write_setting_written), "settings.written")
+                    event(ResourceMessage(R.string.service_write_setting_written), "settings.written")
                     handler.postDelayed({
                         if (settingsWrite.timeout(token, settingsSampleSerial)) {
                             recoveryAfterSettingsSerial = settingsSampleSerial
-                            event(getString(R.string.service_write_setting_no_readback), "settings.unknown")
+                            event(ResourceMessage(R.string.service_write_setting_no_readback), "settings.unknown")
                         }
                     }, 6000)
                 }
                 SettingsWriteTracker.State.FAILED -> {
                     if (!machineWriteRecovery.clear())
-                        event(getString(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
+                        event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event(getString(R.string.service_write_setting_not_written), "settings.failed")
+                    event(ResourceMessage(R.string.service_write_setting_not_written), "settings.failed")
                 }
                 SettingsWriteTracker.State.UNKNOWN -> {
                     recoveryAfterSettingsSerial = settingsSampleSerial
-                    event(getString(R.string.service_write_setting_unknown), "settings.unknown")
+                    event(ResourceMessage(R.string.service_write_setting_unknown), "settings.unknown")
                 }
                 else -> Unit
             }
@@ -768,7 +770,7 @@ class MobileService : Service() {
             val result = mock.resetCupCount(expectedCount)
             if (result == null) {
                 refreshMock(mock)
-                event(getString(R.string.service_write_cups_mock), "mock.cups")
+                event(ResourceMessage(R.string.service_write_cups_mock), "mock.cups")
             }
             return result
         }
@@ -804,30 +806,30 @@ class MobileService : Service() {
         recoveryAfterSettingsSerial = cupSettingsSerial
         recoveryAfterIdleSerial = cupIdleSerial
         refreshSafetyNotification()
-        event(getString(R.string.service_write_cups_queued), "cups.requested")
+        event(ResourceMessage(R.string.service_write_cups_queued), "cups.requested")
         current.resetCupCount(expectedCount) done@{ result ->
             if (!cupReset.written(token, result, cupSettingsSerial, cupIdleSerial)) return@done
             when (cupReset.state) {
                 CupResetTracker.State.WAITING_ZERO -> {
-                    event(getString(R.string.service_write_cups_written), "cups.written")
+                    event(ResourceMessage(R.string.service_write_cups_written), "cups.written")
                     handler.postDelayed({
                         if (cupReset.timeout(token, cupSettingsSerial, cupIdleSerial)) {
                             recoveryAfterSettingsSerial = cupSettingsSerial
                             recoveryAfterIdleSerial = cupIdleSerial
-                            event(getString(R.string.service_write_cups_no_readback), "cups.unknown")
+                            event(ResourceMessage(R.string.service_write_cups_no_readback), "cups.unknown")
                         }
                     }, 12_000)
                 }
                 CupResetTracker.State.FAILED -> {
                     if (!machineWriteRecovery.clear())
-                        event(getString(R.string.service_write_cups_clear_failed), "cups.recovery_clear_failed")
+                        event(ResourceMessage(R.string.service_write_cups_clear_failed), "cups.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event(getString(R.string.service_write_cups_not_written), "cups.failed")
+                    event(ResourceMessage(R.string.service_write_cups_not_written), "cups.failed")
                 }
                 CupResetTracker.State.UNKNOWN -> {
                     recoveryAfterSettingsSerial = cupSettingsSerial
                     recoveryAfterIdleSerial = cupIdleSerial
-                    event(getString(R.string.service_write_cups_unknown), "cups.unknown")
+                    event(ResourceMessage(R.string.service_write_cups_unknown), "cups.unknown")
                 }
                 else -> Unit
             }
@@ -839,7 +841,7 @@ class MobileService : Service() {
             val result = mock.changeSchedule(expected, target)
             if (result == null) {
                 refreshMock(mock)
-                event(getString(R.string.service_write_schedule_mock), "mock.sleep_schedule")
+                event(ResourceMessage(R.string.service_write_schedule_mock), "mock.sleep_schedule")
             }
             return result
         }
@@ -881,37 +883,37 @@ class MobileService : Service() {
         recoveryAfterFirstSleepSerial = firstSleepSerial
         recoveryAfterSecondSleepSerial = secondSleepSerial
         refreshSafetyNotification()
-        event(getString(R.string.service_write_schedule_queued), "sleep_schedule.requested")
+        event(ResourceMessage(R.string.service_write_schedule_queued), "sleep_schedule.requested")
         current.writeSleepSchedule(target,expected) done@{ result ->
             if (!scheduleWrite.written(token, result, firstSleepSerial, secondSleepSerial,
                     snapshot.sleepFirst, snapshot.sleepSecond)) return@done
             when (scheduleWrite.state) {
                 SleepScheduleWriteTracker.State.CONFIRMED -> {
                     if (!machineWriteRecovery.clear())
-                        event(getString(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
+                        event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event(getString(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
+                    event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
                 }
                 SleepScheduleWriteTracker.State.WAITING_READBACK -> {
-                    event(getString(R.string.service_write_schedule_written), "sleep_schedule.written")
+                    event(ResourceMessage(R.string.service_write_schedule_written), "sleep_schedule.written")
                     handler.postDelayed({
                         if (scheduleWrite.timeout(token, firstSleepSerial, secondSleepSerial)) {
                             recoveryAfterFirstSleepSerial = firstSleepSerial
                             recoveryAfterSecondSleepSerial = secondSleepSerial
-                            event(getString(R.string.service_write_schedule_no_readback), "sleep_schedule.unknown")
+                            event(ResourceMessage(R.string.service_write_schedule_no_readback), "sleep_schedule.unknown")
                         }
                     }, 8000)
                 }
                 SleepScheduleWriteTracker.State.FAILED -> {
                     if (!machineWriteRecovery.clear())
-                        event(getString(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
+                        event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event(getString(R.string.service_write_schedule_first_not_written), "sleep_schedule.failed")
+                    event(ResourceMessage(R.string.service_write_schedule_first_not_written), "sleep_schedule.failed")
                 }
                 SleepScheduleWriteTracker.State.UNKNOWN -> {
                     recoveryAfterFirstSleepSerial = firstSleepSerial
                     recoveryAfterSecondSleepSerial = secondSleepSerial
-                    event(getString(R.string.service_write_schedule_partial_unknown), "sleep_schedule.unknown")
+                    event(ResourceMessage(R.string.service_write_schedule_partial_unknown), "sleep_schedule.unknown")
                 }
                 else -> Unit
             }
@@ -923,7 +925,7 @@ class MobileService : Service() {
             val result = mock.sleepNow()
             if (result == null) {
                 refreshMock(mock)
-                event(getString(R.string.service_write_sleep_mock), "mock.sleep")
+                event(ResourceMessage(R.string.service_write_sleep_mock), "mock.sleep")
             }
             return result
         }
@@ -953,28 +955,28 @@ class MobileService : Service() {
         }
         recoveryAfterSleepSerial = sleepSampleSerial
         refreshSafetyNotification()
-        event(getString(R.string.service_write_sleep_queued), "sleep.requested")
+        event(ResourceMessage(R.string.service_write_sleep_queued), "sleep.requested")
         current.enterSleep done@{ result ->
             if (!sleepNow.written(token, result, sleepSampleSerial)) return@done
             when (sleepNow.state) {
                 SleepNowTracker.State.WAITING_ASLEEP -> {
-                    event(getString(R.string.service_write_sleep_written), "sleep.written")
+                    event(ResourceMessage(R.string.service_write_sleep_written), "sleep.written")
                     handler.postDelayed({
                         if (sleepNow.timeout(token, sleepSampleSerial)) {
                             recoveryAfterSleepSerial = sleepSampleSerial
-                            event(getString(R.string.service_write_sleep_no_readback), "sleep.unknown")
+                            event(ResourceMessage(R.string.service_write_sleep_no_readback), "sleep.unknown")
                         }
                     }, 12_000)
                 }
                 SleepNowTracker.State.FAILED -> {
                     if (!machineWriteRecovery.clear())
-                        event(getString(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
+                        event(ResourceMessage(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
                     refreshSafetyNotification()
-                    event(getString(R.string.service_write_sleep_not_written), "sleep.failed")
+                    event(ResourceMessage(R.string.service_write_sleep_not_written), "sleep.failed")
                 }
                 SleepNowTracker.State.UNKNOWN -> {
                     recoveryAfterSleepSerial = sleepSampleSerial
-                    event(getString(R.string.service_write_sleep_unknown), "sleep.unknown")
+                    event(ResourceMessage(R.string.service_write_sleep_unknown), "sleep.unknown")
                 }
                 else -> Unit
             }
@@ -1020,7 +1022,7 @@ class MobileService : Service() {
                 ?: run { mock?.cancelPreheat(now); return getString(R.string.service_shot_preheat_mock_failed) }
             brewPreparation.written(token, OperationResult.Success(), idleSampleSerial)
             refreshMock(mock, now)
-            event(getString(R.string.service_shot_preheat_mock_target, profile.temperatureC.toString()), "mock.brew_wait")
+            event(ResourceMessage(R.string.service_shot_preheat_mock_target, profile.temperatureC.toString()), "mock.brew_wait")
             return null
         }
         if (manualShotActive) return getString(R.string.service_shot_preheat_manual_block)
@@ -1056,7 +1058,7 @@ class MobileService : Service() {
         }
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         refreshSafetyNotification()
-        event(getString(R.string.service_shot_preheat_queued, profile.temperatureC.toString()), "brew_wait.requested")
+        event(ResourceMessage(R.string.service_shot_preheat_queued, profile.temperatureC.toString()), "brew_wait.requested")
         current.setBrewWait(profile.temperatureC, {
             brewPreparation.permitsWrite(token, profile.temperatureC) && !manualShotActive &&
                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
@@ -1065,21 +1067,21 @@ class MobileService : Service() {
             if (!brewPreparation.written(token, result, idleSampleSerial)) return@done
             when (brewPreparation.state) {
                 BrewPreparation.State.WAITING_TEMP -> {
-                    event(getString(R.string.service_shot_preheat_written), "brew_wait.written")
+                    event(ResourceMessage(R.string.service_shot_preheat_written), "brew_wait.written")
                     handler.postDelayed({
                         if (brewPreparation.isActive(token)) {
                             val blocked = cancelBrewPreparation()
                             if (blocked == null && brewPreparation.state != BrewPreparation.State.UNKNOWN)
-                                event(getString(R.string.service_shot_preheat_timeout_cancel), "brew_wait.timeout_cancel_requested")
+                                event(ResourceMessage(R.string.service_shot_preheat_timeout_cancel), "brew_wait.timeout_cancel_requested")
                             else if (brewPreparation.timedOut(token)) {
-                                event(getString(R.string.service_shot_preheat_timeout_blocked, blocked.toString()), "brew_wait.timeout_cancel_blocked")
+                                event(ResourceMessage(R.string.service_shot_preheat_timeout_blocked, blocked.toString()), "brew_wait.timeout_cancel_blocked")
                                 refreshSafetyNotification()
                             }
                         }
                     }, 600_000)
                 }
-                BrewPreparation.State.FAILED -> event(getString(R.string.service_shot_preheat_not_written), "brew_wait.failed")
-                BrewPreparation.State.UNKNOWN -> event(getString(R.string.service_shot_preheat_unknown), "brew_wait.unknown")
+                BrewPreparation.State.FAILED -> event(ResourceMessage(R.string.service_shot_preheat_not_written), "brew_wait.failed")
+                BrewPreparation.State.UNKNOWN -> event(ResourceMessage(R.string.service_shot_preheat_unknown), "brew_wait.unknown")
                 else -> Unit
             }
             refreshSafetyNotification()
@@ -1096,7 +1098,7 @@ class MobileService : Service() {
             brewPreparation.cancelled(token, OperationResult.Success())
             brewPreparation.consumed()
             refreshMock(mock, now)
-            event(getString(R.string.service_shot_cancel_mock_done), "mock.brew_wait_cancelled")
+            event(ResourceMessage(R.string.service_shot_cancel_mock_done), "mock.brew_wait_cancelled")
             return null
         }
         if (manualShotActive) return getString(R.string.service_shot_cancel_manual_block)
@@ -1110,7 +1112,7 @@ class MobileService : Service() {
         }
         val token = brewPreparation.beginCancel() ?: return getString(R.string.service_shot_cancel_pending)
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
-        event(getString(R.string.service_shot_cancel_queued), "brew_wait.cancel_requested")
+        event(ResourceMessage(R.string.service_shot_cancel_queued), "brew_wait.cancel_requested")
         current.setBrewWait(0, {
             brewPreparation.permitsWrite(token, 0) && brewWaitCancelBlock == null &&
                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
@@ -1118,8 +1120,8 @@ class MobileService : Service() {
         }) done@{ result ->
             if (!brewPreparation.cancelled(token, result)) return@done
             when (brewPreparation.state) {
-                BrewPreparation.State.CANCEL_WRITTEN -> event(getString(R.string.service_shot_cancel_written), "brew_wait.cancel_written")
-                BrewPreparation.State.UNKNOWN -> event(getString(R.string.service_shot_cancel_unknown), "brew_wait.cancel_unknown")
+                BrewPreparation.State.CANCEL_WRITTEN -> event(ResourceMessage(R.string.service_shot_cancel_written), "brew_wait.cancel_written")
+                BrewPreparation.State.UNKNOWN -> event(ResourceMessage(R.string.service_shot_cancel_unknown), "brew_wait.cancel_unknown")
                 else -> Unit
             }
             refreshSafetyNotification()
@@ -1143,7 +1145,7 @@ class MobileService : Service() {
             val shotId = runCatching { history?.begin(profile.id, slot = slot) }.getOrNull()
                 ?: java.util.UUID.randomUUID().toString()
             series.begin(shotId, SystemClock.elapsedRealtime())
-            event(getString(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
+            event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
             return null
         }
         if (manualShotActive) return getString(R.string.service_shot_manual_block)
@@ -1165,18 +1167,18 @@ class MobileService : Service() {
         val library = (application as MobileApplication).curves
         val profile = selectedCurve(profileId, slot)
         if (profile != null && profile.scaleMode != expectedScaleMode) {
-            event(getString(R.string.service_shot_scale_connection_changed), "shot.rejected")
+            event(ResourceMessage(R.string.service_shot_scale_connection_changed), "shot.rejected")
             return getString(R.string.service_shot_scale_connection_changed)
         }
         val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
             snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
-        if (blocked != null) { event(getString(R.string.service_shot_start_blocked, blocked), "shot.rejected"); return blocked }
+        if (blocked != null) { event(ResourceMessage(R.string.service_shot_start_blocked, blocked), "shot.rejected"); return blocked }
         requireNotNull(profile)
         studioStartBlock(profile)?.let { return it }
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {
             runCatching { history?.transition(ExtractionState.ENDED_OBSERVED, stopReason, null) }
-                .onFailure { event(getString(R.string.service_shot_history_failed), "shot.history_error") }
+                .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
             finishSeries(true)
         }
         logs.record("shot.start.attempt", mapOf("ownerId" to ownerId, "curveId" to profile.id,
@@ -1187,7 +1189,7 @@ class MobileService : Service() {
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) ||
             current.extraction.state == ExtractionState.IDLE) {
             if (!shotRecovery.clear()) manualSafetyMessage = restartShotWarning
-            event(getString(R.string.service_shot_session_rejected), "shot.rejected")
+            event(ResourceMessage(R.string.service_shot_session_rejected), "shot.rejected")
             return getString(R.string.service_shot_session_rejected)
         }
         activeShotTargetHundredthsGram = profile.targetHundredthsGram
@@ -1195,32 +1197,32 @@ class MobileService : Service() {
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
         val shotId = runCatching { history?.begin(profile.id, slot = slot) }
-            .onFailure { event(getString(R.string.service_shot_history_failed), "shot.history_error") }
+            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
             .getOrNull() ?: java.util.UUID.randomUUID().toString()
         series.begin(shotId, SystemClock.elapsedRealtime())
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
-            event(getString(R.string.service_shot_start_unknown), "shot.unknown")
+            event(ResourceMessage(R.string.service_shot_start_unknown), "shot.unknown")
             return getString(R.string.service_shot_start_unknown)
         }
-        event(if (current.extraction.preparingScale) getString(R.string.service_shot_waiting_tare, profile.name)
-            else getString(R.string.service_shot_requested, profile.name), "shot.requested")
+        event(ResourceMessage(if (current.extraction.preparingScale) R.string.service_shot_waiting_tare
+            else R.string.service_shot_requested, profile.name), "shot.requested")
         return null
     }
     fun stopShot() {
         if (mock != null) {
             if (ShotGate.active(shotState)) {
                 mock.stop()
-                event(getString(R.string.service_shot_mock_stopped), "mock.shot_stopped")
+                event(ResourceMessage(R.string.service_shot_mock_stopped), "mock.shot_stopped")
             }
             return
         }
-        if (manualShotActive) { event(getString(R.string.service_shot_manual_stop_block)); return }
+        if (manualShotActive) { event(ResourceMessage(R.string.service_shot_manual_stop_block)); return }
         if (!ShotGate.active(shotState)) return
         if (shotState == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != DeviceState.READY) {
-            event(getString(R.string.service_shot_stop_unavailable), "shot.stop_unavailable")
+            event(ResourceMessage(R.string.service_shot_stop_unavailable), "shot.stop_unavailable")
             return
         }
-        event(getString(R.string.service_shot_stop_requested), "shot.manual_stop")
+        event(ResourceMessage(R.string.service_shot_stop_requested), "shot.manual_stop")
         hub?.extraction?.manualStop()
     }
     private fun finishSeries(observedEnd: Boolean) {
@@ -1242,13 +1244,19 @@ class MobileService : Service() {
     private fun saveSeriesCheckpoint(atElapsedMs: Long = SystemClock.elapsedRealtime(), force: Boolean = false) {
         series.checkpoint(atElapsedMs, force)?.let { (id, points) ->
             runCatching { (application as MobileApplication).samples.save(id, points) }
-                .onFailure { event(getString(R.string.service_event_sample_save_failed), "shot.samples_error") }
+                .onFailure { event(ResourceMessage(R.string.service_event_sample_save_failed), "shot.samples_error") }
         }
     }
-    private fun event(message: String, kind: String = "mobile.event") {
+    private fun resolvedMessage(resource: ResourceMessage): SnapshotMessage =
+        SnapshotMessage.resource(resource) { id, args -> getString(id, *args) }
+    private fun event(resource: ResourceMessage, kind: String = "mobile.event") =
+        recordMessage(resolvedMessage(resource), kind)
+    private fun event(message: String, kind: String = "mobile.event") =
+        recordMessage(SnapshotMessage.raw(message), kind)
+    private fun recordMessage(message: SnapshotMessage, kind: String) {
         snapshot = snapshot.copy(message = message)
-        logs.record(kind, mapOf("message" to message, "ownerId" to ownerId))
-        Log.i(TAG, message)
+        logs.record(kind, mapOf("message" to message.initialText, "ownerId" to ownerId))
+        Log.i(TAG, message.initialText)
     }
     private fun connectionNotification(warning: String?): Notification {
         val open = PendingIntent.getActivity(this, 0, Intent(this, HomeActivity::class.java),
@@ -1272,7 +1280,7 @@ class MobileService : Service() {
         if (!running) return
         val manager = getSystemService(NotificationManager::class.java)
         runCatching { manager.notify(1, connectionNotification(warning)) }
-            .onFailure { event(getString(R.string.notification_update_error), "shot.safety_notify_error") }
+            .onFailure { event(ResourceMessage(R.string.notification_update_error), "shot.safety_notify_error") }
         if (warning == null) manager.cancel(SAFETY_NOTIFICATION)
         else runCatching {
             val destination = if (machineWriteSafetyMessage != null && manualSafetyMessage == null &&
@@ -1287,12 +1295,12 @@ class MobileService : Service() {
                 .setStyle(Notification.BigTextStyle().bigText(warning))
                 .setContentIntent(open).setCategory(Notification.CATEGORY_ALARM)
                 .setOngoing(true).build())
-        }.onFailure { event(getString(R.string.notification_unavailable), "shot.safety_notify_error") }
+        }.onFailure { event(ResourceMessage(R.string.notification_unavailable), "shot.safety_notify_error") }
     }
     fun acknowledgeManualSafety() {
         if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
             if (shotRecovery.pending || ShotGate.active(shotState)) {
-                event(getString(R.string.recovery_event_brew_wait_recovery_shot_active), "brew_wait.recovery_shot_active")
+                event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_shot_active), "brew_wait.recovery_shot_active")
                 return
             }
             val now = SystemClock.elapsedRealtime()
@@ -1305,15 +1313,15 @@ class MobileService : Service() {
                     BrewPreparation.State.UNKNOWN, BrewPreparation.State.CANCEL_WRITTEN))
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearBrewWait(evidence, recoveryAfterBrewWaitIdleSerial)) {
-                event(getString(R.string.recovery_event_brew_wait_recovery_waiting), "brew_wait.recovery_waiting")
+                event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_waiting), "brew_wait.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event(getString(R.string.recovery_event_brew_wait_recovery_clear_failed), "brew_wait.recovery_clear_failed")
+                event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_clear_failed), "brew_wait.recovery_clear_failed")
                 return
             }
             brewPreparation.consumed()
-            event(getString(R.string.recovery_event_brew_wait_recovery_acknowledged), "brew_wait.recovery_acknowledged")
+            event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_acknowledged), "brew_wait.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1326,14 +1334,14 @@ class MobileService : Service() {
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearCupReset(evidence,
                     recoveryAfterSettingsSerial, recoveryAfterIdleSerial)) {
-                event(getString(R.string.recovery_event_cups_recovery_waiting), "cups.recovery_waiting")
+                event(ResourceMessage(R.string.recovery_event_cups_recovery_waiting), "cups.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event(getString(R.string.recovery_event_cups_recovery_clear_failed), "cups.recovery_clear_failed")
+                event(ResourceMessage(R.string.recovery_event_cups_recovery_clear_failed), "cups.recovery_clear_failed")
                 return
             }
-            event(getString(R.string.recovery_event_cups_recovery_acknowledged), "cups.recovery_acknowledged")
+            event(ResourceMessage(R.string.recovery_event_cups_recovery_acknowledged), "cups.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1348,14 +1356,14 @@ class MobileService : Service() {
                     SettingsWriteTracker.State.WAITING_READBACK))
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearSetting(evidence, recoveryAfterSettingsSerial)) {
-                event(getString(R.string.recovery_event_settings_recovery_waiting), "settings.recovery_waiting")
+                event(ResourceMessage(R.string.recovery_event_settings_recovery_waiting), "settings.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event(getString(R.string.recovery_event_settings_recovery_clear_failed), "settings.recovery_clear_failed")
+                event(ResourceMessage(R.string.recovery_event_settings_recovery_clear_failed), "settings.recovery_clear_failed")
                 return
             }
-            event(getString(R.string.recovery_event_settings_recovery_acknowledged), "settings.recovery_acknowledged")
+            event(ResourceMessage(R.string.recovery_event_settings_recovery_acknowledged), "settings.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1371,15 +1379,15 @@ class MobileService : Service() {
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearSchedule(evidence,
                     recoveryAfterFirstSleepSerial, recoveryAfterSecondSleepSerial)) {
-                event(getString(R.string.recovery_event_sleep_schedule_recovery_waiting),
+                event(ResourceMessage(R.string.recovery_event_sleep_schedule_recovery_waiting),
                     "sleep_schedule.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event(getString(R.string.recovery_event_sleep_schedule_recovery_clear_failed), "sleep_schedule.recovery_clear_failed")
+                event(ResourceMessage(R.string.recovery_event_sleep_schedule_recovery_clear_failed), "sleep_schedule.recovery_clear_failed")
                 return
             }
-            event(getString(R.string.recovery_event_sleep_schedule_recovery_acknowledged), "sleep_schedule.recovery_acknowledged")
+            event(ResourceMessage(R.string.recovery_event_sleep_schedule_recovery_acknowledged), "sleep_schedule.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1392,14 +1400,14 @@ class MobileService : Service() {
                     SleepNowTracker.State.WAITING_ASLEEP))
             if (snapshot.coffeeState != DeviceState.READY ||
                 !machineWriteRecovery.canClearSleep(evidence, recoveryAfterSleepSerial)) {
-                event(getString(R.string.recovery_event_sleep_recovery_waiting), "sleep.recovery_waiting")
+                event(ResourceMessage(R.string.recovery_event_sleep_recovery_waiting), "sleep.recovery_waiting")
                 return
             }
             if (!machineWriteRecovery.clear()) {
-                event(getString(R.string.recovery_event_sleep_recovery_clear_failed), "sleep.recovery_clear_failed")
+                event(ResourceMessage(R.string.recovery_event_sleep_recovery_clear_failed), "sleep.recovery_clear_failed")
                 return
             }
-            event(getString(R.string.recovery_event_sleep_recovery_acknowledged), "sleep.recovery_acknowledged")
+            event(ResourceMessage(R.string.recovery_event_sleep_recovery_acknowledged), "sleep.recovery_acknowledged")
             refreshSafetyNotification()
             return
         }
@@ -1410,12 +1418,12 @@ class MobileService : Service() {
         }
         if (shotRecovery.pending) {
             if (!shotRecovery.clear()) {
-                event(getString(R.string.recovery_event_shot_recovery_clear_failed), "shot.recovery_clear_failed")
+                event(ResourceMessage(R.string.recovery_event_shot_recovery_clear_failed), "shot.recovery_clear_failed")
                 return
             }
         }
         manualSafetyMessage = null
-        event(getString(R.string.recovery_event_shot_passive_acknowledged), "shot.passive_acknowledged")
+        event(ResourceMessage(R.string.recovery_event_shot_passive_acknowledged), "shot.passive_acknowledged")
         refreshSafetyNotification()
     }
     fun shutdown() {
@@ -1423,35 +1431,35 @@ class MobileService : Service() {
             if (ShotGate.active(shotState)) mock.stop()
             running = false
             handler.removeCallbacks(mockTick)
-            snapshot = MobileSnapshot(message = getString(R.string.service_event_mock_stopped))
+            snapshot = MobileSnapshot(message = resolvedMessage(ResourceMessage(R.string.service_event_mock_stopped)))
             stopSelf()
             return
         }
-        if (manualShotActive) { event(getString(R.string.service_connection_manual_block), "service.stop_deferred"); return }
+        if (manualShotActive) { event(ResourceMessage(R.string.service_connection_manual_block), "service.stop_deferred"); return }
         if (cupResetBusy) {
-            event(getString(R.string.service_event_cups_shutdown_block), "service.stop_deferred")
+            event(ResourceMessage(R.string.service_event_cups_shutdown_block), "service.stop_deferred")
             return
         }
         if (scheduleBusy) {
-            event(getString(R.string.service_event_schedule_shutdown_block), "service.stop_deferred")
+            event(ResourceMessage(R.string.service_event_schedule_shutdown_block), "service.stop_deferred")
             return
         }
         if (ShotGate.active(shotState)) {
             stopShot()
-            event(getString(R.string.service_event_shot_shutdown_block), "service.stop_deferred")
+            event(ResourceMessage(R.string.service_event_shot_shutdown_block), "service.stop_deferred")
             return
         }
         if (shotRecovery.pending) {
-            event(getString(R.string.service_event_shot_recovery_shutdown_block), "service.stop_deferred")
+            event(ResourceMessage(R.string.service_event_shot_recovery_shutdown_block), "service.stop_deferred")
             return
         }
         if (machineWriteRecovery.pending) {
-            event(getString(R.string.service_event_write_shutdown_block), "service.stop_deferred")
+            event(ResourceMessage(R.string.service_event_write_shutdown_block), "service.stop_deferred")
             return
         }
         if (brewPreparation.active && snapshot.coffeeState == DeviceState.READY) {
             cancelBrewPreparation()
-            event(getString(R.string.service_event_preheat_shutdown_block), "service.stop_deferred")
+            event(ResourceMessage(R.string.service_event_preheat_shutdown_block), "service.stop_deferred")
             return
         }
         hub?.close(); hub = null; running = false

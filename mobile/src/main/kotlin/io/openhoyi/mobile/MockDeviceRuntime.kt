@@ -175,7 +175,7 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
             weight = BookooSample(if (extracting) elapsed * 70 else idleWeightHundredths,
                 if (extracting) 70 else 0,
                 43, 43, emptyFrame), weightAt = now,
-            message = text(R.string.mock_runtime_sample_notice),
+            message = SnapshotMessage.resource(ResourceMessage(R.string.mock_runtime_sample_notice)) { id, _ -> text(id) },
         )
     }
 }

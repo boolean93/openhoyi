@@ -22,6 +22,6 @@ internal object DefaultStringResources {
 
     fun template(id: Int): String = strings.getValue(id)
 
-    fun resolve(id: Int, args: Array<out Any>): String =
+    fun resolve(id: Int, args: Array<out Any?>): String =
         String.format(Locale.CHINA, template(id), *args)
 }

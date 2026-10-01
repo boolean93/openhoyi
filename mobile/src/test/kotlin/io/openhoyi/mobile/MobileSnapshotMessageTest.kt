@@ -8,7 +8,7 @@ class MobileSnapshotMessageTest {
     @Test fun initialMessageUsesDisplayResourcesWithoutChangingConnectionState() {
         val snapshot = MobileSnapshot()
         assertNull(snapshot.message)
-        assertEquals("translated initial", snapshot.messageForDisplay { id ->
+        assertEquals("translated initial", snapshot.messageForDisplay { id, _ ->
             assertEquals(R.string.device_initial_message, id)
             "translated initial"
         })
@@ -19,9 +19,9 @@ class MobileSnapshotMessageTest {
 
     @Test fun existingEventIncludingEmptyTranslationIsNeverReplacedByInitialHint() {
         for (message in listOf("", "结果未知", "message %1\$s")) {
-            val snapshot = MobileSnapshot(message = message)
-            assertEquals(message, snapshot.messageForDisplay { error("Unexpected fallback") })
-            assertEquals(message, snapshot.copy(scanning = true).message)
+            val snapshot = MobileSnapshot(message = SnapshotMessage.raw(message))
+            assertEquals(message, snapshot.messageForDisplay { _, _ -> error("Unexpected fallback") })
+            assertEquals(message, snapshot.copy(scanning = true).message?.initialText)
         }
     }
 }
