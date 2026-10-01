@@ -8,7 +8,7 @@
 3. 本地默认关闭偏好、设置Switch/试听、结束提示接入Home/Extraction与手动杯；已展示记录跨Activity重建不重播，离开页面或新杯时停止本地音频，原有立即停止入口不变。
 4. 新UI资源完整同步八语言；Mock结束全链与模拟器音频回调/焦点失败验证。真实机器结束/后台体验留待用户恢复设备。
 
-本轮推进第1项，不宣称完成提示功能或原版体验。复用用户提供旧目录的14个音频文件，记录独立文件SHA256与旧模块位置。构建产物核对资产未压缩，确保AssetManager.openFd可用。纯播放器测试先失败，覆盖顺序、取消、过期回调、同步回调、播放失败及焦点中断；独立审查、双变体编译/回归后提交。
+第1项实施范围为播放器，不宣称完成提示功能或原版体验。复用用户提供旧目录的14个音频文件，记录独立文件SHA256与旧模块位置。构建产物核对资产未压缩，确保AssetManager.openFd可用。纯播放器测试先失败，覆盖顺序、取消、过期回调、同步回调、播放失败及焦点中断；独立审查、双变体编译/回归后提交。
 
 第1项本地验证（2026-10-01）：纯播放器5项、资产SHA1项新增；Alpha/Mock各151项（150通过、1缺真实用户导出跳过），完整协议/会话/共享回归、三应用APK和Mock instrumentation APK编译、双Lint通过。19Python、正式资源生成检查及两APK各6969资源一致；两APK14音频均ZIP_STORED，字节/SHA与原资产证据一致。独立增量审查无实质问题。
 
@@ -32,3 +32,12 @@ Service实际自发、Mock和被动phase6均已只读接入，新杯/未知/非R
 Mock instrumentation新增真实产品Service start/stop调用，检查phase8、自然结束摘要、下一杯清空和早停无摘要；已编译，云端运行结果待补。它不接Alpha包，两个Mock guard在任何测试操作前执行；此阶段不证明真实机器或完整结束提示UI。
 
 复现旧源码oracle：`python3 scripts/generate_brew_feedback_oracle.py <app-service.js> /tmp/legacy-brew-feedback.json`；与mobile/src/test/resources/legacy-brew-feedback.json逐字节比较。Node只用于离线开发取证，不进入Android APK。
+
+第3项具体接入方案：
+- 设置增加独立“应用偏好”卡片，萃取提示默认关闭，写本地SharedPreferences成功后才更新开关；不受咖啡机连接状态影响，也不加入机器controlButtons。试听显式点击才播放，并标明英语提示音；不提供灯效写入开关。
+- Service继续只提供只读摘要，另用纯展示投递模型在结束时记录该杯开关状态。关闭状态的杯不因事后开启而补弹；新杯/断线/未知清空待展示项。展示claim原子消费一次，不能因Home/Extraction同时刷新或Activity重建重复播放。
+- 只由Home/Extraction在可见且未开始下一杯时领取结束提示。弹窗关闭、离开页面或本地开关关闭立即停止该页面音频；页面重建若恢复弹窗只恢复同杯文字，不重新领取/播放，不保存或重放任何BLE动作。
+- 设置试听和结束弹窗各自有播放拥有者，销毁取消不能停止后建页面的新请求；全部播放走Application资源和已验证Android驱动。异常只影响音频/展示，固定“立即停止”、恢复警告和控制请求不经过投递或偏好类。
+- 新卡片/提示资源八语言完整同步并验证APK实际模板；Mock instrumentation验证真实设置保存、Service结束→领取→一次展示、关闭/旋转/新杯不重播，再补音频焦点竞争与后台中断。设备、语言入口和真实控制验收不能用这些Mock结果替代。
+
+第2项云端证据（e031ab9）：Verify native app36870318401与Verify Mock lifecycle36870318230均success。途中gh观察遇EOF，重新查询同一任务确认仍运行，没有重启验证。已读取Mock日志artifact，保留音频14资产/取消/串播成功标记，并新增LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 clearedOnNextCup=true earlyStopSuppressed=true；真实Mock Service产品API自然结束摘要、下一杯清空、早停无摘要得到Android34运行时证据。生命周期通过、主题配置stop1→2；后台配置destroy仍false。UI/偏好/自动提示音还未接入，安全停止门禁仅有JVM与静态证据，真实咖啡机与用户操作未验；下一阶段仍按第3–4项开发与验证。

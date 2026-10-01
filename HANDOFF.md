@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-10-01：e031ab9云端完整Verify36870318401和Mock运行时36870318230均成功。已读日志artifact，14音频检查仍通过；新增真实Mock Service产品start/stop全链确认自然结束摘要、遥测phase8、下一杯清空、早停抑制。观察连接EOF后查询同一运行任务，没有重跑验证。主题重建1→2，后台配置destroy仍未发生，不能算该路径验收。下一步是默认关闭本地偏好/试听和Home/Extraction一次性结束展示；仍无自动播放/弹窗，没有真实机器验收，整体goal保持未完成。第3阶段接入约束已写docs/plans/local-brew-feedback.md。
+
 2026-10-01：本地萃取提示第2阶段只读记录已接入。BrewFeedbackTracker绑定同杯/阶段/预浸，完成gate抑制未知、告警与安全停机；Service自发/Mock/phase6被动路径接入，其它外部曲线未知预浸不猜测。旧三杯样本证明临时slot7→遥测phase8，提示和Mock对齐，协议/结束检测/恢复/门禁未改。新增16项，双变体167项（166通过、1缺用户导出跳过）；完整离线回归、三APK/Mock testAPK及双Lint通过，19Python/两APK6969资源通过。实际旧源码1893等级+1024phase对照一致且二次生成一致；全Service声明正向重放一致，多轮只读审查无残余实质问题。Mock产品Service全链测试已编译、云端待运行；UI/偏好/提示音订阅仍未接入，不宣称完整功能或真机安全已验收。见docs/plans/local-brew-feedback.md。
 
 2026-10-01：0942650云端完整Verify native app36865762452及Mock生命周期/音频36865762552成功。已读取日志artifact，14音频实际解码/完成、prepare取消和两段串播通过；主题重建计数1→2，生命周期通过。后台配置destroy仍false，焦点竞争/背景播放/真机音频未验证。只有Mock instrumentation调用播放器，Alpha/Mock产品界面均尚无提示播放入口；下一步实现同杯0x80记录/判定，再接偏好/结束展示，不能把本阶段当完整功能。
