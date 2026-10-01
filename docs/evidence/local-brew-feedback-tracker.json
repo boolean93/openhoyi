@@ -1,0 +1,43 @@
+{
+  "kind": "offline old source oracle and recorded legacy shot fixture, not hardware validation",
+  "sourceSha256": "1451bddc95735fdc86b071aef98d9d5b88add12b0b3612c66f666faca7572ddc",
+  "levelMethodSha256": "038edb297ea43e5f0aa668bad3cf4de13c094c663b60768d53a84fd3b7afe936",
+  "phaseHarnessSha256": "b2187390c90d76555833ce854bb620669e9cda80e58b1dc2cf5bda563f6eb6d2",
+  "levelCases": 1893,
+  "phaseCases": 1024,
+  "oracleSha256": "fb142e2d3879dfc45846ec3ba0e3b8f4e4648a9b4bef5bb2552ae4d3b7cf7f60",
+  "shotFixture": "device-session/src/test/resources/shots.tsv",
+  "shotFixtureSha256": "75e7d08a79c21b9754148a5ae68813e7c23a5397f4884087ff6146d612eeb5ce",
+  "temporarySlotEvidence": {
+    "1": {
+      "startSlots": {
+        "7": 1
+      },
+      "telemetryPhases": {
+        "8": 221
+      }
+    },
+    "2": {
+      "startSlots": {
+        "7": 1
+      },
+      "telemetryPhases": {
+        "8": 171
+      }
+    },
+    "3": {
+      "startSlots": {
+        "7": 1
+      },
+      "telemetryPhases": {
+        "8": 91
+      }
+    }
+  },
+  "limits": [
+    "oracle only validates local level and early phase, not full original state machine",
+    "temporary outbound slot7 reports phase8 in these three recorded shots; other firmware not verified",
+    "passive phase6 uses zero preinfusion; other externally started curves have unknown parameters and no encouragement",
+    "display gate suppresses safety-stop/alarms; it never changes command authorization or extraction state"
+  ]
+}

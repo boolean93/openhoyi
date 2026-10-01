@@ -192,4 +192,36 @@ class MockDeviceRuntimeTest {
         preparation.consumed()
         assertEquals(BrewPreparation.State.IDLE, preparation.state)
     }
+    @Test fun selectedMockSlotIsReportedWithoutChangingShotTimingOrWeight() {
+        val runtime = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
+        runtime.start(1000, slot = 7)
+        val snapshot = runtime.sample(11000)
+        val frame = snapshot.coffee as ExtractionTelemetry
+        assertEquals(8, frame.slotOrPhase)
+        assertEquals(10, frame.elapsedSeconds)
+        assertEquals(60, frame.totalWaterTenthsMl)
+        assertEquals(700, snapshot.weight!!.weightHundredthsGram)
+        runtime.stop()
+        assertEquals(ExtractionState.ENDED_OBSERVED, runtime.shotState)
+        runtime.start(20000)
+        assertEquals(1, (runtime.sample(21000).coffee as ExtractionTelemetry).slotOrPhase)
+    }
+
+    @Test fun mockNaturalEndFeedsFeedbackFromSameCupMachineFields() {
+        val runtime = MockDeviceRuntime { DefaultStringResources.resolve(it, emptyArray()) }
+        val feedback = BrewFeedbackTracker()
+        runtime.start(1000, slot = 7); feedback.begin("mock", 8, 5)
+        for(seconds in 0..32) {
+            val now = 1000L + seconds * 1000L
+            (runtime.sample(now).coffee as? ExtractionTelemetry)?.let { feedback.observe("mock", it, now) }
+        }
+        assertEquals(ExtractionState.ENDED_OBSERVED, runtime.shotState)
+        val result = feedback.finish("mock", true)!!
+        assertEquals(31, result.machineSeconds)
+        assertEquals(60, result.earlyWaterTenthsMl)
+        assertEquals(186, result.finalWaterTenthsMl)
+        assertEquals(BrewFeedbackClips.Level.LOW_FLOW, result.level)
+        assertNull(feedback.finish("mock", true))
+    }
+
 }

@@ -76,6 +76,11 @@ class MobileService : Service() {
     private lateinit var logs: TraceStore
     private var history: ShotHistory? = null
     private val series = ShotSeries()
+    private val brewFeedback = BrewFeedbackTracker()
+    private var feedbackShotId: String? = null
+    private var feedbackAppShot = true
+    internal var brewFeedbackResult: BrewFeedbackResult? = null
+        private set
     private val passiveShot = PassiveShotDetector()
     private var passiveHistoryId: String? = null
     private var passiveMayClearRecovery = false
@@ -218,6 +223,7 @@ class MobileService : Service() {
                     event(ResourceMessage(R.string.service_event_mock_temperature_ready), "mock.brew_wait_ready")
             }
             (snapshot.coffee as? io.openhoyi.protocol.ExtractionTelemetry)?.let { frame ->
+                observeBrewFeedback(frame, now)
                 series.machine(frame, now, snapshot.weight?.weightHundredthsGram,
                     snapshot.weightAt, snapshot.weight?.deviceFlowHundredths)
                 saveSeriesCheckpoint(now)
@@ -317,7 +323,10 @@ class MobileService : Service() {
                         brewWaitShotStarted = false
                     }
                 }
-                if (current == ExtractionState.OUTCOME_UNKNOWN) saveSeriesCheckpoint(force = true)
+                if (current == ExtractionState.OUTCOME_UNKNOWN) {
+                    saveSeriesCheckpoint(force = true)
+                    finishBrewFeedback(false)
+                }
                 event(ResourceMessage(R.string.service_event_shot_state, current.name), "shot.state")
                 if (previous == ExtractionState.STARTING && current == ExtractionState.IDLE &&
                     stopReason == io.openhoyi.session.StopReason.TARE_UNCONFIRMED.name)
@@ -368,6 +377,7 @@ class MobileService : Service() {
                 onState = { role, state ->
                     snapshot = if (role == DeviceRole.COFFEE) {
                         if (state != DeviceState.READY) {
+                            finishBrewFeedback(false)
                             saveSeriesCheckpoint(force = true)
                             settingsWrite.disconnected(settingsSampleSerial)
                             cupReset.disconnected(cupSettingsSerial, cupIdleSerial)
@@ -500,6 +510,8 @@ class MobileService : Service() {
                                 .onFailure { event(ResourceMessage(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
                             val id = passiveHistoryId ?: java.util.UUID.randomUUID().toString()
                             series.begin(id, passiveEvent.first.atMs)
+                            val feedbackSlot = passiveEvent.first.frame.slotOrPhase
+                            beginBrewFeedback(id, feedbackSlot, if (feedbackSlot == 6) 0 else null, appShot = false)
                             recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
                             recordMachinePoint(passiveEvent.second.frame, passiveEvent.second.atMs)
                             passiveHistoryId?.let {
@@ -1148,11 +1160,12 @@ class MobileService : Service() {
                 mock.cancelPreheat(now)
                 brewPreparation.consumed()
             }
-            mock.start(now)
+            mock.start(now, slot)
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
             val shotId = runCatching { history?.begin(profile.id, slot = slot) }.getOrNull()
                 ?: java.util.UUID.randomUUID().toString()
             series.begin(shotId, SystemClock.elapsedRealtime())
+            beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
             event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
             return null
         }
@@ -1211,7 +1224,9 @@ class MobileService : Service() {
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
             .getOrNull() ?: java.util.UUID.randomUUID().toString()
         series.begin(shotId, SystemClock.elapsedRealtime())
+        beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
+            finishBrewFeedback(false)
             event(ResourceMessage(R.string.service_shot_start_unknown), "shot.unknown")
             return getString(R.string.service_shot_start_unknown)
         }
@@ -1236,7 +1251,30 @@ class MobileService : Service() {
         event(ResourceMessage(R.string.service_shot_stop_requested), "shot.manual_stop")
         hub?.extraction?.manualStop()
     }
+    // Local projection only. Failures cannot escape into history, recovery or device callbacks.
+    private fun beginBrewFeedback(shotId: String, slot: Int, preinfusionSeconds: Int?, appShot: Boolean = true) {
+        finishBrewFeedback(false)
+        feedbackAppShot = appShot
+        if (preinfusionSeconds != null &&
+            runCatching { brewFeedback.begin(shotId, slot, preinfusionSeconds) }.isSuccess)
+            feedbackShotId = shotId
+    }
+    private fun observeBrewFeedback(frame: io.openhoyi.protocol.ExtractionTelemetry, atMs: Long) {
+        val id = feedbackShotId ?: return
+        if (runCatching { brewFeedback.observe(id, frame, atMs) }.isFailure) finishBrewFeedback(false)
+    }
+    private fun finishBrewFeedback(observedEnd: Boolean) {
+        val id = feedbackShotId
+        feedbackShotId = null
+        if (!observedEnd) brewFeedbackResult = null
+        if (id != null) {
+            val eligible = BrewFeedbackCompletion.allowed(observedEnd, snapshot.coffeeState,
+                snapshot.alarmBits, if (feedbackAppShot) hub?.extraction?.stopReason else null)
+            brewFeedbackResult = runCatching { brewFeedback.finish(id, eligible) }.getOrNull()
+        }
+    }
     private fun finishSeries(observedEnd: Boolean) {
+        finishBrewFeedback(observedEnd)
         val finished = series.finish() ?: return
         val app = application as MobileApplication
         if (observedEnd && finished.second.isNotEmpty() &&
@@ -1246,6 +1284,7 @@ class MobileService : Service() {
         history?.entries?.map(ShotHistory.Entry::id)?.toSet()?.let(app.samples::prune)
     }
     private fun recordMachinePoint(frame: io.openhoyi.protocol.ExtractionTelemetry, atMs: Long) {
+        observeBrewFeedback(frame, atMs)
         series.machine(frame, atMs,
             snapshot.weight?.weightHundredthsGram?.takeIf { snapshot.scaleState == DeviceState.READY },
             snapshot.weightAt,
@@ -1460,6 +1499,7 @@ class MobileService : Service() {
     }
     fun shutdown() {
         if (mock != null) {
+            finishBrewFeedback(false)
             if (ShotGate.active(shotState)) mock.stop()
             running = false
             handler.removeCallbacks(mockTick)
@@ -1507,6 +1547,7 @@ class MobileService : Service() {
     }
     override fun onDestroy() {
         appVisibility.unobserve(ownerId)
+        finishBrewFeedback(false)
         if (passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
             passiveHistoryId?.let { id -> runCatching { history?.abandon(id, "设备服务停止") } }
             saveSeriesCheckpoint(force = true)

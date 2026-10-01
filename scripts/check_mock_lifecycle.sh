@@ -119,3 +119,5 @@ test -s "$test_apk"
 adb install -r "$test_apk"
 adb shell am instrument -w io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation > "$output_dir/audio-instrumentation.txt"
 grep -F 'LOCAL_AUDIO_CHECKS_PASSED clips=14 cancelledPrepare=true sequence=true' "$output_dir/audio-instrumentation.txt" >/dev/null
+
+grep -F 'LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 clearedOnNextCup=true earlyStopSuppressed=true' "$output_dir/audio-instrumentation.txt" > /dev/null

@@ -41,8 +41,12 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
         private set
     private var startedAtMs = 0L
     private var lastShotElapsed = 0
+    private var activeSlot = 1
 
-    fun start(now: Long) {
+    fun start(now: Long, slot: Int = 1) {
+        require(slot in 1..8)
+        // Captured temporary slot 7 starts report telemetry phase 8.
+        activeSlot = if (slot == 7) 8 else slot
         shotState = ExtractionState.RUNNING
         startedAtMs = now
         lastShotElapsed = 0
@@ -157,7 +161,7 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
         }
         val extracting = shotState == ExtractionState.RUNNING
         val coffee = if (extracting) ExtractionTelemetry(
-            slotOrPhase = 1, elapsedSeconds = elapsed, pressureTenthsBar = (elapsed * 10).coerceAtMost(90),
+            slotOrPhase = activeSlot, elapsedSeconds = elapsed, pressureTenthsBar = (elapsed * 10).coerceAtMost(90),
             totalWaterTenthsMl = elapsed * 6, brewTemperatureHundredthsC = brewTemperatureHundredths,
             flowTenthsMlPerSecond = if (elapsed < 4) 8 else 20,
             statusBits = 64, manualStageRaw = 0, raw = emptyFrame,

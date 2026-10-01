@@ -22,3 +22,13 @@
 - 本阶段先实现纯记录器和旧公式独立对照，后接入Service；偏好/弹窗/音频只订阅只读结果，不调用Hub或协议API。
 
 第1项云端运行时结果（0942650）：Verify native app 36865762452与Verify Mock lifecycle 36865762552均success。读取后者mock-lifecycle日志artifact，audio-instrumentation.txt含LOCAL_AUDIO_CHECKS_PASSED clips=14 cancelledPrepare=true sequence=true，确认14资产逐个实际解码/完成、prepare取消无回调及两段实际串播。theme-recreation.json为1→2，生命周期检查通过；后台配置destroy仍false，不冒称通过后台配置重建路径。Android34无音频输出的模拟器不证明人耳听感、真机解码兼容性或真实焦点竞争。此结果只完成播放器阶段，第2–4项仍待开发。
+
+第2项开发与离线验证（2026-10-01）：BrewFeedbackTracker绑定shotId/遥测阶段/预浸参数，保留同杯早期/最终0x80量与机器秒数；旧ID/乱序忽略、跨阶段/计数回退/非法量/缺早期拒绝，finish只接原有结束证明。BrewFeedbackCompletion纯显示gate要求READY/明确无告警/已观察结束，安全原因停机不鼓励；被动杯不读取之前自发杯的stopReason。
+
+Service实际自发、Mock和被动phase6均已只读接入，新杯/未知/非READY/销毁清空，计算失败不阻断历史/恢复/样本；未知外部曲线预浸参数不猜测。三份旧采样确认命令packed slot7全部回报phase8，自发提示与Mock据此映射；phase8使用旧普通阶段阈值，不能误当7的低阈值。其它固件未经验证，异阶段仅抑制提示。没有改启动/停止报文或门禁，尚无UI/偏好/音频订阅。
+
+新增16项JVM测试，Alpha/Mock各167项（166通过、1真实导出缺失跳过）。其中原始旧JS函数在隔离Node VM执行生成1893等级与1024 phase案例，锁定源码SHA；generator二次生成逐字节相同。完整协议/会话/共享回归、三应用APK/Mock instrumentation构建、双Lint、19Python/生成检查及两APK6969资源通过。Service整文件可由494bb88按显式声明修改正向重放一致；多轮独立审查无残余实质问题。采样/源码证据见docs/evidence/local-brew-feedback-tracker.json。
+
+Mock instrumentation新增真实产品Service start/stop调用，检查phase8、自然结束摘要、下一杯清空和早停无摘要；已编译，云端运行结果待补。它不接Alpha包，两个Mock guard在任何测试操作前执行；此阶段不证明真实机器或完整结束提示UI。
+
+复现旧源码oracle：`python3 scripts/generate_brew_feedback_oracle.py <app-service.js> /tmp/legacy-brew-feedback.json`；与mobile/src/test/resources/legacy-brew-feedback.json逐字节比较。Node只用于离线开发取证，不进入Android APK。

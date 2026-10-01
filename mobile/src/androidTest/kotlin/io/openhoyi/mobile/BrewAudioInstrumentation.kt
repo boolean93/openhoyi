@@ -3,6 +3,13 @@ package io.openhoyi.mobile
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
+import android.content.Context
+import android.content.ComponentName
+import android.content.ServiceConnection
+import android.os.IBinder
+import android.os.SystemClock
+import io.openhoyi.protocol.ExtractionTelemetry
+import io.openhoyi.session.ExtractionState
 import android.os.Bundle
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -59,11 +66,74 @@ class BrewAudioInstrumentation : Instrumentation() {
             val finished = latch.await(30, TimeUnit.SECONDS)
             runOnMainSync { audio?.stop() }
             check(finished && results == listOf(BrewFeedbackAudio.Result.COMPLETED, BrewFeedbackAudio.Result.COMPLETED))
-            report.putString("stream", "LOCAL_AUDIO_CHECKS_PASSED clips=${clips.size} cancelledPrepare=true sequence=true\n")
+            verifyFeedbackService()
+            report.putString("stream", "LOCAL_AUDIO_CHECKS_PASSED clips=${clips.size} cancelledPrepare=true sequence=true\n" +
+                "LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 clearedOnNextCup=true earlyStopSuppressed=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
             report.putString("stream", "LOCAL_AUDIO_CHECKS_FAILED ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }
+    /** Calls only the guarded Mock service's real product start/stop APIs. */
+    private fun verifyFeedbackService() {
+        check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+        val connected = CountDownLatch(1)
+        val owner = AtomicReference<MobileService>()
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                owner.set((binder as MobileService.LocalBinder).service); connected.countDown()
+            }
+            override fun onServiceDisconnected(name: ComponentName?) { owner.set(null) }
+        }
+        var bound = false
+        val prefs = targetContext.getSharedPreferences("curves", Context.MODE_PRIVATE)
+        val previous = prefs.getString("selected", null)
+        fun awaitMain(timeoutMs: Long, condition: () -> Boolean) {
+            val deadline = SystemClock.elapsedRealtime() + timeoutMs
+            while (true) {
+                var success = false
+                runOnMainSync { success = condition() }
+                if (success) return
+                check(SystemClock.elapsedRealtime() < deadline) { "Mock feedback condition timed out" }
+                Thread.sleep(100)
+            }
+        }
+        try {
+            runOnMainSync {
+                bound = targetContext.bindService(Intent(targetContext, MobileService::class.java),
+                    connection, Context.BIND_AUTO_CREATE)
+            }
+            check(bound && connected.await(10, TimeUnit.SECONDS))
+            check(prefs.edit().putString("selected", "capture-2").commit())
+            awaitMain(5000) { owner.get()?.machineSettingsFresh == true }
+            runOnMainSync { check(owner.get()!!.startShot("capture-2", null, 7) == null) }
+            awaitMain(5000) { (owner.get()?.snapshot?.coffee as? ExtractionTelemetry)?.slotOrPhase == 8 }
+            awaitMain(40000) {
+                owner.get()?.shotState == ExtractionState.ENDED_OBSERVED && owner.get()?.brewFeedbackResult != null
+            }
+            runOnMainSync {
+                val result = requireNotNull(owner.get()!!.brewFeedbackResult)
+                check(result.machineSeconds > 14 && result.earlyWaterTenthsMl <= 60)
+                check(result.level == BrewFeedbackClips.Level.LOW_FLOW)
+                check(owner.get()!!.startShot("capture-2", null, 7) == null)
+                check(owner.get()!!.brewFeedbackResult == null)
+            }
+            awaitMain(5000) { owner.get()?.snapshot?.coffee is ExtractionTelemetry }
+            Thread.sleep(250)
+            runOnMainSync { owner.get()!!.stopShot() }
+            awaitMain(5000) { owner.get()?.shotState == ExtractionState.ENDED_OBSERVED &&
+                owner.get()?.snapshot?.coffee !is ExtractionTelemetry }
+            runOnMainSync { check(owner.get()!!.brewFeedbackResult == null) }
+        } finally {
+            runOnMainSync {
+                owner.get()?.stopShot()
+                if (bound) targetContext.unbindService(connection)
+            }
+            val edit = prefs.edit()
+            if (previous == null) edit.remove("selected") else edit.putString("selected", previous)
+            check(edit.commit())
+        }
+    }
+
 }

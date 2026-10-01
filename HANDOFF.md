@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-10-01：本地萃取提示第2阶段只读记录已接入。BrewFeedbackTracker绑定同杯/阶段/预浸，完成gate抑制未知、告警与安全停机；Service自发/Mock/phase6被动路径接入，其它外部曲线未知预浸不猜测。旧三杯样本证明临时slot7→遥测phase8，提示和Mock对齐，协议/结束检测/恢复/门禁未改。新增16项，双变体167项（166通过、1缺用户导出跳过）；完整离线回归、三APK/Mock testAPK及双Lint通过，19Python/两APK6969资源通过。实际旧源码1893等级+1024phase对照一致且二次生成一致；全Service声明正向重放一致，多轮只读审查无残余实质问题。Mock产品Service全链测试已编译、云端待运行；UI/偏好/提示音订阅仍未接入，不宣称完整功能或真机安全已验收。见docs/plans/local-brew-feedback.md。
+
 2026-10-01：0942650云端完整Verify native app36865762452及Mock生命周期/音频36865762552成功。已读取日志artifact，14音频实际解码/完成、prepare取消和两段串播通过；主题重建计数1→2，生命周期通过。后台配置destroy仍false，焦点竞争/背景播放/真机音频未验证。只有Mock instrumentation调用播放器，Alpha/Mock产品界面均尚无提示播放入口；下一步实现同杯0x80记录/判定，再接偏好/结束展示，不能把本阶段当完整功能。
 
 2026-10-01：本地萃取音频第1阶段。新增与BLE独立的两段播放器/Android MediaPlayer与焦点适配，复用14原版音频并登记SHA。身份与段序号屏蔽旧/重复回调，取消/焦点中断不继续语音；自然失败可进下一段。新增6项，Alpha/Mock各151项（150通过、1真实导出缺失跳过）；完整协议/会话/共享回归、三APK、Mock instrumentation编译、双Lint及19Python/两APK6969资源通过；两APK14资产未压缩且SHA吻合。独立审查无实质问题。已新增Mock-only云端实际解码/取消/串播检查，运行结果待补，不能以编译代替运行时。无生产调用方/偏好/提示判定/结束弹窗，不自动播放，不开放0x21，完整本地提示仍待第2–4阶段。见docs/plans/local-brew-feedback.md。
