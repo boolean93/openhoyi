@@ -20,6 +20,8 @@ internal object DefaultStringResources {
         }
     }
 
+    fun template(id: Int): String = strings.getValue(id)
+
     fun resolve(id: Int, args: Array<out Any>): String =
-        String.format(Locale.CHINA, strings.getValue(id), *args)
+        String.format(Locale.CHINA, template(id), *args)
 }
