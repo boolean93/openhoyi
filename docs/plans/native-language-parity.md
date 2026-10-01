@@ -15,7 +15,7 @@
 | 6 | KO | ko | 韩语 | LTR |
 | 7 | ES | es | 西班牙语 | LTR |
 
-原生 `AppLanguage` 是纯标识层；后续AppLanguagePreference已接入独立偏好和统一资源Context，但没有选择入口或正式语言资源。保存时使用规范 tag，显示文字不参与恢复；缺失或不识别的保存值保持当前简中默认。`legacyIndex` 记录旧版顺序，不代表已导入另一个包的私有设置。
+原生 `AppLanguage` 是纯标识层；后续AppLanguagePreference已接入独立偏好和统一资源Context，正式七语言资源已在后续阶段生成并打包，选择入口仍未开放。保存时使用规范 tag，显示文字不参与恢复；缺失或不识别的保存值保持当前简中默认。`legacyIndex` 记录旧版顺序，不代表已导入另一个包的私有设置。
 
 ## 后续实现与验收
 
@@ -37,3 +37,5 @@
 2026-10-01：七语言完整资源目录草稿已补齐，各872键/共6,104条，既有57键保留；Python完整性/格式/源一致性校验及Java逐模板格式化验证已加入CI，详见localization/README.md。这解决了草稿目录缺失，不等于正式资源与运行时语言功能完成；接入前具体风险/变体品牌规则见native-language-runtime-audit.md。
 
 2026-10-01：独立偏好和Activity/Application/Service统一资源Context已接入，默认简中、没有选择调用方。4项偏好测试及全回归通过；Android缓存/重建/Toast/通知/RTL仍未验证。见unified-language-context.md。
+
+2026-10-01：正式七语言XML各871键（排除共享app_name）已打包，转换一致性、19Python测试及两个APK各6,969编译文字通过核对；无选择入口，无Android视觉/生命周期或新硬件验证。见android-language-resources.md。

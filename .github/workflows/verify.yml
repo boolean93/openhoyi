@@ -20,6 +20,7 @@ jobs:
         run: |
           python3 -m unittest discover -s localization/tests
           python3 localization/validate_catalog.py
+          python3 localization/android_resources.py --check
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -42,3 +43,10 @@ jobs:
             :mobile:assembleDebug \
             :mobile:assembleMock \
             :mobile:lintDebug
+      - name: Verify compiled language resources and variant names
+        run: |
+          python3 localization/verify_apk_resources.py \
+            --aapt2 "$ANDROID_HOME/build-tools/35.0.0/aapt2" \
+            --android-jar "$ANDROID_HOME/platforms/android-35/android.jar" \
+            --alpha mobile/build/outputs/apk/debug/mobile-debug.apk \
+            --mock mobile/build/outputs/apk/mock/mobile-mock.apk

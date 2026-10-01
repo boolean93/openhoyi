@@ -5,7 +5,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
 
-/** Drafts are not Android resources until the complete catalog and layouts are verified. */
+/** Group drafts remain source evidence; installed catalogs must be complete and preserve branding. */
 class LanguageDraftTest {
     private val keys = setOf("home_stop", "stop_processing", "stop_interrupted",
         "shot_safety_unknown_disconnected", "shot_safety_unknown", "shot_safety_active_disconnected",
@@ -31,9 +31,17 @@ class LanguageDraftTest {
         }
     }
 
-    @Test fun incompleteLanguageDraftsAreNotInstalledAsAutomaticAndroidFallbacks() {
+    @Test fun installedResourcesCoverCompleteCatalogWithoutOverridingVariantName() {
         for (language in AppLanguage.entries.filter { it != AppLanguage.CHINESE }) {
-            assertFalse(File("src/main/res/values-${language.tag}/strings.xml").exists())
+            val file = File("src/main/res/values-${language.tag}/strings.xml")
+            val nodes = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(file).getElementsByTagName("string")
+            val keys = (0 until nodes.length).map { nodes.item(it).attributes.getNamedItem("name").nodeValue }
+            val catalog = JSONObject(File("../localization/catalog/${language.tag}.json").readText())
+            assertEquals(871, keys.size)
+            assertEquals(keys.size, keys.toSet().size)
+            assertEquals(catalog.keys().asSequence().toSet() - "app_name", keys.toSet())
+            assertFalse(keys.contains("app_name"))
         }
     }
 
