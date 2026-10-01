@@ -1,0 +1,54 @@
+{
+  "source": "hoyi-project/app/assets/apps/__UNI__7D80DAB/www/app-service.js",
+  "sha256": "1451bddc95735fdc86b071aef98d9d5b88add12b0b3612c66f666faca7572ddc",
+  "kind": "static analysis, not live capture",
+  "locations": [
+    {
+      "symbol": "swChange: function",
+      "characterOffset": 19953,
+      "line": 541
+    },
+    {
+      "symbol": "brewLedSwChange: function",
+      "characterOffset": 20375,
+      "line": 551
+    },
+    {
+      "symbol": "setBrewEncourageLed: function",
+      "characterOffset": 2100245,
+      "line": 42129
+    },
+    {
+      "symbol": "hexStringToArrayBuffer: function",
+      "characterOffset": 2109532,
+      "line": 42401
+    },
+    {
+      "symbol": "tryShellBrewEncourageShow: function",
+      "characterOffset": 3992498,
+      "line": 78387
+    }
+  ],
+  "ledFrames": [
+    {
+      "level": 0,
+      "frameHex": "2102000000",
+      "length": 5
+    },
+    {
+      "level": 1,
+      "frameHex": "2102000100",
+      "length": 5
+    },
+    {
+      "level": 2,
+      "frameHex": "2102000200",
+      "length": 5
+    },
+    {
+      "level": 255,
+      "frameHex": "210200FF00",
+      "length": 5
+    }
+  ]
+}

@@ -148,5 +148,6 @@ enum class UnsupportedCommandGroup(val reason:String) {
     OTA("No recoverable hardware validation"), PASSWORD_CHANGE("Legacy encoded/write length mismatch"),
     LEVER_CALIBRATION("Legacy encoded/write length mismatch"), FACTORY_RESET_AND_ALARM_IGNORE("Opcode 0x17 conflict"),
     CURVE_COPY("Competing 14/20 byte formats"),
+    BREW_ENCOURAGEMENT_LED("Legacy automatic opcode 0x21; no captured execution/readback/recovery evidence"),
     OTHER_SETTINGS("Outside captured safe subset"),
 }

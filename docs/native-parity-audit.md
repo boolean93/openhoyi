@@ -22,7 +22,7 @@
 | 多语言 | 主要原生页面与服务反馈已资源化，启用语义/按钮样式与文字分开；已核对旧版八语言并新增稳定标识基础，见 `docs/plans/native-language-parity.md` | 软件缺口：八种完整翻译、元数据展示、语言入口与偏好、Service/通知一致更新及RTL核验未完成；未启用语言切换，不宣称全应用多语言完成 |
 | 原生应用版本和更新 | MachineSettingsActivity读取BuildConfig的版本/版本号、模式和包名；APK元数据/资源核对通过 | 只读应用信息已开发，布局待核对；更新安装流程、原生分发/签名连续性仍未实现，不能安装厂商旧版APK作为原生更新 |
 | 深浅色与Mock | ThemedActivity、values-night、MockDeviceRuntime、Mock构建；云端Mock截图 | 已开发并有离线视觉证据；Mock不发送蓝牙，不能替代真实控制验收 |
-| 其它本地偏好 | 旧版brewTips、brewTipsLed等键；当前未有完整对应偏好页面 | 行为核对与软件缺口：先逐项确认提示、灯光及任何自动写入路径，再规划；不能仅按键名断言为纯UI |
+| 萃取提示与提示灯偏好 | 已追踪brewTips/brewTipsLed：鼓励音频播放/停止可自动发送0x21，见 `docs/legacy-brew-preferences.md` | 本地提示/音频未开发；提示灯缺真实执行/恢复证据，原生无发送入口，不按纯UI开关迁移 |
 
 ## 开发顺序与证据边界
 
