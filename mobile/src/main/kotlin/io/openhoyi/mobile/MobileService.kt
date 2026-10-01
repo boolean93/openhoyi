@@ -703,7 +703,7 @@ class MobileService : Service() {
             val result = mock.changeSetting(change)
             if (result == null) {
                 refreshMock(mock)
-                event(ResourceMessage(R.string.service_write_mock_setting, settingsPresentation.change(change)), "mock.setting")
+                event(ResourceMessage(R.string.service_write_mock_setting, settingsPresentation.changeMessage(change)), "mock.setting")
             }
             return result
         }
@@ -742,7 +742,7 @@ class MobileService : Service() {
         }
         recoveryAfterSettingsSerial = settingsSampleSerial
         refreshSafetyNotification()
-        event(ResourceMessage(R.string.service_write_setting_queued, settingsPresentation.change(change)), "settings.requested")
+        event(ResourceMessage(R.string.service_write_setting_queued, settingsPresentation.changeMessage(change)), "settings.requested")
         current.writeSetting(change) done@{ result ->
             if (!settingsWrite.written(token, result, settingsSampleSerial)) return@done
             when (settingsWrite.state) {

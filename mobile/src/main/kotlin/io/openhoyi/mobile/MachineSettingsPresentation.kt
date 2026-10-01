@@ -32,29 +32,35 @@ class MachineSettingsPresentation(private val resolve: (Int, Array<out Any>) -> 
             else -> text(R.string.home_lever_manual)
         }
     }
-    fun change(value: MachineSettingChange): String = when (value) {
-        is MachineSettingChange.RunMode -> text(R.string.settings_change_run, if (value.studio) text(R.string.setting_run_studio) else text(R.string.setting_run_cafe))
-        is MachineSettingChange.WaterSupply -> text(R.string.settings_change_water, if (value.piped) text(R.string.setting_water_piped) else text(R.string.setting_water_tank))
-        is MachineSettingChange.SleepScheduleEnabled -> text(R.string.settings_change_schedule, enabledText(value.enabled))
-        is MachineSettingChange.StandbyDelay -> text(R.string.settings_change_standby_prefix) + when (value.minutes) {
-            0 -> text(R.string.machine_settings_standby_never)
-            60 -> text(R.string.settings_one_hour)
-            120 -> text(R.string.settings_two_hours)
-            else -> text(R.string.machine_settings_minutes, value.minutes.toString())
-        }
-        is MachineSettingChange.StandbyTemperature -> text(R.string.settings_change_standby_temperature, value.celsius.toString())
-        is MachineSettingChange.LeverMode -> text(R.string.settings_lever_prefix) + when {
-            value.flow -> text(R.string.home_lever_flow)
-            value.pressure -> text(R.string.home_lever_pressure)
-            else -> text(R.string.home_lever_manual)
-        }
-        is MachineSettingChange.BrewTemperature -> text(R.string.settings_change_brew_temperature, value.celsius.toString())
-        is MachineSettingChange.BrewCompensation -> text(R.string.settings_change_compensation, value.celsius.toString())
-        is MachineSettingChange.SteamTemperature -> text(R.string.settings_change_steam_temperature, value.celsius.toString())
-        is MachineSettingChange.BrewHeating -> text(R.string.settings_change_brew_heating, enabledText(value.enabled))
-        is MachineSettingChange.SteamHeating -> text(R.string.settings_change_steam_heating, enabledText(value.enabled))
-        is MachineSettingChange.Light -> text(R.string.settings_change_light, enabledText(value.enabled))
+    fun change(value: MachineSettingChange): String = changeMessage(value).render { id, args ->
+        resolve(id, args.map { requireNotNull(it) }.toTypedArray())
     }
+
+    /** Captures only display resource identities/scalars, never a setting command or Context. */
+    fun changeMessage(value: MachineSettingChange): ResourceText = when (value) {
+        is MachineSettingChange.RunMode -> ResourceMessage(R.string.settings_change_run, ResourceMessage(if (value.studio) R.string.setting_run_studio else R.string.setting_run_cafe))
+        is MachineSettingChange.WaterSupply -> ResourceMessage(R.string.settings_change_water, ResourceMessage(if (value.piped) R.string.setting_water_piped else R.string.setting_water_tank))
+        is MachineSettingChange.SleepScheduleEnabled -> ResourceMessage(R.string.settings_change_schedule, enabledMessage(value.enabled))
+        is MachineSettingChange.StandbyDelay -> ResourceSequence(ResourceMessage(R.string.settings_change_standby_prefix), when (value.minutes) {
+            0 -> ResourceMessage(R.string.machine_settings_standby_never)
+            60 -> ResourceMessage(R.string.settings_one_hour)
+            120 -> ResourceMessage(R.string.settings_two_hours)
+            else -> ResourceMessage(R.string.machine_settings_minutes, value.minutes.toString())
+        })
+        is MachineSettingChange.StandbyTemperature -> ResourceMessage(R.string.settings_change_standby_temperature, value.celsius.toString())
+        is MachineSettingChange.LeverMode -> ResourceSequence(ResourceMessage(R.string.settings_lever_prefix), ResourceMessage(when {
+            value.flow -> R.string.home_lever_flow
+            value.pressure -> R.string.home_lever_pressure
+            else -> R.string.home_lever_manual
+        }))
+        is MachineSettingChange.BrewTemperature -> ResourceMessage(R.string.settings_change_brew_temperature, value.celsius.toString())
+        is MachineSettingChange.BrewCompensation -> ResourceMessage(R.string.settings_change_compensation, value.celsius.toString())
+        is MachineSettingChange.SteamTemperature -> ResourceMessage(R.string.settings_change_steam_temperature, value.celsius.toString())
+        is MachineSettingChange.BrewHeating -> ResourceMessage(R.string.settings_change_brew_heating, enabledMessage(value.enabled))
+        is MachineSettingChange.SteamHeating -> ResourceMessage(R.string.settings_change_steam_heating, enabledMessage(value.enabled))
+        is MachineSettingChange.Light -> ResourceMessage(R.string.settings_change_light, enabledMessage(value.enabled))
+    }
+    private fun enabledMessage(enabled: Boolean) = ResourceMessage(if (enabled) R.string.setting_on else R.string.setting_off)
     fun settings(value: Settings?): String {
         if (value == null) return text(R.string.settings_missing)
         fun enabled(bit: Int) = if (value.flags and bit != 0) text(R.string.setting_on) else text(R.string.setting_off)

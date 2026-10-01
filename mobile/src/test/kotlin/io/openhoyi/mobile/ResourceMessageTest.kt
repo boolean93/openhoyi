@@ -75,6 +75,40 @@ class ResourceMessageTest {
         assertFalse(resource.toString().contains("private-value"))
         assertFalse(message.toString().contains("private-value"))
     }
+    @Test fun nestedResourceArgumentsRerenderInsteadOfFreezingDiagnosticText() {
+        val inner = ResourceMessage(R.string.setting_on)
+        val outer = ResourceMessage(R.string.settings_change_light, inner)
+        val captured = SnapshotMessage.resource(outer) { id, args ->
+            if (id == R.string.setting_on) "ON" else "Light: ${args.single()}"
+        }
+        assertEquals("Light: ON", captured.initialText)
+        repeat(3) {
+            assertEquals("Lampe: AN", captured.render { id, args ->
+                if (id == R.string.setting_on) "AN" else "Lampe: ${args.single()}"
+            })
+        }
+        assertEquals("Light: ON", captured.initialText)
+    }
+
+    @Test fun sequenceFreezesMembershipAndRendersEachPartInTheCurrentLanguage() {
+        val source = arrayOf<ResourceText>(ResourceMessage(R.string.settings_lever_prefix),
+            ResourceMessage(R.string.home_lever_manual))
+        val sequence = ResourceSequence(*source)
+        source[1] = ResourceMessage(R.string.home_lever_flow)
+        val captured = SnapshotMessage.resource(sequence, DefaultStringResources::resolve)
+        assertEquals("拨杆模式：手动", captured.initialText)
+        assertEquals("mode:manual", captured.render { id, _ ->
+            when(id) {
+                R.string.settings_lever_prefix -> "mode:"
+                R.string.home_lever_manual -> "manual"
+                else -> error("Sequence membership changed")
+            }
+        })
+        assertFalse(sequence.toString().contains("手动"))
+        assertEquals("", sequence.render { _, _ -> "" })
+        assertEquals("拨杆模式：手动", captured.initialText)
+    }
+
     @Test fun allDefaultTemplatesMatchTheirPreviousFormatting() {
         val keys=org.json.JSONObject(java.io.File("../localization/catalog/source.json").readText())
             .getJSONObject("strings").keys().asSequence().toList()

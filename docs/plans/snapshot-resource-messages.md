@@ -21,3 +21,5 @@ MobileService迁移140处直接资源事件、扫描完成/连接方式/萃取�
 恢复阻止提示和manualSafetyMessage已在后续恢复显示迁移中保留资源ID；其它gate返回的已解析文字与通知警告缓存仍有raw文本；后续必须保留控制分类及空/null语义，不能通过重新执行gate或恢复动作来刷新历史提示。
 
 尚未接入语言偏好、统一Activity/Application/Service语言Context、通知/通道刷新或选择入口；没有新增打包语言资源。本阶段也未连接真机，不能据离线回归宣称所有功能一致或无硬件风险。
+
+后续nested-setting-messages.md增加sealed ResourceText与不可变ResourceSequence，ResourceMessage保留并在当前显示解析子资源；标量/未知对象冻结及日志initialText规则不变。两个设置变更event已迁移，启动拒绝等其它嵌套提示仍未完成。

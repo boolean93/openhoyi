@@ -11,6 +11,42 @@ class MachineSettingsPresentationTest {
     private val presentation = MachineSettingsPresentation(DefaultStringResources::resolve)
     private val raw = ByteFrame(byteArrayOf())
 
+    @Test fun settingChangeMessagesKeepExistingCopyAndRerenderNestedValues() {
+        val examples = listOf(
+            io.openhoyi.protocol.MachineSettingChange.RunMode(true) to "运行模式：工作室",
+            io.openhoyi.protocol.MachineSettingChange.WaterSupply(false) to "供水方式：水箱",
+            io.openhoyi.protocol.MachineSettingChange.SleepScheduleEnabled(true) to "每周睡眠计划开启",
+            io.openhoyi.protocol.MachineSettingChange.StandbyDelay(0, 70) to "自动待机：永不",
+            io.openhoyi.protocol.MachineSettingChange.StandbyDelay(15, 70) to "自动待机：15 分钟",
+            io.openhoyi.protocol.MachineSettingChange.StandbyDelay(60, 70) to "自动待机：1 小时",
+            io.openhoyi.protocol.MachineSettingChange.StandbyDelay(120, 70) to "自动待机：2 小时",
+            io.openhoyi.protocol.MachineSettingChange.StandbyTemperature(70, 30) to "待机温度 70 °C",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(false, false) to "拨杆模式：手动",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, false) to "拨杆模式：自动压力",
+            io.openhoyi.protocol.MachineSettingChange.LeverMode(true, true) to "拨杆模式：自动流量",
+            io.openhoyi.protocol.MachineSettingChange.BrewTemperature(93) to "萃取温度 93 °C",
+            io.openhoyi.protocol.MachineSettingChange.BrewCompensation(3) to "冲泡温差补偿 3 °C",
+            io.openhoyi.protocol.MachineSettingChange.SteamTemperature(125) to "蒸汽温度 125 °C",
+            io.openhoyi.protocol.MachineSettingChange.BrewHeating(false) to "萃取加热关闭",
+            io.openhoyi.protocol.MachineSettingChange.SteamHeating(true) to "蒸汽加热开启",
+            io.openhoyi.protocol.MachineSettingChange.Light(false) to "照明关闭")
+        for ((change, expected) in examples) {
+            val message = presentation.changeMessage(change)
+            assertEquals(expected, message.render(DefaultStringResources::resolve))
+            assertEquals(expected, presentation.change(change))
+        }
+        val message = SnapshotMessage.resource(ResourceMessage(R.string.service_write_setting_queued,
+            presentation.changeMessage(io.openhoyi.protocol.MachineSettingChange.RunMode(true))),
+            DefaultStringResources::resolve)
+        assertEquals("queued:mode:studio", message.render { id, args -> when(id) {
+            R.string.setting_run_studio -> "studio"
+            R.string.settings_change_run -> "mode:${args.single()}"
+            R.string.service_write_setting_queued -> "queued:${args.single()}"
+            else -> error("Unexpected resource")
+        } })
+        assertTrue(message.initialText.contains("工作室"))
+    }
+
     @Test fun settingsAreReadOnlyAndDoNotInventUnknownModes() {
         val settings = Settings(1, 1, 3, 0x39, 93, 5, 125, 30, 70, 128, 2, raw)
         val text = presentation.settings(settings)
