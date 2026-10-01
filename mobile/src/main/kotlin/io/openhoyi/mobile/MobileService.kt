@@ -106,7 +106,8 @@ class MobileService : Service() {
         machineWriteRecovery.kind, brewPreparation.state)?.let { getString(it) }
     val machineControlSafetyMessage: String? get() = MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
-    val shotRecoveryClearBlock: String? get() = shotRecoveryClearGate.block(shotRecovery,
+    val shotRecoveryClearBlock: String? get() = shotRecoveryClearResource?.let { getString(it) }
+    private val shotRecoveryClearResource: Int? get() = shotRecoveryClearGate.resource(shotRecovery,
         hub?.coffeeAddress, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
         SystemClock.elapsedRealtime(), shotState, manualShotActive)
     val machineWriteAcknowledgementAvailable: Boolean get() = when (machineWriteRecovery.kind) {
@@ -221,8 +222,8 @@ class MobileService : Service() {
     private val visibleScreens = VisibleScreens()
     private var hubForeground = false
     private var safetyMessage: String? = null
-    var manualSafetyMessage: String? = null
-        private set
+    private var manualSafetyResource: Int? = null
+    val manualSafetyMessage: String? get() = manualSafetyResource?.let { getString(it) }
     private var automaticScaleOnly = false
     private val stopAutomaticScale = object : Runnable {
         override fun run() {
@@ -301,7 +302,7 @@ class MobileService : Service() {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
                     val shotRecordCleared = shotRecovery.clear()
                     if (!shotRecordCleared)
-                        manualSafetyMessage = getString(R.string.service_event_shot_clear_failed)
+                        manualSafetyResource = R.string.service_event_shot_clear_failed
                     if (current == ExtractionState.ENDED_OBSERVED && shotRecordCleared && brewWaitShotStarted &&
                         machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
                         machineWriteRecovery.matchesDevice(hub?.coffeeAddress)) {
@@ -329,7 +330,7 @@ class MobileService : Service() {
         val app = application as MobileApplication
         logs = app.logs
         history = runCatching { app.history }.getOrNull()
-        if (mock == null && shotRecovery.pending) manualSafetyMessage = restartShotWarning
+        if (mock == null && shotRecovery.pending) manualSafetyResource = R.string.machine_recovery_shot_restart
         handler.post(watchShot)
     }
     override fun onBind(intent: Intent): IBinder = binder
@@ -400,7 +401,7 @@ class MobileService : Service() {
                         passiveMayClearRecovery = false
                         saveSeriesCheckpoint(force = true)
                         finishSeries(false)
-                        manualSafetyMessage = getString(R.string.service_event_manual_disconnect_warning)
+                        manualSafetyResource = R.string.service_event_manual_disconnect_warning
                         event(ResourceMessage(R.string.service_event_manual_unknown), "shot.passive_unknown")
                     }
                     event("${role.name}: ${state.name}")
@@ -481,13 +482,13 @@ class MobileService : Service() {
                     when (passiveEvent) {
                         is PassiveShotDetector.Event.Started -> {
                             val previousRecovery = shotRecovery.pending
-                            if (!previousRecovery) manualSafetyMessage = null
+                            if (!previousRecovery) manualSafetyResource = null
                             val currentAddress = hub?.coffeeAddress
                             val armed = shotRecovery.arm(currentAddress)
                             passiveMayClearRecovery = armed &&
                                 shotRecovery.mayClearAfterPassiveShot(previousRecovery, currentAddress)
                             if (!armed)
-                                manualSafetyMessage = getString(R.string.service_event_shot_record_failed)
+                                manualSafetyResource = R.string.service_event_shot_record_failed
                             refreshSafetyNotification()
                             passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
                                 .onFailure { event(ResourceMessage(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
@@ -506,7 +507,7 @@ class MobileService : Service() {
                         PassiveShotDetector.Event.Ended -> {
                             if (!passiveMayClearRecovery || !shotRecovery.matchesDevice(hub?.coffeeAddress) ||
                                 !shotRecovery.clear())
-                                manualSafetyMessage = getString(R.string.service_event_shot_clear_failed)
+                                manualSafetyResource = R.string.service_event_shot_clear_failed
                             passiveMayClearRecovery = false
                             val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
                                 snapshot.scaleState == DeviceState.READY &&
@@ -1188,7 +1189,7 @@ class MobileService : Service() {
         if (!shotRecovery.arm(coffeeAddress)) return getString(R.string.service_shot_record_failed)
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) ||
             current.extraction.state == ExtractionState.IDLE) {
-            if (!shotRecovery.clear()) manualSafetyMessage = restartShotWarning
+            if (!shotRecovery.clear()) manualSafetyResource = R.string.machine_recovery_shot_restart
             event(ResourceMessage(R.string.service_shot_session_rejected), "shot.rejected")
             return getString(R.string.service_shot_session_rejected)
         }
@@ -1283,7 +1284,7 @@ class MobileService : Service() {
             .onFailure { event(ResourceMessage(R.string.notification_update_error), "shot.safety_notify_error") }
         if (warning == null) manager.cancel(SAFETY_NOTIFICATION)
         else runCatching {
-            val destination = if (machineWriteSafetyMessage != null && manualSafetyMessage == null &&
+            val destination = if (machineWriteSafetyMessage != null && manualSafetyResource == null &&
                 ShotSafetyAlert.resource(shotState, snapshot.coffeeState) == null)
                 HomeActivity::class.java else ExtractionActivity::class.java
             val open = PendingIntent.getActivity(this, 2, Intent(this, destination),
@@ -1298,7 +1299,7 @@ class MobileService : Service() {
         }.onFailure { event(ResourceMessage(R.string.notification_unavailable), "shot.safety_notify_error") }
     }
     fun acknowledgeManualSafety() {
-        if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
+        if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
             if (shotRecovery.pending || ShotGate.active(shotState)) {
                 event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_shot_active), "brew_wait.recovery_shot_active")
                 return
@@ -1325,7 +1326,7 @@ class MobileService : Service() {
             refreshSafetyNotification()
             return
         }
-        if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET) {
+        if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET) {
             val now = SystemClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.CupResetEvidence(hub?.coffeeAddress,
@@ -1345,7 +1346,7 @@ class MobileService : Service() {
             refreshSafetyNotification()
             return
         }
-        if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
+        if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
             val now = SystemClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.SettingEvidence(hub?.coffeeAddress,
@@ -1367,7 +1368,7 @@ class MobileService : Service() {
             refreshSafetyNotification()
             return
         }
-        if (manualSafetyMessage == null &&
+        if (manualSafetyResource == null &&
             machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
             val now = SystemClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
@@ -1391,7 +1392,7 @@ class MobileService : Service() {
             refreshSafetyNotification()
             return
         }
-        if (manualSafetyMessage == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
+        if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
             val now = SystemClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.SleepEvidence(hub?.coffeeAddress,
@@ -1411,9 +1412,9 @@ class MobileService : Service() {
             refreshSafetyNotification()
             return
         }
-        if (manualSafetyMessage == null) return
-        shotRecoveryClearBlock?.let {
-            event(it, "shot.recovery_waiting")
+        if (manualSafetyResource == null) return
+        shotRecoveryClearResource?.let {
+            event(ResourceMessage(it), "shot.recovery_waiting")
             return
         }
         if (shotRecovery.pending) {
@@ -1422,7 +1423,7 @@ class MobileService : Service() {
                 return
             }
         }
-        manualSafetyMessage = null
+        manualSafetyResource = null
         event(ResourceMessage(R.string.recovery_event_shot_passive_acknowledged), "shot.passive_acknowledged")
         refreshSafetyNotification()
     }

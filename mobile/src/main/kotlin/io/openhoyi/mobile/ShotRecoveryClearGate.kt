@@ -13,11 +13,16 @@ class ShotRecoveryClearGate(private val resolve: (Int, Array<out Any>) -> String
 
     fun block(recovery: ShotRecoveryState, address: String?, coffee: DeviceState,
         frame: HoyiMessage?, receivedAtMs: Long?, nowMs: Long,
-        shot: ExtractionState, manualShotActive: Boolean): String? = when (ShotRecoveryGate.clearBlock(
+        shot: ExtractionState, manualShotActive: Boolean): String? =
+        resource(recovery, address, coffee, frame, receivedAtMs, nowMs, shot, manualShotActive)?.let(::text)
+
+    fun resource(recovery: ShotRecoveryState, address: String?, coffee: DeviceState,
+        frame: HoyiMessage?, receivedAtMs: Long?, nowMs: Long,
+        shot: ExtractionState, manualShotActive: Boolean): Int? = when (ShotRecoveryGate.clearBlock(
             recovery, address, coffee, frame, receivedAtMs, nowMs, shot, manualShotActive)) {
-        ShotRecoveryGate.Block.EXTRACTION_UNSETTLED -> text(R.string.shot_recovery_block_extraction_unsettled)
-        ShotRecoveryGate.Block.DEVICE_MISMATCH -> text(R.string.shot_recovery_block_device_mismatch)
-        ShotRecoveryGate.Block.IDLE_NOT_FRESH -> text(R.string.shot_recovery_block_idle_not_fresh)
+        ShotRecoveryGate.Block.EXTRACTION_UNSETTLED -> R.string.shot_recovery_block_extraction_unsettled
+        ShotRecoveryGate.Block.DEVICE_MISMATCH -> R.string.shot_recovery_block_device_mismatch
+        ShotRecoveryGate.Block.IDLE_NOT_FRESH -> R.string.shot_recovery_block_idle_not_fresh
         null -> null
     }
 }

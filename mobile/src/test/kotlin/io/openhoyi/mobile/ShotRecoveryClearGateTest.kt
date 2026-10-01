@@ -42,6 +42,57 @@ class ShotRecoveryClearGateTest {
         assertEquals("请先连接上一杯使用的咖啡机", block(coffee = DeviceState.DISCONNECTED, address = null))
     }
 
+    @Test fun resourceIdentitySurvivesRepeatedRenderingWithoutClearingRecovery() {
+        val recovery = ShotRecoveryState(disk)
+        assertTrue(recovery.arm("AA:BB:CC:DD:EE:01"))
+        for (state in ExtractionState.entries) {
+            for (coffee in DeviceState.entries) {
+                for (address in listOf<String?>(null, "AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02")) {
+                    for (at in listOf<Long?>(null, 999, 1000, 2500, 2501)) {
+                        for (manual in listOf(false, true)) {
+                            val id = gate.resource(recovery, address, coffee, idle, at, 2500, state, manual)
+                            val legacyText = gate.block(recovery, address, coffee, idle, at, 2500, state, manual)
+                            assertEquals(legacyText, id?.let { DefaultStringResources.resolve(it, emptyArray()) })
+                            if (id != null) {
+                                val message = SnapshotMessage.resource(ResourceMessage(id), DefaultStringResources::resolve)
+                                repeat(2) { assertEquals("translated $id", message.render { resource, _ -> "translated $resource" }) }
+                            }
+                            assertTrue(recovery.pending)
+                            assertEquals("AA:BB:CC:DD:EE:01", disk.value.address)
+                        }
+                    }
+                }
+            }
+        }
+        assertEquals(R.string.shot_recovery_block_extraction_unsettled,
+            gate.resource(recovery, null, DeviceState.DISCONNECTED, idle, null, 2500,
+                ExtractionState.RUNNING, true))
+        assertEquals(R.string.shot_recovery_block_device_mismatch,
+            gate.resource(recovery, null, DeviceState.DISCONNECTED, idle, null, 2500,
+                ExtractionState.IDLE, false))
+        assertEquals(R.string.shot_recovery_block_idle_not_fresh,
+            gate.resource(recovery, "AA:BB:CC:DD:EE:01", DeviceState.DISCONNECTED, idle, null, 2500,
+                ExtractionState.IDLE, false))
+        assertNull(gate.resource(recovery, "AA:BB:CC:DD:EE:01", DeviceState.READY, idle, 1000, 2500,
+            ExtractionState.IDLE, false))
+    }
+
+    @Test fun eligibilityIdentityDoesNotResolveTextAndEmptyTextDoesNotMeanAllowed() {
+        val recovery = ShotRecoveryState(disk)
+        assertTrue(recovery.arm("AA:BB:CC:DD:EE:01"))
+        val noDisplay = ShotRecoveryClearGate { _, _ -> error("Eligibility must not resolve display") }
+        assertEquals(R.string.shot_recovery_block_extraction_unsettled,
+            noDisplay.resource(recovery, null, DeviceState.DISCONNECTED, idle, null, 1000,
+                ExtractionState.RUNNING, false))
+        val emptyDisplay = ShotRecoveryClearGate { _, _ -> "" }
+        assertEquals("", emptyDisplay.block(recovery, null, DeviceState.DISCONNECTED, idle, null, 1000,
+            ExtractionState.RUNNING, false))
+        assertNotNull(emptyDisplay.resource(recovery, null, DeviceState.DISCONNECTED, idle, null, 1000,
+            ExtractionState.RUNNING, false))
+        assertTrue(recovery.pending)
+        assertTrue(disk.value.pending)
+    }
+
     @Test fun freshIdleAloneCannotClearAnActiveOrWrongDeviceShot() {
         val recovery = ShotRecoveryState(disk)
         assertTrue(recovery.arm("AA:BB:CC:DD:EE:01"))
