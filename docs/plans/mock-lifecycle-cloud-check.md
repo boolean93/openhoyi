@@ -1,0 +1,11 @@
+# Mock 云端生命周期检查与品牌资源声明
+
+已有云端模拟器可验证Android真实回调，无需用户平板。先核对任务终态：976b227的Capture Mock UI（36859468417）成功；Verify native app同提交失败，前一提交38818f8的36858212439也是app_name MissingTranslation。之前离线完整命令未包含Lint，这不是协议失败，也不能声称云端全检查通过。
+
+修复只给Alpha/Mock品牌资源添加translatable=false，默认XML哈希同步到source.json；所有模板/文字值逐项核对不变。七语言仍排除共享品牌，无全局lint抑制。最初本机offline Lint因lint-gradle未缓存而失败，补依赖后两个变体Lint成功，0错误各11警告。
+
+新增独立Verify Mock lifecycle工作流，构建/安装Mock、Android34模拟器执行scripts/check_mock_lifecycle.sh，只收集OpenHoyiLifecycle日志/错误/Activity状态，不截图。Mock-only Application观察者输出visible/hidden，回调报告started/recreating和配置destroy；Alpha无这些日志，观察不发送命令也不改变模型状态。
+
+检查五主页面导航没有假后台，实际主题Switch保存dark且框架收到Home配置stop；Home真实后台、后台wm size往返无额外可见边界，返回只产生一次visible。初始Application观察者hidden计入1次。后台配置变化可能延迟至前台：background-resize.json明确记录是否观察到后台Home配置destroy，不把wm size成功当作后台重建已运行。重建中断、锁屏和多窗口仍未覆盖。
+
+静态审查曾发现循环漏Extraction，已补；另记录了后台resize不等于实际重建的证据限制。Android runtime结果以工作流终态和日志为准，尚未执行本轮新脚本时不能标作通过。

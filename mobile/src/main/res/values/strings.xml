@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">OpenHOYI Alpha</string>
+    <string name="app_name" translatable="false">OpenHOYI Alpha</string>
     <string name="theme_dark_mode">深色模式</string>
     <string name="history_export_zip">导出历史与曲线 ZIP</string>
     <string name="history_import_legacy">导入旧版历史 JSON</string>

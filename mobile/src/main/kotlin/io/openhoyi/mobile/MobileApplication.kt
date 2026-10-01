@@ -19,6 +19,9 @@ class MobileApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        if (BuildConfig.MOCK_MODE) visibility.observe("mock-lifecycle-diagnostics") {
+            android.util.Log.i("OpenHoyiLifecycle", if (it) "visible" else "hidden")
+        }
         registerActivityLifecycleCallbacks(AppVisibilityCallbacks(visibility))
     }
 

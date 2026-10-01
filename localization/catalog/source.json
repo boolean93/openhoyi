@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "07ac5166a693f237942dccac182d1ca391c564a82657ec99621a818df47b91f6",
+  "sha256": "332493b3c3c70e91c28d63a75408f37d7d716c6a4f55a67b6ec5461243943024",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
