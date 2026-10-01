@@ -29,3 +29,15 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }
+
+// JVM presentation tests read these staged catalogs/default templates directly from disk.
+// Register them so changes cannot reuse an old passing Test result.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    inputs.files(rootProject.fileTree("localization") {
+        include("catalog/*.json", "drafts/**/*.json")
+    }).withPropertyName("languageCatalogs")
+        .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    inputs.file(file("src/main/res/values/strings.xml"))
+        .withPropertyName("defaultStringTemplates")
+        .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+}

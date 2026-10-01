@@ -16,6 +16,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Verify staged translation catalogs
+        run: |
+          python3 -m unittest discover -s localization/tests
+          python3 localization/validate_catalog.py
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
