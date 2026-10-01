@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-10-01：localization/drafts/safety新增七语言（en/ru/th/ar/ja/ko/es）各10条、共70条安全/初始提示翻译草稿，覆盖立即停止、停止处理中、断线及三个不同未知/运行提醒、通知和初始提示。尚未进入Android资源，不会随英文等系统Locale自动启用不完整翻译；现有生产源/资源未改。两项LanguageDraftTest先因缺语言文件失败，补齐后通过，机械核对七语言/相同键集合/非空/无意外百分号与隔离；不能据此证明母语准确性、全部文案完整或实际布局。Alpha/Mock定向离线各114通过、1项缺真实导出跳过，两包构建任务成功。见localization/README.md；后续补其它资源与语义/RTL/Service一致性后才转换为正式资源。未重复协议全回归，未连接真机，完整语言和真实安全验收仍未完成。
+
 2026-10-01：回查旧app-service.js设置页langRows，真实顺序为CN/EN/RU/TH/AR/JA/KO/ES，共八语言，不将英语视为完整范围。新增纯AppLanguage（zh-Hans/en/ru/th/ar/ja/ko/es），保存标识与显示词分离，非法/缺失保存值保持简中，legacyIndex仅记录原顺序，不自动导入旧包偏好；只有阿拉伯语标记RTL。两项测试先因缺API失败，再实现后通过，覆盖八项顺序/Locale回转/恢复与非法值。新增docs/plans/native-language-parity.md，明确八语言翻译、Activity/Application/Service统一资源、持续事件/通知刷新、萃取中重建/停止入口及RTL图表检查。当前只有未接入运行时的基础类型与计划，没有切换入口/偏好，未修改既有运行时或控制文件。Alpha/Mock定向离线各112通过、1项缺真实导出跳过，两包构建成功；未重复协议全回归，未连接真机，完整语言与真实安全验收尚未完成。
 
 2026-10-01：MobileSnapshot不再把初始中文当成已有事件，message由固定字符串改为nullable（默认null表示尚无事件）；新增messageForDisplay，仅null读取device_initial_message资源，显式空字符串保留。HomeActivity运行中状态使用该显示方法；服务未启动提示/手动萃取优先级及状态本身保持原样。两项测试先因缺API/资源失败，实现后通过：初始显示不改连接状态和数据、已有事件/空翻译/快照copy不触发回退。Service/Home完整源文件与两项声明变换一致，初始中文资源在两包核对通过。完整离线回归协议39,823项检查/32,856条通知回放、会话92场景；Alpha/Mock各110项通过、1项缺真实导出跳过，三个APK构建成功。事件产生/日志/控制发送未改，未连接真机。原曲线/导入元数据与历史原因保留规范值，完整翻译和语言选择尚未完成；整体真实功能/安全验收未完成。

@@ -1,0 +1,12 @@
+{
+  "home_stop": "Detener la extracción ahora",
+  "stop_processing": "Procesando la solicitud de parada",
+  "stop_interrupted": "Conexión perdida · Compruebe la máquina",
+  "shot_safety_unknown_disconnected": "El resultado de la extracción es desconocido y se ha perdido la conexión. Compruebe la cafetera inmediatamente y, si es necesario, devuelva manualmente la palanca a su posición original.",
+  "shot_safety_unknown": "El resultado de la extracción es desconocido. Compruebe la cafetera; si sigue funcionando, compruebe su estado antes de volver a intentar detenerla.",
+  "shot_safety_active_disconnected": "Se ha perdido la conexión durante la extracción. Compruebe la cafetera inmediatamente y, si es necesario, devuelva manualmente la palanca a su posición original.",
+  "notification_safety_channel": "Alertas de seguridad de extracción",
+  "notification_attention": "El estado del dispositivo requiere una comprobación manual",
+  "notification_check_machine": "Compruebe la cafetera inmediatamente",
+  "device_initial_message": "Todavía no hay ningún dispositivo conectado"
+}

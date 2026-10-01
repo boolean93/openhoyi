@@ -1,0 +1,12 @@
+{
+  "home_stop": "抽出を直ちに停止",
+  "stop_processing": "停止リクエストを処理中",
+  "stop_interrupted": "接続が切れました · マシンを確認",
+  "shot_safety_unknown_disconnected": "抽出結果が不明で、接続が切れました。コーヒーマシンを直ちに確認し、必要に応じてレバーを手動で元の位置に戻してください。",
+  "shot_safety_unknown": "抽出結果が不明です。コーヒーマシンを確認してください。まだ動作している場合は、状態を確認してから停止を再試行してください。",
+  "shot_safety_active_disconnected": "抽出中に接続が切れました。コーヒーマシンを直ちに確認し、必要に応じてレバーを手動で元の位置に戻してください。",
+  "notification_safety_channel": "抽出の安全通知",
+  "notification_attention": "機器の状態を手動で確認してください",
+  "notification_check_machine": "コーヒーマシンを直ちに確認してください",
+  "device_initial_message": "機器はまだ接続されていません"
+}

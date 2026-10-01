@@ -1,0 +1,12 @@
+{
+  "home_stop": "Stop extraction now",
+  "stop_processing": "Stop request in progress",
+  "stop_interrupted": "Connection lost · Check the machine",
+  "shot_safety_unknown_disconnected": "The extraction outcome is unknown and the connection was lost. Check the coffee machine immediately and manually return the lever to its original position if necessary.",
+  "shot_safety_unknown": "The extraction outcome is unknown. Check the coffee machine; if it is still running, check its state before retrying Stop.",
+  "shot_safety_active_disconnected": "The connection was lost during extraction. Check the coffee machine immediately and manually return the lever to its original position if necessary.",
+  "notification_safety_channel": "Extraction safety alerts",
+  "notification_attention": "Device state needs manual confirmation",
+  "notification_check_machine": "Check the coffee machine immediately",
+  "device_initial_message": "No device connected yet"
+}
