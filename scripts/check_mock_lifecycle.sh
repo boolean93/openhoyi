@@ -62,14 +62,25 @@ for item in '1 CurveActivity' '2 ExtractionActivity' '3 HistoryActivity' '4 Mach
   assert_edges 1 1
 done
 
-# The existing theme Switch calls Activity.recreate(). Require an actual config-stop callback.
+# The existing theme Switch calls Activity.recreate(). Require a NEW config-stop callback.
+cp "$output_dir/lifecycle.txt" "$output_dir/before-theme-switch.txt"
 adb shell input tap 1530 103
 sleep 3
 assert_activity HomeActivity
 adb shell run-as "$package" cat shared_prefs/appearance.xml > "$output_dir/appearance.xml"
 grep 'name="dark" value="true"' "$output_dir/appearance.xml" >/dev/null
 assert_edges 1 1
-grep -F 'recreating:HomeActivity' "$output_dir/lifecycle.txt" >/dev/null
+python3 - "$output_dir" <<'PYCODE'
+from pathlib import Path
+import json,sys
+root=Path(sys.argv[1])
+marker="recreating:HomeActivity"
+before=(root/"before-theme-switch.txt").read_text().splitlines().count(marker)
+after=(root/"lifecycle.txt").read_text().splitlines().count(marker)
+if after<=before:
+    raise SystemExit("Theme Switch did not produce a new Home configuration-stop callback")
+(root/"theme-recreation.json").write_text(json.dumps({"homeConfigurationStopsBefore":before,"homeConfigurationStopsAfter":after})+"\n")
+PYCODE
 
 # True background closes visibility once. Rebuilding a stopped page must not reopen it.
 adb shell input keyevent KEYCODE_HOME

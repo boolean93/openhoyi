@@ -27,6 +27,31 @@
       "symbol": "tryShellBrewEncourageShow: function",
       "characterOffset": 3992498,
       "line": 78387
+    },
+    {
+      "symbol": "progressFromRx: function",
+      "characterOffset": 454782,
+      "line": 7794
+    },
+    {
+      "symbol": "cf32: function",
+      "characterOffset": 3221925,
+      "line": 63705
+    },
+    {
+      "symbol": "playBrewEncourageAudio: function",
+      "characterOffset": 3224291,
+      "line": 63791
+    },
+    {
+      "symbol": "stopBrewEncourageAudio: function",
+      "characterOffset": 3225133,
+      "line": 63820
+    },
+    {
+      "symbol": "tryFinalizeBrewCups: function",
+      "characterOffset": 3990611,
+      "line": 78345
     }
   ],
   "ledFrames": [
@@ -50,5 +75,29 @@
       "frameHex": "210200FF00",
       "length": 5
     }
-  ]
+  ],
+  "localFeedback": {
+    "sourceFlow": "0x80 bytes 6..7 big endian / 10; not scale weight",
+    "durationSource": "0x80 bytes 3..4 big endian seconds",
+    "minimumDurationExclusive": 14,
+    "earlyFlowSnapshot": "extracting phase and brewSec <= 10",
+    "rateFormula": "(final totalFlow - early snapshot) / max(1, brewSec - curve.time - 10)",
+    "levelRules": [
+      {
+        "level": 1,
+        "when": "rate > 2.2"
+      },
+      {
+        "level": 2,
+        "when": "rate <= 1.5"
+      },
+      {
+        "level": 0,
+        "when": "remaining branch; NaN also falls here in JS"
+      }
+    ],
+    "audioStages": "1.mp3 for level0, 2.mp3 for level1/2, then one of four English voices for the level",
+    "naturalAudioCompletionLedWrite": false,
+    "explicitStopLedValue": 255
+  }
 }
