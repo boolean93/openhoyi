@@ -9,6 +9,10 @@ on:
       - 'mobile/src/main/kotlin/io/openhoyi/mobile/AppVisibility*.kt'
       - 'mobile/src/main/kotlin/io/openhoyi/mobile/MobileApplication.kt'
       - 'mobile/src/main/kotlin/io/openhoyi/mobile/ThemedActivity.kt'
+      - 'mobile/src/main/kotlin/io/openhoyi/mobile/*BrewFeedback*.kt'
+      - 'mobile/src/main/assets/brew-feedback/**'
+      - 'mobile/src/androidTest/**'
+      - 'mobile/build.gradle.kts'
   workflow_dispatch:
 
 permissions:
@@ -31,7 +35,7 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Build isolated Mock APK
-        run: ./gradlew :mobile:assembleMock --no-daemon --console=plain
+        run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

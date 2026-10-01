@@ -2,12 +2,14 @@ plugins { id("com.android.application"); kotlin("android") }
 android {
     namespace = "io.openhoyi.mobile"
     compileSdk = 35
+    testBuildType = "mock"
     defaultConfig {
         applicationId = "io.openhoyi.mobile"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "io.openhoyi.mobile.BrewAudioInstrumentation"
     }
     buildFeatures { buildConfig = true }
     buildTypes {
@@ -42,5 +44,15 @@ tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
         .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
     inputs.file(file("src/main/res/values/strings.xml"))
         .withPropertyName("defaultStringTemplates")
+        .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+}
+
+// Direct asset/provenance readers must not reuse stale passing JVM results.
+tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
+    inputs.files(fileTree("src/main/assets/brew-feedback"))
+        .withPropertyName("brewFeedbackAssets")
+        .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
+    inputs.file(rootProject.file("docs/evidence/local-brew-audio-assets.json"))
+        .withPropertyName("brewFeedbackProvenance")
         .withPathSensitivity(org.gradle.api.tasks.PathSensitivity.RELATIVE)
 }

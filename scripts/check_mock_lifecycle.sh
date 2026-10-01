@@ -112,3 +112,10 @@ adb shell input keyevent KEYCODE_HOME
 sleep 3
 assert_edges 2 3
 printf 'Mock lifecycle checks passed\n' > "$output_dir/result.txt"
+
+# Actual decoder and cancellation checks use only the isolated Mock target.
+test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+test -s "$test_apk"
+adb install -r "$test_apk"
+adb shell am instrument -w io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation > "$output_dir/audio-instrumentation.txt"
+grep -F 'LOCAL_AUDIO_CHECKS_PASSED clips=14 cancelledPrepare=true sequence=true' "$output_dir/audio-instrumentation.txt" >/dev/null

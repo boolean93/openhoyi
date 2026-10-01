@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-10-01：本地萃取音频第1阶段。新增与BLE独立的两段播放器/Android MediaPlayer与焦点适配，复用14原版音频并登记SHA。身份与段序号屏蔽旧/重复回调，取消/焦点中断不继续语音；自然失败可进下一段。新增6项，Alpha/Mock各151项（150通过、1真实导出缺失跳过）；完整协议/会话/共享回归、三APK、Mock instrumentation编译、双Lint及19Python/两APK6969资源通过；两APK14资产未压缩且SHA吻合。独立审查无实质问题。已新增Mock-only云端实际解码/取消/串播检查，运行结果待补，不能以编译代替运行时。无生产调用方/偏好/提示判定/结束弹窗，不自动播放，不开放0x21，完整本地提示仍待第2–4阶段。见docs/plans/local-brew-feedback.md。
+
 2026-10-01：加强版云端复跑结束。ad6488f的Verify Mock lifecycle36862089510与完整Verify native app36862089698均success；已读取日志artifact，theme-recreation.json确认Switch后Home配置stop从0增至1，result通过。后台Home配置destroy仍false，不把该路径标作验收。78e3140的原Capture Mock UI36860976197也success；没有逐张视觉审查或咖啡机操作。仅本次文档更新不改变已验证代码/脚本。新云端工作流可供后续Android验证，无需用户平板；重建中断/锁屏/多窗口与真实BLE窗口/完整安全验收仍待补齐，不能标记整体goal完成。见docs/plans/mock-lifecycle-cloud-check.md。
 
 2026-10-01：核对云端真实结果。976b227的Capture Mock UI任务36859468417成功，但Verify与前38818f8都因app_name MissingTranslation失败；本地旧全回归未含Lint。修复两变体品牌translatable=false、source.json仅更新默认XML字节哈希，所有文字值逐项相同，不抑制Lint。最初offline缺lint-gradle，补依赖后两变体0错误11警告。78e3140已推送，完整云端Verify36860976218与新Verify Mock lifecycle36860976201成功；后者不截图，只装Mock、定向OpenHoyiLifecycle日志，五主页面与主题/真实Home前后台符合预期。artifact明确后台尺寸往返没有观察到Home配置destroy，不能算后台重建验收。初始额外重建marker促使进一步加强主题检查为Switch前后计数递增（当前增量结果另查）。本地全回归/三构建及最终双变体145项（144通过、1缺真实导出跳过）/Lint通过，19Python/6AAPT转义/两APK6969值相同。应用日志只在Mock启用，无命令或状态变更。原版鼓励声音进一步核对：等级用0x80机器累计流量而非秤重，自然结束清理不发0x21的255，显式stop才发；同源SHA位置与公式登记docs/evidence/legacy-brew-preferences.json。未开发音频/灯效，无0x21发送入口。见docs/plans/mock-lifecycle-cloud-check.md；功能清单同步语言已编码与未验边界，完整设备安全仍未完成。

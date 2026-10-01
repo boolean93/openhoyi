@@ -1,0 +1,89 @@
+{
+  "source": "user supplied hoyi-project app bundle",
+  "assets": [
+    {
+      "source": "static/1.mp3",
+      "asset": "brew-feedback/1.mp3",
+      "bytes": 99309,
+      "sha256": "c4eca09456e15250490a022b7ebb97ad6b43edec370fd8eb8ec6765aa354b9c5"
+    },
+    {
+      "source": "static/2.mp3",
+      "asset": "brew-feedback/2.mp3",
+      "bytes": 33023,
+      "sha256": "46501c3da9f389f3260c9b735f074abf6ad481ca8696d0593e5c2845610f4b9e"
+    },
+    {
+      "source": "static/brew-enc/en_bravo_1.wav",
+      "asset": "brew-feedback/en_bravo_1.wav",
+      "bytes": 142242,
+      "sha256": "33089c0873146493f1b81a364969a30edb18810570ebadf60dba05bdd21b61b7"
+    },
+    {
+      "source": "static/brew-enc/en_bravo_2.wav",
+      "asset": "brew-feedback/en_bravo_2.wav",
+      "bytes": 91966,
+      "sha256": "b04f2b2fa185de60300864e7d365d7db0f28e325a91d9db0fc1cc400c067d56c"
+    },
+    {
+      "source": "static/brew-enc/en_bravo_3.wav",
+      "asset": "brew-feedback/en_bravo_3.wav",
+      "bytes": 68810,
+      "sha256": "52910c910a4413946277643461a006aa164d47069885ee751f2d7f658f7efb7f"
+    },
+    {
+      "source": "static/brew-enc/en_bravo_4.wav",
+      "asset": "brew-feedback/en_bravo_4.wav",
+      "bytes": 95494,
+      "sha256": "36e8f4fd804be35f741646ae726ab932f00a04efc4b740171aac5bc6bcdf984a"
+    },
+    {
+      "source": "static/brew-enc/en_perfect_1.wav",
+      "asset": "brew-feedback/en_perfect_1.wav",
+      "bytes": 141356,
+      "sha256": "6f2067113b0b5b7505ef271a5918c34495cac5a3c7c3d5df715c3282cc69ce4d"
+    },
+    {
+      "source": "static/brew-enc/en_perfect_2.wav",
+      "asset": "brew-feedback/en_perfect_2.wav",
+      "bytes": 180824,
+      "sha256": "7d1b3705ff95eccff7a9e2c711d85f9ee79b26e03f71b7edf33dc833db087740"
+    },
+    {
+      "source": "static/brew-enc/en_perfect_3.wav",
+      "asset": "brew-feedback/en_perfect_3.wav",
+      "bytes": 118198,
+      "sha256": "b76c6464401836ad751e5abb6dc66c0012d9b092644f9bb3c7b39917b80dd300"
+    },
+    {
+      "source": "static/brew-enc/en_perfect_4.wav",
+      "asset": "brew-feedback/en_perfect_4.wav",
+      "bytes": 101666,
+      "sha256": "ce4b916ed7b73dabcf7934c215c69f48ef6a10c0aba193340f2a2a858526156f"
+    },
+    {
+      "source": "static/brew-enc/en_wow_1.wav",
+      "asset": "brew-feedback/en_wow_1.wav",
+      "bytes": 140032,
+      "sha256": "87adbdba381727b4f0280396eaa3b24157a6566f65c311de5dd846ab8a9eef1e"
+    },
+    {
+      "source": "static/brew-enc/en_wow_2.wav",
+      "asset": "brew-feedback/en_wow_2.wav",
+      "bytes": 107842,
+      "sha256": "22f5905240528db1e7ce6d25416103dfac9333f320bc6bb32216ba6d2907c498"
+    },
+    {
+      "source": "static/brew-enc/en_wow_3.wav",
+      "asset": "brew-feedback/en_wow_3.wav",
+      "bytes": 98580,
+      "sha256": "7589f5e0166ab920ffa3c2e8d389f043907e3c8764f9da14686c9a1512b5bece"
+    },
+    {
+      "source": "static/brew-enc/en_wow_4.wav",
+      "asset": "brew-feedback/en_wow_4.wav",
+      "bytes": 97702,
+      "sha256": "9a93e1d067e4d9c8ae9d31fe7be79fe0dfc79c908d06351b675be419eefceedd"
+    }
+  ]
+}
