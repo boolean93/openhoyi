@@ -16,6 +16,30 @@ class BrewWaitCancelGateTest {
         shot: ExtractionState = ExtractionState.IDLE, unresolvedShot: Boolean = false) =
         gate.block(coffee, frame, at, now, shot, unresolvedShot)
 
+    @Test fun capturedRejectionDoesNotResolveOrPermitEmptyCopy() {
+        val noCopy = BrewWaitCancelGate { _, _ -> error("permission must not resolve text") }
+        val cases = listOf<Pair<io.openhoyi.protocol.HoyiMessage?, Long?>>(idle to 1000L,
+            idle to 999L, idle to 2501L, idle to null, null to 1000L,
+            idle.copy(sleepStateRaw = 1) to 1000L, idle.copy(sleepStateRaw = 2) to 1000L)
+        for (coffee in DeviceState.entries) for (shot in ExtractionState.entries)
+            for (unresolved in listOf(false, true)) for ((frame, at) in cases) {
+                val decision = io.openhoyi.session.PreheatGate.cancelBlock(coffee, frame, at, 2500, shot, unresolved)
+                val message = noCopy.blockMessage(coffee, frame, at, 2500, shot, unresolved)
+                assertEquals(decision == null, message == null)
+                if (message != null) assertEquals("", message.render { _, _ -> "" })
+            }
+        val reason = noCopy.blockMessage(DeviceState.DISCONNECTED, idle, 1000, 2500,
+            ExtractionState.IDLE, false)!!
+        val captured = SnapshotMessage.resource(ResourceMessage(R.string.service_shot_preheat_timeout_blocked, reason)) {
+            id, args -> DefaultStringResources.resolve(id, args.map { requireNotNull(it) }.toTypedArray())
+        }
+        val initial = captured.initialText
+        assertEquals("timeout:disconnected", captured.render { id, args ->
+            if (id == R.string.service_shot_preheat_timeout_blocked) "timeout:${args[0]}" else "disconnected"
+        })
+        assertEquals(initial, captured.initialText)
+    }
+
     @Test fun cancellationRequiresFreshAwakeMachineIdle() {
         assertNull(block())
         assertNotNull(block(coffee = DeviceState.DISCONNECTED))

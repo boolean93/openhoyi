@@ -164,8 +164,9 @@ class MobileService : Service() {
     val brewPreparationState: BrewPreparation.State get() = brewPreparation.state
     val brewPreparationProfileId: String? get() = brewPreparation.profileId
     val brewPreparationTargetC: Int? get() = brewPreparation.targetC
-    val brewWaitCancelBlock: String? get() = if (mock != null) null else
-        brewWaitCancelGate.block(snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
+    val brewWaitCancelBlock: String? get() = brewWaitCancelBlockMessage?.render { id, args -> getString(id, *args) }
+    private val brewWaitCancelBlockMessage: ResourceMessage? get() = if (mock != null) null else
+        brewWaitCancelGate.blockMessage(snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
             SystemClock.elapsedRealtime(), shotState, shotRecovery.pending)
     private var sleepSampleSerial = 0L
     private val sleepNowUnresolved: Boolean get() = sleepNow.state == SleepNowTracker.State.UNKNOWN
@@ -1075,11 +1076,11 @@ class MobileService : Service() {
                     event(ResourceMessage(R.string.service_shot_preheat_written), "brew_wait.written")
                     handler.postDelayed({
                         if (brewPreparation.isActive(token)) {
-                            val blocked = cancelBrewPreparation()
+                            val blocked = cancelBrewPreparationMessage()
                             if (blocked == null && brewPreparation.state != BrewPreparation.State.UNKNOWN)
                                 event(ResourceMessage(R.string.service_shot_preheat_timeout_cancel), "brew_wait.timeout_cancel_requested")
                             else if (brewPreparation.timedOut(token)) {
-                                event(ResourceMessage(R.string.service_shot_preheat_timeout_blocked, blocked.toString()), "brew_wait.timeout_cancel_blocked")
+                                event(ResourceMessage(R.string.service_shot_preheat_timeout_blocked, blocked ?: "null"), "brew_wait.timeout_cancel_blocked")
                                 refreshSafetyNotification()
                             }
                         }
@@ -1093,33 +1094,35 @@ class MobileService : Service() {
         }
         return null
     }
-    fun cancelBrewPreparation(): String? {
+    fun cancelBrewPreparation(): String? = cancelBrewPreparationMessage()?.render { id, args -> getString(id, *args) }
+
+    private fun cancelBrewPreparationMessage(): ResourceMessage? {
         if (mock != null) {
-            if (!brewPreparation.active) return getString(R.string.service_shot_cancel_mock_none)
+            if (!brewPreparation.active) return ResourceMessage(R.string.service_shot_cancel_mock_none)
             val now = SystemClock.elapsedRealtime()
-            val result = mock.cancelPreheat(now)
+            val result = mock.cancelPreheatMessage(now)
             if (result != null) return result
-            val token = brewPreparation.beginCancel() ?: return getString(R.string.service_shot_cancel_mock_pending)
+            val token = brewPreparation.beginCancel() ?: return ResourceMessage(R.string.service_shot_cancel_mock_pending)
             brewPreparation.cancelled(token, OperationResult.Success())
             brewPreparation.consumed()
             refreshMock(mock, now)
             event(ResourceMessage(R.string.service_shot_cancel_mock_done), "mock.brew_wait_cancelled")
             return null
         }
-        if (manualShotActive) return getString(R.string.service_shot_cancel_manual_block)
+        if (manualShotActive) return ResourceMessage(R.string.service_shot_cancel_manual_block)
         val recovering = machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT
-        if (!brewPreparation.active && !recovering) return getString(R.string.service_shot_cancel_none)
-        val current = hub ?: return getString(R.string.service_shot_cancel_unavailable)
-        if (!machineWriteRecovery.matchesDevice(current.coffeeAddress)) return getString(R.string.service_shot_cancel_original_device)
-        brewWaitCancelBlock?.let { return it }
+        if (!brewPreparation.active && !recovering) return ResourceMessage(R.string.service_shot_cancel_none)
+        val current = hub ?: return ResourceMessage(R.string.service_shot_cancel_unavailable)
+        if (!machineWriteRecovery.matchesDevice(current.coffeeAddress)) return ResourceMessage(R.string.service_shot_cancel_original_device)
+        brewWaitCancelBlockMessage?.let { return it }
         if (!brewPreparation.active && recovering) {
-            if (!brewPreparation.restoreUnknown()) return getString(R.string.service_shot_cancel_restore_failed)
+            if (!brewPreparation.restoreUnknown()) return ResourceMessage(R.string.service_shot_cancel_restore_failed)
         }
-        val token = brewPreparation.beginCancel() ?: return getString(R.string.service_shot_cancel_pending)
+        val token = brewPreparation.beginCancel() ?: return ResourceMessage(R.string.service_shot_cancel_pending)
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         event(ResourceMessage(R.string.service_shot_cancel_queued), "brew_wait.cancel_requested")
         current.setBrewWait(0, {
-            brewPreparation.permitsWrite(token, 0) && brewWaitCancelBlock == null &&
+            brewPreparation.permitsWrite(token, 0) && brewWaitCancelBlockMessage == null &&
                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
                 machineWriteRecovery.matchesDevice(current.coffeeAddress)
         }) done@{ result ->

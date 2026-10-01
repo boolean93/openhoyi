@@ -15,6 +15,24 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class MockDeviceRuntimeTest {
+    @Test fun preheatCancelCapturesReasonWithoutResolvingOrChangingOutcome() {
+        var mayResolve = false
+        val runtime = MockDeviceRuntime { id ->
+            check(mayResolve) { "capture must not resolve text" }
+            DefaultStringResources.resolve(id, emptyArray())
+        }
+        val blocked = runtime.cancelPreheatMessage(1000)!!
+        assertEquals(R.string.mock_runtime_no_preheat, blocked.resourceId)
+        assertEquals("", blocked.render { _, _ -> "" })
+        assertTrue(!runtime.preheatActive)
+        assertNull(runtime.changeSetting(MachineSettingChange.RunMode(true)))
+        assertNull(runtime.beginPreheat(100, 1000))
+        assertNull(runtime.cancelPreheatMessage(3500))
+        assertTrue(!runtime.preheatActive)
+        mayResolve = true
+        assertEquals(9650, (runtime.sample(9000).coffee as IdleTelemetry).brewTemperatureHundredthsC)
+    }
+
     @Test fun emptyTranslationsCannotPermitBlockedMockChanges() {
         val running = MockDeviceRuntime { "" }
         running.start(1000)

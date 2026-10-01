@@ -81,8 +81,10 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
         return null
     }
 
-    fun cancelPreheat(now: Long): String? {
-        if (!preheatActive) return text(R.string.mock_runtime_no_preheat)
+    fun cancelPreheat(now: Long): String? = cancelPreheatMessage(now)?.render { id, _ -> text(id) }
+
+    fun cancelPreheatMessage(now: Long): ResourceMessage? {
+        if (!preheatActive) return ResourceMessage(R.string.mock_runtime_no_preheat)
         advanceTemperature(now)
         preheatTargetHundredths = null
         return null
