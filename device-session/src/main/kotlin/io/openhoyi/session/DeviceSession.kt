@@ -27,7 +27,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 (hex.substring(2, 4).toInt(16) and 7).let { it in 1..5 || it == 7 }
         }) { "Invalid legacy start-frame permit" }
     }
-    private val queue=GattQueue(driver,clock){fail(it)}
+    private val queue=GattQueue(GuardedGattDriver(role,driver),clock){fail(it)}
     val generation:Long get()=queue.generation
     var state=DeviceState.DISCONNECTED;private set
     private var activeAddress:String?=null
