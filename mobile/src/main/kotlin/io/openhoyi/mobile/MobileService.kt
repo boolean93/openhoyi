@@ -1175,10 +1175,13 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_shot_scale_connection_changed), "shot.rejected")
             return getString(R.string.service_shot_scale_connection_changed)
         }
-        val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
+        val blocked = shotGate.startBlockMessage(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
             snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
-        if (blocked != null) { event(ResourceMessage(R.string.service_shot_start_blocked, blocked), "shot.rejected"); return blocked }
+        if (blocked != null) {
+            event(ResourceMessage(R.string.service_shot_start_blocked, blocked), "shot.rejected")
+            return blocked.render { id, args -> getString(id, *args) }
+        }
         requireNotNull(profile)
         studioStartBlock(profile)?.let { return it }
         if (current.extraction.state == ExtractionState.ENDED_OBSERVED) {

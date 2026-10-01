@@ -39,11 +39,17 @@ class MachineAlarms(private val resolve: (Int, Array<out Any>) -> String) {
     }
 
     /** C16 explicitly permits the last cup; all faults and the unknown bit require inspection. */
-    fun startBlock(bits: Int): String? {
+    fun startBlock(bits: Int): String? = startBlockMessage(bits)?.render { id, args ->
+        resolve(id, args.map { requireNotNull(it) }.toTypedArray())
+    }
+    /** Captures the original first fault and raw HEX; rendering never re-evaluates permission. */
+    fun startBlockMessage(bits: Int): ResourceMessage? {
         val bit = CoffeeAlarmPolicy.firstBlockingBit(bits) ?: return null
-        val alarm = if (bit == 15) active(bits).last()
-            else known[bit].let { (code, resource) -> Alarm(code, text(resource)) }
-        return text(R.string.alarm_start_block, alarm.code, alarm.description)
+        val code = if (bit == 15) "bit15" else known[bit].first
+        val description = if (bit == 15)
+            ResourceMessage(R.string.alarm_unknown_bit, "0x%04X".format(bits and 0xFFFF))
+            else ResourceMessage(known[bit].second)
+        return ResourceMessage(R.string.alarm_start_block, code, description)
     }
 
     fun banner(bits: Int?, receivedAt: Long?, now: Long): Banner? {

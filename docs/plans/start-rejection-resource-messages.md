@@ -1,0 +1,15 @@
+# 启动拒绝提示保留资源身份
+
+MachineAlarms.startBlockMessage与ShotGate.startBlockMessage保存不可变ResourceMessage，旧String接口仅渲染该树。共享ExtractionStartGate输入、校验默认值、优先级、1500ms边界及CoffeeAlarmPolicy不变。告警保留首个阻止代码与发生时原始HEX；C16单独出现仍允许最后一杯，未知bit15阻止。构造阶段不解析译文，空文字仍为非null拒绝。
+
+MobileService仅startShot使用新接口保存嵌套事件，返回值仍为当前语言String。全文件正向重放两项声明显示替换一致；不重复读取时钟、验证曲线或调用共享门控。日志捕获initialText，显示重算不重放命令。解析显示资源次数可变化：旧未知告警曾解析未使用的C16文字，服务返回值现在另行渲染。预热startBlock调用暂保留旧String包装。
+
+## 验证
+
+新增两项永久测试先缺API失败再通过，覆盖全部65536告警组合、空译文不放行、状态矩阵、曲线优先级、嵌套故障重画及日志初始文字不变。原有边界与中文预期仍保留。
+
+从989f75f实际源码复制独立BeforeMachineAlarms与BeforeShotGate，八语言逐一比较全部告警掩码及三曲线/校验/设备/秤/萃取状态与11种时间/遥测输入：524288告警组、256608启动组完全一致。临时旧实现与对照测试通过后删除，结果保存在本机/private/tmp/hoyi-start-resource-differential-result.xml，不作为永久源码。
+
+完整离线协议39823检查/32856通知回放、会话92场景及共享69单测通过；Alpha/Mock各138项（137通过、1缺真实导出跳过），三APK构建成功。19Python测试、生成一致性、6项真实AAPT转义fixture及两APK各6969资源值逐字核对通过。独立静态审查无实质问题。
+
+未连接真机，未验证Android重建、RTL、通知或完整硬件行为。语言入口保持关闭，预热取消等嵌套提示及完整功能/安全验收仍未完成。

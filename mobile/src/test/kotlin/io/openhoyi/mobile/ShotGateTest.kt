@@ -17,6 +17,37 @@ class ShotGateTest {
         scale: DeviceState = DeviceState.READY, weightAt: Long? = 1000, now: Long = 2000,
         shot: ExtractionState = ExtractionState.IDLE, coffeeFrame: IdleTelemetry? = idleFrame,
         coffeeAt: Long? = 1000): String? = gate.startBlock(profile, coffee, coffeeFrame, coffeeAt, scale, weightAt, now, shot)
+    @Test fun structuredStartRejectionStaysBlockedWithEmptyOrChangedCopy() {
+        val noDisplay = ShotGate { _, _ -> error("Eligibility must not resolve display") }
+        for (coffee in DeviceState.entries) for (state in ExtractionState.entries) {
+            val message = noDisplay.startBlockMessage(flow, coffee, idleFrame, 1000,
+                DeviceState.READY, 1000, 2000, state, validated = true)
+            val expected = io.openhoyi.session.ExtractionStartGate.block(flow.targetHundredthsGram, true,
+                coffee, idleFrame, 1000, DeviceState.READY, 1000, 2000, state)
+            assertEquals(expected == null, message == null)
+            if (message != null) assertEquals("", message.render { _, _ -> "" })
+        }
+        assertEquals(R.string.start_block_curve_missing,
+            noDisplay.startBlockMessage(null, DeviceState.DISCONNECTED, null, null,
+                DeviceState.DISCONNECTED, null, 2000, ExtractionState.RUNNING, validated = false)?.resourceId)
+        assertEquals(R.string.start_block_curve_unverified,
+            noDisplay.startBlockMessage(flow, DeviceState.DISCONNECTED, null, null,
+                DeviceState.DISCONNECTED, null, 2000, ExtractionState.RUNNING, validated = false)?.resourceId)
+        val failure = requireNotNull(noDisplay.startBlockMessage(flow, DeviceState.READY,
+            idleFrame.copy(alarmBits = 1), 1000, DeviceState.READY, 1000, 2000,
+            ExtractionState.IDLE, validated = true))
+        val message = SnapshotMessage.resource(ResourceMessage(R.string.service_shot_start_blocked, failure),
+            DefaultStringResources::resolve)
+        val initial = message.initialText
+        assertEquals("start:alarm:C1:fault", message.render { id, args -> when(id) {
+            R.string.alarm_c1 -> "fault"
+            R.string.alarm_start_block -> "alarm:${args[0]}:${args[1]}"
+            R.string.service_shot_start_blocked -> "start:${args.single()}"
+            else -> error("Unexpected resource")
+        } })
+        assertEquals(initial, message.initialText)
+    }
+
     @Test fun invalidCurveAndUnsettledShotKeepOriginalRejectionPriority() {
         assertEquals("曲线未通过报文校验", gate.startBlock(flow, DeviceState.DISCONNECTED,
             null, null, DeviceState.DISCONNECTED, null, 2000, ExtractionState.OUTCOME_UNKNOWN,

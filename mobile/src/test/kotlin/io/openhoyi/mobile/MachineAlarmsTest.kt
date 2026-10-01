@@ -5,6 +5,28 @@ import org.junit.Test
 
 class MachineAlarmsTest {
     private val alarms = MachineAlarms(DefaultStringResources::resolve)
+    @Test fun structuredRejectionKeepsAllAlarmPermissionsWithoutResolvingDisplay() {
+        val noDisplay = MachineAlarms { _, _ -> error("Building rejection must not resolve display") }
+        for (bits in 0..0xFFFF) {
+            val message = noDisplay.startBlockMessage(bits)
+            assertEquals(bits == 0 || bits == 0x4000, message == null)
+            if (message != null) {
+                assertEquals("", message.render { _, _ -> "" })
+                assertNotNull(message)
+            }
+        }
+        val unknown = requireNotNull(noDisplay.startBlockMessage(0xC000))
+        val captured = SnapshotMessage.resource(unknown, DefaultStringResources::resolve)
+        assertTrue(captured.initialText.contains("bit15"))
+        assertTrue(captured.initialText.contains("0xC000"))
+        assertEquals("blocked:bit15:unknown:0xC000", captured.render { id, args -> when(id) {
+            R.string.alarm_unknown_bit -> "unknown:${args.single()}"
+            R.string.alarm_start_block -> "blocked:${args[0]}:${args[1]}"
+            else -> error("Unexpected alarm resource")
+        } })
+        assertTrue(captured.initialText.contains("未知告警"))
+    }
+
     @Test fun translatedOrEmptyDescriptionsCannotPermitABlockingAlarm() {
         for (translation in listOf("translated", "")) {
             val localized = MachineAlarms { _, _ -> translation }

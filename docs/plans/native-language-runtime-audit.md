@@ -6,7 +6,7 @@
 
 - `ThemedActivity.attachBaseContext`已统一语言/深浅色配置，`onResume`比较主题及Locale后重建；当前无语言选择调用方，重建/前后台过渡仍待Android验证。
 - `MobileApplication`资源读取已走原始base构造的语言Context provider；Service动态资源读取同一Application资源。独立app_language/tag偏好仅成功commit后发布进程值。Toast/通知实际一致性和缓存配置失效仍待Android验证，详见unified-language-context.md。
-- `MobileSnapshot.message` 已改为 `SnapshotMessage`：资源事件保留ID/冻结参数，日志使用产生时的 `initialText`，Home只重新解析显示。140处直接资源事件、3处条件资源事件、扫描/Mock直存消息已迁移；外部诊断、运行时/gate返回的String仍为raw。恢复阻止提示已保留资源ID，设置变更嵌套资源已通过ResourceText/ResourceSequence及changeMessage保存；启动/预热阻止等其他已解析子提示仍待迁移，因此当前还不能声称全部持续提示可刷新。
+- `MobileSnapshot.message` 已改为 `SnapshotMessage`：资源事件保留ID/冻结参数，日志使用产生时的 `initialText`，Home只重新解析显示。140处直接资源事件、3处条件资源事件、扫描/Mock直存消息已迁移；外部诊断、运行时/gate返回的String仍为raw。恢复阻止提示已保留资源ID，设置变更嵌套资源已通过ResourceText/ResourceSequence及changeMessage保存；启动拒绝/告警已保留嵌套资源身份（见start-rejection-resource-messages.md）；预热取消等其他已解析子提示仍待迁移，因此当前还不能声称全部持续提示可刷新。
 - `manualSafetyMessage`已由资源ID动态解析，服务内部警告存在性检查使用ID，避免依赖显示文字。设置未知结果提示和 `safetyMessage` 也参与通知刷新。`refreshSafetyNotification`仍用警告字符串是否变化避免重复通知。新增尚无调用方的`refreshNotificationDisplay`，供Service语言Context更新后强制刷新同ID通道和通知；错误只诊断，不重放事件或改未确认状态。Android异常与重响仍待运行时验证。
 - `screenVisible` 在无页面可见后延迟500毫秒调用hub.background。切换语言导致重建时要覆盖此过渡，不能把显示重建变成新的扫描/自动连接窗口或停止现有设备会话。
 - Manifest已经supportsRtl=true；不能据此认定当前固定宽度、左右位置、长标签和横屏布局都通过阿语验收。
