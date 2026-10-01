@@ -7,7 +7,7 @@
 - `ThemedActivity.attachBaseContext` 只覆盖深浅色，`onResume` 只比较主题后重建；没有统一应用语言Context。
 - `MobileApplication` 的导入导出Toast和 `MobileService` 的动态消息/通知独立读取自己的Context。只修改Activity语言会产生页面、服务、Toast和通知混用。
 - `MobileSnapshot.message` 已改为 `SnapshotMessage`：资源事件保留ID/冻结参数，日志使用产生时的 `initialText`，Home只重新解析显示。140处直接资源事件、3处条件资源事件、扫描/Mock直存消息已迁移；外部诊断、运行时/gate返回的String仍为raw。恢复阻止提示已保留资源ID，其他gate返回的String仍有raw，因此当前还不能声称全部持续提示可刷新。
-- `manualSafetyMessage`已由资源ID动态解析，服务内部警告存在性检查使用ID，避免依赖显示文字。设置未知结果提示和 `safetyMessage` 也参与通知刷新。`refreshSafetyNotification` 用警告字符串是否变化避免重复通知；语言改变必须刷新展示，不能改对应未确认状态或清除记录。
+- `manualSafetyMessage`已由资源ID动态解析，服务内部警告存在性检查使用ID，避免依赖显示文字。设置未知结果提示和 `safetyMessage` 也参与通知刷新。`refreshSafetyNotification`仍用警告字符串是否变化避免重复通知。新增尚无调用方的`refreshNotificationDisplay`，供Service语言Context更新后强制刷新同ID通道和通知；错误只诊断，不重放事件或改未确认状态。Android异常与重响仍待运行时验证。
 - `screenVisible` 在无页面可见后延迟500毫秒调用hub.background。切换语言导致重建时要覆盖此过渡，不能把显示重建变成新的扫描/自动连接窗口或停止现有设备会话。
 - Manifest已经supportsRtl=true；不能据此认定当前固定宽度、左右位置、长标签和横屏布局都通过阿语验收。
 - app_name在default为OpenHOYI Alpha，Mock资源覆盖为HOYI Mock。正式转换语言资源时须从共享翻译目录排除app_name，保留变体身份；完整草稿中的中文源身份不是覆盖Mock名称的指令。

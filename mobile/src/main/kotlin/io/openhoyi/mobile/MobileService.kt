@@ -102,8 +102,9 @@ class MobileService : Service() {
                     .putString("pending_address", record.address).commit()
         })
     }
-    val machineWriteSafetyMessage: String? get() = MachineRecoveryText.resource(
-        machineWriteRecovery.kind, brewPreparation.state)?.let { getString(it) }
+    private val machineWriteSafetyResource: Int? get() = MachineRecoveryText.resource(
+        machineWriteRecovery.kind, brewPreparation.state)
+    val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }
     val machineControlSafetyMessage: String? get() = MachineControlGate.block(
         shotRecovery.pending, machineWriteSafetyMessage, restartShotWarning)
     val shotRecoveryClearBlock: String? get() = shotRecoveryClearResource?.let { getString(it) }
@@ -351,8 +352,7 @@ class MobileService : Service() {
         safetyMessage = null
         try {
             val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.home_device_connection), NotificationManager.IMPORTANCE_LOW))
-            manager.createNotificationChannel(NotificationChannel(SAFETY_CHANNEL, getString(R.string.notification_safety_channel), NotificationManager.IMPORTANCE_HIGH))
+            createNotificationChannels(manager)
             val note = connectionNotification(null)
             if (Build.VERSION.SDK_INT >= 29) startForeground(1, note, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
             else startForeground(1, note)
@@ -1272,20 +1272,40 @@ class MobileService : Service() {
             .setContentIntent(open).setOngoing(true)
             .addAction(Notification.Action.Builder(null, getString(R.string.notification_disconnect), stop).build()).build()
     }
-    private fun refreshSafetyNotification() {
+    private fun createNotificationChannels(manager: NotificationManager) {
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.home_device_connection), NotificationManager.IMPORTANCE_LOW))
+        manager.createNotificationChannel(NotificationChannel(SAFETY_CHANNEL, getString(R.string.notification_safety_channel), NotificationManager.IMPORTANCE_HIGH))
+    }
+    /** Called on the main thread after the Service's language context has been updated.
+     * Only notification display is refreshed; no event, command or recovery action is replayed. */
+    fun refreshNotificationDisplay() {
+        if (!running || mock != null) return
+        runCatching {
+            val manager = getSystemService(NotificationManager::class.java)
+            runCatching { createNotificationChannels(manager) }
+                .onFailure { Log.w(TAG, "notification channel display failed: ${it.javaClass.simpleName}") }
+            refreshSafetyNotification(displayOnly = true)
+        }.onFailure { Log.w(TAG, "notification display failed: ${it.javaClass.simpleName}") }
+    }
+    private fun notificationFailure(displayOnly: Boolean, resource: Int, kind: String, error: Throwable) {
+        if (displayOnly) Log.w(TAG, "notification display failed: ${error.javaClass.simpleName}")
+        else event(ResourceMessage(resource), kind)
+    }
+    private fun refreshSafetyNotification(displayOnly: Boolean = false) {
         if (mock != null) return
-        val warning = ShotSafetyAlert.resource(shotState, snapshot.coffeeState)?.let { getString(it) } ?:
-            manualSafetyMessage ?: machineWriteSafetyMessage
-        if (warning == safetyMessage) return
+        val presentation = SafetyNotificationPresentation.from(
+            ShotSafetyAlert.resource(shotState, snapshot.coffeeState), manualSafetyResource,
+            machineWriteSafetyResource)
+        val warning = presentation.warning { id, args -> getString(id, *args) }
+        if (!displayOnly && warning == safetyMessage) return
         safetyMessage = warning
         if (!running) return
         val manager = getSystemService(NotificationManager::class.java)
         runCatching { manager.notify(1, connectionNotification(warning)) }
-            .onFailure { event(ResourceMessage(R.string.notification_update_error), "shot.safety_notify_error") }
+            .onFailure { notificationFailure(displayOnly, R.string.notification_update_error, "shot.safety_notify_error", it) }
         if (warning == null) manager.cancel(SAFETY_NOTIFICATION)
         else runCatching {
-            val destination = if (machineWriteSafetyMessage != null && manualSafetyResource == null &&
-                ShotSafetyAlert.resource(shotState, snapshot.coffeeState) == null)
+            val destination = if (presentation.destination == SafetyNotificationPresentation.Destination.HOME)
                 HomeActivity::class.java else ExtractionActivity::class.java
             val open = PendingIntent.getActivity(this, 2, Intent(this, destination),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -1293,10 +1313,11 @@ class MobileService : Service() {
                 .setSmallIcon(android.R.drawable.stat_sys_warning)
                 .setContentTitle(getString(R.string.notification_check_machine))
                 .setContentText(warning)
+                .setOnlyAlertOnce(displayOnly)
                 .setStyle(Notification.BigTextStyle().bigText(warning))
                 .setContentIntent(open).setCategory(Notification.CATEGORY_ALARM)
                 .setOngoing(true).build())
-        }.onFailure { event(ResourceMessage(R.string.notification_unavailable), "shot.safety_notify_error") }
+        }.onFailure { notificationFailure(displayOnly, R.string.notification_unavailable, "shot.safety_notify_error", it) }
     }
     fun acknowledgeManualSafety() {
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {

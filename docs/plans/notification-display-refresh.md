@@ -1,0 +1,23 @@
+# 通知显示刷新入口
+
+延续native-language-runtime-audit.md第4项。仅为后续统一语言Context接入提供入口，不开放语言选择、不重新启动服务或设备会话。
+
+## 规则与实现
+
+SafetyNotificationPresentation是无Android运行时依赖的显示投影，接受三类资源ID，保持萃取警告优先于手动警告、手动优先于机器写入警告。只有仅存在机器写入警告时目标为首页；其余警告目标为实时萃取。null表示无警告，空译文仍保留资源身份和原目标。
+
+Service提取machineWriteSafetyResource供投影使用，公开machineWriteSafetyMessage仍解析同一ID。常规refreshSafetyNotification继续按warning字符串是否变化抑制重复通知；仍先更新缓存再发送，失败后同文字的常规刷新不会重试，这项原策略未改。
+
+新增refreshNotificationDisplay，只在运行中的非Mock Service主线程使用；调用方必须先更新Service语言Context。它重建同ID、同重要级别的通道，并强制刷新常驻/安全通知，即使warning相同或null。没有调用方，目前不产生运行时新行为。未添加定时器、扫描、写入、恢复确认或事件重放；强制刷新错误只Log.w，不改变snapshot消息。
+
+独立审查指出manager.cancel异常遗漏，已通过显示入口外层runCatching覆盖取消通知、manager获取及文字解析错误。通道创建独立catch，失败仍尝试更新通知；普通刷新错误日志event和原取消异常行为保留。安全通知仅在displayOnly时setOnlyAlertOnce(true)，普通false保持原默认；此标记避免已有通知因文字刷新再次告警，不承诺首次新通知静音。
+
+STOP PendingIntent、连接/安全通知ID、通道ID与重要级别、按钮与清除恢复动作未改。显示刷新不会因此赋予启动或恢复资格。
+
+## 验证与限制
+
+两项新JVM测试先因缺投影API无法编译，实现后通过。覆盖全部萃取/连接状态与手动/机器警告有无组合，对照原优先级与目标表达式、重复解析文字及null/空译文含义。
+
+源码核对：通知区之前的Service控制代码只含资源getter及原两条通道创建语句的提取；原connectionNotification构造器与STOP逐字不变，acknowledgeManualSafety之后的全部源码逐字不变。通知区及新投影由独立审查核对，无新增实质问题；不将投影测试当作Android通知系统测试。
+
+最终完整离线协议39,823检查/32,856通知回放、会话92场景、device-session JUnit69项；Alpha/Mock各129项（128通过、1缺真实旧导出跳过），Lab/Alpha/Mock三个构建成功。Android取消/manager异常与已有通知重响行为尚无运行时验证。本轮未连接真机，未激活语言切换；语言Context/偏好/入口、其它嵌套显示参数、长文字/RTL及硬件完整验收仍待完成。

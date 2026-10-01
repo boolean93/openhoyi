@@ -8,7 +8,7 @@ ShotRecoveryClearGate.resource只将原ShotRecoveryGate.clearBlock的三个枚�
 
 Service将恢复等待事件用ResourceMessage保存；manualSafetyMessage不再缓存文字，改为私有manualSafetyResource及只读文字getter。六处警告赋值和两处清除保留原条件及资源/null值。七处服务内部存在性判断直接检查ID，无论译文为空与否都不会把警告当作已解除。公开文字getter仍供页面和通知显示使用。
 
-notification缓存、刷新触发点、优先级、目标页面与按钮控制没有其他改动；本轮没有增加强制通知刷新入口或重新发送设备命令。以后语言Context接入时，仍须覆盖警告为空时的常驻通知标题/正文及通道名称，不可仅依赖warning字符串变化。
+notification缓存、刷新触发点、优先级、目标页面与按钮控制没有其他改动；本阶段当时未增加强制刷新；后续notification-display-refresh.md已新增未使用的显示入口，覆盖warning为空时常驻通知与同ID通道。不重新发送设备命令；统一语言Context仍待接入。
 
 ## 验证边界
 
