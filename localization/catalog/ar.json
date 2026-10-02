@@ -870,5 +870,19 @@
   "curve_details_proof_available": "اجتازت رسالة البدء المقارنة؛ بانتظار اختبار الآلة الفعلية",
   "curve_details_proof_missing": "التحقق من الرسالة غير متاح؛ للتصفح فقط",
   "curve_details_no_weight": "لا يُستخدم",
-  "device_initial_message": "لم يتم توصيل جهاز بعد"
+  "device_initial_message": "لم يتم توصيل جهاز بعد",
+  "feedback_preferences_title": "تفضيلات التطبيق",
+  "feedback_enabled": "تنبيه اكتمال الاستخلاص",
+  "feedback_enabled_description": "عرض تعليق مرح وتشغيل تنبيه صوتي بالإنجليزية عند اكتمال الاستخلاص. معطّل افتراضيًا.",
+  "feedback_preview": "معاينة التنبيه الصوتي",
+  "feedback_stop_preview": "إيقاف المعاينة",
+  "feedback_preview_description": "يشغّل صوتًا محليًا فقط، ولا يتحكم في آلة القهوة.",
+  "feedback_save_failed": "لم تُحفظ الإعدادات. يرجى المحاولة مرة أخرى.",
+  "feedback_title": "فنجانك جاهز",
+  "feedback_bravo": "استمتع بقهوتك.",
+  "feedback_high_flow": "كان تدفق هذا الفنجان أسرع قليلًا. جرّب مذاقه.",
+  "feedback_low_flow": "كان تدفق هذا الفنجان أبطأ قليلًا. جرّب مذاقه.",
+  "feedback_note": "تعليق مرح، وليس تقييمًا للمذاق.",
+  "feedback_done": "فهمت",
+  "feedback_replay": "تشغيل مرة أخرى"
 }

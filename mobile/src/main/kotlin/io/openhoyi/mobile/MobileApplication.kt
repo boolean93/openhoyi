@@ -16,6 +16,13 @@ class MobileApplication : Application() {
         private set
     private lateinit var languageContext: AppLanguageContextProvider
     internal val visibility = AppVisibility()
+    internal val feedbackPreferences by lazy {
+        BrewFeedbackPreference(object : BrewFeedbackPreference.Storage {
+            override fun read(): Boolean = getSharedPreferences("brew_feedback", MODE_PRIVATE).getBoolean("enabled", false)
+            override fun write(enabled: Boolean): Boolean = getSharedPreferences("brew_feedback", MODE_PRIVATE)
+                .edit().putBoolean("enabled", enabled).commit()
+        })
+    }
 
     override fun onCreate() {
         super.onCreate()

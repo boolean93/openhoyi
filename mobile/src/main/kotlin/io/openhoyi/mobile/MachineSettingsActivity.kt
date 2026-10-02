@@ -38,6 +38,8 @@ import java.util.Locale
 
 /** Only known setting commands are exposed; applied state requires a subsequent 0x83 readback. */
 class MachineSettingsActivity : ThemedActivity() {
+    internal lateinit var feedbackCard: BrewFeedbackPreferencesCard
+        private set
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     private data class ScheduleCard(val heading: TextView, val period: TextView)
     private var service: MobileService? = null
@@ -298,17 +300,20 @@ class MachineSettingsActivity : ThemedActivity() {
         val cupCard = card(maintenanceSection, getString(R.string.machine_settings_cups_title))
         cupResetStatus = text(cupCard, getString(R.string.machine_settings_cups_initial), 14)
         cupResetButton = action(cupCard, getString(R.string.machine_settings_cups_reset)) { confirmCupReset() }
+        feedbackCard = BrewFeedbackPreferencesCard(this, body)
         showSettingsSection(selectedSettingsSection)
         render()
     }
 
     override fun onStart() {
+        feedbackCard.start()
         super.onStart()
         visible = true
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
         handler.post(refresh)
     }
     override fun onStop() {
+        feedbackCard.stop()
         visible = false
         handler.removeCallbacks(refresh)
         release()
@@ -337,6 +342,7 @@ class MachineSettingsActivity : ThemedActivity() {
         service = null
     }
     private fun render() {
+        if (::feedbackCard.isInitialized) feedbackCard.refresh()
         if (!::connectionState.isInitialized) return
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()

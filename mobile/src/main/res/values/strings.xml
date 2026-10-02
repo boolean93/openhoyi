@@ -895,4 +895,20 @@
     <string name="curve_details_proof_missing">"报文校验不可用，仅供浏览"</string>
     <string name="curve_details_no_weight">"不使用"</string>
     <string name="device_initial_message">"尚未连接设备"</string>
+
+    <!-- Local extraction feedback and audio preferences. -->
+    <string name="feedback_preferences_title">"应用偏好"</string>
+    <string name="feedback_enabled">"萃取完成提示"</string>
+    <string name="feedback_enabled_description">"结束后显示趣味反馈并播放英语提示音，默认关闭。"</string>
+    <string name="feedback_preview">"试听提示音"</string>
+    <string name="feedback_stop_preview">"停止试听"</string>
+    <string name="feedback_preview_description">"仅播放本地声音，不操作咖啡机。"</string>
+    <string name="feedback_save_failed">"设置未保存，请重试"</string>
+    <string name="feedback_title">"这一杯完成了"</string>
+    <string name="feedback_bravo">"享受这一杯咖啡吧。"</string>
+    <string name="feedback_high_flow">"这杯的流量比较快，试试它的风味吧。"</string>
+    <string name="feedback_low_flow">"这杯的流量比较慢，试试它的风味吧。"</string>
+    <string name="feedback_note">"趣味提示，不代表风味评分。"</string>
+    <string name="feedback_done">"知道了"</string>
+    <string name="feedback_replay">"再听一次。"</string>
 </resources>

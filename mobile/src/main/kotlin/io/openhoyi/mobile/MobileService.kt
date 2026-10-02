@@ -77,6 +77,7 @@ class MobileService : Service() {
     private var history: ShotHistory? = null
     private val series = ShotSeries()
     private val brewFeedback = BrewFeedbackTracker()
+    private val feedbackDelivery = BrewFeedbackDelivery()
     private var feedbackShotId: String? = null
     private var feedbackAppShot = true
     internal var brewFeedbackResult: BrewFeedbackResult? = null
@@ -343,6 +344,7 @@ class MobileService : Service() {
     override fun onCreate() {
         super.onCreate()
         val app = application as MobileApplication
+        app.feedbackPreferences.observe(ownerId) { enabled -> if (!enabled) feedbackDelivery.clear() }
         logs = app.logs
         history = runCatching { app.history }.getOrNull()
         if (mock == null && shotRecovery.pending) manualSafetyResource = R.string.machine_recovery_shot_restart
@@ -1266,13 +1268,22 @@ class MobileService : Service() {
     private fun finishBrewFeedback(observedEnd: Boolean) {
         val id = feedbackShotId
         feedbackShotId = null
-        if (!observedEnd) brewFeedbackResult = null
+        if (!observedEnd) {
+            brewFeedbackResult = null
+            feedbackDelivery.clear()
+        }
         if (id != null) {
             val eligible = BrewFeedbackCompletion.allowed(observedEnd, snapshot.coffeeState,
                 snapshot.alarmBits, if (feedbackAppShot) hub?.extraction?.stopReason else null)
             brewFeedbackResult = runCatching { brewFeedback.finish(id, eligible) }.getOrNull()
+            runCatching { feedbackDelivery.publish(brewFeedbackResult,
+                (application as MobileApplication).feedbackPreferences.enabled) }
+                .onFailure { feedbackDelivery.clear() }
         }
     }
+    internal fun claimBrewFeedback(): BrewFeedbackResult? = feedbackDelivery.claim(
+        (application as MobileApplication).feedbackPreferences.enabled)
+    internal fun discardBrewFeedback() = feedbackDelivery.clear()
     private fun finishSeries(observedEnd: Boolean) {
         finishBrewFeedback(observedEnd)
         val finished = series.finish() ?: return
@@ -1546,6 +1557,7 @@ class MobileService : Service() {
         stopSelf()
     }
     override fun onDestroy() {
+        (application as MobileApplication).feedbackPreferences.unobserve(ownerId)
         appVisibility.unobserve(ownerId)
         finishBrewFeedback(false)
         if (passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {

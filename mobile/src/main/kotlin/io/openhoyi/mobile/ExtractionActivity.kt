@@ -26,6 +26,8 @@ import java.util.Locale
 
 /** A screen never owns BLE. Start requires an explicit confirmation; Stop is one tap. */
 class ExtractionActivity : ThemedActivity() {
+    internal lateinit var feedbackUi: BrewFeedbackDialog
+        private set
     private val machineAlarms by lazy { MachineAlarms(this) }
     private val shotGate by lazy { ShotGate(this) }
     private val presetSlot: Int by lazy { intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7).takeIf { it in 1..5 } ?: 7 }
@@ -66,6 +68,7 @@ class ExtractionActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -172,12 +175,14 @@ class ExtractionActivity : ThemedActivity() {
         render()
     }
     override fun onStart() {
+        feedbackUi.start()
         super.onStart(); visible = true
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
         handler.post(refresh)
         if (!BuildConfig.MOCK_MODE) requestSafetyNotificationsOnce()
     }
     override fun onStop() {
+        feedbackUi.leave(isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         release(); super.onStop()
     }
@@ -241,8 +246,13 @@ class ExtractionActivity : ThemedActivity() {
             }
             .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
     }
+    override fun onSaveInstanceState(outState: Bundle) {
+        feedbackUi.save(outState)
+        super.onSaveInstanceState(outState)
+    }
     private fun render() {
         if (!::readiness.isInitialized) return
+        feedbackUi.update(service, visible)
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val state = owner?.shotState ?: ExtractionState.IDLE

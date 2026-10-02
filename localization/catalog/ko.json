@@ -870,5 +870,19 @@
   "curve_details_proof_available": "시작 메시지 대조 통과, 실제 기기 검증 대기",
   "curve_details_proof_missing": "메시지 검증 사용 불가, 보기 전용",
   "curve_details_no_weight": "사용 안 함",
-  "device_initial_message": "아직 연결된 기기가 없습니다"
+  "device_initial_message": "아직 연결된 기기가 없습니다",
+  "feedback_preferences_title": "앱 환경설정",
+  "feedback_enabled": "추출 완료 알림",
+  "feedback_enabled_description": "추출이 끝나면 재미있는 피드백을 표시하고 영어 안내 음성을 재생합니다. 기본값은 꺼짐입니다.",
+  "feedback_preview": "안내 음성 미리 듣기",
+  "feedback_stop_preview": "미리 듣기 중지",
+  "feedback_preview_description": "기기에 저장된 소리만 재생하며 커피 머신을 조작하지 않습니다.",
+  "feedback_save_failed": "설정을 저장하지 못했습니다. 다시 시도해 주세요",
+  "feedback_title": "커피 한 잔이 완성됐어요",
+  "feedback_bravo": "커피 한 잔을 즐겨 보세요.",
+  "feedback_high_flow": "이번 잔은 유량이 조금 빠른 편이에요. 어떤 맛인지 즐겨 보세요.",
+  "feedback_low_flow": "이번 잔은 유량이 조금 느린 편이에요. 어떤 맛인지 즐겨 보세요.",
+  "feedback_note": "재미를 위한 안내이며 맛을 평가하는 점수가 아닙니다.",
+  "feedback_done": "알겠어요",
+  "feedback_replay": "다시 듣기"
 }

@@ -870,5 +870,19 @@
   "curve_details_proof_available": "ผ่านการเทียบข้อความเริ่ม รอทดสอบเครื่องจริง",
   "curve_details_proof_missing": "ตรวจข้อความใช้ไม่ได้ ดูเท่านั้น",
   "curve_details_no_weight": "ไม่ใช้",
-  "device_initial_message": "ยังไม่ได้เชื่อมต่ออุปกรณ์"
+  "device_initial_message": "ยังไม่ได้เชื่อมต่ออุปกรณ์",
+  "feedback_preferences_title": "การตั้งค่าแอป",
+  "feedback_enabled": "แจ้งเตือนเมื่อสกัดเสร็จ",
+  "feedback_enabled_description": "แสดงข้อความสนุก ๆ และเล่นเสียงแจ้งเตือนภาษาอังกฤษเมื่อสกัดเสร็จ ปิดไว้เป็นค่าเริ่มต้น",
+  "feedback_preview": "ลองฟังเสียงแจ้งเตือน",
+  "feedback_stop_preview": "หยุดฟังตัวอย่าง",
+  "feedback_preview_description": "เล่นเฉพาะเสียงในเครื่อง ไม่สั่งงานเครื่องชงกาแฟ",
+  "feedback_save_failed": "บันทึกการตั้งค่าไม่สำเร็จ โปรดลองอีกครั้ง",
+  "feedback_title": "กาแฟแก้วนี้เสร็จแล้ว",
+  "feedback_bravo": "เพลิดเพลินกับกาแฟแก้วนี้ได้เลย",
+  "feedback_high_flow": "แก้วนี้มีอัตราการไหลค่อนข้างเร็ว ลองชิมรสชาติดูนะ",
+  "feedback_low_flow": "แก้วนี้มีอัตราการไหลค่อนข้างช้า ลองชิมรสชาติดูนะ",
+  "feedback_note": "ข้อความสนุก ๆ ไม่ใช่คะแนนรสชาติ",
+  "feedback_done": "เข้าใจแล้ว",
+  "feedback_replay": "ฟังอีกครั้ง"
 }

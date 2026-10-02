@@ -870,5 +870,19 @@
   "curve_details_proof_available": "開始電文照合通過、実機検証待ち",
   "curve_details_proof_missing": "電文検証が利用不可、閲覧のみ",
   "curve_details_no_weight": "不使用",
-  "device_initial_message": "機器はまだ接続されていません"
+  "device_initial_message": "機器はまだ接続されていません",
+  "feedback_preferences_title": "アプリ設定",
+  "feedback_enabled": "抽出完了のお知らせ",
+  "feedback_enabled_description": "抽出完了後に楽しいコメントを表示し、英語の音声を再生します。初期設定はオフです。",
+  "feedback_preview": "音声を試聴",
+  "feedback_stop_preview": "試聴を停止",
+  "feedback_preview_description": "端末内の音声だけを再生します。コーヒーマシンは操作しません。",
+  "feedback_save_failed": "設定を保存できませんでした。もう一度お試しください",
+  "feedback_title": "この一杯ができました",
+  "feedback_bravo": "この一杯をお楽しみください。",
+  "feedback_high_flow": "この一杯は流量がやや多めでした。味わいを試してみましょう。",
+  "feedback_low_flow": "この一杯は流量がやや少なめでした。味わいを試してみましょう。",
+  "feedback_note": "楽しむためのコメントで、味の評価ではありません。",
+  "feedback_done": "わかりました",
+  "feedback_replay": "もう一度聴く"
 }

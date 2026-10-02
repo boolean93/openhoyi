@@ -121,3 +121,6 @@ adb shell am instrument -w io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewA
 grep -F 'LOCAL_AUDIO_CHECKS_PASSED clips=14 cancelledPrepare=true sequence=true' "$output_dir/audio-instrumentation.txt" >/dev/null
 
 grep -F 'LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 clearedOnNextCup=true earlyStopSuppressed=true' "$output_dir/audio-instrumentation.txt" > /dev/null
+
+adb logcat -d -v brief -s OpenHoyiFeedback:I '*:S' > "$output_dir/feedback-ui.log"
+grep -F 'LOCAL_FEEDBACK_UI_CHECKS_PASSED switchPersisted=true recreatedWithoutReplay=true newCupDismissed=true' "$output_dir/audio-instrumentation.txt" > /dev/null

@@ -32,6 +32,8 @@ import java.util.Locale
 
 /** First native product screen: BLE connection, live values, and a selected captured curve. */
 class HomeActivity : ThemedActivity() {
+    internal lateinit var feedbackUi: BrewFeedbackDialog
+        private set
     private val machineAlarms by lazy { MachineAlarms(this) }
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     private val firmwarePresentation by lazy { FirmwarePresentation(this) }
@@ -85,6 +87,7 @@ class HomeActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -298,12 +301,14 @@ class HomeActivity : ThemedActivity() {
         render()
     }
     override fun onStart() {
+        feedbackUi.start()
         super.onStart()
         visible = true
         if (!startRememberedScaleService()) bindExisting()
         handler.post(refresh)
     }
     override fun onStop() {
+        feedbackUi.leave(isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         release(); super.onStop()
     }
@@ -420,8 +425,13 @@ class HomeActivity : ThemedActivity() {
             .setPositiveButton(getString(R.string.home_sleep_send)) { _, _ -> service?.enterSleepNow()?.let(::toast); render() }
             .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
     }
+    override fun onSaveInstanceState(outState: Bundle) {
+        feedbackUi.save(outState)
+        super.onSaveInstanceState(outState)
+    }
     private fun render() {
         if (!::status.isInitialized) return
+        feedbackUi.update(service, visible)
         val owner = service
         val s = owner?.snapshot ?: MobileSnapshot()
         val now = SystemClock.elapsedRealtime()

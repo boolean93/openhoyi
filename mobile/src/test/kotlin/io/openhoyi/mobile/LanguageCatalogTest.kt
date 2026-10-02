@@ -11,7 +11,7 @@ class LanguageCatalogTest {
         val directory = File("../localization/catalog")
         val source = JSONObject(File(directory,"source.json").readText()).getJSONObject("strings")
         val keys = source.keys().asSequence().toSet()
-        assertEquals(872,keys.size)
+        assertEquals(886,keys.size)
         val format = Regex("%([1-9][0-9]*)\\$([0-9]*)([sd])")
         for(language in AppLanguage.entries.filter { it != AppLanguage.CHINESE }) {
             val translated = JSONObject(File(directory,"${language.tag}.json").readText())

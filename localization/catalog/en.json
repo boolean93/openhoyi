@@ -870,5 +870,19 @@
   "curve_details_proof_available": "Start packet comparison passed; pending real-machine acceptance",
   "curve_details_proof_missing": "Packet verification unavailable; browse only",
   "curve_details_no_weight": "Not used",
-  "device_initial_message": "No device connected yet"
+  "device_initial_message": "No device connected yet",
+  "feedback_preferences_title": "App preferences",
+  "feedback_enabled": "Extraction completion feedback",
+  "feedback_enabled_description": "Show playful feedback and play an English audio prompt when extraction finishes. Off by default.",
+  "feedback_preview": "Preview audio prompt",
+  "feedback_stop_preview": "Stop preview",
+  "feedback_preview_description": "Plays local audio only. Does not control the coffee machine.",
+  "feedback_save_failed": "Settings were not saved. Please try again.",
+  "feedback_title": "Your cup is ready",
+  "feedback_bravo": "Enjoy your coffee.",
+  "feedback_high_flow": "This cup flowed a little faster. Give its flavor a try.",
+  "feedback_low_flow": "This cup flowed a little slower. Give its flavor a try.",
+  "feedback_note": "A playful prompt, not a flavor rating.",
+  "feedback_done": "Got it",
+  "feedback_replay": "Play again"
 }

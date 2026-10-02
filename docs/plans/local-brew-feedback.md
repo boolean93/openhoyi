@@ -41,3 +41,11 @@ Mock instrumentation新增真实产品Service start/stop调用，检查phase8、
 - 新卡片/提示资源八语言完整同步并验证APK实际模板；Mock instrumentation验证真实设置保存、Service结束→领取→一次展示、关闭/旋转/新杯不重播，再补音频焦点竞争与后台中断。设备、语言入口和真实控制验收不能用这些Mock结果替代。
 
 第2项云端证据（e031ab9）：Verify native app36870318401与Verify Mock lifecycle36870318230均success。途中gh观察遇EOF，重新查询同一任务确认仍运行，没有重启验证。已读取Mock日志artifact，保留音频14资产/取消/串播成功标记，并新增LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 clearedOnNextCup=true earlyStopSuppressed=true；真实Mock Service产品API自然结束摘要、下一杯清空、早停无摘要得到Android34运行时证据。生命周期通过、主题配置stop1→2；后台配置destroy仍false。UI/偏好/自动提示音还未接入，安全停止门禁仅有JVM与静态证据，真实咖啡机与用户操作未验；下一阶段仍按第3–4项开发与验证。
+
+第3项本地开发与验证（2026-10-02）：默认关闭的应用偏好卡片、试听及Home/Extraction结束弹窗已接入。纯偏好模型只在磁盘写入成功后更新进程状态，观察者异常不阻断其它页面；关闭立即清空投递并停止所有已订阅播放器。结束投递绑定该杯开关状态，消费后不重发，事后开启不补弹。Activity配置重建保存同杯文字/语音选择并停止原播放，恢复弹窗不自动重播；新杯与不符合展示资格时关闭弹窗。提示渲染/窗口/点击播放异常隔离，不能中断原控制页面渲染。展示是至多一次领取，若展示失败不保证该杯必定可见。
+
+新增10项纯模型测试。最终完整协议39,823检查/32,856通知回放、会话92场景及共享模块回归、三APK/Mock instrumentation编译、双Lint通过。Alpha/Mock各177项（176通过，1真实用户导出缺失跳过），19Python/资源生成一致性/两APK各7,081字符串与6转义round-trip通过；八语言各新增14个提示键，不改变既有文字。生产协议/蓝牙/会话模块无改动，Service仅增加本地展示投递与偏好订阅，不改变启动/停止/恢复/门禁。
+
+Mock instrumentation已增加真实设置Switch持久化、Service自然结束→Home弹窗、重建只恢复文字不增加自动播放请求、新杯关闭旧弹窗检查；编译成功不代表Android运行时通过，云端结果待补。焦点竞争、后台中断、真实听感/页面视觉、Extraction及被动手动杯展示运行时与真实机器控制仍待验。上轮自动审批因账号额度未执行最后构建；本轮正常审批恢复，最终构建已完成，没有绕过审批。
+
+独立最终静态复审未发现实质问题，确认Service增量不改变协议/恢复/停止；明确剩余运行时缺口包括播放中关闭偏好、Extraction生命周期与窗口异常注入，当前云端检查不能覆盖这些项目。

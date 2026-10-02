@@ -870,5 +870,19 @@
   "curve_details_proof_available": "Comparación del paquete de inicio superada; pendiente de aceptación en máquina real",
   "curve_details_proof_missing": "Verificación del paquete no disponible; solo consulta",
   "curve_details_no_weight": "No se usa",
-  "device_initial_message": "Todavía no hay ningún dispositivo conectado"
+  "device_initial_message": "Todavía no hay ningún dispositivo conectado",
+  "feedback_preferences_title": "Preferencias de la aplicación",
+  "feedback_enabled": "Aviso al terminar la extracción",
+  "feedback_enabled_description": "Muestra un comentario divertido y reproduce un aviso de audio en inglés al terminar la extracción. Desactivado por defecto.",
+  "feedback_preview": "Escuchar aviso de audio",
+  "feedback_stop_preview": "Detener reproducción",
+  "feedback_preview_description": "Solo reproduce audio local. No controla la cafetera.",
+  "feedback_save_failed": "No se guardaron los ajustes. Inténtalo de nuevo.",
+  "feedback_title": "Tu taza está lista",
+  "feedback_bravo": "Disfruta de tu café.",
+  "feedback_high_flow": "El flujo de esta taza fue un poco más rápido. Prueba su sabor.",
+  "feedback_low_flow": "El flujo de esta taza fue un poco más lento. Prueba su sabor.",
+  "feedback_note": "Un comentario divertido, no una puntuación del sabor.",
+  "feedback_done": "Entendido",
+  "feedback_replay": "Escuchar de nuevo"
 }

@@ -23,7 +23,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
-            startActivitySync(Intent(targetContext, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            val home = startActivitySync(Intent(targetContext, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
             waitForIdleSync()
             var driver: AndroidBrewFeedbackAudio? = null
             runOnMainSync { driver = AndroidBrewFeedbackAudio(targetContext) }
@@ -66,9 +66,10 @@ class BrewAudioInstrumentation : Instrumentation() {
             val finished = latch.await(30, TimeUnit.SECONDS)
             runOnMainSync { audio?.stop() }
             check(finished && results == listOf(BrewFeedbackAudio.Result.COMPLETED, BrewFeedbackAudio.Result.COMPLETED))
-            verifyFeedbackService()
+            verifyFeedbackService(home)
             report.putString("stream", "LOCAL_AUDIO_CHECKS_PASSED clips=${clips.size} cancelledPrepare=true sequence=true\n" +
-                "LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 clearedOnNextCup=true earlyStopSuppressed=true\n")
+                "LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 clearedOnNextCup=true earlyStopSuppressed=true\n" +
+                "LOCAL_FEEDBACK_UI_CHECKS_PASSED switchPersisted=true recreatedWithoutReplay=true newCupDismissed=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
             report.putString("stream", "LOCAL_AUDIO_CHECKS_FAILED ${error.stackTraceToString()}\n")
@@ -76,7 +77,8 @@ class BrewAudioInstrumentation : Instrumentation() {
         }
     }
     /** Calls only the guarded Mock service's real product start/stop APIs. */
-    private fun verifyFeedbackService() {
+    private fun verifyFeedbackService(initialHome: HomeActivity) {
+        var home = initialHome
         check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
         val connected = CountDownLatch(1)
         val owner = AtomicReference<MobileService>()
@@ -89,6 +91,11 @@ class BrewAudioInstrumentation : Instrumentation() {
         var bound = false
         val prefs = targetContext.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val previous = prefs.getString("selected", null)
+        val feedbackPrefs = (targetContext.applicationContext as MobileApplication).feedbackPreferences
+        val previouslyEnabled = feedbackPrefs.enabled
+        fun autoplayCount(): Int = android.os.ParcelFileDescriptor.AutoCloseInputStream(
+            uiAutomation.executeShellCommand("logcat -d -v brief -s OpenHoyiFeedback:I '*:S'"))
+            .bufferedReader().use { it.readLines().count { line -> line.contains("dialog.autoplay:") } }
         fun awaitMain(timeoutMs: Long, condition: () -> Boolean) {
             val deadline = SystemClock.elapsedRealtime() + timeoutMs
             while (true) {
@@ -100,6 +107,18 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
         }
         try {
+            runOnMainSync { check(feedbackPrefs.setEnabled(false)) }
+            val settings = startActivitySync(Intent(targetContext, MachineSettingsActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MachineSettingsActivity
+            waitForIdleSync()
+            runOnMainSync {
+                check(!settings.feedbackCard.enabledSwitch.isChecked)
+                settings.feedbackCard.enabledSwitch.performClick()
+                check(feedbackPrefs.enabled)
+                check(targetContext.getSharedPreferences("brew_feedback", Context.MODE_PRIVATE).getBoolean("enabled", false))
+                settings.finish()
+            }
+            waitForIdleSync()
             runOnMainSync {
                 bound = targetContext.bindService(Intent(targetContext, MobileService::class.java),
                     connection, Context.BIND_AUTO_CREATE)
@@ -112,6 +131,16 @@ class BrewAudioInstrumentation : Instrumentation() {
             awaitMain(40000) {
                 owner.get()?.shotState == ExtractionState.ENDED_OBSERVED && owner.get()?.brewFeedbackResult != null
             }
+            awaitMain(5000) { home.feedbackUi.isShowing }
+            val beforeRecreation = autoplayCount()
+            check(beforeRecreation > 0)
+            val monitor = addMonitor(HomeActivity::class.java.name, null, false)
+            runOnMainSync { home.recreate() }
+            home = waitForMonitorWithTimeout(monitor, 10000) as? HomeActivity
+                ?: error("Home recreation not observed")
+            removeMonitor(monitor)
+            awaitMain(5000) { home.feedbackUi.isShowing }
+            check(autoplayCount() == beforeRecreation) { "Recreation replayed feedback" }
             runOnMainSync {
                 val result = requireNotNull(owner.get()!!.brewFeedbackResult)
                 check(result.machineSeconds > 14 && result.earlyWaterTenthsMl <= 60)
@@ -119,7 +148,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 check(owner.get()!!.startShot("capture-2", null, 7) == null)
                 check(owner.get()!!.brewFeedbackResult == null)
             }
-            awaitMain(5000) { owner.get()?.snapshot?.coffee is ExtractionTelemetry }
+            awaitMain(5000) { owner.get()?.snapshot?.coffee is ExtractionTelemetry && !home.feedbackUi.isShowing }
             Thread.sleep(250)
             runOnMainSync { owner.get()!!.stopShot() }
             awaitMain(5000) { owner.get()?.shotState == ExtractionState.ENDED_OBSERVED &&
@@ -128,6 +157,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         } finally {
             runOnMainSync {
                 owner.get()?.stopShot()
+                check(feedbackPrefs.setEnabled(previouslyEnabled))
                 if (bound) targetContext.unbindService(connection)
             }
             val edit = prefs.edit()

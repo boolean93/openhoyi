@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "332493b3c3c70e91c28d63a75408f37d7d716c6a4f55a67b6ec5461243943024",
+  "sha256": "b01d57490d30860a8065a47cdaaa737b8067c97e1137bdb77d6ed32b66358d33",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
@@ -873,6 +873,20 @@
     "curve_details_proof_available": "启动报文对照通过，待实机验收",
     "curve_details_proof_missing": "报文校验不可用，仅供浏览",
     "curve_details_no_weight": "不使用",
-    "device_initial_message": "尚未连接设备"
+    "device_initial_message": "尚未连接设备",
+    "feedback_preferences_title": "应用偏好",
+    "feedback_enabled": "萃取完成提示",
+    "feedback_enabled_description": "结束后显示趣味反馈并播放英语提示音，默认关闭。",
+    "feedback_preview": "试听提示音",
+    "feedback_stop_preview": "停止试听",
+    "feedback_preview_description": "仅播放本地声音，不操作咖啡机。",
+    "feedback_save_failed": "设置未保存，请重试",
+    "feedback_title": "这一杯完成了",
+    "feedback_bravo": "享受这一杯咖啡吧。",
+    "feedback_high_flow": "这杯的流量比较快，试试它的风味吧。",
+    "feedback_low_flow": "这杯的流量比较慢，试试它的风味吧。",
+    "feedback_note": "趣味提示，不代表风味评分。",
+    "feedback_done": "知道了",
+    "feedback_replay": "再听一次。"
   }
 }
