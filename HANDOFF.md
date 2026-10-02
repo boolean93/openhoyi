@@ -319,3 +319,5 @@ Alpha 首页与实时萃取页的“立即停止”入口已移至固定底部�
 BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCONNECTED`（而非 `FAILED`）结束，原策略会保持 attempting，10 分钟内不再重试。Hub 现在在连接调用返回后的轮询中观察终态，避免误把 `connect()` 内同步的 DISCONNECTED 重置当失败；成功回连后重置失败退避并留5秒防抖，不支持设备停止自动重试。仍需 Alpha 实机验证断链和地址变化行为。
 
 本轮既有首页复用修正：Mock AndroidTest APK、Mock单元测试和Lint离线构建成功（/private/tmp/hoyi-language-existing-home.log，BUILD SUCCESSFUL，107 tasks）；脚本bash -n及diff --check通过。独立只读审查确认首页引用/恢复顺序和原断言保留，无生产改动。运行验证仍待新云端CI。
+
+当前b20b90f首页引用修正已推送，Verify native app36948773115与Mock36948773151启动。CI脚本另加每条隔离Mock instrument 600秒失败上限，保存阶段stdout并触发已有定向诊断；bash/Python语法检查和独立复审通过。未宣称Android运行检查通过。

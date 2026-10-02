@@ -65,3 +65,5 @@ LanguageNotificationChecks只读既有Mock服务引用并反射真实通知facto
 2026-10-02：图表/通知加入后的三次Mock CI长期未结束，尚无运行通过证据。核对本机Android 35 SDK源码：Instrumentation.startActivitySync把新ActivityWaiter放入列表并无限wait；仅prePerformCreate/onCreate匹配后移除，onNewIntent不完成该等待。Intent.NEW_TASK在已有任务时复用Activity。活动杯检查结束后首页仍在任务根，通知两用例再次同步NEW_TASK启动首页存在无限等待路径。最小修正仅androidTest：Context检查返回finally恢复后的首页，runner传给两通知用例，检查其未销毁/未finish，保留既有服务绑定/所有断言；活动杯finally先恢复原语言再finish，因此首页onResume无需语言重建。新增五阶段START/PASS日志和instrumentation中间状态，失败收集定向OpenHoyiLanguage日志。未修改生产UI、协议、业务或BLE。等待本地构建和新云端结果，不能仅凭SDK推理声称运行故障已修复。
 
 本轮既有首页复用修正：Mock AndroidTest APK、Mock单元测试和Lint离线构建成功（/private/tmp/hoyi-language-existing-home.log，BUILD SUCCESSFUL，107 tasks）；脚本bash -n及diff --check通过。独立只读审查确认首页引用/恢复顺序和原断言保留，无生产改动。运行验证仍待新云端CI。
+
+Mock CI诊断进一步限定每条既有instrumentation命令600秒：Python subprocess超时退出124，其它失败码原样传播到ERR收集，不继续PASS标记；stdout文件保留阶段中间输出。固定Mock runner只允许audio/language模式。bash -n、四段嵌入Python语法解析及独立静态复审通过；超时不等于产品测试通过，也不操作正式设备。

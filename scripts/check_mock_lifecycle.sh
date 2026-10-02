@@ -17,6 +17,28 @@ on_error() {
   exit "$status"
 }
 trap on_error ERR
+# Bound each isolated instrumentation invocation so ERR diagnostics and artifact upload
+# can run before the 30-minute job deadline. A timeout is always a failed check.
+run_instrumentation() {
+  python3 - "$1" "$2" <<'PYCODE'
+from pathlib import Path
+import subprocess,sys
+output,mode=sys.argv[1:]
+if mode not in ("audio", "language"):
+    raise SystemExit("Unsupported Mock instrumentation mode")
+command=["adb", "shell", "am", "instrument", "-w"]
+if mode == "language":
+    command += ["-e", "languageChecks", "true"]
+command += ["io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation"]
+with Path(output).open("w") as capture:
+    try:
+        result=subprocess.run(command, stdout=capture, timeout=600)
+    except subprocess.TimeoutExpired:
+        print(f"Mock {mode} instrumentation timed out after 600 seconds; partial output: {output}", file=sys.stderr)
+        raise SystemExit(124)
+raise SystemExit(result.returncode)
+PYCODE
+}
 assert_activity() {
   local page="$1"
   for attempt in 1 2 3 4 5; do
@@ -117,7 +139,7 @@ printf 'Mock lifecycle checks passed\n' > "$output_dir/result.txt"
 test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 test -s "$test_apk"
 adb install -r "$test_apk"
-adb shell am instrument -w io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation > "$output_dir/audio-instrumentation.txt"
+run_instrumentation "$output_dir/audio-instrumentation.txt" audio
 grep -F 'LOCAL_AUDIO_CHECKS_PASSED clips=14 cancelledPrepare=true sequence=true' "$output_dir/audio-instrumentation.txt" >/dev/null
 
 grep -F 'LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 clearedOnNextCup=true earlyStopSuppressed=true' "$output_dir/audio-instrumentation.txt" > /dev/null
@@ -130,7 +152,7 @@ grep -F 'LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=
 
 # Language context checks run separately, still guarded to the isolated Mock target.
 adb shell pm grant "$package" android.permission.POST_NOTIFICATIONS
-adb shell am instrument -w -e languageChecks true io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation > "$output_dir/language-instrumentation.txt"
+run_instrumentation "$output_dir/language-instrumentation.txt" language
 grep -F 'LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true' "$output_dir/language-instrumentation.txt" > /dev/null
