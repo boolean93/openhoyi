@@ -66,6 +66,7 @@ class MobileService : Service() {
     override fun getResources(): android.content.res.Resources =
         (application as? MobileApplication)?.resources ?: super.getResources()
 
+    private val notificationDisplay by lazy { MobileNotificationDisplay(this) }
     private val studioStartGate by lazy { StudioStartGate(this) }
     private val brewWaitCancelGate by lazy { BrewWaitCancelGate(this) }
     private val shotRecoveryClearGate by lazy { ShotRecoveryClearGate(this) }
@@ -1319,23 +1320,9 @@ class MobileService : Service() {
         logs.record(kind, mapOf("message" to message.initialText, "ownerId" to ownerId))
         Log.i(TAG, message.initialText)
     }
-    private fun connectionNotification(warning: String?): Notification {
-        val open = PendingIntent.getActivity(this, 0, Intent(this, HomeActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val stop = PendingIntent.getService(this, 1, Intent(this, MobileService::class.java).setAction(STOP),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        return Notification.Builder(this, CHANNEL)
-            .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle(if (warning == null) "OpenHOYI Alpha" else getString(R.string.notification_attention))
-            .setContentText(warning ?: getString(R.string.notification_running))
-            .setStyle(warning?.let { Notification.BigTextStyle().bigText(it) })
-            .setContentIntent(open).setOngoing(true)
-            .addAction(Notification.Action.Builder(null, getString(R.string.notification_disconnect), stop).build()).build()
-    }
-    private fun createNotificationChannels(manager: NotificationManager) {
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, getString(R.string.home_device_connection), NotificationManager.IMPORTANCE_LOW))
-        manager.createNotificationChannel(NotificationChannel(SAFETY_CHANNEL, getString(R.string.notification_safety_channel), NotificationManager.IMPORTANCE_HIGH))
-    }
+    private fun connectionNotification(warning: String?): Notification = notificationDisplay.connection(warning, CHANNEL)
+    private fun createNotificationChannels(manager: NotificationManager) =
+        notificationDisplay.createChannels(manager, CHANNEL, SAFETY_CHANNEL)
     /** Called on the main thread after the Service's language context has been updated.
      * Only notification display is refreshed; no event, command or recovery action is replayed. */
     fun refreshNotificationDisplay() {
@@ -1367,16 +1354,8 @@ class MobileService : Service() {
         else runCatching {
             val destination = if (presentation.destination == SafetyNotificationPresentation.Destination.HOME)
                 HomeActivity::class.java else ExtractionActivity::class.java
-            val open = PendingIntent.getActivity(this, 2, Intent(this, destination),
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-            manager.notify(SAFETY_NOTIFICATION, Notification.Builder(this, SAFETY_CHANNEL)
-                .setSmallIcon(android.R.drawable.stat_sys_warning)
-                .setContentTitle(getString(R.string.notification_check_machine))
-                .setContentText(warning)
-                .setOnlyAlertOnce(displayOnly)
-                .setStyle(Notification.BigTextStyle().bigText(warning))
-                .setContentIntent(open).setCategory(Notification.CATEGORY_ALARM)
-                .setOngoing(true).build())
+            manager.notify(SAFETY_NOTIFICATION,
+                notificationDisplay.safety(warning, destination, SAFETY_CHANNEL, displayOnly))
         }.onFailure { notificationFailure(displayOnly, R.string.notification_unavailable, "shot.safety_notify_error", it) }
     }
     fun acknowledgeManualSafety() {

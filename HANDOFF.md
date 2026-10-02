@@ -1,5 +1,7 @@
 # Native BLE / Lab handoff
 
+2026-10-02：纯通知显示构造已从Service移到MobileNotificationDisplay，保留Service动态Context、原通道ID/Intent/请求码/flags与安全显示模式。Service整文件按a161de9的明确三组替换逐字重放一致；停止/BLE/恢复/资格/通知去重/失败与时序不改。Android测试先缺API编译失败，迁移后完整回归/三APK/Mock测试APK/双Lint成功，177项/变体（176过、1缺真实导出跳过），19Python与双APK7081资源通过，独立静态复核无实质问题。安全factory新增8语言×两目的地×两displayOnly构造断言，仅编译待云端；实际发布/刷新/权限仍未验收。a161de9云端完整Verify36946687850成功，Mock36946687835尚在模拟器步骤，未重启。计划见docs/plans/notification-display-extraction.md。
+
 2026-10-02：eff6662云端完整Verify36946052287和Mock36946052284成功，已读language日志两标记，16组合Context/Home检查保持通过，8语言活动杯重建保留杯ID/采样/消息与译后真实UI停止按钮同步结束通过。新增加三图表×8语言×深浅的实际Canvas像素顺序检查、8语言通知factory/channels文字与ID/Mock PendingIntent来源检查；不发布通知、不发送意图，结束还原语言和通道。最终Mock测试APK/单测/Lint及静态复审通过，新运行结果待补。通知factory不等于真实刷新，图表顺序不等于文本裁切，语言入口/实际BLE/完整安全仍未验。所有增量仅测试/文档，生产协议无变更。
 
 2026-10-02：c00e038云端Verify36945429783与Mock36945429772成功，已读language-instrumentation.txt标记，八语言×深浅主题16组合实际资源/可见Home导航/RTL方向/重建同Service、消息及非语言偏好保留通过。新增仅测试的活动杯切换：8语言各一Mock杯，watchShot已RUNNING后切换并重建Extraction，保留杯ID/首点与消息，点击译后固定停止按钮同步证明结束，再等观察收尾；最终编译/Mock单测/Lint和两轮静态复审通过，云端待验。未改生产模块，没有语言选择入口；真实通知/长字/图轴/实际BLE与机器安全仍未验。

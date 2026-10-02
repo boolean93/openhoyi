@@ -60,6 +60,24 @@ internal class LanguageNotificationChecks(private val test: Instrumentation) {
                     check(notification.actions[0].actionIntent.creatorPackage == context.packageName)
                     check(notification.contentIntent.creatorPackage == context.packageName)
                 }
+                val display = MobileNotificationDisplay(service)
+                val direct = display.connection(null, "connections")
+                check(direct.channelId == running.channelId && direct.flags == running.flags &&
+                    direct.extras.getCharSequence(Notification.EXTRA_TEXT).toString() ==
+                        running.extras.getCharSequence(Notification.EXTRA_TEXT).toString())
+                for (destination in listOf(HomeActivity::class.java, ExtractionActivity::class.java))
+                    for (displayOnly in listOf(false, true)) {
+                        val safety = display.safety(warning, destination, "shot_safety", displayOnly)
+                        check(safety.channelId == "shot_safety" && safety.category == Notification.CATEGORY_ALARM)
+                        check(safety.extras.getCharSequence(Notification.EXTRA_TITLE).toString() == expected.getString(R.string.notification_check_machine))
+                        check(safety.extras.getCharSequence(Notification.EXTRA_TEXT).toString() == warning &&
+                            safety.extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString() == warning)
+                        check((safety.flags and Notification.FLAG_ONGOING_EVENT) != 0)
+                        check(((safety.flags and Notification.FLAG_ONLY_ALERT_ONCE) != 0) == displayOnly)
+                        val expectedOpen = android.app.PendingIntent.getActivity(service, 2, Intent(service, destination),
+                            android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT)
+                        check(safety.contentIntent == expectedOpen && safety.contentIntent.creatorPackage == context.packageName)
+                    }
                 check(service.snapshot.message === initialMessage)
             }
         } finally {
