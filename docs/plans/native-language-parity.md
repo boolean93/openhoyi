@@ -61,3 +61,7 @@ LanguageNotificationChecks只读既有Mock服务引用并反射真实通知facto
 2026-10-02：实际平台通知发布补充用例，仅隔离Mock获得POST_NOTIFICATIONS权限。新测试以独立OpenHoyiLanguageTest tag及91001/91002 ID使用当前Service动态Context的共享display构造两条通知，由Android NotificationManager实际发布/读取/八语言更新；要求同两key替换、译后正文/动作/警告更新，取消安全通知后连接通知保留，最后取消自身tag。没有点击通知或发送PendingIntent，没有调用真实Service刷新门禁。复审修正清理链：取消、等待、语言权威/原始map和各通道还原独立尝试，原失败保留并附加清理错误，不把清理失败算通过。最终Mock测试APK/单测/Lint成功，两轮静态复审无残余实质问题；平台实际运行待云端。该用例仍不证明Service前台/安全刷新资格、去重/权限失败/真实BLE安全。
 
 三种图表48组合保持相同渲染和像素范围，改为Bitmap.getPixels批量读取后扫描同一row-major数据，减少跨JNI调用；不减少测试样本或降低顺序断言。
+
+2026-10-02：图表/通知加入后的三次Mock CI长期未结束，尚无运行通过证据。核对本机Android 35 SDK源码：Instrumentation.startActivitySync把新ActivityWaiter放入列表并无限wait；仅prePerformCreate/onCreate匹配后移除，onNewIntent不完成该等待。Intent.NEW_TASK在已有任务时复用Activity。活动杯检查结束后首页仍在任务根，通知两用例再次同步NEW_TASK启动首页存在无限等待路径。最小修正仅androidTest：Context检查返回finally恢复后的首页，runner传给两通知用例，检查其未销毁/未finish，保留既有服务绑定/所有断言；活动杯finally先恢复原语言再finish，因此首页onResume无需语言重建。新增五阶段START/PASS日志和instrumentation中间状态，失败收集定向OpenHoyiLanguage日志。未修改生产UI、协议、业务或BLE。等待本地构建和新云端结果，不能仅凭SDK推理声称运行故障已修复。
+
+本轮既有首页复用修正：Mock AndroidTest APK、Mock单元测试和Lint离线构建成功（/private/tmp/hoyi-language-existing-home.log，BUILD SUCCESSFUL，107 tasks）；脚本bash -n及diff --check通过。独立只读审查确认首页引用/恢复顺序和原断言保留，无生产改动。运行验证仍待新云端CI。

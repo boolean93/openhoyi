@@ -28,11 +28,21 @@ class BrewAudioInstrumentation : Instrumentation() {
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
             if (languageChecks) {
-                LanguageContextChecks(this).run()
-                LanguageActiveCupChecks(this).run()
-                LanguageChartChecks(this).run()
-                LanguageNotificationChecks(this).run()
-                LanguageNotificationPostingChecks(this).run()
+                fun <T> stage(name: String, checkStage: () -> T): T {
+                    android.util.Log.i("OpenHoyiLanguage", "START $name")
+                    sendStatus(0, Bundle().apply { putString("stream", "LANGUAGE_STAGE_START $name\n") })
+                    val result = checkStage()
+                    android.util.Log.i("OpenHoyiLanguage", "PASS $name")
+                    sendStatus(0, Bundle().apply { putString("stream", "LANGUAGE_STAGE_PASS $name\n") })
+                    return result
+                }
+                val home = stage("context") { LanguageContextChecks(this).run() }
+                stage("activeCup") { LanguageActiveCupChecks(this).run() }
+                stage("charts") { LanguageChartChecks(this).run() }
+                // Home remains the task root after Extraction finishes. NEW_TASK would reuse it,
+                // while startActivitySync waits indefinitely for a new onCreate callback.
+                stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
+                stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 report.putString("stream", "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
                     "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n" +
                     "LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true\n" +

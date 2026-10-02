@@ -29,7 +29,7 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
             view.getGlobalVisibleRect(android.graphics.Rect())) return true
         return view is ViewGroup && (0 until view.childCount).any { containsText(view.getChildAt(it), text) }
     }
-    fun run() {
+    fun run(): HomeActivity {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
         val oldLanguage = app.languagePreferences.current
@@ -102,6 +102,7 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
             }
             rebuild()
         }
+        return home
     }
 }
 

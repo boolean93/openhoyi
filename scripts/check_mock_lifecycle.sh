@@ -12,7 +12,7 @@ on_error() {
   local status=$?
   trap - ERR
   collect || true
-  adb logcat -d -s AndroidRuntime:E OpenHoyiMobile:I > "$output_dir/errors.txt" || true
+  adb logcat -d -s AndroidRuntime:E OpenHoyiMobile:I OpenHoyiLanguage:I > "$output_dir/errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   exit "$status"
 }

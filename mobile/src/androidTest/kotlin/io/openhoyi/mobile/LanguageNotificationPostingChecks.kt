@@ -4,11 +4,10 @@ import android.app.Instrumentation
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
-import android.content.Intent
 import android.os.SystemClock
 
 /** Real Android posting in the isolated Mock UID; never dispatches a notification action. */
-internal class LanguageNotificationPostingChecks(private val test: Instrumentation) {
+internal class LanguageNotificationPostingChecks(private val test: Instrumentation, private val home: HomeActivity) {
     private fun awaitCondition(checkState: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 5000
         while (!checkState()) {
@@ -23,9 +22,7 @@ internal class LanguageNotificationPostingChecks(private val test: Instrumentati
         val oldLanguage = app.languagePreferences.current
         val prefs = context.getSharedPreferences("app_language", Context.MODE_PRIVATE)
         val oldStorage = prefs.all.toMap()
-        val home = test.startActivitySync(Intent(context, HomeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
-        test.waitForIdleSync()
+        test.runOnMainSync { check(!home.isDestroyed && !home.isFinishing) { "Existing language Home is no longer available" } }
         var service: MobileService? = null
         awaitCondition {
             test.runOnMainSync {

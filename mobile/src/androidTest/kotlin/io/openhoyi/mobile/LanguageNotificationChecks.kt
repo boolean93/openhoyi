@@ -8,7 +8,7 @@ import android.content.Intent
 import android.os.SystemClock
 
 /** Factory checks only: never posts a notification or sends a PendingIntent, and never refreshes BLE. */
-internal class LanguageNotificationChecks(private val test: Instrumentation) {
+internal class LanguageNotificationChecks(private val test: Instrumentation, private val home: HomeActivity) {
     fun run() {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
@@ -16,9 +16,7 @@ internal class LanguageNotificationChecks(private val test: Instrumentation) {
         val oldLanguage = app.languagePreferences.current
         val prefs = context.getSharedPreferences("app_language", Context.MODE_PRIVATE)
         val oldStorage = prefs.all.toMap()
-        val home = test.startActivitySync(Intent(context, HomeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
-        test.waitForIdleSync()
+        test.runOnMainSync { check(!home.isDestroyed && !home.isFinishing) { "Existing language Home is no longer available" } }
         var owner: MobileService? = null
         val deadline = SystemClock.elapsedRealtime() + 10000
         while (owner == null) {
