@@ -66,15 +66,85 @@ class BrewAudioInstrumentation : Instrumentation() {
             val finished = latch.await(30, TimeUnit.SECONDS)
             runOnMainSync { audio?.stop() }
             check(finished && results == listOf(BrewFeedbackAudio.Result.COMPLETED, BrewFeedbackAudio.Result.COMPLETED))
+            verifyFocusInterruption()
             verifyFeedbackService(home)
             report.putString("stream", "LOCAL_AUDIO_CHECKS_PASSED clips=${clips.size} cancelledPrepare=true sequence=true\n" +
                 "LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 clearedOnNextCup=true earlyStopSuppressed=true\n" +
-                "LOCAL_FEEDBACK_UI_CHECKS_PASSED switchPersisted=true recreatedWithoutReplay=true newCupDismissed=true\n")
+                "LOCAL_FEEDBACK_UI_CHECKS_PASSED switchPersisted=true recreatedWithoutReplay=true newCupDismissed=true\n" +
+                "LOCAL_AUDIO_FOCUS_CHECKS_PASSED interrupted=true sequenceSuppressed=true\n" +
+                "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
             report.putString("stream", "LOCAL_AUDIO_CHECKS_FAILED ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
+    }
+    /** The isolated emulator has no other media owner; require a stable native audio state. */
+    private fun awaitMusic(active: Boolean, timeoutMs: Long = 5000) {
+        val manager = targetContext.getSystemService(android.media.AudioManager::class.java)
+        val deadline = SystemClock.elapsedRealtime() + timeoutMs
+        var stableSince: Long? = null
+        while (true) {
+            val now = SystemClock.elapsedRealtime()
+            if (manager.isMusicActive == active) {
+                if (stableSince == null) stableSince = now
+                if (now - stableSince >= 100) return
+            } else stableSince = null
+            check(now < deadline) { "Native audio did not stabilize active=$active" }
+            Thread.sleep(20)
+        }
+    }
+    /** Real Android focus loss must cancel the local sequence, including its pending voice. */
+    private fun verifyFocusInterruption() {
+        val manager = targetContext.getSystemService(android.media.AudioManager::class.java)
+        val lost = CountDownLatch(1)
+        val starts = mutableListOf<String>()
+        val results = mutableListOf<BrewFeedbackAudio.Result>()
+        var audio: BrewFeedbackAudio? = null
+        var competitor: android.media.AudioFocusRequest? = null
+        try {
+            awaitMusic(false)
+            runOnMainSync {
+                val driver = AndroidBrewFeedbackAudio(targetContext)
+                audio = BrewFeedbackAudio(object : BrewFeedbackAudio.Driver {
+                    override fun start(path: String, done: (BrewFeedbackAudio.Result) -> Unit): BrewFeedbackAudio.Cancel {
+                        starts.add(path)
+                        return driver.start(path) { result ->
+                            results.add(result); done(result); lost.countDown()
+                        }
+                    }
+                })
+                audio!!.play(BrewFeedbackClips.Level.BRAVO, 0)
+            }
+            awaitMusic(true)
+            runOnMainSync {
+                competitor = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
+                    .setAudioAttributes(android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_MEDIA).build())
+                    .setOnAudioFocusChangeListener { }.build()
+                check(manager.requestAudioFocus(competitor!!) == android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED)
+            }
+            check(lost.await(5, TimeUnit.SECONDS)) { "Focus loss was not delivered" }
+            awaitMusic(false)
+            runOnMainSync {
+                check(!audio!!.playing && starts == listOf("brew-feedback/1.mp3") &&
+                    results == listOf(BrewFeedbackAudio.Result.INTERRUPTED)) { "Focus loss advanced local voice: $starts $results" }
+            }
+        } finally {
+            runOnMainSync { audio?.stop(); competitor?.let { manager.abandonAudioFocusRequest(it) } }
+        }
+    }
+    /** Inspect the existing local request state without adding a production test API. Main thread only. */
+    private fun playback(owner: Any): BrewFeedbackAudio? {
+        val field = owner.javaClass.getDeclaredField("audioOwner").apply { isAccessible = true }
+        val lazy = field.get(owner) as Lazy<*>
+        return if (lazy.isInitialized()) lazy.value as BrewFeedbackAudio else null
+    }
+    private fun button(root: android.view.View, label: String): android.widget.Button? {
+        if (root is android.widget.Button && root.text.toString() == label) return root
+        if (root is android.view.ViewGroup) for (index in 0 until root.childCount)
+            button(root.getChildAt(index), label)?.let { return it }
+        return null
     }
     /** Calls only the guarded Mock service's real product start/stop APIs. */
     private fun verifyFeedbackService(initialHome: HomeActivity) {
@@ -116,8 +186,35 @@ class BrewAudioInstrumentation : Instrumentation() {
                 settings.feedbackCard.enabledSwitch.performClick()
                 check(feedbackPrefs.enabled)
                 check(targetContext.getSharedPreferences("brew_feedback", Context.MODE_PRIVATE).getBoolean("enabled", false))
-                settings.finish()
+                requireNotNull(button(settings.window.decorView, settings.getString(R.string.feedback_preview))).performClick()
+                check(playback(settings.feedbackCard)?.playing == true)
             }
+            awaitMusic(true)
+            runOnMainSync {
+                settings.feedbackCard.enabledSwitch.performClick()
+                check(!feedbackPrefs.enabled && playback(settings.feedbackCard)?.playing == false)
+            }
+            awaitMusic(false, 1000)
+            runOnMainSync {
+                settings.feedbackCard.enabledSwitch.performClick()
+                requireNotNull(button(settings.window.decorView, settings.getString(R.string.feedback_preview))).performClick()
+                check(playback(settings.feedbackCard)?.playing == true)
+            }
+            awaitMusic(true)
+            val temporaryMonitor = addMonitor(ExtractionActivity::class.java.name, null, false)
+            runOnMainSync { settings.startActivity(Intent(settings, ExtractionActivity::class.java)) }
+            // Check immediately after requesting navigation; waiting for Activity startup first could hide natural completion.
+            awaitMusic(false, 1000)
+            val temporaryExtraction = waitForMonitorWithTimeout(temporaryMonitor, 10000) as? ExtractionActivity
+                ?: error("Temporary Extraction navigation not observed")
+            removeMonitor(temporaryMonitor)
+            waitForIdleSync()
+            runOnMainSync {
+                check(playback(settings.feedbackCard)?.playing == false) { "Settings exit left preview active" }
+                temporaryExtraction.finish()
+            }
+            waitForIdleSync()
+            runOnMainSync { settings.finish() }
             waitForIdleSync()
             runOnMainSync {
                 bound = targetContext.bindService(Intent(targetContext, MobileService::class.java),
@@ -154,6 +251,27 @@ class BrewAudioInstrumentation : Instrumentation() {
             awaitMain(5000) { owner.get()?.shotState == ExtractionState.ENDED_OBSERVED &&
                 owner.get()?.snapshot?.coffee !is ExtractionTelemetry }
             runOnMainSync { check(owner.get()!!.brewFeedbackResult == null) }
+            val extraction = startActivitySync(Intent(targetContext, ExtractionActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ExtractionActivity
+            waitForIdleSync()
+            runOnMainSync { check(owner.get()!!.startShot("capture-2", null, 7) == null) }
+            awaitMain(40000) { extraction.feedbackUi.isShowing }
+            awaitMusic(true)
+            runOnMainSync {
+                check(playback(extraction.feedbackUi)?.playing == true)
+                extraction.finish()
+            }
+            awaitMusic(false, 1000)
+            waitForIdleSync()
+            runOnMainSync {
+                check(!extraction.feedbackUi.isShowing && playback(extraction.feedbackUi)?.playing == false)
+                home.feedbackUi.update(owner.get(), true)
+                check(!home.feedbackUi.isShowing) { "Completed cup was delivered twice across pages" }
+                check(feedbackPrefs.setEnabled(false))
+                check(feedbackPrefs.setEnabled(true))
+                home.feedbackUi.update(owner.get(), true)
+                check(!home.feedbackUi.isShowing) { "Re-enabling feedback resurrected an old cup" }
+            }
         } finally {
             runOnMainSync {
                 owner.get()?.stopShot()

@@ -124,3 +124,6 @@ grep -F 'LOCAL_FEEDBACK_SERVICE_CHECKS_PASSED observedEnd=true telemetryPhase=8 
 
 adb logcat -d -v brief -s OpenHoyiFeedback:I '*:S' > "$output_dir/feedback-ui.log"
 grep -F 'LOCAL_FEEDBACK_UI_CHECKS_PASSED switchPersisted=true recreatedWithoutReplay=true newCupDismissed=true' "$output_dir/audio-instrumentation.txt" > /dev/null
+
+grep -F 'LOCAL_AUDIO_FOCUS_CHECKS_PASSED interrupted=true sequenceSuppressed=true' "$output_dir/audio-instrumentation.txt" > /dev/null
+grep -F 'LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true' "$output_dir/audio-instrumentation.txt" > /dev/null
