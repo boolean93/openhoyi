@@ -35,6 +35,8 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         try {
             view.draw(Canvas(bitmap))
+            val pixels = IntArray(width * height)
+            bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
             val left = leftDp * density
             val right = width - rightDp * density
             val top = (topDp * density).toInt() + 1
@@ -43,7 +45,7 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
                 var total = 0L
                 var count = 0
                 for (x in (left + (right - left) * low).toInt()..(left + (right - left) * high).toInt())
-                    for (y in top..bottom) if (bitmap.getPixel(x, y) == color) { total += y; count++ }
+                    for (y in top..bottom) if (pixels[y * width + x] == color) { total += y; count++ }
                 check(count > 0) { "No rendered series pixels for ${view.javaClass.simpleName} ${language.tag}" }
                 return total.toDouble() / count
             }

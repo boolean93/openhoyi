@@ -32,10 +32,12 @@ class BrewAudioInstrumentation : Instrumentation() {
                 LanguageActiveCupChecks(this).run()
                 LanguageChartChecks(this).run()
                 LanguageNotificationChecks(this).run()
+                LanguageNotificationPostingChecks(this).run()
                 report.putString("stream", "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
                     "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n" +
                     "LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true\n" +
-                    "LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true\n")
+                    "LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true\n" +
+                    "LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=8 stableKeys=true translatedUpdates=true removed=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }

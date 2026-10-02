@@ -57,3 +57,7 @@ LanguageNotificationChecks只读既有Mock服务引用并反射真实通知facto
 活动杯云端证据（eff6662）：Verify native app36946052287及Verify Mock lifecycle36946052284成功；读取language-instrumentation.txt，原Context16组合标记与LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true均存在。8语言每杯实际产品Mock启动、Extraction重建保留杯ID/采样/消息和译后停止按钮立即结束已运行通过。此提交不含随后图表/通知factory新检查，不计入其证据；没有真实BLE或真实机器结束证明。
 
 图表/通知factory补充检查最终Mock测试APK、Mock单测与Lint通过；独立静态复审无实质问题。语言分支错误输出已单独标记LANGUAGE_CHECKS_FAILED，便于失败时定向定位；云端运行结果待补。
+
+2026-10-02：实际平台通知发布补充用例，仅隔离Mock获得POST_NOTIFICATIONS权限。新测试以独立OpenHoyiLanguageTest tag及91001/91002 ID使用当前Service动态Context的共享display构造两条通知，由Android NotificationManager实际发布/读取/八语言更新；要求同两key替换、译后正文/动作/警告更新，取消安全通知后连接通知保留，最后取消自身tag。没有点击通知或发送PendingIntent，没有调用真实Service刷新门禁。复审修正清理链：取消、等待、语言权威/原始map和各通道还原独立尝试，原失败保留并附加清理错误，不把清理失败算通过。最终Mock测试APK/单测/Lint成功，两轮静态复审无残余实质问题；平台实际运行待云端。该用例仍不证明Service前台/安全刷新资格、去重/权限失败/真实BLE安全。
+
+三种图表48组合保持相同渲染和像素范围，改为Bitmap.getPixels批量读取后扫描同一row-major数据，减少跨JNI调用；不减少测试样本或降低顺序断言。
