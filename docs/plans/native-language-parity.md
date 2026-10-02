@@ -39,3 +39,9 @@
 2026-10-01：独立偏好和Activity/Application/Service统一资源Context已接入，默认简中、没有选择调用方。4项偏好测试及全回归通过；Android缓存/重建/Toast/通知/RTL仍未验证。见unified-language-context.md。
 
 2026-10-01：正式七语言XML各871键（排除共享app_name）已打包，转换一致性、19Python测试及两个APK各6,969编译文字通过核对；无选择入口，无Android视觉/生命周期或新硬件验证。见android-language-resources.md。
+
+2026-10-02：准备Android运行时前置检查，仅新增Mock instrumentation，不开放语言选择入口。以已有独立语言偏好选择八语言，分别在深浅主题重建Home；从独立Android ConfigurationContext解析预期文字，核对实际导航文字、Activity/Application/现存Service的Locale与字符串、阿语RTL方向。读取原Home绑定，要求Service及原消息身份不变、设备/曲线/槽位/恢复/历史偏好不变，避免额外测试绑定掩盖服务重启。16种组合编译、Mock单测与Lint已通过；云端Android实际运行结果待补，编译不算切换验收。此轮不覆盖母语质量、长文字裁切、科学坐标视觉、通知（Mock刷新函数直接返回）、真实BLE窗口与萃取中切换，不能据此开放所有入口或宣称完成多语言。
+
+运行时测试复审补强：可见文字同时要求isShown与屏幕可见矩形；保存完整app_language与appearance原始map，先还原进程语言权威，再恢复原始偏好（含缺失/非法tag），逐项核对恢复后的磁盘值。不能用只恢复有效默认语言代替测试前原始状态。
+
+修正版测试APK构建、Mock单测与Lint通过；两轮独立静态复核无剩余实质问题。新增检查将通过现有Mock runner独立languageChecks参数执行，日志单独输出language-instrumentation.txt，必须命中LANGUAGE_CONTEXT_CHECKS_PASSED才算本轮运行通过，尚无实际结果。

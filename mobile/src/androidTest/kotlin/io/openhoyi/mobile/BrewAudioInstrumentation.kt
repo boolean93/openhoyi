@@ -18,11 +18,21 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
-    override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); start() }
+    private var languageChecks = false
+    override fun onCreate(arguments: Bundle?) {
+        languageChecks = arguments?.getString("languageChecks") == "true"
+        super.onCreate(arguments); start()
+    }
     override fun onStart() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (languageChecks) {
+                LanguageContextChecks(this).run()
+                report.putString("stream", "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             val home = startActivitySync(Intent(targetContext, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
             waitForIdleSync()
             var driver: AndroidBrewFeedbackAudio? = null

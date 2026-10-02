@@ -127,3 +127,7 @@ grep -F 'LOCAL_FEEDBACK_UI_CHECKS_PASSED switchPersisted=true recreatedWithoutRe
 
 grep -F 'LOCAL_AUDIO_FOCUS_CHECKS_PASSED interrupted=true sequenceSuppressed=true' "$output_dir/audio-instrumentation.txt" > /dev/null
 grep -F 'LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true' "$output_dir/audio-instrumentation.txt" > /dev/null
+
+# Language context checks run separately, still guarded to the isolated Mock target.
+adb shell am instrument -w -e languageChecks true io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation > "$output_dir/language-instrumentation.txt"
+grep -F 'LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true' "$output_dir/language-instrumentation.txt" > /dev/null
