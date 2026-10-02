@@ -1,3 +1,5 @@
+2026-10-02：首组件布局CI36950093899失败于测试环境假设（实际Home宽屏），不是产品裁切结论。修正测试用Home派生的明确320/360/600dp ConfigurationContext和未启动LayoutHost给生产HoyiUi测量，显式MobileTheme/getTheme委托；不改实际Home或App配置，不削弱文字/48dp/父界限/RTL/负例断言。修正版本地Mock测试APK/单测/Lint成功，复审/第二次云端待补。
+
 2026-10-02：新增多语言组件布局检查，未改生产代码。Context现有16组合分别测生产紧凑导航320/360/600dp×五selected态、标题/副标题/危险按钮；ActiveCup八语言对现存固定停止按钮补Layout完整性断言。导航非空/资源匹配、无ellipsis、行范围/高度、父bar边界及48dp目标，含两Android裁切负例；审查修正离屏body默认LTR并复核。最新Mock testAPK/单测/Lint成功，云端结果待补；不计作五页真实内容/宽屏导航/字体放大/母语/硬件验收，语言入口继续关闭。见docs/superpowers/plans/2026-10-02-language-layout.md。
 
 2026-10-02：b20b90f云端完整构建36948773115与Mock36948773151均success，已核对下载产物。语言五阶段全部PASS：Home 16组合、活动杯8语言、三图表48组合科学顺序、通知factory八语言、Android平台通知八语言同key更新及取消清理；原音频/产品提示/焦点/退出五项回归也通过。首页复用修正实际解除本次挂起。语言入口仍未开放：长文字/各页面布局、母语与真实Service通知刷新门禁仍待验收；真实硬件边界不变。最新8458c34另加600秒失败保护，已离线执行模拟成功/非零/超时/非法模式及stdout保留检查；云端完整构建36949018031与Mock36949018081均success，已读取后者产物并再次确认五条语言与五条音频/提示回归标记。详见docs/plans/native-language-parity.md。
