@@ -1,3 +1,5 @@
+2026-10-02：最新源代码dfc4c55已推送，完整构建36952198505、Mock运行36952198311及截图生成36952198275均success。已读取语言七项和音频五项通过标记。紧凑共享UI240组合+八语言实际停止文字检查通过，日语导航38px/36px裁切修正得到运行证据；独立未注册/无Hub Service原方法的资格返回、相同warning去重、强制两条平台postTime更新及Context失败捕获/清理也通过。真实产品Service没有改动；只在隔离Mock中测量和发通知。截图已下载未逐图新视觉核验。仍缺五页完整长文字/宽屏/字体放大/母语、语言设置入口、注册Service生命周期/notify-cancel异常/权限撤销及真实BLE/硬件验收。功能对标表已更新；不得标完整目标完成。产物/private/tmp/hoyi-ui-service-notifications-36952198311，方案docs/superpowers/plans/2026-10-02-language-layout.md及2026-10-02-service-notification-refresh.md。
+
 2026-10-02：新增仅androidTest的LanguageServiceNotificationChecks：独立未注册/无生命周期/无Hub的Service对象，受限Mock上下文，测试资格返回、8语言真实通知、同警告常规去重/强制postTime更新与Context查询失败，snapshot/真实owner/恢复偏好不变。复审修正强制刷新假阳性；最新Mock测试APK/单测/Lint成功，两轮静态复审无残留问题，ART/平台运行待CI。生产Service未改。CI现会因HoyiUi/通知factory/Service修改自动触发。上一导航fix8377352首次push网络SSL失败，随本次提交一起重试推送；不得视为已运行通过。
 
 2026-10-02：第二轮布局CI36950911811捕捉真实日语导航裁切（320dpプロファイル，Layout38px/可用36px）。已将HoyiUi导航bar最低62dp且wrap、item最低50dp且wrap，保留点击/色彩/底部位置/主体权重及协议逻辑；双构建/双单测/Lint/Mock测试APK通过，静态审查无问题，修复后云端待验证。另有未提交的独立Service通知检查准备中，不修改生产Service。见docs/superpowers/plans/2026-10-02-language-layout.md。

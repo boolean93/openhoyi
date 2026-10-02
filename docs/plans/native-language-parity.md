@@ -73,3 +73,5 @@ Mock CI诊断进一步限定每条既有instrumentation命令600秒：Python sub
 600秒CI辅助逻辑的额外离线执行核对：实际嵌入Python代码通过替换subprocess.run模拟成功0、命令失败7、TimeoutExpired→124及非法模式拒绝；每种已启动命令的部分stdout均保留，固定Mock argv和600秒值均断言。未执行adb，没有将模拟超时验收当作Android运行通过。最新8458c34云端运行结果仍待补。
 
 8458c34最终云端证据：Verify native app36949018031与Verify Mock lifecycle36949018081均success。已读取/private/tmp/hoyi-language-bounded-36949018081的language-instrumentation.txt和audio-instrumentation.txt，五阶段START/PASS、五条语言检查与原五条音频/产品提示回归标记全部存在。正常运行没有触发600秒超时；超时失败传播由上面的离线模拟证据单独覆盖，不能混同。功能对标表已更新图表顺序和平台通知的已验证范围，实际Service刷新资格/权限失败、各页面长文字与真实硬件验收继续保留为未完成。
+
+布局/Service编排补充运行证据dfc4c55：构建36952198505、Mock运行36952198311、截图生成36952198275均success；已读取Mock语言七项标记与音频五项标记。紧凑共享组件240组合与固定停止文字完整性通过，实测日语导航裁切已用HoyiUi自适应高度修正；独立未注册无Hub Service的原通知方法资格/去重/强制两postTime更新/Context查询失败也通过。实现与严格边界见../superpowers/plans/2026-10-02-language-layout.md和../superpowers/plans/2026-10-02-service-notification-refresh.md。截图产物已下载但未逐图新视觉核对；不算所有页面布局或真实Service/BLE/硬件证明。语言选择入口和其它功能对标尚未完成。
