@@ -78,6 +78,7 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
                     check(home.window.decorView.layoutDirection == expectedDirection)
                     check((home.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
                         if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
+                    LanguageUiLayoutChecks.components(home, language, dark)
                     check(service(home) === owner) { "Language recreation replaced the Mock service" }
                     check(owner!!.snapshot.message === initialMessage) { "Language recreation replayed an event" }
                     if (initialMessage != null) {

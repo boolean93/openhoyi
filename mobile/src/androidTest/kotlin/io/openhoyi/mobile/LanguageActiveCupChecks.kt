@@ -77,6 +77,7 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     val action = stop(screen)
                     check(action.text.toString() == screen.getString(R.string.home_stop))
                     check(action.getGlobalVisibleRect(android.graphics.Rect()))
+                    LanguageUiLayoutChecks.textFits(action, "${language.tag} active cup fixed stop")
                     safety.forEach { (name, values) ->
                         check(context.getSharedPreferences(name, Context.MODE_PRIVATE).all == values)
                     }
