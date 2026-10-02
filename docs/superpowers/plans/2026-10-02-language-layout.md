@@ -20,3 +20,5 @@
 首版云端36950093899真实失败：language阶段报Compact layout fixture requires a compact Activity configuration。Cloud Home实际为宽屏，证明测试不能假设运行设备属于紧凑分支，未发现/未证明产品文字裁切。修正仅测试：每个width创建Home派生ConfigurationContext，给HoyiUi提供不注册/不启动/不挂窗口的LayoutHost，显式MobileTheme并委托getTheme，不改Home/App配置，保留所有原断言和两负例。宽屏分支仍另行安排。修正版本地测试APK/Mock单测/Lint成功，运行结果待第二次云端。
 
 修正版本只读复审：SDK35资源/普通系统服务经已附加base Context可解析，getTheme委托避开Window初始化；当前生产组件构造/测量没有已识别未初始化Window调用，配置独立且不改变Home/Application，原断言保留。未声称已运行；等待新云端结果。
+
+第二次云端e8dde69 /36950911811实际失败于产品导航：ja dark=false width=320 selected=HomeActivity，プロファイル text Layout 38px、available 36px，vertical text overflow。记录于/private/tmp/hoyi-language-layout-36950911811/errors.txt。原固定bar62dp+item MATCH_PARENT在换行时约束文字高度。生产HoyiUi最小修正bar最低62dp/WRAP_CONTENT、item最低50dp/WRAP_CONTENT，不改文字/字号/颜色/点击/位置；常规中文单行保留最低62dp，长文字可增高，主体权重区域随导航自然减少。双APK/Mock testAPK、双单测/Lint本地成功（/private/tmp/hoyi-navigation-wrap-fix.log，170 tasks），只读审查无问题，最终云端验证待补。

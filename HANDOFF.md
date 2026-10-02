@@ -1,3 +1,5 @@
+2026-10-02：第二轮布局CI36950911811捕捉真实日语导航裁切（320dpプロファイル，Layout38px/可用36px）。已将HoyiUi导航bar最低62dp且wrap、item最低50dp且wrap，保留点击/色彩/底部位置/主体权重及协议逻辑；双构建/双单测/Lint/Mock测试APK通过，静态审查无问题，修复后云端待验证。另有未提交的独立Service通知检查准备中，不修改生产Service。见docs/superpowers/plans/2026-10-02-language-layout.md。
+
 2026-10-02：首组件布局CI36950093899失败于测试环境假设（实际Home宽屏），不是产品裁切结论。修正测试用Home派生的明确320/360/600dp ConfigurationContext和未启动LayoutHost给生产HoyiUi测量，显式MobileTheme/getTheme委托；不改实际Home或App配置，不削弱文字/48dp/父界限/RTL/负例断言。修正版本地Mock测试APK/单测/Lint成功，复审/第二次云端待补。
 
 2026-10-02：新增多语言组件布局检查，未改生产代码。Context现有16组合分别测生产紧凑导航320/360/600dp×五selected态、标题/副标题/危险按钮；ActiveCup八语言对现存固定停止按钮补Layout完整性断言。导航非空/资源匹配、无ellipsis、行范围/高度、父bar边界及48dp目标，含两Android裁切负例；审查修正离屏body默认LTR并复核。最新Mock testAPK/单测/Lint成功，云端结果待补；不计作五页真实内容/宽屏导航/字体放大/母语/硬件验收，语言入口继续关闭。见docs/superpowers/plans/2026-10-02-language-layout.md。

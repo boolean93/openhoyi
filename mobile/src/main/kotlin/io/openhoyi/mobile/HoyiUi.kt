@@ -129,10 +129,11 @@ internal object HoyiUi {
     fun navigation(activity: Activity, parent: LinearLayout, selected: Class<out Activity>) {
         val bar = LinearLayout(activity).apply {
             orientation = LinearLayout.HORIZONTAL
+            minimumHeight = dp(activity, 62)
             setPadding(dp(activity, 8), dp(activity, 6), dp(activity, 8), dp(activity, 6))
             background = shape(activity, R.color.mobile_surface, 0)
         }
-        parent.addView(bar, LinearLayout.LayoutParams(-1, dp(activity, 62)))
+        parent.addView(bar, LinearLayout.LayoutParams(-1, -2))
         val items = listOf(
             Triple(R.drawable.nav_home, activity.getString(R.string.ui_home), HomeActivity::class.java),
             Triple(R.drawable.nav_curves, activity.getString(R.string.ui_curves), CurveActivity::class.java),
@@ -146,6 +147,7 @@ internal object HoyiUi {
             val tint = activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
             val item = LinearLayout(activity).apply {
                 orientation = if (wide) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+                minimumHeight = dp(activity, 50)
                 gravity = Gravity.CENTER
                 contentDescription = label
                 isClickable = true
@@ -171,7 +173,7 @@ internal object HoyiUi {
             }, LinearLayout.LayoutParams(-2, -2).apply {
                 if (wide) marginStart = dp(activity, 8) else topMargin = dp(activity, 2)
             })
-            bar.addView(item, LinearLayout.LayoutParams(0, -1, 1f).apply {
+            bar.addView(item, LinearLayout.LayoutParams(0, -2, 1f).apply {
                 marginStart = dp(activity, 2); marginEnd = dp(activity, 2)
             })
         }
