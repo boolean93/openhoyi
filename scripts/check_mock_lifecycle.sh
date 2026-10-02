@@ -14,6 +14,8 @@ on_error() {
   collect || true
   adb logcat -d -s AndroidRuntime:E OpenHoyiMobile:I OpenHoyiLanguage:I > "$output_dir/errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
+  adb shell settings put system font_scale 1.0 || true
+  adb shell wm size 1600x1000 || true
   exit "$status"
 }
 trap on_error ERR
@@ -24,11 +26,13 @@ run_instrumentation() {
 from pathlib import Path
 import subprocess,sys
 output,mode=sys.argv[1:]
-if mode not in ("audio", "language"):
+if mode not in ("audio", "language", "pagesCompact", "pagesWideFont"):
     raise SystemExit("Unsupported Mock instrumentation mode")
 command=["adb", "shell", "am", "instrument", "-w"]
 if mode == "language":
     command += ["-e", "languageChecks", "true"]
+if mode in ("pagesCompact", "pagesWideFont"):
+    command += ["-e", "pageChecks", "compact" if mode == "pagesCompact" else "wideFont"]
 command += ["io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation"]
 with Path(output).open("w") as capture:
     try:
@@ -162,3 +166,24 @@ grep -F 'LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compact
 grep -F 'LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true' "$output_dir/language-instrumentation.txt" > /dev/null
 
 grep -F 'LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 selections=5' "$output_dir/language-instrumentation.txt" > /dev/null
+
+# Real window layout matrices, still solely the disposable cloud Mock emulator.
+# A fresh Mock process prevents startActivitySync waiting on an existing NEW_TASK root.
+for profile in compact wideFont; do
+  adb shell am force-stop "$package"
+  if [ "$profile" = compact ]; then
+    adb shell wm size 450x1000
+    adb shell settings put system font_scale 1.0
+    mode=pagesCompact
+  else
+    adb shell wm size 1600x1000
+    adb shell settings put system font_scale 1.3
+    mode=pagesWideFont
+  fi
+  sleep 2
+  run_instrumentation "$output_dir/language-pages-$profile.txt" "$mode"
+  grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+done
+adb shell am force-stop "$package"
+adb shell settings put system font_scale 1.0
+adb shell wm size 1600x1000

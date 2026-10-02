@@ -18,8 +18,10 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var pageProfile: String? = null
     private var languageChecks = false
     override fun onCreate(arguments: Bundle?) {
+        pageProfile = arguments?.getString("pageChecks")
         languageChecks = arguments?.getString("languageChecks") == "true"
         super.onCreate(arguments); start()
     }
@@ -27,6 +29,13 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (pageProfile != null) {
+                val profile = requireNotNull(pageProfile)
+                LanguagePageChecks(this).run(profile)
+                report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (languageChecks) {
                 fun <T> stage(name: String, checkStage: () -> T): T {
                     android.util.Log.i("OpenHoyiLanguage", "START $name")
@@ -107,7 +116,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }
