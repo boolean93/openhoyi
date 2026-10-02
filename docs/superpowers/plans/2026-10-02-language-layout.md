@@ -24,3 +24,7 @@
 第二次云端e8dde69 /36950911811实际失败于产品导航：ja dark=false width=320 selected=HomeActivity，プロファイル text Layout 38px、available 36px，vertical text overflow。记录于/private/tmp/hoyi-language-layout-36950911811/errors.txt。原固定bar62dp+item MATCH_PARENT在换行时约束文字高度。生产HoyiUi最小修正bar最低62dp/WRAP_CONTENT、item最低50dp/WRAP_CONTENT，不改文字/字号/颜色/点击/位置；常规中文单行保留最低62dp，长文字可增高，主体权重区域随导航自然减少。双APK/Mock testAPK、双单测/Lint本地成功（/private/tmp/hoyi-navigation-wrap-fix.log，170 tasks），只读审查无问题，最终云端验证待补。
 
 最终运行证据dfc4c55：Verify native app36952198505、Verify Mock lifecycle36952198311及Capture Mock UI36952198275均success。已核对Mock产物的LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED：8语言×2主题×3宽度×5选中态共240个紧凑导航fixture、标题/按钮与八语言现存固定停止按钮全部通过，两裁切负例实际被拒绝。此前日语38px/36px裁切的断言保留，导航wrap修正后通过。原Context/活动杯/图表/通知与五项音频回归标记均在产物中存在。下载地址本地/private/tmp/hoyi-ui-service-notifications-36952198311。截图任务只确认完成并下载产物，未在本轮逐图视觉核验，不能宣称整页视觉/宽屏或母语验收完成；仍无真实设备操作。
+
+下一步宽屏/字体扩展（用户持续授权的既有计划）：保留320/360/600dp及普通字号全部断言，增加700dp边界与1000dp宽屏、fontScale=1.3；每fixture确认实际配置和导航方向，放大字号时要求每个原生TextView.textSize确实大于同宽/同选中态的fontScale=1实际基线，而不是仅检查配置字段。原文字/父边界/48dp/RTL/两个裁切负例不删；总8×2×5宽×2字号×5选中态=800导航fixture。新增独立CI必需标记。只新增测试，先运行后按真实失败修生产UI；这仍不证明五页全部内容/滚动/图轴和所有系统字号，语言入口保留未完成状态。
+
+扩展矩阵本地证据：Mock AndroidTest APK、Mock单测及Lint成功（/private/tmp/hoyi-language-wide-font.log，107 tasks）；bash -n和git diff --check通过。只读复审确认800组合、字号基线键、700dp横向分支及原负例断言保留，无生产代码改动。云端Android实际运行待验证，不能以编译结果标记宽屏/字号布局通过。

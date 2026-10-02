@@ -18,11 +18,16 @@ internal object LanguageUiLayoutChecks {
             HistoryActivity::class.java, MachineSettingsActivity::class.java)
         val labels = listOf(R.string.ui_home, R.string.ui_curves, R.string.ui_extraction, R.string.ui_history, R.string.ui_settings)
         val expectedDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
-        for (widthDp in listOf(320, 360, 600)) for (page in pages) {
-            val configuration = Configuration(home.resources.configuration).apply { screenWidthDp = widthDp }
+        val normalTextSizes = mutableMapOf<String, Float>()
+        for (widthDp in listOf(320, 360, 600, 700, 1000)) for (fontScale in listOf(1f, 1.3f)) for (page in pages) {
+            val configuration = Configuration(home.resources.configuration).apply {
+                screenWidthDp = widthDp
+                this.fontScale = fontScale
+            }
             val activity = LayoutHost(home.createConfigurationContext(configuration))
-            check(!HoyiUi.wide(activity) && activity.resources.configuration.screenWidthDp == widthDp)
-            val fixture = "${language.tag} dark=$dark width=$widthDp selected=${page.simpleName}"
+            check(HoyiUi.wide(activity) == (widthDp >= 700) && activity.resources.configuration.screenWidthDp == widthDp)
+            check(activity.resources.configuration.fontScale == fontScale)
+            val fixture = "${language.tag} dark=$dark width=$widthDp fontScale=$fontScale selected=${page.simpleName}"
             val root = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutDirection = expectedDirection
@@ -33,13 +38,19 @@ internal object LanguageUiLayoutChecks {
             val bar = root.getChildAt(0) as ViewGroup
             check(bar.childCount == 5) { "$fixture missing navigation entries" }
             for (index in 0 until bar.childCount) {
-                val item = bar.getChildAt(index) as ViewGroup
+                val item = bar.getChildAt(index) as LinearLayout
+                check(item.orientation == if (widthDp >= 700) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL) {
+                    "$fixture incorrect navigation orientation"
+                }
                 check(item.isClickable && item.isFocusable && item.height >= HoyiUi.dp(activity, 48) &&
                     item.width >= HoyiUi.dp(activity, 48)) { "$fixture navigation target too small" }
                 val label = (0 until item.childCount).map { item.getChildAt(it) }.filterIsInstance<TextView>().single()
                 check(label.text.toString().isNotBlank() && label.text.toString() == activity.getString(labels[index])) {
                     "$fixture incorrect navigation label at $index"
                 }
+                val sizeKey = "$widthDp/${page.name}/$index"
+                if (fontScale == 1f) normalTextSizes[sizeKey] = label.textSize
+                else check(label.textSize > requireNotNull(normalTextSizes[sizeKey])) { "$fixture font scaling did not enlarge actual text" }
                 textFits(label, fixture)
                 val bounds = Rect(0, 0, label.width, label.height)
                 bar.offsetDescendantRectToMyCoords(label, bounds)
