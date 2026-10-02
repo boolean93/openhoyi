@@ -29,21 +29,6 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
             view.getGlobalVisibleRect(android.graphics.Rect())) return true
         return view is ViewGroup && (0 until view.childCount).any { containsText(view.getChildAt(it), text) }
     }
-    private fun restore(prefs: android.content.SharedPreferences, values: Map<String, *>) {
-        val edit = prefs.edit().clear()
-        values.forEach { (key, value) ->
-            when (value) {
-                is Boolean -> edit.putBoolean(key, value)
-                is String -> edit.putString(key, value)
-                is Int -> edit.putInt(key, value)
-                is Long -> edit.putLong(key, value)
-                is Float -> edit.putFloat(key, value)
-                is Set<*> -> edit.putStringSet(key, value.filterIsInstance<String>().toSet())
-                else -> error("Unsupported preference: $key")
-            }
-        }
-        check(edit.commit() && prefs.all == values)
-    }
     fun run() {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
@@ -111,11 +96,27 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
         } finally {
             test.runOnMainSync {
                 check(app.languagePreferences.select(oldLanguage) != AppLanguagePreference.Selection.SAVE_FAILED)
-                restore(languagePrefs, oldLanguageStorage)
-                restore(appearance, oldAppearance)
+                restoreMockPreferences(languagePrefs, oldLanguageStorage)
+                restoreMockPreferences(appearance, oldAppearance)
                 check(app.languagePreferences.current == oldLanguage)
             }
             rebuild()
         }
     }
+}
+
+internal fun restoreMockPreferences(prefs: android.content.SharedPreferences, values: Map<String, *>) {
+    val edit = prefs.edit().clear()
+    values.forEach { (key, value) ->
+        when (value) {
+            is Boolean -> edit.putBoolean(key, value)
+            is String -> edit.putString(key, value)
+            is Int -> edit.putInt(key, value)
+            is Long -> edit.putLong(key, value)
+            is Float -> edit.putFloat(key, value)
+            is Set<*> -> edit.putStringSet(key, value.filterIsInstance<String>().toSet())
+            else -> error("Unsupported preference: $key")
+        }
+    }
+    check(edit.commit() && prefs.all == values)
 }

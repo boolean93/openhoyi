@@ -45,3 +45,7 @@
 运行时测试复审补强：可见文字同时要求isShown与屏幕可见矩形；保存完整app_language与appearance原始map，先还原进程语言权威，再恢复原始偏好（含缺失/非法tag），逐项核对恢复后的磁盘值。不能用只恢复有效默认语言代替测试前原始状态。
 
 修正版测试APK构建、Mock单测与Lint通过；两轮独立静态复核无剩余实质问题。新增检查将通过现有Mock runner独立languageChecks参数执行，日志单独输出language-instrumentation.txt，必须命中LANGUAGE_CONTEXT_CHECKS_PASSED才算本轮运行通过，尚无实际结果。
+
+2026-10-02：活动杯切换测试新增，仅Mock调用现有startShot与真实Extraction停止按钮。每语言独立一杯，等待watchShot已观察RUNNING后捕获杯ID/首点/消息，再切换语言并重建；要求绑定仍为同Service、杯ID与首点保留、消息不重放、译后停止按钮处于屏幕可见且可点击。点击后同主线程立即断言Mock已结束，避免自然32秒结束冒充按钮生效，再等待机遥测/结束观察/杯ID清空才开始下一杯。恢复原始语言/曲线偏好map，通用恢复helper仅在测试代码内复用。最终测试APK/Mock单测/Lint通过，两轮独立静态复审无残余实质问题，Android实际结果待云端。该测试不会证明真实BLE下停止/重连或其它页面的完整布局与通知行为。
+
+Context云端证据（c00e038）：Verify native app36945429783和Verify Mock lifecycle36945429772均success。已读取后者language-instrumentation.txt，LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true确认16组合实际Home重建、语言资源一致、可见导航文字/RTL方向以及同Service/同事件与非语言偏好保留。该提交没有活动杯检查，不能把随后新增用例算入此证据；科学坐标/真实通知/长文字与母语检查仍未完成，语言入口继续关闭。

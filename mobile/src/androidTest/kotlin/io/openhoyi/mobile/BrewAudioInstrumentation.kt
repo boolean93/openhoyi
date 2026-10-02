@@ -29,7 +29,9 @@ class BrewAudioInstrumentation : Instrumentation() {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
             if (languageChecks) {
                 LanguageContextChecks(this).run()
-                report.putString("stream", "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n")
+                LanguageActiveCupChecks(this).run()
+                report.putString("stream", "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
+                    "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
