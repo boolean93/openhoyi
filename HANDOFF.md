@@ -1,3 +1,5 @@
+2026-10-02：新增仅androidTest的LanguageServiceNotificationChecks：独立未注册/无生命周期/无Hub的Service对象，受限Mock上下文，测试资格返回、8语言真实通知、同警告常规去重/强制postTime更新与Context查询失败，snapshot/真实owner/恢复偏好不变。复审修正强制刷新假阳性；最新Mock测试APK/单测/Lint成功，两轮静态复审无残留问题，ART/平台运行待CI。生产Service未改。CI现会因HoyiUi/通知factory/Service修改自动触发。上一导航fix8377352首次push网络SSL失败，随本次提交一起重试推送；不得视为已运行通过。
+
 2026-10-02：第二轮布局CI36950911811捕捉真实日语导航裁切（320dpプロファイル，Layout38px/可用36px）。已将HoyiUi导航bar最低62dp且wrap、item最低50dp且wrap，保留点击/色彩/底部位置/主体权重及协议逻辑；双构建/双单测/Lint/Mock测试APK通过，静态审查无问题，修复后云端待验证。另有未提交的独立Service通知检查准备中，不修改生产Service。见docs/superpowers/plans/2026-10-02-language-layout.md。
 
 2026-10-02：首组件布局CI36950093899失败于测试环境假设（实际Home宽屏），不是产品裁切结论。修正测试用Home派生的明确320/360/600dp ConfigurationContext和未启动LayoutHost给生产HoyiUi测量，显式MobileTheme/getTheme委托；不改实际Home或App配置，不削弱文字/48dp/父界限/RTL/负例断言。修正版本地Mock测试APK/单测/Lint成功，复审/第二次云端待补。
