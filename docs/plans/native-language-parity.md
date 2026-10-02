@@ -67,3 +67,9 @@ LanguageNotificationChecks只读既有Mock服务引用并反射真实通知facto
 本轮既有首页复用修正：Mock AndroidTest APK、Mock单元测试和Lint离线构建成功（/private/tmp/hoyi-language-existing-home.log，BUILD SUCCESSFUL，107 tasks）；脚本bash -n及diff --check通过。独立只读审查确认首页引用/恢复顺序和原断言保留，无生产改动。运行验证仍待新云端CI。
 
 Mock CI诊断进一步限定每条既有instrumentation命令600秒：Python subprocess超时退出124，其它失败码原样传播到ERR收集，不继续PASS标记；stdout文件保留阶段中间输出。固定Mock runner只允许audio/language模式。bash -n、四段嵌入Python语法解析及独立静态复审通过；超时不等于产品测试通过，也不操作正式设备。
+
+2026-10-02：b20b90f云端Verify native app36948773115与Verify Mock lifecycle36948773151均success，已读取后者产物language-instrumentation.txt。五个阶段START/PASS及最终五条检查标记全部存在：Context16组合、活动杯8语言、实际Canvas三图表48组合物理时间/阶段顺序、8语言通知工厂/通道/动作、8语言Android平台通知同key更新/取消/清理。audio-instrumentation.txt原五项音频/提示/焦点/退出回归也全部通过。首页复用修正后本次不再挂起；旧a161de9任务在30分钟限时被取消，其语言stdout为空，仅能从旧日志缩小到语言分支，不能以旧日志单独证明某一行。新产物位于/private/tmp/hoyi-language-home-36948773151。平台通知检查不是真实Service刷新门禁/去重/权限失败证明，三图顺序检查不证明单位标注或全部长文字布局；无硬件操作。
+
+600秒CI辅助逻辑的额外离线执行核对：实际嵌入Python代码通过替换subprocess.run模拟成功0、命令失败7、TimeoutExpired→124及非法模式拒绝；每种已启动命令的部分stdout均保留，固定Mock argv和600秒值均断言。未执行adb，没有将模拟超时验收当作Android运行通过。最新8458c34云端运行结果仍待补。
+
+8458c34最终云端证据：Verify native app36949018031与Verify Mock lifecycle36949018081均success。已读取/private/tmp/hoyi-language-bounded-36949018081的language-instrumentation.txt和audio-instrumentation.txt，五阶段START/PASS、五条语言检查与原五条音频/产品提示回归标记全部存在。正常运行没有触发600秒超时；超时失败传播由上面的离线模拟证据单独覆盖，不能混同。功能对标表已更新图表顺序和平台通知的已验证范围，实际Service刷新资格/权限失败、各页面长文字与真实硬件验收继续保留为未完成。
