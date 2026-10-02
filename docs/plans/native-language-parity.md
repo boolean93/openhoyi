@@ -75,3 +75,5 @@ Mock CI诊断进一步限定每条既有instrumentation命令600秒：Python sub
 8458c34最终云端证据：Verify native app36949018031与Verify Mock lifecycle36949018081均success。已读取/private/tmp/hoyi-language-bounded-36949018081的language-instrumentation.txt和audio-instrumentation.txt，五阶段START/PASS、五条语言检查与原五条音频/产品提示回归标记全部存在。正常运行没有触发600秒超时；超时失败传播由上面的离线模拟证据单独覆盖，不能混同。功能对标表已更新图表顺序和平台通知的已验证范围，实际Service刷新资格/权限失败、各页面长文字与真实硬件验收继续保留为未完成。
 
 布局/Service编排补充运行证据dfc4c55：构建36952198505、Mock运行36952198311、截图生成36952198275均success；已读取Mock语言七项标记与音频五项标记。紧凑共享组件240组合与固定停止文字完整性通过，实测日语导航裁切已用HoyiUi自适应高度修正；独立未注册无Hub Service的原通知方法资格/去重/强制两postTime更新/Context查询失败也通过。实现与严格边界见../superpowers/plans/2026-10-02-language-layout.md和../superpowers/plans/2026-10-02-service-notification-refresh.md。截图产物已下载但未逐图新视觉核对；不算所有页面布局或真实Service/BLE/硬件证明。语言选择入口和其它功能对标尚未完成。
+
+2026-10-02：3c924d7云端完整构建36953997155与隔离Mock运行36953997198均success。已读取产物：六阶段START/PASS、八条语言通过标记及五条原音频/提示回归标记完整。800个共享导航fixture（八语言×双主题×320/360/600/700/1000dp×1.0/1.3字体×五选中态）、标题/按钮文字检查通过；真实导航横向分支与字号增长已运行确认，原240紧凑子矩阵/裁切负例/八语言活动杯停止检查保留并通过。此轮未发现需修改的生产UI，不改协议或业务，不操作真机。仍待五页完整内容、详情/错误/滚动/图轴文字与母语质量；语言入口继续关闭，真实Service/BLE/硬件证据独立。产物/private/tmp/hoyi-wide-font-36953997198。
