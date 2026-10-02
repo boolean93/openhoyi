@@ -30,8 +30,12 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (languageChecks) {
                 LanguageContextChecks(this).run()
                 LanguageActiveCupChecks(this).run()
+                LanguageChartChecks(this).run()
+                LanguageNotificationChecks(this).run()
                 report.putString("stream", "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
-                    "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n")
+                    "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n" +
+                    "LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true\n" +
+                    "LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
@@ -87,7 +91,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "LOCAL_AUDIO_CHECKS_FAILED ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }
