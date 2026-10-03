@@ -1,3 +1,5 @@
+2026-10-03：测试修正版d69de55已推送。新Mock任务37118581341经gh确认in_progress，watch exec session19514仍保存到/private/tmp/hoyi-language-dialog-native-ci-watch.log；新完整构建任务37118581368。下一步先查询这两个既有任务，不重启或重复dispatch；完成后下载37118581341产物，核对compact/wideFont各80 PAGE_START、页面marker、新DETAIL_DIALOG marker和原八语言/五音频marker，再按失败修正。当前没有复验成功证据。
+
 2026-10-03：首轮8987993完整构建37117962991通过，Mock37117962959失败。compact中文两主题五页及新增检查先完成，英语浅色Extraction报missing positive action；未证明产品文字缺失。SDK34 TextView.getTextForAccessibility返回mTransformed而非mText，原断言按资源原文比较存在原生按钮AllCaps不匹配。最小测试修正：同Activity原生AlertDialog无回调probe只create不show/attach，使用实际transformationMethod得到精确显示预期；真实窗口通过button1/2 ID核对文字/可见/启用，仅取消。不用忽略大小写放宽断言，不改生产UI。Mock testAPK/单测/Lint通过（/private/tmp/hoyi-language-dialog-transformation.log，107 tasks），独立静态复审无问题，云端验证待补。旧失败产物/private/tmp/hoyi-language-details-37117962959。
 
 2026-10-03：新增LanguageDetailChecks接入原真实页面矩阵：最长格式化工厂详情/采集详情/不可启动fixture，三种合成manualSafetyResource提示原Home render，原Extraction confirmStart后仅UiAutomation匹配Mock包/标题/参数点击取消。全部临时字段、曲线prefs和辅助功能flags独立恢复；不点正向/曲线使用/槽位按钮，双重Mock且hub必须null。最终Mock测试APK/单测/Lint与独立静态审查通过，运行待云端。详见docs/superpowers/plans/2026-10-03-language-detail-dialog.md；不代表100条全曲线、全部弹窗视觉或硬件，语言入口仍关闭。
