@@ -48,6 +48,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 return
             }
             if (languageChecks) {
+                NotificationFailureChecks(this).run()
                 fun <T> stage(name: String, checkStage: () -> T): T {
                     android.util.Log.i("OpenHoyiLanguage", "START $name")
                     sendStatus(0, Bundle().apply { putString("stream", "LANGUAGE_STAGE_START $name\n") })
@@ -64,7 +65,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
-                report.putString("stream", "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
+                report.putString("stream", "NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true preservedControl=true noOwner=true\n" +
+                    "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
                     "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n" +
                     "LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true\n" +
                     "LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true\n" +
