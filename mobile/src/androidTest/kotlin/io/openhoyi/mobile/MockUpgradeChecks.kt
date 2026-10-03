@@ -29,6 +29,11 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
     }
     private fun fileDigests() = app.filesDir.walkTopDown().filter { it.isFile && it != manifest }
         .associate { it.relativeTo(app.filesDir).invariantSeparatorsPath to digest(it.readBytes()) }
+    private fun historyShape(): String {
+        val value = prefs("shot_history").getString("entries_v1", "")!!
+        return "length=${value.length} tabs=${value.count { it == '\t' }} lines=${value.count { it == '\n' }} " +
+            "states=" + value.lineSequence().filter { it.isNotEmpty() }.joinToString(",") { it.split('\t').getOrNull(5).orEmpty() }
+    }
     private fun onMain(action: () -> Unit) {
         var failure: Throwable? = null
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
@@ -77,7 +82,8 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
         app.legacyCurves.import(ByteArrayInputStream("""{"format":"openhoyi-legacy-curves-v1","factoryVersion":3,"items":[{"name":"Upgrade fixture","category":"mine","factory":false,"temp":93,"flow":70,"weight":360,"seg":2,"press1":9,"flow1":30,"press2":6,"flow2":40,"futureField":true}]}""".toByteArray()))
         app.legacyHistory.import(ByteArrayInputStream("""{"version":1,"items":[{"id":"upgrade-legacy","createdAt":$now,"durationSec":18,"chartSlot":6,"profileName":"Upgrade fixture","points":{"t":[0,1],"press":[0,2],"flow":[0,1],"wFlow":[0,1],"wTrend":[0,1]}}]}""".toByteArray()))
         manifest.writeText(JSONObject().put("schema", 1).put("uid", Process.myUid())
-            .put("preferences", JSONObject(preferenceDigests())).put("files", JSONObject(fileDigests())).toString())
+            .put("preferences", JSONObject(preferenceDigests())).put("files", JSONObject(fileDigests()))
+            .put("historyShape", historyShape()).toString())
         android.util.Log.i("OpenHoyiUpgrade", "SEED preferences=12 encryptedCredential=true filesPreservedFixture=true pendingSafety=true")
     }
     private fun verify() {
@@ -91,6 +97,7 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
             keys.forEach { key -> check(prior.getString(key) == actual[key]) { "Upgrade $field content changed: $key" } }
         }
         // Inspect original bytes before loading models that intentionally reconcile interrupted history.
+        android.util.Log.i("OpenHoyiUpgrade", "HISTORY expected=${expected.getString("historyShape")} actual=${historyShape()}")
         compare("preferences", preferenceDigests())
         compare("files", fileDigests())
         check(CoffeeCredentialStore(app).read(address.lowercase()) == "123456") { "Encrypted fixture credential did not survive" }
