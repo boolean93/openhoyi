@@ -1,3 +1,5 @@
+2026-10-03：发布配置源提交90aa76f已推送，现有Verify native app37127225211和Verify Mock lifecycle37127225214均经gh确认in_progress。下一步查询这两项既有任务，不重复dispatch。native必须读取原协议/会话/资源检查以及新RELEASE_CONFIGURATION_CHECKS_PASSED cases=12、RELEASE_APK_FIXTURE_CHECKS_PASSED；Mock需下载日志核对原语言入口/页面/详情及语言/音频标记保留。当前只有本地真实发布fixture及开发回归证据，无本次云端新发布检查通过证据。native watch输出/private/tmp/hoyi-release-native-ci-watch.log。
+
 2026-10-03：已落实原生发布构建配置：mobile/distribution.gradle.kts独立版本/签名预检，Android DSL由mobile/build.gradle.kts接入。release显式code/name/previous递增，五外部环境变量、仓库外绝对规范路径、可打开私钥与预期证书SHA256必须通过；APK/AAB的preReleaseBuild均依赖预检。真实12场景通过（/private/tmp/hoyi-release-configuration-final.log），临时独立buildDir release APK实际签名/版本2/0.2.0通过并清理（/private/tmp/hoyi-release-apk-fixture.log）；最终开发双APK/单测/Lint及Mock testAPK170任务通过，实际Alpha/Mock均默认1/0.1.0且原本机证书保持、资源各7113模板/6回环通过。12分发工具测试与19资源测试通过，独立两轮复审无阻塞。本轮未选择/变更持久正式密钥或安装，不修改协议/控制/状态恢复源码；正式密钥身份、已装证书与版本、真实覆盖更新数据保留仍待确认。CI已接入发布配置及实际临时APK测试，本次新云端结果待推送后核对。
 
 2026-10-03：f05d6e5完整回归37125979566 success，已读取日志确认12项分发校验Python、39,823协议检查/32,856通知回放、92会话场景、构建及APK资源各7113模板/6回环通过。该任务不含本次新的release配置，不能当作发布预检云端证据。
