@@ -6,7 +6,7 @@
 
 测试：androidTest中创建独立Mock Service对象，附加禁止BLE/组件调用的Context；正常刷新时注入NotificationManager lookup SecurityException，要求被捕获且控制字段/恢复偏好不变。销毁测试只设置独立对象的Application字段、主线程排入自己的回调，通知lookup失败后必须执行完并清除回调，不触碰真实Mock owner。它证明特定异常与detached清理，不证明注册Service生命周期或真实系统notify/cancel异常。
 
-- [ ] 先加测试，在云端确认原方法因SecurityException失败（RED）。
-- [ ] 最小修改普通刷新与公共取消helper，复用到shutdown/onDestroy。
+- [x] 先加测试，在云端确认原方法因SecurityException失败（RED）：b4618aa/37131421784，refreshSafetyNotification:1350；Android34 Application字段反射先执行成功。
+- [x] 最小修改普通刷新与公共取消helper，复用到shutdown/onDestroy；协议与恢复条件不变。
 - [ ] Mock实际运行GREEN，原语言/音频/页面检查保留；构建、单测、Lint与升级回归。
 - [ ] 独立复审并更新证据与handoff。

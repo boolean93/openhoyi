@@ -42,6 +42,10 @@ internal class NotificationFailureChecks(private val test: Instrumentation) {
         }
         var failure: Throwable? = null
         try {
+            check(app.getSharedPreferences(fixtureNames.getValue("shot_safety"), Context.MODE_PRIVATE).edit()
+                .putBoolean("unresolved_shot", true).putString("unresolved_shot_address", "AA:BB:CC:DD:EE:01").commit())
+            check(app.getSharedPreferences(fixtureNames.getValue("machine_write_safety"), Context.MODE_PRIVATE).edit()
+                .putString("pending_kind", "SETTING").putString("pending_address", "AA:BB:CC:DD:EE:01").commit())
             test.runOnMainSync {
                 var subject: MobileService? = null
                 try {
@@ -57,6 +61,8 @@ internal class NotificationFailureChecks(private val test: Instrumentation) {
                     field("running").setBoolean(instance, true)
                     field("manualSafetyResource").set(instance, R.string.machine_recovery_shot_restart)
                     val before = instance.snapshot
+                    val controlBlock = instance.machineControlSafetyMessage
+                    check(controlBlock != null)
                     val prefsBefore = fixtureNames.values.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
                     MobileService::class.java.getDeclaredMethod("refreshSafetyNotification", Boolean::class.javaPrimitiveType)
                         .apply { isAccessible = true }.invoke(instance, false)
@@ -64,6 +70,7 @@ internal class NotificationFailureChecks(private val test: Instrumentation) {
                     check(instance.snapshot.copy(message = before.message) == before) { "Display failure changed control state" }
                     check(instance.snapshot.messageForDisplay { id, args -> instance.getString(id, *args) } == instance.getString(R.string.notification_update_error))
                     check(field("hub").get(instance) == null && instance.running)
+                    check(instance.machineControlSafetyMessage == controlBlock)
                     prefsBefore.forEach { (name, value) -> check(app.getSharedPreferences(name, Context.MODE_PRIVATE).all == value) }
                     // Exercise the actual destruction method with independent callbacks and no owner.
                     val handler = field("handler").get(instance) as Handler
@@ -74,6 +81,7 @@ internal class NotificationFailureChecks(private val test: Instrumentation) {
                     check(lookups == 2)
                     check(callbacks.none(handler::hasCallbacks)) { "Notification failure interrupted callback cleanup" }
                     check(field("hub").get(instance) == null)
+                    check(instance.machineControlSafetyMessage == controlBlock)
                     prefsBefore.forEach { (name, value) -> check(app.getSharedPreferences(name, Context.MODE_PRIVATE).all == value) }
                 } catch (error: Throwable) { failure = error }
                 finally { subject?.let { (field("handler").get(it) as Handler).removeCallbacksAndMessages(null) } }

@@ -1347,16 +1347,28 @@ class MobileService : Service() {
         if (!displayOnly && warning == safetyMessage) return
         safetyMessage = warning
         if (!running) return
-        val manager = getSystemService(NotificationManager::class.java)
+        val manager = try { getSystemService(NotificationManager::class.java) }
+        catch (error: RuntimeException) {
+            notificationFailure(displayOnly, R.string.notification_update_error, "shot.safety_notify_error", error)
+            return
+        }
         runCatching { manager.notify(1, connectionNotification(warning)) }
             .onFailure { notificationFailure(displayOnly, R.string.notification_update_error, "shot.safety_notify_error", it) }
-        if (warning == null) manager.cancel(SAFETY_NOTIFICATION)
+        if (warning == null) runCatching { manager.cancel(SAFETY_NOTIFICATION) }
+            .onFailure { notificationFailure(displayOnly, R.string.notification_unavailable, "shot.safety_notify_error", it) }
         else runCatching {
             val destination = if (presentation.destination == SafetyNotificationPresentation.Destination.HOME)
                 HomeActivity::class.java else ExtractionActivity::class.java
             manager.notify(SAFETY_NOTIFICATION,
                 notificationDisplay.safety(warning, destination, SAFETY_CHANNEL, displayOnly))
         }.onFailure { notificationFailure(displayOnly, R.string.notification_unavailable, "shot.safety_notify_error", it) }
+    }
+    /** A display failure must not interrupt Handler and BLE owner cleanup. */
+    private fun cancelSafetyNotification() {
+        try { getSystemService(NotificationManager::class.java).cancel(SAFETY_NOTIFICATION) }
+        catch (error: RuntimeException) {
+            Log.w(TAG, "notification cleanup failed: ${error.javaClass.simpleName}")
+        }
     }
     fun acknowledgeManualSafety() {
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT) {
@@ -1526,7 +1538,7 @@ class MobileService : Service() {
         }
         hub?.close(); hub = null; running = false
         safetyMessage = null
-        getSystemService(NotificationManager::class.java).cancel(SAFETY_NOTIFICATION)
+        cancelSafetyNotification()
         handler.removeCallbacks(leaveForeground)
         handler.removeCallbacks(stopAutomaticScale)
         hubForeground = false
@@ -1545,7 +1557,7 @@ class MobileService : Service() {
             finishSeries(false)
         }
         handler.removeCallbacks(mockTick)
-        getSystemService(NotificationManager::class.java).cancel(SAFETY_NOTIFICATION)
+        cancelSafetyNotification()
         handler.removeCallbacks(watchShot)
         handler.removeCallbacks(leaveForeground)
         handler.removeCallbacks(stopAutomaticScale)
