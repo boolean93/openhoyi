@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-03",
+  "scope": "Local debug APKs only; not a release signing identity or evidence of the installed tablet certificate.",
+  "verifiedWith": "Android build-tools 35.0.0 apksigner verify --print-certs",
+  "artifacts": [
+    {
+      "variant": "alpha",
+      "path": "mobile/build/outputs/apk/debug/mobile-debug.apk",
+      "apkSha256": "c502366fe302b4b94a5f140a7a30878d457a7abbf0636c7aff8e9712f663a09c",
+      "signerCertificateSha256": "c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54"
+    },
+    {
+      "variant": "mock",
+      "path": "mobile/build/outputs/apk/mock/mobile-mock.apk",
+      "apkSha256": "898596276d7aecfa57ebc9b296694afa254deaea3ef80ebee18fb283bd58d501",
+      "signerCertificateSha256": "c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54"
+    }
+  ],
+  "declaredSourceCommit": "0b94f39dd2a147df59895ce1732a85589fd13496",
+  "sourceCommitVerified": false
+}

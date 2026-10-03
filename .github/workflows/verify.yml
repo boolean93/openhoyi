@@ -18,6 +18,7 @@ jobs:
           persist-credentials: false
       - name: Verify staged translation catalogs
         run: |
+          python3 -m unittest discover -s scripts -p test_apk_distribution.py
           python3 -m unittest discover -s localization/tests
           python3 localization/validate_catalog.py
           python3 localization/android_resources.py --check
