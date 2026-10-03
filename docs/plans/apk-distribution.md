@@ -54,4 +54,4 @@ release 必須额外提供 `-PhoyiPreviousVersionCode=1`（首次发布可声明
 
 分发工具现支持 `--previous-apk <旧APK>`；旧新两包均实际验签/读版本，包名或证书不同、版本未提高均拒绝输出。清单新增 upgradeComparison，但 identityAndVersionCompatible 仅表示实际APK身份/版本可比较，不表示已安装包、数据或设备升级已验证，相关两个字段仍false。
 
-新增独立Mock模拟器升级检查（mock-upgrade workflow），不运行物理ADB目标、不卸载/清数据。它用当前同源码构建Mock1和2，实际install-r后检查UID、12组偏好hash、AndroidKeystore解密、历史状态及文件/采样/导入内容和未确认控制门禁。实际运行结果待新CI，不替代旧App数据迁移、历史native schema迁移、真实Alpha更新或硬件验收。
+新增独立Mock模拟器升级检查（mock-upgrade workflow），不运行物理ADB目标、不卸载/清数据。它用当前同源码构建Mock1和2，实际install-r后检查UID、12组偏好hash、AndroidKeystore解密、历史状态及文件/采样/导入内容和未确认控制门禁。同源码/schema Mock1→2已在Android34 qemu实际覆盖安装并通过全部保留/门禁检查（CI37130498312，证据 `../evidence/mock-upgrade-2026-10-03.json`）。偏好严格比较已commit XML磁盘字节，避免内存/XML序列化基线差异；不替代旧App数据迁移、历史native schema迁移、真实Alpha更新或硬件验收。

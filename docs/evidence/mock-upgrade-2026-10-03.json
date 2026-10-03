@@ -1,0 +1,51 @@
+{
+  "sourceCommit": "3854daad221f337fb4a767924d369ca8d1ea780d",
+  "runUrl": "https://github.com/boolean93/openhoyi/actions/runs/37130498312",
+  "result": {
+    "oldApk": {
+      "schemaVersion": 1,
+      "variant": "mock",
+      "packageName": "io.openhoyi.mobile.mock",
+      "versionCode": 1,
+      "versionName": "0.1.0",
+      "debuggable": true,
+      "signerCertificateSha256": "4ebedffe3f3f3222510e90e37eb515c586c37f6dc9a305d8732c27270d538c26",
+      "apkFile": "old.apk",
+      "apkSha256": "3702ded6149f2390ac24344434d54c7332a79ea7c68d244c2c529c526580e747",
+      "declaredSourceCommit": "3854daad221f337fb4a767924d369ca8d1ea780d",
+      "sourceCommitVerified": false
+    },
+    "newApk": {
+      "schemaVersion": 1,
+      "variant": "mock",
+      "packageName": "io.openhoyi.mobile.mock",
+      "versionCode": 2,
+      "versionName": "0.2.0",
+      "debuggable": true,
+      "signerCertificateSha256": "4ebedffe3f3f3222510e90e37eb515c586c37f6dc9a305d8732c27270d538c26",
+      "apkFile": "new.apk",
+      "apkSha256": "cd3705a132af91b89c7181342ff81c38f92cc57e09896523498e7515d96e811d",
+      "declaredSourceCommit": "3854daad221f337fb4a767924d369ca8d1ea780d",
+      "sourceCommitVerified": false
+    },
+    "identityComparison": {
+      "previousApkSha256": "3702ded6149f2390ac24344434d54c7332a79ea7c68d244c2c529c526580e747",
+      "previousVersionCode": 1,
+      "identityAndVersionCompatible": true,
+      "installationVerified": false,
+      "dataPreservationVerified": false
+    },
+    "mockInstallationVerified": true,
+    "mockDataPreservationVerified": true,
+    "scope": "Same current source/schema Mock 1->2 on qemu; not Alpha, real hardware or historical schema migration"
+  },
+  "verificationMarker": "VERIFY uid=true encryptedCredential=true history=true samplesV1V2=true importedFiles=true pendingControlBlocked=true noOwner=true",
+  "preferenceGroups": 12,
+  "preferenceComparison": "Committed XML file SHA-256, before repository reconciliation",
+  "limitations": [
+    "Same current source/schema only",
+    "Mock on Android 34 qemu only",
+    "No Alpha or physical hardware verification",
+    "No historical schema migration verification"
+  ]
+}
