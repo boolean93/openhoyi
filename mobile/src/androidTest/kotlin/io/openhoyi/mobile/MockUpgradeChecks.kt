@@ -88,7 +88,7 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
             val prior = expected.getJSONObject(field)
             val keys = prior.keys().asSequence().toSet()
             check(keys.isNotEmpty() && actual.keys.containsAll(keys)) { "Upgrade state disappeared" }
-            keys.forEach { key -> check(prior.getString(key) == actual[key]) { "Upgrade state content changed" } }
+            keys.forEach { key -> check(prior.getString(key) == actual[key]) { "Upgrade $field content changed: $key" } }
         }
         // Inspect original bytes before loading models that intentionally reconcile interrupted history.
         compare("preferences", preferenceDigests())
