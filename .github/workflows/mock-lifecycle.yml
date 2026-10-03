@@ -16,6 +16,7 @@ on:
       - 'mobile/src/main/assets/brew-feedback/**'
       - 'mobile/src/androidTest/**'
       - 'mobile/build.gradle.kts'
+      - 'mobile/distribution.gradle.kts'
   workflow_dispatch:
 
 permissions:

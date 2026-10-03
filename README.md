@@ -34,7 +34,7 @@ Google Maven 无法访问时可显式使用 `-PgoogleMirror=aliyun`。本机全�
 
 APK：Lab `app/build/outputs/apk/debug/app-debug.apk`；Alpha `mobile/build/outputs/apk/debug/mobile-debug.apk`；独立 UI Mock `mobile/build/outputs/apk/mock/mobile-mock.apk`；Lab UI 冒烟测试包 `app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`。
 
-分发前可用 `scripts/apk_distribution.py` 校验实际包名、版本与指定签名证书，并导出文件哈希清单；默认拒绝覆盖已有文件。命令和签名连续性边界见 [安装包分发](docs/plans/apk-distribution.md)。当前开发包仍使用 debug 签名，不能假设云端 APK 能覆盖本机已安装包；该工具不安装或重新签名。
+分发前可用 `scripts/apk_distribution.py` 校验实际包名、版本与指定签名证书，并导出文件哈希清单；默认拒绝覆盖已有文件。命令和签名连续性边界见 [安装包分发](docs/plans/apk-distribution.md)。当前开发包仍使用 debug 签名，不能假设云端 APK 能覆盖本机已安装包；该工具不安装或重新签名。正式构建现支持仓库外签名与显式版本递增预检，缺配置会拒绝release；不自动将既有开发包更换为正式签名。
 
 ## 使用原生 Alpha
 

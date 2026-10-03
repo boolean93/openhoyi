@@ -51,3 +51,7 @@ jobs:
             --android-jar "$ANDROID_HOME/platforms/android-35/android.jar" \
             --alpha mobile/build/outputs/apk/debug/mobile-debug.apk \
             --mock mobile/build/outputs/apk/mock/mobile-mock.apk
+      - name: Verify external release signing guards and disposable APK
+        run: |
+          python3 scripts/check_release_configuration.py \
+            --assemble-fixture --sdk "$ANDROID_HOME"

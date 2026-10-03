@@ -1,4 +1,8 @@
 plugins { id("com.android.application"); kotlin("android") }
+apply(from = "distribution.gradle.kts")
+@Suppress("UNCHECKED_CAST")
+val externalSigning = extra["hoyiExternalSigning"] as Map<String, String?>
+val externalSigningComplete = extra["hoyiExternalSigningComplete"] as Boolean
 android {
     namespace = "io.openhoyi.mobile"
     compileSdk = 35
@@ -7,14 +11,25 @@ android {
         applicationId = "io.openhoyi.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = extra["hoyiDistributionVersionCode"] as Int
+        versionName = extra["hoyiDistributionVersionName"] as String
         testInstrumentationRunner = "io.openhoyi.mobile.BrewAudioInstrumentation"
     }
     buildFeatures { buildConfig = true }
+    if (externalSigningComplete) {
+        signingConfigs.create("externalRelease") {
+            storeFile = file(externalSigning.getValue("STORE_FILE")!!)
+            storePassword = externalSigning.getValue("STORE_PASSWORD")
+            keyAlias = externalSigning.getValue("KEY_ALIAS")
+            keyPassword = externalSigning.getValue("KEY_PASSWORD")
+        }
+    }
     buildTypes {
         getByName("debug") { buildConfigField("boolean", "MOCK_MODE", "false") }
-        getByName("release") { buildConfigField("boolean", "MOCK_MODE", "false") }
+        getByName("release") {
+            buildConfigField("boolean", "MOCK_MODE", "false")
+            if (externalSigningComplete) signingConfig = signingConfigs.getByName("externalRelease")
+        }
         create("mock") {
             initWith(getByName("debug"))
             applicationIdSuffix = ".mock"

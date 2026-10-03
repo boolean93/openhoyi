@@ -1,3 +1,7 @@
+2026-10-03：已落实原生发布构建配置：mobile/distribution.gradle.kts独立版本/签名预检，Android DSL由mobile/build.gradle.kts接入。release显式code/name/previous递增，五外部环境变量、仓库外绝对规范路径、可打开私钥与预期证书SHA256必须通过；APK/AAB的preReleaseBuild均依赖预检。真实12场景通过（/private/tmp/hoyi-release-configuration-final.log），临时独立buildDir release APK实际签名/版本2/0.2.0通过并清理（/private/tmp/hoyi-release-apk-fixture.log）；最终开发双APK/单测/Lint及Mock testAPK170任务通过，实际Alpha/Mock均默认1/0.1.0且原本机证书保持、资源各7113模板/6回环通过。12分发工具测试与19资源测试通过，独立两轮复审无阻塞。本轮未选择/变更持久正式密钥或安装，不修改协议/控制/状态恢复源码；正式密钥身份、已装证书与版本、真实覆盖更新数据保留仍待确认。CI已接入发布配置及实际临时APK测试，本次新云端结果待推送后核对。
+
+2026-10-03：f05d6e5完整回归37125979566 success，已读取日志确认12项分发校验Python、39,823协议检查/32,856通知回放、92会话场景、构建及APK资源各7113模板/6回环通过。该任务不含本次新的release配置，不能当作发布预检云端证据。
+
 2026-10-03：已新增scripts/apk_distribution.py及12项独立Python测试，从实际APK验签、读取限定包名/版本、匹配指定证书并导出公开manifest；默认不覆盖，显式--overwrite才替换。实际本机Alpha/Mock通过，错误证书和默认覆盖均拒绝且原清单不变。声明源码提交明确标为sourceCommitVerified=false。复审无阻塞；没有签包/换密钥/安装/卸载。公开本机debug指纹基线见docs/evidence/local-debug-signing-baseline.json；正式密钥、版本递增、已安装证书比对及升级数据保留仍未实现/验收，详见docs/plans/apk-distribution.md。CI新增12项检查，本次脚本提交的云端完整回归待推送后记录。
 
 2026-10-03：语言入口0b94f39已完成云端实际运行。Verify native app37125094623、Verify Mock lifecycle37125094578及Capture Mock UI37125094627均success；已读取Mock产物compact/wideFont各80 PAGE_START和三项PAGE_LAYOUT/DETAIL_DIALOG/SELECTOR_UI标记，原八语言及五音频标记完整。实际选择/当前项/保存失败/切换还原/同Service检查通过。完整构建日志确认39,823协议检查、32,856通知回放、92会话场景，以及两APK各7113模板与6转义回环。截图任务成功未逐图新视觉核对；不宣称母语、真实通知生命周期、BLE或硬件完整验收。产物/private/tmp/hoyi-language-selector-37125094578/mock-lifecycle。
