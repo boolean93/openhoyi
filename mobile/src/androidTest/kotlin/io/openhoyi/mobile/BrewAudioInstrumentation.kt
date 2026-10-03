@@ -65,7 +65,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
-                report.putString("stream", "NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true preservedControl=true noOwner=true\n" +
+                report.putString("stream", "NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true preservedControl=true noOwner=true rendering=true errorReporting=true\n" +
                     "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
                     "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n" +
                     "LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true\n" +

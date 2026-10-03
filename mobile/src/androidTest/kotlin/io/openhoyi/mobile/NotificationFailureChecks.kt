@@ -72,6 +72,23 @@ internal class NotificationFailureChecks(private val test: Instrumentation) {
                     check(field("hub").get(instance) == null && instance.running)
                     check(instance.machineControlSafetyMessage == controlBlock)
                     prefsBefore.forEach { (name, value) -> check(app.getSharedPreferences(name, Context.MODE_PRIVATE).all == value) }
+                    val beforeRenderFailure = instance.snapshot
+                    val cachedWarning = field("safetyMessage").get(instance)
+                    try {
+                        // A synthetic invalid display resource must not escape into the state watcher.
+                        field("manualSafetyResource").set(instance, 0)
+                        MobileService::class.java.getDeclaredMethod("refreshSafetyNotification", Boolean::class.javaPrimitiveType)
+                            .apply { isAccessible = true }.invoke(instance, false)
+                        check(lookups == 1 && instance.snapshot === beforeRenderFailure)
+                        check(field("safetyMessage").get(instance) == cachedWarning)
+                    } finally { field("manualSafetyResource").set(instance, R.string.machine_recovery_shot_restart) }
+                    // The error-reporting path itself must tolerate unavailable display text.
+                    MobileService::class.java.getDeclaredMethod("notificationFailure", Boolean::class.javaPrimitiveType,
+                        Int::class.javaPrimitiveType, String::class.java, Throwable::class.java)
+                        .apply { isAccessible = true }.invoke(instance, false, 0, "notification.fixture_error",
+                            SecurityException("Intentional notification failure"))
+                    check(instance.snapshot === beforeRenderFailure && instance.machineControlSafetyMessage == controlBlock)
+                    prefsBefore.forEach { (name, value) -> check(app.getSharedPreferences(name, Context.MODE_PRIVATE).all == value) }
                     // Exercise the actual destruction method with independent callbacks and no owner.
                     val handler = field("handler").get(instance) as Handler
                     val callbacks = listOf("watchShot", "mockTick", "leaveForeground", "stopAutomaticScale")
