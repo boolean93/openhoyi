@@ -32,7 +32,8 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (pageProfile != null) {
                 val profile = requireNotNull(pageProfile)
                 LanguagePageChecks(this).run(profile)
-                report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true\n")
+                report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true\n" +
+                    "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }

@@ -183,6 +183,7 @@ for profile in compact wideFont; do
   sleep 2
   run_instrumentation "$output_dir/language-pages-$profile.txt" "$mode"
   grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true" "$output_dir/language-pages-$profile.txt" >/dev/null
 done
 adb shell am force-stop "$package"
 adb shell settings put system font_scale 1.0

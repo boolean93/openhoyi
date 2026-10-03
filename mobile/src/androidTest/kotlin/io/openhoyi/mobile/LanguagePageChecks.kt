@@ -61,6 +61,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         var message: SnapshotMessage? = null
         onMain { service = owner(home); message = service!!.snapshot.message; negativeFixture(home) }
         var currentPage: Activity? = null
+        val detailChecks = LanguageDetailChecks(test)
         var completed = 0
         var failure: Throwable? = null
         fun rebuildHome() {
@@ -111,6 +112,11 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                         check(activity.window.decorView.layoutDirection == if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR)
                     }
                     checkPage(activity, fixture)
+                    when (activity) {
+                        is HomeActivity -> detailChecks.warnings(activity, fixture) { checkPage(activity, it) }
+                        is CurveActivity -> detailChecks.curves(activity, fixture) { checkPage(activity, it) }
+                        is ExtractionActivity -> detailChecks.cancelStart(activity, fixture)
+                    }
                     if (activity is MachineSettingsActivity) {
                         val tabs = MachineSettingsActivity::class.java.getDeclaredField("settingTabs")
                             .apply { isAccessible = true }.get(activity) as List<*>

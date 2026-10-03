@@ -1,3 +1,5 @@
+2026-10-03：新增LanguageDetailChecks接入原真实页面矩阵：最长格式化工厂详情/采集详情/不可启动fixture，三种合成manualSafetyResource提示原Home render，原Extraction confirmStart后仅UiAutomation匹配Mock包/标题/参数点击取消。全部临时字段、曲线prefs和辅助功能flags独立恢复；不点正向/曲线使用/槽位按钮，双重Mock且hub必须null。最终Mock测试APK/单测/Lint与独立静态审查通过，运行待云端。详见docs/superpowers/plans/2026-10-03-language-detail-dialog.md；不代表100条全曲线、全部弹窗视觉或硬件，语言入口仍关闭。
+
 2026-10-02：d64f620云端完整构建36972449670及Mock运行36972449671均success（Mock 9m3s，没有触发超时）。已读取两份真实页面日志：compact与wideFont各80个PAGE_START和对应最终通过标记，共160个八语言/双主题/五页面初始配置；实际资源断言360dp/1.0、1280dp/1.3均通过。五个设置分组文字与逐步纵向滚动、导航全可见/48dp、根内容和固定启动行不侵入导航、同服务/非语言偏好保留均通过；全页非输入文字检查包含实际view宽度溢出负例，明确省略的列表摘要保留。原八条语言标记和五条音频/提示回归也全部存在。此轮没有生产UI失败，不修改生产UI/协议；未操作真机。产物/private/tmp/hoyi-language-pages-36972449671。仍缺详情、动态告警/未知结果/确认弹窗/完整列表数据与图轴文字、母语质量、注册Service/BLE/硬件验收；不能把初始页面矩阵等同全功能。
 
 2026-10-02：新建LanguagePageChecks及pageChecks分支，计划在真实360dp/1.0与1280dp/1.3窗口分别运行八语言双主题五页（合160），包括设置五组和纵向滚动；仅Mock、不点击机器控制。导航/固定启动可见、文字真实宽度/高度和同服务/非语言偏好断言已编码。独立审查指出设置切组VSYNC竞态已修；审查配额中断，不声称完整复审通过。最终Mock测试APK/单测/Lint成功，脚本固定四mode失败/超时输出核对通过，实际页面运行待云端。语言入口仍关闭，未改生产UI/协议。
