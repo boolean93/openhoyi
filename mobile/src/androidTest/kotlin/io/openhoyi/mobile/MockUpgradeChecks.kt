@@ -23,9 +23,11 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
     private fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
         .joinToString("") { "%02x".format(it.toInt() and 0xff) }
     private fun preferenceDigests() = preferenceNames.associateWith { name ->
-        digest(prefs(name).all.toSortedMap().entries.joinToString("\n") { (key, value) ->
-            "$key:${value?.javaClass?.name}:$value"
-        }.toByteArray(Charsets.UTF_8))
+        // Compare committed disk bytes in both processes, not pre-serialization memory values.
+        // Android 34's XML indentation can append spaces after a string's final newline.
+        val file = File(app.applicationInfo.dataDir, "shared_prefs/$name.xml")
+        check(file.isFile) { "Committed upgrade preference file is missing: $name" }
+        digest(file.readBytes())
     }
     private fun fileDigests() = app.filesDir.walkTopDown().filter { it.isFile && it != manifest }
         .associate { it.relativeTo(app.filesDir).invariantSeparatorsPath to digest(it.readBytes()) }
