@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 from unittest.mock import patch
 
-from apk_distribution import inspect_apk, inspect_metadata, write_manifest
+from apk_distribution import inspect_apk, inspect_metadata, compare_upgrade, write_manifest
 
 
 CERT = "c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54"
@@ -13,6 +13,17 @@ PACKAGE = "package: name='io.openhoyi.mobile' versionCode='1' versionName='0.1.0
 
 
 class DistributionChecks(unittest.TestCase):
+    def test_actual_upgrade_identity_and_version(self):
+        old = {"packageName": "io.openhoyi.mobile", "versionCode": 1, "signerCertificateSha256": CERT, "apkSha256": "1" * 64}
+        new = {**old, "versionCode": 2, "apkSha256": "2" * 64}
+        result = compare_upgrade(old, new)
+        self.assertEqual(result["previousVersionCode"], 1)
+        self.assertFalse(result["installationVerified"])
+        self.assertFalse(result["dataPreservationVerified"])
+        for mismatch in [{**new, "versionCode": 1}, {**new, "versionCode": 0}, {**new, "packageName": "io.openhoyi.mobile.mock"}, {**new, "signerCertificateSha256": "0" * 64}]:
+            with self.subTest(mismatch=mismatch), self.assertRaises(ValueError):
+                compare_upgrade(old, mismatch)
+
     def test_actual_tool_metadata(self):
         value = inspect_metadata(PACKAGE + "application-debuggable\n", SIGNATURE, "alpha", CERT)
         self.assertEqual(value["packageName"], "io.openhoyi.mobile")
@@ -57,6 +68,15 @@ class DistributionChecks(unittest.TestCase):
                 with self.assertRaises(subprocess.CalledProcessError):
                     inspect_apk(apk, "aapt", "apksigner", "alpha", CERT, "1" * 40)
                 self.assertEqual(tool.call_count, 1)
+
+    def test_inspection_commands_are_bounded(self):
+        with tempfile.TemporaryDirectory() as directory:
+            apk = Path(directory) / "app.apk"
+            apk.write_bytes(b"fixture")
+            results = [subprocess.CompletedProcess([], 0, stdout=SIGNATURE), subprocess.CompletedProcess([], 0, stdout=PACKAGE)]
+            with patch("apk_distribution.subprocess.run", side_effect=results) as tool:
+                inspect_apk(apk, "aapt", "apksigner", "alpha", CERT, "1" * 40)
+            self.assertEqual([call.kwargs.get("timeout") for call in tool.call_args_list], [60, 60])
 
     def test_rejects_changed_apk_during_inspection(self):
         with tempfile.TemporaryDirectory() as directory:

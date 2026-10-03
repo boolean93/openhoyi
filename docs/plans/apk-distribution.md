@@ -48,3 +48,10 @@ release 必須额外提供 `-PhoyiPreviousVersionCode=1`（首次发布可声明
 `verifyReleaseDistribution`检查三项版本声明、递增、五项配置、仓库外规范路径、私钥与证书指纹。不生成密钥，错误只输出固定提示；`preReleaseBuild`依赖该检查，未配置不会静默输出可发布的unsigned APK。当前既有签名不能任意换新证书来覆盖安装，正式配置必须先确认升级身份。构建后的APK仍应通过前述实际产物工具验签/核对，声明预检不等于硬件安全、源代码出处或设备升级成功。
 
 `scripts/check_release_configuration.py`用临时JKS运行实际Gradle拒绝/通过场景，默认不出APK；可加 `--assemble-fixture --sdk <SDK>` 在临时独立buildDir生成一次测试release APK并实际验签，退出后清理密钥与产物。该fixture不是正式发行包。CI已接入实际fixture检查。APK/AAB任务图均需预检在preReleaseBuild之前；完整12场景的最终本地/云端结果另见HANDOFF。
+
+
+## 实际旧APK对比与模拟更新
+
+分发工具现支持 `--previous-apk <旧APK>`；旧新两包均实际验签/读版本，包名或证书不同、版本未提高均拒绝输出。清单新增 upgradeComparison，但 identityAndVersionCompatible 仅表示实际APK身份/版本可比较，不表示已安装包、数据或设备升级已验证，相关两个字段仍false。
+
+新增独立Mock模拟器升级检查（mock-upgrade workflow），不运行物理ADB目标、不卸载/清数据。它用当前同源码构建Mock1和2，实际install-r后检查UID、12组偏好hash、AndroidKeystore解密、历史状态及文件/采样/导入内容和未确认控制门禁。实际运行结果待新CI，不替代旧App数据迁移、历史native schema迁移、真实Alpha更新或硬件验收。

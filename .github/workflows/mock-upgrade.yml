@@ -1,0 +1,77 @@
+name: Verify Mock upgrade data
+
+on:
+  push:
+    branches: [feature/native-ble]
+    paths:
+      - '.github/workflows/mock-upgrade.yml'
+      - 'scripts/check_mock_upgrade*'
+      - 'scripts/test_mock_upgrade.py'
+      - 'scripts/apk_distribution.py'
+      - 'mobile/build.gradle.kts'
+      - 'mobile/distribution.gradle.kts'
+      - 'mobile/src/androidTest/kotlin/io/openhoyi/mobile/MockUpgradeChecks.kt'
+      - 'mobile/src/androidTest/kotlin/io/openhoyi/mobile/BrewAudioInstrumentation.kt'
+      - 'mobile/src/main/kotlin/io/openhoyi/mobile/MobileApplication.kt'
+      - 'mobile/src/main/kotlin/io/openhoyi/mobile/MobileService.kt'
+      - 'mobile/src/main/kotlin/io/openhoyi/mobile/CoffeeCredentialStore.kt'
+      - 'mobile/src/main/kotlin/io/openhoyi/mobile/ShotHistory.kt'
+      - 'mobile/src/main/kotlin/io/openhoyi/mobile/ShotSamplesStore.kt'
+      - 'mobile/src/main/kotlin/io/openhoyi/mobile/LegacyCurve.kt'
+      - 'mobile/src/main/kotlin/io/openhoyi/mobile/LegacyHistory.kt'
+      - 'mobile/src/main/kotlin/io/openhoyi/mobile/AppLanguage*.kt'
+      - 'mobile/src/main/AndroidManifest.xml'
+      - 'device-session/src/main/kotlin/io/openhoyi/session/*RecoveryState.kt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Build same-source Mock versions
+        run: |
+          python3 -m unittest discover -s scripts -p test_mock_upgrade.py
+          mkdir -p build/mock-upgrade-apks
+          ./gradlew :mobile:assembleMock --no-daemon --console=plain -PhoyiVersionCode=1 -PhoyiVersionName=0.1.0
+          cp mobile/build/outputs/apk/mock/mobile-mock.apk build/mock-upgrade-apks/old.apk
+          ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain -PhoyiVersionCode=2 -PhoyiVersionName=0.2.0
+          cp mobile/build/outputs/apk/mock/mobile-mock.apk build/mock-upgrade-apks/new.apk
+          cp mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk build/mock-upgrade-apks/test.apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify actual Mock update with targeted logs
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel_7_pro
+          ram-size: 2048M
+          emulator-options: -port 5554 -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/check_mock_upgrade_ci.sh
+      - name: Upload upgrade logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mock-upgrade
+          path: build/mock-upgrade/
+          if-no-files-found: warn
+          retention-days: 7

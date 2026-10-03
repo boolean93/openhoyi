@@ -47,15 +47,26 @@ def inspect_apk(apk, aapt, apksigner, variant, expected_certificate, source_comm
     before = hashlib.sha256(apk.read_bytes()).hexdigest()
     # apksigner's nonzero result rejects unsigned, damaged, or unverifiable APKs.
     signatures = subprocess.run([str(apksigner), "verify", "--print-certs", str(apk)],
-                                check=True, capture_output=True, text=True).stdout
+                                check=True, capture_output=True, text=True, timeout=60).stdout
     badging = subprocess.run([str(aapt), "dump", "badging", str(apk)],
-                            check=True, capture_output=True, text=True).stdout
+                            check=True, capture_output=True, text=True, timeout=60).stdout
     result = inspect_metadata(badging, signatures, variant, expected_certificate)
     if hashlib.sha256(apk.read_bytes()).hexdigest() != before:
         raise ValueError("APK changed while being inspected")
     return {"schemaVersion": 1, **result, "apkFile": apk.name, "apkSha256": before,
             # APKs currently do not embed the build commit; do not claim it was verified.
             "declaredSourceCommit": source_commit.lower(), "sourceCommitVerified": False}
+
+
+def compare_upgrade(previous, current):
+    if previous["packageName"] != current["packageName"]:
+        raise ValueError("Upgrade package identity does not match")
+    if previous["signerCertificateSha256"] != current["signerCertificateSha256"]:
+        raise ValueError("Upgrade signing identity does not match")
+    if current["versionCode"] <= previous["versionCode"]:
+        raise ValueError("Upgrade versionCode must increase")
+    return {"previousApkSha256": previous["apkSha256"], "previousVersionCode": previous["versionCode"],
+            "identityAndVersionCompatible": True, "installationVerified": False, "dataPreservationVerified": False}
 
 
 def write_manifest(output, result, apk, overwrite=False):
@@ -86,6 +97,7 @@ def write_manifest(output, result, apk, overwrite=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apk", type=Path, required=True)
+    parser.add_argument("--previous-apk", type=Path, help="Optional actual previous APK for identity/version comparison")
     parser.add_argument("--variant", choices=PACKAGES, required=True)
     parser.add_argument("--expected-cert-sha256", required=True)
     parser.add_argument("--source-commit", required=True)
@@ -97,8 +109,12 @@ def main():
     try:
         result = inspect_apk(args.apk, args.aapt, args.apksigner, args.variant,
                              args.expected_cert_sha256, args.source_commit)
+        if args.previous_apk:
+            previous = inspect_apk(args.previous_apk, args.aapt, args.apksigner, args.variant,
+                                   args.expected_cert_sha256, args.source_commit)
+            result["upgradeComparison"] = compare_upgrade(previous, result)
         write_manifest(args.output, result, args.apk, overwrite=args.overwrite)
-    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+    except (ValueError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
         # Do not forward arbitrary tool output or signing-tool environment values.
         parser.exit(1, f"APK manifest rejected: {type(error).__name__}\n")
     print(json.dumps(result, ensure_ascii=False))
