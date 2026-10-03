@@ -13,3 +13,5 @@
 不覆盖历史详情全部状态、机器设置/睡眠等真实确认对话框、母语质量、图轴单位、真实Service/BLE硬件。语言入口仍关闭；不得将少量代表曲线当成100条曲线全部布局已验收。
 
 本地Mock测试APK、Mock单测和Lint成功（/private/tmp/hoyi-language-details-reviewed.log，107 tasks）；bash -n和diff --check通过。独立只读审查最新稿未发现实质问题，确认详情布局等待、Mock/hub双重隔离、仅取消button2以及Accessibility flags/曲线偏好/失败清理独立恢复；只是静态审查，Android运行待云端。新增最终标记不会替代原160页面和既有回归标记。生产UI/协议未改。
+
+首轮8987993完整构建37117962991通过，Mock37117962959失败。compact中文两主题五页及新增检查先完成，英语浅色Extraction报missing positive action；未证明产品文字缺失。SDK34 TextView.getTextForAccessibility返回mTransformed而非mText，原断言按资源原文比较存在原生按钮AllCaps不匹配。最小测试修正：同Activity原生AlertDialog无回调probe只create不show/attach，使用实际transformationMethod得到精确显示预期；真实窗口通过button1/2 ID核对文字/可见/启用，仅取消。不用忽略大小写放宽断言，不改生产UI。Mock testAPK/单测/Lint通过（/private/tmp/hoyi-language-dialog-transformation.log，107 tasks），独立静态复审无问题，云端验证待补。旧失败产物/private/tmp/hoyi-language-details-37117962959。

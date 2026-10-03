@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.Context
 import android.graphics.Rect
@@ -105,6 +106,22 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
         val serviceInfo = requireNotNull(automation.serviceInfo)
         val originalFlags = serviceInfo.flags
         val title = activity.getString(R.string.extraction_mock_start_title)
+        var expectedPositive = ""
+        var expectedNegative = ""
+        onMain {
+            // The public native dialog layout applies its theme's real button transformation.
+            // Accessibility exposes displayed (e.g. ALL CAPS) text, not the raw string resource.
+            val probe = AlertDialog.Builder(activity)
+                .setPositiveButton(R.string.extraction_mock_start, null)
+                .setNegativeButton(R.string.machine_settings_cancel, null).create()
+            probe.create() // Create detached content only: never show, attach or click this probe.
+            fun displayed(button: Button): String = button.transformationMethod
+                ?.getTransformation(button.text, button)?.toString() ?: button.text.toString()
+            expectedPositive = displayed(probe.getButton(AlertDialog.BUTTON_POSITIVE))
+            expectedNegative = displayed(probe.getButton(AlertDialog.BUTTON_NEGATIVE))
+            check(expectedPositive.isNotBlank() && expectedNegative.isNotBlank())
+            probe.dismiss()
+        }
         restoreAfter({
             serviceInfo.flags = originalFlags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
             automation.serviceInfo = serviceInfo
@@ -124,11 +141,19 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                 if (root != null) {
                     try {
                         if (root.packageName?.toString() == activity.packageName && hasText(root, title) && hasText(root, expectedMessage)) {
-                            check(hasText(root, activity.getString(R.string.extraction_mock_start))) { "$fixture missing positive action" }
+                            val positive = root.findAccessibilityNodeInfosByViewId("android:id/button1")
+                            try {
+                                val button = positive.singleOrNull() ?: error("$fixture missing positive action")
+                                check(button.text?.toString() == expectedPositive && button.isVisibleToUser && button.isEnabled) {
+                                    "$fixture incorrect positive action: actual=${button.text} expected=$expectedPositive"
+                                }
+                            } finally { positive.forEach { it.recycle() } }
                             val negative = root.findAccessibilityNodeInfosByViewId("android:id/button2")
                             try {
                                 val button = negative.singleOrNull() ?: error("$fixture missing cancel action")
-                                check(button.text.toString() == activity.getString(R.string.machine_settings_cancel) && button.isVisibleToUser && button.isEnabled)
+                                check(button.text.toString() == expectedNegative && button.isVisibleToUser && button.isEnabled) {
+                                    "$fixture incorrect cancel action: actual=${button.text} expected=$expectedNegative"
+                                }
                                 val bounds = Rect(); button.getBoundsInScreen(bounds)
                                 check(bounds.width() > 0 && bounds.height() > 0)
                                 check(button.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { "$fixture cancel action rejected" }
