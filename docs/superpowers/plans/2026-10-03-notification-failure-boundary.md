@@ -10,3 +10,5 @@
 - [x] 最小修改普通刷新与公共取消helper，复用到shutdown/onDestroy；协议与恢复条件不变。
 - [ ] Mock实际运行GREEN，原语言/音频/页面检查保留；构建、单测、Lint与升级回归。
 - [ ] 独立复审并更新证据与handoff。
+
+当前验证：bc593e1修复已推送，本地双APK/双单测/双Lint/testAPK170任务成功；fixture加强pending记录后testAPK/Lint101任务成功。独立静态复审未发现必须修复项。云端Mock37131995532和升级37131995440运行中，GREEN未证明；本测试不模拟NotificationManager.notify/cancel自身异常，也不证明注册Service生命周期及文案资源解析失败。
