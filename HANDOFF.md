@@ -1,3 +1,7 @@
+2026-10-03：新增设置页原生应用语言入口，八语言自称、独立偏好提交、当前项免重建、失败保持旧语言/选中项及重试提示。成功后刷新通知显示并重建设置页；异步Service绑定后补刷新，不重启设备会话。Mock入口测试覆盖切换/还原、当前项、保存失败和同Service。最终双APK/双单测/双Lint及测试APK构建成功（170 tasks），19项Python、890键目录、889键生成一致性、两APK各7113模板和6转义回环通过，独立复审无阻塞。实际入口运行仍待新云端CI；本轮不安装/操作真机。计划docs/superpowers/plans/2026-10-03-language-selector.md。
+
+2026-10-03：d69de55完整构建37118581368与隔离Mock37118581341均success，产物已读取。compact/wideFont各80 PAGE_START及PAGE_LAYOUT/DETAIL_DIALOG标记完整，原八语言/五音频标记全部保留。详情、三种合成告警和确认取消已在该矩阵通过；不代表全部弹窗视觉、真实BLE或硬件验收。产物/private/tmp/hoyi-dialog-native-37118581341/mock-lifecycle。
+
 2026-10-03：测试修正版d69de55已推送。新Mock任务37118581341经gh确认in_progress，watch exec session19514仍保存到/private/tmp/hoyi-language-dialog-native-ci-watch.log；新完整构建任务37118581368。下一步先查询这两个既有任务，不重启或重复dispatch；完成后下载37118581341产物，核对compact/wideFont各80 PAGE_START、页面marker、新DETAIL_DIALOG marker和原八语言/五音频marker，再按失败修正。当前没有复验成功证据。
 
 2026-10-03：首轮8987993完整构建37117962991通过，Mock37117962959失败。compact中文两主题五页及新增检查先完成，英语浅色Extraction报missing positive action；未证明产品文字缺失。SDK34 TextView.getTextForAccessibility返回mTransformed而非mText，原断言按资源原文比较存在原生按钮AllCaps不匹配。最小测试修正：同Activity原生AlertDialog无回调probe只create不show/attach，使用实际transformationMethod得到精确显示预期；真实窗口通过button1/2 ID核对文字/可见/启用，仅取消。不用忽略大小写放宽断言，不改生产UI。Mock testAPK/单测/Lint通过（/private/tmp/hoyi-language-dialog-transformation.log，107 tasks），独立静态复审无问题，云端验证待补。旧失败产物/private/tmp/hoyi-language-details-37117962959。

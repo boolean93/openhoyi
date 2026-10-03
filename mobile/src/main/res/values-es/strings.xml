@@ -371,6 +371,10 @@
     <string name="home_tare_unknown">"Resultado desconocido; comprueba la báscula"</string>
     <string name="home_tare_waiting">"Solicitud escrita; esperando lectura cero"</string>
     <string name="home_tare_writing">"Enviando solicitud"</string>
+    <string name="language_current">"Idioma actual: %1$s · Toca para cambiar"</string>
+    <string name="language_hint">"Los nombres de los perfiles y los registros del usuario conservan su texto original."</string>
+    <string name="language_save_failed">"No se pudo guardar el idioma. Inténtalo de nuevo."</string>
+    <string name="language_title">"Idioma de la aplicación"</string>
     <string name="legacy_curve_adapter_row">"%1$s. %2$s · %3$s · Solo consulta"</string>
     <string name="legacy_curve_checking">"Validando biblioteca de curvas antigua…"</string>
     <string name="legacy_curve_count">"%1$s curvas antiguas · Solo lectura, sin control de la máquina"</string>

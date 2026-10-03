@@ -911,4 +911,10 @@
     <string name="feedback_note">"趣味提示，不代表风味评分。"</string>
     <string name="feedback_done">"知道了"</string>
     <string name="feedback_replay">"再听一次。"</string>
+
+    <!-- App-local language selector. -->
+    <string name="language_title">"应用语言"</string>
+    <string name="language_current">"当前语言：%1$s · 点击切换"</string>
+    <string name="language_hint">"曲线名称和用户记录保留原文。"</string>
+    <string name="language_save_failed">"语言保存失败，请重试。"</string>
 </resources>

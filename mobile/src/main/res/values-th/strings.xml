@@ -371,6 +371,10 @@
     <string name="home_tare_unknown">"ไม่ทราบผล โปรดตรวจสอบเครื่องชั่ง"</string>
     <string name="home_tare_waiting">"ส่งคำขอแล้ว กำลังรอค่าศูนย์"</string>
     <string name="home_tare_writing">"กำลังส่งคำขอ"</string>
+    <string name="language_current">"ภาษาปัจจุบัน: %1$s · แตะเพื่อเปลี่ยน"</string>
+    <string name="language_hint">"ชื่อโปรไฟล์และบันทึกของผู้ใช้จะคงข้อความเดิมไว้"</string>
+    <string name="language_save_failed">"บันทึกภาษาไม่สำเร็จ โปรดลองอีกครั้ง"</string>
+    <string name="language_title">"ภาษาของแอป"</string>
     <string name="legacy_curve_adapter_row">"%1$s. %2$s · %3$s · ดูเท่านั้น"</string>
     <string name="legacy_curve_checking">"กำลังตรวจคลังกราฟรุ่นเก่า…"</string>
     <string name="legacy_curve_count">"รุ่นเก่า %1$s รายการ · อ่านอย่างเดียว ไม่ควบคุมเครื่อง"</string>

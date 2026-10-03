@@ -371,6 +371,10 @@
     <string name="home_tare_unknown">"Outcome unknown; check the scale"</string>
     <string name="home_tare_waiting">"Request written; waiting for zero reading"</string>
     <string name="home_tare_writing">"Sending request"</string>
+    <string name="language_current">"Current language: %1$s · Tap to change"</string>
+    <string name="language_hint">"Curve names and user records keep their original text."</string>
+    <string name="language_save_failed">"Could not save the language. Please try again."</string>
+    <string name="language_title">"App language"</string>
     <string name="legacy_curve_adapter_row">"%1$s. %2$s · %3$s · Browse only"</string>
     <string name="legacy_curve_checking">"Validating legacy curve library…"</string>
     <string name="legacy_curve_count">"%1$s legacy curves · Read-only, no machine control"</string>

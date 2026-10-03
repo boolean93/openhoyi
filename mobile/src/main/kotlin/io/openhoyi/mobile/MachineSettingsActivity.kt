@@ -61,6 +61,7 @@ class MachineSettingsActivity : ThemedActivity() {
     private lateinit var writeStatus: TextView
     private lateinit var scheduleWriteStatus: TextView
     private lateinit var cupResetStatus: TextView
+    private lateinit var languageCard: AppLanguagePreferencesCard
     private lateinit var cupResetButton: Button
     private lateinit var brewInput: EditText
     private lateinit var compensationInput: EditText
@@ -80,6 +81,8 @@ class MachineSettingsActivity : ThemedActivity() {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
+            // A language selection can finish before this asynchronous binding is ready.
+            service?.refreshNotificationDisplay()
             render()
         }
         override fun onServiceDisconnected(name: ComponentName) { service = null; render() }
@@ -301,6 +304,10 @@ class MachineSettingsActivity : ThemedActivity() {
         cupResetStatus = text(cupCard, getString(R.string.machine_settings_cups_initial), 14)
         cupResetButton = action(cupCard, getString(R.string.machine_settings_cups_reset)) { confirmCupReset() }
         feedbackCard = BrewFeedbackPreferencesCard(this, body)
+        languageCard = AppLanguagePreferencesCard(this, body) {
+            service?.refreshNotificationDisplay()
+            recreate()
+        }
         showSettingsSection(selectedSettingsSection)
         render()
     }
@@ -318,6 +325,10 @@ class MachineSettingsActivity : ThemedActivity() {
         handler.removeCallbacks(refresh)
         release()
         super.onStop()
+    }
+    override fun onDestroy() {
+        if (::languageCard.isInitialized) languageCard.close()
+        super.onDestroy()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("settingsExpanded", detailsExpanded)

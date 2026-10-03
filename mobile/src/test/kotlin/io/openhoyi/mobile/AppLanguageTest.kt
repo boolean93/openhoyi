@@ -20,4 +20,9 @@ class AppLanguageTest {
             assertEquals(AppLanguage.CHINESE, AppLanguage.restore(stored))
         }
     }
+    @org.junit.Test fun nativeNamesStayInLegacyOrderAndDoNotReplaceCanonicalTags() {
+        org.junit.Assert.assertEquals(listOf("简体中文", "English", "Русский", "ไทย", "العربية", "日本語", "한국어", "Español"),
+            AppLanguage.entries.map { it.nativeName })
+        org.junit.Assert.assertEquals(8, AppLanguage.entries.map { it.tag }.toSet().size)
+    }
 }

@@ -371,6 +371,10 @@
     <string name="home_tare_unknown">"結果不明。秤を確認してください"</string>
     <string name="home_tare_waiting">"書き込み完了、ゼロの読み取りを待機中"</string>
     <string name="home_tare_writing">"リクエストを送信中"</string>
+    <string name="language_current">"現在の言語：%1$s · タップして変更"</string>
+    <string name="language_hint">"プロファイル名とユーザーの記録は原文のまま表示されます。"</string>
+    <string name="language_save_failed">"言語を保存できませんでした。もう一度お試しください。"</string>
+    <string name="language_title">"アプリの言語"</string>
     <string name="legacy_curve_adapter_row">"%1$s. %2$s · %3$s · 閲覧のみ"</string>
     <string name="legacy_curve_checking">"旧版曲線ライブラリ検証中…"</string>
     <string name="legacy_curve_count">"旧版%1$s件 · 読取専用、マシン制御には不使用"</string>

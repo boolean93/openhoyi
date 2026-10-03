@@ -371,6 +371,10 @@
     <string name="home_tare_unknown">"Результат неизвестен; проверьте весы"</string>
     <string name="home_tare_waiting">"Запрос записан; ожидание нулевого показания"</string>
     <string name="home_tare_writing">"Отправка запроса"</string>
+    <string name="language_current">"Текущий язык: %1$s · Нажмите, чтобы изменить"</string>
+    <string name="language_hint">"Названия кривых и записи пользователя сохраняются в исходном виде."</string>
+    <string name="language_save_failed">"Не удалось сохранить язык. Повторите попытку."</string>
+    <string name="language_title">"Язык приложения"</string>
     <string name="legacy_curve_adapter_row">"%1$s. %2$s · %3$s · Только просмотр"</string>
     <string name="legacy_curve_checking">"Проверка библиотеки старых профилей…"</string>
     <string name="legacy_curve_count">"Старых профилей: %1$s · Только чтение, без управления машиной"</string>

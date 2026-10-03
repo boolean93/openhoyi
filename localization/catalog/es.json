@@ -884,5 +884,9 @@
   "feedback_low_flow": "El flujo de esta taza fue un poco más lento. Prueba su sabor.",
   "feedback_note": "Un comentario divertido, no una puntuación del sabor.",
   "feedback_done": "Entendido",
-  "feedback_replay": "Escuchar de nuevo"
+  "feedback_replay": "Escuchar de nuevo",
+  "language_title": "Idioma de la aplicación",
+  "language_current": "Idioma actual: %1$s · Toca para cambiar",
+  "language_hint": "Los nombres de los perfiles y los registros del usuario conservan su texto original.",
+  "language_save_failed": "No se pudo guardar el idioma. Inténtalo de nuevo."
 }

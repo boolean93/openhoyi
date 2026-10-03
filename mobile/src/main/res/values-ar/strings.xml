@@ -371,6 +371,10 @@
     <string name="home_tare_unknown">"النتيجة غير معروفة؛ تحقّق من الميزان"</string>
     <string name="home_tare_waiting">"تمت كتابة الطلب؛ في انتظار قراءة الصفر"</string>
     <string name="home_tare_writing">"جارٍ إرسال الطلب"</string>
+    <string name="language_current">"اللغة الحالية: %1$s · اضغط للتغيير"</string>
+    <string name="language_hint">"تبقى أسماء المنحنيات وسجلات المستخدم بلغتها الأصلية."</string>
+    <string name="language_save_failed">"تعذّر حفظ اللغة. يُرجى المحاولة مرة أخرى."</string>
+    <string name="language_title">"لغة التطبيق"</string>
     <string name="legacy_curve_adapter_row">"%1$s. %2$s · %3$s · للتصفح فقط"</string>
     <string name="legacy_curve_checking">"جارٍ التحقق من مكتبة المنحنيات القديمة…"</string>
     <string name="legacy_curve_count">"%1$s منحنيات قديمة · قراءة فقط، لا تُستخدم للتحكم بالآلة"</string>

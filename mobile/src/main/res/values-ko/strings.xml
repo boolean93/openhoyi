@@ -371,6 +371,10 @@
     <string name="home_tare_unknown">"결과 불명, 저울을 확인하세요"</string>
     <string name="home_tare_waiting">"요청 쓰기 완료, 0 측정값 대기 중"</string>
     <string name="home_tare_writing">"요청 전송 중"</string>
+    <string name="language_current">"현재 언어: %1$s · 눌러서 변경"</string>
+    <string name="language_hint">"프로파일 이름과 사용자 기록은 원문으로 유지됩니다."</string>
+    <string name="language_save_failed">"언어를 저장하지 못했습니다. 다시 시도해 주세요."</string>
+    <string name="language_title">"앱 언어"</string>
     <string name="legacy_curve_adapter_row">"%1$s. %2$s · %3$s · 보기 전용"</string>
     <string name="legacy_curve_checking">"이전 곡선 라이브러리 검증 중…"</string>
     <string name="legacy_curve_count">"이전 %1$s개 · 읽기 전용, 머신 제어에 사용 안 함"</string>

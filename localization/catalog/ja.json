@@ -884,5 +884,9 @@
   "feedback_low_flow": "この一杯は流量がやや少なめでした。味わいを試してみましょう。",
   "feedback_note": "楽しむためのコメントで、味の評価ではありません。",
   "feedback_done": "わかりました",
-  "feedback_replay": "もう一度聴く"
+  "feedback_replay": "もう一度聴く",
+  "language_title": "アプリの言語",
+  "language_current": "現在の言語：%1$s · タップして変更",
+  "language_hint": "プロファイル名とユーザーの記録は原文のまま表示されます。",
+  "language_save_failed": "言語を保存できませんでした。もう一度お試しください。"
 }

@@ -13,6 +13,17 @@ internal enum class AppLanguage(val tag: String, val legacyIndex: Int, val right
     KOREAN("ko", 6),
     SPANISH("es", 7);
 
+    val nativeName: String get() = when (this) {
+        CHINESE -> "简体中文"
+        ENGLISH -> "English"
+        RUSSIAN -> "Русский"
+        THAI -> "ไทย"
+        ARABIC -> "العربية"
+        JAPANESE -> "日本語"
+        KOREAN -> "한국어"
+        SPANISH -> "Español"
+    }
+
     val locale: Locale get() = Locale.forLanguageTag(tag)
 
     companion object {

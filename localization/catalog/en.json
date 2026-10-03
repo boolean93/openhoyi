@@ -884,5 +884,9 @@
   "feedback_low_flow": "This cup flowed a little slower. Give its flavor a try.",
   "feedback_note": "A playful prompt, not a flavor rating.",
   "feedback_done": "Got it",
-  "feedback_replay": "Play again"
+  "feedback_replay": "Play again",
+  "language_title": "App language",
+  "language_current": "Current language: %1$s · Tap to change",
+  "language_hint": "Curve names and user records keep their original text.",
+  "language_save_failed": "Could not save the language. Please try again."
 }

@@ -94,7 +94,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     val fixture = "$profile ${language.tag} dark=$dark page=${page.simpleName}"
                     android.util.Log.i("OpenHoyiLanguage", "PAGE_START $fixture")
                     test.sendStatus(0, Bundle().apply { putString("stream", "LANGUAGE_PAGE_START $fixture\n") })
-                    val activity = if (page == HomeActivity::class.java) home else {
+                    var activity = if (page == HomeActivity::class.java) home else {
                         check(currentPage == null)
                         test.startActivitySync(Intent(context, page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).also { currentPage = it }
                     }
@@ -118,6 +118,9 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                         is ExtractionActivity -> detailChecks.cancelStart(activity, fixture)
                     }
                     if (activity is MachineSettingsActivity) {
+                        activity = LanguageSelectorUiChecks(test).run(activity) { currentPage = it }
+                        currentPage = activity
+                        checkPage(activity, "$fixture selectorRestored")
                         val tabs = MachineSettingsActivity::class.java.getDeclaredField("settingTabs")
                             .apply { isAccessible = true }.get(activity) as List<*>
                         val labels = listOf(R.string.machine_settings_tab_temperature, R.string.machine_settings_tab_functions,
