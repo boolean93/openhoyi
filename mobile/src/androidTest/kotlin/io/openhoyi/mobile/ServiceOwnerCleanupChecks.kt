@@ -13,9 +13,11 @@ import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.session.*
 import io.openhoyi.trace.TraceStore
 import java.io.File
+import java.lang.reflect.InvocationTargetException
 import java.time.LocalDateTime
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
 
 /** Detached service and hub only; fake Connect operations, no component registration or BLE. */
 internal class ServiceOwnerCleanupChecks(private val test: Instrumentation) {
@@ -93,6 +95,20 @@ internal class ServiceOwnerCleanupChecks(private val test: Instrumentation) {
                     devices[0].session.connect("fixture-coffee", CoffeeAuthentication(LocalDateTime.of(2026, 10, 4, 0, 0), "123456"))
                     devices[1].session.connect("fixture-scale")
                     field(instance, "hub").set(instance, owner)
+                    // Reject off-owner calls before detaching a still-active hub.
+                    val threadFailure = AtomicReference<Throwable?>()
+                    val wrongOwner = Thread {
+                        threadFailure.set(runCatching {
+                            MobileService::class.java.getDeclaredMethod("closeDeviceOwner")
+                                .apply { isAccessible = true }.invoke(instance)
+                        }.exceptionOrNull())
+                    }
+                    wrongOwner.start()
+                    wrongOwner.join(2_000)
+                    check(!wrongOwner.isAlive) { "Wrong-owner probe did not finish" }
+                    check((threadFailure.get() as? InvocationTargetException)?.cause is IllegalStateException)
+                    check(field(instance, "hub").get(instance) === owner && field(instance, "hubForeground").getBoolean(instance))
+                    check(drivers.all { it.executes == 1 && it.closes == 0 })
                     val handler = field(instance, "handler").get(instance) as Handler
                     val callbacks = listOf("watchShot", "mockTick", "leaveForeground", "stopAutomaticScale")
                         .map { field(instance, it).get(instance) as Runnable }

@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-04",
+  "scope": "Software exception containment. No physical Bluetooth or registered Service verification.",
+  "verified": [
+    {
+      "change": "terminal session observer cleanup",
+      "sourceCommit": "fad4594186b2edbf315f58d461f55f27374227f9",
+      "nativeRun": 37182092507,
+      "localRegressionCases": 4,
+      "invariant": "Fake GATT ownership closes after terminal observer failure; original exception propagates; no extra operation."
+    },
+    {
+      "change": "detached GATT queue settlement",
+      "sourceCommit": "4c42c26db281cdd7857badf6dd0bda6f8c5b8f5d",
+      "nativeRun": 37182337453,
+      "localRegressionCases": 5,
+      "invariant": "Running result stays Unknown; waiting results stay Cancelled and all settle once despite callback/invalidation Exceptions; no resend."
+    },
+    {
+      "change": "dual device owner cleanup",
+      "sourceCommit": "ef146a42f4f4790615e2ee395c8522adb03b79e0",
+      "nativeRun": 37183077597,
+      "mockRedRun": 37182632720,
+      "mockGreenRun": 37183082271,
+      "mockRegressionCases": 4,
+      "observedMarker": "HUB_CLEANUP_CHECKS_PASSED fixtures=4 detached=true fakeTransports=true bothOwnersClosed=true tickersRemoved=true noBle=true",
+      "retainedRegression": {
+        "languageMarkers": 8,
+        "audioMarkers": 5,
+        "compactPages": 80,
+        "wideFontPages": 80,
+        "additionalMarkersPerPageProfile": 3
+      }
+    }
+  ],
+  "nativeRegressionObserved": {
+    "protocolChecks": 39823,
+    "capturedNotificationsReplayed": 32856,
+    "sessionScenarios": 92,
+    "resourceStringsPerApk": 7113,
+    "literalRoundTrips": 6,
+    "releaseConfigurationCases": 12
+  },
+  "notProven": [
+    "VM Error recovery",
+    "synchronous callback connection reentry",
+    "all scan errors",
+    "all steps preceding Hub close in service destruction",
+    "registered Service lifecycle",
+    "real GATT or hardware safety",
+    "complete legacy feature parity"
+  ]
+}

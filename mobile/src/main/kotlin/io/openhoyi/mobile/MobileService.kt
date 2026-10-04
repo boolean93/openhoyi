@@ -1509,6 +1509,14 @@ class MobileService : Service() {
         event(ResourceMessage(R.string.recovery_event_shot_passive_acknowledged), "shot.passive_acknowledged")
         refreshSafetyNotification()
     }
+    private fun closeDeviceOwner() {
+        check(Looper.myLooper() == Looper.getMainLooper()) { "Device owner close must use main looper" }
+        try { hub?.close() }
+        catch (error: Exception) {
+            Log.w(TAG, "device owner close failed: ${error.javaClass.simpleName}; suppressed=${error.suppressed.size}")
+        }
+        finally { hub = null; hubForeground = false }
+    }
     fun shutdown() {
         if (mock != null) {
             finishBrewFeedback(false)
@@ -1546,7 +1554,7 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_event_preheat_shutdown_block), "service.stop_deferred")
             return
         }
-        hub?.close(); hub = null; running = false
+        closeDeviceOwner(); running = false
         safetyMessage = null
         cancelSafetyNotification()
         handler.removeCallbacks(leaveForeground)
@@ -1571,7 +1579,7 @@ class MobileService : Service() {
         handler.removeCallbacks(watchShot)
         handler.removeCallbacks(leaveForeground)
         handler.removeCallbacks(stopAutomaticScale)
-        hub?.close(); hub = null; hubForeground = false
+        closeDeviceOwner()
         super.onDestroy()
     }
     companion object {
