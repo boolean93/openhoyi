@@ -9,7 +9,8 @@
 - [x] 本地测试APK/Lint101任务通过，独立静态复审无阻塞。
 - [x] fdb56c6/Mock37183314102实际RED，ServiceOwnerCleanupChecks:102命中Owner close exception escaped service destruction，非反射/编译/超时；日志/private/tmp/hoyi-service-owner-red-37183314102/mock-lifecycle/language-instrumentation.txt。
 - [x] 最小生产修复及最终本地双APK/双单测/双Lint/testAPK、协议/会话/传输180任务通过（/private/tmp/hoyi-service-owner-green-final-build.log）；补充主线程拒绝检查后独立复审无阻塞。
-- [ ] 实际Mock GREEN和完整云端回归。
+- [x] 512ae86/native37183863776 success，读取39823协议/32856回放/92会话、构建/资源/发布标记；同源码Mock升级37183863782成功，读取实际安装/数据保留结果，仅同schema Mock1→2。
+- [ ] 实际Mock GREEN（37183863824既有任务仍运行）；不以构建或升级当销毁/ownerThread断言通过。
 
 范围仅Hub关闭Exception；不声称反馈/采样等此前步骤的全部故障、真正注册Service/Binder关闭、VM Error或硬件验证。正常shutdown的未确认门禁必须保持原样。
 
