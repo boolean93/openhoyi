@@ -9,4 +9,4 @@
 - [x] 四项纯JVM测试实际RED，见/private/tmp/hoyi-state-observer-cleanup-red.log。
 - [x] 仅终止路径finally保护，四项GREEN（含原异常对象传播断言）及原完整会话检查。
 - [x] 独立静态复审无阻塞；本地双APK、双单测、双Lint、测试APK及协议/会话/传输检查通过（180 tasks，/private/tmp/hoyi-observer-cleanup-final-build.log）。
-- [ ] 新提交云端CI；本地通过不作为新源码云端通过证据。
+- [x] fad4594云端native37182092507 success，读取完整协议/会话/构建/资源及发布检查标记。
