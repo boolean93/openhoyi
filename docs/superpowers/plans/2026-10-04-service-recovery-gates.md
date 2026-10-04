@@ -11,4 +11,5 @@
 - [x] Mock testAPK和Lint编译通过，最终101tasks；/private/tmp/hoyi-service-recovery-gates-final-build.log。
 - [x] shell语法及diff检查通过。
 - [x] 独立复审未见调用/隔离阻塞；采纳marker语义修正，ACK attempts=13不称全部被拒绝（noPending/UNKNOWN可能no-op）。
-- [ ] 推送后实际云端instrumentation 13fixtures/78entries及原矩阵marker核验；编译不表示测试执行通过。
+- [x] 源码8ab251c推送，native37186585789、Mock生命周期37186585805、Mock升级37186585831均确认in_progress。
+- [ ] 实际云端instrumentation 13fixtures/78entries及原矩阵marker核验；编译不表示测试执行通过。

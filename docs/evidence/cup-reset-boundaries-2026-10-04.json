@@ -16,8 +16,15 @@
   "independentReview": "no blocking findings; no independent Gradle execution",
   "nativeCi": {
     "run": 37186281329,
-    "lastObservedStatus": "in_progress",
-    "verifiedSuccess": false
+    "lastObservedStatus": "completed",
+    "verifiedSuccess": true,
+    "conclusion": "success",
+    "log": "/private/tmp/hoyi-cup-boundary-native-37186281329.log",
+    "protocolChecks": 39823,
+    "capturedNotifications": 32856,
+    "sessionChecks": 92,
+    "resourceStringsPerVariant": 7113,
+    "releaseConfigurationCases": 12
   },
   "hardwareTested": false
 }

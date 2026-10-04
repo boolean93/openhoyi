@@ -8,6 +8,6 @@
 - [x] 6项GREEN（0失败/错误/跳过），完整180任务本地构建通过；原会话检查/双APK/test APK/单测/双Lint，/private/tmp/hoyi-cup-boundary-green.log。
 - [x] 独立复审无阻塞，未代替实际测试。
 - [x] 源码d98e1f0推送；证据docs/evidence/cup-reset-boundaries-2026-10-04.json。
-- [ ] native37186281329已确认in_progress，读取最终日志后核验。
+- [x] native37186281329成功，实际日志读取；39823协议/32856通知/92会话/两APK各7113资源+6回环/发布12及临时签名APK通过，无安装。
 
 真实杯数重置执行和恢复仍未硬件验收，软件边界通过不等于证明设备安全。
