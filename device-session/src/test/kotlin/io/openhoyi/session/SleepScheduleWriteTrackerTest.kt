@@ -27,7 +27,8 @@ class SleepScheduleWriteTrackerTest {
         assertFalse(tracker.observe(12, 12, first, second))
         assertFalse(tracker.observe(13, 11, first, second))
         val changedFirst = part("83407E0A00071E0A00071E0A00071E0A00071E3D")
-        assertTrue(tracker.observe(13, 12, changedFirst, second))
+        // A changed first fragment needs a new host serial; second remains unchanged.
+        assertTrue(tracker.observe(14, 12, changedFirst, second))
         assertEquals(SleepScheduleWriteTracker.State.CONFIRMED, tracker.state)
     }
 

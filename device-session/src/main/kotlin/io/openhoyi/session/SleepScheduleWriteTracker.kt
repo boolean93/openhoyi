@@ -14,11 +14,24 @@ class SleepScheduleWriteTracker {
     private var afterFirst = 0L
     private var afterSecond = 0L
 
+    private var latestFirst = 0L
+    private var latestSecond = 0L
+    private var observedFirst: SleepPart? = null
+    private var observedSecond: SleepPart? = null
+
+    private fun baseline(firstSerial: Long, secondSerial: Long) {
+        afterFirst = firstSerial
+        afterSecond = secondSerial
+        latestFirst = firstSerial
+        latestSecond = secondSerial
+        observedFirst = null
+        observedSecond = null
+    }
+
     fun begin(schedule: WeeklySleepSchedule, firstSerial: Long, secondSerial: Long): Long? {
         if (state == State.WRITING || state == State.WAITING_READBACK || state == State.UNKNOWN) return null
         target = schedule
-        afterFirst = firstSerial
-        afterSecond = secondSerial
+        baseline(firstSerial, secondSerial)
         state = State.WRITING
         return ++serial
     }
@@ -29,14 +42,12 @@ class SleepScheduleWriteTracker {
         state = when (result) {
             is OperationResult.Success -> {
                 // Fragments seen while the two writes were in flight may describe the old plan.
-                afterFirst = firstSerial
-                afterSecond = secondSerial
+                baseline(firstSerial, secondSerial)
                 State.WAITING_READBACK
             }
             is OperationResult.Failed, is OperationResult.Cancelled -> State.FAILED
             is OperationResult.Unknown -> {
-                afterFirst = firstSerial
-                afterSecond = secondSerial
+                baseline(firstSerial, secondSerial)
                 State.UNKNOWN
             }
         }
@@ -44,6 +55,20 @@ class SleepScheduleWriteTracker {
     }
 
     fun observe(firstSerial: Long, secondSerial: Long, first: SleepPart?, second: SleepPart?): Boolean {
+        if (state != State.WAITING_READBACK && state != State.UNKNOWN) return false
+        // A snapshot may keep one fragment unchanged while the other advances.
+        // The same host serial must continue to denote the same fragment value.
+        if (firstSerial < latestFirst || secondSerial < latestSecond) return false
+        if (firstSerial == latestFirst && latestFirst > afterFirst && !sameFragment(first, observedFirst)) return false
+        if (secondSerial == latestSecond && latestSecond > afterSecond && !sameFragment(second, observedSecond)) return false
+        if (firstSerial > latestFirst) {
+            latestFirst = firstSerial
+            observedFirst = first
+        }
+        if (secondSerial > latestSecond) {
+            latestSecond = secondSerial
+            observedSecond = second
+        }
         if (state == State.UNKNOWN && firstSerial > afterFirst && secondSerial > afterSecond &&
             WeeklySleepSchedule.fromReadback(first, second) != null) {
             state = State.RECONCILED
@@ -54,22 +79,25 @@ class SleepScheduleWriteTracker {
         return true
     }
 
+    private fun sameFragment(a: SleepPart?, b: SleepPart?): Boolean =
+        if (a == null || b == null) a == b else
+            a.firstDaySundayIndex == b.firstDaySundayIndex && a.enabledBits == b.enabledBits &&
+                a.days == b.days && a.raw == b.raw
+
     private fun matches(firstSerial: Long, secondSerial: Long, first: SleepPart?, second: SleepPart?) =
         firstSerial > afterFirst && secondSerial > afterSecond &&
             WeeklySleepSchedule.fromReadback(first, second)?.days == target?.days
 
     fun timeout(token: Long, firstSerial: Long, secondSerial: Long): Boolean {
         if (token != serial || state != State.WAITING_READBACK) return false
-        afterFirst = firstSerial
-        afterSecond = secondSerial
+        baseline(maxOf(latestFirst, firstSerial), maxOf(latestSecond, secondSerial))
         state = State.UNKNOWN
         return true
     }
 
     fun disconnected(firstSerial: Long, secondSerial: Long) {
         if (state == State.WRITING || state == State.WAITING_READBACK) {
-            afterFirst = firstSerial
-            afterSecond = secondSerial
+            baseline(maxOf(latestFirst, firstSerial), maxOf(latestSecond, secondSerial))
             state = State.UNKNOWN
         }
     }
