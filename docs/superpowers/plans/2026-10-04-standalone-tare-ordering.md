@@ -7,6 +7,7 @@
 - [x] 原4项实际2RED（oldzero/repeatedzero），新操作低基线及截止UNKNOWN原实现通过；/private/tmp/hoyi-tare-order-red.log。
 - [x] 4GREEN（0失败/错误/跳过）、原92会话/前置萃取检查及180任务完整本地构建通过；/private/tmp/hoyi-tare-order-green.log。
 - [x] 独立复审无阻塞，未代替运行测试。
-- [ ] 提交与对应CI最终日志。
+- [x] 源码47617dd推送，native37187870905确认in_progress。
+- [ ] 对应CI最终日志。
 
 BOOKOO真实去皮及断链全流程未全面验收；无真机操作。
