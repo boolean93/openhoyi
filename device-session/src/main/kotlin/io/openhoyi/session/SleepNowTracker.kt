@@ -11,6 +11,7 @@ class SleepNowTracker {
 
     fun begin(): Long? {
         if (state == State.WRITING || state == State.WAITING_ASLEEP || state == State.UNKNOWN) return null
+        afterSample = 0L
         state = State.WRITING
         return ++serial
     }
@@ -34,6 +35,7 @@ class SleepNowTracker {
     fun observe(sampleSerial: Long, sleepStateRaw: Int): Boolean {
         if (state !in setOf(State.WAITING_ASLEEP, State.UNKNOWN) || sampleSerial <= afterSample)
             return false
+        afterSample = sampleSerial
         if (sleepStateRaw == 1) {
             state = State.CONFIRMED
             return true
@@ -44,14 +46,14 @@ class SleepNowTracker {
 
     fun timeout(token: Long, sampleSerial: Long): Boolean {
         if (token != serial || state != State.WAITING_ASLEEP) return false
-        afterSample = sampleSerial
+        afterSample = maxOf(afterSample, sampleSerial)
         state = State.UNKNOWN
         return true
     }
 
     fun disconnected(sampleSerial: Long) {
         if (state == State.WRITING || state == State.WAITING_ASLEEP) {
-            afterSample = sampleSerial
+            afterSample = maxOf(afterSample, sampleSerial)
             state = State.UNKNOWN
         }
     }

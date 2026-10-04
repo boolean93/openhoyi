@@ -16,6 +16,7 @@ class SettingsWriteTracker {
     fun begin(value: MachineSettingChange): Long? {
         if (state == State.WRITING || state == State.WAITING_READBACK || state == State.UNKNOWN) return null
         change = value
+        afterSample = 0L
         state = State.WRITING
         return ++serial
     }
@@ -39,6 +40,7 @@ class SettingsWriteTracker {
     fun observe(sampleSerial: Long, settings: Settings): Boolean {
         if (state !in setOf(State.WAITING_READBACK, State.UNKNOWN) || sampleSerial <= afterSample)
             return false
+        afterSample = sampleSerial
         if (change?.matches(settings) != true) {
             if (state == State.UNKNOWN) state = State.RECONCILED
             return false
@@ -49,14 +51,14 @@ class SettingsWriteTracker {
 
     fun timeout(token: Long, sampleSerial: Long): Boolean {
         if (token != serial || state != State.WAITING_READBACK) return false
-        afterSample = sampleSerial
+        afterSample = maxOf(afterSample, sampleSerial)
         state = State.UNKNOWN
         return true
     }
 
     fun disconnected(sampleSerial: Long) {
         if (state == State.WRITING || state == State.WAITING_READBACK) {
-            afterSample = sampleSerial
+            afterSample = maxOf(afterSample, sampleSerial)
             state = State.UNKNOWN
         }
     }
