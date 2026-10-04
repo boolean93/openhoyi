@@ -1,4 +1,4 @@
-# 原版功能对标审计（更新于2026-10-03）
+# 原版功能对标审计（更新于2026-10-04）
 
 基线为旧项目 `docs/features.md`、`docs/bluetooth-protocol.md` 和现有拆包源码；首次审计原生基线为提交 `1437e8d`，后续条目随实现更新，最近变更见HANDOFF。此表检查用户能力及其当前实现入口，不把代码存在、离线通过或部分实杯记录当作全部功能验收。
 
@@ -19,6 +19,7 @@
 | 连接密码保存 | CoffeeCredentialStore、CoffeeCredentialRetryGate | 已开发成功后加密记忆；不是修改机器蓝牙密码，免输/失败回退仍需实机复验 |
 | 修改机器蓝牙密码 | 旧版setBleConPwd/0x0B；原生无执行入口 | 未开发/未开放，缺修改、确认、新旧密码重连及失败恢复的可靠序列 |
 | 拉杆校准、恢复出厂、排水、水箱滤芯及OTA | UnsupportedCommandGroup与当前无开放控制入口 | 未开发完整控制；存在旧命令不代表已有安全流程。需型号/固件、前置条件、回读或人工恢复证据；滤芯乐观UI与版本门槛见 [专项审计](legacy-pressure-filter.md) |
+| 设备释放与服务退出保护 | DeviceSession、GattQueue、NativeDeviceHub、MobileService；见 `evidence/cleanup-boundaries-2026-10-04.json` | 已修复终态回调/队列结果通知/双设备关闭/服务销毁的Exception清理边界，纯JVM及Android34独立fake传输fixture通过，主线程拒绝与pending保留已测；8129a05已在云端实测正常shutdown允许1组/三种持久未确认门禁阻止3组，调用限定本地ActivityManager代理。独立对象不代表真实注册Service、全部回调异常或硬件验收 |
 | 多语言 | 主要原生页面与服务反馈已资源化，启用语义/按钮样式与文字分开；已核对旧版八语言并新增稳定标识基础，见 `docs/plans/native-language-parity.md` | 七语言目录各890键，正式Android资源各889键已生成并打包；统一语言Context、独立偏好提交、主要持续提示身份和通知刷新接口已开发。设置页语言入口已开发，实际入口切换/还原/不变/失败及同服务已在云端Mock通过，共享导航800组合、八语言双主题五页在两种窗口/字体配置共160页及代表性详情/取消确认已通过Mock；母语质量、未覆盖动态状态/图轴、原始元数据与注册Service/BLE生命周期验收未完成，不宣称全应用多语言完成 |
 | 原生应用版本和更新 | MachineSettingsActivity读取BuildConfig的版本/版本号、模式和包名；APK元数据/资源核对通过 | 只读信息、实际APK身份/版本校验、外部release签名及版本递增预检已开发并通过临时密钥CI。Mock同源码1→2覆盖升级、12组偏好文件/Keystore/历史/采样/导入/恢复门禁已通过CI37130498312；证据见 `evidence/mock-upgrade-2026-10-03.json`；正式密钥、已装证书对照、Alpha数据延续及历史schema迁移未验收。厂商APK不能作为原生包更新 |
 | 深浅色与Mock | ThemedActivity、values-night、MockDeviceRuntime、Mock构建；云端Mock截图 | 已开发并有离线视觉证据；Mock不发送蓝牙，不能替代真实控制验收 |

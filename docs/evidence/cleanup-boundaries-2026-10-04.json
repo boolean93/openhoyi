@@ -7,14 +7,16 @@
       "sourceCommit": "fad4594186b2edbf315f58d461f55f27374227f9",
       "nativeRun": 37182092507,
       "localRegressionCases": 4,
-      "invariant": "Fake GATT ownership closes after terminal observer failure; original exception propagates; no extra operation."
+      "invariant": "Fake GATT ownership closes after terminal observer failure; original exception propagates; no extra operation.",
+      "nativeRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37182092507"
     },
     {
       "change": "detached GATT queue settlement",
       "sourceCommit": "4c42c26db281cdd7857badf6dd0bda6f8c5b8f5d",
       "nativeRun": 37182337453,
       "localRegressionCases": 5,
-      "invariant": "Running result stays Unknown; waiting results stay Cancelled and all settle once despite callback/invalidation Exceptions; no resend."
+      "invariant": "Running result stays Unknown; waiting results stay Cancelled and all settle once despite callback/invalidation Exceptions; no resend.",
+      "nativeRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37182337453"
     },
     {
       "change": "dual device owner cleanup",
@@ -30,7 +32,61 @@
         "compactPages": 80,
         "wideFontPages": 80,
         "additionalMarkersPerPageProfile": 3
-      }
+      },
+      "nativeRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37183077597",
+      "mockRedRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37182632720",
+      "mockGreenRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37183082271"
+    },
+    {
+      "change": "detached service destruction owner failure",
+      "sourceCommit": "512ae86f61b5f23bf6aa28f648f51468f0298894",
+      "nativeRun": 37183863776,
+      "mockRedRun": 37183314102,
+      "mockGreenRun": 37183863824,
+      "mockUpgradeRun": 37183863782,
+      "observedMarker": "SERVICE_OWNER_CLEANUP_CHECKS_PASSED detached=true fakeTransports=true callbacksRemoved=true pendingPreserved=true noBle=true ownerThread=true",
+      "invariant": "Hub close Exception does not escape destruction; references and four callbacks clear; pending records remain; off-owner close rejects before detachment.",
+      "retainedRegression": {
+        "hubFixtures": 4,
+        "languageMarkers": 8,
+        "audioMarkers": 5,
+        "compactPages": 80,
+        "wideFontPages": 80,
+        "additionalMarkersPerPageProfile": 3
+      },
+      "upgradeScope": "Same current source/schema Mock 1->2; not Alpha or historical migration.",
+      "nativeRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37183863776",
+      "mockRedRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37183314102",
+      "mockGreenRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37183863824",
+      "mockUpgradeRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37183863782"
+    },
+    {
+      "change": "detached normal service shutdown and persistent recovery gates",
+      "sourceCommit": "8129a05c38500cda5de5dcbcdbb0ea19130b4e99",
+      "nativeRun": 37184234323,
+      "mockRun": 37184234219,
+      "mockUpgradeRun": 37184234245,
+      "observedMarker": "SERVICE_SHUTDOWN_CHECKS_PASSED fixtures=4 allowed=1 blocked=3 pendingPreserved=true localManager=true noBle=true",
+      "fixtures": {
+        "allowed": 1,
+        "shotPendingBlocked": 1,
+        "writePendingBlocked": 1,
+        "bothPendingBlocked": 1
+      },
+      "scope": "Actual shutdown method with local ActivityManager proxy; no registered service or platform Binder dispatch.",
+      "retainedRegression": {
+        "serviceDestruction": true,
+        "ownerThreadRejection": true,
+        "hubFixtures": 4,
+        "languageMarkers": 8,
+        "audioMarkers": 5,
+        "compactPages": 80,
+        "wideFontPages": 80,
+        "additionalMarkersPerPageProfile": 3
+      },
+      "nativeRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37184234323",
+      "mockRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37184234219",
+      "mockUpgradeRunUrl": "https://github.com/boolean93/openhoyi/actions/runs/37184234245"
     }
   ],
   "nativeRegressionObserved": {
@@ -49,5 +105,6 @@
     "registered Service lifecycle",
     "real GATT or hardware safety",
     "complete legacy feature parity"
-  ]
+  ],
+  "repository": "https://github.com/boolean93/openhoyi"
 }
