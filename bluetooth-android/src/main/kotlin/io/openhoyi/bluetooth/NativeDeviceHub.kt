@@ -146,6 +146,21 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         coffee.session.disconnect()
     }
     override fun close(){
-        usable();closed=true;handler.removeCallbacks(ticker);reconnect.background();scanner.close();coffee.close();scale.close()
+        usable();closed=true
+        var failure: Exception? = null
+        fun cleanup(action: () -> Unit) {
+            try { action() } catch (error: Exception) {
+                val first = failure
+                if (first == null) failure = error
+                else if (first !== error) first.addSuppressed(error)
+            }
+        }
+        // One failing observer must not retain the other device or any owner timer.
+        cleanup { handler.removeCallbacks(ticker) }
+        cleanup { reconnect.background() }
+        cleanup { scanner.close() }
+        cleanup { coffee.close() }
+        cleanup { scale.close() }
+        failure?.let { throw it }
     }
 }
