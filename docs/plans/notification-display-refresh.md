@@ -25,3 +25,5 @@ STOP PendingIntent、连接/安全通知ID、通道ID与重要级别、按钮与
 ## 2026-10-03 实际异常边界验证
 
 bc593e1的Mock37131995532实际通过NotificationFailureChecks：独立未注册Service、没有Hub，manager查找抛SecurityException时普通刷新不逃逸，消息外控制字段与pending萃取/SETTING记录不变；独立对象onDestroy遇到同一错误后完成4个Handler回调清理。原8语言、5音频与两窗口各80页/详情/语言入口标记保留。完整构建37131995454与同源码Mock覆盖升级37131995440均通过并核日志。没有改变通知身份、去重缓存更新时刻、固件/写入/回读门禁。该测试不证明注册Service生命周期、NotificationManager.notify/cancel本身故障或文案解析失败；后者另见notification-rendering-boundary计划。
+
+2026-10-04：a9ef9a7将资源解析异常限制在通知显示入口，错误报告自身解析失败只记录异常类型，保留原消息、警告缓存与控制门禁。独立Mock故障注入37181425760实际通过rendering/errorReporting及原语言/音频/页面矩阵；native37181425768与同源码Mock升级37181425752通过。该证据不覆盖真实注册Service、全部系统通知异常或BLE硬件。

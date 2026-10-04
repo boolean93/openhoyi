@@ -8,5 +8,5 @@
 
 - [x] 新断言在原修复上运行RED（fe8e5cc/37132523724），警告文案解析抛Resources.NotFoundException，位于MobileService:1346；第二项错误报告断言随后待GREEN执行。
 - [x] 最小外围和错误报告保护，所有原断言保留；双APK/双单测/双Lint/testAPK170任务成功。
-- [ ] 本地构建/单测/Lint、实际Mock GREEN、完整原语言/音频/页面与升级回归。
-- [ ] 独立复审及证据更新。
+- [x] 本地构建/单测/Lint通过；a9ef9a7实际Mock37181425760 GREEN，新增rendering/errorReporting两项及原八语言/五音频标记完整，compact/wideFont各80页及3标记。升级37181425752真实Mock同源码/schema1→2通过，不代表Alpha或历史schema迁移。
+- [x] 独立复审无阻塞；native37181425768通过并读取39823协议检查/32856通知回放/92会话场景、资源7113×2/6回环、发布fixture和12场景标记。日志在/private/tmp/hoyi-notification-render-{green,upgrade,native}-对应runID。

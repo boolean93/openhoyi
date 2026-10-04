@@ -338,6 +338,24 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         else send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,
             beforeDispatch={beforeDispatch() && canStartPreheat()},callback=callback)
     }
-    fun disconnect(){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();setState(DeviceState.DISCONNECTED);cancelSleepWrite("coffee disconnected");queue.disconnect("user disconnect");initBusy=false}
-    private fun fail(reason:String){activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();setState(DeviceState.FAILED);cancelSleepWrite(reason);queue.disconnect(reason);diagnostic(reason)}
+    fun disconnect(){
+        activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
+        try { setState(DeviceState.DISCONNECTED) }
+        finally {
+            try { cancelSleepWrite("coffee disconnected") }
+            finally {
+                try { queue.disconnect("user disconnect") }
+                finally { initBusy=false }
+            }
+        }
+    }
+    private fun fail(reason:String){
+        activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
+        try { setState(DeviceState.FAILED) }
+        finally {
+            try { cancelSleepWrite(reason) }
+            finally { queue.disconnect(reason) }
+        }
+        diagnostic(reason)
+    }
 }
