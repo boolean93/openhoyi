@@ -7,6 +7,7 @@
 - [x] 原3tests实际2RED（旧hot、重复serial变hot），新操作fixture原实现通过；/private/tmp/hoyi-preheat-order-red.log。
 - [x] 3项GREEN（0失败/错误/跳过），180任务完整本地协议/会话/蓝牙与应用单测、双APK/test APK/双Lint通过，/private/tmp/hoyi-preheat-order-green.log。
 - [x] 独立复审无阻塞，未代替执行测试。
-- [ ] 源码提交与CI最终日志核验。
+- [x] 源码069681d已推送，native37187536336确认in_progress。
+- [ ] CI最终日志核验。
 
 真实预热执行/取消/断链恢复仍待硬件证据；软件边界不证明设备安全。
