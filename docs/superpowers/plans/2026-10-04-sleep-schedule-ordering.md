@@ -10,6 +10,7 @@ SleepPart没有值equals，tracker内比较day index、enabled bits、days及raw
 - [x] 初始候选8项GREEN及完整本地构建通过，但复审与新增测试发现引用比较问题；两方向同值新对象11项中2项实际RED。/private/tmp/hoyi-schedule-order-value-both-red.log。
 - [x] 按片段值比较后11项GREEN（0失败/错误/跳过），原92会话检查、完整Alpha/Mock/test APK、蓝牙/双应用单测及双Lint通过；180 tasks，/private/tmp/hoyi-schedule-order-final.log。
 - [x] 独立复审收敛，无剩余阻塞；未代替运行测试。
-- [ ] 提交并核对新源码CI。
+- [x] 源码提交7fa8482推送。
+- [ ] 对应native37185839289最后确认in_progress，读取最终日志后补证据。
 
 不能用上述测试证明真实睡眠执行、周计划写入/恢复安全；这些仍待采样及硬件验收。
