@@ -12,4 +12,5 @@
 - [x] shell语法及diff检查通过。
 - [x] 独立复审未见调用/隔离阻塞；采纳marker语义修正，ACK attempts=13不称全部被拒绝（noPending/UNKNOWN可能no-op）。
 - [x] 源码8ab251c推送，native37186585789、Mock生命周期37186585805、Mock升级37186585831均确认in_progress。
-- [ ] 实际云端instrumentation 13fixtures/78entries及原矩阵marker核验；编译不表示测试执行通过。
+- [x] native37186585789及同源码/schema Mock升级37186585831成功，实际日志/seed/verify产物已读；39823/32856/92/7113及发布12通过。
+- [ ] Mock生命周期37186585805仍in_progress；实际instrumentation 13fixtures/78entries及原矩阵marker未核验，编译不表示测试执行通过。
