@@ -1,0 +1,23 @@
+{
+  "sourceCommit": "d98e1f0474084c6ac54d378e26b2faa09160390f",
+  "scope": "host sample serial ordering across timeout/disconnect; no BLE replay identification",
+  "red": {
+    "tests": 6,
+    "failures": 4
+  },
+  "green": {
+    "tests": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "fullLocalBuild": "success",
+    "tasks": 180
+  },
+  "independentReview": "no blocking findings; no independent Gradle execution",
+  "nativeCi": {
+    "run": 37186281329,
+    "lastObservedStatus": "in_progress",
+    "verifiedSuccess": false
+  },
+  "hardwareTested": false
+}

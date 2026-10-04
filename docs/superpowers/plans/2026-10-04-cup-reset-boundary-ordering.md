@@ -7,6 +7,7 @@
 - [x] 原6项4实际RED：两channel×timeout/disconnect旧zero误确认；partial丢弃和新操作fixture原实现通过。/private/tmp/hoyi-cup-boundary-red.log。
 - [x] 6项GREEN（0失败/错误/跳过），完整180任务本地构建通过；原会话检查/双APK/test APK/单测/双Lint，/private/tmp/hoyi-cup-boundary-green.log。
 - [x] 独立复审无阻塞，未代替实际测试。
-- [ ] 源码提交与对应CI证据。
+- [x] 源码d98e1f0推送；证据docs/evidence/cup-reset-boundaries-2026-10-04.json。
+- [ ] native37186281329已确认in_progress，读取最终日志后核验。
 
 真实杯数重置执行和恢复仍未硬件验收，软件边界通过不等于证明设备安全。
