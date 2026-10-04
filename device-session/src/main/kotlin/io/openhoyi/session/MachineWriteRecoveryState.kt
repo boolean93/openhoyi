@@ -35,14 +35,14 @@ class MachineWriteRecoveryState(private val storage: Storage) {
         kind==Kind.CUP_RESET && matchesDevice(evidence.address) && !evidence.writeActive &&
         evidence.settingsSerial>afterSettingsSerial && evidence.idleSerial>afterIdleSerial &&
         evidence.settingsCount!=null && evidence.settingsCount==evidence.idleCount &&
-        evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
+        freshIdle(evidence.idleAtMs, evidence.nowMs)
 
     data class SettingEvidence(val address: String?, val settingsPresent: Boolean, val settingsSerial: Long,
         val idleAwake: Boolean, val idleAtMs: Long?, val nowMs: Long, val writeActive: Boolean)
     fun canClearSetting(evidence: SettingEvidence, afterSettingsSerial: Long): Boolean =
         kind==Kind.SETTING && matchesDevice(evidence.address) && !evidence.writeActive &&
         evidence.settingsPresent && evidence.settingsSerial>afterSettingsSerial && evidence.idleAwake &&
-        evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
+        freshIdle(evidence.idleAtMs, evidence.nowMs)
 
     data class ScheduleEvidence(val address: String?, val completePlan: Boolean,
         val firstSerial: Long, val secondSerial: Long, val idleAwake: Boolean,
@@ -51,7 +51,7 @@ class MachineWriteRecoveryState(private val storage: Storage) {
         kind==Kind.SLEEP_SCHEDULE && matchesDevice(evidence.address) && !evidence.writeActive &&
         evidence.completePlan && evidence.firstSerial>afterFirstSerial &&
         evidence.secondSerial>afterSecondSerial && evidence.idleAwake &&
-        evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
+        freshIdle(evidence.idleAtMs, evidence.nowMs)
 
     data class SleepEvidence(val address: String?, val sleepStateRaw: Int?, val sleepSerial: Long,
         val idleAtMs: Long?, val nowMs: Long, val writeActive: Boolean)
@@ -59,7 +59,7 @@ class MachineWriteRecoveryState(private val storage: Storage) {
         kind==Kind.SLEEP_NOW && matchesDevice(evidence.address) && !evidence.writeActive &&
         evidence.sleepSerial>afterSleepSerial &&
         (evidence.sleepStateRaw==0 || evidence.sleepStateRaw==1) &&
-        evidence.idleAtMs?.let { it<=evidence.nowMs && evidence.nowMs-it<=1500 }==true
+        freshIdle(evidence.idleAtMs, evidence.nowMs)
 
     /** No independent preheat-cancel readback exists: this only enables explicit human acknowledgement. */
     data class BrewWaitEvidence(val address: String?, val idleAwake: Boolean, val idleSerial: Long,
@@ -67,7 +67,11 @@ class MachineWriteRecoveryState(private val storage: Storage) {
     fun canClearBrewWait(evidence: BrewWaitEvidence, afterIdleSerial: Long): Boolean =
         kind == Kind.BREW_WAIT && matchesDevice(evidence.address) && !evidence.writeActive &&
         evidence.idleAwake && evidence.idleSerial > afterIdleSerial &&
-        evidence.idleAtMs?.let { it <= evidence.nowMs && evidence.nowMs - it <= 1500 } == true
+        freshIdle(evidence.idleAtMs, evidence.nowMs)
+
+    /** Check the nonnegative monotonic domain before subtraction to prevent overflow. */
+    private fun freshIdle(atMs: Long?, nowMs: Long): Boolean =
+        atMs != null && atMs >= 0 && nowMs >= atMs && nowMs - atMs <= 1500
 
     fun arm(kind: Kind,address: String?): Boolean {
         if (kind==Kind.UNKNOWN || pending) return false
