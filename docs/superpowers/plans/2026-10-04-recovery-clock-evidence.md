@@ -7,6 +7,7 @@
 - [x] 五kind×负时间/溢出/合法边界共15测试，原实现10实际RED、5合法边界通过；/private/tmp/hoyi-recovery-clock-red.log。
 - [x] 最小修复15GREEN（0失败/错误/跳过），完整180任务构建、原会话检查、双APK/test APK/单测/双Lint通过；/private/tmp/hoyi-recovery-clock-green.log。
 - [x] 独立复审无阻塞，不代替实际执行测试。
-- [ ] 源码提交、对应CI核验。
+- [x] 源码58fd8fc推送，native37186079149及自动Mock升级37186079174已确认in_progress。
+- [ ] 对应CI最终日志/产物核验，当前不声称云端通过。
 
 测试只读canClear资格并检查pending/disk不变，不能证明产品完整恢复行为或真实硬件安全；现有Mock与后续设备验收仍有独立作用。
