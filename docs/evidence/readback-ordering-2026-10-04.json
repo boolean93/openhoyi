@@ -1,0 +1,25 @@
+{
+  "sourceCommit": "fd6947fb7c775f7b18327a2f69439173d9ac2dd5",
+  "scope": "SettingsWriteTracker and SleepNowTracker host serial ordering, not BLE replay identification",
+  "red": {
+    "originalTests": 6,
+    "originalFailures": 6,
+    "candidateAdditionalTests": 2,
+    "candidateAdditionalFailures": 2
+  },
+  "green": {
+    "tests": 8,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "fullLocalBuild": "success",
+    "tasks": 180
+  },
+  "independentReview": "no blocking findings; did not run Gradle",
+  "ci": {
+    "nativeRun": 37185499803,
+    "lastObservedStatus": "in_progress",
+    "verifiedSuccess": false
+  },
+  "hardwareTested": false
+}

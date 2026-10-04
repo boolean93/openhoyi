@@ -9,4 +9,5 @@
 - [x] 原实现6项实际RED，/private/tmp/hoyi-readback-order-red.log。
 - [x] 初始修复发现跨操作残留水位，新增2项实际RED，/private/tmp/hoyi-readback-order-reuse-red.log；begin按操作重置后8项GREEN。
 - [x] 完整本地协议/会话/蓝牙单测、Alpha/Mock APK及Mock测试APK、双变体单测和Lint通过，180 tasks；/private/tmp/hoyi-readback-order-final-build.log。
-- [ ] 独立复审及新源码CI证据。
+- [x] 独立复审无阻塞，未代替执行测试。
+- [ ] 新源码fd6947f的native37185499803最后查询in_progress；读取完成日志后补证据。
