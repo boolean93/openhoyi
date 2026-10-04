@@ -11,6 +11,6 @@ SleepPart没有值equals，tracker内比较day index、enabled bits、days及raw
 - [x] 按片段值比较后11项GREEN（0失败/错误/跳过），原92会话检查、完整Alpha/Mock/test APK、蓝牙/双应用单测及双Lint通过；180 tasks，/private/tmp/hoyi-schedule-order-final.log。
 - [x] 独立复审收敛，无剩余阻塞；未代替运行测试。
 - [x] 源码提交7fa8482推送。
-- [ ] 对应native37185839289最后确认in_progress，读取最终日志后补证据。
+- [x] 对应native37185839289成功，/private/tmp/hoyi-schedule-native-37185839289.log已读取；39823协议/32856通知/92会话/两APK各7113资源+6回环/发布12及临时签名APK均通过，无安装。
 
 不能用上述测试证明真实睡眠执行、周计划写入/恢复安全；这些仍待采样及硬件验收。

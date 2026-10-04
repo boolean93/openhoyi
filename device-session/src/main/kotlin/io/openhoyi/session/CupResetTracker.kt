@@ -20,6 +20,7 @@ class CupResetTracker {
         require(count in 1..65535)
         if (state == State.WRITING || state == State.WAITING_ZERO || state == State.UNKNOWN) return null
         expectedCount = count
+        markAfter(0L, 0L)
         state = State.WRITING
         return ++serial
     }
@@ -74,14 +75,14 @@ class CupResetTracker {
 
     fun timeout(token: Long, settingsSerial: Long, idleSerial: Long): Boolean {
         if (token != serial || state != State.WAITING_ZERO) return false
-        markAfter(settingsSerial, idleSerial)
+        markAfter(maxOf(afterSettings, settingsSerial), maxOf(afterIdle, idleSerial))
         state = State.UNKNOWN
         return true
     }
 
     fun disconnected(settingsSerial: Long, idleSerial: Long) {
         if (state == State.WRITING || state == State.WAITING_ZERO) {
-            markAfter(settingsSerial, idleSerial)
+            markAfter(maxOf(afterSettings, settingsSerial), maxOf(afterIdle, idleSerial))
             state = State.UNKNOWN
         }
     }
