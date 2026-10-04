@@ -1336,9 +1336,19 @@ class MobileService : Service() {
     }
     private fun notificationFailure(displayOnly: Boolean, resource: Int, kind: String, error: Throwable) {
         if (displayOnly) Log.w(TAG, "notification display failed: ${error.javaClass.simpleName}")
-        else event(ResourceMessage(resource), kind)
+        else try { event(ResourceMessage(resource), kind) }
+        catch (displayError: RuntimeException) {
+            Log.w(TAG, "notification error display failed: ${error.javaClass.simpleName}/${displayError.javaClass.simpleName}")
+        }
     }
     private fun refreshSafetyNotification(displayOnly: Boolean = false) {
+        try { updateSafetyNotification(displayOnly) }
+        catch (error: RuntimeException) {
+            // Notification presentation must never interrupt the caller's state-watch scheduling.
+            Log.w(TAG, "notification display failed: ${error.javaClass.simpleName}")
+        }
+    }
+    private fun updateSafetyNotification(displayOnly: Boolean) {
         if (mock != null) return
         val presentation = SafetyNotificationPresentation.from(
             ShotSafetyAlert.resource(shotState, snapshot.coffeeState), manualSafetyResource,

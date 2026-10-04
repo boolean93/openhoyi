@@ -6,7 +6,7 @@
 
 测试：沿用NotificationFailureChecks的独立Mock Service、禁止BLE/组件Context与实际pending fixture。将manualSafetyResource临时设为无效ID0，调用实际刷新：不得抛、访问manager或修改snapshot/警告缓存，finally恢复资源ID。再用无效资源ID调用实际错误报告方法，要求保留消息与控制阻止。该故障注入只证明资源缺失两条路径，不证明注册Service生命周期或全部Android错误。
 
-- [ ] 新断言在原修复上运行RED，确认真实Resources.NotFoundException。
-- [ ] 最小外围和错误报告保护，所有原断言保留。
+- [x] 新断言在原修复上运行RED（fe8e5cc/37132523724），警告文案解析抛Resources.NotFoundException，位于MobileService:1346；第二项错误报告断言随后待GREEN执行。
+- [x] 最小外围和错误报告保护，所有原断言保留；双APK/双单测/双Lint/testAPK170任务成功。
 - [ ] 本地构建/单测/Lint、实际Mock GREEN、完整原语言/音频/页面与升级回归。
 - [ ] 独立复审及证据更新。
