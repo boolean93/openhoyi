@@ -72,8 +72,18 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
         val running=current;current=null
         val waiting=pending.toList();pending.clear()
         try { driver.close(generation) } catch(_:Exception) { /* All waiters still settle. */ } finally {
-            running?.let { deliver(it,OperationResult.Unknown(reason)) }
-            waiting.forEach{deliver(it,OperationResult.Cancelled(reason))}
+            // Failure reporting must not abandon detached operations that have not settled yet.
+            var failure: Exception? = null
+            fun settle(p: Pending, result: OperationResult) {
+                try { deliver(p, result) } catch (error: Exception) {
+                    val first = failure
+                    if (first == null) failure = error
+                    else if (first !== error) first.addSuppressed(error)
+                }
+            }
+            running?.let { settle(it,OperationResult.Unknown(reason)) }
+            waiting.forEach{settle(it,OperationResult.Cancelled(reason))}
+            failure?.let { throw it }
         }
     }
 }
