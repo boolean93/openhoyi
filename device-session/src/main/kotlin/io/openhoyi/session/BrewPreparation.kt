@@ -37,8 +37,9 @@ class BrewPreparation {
     }
 
     fun observe(sampleSerial: Long, correctedHundredthsC: Int): Boolean {
-        if (state != State.WAITING_TEMP || sampleSerial <= afterSample ||
-            !isAtTarget(correctedHundredthsC, targetC ?: return false)) return false
+        if (state != State.WAITING_TEMP || sampleSerial <= afterSample) return false
+        afterSample = sampleSerial
+        if (!isAtTarget(correctedHundredthsC, targetC ?: return false)) return false
         state = State.READY
         return true
     }
