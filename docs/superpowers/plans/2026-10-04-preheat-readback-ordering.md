@@ -8,6 +8,6 @@
 - [x] 3项GREEN（0失败/错误/跳过），180任务完整本地协议/会话/蓝牙与应用单测、双APK/test APK/双Lint通过，/private/tmp/hoyi-preheat-order-green.log。
 - [x] 独立复审无阻塞，未代替执行测试。
 - [x] 源码069681d已推送，native37187536336确认in_progress。
-- [ ] CI最终日志核验。
+- [x] native37187536336成功，/private/tmp/hoyi-preheat-native-37187536336.log已读取；39823协议/32856通知/92会话/两APK各7113资源+6回环/发布12及临时签名APK通过，无安装。
 
 真实预热执行/取消/断链恢复仍待硬件证据；软件边界不证明设备安全。

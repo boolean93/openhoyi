@@ -13,4 +13,4 @@
 - [x] 独立复审无阻塞；shot fixture raw值保护已补。
 - [x] 源码fd9b569推送；native37186984318、Mock生命周期37186984311确认in_progress，Mock升级37186984336 queued。
 - [x] fd9b569/native37186984318和Mock升级37186984336成功且实际日志/产物已读；39823/32856/92/7113/发布12及同源码Mock1→2通过。
-- [ ] fd9b569/Mock生命周期37186984311最后仍in_progress；实际五fixture marker+原矩阵待读取，不能以构建/升级当测试执行通过。
+- [x] fd9b569/Mock生命周期37186984311成功，/private/tmp/hoyi-service-recovery-persistence-37186984311实际产物已读；五fixture failedWrites5/retries5/exactFailureEvent/noTransport及原入口13/78、清理/通知/八语言/五音频、两profile各80页+3marker通过。此版本尚无busyStages10/58，不混用来源。

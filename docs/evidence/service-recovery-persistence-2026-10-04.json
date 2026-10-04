@@ -1,0 +1,22 @@
+{
+  "sourceCommit": "fd9b56980f103f15783544fec42d5d302dead3a2",
+  "mockLifecycleRun": 37186984311,
+  "nativeRun": 37186984318,
+  "mockUpgradeRun": 37186984336,
+  "conclusion": "success",
+  "logsAndArtifactsRead": true,
+  "fixtures": 5,
+  "failedWrites": 5,
+  "explicitRetries": 5,
+  "exactFailureEvent": true,
+  "noTransport": true,
+  "syntheticReady": true,
+  "gateEntryFixtures": 13,
+  "gateEntries": 78,
+  "audioMarkers": 5,
+  "pageStartsPerProfile": 80,
+  "pageMarkersPerProfile": 3,
+  "busyStagesTested": false,
+  "hardwareTested": false,
+  "scope": "actual detached Service acknowledgement with synthetic evidence and Storage false, followed by UUID preference commit; not OS disk crash or real BLE"
+}

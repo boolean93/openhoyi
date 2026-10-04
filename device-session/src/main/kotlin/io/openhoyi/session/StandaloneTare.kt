@@ -37,8 +37,9 @@ class StandaloneTare(private val clock: () -> Long) {
 
     fun sample(sampleSerial: Long, hundredthsGram: Int) {
         tick()
-        if (state == State.WAITING_ZERO && sampleSerial > writtenAfterSample && abs(hundredthsGram.toLong()) <= 50)
-            state = State.CONFIRMED
+        if (state != State.WAITING_ZERO || sampleSerial <= writtenAfterSample) return
+        writtenAfterSample = sampleSerial
+        if (abs(hundredthsGram.toLong()) <= 50) state = State.CONFIRMED
     }
 
     fun tick() {
