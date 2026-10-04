@@ -9,6 +9,6 @@
 - [x] 独立复审无阻塞，不代替实际执行测试。
 - [x] 源码58fd8fc推送，native37186079149及自动Mock升级37186079174已确认in_progress。
 - [x] Mock升级37186079174成功且seed/verify/result实际产物已读取，/private/tmp/hoyi-recovery-clock-upgrade-37186079174；同源码/schema Mock1→2，不代表Alpha/历史迁移。
-- [ ] native37186079149最后确认in_progress，不能将Mock通过当完整构建通过。
+- [x] native37186079149成功且实际日志读取，/private/tmp/hoyi-recovery-clock-native-37186079149.log；39823协议/32856通知/92会话/两APK各7113资源+6回环/发布12及临时签名APK通过。
 
 测试只读canClear资格并检查pending/disk不变，不能证明产品完整恢复行为或真实硬件安全；现有Mock与后续设备验收仍有独立作用。
