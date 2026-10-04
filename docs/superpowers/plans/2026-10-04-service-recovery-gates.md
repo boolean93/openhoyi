@@ -13,4 +13,4 @@
 - [x] 独立复审未见调用/隔离阻塞；采纳marker语义修正，ACK attempts=13不称全部被拒绝（noPending/UNKNOWN可能no-op）。
 - [x] 源码8ab251c推送，native37186585789、Mock生命周期37186585805、Mock升级37186585831均确认in_progress。
 - [x] native37186585789及同源码/schema Mock升级37186585831成功，实际日志/seed/verify产物已读；39823/32856/92/7113及发布12通过。
-- [ ] Mock生命周期37186585805仍in_progress；实际instrumentation 13fixtures/78entries及原矩阵marker未核验，编译不表示测试执行通过。
+- [x] Mock生命周期37186585805成功并读取实际产物，/private/tmp/hoyi-service-recovery-gates-37186585805；入口13/78/ACK attempts13、原清理/通知/8语言、5音频、compact/wideFont各80 PAGE_START和3marker核验通过。范围无owner，不当READY/busy证明。

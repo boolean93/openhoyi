@@ -1,0 +1,22 @@
+{
+  "sourceCommit": "8ab251c53a5a7b4007b2bb53eb0bc17a07bcb00e",
+  "mockLifecycleRun": 37186585805,
+  "conclusion": "success",
+  "artifactRead": true,
+  "fixtures": 13,
+  "entries": 78,
+  "acknowledgementAttempts": 13,
+  "noOwner": true,
+  "originalLanguageMarkers": 8,
+  "audioMarkers": 5,
+  "pageStarts": {
+    "compact": 80,
+    "wideFont": 80
+  },
+  "pageMarkersPerProfile": 3,
+  "nativeRun": 37186585789,
+  "mockUpgradeRun": 37186585831,
+  "nativeAndUpgradeVerified": true,
+  "hardwareTested": false,
+  "scope": "detached Service durable control entry gates and no-owner acknowledgement preservation; not active transactions or actual BLE"
+}

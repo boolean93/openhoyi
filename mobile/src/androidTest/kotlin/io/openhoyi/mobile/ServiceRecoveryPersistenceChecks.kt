@@ -110,6 +110,72 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                             coffee = idle, coffeeAt = now, settings = settings, settingsAt = now,
                             sleepFirst = first, sleepSecond = second, sleepFirstAt = now, sleepSecondAt = now))
                         val warning = requireNotNull(instance.machineControlSafetyMessage)
+                        val tracker: Any = field(instance, when (kind) {
+                            MachineWriteRecoveryState.Kind.CUP_RESET -> "cupReset"
+                            MachineWriteRecoveryState.Kind.SETTING -> "settingsWrite"
+                            MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> "scheduleWrite"
+                            MachineWriteRecoveryState.Kind.SLEEP_NOW -> "sleepNow"
+                            MachineWriteRecoveryState.Kind.BREW_WAIT -> "brewPreparation"
+                            else -> error("invalid fixture")
+                        }).get(instance)
+                        val plan = requireNotNull(WeeklySleepSchedule.fromReadback(first, second))
+                        val token = requireNotNull(when (tracker) {
+                            is CupResetTracker -> tracker.begin(settings.cupCount)
+                            is SettingsWriteTracker -> tracker.begin(MachineSettingChange.BrewTemperature(93))
+                            is SleepScheduleWriteTracker -> tracker.begin(plan, 1, 1)
+                            is SleepNowTracker -> tracker.begin()
+                            is BrewPreparation -> tracker.begin("fixture", 93)
+                            else -> error("invalid tracker")
+                        })
+                        fun checkBusyGate() {
+                            val priorState = field(tracker, "state").get(tracker)
+                            check(!instance.machineWriteAcknowledgementAvailable)
+                            instance.acknowledgeManualSafety()
+                            check(attempts == 0 && recovery.pending && prefs.all == before && shotPrefs.all == shotBefore)
+                            check(field(tracker, "state").get(tracker) == priorState)
+                            val busyWarning = instance.machineControlSafetyMessage
+                            val entries = listOf(
+                                instance.changeMachineSetting(MachineSettingChange.BrewTemperature(93)),
+                                instance.resetCupCount(settings.cupCount),
+                                instance.changeSleepSchedule(plan, plan), instance.enterSleepNow(),
+                                instance.prepareBrew("fixture", false, 7))
+                            if (tracker is BrewPreparation) {
+                                // Ordinary preheat hides the advisory, but still blocks unrelated controls.
+                                check(busyWarning == null)
+                                val resources = listOf(R.string.service_write_preheat_block,
+                                    R.string.service_write_preheat_or_shot_block, R.string.service_write_preheat_block,
+                                    R.string.service_write_preheat_block, R.string.service_shot_preheat_pending)
+                                check(entries == resources.map(instance::getString))
+                                // Starting a shot is part of preheat consumption, governed separately.
+                            } else {
+                                check(busyWarning != null && entries.all { it == busyWarning })
+                                check(instance.startShot("fixture", false, 7) == busyWarning)
+                            }
+                            check(drivers.all { it.executions == 0 })
+                        }
+                        checkBusyGate() // WRITING must not permit acknowledgement.
+                        when (tracker) {
+                            is CupResetTracker -> check(tracker.written(token, OperationResult.Success(), 1, 1))
+                            is SettingsWriteTracker -> check(tracker.written(token, OperationResult.Success(), 1))
+                            is SleepScheduleWriteTracker -> check(tracker.written(token, OperationResult.Success(), 1, 1, first, second))
+                            is SleepNowTracker -> check(tracker.written(token, OperationResult.Success(), 1))
+                            is BrewPreparation -> check(tracker.written(token, OperationResult.Success(), 1))
+                        }
+                        checkBusyGate() // Transport success still waits for application evidence.
+                        when (tracker) {
+                            is CupResetTracker -> tracker.disconnected(1, 1)
+                            is SettingsWriteTracker -> tracker.disconnected(1)
+                            is SleepScheduleWriteTracker -> tracker.disconnected(1, 1)
+                            is SleepNowTracker -> tracker.disconnected(1)
+                            is BrewPreparation -> tracker.disconnected()
+                        }
+                        // Supply a fresh post-boundary snapshot; this is still synthetic readback evidence.
+                        listOf("cupSettingsSerial", "cupIdleSerial", "settingsSampleSerial", "firstSleepSerial",
+                            "secondSleepSerial", "sleepSampleSerial", "idleSampleSerial").forEach { field(instance, it).setLong(instance, 2) }
+                        val freshNow = SystemClock.elapsedRealtime()
+                        field(instance, "snapshot").set(instance, instance.snapshot.copy(coffeeAt = freshNow,
+                            settingsAt = freshNow, sleepFirstAt = freshNow, sleepSecondAt = freshNow))
+                        check(instance.machineWriteAcknowledgementAvailable)
                         instance.acknowledgeManualSafety()
                         check(attempts == 1 && recovery.pending && prefs.all == before && shotPrefs.all == shotBefore)
                         check(instance.machineControlSafetyMessage == warning)
