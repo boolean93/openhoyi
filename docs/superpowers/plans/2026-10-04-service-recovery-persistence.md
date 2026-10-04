@@ -11,4 +11,5 @@
 - [x] 初始testAPK/Lint101任务编译通过；/private/tmp/hoyi-service-recovery-persistence-build.log。
 - [x] shot prefs额外保持检查的最终编译101任务通过；/private/tmp/hoyi-service-recovery-persistence-final-build.log。
 - [x] 独立复审无阻塞；shot fixture raw值保护已补。
+- [x] 源码fd9b569推送；native37186984318、Mock生命周期37186984311确认in_progress，Mock升级37186984336 queued。
 - [ ] 实际Mock运行五fixture marker+原矩阵，编译不表示执行通过。
