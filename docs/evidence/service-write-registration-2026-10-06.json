@@ -1,5 +1,5 @@
 {
-  "sourceCommit": null,
+  "sourceCommit": "c297179c9995bf3e65ffab698317f35a5ce1fa16",
   "scope": "Detached actual MobileService prewrite rejection; synthetic READY; isolated Mock only",
   "local": {
     "testApk": "compiled",
@@ -36,7 +36,11 @@
     ],
     "runtimeVerified": false
   },
-  "cloudPending": {},
+  "cloudPending": {
+    "native": 37383364391,
+    "mockLifecycle": 37383364395,
+    "mockUpgrade": 37383364388
+  },
   "boundaries": [
     "Not a registered Service or real authentication/readback",
     "Inactive queues and fake driver do not prove successful-write transport behavior",

@@ -1,3 +1,5 @@
+本轮fixture源码c297179c9995bf3e65ffab698317f35a5ce1fa16已推送；自动native37383364391、Mock生命周期37383364395、Mock升级37383364388均in_progress。下一轮核对既有运行实际产物，尤其SERVICE_WRITE_REGISTRATION_CHECKS_PASSED（10/20/false+throw），不重复dispatch。此前e73ffff生命周期37382479688仍in_progress。工作区在文档提交后应保持clean。
+
 2026-10-06 当前任务：已新增ServiceWriteRegistrationChecks（仅androidTest），五真实入口mock=null/合成READY，以Storage false/throw各两次显式重试，10fixture/20登记失败；exact资源+attempt+WRITING屏障+kind/address，失败四类FAILED/Brew IDLE、snapshot/基线/偏好保持、假driver0执行，UUID偏好/日志/handler/owner清理。存储callback内只采集记录，断言在外面，避免runCatching吞失败。原始prefs对照，禁止系统/BLE/组件调用。新增marker在现有language instrumentation运行并由脚本强制核对。125任务测试APK/双Lint两次成功、独立复审无阻塞；尚未实际运行新fixture，不误算完成硬件验收。证据docs/evidence/service-write-registration-2026-10-06.json。下一步读取本次自动Mock运行，失败定向修复，再推进实际请求/完成结果协调。
 
 上一轮e73ffff/native37382479655 success完整日志已读（39823/32856/92+release guards）；Mock升级37382479606 success实际seed/verify/result已读，只同源码schema Mock 1→2。UI37382479607 success仅状态未视觉核对；Mock生命周期37382479688最后仍in_progress。不重复dispatch，下一轮查询既有任务并读实际产物。用户无设备，不安装/操作，目标继续active。
