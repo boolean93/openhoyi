@@ -25,5 +25,10 @@
   "storageWrittenOnLoad": false,
   "newBleCommands": false,
   "hardwareTested": false,
-  "scope": "Conservative loading of incomplete machine recovery records; completely empty and normal known-kind records keep existing behavior; does not prove historical schema migration or hardware safety"
+  "scope": "Conservative loading of incomplete machine recovery records; completely empty and normal known-kind records keep existing behavior; does not prove historical schema migration or hardware safety",
+  "documentationNativeRun": 37374526766,
+  "documentationNativeCommit": "5b48dcb9c9c336b15e059dd86a3dc4ceac3f5e0d",
+  "documentationNativeConclusion": "success",
+  "documentationNativeLogRead": true,
+  "diffFromSourceDocumentationOnly": true
 }

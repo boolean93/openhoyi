@@ -1,0 +1,27 @@
+{
+  "sourceCommit": "561b2ed2e2affcb0b060aba88a72847095f0a400",
+  "originalTests": {
+    "cases": 4,
+    "failures": 3
+  },
+  "fixedTests": {
+    "cases": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "fullLocalBuild": {
+    "tasks": 219,
+    "conclusion": "success"
+  },
+  "independentReview": "no blocking findings",
+  "nativeRun": 37375463458,
+  "mockUpgradeRun": 37375463511,
+  "cloudConclusion": "pending",
+  "loadingStorageWrites": 0,
+  "failedClearRetainsPending": true,
+  "successfulClearPersistsBothFields": true,
+  "newBleCommands": false,
+  "hardwareTested": false,
+  "scope": "Conservative loading of false marker with residual identity; preserves idempotent same-device arm and prior passive-clear semantics; not historical schema migration or hardware verification"
+}

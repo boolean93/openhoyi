@@ -1,3 +1,9 @@
+2026-10-06 当前任务：残留萃取身份修复源码 `561b2ed2e2affcb0b060aba88a72847095f0a400` 已推送。ShotRecoveryState仅false/null为空；false/非null残留地址加载为pending，合法身份保留、非法为空，不改写存储、不发命令。四参数组旧3RED→4GREEN，覆盖加载零写入、错误设备/未决萃取/缺待机、同地址arm幂等、clear失败保持→成功持久化及重载→重复clear不写。全部device-session与219任务完整构建/Lint、独立复审通过。新native `37375463458` 与升级 `37375463511` 最后queued，证据docs/evidence/orphan-shot-recovery-2026-10-06.json，尚未云端验收。
+
+4cec0b3/native `37373939684` 和Mock `37373939613` 已success并读实际日志/产物：十五回读负例、身份5/断连5、busy10/58、存储失败5/重试5、入口13/78及清理/通知/八语言/五音频、两profile各80页与三marker通过，证据docs/evidence/service-recovery-readback-2026-10-06.json。其升级 `37373939603` 终态failure，实际annotations确认未取得hosted runner，steps空，非测试失败，不计通过；有新版既有升级排队任务，不重跑旧任务。
+
+5b48dcb/docs-native `37374526766` 已success并读日志，与cd39624只差文档，核心缺kind残留修复的相同代码通过完整CI；原精确cd/native `37374440672` 和升级 `37374440846` 最后仍queued。d89d6cb/native `37374877456` 与daee29b/docs-native `37375071130` 最后in_progress。下一轮只查这些已存在任务并读终态证据。合成READY与保守加载不代表真实协议/硬件验收；用户无设备，不安装/控制，整体goal active。
+
 2026-10-06 当前任务：萃取恢复确认时钟修复源码 `d89d6cb7b59d490fe1aaf0c3aaef611c395fba08` 已推送。ShotRecoveryGate原缺非负域检查，负数/溢出差值可放行；只增加at>=0，归属/未决萃取优先级和1500ms边界不变。新增3项测试，原6项2RED→修复6GREEN；全部device-session与219任务完整双变体构建/Lint通过，独立复审无阻塞。证据 `docs/evidence/shot-recovery-clock-2026-10-06.json`。native `37374877456` 最后queued；未宣称云端或硬件验收。
 
 本轮查明旧aaa95ee/Mock `37373087119` 与f4c95d6/docs-native `37373207172` 终态failure：job respectively `111974839825`/`111975234093` 为cancelled、steps空、无产物；实际check-run annotations均为“The job was not acquired by Runner of type hosted even after multiple attempts”。属于未取得运行器，不是测试断言结果；不计通过，也不重启旧任务，因为新版4cec0b3/Mock `37373939613` 已在实际模拟器步骤in_progress。4cec/native `37373939684` in_progress，升级 `37373939603` queued；cd39624/native `37374440672`/升级 `37374440846` queued。5b48dcb/docs-native `37374526766` 与3460448/docs-native `37374030409` in_progress。下一轮查询既有任务并读最终产物，不重复dispatch；若新的源码任务终态失败，先读其日志/annotations再决定动作。用户无设备，不安装/控制；整体goal仍active未完成。
