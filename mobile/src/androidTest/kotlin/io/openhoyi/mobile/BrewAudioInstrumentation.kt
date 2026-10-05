@@ -70,7 +70,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
-                report.putString("stream", "SERVICE_RECOVERY_PERSISTENCE_CHECKS_PASSED fixtures=5 wrongIdentityAcknowledgements=5 disconnectedAcknowledgements=5 missingTimestampAcknowledgements=5 unchangedReadbackAcknowledgements=5 incompleteEvidenceAcknowledgements=5 busyStages=2 blockedAcknowledgements=10 blockedEntries=58 failedWrites=5 retries=5 retainedGate=true exactFailureEvent=true noTransport=true syntheticReady=true\n" +
+                report.putString("stream", "SERVICE_RECOVERY_PERSISTENCE_CHECKS_PASSED fixtures=5 wrongIdentityAcknowledgements=5 disconnectedAcknowledgements=5 missingTimestampAcknowledgements=5 unchangedReadbackAcknowledgements=5 incompleteEvidenceAcknowledgements=5 busyStages=2 preheatReady=true preheatCancelling=true blockedAcknowledgements=12 blockedEntries=69 failedWrites=5 retries=5 retainedGate=true exactFailureEvent=true noTransport=true syntheticReady=true\n" +
                     "SERVICE_RECOVERY_GATE_CHECKS_PASSED fixtures=18 entries=108 acknowledgementAttempts=18 preservedPending=true detached=true noBle=true\n" +
                     "SERVICE_SHUTDOWN_CHECKS_PASSED fixtures=4 allowed=1 blocked=3 pendingPreserved=true localManager=true noBle=true\n" +
                     "SERVICE_OWNER_CLEANUP_CHECKS_PASSED detached=true fakeTransports=true callbacksRemoved=true pendingPreserved=true noBle=true ownerThread=true\n" +

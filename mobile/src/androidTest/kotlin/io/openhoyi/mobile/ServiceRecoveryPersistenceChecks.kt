@@ -118,13 +118,16 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                             MachineWriteRecoveryState.Kind.BREW_WAIT -> R.string.recovery_event_brew_wait_recovery_waiting
                             else -> error("invalid fixture")
                         }
-                        fun checkAcknowledgementBlocked() {
+                        fun refreshPresentTimestamps() {
                             // Keep valid clocks fresh so another missing/invalid field is the intended blocker.
                             val current = instance.snapshot
                             val stamp = SystemClock.elapsedRealtime()
                             field(instance, "snapshot").set(instance, current.copy(
                                 coffeeAt = current.coffeeAt?.let { stamp }, settingsAt = current.settingsAt?.let { stamp },
                                 sleepFirstAt = current.sleepFirstAt?.let { stamp }, sleepSecondAt = current.sleepSecondAt?.let { stamp }))
+                        }
+                        fun checkAcknowledgementBlocked() {
+                            refreshPresentTimestamps()
                             check(instance.machineWriteAcknowledgementAvailable)
                             instance.acknowledgeManualSafety()
                             check(attempts == 0 && recovery.pending && prefs.all == before && shotPrefs.all == shotBefore)
@@ -183,6 +186,7 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                             else -> error("invalid tracker")
                         })
                         fun checkBusyGate() {
+                            refreshPresentTimestamps()
                             val priorState = field(tracker, "state").get(tracker)
                             check(!instance.machineWriteAcknowledgementAvailable)
                             instance.acknowledgeManualSafety()
@@ -195,13 +199,19 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                                 instance.changeSleepSchedule(plan, plan), instance.enterSleepNow(),
                                 instance.prepareBrew("fixture", false, 7))
                             if (tracker is BrewPreparation) {
-                                // Ordinary preheat hides the advisory, but still blocks unrelated controls.
-                                check(busyWarning == null)
-                                val resources = listOf(R.string.service_write_preheat_block,
-                                    R.string.service_write_preheat_or_shot_block, R.string.service_write_preheat_block,
-                                    R.string.service_write_preheat_block, R.string.service_shot_preheat_pending)
-                                check(entries == resources.map(instance::getString))
-                                // Starting a shot is part of preheat consumption, governed separately.
+                                if (tracker.state == BrewPreparation.State.CANCELLING) {
+                                    check(busyWarning == instance.getString(R.string.machine_recovery_brew_wait))
+                                    check(entries.all { it == busyWarning })
+                                    check(instance.startShot("fixture", false, 7) == busyWarning)
+                                } else {
+                                    // Ordinary preheat hides the advisory, but still blocks unrelated controls.
+                                    check(busyWarning == null)
+                                    val resources = listOf(R.string.service_write_preheat_block,
+                                        R.string.service_write_preheat_or_shot_block, R.string.service_write_preheat_block,
+                                        R.string.service_write_preheat_block, R.string.service_shot_preheat_pending)
+                                    check(entries == resources.map(instance::getString))
+                                    // Starting a shot is part of preheat consumption, governed separately.
+                                }
                             } else {
                                 check(busyWarning != null && entries.all { it == busyWarning })
                                 check(instance.startShot("fixture", false, 7) == busyWarning)
@@ -217,6 +227,12 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                             is BrewPreparation -> check(tracker.written(token, OperationResult.Success(), 1))
                         }
                         checkBusyGate() // Transport success still waits for application evidence.
+                        if (tracker is BrewPreparation) {
+                            check(tracker.observe(2, 9300) && tracker.state == BrewPreparation.State.READY)
+                            checkBusyGate() // Ready preheat remains an active intent until explicitly consumed.
+                            check(tracker.beginCancel() != null && tracker.state == BrewPreparation.State.CANCELLING)
+                            checkBusyGate() // A queued cancellation is not evidence that the machine stopped preheating.
+                        }
                         when (tracker) {
                             is CupResetTracker -> tracker.disconnected(1, 1)
                             is SettingsWriteTracker -> tracker.disconnected(1)
