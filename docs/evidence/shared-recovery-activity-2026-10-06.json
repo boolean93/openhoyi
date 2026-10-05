@@ -22,7 +22,6 @@
     "runtimeVerified": false
   },
   "cloudPending": {
-    "native": 37379839800,
     "mockLifecycle": 37379839704
   },
   "boundaries": [
@@ -37,6 +36,17 @@
       "status": "success",
       "artifactsRead": true,
       "scope": "Same current source/schema Mock 1->2"
+    },
+    "native": {
+      "run": 37379839800,
+      "status": "success",
+      "logsRead": true,
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "sessionNamedChecks": 92,
+      "variantStrings": 7113,
+      "literalRoundTrips": 6,
+      "releaseConfigCases": 12
     }
   },
   "cloudStatusOnly": {

@@ -1,0 +1,34 @@
+{
+  "sourceCommit": "52c95d48d266510f0ec228cf4e120ac7638d6950",
+  "scope": "Monotonic sample-age qualification for product control preflight and actual DeviceSession send/dispatch guards",
+  "local": {
+    "newNamedTests": 6,
+    "initialExpectedFailures": 5,
+    "fullTasks": 219,
+    "status": "success",
+    "independentReview": "no blocking findings",
+    "diffCheck": "success"
+  },
+  "tested": {
+    "negativeAndOverflowDomain": true,
+    "inclusive1500AndSettings180000Boundary": true,
+    "preheatCancelBlockPriority": true,
+    "coffeeAndScaleStartPreflight": true,
+    "zeroWeightModePreserved": true,
+    "authenticatedSyntheticSessionSleepAndCancelRejection": true,
+    "newValidIdleRestoresSendEligibility": true,
+    "queuedSleepRechecksBeforeDriverExecution": true
+  },
+  "cloudPending": {
+    "native": 37380567798,
+    "mockLifecycle": 37380567825,
+    "mockUpgrade": 37380567716,
+    "mockUi": 37380567847
+  },
+  "boundaries": [
+    "Fake driver session tests, no physical BLE or hardware",
+    "Queued cancel guarded via shared function but not separately executed in new test",
+    "ExtractionPolicy machine elapsed age and ExtractionController frame/elapsed timers not migrated",
+    "Real hardware and registered Service lifecycle verification remains incomplete"
+  ]
+}
