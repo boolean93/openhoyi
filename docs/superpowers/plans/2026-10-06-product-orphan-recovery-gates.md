@@ -9,3 +9,5 @@
 - [x] 增5fixture与明确预期，保持原13fixture断言；marker调整为18/108/18。
 - [x] 测试APK/Lint101任务编译成功，shell语法与diff检查通过；独立只读复审无阻塞。日志 `/private/tmp/hoyi-product-orphan-gates-build.log`，实际运行未计通过。
 - [ ] 提交推送，核对现有云端运行和新marker及原完整矩阵；未执行不计通过。
+
+源码 `e3aa581b679dd19c743a70fd01b3084e31c60f57`；native `37376998874`、Mock生命周期 `37376998752`、Mock升级 `37376998919` 已确认in_progress。新运行必须有18/108/18入口marker；旧13/78/13不能替代。

@@ -1,3 +1,9 @@
+2026-10-06 当前任务：不完整记录的产品入口测试源码 `e3aa581b679dd19c743a70fd01b3084e31c60f57` 已推送，仅androidTest/script。原13fixture保留，新增完整shot-only1、shot false残留地址合法/非法2、machine缺kind残留地址合法/非法2，共18×六入口=108，ACK attempts18。原始字段与expected pending/kind分开；shot要求确切restart、machine残留要求UNKNOWN，空记录严格service_unavailable，ACK保持rawprefs/warning；UUID/detached/noowner/禁组件权限系统及finally不变。不改生产政策，不能说覆盖所有设备操作或READY/GATT。最终101任务testAPK/Lint、shell/diff、独立复审通过，运行未验收。
+
+新native `37376998874`、Mock生命周期 `37376998752`、Mock升级 `37376998919` 最后in_progress。必须读新18/108/18 marker，不能拿旧13/78/13产物代替。下一轮查这三项既有任务，并读对应最终产物。
+
+561b2ed/native `37375463458` 最终success实际日志读，源码残留shot修复的完整CI通过；升级已验，两类证据不替代新增product fixture。5a82936/native `37376132381` 与升级 `37376132464` 均success且实际日志/seed/verify/result读，证据docs/evidence/product-ci-dependencies-2026-10-06.json；其Mock `37376132608` 仍in_progress（旧13marker）。同源码/schema Mock1→2不代表Alpha/历史schema迁移/真实设备。其它docs-only native已终结success，无需重跑。用户无设备，不安装/控制；整体goal active未完成。
+
 2026-10-06 当前任务：产品CI依赖触发范围源码 `5a82936ecf7ce4140ea77dfc24e841dd44b46c90` 已推送，仅两个workflow paths变更。五模块main及Mobile src/mock共149个实际Git跟踪文件、12构建路径及未来新文件匹配；普通JVM测试/文档/Lab排除。原main147旧漏117/133；YAML解析与jobs/permissions/branch结构比较保持，复审补Mock manifest/资源后无阻塞。不改执行器/生产逻辑，未为配置修改重跑Gradle。自动native `37376132381`、Mock生命周期 `37376132608`、Mock升级 `37376132464` 均最后in_progress；本次覆盖新恢复加载/时钟源码的产品运行待这些产物。
 
 d89d6cb/native `37374877456` 与cd39624/native `37374440672` 已success并读日志，完整39823/32856/92、双APK7113/6回环及发布12通过，证据对应json已更新。cd升级 `37374440846` 终态failure，实际annotations为未取得hosted runner、steps空，不算测试结果，不重跑旧任务。

@@ -17,7 +17,7 @@
   "independentReview": "no blocking findings",
   "nativeRun": 37375463458,
   "mockUpgradeRun": 37375463511,
-  "cloudConclusion": "upgrade_success_native_pending",
+  "cloudConclusion": "native_and_same_source_mock_upgrade_success",
   "loadingStorageWrites": 0,
   "failedClearRetainsPending": true,
   "successfulClearPersistsBothFields": true,
@@ -26,5 +26,8 @@
   "scope": "Conservative loading of false marker with residual identity; preserves idempotent same-device arm and prior passive-clear semantics; not historical schema migration or hardware verification",
   "mockUpgradeConclusion": "success",
   "mockUpgradeArtifactsRead": true,
-  "mockUpgradeScope": "Same current source/schema Mock 1->2 on qemu; not Alpha, real hardware or historical schema migration"
+  "mockUpgradeScope": "Same current source/schema Mock 1->2 on qemu; not Alpha, real hardware or historical schema migration",
+  "nativeConclusion": "success",
+  "nativeLogRead": true,
+  "orphanProductFixtureRuntimeVerified": false
 }

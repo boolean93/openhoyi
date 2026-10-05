@@ -1,0 +1,22 @@
+{
+  "sourceCommit": "5a82936ecf7ce4140ea77dfc24e841dd44b46c90",
+  "mainFilesChecked": 147,
+  "mainAndMockFilesChecked": 149,
+  "oldLifecycleMainFilesUnmatched": 117,
+  "oldUpgradeMainFilesUnmatched": 133,
+  "newFilesUnmatched": 0,
+  "buildPathsChecked": 12,
+  "yamlParsed": true,
+  "jobsPermissionsAndBranchesUnchanged": true,
+  "futureMainAndMockPathsMatched": true,
+  "documentationUnitTestsAndLabExcluded": true,
+  "nativeRun": 37376132381,
+  "nativeConclusion": "success",
+  "nativeLogRead": true,
+  "mockUpgradeRun": 37376132464,
+  "mockUpgradeConclusion": "success",
+  "mockUpgradeArtifactsRead": true,
+  "mockLifecycleRun": 37376132608,
+  "mockLifecycleConclusion": "in_progress",
+  "scope": "CI path trigger coverage only; same-current-source/schema Mock upgrade on qemu; not functional completeness, historical schema migration or hardware safety"
+}
