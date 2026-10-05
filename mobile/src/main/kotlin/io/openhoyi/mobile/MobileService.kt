@@ -32,6 +32,7 @@ import io.openhoyi.session.DeviceRole
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 import io.openhoyi.session.OperationResult
+import io.openhoyi.session.TelemetryFreshness
 import io.openhoyi.session.SettingsFreshness
 import io.openhoyi.session.ScaleReadingPolicy
 import io.openhoyi.session.SleepScheduleFreshness
@@ -303,7 +304,7 @@ class MobileService : Service() {
                 val now = SystemClock.elapsedRealtime()
                 val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
                     snapshot.scaleState == DeviceState.READY &&
-                        snapshot.weightAt?.let { received -> received <= now && now - received <= 1500 } == true
+                        TelemetryFreshness.isFresh(snapshot.weightAt, now)
                 }
                 runCatching { history?.transition(current, stopReason, weight) }
                     .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
@@ -527,7 +528,7 @@ class MobileService : Service() {
                             passiveMayClearRecovery = false
                             val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
                                 snapshot.scaleState == DeviceState.READY &&
-                                    snapshot.weightAt?.let { time -> observedAt >= time && observedAt - time <= 1500 } == true
+                                    TelemetryFreshness.isFresh(snapshot.weightAt, observedAt)
                             }
                             passiveHistoryId?.let {
                                 runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
@@ -732,7 +733,7 @@ class MobileService : Service() {
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val now = SystemClock.elapsedRealtime()
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
-        if (snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true)
+        if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, now))
             return getString(R.string.service_write_idle_stale)
         if (idle.sleepStateRaw != 0) return getString(R.string.service_write_setting_awake_block)
         val observed = snapshot.settings ?: return getString(R.string.settings_missing)
@@ -806,7 +807,7 @@ class MobileService : Service() {
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         val now = SystemClock.elapsedRealtime()
-        if (snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true || idle.sleepStateRaw != 0)
+        if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, now) || idle.sleepStateRaw != 0)
             return getString(R.string.service_write_awake_idle_needed)
         val settingsCount = snapshot.settings?.cupCount ?: return getString(R.string.service_write_cups_missing)
         if (!machineSettingsFresh) return getString(R.string.service_write_cups_settings_stale)
@@ -879,7 +880,7 @@ class MobileService : Service() {
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val now = SystemClock.elapsedRealtime()
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
-        if (snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true || idle.sleepStateRaw != 0)
+        if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, now) || idle.sleepStateRaw != 0)
             return getString(R.string.service_write_awake_idle_needed)
         if (!sleepScheduleFresh) return getString(R.string.service_write_schedule_stale)
         val observed = WeeklySleepSchedule.fromReadback(snapshot.sleepFirst, snapshot.sleepSecond)
@@ -960,7 +961,7 @@ class MobileService : Service() {
         val now = SystemClock.elapsedRealtime()
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         val observedAt = snapshot.coffeeAt ?: return getString(R.string.service_write_idle_waiting)
-        if (observedAt > now || now - observedAt > 1500) return getString(R.string.service_write_idle_stale)
+        if (!TelemetryFreshness.isFresh(observedAt, now)) return getString(R.string.service_write_idle_stale)
         if (idle.sleepStateRaw == 1) return getString(R.string.service_write_sleep_already_asleep)
         if (idle.sleepStateRaw != 0) return getString(R.string.service_write_sleep_state_unknown)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_sleep_identity_missing)
@@ -1015,7 +1016,7 @@ class MobileService : Service() {
         val settings = snapshot.settings ?: return null
         val now = SystemClock.elapsedRealtime()
         if (snapshot.coffeeState != DeviceState.READY || !machineSettingsFresh ||
-            snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } != true) return null
+            !TelemetryFreshness.isFresh(snapshot.coffeeAt, now)) return null
         return BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
             settings.brewCompensationTenthsC)
     }

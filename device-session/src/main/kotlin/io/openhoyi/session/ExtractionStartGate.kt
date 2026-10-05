@@ -21,13 +21,11 @@ object ExtractionStartGate {
         !validated -> Block.CURVE_UNVERIFIED
         DeviceConnectionGate.unsettled(shot) -> Block.EXTRACTION_UNSETTLED
         coffee != DeviceState.READY -> Block.COFFEE_NOT_READY
-        coffeeFrame !is IdleTelemetry || coffeeAt == null || coffeeAt > now ||
-            now - coffeeAt > 1500 -> Block.IDLE_NOT_FRESH
+        coffeeFrame !is IdleTelemetry || !TelemetryFreshness.isFresh(coffeeAt, now) -> Block.IDLE_NOT_FRESH
         coffeeFrame.sleepStateRaw == 1 -> Block.ASLEEP
         coffeeFrame.sleepStateRaw != 0 -> Block.SLEEP_UNKNOWN
         targetHundredthsGram > 0 && scale != DeviceState.READY -> Block.SCALE_NOT_READY
-        targetHundredthsGram > 0 && (weightAt == null || weightAt > now ||
-            now - weightAt > 1500) -> Block.WEIGHT_NOT_FRESH
+        targetHundredthsGram > 0 && !TelemetryFreshness.isFresh(weightAt, now) -> Block.WEIGHT_NOT_FRESH
         !CoffeeAlarmPolicy.permitsNewControl(coffeeFrame.alarmBits) -> Block.ALARM
         else -> null
     }

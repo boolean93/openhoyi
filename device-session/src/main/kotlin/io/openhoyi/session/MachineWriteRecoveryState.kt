@@ -72,7 +72,7 @@ class MachineWriteRecoveryState(private val storage: Storage) {
 
     /** Check the nonnegative monotonic domain before subtraction to prevent overflow. */
     private fun freshIdle(atMs: Long?, nowMs: Long): Boolean =
-        atMs != null && atMs >= 0 && nowMs >= atMs && nowMs - atMs <= 1500
+        TelemetryFreshness.isFresh(atMs, nowMs)
 
     fun arm(kind: Kind,address: String?): Boolean {
         if (kind==Kind.UNKNOWN || pending) return false

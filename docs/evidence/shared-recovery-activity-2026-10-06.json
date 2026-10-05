@@ -23,14 +23,27 @@
   },
   "cloudPending": {
     "native": 37379839800,
-    "mockLifecycle": 37379839704,
-    "mockUpgrade": 37379839761,
-    "mockUi": 37379839686
+    "mockLifecycle": 37379839704
   },
   "boundaries": [
     "Availability is advisory; identity/READY/serial/freshness eligibility remains separate",
     "Current-source Android runtime evidence pending",
     "No physical device or BLE control",
     "Not complete shared Service request coordination"
-  ]
+  ],
+  "cloudVerified": {
+    "mockUpgrade": {
+      "run": 37379839761,
+      "status": "success",
+      "artifactsRead": true,
+      "scope": "Same current source/schema Mock 1->2"
+    }
+  },
+  "cloudStatusOnly": {
+    "mockUi": {
+      "run": 37379839686,
+      "status": "success",
+      "visualArtifactsReviewed": false
+    }
+  }
 }

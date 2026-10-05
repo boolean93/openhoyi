@@ -10,9 +10,7 @@
     "fixtureBuild": "success",
     "independentReview": "no blocking findings"
   },
-  "cloudPending": {
-    "mockLifecycle": 37378979088
-  },
+  "cloudPending": {},
   "priorEvidence": {
     "orphanProduct": {
       "source": "e3aa581b679dd19c743a70fd01b3084e31c60f57",
@@ -42,7 +40,7 @@
     }
   },
   "boundaries": [
-    "Current-source Mock 12 acknowledgement / 69 entry and shared wiring runtime verification pending",
+    "Shared acknowledgement synthetic Android wiring verified; not real BLE or registered Service lifecycle",
     "No physical device or BLE sends in fixtures",
     "Not full request coordination or historical Alpha upgrade verification"
   ],
@@ -65,6 +63,24 @@
       "variantStrings": 7113,
       "literalRoundTrips": 6,
       "releaseConfigCases": 12
+    },
+    "mockLifecycle": {
+      "run": 37378979088,
+      "status": "success",
+      "artifactsRead": true,
+      "fixtures": 18,
+      "entries": 108,
+      "acknowledgementAttempts": 18,
+      "busyAcknowledgements": 12,
+      "busyEntries": 69,
+      "preheatReady": true,
+      "preheatCancelling": true,
+      "pageProfiles": {
+        "compact": 80,
+        "wideFont": 80
+      },
+      "audioMarkers": 5,
+      "languageMarkers": 8
     }
   },
   "cloudStatusOnly": {

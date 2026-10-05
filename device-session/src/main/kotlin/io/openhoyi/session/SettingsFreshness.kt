@@ -4,5 +4,5 @@ package io.openhoyi.session
 object SettingsFreshness {
     const val MAX_AGE_MS = 180_000L
     fun isFresh(receivedAtMs: Long?, nowMs: Long): Boolean =
-        receivedAtMs?.let { it >= 0 && it <= nowMs && nowMs - it <= MAX_AGE_MS } == true
+        TelemetryFreshness.isFresh(receivedAtMs, nowMs, MAX_AGE_MS)
 }

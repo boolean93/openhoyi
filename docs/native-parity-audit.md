@@ -77,3 +77,5 @@
 2026-10-06：五类机器恢复确认接入共享纯Kotlin MachineWriteAcknowledgement（WAITING/CLEAR_FAILED/ACKNOWLEDGED），复用原canClear与同步clear；Service保留证据适配、shot/manual优先级及原资源/tag/顺序。15项新参数测试先5RED后全GREEN，219任务完整回归/构建/Lint和独立复审通过；本轮Mock运行仍待验收。上轮37377688521因取消预热测试遗漏隔离curves偏好失败，本轮已补合法选中曲线与隔离/清理对照，125任务testAPK/Lint通过；未放宽断言。e3aa581/37376998752实际产物已读取，18/108/18入口及旧10/58、全部语言/页面/音频矩阵通过，不能替代新增12/69或本轮接线验收。该迁移仅收拢恢复确认，整个Service请求协调尚未统一。
 
 2026-10-06：MachineRecoveryActivity统一五tracker活动判断，恢复按钮资格与实际ACK证据共用规则；cup/schedule控制入口busy也接入。3命名测试覆盖36state、144种本kind/shot flags和8未知/空kind；默认stub2RED→全GREEN。非Brew不额外读取shot恢复，Brew pending短路保留；产品18夹具新增availability/读取次数对照，原18/108/18不变。219任务完整回归及最终170任务Android接线/单测/构建/Lint成功，独立复审无阻塞；当前产品运行未验收。60f5d5a升级37378979031实际产物成功（同源码/schema Mock1→2），其Mock37378979088尚运行中；不替代新活动规则。
+
+2026-10-06：采样年龄规则统一至TelemetryFreshness，先非负域/now>=at/有效窗口再相减；修Preheat取消、Extraction启动与实际DeviceSession入队/出队负时间缺口，Service待机/重量年龄接入，原Settings/Scale/恢复年龄复用。4+2新增测试旧3+2RED→6GREEN，219任务完整构建/回归/Lint和独立复审通过，软件证据无真机。仅采样资格，不涵盖所有萃取timer/机器时间路径。60f5d5a/37378979088产品完整产物通过12/69与18/108及音频/语言/页面矩阵，证据已验；活动源2ae9a37新availability计数仍待其Mock37379839704。

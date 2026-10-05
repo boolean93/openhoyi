@@ -178,8 +178,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val idle=lastIdle ?: return false
         val observedAt=lastIdleAtMs ?: return false
         val now=clock()
-        return role==DeviceRole.COFFEE && state==DeviceState.READY && observedAt<=now &&
-            now-observedAt<=1500 && idle.sleepStateRaw==0 && CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits)
+        return role==DeviceRole.COFFEE && state==DeviceState.READY &&
+            TelemetryFreshness.isFresh(observedAt,now) && idle.sleepStateRaw==0 && CoffeeAlarmPolicy.permitsNewControl(idle.alarmBits)
     }
     private fun canControlWithFreshSettings():Boolean =
         canControlFromIdle() && SettingsFreshness.isFresh(lastSettingsAtMs,clock())
@@ -188,8 +188,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val observedAt=lastIdleAtMs ?: return false
         val now=clock()
         // Cancellation is allowed during an alarm, but never from stale or extraction telemetry.
-        return role==DeviceRole.COFFEE && state==DeviceState.READY && observedAt<=now &&
-            now-observedAt<=1500 && idle.sleepStateRaw==0
+        return role==DeviceRole.COFFEE && state==DeviceState.READY &&
+            TelemetryFreshness.isFresh(observedAt,now) && idle.sleepStateRaw==0
     }
     private fun permittedStart(parameters:StartParameters):EncodedCommand? {
         val command=runCatching { CoffeeCommands.start(parameters) }.getOrNull() ?: return null

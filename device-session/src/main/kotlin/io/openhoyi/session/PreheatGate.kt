@@ -31,7 +31,7 @@ object PreheatGate {
             return CancelBlock.EXTRACTION_UNSETTLED
         if (coffeeState != DeviceState.READY) return CancelBlock.COFFEE_NOT_READY
         val idle = frame as? IdleTelemetry ?: return CancelBlock.IDLE_MISSING
-        if (receivedAtMs?.let { it <= nowMs && nowMs - it <= 1500 } != true)
+        if (!TelemetryFreshness.isFresh(receivedAtMs, nowMs))
             return CancelBlock.IDLE_STALE
         if (idle.sleepStateRaw != 0) return CancelBlock.NOT_AWAKE
         return null
