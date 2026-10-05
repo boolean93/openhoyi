@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import io.openhoyi.session.ShotRecoveryState
+import io.openhoyi.session.MachineRecoveryActivity
 import io.openhoyi.session.MachineWriteAcknowledgement
 import io.openhoyi.session.MachineWriteRecoveryState
 
@@ -123,18 +124,13 @@ class MobileService : Service() {
     private val shotRecoveryClearResource: Int? get() = shotRecoveryClearGate.resource(shotRecovery,
         hub?.coffeeAddress, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
         SystemClock.elapsedRealtime(), shotState, manualShotActive)
-    val machineWriteAcknowledgementAvailable: Boolean get() = when (machineWriteRecovery.kind) {
-        MachineWriteRecoveryState.Kind.CUP_RESET -> !cupResetBusy
-        MachineWriteRecoveryState.Kind.SETTING -> settingsWrite.state !in setOf(
-            SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK)
-        MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> !scheduleBusy
-        MachineWriteRecoveryState.Kind.SLEEP_NOW -> sleepNow.state !in setOf(
-            SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP)
-        MachineWriteRecoveryState.Kind.BREW_WAIT -> !shotRecovery.pending &&
-            !ShotGate.active(shotState) && brewPreparation.state in setOf(
-            BrewPreparation.State.IDLE, BrewPreparation.State.FAILED,
-            BrewPreparation.State.UNKNOWN, BrewPreparation.State.CANCEL_WRITTEN)
-        else -> false
+    val machineWriteAcknowledgementAvailable: Boolean get() {
+        val kind = machineWriteRecovery.kind
+        val brewWait = kind == MachineWriteRecoveryState.Kind.BREW_WAIT
+        val pendingShot = brewWait && shotRecovery.pending
+        return MachineRecoveryActivity.available(kind, cupReset.state, settingsWrite.state,
+            scheduleWrite.state, sleepNow.state, brewPreparation.state, pendingShot,
+            brewWait && !pendingShot && ShotGate.active(shotState))
     }
     val machineWriteRecoveryKind: MachineWriteRecoveryState.Kind? get() = machineWriteRecovery.kind
     private var recoveryAfterSettingsSerial = 0L
@@ -146,8 +142,7 @@ class MobileService : Service() {
     private val cupReset = CupResetTracker()
     val cupResetState: CupResetTracker.State get() = if (mock?.cupReset == true)
         CupResetTracker.State.CONFIRMED else cupReset.state
-    private val cupResetBusy: Boolean get() = cupReset.state in
-        setOf(CupResetTracker.State.WRITING, CupResetTracker.State.WAITING_ZERO)
+    private val cupResetBusy: Boolean get() = MachineRecoveryActivity.isBusy(cupReset.state)
     private var cupSettingsSerial = 0L
     private var cupIdleSerial = 0L
     private fun observeCupCount(settingsFrame: Boolean, count: Int) {
@@ -190,8 +185,7 @@ class MobileService : Service() {
     val scheduleWriteState: SleepScheduleWriteTracker.State get() = if (mock?.scheduleChanged == true)
         SleepScheduleWriteTracker.State.CONFIRMED else scheduleWrite.state
     val pendingSchedule: WeeklySleepSchedule? get() = scheduleWrite.target
-    private val scheduleBusy: Boolean get() = scheduleWrite.state in
-        setOf(SleepScheduleWriteTracker.State.WRITING, SleepScheduleWriteTracker.State.WAITING_READBACK)
+    private val scheduleBusy: Boolean get() = MachineRecoveryActivity.isBusy(scheduleWrite.state)
     private var firstSleepSerial = 0L
     private var secondSleepSerial = 0L
     val tareState: StandaloneTare.State get() = if (mock?.tareChanged == true)
@@ -1393,8 +1387,7 @@ class MobileService : Service() {
             val evidence = MachineWriteRecoveryState.BrewWaitEvidence(hub?.coffeeAddress,
                 idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
                 idleSampleSerial, snapshot.coffeeAt, now,
-                state !in setOf(BrewPreparation.State.IDLE, BrewPreparation.State.FAILED,
-                    BrewPreparation.State.UNKNOWN, BrewPreparation.State.CANCEL_WRITTEN))
+                MachineRecoveryActivity.isBusy(state))
             acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.BrewWait(evidence, recoveryAfterBrewWaitIdleSerial),
                 R.string.recovery_event_brew_wait_recovery_waiting,
                 R.string.recovery_event_brew_wait_recovery_clear_failed,
@@ -1421,8 +1414,7 @@ class MobileService : Service() {
                 snapshot.settings != null, settingsSampleSerial,
                 idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
                 snapshot.coffeeAt, now,
-                settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,
-                    SettingsWriteTracker.State.WAITING_READBACK))
+                MachineRecoveryActivity.isBusy(settingsWrite.state))
             acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.Setting(evidence, recoveryAfterSettingsSerial),
                 R.string.recovery_event_settings_recovery_waiting,
                 R.string.recovery_event_settings_recovery_clear_failed,
@@ -1449,8 +1441,7 @@ class MobileService : Service() {
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.SleepEvidence(hub?.coffeeAddress,
                 idle?.sleepStateRaw, sleepSampleSerial, snapshot.coffeeAt, now,
-                sleepNow.state in setOf(SleepNowTracker.State.WRITING,
-                    SleepNowTracker.State.WAITING_ASLEEP))
+                MachineRecoveryActivity.isBusy(sleepNow.state))
             acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.Sleep(evidence, recoveryAfterSleepSerial),
                 R.string.recovery_event_sleep_recovery_waiting,
                 R.string.recovery_event_sleep_recovery_clear_failed,

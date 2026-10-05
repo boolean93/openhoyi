@@ -75,3 +75,5 @@
 2026-10-06：5a82936三项CI成功且日志/产物已读，原13入口fixture、busy10/58与完整矩阵保留。e3aa581/native37376998874及升级37376998919成功并读产物，18fixture实际Mock37376998752尚待终态。a9b6bb4扩展预热READY/CANCELLING：busy ACK12/入口69，编译复审通过，实际运行待37377688521，不改生产控制。
 
 2026-10-06：五类机器恢复确认接入共享纯Kotlin MachineWriteAcknowledgement（WAITING/CLEAR_FAILED/ACKNOWLEDGED），复用原canClear与同步clear；Service保留证据适配、shot/manual优先级及原资源/tag/顺序。15项新参数测试先5RED后全GREEN，219任务完整回归/构建/Lint和独立复审通过；本轮Mock运行仍待验收。上轮37377688521因取消预热测试遗漏隔离curves偏好失败，本轮已补合法选中曲线与隔离/清理对照，125任务testAPK/Lint通过；未放宽断言。e3aa581/37376998752实际产物已读取，18/108/18入口及旧10/58、全部语言/页面/音频矩阵通过，不能替代新增12/69或本轮接线验收。该迁移仅收拢恢复确认，整个Service请求协调尚未统一。
+
+2026-10-06：MachineRecoveryActivity统一五tracker活动判断，恢复按钮资格与实际ACK证据共用规则；cup/schedule控制入口busy也接入。3命名测试覆盖36state、144种本kind/shot flags和8未知/空kind；默认stub2RED→全GREEN。非Brew不额外读取shot恢复，Brew pending短路保留；产品18夹具新增availability/读取次数对照，原18/108/18不变。219任务完整回归及最终170任务Android接线/单测/构建/Lint成功，独立复审无阻塞；当前产品运行未验收。60f5d5a升级37378979031实际产物成功（同源码/schema Mock1→2），其Mock37378979088尚运行中；不替代新活动规则。

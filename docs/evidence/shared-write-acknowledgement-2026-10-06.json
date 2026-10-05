@@ -13,7 +13,6 @@
   "cloudPending": {
     "native": 37378979071,
     "mockLifecycle": 37378979088,
-    "mockUpgrade": 37378979031,
     "mockUi": 37378979058
   },
   "priorEvidence": {
@@ -48,5 +47,15 @@
     "Current-source Mock 12 acknowledgement / 69 entry and shared wiring runtime verification pending",
     "No physical device or BLE sends in fixtures",
     "Not full request coordination or historical Alpha upgrade verification"
-  ]
+  ],
+  "cloudVerified": {
+    "mockUpgrade": {
+      "run": 37378979031,
+      "status": "success",
+      "seedRead": true,
+      "verifyRead": true,
+      "resultRead": true,
+      "scope": "Same current source/schema Mock 1->2; not Alpha or historical schema migration"
+    }
+  }
 }

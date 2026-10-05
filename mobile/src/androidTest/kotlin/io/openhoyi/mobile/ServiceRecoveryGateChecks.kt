@@ -43,11 +43,15 @@ internal class ServiceRecoveryGateChecks(private val test: Instrumentation) {
             val fixtures = names.associateWith { "service_recovery_${id}_$it" }
             val folder = File(app.cacheDir, "service-recovery-$id")
             val journal = TraceStore(folder)
+            var shotPreferenceReads = 0
             val context = object : ContextWrapper(app) {
                 override fun getApplicationContext(): Context = this
                 override fun getSystemService(name: String): Any? = error("No system services: $name")
                 override fun checkSelfPermission(permission: String): Int = error("No BLE permission access")
-                override fun getSharedPreferences(name: String, mode: Int) = app.getSharedPreferences(requireNotNull(fixtures[name]), mode)
+                override fun getSharedPreferences(name: String, mode: Int): android.content.SharedPreferences {
+                    if (name == "shot_safety") shotPreferenceReads++
+                    return app.getSharedPreferences(requireNotNull(fixtures[name]), mode)
+                }
                 override fun startService(intent: Intent) = error("No component dispatch")
                 override fun startForegroundService(intent: Intent) = error("No component dispatch")
                 override fun bindService(intent: Intent, connection: ServiceConnection, flags: Int) = error("No component dispatch")
@@ -75,6 +79,12 @@ internal class ServiceRecoveryGateChecks(private val test: Instrumentation) {
                         field(instance, "logs").set(instance, journal)
                         field(instance, "mock").set(instance, null)
                         check(field(instance, "hub").get(instance) == null)
+                        check(shotPreferenceReads == 0)
+                        val brewWait = fixture.expectedKind == MachineWriteRecoveryState.Kind.BREW_WAIT
+                        val knownKind = fixture.expectedKind != null && fixture.expectedKind != MachineWriteRecoveryState.Kind.UNKNOWN
+                        check(instance.machineWriteAcknowledgementAvailable ==
+                            (knownKind && (!brewWait || !fixture.expectedShotPending)))
+                        check(shotPreferenceReads == if (brewWait) 1 else 0)
                         val warning = instance.machineControlSafetyMessage
                         val writeWarning = instance.machineWriteSafetyMessage
                         if (fixture.expectedKind == null) check(writeWarning == null)
