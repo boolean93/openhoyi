@@ -1,0 +1,36 @@
+{
+  "sourceCommit": "2ae9a373426c8a837b6aad76feed858dccca3d0f",
+  "scope": "Existing transaction activity rules shared between UI availability and actual clear evidence; no protocol or timeout change",
+  "local": {
+    "namedTests": 3,
+    "initialExpectedFailures": 2,
+    "typedStates": 36,
+    "availabilityFlagCombinations": 144,
+    "emptyUnknownCombinations": 8,
+    "fullBuildTasks": 219,
+    "finalAndroidTasks": 170,
+    "status": "success",
+    "independentReview": "no blocking findings",
+    "shellAndDiff": "success"
+  },
+  "productTestSource": {
+    "existingFixtures": 18,
+    "existingEntries": 108,
+    "existingAcknowledgements": 18,
+    "newAvailabilityChecks": 18,
+    "lazyShotPreferenceReadChecks": 18,
+    "runtimeVerified": false
+  },
+  "cloudPending": {
+    "native": 37379839800,
+    "mockLifecycle": 37379839704,
+    "mockUpgrade": 37379839761,
+    "mockUi": 37379839686
+  },
+  "boundaries": [
+    "Availability is advisory; identity/READY/serial/freshness eligibility remains separate",
+    "Current-source Android runtime evidence pending",
+    "No physical device or BLE control",
+    "Not complete shared Service request coordination"
+  ]
+}

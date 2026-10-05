@@ -11,9 +11,7 @@
     "independentReview": "no blocking findings"
   },
   "cloudPending": {
-    "native": 37378979071,
-    "mockLifecycle": 37378979088,
-    "mockUi": 37378979058
+    "mockLifecycle": 37378979088
   },
   "priorEvidence": {
     "orphanProduct": {
@@ -56,6 +54,24 @@
       "verifyRead": true,
       "resultRead": true,
       "scope": "Same current source/schema Mock 1->2; not Alpha or historical schema migration"
+    },
+    "native": {
+      "run": 37378979071,
+      "status": "success",
+      "logsRead": true,
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "sessionNamedChecks": 92,
+      "variantStrings": 7113,
+      "literalRoundTrips": 6,
+      "releaseConfigCases": 12
+    }
+  },
+  "cloudStatusOnly": {
+    "mockUi": {
+      "run": 37378979058,
+      "status": "success",
+      "visualArtifactsReviewed": false
     }
   }
 }
