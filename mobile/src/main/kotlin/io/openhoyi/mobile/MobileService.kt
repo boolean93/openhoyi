@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import io.openhoyi.session.ShotRecoveryState
+import io.openhoyi.session.MachineWriteAcknowledgement
 import io.openhoyi.session.MachineWriteRecoveryState
 
 import io.openhoyi.session.BrewPreparation
@@ -1394,18 +1395,11 @@ class MobileService : Service() {
                 idleSampleSerial, snapshot.coffeeAt, now,
                 state !in setOf(BrewPreparation.State.IDLE, BrewPreparation.State.FAILED,
                     BrewPreparation.State.UNKNOWN, BrewPreparation.State.CANCEL_WRITTEN))
-            if (snapshot.coffeeState != DeviceState.READY ||
-                !machineWriteRecovery.canClearBrewWait(evidence, recoveryAfterBrewWaitIdleSerial)) {
-                event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_waiting), "brew_wait.recovery_waiting")
-                return
-            }
-            if (!machineWriteRecovery.clear()) {
-                event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_clear_failed), "brew_wait.recovery_clear_failed")
-                return
-            }
-            brewPreparation.consumed()
-            event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_acknowledged), "brew_wait.recovery_acknowledged")
-            refreshSafetyNotification()
+            acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.BrewWait(evidence, recoveryAfterBrewWaitIdleSerial),
+                R.string.recovery_event_brew_wait_recovery_waiting,
+                R.string.recovery_event_brew_wait_recovery_clear_failed,
+                R.string.recovery_event_brew_wait_recovery_acknowledged, "brew_wait",
+                onAcknowledged = { brewPreparation.consumed() })
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET) {
@@ -1414,18 +1408,10 @@ class MobileService : Service() {
             val evidence = MachineWriteRecoveryState.CupResetEvidence(hub?.coffeeAddress,
                 snapshot.settings?.cupCount, cupSettingsSerial, idle?.cupCount, cupIdleSerial,
                 snapshot.coffeeAt, now, cupResetBusy)
-            if (snapshot.coffeeState != DeviceState.READY ||
-                !machineWriteRecovery.canClearCupReset(evidence,
-                    recoveryAfterSettingsSerial, recoveryAfterIdleSerial)) {
-                event(ResourceMessage(R.string.recovery_event_cups_recovery_waiting), "cups.recovery_waiting")
-                return
-            }
-            if (!machineWriteRecovery.clear()) {
-                event(ResourceMessage(R.string.recovery_event_cups_recovery_clear_failed), "cups.recovery_clear_failed")
-                return
-            }
-            event(ResourceMessage(R.string.recovery_event_cups_recovery_acknowledged), "cups.recovery_acknowledged")
-            refreshSafetyNotification()
+            acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.CupReset(evidence, recoveryAfterSettingsSerial, recoveryAfterIdleSerial),
+                R.string.recovery_event_cups_recovery_waiting,
+                R.string.recovery_event_cups_recovery_clear_failed,
+                R.string.recovery_event_cups_recovery_acknowledged, "cups")
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
@@ -1437,17 +1423,10 @@ class MobileService : Service() {
                 snapshot.coffeeAt, now,
                 settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,
                     SettingsWriteTracker.State.WAITING_READBACK))
-            if (snapshot.coffeeState != DeviceState.READY ||
-                !machineWriteRecovery.canClearSetting(evidence, recoveryAfterSettingsSerial)) {
-                event(ResourceMessage(R.string.recovery_event_settings_recovery_waiting), "settings.recovery_waiting")
-                return
-            }
-            if (!machineWriteRecovery.clear()) {
-                event(ResourceMessage(R.string.recovery_event_settings_recovery_clear_failed), "settings.recovery_clear_failed")
-                return
-            }
-            event(ResourceMessage(R.string.recovery_event_settings_recovery_acknowledged), "settings.recovery_acknowledged")
-            refreshSafetyNotification()
+            acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.Setting(evidence, recoveryAfterSettingsSerial),
+                R.string.recovery_event_settings_recovery_waiting,
+                R.string.recovery_event_settings_recovery_clear_failed,
+                R.string.recovery_event_settings_recovery_acknowledged, "settings")
             return
         }
         if (manualSafetyResource == null &&
@@ -1459,19 +1438,10 @@ class MobileService : Service() {
                 firstSleepSerial, secondSleepSerial,
                 idle?.let { it.sleepStateRaw == 0 && it.alarmBits and 0xBFFF == 0 } == true,
                 snapshot.coffeeAt, now, scheduleBusy)
-            if (snapshot.coffeeState != DeviceState.READY ||
-                !machineWriteRecovery.canClearSchedule(evidence,
-                    recoveryAfterFirstSleepSerial, recoveryAfterSecondSleepSerial)) {
-                event(ResourceMessage(R.string.recovery_event_sleep_schedule_recovery_waiting),
-                    "sleep_schedule.recovery_waiting")
-                return
-            }
-            if (!machineWriteRecovery.clear()) {
-                event(ResourceMessage(R.string.recovery_event_sleep_schedule_recovery_clear_failed), "sleep_schedule.recovery_clear_failed")
-                return
-            }
-            event(ResourceMessage(R.string.recovery_event_sleep_schedule_recovery_acknowledged), "sleep_schedule.recovery_acknowledged")
-            refreshSafetyNotification()
+            acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.Schedule(evidence, recoveryAfterFirstSleepSerial, recoveryAfterSecondSleepSerial),
+                R.string.recovery_event_sleep_schedule_recovery_waiting,
+                R.string.recovery_event_sleep_schedule_recovery_clear_failed,
+                R.string.recovery_event_sleep_schedule_recovery_acknowledged, "sleep_schedule")
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
@@ -1481,17 +1451,10 @@ class MobileService : Service() {
                 idle?.sleepStateRaw, sleepSampleSerial, snapshot.coffeeAt, now,
                 sleepNow.state in setOf(SleepNowTracker.State.WRITING,
                     SleepNowTracker.State.WAITING_ASLEEP))
-            if (snapshot.coffeeState != DeviceState.READY ||
-                !machineWriteRecovery.canClearSleep(evidence, recoveryAfterSleepSerial)) {
-                event(ResourceMessage(R.string.recovery_event_sleep_recovery_waiting), "sleep.recovery_waiting")
-                return
-            }
-            if (!machineWriteRecovery.clear()) {
-                event(ResourceMessage(R.string.recovery_event_sleep_recovery_clear_failed), "sleep.recovery_clear_failed")
-                return
-            }
-            event(ResourceMessage(R.string.recovery_event_sleep_recovery_acknowledged), "sleep.recovery_acknowledged")
-            refreshSafetyNotification()
+            acknowledgeMachineWrite(MachineWriteAcknowledgement.Request.Sleep(evidence, recoveryAfterSleepSerial),
+                R.string.recovery_event_sleep_recovery_waiting,
+                R.string.recovery_event_sleep_recovery_clear_failed,
+                R.string.recovery_event_sleep_recovery_acknowledged, "sleep")
             return
         }
         if (manualSafetyResource == null) return
@@ -1508,6 +1471,25 @@ class MobileService : Service() {
         manualSafetyResource = null
         event(ResourceMessage(R.string.recovery_event_shot_passive_acknowledged), "shot.passive_acknowledged")
         refreshSafetyNotification()
+    }
+    private fun acknowledgeMachineWrite(
+        request: MachineWriteAcknowledgement.Request,
+        waitingResource: Int,
+        failedResource: Int,
+        acknowledgedResource: Int,
+        eventPrefix: String,
+        onAcknowledged: () -> Unit = {}
+    ) {
+        val result = MachineWriteAcknowledgement.acknowledge(machineWriteRecovery,
+            snapshot.coffeeState == DeviceState.READY, request)
+        if (result == MachineWriteAcknowledgement.Result.ACKNOWLEDGED) onAcknowledged()
+        val (resource, suffix) = when (result) {
+            MachineWriteAcknowledgement.Result.WAITING -> waitingResource to "waiting"
+            MachineWriteAcknowledgement.Result.CLEAR_FAILED -> failedResource to "clear_failed"
+            MachineWriteAcknowledgement.Result.ACKNOWLEDGED -> acknowledgedResource to "acknowledged"
+        }
+        event(ResourceMessage(resource), "${eventPrefix}.recovery_$suffix")
+        if (result == MachineWriteAcknowledgement.Result.ACKNOWLEDGED) refreshSafetyNotification()
     }
     private fun closeDeviceOwner() {
         check(Looper.myLooper() == Looper.getMainLooper()) { "Device owner close must use main looper" }

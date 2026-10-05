@@ -34,7 +34,7 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
-        val names = listOf("shot_safety", "machine_write_safety")
+        val names = listOf("shot_safety", "machine_write_safety", "curves")
         val original = names.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         val first = decode("8340FE0A00071E0A00071E0A00071E0A00071E3D") as SleepPart
         val second = decode("83800A00071E0A00071E0A00071E10") as SleepPart
@@ -57,6 +57,13 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                 override fun stopService(intent: Intent) = error("No component dispatch")
             }
             try {
+                // startShot reads selection before the BREW_WAIT cancellation gate. Keep it
+                // isolated and valid, so rejection cannot come from a missing curve fixture.
+                val selected = CurveCatalog.profiles.first()
+                check(app.curves.resolve(selected.id, false, 7) == selected && CurveCatalog.validated(selected))
+                val curvePrefs = app.getSharedPreferences(fixtures.getValue("curves"), Context.MODE_PRIVATE)
+                check(curvePrefs.edit().putString("selected", selected.id).commit())
+                val curveBefore = curvePrefs.all.toMap()
                 val prefs = app.getSharedPreferences(fixtures.getValue("machine_write_safety"), Context.MODE_PRIVATE)
                 check(prefs.edit().putString("pending_kind", kind.name).putString("pending_address", address).commit())
                 val shotPrefs = app.getSharedPreferences(fixtures.getValue("shot_safety"), Context.MODE_PRIVATE)
@@ -202,7 +209,7 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                                 if (tracker.state == BrewPreparation.State.CANCELLING) {
                                     check(busyWarning == instance.getString(R.string.machine_recovery_brew_wait))
                                     check(entries.all { it == busyWarning })
-                                    check(instance.startShot("fixture", false, 7) == busyWarning)
+                                    check(instance.startShot(selected.id, selected.scaleMode, 7) == busyWarning)
                                 } else {
                                     // Ordinary preheat hides the advisory, but still blocks unrelated controls.
                                     check(busyWarning == null)
@@ -214,9 +221,9 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                                 }
                             } else {
                                 check(busyWarning != null && entries.all { it == busyWarning })
-                                check(instance.startShot("fixture", false, 7) == busyWarning)
+                                check(instance.startShot(selected.id, selected.scaleMode, 7) == busyWarning)
                             }
-                            check(drivers.all { it.executions == 0 })
+                            check(drivers.all { it.executions == 0 } && curvePrefs.all == curveBefore)
                         }
                         checkBusyGate() // WRITING must not permit acknowledgement.
                         when (tracker) {
