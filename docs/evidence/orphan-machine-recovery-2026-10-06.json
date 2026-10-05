@@ -21,7 +21,7 @@
   "independentReview": "no blocking findings",
   "nativeRun": 37374440672,
   "mockUpgradeRun": 37374440846,
-  "cloudConclusion": "pending",
+  "cloudConclusion": "native_success_upgrade_unverified",
   "storageWrittenOnLoad": false,
   "newBleCommands": false,
   "hardwareTested": false,
@@ -30,5 +30,8 @@
   "documentationNativeCommit": "5b48dcb9c9c336b15e059dd86a3dc4ceac3f5e0d",
   "documentationNativeConclusion": "success",
   "documentationNativeLogRead": true,
-  "diffFromSourceDocumentationOnly": true
+  "diffFromSourceDocumentationOnly": true,
+  "nativeConclusion": "success",
+  "nativeLogRead": true,
+  "mockUpgradeConclusion": "runner_not_acquired_no_tests"
 }

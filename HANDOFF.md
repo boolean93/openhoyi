@@ -1,3 +1,9 @@
+2026-10-06 当前任务：产品CI依赖触发范围源码 `5a82936ecf7ce4140ea77dfc24e841dd44b46c90` 已推送，仅两个workflow paths变更。五模块main及Mobile src/mock共149个实际Git跟踪文件、12构建路径及未来新文件匹配；普通JVM测试/文档/Lab排除。原main147旧漏117/133；YAML解析与jobs/permissions/branch结构比较保持，复审补Mock manifest/资源后无阻塞。不改执行器/生产逻辑，未为配置修改重跑Gradle。自动native `37376132381`、Mock生命周期 `37376132608`、Mock升级 `37376132464` 均最后in_progress；本次覆盖新恢复加载/时钟源码的产品运行待这些产物。
+
+d89d6cb/native `37374877456` 与cd39624/native `37374440672` 已success并读日志，完整39823/32856/92、双APK7113/6回环及发布12通过，证据对应json已更新。cd升级 `37374440846` 终态failure，实际annotations为未取得hosted runner、steps空，不算测试结果，不重跑旧任务。
+
+561b2ed/Mock升级 `37375463511` success且实际result/seed/verify读取，同源码/schema Mock1→2数据与恢复保护保持通过，仍非Alpha/真实设备/历史schema迁移。其native `37375463458` 与36ac2bd/docs-native `37375630481` 最后in_progress。下一轮先查上述新三任务与561精确native，读产物再计通过，不重复dispatch；新shared main变更今后自动触发产品级CI。用户无设备，不安装/控制，整体goal仍active未完成。
+
 2026-10-06 当前任务：残留萃取身份修复源码 `561b2ed2e2affcb0b060aba88a72847095f0a400` 已推送。ShotRecoveryState仅false/null为空；false/非null残留地址加载为pending，合法身份保留、非法为空，不改写存储、不发命令。四参数组旧3RED→4GREEN，覆盖加载零写入、错误设备/未决萃取/缺待机、同地址arm幂等、clear失败保持→成功持久化及重载→重复clear不写。全部device-session与219任务完整构建/Lint、独立复审通过。新native `37375463458` 与升级 `37375463511` 最后queued，证据docs/evidence/orphan-shot-recovery-2026-10-06.json，尚未云端验收。
 
 4cec0b3/native `37373939684` 和Mock `37373939613` 已success并读实际日志/产物：十五回读负例、身份5/断连5、busy10/58、存储失败5/重试5、入口13/78及清理/通知/八语言/五音频、两profile各80页与三marker通过，证据docs/evidence/service-recovery-readback-2026-10-06.json。其升级 `37373939603` 终态failure，实际annotations确认未取得hosted runner，steps空，非测试失败，不计通过；有新版既有升级排队任务，不重跑旧任务。
