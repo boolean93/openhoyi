@@ -118,7 +118,13 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                             MachineWriteRecoveryState.Kind.BREW_WAIT -> R.string.recovery_event_brew_wait_recovery_waiting
                             else -> error("invalid fixture")
                         }
-                        fun checkIdentityBlocked() {
+                        fun checkAcknowledgementBlocked() {
+                            // Keep valid clocks fresh so another missing/invalid field is the intended blocker.
+                            val current = instance.snapshot
+                            val stamp = SystemClock.elapsedRealtime()
+                            field(instance, "snapshot").set(instance, current.copy(
+                                coffeeAt = current.coffeeAt?.let { stamp }, settingsAt = current.settingsAt?.let { stamp },
+                                sleepFirstAt = current.sleepFirstAt?.let { stamp }, sleepSecondAt = current.sleepSecondAt?.let { stamp }))
                             check(instance.machineWriteAcknowledgementAvailable)
                             instance.acknowledgeManualSafety()
                             check(attempts == 0 && recovery.pending && prefs.all == before && shotPrefs.all == shotBefore)
@@ -128,11 +134,37 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                         }
                         field(devices[0].session, "activeAddress").set(devices[0].session, "AA:BB:CC:DD:EE:02")
                         check(owner.coffeeAddress == "AA:BB:CC:DD:EE:02")
-                        checkIdentityBlocked()
+                        checkAcknowledgementBlocked()
                         field(devices[0].session, "activeAddress").set(devices[0].session, address)
                         field(instance, "snapshot").set(instance, instance.snapshot.copy(coffeeState = DeviceState.DISCONNECTED))
-                        checkIdentityBlocked()
+                        checkAcknowledgementBlocked()
                         field(instance, "snapshot").set(instance, instance.snapshot.copy(coffeeState = DeviceState.READY))
+                        val validSnapshot = instance.snapshot
+                        field(instance, "snapshot").set(instance, validSnapshot.copy(coffeeAt = null))
+                        checkAcknowledgementBlocked()
+                        field(instance, "snapshot").set(instance, validSnapshot)
+                        val baselines = when (kind) {
+                            MachineWriteRecoveryState.Kind.CUP_RESET -> listOf("recoveryAfterSettingsSerial", "recoveryAfterIdleSerial")
+                            MachineWriteRecoveryState.Kind.SETTING -> listOf("recoveryAfterSettingsSerial")
+                            MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> listOf("recoveryAfterFirstSleepSerial", "recoveryAfterSecondSleepSerial")
+                            MachineWriteRecoveryState.Kind.SLEEP_NOW -> listOf("recoveryAfterSleepSerial")
+                            MachineWriteRecoveryState.Kind.BREW_WAIT -> listOf("recoveryAfterBrewWaitIdleSerial")
+                            else -> error("invalid fixture")
+                        }
+                        baselines.forEach { field(instance, it).setLong(instance, 1) }
+                        checkAcknowledgementBlocked()
+                        baselines.forEach { field(instance, it).setLong(instance, 0) }
+                        val incomplete = when (kind) {
+                            MachineWriteRecoveryState.Kind.CUP_RESET -> validSnapshot.copy(coffee = idle.copy(cupCount = settings.cupCount + 1))
+                            MachineWriteRecoveryState.Kind.SETTING -> validSnapshot.copy(settings = null)
+                            MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> validSnapshot.copy(sleepSecond = null)
+                            MachineWriteRecoveryState.Kind.SLEEP_NOW -> validSnapshot.copy(coffee = idle.copy(sleepStateRaw = 2))
+                            MachineWriteRecoveryState.Kind.BREW_WAIT -> validSnapshot.copy(coffee = idle.copy(sleepStateRaw = 1))
+                            else -> error("invalid fixture")
+                        }
+                        field(instance, "snapshot").set(instance, incomplete)
+                        checkAcknowledgementBlocked()
+                        field(instance, "snapshot").set(instance, validSnapshot)
                         val tracker: Any = field(instance, when (kind) {
                             MachineWriteRecoveryState.Kind.CUP_RESET -> "cupReset"
                             MachineWriteRecoveryState.Kind.SETTING -> "settingsWrite"
