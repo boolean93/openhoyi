@@ -15,7 +15,8 @@ object ShotRecoveryGate {
         if (manualShotActive || DeviceConnectionGate.unsettled(shot)) return Block.EXTRACTION_UNSETTLED
         if (!recovery.matchesDevice(address)) return Block.DEVICE_MISMATCH
         if (coffee != DeviceState.READY || frame !is IdleTelemetry ||
-            receivedAtMs?.let { it <= nowMs && nowMs - it <= 1500 } != true)
+            // Validate the nonnegative monotonic domain before subtracting.
+            receivedAtMs?.let { it >= 0 && it <= nowMs && nowMs - it <= 1500 } != true)
             return Block.IDLE_NOT_FRESH
         return null
     }

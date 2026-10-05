@@ -67,4 +67,34 @@ class ShotRecoveryGateTest {
             ShotRecoveryGate.clearBlock(legacy, address, DeviceState.READY, idle, 1000, 2501,
                 ExtractionState.IDLE, false))
     }
+
+    @Test fun negativeClockEvidenceCannotAllowHumanAcknowledgement() {
+        assertEquals(ShotRecoveryGate.Block.IDLE_NOT_FRESH, block(at = -1, now = 100))
+        assertEquals(ShotRecoveryGate.Block.IDLE_NOT_FRESH, block(at = -1, now = -1))
+        assertTrue(recovery.pending)
+        assertEquals(0, writes)
+    }
+
+    @Test fun subtractionOverflowCannotMakeAncientIdleFresh() {
+        assertEquals(ShotRecoveryGate.Block.IDLE_NOT_FRESH,
+            block(at = Long.MIN_VALUE, now = Long.MAX_VALUE))
+        assertTrue(recovery.pending)
+        assertEquals(0, writes)
+    }
+
+    @Test fun nonnegativeClockDomainRetainsExactFreshnessAndGatePriority() {
+        assertNull(block(at = 0, now = 0))
+        assertNull(block(at = 0, now = 1500))
+        assertNull(block(at = Long.MAX_VALUE - 1500, now = Long.MAX_VALUE))
+        assertEquals(ShotRecoveryGate.Block.IDLE_NOT_FRESH, block(at = 0, now = 1501))
+        assertEquals(ShotRecoveryGate.Block.IDLE_NOT_FRESH, block(at = 0, now = Long.MAX_VALUE))
+        assertEquals(ShotRecoveryGate.Block.IDLE_NOT_FRESH, block(at = 101, now = 100))
+        assertEquals(ShotRecoveryGate.Block.IDLE_NOT_FRESH, block(at = null))
+        assertEquals(ShotRecoveryGate.Block.EXTRACTION_UNSETTLED,
+            block(at = -1, now = -1, shot = ExtractionState.OUTCOME_UNKNOWN))
+        assertEquals(ShotRecoveryGate.Block.DEVICE_MISMATCH,
+            block(machine = "AA:BB:CC:DD:EE:02", at = -1, now = -1))
+        assertTrue(recovery.pending)
+        assertEquals(0, writes)
+    }
 }
