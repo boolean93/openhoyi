@@ -1,3 +1,9 @@
+2026-10-06 当前任务：预热恢复READY/CANCELLING产品测试源码 `a9b6bb42d5b9b3f33e22cf6c1abb23a3800f567a` 已推送，仅androidTest/script。原五kind共通WRITING/WAITING保留；BREW_WAIT真实observe(2,9300)→READY、beginCancel→CANCELLING。READY隐藏advisory但挡五无关控制；CANCELLING精确brew_wait warning挡五入口及startShot，非缺曲线假通过。busy确认10+2=12、入口58+5+6=69；ACK保持attempt0/pending/rawprefs/tracker，刷新非空时间不补缺失。disconnect UNKNOWN后原Storage失败/重试正例保留，fake execution0，不调用实际取消发送。最终101任务testAPK/Lint、shell/diff及独立复审通过，实际运行未验收。
+
+新native `37377688511`、Mock生命周期 `37377688521`、Mock升级 `37377688550` 最后in_progress。必须新marker preheatReady=true/preheatCancelling=true/blockedACK12/entries69，入口仍18/108/18。下一轮查这三项既有任务并读最终产物，不重复dispatch。
+
+e3aa581/native `37376998874` 和升级 `37376998919` 最终success并读日志/seed/verify/result，Mock `37376998752` 仍in_progress，新增18入口尚未运行验收。5a82936/Mock `37376132608` 最终success并读完整产物，原13/78/13、busy10/58、15回读负例、清理通知/八语言/五音频及两profile各80页+三marker通过；该源的三CI均实际证据已验，证据docs/evidence/product-ci-dependencies-2026-10-06.json更新。不能将旧计数替代新增状态/fixture。同源码Mock升级仅qemu/schema1→2，不是Alpha/历史迁移/真实硬件。用户无设备，不安装/控制；整体goal active未完成。
+
 2026-10-06 当前任务：不完整记录的产品入口测试源码 `e3aa581b679dd19c743a70fd01b3084e31c60f57` 已推送，仅androidTest/script。原13fixture保留，新增完整shot-only1、shot false残留地址合法/非法2、machine缺kind残留地址合法/非法2，共18×六入口=108，ACK attempts18。原始字段与expected pending/kind分开；shot要求确切restart、machine残留要求UNKNOWN，空记录严格service_unavailable，ACK保持rawprefs/warning；UUID/detached/noowner/禁组件权限系统及finally不变。不改生产政策，不能说覆盖所有设备操作或READY/GATT。最终101任务testAPK/Lint、shell/diff、独立复审通过，运行未验收。
 
 新native `37376998874`、Mock生命周期 `37376998752`、Mock升级 `37376998919` 最后in_progress。必须读新18/108/18 marker，不能拿旧13/78/13产物代替。下一轮查这三项既有任务，并读对应最终产物。

@@ -17,6 +17,15 @@
   "mockUpgradeConclusion": "success",
   "mockUpgradeArtifactsRead": true,
   "mockLifecycleRun": 37376132608,
-  "mockLifecycleConclusion": "in_progress",
-  "scope": "CI path trigger coverage only; same-current-source/schema Mock upgrade on qemu; not functional completeness, historical schema migration or hardware safety"
+  "mockLifecycleConclusion": "success",
+  "scope": "CI path trigger coverage only; same-current-source/schema Mock upgrade on qemu; not functional completeness, historical schema migration or hardware safety",
+  "mockLifecycleArtifactsRead": true,
+  "gateFixturesAtThisCommit": 13,
+  "gateEntriesAtThisCommit": 78,
+  "busyAcknowledgementsAtThisCommit": 10,
+  "busyEntriesAtThisCommit": 58,
+  "pageStartsPerProfile": 80,
+  "pageMarkersPerProfile": 3,
+  "audioMarkers": 5,
+  "languageMarkers": 8
 }

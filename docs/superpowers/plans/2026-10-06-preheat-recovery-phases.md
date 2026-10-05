@@ -11,3 +11,5 @@ READY沿用隐藏advisory但阻止五种无关控制，不把正常消费预热�
 - [x] 加两状态/精确文案/计数marker，刷新有效时间但不补缺失证据。原58+5+6=69入口、原10+2=12确认。
 - [x] 测试APK/Lint101任务成功，shell/diff通过；独立只读复审无阻塞。日志 `/private/tmp/hoyi-preheat-recovery-phases-build.log`，未宣称实际运行通过。
 - [ ] 提交推送并核对新源码实际产物；排队/运行不当通过。
+
+源码 `a9b6bb42d5b9b3f33e22cf6c1abb23a3800f567a`；native37377688511、Mock生命周期37377688521、Mock升级37377688550均已确认in_progress。必须新marker含preheatReady/preheatCancelling与12/69，不能用旧busy10/58代替。

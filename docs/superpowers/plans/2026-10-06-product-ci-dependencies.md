@@ -11,6 +11,8 @@
 - [x] 先用实际Git跟踪生产文件验证旧filters的遗漏。五模块147个main文件，生命周期漏117、升级漏133；不能把路径触发覆盖当功能测试覆盖。
 - [x] 补两workflow依赖范围；YAML解析与路径匹配确认149个main/Mock文件、12个构建路径和未来新源文件均匹配，普通JVM测试/文档/Lab排除。复审指出Mock变体manifest/资源遗漏，已补src/mock并复验。
 - [x] 复核job、权限、分支定义未改变，独立只读复审修正后无阻塞。提交推送后记录现有自动任务。
-- [ ] 核对新源码现有CI任务与最终产物；排队/运行不算通过。
+- [x] 核对5a82936三项任务均success，实际native日志、升级seed/verify/result与Mock完整产物读取；原13/78/13、busy10/58及原矩阵通过。不是后续18入口或12/69预热新增状态证据。
 
 源码 `5a82936ecf7ce4140ea77dfc24e841dd44b46c90`；自动native `37376132381`、Mock生命周期 `37376132608`、Mock升级 `37376132464` 均已确认in_progress。尚未实际产物通过，不手动重复触发。
+
+最终证据：`docs/evidence/product-ci-dependencies-2026-10-06.json`；实际产物 `/private/tmp/hoyi-product-ci-mock-37376132608`。
