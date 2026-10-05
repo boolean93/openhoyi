@@ -1,0 +1,35 @@
+{
+  "sourceCommit": "283807afc65c58fbe54ecde023b96543b1267bc7",
+  "productionChanged": false,
+  "scope": "Representative writes in seven control families; fake driver eligibility and dispatch tests only",
+  "local": {
+    "newNamedTests": 5,
+    "initialRejections": 28,
+    "queuedRejectionsWithoutTick": 28,
+    "validWriteSubmissions": 21,
+    "partialScheduleRejectionsViaTick": 4,
+    "stopWritesPreserved": 4,
+    "totalCombinations": 85,
+    "legacyGuardMutation": {
+      "namedTestsAtMutation": 4,
+      "expectedFailures": 3,
+      "sourceRestoredInFinally": true
+    },
+    "completeDeviceSessionCheck": "success",
+    "existingSessionNamedScenarios": 92,
+    "originalDeviceSessionFreshnessTestsPreserved": 2,
+    "independentReview": "no blocking findings",
+    "diffCheck": "success"
+  },
+  "cloudPending": {
+    "native": 37381614423,
+    "previousProductionMockLifecycle": 37380567825
+  },
+  "boundaries": [
+    "Synthetic initialization and driver; no physical BLE",
+    "Representative setting/start parameters, not every variant or curve",
+    "Write submission or fake Success does not prove actual hardware execution or stopping",
+    "Four partial schedule cases use tick; only queued first-operation rejection cases avoid tick",
+    "Elapsed timers and registered Service lifecycle remain outside this matrix"
+  ]
+}
