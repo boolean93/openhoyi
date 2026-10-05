@@ -19,9 +19,7 @@
     "newValidIdleRestoresSendEligibility": true,
     "queuedSleepRechecksBeforeDriverExecution": true
   },
-  "cloudPending": {
-    "mockLifecycle": 37380567825
-  },
+  "cloudPending": {},
   "boundaries": [
     "Fake driver session tests, no physical BLE or hardware",
     "Queued cancel guarded via shared function but not separately executed in new test",
@@ -47,6 +45,23 @@
       "verifyRead": true,
       "resultRead": true,
       "scope": "Same current source/schema Mock 1->2; not Alpha or historical schema migration"
+    },
+    "mockLifecycle": {
+      "run": 37380567825,
+      "status": "success",
+      "artifactsRead": true,
+      "fixtures": 18,
+      "entries": 108,
+      "availabilityChecks": 18,
+      "lazyShotRead": true,
+      "busyAcknowledgements": 12,
+      "busyEntries": 69,
+      "audioMarkers": 5,
+      "languageMarkers": 8,
+      "pageProfiles": {
+        "compact": 80,
+        "wideFont": 80
+      }
     }
   },
   "cloudStatusOnly": {

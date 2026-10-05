@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import io.openhoyi.session.ShotRecoveryState
 import io.openhoyi.session.MachineRecoveryActivity
+import io.openhoyi.session.MachineWriteRegistration
 import io.openhoyi.session.MachineWriteAcknowledgement
 import io.openhoyi.session.MachineWriteRecoveryState
 
@@ -747,10 +748,11 @@ class MobileService : Service() {
             change.minutes != observed.standbyMinutes) return getString(R.string.service_write_standby_delay_changed)
         if (change.matches(observed)) return getString(R.string.service_write_setting_already_observed)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_setting_identity_missing)
-        val token = settingsWrite.begin(change) ?: return getString(R.string.service_write_setting_pending)
-        if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.SETTING, coffeeAddress)) {
-            settingsWrite.written(token, OperationResult.Failed("safety record unavailable"), settingsSampleSerial)
-            return getString(R.string.service_write_setting_record_failed)
+        val token = when (val registration = MachineWriteRegistration.begin(machineWriteRecovery,
+            coffeeAddress, MachineWriteRegistration.Request.Setting(settingsWrite, change, settingsSampleSerial))) {
+            MachineWriteRegistration.Result.Busy -> return getString(R.string.service_write_setting_pending)
+            MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_write_setting_record_failed)
+            is MachineWriteRegistration.Result.Registered -> registration.token
         }
         recoveryAfterSettingsSerial = settingsSampleSerial
         refreshSafetyNotification()
@@ -814,11 +816,11 @@ class MobileService : Service() {
         if (expectedCount !in 1..65535 || settingsCount != expectedCount || idle.cupCount != expectedCount)
             return getString(R.string.service_write_cups_changed)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_cups_identity_missing)
-        val token = cupReset.begin(expectedCount) ?: return getString(R.string.service_write_cups_pending)
-        if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.CUP_RESET, coffeeAddress)) {
-            cupReset.written(token, OperationResult.Failed("safety record unavailable"),
-                cupSettingsSerial, cupIdleSerial)
-            return getString(R.string.service_write_cups_record_failed)
+        val token = when (val registration = MachineWriteRegistration.begin(machineWriteRecovery,
+            coffeeAddress, MachineWriteRegistration.Request.CupReset(cupReset, expectedCount, cupSettingsSerial, cupIdleSerial))) {
+            MachineWriteRegistration.Result.Busy -> return getString(R.string.service_write_cups_pending)
+            MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_write_cups_record_failed)
+            is MachineWriteRegistration.Result.Registered -> registration.token
         }
         recoveryAfterSettingsSerial = cupSettingsSerial
         recoveryAfterIdleSerial = cupIdleSerial
@@ -890,12 +892,11 @@ class MobileService : Service() {
         if (changedDays == 0) return getString(R.string.service_write_schedule_already_observed)
         if (changedDays != 1) return getString(R.string.service_write_schedule_one_day_only)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_schedule_identity_missing)
-        val token = scheduleWrite.begin(target, firstSleepSerial, secondSleepSerial)
-            ?: return getString(R.string.service_write_schedule_pending)
-        if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE, coffeeAddress)) {
-            scheduleWrite.written(token, OperationResult.Failed("safety record unavailable"),
-                firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond)
-            return getString(R.string.service_write_schedule_record_failed)
+        val token = when (val registration = MachineWriteRegistration.begin(machineWriteRecovery,
+            coffeeAddress, MachineWriteRegistration.Request.Schedule(scheduleWrite, target, firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond))) {
+            MachineWriteRegistration.Result.Busy -> return getString(R.string.service_write_schedule_pending)
+            MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_write_schedule_record_failed)
+            is MachineWriteRegistration.Result.Registered -> registration.token
         }
         recoveryAfterFirstSleepSerial = firstSleepSerial
         recoveryAfterSecondSleepSerial = secondSleepSerial
@@ -965,10 +966,11 @@ class MobileService : Service() {
         if (idle.sleepStateRaw == 1) return getString(R.string.service_write_sleep_already_asleep)
         if (idle.sleepStateRaw != 0) return getString(R.string.service_write_sleep_state_unknown)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_write_sleep_identity_missing)
-        val token = sleepNow.begin() ?: return getString(R.string.service_write_sleep_pending)
-        if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.SLEEP_NOW, coffeeAddress)) {
-            sleepNow.written(token, OperationResult.Failed("safety record unavailable"), sleepSampleSerial)
-            return getString(R.string.service_write_sleep_record_failed)
+        val token = when (val registration = MachineWriteRegistration.begin(machineWriteRecovery,
+            coffeeAddress, MachineWriteRegistration.Request.Sleep(sleepNow, sleepSampleSerial))) {
+            MachineWriteRegistration.Result.Busy -> return getString(R.string.service_write_sleep_pending)
+            MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_write_sleep_record_failed)
+            is MachineWriteRegistration.Result.Registered -> registration.token
         }
         recoveryAfterSleepSerial = sleepSampleSerial
         refreshSafetyNotification()
@@ -1068,10 +1070,11 @@ class MobileService : Service() {
         val actual = currentCorrectedBrewTemperature() ?: return getString(R.string.service_shot_temperature_waiting)
         if (BrewPreparation.isAtTarget(actual, profile.temperatureC)) return getString(R.string.service_shot_preheat_already_ready)
         val coffeeAddress = current.coffeeAddress ?: return getString(R.string.service_shot_preheat_identity_missing)
-        val token = brewPreparation.begin(profile.id, profile.temperatureC) ?: return getString(R.string.service_shot_preheat_failed)
-        if (!machineWriteRecovery.arm(MachineWriteRecoveryState.Kind.BREW_WAIT, coffeeAddress)) {
-            brewPreparation.consumed()
-            return getString(R.string.service_shot_preheat_record_failed)
+        val token = when (val registration = MachineWriteRegistration.begin(machineWriteRecovery,
+            coffeeAddress, MachineWriteRegistration.Request.BrewWait(brewPreparation, profile.id, profile.temperatureC))) {
+            MachineWriteRegistration.Result.Busy -> return getString(R.string.service_shot_preheat_failed)
+            MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_shot_preheat_record_failed)
+            is MachineWriteRegistration.Result.Registered -> registration.token
         }
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         refreshSafetyNotification()

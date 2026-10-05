@@ -21,15 +21,25 @@
     "independentReview": "no blocking findings",
     "diffCheck": "success"
   },
-  "cloudPending": {
-    "native": 37381614423,
-    "previousProductionMockLifecycle": 37380567825
-  },
+  "cloudPending": {},
   "boundaries": [
     "Synthetic initialization and driver; no physical BLE",
     "Representative setting/start parameters, not every variant or curve",
     "Write submission or fake Success does not prove actual hardware execution or stopping",
     "Four partial schedule cases use tick; only queued first-operation rejection cases avoid tick",
     "Elapsed timers and registered Service lifecycle remain outside this matrix"
-  ]
+  ],
+  "cloudVerified": {
+    "native": {
+      "run": 37381614423,
+      "status": "success",
+      "logsRead": true
+    },
+    "previousProductionMockLifecycle": {
+      "run": 37380567825,
+      "status": "success",
+      "artifactsRead": true,
+      "scope": "52c95d4 same production code; not new machine registration source"
+    }
+  }
 }

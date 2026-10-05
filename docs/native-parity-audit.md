@@ -81,3 +81,5 @@
 2026-10-06：采样年龄规则统一至TelemetryFreshness，先非负域/now>=at/有效窗口再相减；修Preheat取消、Extraction启动与实际DeviceSession入队/出队负时间缺口，Service待机/重量年龄接入，原Settings/Scale/恢复年龄复用。4+2新增测试旧3+2RED→6GREEN，219任务完整构建/回归/Lint和独立复审通过，软件证据无真机。仅采样资格，不涵盖所有萃取timer/机器时间路径。60f5d5a/37378979088产品完整产物通过12/69与18/108及音频/语言/页面矩阵，证据已验；活动源2ae9a37新availability计数仍待其Mock37379839704。
 
 2026-10-06：七控制族代表参数的真实DeviceSession/fake driver年龄测试扩至85组合：56提交/排队拒绝，21有效边界实际Write，4周计划第二段拒发保留Unknown，4无效待机时间仍发精确stop。5新命名测试，旧两guard公式临时恢复的前四测试3FAIL，finally生产源码恢复无diff，最终全device-session/92场景成功，独立复审通过。只改测试，不反复构建无变化Android。2ae9a37/Mock37379839704实际产物读success，18 availability与lazy读取、12/69及全部语言/音频/页面矩阵通过；52c95d4/native37380567798日志与升级37380567716产物读success，其Mock尚运行中。85组合不是全参数/曲线/真实执行证明。
+
+2026-10-06：MachineWriteRegistration将五类tracker begin→同步安全记录arm→原失败收尾接入共享Kotlin；Service仅Registered才继续原baseline/event/send，Busy无存储，失败四类FAILED/预热consumed IDLE保持，无自动发送或重试。20参数测试stub18RED→20GREEN，219任务最终完整构建/回归/Lint及复审通过；首次替换误中Mock造成编译失败已恢复整个预热结构并锚定真实分支修正，未提交错误版本。283807a精确native37381614423日志成功读；52c95d4/Mock37380567825完整产物通过18/108+availability/lazy18、12/69及语言/音频/页面矩阵；不代替本轮登记接线或真实硬件验收。
