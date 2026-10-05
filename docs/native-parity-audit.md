@@ -83,3 +83,5 @@
 2026-10-06：七控制族代表参数的真实DeviceSession/fake driver年龄测试扩至85组合：56提交/排队拒绝，21有效边界实际Write，4周计划第二段拒发保留Unknown，4无效待机时间仍发精确stop。5新命名测试，旧两guard公式临时恢复的前四测试3FAIL，finally生产源码恢复无diff，最终全device-session/92场景成功，独立复审通过。只改测试，不反复构建无变化Android。2ae9a37/Mock37379839704实际产物读success，18 availability与lazy读取、12/69及全部语言/音频/页面矩阵通过；52c95d4/native37380567798日志与升级37380567716产物读success，其Mock尚运行中。85组合不是全参数/曲线/真实执行证明。
 
 2026-10-06：MachineWriteRegistration将五类tracker begin→同步安全记录arm→原失败收尾接入共享Kotlin；Service仅Registered才继续原baseline/event/send，Busy无存储，失败四类FAILED/预热consumed IDLE保持，无自动发送或重试。20参数测试stub18RED→20GREEN，219任务最终完整构建/回归/Lint及复审通过；首次替换误中Mock造成编译失败已恢复整个预热结构并锚定真实分支修正，未提交错误版本。283807a精确native37381614423日志成功读；52c95d4/Mock37380567825完整产物通过18/108+availability/lazy18、12/69及语言/音频/页面矩阵；不代替本轮登记接线或真实硬件验收。
+
+2026-10-06：新增实际Service登记失败隔离fixture：五入口×返回false/抛异常×两次显式尝试，计划10fixture/20失败登记，要求准确record_failed、同步屏障WRITING与kind/address、失败状态、snapshot/基线/偏好保持和零driver执行。125任务测试包/双Lint成功、独立复审无阻塞；运行时仍待本次云端Mock，不将编译当通过。共享登记e73ffff的native37382479655完整日志及Mock升级37382479606实际seed/verify已读取成功，旧Mock lifecycle37382479688仍运行中。无实际BLE或真机操作。

@@ -23,15 +23,35 @@
     "resolution": "Restore entire prepareBrew then anchor after real coffeeAddress; final complete build and review passed"
   },
   "cloudPending": {
-    "native": 37382479655,
-    "mockLifecycle": 37382479688,
-    "mockUpgrade": 37382479606,
-    "mockUi": 37382479607
+    "mockLifecycle": 37382479688
   },
   "boundaries": [
-    "Shared registration tests and Service wiring verified locally; exact-source cloud pending",
-    "No new Android fixture for actual Service prewrite persistence failure yet",
+    "Shared registration tests and Service wiring verified locally; native and isolated Mock upgrade verified on source; lifecycle pending",
+    "Actual Service prewrite persistence failure fixture added in following change; runtime evidence still pending",
     "Registration only; full request/result coordination not migrated",
     "No real hardware or BLE verification"
-  ]
+  ],
+  "cloudVerified": {
+    "native": {
+      "run": 37382479655,
+      "result": "success",
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "namedSessionScenarios": 92
+    },
+    "mockUpgrade": {
+      "run": 37382479606,
+      "result": "success",
+      "actualArtifactRead": true,
+      "seed": true,
+      "verify": true,
+      "scope": "same-source/schema Mock 1->2 on qemu; not real Alpha or historical migrations"
+    }
+  },
+  "cloudUiStatusOnly": {
+    "run": 37382479607,
+    "result": "success",
+    "visualReview": false
+  }
 }

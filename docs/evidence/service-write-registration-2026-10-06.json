@@ -1,0 +1,46 @@
+{
+  "sourceCommit": null,
+  "scope": "Detached actual MobileService prewrite rejection; synthetic READY; isolated Mock only",
+  "local": {
+    "testApk": "compiled",
+    "lintDebug": "success",
+    "lintMock": "success",
+    "tasks": 125,
+    "shellSyntax": "success",
+    "diffCheck": "success",
+    "independentReview": "no blocking findings"
+  },
+  "runtimePlanned": {
+    "fixtures": 10,
+    "failedRegistrations": 20,
+    "storageModes": [
+      "returns false",
+      "throws"
+    ],
+    "entryKinds": [
+      "SETTING",
+      "CUP_RESET",
+      "SLEEP_SCHEDULE",
+      "SLEEP_NOW",
+      "BREW_WAIT"
+    ],
+    "checks": [
+      "exact record_failed resource",
+      "attempt count and attempted record kind/address",
+      "WRITING state at synchronous storage barrier asserted outside storage callback",
+      "FAILED (Brew IDLE) after rejection",
+      "explicit retry reaches registration again",
+      "snapshot and recovery baselines unchanged",
+      "fixture and original preferences unchanged",
+      "no GATT driver execution"
+    ],
+    "runtimeVerified": false
+  },
+  "cloudPending": {},
+  "boundaries": [
+    "Not a registered Service or real authentication/readback",
+    "Inactive queues and fake driver do not prove successful-write transport behavior",
+    "Fake storage faults do not prove OS crash atomicity",
+    "No real BLE, installation or physical machine verification"
+  ]
+}
