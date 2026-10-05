@@ -20,15 +20,25 @@ import java.util.concurrent.TimeUnit
 
 /** Real Service entry gates with detached UUID preferences; no owner, BLE or component dispatch. */
 internal class ServiceRecoveryGateChecks(private val test: Instrumentation) {
+    private data class Fixture(val shotPending: Boolean, val kind: MachineWriteRecoveryState.Kind?,
+        val shotAddress: String? = if (shotPending) "AA:BB:CC:DD:EE:01" else null,
+        val writeAddress: String? = if (kind != null) "AA:BB:CC:DD:EE:01" else null,
+        val expectedShotPending: Boolean = shotPending,
+        val expectedKind: MachineWriteRecoveryState.Kind? = kind)
     private fun field(subject: Any, name: String) = subject.javaClass.getDeclaredField(name).apply { isAccessible = true }
     fun run() {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val names = listOf("shot_safety", "machine_write_safety")
         val original = names.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
-        val cases = MachineWriteRecoveryState.Kind.entries.flatMap { listOf(false to it, true to it) } + (false to null)
+        val cases = MachineWriteRecoveryState.Kind.entries.flatMap { listOf(Fixture(false, it), Fixture(true, it)) } +
+            listOf(Fixture(false, null), Fixture(true, null)) +
+            listOf("AA:BB:CC:DD:EE:01", "invalid").flatMap { address -> listOf(
+                Fixture(false, null, shotAddress = address, expectedShotPending = true),
+                Fixture(false, null, writeAddress = address, expectedKind = MachineWriteRecoveryState.Kind.UNKNOWN)) }
+        check(cases.size == 18)
         val schedule = WeeklySleepSchedule(List(7) { WeeklySleepDay(false, SleepDay(22, 0, 7, 0)) })
-        for ((shotPending, kind) in cases) {
+        for (fixture in cases) {
             val id = UUID.randomUUID().toString()
             val fixtures = names.associateWith { "service_recovery_${id}_$it" }
             val folder = File(app.cacheDir, "service-recovery-$id")
@@ -47,11 +57,11 @@ internal class ServiceRecoveryGateChecks(private val test: Instrumentation) {
             }
             try {
                 check(app.getSharedPreferences(fixtures.getValue("shot_safety"), Context.MODE_PRIVATE).edit()
-                    .putBoolean("unresolved_shot", shotPending)
-                    .putString("unresolved_shot_address", if (shotPending) "AA:BB:CC:DD:EE:01" else null).commit())
+                    .putBoolean("unresolved_shot", fixture.shotPending)
+                    .putString("unresolved_shot_address", fixture.shotAddress).commit())
                 check(app.getSharedPreferences(fixtures.getValue("machine_write_safety"), Context.MODE_PRIVATE).edit()
-                    .putString("pending_kind", kind?.name)
-                    .putString("pending_address", if (kind != null) "AA:BB:CC:DD:EE:01" else null).commit())
+                    .putString("pending_kind", fixture.kind?.name)
+                    .putString("pending_address", fixture.writeAddress).commit())
                 val before = fixtures.values.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
                 var failure: Throwable? = null
                 test.runOnMainSync {
@@ -67,7 +77,13 @@ internal class ServiceRecoveryGateChecks(private val test: Instrumentation) {
                         check(field(instance, "hub").get(instance) == null)
                         val warning = instance.machineControlSafetyMessage
                         val writeWarning = instance.machineWriteSafetyMessage
-                        if (kind == null) check(warning == null) else check(warning != null && writeWarning != null)
+                        if (fixture.expectedKind == null) check(writeWarning == null)
+                        else check(writeWarning != null)
+                        if (fixture.expectedKind == MachineWriteRecoveryState.Kind.UNKNOWN)
+                            check(writeWarning == instance.getString(R.string.machine_recovery_unknown))
+                        if (fixture.expectedShotPending)
+                            check(warning == instance.getString(R.string.machine_recovery_shot_restart))
+                        else check(warning == writeWarning)
                         val results = listOf(
                             instance.changeMachineSetting(MachineSettingChange.BrewTemperature(93)),
                             instance.resetCupCount(25),
@@ -75,7 +91,7 @@ internal class ServiceRecoveryGateChecks(private val test: Instrumentation) {
                             instance.enterSleepNow(),
                             instance.prepareBrew("fixture", false, 7),
                             instance.startShot("fixture", false, 7))
-                        if (kind == null) {
+                        if (!fixture.expectedShotPending && fixture.expectedKind == null) {
                             check(results.all { it == instance.getString(R.string.service_unavailable) })
                         } else {
                             // startShot may prioritize a machine-write warning over a concurrent shot warning.
