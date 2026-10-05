@@ -1,0 +1,52 @@
+{
+  "sourceCommit": "60f5d5a9d96eef68969d3a97a6f1f0f423ba6e4f",
+  "scope": "Five machine write recovery acknowledgements only; Android evidence adaptation and display retained",
+  "local": {
+    "newParameterizedTests": 15,
+    "redFailures": 5,
+    "fullTasks": 219,
+    "fullBuild": "success",
+    "fixtureFollowUpTasks": 125,
+    "fixtureBuild": "success",
+    "independentReview": "no blocking findings"
+  },
+  "cloudPending": {
+    "native": 37378979071,
+    "mockLifecycle": 37378979088,
+    "mockUpgrade": 37378979031,
+    "mockUi": 37378979058
+  },
+  "priorEvidence": {
+    "orphanProduct": {
+      "source": "e3aa581b679dd19c743a70fd01b3084e31c60f57",
+      "run": 37376998752,
+      "status": "success",
+      "artifactsRead": true,
+      "fixtures": 18,
+      "entries": 108,
+      "acknowledgementAttempts": 18,
+      "busyAcknowledgements": 10,
+      "busyEntries": 58,
+      "pageProfiles": {
+        "compact": 80,
+        "wideFont": 80
+      }
+    },
+    "preheat": {
+      "source": "a9b6bb42d5b9b3f33e22cf6c1abb23a3800f567a",
+      "nativeRun": 37377688511,
+      "nativeLogsRead": true,
+      "upgradeRun": 37377688550,
+      "upgradeArtifactsRead": true,
+      "lifecycleRun": 37377688521,
+      "lifecycleStatus": "failure",
+      "reason": "Test fixture omitted isolated curves preferences; Required value was null in getSharedPreferences -> selectedCurve -> startShot during CANCELLING",
+      "fix": "UUID isolated valid captured curve selection with resolve/validated and preference preservation assertions; exact gate expectations retained"
+    }
+  },
+  "boundaries": [
+    "Current-source Mock 12 acknowledgement / 69 entry and shared wiring runtime verification pending",
+    "No physical device or BLE sends in fixtures",
+    "Not full request coordination or historical Alpha upgrade verification"
+  ]
+}

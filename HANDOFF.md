@@ -1,3 +1,7 @@
+2026-10-06 当前任务：共享机器写入恢复确认源码 `60f5d5a9d96eef68969d3a97a6f1f0f423ba6e4f` 已推送。MachineWriteAcknowledgement接入MobileService五分支，原Evidence/serial/READY/manual-shot优先级/resource/tag/consumed-event-refresh保持；三结果复用原canClear和同步clear，无发送/自动重试。新15项参数化测试stub先5RED，实现后全GREEN；219任务完整回归/构建/Lint通过，独立复审通过。上轮真实Mock37377688521因CANCELLING startShot读取遗漏的curves隔离偏好失败，已修夹具：UUID隔离curves、合法capture-1选择与resolve/validated检查，原精确warning/12ACK69入口不变，偏好不变与finally清理覆盖，修后125任务testAPK/Lint/复审通过。
+
+新native `37378979071`、Mock生命周期 `37378979088`、升级 `37378979031`、自动UI任务 `37378979058` 最后in_progress。下一轮读既有任务产物；共享接线与12/69未运行验收，不重复dispatch。e3aa581/37376998752最终success且完整产物读：18/108/18、旧busy10/58、八语言/五音频/清理通知及两profile各80页和三marker均通过；不能代替本轮12/69。a9b6bb4/native37377688511完整日志读success，升级37377688550的seed/verify/result读success（同源码/schema Mock1→2）；其Mock失败不算通过。证据docs/evidence/shared-write-acknowledgement-2026-10-06.json。用户无设备，不安装/操作；其余业务请求协调、真实硬件和历史Alpha迁移仍未完成。
+
 2026-10-06 当前任务：预热恢复READY/CANCELLING产品测试源码 `a9b6bb42d5b9b3f33e22cf6c1abb23a3800f567a` 已推送，仅androidTest/script。原五kind共通WRITING/WAITING保留；BREW_WAIT真实observe(2,9300)→READY、beginCancel→CANCELLING。READY隐藏advisory但挡五无关控制；CANCELLING精确brew_wait warning挡五入口及startShot，非缺曲线假通过。busy确认10+2=12、入口58+5+6=69；ACK保持attempt0/pending/rawprefs/tracker，刷新非空时间不补缺失。disconnect UNKNOWN后原Storage失败/重试正例保留，fake execution0，不调用实际取消发送。最终101任务testAPK/Lint、shell/diff及独立复审通过，实际运行未验收。
 
 新native `37377688511`、Mock生命周期 `37377688521`、Mock升级 `37377688550` 最后in_progress。必须新marker preheatReady=true/preheatCancelling=true/blockedACK12/entries69，入口仍18/108/18。下一轮查这三项既有任务并读最终产物，不重复dispatch。
