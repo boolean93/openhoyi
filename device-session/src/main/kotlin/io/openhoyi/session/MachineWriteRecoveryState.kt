@@ -16,9 +16,10 @@ class MachineWriteRecoveryState(private val storage: Storage) {
     private fun normalize(address: String?): String? = address?.uppercase()?.takeIf(addressPattern::matches)
     private var record = runCatching(storage::read).getOrDefault(Record(Kind.UNKNOWN,null)).let {
         when {
-            !it.pending -> Record(null,null)
+            // Clearing writes both fields; a residual identity is not proof of completion.
+            !it.pending && it.address == null -> Record(null,null)
             normalize(it.address)==null -> Record(Kind.UNKNOWN,null)
-            else -> Record(it.kind,normalize(it.address))
+            else -> Record(it.kind ?: Kind.UNKNOWN,normalize(it.address))
         }
     }
     val pending: Boolean get() = record.pending
