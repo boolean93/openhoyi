@@ -1,0 +1,37 @@
+{
+  "sourceCommit": "e73ffffc680f4dad3bc27f2b2896e7be56c60f7d",
+  "scope": "Five machine write registration paths; no Android, transport, automatic retry or frame changes in shared coordinator",
+  "local": {
+    "parameterizedTests": 20,
+    "stubExpectedFailures": 18,
+    "finalTasks": 219,
+    "finalBuild": "success",
+    "independentReview": "no blocking findings after repair",
+    "prefixAndBaselineComparison": "unchanged",
+    "diffCheck": "success"
+  },
+  "preservedPolicy": {
+    "order": "tracker begin -> synchronous intent arm -> Registered token -> host send",
+    "busyStorageWrites": 0,
+    "existingRecordOverwritten": false,
+    "recordFailureStates": "SETTING/CUP_RESET/SLEEP_SCHEDULE/SLEEP_NOW FAILED; BREW_WAIT consumed IDLE",
+    "mockPreheatFlow": "unchanged"
+  },
+  "repair": {
+    "initialBuild": "compile failure; not committed",
+    "cause": "Broad begin string replacement matched Mock before real preheat branch",
+    "resolution": "Restore entire prepareBrew then anchor after real coffeeAddress; final complete build and review passed"
+  },
+  "cloudPending": {
+    "native": 37382479655,
+    "mockLifecycle": 37382479688,
+    "mockUpgrade": 37382479606,
+    "mockUi": 37382479607
+  },
+  "boundaries": [
+    "Shared registration tests and Service wiring verified locally; exact-source cloud pending",
+    "No new Android fixture for actual Service prewrite persistence failure yet",
+    "Registration only; full request/result coordination not migrated",
+    "No real hardware or BLE verification"
+  ]
+}
