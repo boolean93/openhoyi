@@ -1,0 +1,29 @@
+{
+  "sourceCommit": "cd396242553c0faa65d1fb30a4447d3f31d3d832",
+  "originalTests": {
+    "cases": 4,
+    "failures": 3,
+    "reason": "residual address with missing kind loaded without a safety gate"
+  },
+  "fixedTests": {
+    "cases": 4,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "fullLocalBuild": {
+    "tasks": 219,
+    "conclusion": "success",
+    "protocolChecks": 39823,
+    "capturedNotifications": 32856,
+    "sessionChecks": 92
+  },
+  "independentReview": "no blocking findings",
+  "nativeRun": 37374440672,
+  "mockUpgradeRun": 37374440846,
+  "cloudConclusion": "pending",
+  "storageWrittenOnLoad": false,
+  "newBleCommands": false,
+  "hardwareTested": false,
+  "scope": "Conservative loading of incomplete machine recovery records; completely empty and normal known-kind records keep existing behavior; does not prove historical schema migration or hardware safety"
+}

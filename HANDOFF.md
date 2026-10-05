@@ -1,3 +1,7 @@
+2026-10-06 当前任务：不完整恢复记录修复源码 `cd396242553c0faa65d1fb30a4447d3f31d3d832` 已推送。MachineWriteRecoveryState原来丢弃null kind/残留地址；现仅双null为空，其余缺kind输入保守转UNKNOWN，合法身份保留、非法/空身份置null，不写回存储、不发命令、不新增UNKNOWN解锁。4参数组旧实现3RED、修复4GREEN，全部device-session测试与219任务完整本地构建通过（39823协议检查/32856通知回放/92会话），独立复审无阻塞。证据 `docs/evidence/orphan-machine-recovery-2026-10-06.json`。新native `37374440672`、Mock升级 `37374440846` 最后queued，尚无云端运行通过声明。
+
+上一源码4cec0b3的Mock生命周期 `37373939613` 已进入真实模拟器验证步骤，仍in_progress；其native `37373939684`、升级 `37373939603` queued。aaa95ee升级 `37373087127` 已success，实际result/seed/verify产物读取：同源码Mock1→2数据保留通过，仍不是历史schema迁移/Alpha实机。aaa95ee/Mock `37373087119` queued。下一轮只查上述既有任务，完成后读对应产物，不重复dispatch。用户无设备，不安装/控制；整体goal active，真实协议安全与完整原版功能对标未证明。
+
 2026-10-06 当前任务：恢复回读证据测试源码 `4cec0b32704c74c331fb9a708835c2d153fb18ac` 已推送。五类操作各增三项实际ACK负例：idle时间缺失、序号未超过恢复基线、关键回读缺失或不一致，共15项。非空时间字段刷新以隔离待测条件，复位后继续busy及存储失败/有效重试正例。仅androidTest/script变更，无生产协议改动；最终离线testAPK/Lint101任务、shell/diff及独立复审通过，运行尚未验收。
 
 新源码现有CI：native `37373939684`、Mock生命周期 `37373939613`、Mock升级 `37373939603` 均最后确认queued。新marker必须含 `missingTimestampAcknowledgements=5 unchangedReadbackAcknowledgements=5 incompleteEvidenceAcknowledgements=5`，不能用旧产物代替。前一源码aaa95ee/native `37373087183` 已success并读日志（39823协议检查、32856通知回放、92会话、双APK各7113字符串及6转义回环、发布12案例）；其Mock `37373087119` 仍queued、升级 `37373087127` 仍in_progress。下一轮查询既有任务并读取最终产物，不重复dispatch。合成READY不是实际认证/通知或硬件验收；用户无设备，不安装/控制，整体goal仍active。
