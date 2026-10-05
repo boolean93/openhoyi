@@ -11,7 +11,8 @@ class ShotRecoveryState(private val storage: Storage) {
 
     private val addressPattern = Regex("(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}")
     private var record = runCatching(storage::read).getOrDefault(Record(true, null)).let {
-        if (!it.pending) Record(false, null)
+        // A durable clear removes both fields; a residual identity lacks completion evidence.
+        if (!it.pending && it.address == null) Record(false, null)
         else Record(true, it.address?.uppercase()?.takeIf(addressPattern::matches))
     }
     val pending: Boolean get() = record.pending
