@@ -8,6 +8,6 @@
 - [x] 4GREEN（0失败/错误/跳过）、原92会话/前置萃取检查及180任务完整本地构建通过；/private/tmp/hoyi-tare-order-green.log。
 - [x] 独立复审无阻塞，未代替运行测试。
 - [x] 源码47617dd推送，native37187870905确认in_progress。
-- [ ] 对应CI最终日志。
+- [x] 47617dd/native37187870905成功，/private/tmp/hoyi-tare-native-37187870905.log实际读取，39823协议/32856通知/92会话/两APK各7113资源+6回环/发布12及临时签名APK通过。
 
 BOOKOO真实去皮及断链全流程未全面验收；无真机操作。

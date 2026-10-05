@@ -110,6 +110,29 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                             coffee = idle, coffeeAt = now, settings = settings, settingsAt = now,
                             sleepFirst = first, sleepSecond = second, sleepFirstAt = now, sleepSecondAt = now))
                         val warning = requireNotNull(instance.machineControlSafetyMessage)
+                        val waitingResource = when (kind) {
+                            MachineWriteRecoveryState.Kind.CUP_RESET -> R.string.recovery_event_cups_recovery_waiting
+                            MachineWriteRecoveryState.Kind.SETTING -> R.string.recovery_event_settings_recovery_waiting
+                            MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> R.string.recovery_event_sleep_schedule_recovery_waiting
+                            MachineWriteRecoveryState.Kind.SLEEP_NOW -> R.string.recovery_event_sleep_recovery_waiting
+                            MachineWriteRecoveryState.Kind.BREW_WAIT -> R.string.recovery_event_brew_wait_recovery_waiting
+                            else -> error("invalid fixture")
+                        }
+                        fun checkIdentityBlocked() {
+                            check(instance.machineWriteAcknowledgementAvailable)
+                            instance.acknowledgeManualSafety()
+                            check(attempts == 0 && recovery.pending && prefs.all == before && shotPrefs.all == shotBefore)
+                            check(instance.machineControlSafetyMessage == warning)
+                            check(instance.snapshot.messageForDisplay { resource, args -> instance.getString(resource, *args) } == instance.getString(waitingResource))
+                            check(drivers.all { it.executions == 0 })
+                        }
+                        field(devices[0].session, "activeAddress").set(devices[0].session, "AA:BB:CC:DD:EE:02")
+                        check(owner.coffeeAddress == "AA:BB:CC:DD:EE:02")
+                        checkIdentityBlocked()
+                        field(devices[0].session, "activeAddress").set(devices[0].session, address)
+                        field(instance, "snapshot").set(instance, instance.snapshot.copy(coffeeState = DeviceState.DISCONNECTED))
+                        checkIdentityBlocked()
+                        field(instance, "snapshot").set(instance, instance.snapshot.copy(coffeeState = DeviceState.READY))
                         val tracker: Any = field(instance, when (kind) {
                             MachineWriteRecoveryState.Kind.CUP_RESET -> "cupReset"
                             MachineWriteRecoveryState.Kind.SETTING -> "settingsWrite"

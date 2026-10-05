@@ -12,4 +12,4 @@
 - [x] BREW_WAIT语义校准后的最终101任务testAPK/Lint成功，/private/tmp/hoyi-service-recovery-busy-final-build.log；独立复审无阻塞。
 - [x] 源码88200b0推送，native37187311009、Mock生命周期37187311005、Mock升级37187311012确认in_progress。
 - [x] 同源码/schema Mock升级37187311012成功，实际seed/verify/result已读；/private/tmp/hoyi-service-recovery-busy-upgrade-37187311012。
-- [ ] 新源码Mock生命周期37187311005和native37187311009仍in_progress，10/58及原矩阵运行证据待读取；升级通过不代替此测试。
+- [x] 88200b0/Mock生命周期37187311005成功且完整产物读取；5fixture×busyStages2/blockedACK10/blockedEntries58/failedWrites5/retries5、原入口13/78、清理/通知/八语言/五音频、两profile各80页+3marker均通过，证据evidence/service-recovery-busy-2026-10-06.json。native37187311009成功已读取39823/32856/92/7113/发布12日志。
