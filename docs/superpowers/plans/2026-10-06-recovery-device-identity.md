@@ -8,4 +8,5 @@
 
 - [x] 5 wrong-identity及5 disconnected ACK断言已实现。
 - [x] testAPK/Lint101任务成功，/private/tmp/hoyi-recovery-identity-build.log；shell语法/diff检查、独立复审无阻塞。
+- [x] 源码aaa95ee推送；native37373087183已确认in_progress，Mock生命周期37373087119与Mock升级37373087127已确认queued。
 - [ ] 新源码云端实际Mock marker与全部既有矩阵，未运行前不声称通过。
