@@ -20,9 +20,7 @@
     "queuedSleepRechecksBeforeDriverExecution": true
   },
   "cloudPending": {
-    "native": 37380567798,
     "mockLifecycle": 37380567825,
-    "mockUpgrade": 37380567716,
     "mockUi": 37380567847
   },
   "boundaries": [
@@ -30,5 +28,26 @@
     "Queued cancel guarded via shared function but not separately executed in new test",
     "ExtractionPolicy machine elapsed age and ExtractionController frame/elapsed timers not migrated",
     "Real hardware and registered Service lifecycle verification remains incomplete"
-  ]
+  ],
+  "cloudVerified": {
+    "native": {
+      "run": 37380567798,
+      "status": "success",
+      "logsRead": true,
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "sessionNamedChecks": 92,
+      "variantStrings": 7113,
+      "literalRoundTrips": 6,
+      "releaseConfigCases": 12
+    },
+    "mockUpgrade": {
+      "run": 37380567716,
+      "status": "success",
+      "seedRead": true,
+      "verifyRead": true,
+      "resultRead": true,
+      "scope": "Same current source/schema Mock 1->2; not Alpha or historical schema migration"
+    }
+  }
 }

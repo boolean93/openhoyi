@@ -19,14 +19,12 @@
     "existingAcknowledgements": 18,
     "newAvailabilityChecks": 18,
     "lazyShotPreferenceReadChecks": 18,
-    "runtimeVerified": false
+    "runtimeVerified": true
   },
-  "cloudPending": {
-    "mockLifecycle": 37379839704
-  },
+  "cloudPending": {},
   "boundaries": [
     "Availability is advisory; identity/READY/serial/freshness eligibility remains separate",
-    "Current-source Android runtime evidence pending",
+    "Synthetic Android availability/record reads verified; not real BLE or registered Service lifecycle",
     "No physical device or BLE control",
     "Not complete shared Service request coordination"
   ],
@@ -47,6 +45,24 @@
       "variantStrings": 7113,
       "literalRoundTrips": 6,
       "releaseConfigCases": 12
+    },
+    "mockLifecycle": {
+      "run": 37379839704,
+      "status": "success",
+      "artifactsRead": true,
+      "fixtures": 18,
+      "entries": 108,
+      "acknowledgementAttempts": 18,
+      "availabilityChecks": 18,
+      "lazyShotRead": true,
+      "busyAcknowledgements": 12,
+      "busyEntries": 69,
+      "audioMarkers": 5,
+      "languageMarkers": 8,
+      "pageProfiles": {
+        "compact": 80,
+        "wideFont": 80
+      }
     }
   },
   "cloudStatusOnly": {

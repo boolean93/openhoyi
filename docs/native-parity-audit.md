@@ -79,3 +79,5 @@
 2026-10-06：MachineRecoveryActivity统一五tracker活动判断，恢复按钮资格与实际ACK证据共用规则；cup/schedule控制入口busy也接入。3命名测试覆盖36state、144种本kind/shot flags和8未知/空kind；默认stub2RED→全GREEN。非Brew不额外读取shot恢复，Brew pending短路保留；产品18夹具新增availability/读取次数对照，原18/108/18不变。219任务完整回归及最终170任务Android接线/单测/构建/Lint成功，独立复审无阻塞；当前产品运行未验收。60f5d5a升级37378979031实际产物成功（同源码/schema Mock1→2），其Mock37378979088尚运行中；不替代新活动规则。
 
 2026-10-06：采样年龄规则统一至TelemetryFreshness，先非负域/now>=at/有效窗口再相减；修Preheat取消、Extraction启动与实际DeviceSession入队/出队负时间缺口，Service待机/重量年龄接入，原Settings/Scale/恢复年龄复用。4+2新增测试旧3+2RED→6GREEN，219任务完整构建/回归/Lint和独立复审通过，软件证据无真机。仅采样资格，不涵盖所有萃取timer/机器时间路径。60f5d5a/37378979088产品完整产物通过12/69与18/108及音频/语言/页面矩阵，证据已验；活动源2ae9a37新availability计数仍待其Mock37379839704。
+
+2026-10-06：七控制族代表参数的真实DeviceSession/fake driver年龄测试扩至85组合：56提交/排队拒绝，21有效边界实际Write，4周计划第二段拒发保留Unknown，4无效待机时间仍发精确stop。5新命名测试，旧两guard公式临时恢复的前四测试3FAIL，finally生产源码恢复无diff，最终全device-session/92场景成功，独立复审通过。只改测试，不反复构建无变化Android。2ae9a37/Mock37379839704实际产物读success，18 availability与lazy读取、12/69及全部语言/音频/页面矩阵通过；52c95d4/native37380567798日志与升级37380567716产物读success，其Mock尚运行中。85组合不是全参数/曲线/真实执行证明。
