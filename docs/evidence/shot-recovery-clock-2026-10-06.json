@@ -1,0 +1,31 @@
+{
+  "sourceCommit": "d89d6cb7b59d490fe1aaf0c3aaef611c395fba08",
+  "originalTests": {
+    "cases": 6,
+    "failures": 2,
+    "reason": "negative timestamps and subtraction overflow accepted as fresh idle"
+  },
+  "fixedTests": {
+    "cases": 6,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "newTests": 3
+  },
+  "fullLocalBuild": {
+    "conclusion": "success",
+    "tasks": 219,
+    "protocolChecks": 39823,
+    "capturedNotifications": 32856,
+    "sessionChecks": 92
+  },
+  "independentReview": "no blocking findings",
+  "nativeRun": 37374877456,
+  "cloudConclusion": "pending",
+  "freshnessBoundaryMs": 1500,
+  "gatePriorityUnchanged": true,
+  "storageWritesByEligibility": 0,
+  "newBleCommands": false,
+  "hardwareTested": false,
+  "scope": "Shared shot recovery acknowledgement eligibility only; nonnegative monotonic clock domain; not evidence of real clock errors, BLE replay protection or hardware safety"
+}
