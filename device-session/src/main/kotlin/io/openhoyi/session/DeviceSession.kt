@@ -62,6 +62,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private fun finishSleepWrite(write: SleepWrite, result: OperationResult) {
         if (sleepWrite !== write) return
         sleepWrite = null
+        notifySleepResult(write,result)
+    }
+    private fun notifySleepResult(write:SleepWrite,result:OperationResult) {
         try { write.callback(result) } catch (_: Exception) {
             runCatching { diagnostic("weekly sleep callback failure") }
         }
@@ -349,24 +352,20 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         else send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,
             beforeDispatch={beforeDispatch() && canStartPreheat()},callback=callback)
     }
-    fun disconnect(){
+    fun disconnect()=endConnection(DeviceState.DISCONNECTED,"user disconnect","coffee disconnected")
+    private fun endConnection(terminal:DeviceState,reason:String,sleepReason:String=reason) {
+        val expected=generation
+        // Detach old session work before invoking any observer that may reconnect.
+        val detachedSleep=sleepWrite;sleepWrite=null;initBusy=false
         activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
-        try { setState(DeviceState.DISCONNECTED) }
+        try { setState(terminal) }
         finally {
-            try { cancelSleepWrite("coffee disconnected") }
-            finally {
-                try { queue.disconnect("user disconnect") }
-                finally { initBusy=false }
-            }
+            try { detachedSleep?.let { notifySleepResult(it,OperationResult.Unknown(sleepReason)) } }
+            finally { if(generation==expected)queue.disconnect(reason) }
         }
     }
     private fun fail(reason:String){
-        activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
-        try { setState(DeviceState.FAILED) }
-        finally {
-            try { cancelSleepWrite(reason) }
-            finally { queue.disconnect(reason) }
-        }
+        endConnection(DeviceState.FAILED,reason)
         diagnostic(reason)
     }
 }

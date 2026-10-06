@@ -1,3 +1,9 @@
+2026-10-06 终态owner：endConnection先捕generation、分离旧sleep、清旧initBusy，然后发布DISCONNECTED/FAILED；finally旧sleep一次Unknown，只有同generation才关闭queue。两角色两终态重连/重连后throw保留新queue，新sleep两帧仍成功，oldtare Unknown回调重连不重置新BOOKOO busy。7新方法旧7FAIL→7GREEN，4原observerthrow及92场景全过，独立复审无阻塞；219任务完整构建/双Lint55s通过。证据docs/evidence/terminal-owner-2026-10-06.json。outer connect初始disconnect观察者重连、通知发布owner仍未审计；不声称物理安全。
+
+644ebc5 native37411452634实际完整日志success已读（39823/32856/92与release12），升级37411452642实际seed/verify/resultsuccess已读；Mock37411452652仍待。01905ed三项仍待，不重复dispatch。
+
+01905eddf2121b6c5347d245cb109196e94fad33初始化owner源码已推送；自动native37411797264 queued、Mock生命周期37411797263/升级37411797312 in_progress。644ebc5 native37411452634/Mock37411452652还in_progress，升级37411452642已success但尚未读实际产物。下轮读取既有任务，不重复dispatch。此处与initialization-owner证据source/CI元数据本地未单独提交，随下一实质提交合入，避免纯元数据触发重复构建；不要丢弃。用户无设备，不安装/真实BLE，goal active。
+
 2026-10-06 初始化owner：新增initializationState，阶段deadline先发布再通知观察者，返回后复核原generation/active/phase；所有初始化step显式绑定原generation。5种coffee阶段同步重连只发送新stage/new auth；BOOKOO同步阶段重连不覆盖新INITIALIZING 10s deadline。最初4方法旧2FAIL；拆分五阶段后8方法GREEN，92原场景通过，独立审查无阻塞。219任务完整构建/双Lint59s通过；终态disconnect/fail清理与通知派发重入仍未审计。下一轮先核对本轮源码CI，再处理这两项边界或继续业务协调。
 
 644ebc5源码已推送，native37411452634/Mock37411452652/升级37411452642已自动启动，下一轮读取既有产物。c59e186 Mock37410822569实际完整产物success已读，五类异常5/60/5及原矩阵完整保留，queue-callback-owner的cloudPending已清空。

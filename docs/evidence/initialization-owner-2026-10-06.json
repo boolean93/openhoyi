@@ -23,5 +23,10 @@
     "No protocol bytes or timeout thresholds changed",
     "No real BLE or physical validation"
   ],
-  "cloudPending": "await source push"
+  "cloudPending": {
+    "native": 37411797264,
+    "mockLifecycle": 37411797263,
+    "mockUpgrade": 37411797312
+  },
+  "sourceCommit": "01905eddf2121b6c5347d245cb109196e94fad33"
 }

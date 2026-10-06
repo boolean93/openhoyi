@@ -1,0 +1,27 @@
+{
+  "change": "Detach old terminal session transaction before external observers and close only the captured connection generation",
+  "local": {
+    "newTests": 7,
+    "originalFailedTests": 7,
+    "finalTests": "7 passed",
+    "retainedThrowingTerminalObserverTests": 4,
+    "sessionNamedScenarios": 92,
+    "independentReview": "no blocking findings",
+    "fullBuild": "success in 55s",
+    "fullBuildTasks": 219,
+    "diffCheck": "success"
+  },
+  "covered": [
+    "Coffee and BOOKOO DISCONNECTED/FAILED observers can explicitly reconnect without closing new owner",
+    "Reconnect followed by observer exception preserves new queue while surfacing original exception",
+    "Detached old sleep gets one Unknown and new two-frame sleep still completes on both terminals",
+    "Old tare Unknown callback reconnects and starts new BOOKOO init without duplicate initialization"
+  ],
+  "boundaries": [
+    "Outer connect initial disconnect observer reentrancy remains separate",
+    "Notification publication owner remains separate",
+    "No real BLE or physical safety proof",
+    "No protocol bytes, timing thresholds or retry changes"
+  ],
+  "cloudPending": "await source push"
+}

@@ -97,3 +97,5 @@
 2026-10-06 队列替换补充：`GattQueue.open`同步清理中不再允许嵌套open抢占代次；5项回归及完整构建通过，见 `evidence/queue-open-atomic-2026-10-06.json`。普通回调显式重连保持允许；DeviceSession初始化观察者重入另行审计。
 
 2026-10-06 初始化补充：coffee五个阶段及BOOKOO最后初始化阶段的continuation已绑定原连接generation，状态观察者同步重连后不再发送旧认证/阶段或覆盖新deadline；8项测试通过。终态清理及通知派发重入另行审计，见 `evidence/initialization-owner-2026-10-06.json`。
+
+2026-10-06 终态清理补充：两角色在断开/失败观察者中显式重连，旧清理只处理原generation；旧sleep与initBusy在外部回调前分离，不取消新sleep或重复新秤初始化。7项新回归和4项原异常清理测试通过，见 `evidence/terminal-owner-2026-10-06.json`。outer connect初始disconnect观察者重入及通知发布owner另行审计。
