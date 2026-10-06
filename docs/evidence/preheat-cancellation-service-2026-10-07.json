@@ -1,0 +1,48 @@
+{
+  "change": "Detached actual Service preheat and cancellation path runtime fixtures",
+  "local": {
+    "testApkAndDualLint": "BUILD SUCCESSFUL in 13s",
+    "tasks": 125,
+    "log": "/private/tmp/hoyi-preheat-cancel-service-final.log",
+    "independentReview": "No blocking findings after counter checks and primary-error-preserving cleanup fix",
+    "scriptSyntax": "passed",
+    "diffCheck": "passed",
+    "productionChanges": "none"
+  },
+  "expectedRuntime": {
+    "fixtures": 10,
+    "phases": [
+      "WAITING_TEMP",
+      "READY via decoded temperature"
+    ],
+    "outcomes": [
+      "Success",
+      "synthetic definite Failed",
+      "synthetic Cancelled",
+      "Unknown callback",
+      "execute exception"
+    ],
+    "fakeWrites": 20,
+    "blockedEntries": 120,
+    "recoveredAcknowledgements": 8,
+    "retainedDisconnected": 2
+  },
+  "covered": [
+    "Actual prepareBrew/cancel/acknowledge Service entry with Hub/Session and guarded fake driver",
+    "Durable preheat record committed before both real command encoding dispatches",
+    "Cancellation success means CANCEL_WRITTEN only, other results UNKNOWN",
+    "Old preheat and duplicate cancel Success cannot change state/message",
+    "Busy or unchanged-idle manual acknowledgement cannot clear",
+    "Six controls blocked on original and real preference reload",
+    "Fresh decoded awake idle alone cannot clear; qualified explicit acknowledgement clears local record",
+    "Disconnected transport refuses subsequent notifications and keeps record",
+    "Independent cleanup runs all operations; original failure retained with distinct suppressed errors"
+  ],
+  "boundaries": [
+    "Expected fixture runtime not yet executed, compilation is not runtime proof",
+    "Hub coffee callback bound to actual Service handler; no onState callback simulation in this fixture",
+    "Real600000ms preheat timer installed then removed, expiry not tested here",
+    "Detached unregistered Service with synthetic READY and fake GATT, not physical hardware or lifecycle proof",
+    "Four cancellation callback results injected at Session boundary; platform write-status normalization tested separately"
+  ]
+}

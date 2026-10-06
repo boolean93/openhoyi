@@ -47,5 +47,11 @@
     "New-source Android detached Service fixture execution pending cloud",
     "No registered Android lifecycle, hardware or physical disk crash proof",
     "Wire encoding/control eligibility unchanged; preheat/extraction/manual recovery remain outside coordinator"
-  ]
+  ],
+  "sourceCommit": "654090cef3afe441dde55bed53b2354a0260990d",
+  "cloudPending": {
+    "native": 37546460369,
+    "mockLifecycle": 37546460426,
+    "mockUpgrade": 37546460388
+  }
 }

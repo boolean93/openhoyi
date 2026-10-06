@@ -28,21 +28,36 @@
     "UNKNOWN nonzero reconciles without clearing, zero confirms and clears"
   ],
   "productionScope": "Typed readback coordinator and ordered Service feedback only; wire bytes, control gates and clear eligibility unchanged",
-  "androidRuntime": "Updated existing eight fault fixtures require failureLast=true; compiled but latest source cloud runtime pending",
+  "androidRuntime": "Exact source911 cloud artifact read: all eight clear fault fixtures require and passed failureLast=true",
   "boundaries": [
     "Detached fake GATT is not real hardware or registered Android lifecycle",
     "Injected storage faults do not prove disk/process-crash atomicity"
   ],
   "sourceCommit": "91145351556ddfa8e299a2102eb5ee022eb5349f",
-  "cloudPending": {
-    "native": 37545908098,
-    "mockLifecycle": 37545908134
-  },
   "cloudVerified": {
     "mockUpgrade": {
       "run": 37545908099,
       "actualSeedVerifyResultRead": true,
       "scope": "Same source/schema Mock1->2 on qemu, not Alpha or historical migration"
+    },
+    "native": {
+      "run": 37545908098,
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "releaseCases": 12
+    },
+    "mockLifecycle": {
+      "run": 37545908134,
+      "actualArtifactRead": true,
+      "fixtures": 8,
+      "storageModes": 2,
+      "failedClears": 8,
+      "blockedEntries": 96,
+      "retainedReloads": 8,
+      "recoveredClears": 8,
+      "failureLast": true,
+      "scope": "Detached Service fake GATT, not real hardware"
     }
   }
 }
