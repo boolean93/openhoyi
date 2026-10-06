@@ -9,12 +9,17 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     private var current:Pending?=null
     private var deadline=0L
     private var serial=0L
+    private var opening=false
     var generation=0L; private set
     var active=false; private set
     val inFlight:Boolean get()=current!=null
     private fun assertThread()=check(Thread.currentThread()===owner){"GattQueue accessed outside owner thread"}
     fun open():Long {
-        assertThread(); disconnect("replaced"); generation++; active=true;return generation
+        assertThread();check(!opening){"reentrant queue open"}
+        opening=true
+        try {
+            disconnect("replaced");generation++;active=true;return generation
+        } finally { opening=false }
     }
     fun enqueue(operation:GattOperation, timeoutMs:Long, urgent:Boolean=false,
                 beforeDispatch:()->Boolean={true}, callback:(OperationResult)->Unit) {

@@ -1,3 +1,9 @@
+2026-10-06：GattQueue.open同步替换栈增加opening门禁，嵌套open在改代次/提交前拒绝，finally释放门禁。5项新测试旧3FAIL→5GREEN；92原场景及219任务完整构建/双Lint54s通过，独立审查无阻塞。普通完成/超时/断开回调中的显式open仍允许。证据docs/evidence/queue-open-atomic-2026-10-06.json。更广DeviceSession.connect/stateChanged初始化重入尚待审计，不扩大结论。
+
+af4ea3e Mock37410266452实际完整产物已读：5fakeDispatch/60blocked/5实例重读，原登记、恢复、退出、八语言双主题160页和音频矩阵保留；service-transport-unknown证据runtimeVerified=true。c59e186 native37410822650完整日志、升级37410822537实际seed/verify/result已读success，Mock37410822569仍in_progress，不重复dispatch。
+
+本轮队列callback/timeout owner源码c59e1867d8365bf98db02c309f763885eb990880已推送；自动native37410822650、Mock生命周期37410822569、Mock升级37410822537均in_progress。下一轮读取既有任务实际产物，不重复dispatch。此前af4ea3e新增Service异常fixture的Mock37410266452最后仍in_progress，需先确认5fakeDispatch/60blocked/5重读marker；此处与queue证据source/CI元数据本地未单独提交，随下一实质提交合入，不丢弃。
+
 2026-10-06 当前任务：GattQueue Pending新增入队generation，private invalidateOwner复用execute异常/deliver异常/tick超时：初gen匹配才disconnect，清理后仍同gen才invalidated，捕首Exception并suppressed其它不同Exception，避免自抑制。保护success observer重连后throw、timeout Unknown observer重连、old detached Cancelled observer失败以及callback清理中重连。6新GattCallbackOwnerTest（最初显式queue类型修compile后真正旧5FAIL）→6GREEN，原ExecutionFailure7/Cleanup5与92场景全过；219完整回归/构建/Lint53s、独立复审无阻塞。保持报文、时间阈值、旧Unknown/Cancelled顺序及同代仍close/no retry。证据docs/evidence/queue-callback-owner-2026-10-06.json。新源码CI待。open自身替换中open/更广DeviceSession.connect重入尚未审计，不声称解决。下一步先读af4ea3e实际Service异常Mock marker和本轮CI，失败定向修复，再审计这些剩余owner边界。
 
 7fb231f/Mock37409788906完整产物success已读（20登记失败、18/108/18、12ACK69、八语言/五音频/两profile80页+3marker），该证据cloudPending清空。af4ea3e/native37410266465完整日志与Mock升级37410266451实际seed/verify/resultsuccess已读，仅新增ServiceTransportUnknownChecks的Mock37410266452还in_progress；不能以构建代运行。本次并入此前未提交metadata，用户无设备，不安装/实BLE/操作机器，goal active。

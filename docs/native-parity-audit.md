@@ -93,3 +93,5 @@
 2026-10-06：新增仅androidTest的ServiceTransportUnknownChecks，五真实控制入口使用原SharedPreferences同步适配与GuardedGattDriver包裹故障fake；检查exact wire、派发前已commit kind/address与WRITING、actual callback UNKNOWN/精确event、会话FAILED/queue关闭/close1。原实例与新附加实例每类六入口共60阻止，新实例读取实际偏好而非旧tracker；无合格原设备证据的人工确认不清记录。125任务testAPK/双Lint及独立复审通过，实际运行仍待本次Mock。7fb231f同源码升级37409788899 seed/verify/result已读success，其native与Mock生命周期仍待，不能混作新fixture通过。
 
 2026-10-06：队列Pending绑定入队generation，execute异常/observer异常/timeout共用owner限定清理，回调换代后旧清理不关闭/失效新owner，首报告错误和后续suppressed保留。6新测试旧5FAIL→6GREEN，原execute7/cleanup5保留通过，219完整构建/回归/Lint53s与独立复审通过；新源码云端待验。7fb231f/Mock37409788906实际产物成功已读（20登记失败+原恢复/八语言/五音频/两profile80页），af4ea3e/native37410266465完整日志与升级37410266451 seed/verify已读success，其新增Service异常fixture Mock仍在运行，不宣称已运行通过。open自身替换重入及更广连接重入仍需独立审计。
+
+2026-10-06 队列替换补充：`GattQueue.open`同步清理中不再允许嵌套open抢占代次；5项回归及完整构建通过，见 `evidence/queue-open-atomic-2026-10-06.json`。普通回调显式重连保持允许；DeviceSession初始化观察者重入另行审计。

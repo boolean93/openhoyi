@@ -25,11 +25,9 @@
       "no real system/BLE/component access, including cleanup",
       "isolated preferences and original maps preserved"
     ],
-    "runtimeVerified": false
+    "runtimeVerified": true
   },
-  "cloudPending": {
-    "mockLifecycle": 37410266452
-  },
+  "cloudPending": {},
   "boundaries": [
     "Detached unregistered Service and new instance, not process restart",
     "Synthetic authentication/readback and fake execution are not physical submission or execution",
@@ -49,6 +47,16 @@
       "seed": true,
       "verify": true,
       "scope": "same-source/schema Mock 1->2 on qemu"
+    },
+    "mockLifecycle": {
+      "run": 37410266452,
+      "result": "success",
+      "actualArtifactRead": true,
+      "fixtures": 5,
+      "fakeDispatches": 5,
+      "blockedEntries": 60,
+      "reloadedRecords": 5,
+      "retainedMatricesVerified": true
     }
   }
 }

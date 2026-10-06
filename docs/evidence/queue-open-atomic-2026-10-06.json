@@ -1,0 +1,25 @@
+{
+  "change": "Prevent nested open during synchronous replacement cleanup; finally releases guard after observer/reporting failure",
+  "local": {
+    "newTests": 5,
+    "originalFailedTests": 3,
+    "finalTests": "5 passed",
+    "sessionNamedScenarios": 92,
+    "fullBuildTasks": 219,
+    "fullBuild": "success in 54s",
+    "independentReview": "no blocking findings"
+  },
+  "covered": [
+    "Caught observer nested open rejected before dispatch",
+    "Uncaught observer nested open settles all detached waiters",
+    "Driver close nested open rejected",
+    "Reporting failure aborts open and explicit retry succeeds",
+    "Ordinary replacement preserves Unknown/Cancelled/fresh completion"
+  ],
+  "boundaries": [
+    "Broader DeviceSession.connect reentrancy remains to audit",
+    "No outbound frame or timing threshold changes",
+    "No real BLE or physical execution"
+  ],
+  "cloudPending": "await source push"
+}
