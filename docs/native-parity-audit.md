@@ -85,3 +85,5 @@
 2026-10-06：MachineWriteRegistration将五类tracker begin→同步安全记录arm→原失败收尾接入共享Kotlin；Service仅Registered才继续原baseline/event/send，Busy无存储，失败四类FAILED/预热consumed IDLE保持，无自动发送或重试。20参数测试stub18RED→20GREEN，219任务最终完整构建/回归/Lint及复审通过；首次替换误中Mock造成编译失败已恢复整个预热结构并锚定真实分支修正，未提交错误版本。283807a精确native37381614423日志成功读；52c95d4/Mock37380567825完整产物通过18/108+availability/lazy18、12/69及语言/音频/页面矩阵；不代替本轮登记接线或真实硬件验收。
 
 2026-10-06：新增实际Service登记失败隔离fixture：五入口×返回false/抛异常×两次显式尝试，计划10fixture/20失败登记，要求准确record_failed、同步屏障WRITING与kind/address、失败状态、snapshot/基线/偏好保持和零driver执行。125任务测试包/双Lint成功、独立复审无阻塞；运行时仍待本次云端Mock，不将编译当通过。共享登记e73ffff的native37382479655完整日志及Mock升级37382479606实际seed/verify已读取成功，旧Mock lifecycle37382479688仍运行中。无实际BLE或真机操作。
+
+2026-10-06：实际登记失败c297179/Mock37383364395完成并读产物，新增10fixture/20失败登记marker及原18/108、12ACK69入口、八语言/五音频、两profile各80页和三marker完整通过；同源码native37383364391日志与Mock升级37383364388 seed/verify/result已读success。e73ffff/Mock37382479688原全矩阵也已读取success。新发现萃取active帧乱序可将最后出液时间倒退，过早ENDED_OBSERVED开放下一杯；现保留最大已接纳时间。三状态1000/1500ms旧帧与2800/2801边界、相同/较新帧4新测试旧3FAIL→4GREEN，完整219任务回归/构建/Lint与独立复审通过，本次新源码云端尚待。只主机时间顺序，不识别重编号BLE帧或证明硬件停水。

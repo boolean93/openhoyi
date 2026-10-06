@@ -210,7 +210,9 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(frame is ExtractionTelemetry){
             clearStopIdleEvidence()
             policy.observeMachineElapsed(serial,frame.elapsedSeconds,receivedAtMs)
-            if(frame.valveOpen)lastActiveFrame=receivedAtMs
+            // Freshness alone does not establish ordering: delayed activity must not
+            // move the idle-completion boundary earlier than newer observed activity.
+            if(frame.valveOpen)lastActiveFrame=maxOf(lastActiveFrame ?: receivedAtMs,receivedAtMs)
         }
         val active=lastActiveFrame
         val stoppedUnsentStart=active==null&&startNotSubmitted&&stopWrittenAt?.let{receivedAtMs>it}==true

@@ -22,11 +22,9 @@
     "cause": "Broad begin string replacement matched Mock before real preheat branch",
     "resolution": "Restore entire prepareBrew then anchor after real coffeeAddress; final complete build and review passed"
   },
-  "cloudPending": {
-    "mockLifecycle": 37382479688
-  },
+  "cloudPending": {},
   "boundaries": [
-    "Shared registration tests and Service wiring verified locally; native and isolated Mock upgrade verified on source; lifecycle pending",
+    "Shared registration tests and Service wiring verified locally; native, isolated Mock lifecycle and same-source Mock upgrade verified",
     "Actual Service prewrite persistence failure fixture added in following change; runtime evidence still pending",
     "Registration only; full request/result coordination not migrated",
     "No real hardware or BLE verification"
@@ -47,6 +45,20 @@
       "seed": true,
       "verify": true,
       "scope": "same-source/schema Mock 1->2 on qemu; not real Alpha or historical migrations"
+    },
+    "mockLifecycle": {
+      "run": 37382479688,
+      "result": "success",
+      "actualArtifactRead": true,
+      "recoveryFixtures": 18,
+      "blockedEntries": 108,
+      "busyBlockedEntries": 69,
+      "languages": 8,
+      "audioMarkers": 5,
+      "pageProfiles": {
+        "compact": 80,
+        "wideFont": 80
+      }
     }
   },
   "cloudUiStatusOnly": {

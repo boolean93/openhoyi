@@ -34,17 +34,38 @@
       "fixture and original preferences unchanged",
       "no GATT driver execution"
     ],
-    "runtimeVerified": false
+    "runtimeVerified": true
   },
-  "cloudPending": {
-    "native": 37383364391,
-    "mockLifecycle": 37383364395,
-    "mockUpgrade": 37383364388
-  },
+  "cloudPending": {},
   "boundaries": [
     "Not a registered Service or real authentication/readback",
     "Inactive queues and fake driver do not prove successful-write transport behavior",
     "Fake storage faults do not prove OS crash atomicity",
     "No real BLE, installation or physical machine verification"
-  ]
+  ],
+  "cloudVerified": {
+    "native": {
+      "run": 37383364391,
+      "actualLogRead": true,
+      "result": "success"
+    },
+    "mockLifecycle": {
+      "run": 37383364395,
+      "actualArtifactRead": true,
+      "result": "success",
+      "marker": "SERVICE_WRITE_REGISTRATION_CHECKS_PASSED fixtures=10 failedRegistrations=20 storageModes=2 exactFailureResource=true retainedState=true noTransport=true syntheticReady=true",
+      "retainedPageFixtures": {
+        "compact": 80,
+        "wideFont": 80
+      },
+      "retainedAudioMarkers": 5
+    },
+    "mockUpgrade": {
+      "run": 37383364388,
+      "actualArtifactRead": true,
+      "result": "success",
+      "seed": true,
+      "verify": true
+    }
+  }
 }
