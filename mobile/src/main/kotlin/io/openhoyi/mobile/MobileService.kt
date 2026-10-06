@@ -13,6 +13,7 @@ import io.openhoyi.session.BrewPreparation
 import io.openhoyi.session.PassiveShotDetector
 import io.openhoyi.session.SettingsWriteTracker
 import io.openhoyi.session.CupResetTracker
+import io.openhoyi.session.CupResetReadback
 import io.openhoyi.session.SleepNowTracker
 import io.openhoyi.session.SleepScheduleWriteTracker
 import io.openhoyi.session.StandaloneTare
@@ -151,17 +152,15 @@ class MobileService : Service() {
     private var cupSettingsSerial = 0L
     private var cupIdleSerial = 0L
     private fun observeCupCount(settingsFrame: Boolean, count: Int) {
-        val previous = cupReset.state
-        val confirmed = if (settingsFrame) cupReset.observeSettings(++cupSettingsSerial, count)
-            else cupReset.observeIdle(++cupIdleSerial, count)
-        if (cupReset.state == CupResetTracker.State.CONFIRMED &&
-            machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET &&
-            !machineWriteRecovery.clear())
-            event(ResourceMessage(R.string.service_event_cups_clear_failed), "cups.recovery_clear_failed")
+        val sample = if (settingsFrame) CupResetReadback.Sample.Settings(++cupSettingsSerial,count)
+            else CupResetReadback.Sample.Idle(++cupIdleSerial,count)
+        val feedback = CupResetReadback.observe(cupReset,machineWriteRecovery,sample)
         refreshSafetyNotification()
-        if (confirmed) event(ResourceMessage(R.string.service_event_cups_confirmed), "cups.confirmed")
-        else if (previous == CupResetTracker.State.UNKNOWN && cupReset.state == CupResetTracker.State.RECONCILED)
-            event(ResourceMessage(R.string.service_event_cups_reconciled), "cups.reconciled")
+        feedback.forEach { when(it) {
+            CupResetReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_cups_confirmed), "cups.confirmed")
+            CupResetReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_cups_reconciled), "cups.reconciled")
+            CupResetReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_event_cups_clear_failed), "cups.recovery_clear_failed")
+        } }
     }
     private val scheduleWrite = SleepScheduleWriteTracker()
     private val sleepNow = SleepNowTracker()

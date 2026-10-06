@@ -1,0 +1,36 @@
+{
+  "change": "Cup reset keeps durable clear failure as final feedback, retaining confirmation diagnostic",
+  "local": {
+    "red": {
+      "tests": 8,
+      "failures": 2,
+      "scope": "Original ordering reproduced for false and throwing storage",
+      "log": "/private/tmp/hoyi-cup-readback-feedback-red.log"
+    },
+    "green": {
+      "tests": 8,
+      "failures": 0,
+      "namedSessionScenarios": 92,
+      "log": "/private/tmp/hoyi-cup-readback-feedback-green.log"
+    },
+    "fullBuild": {
+      "result": "BUILD SUCCESSFUL in 1m 1s",
+      "tasks": 219,
+      "log": "/private/tmp/hoyi-cup-readback-feedback-full.log"
+    },
+    "independentReview": "No blocking findings"
+  },
+  "covered": [
+    "Fresh zero settings and idle in both orders, partial/stale evidence rejected",
+    "False or exception on clear retains memory/disk gate and emits failure last",
+    "Repeated readback retries local storage only; confirmation not repeated",
+    "Unrelated pending kind remains protected",
+    "UNKNOWN nonzero reconciles without clearing, zero confirms and clears"
+  ],
+  "productionScope": "Typed readback coordinator and ordered Service feedback only; wire bytes, control gates and clear eligibility unchanged",
+  "androidRuntime": "Updated existing eight fault fixtures require failureLast=true; compiled but latest source cloud runtime pending",
+  "boundaries": [
+    "Detached fake GATT is not real hardware or registered Android lifecycle",
+    "Injected storage faults do not prove disk/process-crash atomicity"
+  ]
+}

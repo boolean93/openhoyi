@@ -1,0 +1,5 @@
+# Cup reset readback failure feedback priority
+
+Observed source defect: observeCupCount publishes clear_failed then confirmed when both channels prove zero but synchronous safety-record clear fails. The control gate remains pending; the last visible success text hides the reason. Extract cup readback correlation/conditional local clear to pure CupResetReadback returning ordered typed events. Preserve sample increments, tracker semantics, durable clear eligibility, all resources/tags and confirmation diagnostic; only change failure priority by emitting confirmation before clear failure. Keep notification refresh after local state/clear and before final feedback.
+
+Tests first use exact original ordering as RED reference, then verify failure-last for false/throw storage, both channel orders, partial/stale evidence, storage-only retry, unrelated kind protection, UNKNOWN reconciliation and confirmation. Wire real Service and update existing Android fault fixture to require failure-last for cup as well. Full checks and independent review; latest-source Mock runtime required, not hardware proof. No frame/control policy changes.

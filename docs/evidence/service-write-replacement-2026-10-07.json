@@ -32,5 +32,10 @@
     "Detached Service/Hub, not registered lifecycle/real BLE/hardware",
     "No command bytes or connection eligibility changed"
   ],
-  "cloudPending": "Await automatic source CI after push"
+  "cloudPending": {
+    "native": 37545210338,
+    "mockLifecycle": 37545210311,
+    "mockUpgrade": 37545210366
+  },
+  "sourceCommit": "281c4f62803a30f6adad5bfebc2582e9bbc4715b"
 }

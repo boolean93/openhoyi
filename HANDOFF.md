@@ -537,3 +537,7 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 5b4d8a7已推送，native37544844455、Mock lifecycle37544844426、upgrade37544844372确认排队/运行；本轮两类自动clear故障运行尚未验。CI元数据留本地合并下个实质提交。
 
 2026-10-07：ServiceWriteDisconnectionChecks新增runReplacement，保留原直接断线8fixture。新增8fixture四类×WRITING/WAITING，预期9 Write+4假Connect（分开计），不同设备门禁8，cup/schedule同机busy阻止4；setting/sleep同机允许替换到generation+1，仅新Connect在途。实际Service入口→Session→Hub→状态回调保留未知与原地址安全记录，旧write Success/旧watchdog不能完成或破坏新owner；96控制阻止与8持久重载保留。最终125任务testAPK/双Lint13秒成功，独立复审无阻塞；仅tests/CI/docs，无生产逻辑变更。本轮Android运行未验，之前5b4d8a7的native37544844455/Mock37544844426/upgrade37544844372仍确认运行中。
+
+281c4f6已推送；native37545210338、Mock lifecycle37545210311、upgrade37545210366确认运行/排队。新连接替换fixture尚待实际产物验收。CI编号元数据留本地合并下个实质提交。
+
+2026-10-07：修正杯数归零确认后本地安全记录clear失败被成功消息覆盖的问题。CupResetReadback返回有序事件，保留confirmed诊断、最后展示clear_failed；双通道serial、清除条件、蓝牙报文和控制门禁不变。8测试原顺序2FAIL→8GREEN，92场景通过；完整219任务61秒构建/回归/双Lint成功，独立复审无阻塞。Android既有8故障fixture/脚本新增failureLast=true要求，运行仍待新源码CI。5b4d8a7 native37544844455实际完整log和upgrade37544844372 seed/verify/result已读通过；升级仅同源码同schema Mock1→2，不代表Alpha或历史迁移。

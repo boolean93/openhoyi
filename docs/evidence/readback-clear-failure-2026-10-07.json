@@ -34,9 +34,23 @@
     "Normal successful four fixtures remain separately verified on source75ddf55"
   ],
   "cloudPending": {
-    "native": 37544844455,
-    "mockLifecycle": 37544844426,
-    "mockUpgrade": 37544844372
+    "mockLifecycle": 37544844426
   },
-  "sourceCommit": "5b4d8a7164c86892d7a2b34da5f89db5a8401d2f"
+  "sourceCommit": "5b4d8a7164c86892d7a2b34da5f89db5a8401d2f",
+  "cloudVerified": {
+    "native": {
+      "run": 37544844455,
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "releaseCases": 12
+    },
+    "mockUpgrade": {
+      "run": 37544844372,
+      "actualSeedVerifyResultRead": true,
+      "scope": "Same source/schema Mock 1->2 on qemu, not Alpha or historical migration",
+      "mockInstallationVerified": true,
+      "mockDataPreservationVerified": true
+    }
+  }
 }

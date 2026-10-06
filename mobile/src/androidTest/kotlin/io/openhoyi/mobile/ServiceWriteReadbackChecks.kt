@@ -277,8 +277,8 @@ internal class ServiceWriteReadbackChecks(private val test: Instrumentation) {
                             else -> error("Invalid fixture")
                         }
                         expectedClearMessage = instance.getString(clearFailureResource)
-                        // Cup confirmation follows its clear-failure event; check that failure in the journal too.
-                        val lastResource = if (clearFailureThrows == null || kind == MachineWriteRecoveryState.Kind.CUP_RESET)
+                        // Every clear failure remains the final visible feedback, including cup confirmation.
+                        val lastResource = if (clearFailureThrows == null)
                             confirmedResource else clearFailureResource
                         check(instance.snapshot.messageForDisplay { resource, args -> instance.getString(resource, *args) } == instance.getString(lastResource))
                         val confirmedMessage = instance.snapshot.message
