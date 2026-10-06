@@ -37,10 +37,40 @@
     "Reloaded real storage remains clear"
   ],
   "boundaries": [
-    "Android instrumentation pending source CI; compilation not execution",
+    "Detached Android readback instrumentation verified on source75ddf55; new clear-failure modes are separate pending tests",
     "Synthetic decoded HOYI notifications, not hardware checksum or old-packet identity proof",
     "Successful automatic clear only; clear failures/manual ACK covered separately",
     "Detached fixture, not registered Service lifecycle or physical BLE"
   ],
-  "cloudPending": "Await automatic source CI after push"
+  "cloudPending": {},
+  "sourceCommit": "75ddf55b182c3bb339829f070a4a2afd2c0e2aec",
+  "cloudVerified": {
+    "native": {
+      "run": 37416844588,
+      "result": "success",
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "capturedNotificationsReplayed": 32856,
+      "temporaryReleaseGuards": 12
+    },
+    "mockLifecycle": {
+      "run": 37416844562,
+      "result": "success",
+      "actualArtifactRead": true,
+      "scope": "new readback4/5/4/4, disconnection8/9/96/8, watchdog4/5/48/4, 19 language/5 audio markers/two80-page matrices"
+    },
+    "mockUpgrade": {
+      "run": 37416844536,
+      "result": "success",
+      "actualArtifactRead": true,
+      "scope": "same-current-source/schema Mock1->2 only"
+    }
+  },
+  "cloudStatusOnly": {
+    "mockUiCapture": {
+      "run": 37416844535,
+      "result": "success",
+      "imagesNotReviewed": true
+    }
+  }
 }

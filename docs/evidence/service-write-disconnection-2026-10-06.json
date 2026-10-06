@@ -48,9 +48,17 @@
   ],
   "cloudPending": {
     "native": 37416346693,
-    "mockLifecycle": 37416346615,
     "mockUpgrade": 37416346674,
     "mockUiCapture": 37416346663
   },
-  "sourceCommit": "0336b401d91d31819acb12bba106c66c3a4ee386"
+  "sourceCommit": "0336b401d91d31819acb12bba106c66c3a4ee386",
+  "cloudVerified": {
+    "mockLifecycle": {
+      "run": 37416844562,
+      "result": "success",
+      "actualArtifactRead": true,
+      "verifiedVia": "75ddf55 descendant",
+      "scope": "ServiceWriteDisconnectionChecks and MachineWriteDisconnection unchanged0336b40..75ddf55 (actual diff empty); eight real callback fixtures/96blocked/8reload"
+    }
+  }
 }

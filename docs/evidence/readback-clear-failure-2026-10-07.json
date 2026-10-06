@@ -1,0 +1,37 @@
+{
+  "change": "Real Service automatic readback confirmation retains durable gate when clear storage fails (false or exception)",
+  "local": {
+    "testApkAndDualLint": "BUILD SUCCESSFUL in 14s",
+    "tasks": 125,
+    "productionChanges": "none",
+    "independentReview": "no blocking findings after independent cleanup and preserved-error fix",
+    "scriptSyntax": "passed",
+    "diffCheck": "passed"
+  },
+  "expectedRuntime": {
+    "fixtures": 8,
+    "storageModes": 2,
+    "fakeDispatches": 10,
+    "failedClears": 8,
+    "blockedEntries": 96,
+    "retainedReloads": 8,
+    "recoveredClears": 8
+  },
+  "covered": [
+    "Real registration still commits isolated preferences before transport",
+    "Matching decoded readback confirms tracker but failed clear preserves memory and disk intent",
+    "Old watchdog and duplicate transport callback cannot erase the record",
+    "Six controls blocked on original and real storage reload",
+    "Restored storage plus new notification retries local clear without new command or registration",
+    "Drained TraceStore contains exact one clear-failure kind/message per fixture",
+    "Cup confirmation-after-failure display ordering preserved",
+    "Each cleanup runs independently; original failure retained with distinct suppressed cleanup errors"
+  ],
+  "boundaries": [
+    "New fault modes not executed yet; Android compilation is not runtime proof",
+    "Injected synchronous storage failure, not physical disk/process-crash atomicity",
+    "Detached Service and fake GATT, not registered lifecycle/real BLE/hardware",
+    "Normal successful four fixtures remain separately verified on source75ddf55"
+  ],
+  "cloudPending": "Await automatic source CI after push"
+}

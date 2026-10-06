@@ -529,3 +529,7 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 0336b40已推送，native37416346693、Mock lifecycle37416346615、upgrade37416346674、UI capture37416346663确认运行；尚无本轮运行通过证据。203f8ff native37415877010/upgrade37415877035已成功，但实际产物未读，仍不标verified。CI编号元数据保留本地，合并下一次实质开发提交。
 
 2026-10-06：新增实际Service回读fixture4：通知经真实Session解码→Hub→提取的原onCoffeeFrame（body逐行相等，仅缩进/方法引用变化）。预期5假写入，WRITING匹配回读不确认，Success仍WAITING，错误generation/endpoint不增长counter，错误值/半pair保留，完整fresh回读CONFIRMED+真实prefs清除/重载clear，旧watchdog和Success不降级。最终137任务13秒成功，双变体各178项中177通过/真实导出1跳过，独立复审无阻塞；运行待本次CI。此前b6b7615/Mock37415347355实际产物已读取：新增超时4/5/48/4和17语言/5音频/两80页面矩阵通过。203f8ff/native37415877010及升级37415877035实际log/产物读通过；不替代本回读fixture或实机。
+
+75ddf55已推送，native37416844588、Mock lifecycle37416844562、upgrade37416844536、UI capture37416844535确认运行。本轮回读fixture运行未验。0336b40 native37416346693/upgrade37416346674/UI37416346663已success但产物尚未读；其Mock37416346615仍运行。CI编号元数据留本地，合并下次实质提交。
+
+2026-10-07：ServiceWriteReadbackChecks复用原4成功fixture，扩展false/throw两存储模式×4kind，共8故障fixture，预期10假帧/8失败clear/96阻止入口/8保留重载/8恢复clear。写入登记仍同步落真实隔离prefs；机器确认后clear失败保留gate，旧timer/Success无clear，存储恢复后仅新回读重试本地clear，无新wire/registration。TraceStore drain后精确单条clear_failed kind/message，cup原confirmed-after-error顺序保留。复审修正trace失败跳过清理问题，独立清理和附加错误保留；最终125任务testAPK/双Lint14秒成功，复审无阻塞，生产无变化。运行仍待本轮CI。75ddf55 native37416844588/Mock37416844562/升级37416844536实际log/产物已读通过，新增回读4/5/4/4与断线8/9/96/8实际通过。0336b40断线fixture及协调器源码与75ddf55 diff空，按后代验证范围记录，不伪称精确033产物已读。

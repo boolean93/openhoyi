@@ -25,7 +25,9 @@ internal class ServiceWriteReadbackChecks(private val test: Instrumentation) {
     private fun recovery(service: MobileService) =
         ((field(service, "machineWriteRecovery\$delegate").get(service) as Lazy<*>).value as MachineWriteRecoveryState)
 
-    fun run() {
+    fun run() = run(null)
+    fun runClearFailure(throwing: Boolean) = run(throwing)
+    private fun run(clearFailureThrows: Boolean?) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
@@ -41,12 +43,23 @@ internal class ServiceWriteReadbackChecks(private val test: Instrumentation) {
         })
         var checkedFixtures = 0
         var confirmations = 0
+        var blockedEntries = 0
         var fakeDispatches = 0
         for (kind in MachineWriteRecoveryState.Kind.entries.filter { it in setOf(MachineWriteRecoveryState.Kind.SETTING, MachineWriteRecoveryState.Kind.CUP_RESET, MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE, MachineWriteRecoveryState.Kind.SLEEP_NOW) }) {
             val id = UUID.randomUUID().toString()
             val fixtures = names.associateWith { "service_write_readback_${id}_$it" }
             val folder = File(app.cacheDir, "service-write-readback-$id")
             val journal = TraceStore(folder)
+            var failure: Throwable? = null
+            var expectedClearMessage: String? = null
+            var completed = false
+            val clearFailureTag = when(kind) {
+                MachineWriteRecoveryState.Kind.SETTING -> "settings.recovery_clear_failed"
+                MachineWriteRecoveryState.Kind.CUP_RESET -> "cups.recovery_clear_failed"
+                MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> "sleep_schedule.recovery_clear_failed"
+                MachineWriteRecoveryState.Kind.SLEEP_NOW -> "sleep.recovery_clear_failed"
+                else -> error("Invalid fixture")
+            }
             var systemLookups = 0
             var permissionChecks = 0
             var componentCalls = 0
@@ -72,7 +85,6 @@ internal class ServiceWriteReadbackChecks(private val test: Instrumentation) {
                 val before = fixtures.mapValues { (_, name) -> app.getSharedPreferences(name, Context.MODE_PRIVATE).all.toMap() }
                 val prefs = app.getSharedPreferences(fixtures.getValue("machine_write_safety"), Context.MODE_PRIVATE)
                 check(prefs.all.isEmpty())
-                var failure: Throwable? = null
                 test.runOnMainSync {
                     val services = mutableListOf<MobileService>()
                     var hub: NativeDeviceHub? = null
@@ -87,6 +99,26 @@ internal class ServiceWriteReadbackChecks(private val test: Instrumentation) {
                             check(!field(instance, "running").getBoolean(instance))
                         }
                         val instance = attach()
+                        var clearWritable = clearFailureThrows == null
+                        var clearAttempts = 0
+                        var registrationAttempts = 0
+                        if (clearFailureThrows != null) {
+                            val failingRecovery = MachineWriteRecoveryState(object : MachineWriteRecoveryState.Storage {
+                                override fun read() = MachineWriteRecoveryState.Record(null,null)
+                                override fun write(record: MachineWriteRecoveryState.Record): Boolean {
+                                    if (!record.pending) {
+                                        clearAttempts++
+                                        if (!clearWritable) {
+                                            if (clearFailureThrows) throw IllegalStateException("Injected clear failure")
+                                            return false
+                                        }
+                                    } else registrationAttempts++
+                                    return prefs.edit().putString("pending_kind",record.kind?.name)
+                                        .putString("pending_address",record.address).commit()
+                                }
+                            })
+                            field(instance, "machineWriteRecovery\$delegate").set(instance, lazy { failingRecovery })
+                        }
                         val readbackCallback = MobileService::class.java.getDeclaredMethod("onCoffeeFrame", HoyiMessage::class.java)
                             .apply { isAccessible = true }
                         val owner = NativeDeviceHub(context, onCoffee = { frame -> readbackCallback.invoke(instance, frame) })
@@ -228,7 +260,8 @@ internal class ServiceWriteReadbackChecks(private val test: Instrumentation) {
                         val remaining = if (frames.size == 2) frames.drop(1) else frames
                         remaining.forEach { notify(it) }
                         check(requireNotNull(field(tracker, "state").get(tracker)).toString() == "CONFIRMED")
-                        check(!recovery(instance).pending && prefs.all.isEmpty())
+                        if (clearFailureThrows == null) check(!recovery(instance).pending && prefs.all.isEmpty())
+                        else check(recovery(instance).pending && prefs.all == saved && clearAttempts == 1 && registrationAttempts == 1)
                         val confirmedResource = when (kind) {
                             MachineWriteRecoveryState.Kind.SETTING -> R.string.service_event_setting_confirmed
                             MachineWriteRecoveryState.Kind.CUP_RESET -> R.string.service_event_cups_confirmed
@@ -236,15 +269,44 @@ internal class ServiceWriteReadbackChecks(private val test: Instrumentation) {
                             MachineWriteRecoveryState.Kind.SLEEP_NOW -> R.string.service_event_sleep_confirmed
                             else -> error("Invalid fixture")
                         }
-                        check(instance.snapshot.messageForDisplay { resource, args -> instance.getString(resource, *args) } == instance.getString(confirmedResource))
+                        val clearFailureResource = when(kind) {
+                            MachineWriteRecoveryState.Kind.SETTING -> R.string.service_write_setting_clear_failed
+                            MachineWriteRecoveryState.Kind.CUP_RESET -> R.string.service_event_cups_clear_failed
+                            MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE -> R.string.service_write_schedule_clear_failed
+                            MachineWriteRecoveryState.Kind.SLEEP_NOW -> R.string.service_write_sleep_clear_failed
+                            else -> error("Invalid fixture")
+                        }
+                        expectedClearMessage = instance.getString(clearFailureResource)
+                        // Cup confirmation follows its clear-failure event; check that failure in the journal too.
+                        val lastResource = if (clearFailureThrows == null || kind == MachineWriteRecoveryState.Kind.CUP_RESET)
+                            confirmedResource else clearFailureResource
+                        check(instance.snapshot.messageForDisplay { resource, args -> instance.getString(resource, *args) } == instance.getString(lastResource))
                         val confirmedMessage = instance.snapshot.message
                         scheduled.single().second.invoke()
                         completeLast()
                         check(instance.snapshot.message === confirmedMessage && scheduled.size == 1)
                         check(requireNotNull(field(tracker, "state").get(tracker)).toString() == "CONFIRMED")
-                        check(!recovery(instance).pending && prefs.all.isEmpty() && calls.size == dispatches)
                         check(session.state == DeviceState.READY && session.address == address)
                         check(queues[0].active && !queues[0].inFlight && !queues[1].active && coffeeCloses == 0 && scaleExecutions == 0)
+                        if (clearFailureThrows != null) {
+                            fun blocked(service: MobileService) {
+                                val warning = requireNotNull(service.machineControlSafetyMessage)
+                                val entries = listOf(service.changeMachineSetting(change), service.resetCupCount(settings.cupCount),
+                                    service.changeSleepSchedule(expected,target),service.enterSleepNow(),
+                                    service.prepareBrew(selected.id,selected.scaleMode,7),service.startShot(selected.id,selected.scaleMode,7))
+                                check(entries.all { it == warning })
+                                blockedEntries += entries.size
+                                check(recovery(service).pending && recovery(service).kind == kind && recovery(service).address == address)
+                                check(prefs.all == saved && calls.size == dispatches)
+                            }
+                            blocked(instance)
+                            blocked(attach()) // A separate real storage adapter reloads the retained record.
+                            check(clearAttempts == 1 && registrationAttempts == 1)
+                            clearWritable = true
+                            frames.forEach { notify(it) } // Only new readbacks retry the local clear, never a wire command.
+                            check(clearAttempts == 2 && registrationAttempts == 1)
+                        }
+                        check(!recovery(instance).pending && prefs.all.isEmpty() && calls.size == dispatches)
                         val reloaded = attach()
                         check(!recovery(reloaded).pending && prefs.all.isEmpty())
                         confirmations++
@@ -266,14 +328,37 @@ internal class ServiceWriteReadbackChecks(private val test: Instrumentation) {
                 }
                 check(systemLookups == 0 && permissionChecks == 0 && componentCalls == 0)
                 failure?.let { throw it }
+                completed = true
+            } catch (error: Throwable) {
+                failure = error
+                throw error
             } finally {
                 journal.close()
-                check(journal.awaitTermination(5, TimeUnit.SECONDS))
-                check(folder.deleteRecursively())
-                fixtures.values.forEach { check(app.deleteSharedPreferences(it)) }
-                original.forEach { (name, values) -> check(app.getSharedPreferences(name, Context.MODE_PRIVATE).all == values) }
+                var cleanupFailure: Throwable? = null
+                fun checked(action: () -> Unit) {
+                    try { action() } catch (error: Throwable) {
+                        val first = cleanupFailure
+                        if (first == null) cleanupFailure = error
+                        else if (first !== error) first.addSuppressed(error)
+                    }
+                }
+                checked { check(journal.awaitTermination(5, TimeUnit.SECONDS)) }
+                if (clearFailureThrows != null && completed) checked {
+                    val failures = folder.listFiles().orEmpty().filter { it.extension == "jsonl" }
+                        .flatMap { it.readLines() }.map { org.json.JSONObject(it) }
+                        .filter { it.getString("kind") == clearFailureTag }
+                    check(failures.size == 1 && failures.single().getJSONObject("fields").getString("message") == expectedClearMessage)
+                }
+                checked { check(folder.deleteRecursively()) }
+                fixtures.values.forEach { name -> checked { check(app.deleteSharedPreferences(name)) } }
+                original.forEach { (name, values) -> checked { check(app.getSharedPreferences(name, Context.MODE_PRIVATE).all == values) } }
+                cleanupFailure?.let { error ->
+                    val first = failure
+                    if (first == null) throw error
+                    if (first !== error) first.addSuppressed(error)
+                }
             }
         }
-        check(checkedFixtures == 4 && confirmations == 4 && fakeDispatches == 5)
+        check(checkedFixtures == 4 && confirmations == 4 && fakeDispatches == 5 && blockedEntries == if (clearFailureThrows == null) 0 else 48)
     }
 }
