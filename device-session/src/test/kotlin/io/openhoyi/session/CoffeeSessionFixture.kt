@@ -5,12 +5,15 @@ import java.time.LocalDateTime
 internal class CoffeeSessionFixture {
     var now = 0L
     val calls = mutableListOf<Triple<Long, Long, GattOperation>>()
+    var executeFailure: Exception? = null
+    var closes = 0
     val driver = object : GattDriver {
         override fun execute(generation: Long, token: Long, operation: GattOperation): Boolean {
             calls += Triple(generation, token, operation)
+            executeFailure?.let { throw it }
             return true
         }
-        override fun close(generation: Long) = Unit
+        override fun close(generation: Long) { closes++ }
     }
     val session = DeviceSession(DeviceRole.COFFEE, driver, { now })
     fun hex(s: String) = s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()

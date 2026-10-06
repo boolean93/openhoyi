@@ -44,7 +44,19 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
             deliver(p,OperationResult.Failed("pre-dispatch guard rejected operation"))
             pump();return
         }
-        val accepted=try{driver.execute(generation,p.token,p.operation)}catch(e:Exception){false}
+        val executionGeneration=generation
+        val accepted=try{driver.execute(executionGeneration,p.token,p.operation)}catch(_:Exception){
+            // A synchronous completion callback may already have replaced this owner.
+            if(generation!=executionGeneration || !active)return
+            // Execution may have crossed the submission boundary before throwing.
+            // Keep the running result unknown and never pump later work on this owner.
+            val reason="transport execution exception"
+            try { disconnect(reason) } finally {
+                // Unknown/cancelled observers may explicitly reconnect while settling.
+                if(generation==executionGeneration)invalidated(reason)
+            }
+            return
+        }
         if(!accepted && current===p) {
             current=null
             deliver(p,OperationResult.Failed("transport rejected operation"))

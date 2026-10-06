@@ -25,14 +25,38 @@
     "independentReview": "no blocking findings",
     "diffCheck": "success"
   },
-  "cloudPending": {
-    "native": 37408757899,
-    "mockLifecycle": 37408757842,
-    "mockUpgrade": 37408757860
-  },
+  "cloudPending": {},
   "boundaries": [
     "Only host receive timestamp ordering; cannot detect an old BLE payload assigned a newer time",
     "Fake control callback acknowledgement is not observed physical start or stop",
     "No device installation, BLE or machine operation"
-  ]
+  ],
+  "cloudVerified": {
+    "native": {
+      "run": 37408757899,
+      "result": "success",
+      "actualLogRead": true
+    },
+    "mockLifecycle": {
+      "run": 37408757842,
+      "result": "success",
+      "actualArtifactRead": true,
+      "registrationFailures": 20,
+      "recoveryEntries": 108,
+      "busyEntries": 69,
+      "audioMarkers": 5,
+      "pageProfiles": {
+        "compact": 80,
+        "wideFont": 80
+      }
+    },
+    "mockUpgrade": {
+      "run": 37408757860,
+      "result": "success",
+      "actualArtifactRead": true,
+      "seed": true,
+      "verify": true,
+      "scope": "same-source/schema Mock 1->2 on qemu"
+    }
+  }
 }

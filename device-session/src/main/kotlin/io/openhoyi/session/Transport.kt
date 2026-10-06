@@ -20,6 +20,7 @@ sealed interface OperationResult {
 }
 /** One driver instance belongs to exactly one device connection owner. Callbacks are marshalled to the owner's thread. */
 interface GattDriver {
+    /** false means definitely not submitted; an exception leaves submission uncertain. */
     fun execute(generation: Long, token: Long, operation: GattOperation): Boolean
     fun close(generation: Long)
 }

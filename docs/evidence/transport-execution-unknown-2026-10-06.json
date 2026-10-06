@@ -1,0 +1,30 @@
+{
+  "sourceCommit": null,
+  "scope": "Unhandled driver.execute exceptions at queue boundary; not internally caught Android platform failures",
+  "change": "Same-generation execution exception closes owner, settles running Unknown and unsent Cancelled, then invalidates host; preserve callback-created new generation",
+  "local": {
+    "junitTests": 7,
+    "originalFailedTests": 4,
+    "firstReentrantRepairRedTests": 1,
+    "secondReentrantRepairRedTests": 1,
+    "finalTests": "7 passed",
+    "actualSessionPath": "synthetic authenticated READY writeSetting -> Unknown result, UNKNOWN tracker, FAILED session, subsequent send rejected",
+    "explicitFalseAndGuardException": "unchanged definite Failed, connection remains active",
+    "synchronousCompletion": "no duplicate outcome, same-owner closed; new owner preserved",
+    "closeFailure": "all waiters settled",
+    "lateCallbacks": "ignored; explicit fresh generation can complete",
+    "sessionScenarios": 92,
+    "fullBuildTasks": 219,
+    "fullBuild": "success in 57s",
+    "independentReview": "no remaining blocker in new exception path after two reentrant repairs",
+    "diffCheck": "success"
+  },
+  "cloudPending": {},
+  "boundaries": [
+    "No real driver submission or physical device control",
+    "Actual Service durable recovery retention on execute exceptions not newly exercised at Android runtime",
+    "Existing callback-failure and timeout reentrant paths not audited in this change",
+    "No new dispatch after exception observation on the same owner; synchronous callback may have pumped before throw is observed",
+    "No hardware, installation or real Alpha upgrade verification"
+  ]
+}
