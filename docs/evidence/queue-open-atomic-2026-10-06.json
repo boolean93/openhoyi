@@ -21,5 +21,10 @@
     "No outbound frame or timing threshold changes",
     "No real BLE or physical execution"
   ],
-  "cloudPending": "await source push"
+  "cloudPending": {
+    "native": 37411452634,
+    "mockLifecycle": 37411452652,
+    "mockUpgrade": 37411452642
+  },
+  "sourceCommit": "644ebc5dc19d04fc861639c8e6abf9557a408d0c"
 }

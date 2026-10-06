@@ -1,3 +1,7 @@
+2026-10-06 初始化owner：新增initializationState，阶段deadline先发布再通知观察者，返回后复核原generation/active/phase；所有初始化step显式绑定原generation。5种coffee阶段同步重连只发送新stage/new auth；BOOKOO同步阶段重连不覆盖新INITIALIZING 10s deadline。最初4方法旧2FAIL；拆分五阶段后8方法GREEN，92原场景通过，独立审查无阻塞。219任务完整构建/双Lint59s通过；终态disconnect/fail清理与通知派发重入仍未审计。下一轮先核对本轮源码CI，再处理这两项边界或继续业务协调。
+
+644ebc5源码已推送，native37411452634/Mock37411452652/升级37411452642已自动启动，下一轮读取既有产物。c59e186 Mock37410822569实际完整产物success已读，五类异常5/60/5及原矩阵完整保留，queue-callback-owner的cloudPending已清空。
+
 2026-10-06：GattQueue.open同步替换栈增加opening门禁，嵌套open在改代次/提交前拒绝，finally释放门禁。5项新测试旧3FAIL→5GREEN；92原场景及219任务完整构建/双Lint54s通过，独立审查无阻塞。普通完成/超时/断开回调中的显式open仍允许。证据docs/evidence/queue-open-atomic-2026-10-06.json。更广DeviceSession.connect/stateChanged初始化重入尚待审计，不扩大结论。
 
 af4ea3e Mock37410266452实际完整产物已读：5fakeDispatch/60blocked/5实例重读，原登记、恢复、退出、八语言双主题160页和音频矩阵保留；service-transport-unknown证据runtimeVerified=true。c59e186 native37410822650完整日志、升级37410822537实际seed/verify/result已读success，Mock37410822569仍in_progress，不重复dispatch。

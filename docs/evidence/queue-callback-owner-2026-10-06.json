@@ -21,9 +21,7 @@
     "Same-owner callback failure and timeout still close without retries",
     "First reporting error and distinct suppressed later failure preserved"
   ],
-  "cloudPending": {
-    "mockLifecycle": 37410822569
-  },
+  "cloudPending": {},
   "boundaries": [
     "Fake drivers and host callbacks, not real BLE or physical execution",
     "No timing threshold or outbound frame changes",
@@ -41,6 +39,12 @@
       "result": "success",
       "actualArtifactRead": true,
       "scope": "same-source/schema Mock 1->2 on qemu"
+    },
+    "mockLifecycle": {
+      "run": 37410822569,
+      "result": "success",
+      "actualArtifactRead": true,
+      "retainedMatricesVerified": true
     }
   }
 }

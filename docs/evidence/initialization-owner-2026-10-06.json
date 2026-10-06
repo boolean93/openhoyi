@@ -1,0 +1,27 @@
+{
+  "change": "Bind initialization steps to original active generation and publish deadlines before state observers",
+  "local": {
+    "initialTestMethods": 4,
+    "originalFailedTests": 2,
+    "finalTestMethods": 8,
+    "finalTests": "8 passed",
+    "sessionNamedScenarios": 92,
+    "independentReview": "no blocking findings; plan wording corrected",
+    "fullBuild": "success in 59s",
+    "fullBuildTasks": 219,
+    "diffCheck": "success"
+  },
+  "covered": [
+    "Reconnect during CONNECTING/DISCOVERING/SUBSCRIBING/INITIALIZING/SYNCHRONIZING sends only new connection stages and new authentication",
+    "Disconnect in all five coffee initialization phases stops continuation",
+    "BOOKOO synchronization observer reconnect retains new initialization 10s deadline",
+    "New coffee connection retains 22s queue timeout"
+  ],
+  "boundaries": [
+    "Terminal disconnect/fail cleanup observer reentrancy not audited by this change",
+    "Notification delivery ownership remains separate",
+    "No protocol bytes or timeout thresholds changed",
+    "No real BLE or physical validation"
+  ],
+  "cloudPending": "await source push"
+}

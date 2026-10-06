@@ -77,30 +77,40 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED)) return
         // Validate credentials before disturbing an existing connection.
         val auth=authentication?.encode()
-        disconnect();lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();activeAddress=address;queue.open();setState(DeviceState.CONNECTING);stageDeadline=clock()+22_000
-        step(GattOperation.Connect(address),22_000) {
-            setState(DeviceState.DISCOVERING)
-            step(GattOperation.Discover,10_000){ result ->
+        disconnect();lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();activeAddress=address
+        val expected=queue.open()
+        if(!initializationState(expected,DeviceState.CONNECTING,22_000))return
+        step(expected,GattOperation.Connect(address),22_000) {
+            if(!initializationState(expected,DeviceState.DISCOVERING))return@step
+            step(expected,GattOperation.Discover,10_000){ result ->
                 val write=result.characteristics.singleOrNull{it.endpoint==writeEndpoint&&(it.write||it.writeWithoutResponse)}
                 val notify=result.characteristics.singleOrNull{it.endpoint==notifyEndpoint&&(it.notify||it.indicate)}
                 if(write==null||notify==null){fail("required GATT characteristics missing or ambiguous");return@step}
                 withResponse=write.write
-                setState(DeviceState.SUBSCRIBING)
-                step(GattOperation.Subscribe(notifyEndpoint,!notify.notify),5000){
-                    setState(DeviceState.INITIALIZING);stageDeadline=clock()+10_000
+                if(!initializationState(expected,DeviceState.SUBSCRIBING))return@step
+                step(expected,GattOperation.Subscribe(notifyEndpoint,!notify.notify),5000){
+                    if(!initializationState(expected,DeviceState.INITIALIZING,10_000))return@step
                     if(role==DeviceRole.COFFEE){
-                        step(GattOperation.Write(writeEndpoint,auth!!.frame.toByteArray(),withResponse),5000){
-                            setState(DeviceState.SYNCHRONIZING);stageDeadline=clock()+10_000
+                        step(expected,GattOperation.Write(writeEndpoint,auth!!.frame.toByteArray(),withResponse),5000){
+                            initializationState(expected,DeviceState.SYNCHRONIZING,10_000)
                         }
                     }else{initNext=0;initBusy=false;initDue=clock()+500}
                 }
             }
         }
     }
-    private fun step(operation:GattOperation,timeout:Long,success:(OperationResult.Success)->Unit) {
-        val expected=generation
+    private fun ownsInitialization(expected:Long)=generation==expected && queue.active
+    /** Publish deadlines before observers; a reentrant reconnect owns all further work. */
+    private fun initializationState(expected:Long,value:DeviceState,timeout:Long?=null):Boolean {
+        if(!ownsInitialization(expected))return false
+        if(timeout!=null)stageDeadline=clock()+timeout
+        setState(value)
+        return ownsInitialization(expected) && state==value
+    }
+    private fun step(expected:Long,operation:GattOperation,timeout:Long,success:(OperationResult.Success)->Unit) {
+        if(!ownsInitialization(expected))return
         queue.enqueue(operation,timeout){ result ->
-            if(generation!=expected||state==DeviceState.DISCONNECTED||state==DeviceState.FAILED)return@enqueue
+            if(!ownsInitialization(expected)||state==DeviceState.DISCONNECTED||state==DeviceState.FAILED)return@enqueue
             if(result is OperationResult.Success)success(result) else fail("$operation: $result")
         }
     }
@@ -161,9 +171,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(role==DeviceRole.BOOKOO&&state==DeviceState.INITIALIZING&&!initBusy&&clock()>=initDue){
             val commands=BookooCodec.initializationCommands();val cmd=commands[initNext]
             initBusy=true
-            step(GattOperation.Write(writeEndpoint,cmd.frame.toByteArray(),withResponse),5000){
+            val expected=generation
+            step(expected,GattOperation.Write(writeEndpoint,cmd.frame.toByteArray(),withResponse),5000){
                 initBusy=false;initNext++
-                if(initNext==commands.size){setState(DeviceState.SYNCHRONIZING);stageDeadline=clock()+5000}
+                if(initNext==commands.size)initializationState(expected,DeviceState.SYNCHRONIZING,5000)
                 else initDue=clock()+500
             }
         }
