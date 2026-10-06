@@ -21,9 +21,7 @@
     "No outbound frame or timing threshold changes",
     "No real BLE or physical execution"
   ],
-  "cloudPending": {
-    "mockLifecycle": 37411452652
-  },
+  "cloudPending": {},
   "sourceCommit": "644ebc5dc19d04fc861639c8e6abf9557a408d0c",
   "cloudVerified": {
     "mockUpgrade": {
@@ -36,6 +34,12 @@
       "run": 37411452634,
       "result": "success",
       "actualLogRead": true
+    },
+    "mockLifecycle": {
+      "run": 37411452652,
+      "result": "success",
+      "actualArtifactRead": true,
+      "retainedMatricesVerified": true
     }
   }
 }

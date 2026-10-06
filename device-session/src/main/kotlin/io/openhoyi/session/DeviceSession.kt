@@ -131,6 +131,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 if(frame is Settings){
                     if(authenticated){lastSettingsAtMs=now;lastSettings=frame;acceptSettings(frame)}
                 }
+                // READY observers may synchronously replace this connection.
+                if(this.generation!=generation||!queue.active)return
                 if(state==DeviceState.READY){
                     when(frame){
                         is IdleTelemetry -> {lastIdle=frame;lastIdleAtMs=now}
@@ -149,6 +151,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }else when(val decoded=BookooCodec.decode(bytes)) {
             is DecodeResult.Valid -> {
                 if(state==DeviceState.SYNCHRONIZING)setState(DeviceState.READY)
+                if(this.generation!=generation||!queue.active)return
                 if(state==DeviceState.READY)weightFrame(decoded.value,now)
             }
             else -> diagnostic("scale decode: ${decoded::class.simpleName}")

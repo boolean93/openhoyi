@@ -1,0 +1,29 @@
+{
+  "change": "Revalidate original active generation after READY state observers and before coffee/BOOKOO product notification delivery",
+  "local": {
+    "newTests": 6,
+    "originalFailedTests": 3,
+    "firstFinalTests": "6 passed",
+    "sessionNamedScenarios": 92,
+    "fullBuild": "success in 56s",
+    "fullBuildTasks": 219,
+    "independentReview": "no blocking findings, including strengthened readback assertions",
+    "additionalAssertion": "passed: distinct new brew temperature=93, address and generation retained in StartContext; no start sent",
+    "finalFocusedRun": "success in 10s; 6 tests and retained session checks pass",
+    "diffCheck": "success"
+  },
+  "covered": [
+    "Coffee first and repeated READY observers reconnect with distinct Settings; old Settings not published into new product state",
+    "BOOKOO first READY observer reconnects with distinct weight; old weight not published into new product state",
+    "Disconnect and unfinished replacement suppress old notifications",
+    "Normal first/subsequent READY notifications preserve payload and timestamp",
+    "Stale generation and wrong endpoint ignored"
+  ],
+  "boundaries": [
+    "Cannot detect hardware old packets assigned a new host generation/timestamp",
+    "Outer connect initial disconnect observer reentrancy remains separate",
+    "No protocol bytes or timing thresholds changed",
+    "No real BLE or physical validation"
+  ],
+  "cloudPending": "await source push"
+}

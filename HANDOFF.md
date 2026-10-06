@@ -1,3 +1,9 @@
+2026-10-06 notification owner：onNotification coffee acceptSettings及BOOKOO首setREADY之后复核原generation/queue.active，再执行readback/product派发，防observer同步newREADY后旧帧混入。6新方法旧3FAIL→6GREEN，92原场景及219任务完整构建/双Lint56s通过，独立审查无阻塞；追加new StartContext温度93/address/gen断言最终focused10s成功，6项及原回归通过；最初94.07C测试idle不匹配91C曲线的null已修为合法91C样本，未放宽门禁，独立补审无阻塞。证据docs/evidence/notification-owner-2026-10-06.json。outer connect初始disconnect observer重入仍待，硬件旧包被新host时间戳标记无法由此证明。
+
+01905ed native37411797264实际完整日志success已读（39823/32856/92/release12），Mock37411797263仍待。c8a053f升级37412191352实际seed/verify/resultsuccess已读，native37412191655与Mock37412191460仍待。不重复dispatch，无安装/实BLE，goal active。
+
+c8a053f25cb48652cfb51d89bf61390bd4e6323b终态owner源码已推送；native37412191655、Mock37412191460、升级37412191352均in_progress。644ebc5 Mock37411452652实际完整产物success已读（5异常/60阻止/5重读、20登记、18/108/18、12ACK69、八语言160页及5音频）；queue-open-atomic所有cloud已清空。01905ed升级37411797312实际seed/verify/resultsuccess已读；native37411797264和Mock37411797263仍待。下轮读既有任务，不重复dispatch，继续通知发布owner或outer connect初始disconnect观察者重入。此处与三证据source/CI元数据本地未单独提交，随下一实质提交并入，避免纯文档触发重复构建；保留。无安装/实BLE，goal active。
+
 2026-10-06 终态owner：endConnection先捕generation、分离旧sleep、清旧initBusy，然后发布DISCONNECTED/FAILED；finally旧sleep一次Unknown，只有同generation才关闭queue。两角色两终态重连/重连后throw保留新queue，新sleep两帧仍成功，oldtare Unknown回调重连不重置新BOOKOO busy。7新方法旧7FAIL→7GREEN，4原observerthrow及92场景全过，独立复审无阻塞；219任务完整构建/双Lint55s通过。证据docs/evidence/terminal-owner-2026-10-06.json。outer connect初始disconnect观察者重连、通知发布owner仍未审计；不声称物理安全。
 
 644ebc5 native37411452634实际完整日志success已读（39823/32856/92与release12），升级37411452642实际seed/verify/resultsuccess已读；Mock37411452652仍待。01905ed三项仍待，不重复dispatch。

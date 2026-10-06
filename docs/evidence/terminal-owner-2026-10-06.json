@@ -23,5 +23,17 @@
     "No real BLE or physical safety proof",
     "No protocol bytes, timing thresholds or retry changes"
   ],
-  "cloudPending": "await source push"
+  "cloudPending": {
+    "native": 37412191655,
+    "mockLifecycle": 37412191460
+  },
+  "sourceCommit": "c8a053f25cb48652cfb51d89bf61390bd4e6323b",
+  "cloudVerified": {
+    "mockUpgrade": {
+      "run": 37412191352,
+      "result": "success",
+      "actualArtifactRead": true,
+      "scope": "same-source/schema Mock 1->2 on qemu"
+    }
+  }
 }
