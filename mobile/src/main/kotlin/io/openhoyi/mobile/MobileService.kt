@@ -394,6 +394,128 @@ class MobileService : Service() {
         if (role == DeviceRole.COFFEE) refreshSafetyNotification()
     }
 
+    private fun onCoffeeFrame(frame: HoyiMessage) {
+        snapshot = when (frame) {
+            is Settings -> {
+                observeCupCount(true, frame.cupCount)
+                val previousSettingState = settingsWrite.state
+                if (settingsWrite.observe(++settingsSampleSerial, frame))
+                    event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
+                else if (previousSettingState == SettingsWriteTracker.State.UNKNOWN &&
+                    settingsWrite.state == SettingsWriteTracker.State.RECONCILED)
+                    event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
+                if (settingsWrite.state == SettingsWriteTracker.State.CONFIRMED &&
+                    machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
+                    if (!machineWriteRecovery.clear())
+                        event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
+                    refreshSafetyNotification()
+                }
+                snapshot.copy(settings = frame, settingsAt = SystemClock.elapsedRealtime())
+            }
+            is SleepPart -> {
+                if (frame.firstDaySundayIndex == 0) {
+                    firstSleepSerial++
+                    snapshot = snapshot.copy(sleepFirst = frame, sleepFirstAt = SystemClock.elapsedRealtime(), sleepSecondAt = null)
+                } else {
+                    secondSleepSerial++
+                    snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = SystemClock.elapsedRealtime())
+                }
+                if (sleepScheduleFresh && scheduleWrite.observe(firstSleepSerial, secondSleepSerial,
+                        snapshot.sleepFirst, snapshot.sleepSecond)) {
+                    if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED)
+                        event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
+                    else event(ResourceMessage(R.string.service_event_schedule_reconciled), "sleep_schedule.reconciled")
+                }
+                if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED &&
+                    machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
+                    if (!machineWriteRecovery.clear())
+                        event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
+                    refreshSafetyNotification()
+                }
+                snapshot
+            }
+            is IdleTelemetry -> {
+                observeCupCount(false, frame.cupCount)
+                val previousSleepState = sleepNow.state
+                if (sleepNow.observe(++sleepSampleSerial, frame.sleepStateRaw))
+                    event(ResourceMessage(R.string.service_event_sleep_confirmed), "sleep.confirmed")
+                else if (previousSleepState == SleepNowTracker.State.UNKNOWN &&
+                    sleepNow.state == SleepNowTracker.State.RECONCILED)
+                    event(ResourceMessage(R.string.service_event_sleep_reconciled), "sleep.reconciled")
+                if (sleepNow.state == SleepNowTracker.State.CONFIRMED &&
+                    machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
+                    if (!machineWriteRecovery.clear())
+                        event(ResourceMessage(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
+                    refreshSafetyNotification()
+                }
+                val currentSettings = snapshot.settings
+                if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
+                        BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
+                            currentSettings.brewCompensationTenthsC)))
+                    event(ResourceMessage(R.string.service_event_preheat_ready), "brew_wait.ready")
+                val observedAt = SystemClock.elapsedRealtime()
+                snapshot.copy(coffee = frame, coffeeAt = observedAt,
+                    alarmBits = frame.alarmBits, alarmAt = observedAt)
+            }
+            is io.openhoyi.protocol.ExtractionTelemetry ->
+                snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
+            else -> snapshot
+        }
+        val observedAt = snapshot.coffeeAt ?: SystemClock.elapsedRealtime()
+        val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
+            lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
+        val passiveEvent = if (snapshot.coffeeState == DeviceState.READY)
+            passiveShot.observe(frame, observedAt, appShotInProgress) else null
+        when (passiveEvent) {
+            is PassiveShotDetector.Event.Started -> {
+                val previousRecovery = shotRecovery.pending
+                if (!previousRecovery) manualSafetyResource = null
+                val currentAddress = hub?.coffeeAddress
+                val armed = shotRecovery.arm(currentAddress)
+                passiveMayClearRecovery = armed &&
+                    shotRecovery.mayClearAfterPassiveShot(previousRecovery, currentAddress)
+                if (!armed)
+                    manualSafetyResource = R.string.service_event_shot_record_failed
+                refreshSafetyNotification()
+                passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
+                    .onFailure { event(ResourceMessage(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
+                val id = passiveHistoryId ?: java.util.UUID.randomUUID().toString()
+                series.begin(id, passiveEvent.first.atMs)
+                val feedbackSlot = passiveEvent.first.frame.slotOrPhase
+                beginBrewFeedback(id, feedbackSlot, if (feedbackSlot == 6) 0 else null, appShot = false)
+                recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
+                recordMachinePoint(passiveEvent.second.frame, passiveEvent.second.atMs)
+                passiveHistoryId?.let {
+                    runCatching { history?.transition(ExtractionState.RUNNING, "机器手动萃取", null) }
+                        .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+                }
+                event(ResourceMessage(R.string.service_event_manual_started), "shot.passive_started")
+            }
+            is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
+                passiveEvent.value.atMs)
+            PassiveShotDetector.Event.Ended -> {
+                if (!passiveMayClearRecovery || !shotRecovery.matchesDevice(hub?.coffeeAddress) ||
+                    !shotRecovery.clear())
+                    manualSafetyResource = R.string.service_event_shot_clear_failed
+                passiveMayClearRecovery = false
+                val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
+                    snapshot.scaleState == DeviceState.READY &&
+                        TelemetryFreshness.isFresh(snapshot.weightAt, observedAt)
+                }
+                passiveHistoryId?.let {
+                    runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
+                        "机器待机回报", weight) }
+                        .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+                }
+                passiveHistoryId = null
+                finishSeries(true)
+                event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
+            }
+            else -> if (frame is io.openhoyi.protocol.ExtractionTelemetry && !passiveShot.active)
+                recordMachinePoint(frame, observedAt)
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         val app = application as MobileApplication
@@ -430,127 +552,7 @@ class MobileService : Service() {
             hub = NativeDeviceHub(applicationContext, prefs.getString("scale", null),
                 onScaleRemembered = { prefs.edit().putString("scale", it).apply() },
                 onState = ::onDeviceState,
-                onCoffee = { frame ->
-                    snapshot = when (frame) {
-                        is Settings -> {
-                            observeCupCount(true, frame.cupCount)
-                            val previousSettingState = settingsWrite.state
-                            if (settingsWrite.observe(++settingsSampleSerial, frame))
-                                event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
-                            else if (previousSettingState == SettingsWriteTracker.State.UNKNOWN &&
-                                settingsWrite.state == SettingsWriteTracker.State.RECONCILED)
-                                event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
-                            if (settingsWrite.state == SettingsWriteTracker.State.CONFIRMED &&
-                                machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
-                                if (!machineWriteRecovery.clear())
-                                    event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
-                                refreshSafetyNotification()
-                            }
-                            snapshot.copy(settings = frame, settingsAt = SystemClock.elapsedRealtime())
-                        }
-                        is SleepPart -> {
-                            if (frame.firstDaySundayIndex == 0) {
-                                firstSleepSerial++
-                                snapshot = snapshot.copy(sleepFirst = frame, sleepFirstAt = SystemClock.elapsedRealtime(), sleepSecondAt = null)
-                            } else {
-                                secondSleepSerial++
-                                snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = SystemClock.elapsedRealtime())
-                            }
-                            if (sleepScheduleFresh && scheduleWrite.observe(firstSleepSerial, secondSleepSerial,
-                                    snapshot.sleepFirst, snapshot.sleepSecond)) {
-                                if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED)
-                                    event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
-                                else event(ResourceMessage(R.string.service_event_schedule_reconciled), "sleep_schedule.reconciled")
-                            }
-                            if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED &&
-                                machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
-                                if (!machineWriteRecovery.clear())
-                                    event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
-                                refreshSafetyNotification()
-                            }
-                            snapshot
-                        }
-                        is IdleTelemetry -> {
-                            observeCupCount(false, frame.cupCount)
-                            val previousSleepState = sleepNow.state
-                            if (sleepNow.observe(++sleepSampleSerial, frame.sleepStateRaw))
-                                event(ResourceMessage(R.string.service_event_sleep_confirmed), "sleep.confirmed")
-                            else if (previousSleepState == SleepNowTracker.State.UNKNOWN &&
-                                sleepNow.state == SleepNowTracker.State.RECONCILED)
-                                event(ResourceMessage(R.string.service_event_sleep_reconciled), "sleep.reconciled")
-                            if (sleepNow.state == SleepNowTracker.State.CONFIRMED &&
-                                machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
-                                if (!machineWriteRecovery.clear())
-                                    event(ResourceMessage(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
-                                refreshSafetyNotification()
-                            }
-                            val currentSettings = snapshot.settings
-                            if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
-                                    BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
-                                        currentSettings.brewCompensationTenthsC)))
-                                event(ResourceMessage(R.string.service_event_preheat_ready), "brew_wait.ready")
-                            val observedAt = SystemClock.elapsedRealtime()
-                            snapshot.copy(coffee = frame, coffeeAt = observedAt,
-                                alarmBits = frame.alarmBits, alarmAt = observedAt)
-                        }
-                        is io.openhoyi.protocol.ExtractionTelemetry ->
-                            snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
-                        else -> snapshot
-                    }
-                    val observedAt = snapshot.coffeeAt ?: SystemClock.elapsedRealtime()
-                    val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
-                        lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
-                    val passiveEvent = if (snapshot.coffeeState == DeviceState.READY)
-                        passiveShot.observe(frame, observedAt, appShotInProgress) else null
-                    when (passiveEvent) {
-                        is PassiveShotDetector.Event.Started -> {
-                            val previousRecovery = shotRecovery.pending
-                            if (!previousRecovery) manualSafetyResource = null
-                            val currentAddress = hub?.coffeeAddress
-                            val armed = shotRecovery.arm(currentAddress)
-                            passiveMayClearRecovery = armed &&
-                                shotRecovery.mayClearAfterPassiveShot(previousRecovery, currentAddress)
-                            if (!armed)
-                                manualSafetyResource = R.string.service_event_shot_record_failed
-                            refreshSafetyNotification()
-                            passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
-                                .onFailure { event(ResourceMessage(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
-                            val id = passiveHistoryId ?: java.util.UUID.randomUUID().toString()
-                            series.begin(id, passiveEvent.first.atMs)
-                            val feedbackSlot = passiveEvent.first.frame.slotOrPhase
-                            beginBrewFeedback(id, feedbackSlot, if (feedbackSlot == 6) 0 else null, appShot = false)
-                            recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
-                            recordMachinePoint(passiveEvent.second.frame, passiveEvent.second.atMs)
-                            passiveHistoryId?.let {
-                                runCatching { history?.transition(ExtractionState.RUNNING, "机器手动萃取", null) }
-                                    .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
-                            }
-                            event(ResourceMessage(R.string.service_event_manual_started), "shot.passive_started")
-                        }
-                        is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
-                            passiveEvent.value.atMs)
-                        PassiveShotDetector.Event.Ended -> {
-                            if (!passiveMayClearRecovery || !shotRecovery.matchesDevice(hub?.coffeeAddress) ||
-                                !shotRecovery.clear())
-                                manualSafetyResource = R.string.service_event_shot_clear_failed
-                            passiveMayClearRecovery = false
-                            val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
-                                snapshot.scaleState == DeviceState.READY &&
-                                    TelemetryFreshness.isFresh(snapshot.weightAt, observedAt)
-                            }
-                            passiveHistoryId?.let {
-                                runCatching { history?.transition(ExtractionState.ENDED_OBSERVED,
-                                    "机器待机回报", weight) }
-                                    .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
-                            }
-                            passiveHistoryId = null
-                            finishSeries(true)
-                            event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
-                        }
-                        else -> if (frame is io.openhoyi.protocol.ExtractionTelemetry && !passiveShot.active)
-                            recordMachinePoint(frame, observedAt)
-                    }
-                },
+                onCoffee = ::onCoffeeFrame,
                 onWeight = {
                     observeTare()
                     val receivedAt = SystemClock.elapsedRealtime()

@@ -29,10 +29,30 @@
     "No physical BLE or hardware safety proof"
   ],
   "cloudPending": {
-    "native": 37415877010,
-    "mockLifecycle": 37415877043,
-    "mockUpgrade": 37415877035,
-    "mockUiCapture": 37415877027
+    "mockLifecycle": 37415877043
   },
-  "sourceCommit": "203f8ff1340950dbb5de57bdc15d5f7deb400c88"
+  "sourceCommit": "203f8ff1340950dbb5de57bdc15d5f7deb400c88",
+  "cloudVerified": {
+    "native": {
+      "run": 37415877010,
+      "result": "success",
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "capturedNotificationsReplayed": 32856,
+      "temporaryReleaseGuards": 12
+    },
+    "mockUpgrade": {
+      "run": 37415877035,
+      "result": "success",
+      "actualArtifactRead": true,
+      "scope": "same-current-source/schema Mock1->2 only"
+    }
+  },
+  "cloudStatusOnly": {
+    "mockUiCapture": {
+      "run": 37415877027,
+      "result": "success",
+      "imagesNotReviewed": true
+    }
+  }
 }

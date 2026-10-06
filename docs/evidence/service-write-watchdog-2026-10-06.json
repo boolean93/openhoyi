@@ -26,14 +26,12 @@
     "Isolated preferences restored; no system/permission/component access"
   ],
   "boundaries": [
-    "Android instrumentation runtime pending CI; APK compilation is not execution",
+    "Detached Android instrumentation verified on source b6b7615; not real Handler latency/registered lifecycle",
     "Detached Service, fake transport/scheduler/session clock; no registered Service lifecycle or Handler latency proof",
     "No physical BLE or coffee-machine safety validation",
     "BrewWait distinct guarded cancellation unchanged"
   ],
-  "cloudPending": {
-    "mockLifecycle": 37415347355
-  },
+  "cloudPending": {},
   "sourceCommit": "b6b76159d6b6434031e0878179b358abc269ff9e",
   "cloudVerified": {
     "mockUpgrade": {
@@ -50,6 +48,12 @@
       "capturedNotificationsReplayed": 32856,
       "temporaryReleaseGuards": 12,
       "scope": "Build/core checks only; detached watchdog fixture requires its Mock lifecycle result"
+    },
+    "mockLifecycle": {
+      "run": 37415347355,
+      "result": "success",
+      "actualArtifactRead": true,
+      "scope": "new 4 watchdog fixtures /5 fake dispatches/48 blocked entries/4 reloads plus 17 language/5 audio markers and both80-page matrices"
     }
   }
 }

@@ -58,6 +58,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ServiceTransportUnknownChecks(this).run()
                 ServiceWriteWatchdogChecks(this).run()
                 ServiceWriteDisconnectionChecks(this).run()
+                ServiceWriteReadbackChecks(this).run()
                 fun <T> stage(name: String, checkStage: () -> T): T {
                     android.util.Log.i("OpenHoyiLanguage", "START $name")
                     sendStatus(0, Bundle().apply { putString("stream", "LANGUAGE_STAGE_START $name\n") })
@@ -74,7 +75,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
-                report.putString("stream", "SERVICE_WRITE_DISCONNECTION_CHECKS_PASSED fixtures=8 fakeDispatches=9 phases=2 blockedEntries=96 reloadedRecords=8 realStateCallback=true lateSuccessIgnored=true oldWatchdogIgnored=true retainedPending=true noBle=true detached=true\n" +
+                report.putString("stream", "SERVICE_WRITE_READBACK_CHECKS_PASSED fixtures=4 fakeDispatches=5 confirmations=4 clearedReloads=4 preWriteIgnored=true staleOwnerIgnored=true incompleteReadbackBlocked=true oldWatchdogIgnored=true exactConfirmation=true noBle=true detached=true\n" +
+                    "SERVICE_WRITE_DISCONNECTION_CHECKS_PASSED fixtures=8 fakeDispatches=9 phases=2 blockedEntries=96 reloadedRecords=8 realStateCallback=true lateSuccessIgnored=true oldWatchdogIgnored=true retainedPending=true noBle=true detached=true\n" +
                     "SERVICE_WRITE_WATCHDOG_CHECKS_PASSED fixtures=4 fakeDispatches=5 blockedEntries=48 reloadedRecords=4 exactScheduledDelay=true liveBaselines=true repeatedExpiryIgnored=true retainedPending=true noBle=true detached=true\n" +
                     "SERVICE_TRANSPORT_UNKNOWN_CHECKS_PASSED fixtures=5 fakeDispatches=5 blockedEntries=60 reloadedRecords=5 exactUnknownEvent=true durableBeforeDispatch=true retainedPending=true guardedFakeTransport=true noBle=true detached=true\n" +
                     "SERVICE_WRITE_REGISTRATION_CHECKS_PASSED fixtures=10 failedRegistrations=20 storageModes=2 exactFailureResource=true retainedState=true noTransport=true syntheticReady=true\n" +

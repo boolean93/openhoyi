@@ -1,0 +1,46 @@
+{
+  "change": "Extract unchanged real Service coffee callback and exercise decoded readback confirmation through Session/Hub",
+  "local": {
+    "initialBuild": "BUILD SUCCESSFUL in 57s",
+    "tasks": 137,
+    "sourceEquivalence": "Original callback body identical ignoring indentation",
+    "independentReview": "no blocking findings",
+    "diffCheck": "passed",
+    "scriptSyntax": "passed",
+    "finalBuild": "BUILD SUCCESSFUL in 13s; 137 tasks",
+    "testDebugUnitTest": {
+      "tests": 178,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    },
+    "testMockUnitTest": {
+      "tests": 178,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1
+    }
+  },
+  "expectedRuntime": {
+    "fixtures": 4,
+    "fakeDispatches": 5,
+    "confirmations": 4,
+    "clearedReloads": 4
+  },
+  "covered": [
+    "Matching early readback while WRITING cannot confirm transaction",
+    "Transport Success alone retains durable intent",
+    "Wrong owner generation and wrong endpoint do not advance six counters",
+    "Wrong setting or awake sleep and incomplete cup/schedule pair retain WAITING",
+    "Complete new readback confirms correct localized resource and clears real prefs",
+    "Old watchdog and duplicate Success do not downgrade confirmed state",
+    "Reloaded real storage remains clear"
+  ],
+  "boundaries": [
+    "Android instrumentation pending source CI; compilation not execution",
+    "Synthetic decoded HOYI notifications, not hardware checksum or old-packet identity proof",
+    "Successful automatic clear only; clear failures/manual ACK covered separately",
+    "Detached fixture, not registered Service lifecycle or physical BLE"
+  ],
+  "cloudPending": "Await automatic source CI after push"
+}

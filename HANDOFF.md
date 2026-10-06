@@ -525,3 +525,7 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 203f8ff已推送，native37415877010、Mock lifecycle37415877043、upgrade37415877035、UI capture37415877027已确认启动/排队；运行结果尚未验收。CI编号证据暂留本地，合并下个实质开发提交。
 
 2026-10-06：提取原Hub onState lambda为真实Service private onDeviceState并绑定方法引用；忽略缩进逐行比较body完全相同。新增ServiceWriteDisconnectionChecks四类×WRITING/WAITING共8fixture，经实际Session→Hub→Service callback；预期9假帧、96阻止入口、8持久重载。验证快照清空、UNKNOWN保留、旧generation Success/旧watchdog不能覆盖、断连ACK精确waiting。137任务最终testAPK/双单测/双Lint20秒成功；每变体178测试中177通过、真实导出条件1项跳过，独立复审无阻塞。实际运行仍待本次云端，不代表注册Service或真机。b6b7615 native37415347414完整日志已核对成功，Mock37415347355仍运行，不替代本fixture。
+
+0336b40已推送，native37416346693、Mock lifecycle37416346615、upgrade37416346674、UI capture37416346663确认运行；尚无本轮运行通过证据。203f8ff native37415877010/upgrade37415877035已成功，但实际产物未读，仍不标verified。CI编号元数据保留本地，合并下一次实质开发提交。
+
+2026-10-06：新增实际Service回读fixture4：通知经真实Session解码→Hub→提取的原onCoffeeFrame（body逐行相等，仅缩进/方法引用变化）。预期5假写入，WRITING匹配回读不确认，Success仍WAITING，错误generation/endpoint不增长counter，错误值/半pair保留，完整fresh回读CONFIRMED+真实prefs清除/重载clear，旧watchdog和Success不降级。最终137任务13秒成功，双变体各178项中177通过/真实导出1跳过，独立复审无阻塞；运行待本次CI。此前b6b7615/Mock37415347355实际产物已读取：新增超时4/5/48/4和17语言/5音频/两80页面矩阵通过。203f8ff/native37415877010及升级37415877035实际log/产物读通过；不替代本回读fixture或实机。
