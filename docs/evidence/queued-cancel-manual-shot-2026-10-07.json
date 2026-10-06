@@ -1,0 +1,59 @@
+{
+  "change": "Recheck manual machine extraction in queued preheat cancellation dispatch",
+  "sourceGap": "Service entry rejects manualShotActive but old final dispatch predicate omitted recheck; fresh idle can coexist with passive detector active",
+  "local": {
+    "red": {
+      "tests": 8,
+      "failures": 4,
+      "errors": 0,
+      "log": "/private/tmp/hoyi-queued-cancel-manual-red.log",
+      "reference": "Old permitsWrite(token,0) ignoring manual flag"
+    },
+    "green": {
+      "tests": 8,
+      "failures": 0,
+      "namedSessionScenarios": 92,
+      "log": "/private/tmp/hoyi-queued-cancel-manual-green.log"
+    },
+    "fullBuild": {
+      "result": "BUILD SUCCESSFUL in 1m 2s",
+      "tasks": 219,
+      "log": "/private/tmp/hoyi-queued-cancel-manual-full.log"
+    },
+    "finalAndroidFixtureBuild": {
+      "result": "BUILD SUCCESSFUL in 14s",
+      "tasks": 125,
+      "log": "/private/tmp/hoyi-queued-cancel-manual-final-test.log"
+    },
+    "mobileUnitResults": {
+      "eachVariant": 178,
+      "failures": 0,
+      "errors": 0,
+      "realExportConditionalSkipped": 1
+    },
+    "independentReview": "No blocking findings; strengthened fixture excludes stale/identity/other gate rejection"
+  },
+  "productionScope": "New !manualShotActive final cancellation predicate only, retaining token/state/identity/durable gate and exact wire bytes",
+  "expectedAndroidRuntime": {
+    "phases": 2,
+    "fakePreheatWrites": 2,
+    "fakeDiscoverBarriers": 2,
+    "cancelDispatches": 0,
+    "blockedEntries": 24,
+    "reloadedRecords": 2
+  },
+  "invariants": [
+    "Manual state after enqueue prevents cancellation transport",
+    "Rejected cancel becomes UNKNOWN, durable intent remains",
+    "No manual state permits exact same cancellation bytes; stale token cannot change new owner",
+    "Original and reloaded Service block six controls after rejected queue",
+    "Fresh Session/Service idle, old token/write check and identity explicitly eligible before injected manual state",
+    "Late completion cannot resend or overwrite UNKNOWN"
+  ],
+  "boundaries": [
+    "New queued Service fixture compiled, actual Android runtime pending new source CI",
+    "Synthetic manual flag isolates one gate; not a physical manual extraction sequence",
+    "Fake Discover barrier invokes only fake lifecycle transport, never real BLE",
+    "No claim of hardware cancellation or all protocol risk eliminated"
+  ]
+}

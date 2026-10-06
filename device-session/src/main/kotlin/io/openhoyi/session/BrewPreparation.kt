@@ -53,6 +53,10 @@ class BrewPreparation {
         else -> false
     }
 
+    /** Recheck manual machine extraction at dequeue, not only before cancellation is queued. */
+    fun permitsCancelWrite(token: Long, manualShotActive: Boolean): Boolean =
+        !manualShotActive && permitsWrite(token, 0)
+
     fun isActive(token: Long): Boolean = token == serial && state in setOf(State.WAITING_TEMP, State.READY)
 
     fun timedOut(token: Long): Boolean {

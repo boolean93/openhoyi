@@ -25,9 +25,12 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
     private fun recovery(service: MobileService) =
         ((field(service, "machineWriteRecovery\$delegate").get(service) as Lazy<*>).value as MachineWriteRecoveryState)
 
-    fun run() = runChecks(false)
-    fun runBlocked() = runChecks(true)
-    private fun runChecks(blockedOnly:Boolean) {
+    private enum class CheckMode { OUTCOMES, BLOCKED, QUEUED_MANUAL }
+    fun run() = runChecks(CheckMode.OUTCOMES)
+    fun runBlocked() = runChecks(CheckMode.BLOCKED)
+    fun runQueuedManual() = runChecks(CheckMode.QUEUED_MANUAL)
+    private fun runChecks(checkMode:CheckMode) {
+        val blockedOnly=checkMode==CheckMode.BLOCKED
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
@@ -47,7 +50,8 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
         var retainedDisconnected=0
         var fakeWrites=0
         var blockedCancels=0
-        for (ready in listOf(false,true)) for (mode in if(blockedOnly)listOf(0) else (0..4).toList()) {
+        var fakeBarriers=0
+        for (ready in listOf(false,true)) for (mode in if(checkMode==CheckMode.OUTCOMES)(0..4).toList() else listOf(0)) {
             val kind=MachineWriteRecoveryState.Kind.BREW_WAIT
             val id = UUID.randomUUID().toString()
             val fixtures = names.associateWith { "service_preheat_cancel_${id}_$it" }
@@ -221,6 +225,53 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                             fakeWrites+=calls.size;checkedFixtures++
                             return@runOnMainSync
                         }
+                        if(checkMode==CheckMode.QUEUED_MANUAL) {
+                            // Test-only lifecycle barrier has no device command bytes and only a fake driver.
+                            var barrierCompleted=0
+                            queues[0].enqueue(GattOperation.Discover,5000) { check(it is OperationResult.Success);barrierCompleted++ }
+                            check(calls.size==2 && calls.last().third==GattOperation.Discover)
+                            val barrier=calls.last()
+                            notifyIdle(8000)
+                            val queuedBaseline=field(instance,"idleSampleSerial").getLong(instance)
+                            check(instance.cancelBrewPreparation()==null && preparation.state==BrewPreparation.State.CANCELLING)
+                            check(calls.size==2 && field(instance,"recoveryAfterBrewWaitIdleSerial").getLong(instance)==queuedBaseline)
+                            val passive=field(instance,"passiveShot").get(instance) as PassiveShotDetector
+                            check(!passive.active && instance.snapshot.coffee is IdleTelemetry)
+                            try {
+                                notifyIdle(8000) // Freshness must not accidentally mask the missing manual check.
+                                check(instance.brewWaitCancelBlock==null && recovery(instance).matchesDevice(session.address))
+                                check(TelemetryFreshness.isFresh(field(session,"lastIdleAtMs").get(session) as Long?,SystemClock.elapsedRealtime()))
+                                check(preparation.permitsWrite(field(preparation,"serial").getLong(preparation),0))
+                                field(passive,"active").setBoolean(passive,true)
+                                session.onComplete(barrier.first,barrier.second,OperationResult.Success())
+                                check(barrierCompleted==1 && preparation.state==BrewPreparation.State.UNKNOWN)
+                                check(instance.snapshot.messageForDisplay { id,args->instance.getString(id,*args) }==
+                                    instance.getString(R.string.service_shot_cancel_unknown))
+                                check(calls.size==2 && calls.count { it.third is GattOperation.Write }==1)
+                                check(queues[0].active && !queues[0].inFlight && session.state==DeviceState.READY)
+                                assertPending()
+                            } finally { field(passive,"active").setBoolean(passive,false) }
+                            val after=instance.snapshot
+                            session.onComplete(initial.first,initial.second,OperationResult.Success())
+                            session.onComplete(barrier.first,barrier.second,OperationResult.Success())
+                            check(barrierCompleted==1 && instance.snapshot===after && preparation.state==BrewPreparation.State.UNKNOWN)
+                            fun blocked(service:MobileService) {
+                                val warning=requireNotNull(service.machineControlSafetyMessage)
+                                val entries=listOf(service.changeMachineSetting(change),service.resetCupCount(settings.cupCount),
+                                    service.changeSleepSchedule(expected,target),service.enterSleepNow(),
+                                    service.prepareBrew(selected.id,selected.scaleMode,7),service.startShot(selected.id,selected.scaleMode,7))
+                                check(entries.all { it==warning });blockedEntries+=entries.size
+                                check(recovery(service).pending && recovery(service).kind==kind && recovery(service).address==address && prefs.all==saved)
+                            }
+                            blocked(instance);blocked(attach())
+                            check(coffeeCloses==0 && scaleExecutions==0 && calls.size==2)
+                            before.filterKeys { it!="machine_write_safety" }.forEach { (name,values)->
+                                check(app.getSharedPreferences(fixtures.getValue(name),Context.MODE_PRIVATE).all==values)
+                            }
+                            check(systemLookups==0 && permissionChecks==0 && componentCalls==0)
+                            fakeWrites+=calls.count { it.third is GattOperation.Write };fakeBarriers++;checkedFixtures++
+                            return@runOnMainSync
+                        }
                         check(instance.cancelBrewPreparation()==null)
                         check(calls.size==2 && statesAtDispatch==listOf("WRITING","CANCELLING") && recordsAtDispatch.all { it==saved })
                         check(field(instance,"recoveryAfterBrewWaitIdleSerial").getLong(instance)==idleBefore)
@@ -319,7 +370,9 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                 cleanupFailure?.let { throw it }
             }
         }
-        if(blockedOnly)check(checkedFixtures==2 && blockedCancels==20 && fakeWrites==2 && blockedEntries==0 &&
+        if(checkMode==CheckMode.QUEUED_MANUAL)check(checkedFixtures==2 && blockedEntries==24 && fakeWrites==2 && fakeBarriers==2 &&
+            recoveredAcknowledgements==0 && retainedDisconnected==0)
+        else if(blockedOnly)check(checkedFixtures==2 && blockedCancels==20 && fakeWrites==2 && blockedEntries==0 &&
             recoveredAcknowledgements==0 && retainedDisconnected==0)
         else check(checkedFixtures == 10 && blockedEntries == 120 && fakeWrites==20 &&
             recoveredAcknowledgements==8 && retainedDisconnected==2)

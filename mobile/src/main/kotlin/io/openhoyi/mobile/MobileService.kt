@@ -1129,7 +1129,7 @@ class MobileService : Service() {
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         event(ResourceMessage(R.string.service_shot_cancel_queued), "brew_wait.cancel_requested")
         current.setBrewWait(0, {
-            brewPreparation.permitsWrite(token, 0) && brewWaitCancelBlockMessage == null &&
+            brewPreparation.permitsCancelWrite(token, manualShotActive) && brewWaitCancelBlockMessage == null &&
                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
                 machineWriteRecovery.matchesDevice(current.coffeeAddress)
         }) done@{ result ->

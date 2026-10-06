@@ -24,5 +24,9 @@
     "Fake clock/driver authenticated Session fixture, not Android/hardware",
     "Queue release deliberately without controller tick to isolate actual dispatch qualification",
     "No claim of Android deadlines or physical cancellation execution"
-  ]
+  ],
+  "sourceCommit": "297dfc9e07735a985b9ff4ff196452b834c82fa2",
+  "cloudPending": {
+    "native": 37548051119
+  }
 }
