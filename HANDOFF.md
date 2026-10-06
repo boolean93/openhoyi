@@ -1,3 +1,5 @@
+本次active排序源码132e486ddac01288cd8c2e7bedbe99d5ea98472a已推送；自动native37408757899、Mock生命周期37408757842、Mock升级37408757860均in_progress。下一輪读取既有运行实际日志/产物，不重复dispatch。仅前序c297179已运行全矩阵通过，本次修复当前只有本地证明。
+
 2026-10-06 当前任务：ExtractionController.machineFrame原接受新鲜旧active后lastActiveFrame倒退，后续Idle过早ENDED_OBSERVED允许下一杯；现仅该赋值改maxOf现值/receivedAt，保持所有freshness/idle算法/stop回调/报文。新增ExtractionActiveOrderingTest4方法，RUNNING/STOP_REQUESTED/OUTCOME_UNKNOWN×旧1000/1500ms，2800不结束且start阻止，2801结束后start允许；同时间/较新activity正常。旧实现实际3FAIL（XML确认expected三状态but ENDED）、修正4GREEN+92原场景通过，219完整构建/Lint48s、独立复审无阻塞。证据docs/evidence/extraction-active-ordering-2026-10-06.json。无实BLE/安装/机器操作，不识别旧BLE被新时间编号。下一轮查本次新源码自动CI实际产物，继续控制协调/真实尚未验收功能。
 
 此前c297179实际登记fixture/cloud Mock37383364395 success已读10/20 marker，原恢复18/108/18、12ACK69入口、八语言/五音频/compact与wideFont各80页和三marker全部保留；native37383364391 success完整日志及Mock升级37383364388 seed/verify/result均读取。e73ffff/Mock37382479688已success且完整产物读，相关证据cloudPending清空。两源码的结果不能替代本次active排序修复。目标active，硬件/真实Alpha与历史迁移未验收。

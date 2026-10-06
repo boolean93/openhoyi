@@ -1,5 +1,5 @@
 {
-  "sourceCommit": null,
+  "sourceCommit": "132e486ddac01288cd8c2e7bedbe99d5ea98472a",
   "problem": "A fresh but older valve-open frame moved lastActiveFrame backwards, allowing premature ENDED_OBSERVED and subsequent start",
   "change": "Keep greatest qualified active receivedAt; original freshness, idle threshold, callback and wire protocols unchanged",
   "local": {
@@ -25,7 +25,11 @@
     "independentReview": "no blocking findings",
     "diffCheck": "success"
   },
-  "cloudPending": {},
+  "cloudPending": {
+    "native": 37408757899,
+    "mockLifecycle": 37408757842,
+    "mockUpgrade": 37408757860
+  },
   "boundaries": [
     "Only host receive timestamp ordering; cannot detect an old BLE payload assigned a newer time",
     "Fake control callback acknowledgement is not observed physical start or stop",
