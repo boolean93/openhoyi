@@ -1,5 +1,5 @@
 {
-  "sourceCommit": null,
+  "sourceCommit": "af4ea3e6a67357d13b60213b8b629eff4f3b01c8",
   "scope": "Actual detached MobileService control callbacks and real SharedPreferences recovery adapter; synthetic READY/fresh evidence and guarded fake transport",
   "local": {
     "testApk": "compiled",
@@ -27,11 +27,28 @@
     ],
     "runtimeVerified": false
   },
-  "cloudPending": {},
+  "cloudPending": {
+    "mockLifecycle": 37410266452
+  },
   "boundaries": [
     "Detached unregistered Service and new instance, not process restart",
     "Synthetic authentication/readback and fake execution are not physical submission or execution",
     "Real commit within same process is not OS crash atomicity",
     "No real BLE, installation or machine operation"
-  ]
+  ],
+  "cloudVerified": {
+    "native": {
+      "run": 37410266465,
+      "result": "success",
+      "actualLogRead": true
+    },
+    "mockUpgrade": {
+      "run": 37410266451,
+      "result": "success",
+      "actualArtifactRead": true,
+      "seed": true,
+      "verify": true,
+      "scope": "same-source/schema Mock 1->2 on qemu"
+    }
+  }
 }

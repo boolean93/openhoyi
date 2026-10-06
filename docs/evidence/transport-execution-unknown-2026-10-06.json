@@ -19,10 +19,7 @@
     "independentReview": "no remaining blocker in new exception path after two reentrant repairs",
     "diffCheck": "success"
   },
-  "cloudPending": {
-    "native": 37409788917,
-    "mockLifecycle": 37409788906
-  },
+  "cloudPending": {},
   "boundaries": [
     "No real driver submission or physical device control",
     "Actual Service durable recovery retention on execute exceptions not newly exercised at Android runtime",
@@ -38,6 +35,25 @@
       "seed": true,
       "verify": true,
       "scope": "same-source/schema Mock 1->2 on qemu"
+    },
+    "native": {
+      "run": 37409788917,
+      "result": "success",
+      "actualLogRead": true
+    },
+    "mockLifecycle": {
+      "run": 37409788906,
+      "result": "success",
+      "actualArtifactRead": true,
+      "registrationFailures": 20,
+      "recoveryEntries": 108,
+      "busyEntries": 69,
+      "languages": 8,
+      "audioMarkers": 5,
+      "pageProfiles": {
+        "compact": 80,
+        "wideFont": 80
+      }
     }
   }
 }

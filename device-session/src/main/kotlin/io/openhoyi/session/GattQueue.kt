@@ -2,7 +2,7 @@ package io.openhoyi.session
 
 /** Thread-confined queue; elapsed time must come from a monotonic clock. Never retries writes. */
 class GattQueue(private val driver: GattDriver, private val clock: () -> Long, private val invalidated: (String) -> Unit = {}) {
-    private data class Pending(val token:Long,val operation:GattOperation,val timeout:Long,
+    private data class Pending(val token:Long,val generation:Long,val operation:GattOperation,val timeout:Long,
         val beforeDispatch:()->Boolean,val callback:(OperationResult)->Unit)
     private val owner=Thread.currentThread()
     private val pending=ArrayDeque<Pending>()
@@ -21,7 +21,7 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
         assertThread(); require(timeoutMs in 1..120_000)
         if(!active){callback(OperationResult.Cancelled("not connected"));return}
         if(pending.size>=64 && !urgent){callback(OperationResult.Failed("queue full"));return}
-        val p=Pending(++serial,operation,timeoutMs,beforeDispatch,callback)
+        val p=Pending(++serial,generation,operation,timeoutMs,beforeDispatch,callback)
         val displaced=if(pending.size>=64)pending.removeLast() else null
         if(urgent)pending.addFirst(p) else pending.addLast(p)
         displaced?.let{deliver(it,OperationResult.Cancelled("displaced by urgent stop"))}
@@ -51,10 +51,7 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
             // Execution may have crossed the submission boundary before throwing.
             // Keep the running result unknown and never pump later work on this owner.
             val reason="transport execution exception"
-            try { disconnect(reason) } finally {
-                // Unknown/cancelled observers may explicitly reconnect while settling.
-                if(generation==executionGeneration)invalidated(reason)
-            }
+            invalidateOwner(reason,executionGeneration)
             return
         }
         if(!accepted && current===p) {
@@ -70,13 +67,24 @@ class GattQueue(private val driver: GattDriver, private val clock: () -> Long, p
     }
     private fun deliver(p:Pending,result:OperationResult) {
         try {p.callback(result)} catch(_:Exception) {
-            disconnect("operation callback failure")
-            invalidated("operation callback failure")
+            invalidateOwner("operation callback failure",p.generation)
         }
     }
     fun tick() {
         assertThread()
-        if(active&&current!=null&&clock()>=deadline){disconnect("operation timeout");invalidated("operation timeout")}
+        if(active&&current!=null&&clock()>=deadline)invalidateOwner("operation timeout",generation)
+    }
+    /** Detached observers can explicitly reconnect; old cleanup must stay on its owner. */
+    private fun invalidateOwner(reason:String,ownerGeneration:Long) {
+        if(generation!=ownerGeneration)return
+        var failure:Exception?=null
+        try { disconnect(reason) } catch(error:Exception) { failure=error }
+        if(generation==ownerGeneration)try { invalidated(reason) } catch(error:Exception) {
+            val first=failure
+            if(first==null)failure=error
+            else if(first!==error)first.addSuppressed(error)
+        }
+        failure?.let { throw it }
     }
     fun disconnect(reason:String) {
         assertThread();if(!active)return

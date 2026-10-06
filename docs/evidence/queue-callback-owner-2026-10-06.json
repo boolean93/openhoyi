@@ -1,0 +1,31 @@
+{
+  "sourceCommit": null,
+  "change": "Pending binds enqueue generation; execute/observer/timeout invalidation can only close its own owner and preserves first reporting error",
+  "local": {
+    "newTests": 6,
+    "originalFailedTests": 5,
+    "finalTests": "6 passed",
+    "retainedExecutionTests": 7,
+    "retainedCleanupTests": 5,
+    "sessionNamedScenarios": 92,
+    "fullBuildTasks": 219,
+    "fullBuild": "success in 53s",
+    "independentReview": "no blocking findings",
+    "diffCheck": "success"
+  },
+  "covered": [
+    "Successful observer opens new owner then throws",
+    "Timeout Unknown observer opens new owner",
+    "Detached old cancelled observer throws after new owner opens",
+    "Callback-failure cleanup observer opens new owner",
+    "Same-owner callback failure and timeout still close without retries",
+    "First reporting error and distinct suppressed later failure preserved"
+  ],
+  "cloudPending": {},
+  "boundaries": [
+    "Fake drivers and host callbacks, not real BLE or physical execution",
+    "No timing threshold or outbound frame changes",
+    "Reentrant open during open replacement and broader DeviceSession.connect reentrancy remain separate audit boundaries",
+    "No real installation or machine operation"
+  ]
+}
