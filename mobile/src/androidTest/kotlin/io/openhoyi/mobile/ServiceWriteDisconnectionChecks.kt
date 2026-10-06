@@ -25,7 +25,9 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
     private fun recovery(service: MobileService) =
         ((field(service, "machineWriteRecovery\$delegate").get(service) as Lazy<*>).value as MachineWriteRecoveryState)
 
-    fun run() {
+    fun run() = run(false)
+    fun runReplacement() = run(true)
+    private fun run(replacementChecks: Boolean) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
@@ -42,6 +44,9 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
         var checkedFixtures = 0
         var blockedEntries = 0
         var fakeDispatches = 0
+        var fakeConnects = 0
+        var wrongDeviceBlocks = 0
+        var busyReconnectBlocks = 0
         for (kind in MachineWriteRecoveryState.Kind.entries.filter { it in setOf(MachineWriteRecoveryState.Kind.SETTING, MachineWriteRecoveryState.Kind.CUP_RESET, MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE, MachineWriteRecoveryState.Kind.SLEEP_NOW) })
         for (waitForTransport in listOf(false, true)) {
             val id = UUID.randomUUID().toString()
@@ -194,23 +199,61 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
                         check(scheduled.size == if (waitForTransport) 1 else 0)
                         val beforeDisconnect = requireNotNull(field(tracker, "state").get(tracker)).toString()
                         check(if (waitForTransport) beforeDisconnect.startsWith("WAITING_") else beforeDisconnect == "WRITING")
+                        val oldOwner = calls.last()
+                        val oldGeneration = queues[0].generation
+                        var replaced = false
+                        if (replacementChecks) {
+                            val beforeReconnect = instance.snapshot
+                            instance.connectCoffee("AA:BB:CC:DD:EE:02", "123456")
+                            check(instance.snapshot.messageForDisplay { resource, args -> instance.getString(resource, *args) } ==
+                                instance.getString(R.string.service_connection_write_device_mismatch))
+                            check(calls.size == dispatches && queues[0].generation == oldGeneration &&
+                                session.state == DeviceState.READY && session.address == address && prefs.all == saved)
+                            check(requireNotNull(field(tracker,"state").get(tracker)).toString() == beforeDisconnect)
+                            wrongDeviceBlocks++
+                            val blocksSameMachine = kind in setOf(MachineWriteRecoveryState.Kind.CUP_RESET,
+                                MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE)
+                            instance.connectCoffee(address,"123456")
+                            if (blocksSameMachine) {
+                                val resource = if (kind == MachineWriteRecoveryState.Kind.CUP_RESET)
+                                    R.string.service_connection_cups_busy else R.string.service_connection_schedule_busy
+                                check(instance.snapshot.messageForDisplay { id, args -> instance.getString(id,*args) } == instance.getString(resource))
+                                check(instance.snapshot.copy(message = beforeReconnect.message) == beforeReconnect)
+                                check(calls.size == dispatches && queues[0].generation == oldGeneration &&
+                                    session.state == DeviceState.READY && session.address == address && prefs.all == saved)
+                                check(requireNotNull(field(tracker,"state").get(tracker)).toString() == beforeDisconnect)
+                                busyReconnectBlocks++
+                            } else {
+                                replaced = true
+                                fakeConnects++
+                                check(calls.size == dispatches + 1 && calls.last().third == GattOperation.Connect(address))
+                                check(calls.last().first == oldGeneration + 1 && queues[0].generation == oldGeneration + 1)
+                                check(recordsAtDispatch.all { it == saved } && statesAtDispatch.last() == "UNKNOWN")
+                            }
+                        }
                         serialNames.forEachIndexed { index, name -> field(instance, name).setLong(instance, 11L + index) }
-                        // The actual session state observer calls through Hub into the real Service method.
-                        session.disconnect()
+                        // A replaced owner already triggered the real callback; blocked/non-replacement cases disconnect now.
+                        if (!replaced) session.disconnect()
+                        val expectedState = if (replaced) DeviceState.CONNECTING else DeviceState.DISCONNECTED
+                        val expectedCalls = dispatches + if (replaced) 1 else 0
                         check(requireNotNull(field(tracker, "state").get(tracker)).toString() == "UNKNOWN")
-                        check(instance.snapshot.coffeeState == DeviceState.DISCONNECTED)
+                        check(instance.snapshot.coffeeState == expectedState)
                         check(instance.snapshot.coffee == null && instance.snapshot.coffeeAt == null &&
                             instance.snapshot.settings == null && instance.snapshot.settingsAt == null &&
                             instance.snapshot.sleepFirst == null && instance.snapshot.sleepSecond == null &&
                             instance.snapshot.sleepFirstAt == null && instance.snapshot.sleepSecondAt == null)
-                        check(session.state == DeviceState.DISCONNECTED && session.address == null)
-                        check(queues.none { it.active || it.inFlight } && coffeeCloses == 1 && scaleExecutions == 0)
+                        check(session.state == expectedState && session.address == if (replaced) address else null)
+                        check(queues[0].active == replaced && queues[0].inFlight == replaced && !queues[1].active &&
+                            coffeeCloses == 1 && scaleExecutions == 0)
                         val afterDisconnectMessage = instance.snapshot.message
-                        completeLast() // Late transport success belongs to the closed generation.
+                        val (oldCallbackGeneration, oldCallbackToken, _) = oldOwner
+                        session.onComplete(oldCallbackGeneration, oldCallbackToken, OperationResult.Success())
                         scheduled.forEach { it.second.invoke() } // Old watchdog cannot overwrite the disconnect.
                         check(instance.snapshot.message === afterDisconnectMessage)
                         check(requireNotNull(field(tracker, "state").get(tracker)).toString() == "UNKNOWN")
-                        check(calls.size == dispatches && prefs.all == saved)
+                        check(calls.size == expectedCalls && prefs.all == saved)
+                        check(queues[0].active == replaced && queues[0].inFlight == replaced)
+                        if (replaced) check(queues[0].generation == oldGeneration + 1 && calls.last().third is GattOperation.Connect)
                         fakeDispatches += dispatches
                         fun checkBlocked(service: MobileService) {
                             val warning = requireNotNull(service.machineControlSafetyMessage)
@@ -222,7 +265,7 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
                             check(entries.all { it == warning }) { "$kind entries=$entries warning=$warning" }
                             blockedEntries += entries.size
                             check(recovery(service).pending && recovery(service).kind == kind && recovery(service).address == address)
-                            check(prefs.all == saved && calls.size == dispatches && scaleExecutions == 0)
+                            check(prefs.all == saved && calls.size == expectedCalls && scaleExecutions == 0)
                         }
                         checkBlocked(instance)
                         instance.acknowledgeManualSafety()
@@ -234,7 +277,7 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
                             else -> error("Invalid fixture")
                         }
                         check(instance.snapshot.messageForDisplay { resource, args -> instance.getString(resource, *args) } == instance.getString(waitingResource))
-                        check(prefs.all == saved && recovery(instance).pending && calls.size == dispatches)
+                        check(prefs.all == saved && recovery(instance).pending && calls.size == expectedCalls)
                         val reloaded = attach() // Real storage adapter reads the committed record anew.
                         checkBlocked(reloaded)
                         before.filterKeys { it != "machine_write_safety" }.forEach { (name, values) ->
@@ -263,5 +306,8 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
             }
         }
         check(checkedFixtures == 8 && blockedEntries == 96 && fakeDispatches == 9)
+        check(fakeConnects == if (replacementChecks) 4 else 0)
+        check(wrongDeviceBlocks == if (replacementChecks) 8 else 0)
+        check(busyReconnectBlocks == if (replacementChecks) 4 else 0)
     }
 }

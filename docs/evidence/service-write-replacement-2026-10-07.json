@@ -1,0 +1,36 @@
+{
+  "change": "Detached real Service pending-write connection replacement matrix; no production changes",
+  "local": {
+    "initialBuild": "BUILD SUCCESSFUL in 17s",
+    "tasks": 125,
+    "independentReview": "no blocking findings",
+    "scriptSyntax": "passed",
+    "diffCheck": "passed",
+    "finalBuild": "BUILD SUCCESSFUL in 13s; 125 tasks"
+  },
+  "expectedRuntime": {
+    "fixtures": 8,
+    "fakeWrites": 9,
+    "fakeConnects": 4,
+    "wrongDeviceBlocks": 8,
+    "busyReconnectBlocks": 4,
+    "blockedEntries": 96,
+    "reloadedRecords": 8
+  },
+  "covered": [
+    "Wrong machine blocked by retained identity before any driver operation",
+    "Busy cup reset/sleep schedule block same-machine reconnect with exact resource, unchanged snapshot/generation/tracker",
+    "Settings/sleep-now same-machine reconnect invalidates old write and creates only next-generation fake Connect",
+    "Old write generation Success cannot complete new pending Connect",
+    "Old watchdog cannot change new-owner message or UNKNOWN tracker",
+    "Memory/disk intent retained and six controls blocked on original/reloaded Service",
+    "Original eight direct-disconnect fixtures retained"
+  ],
+  "boundaries": [
+    "Android runtime pending; compiled tests are not executed tests",
+    "Fake Connect remains in-flight; not authentication/reconnect success proof",
+    "Detached Service/Hub, not registered lifecycle/real BLE/hardware",
+    "No command bytes or connection eligibility changed"
+  ],
+  "cloudPending": "Await automatic source CI after push"
+}

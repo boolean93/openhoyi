@@ -33,5 +33,10 @@
     "Detached Service and fake GATT, not registered lifecycle/real BLE/hardware",
     "Normal successful four fixtures remain separately verified on source75ddf55"
   ],
-  "cloudPending": "Await automatic source CI after push"
+  "cloudPending": {
+    "native": 37544844455,
+    "mockLifecycle": 37544844426,
+    "mockUpgrade": 37544844372
+  },
+  "sourceCommit": "5b4d8a7164c86892d7a2b34da5f89db5a8401d2f"
 }

@@ -58,6 +58,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ServiceTransportUnknownChecks(this).run()
                 ServiceWriteWatchdogChecks(this).run()
                 ServiceWriteDisconnectionChecks(this).run()
+                ServiceWriteDisconnectionChecks(this).runReplacement()
                 ServiceWriteReadbackChecks(this).run()
                 ServiceWriteReadbackChecks(this).runClearFailure(false)
                 ServiceWriteReadbackChecks(this).runClearFailure(true)
@@ -77,7 +78,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
-                report.putString("stream", "SERVICE_READBACK_CLEAR_FAILURE_CHECKS_PASSED fixtures=8 storageModes=2 fakeDispatches=10 failedClears=8 blockedEntries=96 retainedReloads=8 recoveredClears=8 exactFailureTrace=true noWireRetry=true noBle=true detached=true\n" +
+                report.putString("stream", "SERVICE_WRITE_REPLACEMENT_CHECKS_PASSED fixtures=8 fakeWrites=9 fakeConnects=4 wrongDeviceBlocks=8 busyReconnectBlocks=4 blockedEntries=96 reloadedRecords=8 oldGenerationIgnored=true newOwnerPreserved=true noBle=true detached=true\n" +
+                    "SERVICE_READBACK_CLEAR_FAILURE_CHECKS_PASSED fixtures=8 storageModes=2 fakeDispatches=10 failedClears=8 blockedEntries=96 retainedReloads=8 recoveredClears=8 exactFailureTrace=true noWireRetry=true noBle=true detached=true\n" +
                     "SERVICE_WRITE_READBACK_CHECKS_PASSED fixtures=4 fakeDispatches=5 confirmations=4 clearedReloads=4 preWriteIgnored=true staleOwnerIgnored=true incompleteReadbackBlocked=true oldWatchdogIgnored=true exactConfirmation=true noBle=true detached=true\n" +
                     "SERVICE_WRITE_DISCONNECTION_CHECKS_PASSED fixtures=8 fakeDispatches=9 phases=2 blockedEntries=96 reloadedRecords=8 realStateCallback=true lateSuccessIgnored=true oldWatchdogIgnored=true retainedPending=true noBle=true detached=true\n" +
                     "SERVICE_WRITE_WATCHDOG_CHECKS_PASSED fixtures=4 fakeDispatches=5 blockedEntries=48 reloadedRecords=4 exactScheduledDelay=true liveBaselines=true repeatedExpiryIgnored=true retainedPending=true noBle=true detached=true\n" +

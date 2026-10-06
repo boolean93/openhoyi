@@ -1,0 +1,5 @@
+# Real Service pending-write connection replacement verification
+
+Reuse four-family WRITING/WAITING detached disconnect fixture, retain original eight direct-disconnect cases. Add eight replacement cases: pending record blocks another machine before any driver dispatch; cup reset/weekly schedule busy also blocks same-machine reconnect with exact resource and unchanged snapshot/state/generation; settings/sleep-now permit same-machine replacement into exactly next generation with only fake Connect. Real Session→Hub→Service callback invalidates old tracker while durable record remains. Deliver old-generation write Success and old timer, check new Connect stays in-flight and queue/generation remain unchanged. Six controls remain blocked on original/reloaded storage (96), rejected ACK stays precise. No actual authentication/scan/registered Service or BLE.
+
+Expected: 8 fixtures, 9 write frames, 4 fake Connects, 8 wrong-machine blocks, 4 busy same-machine blocks. Only test/CI changes; no eligibility change. Compile test APK/dual lint, independent review, required CI marker then isolated Mock runtime. Preserve explicit hardware boundary and exact source evidence.
