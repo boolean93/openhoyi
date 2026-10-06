@@ -1,3 +1,9 @@
+c8a053f Mock37412191460实际完整产物success已读，5异常/60阻止/5重读与全部原矩阵保留，terminal-owner所有cloud清空。a4c6a34升级37412782300实际seed/verify/resultsuccess已读，native37412782350和Mock37412782349仍待；下轮读取既有任务，不重复dispatch。
+
+2026-10-06 connection request owner：connect验证及BOOKOO同址no-op之后分配requestSerial，用private endConnection清理，所有cleanup回调返回后仅仍同request才改address/open/init。publicdisconnect/privatefail使旧request失效，能检测不增加generation的显式取消。8新方法旧6FAIL→8GREEN，92原场景全过，独立审查无阻塞；219完整构建/双Lint50s通过。覆盖两角色DIS callback新connect、同代cancel、driver.close/tare Unknown新connect/cancel，invalid auth不替代有效请求、BOOKOO同址no-op和coffee重新认证字节保留。证据docs/evidence/connection-request-owner-2026-10-06.json。
+
+a4c6a3459e472b418a4988dcd87e37647b306eac通知owner源码已推送；自动native37412782350 queued、Mock37412782349/升级37412782300 in_progress。01905ed Mock37411797263实际完整产物success已读（5异常/60阻止/5重读、20登记、18/108/18、12ACK69、八语言双profile160页、5音频），initialization-owner所有cloud已清空。c8a053f native37412191655实际完整日志success已读（39823/32856/92/release12），仅Mock37412191460仍待。下一轮读既有任务，不重复dispatch；审计outer connect初始disconnect观察者提出更新请求时的归属。此处与三证据source/CI元数据本地未单独提交，随下一实质提交并入，避免纯元数据重复构建，勿丢弃。无安装/实BLE，goal active。
+
 2026-10-06 notification owner：onNotification coffee acceptSettings及BOOKOO首setREADY之后复核原generation/queue.active，再执行readback/product派发，防observer同步newREADY后旧帧混入。6新方法旧3FAIL→6GREEN，92原场景及219任务完整构建/双Lint56s通过，独立审查无阻塞；追加new StartContext温度93/address/gen断言最终focused10s成功，6项及原回归通过；最初94.07C测试idle不匹配91C曲线的null已修为合法91C样本，未放宽门禁，独立补审无阻塞。证据docs/evidence/notification-owner-2026-10-06.json。outer connect初始disconnect observer重入仍待，硬件旧包被新host时间戳标记无法由此证明。
 
 01905ed native37411797264实际完整日志success已读（39823/32856/92/release12），Mock37411797263仍待。c8a053f升级37412191352实际seed/verify/resultsuccess已读，native37412191655与Mock37412191460仍待。不重复dispatch，无安装/实BLE，goal active。

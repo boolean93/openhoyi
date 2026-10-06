@@ -1,0 +1,29 @@
+{
+  "change": "Validated connect gets request serial; terminal cleanup callbacks can supersede it with a newer connect/disconnect/failure before open",
+  "local": {
+    "newTests": 8,
+    "originalFailedTests": 6,
+    "finalTests": "8 passed",
+    "sessionNamedScenarios": 92,
+    "independentReview": "no blocking findings",
+    "fullBuild": "success in 50s",
+    "fullBuildTasks": 219,
+    "diffCheck": "success"
+  },
+  "covered": [
+    "Both roles latest state-observer connect wins over outer connect",
+    "Explicit observer disconnect cancels outer connect without new generation",
+    "Driver.close latest connect wins",
+    "Old tare Unknown observer latest connect/disconnect wins",
+    "Invalid nested credentials do not supersede validated outer request",
+    "BOOKOO same-address no-op preserved",
+    "Coffee same-address reauthentication keeps new exact auth bytes"
+  ],
+  "boundaries": [
+    "Host synchronous request order, not hardware packet order",
+    "No protocol bytes or timeout thresholds changed",
+    "No automatic retry added",
+    "No real BLE or physical safety validation"
+  ],
+  "cloudPending": "await source push"
+}

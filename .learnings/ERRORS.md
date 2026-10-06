@@ -28,3 +28,5 @@ prepareBrew在Mock和真实分支都有brewPreparation.begin。替换搜索首�
 - **Notes**: Mock和真实前置门禁恢复并逐段对照，独立复审无阻塞，最终219任务完整构建/回归/Lint成功。错误改动未提交或安装。
 
 ---
+
+2026-10-06 NotificationOwnerTest: added StartContext readback assertion initially used 94.07C idle for validated 91C profile. Existing ±1C studio gate correctly returned null (two fixture failures). Fixed synthetic idle to existing 91.00C sample; did not loosen production gate. Match independent test prerequisites before interpreting null context as ownership regression.

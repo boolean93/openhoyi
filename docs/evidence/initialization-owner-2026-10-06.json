@@ -23,9 +23,7 @@
     "No protocol bytes or timeout thresholds changed",
     "No real BLE or physical validation"
   ],
-  "cloudPending": {
-    "mockLifecycle": 37411797263
-  },
+  "cloudPending": {},
   "sourceCommit": "01905eddf2121b6c5347d245cb109196e94fad33",
   "cloudVerified": {
     "mockUpgrade": {
@@ -38,6 +36,12 @@
       "run": 37411797264,
       "result": "success",
       "actualLogRead": true
+    },
+    "mockLifecycle": {
+      "run": 37411797263,
+      "result": "success",
+      "actualArtifactRead": true,
+      "retainedMatricesVerified": true
     }
   }
 }

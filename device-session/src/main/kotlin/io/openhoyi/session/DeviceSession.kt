@@ -28,6 +28,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }) { "Invalid legacy start-frame permit" }
     }
     private val queue=GattQueue(GuardedGattDriver(role,driver),clock){fail(it)}
+    // Request order also detects cancellation before a new GATT generation exists.
+    private var connectionRequest=0L
     val generation:Long get()=queue.generation
     var state=DeviceState.DISCONNECTED;private set
     private var activeAddress:String?=null
@@ -80,7 +82,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED)) return
         // Validate credentials before disturbing an existing connection.
         val auth=authentication?.encode()
-        disconnect();lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();activeAddress=address
+        val request=++connectionRequest
+        endConnection(DeviceState.DISCONNECTED,"user disconnect","coffee disconnected")
+        if(connectionRequest!=request)return
+        lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();activeAddress=address
         val expected=queue.open()
         if(!initializationState(expected,DeviceState.CONNECTING,22_000))return
         step(expected,GattOperation.Connect(address),22_000) {
@@ -355,7 +360,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         else send(CoffeeCommands.brewWait(targetC),DeviceRole.COFFEE,
             beforeDispatch={beforeDispatch() && canStartPreheat()},callback=callback)
     }
-    fun disconnect()=endConnection(DeviceState.DISCONNECTED,"user disconnect","coffee disconnected")
+    fun disconnect() {
+        connectionRequest++
+        endConnection(DeviceState.DISCONNECTED,"user disconnect","coffee disconnected")
+    }
     private fun endConnection(terminal:DeviceState,reason:String,sleepReason:String=reason) {
         val expected=generation
         // Detach old session work before invoking any observer that may reconnect.
@@ -368,6 +376,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
     }
     private fun fail(reason:String){
+        connectionRequest++
         endConnection(DeviceState.FAILED,reason)
         diagnostic(reason)
     }

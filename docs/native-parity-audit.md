@@ -101,3 +101,5 @@
 2026-10-06 终态清理补充：两角色在断开/失败观察者中显式重连，旧清理只处理原generation；旧sleep与initBusy在外部回调前分离，不取消新sleep或重复新秤初始化。7项新回归和4项原异常清理测试通过，见 `evidence/terminal-owner-2026-10-06.json`。outer connect初始disconnect观察者重入及通知发布owner另行审计。
 
 2026-10-06 回报归属补充：coffee设置/BOOKOO首重量导致READY观察者同步重连后，再核对原代次及active，旧回报不派发给新连接。六项回归及完整构建通过，见 `evidence/notification-owner-2026-10-06.json`。这不能识别以新host时间戳标记的硬件旧包；outer connect初始disconnect观察者重入另行审计。
+
+2026-10-06 连接请求补充：验证后的连接请求用独立序号防旧connect在清理回调提出新connect/disconnect之后重新抢占；同代取消也阻止旧请求继续。8项回归通过，凭据验证与BOOKOO同址no-op保持，见 `evidence/connection-request-owner-2026-10-06.json`。不代表所有Android生命周期或硬件通信已验收。
