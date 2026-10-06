@@ -56,6 +56,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ServiceRecoveryPersistenceChecks(this).run()
                 ServiceWriteRegistrationChecks(this).run()
                 ServiceTransportUnknownChecks(this).run()
+                ServiceWriteWatchdogChecks(this).run()
                 fun <T> stage(name: String, checkStage: () -> T): T {
                     android.util.Log.i("OpenHoyiLanguage", "START $name")
                     sendStatus(0, Bundle().apply { putString("stream", "LANGUAGE_STAGE_START $name\n") })
@@ -72,7 +73,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
-                report.putString("stream", "SERVICE_TRANSPORT_UNKNOWN_CHECKS_PASSED fixtures=5 fakeDispatches=5 blockedEntries=60 reloadedRecords=5 exactUnknownEvent=true durableBeforeDispatch=true retainedPending=true guardedFakeTransport=true noBle=true detached=true\n" +
+                report.putString("stream", "SERVICE_WRITE_WATCHDOG_CHECKS_PASSED fixtures=4 fakeDispatches=5 blockedEntries=48 reloadedRecords=4 exactScheduledDelay=true liveBaselines=true repeatedExpiryIgnored=true retainedPending=true noBle=true detached=true\n" +
+                    "SERVICE_TRANSPORT_UNKNOWN_CHECKS_PASSED fixtures=5 fakeDispatches=5 blockedEntries=60 reloadedRecords=5 exactUnknownEvent=true durableBeforeDispatch=true retainedPending=true guardedFakeTransport=true noBle=true detached=true\n" +
                     "SERVICE_WRITE_REGISTRATION_CHECKS_PASSED fixtures=10 failedRegistrations=20 storageModes=2 exactFailureResource=true retainedState=true noTransport=true syntheticReady=true\n" +
                     "SERVICE_RECOVERY_PERSISTENCE_CHECKS_PASSED fixtures=5 wrongIdentityAcknowledgements=5 disconnectedAcknowledgements=5 missingTimestampAcknowledgements=5 unchangedReadbackAcknowledgements=5 incompleteEvidenceAcknowledgements=5 busyStages=2 preheatReady=true preheatCancelling=true blockedAcknowledgements=12 blockedEntries=69 failedWrites=5 retries=5 retainedGate=true exactFailureEvent=true noTransport=true syntheticReady=true\n" +
                     "SERVICE_RECOVERY_GATE_CHECKS_PASSED fixtures=18 entries=108 acknowledgementAttempts=18 availabilityChecks=18 lazyShotRead=true preservedPending=true detached=true noBle=true\n" +

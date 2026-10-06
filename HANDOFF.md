@@ -1,3 +1,5 @@
+cbd36602ef981d046c5881c76da4c1ef86019c74 watchdog源码已推送成功；自动native37414739328、Mock37414739586、升级37414739396、UI37414739333均in_progress。前494e7bc Mock37414072883仍待，UI37414072905仅status success未逐图核对；native/upgrade实际已读。下轮读既有任务，尤其ServiceTransportUnknown5/60/5与原矩阵，不重复dispatch。此处与两份source/CI证据元数据本地未单独提交，随下一实质提交并入，避免metadata-only重复构建，勿丢弃。下一开发任务补actual detached Service WAITING/expiry四类fixture，以fake scheduler验证真实入口/对应resource/恢复baseline保留/late-repeat抑制，保持noBLE/no registered lifecycle，之后再继续共享读回协调。无安装/真实蓝牙，goal active。
+
 2026-10-06 write watchdog：新增纯Kotlin MachineWriteWatchdog，4种ordinary WAITING branch委托原6/12/8/12s期限；host Handler调度，expiry supplier当时读取6类serial，同快照用于tracker.timeout及Service恢复baseline/event。原Handler removeAll仍清理全部callback；预热600000ms guarded取消流程未改。24新参数测试stub12FAIL→24GREEN、92原场景通过，独立复审4处映射/顺序/初始化无阻塞，219完整构建/双Lint50s通过。证据docs/evidence/write-watchdog-2026-10-06.json。fake调度不代表真实Androidtimer或注册Service验收，下一步需要实际detached Service WAITING/expiry fixture（现有transportUnknown fixture不会走WAITING）。
 
 494e7bc native37414072909实际完整日志success已读（39823/32856/92/release12），升级37414072915实际seed/verify/resultsuccess已读。连同35cdb98请求归属源码包含且未改的后继证明已记入request证据（非35exact CI）。Mock37414072883及UI37414072905仍待，不重复dispatch。无安装/实BLE，goal active。
@@ -513,3 +515,5 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 本轮既有首页复用修正：Mock AndroidTest APK、Mock单元测试和Lint离线构建成功（/private/tmp/hoyi-language-existing-home.log，BUILD SUCCESSFUL，107 tasks）；脚本bash -n及diff --check通过。独立只读审查确认首页引用/恢复顺序和原断言保留，无生产改动。运行验证仍待新云端CI。
 
 当前b20b90f首页引用修正已推送，Verify native app36948773115与Mock36948773151启动。CI脚本另加每条隔离Mock instrument 600秒失败上限，保存阶段stdout并触发已有定向诊断；bash/Python语法检查和独立复审通过。未宣称Android运行检查通过。
+
+四类普通写入新增 detached `ServiceWriteWatchdogChecks`：真实 Service→Hub→Session 入口，假 GATT Success、假调度器和 Session 时钟。覆盖5帧（周计划两帧及500ms间隔）、WAITING→UNKNOWN、超时时6个独立回读序号路由、重复expiry/Success抑制、48个控制入口阻止及4个持久记录重载。仅验证调度delay参数，不代表Android Handler到期或真机。ACK测试明确使用未增长的回读序号并核对waiting文案。编译与云端运行结果按本轮evidence记录。前一版本494e7bc Mock lifecycle37414072883实际artifact已读取：16语言、5声音、两组各80页面布局及弹窗检查通过；35cdb98按后代源码范围记录，不声称单独CI。

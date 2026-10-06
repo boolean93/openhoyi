@@ -25,5 +25,11 @@
     "No storage, BLE, automatic retry or acknowledgement added",
     "No hardware validation"
   ],
-  "cloudPending": "await source push"
+  "cloudPending": {
+    "native": 37414739328,
+    "mockLifecycle": 37414739586,
+    "mockUpgrade": 37414739396,
+    "mockUiCapture": 37414739333
+  },
+  "sourceCommit": "cbd36602ef981d046c5881c76da4c1ef86019c74"
 }

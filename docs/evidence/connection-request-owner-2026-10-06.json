@@ -25,9 +25,7 @@
     "No automatic retry added",
     "No real BLE or physical safety validation"
   ],
-  "cloudPending": {
-    "mockLifecycle": 37414072883
-  },
+  "cloudPending": {},
   "sourceCommit": "35cdb98b86173b1085decb285697adb8f99db8bd",
   "cloudSourceScope": "494e7bc descendant includes 35cdb98; DeviceSession and ConnectionRequestOwnerTest unchanged (actual diff empty); no separate 35cdb98 dispatch",
   "cloudVerified": {
@@ -43,6 +41,13 @@
       "actualArtifactRead": true,
       "source": "494e7bc",
       "scope": "same-source/schema Mock 1->2 on qemu"
+    },
+    "mockLifecycle": {
+      "run": 37414072883,
+      "result": "success",
+      "actualArtifactRead": true,
+      "source": "494e7bc",
+      "scope": "16 language markers, 5 audio markers, both 80-page layout/detail/selector matrices; detached fake Service fixtures"
     }
   }
 }

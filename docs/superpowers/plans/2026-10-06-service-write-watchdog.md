@@ -1,0 +1,5 @@
+# Detached real Service write watchdog verification
+
+Exercise the four approved ordinary write entries through actual MobileService, NativeDeviceHub, DeviceSession and guarded fake GATT. Bind isolated preferences to a detached Service on its main owner thread; prohibit system-service, permission and component calls. Replace only watchdog scheduling and session time with deterministic adapters. No production behavior change.
+
+Verify durable registration before each dispatch, exact bytes including both weekly schedule frames and 500ms spacing, Success transitions into WAITING, unchanged deadline lengths, live distinct serial baselines at expiry, exact localized Unknown resources, repeated expiry and repeated transport callback suppression, six blocked controls before and after durable reload, and cleanup preserving original preferences. Add required CI marker, build Android test APK and run both lints, independent review, then use existing isolated cloud Mock lifecycle instrumentation for runtime evidence. Compilation alone is not runtime proof; fake scheduling is not Android Handler latency or physical coffee-machine proof.

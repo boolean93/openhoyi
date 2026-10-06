@@ -1,0 +1,35 @@
+{
+  "change": "Detached real Service WAITING-to-watchdog-expiry integration for four ordinary writes",
+  "local": {
+    "androidTestApk": "BUILD SUCCESSFUL in 11s",
+    "tasks": 125,
+    "lint": "debug and mock completed",
+    "scriptSyntax": "passed",
+    "diffCheck": "passed",
+    "independentReview": "no blocking findings after ACK evidence correction"
+  },
+  "expectedRuntime": {
+    "fixtures": 4,
+    "fakeDispatches": 5,
+    "blockedEntries": 48,
+    "reloadedRecords": 4
+  },
+  "covered": [
+    "Real Service/Hub/Session entries and guarded exact write frames",
+    "Weekly sleep two frames with 499ms no-send and 500ms second-send",
+    "Transport Success waits for readback before Unknown",
+    "Original schedule delay parameters 6000/12000/8000/12000ms",
+    "Six independent live serials routed to correct recovery baseline",
+    "Repeated expiry and repeated Success cannot restart or advance recovery",
+    "Unchanged readback blocks manual acknowledgement with exact waiting resource",
+    "Durable pending records block six controls on original and reloaded Service",
+    "Isolated preferences restored; no system/permission/component access"
+  ],
+  "boundaries": [
+    "Android instrumentation runtime pending CI; APK compilation is not execution",
+    "Detached Service, fake transport/scheduler/session clock; no registered Service lifecycle or Handler latency proof",
+    "No physical BLE or coffee-machine safety validation",
+    "BrewWait distinct guarded cancellation unchanged"
+  ],
+  "cloudPending": "Await automatic workflow run IDs after source push"
+}

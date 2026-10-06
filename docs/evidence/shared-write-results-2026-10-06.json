@@ -27,14 +27,11 @@
   ],
   "boundaries": [
     "JVM helper tests do not directly execute Service Handler or UI resources",
-    "Actual detached Service cloud fixtures pending latest source",
+    "Detached actual Service fixtures verified on source 494e7bc; watchdog WAITING/expiry integration is a separate new fixture",
     "Result normalization is not complete timer/readback/lifecycle coordination",
     "No physical BLE or hardware safety claim"
   ],
-  "cloudPending": {
-    "mockLifecycle": 37414072883,
-    "mockUiCapture": 37414072905
-  },
+  "cloudPending": {},
   "sourceCommit": "494e7bcb52aa6e3e75d70403a956dc6e931439ce",
   "cloudVerified": {
     "native": {
@@ -49,6 +46,20 @@
       "actualArtifactRead": true,
       "source": "494e7bc",
       "scope": "same-source/schema Mock 1->2 on qemu"
+    },
+    "mockLifecycle": {
+      "run": 37414072883,
+      "result": "success",
+      "actualArtifactRead": true,
+      "source": "494e7bc",
+      "scope": "16 language markers, 5 audio markers, both 80-page layout/detail/selector matrices; detached fake Service fixtures"
+    }
+  },
+  "cloudStatusOnly": {
+    "mockUiCapture": {
+      "run": 37414072905,
+      "result": "success",
+      "imagesNotReviewed": true
     }
   }
 }
