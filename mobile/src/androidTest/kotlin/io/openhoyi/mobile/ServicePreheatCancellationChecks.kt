@@ -25,7 +25,9 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
     private fun recovery(service: MobileService) =
         ((field(service, "machineWriteRecovery\$delegate").get(service) as Lazy<*>).value as MachineWriteRecoveryState)
 
-    fun run() {
+    fun run() = runChecks(false)
+    fun runBlocked() = runChecks(true)
+    private fun runChecks(blockedOnly:Boolean) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
@@ -44,7 +46,8 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
         var recoveredAcknowledgements=0
         var retainedDisconnected=0
         var fakeWrites=0
-        for (ready in listOf(false,true)) for (mode in 0..4) {
+        var blockedCancels=0
+        for (ready in listOf(false,true)) for (mode in if(blockedOnly)listOf(0) else (0..4).toList()) {
             val kind=MachineWriteRecoveryState.Kind.BREW_WAIT
             val id = UUID.randomUUID().toString()
             val fixtures = names.associateWith { "service_preheat_cancel_${id}_$it" }
@@ -163,6 +166,61 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                             check(preparation.state==BrewPreparation.State.READY)
                         }
                         val idleBefore=field(instance,"idleSampleSerial").getLong(instance)
+                        if(blockedOnly) {
+                            val base=instance.snapshot
+                            val baseIdle=base.coffee as IdleTelemetry
+                            val prepState=preparation.state
+                            val prepToken=field(preparation,"serial").getLong(preparation)
+                            val baseline=field(instance,"recoveryAfterBrewWaitIdleSerial").getLong(instance)
+                            val passive=field(instance,"passiveShot").get(instance) as PassiveShotDetector
+                            val shotDelegate=field(instance,"shotRecovery\$delegate").get(instance)
+                            val extractionState=owner.extraction.state
+                            for(block in 0..9) {
+                                val now=SystemClock.elapsedRealtime()
+                                val resource=when(block) {
+                                    0 -> { field(passive,"active").setBoolean(passive,true);R.string.service_shot_cancel_manual_block }
+                                    1 -> { field(session,"activeAddress").set(session,"AA:BB:CC:DD:EE:02");R.string.service_shot_cancel_original_device }
+                                    2 -> { field(instance,"snapshot").set(instance,base.copy(coffeeState=DeviceState.FAILED));R.string.cancel_preheat_block_coffee_not_ready }
+                                    3 -> { field(instance,"snapshot").set(instance,base.copy(coffee=null));R.string.cancel_preheat_block_idle_missing }
+                                    4 -> { field(instance,"snapshot").set(instance,base.copy(coffeeAt=null));R.string.cancel_preheat_block_idle_stale }
+                                    5 -> { field(instance,"snapshot").set(instance,base.copy(coffeeAt=now-60_000));R.string.cancel_preheat_block_idle_stale }
+                                    6 -> { field(instance,"snapshot").set(instance,base.copy(coffeeAt=Long.MAX_VALUE));R.string.cancel_preheat_block_idle_stale }
+                                    7 -> { field(instance,"snapshot").set(instance,base.copy(coffee=baseIdle.copy(sleepStateRaw=1),coffeeAt=now));R.string.cancel_preheat_block_not_awake }
+                                    8 -> {
+                                        val pending=ShotRecoveryState(object:ShotRecoveryState.Storage {
+                                            override fun read()=ShotRecoveryState.Record(true,address)
+                                            override fun write(record:ShotRecoveryState.Record):Boolean=error("Block check cannot alter shot storage")
+                                        })
+                                        field(instance,"shotRecovery\$delegate").set(instance,lazy { pending })
+                                        R.string.cancel_preheat_block_extraction_unsettled
+                                    }
+                                    else -> { field(owner.extraction,"state").set(owner.extraction,ExtractionState.RUNNING);R.string.cancel_preheat_block_extraction_unsettled }
+                                }
+                                try {
+                                    val injected=instance.snapshot
+                                    check(instance.cancelBrewPreparation()==instance.getString(resource)) { "ready=$ready block=$block" }
+                                    check(instance.snapshot===injected && preparation.state==prepState)
+                                    check(field(preparation,"serial").getLong(preparation)==prepToken)
+                                    check(field(instance,"recoveryAfterBrewWaitIdleSerial").getLong(instance)==baseline)
+                                    check(calls.size==1 && recordsAtDispatch.size==1 && statesAtDispatch==listOf("WRITING"))
+                                    check(recovery(instance).pending && recovery(instance).kind==kind && recovery(instance).address==address && prefs.all==saved)
+                                    blockedCancels++
+                                } finally {
+                                    field(instance,"snapshot").set(instance,base)
+                                    field(passive,"active").setBoolean(passive,false)
+                                    field(session,"activeAddress").set(session,address)
+                                    field(instance,"shotRecovery\$delegate").set(instance,shotDelegate)
+                                    field(owner.extraction,"state").set(owner.extraction,extractionState)
+                                }
+                            }
+                            check(queues[0].active && !queues[0].inFlight && coffeeCloses==0 && scaleExecutions==0)
+                            before.filterKeys { it!="machine_write_safety" }.forEach { (name,values)->
+                                check(app.getSharedPreferences(fixtures.getValue(name),Context.MODE_PRIVATE).all==values)
+                            }
+                            check(systemLookups==0 && permissionChecks==0 && componentCalls==0)
+                            fakeWrites+=calls.size;checkedFixtures++
+                            return@runOnMainSync
+                        }
                         check(instance.cancelBrewPreparation()==null)
                         check(calls.size==2 && statesAtDispatch==listOf("WRITING","CANCELLING") && recordsAtDispatch.all { it==saved })
                         check(field(instance,"recoveryAfterBrewWaitIdleSerial").getLong(instance)==idleBefore)
@@ -261,7 +319,9 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                 cleanupFailure?.let { throw it }
             }
         }
-        check(checkedFixtures == 10 && blockedEntries == 120 && fakeWrites==20 &&
+        if(blockedOnly)check(checkedFixtures==2 && blockedCancels==20 && fakeWrites==2 && blockedEntries==0 &&
+            recoveredAcknowledgements==0 && retainedDisconnected==0)
+        else check(checkedFixtures == 10 && blockedEntries == 120 && fakeWrites==20 &&
             recoveredAcknowledgements==8 && retainedDisconnected==2)
     }
 }

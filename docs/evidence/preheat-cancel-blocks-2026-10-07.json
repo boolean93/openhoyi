@@ -1,0 +1,44 @@
+{
+  "change": "Actual Service preheat cancellation pre-dispatch blockers",
+  "local": {
+    "testApkAndDualLint": "BUILD SUCCESSFUL in 14s",
+    "tasks": 125,
+    "log": "/private/tmp/hoyi-preheat-cancel-blocks-final.log",
+    "independentReview": "No blocking findings after sleep fixture timestamp isolation fix",
+    "scriptSyntax": "passed",
+    "diffCheck": "passed",
+    "productionChanges": "none"
+  },
+  "expectedRuntime": {
+    "phases": 2,
+    "blockedCancels": 20,
+    "fakePreheatWrites": 2,
+    "fakeCancelWrites": 0
+  },
+  "conditions": [
+    "Manual machine extraction",
+    "Wrong machine identity",
+    "Coffee state not READY",
+    "Idle frame missing",
+    "Idle timestamp missing",
+    "Idle timestamp stale",
+    "Idle timestamp in future",
+    "Sleeping idle with fresh timestamp",
+    "Unresolved shot recovery",
+    "Active app extraction"
+  ],
+  "invariants": [
+    "Exact resource for each condition",
+    "Same snapshot identity, preparation state/token and recovery baseline after blocked call",
+    "Durable record and original preference values preserved",
+    "Only original preheat write, zero cancellation dispatch",
+    "Each injected condition restored before next; no BLE/system/permission/component access"
+  ],
+  "boundaries": [
+    "New blockers compiled but not yet executed, require new-source cloud runtime",
+    "Detached Service synthetic READY and guarded fake GATT",
+    "Service pre-dispatch checks, not Session final-dispatch race gates",
+    "No hardware/lifecycle/real-time freshness proof",
+    "Original ten cancellation result fixtures remain unchanged and separately required"
+  ]
+}

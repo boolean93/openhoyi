@@ -47,8 +47,20 @@
   ],
   "sourceCommit": "553acb27634be4b5bfa3ead6bf2990f170e33614",
   "cloudPending": {
-    "native": 37546900951,
-    "mockLifecycle": 37546901009,
-    "mockUpgrade": 37546901046
+    "mockLifecycle": 37546901009
+  },
+  "cloudVerified": {
+    "native": {
+      "run": 37546900951,
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "releaseCases": 12
+    },
+    "mockUpgrade": {
+      "run": 37546901046,
+      "actualSeedVerifyResultRead": true,
+      "scope": "Same current source/schema Mock1->2 on qemu, not Alpha or historical migration"
+    }
   }
 }
