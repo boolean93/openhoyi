@@ -3,6 +3,7 @@ package io.openhoyi.mobile
 import io.openhoyi.session.ShotRecoveryState
 import io.openhoyi.session.MachineRecoveryActivity
 import io.openhoyi.session.MachineWriteWatchdog
+import io.openhoyi.session.MachineWriteDisconnection
 import io.openhoyi.session.MachineWriteResult
 import io.openhoyi.session.MachineWriteRegistration
 import io.openhoyi.session.MachineWriteAcknowledgement
@@ -201,6 +202,7 @@ class MobileService : Service() {
         { delay, callback -> handler.postDelayed({ callback() }, delay) },
         { MachineWriteWatchdog.Serials(settingsSampleSerial, cupSettingsSerial, cupIdleSerial,
             firstSleepSerial, secondSleepSerial, sleepSampleSerial) })
+    private val writeDisconnection = MachineWriteDisconnection(settingsWrite,cupReset,scheduleWrite,sleepNow,brewPreparation)
     private var hub: NativeDeviceHub? = null
     private val coffeeCredentials by lazy { CoffeeCredentialStore(this) }
     private val coffeeCredentialRetries by lazy {
@@ -385,11 +387,8 @@ class MobileService : Service() {
                         if (state != DeviceState.READY) {
                             finishBrewFeedback(false)
                             saveSeriesCheckpoint(force = true)
-                            settingsWrite.disconnected(settingsSampleSerial)
-                            cupReset.disconnected(cupSettingsSerial, cupIdleSerial)
-                            scheduleWrite.disconnected(firstSleepSerial, secondSleepSerial)
-                            sleepNow.disconnected(sleepSampleSerial)
-                            brewPreparation.disconnected()
+                            writeDisconnection.apply(MachineWriteDisconnection.Samples(settingsSampleSerial,
+                                cupSettingsSerial,cupIdleSerial,firstSleepSerial,secondSleepSerial,sleepSampleSerial))
                         }
                         if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
                             snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,

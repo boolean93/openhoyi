@@ -31,5 +31,17 @@
     "No physical BLE or coffee-machine safety validation",
     "BrewWait distinct guarded cancellation unchanged"
   ],
-  "cloudPending": "Await automatic workflow run IDs after source push"
+  "cloudPending": {
+    "native": 37415347414,
+    "mockLifecycle": 37415347355
+  },
+  "sourceCommit": "b6b76159d6b6434031e0878179b358abc269ff9e",
+  "cloudVerified": {
+    "mockUpgrade": {
+      "run": 37415347456,
+      "result": "success",
+      "actualArtifactRead": true,
+      "scope": "same-source/schema Mock1->2; does not execute new watchdog fixture"
+    }
+  }
 }

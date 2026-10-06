@@ -25,11 +25,34 @@
     "No storage, BLE, automatic retry or acknowledgement added",
     "No hardware validation"
   ],
-  "cloudPending": {
-    "native": 37414739328,
-    "mockLifecycle": 37414739586,
-    "mockUpgrade": 37414739396,
-    "mockUiCapture": 37414739333
+  "cloudPending": {},
+  "sourceCommit": "cbd36602ef981d046c5881c76da4c1ef86019c74",
+  "cloudVerified": {
+    "mockUpgrade": {
+      "run": 37414739396,
+      "result": "success",
+      "actualArtifactRead": true,
+      "scope": "same-current-source/schema Mock 1->2 on qemu; not Alpha/history migration"
+    },
+    "native": {
+      "run": 37414739328,
+      "result": "success",
+      "actualLogRead": true,
+      "scope": "native build/checks and 12 temporary release guards; no install"
+    },
+    "mockLifecycle": {
+      "run": 37414739586,
+      "result": "success",
+      "actualArtifactRead": true,
+      "source": "cbd3660",
+      "scope": "existing 16 language/5 audio markers and two 80-page matrices; excludes later new WAITING/expiry fixture"
+    }
   },
-  "sourceCommit": "cbd36602ef981d046c5881c76da4c1ef86019c74"
+  "cloudStatusOnly": {
+    "mockUiCapture": {
+      "run": 37414739333,
+      "result": "success",
+      "imagesNotReviewed": true
+    }
+  }
 }

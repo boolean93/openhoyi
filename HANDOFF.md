@@ -517,3 +517,7 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 当前b20b90f首页引用修正已推送，Verify native app36948773115与Mock36948773151启动。CI脚本另加每条隔离Mock instrument 600秒失败上限，保存阶段stdout并触发已有定向诊断；bash/Python语法检查和独立复审通过。未宣称Android运行检查通过。
 
 四类普通写入新增 detached `ServiceWriteWatchdogChecks`：真实 Service→Hub→Session 入口，假 GATT Success、假调度器和 Session 时钟。覆盖5帧（周计划两帧及500ms间隔）、WAITING→UNKNOWN、超时时6个独立回读序号路由、重复expiry/Success抑制、48个控制入口阻止及4个持久记录重载。仅验证调度delay参数，不代表Android Handler到期或真机。ACK测试明确使用未增长的回读序号并核对waiting文案。编译与云端运行结果按本轮evidence记录。前一版本494e7bc Mock lifecycle37414072883实际artifact已读取：16语言、5声音、两组各80页面布局及弹窗检查通过；35cdb98按后代源码范围记录，不声称单独CI。
+
+本轮 b6b7615 已推送；自动native37415347414、Mock lifecycle37415347355、Mock upgrade37415347456运行中，新增watchdog fixture尚无运行通过证据。上一轮cbd3660 native37414739328完整log和upgrade37414739396 seed/verify/result已读取通过；Mock lifecycle37414739586仍待结果。CI编号/已读产物元数据留在本地，合并下一次实质开发提交，避免重复CI。
+
+2026-10-06：MachineWriteDisconnection收拢真实Service non-READY分支原五类tracker断线处理，六serial映射和settings→cups→schedule→sleep→brew顺序不变；普通已确认/失败保持，预热non-IDLE转UNKNOWN并失效旧token，含取消中/取消已写。30参数测试空stub22FAIL→全GREEN，另2预热测试通过，完整219任务构建/回归/Lint在62秒成功，独立复审无阻塞。证据evidence/write-disconnection-2026-10-06.json。本轮无真机；新增Service WAITING/expiry fixture仍待b6b7615/Mock37415347355。cbd3660/Mock37414739586实际完整产物已读取通过，不替代新增fixture。

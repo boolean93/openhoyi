@@ -1,0 +1,32 @@
+{
+  "change": "Move original five machine-write disconnect calls to pure Kotlin coordinator; original Service non-READY eligibility/order retained",
+  "local": {
+    "parameterizedTests": 30,
+    "stubFailures": 22,
+    "extraPreheatTests": 2,
+    "finalTests": "32 passed, 0 skipped",
+    "sessionNamedScenarios": 92,
+    "fullBuild": "BUILD SUCCESSFUL in 1m 2s",
+    "tasks": 219,
+    "protocolChecks": 39823,
+    "capturedNotificationsReplayed": 32856,
+    "independentReview": "no blocking findings",
+    "diffCheck": "passed"
+  },
+  "covered": [
+    "Writing/waiting ordinary writes become UNKNOWN",
+    "Late transport callback cannot turn UNKNOWN into success",
+    "All six independently valued readback baselines routed exactly",
+    "Ordinary CONFIRMED/FAILED remain unchanged",
+    "Preheat non-IDLE states including READY/CANCELLING/CANCEL_WRITTEN become UNKNOWN with token invalidation",
+    "Idle preheat stays idle and permits explicit new preparation",
+    "Durable intent unchanged; no clear/retry/transport added"
+  ],
+  "boundaries": [
+    "Pure owner-thread coordinator tests, not registered Service state callback runtime",
+    "No protocol bytes or disconnect eligibility changed",
+    "Latest source cloud runs pending",
+    "No physical BLE or hardware safety proof"
+  ],
+  "cloudPending": "Await automatic workflow IDs after source push"
+}

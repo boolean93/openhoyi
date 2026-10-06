@@ -107,3 +107,5 @@
 2026-10-06 业务分层补充：五类真实写入的transport结果应用与归类移入纯Kotlin `MachineWriteResult`，Service保留时序、提示及恢复清除适配；30项回归及完整构建通过，见 `evidence/shared-write-results-2026-10-06.json`。共享结果不代表定时器、回读采样或Android生命周期已统一。
 
 2026-10-06 超时协调补充：四种普通写入的readback watchdog和到期采样序号选择移入纯Kotlin协调器，6/12/8/12秒不变，Service保留提示与恢复记录适配。24项fake调度回归通过，见 `evidence/write-watchdog-2026-10-06.json`。预热超时取消流程仍独立；Android实际定时及注册Service生命周期未因此证明。
+
+2026-10-06：MachineWriteDisconnection收拢真实Service non-READY分支原五类tracker断线处理，六serial映射和settings→cups→schedule→sleep→brew顺序不变；普通已确认/失败保持，预热non-IDLE转UNKNOWN并失效旧token，含取消中/取消已写。30参数测试空stub22FAIL→全GREEN，另2预热测试通过，完整219任务构建/回归/Lint在62秒成功，独立复审无阻塞。证据evidence/write-disconnection-2026-10-06.json。本轮无真机；新增Service WAITING/expiry fixture仍待b6b7615/Mock37415347355。cbd3660/Mock37414739586实际完整产物已读取通过，不替代新增fixture。
