@@ -28,14 +28,10 @@
     "Each cleanup runs independently; original failure retained with distinct suppressed cleanup errors"
   ],
   "boundaries": [
-    "New fault modes not executed yet; Android compilation is not runtime proof",
     "Injected synchronous storage failure, not physical disk/process-crash atomicity",
     "Detached Service and fake GATT, not registered lifecycle/real BLE/hardware",
     "Normal successful four fixtures remain separately verified on source75ddf55"
   ],
-  "cloudPending": {
-    "mockLifecycle": 37544844426
-  },
   "sourceCommit": "5b4d8a7164c86892d7a2b34da5f89db5a8401d2f",
   "cloudVerified": {
     "native": {
@@ -51,6 +47,18 @@
       "scope": "Same source/schema Mock 1->2 on qemu, not Alpha or historical migration",
       "mockInstallationVerified": true,
       "mockDataPreservationVerified": true
+    },
+    "mockLifecycleViaDescendant": {
+      "sourceCommit": "281c4f62803a30f6adad5bfebc2582e9bbc4715b",
+      "run": 37545210311,
+      "actualArtifactRead": true,
+      "fixtures": 8,
+      "storageModes": 2,
+      "failedClears": 8,
+      "blockedEntries": 96,
+      "retainedReloads": 8,
+      "recoveredClears": 8,
+      "scope": "Fault fixtures unchanged from5b4 to281; old cup feedback order, not911 failureLast"
     }
   }
 }

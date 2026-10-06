@@ -32,10 +32,33 @@
     "Detached Service/Hub, not registered lifecycle/real BLE/hardware",
     "No command bytes or connection eligibility changed"
   ],
-  "cloudPending": {
-    "native": 37545210338,
-    "mockLifecycle": 37545210311,
-    "mockUpgrade": 37545210366
-  },
-  "sourceCommit": "281c4f62803a30f6adad5bfebc2582e9bbc4715b"
+  "sourceCommit": "281c4f62803a30f6adad5bfebc2582e9bbc4715b",
+  "cloudVerified": {
+    "native": {
+      "run": 37545210338,
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "notifications": 32856,
+      "releaseCases": 12
+    },
+    "mockUpgrade": {
+      "run": 37545210366,
+      "actualSeedVerifyResultRead": true,
+      "scope": "Same current source/schema Mock1->2 on qemu"
+    },
+    "mockLifecycle": {
+      "run": 37545210311,
+      "actualArtifactRead": true,
+      "replacementFixtures": 8,
+      "fakeWrites": 9,
+      "fakeConnects": 4,
+      "blockedEntries": 96,
+      "reloadedRecords": 8,
+      "wrongDeviceBlocks": 8,
+      "busyReconnectBlocks": 4,
+      "languageMarkers": 21,
+      "audioMarkers": 5,
+      "pageFixturesPerProfile": 80
+    }
+  }
 }

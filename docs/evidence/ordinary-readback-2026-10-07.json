@@ -1,0 +1,51 @@
+{
+  "change": "Extract setting, sleep-now and weekly-plan readback coordination from Android Service",
+  "local": {
+    "red": {
+      "tests": 27,
+      "failures": 24,
+      "errors": 0,
+      "log": "/private/tmp/hoyi-ordinary-readback-red.log",
+      "note": "Two initial test compilation errors corrected before assertion RED; empty implementation baseline then failed24 assertions"
+    },
+    "green": {
+      "tests": 27,
+      "failures": 0,
+      "namedSessionScenarios": 92,
+      "log": "/private/tmp/hoyi-ordinary-readback-green.log"
+    },
+    "fullBuild": {
+      "result": "BUILD SUCCESSFUL in 1m",
+      "tasks": 219,
+      "log": "/private/tmp/hoyi-ordinary-readback-full.log"
+    },
+    "mobileUnitResults": {
+      "testDebugUnitTest": {
+        "tests": 178,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "testMockUnitTest": {
+        "tests": 178,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      }
+    },
+    "independentReview": "No blocking findings; callback/clear/notification order, serial/freshness/resource/snapshot positions retained"
+  },
+  "invariants": [
+    "Confirmation feedback before synchronous local clear; failure feedback after failed clear",
+    "Refresh requested exactly on CONFIRMED and same pending kind, even if clear fails",
+    "Mismatched/old/pre-write observations cannot confirm",
+    "UNKNOWN weekly plan reconciles but cannot automatically clear; matching setting/asleep can confirm",
+    "Duplicate notification retries only failed local clear, never wire write",
+    "Other pending kind is never cleared"
+  ],
+  "boundaries": [
+    "New-source Android detached Service fixture execution pending cloud",
+    "No registered Android lifecycle, hardware or physical disk crash proof",
+    "Wire encoding/control eligibility unchanged; preheat/extraction/manual recovery remain outside coordinator"
+  ]
+}

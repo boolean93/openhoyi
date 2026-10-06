@@ -13,6 +13,7 @@ import io.openhoyi.session.BrewPreparation
 import io.openhoyi.session.PassiveShotDetector
 import io.openhoyi.session.SettingsWriteTracker
 import io.openhoyi.session.CupResetTracker
+import io.openhoyi.session.OrdinaryWriteReadback
 import io.openhoyi.session.CupResetReadback
 import io.openhoyi.session.SleepNowTracker
 import io.openhoyi.session.SleepScheduleWriteTracker
@@ -397,18 +398,13 @@ class MobileService : Service() {
         snapshot = when (frame) {
             is Settings -> {
                 observeCupCount(true, frame.cupCount)
-                val previousSettingState = settingsWrite.state
-                if (settingsWrite.observe(++settingsSampleSerial, frame))
-                    event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
-                else if (previousSettingState == SettingsWriteTracker.State.UNKNOWN &&
-                    settingsWrite.state == SettingsWriteTracker.State.RECONCILED)
-                    event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
-                if (settingsWrite.state == SettingsWriteTracker.State.CONFIRMED &&
-                    machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
-                    if (!machineWriteRecovery.clear())
-                        event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
-                    refreshSafetyNotification()
-                }
+                if (OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,++settingsSampleSerial,frame) { feedback ->
+                    when(feedback) {
+                        OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
+                        OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
+                        OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
+                    }
+                }) refreshSafetyNotification()
                 snapshot.copy(settings = frame, settingsAt = SystemClock.elapsedRealtime())
             }
             is SleepPart -> {
@@ -419,34 +415,25 @@ class MobileService : Service() {
                     secondSleepSerial++
                     snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = SystemClock.elapsedRealtime())
                 }
-                if (sleepScheduleFresh && scheduleWrite.observe(firstSleepSerial, secondSleepSerial,
-                        snapshot.sleepFirst, snapshot.sleepSecond)) {
-                    if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED)
-                        event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
-                    else event(ResourceMessage(R.string.service_event_schedule_reconciled), "sleep_schedule.reconciled")
-                }
-                if (scheduleWrite.state == SleepScheduleWriteTracker.State.CONFIRMED &&
-                    machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
-                    if (!machineWriteRecovery.clear())
-                        event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
-                    refreshSafetyNotification()
-                }
+                if (OrdinaryWriteReadback.schedule(scheduleWrite,machineWriteRecovery,sleepScheduleFresh,
+                        firstSleepSerial,secondSleepSerial,snapshot.sleepFirst,snapshot.sleepSecond) { feedback ->
+                    when(feedback) {
+                        OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
+                        OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_schedule_reconciled), "sleep_schedule.reconciled")
+                        OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
+                    }
+                }) refreshSafetyNotification()
                 snapshot
             }
             is IdleTelemetry -> {
                 observeCupCount(false, frame.cupCount)
-                val previousSleepState = sleepNow.state
-                if (sleepNow.observe(++sleepSampleSerial, frame.sleepStateRaw))
-                    event(ResourceMessage(R.string.service_event_sleep_confirmed), "sleep.confirmed")
-                else if (previousSleepState == SleepNowTracker.State.UNKNOWN &&
-                    sleepNow.state == SleepNowTracker.State.RECONCILED)
-                    event(ResourceMessage(R.string.service_event_sleep_reconciled), "sleep.reconciled")
-                if (sleepNow.state == SleepNowTracker.State.CONFIRMED &&
-                    machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
-                    if (!machineWriteRecovery.clear())
-                        event(ResourceMessage(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
-                    refreshSafetyNotification()
-                }
+                if (OrdinaryWriteReadback.sleep(sleepNow,machineWriteRecovery,++sleepSampleSerial,frame.sleepStateRaw) { feedback ->
+                    when(feedback) {
+                        OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_sleep_confirmed), "sleep.confirmed")
+                        OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_sleep_reconciled), "sleep.reconciled")
+                        OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
+                    }
+                }) refreshSafetyNotification()
                 val currentSettings = snapshot.settings
                 if (currentSettings != null && brewPreparation.observe(++idleSampleSerial,
                         BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,

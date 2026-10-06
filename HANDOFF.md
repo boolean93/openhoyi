@@ -541,3 +541,7 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 281c4f6已推送；native37545210338、Mock lifecycle37545210311、upgrade37545210366确认运行/排队。新连接替换fixture尚待实际产物验收。CI编号元数据留本地合并下个实质提交。
 
 2026-10-07：修正杯数归零确认后本地安全记录clear失败被成功消息覆盖的问题。CupResetReadback返回有序事件，保留confirmed诊断、最后展示clear_failed；双通道serial、清除条件、蓝牙报文和控制门禁不变。8测试原顺序2FAIL→8GREEN，92场景通过；完整219任务61秒构建/回归/双Lint成功，独立复审无阻塞。Android既有8故障fixture/脚本新增failureLast=true要求，运行仍待新源码CI。5b4d8a7 native37544844455实际完整log和upgrade37544844372 seed/verify/result已读通过；升级仅同源码同schema Mock1→2，不代表Alpha或历史迁移。
+
+9114535已推送，native37545908098、Mock lifecycle37545908134、upgrade37545908099确认运行。failureLast实际Android运行尚待产物核对，CI编号元数据留本地合并下次实质提交。281c4f6 native37545210338/upgrade37545210366成功状态已读，实际产物尚未读；不标verified，其Mock37545210311仍运行。
+
+2026-10-07：OrdinaryWriteReadback提取原Service设置/立即睡眠/周计划回读协调，typed事件callback保持observe→确认/重新核对→同kind clear→失败提示→原通知刷新顺序。serial、周计划fresh gate、snapshot、资源/tag不变；UNKNOWN周计划仍仅RECONCILED并保留gate，设置匹配/已睡可CONFIRMED。27参数测试空实现24FAIL→27GREEN，92场景通过，完整219任务60秒成功，独立审查无阻塞。281c4f6实际native37545210338/Mock37545210311/升级37545210366产物均读取：连接替换8/9Write/4Connect/96阻止/8重载、自动clear故障8/2模式/96阻止/8恢复通过；回读fixture5b4→281 diff空，旧cup顺序不替代911 failureLast验收。911升级37545908099实际产物通过，仅同schema/source Mock1→2。新协调层Android运行待新源码CI，未触真机。

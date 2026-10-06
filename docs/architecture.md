@@ -80,3 +80,7 @@ MobileService仍持有实例，提供原SharedPreferences键、原枚举名称�
 `MachineRecoveryWarningPolicy` 只选择当前持久写入kind是否需要显示恢复提醒；BREW_WAIT正常写入、等待温度、温度就绪时显示进度而暂不显示恢复提醒，其它情况保留提醒。该分类不读取/写入Storage、不确认执行、不授予清除权限，也不重放操作。`MachineRecoveryText` 按kind提供显示资源，服务的持久化和原机核对流程仍保持原归属。服务Context相关提示在访问时解析，避免构造未附加Service实例时访问资源。
 
 曲线库UI分类由 `CurveCategoryFilter` 的稳定枚举name保存，恢复兼容旧中文键；显示标签与查询的legacyKey分开。原库分类/名称/详情数据不随翻译重写，搜索仍委托原字符串过滤方法。该分类只决定浏览列表，不修改 `CurveLibrary.canStart`、proof或报文字段；工厂曲线的实机资格仍按原验证范围解释。
+
+## 普通机器写入的回读协调
+
+`OrdinaryWriteReadback` 在 `device-session` 统一设置、立即睡眠、周睡眠计划的回读协调入口，保留各 tracker 的独立规则。协调层发布类型化确认/重新核对/清除失败事件，并返回是否需要刷新安全通知；Android负责原始采样序号、周计划片段时效、资源/tag映射和快照。它不编码报文、不发送GATT、不建立定时器。确认事件仍在同步清除前发布，清除失败最后发布并保留门禁；重复回读只重试本地清除。未知周计划只能重新核对，不自动解除持久记录；未知设置匹配或已睡回读仍按原规则确认。`CupResetReadback` 独立处理双通道杯数，通知刷新与失败消息顺序不同，未强行合并。预热、萃取和人工恢复仍不属于这两个协调器。
