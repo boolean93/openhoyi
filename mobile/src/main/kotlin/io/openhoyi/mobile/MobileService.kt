@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import io.openhoyi.session.ShotRecoveryState
 import io.openhoyi.session.MachineRecoveryActivity
+import io.openhoyi.session.MachineWriteResult
 import io.openhoyi.session.MachineWriteRegistration
 import io.openhoyi.session.MachineWriteAcknowledgement
 import io.openhoyi.session.MachineWriteRecoveryState
@@ -758,9 +759,10 @@ class MobileService : Service() {
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_setting_queued, settingsPresentation.changeMessage(change)), "settings.requested")
         current.writeSetting(change) done@{ result ->
-            if (!settingsWrite.written(token, result, settingsSampleSerial)) return@done
-            when (settingsWrite.state) {
-                SettingsWriteTracker.State.WAITING_READBACK -> {
+            val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Setting(settingsWrite, settingsSampleSerial))
+            if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            when (outcome) {
+                MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_setting_written), "settings.written")
                     handler.postDelayed({
                         if (settingsWrite.timeout(token, settingsSampleSerial)) {
@@ -769,13 +771,13 @@ class MobileService : Service() {
                         }
                     }, 6000)
                 }
-                SettingsWriteTracker.State.FAILED -> {
+                MachineWriteResult.Outcome.FAILED -> {
                     if (!machineWriteRecovery.clear())
                         event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_setting_not_written), "settings.failed")
                 }
-                SettingsWriteTracker.State.UNKNOWN -> {
+                MachineWriteResult.Outcome.UNKNOWN -> {
                     recoveryAfterSettingsSerial = settingsSampleSerial
                     event(ResourceMessage(R.string.service_write_setting_unknown), "settings.unknown")
                 }
@@ -827,9 +829,10 @@ class MobileService : Service() {
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_cups_queued), "cups.requested")
         current.resetCupCount(expectedCount) done@{ result ->
-            if (!cupReset.written(token, result, cupSettingsSerial, cupIdleSerial)) return@done
-            when (cupReset.state) {
-                CupResetTracker.State.WAITING_ZERO -> {
+            val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.CupReset(cupReset, cupSettingsSerial, cupIdleSerial))
+            if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            when (outcome) {
+                MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_cups_written), "cups.written")
                     handler.postDelayed({
                         if (cupReset.timeout(token, cupSettingsSerial, cupIdleSerial)) {
@@ -839,13 +842,13 @@ class MobileService : Service() {
                         }
                     }, 12_000)
                 }
-                CupResetTracker.State.FAILED -> {
+                MachineWriteResult.Outcome.FAILED -> {
                     if (!machineWriteRecovery.clear())
                         event(ResourceMessage(R.string.service_write_cups_clear_failed), "cups.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_cups_not_written), "cups.failed")
                 }
-                CupResetTracker.State.UNKNOWN -> {
+                MachineWriteResult.Outcome.UNKNOWN -> {
                     recoveryAfterSettingsSerial = cupSettingsSerial
                     recoveryAfterIdleSerial = cupIdleSerial
                     event(ResourceMessage(R.string.service_write_cups_unknown), "cups.unknown")
@@ -903,16 +906,16 @@ class MobileService : Service() {
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_schedule_queued), "sleep_schedule.requested")
         current.writeSleepSchedule(target,expected) done@{ result ->
-            if (!scheduleWrite.written(token, result, firstSleepSerial, secondSleepSerial,
-                    snapshot.sleepFirst, snapshot.sleepSecond)) return@done
-            when (scheduleWrite.state) {
-                SleepScheduleWriteTracker.State.CONFIRMED -> {
+            val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Schedule(scheduleWrite, firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond))
+            if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            when (outcome) {
+                MachineWriteResult.Outcome.CONFIRMED -> {
                     if (!machineWriteRecovery.clear())
                         event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
                 }
-                SleepScheduleWriteTracker.State.WAITING_READBACK -> {
+                MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_schedule_written), "sleep_schedule.written")
                     handler.postDelayed({
                         if (scheduleWrite.timeout(token, firstSleepSerial, secondSleepSerial)) {
@@ -922,13 +925,13 @@ class MobileService : Service() {
                         }
                     }, 8000)
                 }
-                SleepScheduleWriteTracker.State.FAILED -> {
+                MachineWriteResult.Outcome.FAILED -> {
                     if (!machineWriteRecovery.clear())
                         event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_schedule_first_not_written), "sleep_schedule.failed")
                 }
-                SleepScheduleWriteTracker.State.UNKNOWN -> {
+                MachineWriteResult.Outcome.UNKNOWN -> {
                     recoveryAfterFirstSleepSerial = firstSleepSerial
                     recoveryAfterSecondSleepSerial = secondSleepSerial
                     event(ResourceMessage(R.string.service_write_schedule_partial_unknown), "sleep_schedule.unknown")
@@ -976,9 +979,10 @@ class MobileService : Service() {
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_sleep_queued), "sleep.requested")
         current.enterSleep done@{ result ->
-            if (!sleepNow.written(token, result, sleepSampleSerial)) return@done
-            when (sleepNow.state) {
-                SleepNowTracker.State.WAITING_ASLEEP -> {
+            val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Sleep(sleepNow, sleepSampleSerial))
+            if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            when (outcome) {
+                MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_sleep_written), "sleep.written")
                     handler.postDelayed({
                         if (sleepNow.timeout(token, sleepSampleSerial)) {
@@ -987,13 +991,13 @@ class MobileService : Service() {
                         }
                     }, 12_000)
                 }
-                SleepNowTracker.State.FAILED -> {
+                MachineWriteResult.Outcome.FAILED -> {
                     if (!machineWriteRecovery.clear())
                         event(ResourceMessage(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_sleep_not_written), "sleep.failed")
                 }
-                SleepNowTracker.State.UNKNOWN -> {
+                MachineWriteResult.Outcome.UNKNOWN -> {
                     recoveryAfterSleepSerial = sleepSampleSerial
                     event(ResourceMessage(R.string.service_write_sleep_unknown), "sleep.unknown")
                 }
@@ -1084,9 +1088,10 @@ class MobileService : Service() {
                 machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
                 machineWriteRecovery.matchesDevice(current.coffeeAddress)
         }) done@{ result ->
-            if (!brewPreparation.written(token, result, idleSampleSerial)) return@done
-            when (brewPreparation.state) {
-                BrewPreparation.State.WAITING_TEMP -> {
+            val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.BrewWait(brewPreparation, idleSampleSerial))
+            if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
+            when (outcome) {
+                MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_shot_preheat_written), "brew_wait.written")
                     handler.postDelayed({
                         if (brewPreparation.isActive(token)) {
@@ -1100,8 +1105,8 @@ class MobileService : Service() {
                         }
                     }, 600_000)
                 }
-                BrewPreparation.State.FAILED -> event(ResourceMessage(R.string.service_shot_preheat_not_written), "brew_wait.failed")
-                BrewPreparation.State.UNKNOWN -> event(ResourceMessage(R.string.service_shot_preheat_unknown), "brew_wait.unknown")
+                MachineWriteResult.Outcome.FAILED -> event(ResourceMessage(R.string.service_shot_preheat_not_written), "brew_wait.failed")
+                MachineWriteResult.Outcome.UNKNOWN -> event(ResourceMessage(R.string.service_shot_preheat_unknown), "brew_wait.unknown")
                 else -> Unit
             }
             refreshSafetyNotification()

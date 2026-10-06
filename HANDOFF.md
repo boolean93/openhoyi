@@ -1,3 +1,9 @@
+2026-10-06 shared write results：新增纯Kotlin MachineWriteResult typed Request/Outcome，把5真实Service callback的tracker.written+枚举归类移出；Service保留messages/tags/Handler原超时/recovery clear/refresh顺序。mock及预热取消未变。30新参数化测试stub旧25FAIL→30GREEN，原92场景及219完整构建/双Lint49s通过，独立复审5处原args/branches无阻塞。新actual Service fixture云端待最新源码。证据docs/evidence/shared-write-results-2026-10-06.json；result共享不代表timers/readbacks/lifecycle已统一。
+
+上一35cdb98 push session84696仍live时，ps确认own git链，lsof确认HTTPS CLOSE_WAIT（peer已关闭），GitHub refs仍a4c6a34；仅此失效push主PID48715被TERM，session exit143已读。非因观察timeout重启。35提交保留，随本共享结果提交一起push；不为旧35单独重复触发CI。无实BLE/安装，goal active。
+
+35cdb98b86173b1085decb285697adb8f99db8bd请求owner源码已本地提交，git push当前exec session84696多次确认仍live，尚无成功/失败输出；不要重启推送，仅续读同句柄直至terminal，再查exact-source CI。a4c6a34 native37412782350实际完整日志success已读（39823/32856/92/release12），仅Mock37412782349仍待。此处与两证据source/CI元数据本地未单独提交，随下一实质提交并入，不丢弃。下一软件任务重新核对MobileService中请求结果/采样/超时协调的共享边界，结合既有MachineWriteRegistration/ACK/Activity，不开放无真实证据的高风险命令。无安装/实BLE，goal active。
+
 c8a053f Mock37412191460实际完整产物success已读，5异常/60阻止/5重读与全部原矩阵保留，terminal-owner所有cloud清空。a4c6a34升级37412782300实际seed/verify/resultsuccess已读，native37412782350和Mock37412782349仍待；下轮读取既有任务，不重复dispatch。
 
 2026-10-06 connection request owner：connect验证及BOOKOO同址no-op之后分配requestSerial，用private endConnection清理，所有cleanup回调返回后仅仍同request才改address/open/init。publicdisconnect/privatefail使旧request失效，能检测不增加generation的显式取消。8新方法旧6FAIL→8GREEN，92原场景全过，独立审查无阻塞；219完整构建/双Lint50s通过。覆盖两角色DIS callback新connect、同代cancel、driver.close/tare Unknown新connect/cancel，invalid auth不替代有效请求、BOOKOO同址no-op和coffee重新认证字节保留。证据docs/evidence/connection-request-owner-2026-10-06.json。

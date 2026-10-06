@@ -1,0 +1,35 @@
+{
+  "change": "Pure MachineWriteResult typed transport callback normalization; five real Service write callbacks now consume common outcomes",
+  "local": {
+    "tests": 30,
+    "originalStubFailures": 25,
+    "finalTests": "30 passed",
+    "sessionNamedScenarios": 92,
+    "fullBuild": "success in 49s",
+    "fullBuildTasks": 219,
+    "independentReview": "no blocking findings; five Service callbacks compared against HEAD",
+    "diffCheck": "success"
+  },
+  "covered": [
+    "Success waits for post-write readback",
+    "Failed and Cancelled reported without helper clearing intent",
+    "Unknown retained without clearing or retry",
+    "Stale token ignored without mutation",
+    "Repeated callbacks preserve first outcome",
+    "Original readback serial baseline retained"
+  ],
+  "retainedServiceBehavior": [
+    "Exact five real tracker arguments and serial/readback sources",
+    "Resource IDs and diagnostic tags",
+    "6000/12000/8000/12000/600000 Handler waits retained for setting/cups/schedule/sleep/preheat",
+    "Existing durable clear and safety-notification ordering",
+    "Mock and preheat cancellation paths unchanged"
+  ],
+  "boundaries": [
+    "JVM helper tests do not directly execute Service Handler or UI resources",
+    "Actual detached Service cloud fixtures pending latest source",
+    "Result normalization is not complete timer/readback/lifecycle coordination",
+    "No physical BLE or hardware safety claim"
+  ],
+  "cloudPending": "await source push"
+}

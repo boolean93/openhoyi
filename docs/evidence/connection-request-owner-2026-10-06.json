@@ -25,5 +25,6 @@
     "No automatic retry added",
     "No real BLE or physical safety validation"
   ],
-  "cloudPending": "await source push"
+  "cloudPending": "35cdb98 push stopped only after verified peer CLOSE_WAIT and remote remained a4c6a34; included in next substantive shared-result source, verify that source CI",
+  "sourceCommit": "35cdb98b86173b1085decb285697adb8f99db8bd"
 }

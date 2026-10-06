@@ -30,3 +30,5 @@ prepareBrew在Mock和真实分支都有brewPreparation.begin。替换搜索首�
 ---
 
 2026-10-06 NotificationOwnerTest: added StartContext readback assertion initially used 94.07C idle for validated 91C profile. Existing ±1C studio gate correctly returned null (two fixture failures). Fixed synthetic idle to existing 91.00C sample; did not loosen production gate. Match independent test prerequisites before interpreting null context as ownership regression.
+
+2026-10-06 git push: process stayed live without output; remote API remained previous SHA. Read-only targeted process/socket diagnosis showed git-remote-https TCP CLOSE_WAIT (peer closed), not merely elapsed timeout. Terminated only known task push PID, confirmed session exit143, preserved commit. Next push includes both unpublished changes; never duplicate a push only because observation yields.

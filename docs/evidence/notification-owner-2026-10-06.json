@@ -26,7 +26,6 @@
     "No real BLE or physical validation"
   ],
   "cloudPending": {
-    "native": 37412782350,
     "mockLifecycle": 37412782349
   },
   "sourceCommit": "a4c6a3459e472b418a4988dcd87e37647b306eac",
@@ -36,6 +35,11 @@
       "result": "success",
       "actualArtifactRead": true,
       "scope": "same-source/schema Mock 1->2 on qemu"
+    },
+    "native": {
+      "run": 37412782350,
+      "result": "success",
+      "actualLogRead": true
     }
   }
 }
