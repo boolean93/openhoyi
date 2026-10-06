@@ -1,5 +1,5 @@
 {
-  "sourceCommit": null,
+  "sourceCommit": "7fb231ffe7e81f315c1cc12a8263fed6c7f62c23",
   "scope": "Unhandled driver.execute exceptions at queue boundary; not internally caught Android platform failures",
   "change": "Same-generation execution exception closes owner, settles running Unknown and unsent Cancelled, then invalidates host; preserve callback-created new generation",
   "local": {
@@ -19,12 +19,25 @@
     "independentReview": "no remaining blocker in new exception path after two reentrant repairs",
     "diffCheck": "success"
   },
-  "cloudPending": {},
+  "cloudPending": {
+    "native": 37409788917,
+    "mockLifecycle": 37409788906
+  },
   "boundaries": [
     "No real driver submission or physical device control",
     "Actual Service durable recovery retention on execute exceptions not newly exercised at Android runtime",
     "Existing callback-failure and timeout reentrant paths not audited in this change",
     "No new dispatch after exception observation on the same owner; synchronous callback may have pumped before throw is observed",
     "No hardware, installation or real Alpha upgrade verification"
-  ]
+  ],
+  "cloudVerified": {
+    "mockUpgrade": {
+      "run": 37409788899,
+      "result": "success",
+      "actualArtifactRead": true,
+      "seed": true,
+      "verify": true,
+      "scope": "same-source/schema Mock 1->2 on qemu"
+    }
+  }
 }

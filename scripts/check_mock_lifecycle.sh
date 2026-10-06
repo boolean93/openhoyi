@@ -157,6 +157,7 @@ grep -F 'LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=
 # Language context checks run separately, still guarded to the isolated Mock target.
 adb shell pm grant "$package" android.permission.POST_NOTIFICATIONS
 run_instrumentation "$output_dir/language-instrumentation.txt" language
+grep -F 'SERVICE_TRANSPORT_UNKNOWN_CHECKS_PASSED fixtures=5 fakeDispatches=5 blockedEntries=60 reloadedRecords=5 exactUnknownEvent=true durableBeforeDispatch=true retainedPending=true guardedFakeTransport=true noBle=true detached=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'SERVICE_WRITE_REGISTRATION_CHECKS_PASSED fixtures=10 failedRegistrations=20 storageModes=2 exactFailureResource=true retainedState=true noTransport=true syntheticReady=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'SERVICE_RECOVERY_PERSISTENCE_CHECKS_PASSED fixtures=5 wrongIdentityAcknowledgements=5 disconnectedAcknowledgements=5 missingTimestampAcknowledgements=5 unchangedReadbackAcknowledgements=5 incompleteEvidenceAcknowledgements=5 busyStages=2 preheatReady=true preheatCancelling=true blockedAcknowledgements=12 blockedEntries=69 failedWrites=5 retries=5 retainedGate=true exactFailureEvent=true noTransport=true syntheticReady=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'SERVICE_RECOVERY_GATE_CHECKS_PASSED fixtures=18 entries=108 acknowledgementAttempts=18 availabilityChecks=18 lazyShotRead=true preservedPending=true detached=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null

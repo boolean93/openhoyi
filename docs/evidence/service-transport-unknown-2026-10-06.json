@@ -1,0 +1,37 @@
+{
+  "sourceCommit": null,
+  "scope": "Actual detached MobileService control callbacks and real SharedPreferences recovery adapter; synthetic READY/fresh evidence and guarded fake transport",
+  "local": {
+    "testApk": "compiled",
+    "lintDebug": "success",
+    "lintMock": "success",
+    "tasks": 125,
+    "shellSyntax": "success",
+    "diffCheck": "success",
+    "independentReview": "no blocking findings"
+  },
+  "runtimePlanned": {
+    "fixtures": 5,
+    "fakeDispatches": 5,
+    "blockedEntries": 60,
+    "newInstancesLoadingPersistedRecords": 5,
+    "checks": [
+      "exact permitted frame at guarded fake driver",
+      "committed kind/address and WRITING tracker before fake dispatch",
+      "UNKNOWN tracker and exact unknown resource from actual Service callback",
+      "FAILED session, closed queue and one coffee close",
+      "all six original and new-instance controls blocked by durable warning",
+      "unqualified acknowledgement preserves record",
+      "no real system/BLE/component access, including cleanup",
+      "isolated preferences and original maps preserved"
+    ],
+    "runtimeVerified": false
+  },
+  "cloudPending": {},
+  "boundaries": [
+    "Detached unregistered Service and new instance, not process restart",
+    "Synthetic authentication/readback and fake execution are not physical submission or execution",
+    "Real commit within same process is not OS crash atomicity",
+    "No real BLE, installation or machine operation"
+  ]
+}
