@@ -32,7 +32,6 @@
     "BrewWait distinct guarded cancellation unchanged"
   ],
   "cloudPending": {
-    "native": 37415347414,
     "mockLifecycle": 37415347355
   },
   "sourceCommit": "b6b76159d6b6434031e0878179b358abc269ff9e",
@@ -42,6 +41,15 @@
       "result": "success",
       "actualArtifactRead": true,
       "scope": "same-source/schema Mock1->2; does not execute new watchdog fixture"
+    },
+    "native": {
+      "run": 37415347414,
+      "result": "success",
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "capturedNotificationsReplayed": 32856,
+      "temporaryReleaseGuards": 12,
+      "scope": "Build/core checks only; detached watchdog fixture requires its Mock lifecycle result"
     }
   }
 }

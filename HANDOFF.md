@@ -521,3 +521,7 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 本轮 b6b7615 已推送；自动native37415347414、Mock lifecycle37415347355、Mock upgrade37415347456运行中，新增watchdog fixture尚无运行通过证据。上一轮cbd3660 native37414739328完整log和upgrade37414739396 seed/verify/result已读取通过；Mock lifecycle37414739586仍待结果。CI编号/已读产物元数据留在本地，合并下一次实质开发提交，避免重复CI。
 
 2026-10-06：MachineWriteDisconnection收拢真实Service non-READY分支原五类tracker断线处理，六serial映射和settings→cups→schedule→sleep→brew顺序不变；普通已确认/失败保持，预热non-IDLE转UNKNOWN并失效旧token，含取消中/取消已写。30参数测试空stub22FAIL→全GREEN，另2预热测试通过，完整219任务构建/回归/Lint在62秒成功，独立复审无阻塞。证据evidence/write-disconnection-2026-10-06.json。本轮无真机；新增Service WAITING/expiry fixture仍待b6b7615/Mock37415347355。cbd3660/Mock37414739586实际完整产物已读取通过，不替代新增fixture。
+
+203f8ff已推送，native37415877010、Mock lifecycle37415877043、upgrade37415877035、UI capture37415877027已确认启动/排队；运行结果尚未验收。CI编号证据暂留本地，合并下个实质开发提交。
+
+2026-10-06：提取原Hub onState lambda为真实Service private onDeviceState并绑定方法引用；忽略缩进逐行比较body完全相同。新增ServiceWriteDisconnectionChecks四类×WRITING/WAITING共8fixture，经实际Session→Hub→Service callback；预期9假帧、96阻止入口、8持久重载。验证快照清空、UNKNOWN保留、旧generation Success/旧watchdog不能覆盖、断连ACK精确waiting。137任务最终testAPK/双单测/双Lint20秒成功；每变体178测试中177通过、真实导出条件1项跳过，独立复审无阻塞。实际运行仍待本次云端，不代表注册Service或真机。b6b7615 native37415347414完整日志已核对成功，Mock37415347355仍运行，不替代本fixture。

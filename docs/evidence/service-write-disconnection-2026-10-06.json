@@ -1,0 +1,50 @@
+{
+  "change": "Extract original Service state observer unchanged; detached real Session/Hub-to-Service disconnect integration",
+  "local": {
+    "initialBuild": "BUILD SUCCESSFUL in 52s",
+    "tasks": 137,
+    "mobileDebugTests": {
+      "tests": 178,
+      "failures": 0,
+      "skipped": 1
+    },
+    "mobileMockTests": {
+      "tests": 178,
+      "failures": 0,
+      "skipped": 1
+    },
+    "sourceEquivalence": "Old callback body and extracted method identical ignoring indentation",
+    "scriptSyntax": "passed",
+    "diffCheck": "passed",
+    "independentReview": "no blocking findings",
+    "finalBuild": "BUILD SUCCESSFUL in 20s; 137 tasks"
+  },
+  "expectedRuntime": {
+    "fixtures": 8,
+    "fakeDispatches": 9,
+    "phases": [
+      "WRITING",
+      "WAITING"
+    ],
+    "blockedEntries": 96,
+    "reloadedRecords": 8
+  },
+  "covered": [
+    "Actual Session state observer routes through NativeDeviceHub to real private Service callback",
+    "Four ordinary write families disconnect in both stages",
+    "Exact guarded frames and durable record before every dispatch",
+    "Disconnect clears connection snapshot and retains UNKNOWN intent",
+    "Closed-generation late Success cannot undo UNKNOWN",
+    "Old watchdog cannot overwrite disconnection message",
+    "Six controls blocked on same and reloaded Service",
+    "Disconnected manual acknowledgement rejected with exact resource",
+    "Original preference maps preserved; no system/permission/component access"
+  ],
+  "boundaries": [
+    "Android runtime pending; compiled tests are not executed tests",
+    "Detached synthetic state callback, not registered Service/real BLE/hardware",
+    "Preheat special states verified in separate pure session tests",
+    "No protocol bytes or eligibility changed"
+  ],
+  "cloudPending": "Await automatic source CI after push"
+}

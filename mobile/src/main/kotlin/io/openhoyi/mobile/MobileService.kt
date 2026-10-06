@@ -347,6 +347,53 @@ class MobileService : Service() {
         }
     }
 
+    private fun onDeviceState(role: DeviceRole, state: DeviceState) {
+        snapshot = if (role == DeviceRole.COFFEE) {
+            if (state != DeviceState.READY) {
+                finishBrewFeedback(false)
+                saveSeriesCheckpoint(force = true)
+                writeDisconnection.apply(MachineWriteDisconnection.Samples(settingsSampleSerial,
+                    cupSettingsSerial,cupIdleSerial,firstSleepSerial,secondSleepSerial,sleepSampleSerial))
+            }
+            if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
+                snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
+                    alarmBits = null, alarmAt = null,
+                    settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
+            else snapshot.copy(coffeeState = state)
+        } else if (state != DeviceState.READY) {
+            snapshot.copy(scaleState = state, weight = null, weightAt = null)
+        }
+        else snapshot.copy(scaleState = state)
+        if (role == DeviceRole.COFFEE) when (state) {
+            DeviceState.READY -> pendingCoffeeCredential?.let { credential ->
+                if (!credential.remembered && !coffeeCredentials.save(credential.address, credential.password))
+                    event(ResourceMessage(R.string.service_event_credential_save_failed), "coffee.credential_save_failed")
+                coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
+                pendingCoffeeCredential = null
+            }
+            DeviceState.FAILED, DeviceState.UNSUPPORTED -> pendingCoffeeCredential?.let { credential ->
+                coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
+                pendingCoffeeCredential = null
+            }
+            else -> Unit
+        }
+        if (role == DeviceRole.COFFEE && state != DeviceState.READY &&
+            passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
+            passiveHistoryId?.let { id ->
+                runCatching { history?.abandon(id, "连接中断") }
+                    .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+            }
+            passiveHistoryId = null
+            passiveMayClearRecovery = false
+            saveSeriesCheckpoint(force = true)
+            finishSeries(false)
+            manualSafetyResource = R.string.service_event_manual_disconnect_warning
+            event(ResourceMessage(R.string.service_event_manual_unknown), "shot.passive_unknown")
+        }
+        event("${role.name}: ${state.name}")
+        if (role == DeviceRole.COFFEE) refreshSafetyNotification()
+    }
+
     override fun onCreate() {
         super.onCreate()
         val app = application as MobileApplication
@@ -382,52 +429,7 @@ class MobileService : Service() {
             val prefs = getSharedPreferences("devices", MODE_PRIVATE)
             hub = NativeDeviceHub(applicationContext, prefs.getString("scale", null),
                 onScaleRemembered = { prefs.edit().putString("scale", it).apply() },
-                onState = { role, state ->
-                    snapshot = if (role == DeviceRole.COFFEE) {
-                        if (state != DeviceState.READY) {
-                            finishBrewFeedback(false)
-                            saveSeriesCheckpoint(force = true)
-                            writeDisconnection.apply(MachineWriteDisconnection.Samples(settingsSampleSerial,
-                                cupSettingsSerial,cupIdleSerial,firstSleepSerial,secondSleepSerial,sleepSampleSerial))
-                        }
-                        if (state == DeviceState.DISCONNECTED || state == DeviceState.FAILED)
-                            snapshot.copy(coffeeState = state, coffee = null, coffeeAt = null,
-                                alarmBits = null, alarmAt = null,
-                                settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
-                        else snapshot.copy(coffeeState = state)
-                    } else if (state != DeviceState.READY) {
-                        snapshot.copy(scaleState = state, weight = null, weightAt = null)
-                    }
-                    else snapshot.copy(scaleState = state)
-                    if (role == DeviceRole.COFFEE) when (state) {
-                        DeviceState.READY -> pendingCoffeeCredential?.let { credential ->
-                            if (!credential.remembered && !coffeeCredentials.save(credential.address, credential.password))
-                                event(ResourceMessage(R.string.service_event_credential_save_failed), "coffee.credential_save_failed")
-                            coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
-                            pendingCoffeeCredential = null
-                        }
-                        DeviceState.FAILED, DeviceState.UNSUPPORTED -> pendingCoffeeCredential?.let { credential ->
-                            coffeeCredentialRetries.connectionState(credential.address, state, credential.remembered)
-                            pendingCoffeeCredential = null
-                        }
-                        else -> Unit
-                    }
-                    if (role == DeviceRole.COFFEE && state != DeviceState.READY &&
-                        passiveShot.disconnected() == PassiveShotDetector.Event.Interrupted) {
-                        passiveHistoryId?.let { id ->
-                            runCatching { history?.abandon(id, "连接中断") }
-                                .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
-                        }
-                        passiveHistoryId = null
-                        passiveMayClearRecovery = false
-                        saveSeriesCheckpoint(force = true)
-                        finishSeries(false)
-                        manualSafetyResource = R.string.service_event_manual_disconnect_warning
-                        event(ResourceMessage(R.string.service_event_manual_unknown), "shot.passive_unknown")
-                    }
-                    event("${role.name}: ${state.name}")
-                    if (role == DeviceRole.COFFEE) refreshSafetyNotification()
-                },
+                onState = ::onDeviceState,
                 onCoffee = { frame ->
                     snapshot = when (frame) {
                         is Settings -> {

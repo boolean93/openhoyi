@@ -28,5 +28,11 @@
     "Latest source cloud runs pending",
     "No physical BLE or hardware safety proof"
   ],
-  "cloudPending": "Await automatic workflow IDs after source push"
+  "cloudPending": {
+    "native": 37415877010,
+    "mockLifecycle": 37415877043,
+    "mockUpgrade": 37415877035,
+    "mockUiCapture": 37415877027
+  },
+  "sourceCommit": "203f8ff1340950dbb5de57bdc15d5f7deb400c88"
 }
