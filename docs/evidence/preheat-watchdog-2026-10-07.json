@@ -40,13 +40,25 @@
   "productionScope": "Pure decision helper, same existing Service cancellation entry and localized feedback; no wire/control/storage policy change",
   "boundaries": [
     "Pure callable expiry tested, Android Handler real elapsed deadline not tested",
-    "Actual cancellation Service fixture source553acb2 still running cloud37546901009",
+    "Actual cancellation fixture source553 cloud37546901009 passed; watchdog real Handler expiry remains unverified",
     "No registered Android lifecycle or real machine proof"
   ],
   "sourceCommit": "594cebc79ae36b77c906e8a2699e4f2faddcb093",
   "cloudPending": {
-    "native": 37547299099,
-    "mockLifecycle": 37547299096,
-    "mockUpgrade": 37547299124
+    "mockLifecycle": 37547299096
+  },
+  "cloudVerified": {
+    "native": {
+      "run": 37547299099,
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "releaseCases": 12
+    },
+    "mockUpgrade": {
+      "run": 37547299124,
+      "actualSeedVerifyResultRead": true,
+      "scope": "Same current source/schema Mock1->2 on qemu"
+    }
   }
 }

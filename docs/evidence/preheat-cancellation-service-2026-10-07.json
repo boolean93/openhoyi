@@ -39,16 +39,13 @@
     "Independent cleanup runs all operations; original failure retained with distinct suppressed errors"
   ],
   "boundaries": [
-    "Expected fixture runtime not yet executed, compilation is not runtime proof",
+    "Exact source553 detached Android runtime artifact read and passed, not real machine evidence",
     "Hub coffee callback bound to actual Service handler; no onState callback simulation in this fixture",
     "Real600000ms preheat timer installed then removed, expiry not tested here",
     "Detached unregistered Service with synthetic READY and fake GATT, not physical hardware or lifecycle proof",
     "Four cancellation callback results injected at Session boundary; platform write-status normalization tested separately"
   ],
   "sourceCommit": "553acb27634be4b5bfa3ead6bf2990f170e33614",
-  "cloudPending": {
-    "mockLifecycle": 37546901009
-  },
   "cloudVerified": {
     "native": {
       "run": 37546900951,
@@ -61,6 +58,18 @@
       "run": 37546901046,
       "actualSeedVerifyResultRead": true,
       "scope": "Same current source/schema Mock1->2 on qemu, not Alpha or historical migration"
+    },
+    "mockLifecycle": {
+      "run": 37546901009,
+      "actualArtifactRead": true,
+      "fixtures": 10,
+      "phases": 2,
+      "fakeWrites": 20,
+      "blockedEntries": 120,
+      "recoveredAcknowledgements": 8,
+      "retainedDisconnected": 2,
+      "freshIdleNotProof": true,
+      "lateSuccessIgnored": true
     }
   }
 }

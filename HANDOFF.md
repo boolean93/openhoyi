@@ -557,3 +557,7 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 594cebc已推送，native37547299099、Mock lifecycle37547299096、upgrade37547299124确认运行；Android预热取消场景仍待新/前源码运行产物。553acb2 native37546900951/upgrade37546901046 success状态已读但产物未读；Mock37546901009仍运行，654090c/Mock37546460426仍运行。CI编号暂留本地合并下次实质提交。
 
 2026-10-07：ServicePreheatCancellationChecks新增runBlocked，原10取消结果fixture保留。实际假预热成功/解码到温两阶段，各manual/错机器/非READY/idle缺失/time缺失-陈旧-未来/睡眠/未处理shot/活动萃取10条件，预期20拒绝/仅2原假预热写/零cancel。精确resource、snapshot/token/baseline/pending/prefs不变，各注入finally恢复；睡眠独立now避免误中stale，独立复审无阻塞。最终125任务testAPK/双Lint14秒成功；新阻止运行待本轮CI，不代表最终出队race或真机。553acb2 native37546900951完整log和upgrade37546901046实际seed/verify/result已读通过；Mock37546901009仍待实际产物。
+
+3a8ba37已推送，native37547644890/Mock lifecycle37547644822/upgrade37547644833确认运行。新增20取消阻止场景尚待实际产物，前553预热取消10及654普通回读仍待Mock实际运行验收，勿用编译替代。CI编号留本地合并下一次实质提交。
+
+2026-10-07：新增PreheatDispatchContentTest两target0/92×9场景18测试，实际Session/queue排队后睡眠/萃取帧、caller撤销/异常拒绝；告警/cafe mode/过期设置阻止新预热但保留fresh awake恢复取消，精确endpoint/response/bytes；断开不callguard、late completion不重复。首轮16中1错误预期用60s当过期，按实际SettingsFreshness180s修正并补包含边界，最终18全通过+92场景，device-session:check13秒，独立复审无阻塞，无生产修改。654090c Mock37546460426实际产物已读，回读/clear故障failureLast/连接替换通过；553acb2 Mock37546901009实际新增取消10/20假写/120阻止/8人工恢复/2断连保留通过。594cebc native37547299099完整log和升级37547299124实际产物读通过；真实timer/hardware仍未证明。

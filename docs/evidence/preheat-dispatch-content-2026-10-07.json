@@ -1,0 +1,28 @@
+{
+  "change": "Queued preheat/cancel content and caller authorization dispatch verification",
+  "local": {
+    "result": "BUILD SUCCESSFUL in 13s",
+    "tasks": 8,
+    "tests": 18,
+    "failures": 0,
+    "errors": 0,
+    "namedSessionScenarios": 92,
+    "log": "/private/tmp/hoyi-preheat-dispatch-content-final.log",
+    "independentReview": "No blocking findings after fixing incorrect settings-expiry fixture",
+    "initialRun": "16 tests, one false expectation:60000ms not expired under SettingsFreshness180000ms; fixed using MAX_AGE_MS+1, added inclusive boundary"
+  },
+  "covered": [
+    "Queued sleeping or extraction telemetry prevents both preheat and cancellation frames",
+    "Revoked or throwing caller guard prevents dispatch and returns definite pre-dispatch rejection",
+    "Fresh awake alarm/cafe mode/expired settings block new preheat while retaining permitted recovery cancellation",
+    "Settings freshness inclusive180000ms allows both,180001ms blocks only new preheat",
+    "Disconnect cancels queued request without calling its guard",
+    "Exact endpoint/withResponse/encoded bytes for permitted frames; old completion cannot resend or repeat callback"
+  ],
+  "productionChanges": "none",
+  "boundaries": [
+    "Fake clock/driver authenticated Session fixture, not Android/hardware",
+    "Queue release deliberately without controller tick to isolate actual dispatch qualification",
+    "No claim of Android deadlines or physical cancellation execution"
+  ]
+}

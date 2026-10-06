@@ -44,14 +44,11 @@
     "Other pending kind is never cleared"
   ],
   "boundaries": [
-    "New-source Android detached Service fixture execution pending cloud",
+    "Detached Service Android fixtures passed exact source654; still no real machine evidence",
     "No registered Android lifecycle, hardware or physical disk crash proof",
     "Wire encoding/control eligibility unchanged; preheat/extraction/manual recovery remain outside coordinator"
   ],
   "sourceCommit": "654090cef3afe441dde55bed53b2354a0260990d",
-  "cloudPending": {
-    "mockLifecycle": 37546460426
-  },
   "cloudVerified": {
     "native": {
       "run": 37546460369,
@@ -64,6 +61,22 @@
       "run": 37546460388,
       "actualSeedVerifyResultRead": true,
       "scope": "Same source/schema Mock1->2 on qemu, not Alpha or historical migration"
+    },
+    "mockLifecycle": {
+      "run": 37546460426,
+      "actualArtifactRead": true,
+      "clearFaultFixtures": 8,
+      "failureLast": true,
+      "readbackConfirmations": 4,
+      "clearedReloads": 4,
+      "replacementFixtures": 8,
+      "replacementFakeWrites": 9,
+      "replacementFakeConnects": 4,
+      "replacementBlockedEntries": 96,
+      "replacementReloads": 8,
+      "languageMarkers": 21,
+      "audioMarkers": 5,
+      "pageFixturesPerProfile": 80
     }
   }
 }
