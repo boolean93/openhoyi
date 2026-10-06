@@ -44,5 +44,11 @@
     "Real600000ms preheat timer installed then removed, expiry not tested here",
     "Detached unregistered Service with synthetic READY and fake GATT, not physical hardware or lifecycle proof",
     "Four cancellation callback results injected at Session boundary; platform write-status normalization tested separately"
-  ]
+  ],
+  "sourceCommit": "553acb27634be4b5bfa3ead6bf2990f170e33614",
+  "cloudPending": {
+    "native": 37546900951,
+    "mockLifecycle": 37546901009,
+    "mockUpgrade": 37546901046
+  }
 }

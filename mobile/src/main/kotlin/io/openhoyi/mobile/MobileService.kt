@@ -9,6 +9,7 @@ import io.openhoyi.session.MachineWriteRegistration
 import io.openhoyi.session.MachineWriteAcknowledgement
 import io.openhoyi.session.MachineWriteRecoveryState
 
+import io.openhoyi.session.BrewPreparationWatchdog
 import io.openhoyi.session.BrewPreparation
 import io.openhoyi.session.PassiveShotDetector
 import io.openhoyi.session.SettingsWriteTracker
@@ -1080,16 +1081,17 @@ class MobileService : Service() {
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_shot_preheat_written), "brew_wait.written")
                     handler.postDelayed({
-                        if (brewPreparation.isActive(token)) {
-                            val blocked = cancelBrewPreparationMessage()
-                            if (blocked == null && brewPreparation.state != BrewPreparation.State.UNKNOWN)
+                        val expiry = BrewPreparationWatchdog.expire(brewPreparation,token,::cancelBrewPreparationMessage)
+                        when(expiry?.outcome) {
+                            BrewPreparationWatchdog.Outcome.CANCEL_REQUESTED ->
                                 event(ResourceMessage(R.string.service_shot_preheat_timeout_cancel), "brew_wait.timeout_cancel_requested")
-                            else if (brewPreparation.timedOut(token)) {
-                                event(ResourceMessage(R.string.service_shot_preheat_timeout_blocked, blocked ?: "null"), "brew_wait.timeout_cancel_blocked")
+                            BrewPreparationWatchdog.Outcome.CANCEL_BLOCKED -> {
+                                event(ResourceMessage(R.string.service_shot_preheat_timeout_blocked, expiry.blocked ?: "null"), "brew_wait.timeout_cancel_blocked")
                                 refreshSafetyNotification()
                             }
+                            null -> Unit
                         }
-                    }, 600_000)
+                    }, BrewPreparationWatchdog.TIMEOUT_MS)
                 }
                 MachineWriteResult.Outcome.FAILED -> event(ResourceMessage(R.string.service_shot_preheat_not_written), "brew_wait.failed")
                 MachineWriteResult.Outcome.UNKNOWN -> event(ResourceMessage(R.string.service_shot_preheat_unknown), "brew_wait.unknown")

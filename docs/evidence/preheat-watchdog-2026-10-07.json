@@ -1,0 +1,46 @@
+{
+  "change": "Extract original600000ms preheat expiry coordination from Android Service",
+  "local": {
+    "red": {
+      "tests": 18,
+      "failures": 12,
+      "errors": 0,
+      "log": "/private/tmp/hoyi-preheat-watchdog-red.log"
+    },
+    "green": {
+      "tests": 18,
+      "failures": 0,
+      "errors": 0,
+      "namedSessionScenarios": 92,
+      "log": "/private/tmp/hoyi-preheat-watchdog-green.log"
+    },
+    "fullBuild": {
+      "result": "BUILD SUCCESSFUL in 59s",
+      "tasks": 219,
+      "log": "/private/tmp/hoyi-preheat-watchdog-full.log"
+    },
+    "mobileUnitResults": {
+      "eachVariant": 178,
+      "failures": 0,
+      "errors": 0,
+      "realExportConditionalSkipped": 1
+    },
+    "independentReview": "No blocking findings; exact original active token/cancel/result/blocked parameter/notification order preserved",
+    "diffCheck": "passed"
+  },
+  "covered": [
+    "WAITING_TEMP and READY can invoke existing gated cancel on timeout",
+    "Blocked unchanged owner becomes UNKNOWN once and emits exact reason",
+    "Asynchronous and synchronous successful cancellation remain CANCELLING/CANCEL_WRITTEN, not IDLE",
+    "Synchronous unknown cancellation or disconnect has no second timeout transition/event",
+    "New request during blocked callback is not overwritten",
+    "Consumed/stale/writing/cancelling/cancel-written timer cannot cancel",
+    "Expiry retains original ten-minute delay and does not clear durable recovery"
+  ],
+  "productionScope": "Pure decision helper, same existing Service cancellation entry and localized feedback; no wire/control/storage policy change",
+  "boundaries": [
+    "Pure callable expiry tested, Android Handler real elapsed deadline not tested",
+    "Actual cancellation Service fixture source553acb2 still running cloud37546901009",
+    "No registered Android lifecycle or real machine proof"
+  ]
+}
