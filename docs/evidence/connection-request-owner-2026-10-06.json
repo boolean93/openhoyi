@@ -25,6 +25,24 @@
     "No automatic retry added",
     "No real BLE or physical safety validation"
   ],
-  "cloudPending": "35cdb98 push stopped only after verified peer CLOSE_WAIT and remote remained a4c6a34; included in next substantive shared-result source, verify that source CI",
-  "sourceCommit": "35cdb98b86173b1085decb285697adb8f99db8bd"
+  "cloudPending": {
+    "mockLifecycle": 37414072883
+  },
+  "sourceCommit": "35cdb98b86173b1085decb285697adb8f99db8bd",
+  "cloudSourceScope": "494e7bc descendant includes 35cdb98; DeviceSession and ConnectionRequestOwnerTest unchanged (actual diff empty); no separate 35cdb98 dispatch",
+  "cloudVerified": {
+    "native": {
+      "run": 37414072909,
+      "result": "success",
+      "actualLogRead": true,
+      "source": "494e7bc"
+    },
+    "mockUpgrade": {
+      "run": 37414072915,
+      "result": "success",
+      "actualArtifactRead": true,
+      "source": "494e7bc",
+      "scope": "same-source/schema Mock 1->2 on qemu"
+    }
+  }
 }

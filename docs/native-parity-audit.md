@@ -105,3 +105,5 @@
 2026-10-06 连接请求补充：验证后的连接请求用独立序号防旧connect在清理回调提出新connect/disconnect之后重新抢占；同代取消也阻止旧请求继续。8项回归通过，凭据验证与BOOKOO同址no-op保持，见 `evidence/connection-request-owner-2026-10-06.json`。不代表所有Android生命周期或硬件通信已验收。
 
 2026-10-06 业务分层补充：五类真实写入的transport结果应用与归类移入纯Kotlin `MachineWriteResult`，Service保留时序、提示及恢复清除适配；30项回归及完整构建通过，见 `evidence/shared-write-results-2026-10-06.json`。共享结果不代表定时器、回读采样或Android生命周期已统一。
+
+2026-10-06 超时协调补充：四种普通写入的readback watchdog和到期采样序号选择移入纯Kotlin协调器，6/12/8/12秒不变，Service保留提示与恢复记录适配。24项fake调度回归通过，见 `evidence/write-watchdog-2026-10-06.json`。预热超时取消流程仍独立；Android实际定时及注册Service生命周期未因此证明。

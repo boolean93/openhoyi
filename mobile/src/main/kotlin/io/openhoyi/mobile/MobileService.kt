@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import io.openhoyi.session.ShotRecoveryState
 import io.openhoyi.session.MachineRecoveryActivity
+import io.openhoyi.session.MachineWriteWatchdog
 import io.openhoyi.session.MachineWriteResult
 import io.openhoyi.session.MachineWriteRegistration
 import io.openhoyi.session.MachineWriteAcknowledgement
@@ -196,6 +197,10 @@ class MobileService : Service() {
     val chartPoints: List<ShotPoint> get() = series.points
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
+    private val writeWatchdog = MachineWriteWatchdog(
+        { delay, callback -> handler.postDelayed({ callback() }, delay) },
+        { MachineWriteWatchdog.Serials(settingsSampleSerial, cupSettingsSerial, cupIdleSerial,
+            firstSleepSerial, secondSleepSerial, sleepSampleSerial) })
     private var hub: NativeDeviceHub? = null
     private val coffeeCredentials by lazy { CoffeeCredentialStore(this) }
     private val coffeeCredentialRetries by lazy {
@@ -764,12 +769,10 @@ class MobileService : Service() {
             when (outcome) {
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_setting_written), "settings.written")
-                    handler.postDelayed({
-                        if (settingsWrite.timeout(token, settingsSampleSerial)) {
-                            recoveryAfterSettingsSerial = settingsSampleSerial
-                            event(ResourceMessage(R.string.service_write_setting_no_readback), "settings.unknown")
-                        }
-                    }, 6000)
+                    writeWatchdog.await(token, MachineWriteWatchdog.Request.Setting(settingsWrite)) { serials ->
+                        recoveryAfterSettingsSerial = serials.settings
+                        event(ResourceMessage(R.string.service_write_setting_no_readback), "settings.unknown")
+                    }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
                     if (!machineWriteRecovery.clear())
@@ -834,13 +837,11 @@ class MobileService : Service() {
             when (outcome) {
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_cups_written), "cups.written")
-                    handler.postDelayed({
-                        if (cupReset.timeout(token, cupSettingsSerial, cupIdleSerial)) {
-                            recoveryAfterSettingsSerial = cupSettingsSerial
-                            recoveryAfterIdleSerial = cupIdleSerial
-                            event(ResourceMessage(R.string.service_write_cups_no_readback), "cups.unknown")
-                        }
-                    }, 12_000)
+                    writeWatchdog.await(token, MachineWriteWatchdog.Request.CupReset(cupReset)) { serials ->
+                        recoveryAfterSettingsSerial = serials.cupSettings
+                        recoveryAfterIdleSerial = serials.cupIdle
+                        event(ResourceMessage(R.string.service_write_cups_no_readback), "cups.unknown")
+                    }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
                     if (!machineWriteRecovery.clear())
@@ -917,13 +918,11 @@ class MobileService : Service() {
                 }
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_schedule_written), "sleep_schedule.written")
-                    handler.postDelayed({
-                        if (scheduleWrite.timeout(token, firstSleepSerial, secondSleepSerial)) {
-                            recoveryAfterFirstSleepSerial = firstSleepSerial
-                            recoveryAfterSecondSleepSerial = secondSleepSerial
-                            event(ResourceMessage(R.string.service_write_schedule_no_readback), "sleep_schedule.unknown")
-                        }
-                    }, 8000)
+                    writeWatchdog.await(token, MachineWriteWatchdog.Request.Schedule(scheduleWrite)) { serials ->
+                        recoveryAfterFirstSleepSerial = serials.sleepFirst
+                        recoveryAfterSecondSleepSerial = serials.sleepSecond
+                        event(ResourceMessage(R.string.service_write_schedule_no_readback), "sleep_schedule.unknown")
+                    }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
                     if (!machineWriteRecovery.clear())
@@ -984,12 +983,10 @@ class MobileService : Service() {
             when (outcome) {
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_write_sleep_written), "sleep.written")
-                    handler.postDelayed({
-                        if (sleepNow.timeout(token, sleepSampleSerial)) {
-                            recoveryAfterSleepSerial = sleepSampleSerial
-                            event(ResourceMessage(R.string.service_write_sleep_no_readback), "sleep.unknown")
-                        }
-                    }, 12_000)
+                    writeWatchdog.await(token, MachineWriteWatchdog.Request.Sleep(sleepNow)) { serials ->
+                        recoveryAfterSleepSerial = serials.sleep
+                        event(ResourceMessage(R.string.service_write_sleep_no_readback), "sleep.unknown")
+                    }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
                     if (!machineWriteRecovery.clear())

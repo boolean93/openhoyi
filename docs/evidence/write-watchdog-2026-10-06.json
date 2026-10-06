@@ -1,0 +1,29 @@
+{
+  "change": "Four ordinary readback watchdogs move deadline and expiry-time serial selection into pure session coordinator; original Handler remains host scheduler",
+  "local": {
+    "newTests": 24,
+    "originalStubFailures": 12,
+    "finalTests": "24 passed",
+    "sessionNamedScenarios": 92,
+    "independentReview": "no blocking findings; four Service branches statically compared",
+    "fullBuild": "success in 50s",
+    "fullBuildTasks": 219,
+    "diffCheck": "success"
+  },
+  "covered": [
+    "Original 6000/12000/8000/12000ms delay",
+    "Live serial snapshot read at expiry, shared by tracker timeout and recovery callback",
+    "Unchanged serials cannot reconcile timeout",
+    "Stale token, confirmed transaction and old timer for new transaction suppressed",
+    "Duplicate scheduler callback does not publish duplicate Unknown",
+    "Durable intent never cleared by coordinator"
+  ],
+  "boundaries": [
+    "Fake scheduler, not real Android timer runtime proof",
+    "Host Handler removal unchanged; not full registered Service lifecycle proof",
+    "BrewWait 600000ms guarded cancellation remains separate",
+    "No storage, BLE, automatic retry or acknowledgement added",
+    "No hardware validation"
+  ],
+  "cloudPending": "await source push"
+}

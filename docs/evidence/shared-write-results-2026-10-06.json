@@ -31,5 +31,24 @@
     "Result normalization is not complete timer/readback/lifecycle coordination",
     "No physical BLE or hardware safety claim"
   ],
-  "cloudPending": "await source push"
+  "cloudPending": {
+    "mockLifecycle": 37414072883,
+    "mockUiCapture": 37414072905
+  },
+  "sourceCommit": "494e7bcb52aa6e3e75d70403a956dc6e931439ce",
+  "cloudVerified": {
+    "native": {
+      "run": 37414072909,
+      "result": "success",
+      "actualLogRead": true,
+      "source": "494e7bc"
+    },
+    "mockUpgrade": {
+      "run": 37414072915,
+      "result": "success",
+      "actualArtifactRead": true,
+      "source": "494e7bc",
+      "scope": "same-source/schema Mock 1->2 on qemu"
+    }
+  }
 }

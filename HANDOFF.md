@@ -1,3 +1,9 @@
+2026-10-06 write watchdog：新增纯Kotlin MachineWriteWatchdog，4种ordinary WAITING branch委托原6/12/8/12s期限；host Handler调度，expiry supplier当时读取6类serial，同快照用于tracker.timeout及Service恢复baseline/event。原Handler removeAll仍清理全部callback；预热600000ms guarded取消流程未改。24新参数测试stub12FAIL→24GREEN、92原场景通过，独立复审4处映射/顺序/初始化无阻塞，219完整构建/双Lint50s通过。证据docs/evidence/write-watchdog-2026-10-06.json。fake调度不代表真实Androidtimer或注册Service验收，下一步需要实际detached Service WAITING/expiry fixture（现有transportUnknown fixture不会走WAITING）。
+
+494e7bc native37414072909实际完整日志success已读（39823/32856/92/release12），升级37414072915实际seed/verify/resultsuccess已读。连同35cdb98请求归属源码包含且未改的后继证明已记入request证据（非35exact CI）。Mock37414072883及UI37414072905仍待，不重复dispatch。无安装/实BLE，goal active。
+
+494e7bcb52aa6e3e75d70403a956dc6e931439ce已成功推送（session25559 exit0），包含此前35cdb98；git ancestor0且35..494 DeviceSession/RequestOwnerTest diff为空。自动native37414072909、Mock37414072883、升级37414072915、UI截图37414072905均in_progress；不重复dispatch。a4c6a34 Mock37412782349实际完整产物success已读（5异常/60阻止/5重读、20登记、18/108/18、12ACK69、八语言160页与5音频），notification-owner全部cloud清空。此处与三份source/CI证据元数据本地未单独提交，随下一实质提交并入，避免仅元数据重复构建，勿丢弃。下一步先核对最新actual Service fixture与native日志，再继续采样/超时的业务协调分离；保持控制/固件/恢复门禁，不触碰无真实证据的高风险命令。无实BLE/安装，goal active。
+
 2026-10-06 shared write results：新增纯Kotlin MachineWriteResult typed Request/Outcome，把5真实Service callback的tracker.written+枚举归类移出；Service保留messages/tags/Handler原超时/recovery clear/refresh顺序。mock及预热取消未变。30新参数化测试stub旧25FAIL→30GREEN，原92场景及219完整构建/双Lint49s通过，独立复审5处原args/branches无阻塞。新actual Service fixture云端待最新源码。证据docs/evidence/shared-write-results-2026-10-06.json；result共享不代表timers/readbacks/lifecycle已统一。
 
 上一35cdb98 push session84696仍live时，ps确认own git链，lsof确认HTTPS CLOSE_WAIT（peer已关闭），GitHub refs仍a4c6a34；仅此失效push主PID48715被TERM，session exit143已读。非因观察timeout重启。35提交保留，随本共享结果提交一起push；不为旧35单独重复触发CI。无实BLE/安装，goal active。
