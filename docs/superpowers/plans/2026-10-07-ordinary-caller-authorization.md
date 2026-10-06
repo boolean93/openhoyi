@@ -1,0 +1,7 @@
+# Ordinary write caller authorization
+
+Four ordinary write families currently validate protocol state at dispatch but expose no live product authorization predicate. Add explicit guarded overloads to DeviceSession and NativeDeviceHub while retaining existing signatures. Every frame, including both weekly schedule frames, must evaluate the caller at the queue dispatch boundary. Preserve existing settings companions, freshness, firmware, awake idle, extraction, and schedule baseline predicates. A rejected first frame returns Failed; rejected second frame returns Unknown because the first may already apply. No bytes or retry behavior change.
+
+Phase A: parameterized queued tests across setting/cups/sleep/schedule for allowed/revoked/throwing predicates; second-stage schedule revocation/exception and delayed queue ownership tests. Establish RED with behavior-preserving overloads, then implement dispatch checks, run session and full local checks, review, record evidence. This adds the transport interface only; existing Service callers remain unchanged until phase B.
+
+Phase B: token/state ownership methods and shared product authorization for actual Service ordinary operations, rejecting changed intent/identity, manual shot, unresolved shot, active extraction and preparation at dispatch. Add actual detached Service queued fixtures, verify each family and schedule partial outcome, and run isolated Mock CI. No hardware, installation or real Bluetooth.

@@ -35,16 +35,13 @@
     "Each injected condition restored before next; no BLE/system/permission/component access"
   ],
   "boundaries": [
-    "New blockers compiled but not yet executed, require new-source cloud runtime",
+    "New blockers executed on isolated cloud Android Mock; actual marker and result read",
     "Detached Service synthetic READY and guarded fake GATT",
     "Service pre-dispatch checks, not Session final-dispatch race gates",
     "No hardware/lifecycle/real-time freshness proof",
     "Original ten cancellation result fixtures remain unchanged and separately required"
   ],
   "sourceCommit": "3a8ba37d8af8c501bc2c65526e4678b34138d4b1",
-  "cloudPending": {
-    "mockLifecycle": 37547644822
-  },
   "cloudVerified": {
     "native": {
       "run": 37547644890,
@@ -57,6 +54,14 @@
       "run": 37547644833,
       "actualSeedVerifyResultRead": true,
       "scope": "Same current source/schema Mock1->2 on qemu"
+    },
+    "mockLifecycle": {
+      "run": 37547644822,
+      "actualArtifactRead": true,
+      "headSha": "3a8ba37d8af8c501bc2c65526e4678b34138d4b1",
+      "result": "Mock lifecycle checks passed",
+      "artifactDirectory": "/private/tmp/hoyi-preheat-blocks-mock-37547644822/mock-lifecycle",
+      "observedMarker": "SERVICE_PREHEAT_CANCEL_BLOCKS_CHECKS_PASSED phases=2 blocks=20 fakePreheatWrites=2 noCancelDispatch=true exactResources=true preservedToken=true preservedBaseline=true retainedPending=true noBle=true detached=true"
     }
   }
 }

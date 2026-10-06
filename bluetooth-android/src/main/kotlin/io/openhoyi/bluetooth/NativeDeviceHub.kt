@@ -101,37 +101,41 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         }
         scaleControl.tare({DeviceConnectionGate.mayChangeScale(extraction.state)},done)
     }
-    fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit){
+    fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit)=writeSetting(change,{true},done)
+    fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()
         if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
                 ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
             done(OperationResult.Failed("extraction active"));return
         }
-        coffee.session.writeSetting(change,done)
+        coffee.session.writeSetting(change,beforeDispatch,done)
     }
-    fun writeSleepSchedule(schedule:WeeklySleepSchedule,expected:WeeklySleepSchedule,done:(OperationResult)->Unit){
+    fun writeSleepSchedule(schedule:WeeklySleepSchedule,expected:WeeklySleepSchedule,done:(OperationResult)->Unit)=writeSleepSchedule(schedule,expected,{true},done)
+    fun writeSleepSchedule(schedule:WeeklySleepSchedule,expected:WeeklySleepSchedule,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()
         if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
                 ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
             done(OperationResult.Failed("extraction active"));return
         }
-        coffee.session.writeSleepSchedule(schedule,expected,done)
+        coffee.session.writeSleepSchedule(schedule,expected,beforeDispatch,done)
     }
-    fun enterSleep(done:(OperationResult)->Unit){
+    fun enterSleep(done:(OperationResult)->Unit)=enterSleep({true},done)
+    fun enterSleep(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()
         if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
                 ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
             done(OperationResult.Failed("extraction active"));return
         }
-        coffee.session.enterSleep(done)
+        coffee.session.enterSleep(beforeDispatch,done)
     }
-    fun resetCupCount(expectedCount:Int,done:(OperationResult)->Unit){
+    fun resetCupCount(expectedCount:Int,done:(OperationResult)->Unit)=resetCupCount(expectedCount,{true},done)
+    fun resetCupCount(expectedCount:Int,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()
         if(extraction.state in listOf(ExtractionState.STARTING,ExtractionState.RUNNING,
                 ExtractionState.STOP_REQUESTED,ExtractionState.OUTCOME_UNKNOWN)){
             done(OperationResult.Failed("extraction active"));return
         }
-        coffee.session.resetCupCount(expectedCount,done)
+        coffee.session.resetCupCount(expectedCount,beforeDispatch,done)
     }
     fun setBrewWait(targetC:Int,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()

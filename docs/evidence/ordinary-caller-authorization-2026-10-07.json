@@ -1,0 +1,57 @@
+{
+  "change": "Ordinary write caller authorization transport interface, Phase A",
+  "baselineCommit": "51230bd340466939b65bfd243cbdeba379f91798",
+  "local": {
+    "red": {
+      "tests": 16,
+      "failures": 16,
+      "errors": 0,
+      "reference": "Behavior preserving new overloads ignored authorization; rejected writes dispatched and allowed requests never called predicate",
+      "log": "/private/tmp/hoyi-ordinary-caller-red.log"
+    },
+    "green": {
+      "tests": 16,
+      "failures": 0,
+      "errors": 0,
+      "namedSessionScenarios": 92,
+      "log": "/private/tmp/hoyi-ordinary-caller-green.log",
+      "build": "BUILD SUCCESSFUL in 18s"
+    },
+    "fullBuild": {
+      "build": "BUILD SUCCESSFUL in 58s",
+      "tasks": 219,
+      "log": "/private/tmp/hoyi-ordinary-caller-full.log"
+    },
+    "mobileUnitResults": {
+      "Debug": {
+        "tests": 178,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "Mock": {
+        "tests": 178,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      }
+    },
+    "independentReview": "No blocking findings; old signatures, protocol gates, queue-time checks, bytes and partial Unknown preserved"
+  },
+  "invariants": [
+    "Four ordinary write families evaluate caller at queue dispatch, not enqueue",
+    "False or throwing caller prevents first transport and returns Failed",
+    "Allowed caller sends exact original endpoint, response mode and encoded bytes",
+    "Weekly second frame evaluates caller even when queued behind a fake Discover barrier",
+    "Second frame rejected or exception returns Unknown, not Failed or retry",
+    "Late callbacks and restored authorization cannot resend or duplicate completion",
+    "Legacy APIs delegate with true and retain all existing protocol guards"
+  ],
+  "boundaries": [
+    "Phase A interface only: actual MobileService ordinary calls have not adopted product predicates",
+    "Session fake driver on owner thread; Hub forwarding reviewed statically and compiled",
+    "Phase B needs token/identity/recovery/manual-shot authorization plus actual detached Service fixtures",
+    "Cloud exact-source runtime pending push",
+    "No hardware, installation, real BLE or physical risk guarantee"
+  ]
+}

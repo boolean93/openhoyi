@@ -88,3 +88,6 @@ MobileService仍持有实例，提供原SharedPreferences键、原枚举名称�
 `BrewPreparationWatchdog` 现在负责预热超时的状态判定：只处理原 token 的等待温度/已到温状态，调用宿主原取消入口，返回请求取消或取消受阻结果；取消回调已将状态变为未知时不追加超时状态。Android 服务仍负责600000ms Handler调度、实际取消门禁、报文发送和本地文案/通知。它不会清除恢复记录，也不证明取消已在机器执行；独立测试执行超时函数，不证明Android计时器真实到期。
 
 预热取消的最终发送许可使用 `BrewPreparation.permitsCancelWrite(token, manualShotActive)`。它在报文实际出队时重读手动萃取状态，并保留原 token/CANCELLING 判断；页面检查通过不构成后续永久授权。手动萃取仍在处理时拒绝待发取消，原取消回调按既有规则转 UNKNOWN并保留持久标记，不自动重发。新鲜待机回报与产品的手动萃取处理状态不能互相替代。
+
+
+普通设置、杯数重置、立即睡眠和周计划在 `DeviceSession` / `NativeDeviceHub` 提供带 `beforeDispatch` 的通信重载。授权检查在真实队列出队时运行；周计划两个片段分别复核，第二段拒绝或异常仍按既有规则返回 UNKNOWN，保留可能部分生效的含义，不自动重发。原协议门禁和编码字节不变。旧签名以恒真 predicate 委托，保留调用兼容。本阶段仅补接口和 Session 测试；`MobileService` 的四个普通写入入口尚未接入产品授权，后续需单独验证 token、身份、持久记录和手动萃取状态，不能据此宣称业务层缺口已修复。

@@ -55,5 +55,11 @@
     "Synthetic manual flag isolates one gate; not a physical manual extraction sequence",
     "Fake Discover barrier invokes only fake lifecycle transport, never real BLE",
     "No claim of hardware cancellation or all protocol risk eliminated"
-  ]
+  ],
+  "sourceCommit": "51230bd340466939b65bfd243cbdeba379f91798",
+  "cloudPending": {
+    "native": 37548696313,
+    "mockLifecycle": 37548696309,
+    "mockUpgrade": 37548696300
+  }
 }
