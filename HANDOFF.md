@@ -706,3 +706,8 @@ be5e611/Mock37700455306已success，实际产物/private/tmp/hoyi-notification-c
 2026-10-08：重新核对旧版features.md和当前20能力对标表；曲线编辑仍后置、高风险/其它秤仍缺真实序列，未开放控制。检查原生图表发现ShotChartView的五图例固定两列/三行，长译文在窄组件可能覆盖；尚未Android复现，不改生产布局。新增ChartLegendChecks，只在Mock以实际产品Canvas.drawText和Android Paint.getTextBounds捕获五个图例字形矩形，八语言/双主题/240、300、540、940dp共64组合，检查数量、越界与相互覆盖；没有截图/Service/BLE或偏好修改。
 
 测试APK/Mock Lint101tasks18s成功，日志/private/tmp/hoyi-chart-legends-red-build.log；实际Android运行仍待本次云端，不把编译或固定坐标推测当复现。计划docs/superpowers/plans/2026-10-08-chart-legends.md。下一步读取精确源码Mock失败/成功产物，再决定布局；保留曲线单位/量程/时间方向/控制，不能只缩字体或删单位来通过。现有48图表方向测试保持，不宣称覆盖字体缩放、极端数值或所有图轴。通知修复be5e611已实际云端闭环，不重复该fixture来制造进度。
+
+
+2026-10-08：00373e6/Mock37701896029已实际failure且产物读取，精确命中 en/240dp/浅色的“10 g/s scale flow rate / 50 g weight”重叠（ChartLegendChecks.kt:63）。64目标矩阵在首个失败停止，不宣称已验证全64；原图表方向stage实际PASS。该源native37701896008及升级37701896049 success且实际日志/产物读取：39823/32856/93、临时签包/12guard、同源码/schema Mock1→2 seed/verify及两mock flags均通过，不代替修复源。
+
+ShotChartView现按Paint.advance/ink宽度流式排布，完整长项按字符边界分段，行高包含实际ink与字体metrics；top至少原74dp，且在图例底部14dp之外。绘图区改变只分配显示空间，采样/数值范围/单位/时间方向/控制不变。ChartLegendChecks按颜色重组严格比对原五字符串，边界/覆盖条件保留；首轮审查发现标签-only可能漏图线，补实轴线>=48dp/五非空path/图例间距，第二轮无阻塞。完整219任务55秒通过、mobile两变体各182/0fail/0error/旧导出skip1；新断言testAPK/双Lint125任务17秒通过。证据chart-legend-layout-2026-10-08.json。Android绿色待本次修复源，font-scale/所有数值/空态/母语/真实设备均未覆盖，不能把离线编译当修复实际运行成功。

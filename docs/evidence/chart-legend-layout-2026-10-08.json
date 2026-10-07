@@ -1,0 +1,70 @@
+{
+  "scope": "Native ShotChartView legend placement only; no BLE, control, sampled values, units or numeric scales changed",
+  "baselineCommit": "00373e6d60e915deab7a0b9486c0c3692bfd5283",
+  "red": {
+    "run": 37701896029,
+    "actualArtifactsRead": true,
+    "artifactDirectory": "/private/tmp/hoyi-chart-legends-red-37701896029",
+    "failure": "Chart legends overlap: en/240/false 10 g/s scale flow rate / 50 g weight",
+    "location": "ChartLegendChecks.kt:63",
+    "matrixTargets": 64,
+    "matrixStoppedAtFirstFailure": true,
+    "existingDirectionStagePassed": true
+  },
+  "fix": {
+    "measuredAdvanceAndInkWidths": true,
+    "completeTextPreservedAcrossFragments": true,
+    "flowRowsAndActualInkHeight": true,
+    "plotTopAtLeastOriginal74dp": true,
+    "plotGapDp": 14
+  },
+  "local": {
+    "fullLog": "/private/tmp/hoyi-chart-legends-green-build.log",
+    "tasks": 219,
+    "seconds": 55,
+    "result": "BUILD SUCCESSFUL",
+    "mobileTestsEach": 182,
+    "failures": 0,
+    "errors": 0,
+    "skippedEach": 1,
+    "skipReason": "real legacy export unavailable",
+    "finalFixtureLog": "/private/tmp/hoyi-chart-legends-final-fixture-build.log",
+    "fixtureTasks": 125,
+    "fixtureSeconds": 17
+  },
+  "review": {
+    "rounds": 2,
+    "initialGap": "legend-only assertions could miss disappearing plot",
+    "closed": "real axis extent >=48dp, five nonempty paths, legend/plot separation",
+    "result": "no remaining blockers",
+    "testsExecutedByReviewer": false
+  },
+  "androidGreen": "pending exact fix source cloud execution; compilation is not runtime proof",
+  "baselineRegressions": {
+    "native": {
+      "run": 37701896008,
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "notificationsReplayed": 32856,
+      "namedSessionChecks": 93,
+      "releaseGuardCases": 12,
+      "log": "/private/tmp/hoyi-chart-legends-baseline-native-37701896008.log"
+    },
+    "mockUpgrade": {
+      "run": 37701896049,
+      "actualArtifactsRead": true,
+      "seedPassed": true,
+      "verifyPassed": true,
+      "mockInstallationVerified": true,
+      "mockDataPreservationVerified": true,
+      "scope": "same current source/schema Mock 1->2; not Alpha or historical schema migration",
+      "artifactDirectory": "/private/tmp/hoyi-chart-legends-baseline-upgrade-37701896049"
+    }
+  },
+  "limitations": [
+    "Default chart font only; not a system font-scale audit",
+    "64 fixed value/display combinations are not all telemetry ranges or empty states",
+    "Android fonts/text measurement do not prove native speaker quality",
+    "Mock Canvas validation does not prove hardware execution or actual registered Service lifecycle"
+  ]
+}

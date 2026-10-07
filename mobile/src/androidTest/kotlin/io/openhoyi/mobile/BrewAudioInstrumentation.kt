@@ -125,6 +125,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                     "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
                     "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n" +
                     "LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true\n" +
+                    "CHART_LEGEND_CHECKS_PASSED languages=8 themes=2 widths=4 fixtures=64 fullLabels=true withinBounds=true noOverlap=true plotPreserved=true nativeCanvas=true noBle=true\n" +
                     "LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true\n" +
                     "LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 selections=5 fixedStop=true\n" +
                     "LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 selections=5\n" +

@@ -188,6 +188,7 @@ grep -F 'NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true pre
 grep -F 'LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'CHART_LEGEND_CHECKS_PASSED languages=8 themes=2 widths=4 fixtures=64 fullLabels=true withinBounds=true noOverlap=true plotPreserved=true nativeCanvas=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=8 stableKeys=true translatedUpdates=true removed=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 selections=5 fixedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
