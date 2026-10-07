@@ -79,11 +79,15 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     private fun clearStopIdleEvidence(){stopIdleSince=null;lastStopIdleAt=null}
     private var target=0
     private var postStartTareSent=false
-    private data class PendingStart(val parameters:StartParameters,val target:Int,val compensation:Int,val deadline:Long)
+    private data class PendingStart(val parameters:StartParameters,val target:Int,val compensation:Int,val deadline:Long,val beforeDispatch:()->Boolean)
     private var pendingStart:PendingStart?=null
     private var preflightTareWrittenAt:Long?=null
     val preparingScale:Boolean get()=pendingStart!=null
-    fun start(parameters:StartParameters,targetHundredthsGram:Int,compensationHundredthsGram:Int):Boolean {
+    fun start(parameters:StartParameters,targetHundredthsGram:Int,compensationHundredthsGram:Int):Boolean =
+        start(parameters,targetHundredthsGram,compensationHundredthsGram,{true})
+    fun start(parameters:StartParameters,targetHundredthsGram:Int,compensationHundredthsGram:Int,
+              beforeDispatch:()->Boolean):Boolean {
+        if(!permitted(beforeDispatch))return false
         if(state!=ExtractionState.IDLE&&state!=ExtractionState.ENDED_OBSERVED)return false
         if(runCatching { CoffeeCommands.start(parameters) }.isFailure)return false
         if(targetHundredthsGram !in 0..600_000 || compensationHundredthsGram !in -10_000..10_000 || (targetHundredthsGram>0 && compensationHundredthsGram>=targetHundredthsGram))return false
@@ -96,23 +100,23 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         started=now;lastActiveFrame=null;startNotSubmitted=false;stopWrittenAt=null;target=targetHundredthsGram;postStartTareSent=false;stopReason=null
         state=ExtractionState.STARTING
         if(targetHundredthsGram>0){
-            pendingStart=PendingStart(parameters,targetHundredthsGram,compensationHundredthsGram,now+5000)
+            pendingStart=PendingStart(parameters,targetHundredthsGram,compensationHundredthsGram,now+5000,beforeDispatch)
             preflightTareWrittenAt=null
-            scale.tare({id==serial && state==ExtractionState.STARTING && lastActiveFrame==null &&
+            scale.tare({permitted(beforeDispatch) && id==serial && state==ExtractionState.STARTING && lastActiveFrame==null &&
                 pendingStart?.let { clock()<it.deadline }==true && coffee.ready &&
                 coffee.startConditionsValid(parameters)}) { result ->
                 if(id!=serial||state!=ExtractionState.STARTING||pendingStart==null)return@tare
                 if(result is OperationResult.Success)preflightTareWrittenAt=clock()
                 else abortPreflight(StopReason.TARE_UNCONFIRMED)
             }
-        }else beginMachineStart(id,parameters,targetHundredthsGram,compensationHundredthsGram,now,null)
+        }else beginMachineStart(id,parameters,targetHundredthsGram,compensationHundredthsGram,now,null,beforeDispatch)
         return true
     }
     private fun beginMachineStart(id:Long,parameters:StartParameters,target:Int,compensation:Int,
-                                  atMs:Long,baseline:WeightReading?){
+                                  atMs:Long,baseline:WeightReading?,beforeDispatch:()->Boolean){
         if(id!=serial||state!=ExtractionState.STARTING)return
         if(!coffee.ready){abortPreflight(StopReason.SCALE_UNAVAILABLE);return}
-        if(!coffee.startConditionsValid(parameters)) {
+        if(!permitted(beforeDispatch) || !coffee.startConditionsValid(parameters)) {
             abortPreflight(StopReason.START_CONDITIONS_CHANGED);return
         }
         pendingStart=null;preflightTareWrittenAt=null
@@ -121,7 +125,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         started=atMs
         coffee.start(parameters,{
             val sample=latest
-            id==serial && state==ExtractionState.STARTING && lastActiveFrame==null && coffee.ready && scale.startAllowed &&
+            permitted(beforeDispatch) && id==serial && state==ExtractionState.STARTING && lastActiveFrame==null && coffee.ready && scale.startAllowed &&
                 (target==0 || (scale.ready && sample!=null &&
                     ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,clock())))
         }){result ->
@@ -134,6 +138,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
             state=when(result){is OperationResult.Success->ExtractionState.RUNNING;is OperationResult.Failed,is OperationResult.Cancelled->{policy.end(id);ExtractionState.IDLE};is OperationResult.Unknown->ExtractionState.OUTCOME_UNKNOWN}
         }
     }
+    private fun permitted(predicate:()->Boolean):Boolean=runCatching(predicate).getOrDefault(false)
     private fun abortPreflight(reason:StopReason){
         if(state!=ExtractionState.STARTING)return
         pendingStart=null;preflightTareWrittenAt=null;stopReason=reason;state=ExtractionState.IDLE
@@ -150,7 +155,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         }
         if(state==ExtractionState.STARTING&&preparing!=null&&written!=null&&
             reading.receivedAtMs>written&&kotlin.math.abs(reading.hundredthsGram)<=50){
-            beginMachineStart(serial,preparing.parameters,preparing.target,preparing.compensation,reading.receivedAtMs,reading)
+            beginMachineStart(serial,preparing.parameters,preparing.target,preparing.compensation,reading.receivedAtMs,reading,preparing.beforeDispatch)
             return
         }
         if(state!=ExtractionState.RUNNING)return

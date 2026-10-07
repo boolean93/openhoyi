@@ -104,3 +104,9 @@ MobileService仍持有实例，提供原SharedPreferences键、原枚举名称�
 
 
 目标重量萃取的预去皮也在实际出队时要求 `lastActiveFrame` 为空。原 token、STARTING、五秒期限和原咖啡机上下文检查保留；意外开阀后即使咖啡机再发新鲜待机，原排队去皮也被明确拒绝，不将已有杯重归零。已派发的去皮不因此误判未发送；仍由新序号近零读数确认，后续启动单独复核活动状态。flow模式启动后的原延后去皮及紧急停止均不受此条件影响。
+
+### 萃取请求的产品归属与出队授权（2026-10-07）
+
+`ShotDispatchPermit` 只判断产品归属；Session 继续负责固件、协议上下文和遥测新鲜度，Controller 继续负责秤、预去皮、串号和活动帧。`MobileService.startShot` 捕获原 Hub、咖啡机地址、完整曲线和机器恢复记录；自己的已落盘 shot pending 是必要条件。发送前检查原 Hub/地址、产品 READY、当前选择仍为同一已验证曲线、无手动萃取或普通设置写入、shot 记录仍属同机、机器恢复记录保持原值。只允许空机器记录或原属同机的 BREW_WAIT；`consumed()` 后不再要求 preparation READY，避免正常预热启动自阻挡，但继续检查 studio 模式/温度。
+
+Controller 的 guarded `start` 在初始请求、排队预去皮、完成新零读数后及机器启动出队时调用只读闭包；异常视为拒绝。兼容旧调用，停止与流量模式延迟去皮不依赖新增授权。恢复记录核对是值匹配，不是新增持久化事务代号；Android 实际 Service 闭包组合仍待独立 Mock 夹具验证。

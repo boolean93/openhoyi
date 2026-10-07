@@ -1,0 +1,50 @@
+{
+  "date": "2026-10-07",
+  "scope": "product caller authorization at queued preflight tare and coffee start",
+  "newTests": 14,
+  "suiteResults": {
+    "QueuedPreflightTareActivityTest": {
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "QueuedFlowCallerPermitTest": {
+      "tests": 5,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "ShotDispatchPermitTest": {
+      "tests": 6,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "sessionNamedScenarios": 93,
+  "red": {
+    "queued": "/private/tmp/hoyi-shot-caller-red.log",
+    "queuedTests": 7,
+    "queuedFailures": 3,
+    "policy": "/private/tmp/hoyi-shot-permit-red.log",
+    "policyTests": 6,
+    "policyFailures": 3
+  },
+  "fullVerification": {
+    "log": "/private/tmp/hoyi-shot-caller-full-final.log",
+    "result": "BUILD SUCCESSFUL",
+    "deviceSessionTests": 496,
+    "mobileDebugTests": 178,
+    "mobileMockTests": 178,
+    "conditionalRealExportSkippedPerMobileVariant": 1
+  },
+  "review": "independent read-only review: no blockers",
+  "wire": "original coffee start and BOOKOO tare bytes asserted; no codec or stop change",
+  "limitations": [
+    "Actual detached Android Service startShot queued fixture not yet run",
+    "No hardware, ADB, installation or BLE performed",
+    "Record matching uses identity/value, not a new durable transaction ID",
+    "Cloud runs for this source not yet verified"
+  ]
+}

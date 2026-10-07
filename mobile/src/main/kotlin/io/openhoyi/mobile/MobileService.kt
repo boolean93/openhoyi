@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import io.openhoyi.session.ShotDispatchPermit
 import io.openhoyi.session.ShotRecoveryState
 import io.openhoyi.session.MachineRecoveryActivity
 import io.openhoyi.session.MachineWriteWatchdog
@@ -1210,8 +1211,20 @@ class MobileService : Service() {
             "targetHundredthsGram" to profile.targetHundredthsGram.toString(),
             "scaleMode" to (profile.scaleMode?.toString() ?: "captured"), "slot" to slot.toString()))
         val coffeeAddress=current.coffeeAddress ?: return getString(R.string.service_shot_identity_missing)
+        val originalMachineIntent=MachineWriteRecoveryState.Record(machineWriteRecovery.kind,machineWriteRecovery.address)
         if (!shotRecovery.arm(coffeeAddress)) return getString(R.string.service_shot_record_failed)
-        if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) ||
+        if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) {
+                val selected=selectedCurve(profileId,slot)
+                val busy=settingWriteUnresolved || sleepNowUnresolved || cupResetBusy || scheduleBusy ||
+                    sleepNow.state in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ||
+                    settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
+                ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
+                    hub === current,snapshot.coffeeState==DeviceState.READY,
+                    selected==profile && library.validated(profile),manualShotActive,busy,
+                    shotRecovery.pending,shotRecovery.address,originalMachineIntent,
+                    MachineWriteRecoveryState.Record(machineWriteRecovery.kind,machineWriteRecovery.address))) &&
+                    studioStartBlock(profile)==null
+            } ||
             current.extraction.state == ExtractionState.IDLE) {
             if (!shotRecovery.clear()) manualSafetyResource = R.string.machine_recovery_shot_restart
             event(ResourceMessage(R.string.service_shot_session_rejected), "shot.rejected")

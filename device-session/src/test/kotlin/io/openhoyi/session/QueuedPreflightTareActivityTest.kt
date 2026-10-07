@@ -6,7 +6,7 @@ import org.junit.Test
 
 /** Two real sessions/controllers/queues; only their GATT drivers are fake. */
 class QueuedPreflightTareActivityTest {
-    private class F {
+    private class F(val permit:()->Boolean={true}) {
         val coffee=CoffeeSessionFixture()
         val parameters=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
         val calls=mutableListOf<Triple<Long,Long,GattOperation>>()
@@ -44,7 +44,7 @@ class QueuedPreflightTareActivityTest {
             val queue=DeviceSession::class.java.getDeclaredField("queue").apply { isAccessible=true }.get(scale) as GattQueue
             queue.enqueue(GattOperation.Discover,5000) { }
             blocker=calls.last();beforeScale=calls.size;beforeCoffee=coffee.calls.size
-            assertTrue(controller!!.start(parameters,3400,0))
+            assertTrue(controller!!.start(parameters,3400,0,permit))
             assertEquals(StandaloneTare.State.WRITING,tare.state)
             assertEquals(beforeScale,calls.size);assertEquals(beforeCoffee,coffee.calls.size)
         }
@@ -119,4 +119,29 @@ class QueuedPreflightTareActivityTest {
         assertEquals(ExtractionState.IDLE,f.controller!!.state)
         f.assertNoRetry()
     }
+    @Test fun callerRevokedWhileTareQueuedSendsNothing() {
+        var allowed=true;val f=F { allowed };allowed=false;f.release()
+        assertEquals(f.beforeScale,f.calls.size);assertEquals(f.beforeCoffee,f.coffee.calls.size)
+        assertEquals(StandaloneTare.State.FAILED,f.tare.state)
+        assertEquals(ExtractionState.IDLE,f.controller!!.state);f.assertNoRetry()
+    }
+    @Test fun callerThrowsWhileTareQueuedFailsClosed() {
+        var fail=false;val f=F { if(fail)error("caller unavailable") else true };fail=true;f.release()
+        assertEquals(f.beforeScale,f.calls.size);assertEquals(f.beforeCoffee,f.coffee.calls.size)
+        assertEquals(ExtractionState.IDLE,f.controller!!.state);f.assertNoRetry()
+    }
+    @Test fun callerRevokedAfterZeroBeforeCoffeeDispatchSendsNoStart() {
+        var allowed=true;val f=F { allowed };f.release();f.assertTare();f.completeScale()
+        val queue=DeviceSession::class.java.getDeclaredField("queue").apply { isAccessible=true }
+            .get(f.coffee.session) as GattQueue
+        queue.enqueue(GattOperation.Discover,5000) { }
+        val barrier=f.coffee.calls.last();val count=f.coffee.calls.size
+        f.coffee.now++;f.notifyWeight(true)
+        assertEquals(StandaloneTare.State.CONFIRMED,f.tare.state)
+        assertEquals(ExtractionState.STARTING,f.controller!!.state)
+        allowed=false;f.coffee.session.onComplete(barrier.first,barrier.second,OperationResult.Success())
+        assertEquals(count,f.coffee.calls.size);assertEquals(ExtractionState.IDLE,f.controller!!.state)
+        f.assertNoRetry()
+    }
+
 }

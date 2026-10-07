@@ -592,3 +592,11 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 
 
 2026-10-07：修复排队预去皮的意外activity遗漏，仅target>0 scale.tare最终闭包加lastActiveFrame==null，原id/STARTING/deadline/coffee context留存，flow延后tare/stop不改。新增QueuedPreflightTareActivityTest，两真实初始化Session/StandaloneTare/ScaleSessionControl/CoffeeSessionControl/Controller，仅fake driver，Discover阻塞scale队列；解码开阀+freshidle原ctx允许但tare拒发，FAILED/IDLE且无start/retry；正常/闭阀预热点必须精确tarebytes、success尚WAITING_ZERO、新decoded近零才CONFIRMED与oneexactstart；已发tare后开阀仍WAITING_ZERO，新零确认后只阻start不误判unsent。原4tests1FAIL→4GREEN，93命名场景，完整219任务18秒成功，双mobile178各0失败/真实导出1skip，独立审查无阻塞。仅软件链路，非物理去皮或注册Service生命周期。下一步仍需产品shot-start durable/原Hub/manual/当前curve最终授权。
+
+### 2026-10-07 萃取启动产品授权
+
+- 已接入 Controller guarded start 和 Service.startShot；原请求授权覆盖目标重量预去皮及最终咖啡机启动出队，flow 路径也覆盖。自己的 pending shot 记录必须保留，同机 BREW_WAIT 原记录可在 preparation consumed 后保持。
+- RED：实际双 Session 排队场景 7 项中新增 3 项失败；纯 policy 占位实现 6 项中 3 项失败。实现后新增 14 项（3 排队 + 5 flow/initial + 6 policy）进入回归。
+- 第一次完整构建被新增 flow 测试夹具挡住：94°C idle 对 92°C 曲线不满足既有门禁。修正夹具为同一 92°C idle，未修改生产温度限制。
+- 原协议字节、停止路径及 93 项 Session 回放语义保留。独立静态审查无阻塞。
+- 下一步：Android detached Service 的真实 startShot 调用夹具，检验 live selected profile、studio、手动萃取、原 Hub、shot/machine prefs 变化在两个排队窗口中的阻止效果；当前不能宣称这部分已运行验证。无 ADB、安装或真机操作。

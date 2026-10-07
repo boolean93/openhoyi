@@ -54,5 +54,12 @@
     "Product shot-start durable identity/manual/selection authorizations remain separate work",
     "Exact-source cloud runtime pending push",
     "No real BLE, ADB, install or physical-risk guarantee"
-  ]
+  ],
+  "sourceCommit": "dfa3e5ec3171fbb18bb541274ed0e8bcf0a7f124",
+  "cloudRuns": {
+    "native": 37552068598,
+    "mockLifecycle": 37552068545,
+    "mockUpgrade": 37552068616
+  },
+  "cloudStatus": "dispatched; logs/artifacts not yet verified"
 }
