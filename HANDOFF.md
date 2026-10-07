@@ -570,3 +570,11 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 
 
 2026-10-07：普通写入授权 Phase A：DeviceSession/NativeDeviceHub四类设置/杯数/立即睡眠/周计划新增beforeDispatch重载，原签名恒真委托；两段周计划均在queue pump重读caller，第二段被拒绝/异常保留UNKNOWN，不重试。新增16测试，忽略predicate旧行为stub16FAIL→16GREEN，92会话场景通过；完整219任务58秒成功，双mobile各178项0失败/真实导出条件1skip；独立审查无阻塞。Hub转发静态审查+编译，Service四入口尚未接入，业务缺口仍待Phase B token/身份/持久kind/manual/recovery/shot/preparation复核及实际Service排队fixture，不标整体修复。未用真机/BLE。3a8ba37 Mock37547644822实际产物已读，新增20取消blocks/2原假写/0cancel/资源与token/baseline/pending保持，以及原10取消结果fixture均通过；51230bd queuedmanual仍待Mock37548696309实际产物。
+
+
+9771576已推送，native37549432874、Mock lifecycle37549432929、upgrade37549432871确认运行；本轮新通信重载尚待精确源码云端产物，Service接入仍下一阶段。51230bd native37548696313/upgrade37548696300状态success但实际产物未读，queuedmanual Mock37548696309仍运行。CI编号元数据留本地合并下一次实质提交。
+
+
+2026-10-07：普通写入授权Phase B已接入四个真实Service入口。MachineWriteDispatchPermit要求原WRITING token、原持久kind/精确地址/当前原地址、无manual/shotRecovery/活动appshot/预热，Service同时要求原Hub未替换与snapshot READY；不使用会被自身pending阻止的通用入口门禁。旧编解码/通信门禁/回调恢复规则不变；首段明确unsent FAILED沿原清除，周计划第二段拒绝保留UNKNOWN，不重发。48项true stub44FAIL→48GREEN，92场景通过；首轮完整构建因缺显式import失败后修正，最终219任务58秒成功，扩展Hub/READY后最终125任务13秒testAPK/双Lint成功，双mobile178各0失败/真实导出1skip，独立两轮复审无阻塞。新增ServiceOrdinaryDispatchChecks39fixture：四kind允许+7block各32、周计划第二段7，预期12假Write+39假Discover/28首段清除重载/11保留重载/7部分UNKNOWN，真实隔离prefs、合成产品flag，无BLE/系统/组件访问。Android新fixture尚待精确源码云端实际产物，不用编译替代运行。51230bd Mock37548696309实际产物读通过，queuedmanual2phase/2Write/2Discover/零cancel/24blocked/2重载通过；并非实机。
+
+9771576 native37549432874完整log实际读通过：39823协议checks、32856通知回放、92会话、release临时key12配置case；不代表稳定签名/安装/硬件。其Mock37549432929与upgrade37549432871实际产物仍待核对。

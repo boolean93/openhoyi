@@ -16,6 +16,9 @@ class SleepNowTracker {
         return ++serial
     }
 
+    /** Only the original operation in WRITING owns dispatch permission. */
+    fun permitsWrite(token:Long):Boolean = token == serial && state == State.WRITING
+
     fun written(token: Long, result: OperationResult, sampleSerial: Long): Boolean {
         if (token != serial || state != State.WRITING) return false
         state = when (result) {

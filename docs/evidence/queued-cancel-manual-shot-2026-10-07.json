@@ -51,7 +51,7 @@
     "Late completion cannot resend or overwrite UNKNOWN"
   ],
   "boundaries": [
-    "New queued Service fixture compiled, actual Android runtime pending new source CI",
+    "Queued Service fixture executed on exact-source isolated cloud Android Mock; result and marker actually read",
     "Synthetic manual flag isolates one gate; not a physical manual extraction sequence",
     "Fake Discover barrier invokes only fake lifecycle transport, never real BLE",
     "No claim of hardware cancellation or all protocol risk eliminated"
@@ -59,7 +59,16 @@
   "sourceCommit": "51230bd340466939b65bfd243cbdeba379f91798",
   "cloudPending": {
     "native": 37548696313,
-    "mockLifecycle": 37548696309,
     "mockUpgrade": 37548696300
+  },
+  "cloudVerified": {
+    "mockLifecycle": {
+      "run": 37548696309,
+      "headSha": "51230bd340466939b65bfd243cbdeba379f91798",
+      "actualArtifactRead": true,
+      "result": "Mock lifecycle checks passed",
+      "artifactDirectory": "/private/tmp/hoyi-queued-cancel-manual-mock-37548696309/mock-lifecycle",
+      "observedMarker": "SERVICE_QUEUED_CANCEL_MANUAL_CHECKS_PASSED phases=2 fakePreheatWrites=2 fakeBarriers=2 noCancelDispatch=true unknownRetained=true blockedEntries=24 reloadedRecords=2 lateSuccessIgnored=true noBle=true detached=true"
+    }
   }
 }

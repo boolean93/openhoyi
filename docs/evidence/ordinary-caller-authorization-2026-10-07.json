@@ -51,7 +51,24 @@
     "Phase A interface only: actual MobileService ordinary calls have not adopted product predicates",
     "Session fake driver on owner thread; Hub forwarding reviewed statically and compiled",
     "Phase B needs token/identity/recovery/manual-shot authorization plus actual detached Service fixtures",
-    "Cloud exact-source runtime pending push",
+    "Exact-source native log verified; Mock lifecycle/upgrade artifacts still pending reading",
     "No hardware, installation, real BLE or physical risk guarantee"
-  ]
+  ],
+  "sourceCommit": "977157680a9c4d7bcfe08a48b6be9d498ca1833e",
+  "cloudPending": {
+    "mockLifecycle": 37549432929,
+    "mockUpgrade": 37549432871
+  },
+  "cloudVerified": {
+    "native": {
+      "run": 37549432874,
+      "actualLogRead": true,
+      "log": "/private/tmp/hoyi-ordinary-caller-native-37549432874.log",
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "namedSessionScenarios": 92,
+      "releaseCases": 12,
+      "releaseBoundary": "Temporary key/disposable APK configuration, no install"
+    }
+  }
 }

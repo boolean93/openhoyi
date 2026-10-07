@@ -57,6 +57,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ServiceWriteRegistrationChecks(this).run()
                 ServiceTransportUnknownChecks(this).run()
                 ServiceWriteWatchdogChecks(this).run()
+                ServiceOrdinaryDispatchChecks(this).run()
                 ServiceWriteDisconnectionChecks(this).run()
                 ServiceWriteDisconnectionChecks(this).runReplacement()
                 ServicePreheatCancellationChecks(this).run()
@@ -81,7 +82,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
-                report.putString("stream", "SERVICE_QUEUED_CANCEL_MANUAL_CHECKS_PASSED phases=2 fakePreheatWrites=2 fakeBarriers=2 noCancelDispatch=true unknownRetained=true blockedEntries=24 reloadedRecords=2 lateSuccessIgnored=true noBle=true detached=true\n" +
+                report.putString("stream", "SERVICE_ORDINARY_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=12 fakeBarriers=39 firstFrameBlocks=28 partialUnknown=7 clearedReloads=28 retainedReloads=11 durableBeforeWrite=true lateSuccessIgnored=true noBle=true detached=true\n" +
+                    "SERVICE_QUEUED_CANCEL_MANUAL_CHECKS_PASSED phases=2 fakePreheatWrites=2 fakeBarriers=2 noCancelDispatch=true unknownRetained=true blockedEntries=24 reloadedRecords=2 lateSuccessIgnored=true noBle=true detached=true\n" +
                     "SERVICE_PREHEAT_CANCEL_BLOCKS_CHECKS_PASSED phases=2 blocks=20 fakePreheatWrites=2 noCancelDispatch=true exactResources=true preservedToken=true preservedBaseline=true retainedPending=true noBle=true detached=true\n" +
                     "SERVICE_PREHEAT_CANCELLATION_CHECKS_PASSED fixtures=10 phases=2 fakeWrites=20 blockedEntries=120 recoveredAcknowledgements=8 retainedDisconnected=2 durableBeforeCancel=true lateSuccessIgnored=true freshIdleNotProof=true noBle=true detached=true\n" +
                     "SERVICE_WRITE_REPLACEMENT_CHECKS_PASSED fixtures=8 fakeWrites=9 fakeConnects=4 wrongDeviceBlocks=8 busyReconnectBlocks=4 blockedEntries=96 reloadedRecords=8 oldGenerationIgnored=true newOwnerPreserved=true noBle=true detached=true\n" +

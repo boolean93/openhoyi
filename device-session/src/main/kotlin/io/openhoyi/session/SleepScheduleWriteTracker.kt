@@ -36,6 +36,9 @@ class SleepScheduleWriteTracker {
         return ++serial
     }
 
+    /** Only the original operation in WRITING owns dispatch permission. */
+    fun permitsWrite(token:Long):Boolean = token == serial && state == State.WRITING
+
     fun written(token: Long, result: OperationResult, firstSerial: Long, secondSerial: Long,
         first: SleepPart?, second: SleepPart?): Boolean {
         if (token != serial || state != State.WRITING) return false

@@ -4,6 +4,7 @@ import io.openhoyi.session.ShotRecoveryState
 import io.openhoyi.session.MachineRecoveryActivity
 import io.openhoyi.session.MachineWriteWatchdog
 import io.openhoyi.session.MachineWriteDisconnection
+import io.openhoyi.session.MachineWriteDispatchPermit
 import io.openhoyi.session.MachineWriteResult
 import io.openhoyi.session.MachineWriteRegistration
 import io.openhoyi.session.MachineWriteAcknowledgement
@@ -707,6 +708,11 @@ class MobileService : Service() {
         }
         return null
     }
+    private fun permitsOrdinaryWrite(current:NativeDeviceHub,address:String,token:Long,
+        request:MachineWriteDispatchPermit.Request):Boolean = hub === current && snapshot.coffeeState == DeviceState.READY &&
+        MachineWriteDispatchPermit.allows(token,request,MachineWriteDispatchPermit.Context(machineWriteRecovery,
+            address,current.coffeeAddress,manualShotActive,shotRecovery.pending,ShotGate.active(shotState),brewPreparation.active))
+
     fun changeMachineSetting(change: MachineSettingChange): String? {
         if (mock != null) {
             val result = mock.changeSetting(change)
@@ -753,7 +759,7 @@ class MobileService : Service() {
         recoveryAfterSettingsSerial = settingsSampleSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_setting_queued, settingsPresentation.changeMessage(change)), "settings.requested")
-        current.writeSetting(change) done@{ result ->
+        current.writeSetting(change,{ permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Setting(settingsWrite)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Setting(settingsWrite, settingsSampleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
             when (outcome) {
@@ -821,7 +827,7 @@ class MobileService : Service() {
         recoveryAfterIdleSerial = cupIdleSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_cups_queued), "cups.requested")
-        current.resetCupCount(expectedCount) done@{ result ->
+        current.resetCupCount(expectedCount,{ permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.CupReset(cupReset)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.CupReset(cupReset, cupSettingsSerial, cupIdleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
             when (outcome) {
@@ -896,7 +902,7 @@ class MobileService : Service() {
         recoveryAfterSecondSleepSerial = secondSleepSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_schedule_queued), "sleep_schedule.requested")
-        current.writeSleepSchedule(target,expected) done@{ result ->
+        current.writeSleepSchedule(target,expected,{ permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Schedule(scheduleWrite)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Schedule(scheduleWrite, firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
             when (outcome) {
@@ -967,7 +973,7 @@ class MobileService : Service() {
         recoveryAfterSleepSerial = sleepSampleSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_sleep_queued), "sleep.requested")
-        current.enterSleep done@{ result ->
+        current.enterSleep({ permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Sleep(sleepNow)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Sleep(sleepNow, sleepSampleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
             when (outcome) {

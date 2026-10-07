@@ -90,4 +90,9 @@ MobileService仍持有实例，提供原SharedPreferences键、原枚举名称�
 预热取消的最终发送许可使用 `BrewPreparation.permitsCancelWrite(token, manualShotActive)`。它在报文实际出队时重读手动萃取状态，并保留原 token/CANCELLING 判断；页面检查通过不构成后续永久授权。手动萃取仍在处理时拒绝待发取消，原取消回调按既有规则转 UNKNOWN并保留持久标记，不自动重发。新鲜待机回报与产品的手动萃取处理状态不能互相替代。
 
 
-普通设置、杯数重置、立即睡眠和周计划在 `DeviceSession` / `NativeDeviceHub` 提供带 `beforeDispatch` 的通信重载。授权检查在真实队列出队时运行；周计划两个片段分别复核，第二段拒绝或异常仍按既有规则返回 UNKNOWN，保留可能部分生效的含义，不自动重发。原协议门禁和编码字节不变。旧签名以恒真 predicate 委托，保留调用兼容。本阶段仅补接口和 Session 测试；`MobileService` 的四个普通写入入口尚未接入产品授权，后续需单独验证 token、身份、持久记录和手动萃取状态，不能据此宣称业务层缺口已修复。
+普通设置、杯数重置、立即睡眠和周计划在 `DeviceSession` / `NativeDeviceHub` 提供带 `beforeDispatch` 的通信重载。授权检查在真实队列出队时运行；周计划两个片段分别复核，第二段拒绝或异常仍按既有规则返回 UNKNOWN，保留可能部分生效的含义，不自动重发。原协议门禁和编码字节不变。旧签名以恒真 predicate 委托，保留调用兼容。Phase A 先补接口和 Session 测试；产品层授权接入见下文，接口验证不能独立证明业务或实机安全。
+
+
+`MachineWriteDispatchPermit` 在会话层提供普通写入的产品授权策略：四类 tracker 的原 token 必须仍在 WRITING，持久记录的 kind 和地址必须对应原请求，当前地址必须仍为原地址；手动萃取、未处理萃取恢复、活动 App 萃取或预热均阻止发送。地址未知的旧恢复记录只允许原有只读恢复，不能授予发送许可。`MobileService` 四个入口将该策略传入通信重载，并在出队时复核捕获的 Hub 仍是当前 Hub、快照仍 READY；原通信层新鲜度/固件/待机门禁继续独立运行。
+
+发送前复核不能调用普通入口使用的 `machineControlSafetyMessage`：本请求已经同步登记持久记录，普通入口会因此阻止其它操作，但本请求自身需使用精确 token/kind/身份复核。首段授权撤销被队列明确拒绝且未发送时，沿原 FAILED 分支清除本次记录；周计划第一段可能已生效后，第二段授权撤销仍返回 UNKNOWN并保留记录，后续恢复遵循原人工核对规则。不会因授权重新恢复而自动重发。新增39个隔离 Service 场景只使用合成产品状态与 guarded fake GATT，云端运行证据仍需实际产物，不能用本地编译代替。

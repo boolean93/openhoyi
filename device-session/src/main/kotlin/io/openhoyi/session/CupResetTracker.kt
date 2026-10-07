@@ -25,6 +25,9 @@ class CupResetTracker {
         return ++serial
     }
 
+    /** Only the original operation in WRITING owns dispatch permission. */
+    fun permitsWrite(token:Long):Boolean = token == serial && state == State.WRITING
+
     fun written(token: Long, result: OperationResult, settingsSerial: Long, idleSerial: Long): Boolean {
         if (token != serial || state != State.WRITING) return false
         state = when (result) {

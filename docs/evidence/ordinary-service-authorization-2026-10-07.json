@@ -1,0 +1,86 @@
+{
+  "change": "Ordinary Service dispatch authorization Phase B",
+  "baselineCommit": "977157680a9c4d7bcfe08a48b6be9d498ca1833e",
+  "local": {
+    "red": {
+      "tests": 48,
+      "failures": 44,
+      "errors": 0,
+      "reference": "Always-true permit stub",
+      "log": "/private/tmp/hoyi-ordinary-service-red.log",
+      "xml": "/private/tmp/hoyi-ordinary-service-red.xml"
+    },
+    "green": {
+      "tests": 48,
+      "failures": 0,
+      "errors": 0,
+      "namedSessionScenarios": 92,
+      "log": "/private/tmp/hoyi-ordinary-service-green.log",
+      "build": "BUILD SUCCESSFUL in 17s"
+    },
+    "initialFullAttempt": {
+      "result": "Compilation failed due to missing explicit MachineWriteDispatchPermit import, resolved",
+      "log": "/private/tmp/hoyi-ordinary-service-full.log"
+    },
+    "fullBuild": {
+      "build": "BUILD SUCCESSFUL in 58s",
+      "tasks": 219,
+      "log": "/private/tmp/hoyi-ordinary-service-full-final.log"
+    },
+    "finalFixtureBuild": {
+      "build": "BUILD SUCCESSFUL in 13s",
+      "tasks": 125,
+      "log": "/private/tmp/hoyi-ordinary-service-fixture-final.log"
+    },
+    "mobileUnitResults": {
+      "eachVariant": 178,
+      "failures": 0,
+      "errors": 0,
+      "conditionalRealExportSkipped": 1
+    },
+    "independentReview": "No blocking findings, including final Hub/READY fixture expansion",
+    "scriptSyntax": "passed",
+    "diffCheck": "passed"
+  },
+  "productionChanges": [
+    "Four trackers expose original WRITING-token dispatch permission",
+    "Pure MachineWriteDispatchPermit requires exact durable kind/original/current identity and product eligibility",
+    "Four Service entry points provide live caller predicates, same Hub and snapshot READY checks",
+    "Existing transport encoding, callback/readback/cleanup semantics retained"
+  ],
+  "expectedAndroidRuntime": {
+    "fixtures": 39,
+    "allowed": 4,
+    "firstFrameBlocks": 28,
+    "secondFramePartialUnknown": 7,
+    "fakeWrites": 12,
+    "fakeDiscoverBarriers": 39,
+    "clearedReloads": 28,
+    "retainedReloads": 11
+  },
+  "androidInjections": [
+    "Manual extraction flag",
+    "Real isolated shot recovery record",
+    "App extraction STARTING state",
+    "Preparation WAITING_TEMP state",
+    "Changed Session address",
+    "Service detached from captured Hub",
+    "Service snapshot loses READY while Session remains READY"
+  ],
+  "invariants": [
+    "Every original product predicate is true before injecting a single block",
+    "Rejected first frame never reaches fake transport, definite unsent record cleared",
+    "Rejected second schedule frame retains UNKNOWN and original durable intent",
+    "Allowed four controls emit exact original wire bytes and wait for readback",
+    "Every fake Write occurs with durable intent and tracker WRITING",
+    "Late success and restored permission cannot retry or overwrite outcome",
+    "Real preference adapters reload cleared/retained results, unrelated real preferences unchanged",
+    "Independent owner/scanner/handler/trace/prefs cleanup preserves primary and suppressed failures"
+  ],
+  "boundaries": [
+    "Final39 Android fixtures compiled; exact-source cloud execution pending push",
+    "Synthetic product flags and detached Service; not physical extraction or installed Service lifecycle",
+    "No hardware, ADB, installation or real BLE actions",
+    "No assertion that all protocol or physical risks are eliminated"
+  ]
+}
