@@ -716,3 +716,6 @@ ShotChartView现按Paint.advance/ink宽度流式排布，完整长项按字符�
 2026-10-08：41851ea的Native37703092613和Mock升级37703092650已success且实际日志/产物读取：39823协议/32856通知/93会话，BUILD SUCCESSFUL 2m32s，临时release签包与12guard；seed/verify及两mock flags通过，declared source与提交一致但产物sourceCommitVerified仍false，不冒称二进制源码认证或Alpha历史升级。图例Mock37703092602仍运行中，保留pending，不重复启动。
 
 旧实采六次0x21写入进一步核对到源SHA、请求seq、operationId及成功回调：等级2两次、等级1一次、FF结束三次。三次FF有直接actionId关联shellBrewEncCancelRelase；三次等级写入无直接actionId，最近操作不是因果证明。新增evidence/legacy-encouragement-led-capture-2026-10-08.json和legacy-brew-preferences对应表。等级0/专属语义应答/物理灯效/结束恢复/断线睡眠普通照明交互未验证，原生仍不发送0x21。仅文档证据，无产品逻辑改动，无设备。
+
+
+随后41851ea/Mock37703092602已success，实际产物/private/tmp/hoyi-chart-legends-green-37703092602已读取：64图例组合完整文字/边界/无覆盖/绘图区/五路径标记，以及原48时间方向标记通过，result.txt通过；原停止2/4/2、读取20/108/2/4标记仍通过。watch45012已终态退出。生产修复RED→GREEN闭环，证据与计划/当前对标基线更新。font-scale、全部取值/空态/母语/注册Service及真机不在本次证明范围；不继续追踪纯证据提交启动的无关CI，不把软件绿色当全目标完成。

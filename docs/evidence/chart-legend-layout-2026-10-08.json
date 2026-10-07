@@ -39,7 +39,17 @@
     "result": "no remaining blockers",
     "testsExecutedByReviewer": false
   },
-  "androidGreen": "pending exact fix source cloud execution; compilation is not runtime proof",
+  "androidGreen": {
+    "run": 37703092602,
+    "sourceCommit": "41851ea7ce000b733e90dcb31e08d392df5ba0b9",
+    "actualArtifactsRead": true,
+    "artifactDirectory": "/private/tmp/hoyi-chart-legends-green-37703092602",
+    "legendMarker": "CHART_LEGEND_CHECKS_PASSED languages=8 themes=2 widths=4 fixtures=64 fullLabels=true withinBounds=true noOverlap=true plotPreserved=true nativeCanvas=true noBle=true",
+    "fixtures": 64,
+    "existingDirectionFixtures": 48,
+    "existingDirectionMarkerPassed": true,
+    "overallResult": "Mock lifecycle checks passed"
+  },
   "baselineRegressions": {
     "native": {
       "run": 37701896008,
