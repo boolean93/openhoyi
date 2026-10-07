@@ -615,3 +615,12 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 - 8 项新增 ownership 单测 RED8fail ->最终8pass；完整219 tasks/70s通过，Session504 tests/0fail，named93；mobileDebug/Mock178 each/0fail/conditionalrealexportskip1。
 - Android completion21新场景预期35fakeWrites/21barriers/9shotclears/12shotretained/3preheatclears/3preheatretained/21reload，实际 watchShot，synthetic machineIdle，不是物理待机证明。runner/script marker一致，运行结果尚待云端读取。
 - 首次 test APK编译12514s通过后，静态核对发现新夹具 Service字段应为 watchShot（Hub才是ticker），已修正；以最终编译和运行证据为准。
+
+### 2026-10-07 ordinary write Recovery ownership
+
+- 四类普通控制捕获原注册 token 的 machine owner，在真实派发、FAILED 回调、立即 schedule CONFIRMED 与后续读回清理中核验。新 clearRecord helper 重载保留原确认/失败事件次序；产品传 owned clear，兼容 pure helper 入口不变。
+- 新16单测（4kind×allow/rearm/missing/retry）RED16中8fail ->16pass；初次测试命令因重载签名尚未写入而编译失败，只有可编译占位实现的 `/private/tmp/hoyi-ordinary-owner-red-final.log` 才是有效 RED。
+- 完整219 tasks/67s通过，Session520 tests/0fail/93named；mobile178each/0fail/conditionalrealexportskip1。fixture APK/lint125 tasks/16s通过。
+- 新 actual Service12cases：4kind×queued/failed/readback，预期9fakeWrites/12barriers/12retainedreloads，同kind/addressrearm；原39fixture保持。Android新12执行未验证。
+- 已实际读取1131c7d云端证据：native37553393769 protocol39823/notification32856/session93/releaseguard通过；Mock37553393818 marker39dispatch+21actualwatchShot与result通过；upgrade37553393761 seed/verify/result（samecurrent source/schema Mock1→2，不代表Alpha迁移）。路径见对应evidence。
+- 下一步：读取新12云端运行结果；审计 prepareBrew 与 cancelBrew 的原恢复归属是否也应捕获，并补实际排队 rearm 夹具。当前它们仍主要按BREW_WAIT kind/address与preparation serial判断，不要宣称所有控制入口已统一 token。

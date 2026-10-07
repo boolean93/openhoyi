@@ -27,12 +27,13 @@
     "expectedReloads": 21,
     "actualTicker": true,
     "completion": "synthetic machineIdle",
-    "execution": "not yet verified"
+    "execution": "verified in actual source1131c7d Mock artifact"
   },
   "limitations": [
     "No physical device or BLE actions",
     "Ownership is in-memory and state-instance bound; persisted schema unchanged",
-    "Cloud artifacts must be read before claiming actual Service execution verified"
+    "Cloud artifacts must be read before claiming actual Service execution verified",
+    "Mock upgrade is same current source/schema version1 to2, not Alpha or historical schema migration"
   ],
   "review": "independent read-only review, no blockers",
   "androidFixtureBuild": {
@@ -40,5 +41,18 @@
     "result": "BUILD SUCCESSFUL",
     "tasks": 125,
     "seconds": 15
+  },
+  "sourceCommit": "1131c7d5fdc1c8092d5ee24e93160d17c17adb8e",
+  "cloudRuns": {
+    "native": 37553393769,
+    "mockLifecycle": 37553393818,
+    "mockUpgrade": 37553393761,
+    "mockUi": 37553393732
+  },
+  "cloudStatus": "native/mock lifecycle/mock upgrade actual outputs inspected; Mock UI not inspected",
+  "verifiedArtifacts": {
+    "mock": "/private/tmp/hoyi-recovery-owner-mock-37553393818",
+    "native": "/private/tmp/hoyi-recovery-owner-native-37553393769.log",
+    "upgrade": "/private/tmp/hoyi-recovery-owner-upgrade-37553393761"
   }
 }

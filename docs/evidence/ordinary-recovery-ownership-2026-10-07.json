@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-07",
+  "scope": "four ordinary controls dispatch/failed callback/readback durable clear ownership",
+  "red": {
+    "log": "/private/tmp/hoyi-ordinary-owner-red-final.log",
+    "tests": 16,
+    "failures": 8
+  },
+  "full": {
+    "log": "/private/tmp/hoyi-ordinary-owner-full.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 219,
+    "seconds": 67,
+    "sessionTests": 520,
+    "namedSessionScenarios": 93,
+    "mobileTestsPerVariant": 178,
+    "conditionalRealExportSkippedPerVariant": 1
+  },
+  "fixtureBuild": {
+    "log": "/private/tmp/hoyi-ordinary-owner-fixture.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 125,
+    "seconds": 16
+  },
+  "expectedAndroid": {
+    "fixtures": 12,
+    "fakeWrites": 9,
+    "barriers": 12,
+    "retainedReloads": 12,
+    "phases": [
+      "queued",
+      "failed",
+      "readback"
+    ]
+  },
+  "androidExecution": "not yet verified",
+  "wire": "no codec/stop changes; existing exact wire checks retained",
+  "limitations": [
+    "synthetic READY/readback and fake guarded GATT",
+    "no physical hardware or BLE actions",
+    "compatible helper callers must opt into owned clear; production four paths connected"
+  ],
+  "review": "independent read-only review: no blockers"
+}

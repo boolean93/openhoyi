@@ -16,7 +16,7 @@
     "seconds": 15
   },
   "shellSyntax": "passed",
-  "androidRuntime": "not yet verified",
+  "androidRuntime": "verified in later source1131c7d actual Mock artifact37553393818: exact39fixtures marker and result read",
   "limitations": [
     "synthetic READY/context, fake guarded GATT",
     "no hardware or physical tare evidence",
@@ -30,5 +30,6 @@
     "native": 37552792898
   },
   "cloudStatus": "in_progress; actual output/artifacts not yet verified",
-  "review": "independent read-only review, no blockers"
+  "review": "independent read-only review, no blockers",
+  "verifiedArtifact": "/private/tmp/hoyi-recovery-owner-mock-37553393818"
 }

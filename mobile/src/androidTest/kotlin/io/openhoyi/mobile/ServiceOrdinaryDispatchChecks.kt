@@ -25,7 +25,9 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
     private fun recovery(service: MobileService) =
         ((field(service, "machineWriteRecovery\$delegate").get(service) as Lazy<*>).value as MachineWriteRecoveryState)
 
-    fun run() {
+    fun run()=runChecks(false)
+    fun runOwnership()=runChecks(true)
+    private fun runChecks(ownership:Boolean) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
@@ -47,7 +49,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
         val kinds=listOf(MachineWriteRecoveryState.Kind.SETTING,MachineWriteRecoveryState.Kind.CUP_RESET,
             MachineWriteRecoveryState.Kind.SLEEP_NOW,MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE)
         val blocks=listOf("MANUAL","SHOT_RECOVERY","APP_SHOT","PREPARATION","ADDRESS","HUB","NOT_READY")
-        val cases=kinds.flatMap { kind->(listOf("ALLOW")+blocks).map { kind to it } } +
+        val cases=if(ownership) kinds.flatMap { kind->listOf("OWNER_QUEUED","OWNER_FAILED","OWNER_READBACK").map { kind to it } } else kinds.flatMap { kind->(listOf("ALLOW")+blocks).map { kind to it } } +
             blocks.map { MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE to "SECOND_$it" }
         for ((kind,mode) in cases) {
             val id = UUID.randomUUID().toString()
@@ -194,6 +196,55 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             check(calls.size==2 && state()=="WRITING" && scheduled.isEmpty())
                             b
                         } else requireNotNull(held)
+                        if(ownership) {
+                            val originalOwner=requireNotNull(recovery(instance).captureOwnership())
+                            var submitted:Triple<Long,Long,GattOperation>?=null
+                            if(mode!="OWNER_QUEUED") {
+                                complete(blocker);submitted=calls.last()
+                                val op=submitted.third as GattOperation.Write
+                                check(op.endpoint==KnownGatt.coffeeWrite && op.withResponse && op.bytes.contentEquals(wire))
+                                if(mode=="OWNER_READBACK") {
+                                    complete(submitted)
+                                    if(kind==MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
+                                        now+=500;session.tick()
+                                        val secondWrite=calls.last().third as GattOperation.Write
+                                        check(secondWrite.endpoint==KnownGatt.coffeeWrite && secondWrite.withResponse &&
+                                            secondWrite.bytes.contentEquals(CoffeeCommands.sleepSchedule(target)[1].frame.toByteArray()))
+                                        complete(calls.last())
+                                    }
+                                    check(state().startsWith("WAITING_") && scheduled.size==1)
+                                }
+                            }
+                            check(recovery(instance).clear());check(recovery(instance).arm(kind,address))
+                            check(!recovery(instance).owns(originalOwner) && prefs.all==saved)
+                            if(mode=="OWNER_QUEUED")complete(blocker)
+                            else if(mode=="OWNER_FAILED") {
+                                val c=requireNotNull(submitted)
+                                session.onComplete(c.first,c.second,OperationResult.Failed("injected known failure"))
+                            }else {
+                                val read=MobileService::class.java.getDeclaredMethod("onCoffeeFrame",HoyiMessage::class.java).apply { isAccessible=true }
+                                when(kind) {
+                                    MachineWriteRecoveryState.Kind.SETTING->read.invoke(instance,settings.copy(brewTemperatureC=93))
+                                    MachineWriteRecoveryState.Kind.CUP_RESET->{read.invoke(instance,settings.copy(cupCount=0));read.invoke(instance,idle.copy(cupCount=0))}
+                                    MachineWriteRecoveryState.Kind.SLEEP_NOW->read.invoke(instance,idle.copy(sleepStateRaw=1))
+                                    else->{read.invoke(instance,decode("83407E0A00071E0A00071E0A00071E0A00071E3D"));read.invoke(instance,second)}
+                                }
+                            }
+                            check(state()==if(mode=="OWNER_READBACK")"CONFIRMED" else "FAILED")
+                            check(recovery(instance).pending && recovery(instance).kind==kind && prefs.all==saved)
+                            val writes=calls.count { it.third is GattOperation.Write }
+                            check(writes==if(mode=="OWNER_QUEUED")0 else if(mode=="OWNER_READBACK" && kind==MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE)2 else 1)
+                            check(calls.count { it.third==GattOperation.Discover }==1)
+                            val finalState=state();val finalCount=calls.size
+                            complete(blocker);submitted?.let(::complete);session.tick()
+                            check(state()==finalState && calls.size==finalCount && prefs.all==saved)
+                            val reloaded=attach()
+                            check(recovery(reloaded).kind==kind && recovery(reloaded).address==address && recovery(reloaded).pending)
+                            check(reloaded.machineControlSafetyMessage!=null);retainedReloads++
+                            check(systemLookups==0 && permissionChecks==0 && componentCalls==0 && scaleExecutions==0)
+                            fakeWrites+=writes;checkedFixtures++
+                            return@runOnMainSync
+                        }
                         // With its own durable record present, the request remains permitted before injection.
                         val permitRequest=when(kind) {
                             MachineWriteRecoveryState.Kind.SETTING->MachineWriteDispatchPermit.Request.Setting(tracker as SettingsWriteTracker)
@@ -309,6 +360,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                 cleanupFailure?.let { throw it }
             }
         }
-        check(checkedFixtures==39 && fakeWrites==12 && fakeBarriers==39 && clearedReloads==28 && retainedReloads==11)
+        if(ownership)check(checkedFixtures==12 && fakeWrites==9 && fakeBarriers==12 && clearedReloads==0 && retainedReloads==12)
+        else check(checkedFixtures==39 && fakeWrites==12 && fakeBarriers==39 && clearedReloads==28 && retainedReloads==11)
     }
 }

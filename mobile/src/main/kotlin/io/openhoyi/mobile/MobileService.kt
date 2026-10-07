@@ -152,6 +152,10 @@ class MobileService : Service() {
     private var recoveryAfterFirstSleepSerial = 0L
     private var recoveryAfterSecondSleepSerial = 0L
     private var recoveryAfterSleepSerial = 0L
+    private var settingRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
+    private var cupRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
+    private var scheduleRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
+    private var sleepRecoveryOwner:MachineWriteRecoveryState.Ownership?=null
     private val settingsWrite = SettingsWriteTracker()
     private val cupReset = CupResetTracker()
     val cupResetState: CupResetTracker.State get() = if (mock?.cupReset == true)
@@ -162,7 +166,7 @@ class MobileService : Service() {
     private fun observeCupCount(settingsFrame: Boolean, count: Int) {
         val sample = if (settingsFrame) CupResetReadback.Sample.Settings(++cupSettingsSerial,count)
             else CupResetReadback.Sample.Idle(++cupIdleSerial,count)
-        val feedback = CupResetReadback.observe(cupReset,machineWriteRecovery,sample)
+        val feedback = CupResetReadback.observe(cupReset,machineWriteRecovery,sample) { machineWriteRecovery.clear(cupRecoveryOwner) }
         refreshSafetyNotification()
         feedback.forEach { when(it) {
             CupResetReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_cups_confirmed), "cups.confirmed")
@@ -410,7 +414,7 @@ class MobileService : Service() {
         snapshot = when (frame) {
             is Settings -> {
                 observeCupCount(true, frame.cupCount)
-                if (OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,++settingsSampleSerial,frame) { feedback ->
+                if (OrdinaryWriteReadback.settings(settingsWrite,machineWriteRecovery,++settingsSampleSerial,frame,{ machineWriteRecovery.clear(settingRecoveryOwner) }) { feedback ->
                     when(feedback) {
                         OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_setting_confirmed), "settings.confirmed")
                         OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_setting_reconciled), "settings.reconciled")
@@ -428,7 +432,7 @@ class MobileService : Service() {
                     snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = SystemClock.elapsedRealtime())
                 }
                 if (OrdinaryWriteReadback.schedule(scheduleWrite,machineWriteRecovery,sleepScheduleFresh,
-                        firstSleepSerial,secondSleepSerial,snapshot.sleepFirst,snapshot.sleepSecond) { feedback ->
+                        firstSleepSerial,secondSleepSerial,snapshot.sleepFirst,snapshot.sleepSecond,{ machineWriteRecovery.clear(scheduleRecoveryOwner) }) { feedback ->
                     when(feedback) {
                         OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
                         OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_schedule_reconciled), "sleep_schedule.reconciled")
@@ -439,7 +443,7 @@ class MobileService : Service() {
             }
             is IdleTelemetry -> {
                 observeCupCount(false, frame.cupCount)
-                if (OrdinaryWriteReadback.sleep(sleepNow,machineWriteRecovery,++sleepSampleSerial,frame.sleepStateRaw) { feedback ->
+                if (OrdinaryWriteReadback.sleep(sleepNow,machineWriteRecovery,++sleepSampleSerial,frame.sleepStateRaw,{ machineWriteRecovery.clear(sleepRecoveryOwner) }) { feedback ->
                     when(feedback) {
                         OrdinaryWriteReadback.Event.CONFIRMED -> event(ResourceMessage(R.string.service_event_sleep_confirmed), "sleep.confirmed")
                         OrdinaryWriteReadback.Event.RECONCILED -> event(ResourceMessage(R.string.service_event_sleep_reconciled), "sleep.reconciled")
@@ -768,10 +772,12 @@ class MobileService : Service() {
             MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_write_setting_record_failed)
             is MachineWriteRegistration.Result.Registered -> registration.token
         }
+        val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
+        settingRecoveryOwner=recoveryOwner
         recoveryAfterSettingsSerial = settingsSampleSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_setting_queued, settingsPresentation.changeMessage(change)), "settings.requested")
-        current.writeSetting(change,{ permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Setting(settingsWrite)) }) done@{ result ->
+        current.writeSetting(change,{ machineWriteRecovery.owns(recoveryOwner) && permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Setting(settingsWrite)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Setting(settingsWrite, settingsSampleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
             when (outcome) {
@@ -783,7 +789,7 @@ class MobileService : Service() {
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
-                    if (!machineWriteRecovery.clear())
+                    if (!machineWriteRecovery.clear(recoveryOwner))
                         event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_setting_not_written), "settings.failed")
@@ -835,11 +841,13 @@ class MobileService : Service() {
             MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_write_cups_record_failed)
             is MachineWriteRegistration.Result.Registered -> registration.token
         }
+        val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
+        cupRecoveryOwner=recoveryOwner
         recoveryAfterSettingsSerial = cupSettingsSerial
         recoveryAfterIdleSerial = cupIdleSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_cups_queued), "cups.requested")
-        current.resetCupCount(expectedCount,{ permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.CupReset(cupReset)) }) done@{ result ->
+        current.resetCupCount(expectedCount,{ machineWriteRecovery.owns(recoveryOwner) && permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.CupReset(cupReset)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.CupReset(cupReset, cupSettingsSerial, cupIdleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
             when (outcome) {
@@ -852,7 +860,7 @@ class MobileService : Service() {
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
-                    if (!machineWriteRecovery.clear())
+                    if (!machineWriteRecovery.clear(recoveryOwner))
                         event(ResourceMessage(R.string.service_write_cups_clear_failed), "cups.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_cups_not_written), "cups.failed")
@@ -910,16 +918,18 @@ class MobileService : Service() {
             MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_write_schedule_record_failed)
             is MachineWriteRegistration.Result.Registered -> registration.token
         }
+        val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
+        scheduleRecoveryOwner=recoveryOwner
         recoveryAfterFirstSleepSerial = firstSleepSerial
         recoveryAfterSecondSleepSerial = secondSleepSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_schedule_queued), "sleep_schedule.requested")
-        current.writeSleepSchedule(target,expected,{ permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Schedule(scheduleWrite)) }) done@{ result ->
+        current.writeSleepSchedule(target,expected,{ machineWriteRecovery.owns(recoveryOwner) && permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Schedule(scheduleWrite)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Schedule(scheduleWrite, firstSleepSerial, secondSleepSerial, snapshot.sleepFirst, snapshot.sleepSecond))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
             when (outcome) {
                 MachineWriteResult.Outcome.CONFIRMED -> {
-                    if (!machineWriteRecovery.clear())
+                    if (!machineWriteRecovery.clear(recoveryOwner))
                         event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_schedule_confirmed), "sleep_schedule.confirmed")
@@ -933,7 +943,7 @@ class MobileService : Service() {
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
-                    if (!machineWriteRecovery.clear())
+                    if (!machineWriteRecovery.clear(recoveryOwner))
                         event(ResourceMessage(R.string.service_write_schedule_clear_failed), "sleep_schedule.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_schedule_first_not_written), "sleep_schedule.failed")
@@ -982,10 +992,12 @@ class MobileService : Service() {
             MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_write_sleep_record_failed)
             is MachineWriteRegistration.Result.Registered -> registration.token
         }
+        val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
+        sleepRecoveryOwner=recoveryOwner
         recoveryAfterSleepSerial = sleepSampleSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_write_sleep_queued), "sleep.requested")
-        current.enterSleep({ permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Sleep(sleepNow)) }) done@{ result ->
+        current.enterSleep({ machineWriteRecovery.owns(recoveryOwner) && permitsOrdinaryWrite(current,coffeeAddress,token,MachineWriteDispatchPermit.Request.Sleep(sleepNow)) }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.Sleep(sleepNow, sleepSampleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
             when (outcome) {
@@ -997,7 +1009,7 @@ class MobileService : Service() {
                     }
                 }
                 MachineWriteResult.Outcome.FAILED -> {
-                    if (!machineWriteRecovery.clear())
+                    if (!machineWriteRecovery.clear(recoveryOwner))
                         event(ResourceMessage(R.string.service_write_sleep_clear_failed), "sleep.recovery_clear_failed")
                     refreshSafetyNotification()
                     event(ResourceMessage(R.string.service_write_sleep_not_written), "sleep.failed")

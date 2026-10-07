@@ -7,14 +7,17 @@ object CupResetReadback {
         data class Settings(val serial:Long,val count:Int):Sample
         data class Idle(val serial:Long,val count:Int):Sample
     }
-    fun observe(tracker:CupResetTracker,recovery:MachineWriteRecoveryState,sample:Sample):List<Event> {
+    fun observe(tracker:CupResetTracker,recovery:MachineWriteRecoveryState,sample:Sample):List<Event> =
+        observe(tracker,recovery,sample,recovery::clear)
+    fun observe(tracker:CupResetTracker,recovery:MachineWriteRecoveryState,sample:Sample,
+        clearRecord:()->Boolean):List<Event> {
         val previous=tracker.state
         val confirmed=when(sample) {
             is Sample.Settings -> tracker.observeSettings(sample.serial,sample.count)
             is Sample.Idle -> tracker.observeIdle(sample.serial,sample.count)
         }
         val clearFailed=tracker.state==CupResetTracker.State.CONFIRMED &&
-            recovery.kind==MachineWriteRecoveryState.Kind.CUP_RESET && !recovery.clear()
+            recovery.kind==MachineWriteRecoveryState.Kind.CUP_RESET && !runCatching(clearRecord).getOrDefault(false)
         // Preserve confirmation diagnostics, but keep a failed durable clear as final feedback.
         return buildList {
             if(confirmed)add(Event.CONFIRMED)

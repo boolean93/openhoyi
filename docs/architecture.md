@@ -118,3 +118,9 @@ Controller 的 guarded `start` 在初始请求、排队预去皮、完成新零�
 Service 记录应用启动时的原 Hub/地址以及 shot、可选 BREW_WAIT 令牌。排队预去皮和启动检查令牌仍有效；拒绝启动只清理自己的令牌。`watchShot` 自动完成时要求同 Hub、同 READY 地址且没有手动萃取，再清理原 shot；正常完成预热只清理原 machine 令牌。被动萃取保留原 legacy/address 规则，完成时增加令牌核验。不存在归属时只能接受已经没有 pending 的情况，不能借当前 IDLE 清掉别人的记录。
 
 Android `ServiceShotDispatchChecks.runCompletion` 新增 21 个实际 watchShot 场景，但完成状态来自 synthetic `machineIdle()`，不代表真机的新待机证据。验证普通/预热正常清除，同时保留被替换的同地址记录、异地址记录以及原 Hub 丢失/手动萃取时的记录。
+
+### 普通写入的恢复记录归属（2026-10-07）
+
+设置、杯数清零、立即睡眠、周睡眠计划注册成功后捕获原 machine Recovery Ownership。实际队列派发核验原 token，失败回调和立即 schedule 确认仅清理原 token。读回分别持有对应 tracker 的原 owner，`OrdinaryWriteReadback` / `CupResetReadback` 新增明确执行清理的 `clearRecord` 回调；Service 使用 owned clear，保留旧确认/未知/重协调语义与确认后失败反馈顺序。函数兼容入口仍保留原清理方式；产品控制路径必须使用 owned 入口。
+
+后续同 kind/同地址重新 arm 不再被旧 confirmed tracker 的重复读回清除。归属失败不访问存储，存储失败保留原归属并允许后续纯本地清理重试；不触发蓝牙重发。
