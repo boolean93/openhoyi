@@ -693,3 +693,11 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 2026-10-08：26975d6/Mock37699413282实际failure产物已读，准确命中NotificationFailureChecks.kt:70“Failed notification lookup must not mark the warning as delivered”，不是超时/编译/环境失败。MobileService运行中只在连接notify及安全notify/cancel均成功后缓存warning。首轮独立复审发现部分成功后恢复旧warning仍误去重，现用safetyNotificationDirty在平台lookup前失效缓存资格，两路成功才恢复；停止对象语义不变，不重试BLE。第二轮无阻塞，审查不执行测试。
 
 LanguageServiceNotificationChecks追加真实lookup失败、单条平台通知合成部分更新、恢复旧warning后两通知文字核对、再更新新warning/去重；明确synthetic partial publication不是实际notify/cancel故障注入。产品测试marker和shell匹配已同步。最终219tasks/58s完整本地回归、双APK/testAPK/双Lint通过；mobile两变体各182tests/0fail/0error/真实旧导出skip1，Android运行仍未验证。证据notification-delivery-cache-2026-10-08.json。此前94b4ef2三项实际云端回归JSON已一并补录；不把旧绿色任务当本次新缓存修复通过。
+
+
+be5e611/Native37700455232与Mock升级37700455183已success且实际日志/产物读：39823协议/32856通知回放/93会话、BUILD SUCCESSFUL 2m23s、临时签包及12guard；seed/verify、mockInstallationVerified/mockDataPreservationVerified true，同源码/schema Mock1→2，不是Alpha/历史迁移。Mock37700455306仍确认in_progress；gh watch句柄89644，日志/private/tmp/hoyi-notification-cache-green-watch.log。新增通知断言仍未验证，不重启任务。等实际Mock产物后一起提交元数据，避免纯状态提交反复启动CI。
+
+
+be5e611/Mock37700455306已success，实际产物/private/tmp/hoyi-notification-cache-green-37700455306已读：result通过，新增failedDeliveryRetried=true、retryPublished=true、partialRepairSynthetic=true标记存在；原停止2/4/2、读取20/108/2/4、完整记录12/72均通过。watch句柄89644已终态success，下载47093已结束。通知修复本次离线/AndroidMock证据已闭环；合成局部平台更新不等于实际notify/cancel异常注入，独立Service仍不代表系统注册生命周期。原生37700455232、升级37700455183实际日志/产物已验。UI37700455117不据任务状态声称新的逐图验收。
+
+整体目标仍未完成：真实重量自动停止/各槽位与设置睡眠预热生效/断线后台权限及秤单位仍须真机；旧导出、正式签名Alpha升级和历史schema仍缺实据；其它秤、高风险控制缺真实序列，维持关闭；编辑后置。下一轮按native-parity-audit核对实际未完成能力，不重复跑本次已完成通知fixture或为无故障路径追加无穷微测试。

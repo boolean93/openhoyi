@@ -14,7 +14,7 @@
     "failure": "Failed notification lookup must not mark the warning as delivered",
     "location": "NotificationFailureChecks.kt:70"
   },
-  "additionalTest": "LanguageServiceNotificationChecks transient lookup failure -> actual notification publication -> restored deduplication; runtime pending",
+  "additionalTest": "LanguageServiceNotificationChecks transient lookup failure -> synthetic partial platform update -> old-warning repair -> new-warning publication -> restored deduplication; Android34 Mock passed",
   "boundaries": [
     "Detached Service does not verify registered Service lifecycle",
     "Lookup failure does not cover all notify/cancel failures",
@@ -38,7 +38,7 @@
     "errors": 0,
     "skippedEach": 1,
     "skippedReason": "real legacy export not supplied",
-    "androidRuntime": "not yet verified"
+    "androidRuntime": "validated separately by cloud.mockLifecycle; build itself is not runtime proof"
   },
   "review": {
     "rounds": 2,
@@ -46,5 +46,41 @@
     "resolution": "dirty validity flag and synthetic partial platform update test",
     "finalResult": "no remaining blockers",
     "testsRunByReviewer": false
+  },
+  "cloud": {
+    "sourceCommit": "be5e6114b102fc132205647664084a180bd5d4d6",
+    "native": {
+      "run": 37700455232,
+      "actualLogRead": true,
+      "log": "/private/tmp/hoyi-notification-cache-native-37700455232.log",
+      "protocolChecks": 39823,
+      "notificationsReplayed": 32856,
+      "namedSessionChecks": 93,
+      "releaseGuardCases": 12,
+      "buildSeconds": 143
+    },
+    "mockUpgrade": {
+      "run": 37700455183,
+      "actualArtifactsRead": true,
+      "artifactDirectory": "/private/tmp/hoyi-notification-cache-upgrade-37700455183",
+      "seedPassed": true,
+      "verifyPassed": true,
+      "mockInstallationVerified": true,
+      "mockDataPreservationVerified": true,
+      "scope": "same current source/schema Mock 1->2; not Alpha or historical schema migration"
+    },
+    "mockLifecycle": {
+      "run": 37700455306,
+      "status": "completed success",
+      "actualArtifactsRead": true,
+      "artifactDirectory": "/private/tmp/hoyi-notification-cache-green-37700455306",
+      "result": "Mock lifecycle checks passed",
+      "failedDeliveryRetried": true,
+      "retryPublished": true,
+      "partialRepairSynthetic": true,
+      "existingMarkerReadFixtures": 20,
+      "existingRecordBarrierFixtures": 12,
+      "existingStopFeedbackFixtures": 2
+    }
   }
 }
