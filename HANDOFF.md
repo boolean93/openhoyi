@@ -660,3 +660,11 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 
 
 2026-10-07：真实停止入口显示故障隔离。MobileService原路径event在manualStop前，同步资源/日志Exception可挡住stop；新增StopRequestDelivery先dispatch后report，仅隔离report Exception，不吞dispatch错误或fatal Error。原资格、Mock、报文、重试、停止确认和恢复记录不变。四纯测试以原顺序可编译RED4fail，再完整219任务49秒通过，双mobile各182/0fail/0error/条件旧导出skip1。新actual Service2fixture正常/缺失journal合成故障，期望先合法slot7启动，再精确stop报文，共4fakeWrites；Success仍STOP_REQUESTED、重复stop不重发、重建保留2pending。没有真实BLE/注册生命周期，日志未初始化不代表正常生命周期或磁盘故障复现。独立复审无阻塞；Android运行未验证，见evidence/stop-feedback-boundary-2026-10-07.json。上一源6ff0ac7新增读取矩阵Mock37594972905仍同任务执行，未重启；当前提交不能借用它验证新stop fixture。
+
+
+2026-10-07：6ff0ac7的Mock37594972905已完成并读取实际language-instrumentation.txt/result.txt。RECOVERY_MARKER_READ_CHECKS_PASSED（20record/108blocked/2absent/4tare）与既有12缓存失败marker均存在，整体Mock生命周期检查通过。读文件测试仍为隔离私有文件、脱离注册生命周期的真实Service入口，无Hub/BLE/物理确认；证据evidence/recovery-marker-read-2026-10-07.json。本轮仅补实测证据，没有修改控制逻辑。fdf3827停止保护Mock37595770233仍运行，新stop fixture不可借用6ff0ac7结果。当前源升级37595770141的实际seed/verify/result已读，samecurrent source/schema Mock1→2通过，不代表Alpha或历史schema迁移。
+
+
+2026-10-07：fdf3827停止保护云端验收已收敛。Mock37595770233实际产物命中SERVICE_STOP_FEEDBACK_CHECKS_PASSED：2fixture/4fakeWrites/2retainedRecords，日志未初始化合成故障仍发送精确stop，重复停止不重发；原20/108/2/4读取与12缓存失败marker同时存在，result通过。native37595770112实际日志确认39823协议/32856通知回放、BUILD SUCCESSFUL、临时release签包与12配置guard；同源升级37595770141实际seed/verify/result通过。证据目录见对应JSON，当前没有尚未读取的新控制fixture。截图37595770188仅任务success，未逐图视觉验收。
+
+已校准native-parity-audit当前表和完成判定：修改密码/其它秤/高风险命令等功能仍缺真实序列；曲线编辑后置；旧数据/正式签名/Alpha升级仍缺实据；自动目标停水、设置/睡眠/预热、后台/权限/断线等仍需设备验收，语言动态完整覆盖与注册Service边界也不能借代表性Mock断言完成。下一步按此全范围清单推进，禁止把当前绿色CI缩减为全功能或硬件安全完成。用户仍不提供真机，不启动ADB/BLE。

@@ -28,12 +28,45 @@
     "noBle": true,
     "detached": true
   },
-  "androidRuntime": "not yet verified",
+  "androidRuntime": "verified actual Mock lifecycle artifacts",
   "limitations": [
     "Detached actual Service with guarded fake transport and synthetic READY/start success",
     "Missing journal is synthetic fault injection, not normal lifecycle or disk failure reproduction",
     "Write Success does not establish physical stopped water; controller remains STOP_REQUESTED and persisted record remains pending",
     "Dispatch exceptions and fatal report Errors still propagate; only optional report Exceptions isolated",
     "No additional command, retry, recovery acknowledgement or real hardware test"
-  ]
+  ],
+  "sourceCommit": "fdf38278e23cc2f4d3968688300445546a774eb9",
+  "cloudRuns": {
+    "native": 37595770112,
+    "mockLifecycle": 37595770233,
+    "mockUpgrade": 37595770141,
+    "mockUi": 37595770188
+  },
+  "cloudStatus": "native log, upgrade artifacts and stop fixture Mock artifacts verified",
+  "cloudUpgrade": {
+    "run": 37595770141,
+    "artifactDirectory": "/private/tmp/hoyi-stop-feedback-upgrade-37595770141",
+    "seed": "MOCK_UPGRADE_SEED_PASSED",
+    "verify": "MOCK_UPGRADE_VERIFY_PASSED",
+    "mockInstallationVerified": true,
+    "mockDataPreservationVerified": true,
+    "scope": "same current source/schema Mock 1 to 2 on qemu, not Alpha or historical schema migration"
+  },
+  "cloudNative": {
+    "run": 37595770112,
+    "log": "/private/tmp/hoyi-stop-feedback-native-37595770112.log",
+    "result": "BUILD SUCCESSFUL",
+    "protocolChecks": 39823,
+    "capturedNotificationsReplayed": 32856,
+    "releaseConfigurationCases": 12,
+    "temporaryReleaseApk": "signed=true version=2 isolatedOutputs=true noInstall=true"
+  },
+  "cloudMock": {
+    "run": 37595770233,
+    "artifactDirectory": "/private/tmp/hoyi-stop-feedback-mock-37595770233",
+    "marker": "SERVICE_STOP_FEEDBACK_CHECKS_PASSED fixtures=2 fakeWrites=4 retainedRecords=2 missingJournal=true exactStopWire=true repeatedStopIgnored=true noBle=true detached=true",
+    "result": "Mock lifecycle checks passed",
+    "scope": "detached actual Service/Hub/Session/Controller with guarded fake GATT; synthetic missing journal, no BLE"
+  }
 }

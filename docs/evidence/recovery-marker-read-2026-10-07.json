@@ -23,7 +23,7 @@
     "noBle": true,
     "detached": true
   },
-  "androidRuntime": "not yet verified; requires new source cloud run",
+  "androidRuntime": "verified actual Mock lifecycle artifacts",
   "limitations": [
     "No Hub or physical dispatch in these fixtures",
     "Absent marker only means no current persisted pending record, not evidence of old app hardware completion",
@@ -37,5 +37,11 @@
     "mockLifecycle": 37594972905,
     "mockUpgrade": 37594972892
   },
-  "cloudStatus": "in_progress; actual artifacts not yet read"
+  "cloudStatus": "new recovery read matrix actual Android artifacts verified; not hardware or registered Service proof",
+  "cloudMock": {
+    "run": 37594972905,
+    "artifactDirectory": "/private/tmp/hoyi-marker-read-mock-37594972905",
+    "marker": "RECOVERY_MARKER_READ_CHECKS_PASSED recordFixtures=20 blockedEntries=108 absentClear=2 tareFixtures=4 realDisk=true noBle=true detached=true",
+    "result": "Mock lifecycle checks passed"
+  }
 }

@@ -1,4 +1,4 @@
-# 原版功能对标审计（更新于2026-10-06）
+# 原版功能对标审计（更新于2026-10-07）
 
 基线为旧项目 `docs/features.md`、`docs/bluetooth-protocol.md` 和现有拆包源码；首次审计原生基线为提交 `1437e8d`，后续条目随实现更新，最近变更见HANDOFF。此表检查用户能力及其当前实现入口，不把代码存在、离线通过或部分实杯记录当作全部功能验收。
 
@@ -7,12 +7,12 @@
 | 扫描、权限、咖啡机认证与初始化 | HomeActivity、MobileService、NativeDeviceHub、DeviceSession；实机报告 | 已开发，部分固件1.1.3连接已验证；权限/后台/断线完整验收未齐 |
 | 温度、压力、重量、睡眠和机器告警仪表 | HomeActivity、LiveTelemetry、MachineAlarms；共享告警规则与新鲜度测试 | 已开发；秤流速物理单位及真实仪表仍需核对 |
 | 机器手动拨杆、自动压力/流量模式 | MachineSettingsActivity、MachineSettingChange、PassiveShotDetector | 模式写入与被动历史已开发；机器手动萃取由拨杆操作，不由App启动/停止；真实被动识别样本未齐 |
-| 五个快捷槽位、曲线启动与停止 | PresetSlots、CurveLibrary、ExtractionController、CoffeeCommands；旧版报文oracle | 已开发100条工厂曲线与采集曲线；部分手动停止已有实杯证据，目标重量自动停止及各槽位未全面验收 |
+| 五个快捷槽位、曲线启动与停止 | PresetSlots、CurveLibrary、ExtractionController、CoffeeCommands；旧版报文oracle | 已开发100条工厂曲线与采集曲线；停止提交先于可选提示，离线回归通过，新增故障fixture已在Mock37595770233实际运行通过（2场景、4fakeWrites、2保留记录）。萃取完整设备绑定记录在保存失败/重建后仍阻止新控制，异常文件实际读取矩阵已通过（evidence/recovery-marker-read-2026-10-07.json）。部分手动停止已有实杯证据，目标重量自动停止及各槽位未全面验收 |
 | 曲线分类、选择和显示 | CurveActivity、CurveLibrary | 已开发；分类/名称查找与报文证明不等于允许任意导入曲线控制 |
 | 曲线复制、编辑、删除、保存 | LegacyCurveActivity、LegacyCurveAdapter仅只读/离线候选 | 尚未开发完整编辑；用户明确后置。真实用户曲线旧/新报文证据不足，继续只读 |
 | 实时图表和本机历史 | ExtractionActivity、HistoryActivity、HistoryDetailActivity、ShotHistory | 已开发；保留短杯/未知记录是诊断需要的明确差异，仍有30天/500条限制 |
 | 原包历史/曲线迁移 | LegacyHistory、LegacyHistoryActivity、LegacyCurveCodec/LegacyCurveStore与导入页面 | 文件导入已开发，合成格式已测；缺两类真实导出。分包后不能直接读取旧包私有数据 |
-| 秤连接、去皮与重连 | BOOKOO、ScaleSessionControl、StandaloneTare、ReconnectPolicy | BOOKOO已开发、部分实测；其它型号只有部分只读候选解析，未实现完整BLE控制 |
+| 秤连接、去皮与重连 | BOOKOO、ScaleSessionControl、StandaloneTare、ReconnectPolicy | BOOKOO已开发、部分实测；去皮未确认记录已跨实例持久化，未知结果只允许显式重试，文件存在即保留UNKNOWN；对应云端证据见evidence/durable-tare-2026-10-07.json。其它型号只有部分只读候选解析，未实现完整BLE控制 |
 | 温控、补偿、加热、照明、拨杆/运行模式、水源与待机 | MachineSettingsActivity、MachineSettingChange、SettingsWriteTracker | 已开发受限命令和回读确认；每类真实设置/失败恢复证据未齐，不自动重试未知写入 |
 | 睡眠计划、立即睡眠、工作室预热/取消 | SleepScheduleWriteTracker、SleepNowTracker、BrewPreparation、PreheatGate | 已开发；完整生效和恢复仍需实机。没有独立取消回读，不把传输成功当作取消已生效 |
 | 累计杯数清零 | CupResetTracker、MachineWriteRecoveryState；双路新归零与序号回归 | 已开发未实机执行；旧本地设置密码确认由当前杯数输入＋二次确认替代，两路都归零才确认 |
@@ -21,9 +21,19 @@
 | 拉杆校准、恢复出厂、排水、水箱滤芯及OTA | UnsupportedCommandGroup与当前无开放控制入口 | 未开发完整控制；存在旧命令不代表已有安全流程。需型号/固件、前置条件、回读或人工恢复证据；滤芯乐观UI与版本门槛见 [专项审计](legacy-pressure-filter.md) |
 | 设备释放与服务退出保护 | DeviceSession、GattQueue、NativeDeviceHub、MobileService；见 `evidence/cleanup-boundaries-2026-10-04.json` | 已修复终态回调/队列结果通知/双设备关闭/服务销毁的Exception清理边界，纯JVM及Android34独立fake传输fixture通过，主线程拒绝与pending保留已测；8129a05已在云端实测正常shutdown允许1组/三种持久未确认门禁阻止3组，调用限定本地ActivityManager代理。独立对象不代表真实注册Service、全部回调异常或硬件验收 |
 | 多语言 | 主要原生页面与服务反馈已资源化，启用语义/按钮样式与文字分开；已核对旧版八语言并新增稳定标识基础，见 `docs/plans/native-language-parity.md` | 七语言目录各890键，正式Android资源各889键已生成并打包；统一语言Context、独立偏好提交、主要持续提示身份和通知刷新接口已开发。设置页语言入口已开发，实际入口切换/还原/不变/失败及同服务已在云端Mock通过，共享导航800组合、八语言双主题五页在两种窗口/字体配置共160页及代表性详情/取消确认已通过Mock；母语质量、未覆盖动态状态/图轴、原始元数据与注册Service/BLE生命周期验收未完成，不宣称全应用多语言完成 |
-| 原生应用版本和更新 | MachineSettingsActivity读取BuildConfig的版本/版本号、模式和包名；APK元数据/资源核对通过 | 只读信息、实际APK身份/版本校验、外部release签名及版本递增预检已开发并通过临时密钥CI。Mock同源码1→2覆盖升级、12组偏好文件/Keystore/历史/采样/导入/恢复门禁已通过CI37130498312；证据见 `evidence/mock-upgrade-2026-10-03.json`；正式密钥、已装证书对照、Alpha数据延续及历史schema迁移未验收。厂商APK不能作为原生包更新 |
+| 原生应用版本和更新 | MachineSettingsActivity读取BuildConfig的版本/版本号、模式和包名；APK元数据/资源核对通过 | 只读信息、实际APK身份/版本校验、外部release签名及版本递增预检已开发并通过临时密钥CI。Mock同源码1→2覆盖升级、偏好文件/Keystore/历史/采样/导入/恢复门禁已通过CI，最新37595770141已读取实际seed/verify/result，包含第13组去皮偏好及三类恢复marker；证据见 `evidence/stop-feedback-boundary-2026-10-07.json` 与原 `evidence/mock-upgrade-2026-10-03.json`；正式密钥、已装证书对照、Alpha数据延续及历史schema迁移未验收。厂商APK不能作为原生包更新 |
 | 深浅色与Mock | ThemedActivity、values-night、MockDeviceRuntime、Mock构建；云端Mock截图 | 已开发并有离线视觉证据；Mock不发送蓝牙，不能替代真实控制验收 |
 | 萃取提示与提示灯偏好 | 已追踪brewTips/brewTipsLed：鼓励音频播放/停止可自动发送0x21，见 `docs/legacy-brew-preferences.md` | 本地提示、默认关闭偏好、试听和同杯结束反馈已开发；Mock已验证设置持久化、解码/取消/串播、切页停播及重建不重播。后台/真机音频兼容性未验收；提示灯0x21缺真实执行/恢复证据，原生无发送入口 |
+
+## 当前完成判定（2026-10-07）
+
+- 已核对的编码/队列/恢复规则与部分Mock运行可作为软件证据；它们不证明所有旧版功能已实现，也不证明机器执行结果。最新生产基线为fdf3827，停止故障fixture37595770233实际运行已通过，但不是物理停水证明。
+- 功能未实现：修改机器密码、滤芯控制、提示灯、维护/排水/校准/恢复出厂/OTA，以及非BOOKOO秤完整控制；需要各功能的真实操作序列、前置条件和恢复证据后才能继续开放。曲线编辑依用户要求后置，导入用户曲线控制仍只读。
+- 数据与发布缺证据：两类真实旧版导出、历史schema迁移、持久正式签名身份与已装Alpha证书/版本、真实Alpha覆盖更新数据延续。当前同源码Mock升级不覆盖这些项目。
+- 设备验收缺证据：目标重量自动停水、其余槽位、各设置/睡眠/预热与取消的实际生效、断链与后台/权限生命周期、秤物理流速及手动被动识别。详见alpha-acceptance.md；用户当前不提供测试设备，不进行ADB/真机BLE动作。
+- 其它软件质量缺口仍保留：母语质量、完整动态状态/图轴布局和真实注册Service通知/权限异常。现有代表性Mock场景不能替代这些要求。
+
+因此完整目标保持未完成。后续按实际失败修正现有功能；不凭绿色CI开放无证据命令，也不把仅剩真机作为全部软件功能完成的结论。
 
 ## 开发顺序与证据边界
 

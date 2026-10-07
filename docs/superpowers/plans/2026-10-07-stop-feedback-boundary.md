@@ -14,3 +14,5 @@
 停止报文写成功也不证明物理停水；无新idle证据时仍STOP_REQUESTED，重建仍恢复pending。
 
 本地RED4fail与最终219tasks/49s通过，双mobile各182/0fail/0error/条件导出skip1；独立复核无阻塞。Android运行结果仍待推送读取，以上最后一项仅完成本地验证与提交准备。证据见evidence/stop-feedback-boundary-2026-10-07.json。
+
+2026-10-07实际云端结果：fdf3827/Mock37595770233产物已读，SERVICE_STOP_FEEDBACK_CHECKS_PASSED精确2fixture/4fakeWrites/2pending retained marker与整体result通过；native37595770112实际日志及same-source Mock升级37595770141实际产物也已读取通过。不是正常Lifecycle或物理停水证明。
