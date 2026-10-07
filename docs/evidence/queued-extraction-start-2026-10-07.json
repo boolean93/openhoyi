@@ -96,5 +96,11 @@
     "Preflight tare dispatch activity guard requires a separate audit/test; current change guards machine start",
     "Final source cloud runtime pending push",
     "No claim of eliminating all protocol or physical risk"
-  ]
+  ],
+  "sourceCommit": "8469272dba75c8d126478c99226e51e65728f2e3",
+  "cloudPending": {
+    "native": 37551395971,
+    "mockLifecycle": 37551395968,
+    "mockUpgrade": 37551395979
+  }
 }

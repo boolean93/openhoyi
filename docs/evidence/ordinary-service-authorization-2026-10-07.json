@@ -78,15 +78,12 @@
     "Independent owner/scanner/handler/trace/prefs cleanup preserves primary and suppressed failures"
   ],
   "boundaries": [
-    "Final39 Android fixtures compiled; exact-source cloud execution pending push",
+    "Final39 detached Service fixtures executed in exact-source cloud Android Mock; actual result/marker read",
     "Synthetic product flags and detached Service; not physical extraction or installed Service lifecycle",
     "No hardware, ADB, installation or real BLE actions",
     "No assertion that all protocol or physical risks are eliminated"
   ],
   "sourceCommit": "5f379d01c25d5037dd03e52fde9173f7fe1b02c5",
-  "cloudPending": {
-    "mockLifecycle": 37550188560
-  },
   "cloudVerified": {
     "native": {
       "run": 37550188548,
@@ -102,6 +99,14 @@
       "actualSeedVerifyResultRead": true,
       "directory": "/private/tmp/hoyi-ordinary-service-upgrade-37550188564/mock-upgrade",
       "scope": "Same current source/schema Mock1->2 on qemu; not Alpha or historical schema"
+    },
+    "mockLifecycle": {
+      "run": 37550188560,
+      "headSha": "5f379d01c25d5037dd03e52fde9173f7fe1b02c5",
+      "actualArtifactRead": true,
+      "result": "Mock lifecycle checks passed",
+      "directory": "/private/tmp/hoyi-ordinary-service-mock-37550188560/mock-lifecycle",
+      "observedMarker": "SERVICE_ORDINARY_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=12 fakeBarriers=39 firstFrameBlocks=28 partialUnknown=7 clearedReloads=28 retainedReloads=11 durableBeforeWrite=true lateSuccessIgnored=true noBle=true detached=true"
     }
   }
 }

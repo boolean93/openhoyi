@@ -1,0 +1,58 @@
+{
+  "change": "Prevent queued target-weight preflight tare after unexpected valve activity",
+  "baselineCommit": "8469272dba75c8d126478c99226e51e65728f2e3",
+  "sourceGap": "Preflight tare caller omitted lastActiveFrame recheck; fresh coffee idle after unexpected activity can restore original context while scale tare still queued",
+  "productionScope": "One final preflight dispatch condition lastActiveFrame==null; all previous predicates and flow delayed tare/stop unchanged",
+  "local": {
+    "red": {
+      "tests": 4,
+      "failures": 1,
+      "errors": 0,
+      "reference": "Unmodified preflight tare predicate",
+      "log": "/private/tmp/hoyi-preflight-tare-activity-red.log",
+      "xml": "/private/tmp/hoyi-preflight-tare-activity-red.xml"
+    },
+    "green": {
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "namedSessionScenarios": 93
+    },
+    "fullBuild": {
+      "build": "BUILD SUCCESSFUL in 18s",
+      "tasks": 219,
+      "log": "/private/tmp/hoyi-preflight-tare-activity-full.log"
+    },
+    "mobileUnitResults": {
+      "Debug": {
+        "tests": 178,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "Mock": {
+        "tests": 178,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      }
+    },
+    "independentReview": "No blocking findings; actual initialized BOOKOO/queue, pre/post dispatch outcomes and exact frames reviewed",
+    "diffCheck": "passed"
+  },
+  "invariants": [
+    "Actual scale Discover queue barrier prevents tare dispatch until released",
+    "Decoded unexpected open-valve coffee frame and fresh idle restore original coffee context yet reject original queued tare",
+    "Known unsent tare becomes FAILED and preparation IDLE, without coffee start or automatic retry",
+    "Allowed clean and closed-valve preheat paths send exact original BOOKOO tare; write success alone not zero proof",
+    "Only newer decoded near-zero confirms StandaloneTare and allows one exact original machine start",
+    "Activity after tare already dispatched cannot retroactively classify it Failed; retain WAITING_ZERO until actual new sample, still prevent start"
+  ],
+  "boundaries": [
+    "Two actual initialized sessions, controls and queues with fake GATT drivers; not physical tare or installed Android Service lifecycle",
+    "No changes to flow-only delayed tare or emergency stop",
+    "Product shot-start durable identity/manual/selection authorizations remain separate work",
+    "Exact-source cloud runtime pending push",
+    "No real BLE, ADB, install or physical-risk guarantee"
+  ]
+}

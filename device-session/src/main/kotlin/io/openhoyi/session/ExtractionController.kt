@@ -98,7 +98,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(targetHundredthsGram>0){
             pendingStart=PendingStart(parameters,targetHundredthsGram,compensationHundredthsGram,now+5000)
             preflightTareWrittenAt=null
-            scale.tare({id==serial && state==ExtractionState.STARTING &&
+            scale.tare({id==serial && state==ExtractionState.STARTING && lastActiveFrame==null &&
                 pendingStart?.let { clock()<it.deadline }==true && coffee.ready &&
                 coffee.startConditionsValid(parameters)}) { result ->
                 if(id!=serial||state!=ExtractionState.STARTING||pendingStart==null)return@tare
