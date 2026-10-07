@@ -673,3 +673,10 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 2026-10-08：旧改密码候选帧取证完成并独立审查。setBleConPwd输出8字节hex，BleWrite请求9字节，ArrayBuffer零初始化补末尾0；全部100万六位组合×字符/数字两种输入，共200万次原三函数内存校验通过。只运行锁定1451...SHA修改旧包的三函数，原始未改包70cc...仅静态证实规则；不执行bundle/UniApp/BLE，不输出真实密码。首次提取发现同名helper两份，在执行前拒绝；限定咖啡范围后才运行；hash变化负例拒绝且原证据不变。新增scripts/check_legacy_password_candidate.mjs不属于产品JS技术栈，也不是APK运行依赖。
 
 原生仅Unsupported.PASSWORD_CHANGE拒绝原因从长度冲突修正为缺少真实修改/回读/重连/恢复序列；没有encoder/API/放行分支。OutboundWritePolicyTest增加完整9字节候选拒绝并断言fake driver零调用，原12tasks16s通过；今日再次protocol39823/notification32856/93场景执行通过，12tasks6s，JUnit输入未变UP-TO-DATE。独立审查无阻塞。证据evidence/legacy-password-candidate-2026-10-07.json、说明legacy-password-candidate.md。当前源码只发现声明，不排除动态/远端或其它版本使用；不能推断厂商不支持，也未开发机器改密码功能。高风险、其它秤、真实迁移、正式签名/Alpha升级及真机验收缺口仍保留。
+
+
+2026-10-08：校正legacy-brew-preferences.md的过时状态。原生本地提示、默认关闭偏好、试听和结束播放已开发；对应Mock运行证据沿用plans/local-brew-feedback.md，不把旧静态审计阶段的“未开发”当当前状态。0x21灯效仍无发送入口，真实结束/后台音频仍未验收。核对AppVisibility时尚未复现生产故障，没有以合成observer异常为由吞掉Service控制异常或更改前台窗口逻辑。
+
+当前94b4ef2的同源码/schema Mock升级37698316061已下载并实际读取seed.txt/verify.txt/result.json：两成功标记、mockInstallationVerified与mockDataPreservationVerified均true；构建版本1→2、同证书。不是Alpha升级或历史schema迁移。native37698315963与Mock生命周期37698316074查询时仍in_progress，不算通过，不重启。
+
+随后native37698315963完成，实际日志已保存/private/tmp/hoyi-password-native-37698315963.log：BUILD SUCCESSFUL（3m37s）、93会话场景、临时release签包与12项签名配置保护均通过；仍不代表硬件验收。生命周期37698316074尚待终态，不算通过。
