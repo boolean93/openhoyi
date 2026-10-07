@@ -2,10 +2,33 @@
   "date": "2026-10-07",
   "scope": "detached actual MobileService.startShot queued dispatch",
   "fixture": "ServiceShotDispatchChecks",
-  "expectedCounters": {"fixtures":39,"fakeWrites":21,"fakeBarriers":39,"blocked":33,"reloadedRecords":39},
-  "localBuild": {"log":"/private/tmp/hoyi-service-shot-fixture-build.log","result":"BUILD SUCCESSFUL","tasks":125,"seconds":15},
+  "expectedCounters": {
+    "fixtures": 39,
+    "fakeWrites": 21,
+    "fakeBarriers": 39,
+    "blocked": 33,
+    "reloadedRecords": 39
+  },
+  "localBuild": {
+    "log": "/private/tmp/hoyi-service-shot-fixture-build.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 125,
+    "seconds": 15
+  },
   "shellSyntax": "passed",
   "androidRuntime": "not yet verified",
-  "limitations": ["synthetic READY/context, fake guarded GATT", "no hardware or physical tare evidence", "Service ticker auto-clear ownership is not exercised and needs separate audit"],
-  "expectedMarker": "SERVICE_SHOT_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=21 fakeBarriers=39 blocked=33 reloadedRecords=39 exactWire=true durableBeforeWrite=true lateSuccessIgnored=true syntheticReady=true noBle=true detached=true"
+  "limitations": [
+    "synthetic READY/context, fake guarded GATT",
+    "no hardware or physical tare evidence",
+    "Service ticker auto-clear ownership is not exercised and needs separate audit"
+  ],
+  "expectedMarker": "SERVICE_SHOT_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=21 fakeBarriers=39 blocked=33 reloadedRecords=39 exactWire=true durableBeforeWrite=true lateSuccessIgnored=true syntheticReady=true noBle=true detached=true",
+  "sourceCommit": "d17aab6b1098082c8df2d111f15a65db53ec528c",
+  "cloudRuns": {
+    "mockLifecycle": 37552792470,
+    "mockUpgrade": 37552792475,
+    "native": 37552792898
+  },
+  "cloudStatus": "in_progress; actual output/artifacts not yet verified",
+  "review": "independent read-only review, no blockers"
 }

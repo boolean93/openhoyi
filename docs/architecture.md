@@ -110,3 +110,11 @@ MobileService仍持有实例，提供原SharedPreferences键、原枚举名称�
 `ShotDispatchPermit` 只判断产品归属；Session 继续负责固件、协议上下文和遥测新鲜度，Controller 继续负责秤、预去皮、串号和活动帧。`MobileService.startShot` 捕获原 Hub、咖啡机地址、完整曲线和机器恢复记录；自己的已落盘 shot pending 是必要条件。发送前检查原 Hub/地址、产品 READY、当前选择仍为同一已验证曲线、无手动萃取或普通设置写入、shot 记录仍属同机、机器恢复记录保持原值。只允许空机器记录或原属同机的 BREW_WAIT；`consumed()` 后不再要求 preparation READY，避免正常预热启动自阻挡，但继续检查 studio 模式/温度。
 
 Controller 的 guarded `start` 在初始请求、排队预去皮、完成新零读数后及机器启动出队时调用只读闭包；异常视为拒绝。兼容旧调用，停止与流量模式延迟去皮不依赖新增授权。恢复记录核对是值匹配，不是新增持久化事务代号；Android 实际 Service 闭包组合仍待独立 Mock 夹具验证。
+
+### 自动清理恢复记录的归属令牌（2026-10-07）
+
+`ShotRecoveryState` / `MachineWriteRecoveryState` 的 `Ownership` 绑定状态对象实例和内存 revision。只有成功持久化 arm/clear 才递增 revision；存储失败保留原令牌，幂等 shot arm 不制造新归属。清除后同地址（乃至同 kind）重新 arm 的记录拒绝旧令牌；重启后的新对象拒绝旧对象令牌。磁盘 schema 不变，显式人工确认仍走既有证据门禁并清理当前记录。
+
+Service 记录应用启动时的原 Hub/地址以及 shot、可选 BREW_WAIT 令牌。排队预去皮和启动检查令牌仍有效；拒绝启动只清理自己的令牌。`watchShot` 自动完成时要求同 Hub、同 READY 地址且没有手动萃取，再清理原 shot；正常完成预热只清理原 machine 令牌。被动萃取保留原 legacy/address 规则，完成时增加令牌核验。不存在归属时只能接受已经没有 pending 的情况，不能借当前 IDLE 清掉别人的记录。
+
+Android `ServiceShotDispatchChecks.runCompletion` 新增 21 个实际 watchShot 场景，但完成状态来自 synthetic `machineIdle()`，不代表真机的新待机证据。验证普通/预热正常清除，同时保留被替换的同地址记录、异地址记录以及原 Hub 丢失/手动萃取时的记录。

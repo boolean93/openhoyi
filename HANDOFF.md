@@ -607,3 +607,11 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 - 39 场景：TARE / WEIGHT_START / FLOW_START ×13 modes；预期 6 allowed /33 blocked /21 fake Writes /39 fake Discover barriers /39 record reloads。涵盖 curve/manual/Hub/READY/shot record/machine intent/Studio temp/settings busy；包含同机 BREW_WAIT consumed 后允许的正向场景。
 - 只验证立即完成窗口和重复旧回调不重发；**不包含 Service ticker 自动清理**。本地 APK/lint 125 tasks,15s 通过，bash -n / diff check 通过；Android marker 执行与云端结果尚未验证。
 - 下一安全审计：ticker 在 IDLE/ENDED 时直接 `shotRecovery.clear()`，需验证旧请求结束不能清除后来替换的恢复记录（包括同地址重新 arm）。考虑持久化 state 的内存 revision/owner token，保留被动萃取与人工确认路径；先写能复现的测试再修改。
+
+### 2026-10-07 恢复记录 owner clear
+
+- 修复同地址记录重新 arm 后旧请求仍可清除的问题：两个 RecoveryState 新增 state-instance/revision 令牌，disk schema 不变；成功存储才改变 revision，失败保留可重试归属。
+- App start dispatch、初始拒绝和 watchShot 自动清除绑定原 Hub/address/shot/machine owner；自动清理要求当前同机 READY、无手动萃取。Passive completion 也捕获并核验原 token；人工确认门禁保持。
+- 8 项新增 ownership 单测 RED8fail ->最终8pass；完整219 tasks/70s通过，Session504 tests/0fail，named93；mobileDebug/Mock178 each/0fail/conditionalrealexportskip1。
+- Android completion21新场景预期35fakeWrites/21barriers/9shotclears/12shotretained/3preheatclears/3preheatretained/21reload，实际 watchShot，synthetic machineIdle，不是物理待机证明。runner/script marker一致，运行结果尚待云端读取。
+- 首次 test APK编译12514s通过后，静态核对发现新夹具 Service字段应为 watchShot（Hub才是ticker），已修正；以最终编译和运行证据为准。

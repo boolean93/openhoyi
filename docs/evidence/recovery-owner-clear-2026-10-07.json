@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-07",
+  "scope": "automatic recovery clear ownership for app and passive shots plus owned preheat",
+  "red": {
+    "log": "/private/tmp/hoyi-recovery-owner-red.log",
+    "tests": 8,
+    "failures": 8
+  },
+  "full": {
+    "log": "/private/tmp/hoyi-recovery-owner-full.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 219,
+    "seconds": 70,
+    "deviceSessionTests": 504,
+    "sessionNamedScenarios": 93,
+    "mobileTestsPerVariant": 178,
+    "conditionalRealExportSkippedPerVariant": 1
+  },
+  "androidCompletion": {
+    "expectedFixtures": 21,
+    "expectedFakeWrites": 35,
+    "expectedBarriers": 21,
+    "expectedShotClears": 9,
+    "expectedShotRetained": 12,
+    "expectedPreheatClears": 3,
+    "expectedPreheatRetained": 3,
+    "expectedReloads": 21,
+    "actualTicker": true,
+    "completion": "synthetic machineIdle",
+    "execution": "not yet verified"
+  },
+  "limitations": [
+    "No physical device or BLE actions",
+    "Ownership is in-memory and state-instance bound; persisted schema unchanged",
+    "Cloud artifacts must be read before claiming actual Service execution verified"
+  ],
+  "review": "independent read-only review, no blockers",
+  "androidFixtureBuild": {
+    "log": "/private/tmp/hoyi-recovery-owner-fixture-final.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 125,
+    "seconds": 15
+  }
+}

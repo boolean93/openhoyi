@@ -22,6 +22,14 @@ class MachineWriteRecoveryState(private val storage: Storage) {
             else -> Record(it.kind ?: Kind.UNKNOWN,normalize(it.address))
         }
     }
+    /** In-memory ownership; a restart must acquire fresh evidence, never reuse a token. */
+    class Ownership internal constructor(internal val state:MachineWriteRecoveryState,internal val revision:Long)
+    private var revision=0L
+    fun captureOwnership():Ownership?=if(pending)Ownership(this,revision) else null
+    fun owns(owner:Ownership?):Boolean=owner?.state===this && owner.revision==revision && pending
+    /** No storage access when a later record, another state instance or no owner is supplied. */
+    fun clear(owner:Ownership?):Boolean=owns(owner) && clear()
+
     val pending: Boolean get() = record.pending
     val kind: Kind? get() = record.kind
     val address: String? get() = record.address
@@ -80,6 +88,7 @@ class MachineWriteRecoveryState(private val storage: Storage) {
         val next=Record(kind,normalized)
         if (!runCatching { storage.write(next) }.getOrDefault(false)) return false
         record=next
+        revision++
         return true
     }
     fun clear(): Boolean {
@@ -87,6 +96,7 @@ class MachineWriteRecoveryState(private val storage: Storage) {
         val next=Record(null,null)
         if (!runCatching { storage.write(next) }.getOrDefault(false)) return false
         record=next
+        revision++
         return true
     }
 }

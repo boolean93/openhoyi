@@ -98,6 +98,10 @@ class MobileService : Service() {
     private val passiveShot = PassiveShotDetector()
     private var passiveHistoryId: String? = null
     private var passiveMayClearRecovery = false
+    private var passiveRecoveryOwner:ShotRecoveryState.Ownership?=null
+    private data class AppRecoveryOwner(val hub:NativeDeviceHub,val address:String,val shot:ShotRecoveryState.Ownership,
+        val machine:MachineWriteRecoveryState.Ownership?)
+    private var appRecoveryOwner:AppRecoveryOwner?=null
     val manualShotActive: Boolean get() = passiveShot.active
     private val shotRecovery by lazy {
         val prefs = getSharedPreferences("shot_safety", MODE_PRIVATE)
@@ -322,13 +326,18 @@ class MobileService : Service() {
                     .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
                 if (current == ExtractionState.ENDED_OBSERVED || current == ExtractionState.IDLE) {
                     finishSeries(current == ExtractionState.ENDED_OBSERVED)
-                    val shotRecordCleared = shotRecovery.clear()
+                    val originalOwner=appRecoveryOwner
+                    val shotRecordCleared=if(originalOwner==null) !shotRecovery.pending else
+                        hub === originalOwner.hub && snapshot.coffeeState==DeviceState.READY && !manualShotActive &&
+                            hub?.coffeeAddress?.equals(originalOwner.address,ignoreCase=true)==true &&
+                            shotRecovery.clear(originalOwner.shot)
+                    if(shotRecordCleared)appRecoveryOwner=null
                     if (!shotRecordCleared)
                         manualSafetyResource = R.string.service_event_shot_clear_failed
                     if (current == ExtractionState.ENDED_OBSERVED && shotRecordCleared && brewWaitShotStarted &&
                         machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
                         machineWriteRecovery.matchesDevice(hub?.coffeeAddress)) {
-                        if (!machineWriteRecovery.clear())
+                        if (!machineWriteRecovery.clear(originalOwner?.machine))
                             event(ResourceMessage(R.string.service_event_preheat_clear_failed), "brew_wait.recovery_clear_failed")
                         brewWaitShotStarted = false
                     }
@@ -463,6 +472,7 @@ class MobileService : Service() {
                 val armed = shotRecovery.arm(currentAddress)
                 passiveMayClearRecovery = armed &&
                     shotRecovery.mayClearAfterPassiveShot(previousRecovery, currentAddress)
+                passiveRecoveryOwner=if(passiveMayClearRecovery)shotRecovery.captureOwnership() else null
                 if (!armed)
                     manualSafetyResource = R.string.service_event_shot_record_failed
                 refreshSafetyNotification()
@@ -484,9 +494,10 @@ class MobileService : Service() {
                 passiveEvent.value.atMs)
             PassiveShotDetector.Event.Ended -> {
                 if (!passiveMayClearRecovery || !shotRecovery.matchesDevice(hub?.coffeeAddress) ||
-                    !shotRecovery.clear())
+                    !shotRecovery.clear(passiveRecoveryOwner))
                     manualSafetyResource = R.string.service_event_shot_clear_failed
                 passiveMayClearRecovery = false
+                passiveRecoveryOwner=null
                 val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
                     snapshot.scaleState == DeviceState.READY &&
                         TelemetryFreshness.isFresh(snapshot.weightAt, observedAt)
@@ -1213,11 +1224,15 @@ class MobileService : Service() {
         val coffeeAddress=current.coffeeAddress ?: return getString(R.string.service_shot_identity_missing)
         val originalMachineIntent=MachineWriteRecoveryState.Record(machineWriteRecovery.kind,machineWriteRecovery.address)
         if (!shotRecovery.arm(coffeeAddress)) return getString(R.string.service_shot_record_failed)
+        val shotOwner=requireNotNull(shotRecovery.captureOwnership())
+        val machineOwner=machineWriteRecovery.captureOwnership()
+        appRecoveryOwner=AppRecoveryOwner(current,coffeeAddress,shotOwner,machineOwner)
         if (!current.extraction.start(profile.parameters, profile.targetHundredthsGram, profile.compensationHundredthsGram) {
                 val selected=selectedCurve(profileId,slot)
                 val busy=settingWriteUnresolved || sleepNowUnresolved || cupResetBusy || scheduleBusy ||
                     sleepNow.state in setOf(SleepNowTracker.State.WRITING,SleepNowTracker.State.WAITING_ASLEEP) ||
                     settingsWrite.state in setOf(SettingsWriteTracker.State.WRITING,SettingsWriteTracker.State.WAITING_READBACK)
+                shotRecovery.owns(shotOwner) && (machineOwner==null || machineWriteRecovery.owns(machineOwner)) &&
                 ShotDispatchPermit.allows(ShotDispatchPermit.Context(coffeeAddress,current.coffeeAddress,
                     hub === current,snapshot.coffeeState==DeviceState.READY,
                     selected==profile && library.validated(profile),manualShotActive,busy,
@@ -1226,7 +1241,8 @@ class MobileService : Service() {
                     studioStartBlock(profile)==null
             } ||
             current.extraction.state == ExtractionState.IDLE) {
-            if (!shotRecovery.clear()) manualSafetyResource = R.string.machine_recovery_shot_restart
+            if (!shotRecovery.clear(shotOwner)) manualSafetyResource = R.string.machine_recovery_shot_restart
+            else appRecoveryOwner=null
             event(ResourceMessage(R.string.service_shot_session_rejected), "shot.rejected")
             return getString(R.string.service_shot_session_rejected)
         }

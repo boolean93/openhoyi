@@ -25,14 +25,17 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
     private fun recovery(service: MobileService) =
         ((field(service, "machineWriteRecovery\$delegate").get(service) as Lazy<*>).value as MachineWriteRecoveryState)
 
-    fun run() {
+    fun run()=runChecks(false)
+    fun runCompletion()=runChecks(true)
+    private fun runChecks(completion:Boolean) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
         val names = listOf("shot_safety", "machine_write_safety", "curves")
         val original = names.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
-        var checkedFixtures=0;var fakeWrites=0;var fakeBarriers=0;var blocked=0;var reloadedRecords=0
-        val modes=listOf("ALLOW","MANUAL","CURVE","HUB","NOT_READY","SHOT_CLEAR","SHOT_OTHER","MACHINE_NEW",
+        var checkedFixtures=0;var fakeWrites=0;var fakeBarriers=0;var blocked=0;var reloadedRecords=0;var clearedShots=0;var retainedShots=0;var clearedPreheat=0;var retainedPreheat=0
+        val modes=if(completion)listOf("OWNER_ALLOW","OWNER_SHOT_REARM","OWNER_SHOT_OTHER","OWNER_HUB",
+            "OWNER_MANUAL","OWNER_PREHEAT_ALLOW","OWNER_PREHEAT_REARM") else listOf("ALLOW","MANUAL","CURVE","HUB","NOT_READY","SHOT_CLEAR","SHOT_OTHER","MACHINE_NEW",
             "STUDIO_TEMP","SETTINGS_BUSY","PREHEAT_ALLOW","PREHEAT_CLEAR","PREHEAT_OTHER")
         for(window in listOf("TARE","WEIGHT_START","FLOW_START")) for(mode in modes) {
             val id = UUID.randomUUID().toString()
@@ -121,7 +124,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         zero()
                         val machine=recovery(instance)
                         val preparation=field(instance,"brewPreparation").get(instance) as BrewPreparation
-                        val preheat=mode.startsWith("PREHEAT_")
+                        val preheat=mode.contains("PREHEAT_")
                         if(preheat) {
                             check(machine.arm(MachineWriteRecoveryState.Kind.BREW_WAIT,address))
                             val token=requireNotNull(preparation.begin(selected.id,selected.temperatureC))
@@ -166,7 +169,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                             "PREHEAT_CLEAR"->check(machine.clear())
                             "PREHEAT_OTHER"->{check(machine.clear());check(machine.arm(MachineWriteRecoveryState.Kind.BREW_WAIT,other))}
                         }
-                        val allowed=mode=="ALLOW" || mode=="PREHEAT_ALLOW"
+                        val allowed=completion || mode=="ALLOW" || mode=="PREHEAT_ALLOW"
                         // Session's original eligibility remains intact: product-only injections must drive rejection.
                         check(sessions[0].captureStartContext(selected.parameters)!=null)
                         val expectedShot=shotPrefs.all.toMap();val expectedMachine=prefs.all.toMap()
@@ -194,6 +197,32 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         complete(index,blocker);sessions.forEach { it.tick() }
                         check(calls.map { it.size }==finalCounts && owner.extraction.state==finalState)
                         check(shotPrefs.all==expectedShot && prefs.all==expectedMachine)
+                        if(completion) {
+                            when(mode) {
+                                "OWNER_SHOT_REARM"->{check(shot.clear());check(shot.arm(address))}
+                                "OWNER_SHOT_OTHER"->{check(shot.clear());check(shot.arm(other))}
+                                "OWNER_HUB"->field(instance,"hub").set(instance,null)
+                                "OWNER_MANUAL"->field(passive,"active").setBoolean(passive,true)
+                                "OWNER_PREHEAT_REARM"->{check(machine.clear());check(machine.arm(MachineWriteRecoveryState.Kind.BREW_WAIT,address))}
+                            }
+                            val replacementShot=shotPrefs.all.toMap();val replacementMachine=prefs.all.toMap()
+                            // Synthetic host-confirmed end; run actual Service ticker, never a physical idle claim.
+                            owner.extraction.machineIdle()
+                            check(owner.extraction.state==ExtractionState.ENDED_OBSERVED)
+                            field(instance,"lastShotState").set(instance,ExtractionState.RUNNING)
+                            val ticker=field(instance,"watchShot").get(instance) as Runnable
+                            ticker.run()
+                            val shouldClear=mode in setOf("OWNER_ALLOW","OWNER_PREHEAT_ALLOW","OWNER_PREHEAT_REARM")
+                            if(shouldClear) {
+                                check(!shot.pending && !shotPrefs.getBoolean("unresolved_shot",true) && !shotPrefs.contains("unresolved_shot_address"));clearedShots++
+                            } else {check(shotPrefs.all==replacementShot && shot.pending);retainedShots++}
+                            if(mode=="OWNER_PREHEAT_ALLOW") {check(!machine.pending && prefs.all.isEmpty());clearedPreheat++}
+                            else if(mode=="OWNER_PREHEAT_REARM") {check(machine.pending && prefs.all==replacementMachine);retainedPreheat++}
+                            else check(prefs.all==replacementMachine)
+                            val settledShot=shotPrefs.all.toMap();val settledMachine=prefs.all.toMap()
+                            ticker.run();complete(index,blocker)
+                            check(shotPrefs.all==settledShot && prefs.all==settledMachine && calls.map { it.size }==finalCounts)
+                        }
                         val reloaded=attach()
                         val reloadedShot=((field(reloaded,"shotRecovery\$delegate").get(reloaded) as Lazy<*>).value as ShotRecoveryState)
                         check(reloadedShot.pending==shot.pending && reloadedShot.address==shot.address)
@@ -235,6 +264,8 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                 cleanupFailure?.let { throw it }
             }
         }
-        check(checkedFixtures==39 && fakeWrites==21 && fakeBarriers==39 && blocked==33 && reloadedRecords==39)
+        if(completion)check(checkedFixtures==21 && fakeWrites==35 && fakeBarriers==21 && blocked==0 && reloadedRecords==21 &&
+            clearedShots==9 && retainedShots==12 && clearedPreheat==3 && retainedPreheat==3)
+        else check(checkedFixtures==39 && fakeWrites==21 && fakeBarriers==39 && blocked==33 && reloadedRecords==39)
     }
 }
