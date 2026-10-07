@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-07",
+  "scope": "test-only actual file reads through detached Service recovery lazies; no production behavior changes",
+  "local": {
+    "log": "/private/tmp/hoyi-marker-read-matrix-fixture.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 125,
+    "seconds": 18,
+    "checks": [
+      "assembleMockAndroidTest",
+      "lintDebug",
+      "lintMock",
+      "shell syntax",
+      "diff whitespace"
+    ]
+  },
+  "expectedAndroid": {
+    "recordFixtures": 20,
+    "blockedEntries": 108,
+    "absentClear": 2,
+    "tareFixtures": 4,
+    "realDisk": true,
+    "noBle": true,
+    "detached": true
+  },
+  "androidRuntime": "not yet verified; requires new source cloud run",
+  "limitations": [
+    "No Hub or physical dispatch in these fixtures",
+    "Absent marker only means no current persisted pending record, not evidence of old app hardware completion",
+    "Tare fixture tests restored state only, not physical zero or startup lifecycle",
+    "Corrupt machine marker blocks UNKNOWN; no UI unlock added"
+  ],
+  "review": "independent review no blockers; production read expectations, 20/108/2/4 counts, private isolation and cleanup verified"
+}

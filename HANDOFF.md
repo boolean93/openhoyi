@@ -652,3 +652,8 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 2026-10-07：已关闭上一轮列出的shot_safety/machine_write_safety失败缓存缺口。RecoveryPreferenceStorage将两个内联存储剥离；RecoveryPersistenceBarrier保存完整pending记录到fd.sync JSON marker后commit，clear两层成功才解除，保留类型/地址和错设备限制。48参数测试原实现48FAIL；标记损坏时授权清除另一次RED6FAIL，最终638会话单测/93回放场景、双mobile各178（导出条件skip1）通过，219任务71秒成功。12实际Service重建fixture覆盖六类×false/throw，真实prefs已清空后报告失败，重建保留完整记录并实际调用六入口累计72次阻止；成功清除后同入口进入无Hub正常连接门槛。最终测试APK/Lint125任务16秒通过。13既有Service fixture补隔离noBackup目录；新fixture无Hub/BLE/组件/系统访问。独立复审无阻塞，升级seed/verify补两个完整marker仍同源码/schemaMock1→2。运行待推送后实际云端产物；不能以无Hub入口检查代替设备出队/物理确认。文件损坏仍UNKNOWN，不新增未知机器操作的UI解锁。证据evidence/recovery-record-barrier-2026-10-07.json。
 
 去皮76943b6的Mock37591481806及升级37591481803实际产物已读：四恢复场景/四fakeWrites/三保留一确认，以及seed/verify、mockInstallationVerified/mockDataPreservationVerified均通过，仍不代表Alpha或历史schema迁移；见evidence/durable-tare-2026-10-07.json。
+
+
+2026-10-07：追加恢复marker实际读取测试，生产代码未变。SHOT/MACHINE各十种真实私有文件输入，预期20fixtures/108次六入口阻止/2无marker正常无Hub返回；TARE四输入验证存在即UNKNOWN，不代表实际秤归零。测试隔离prefs与noBackup目录，无Hub/BLE/系统访问；测试APK与双Lint125任务18秒成功，shell syntax/diff检查通过，Android执行待本轮推送。详见evidence/recovery-marker-read-2026-10-07.json。
+
+上一源7f2a36d的native37593366685实际日志已读：39823协议检查/32856通知回放、BUILD SUCCESSFUL、临时release签包及12配置guard通过。升级37593366596实际seed/verify/result已读，完整marker、同源码/schema Mock1→2数据保留校验通过；不是Alpha或历史schema迁移。Mock lifecycle37593366643随后完成，实际产物已读取：完整记录12fixture/12cacheCleared/12retained/72blocked/12successfulClears marker与result通过；没有重启原任务。整体功能与硬件安全未完成验收，当前用户不提供真机；继续保持高风险控制关闭、曲线编辑后置。
