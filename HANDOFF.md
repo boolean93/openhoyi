@@ -668,3 +668,8 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 2026-10-07：fdf3827停止保护云端验收已收敛。Mock37595770233实际产物命中SERVICE_STOP_FEEDBACK_CHECKS_PASSED：2fixture/4fakeWrites/2retainedRecords，日志未初始化合成故障仍发送精确stop，重复停止不重发；原20/108/2/4读取与12缓存失败marker同时存在，result通过。native37595770112实际日志确认39823协议/32856通知回放、BUILD SUCCESSFUL、临时release签包与12配置guard；同源升级37595770141实际seed/verify/result通过。证据目录见对应JSON，当前没有尚未读取的新控制fixture。截图37595770188仅任务success，未逐图视觉验收。
 
 已校准native-parity-audit当前表和完成判定：修改密码/其它秤/高风险命令等功能仍缺真实序列；曲线编辑后置；旧数据/正式签名/Alpha升级仍缺实据；自动目标停水、设置/睡眠/预热、后台/权限/断线等仍需设备验收，语言动态完整覆盖与注册Service边界也不能借代表性Mock断言完成。下一步按此全范围清单推进，禁止把当前绿色CI缩减为全功能或硬件安全完成。用户仍不提供真机，不启动ADB/BLE。
+
+
+2026-10-08：旧改密码候选帧取证完成并独立审查。setBleConPwd输出8字节hex，BleWrite请求9字节，ArrayBuffer零初始化补末尾0；全部100万六位组合×字符/数字两种输入，共200万次原三函数内存校验通过。只运行锁定1451...SHA修改旧包的三函数，原始未改包70cc...仅静态证实规则；不执行bundle/UniApp/BLE，不输出真实密码。首次提取发现同名helper两份，在执行前拒绝；限定咖啡范围后才运行；hash变化负例拒绝且原证据不变。新增scripts/check_legacy_password_candidate.mjs不属于产品JS技术栈，也不是APK运行依赖。
+
+原生仅Unsupported.PASSWORD_CHANGE拒绝原因从长度冲突修正为缺少真实修改/回读/重连/恢复序列；没有encoder/API/放行分支。OutboundWritePolicyTest增加完整9字节候选拒绝并断言fake driver零调用，原12tasks16s通过；今日再次protocol39823/notification32856/93场景执行通过，12tasks6s，JUnit输入未变UP-TO-DATE。独立审查无阻塞。证据evidence/legacy-password-candidate-2026-10-07.json、说明legacy-password-candidate.md。当前源码只发现声明，不排除动态/远端或其它版本使用；不能推断厂商不支持，也未开发机器改密码功能。高风险、其它秤、真实迁移、正式签名/Alpha升级及真机验收缺口仍保留。

@@ -17,7 +17,7 @@
 | 睡眠计划、立即睡眠、工作室预热/取消 | SleepScheduleWriteTracker、SleepNowTracker、BrewPreparation、PreheatGate | 已开发；完整生效和恢复仍需实机。没有独立取消回读，不把传输成功当作取消已生效 |
 | 累计杯数清零 | CupResetTracker、MachineWriteRecoveryState；双路新归零与序号回归 | 已开发未实机执行；旧本地设置密码确认由当前杯数输入＋二次确认替代，两路都归零才确认 |
 | 连接密码保存 | CoffeeCredentialStore、CoffeeCredentialRetryGate | 已开发成功后加密记忆；不是修改机器蓝牙密码，免输/失败回退仍需实机复验 |
-| 修改机器蓝牙密码 | 旧版setBleConPwd/0x0B；原生无执行入口 | 未开发/未开放，缺修改、确认、新旧密码重连及失败恢复的可靠序列 |
+| 修改机器蓝牙密码 | 旧版setBleConPwd/0x0B；原生无执行入口 | 未开发/未开放；旧候选实际转换为9字节（末尾零初始化），已用全部六位组合的原函数离线验证，详见legacy-password-candidate.md。仍缺修改、确认、新旧密码重连及失败恢复的可靠序列，字节事实不证明功能或设备语义 |
 | 拉杆校准、恢复出厂、排水、水箱滤芯及OTA | UnsupportedCommandGroup与当前无开放控制入口 | 未开发完整控制；存在旧命令不代表已有安全流程。需型号/固件、前置条件、回读或人工恢复证据；滤芯乐观UI与版本门槛见 [专项审计](legacy-pressure-filter.md) |
 | 设备释放与服务退出保护 | DeviceSession、GattQueue、NativeDeviceHub、MobileService；见 `evidence/cleanup-boundaries-2026-10-04.json` | 已修复终态回调/队列结果通知/双设备关闭/服务销毁的Exception清理边界，纯JVM及Android34独立fake传输fixture通过，主线程拒绝与pending保留已测；8129a05已在云端实测正常shutdown允许1组/三种持久未确认门禁阻止3组，调用限定本地ActivityManager代理。独立对象不代表真实注册Service、全部回调异常或硬件验收 |
 | 多语言 | 主要原生页面与服务反馈已资源化，启用语义/按钮样式与文字分开；已核对旧版八语言并新增稳定标识基础，见 `docs/plans/native-language-parity.md` | 七语言目录各890键，正式Android资源各889键已生成并打包；统一语言Context、独立偏好提交、主要持续提示身份和通知刷新接口已开发。设置页语言入口已开发，实际入口切换/还原/不变/失败及同服务已在云端Mock通过，共享导航800组合、八语言双主题五页在两种窗口/字体配置共160页及代表性详情/取消确认已通过Mock；母语质量、未覆盖动态状态/图轴、原始元数据与注册Service/BLE生命周期验收未完成，不宣称全应用多语言完成 |

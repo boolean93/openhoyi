@@ -17,7 +17,7 @@ class OutboundWritePolicyTest {
     }
     @Test fun unsupportedWritesNeverReachTransport() {
         val driver=Driver();val guarded=GuardedGattDriver(DeviceRole.COFFEE,driver)
-        for(hex in listOf("1802000100","2102000100","0B02000000","1701A5A500","1102000100","0200070001","")) {
+        for(hex in listOf("1802000100","2102000100","0B02000000","0B0600010203040500","1701A5A500","1102000100","0200070001","")) {
             assertFalse(hex,guarded.execute(1,2,GattOperation.Write(KnownGatt.coffeeWrite,bytes(hex))))
         }
         assertTrue(driver.operations.isEmpty())

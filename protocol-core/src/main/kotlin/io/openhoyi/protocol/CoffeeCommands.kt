@@ -145,7 +145,7 @@ object CoffeeCommands {
 }
 /** Document-only boundaries, deliberately without generic dispatch/encode methods. */
 enum class UnsupportedCommandGroup(val reason:String) {
-    OTA("No recoverable hardware validation"), PASSWORD_CHANGE("Legacy encoded/write length mismatch"),
+    OTA("No recoverable hardware validation"), PASSWORD_CHANGE("No captured modification, readback, reconnect or recovery sequence"),
     LEVER_CALIBRATION("Legacy encoded/write length mismatch"), FACTORY_RESET_AND_ALARM_IGNORE("Opcode 0x17 conflict"),
     CURVE_COPY("Competing 14/20 byte formats"),
     BREW_ENCOURAGEMENT_LED("Legacy automatic opcode 0x21; no captured execution/readback/recovery evidence"),
