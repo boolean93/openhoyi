@@ -43,7 +43,7 @@
     }
   },
   "review": "independent read-only review no blockers",
-  "androidRuntime": "not yet verified",
+  "androidRuntime": "verified in isolated cloud Mock",
   "wire": "no protocol bytes, emergency stop or storage schema changes",
   "limitations": [
     "synthetic READY/notifications and guarded fake GATT",
@@ -62,5 +62,17 @@
     "mockUpgrade": 37587431596,
     "mockUi": 37587431599
   },
-  "cloudStatus": "in_progress; actual outputs/artifacts not yet verified"
+  "cloudStatus": "Mock completed and actual markers/result read; other jobs completed, artifacts not inspected",
+  "actualAndroid": {
+    "artifactDirectory": "/private/tmp/hoyi-preheat-dispatch-owner-mock-37587431628",
+    "prepareFixtures": 2,
+    "prepareWrites": 0,
+    "prepareBarriers": 2,
+    "cancelPhases": 2,
+    "fakePreheatWrites": 2,
+    "cancelWrites": 0,
+    "blockedEntries": 24,
+    "reloadedRecords": 2,
+    "result": "Mock lifecycle checks passed"
+  }
 }

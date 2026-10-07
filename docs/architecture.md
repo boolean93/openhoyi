@@ -134,3 +134,6 @@ Android `ServiceShotDispatchChecks.runCompletion` 新增 21 个实际 watchShot 
 自动超时与用户显式取消分开授权：显式取消仍可捕获当前恢复记录，旧 timer 则必须先保有原登记 Ownership、原 Hub 与地址。`BrewPreparationWatchdog` guarded overload 在授权前后核验原 active token，处理授权重入和异常；拒绝只使原 active token 进入 UNKNOWN，不调用取消入口，不改动新记录或新 preparation。通过后仍走既有 gated cancellation。
 
 Host 调度 seam 默认执行同一 Handler 的 `600000ms` 延迟，便于隔离 instrumentation 捕获并执行实际注册闭包。TIMEOUT_OWNER 的 WAITING/READY × allow/rearm/missingHub 六例检验真实闭包和调度参数，模拟 expiry，不构成物理或 Android 真实等待十分钟的证明。
+
+
+2026-10-07：独立去皮的产品层授权由 `StandaloneTareDispatchPermit` 判断。Service 捕获原 Hub 与 READY 秤地址，Hub 将动态授权与既有 `DeviceConnectionGate` 一起传至真实秤队列，在出队前核对原 Hub/地址、秤 READY、无机器手动萃取及无 App 活动/未知萃取。不能用首次点击的结果替代发送前判断。兼容 Hub 旧入口保留原 gate；旧 Hub 完成回调不更新新 Hub 的去皮显示。咖啡机未连接时仍允许独立去皮；GATT success 后仍须新的解码零重量确认，失败不自动重发。

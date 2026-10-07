@@ -40,5 +40,13 @@
     "captured scheduler parameter and simulated expiry, not actual Android ten-minute timer",
     "synthetic READY/notifications and guarded fake GATT",
     "no physical device or BLE actions"
-  ]
+  ],
+  "sourceCommit": "eb8ca74700d6d1aebfd0d28fdeb2eff6cc946a9c",
+  "cloudRuns": {
+    "native": 37588669354,
+    "mockLifecycle": 37588669285,
+    "mockUpgrade": 37588669415,
+    "mockUi": 37588669359
+  },
+  "cloudStatus": "in_progress; actual outputs/artifacts not yet verified"
 }

@@ -1,0 +1,42 @@
+{
+  "date": "2026-10-07",
+  "scope": "queued standalone manual tare product authorization",
+  "red": {
+    "log": "/private/tmp/hoyi-standalone-tare-dispatch-red.log",
+    "tests": 14,
+    "failures": 11,
+    "errors": 0
+  },
+  "full": {
+    "log": "/private/tmp/hoyi-standalone-tare-dispatch-full.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 219,
+    "seconds": 71,
+    "sessionTests": 568,
+    "namedSessionScenarios": 93,
+    "mobileTestsPerVariant": 178,
+    "conditionalRealExportSkippedPerVariant": 1
+  },
+  "expectedAndroid": {
+    "fixtures": 10,
+    "fakeWrites": 2,
+    "fakeBarriers": 10,
+    "blocked": 8,
+    "newDecodedZero": 2,
+    "coffeeOfflineAllowed": true,
+    "lateDiscoverAndTareCompletionIgnored": true
+  },
+  "review": "independent read-only review and cleanup correction re-review: no blockers",
+  "androidRuntime": "not yet verified",
+  "wire": "no BOOKOO bytes, machine writes, emergency stop or storage schema change",
+  "limitations": [
+    "synthetic states, guarded fake GATT, detached Service",
+    "no physical scale zeroing or BLE verification"
+  ],
+  "fixtureBuild": {
+    "log": "/private/tmp/hoyi-standalone-tare-dispatch-fixture.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 125,
+    "seconds": 17
+  }
+}

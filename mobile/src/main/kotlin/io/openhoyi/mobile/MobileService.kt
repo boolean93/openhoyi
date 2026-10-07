@@ -717,8 +717,13 @@ class MobileService : Service() {
         if (snapshot.scaleState != DeviceState.READY) return getString(R.string.service_tare_not_ready)
         if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
             return getString(R.string.service_tare_waiting)
+        val scaleAddress=current.scaleAddress
         event(ResourceMessage(R.string.service_tare_requested), "scale.tare_requested")
-        current.tareScale { result ->
+        current.tareScale({
+            io.openhoyi.session.StandaloneTareDispatchPermit.allows(scaleAddress,current.scaleAddress,
+                hub === current,snapshot.scaleState==DeviceState.READY,manualShotActive,shotState)
+        }) done@{ result ->
+            if(hub !== current)return@done
             lastTareState = tareState
             when (tareState) {
                 StandaloneTare.State.WAITING_ZERO -> event(ResourceMessage(R.string.service_tare_written), "scale.tare_written")

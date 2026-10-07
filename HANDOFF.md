@@ -639,3 +639,6 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 - 14新增单测最终RED10fails ->14pass；完整219 tasks/64s通过，Session554/0fail/93named；mobile178each/0fail/conditionalrealexportskip1。fixture APK/lint12517s通过、shellsyntax/diffcheck通过；独立静态审查无阻塞。
 - 新 TIMEOUT_OWNER actualService6fixtures：WAITING/READY×allow/rearm/missingHub，8fakeWrites、expected600000delay、2cancel允许/4阻止、6record reload，重复expiry/旧callback不改变state/record或重发。simulatedexpiry，不是Android实际计时600秒证据；云端执行未验证。
 - 上一预热source972079a Mock37587431628已确认仍在 Verify lifecycle with targeted logs，没有重启。后续核对新/旧两组实际marker及result，再继续审计余下功能与安全边界。无ADB、安装、真机动作。
+
+
+2026-10-07：独立去皮队列发送前保护已接入。旧路径只在按钮入口检查手动萃取，Hub 出队仅检查 App 萃取；现在同时核对原 Hub/READY 秤地址、当前 READY 与当前手动/App 萃取状态。纯判断14项先RED11失败再GREEN；完整219任务71秒通过，568会话单测、93回放场景、移动双变体各178项（条件真实导出各skip1）。实际Service10场景编译验证，2允许/8拒绝，咖啡机离线允许；独立审查发现fixture清理遗漏并修正，复审无阻塞。最终测试APK重编结果见 evidence/standalone-tare-dispatch-2026-10-07.json；实际Android运行待推送CI，不把编译当运行证明。不用真机、不改去皮报文/机器命令/紧急停止。

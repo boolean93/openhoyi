@@ -40,6 +40,7 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=ScaleSessionControl(scale.session,standaloneTare,{scaleSampleSerial})
     val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()})
+    val scaleAddress:String? get()=scale.session.address.takeIf { scale.session.state==DeviceState.READY }
     val coffeeFirmware:CoffeeFirmware? get()=coffee.session.observedFirmware
     val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }
     private val ticker=object:Runnable {
@@ -94,12 +95,13 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
         usable();check(DeviceConnectionGate.mayDisconnect(extraction.state)){"unsettled extraction: disconnect blocked"}
         reconnect.manualDisconnect();scale.session.disconnect()
     }
-    fun tareScale(done:(OperationResult)->Unit){
+    fun tareScale(done:(OperationResult)->Unit)=tareScale({true},done)
+    fun tareScale(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         usable()
         if(!DeviceConnectionGate.mayChangeScale(extraction.state)){
             done(OperationResult.Failed("unsettled extraction: manual tare blocked"));return
         }
-        scaleControl.tare({DeviceConnectionGate.mayChangeScale(extraction.state)},done)
+        scaleControl.tare({beforeDispatch() && DeviceConnectionGate.mayChangeScale(extraction.state)},done)
     }
     fun writeSetting(change:MachineSettingChange,done:(OperationResult)->Unit)=writeSetting(change,{true},done)
     fun writeSetting(change:MachineSettingChange,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
