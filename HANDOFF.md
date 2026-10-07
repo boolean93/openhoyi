@@ -657,3 +657,6 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 2026-10-07：追加恢复marker实际读取测试，生产代码未变。SHOT/MACHINE各十种真实私有文件输入，预期20fixtures/108次六入口阻止/2无marker正常无Hub返回；TARE四输入验证存在即UNKNOWN，不代表实际秤归零。测试隔离prefs与noBackup目录，无Hub/BLE/系统访问；测试APK与双Lint125任务18秒成功，shell syntax/diff检查通过，Android执行待本轮推送。详见evidence/recovery-marker-read-2026-10-07.json。
 
 上一源7f2a36d的native37593366685实际日志已读：39823协议检查/32856通知回放、BUILD SUCCESSFUL、临时release签包及12配置guard通过。升级37593366596实际seed/verify/result已读，完整marker、同源码/schema Mock1→2数据保留校验通过；不是Alpha或历史schema迁移。Mock lifecycle37593366643随后完成，实际产物已读取：完整记录12fixture/12cacheCleared/12retained/72blocked/12successfulClears marker与result通过；没有重启原任务。整体功能与硬件安全未完成验收，当前用户不提供真机；继续保持高风险控制关闭、曲线编辑后置。
+
+
+2026-10-07：真实停止入口显示故障隔离。MobileService原路径event在manualStop前，同步资源/日志Exception可挡住stop；新增StopRequestDelivery先dispatch后report，仅隔离report Exception，不吞dispatch错误或fatal Error。原资格、Mock、报文、重试、停止确认和恢复记录不变。四纯测试以原顺序可编译RED4fail，再完整219任务49秒通过，双mobile各182/0fail/0error/条件旧导出skip1。新actual Service2fixture正常/缺失journal合成故障，期望先合法slot7启动，再精确stop报文，共4fakeWrites；Success仍STOP_REQUESTED、重复stop不重发、重建保留2pending。没有真实BLE/注册生命周期，日志未初始化不代表正常生命周期或磁盘故障复现。独立复审无阻塞；Android运行未验证，见evidence/stop-feedback-boundary-2026-10-07.json。上一源6ff0ac7新增读取矩阵Mock37594972905仍同任务执行，未重启；当前提交不能借用它验证新stop fixture。

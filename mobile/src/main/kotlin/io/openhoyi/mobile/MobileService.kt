@@ -1285,8 +1285,9 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_shot_stop_unavailable), "shot.stop_unavailable")
             return
         }
-        event(ResourceMessage(R.string.service_shot_stop_requested), "shot.manual_stop")
-        hub?.extraction?.manualStop()
+        StopRequestDelivery.request(
+            { hub?.extraction?.manualStop() },
+            { event(ResourceMessage(R.string.service_shot_stop_requested), "shot.manual_stop") })
     }
     // Local projection only. Failures cannot escape into history, recovery or device callbacks.
     private fun beginBrewFeedback(shotId: String, slot: Int, preinfusionSeconds: Int?, appShot: Boolean = true) {

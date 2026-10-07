@@ -30,5 +30,12 @@
     "Tare fixture tests restored state only, not physical zero or startup lifecycle",
     "Corrupt machine marker blocks UNKNOWN; no UI unlock added"
   ],
-  "review": "independent review no blockers; production read expectations, 20/108/2/4 counts, private isolation and cleanup verified"
+  "review": "independent review no blockers; production read expectations, 20/108/2/4 counts, private isolation and cleanup verified",
+  "sourceCommit": "6ff0ac73f417c1f2b5e7f817f7a8bce97d5219b6",
+  "cloudRuns": {
+    "native": 37594973075,
+    "mockLifecycle": 37594972905,
+    "mockUpgrade": 37594972892
+  },
+  "cloudStatus": "in_progress; actual artifacts not yet read"
 }

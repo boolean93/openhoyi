@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-07",
+  "scope": "qualified MobileService stop dispatch before optional presentation; protocol and qualifications unchanged",
+  "red": {
+    "log": "/private/tmp/hoyi-stop-feedback-red.log",
+    "tests": 4,
+    "failures": 4,
+    "scope": "compilable helper with original report-before-dispatch order; not old Service Android runtime"
+  },
+  "full": {
+    "log": "/private/tmp/hoyi-stop-feedback-full.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 219,
+    "seconds": 49,
+    "mobileTestsPerVariant": 182,
+    "failures": 0,
+    "errors": 0,
+    "conditionalRealExportSkippedPerVariant": 1
+  },
+  "review": "independent review no blockers",
+  "expectedAndroid": {
+    "fixtures": 2,
+    "fakeWrites": 4,
+    "retainedRecords": 2,
+    "missingJournal": true,
+    "exactStopWire": true,
+    "repeatedStopIgnored": true,
+    "noBle": true,
+    "detached": true
+  },
+  "androidRuntime": "not yet verified",
+  "limitations": [
+    "Detached actual Service with guarded fake transport and synthetic READY/start success",
+    "Missing journal is synthetic fault injection, not normal lifecycle or disk failure reproduction",
+    "Write Success does not establish physical stopped water; controller remains STOP_REQUESTED and persisted record remains pending",
+    "Dispatch exceptions and fatal report Errors still propagate; only optional report Exceptions isolated",
+    "No additional command, retry, recovery acknowledgement or real hardware test"
+  ]
+}
