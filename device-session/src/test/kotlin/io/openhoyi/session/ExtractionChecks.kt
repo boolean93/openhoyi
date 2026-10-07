@@ -4,7 +4,9 @@ private class CoffeeFake:CoffeeControl {
     override var ready=true;var starts=0;var stops=0;var permitValid=true
     override fun prepareStart(parameters:StartParameters)=ready
     override fun startConditionsValid(parameters:StartParameters)=ready && permitValid
-    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
+    override fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+                if(!runCatching(beforeDispatch).getOrDefault(false)){done(OperationResult.Failed("caller rejected"));return}
+starts++;done(OperationResult.Success())}
     override fun stop(done:(OperationResult)->Unit){stops++;done(OperationResult.Success())}
 }
 private class ScaleFake:ScaleControl {
@@ -19,7 +21,9 @@ private class UnknownStartCoffee:CoffeeControl {
     var stopCallback:((OperationResult)->Unit)?=null
     override fun prepareStart(parameters:StartParameters)=ready
     override fun startConditionsValid(parameters:StartParameters)=ready
-    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){
+    override fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+                if(!runCatching(beforeDispatch).getOrDefault(false)){done(OperationResult.Failed("caller rejected"));return}
+
         starts++;done(OperationResult.Unknown("accepted start without outcome"))
     }
     override fun stop(done:(OperationResult)->Unit){stops++;if(deferStop)stopCallback=done else done(stopResult)}
@@ -268,7 +272,9 @@ fun extractionChecks():Int {
             override val ready=true
             override fun prepareStart(parameters:StartParameters)=ready
     override fun startConditionsValid(parameters:StartParameters)=ready
-    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){pending=done}
+    override fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+                if(!runCatching(beforeDispatch).getOrDefault(false)){done(OperationResult.Failed("caller rejected"));return}
+pending=done}
             override fun stop(done:(OperationResult)->Unit){pending!!(OperationResult.Cancelled("superseded"));done(OperationResult.Success())}
         }
         val c=ExtractionController(coffee,ScaleFake(),{now});c.weight(WeightReading(0,0));check(c.start(profile,3400,0));now=10;c.weight(WeightReading(0,now));c.manualStop()
@@ -281,7 +287,9 @@ fun extractionChecks():Int {
             override val ready=true
             override fun prepareStart(parameters:StartParameters)=ready
     override fun startConditionsValid(parameters:StartParameters)=ready
-    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){pending=done}
+    override fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+                if(!runCatching(beforeDispatch).getOrDefault(false)){done(OperationResult.Failed("caller rejected"));return}
+pending=done}
             override fun stop(done:(OperationResult)->Unit){pending!!(OperationResult.Cancelled("superseded"));done(OperationResult.Success())}
         }
         val c=ExtractionController(coffee,ScaleFake(),{now});c.weight(WeightReading(0,0));check(c.start(profile,3400,0));now=10;c.weight(WeightReading(0,now));c.manualStop()

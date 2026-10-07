@@ -82,5 +82,26 @@
     "Synthetic product flags and detached Service; not physical extraction or installed Service lifecycle",
     "No hardware, ADB, installation or real BLE actions",
     "No assertion that all protocol or physical risks are eliminated"
-  ]
+  ],
+  "sourceCommit": "5f379d01c25d5037dd03e52fde9173f7fe1b02c5",
+  "cloudPending": {
+    "mockLifecycle": 37550188560
+  },
+  "cloudVerified": {
+    "native": {
+      "run": 37550188548,
+      "actualLogRead": true,
+      "log": "/private/tmp/hoyi-ordinary-service-native-37550188548.log",
+      "protocolChecks": 39823,
+      "capturedNotifications": 32856,
+      "namedSessionScenarios": 92,
+      "releaseCases": 12
+    },
+    "mockUpgrade": {
+      "run": 37550188564,
+      "actualSeedVerifyResultRead": true,
+      "directory": "/private/tmp/hoyi-ordinary-service-upgrade-37550188564/mock-upgrade",
+      "scope": "Same current source/schema Mock1->2 on qemu; not Alpha or historical schema"
+    }
+  }
 }

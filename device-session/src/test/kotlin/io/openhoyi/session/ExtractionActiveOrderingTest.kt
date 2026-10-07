@@ -18,7 +18,9 @@ class ExtractionActiveOrderingTest {
             override val ready get() = this@Fixture.ready
             override fun prepareStart(parameters: StartParameters) = ready
             override fun startConditionsValid(parameters: StartParameters) = ready
-            override fun start(parameters: StartParameters, done: (OperationResult) -> Unit) {
+            override fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+                if(!runCatching(beforeDispatch).getOrDefault(false)){done(OperationResult.Failed("caller rejected"));return}
+
                 starts++; done(OperationResult.Success())
             }
             override fun stop(done: (OperationResult) -> Unit) {

@@ -181,7 +181,9 @@ fun deviceChecks():Int {
                 override val ready=true
                 override fun prepareStart(parameters:StartParameters)=true
                 override fun startConditionsValid(parameters:StartParameters)=true
-                override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
+                override fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+                if(!runCatching(beforeDispatch).getOrDefault(false)){done(OperationResult.Failed("caller rejected"));return}
+starts++;done(OperationResult.Success())}
                 override fun stop(done:(OperationResult)->Unit){error("preflight must not stop the coffee machine")}
             }
             val profile=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
@@ -232,7 +234,9 @@ fun deviceChecks():Int {
             override val ready get()=coffeeReady
             override fun prepareStart(parameters:StartParameters)=true
             override fun startConditionsValid(parameters:StartParameters)=conditions
-            override fun start(parameters:StartParameters,done:(OperationResult)->Unit){starts++;done(OperationResult.Success())}
+            override fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
+                if(!runCatching(beforeDispatch).getOrDefault(false)){done(OperationResult.Failed("caller rejected"));return}
+starts++;done(OperationResult.Success())}
             override fun stop(done:(OperationResult)->Unit){check(starts>0);done(OperationResult.Success())}
         }
         val profile=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)

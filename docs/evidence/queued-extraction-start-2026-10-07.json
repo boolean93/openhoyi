@@ -1,0 +1,100 @@
+{
+  "change": "Recheck queued extraction scale eligibility and pre-dispatch unexpected activity",
+  "baselineCommit": "5f379d01c25d5037dd03e52fde9173f7fe1b02c5",
+  "sourceGaps": [
+    "After tare and zero, pendingStart is cleared before the machine frame dispatch; STARTING scale disconnect only clears latest and previous Session gate checked coffee context alone",
+    "Unexpected pre-dispatch valve activity followed by fresh idle can restore coffee context while the original request still waits"
+  ],
+  "local": {
+    "scaleRed": {
+      "tests": 9,
+      "failures": 5,
+      "errors": 0,
+      "log": "/private/tmp/hoyi-queued-start-scale-red.log",
+      "reference": "Original actual Controller/CoffeeSessionControl/Session/queue"
+    },
+    "scaleGreen": {
+      "tests": 9,
+      "failures": 0,
+      "namedSessionScenarios": 92,
+      "log": "/private/tmp/hoyi-queued-start-scale-green.log"
+    },
+    "scaleOnlyFullBuild": {
+      "build": "BUILD SUCCESSFUL in 54s",
+      "tasks": 219,
+      "log": "/private/tmp/hoyi-queued-start-scale-full.log"
+    },
+    "unexpectedActivityRed": {
+      "tests": 4,
+      "failures": 2,
+      "errors": 0,
+      "log": "/private/tmp/hoyi-queued-start-activity-red.log",
+      "xml": "/private/tmp/hoyi-queued-start-activity-red.xml",
+      "reference": "Scale-only dispatch guard, no activity check"
+    },
+    "legacyReplayMismatch": {
+      "result": "Original ReplayChecks shot3 expected start failed at actual Session verify",
+      "log": "/private/tmp/hoyi-queued-start-final.log",
+      "cause": "Legacy captured tx origin0/valve41/zero56 conflicts with synthetic native preflight request at0; retain original rejection plus independently labelled adapted replay"
+    },
+    "finalGreen": {
+      "tests": 13,
+      "failures": 0,
+      "errors": 0,
+      "namedSessionScenarios": 93,
+      "log": "/private/tmp/hoyi-queued-start-final-green.log",
+      "build": "BUILD SUCCESSFUL in 10s"
+    },
+    "finalFullBuild": {
+      "build": "BUILD SUCCESSFUL in 14s",
+      "tasks": 219,
+      "log": "/private/tmp/hoyi-queued-start-full-final.log"
+    },
+    "mobileUnitResults": {
+      "Debug": {
+        "tests": 178,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      "Mock": {
+        "tests": 178,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      }
+    },
+    "independentReview": "No blocking findings, three reviews including replay scope and retained raw sequence",
+    "diffCheck": "passed"
+  },
+  "productionScope": [
+    "CoffeeControl original call delegates to mandatory guarded implementation, no unsafe async fallback",
+    "CoffeeSessionControl forwards caller predicate to guarded DeviceSession.startExtraction at real queue pump",
+    "Controller predicate original serial/STARTING/no observed valve activity/coffee READY/tare permission, plus live scale and fresh latest reading for target weight",
+    "Original Session context, firmware, valid frame whitelist and exact encoding remain independent; stop behavior unchanged"
+  ],
+  "capturedReplay": {
+    "file": "device-session/src/test/resources/shots.tsv",
+    "unchangedFromBaseline": true,
+    "sha256": "75e7d08a79c21b9754148a5ae68813e7c23a5397f4884087ff6146d612eeb5ce",
+    "originalThird": "Raw valve at41ms before post-tare zero56ms now rejects native start; no retry or stop",
+    "independentAdaptedThird": "Synthetic preflight request -36ms, original near-zero observation -35ms; all captured row bytes/timestamps preserved; one start/one tare/stop17786ms",
+    "originalManualStopMs": 44098,
+    "originalFlowStops": 0,
+    "boundary": "Fake controls/tare do not prove captured native preflight/physical zeroing or physical stop"
+  },
+  "invariants": [
+    "Queued scale disconnect/reconnect-without-reading/stale reading/unresolved tare prevents target start",
+    "1500ms inclusive latest weight boundary and fresh updates retain exact start bytes",
+    "Flow-only optional scale and stale weight remain allowed, unresolved tare still blocks",
+    "Observed valve activity before dispatch prevents both target modes even after fresh coffee idle; closed-valve preheat remains allowed",
+    "Late queue completion cannot repeat dispatch"
+  ],
+  "boundaries": [
+    "Shared control chain with fake driver/scale, not actual Android lifecycle or hardware",
+    "Product Service shot-start manual/identity/durable authorization remains separate work",
+    "Preflight tare dispatch activity guard requires a separate audit/test; current change guards machine start",
+    "Final source cloud runtime pending push",
+    "No claim of eliminating all protocol or physical risk"
+  ]
+}

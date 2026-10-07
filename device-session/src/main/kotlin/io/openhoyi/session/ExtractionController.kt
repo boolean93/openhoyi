@@ -10,7 +10,9 @@ interface CoffeeControl {
     val ready:Boolean
     fun prepareStart(parameters:StartParameters):Boolean
     fun startConditionsValid(parameters:StartParameters):Boolean
-    fun start(parameters:StartParameters,done:(OperationResult)->Unit)
+    fun start(parameters:StartParameters,done:(OperationResult)->Unit)=start(parameters,{true},done)
+    /** Asynchronous implementations must evaluate this predicate at actual transport dispatch. */
+    fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit)
     fun stop(done:(OperationResult)->Unit)
 }
 interface ScaleControl {val ready:Boolean;val startAllowed:Boolean;fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit)}
@@ -28,14 +30,14 @@ class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     override fun startConditionsValid(parameters:StartParameters):Boolean =
         approvedStart?.let { session.startConditionsValid(parameters,it) } == true
     override val ready get()=session.state==DeviceState.READY
-    override fun start(parameters:StartParameters,done:(OperationResult)->Unit){
+    override fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit){
         val context=approvedStart
         approvedStart=null
         if(context==null || !session.startConditionsValid(parameters,context) || context.address==null) {
             done(OperationResult.Failed("start context not prepared or no longer valid"));return
         }
         stopOwner=StopOwner(context.address,parameters.slot)
-        session.startExtraction(parameters,context,done)
+        session.startExtraction(parameters,context,beforeDispatch,done)
     }
     override fun stop(done:(OperationResult)->Unit) {
         val owner=stopOwner
@@ -117,7 +119,12 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         policy.begin(id,target,compensation,atMs)
         baseline?.let { policy.confirmTare(id,it.hundredthsGram,it.receivedAtMs) }
         started=atMs
-        coffee.start(parameters){result ->
+        coffee.start(parameters,{
+            val sample=latest
+            id==serial && state==ExtractionState.STARTING && lastActiveFrame==null && coffee.ready && scale.startAllowed &&
+                (target==0 || (scale.ready && sample!=null &&
+                    ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,clock())))
+        }){result ->
             if(id!=serial)return@start
             if(state==ExtractionState.STOP_REQUESTED){
                 if(result is OperationResult.Cancelled)startNotSubmitted=true

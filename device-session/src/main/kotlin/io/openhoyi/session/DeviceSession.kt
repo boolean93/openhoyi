@@ -247,7 +247,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(context==null) {callback(OperationResult.Failed("start conditions not ready"));return}
         startExtraction(parameters,context,callback)
     }
-    fun startExtraction(parameters:StartParameters,context:CoffeeStartContext,callback:(OperationResult)->Unit) {
+    fun startExtraction(parameters:StartParameters,context:CoffeeStartContext,callback:(OperationResult)->Unit)=
+        startExtraction(parameters,context,{true},callback)
+    fun startExtraction(parameters:StartParameters,context:CoffeeStartContext,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
         if (sleepWrite != null) { callback(OperationResult.Failed("weekly sleep write active")); return }
         if (!startConditionsValid(parameters,context)) {
             callback(OperationResult.Failed("original start context no longer valid")); return
@@ -255,7 +257,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         // Product host supplies only frames checked against the extracted legacy encoder.
         val command=permittedStart(parameters)
         if(command==null){callback(OperationResult.Failed("curve outside validated profile set"));return}
-        send(command,DeviceRole.COFFEE,beforeDispatch={startConditionsValid(parameters,context)},callback=callback)
+        send(command,DeviceRole.COFFEE,beforeDispatch={beforeDispatch() && startConditionsValid(parameters,context)},callback=callback)
     }
     fun stopExtraction(slot:Int,callback:(OperationResult)->Unit)=stopExtraction(slot,address,callback)
     fun stopExtraction(slot:Int,expectedAddress:String?,callback:(OperationResult)->Unit) {

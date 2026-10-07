@@ -162,7 +162,7 @@
 | 协议就绪 | DeviceSession | 咖啡机认证写入完成后须收到新的 `0x83` 才 Ready；READY 前的通知不进入产品遥测或回读判断，认证前的设置帧单独到达会超时且不开放后续写入。秤四条初始化+首个样本真机均 Ready | 其他型号与长时间运行；新门禁尚待真机复验 |
 | 自动连秤 | ReconnectPolicy + NativeDeviceHub | 10分钟窗口、退避、DISCONNECTED/FAILED终态恢复、成功后退避重置、不支持设备停止重试及手动取消测试 | 地址变化时重新扫描/绑定；宿主生命周期实测 |
 | 去皮与重量停止 | ExtractionController / Policy | 去皮写成功后等待近零通知、重量时效、去重、优先按新鲜机器萃取计时执行7秒门槛、机器计时过期时单调时钟兜底、掉秤保护停止、停止未知结果 | 真实秤延迟和业务阈值标定 |
-| 三次萃取链路 | ReplayChecks + shots.tsv | 手动44.098s；流量结束无额外stop；重量17.786s | 不等于物理咖啡机回放；最终杯重未认证 |
+| 三段采样的四个回放场景 | ReplayChecks + shots.tsv | 原手动44.098s、flow无stop；原shot3开阀先于原生启动时拒绝；显式合成预去皮时序下重量stop17.786s | 全部原始行/字节/时间保留；合成request=-36ms与fake tare不证明物理去皮或原生通信时序，最终杯重未认证 |
 | Android连接/服务/CCCD/写入 | AndroidGattDriver | SDK35编译、AAR构建、lint；写请求已接受而回调报错时不冒称设备未执行 | 真机permission/revoke/disconnect/GATT回调 |
 | 扫描 | ScanCoordinator | Android编译/lint；统一扫描两角色 | 真机扫描频率、位置权限与开关验证 |
 | Android后台 | LabService + NativeDeviceHub | connectedDevice前台服务、Binder与页面解耦；静态独立审查 | 真机锁屏/旋转/权限撤销；不能承诺进程被杀后的停液 |
