@@ -600,3 +600,10 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 - 第一次完整构建被新增 flow 测试夹具挡住：94°C idle 对 92°C 曲线不满足既有门禁。修正夹具为同一 92°C idle，未修改生产温度限制。
 - 原协议字节、停止路径及 93 项 Session 回放语义保留。独立静态审查无阻塞。
 - 下一步：Android detached Service 的真实 startShot 调用夹具，检验 live selected profile、studio、手动萃取、原 Hub、shot/machine prefs 变化在两个排队窗口中的阻止效果；当前不能宣称这部分已运行验证。无 ADB、安装或真机操作。
+
+### 2026-10-07 Service shot dispatch Android fixture
+
+- 新增 `ServiceShotDispatchChecks`，实际 detached Service.startShot -> Hub/Controller/Session/queue，synthetic READY 和隔离 prefs/cache，Guarded fake GATT，不使用真实 BLE、系统服务或组件。
+- 39 场景：TARE / WEIGHT_START / FLOW_START ×13 modes；预期 6 allowed /33 blocked /21 fake Writes /39 fake Discover barriers /39 record reloads。涵盖 curve/manual/Hub/READY/shot record/machine intent/Studio temp/settings busy；包含同机 BREW_WAIT consumed 后允许的正向场景。
+- 只验证立即完成窗口和重复旧回调不重发；**不包含 Service ticker 自动清理**。本地 APK/lint 125 tasks,15s 通过，bash -n / diff check 通过；Android marker 执行与云端结果尚未验证。
+- 下一安全审计：ticker 在 IDLE/ENDED 时直接 `shotRecovery.clear()`，需验证旧请求结束不能清除后来替换的恢复记录（包括同地址重新 arm）。考虑持久化 state 的内存 revision/owner token，保留被动萃取与人工确认路径；先写能复现的测试再修改。

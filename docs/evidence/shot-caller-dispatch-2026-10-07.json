@@ -46,5 +46,13 @@
     "No hardware, ADB, installation or BLE performed",
     "Record matching uses identity/value, not a new durable transaction ID",
     "Cloud runs for this source not yet verified"
-  ]
+  ],
+  "sourceCommit": "d13757df58e46be1394125c881155b875214af12",
+  "cloudRuns": {
+    "native": 37552479595,
+    "mockLifecycle": 37552479627,
+    "mockUpgrade": 37552479530,
+    "mockUi": 37552479568
+  },
+  "cloudStatus": "in_progress; output/artifacts not verified"
 }

@@ -58,6 +58,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ServiceTransportUnknownChecks(this).run()
                 ServiceWriteWatchdogChecks(this).run()
                 ServiceOrdinaryDispatchChecks(this).run()
+                ServiceShotDispatchChecks(this).run()
                 ServiceWriteDisconnectionChecks(this).run()
                 ServiceWriteDisconnectionChecks(this).runReplacement()
                 ServicePreheatCancellationChecks(this).run()
@@ -82,7 +83,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
-                report.putString("stream", "SERVICE_ORDINARY_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=12 fakeBarriers=39 firstFrameBlocks=28 partialUnknown=7 clearedReloads=28 retainedReloads=11 durableBeforeWrite=true lateSuccessIgnored=true noBle=true detached=true\n" +
+                report.putString("stream", "SERVICE_SHOT_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=21 fakeBarriers=39 blocked=33 reloadedRecords=39 exactWire=true durableBeforeWrite=true lateSuccessIgnored=true syntheticReady=true noBle=true detached=true\n" +
+                    "SERVICE_ORDINARY_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=12 fakeBarriers=39 firstFrameBlocks=28 partialUnknown=7 clearedReloads=28 retainedReloads=11 durableBeforeWrite=true lateSuccessIgnored=true noBle=true detached=true\n" +
                     "SERVICE_QUEUED_CANCEL_MANUAL_CHECKS_PASSED phases=2 fakePreheatWrites=2 fakeBarriers=2 noCancelDispatch=true unknownRetained=true blockedEntries=24 reloadedRecords=2 lateSuccessIgnored=true noBle=true detached=true\n" +
                     "SERVICE_PREHEAT_CANCEL_BLOCKS_CHECKS_PASSED phases=2 blocks=20 fakePreheatWrites=2 noCancelDispatch=true exactResources=true preservedToken=true preservedBaseline=true retainedPending=true noBle=true detached=true\n" +
                     "SERVICE_PREHEAT_CANCELLATION_CHECKS_PASSED fixtures=10 phases=2 fakeWrites=20 blockedEntries=120 recoveredAcknowledgements=8 retainedDisconnected=2 durableBeforeCancel=true lateSuccessIgnored=true freshIdleNotProof=true noBle=true detached=true\n" +
