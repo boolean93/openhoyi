@@ -680,3 +680,6 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 当前94b4ef2的同源码/schema Mock升级37698316061已下载并实际读取seed.txt/verify.txt/result.json：两成功标记、mockInstallationVerified与mockDataPreservationVerified均true；构建版本1→2、同证书。不是Alpha升级或历史schema迁移。native37698315963与Mock生命周期37698316074查询时仍in_progress，不算通过，不重启。
 
 随后native37698315963完成，实际日志已保存/private/tmp/hoyi-password-native-37698315963.log：BUILD SUCCESSFUL（3m37s）、93会话场景、临时release签包与12项签名配置保护均通过；仍不代表硬件验收。生命周期37698316074尚待终态，不算通过。
+
+
+2026-10-08：发现通知去重缓存先于平台调用提交。新增NotificationFailureChecks断言：通知服务lookup失败后safetyMessage不得缓存，相同警告的下一次显式刷新必须再次lookup，同时保持无Hub/记录/控制字段/销毁清理。仅修改androidTest，生产源码未变；测试APK与Mock Lint成功（101tasks/26s）。本次预期RED尚未在Android执行，等待精确提交的云端Mock结果，不能把编译当复现。计划docs/superpowers/plans/2026-10-08-notification-delivery-cache.md；必须先读取真实失败位置，再改缓存提交时机。当前watchShot只在状态变化时刷新通知，不能误称每100ms定时重试。

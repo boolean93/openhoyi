@@ -67,6 +67,14 @@ internal class NotificationFailureChecks(private val test: Instrumentation) {
                     MobileService::class.java.getDeclaredMethod("refreshSafetyNotification", Boolean::class.javaPrimitiveType)
                         .apply { isAccessible = true }.invoke(instance, false)
                     check(lookups == 1)
+                    check(field("safetyMessage").get(instance) == null) {
+                        "Failed notification lookup must not mark the warning as delivered"
+                    }
+                    // A later state watcher must retry the same warning, without touching a BLE owner.
+                    MobileService::class.java.getDeclaredMethod("refreshSafetyNotification", Boolean::class.javaPrimitiveType)
+                        .apply { isAccessible = true }.invoke(instance, false)
+                    check(lookups == 2) { "Identical warning was suppressed after failed notification delivery" }
+                    check(field("safetyMessage").get(instance) == null)
                     check(instance.snapshot.copy(message = before.message) == before) { "Display failure changed control state" }
                     check(instance.snapshot.messageForDisplay { id, args -> instance.getString(id, *args) } == instance.getString(R.string.notification_update_error))
                     check(field("hub").get(instance) == null && instance.running)
@@ -79,7 +87,7 @@ internal class NotificationFailureChecks(private val test: Instrumentation) {
                         field("manualSafetyResource").set(instance, 0)
                         MobileService::class.java.getDeclaredMethod("refreshSafetyNotification", Boolean::class.javaPrimitiveType)
                             .apply { isAccessible = true }.invoke(instance, false)
-                        check(lookups == 1 && instance.snapshot === beforeRenderFailure)
+                        check(lookups == 2 && instance.snapshot === beforeRenderFailure)
                         check(field("safetyMessage").get(instance) == cachedWarning)
                     } finally { field("manualSafetyResource").set(instance, R.string.machine_recovery_shot_restart) }
                     // The error-reporting path itself must tolerate unavailable display text.
@@ -95,7 +103,7 @@ internal class NotificationFailureChecks(private val test: Instrumentation) {
                         .map { field(it).get(instance) as Runnable }
                     callbacks.forEach { handler.postDelayed(it, 60_000); check(handler.hasCallbacks(it)) }
                     instance.onDestroy()
-                    check(lookups == 2)
+                    check(lookups == 3)
                     check(callbacks.none(handler::hasCallbacks)) { "Notification failure interrupted callback cleanup" }
                     check(field("hub").get(instance) == null)
                     check(instance.machineControlSafetyMessage == controlBlock)
