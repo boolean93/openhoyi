@@ -711,3 +711,8 @@ be5e611/Mock37700455306已success，实际产物/private/tmp/hoyi-notification-c
 2026-10-08：00373e6/Mock37701896029已实际failure且产物读取，精确命中 en/240dp/浅色的“10 g/s scale flow rate / 50 g weight”重叠（ChartLegendChecks.kt:63）。64目标矩阵在首个失败停止，不宣称已验证全64；原图表方向stage实际PASS。该源native37701896008及升级37701896049 success且实际日志/产物读取：39823/32856/93、临时签包/12guard、同源码/schema Mock1→2 seed/verify及两mock flags均通过，不代替修复源。
 
 ShotChartView现按Paint.advance/ink宽度流式排布，完整长项按字符边界分段，行高包含实际ink与字体metrics；top至少原74dp，且在图例底部14dp之外。绘图区改变只分配显示空间，采样/数值范围/单位/时间方向/控制不变。ChartLegendChecks按颜色重组严格比对原五字符串，边界/覆盖条件保留；首轮审查发现标签-only可能漏图线，补实轴线>=48dp/五非空path/图例间距，第二轮无阻塞。完整219任务55秒通过、mobile两变体各182/0fail/0error/旧导出skip1；新断言testAPK/双Lint125任务17秒通过。证据chart-legend-layout-2026-10-08.json。Android绿色待本次修复源，font-scale/所有数值/空态/母语/真实设备均未覆盖，不能把离线编译当修复实际运行成功。
+
+
+2026-10-08：41851ea的Native37703092613和Mock升级37703092650已success且实际日志/产物读取：39823协议/32856通知/93会话，BUILD SUCCESSFUL 2m32s，临时release签包与12guard；seed/verify及两mock flags通过，declared source与提交一致但产物sourceCommitVerified仍false，不冒称二进制源码认证或Alpha历史升级。图例Mock37703092602仍运行中，保留pending，不重复启动。
+
+旧实采六次0x21写入进一步核对到源SHA、请求seq、operationId及成功回调：等级2两次、等级1一次、FF结束三次。三次FF有直接actionId关联shellBrewEncCancelRelase；三次等级写入无直接actionId，最近操作不是因果证明。新增evidence/legacy-encouragement-led-capture-2026-10-08.json和legacy-brew-preferences对应表。等级0/专属语义应答/物理灯效/结束恢复/断线睡眠普通照明交互未验证，原生仍不发送0x21。仅文档证据，无产品逻辑改动，无设备。

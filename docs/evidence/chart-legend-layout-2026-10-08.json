@@ -66,5 +66,30 @@
     "64 fixed value/display combinations are not all telemetry ranges or empty states",
     "Android fonts/text measurement do not prove native speaker quality",
     "Mock Canvas validation does not prove hardware execution or actual registered Service lifecycle"
-  ]
+  ],
+  "fixSourceCommit": "41851ea7ce000b733e90dcb31e08d392df5ba0b9",
+  "fixRegressions": {
+    "native": {
+      "run": 37703092613,
+      "actualLogRead": true,
+      "protocolChecks": 39823,
+      "notificationsReplayed": 32856,
+      "namedSessionChecks": 93,
+      "releaseGuardCases": 12,
+      "buildSeconds": 152,
+      "log": "/private/tmp/hoyi-chart-legends-native-37703092613.log"
+    },
+    "mockUpgrade": {
+      "run": 37703092650,
+      "actualArtifactsRead": true,
+      "seedPassed": true,
+      "verifyPassed": true,
+      "mockInstallationVerified": true,
+      "mockDataPreservationVerified": true,
+      "declaredSourceCommit": "41851ea7ce000b733e90dcb31e08d392df5ba0b9",
+      "sourceCommitVerified": false,
+      "scope": "same current source/schema Mock 1->2; not Alpha or historical schema migration",
+      "artifactDirectory": "/private/tmp/hoyi-chart-legends-upgrade-37703092650"
+    }
+  }
 }

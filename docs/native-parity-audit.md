@@ -23,7 +23,7 @@
 | 多语言 | 主要原生页面与服务反馈已资源化，启用语义/按钮样式与文字分开；已核对旧版八语言并新增稳定标识基础，见 `docs/plans/native-language-parity.md` | 七语言目录各890键，正式Android资源各889键已生成并打包；统一语言Context、独立偏好提交、主要持续提示身份和通知刷新接口已开发。设置页语言入口已开发，实际入口切换/还原/不变/失败及同服务已在云端Mock通过，共享导航800组合、八语言双主题五页在两种窗口/字体配置共160页及代表性详情/取消确认已通过Mock；母语质量、未覆盖动态状态/图轴、原始元数据与注册Service/BLE生命周期验收未完成，不宣称全应用多语言完成 |
 | 原生应用版本和更新 | MachineSettingsActivity读取BuildConfig的版本/版本号、模式和包名；APK元数据/资源核对通过 | 只读信息、实际APK身份/版本校验、外部release签名及版本递增预检已开发并通过临时密钥CI。Mock同源码1→2覆盖升级、偏好文件/Keystore/历史/采样/导入/恢复门禁已通过CI，最新37595770141已读取实际seed/verify/result，包含第13组去皮偏好及三类恢复marker；证据见 `evidence/stop-feedback-boundary-2026-10-07.json` 与原 `evidence/mock-upgrade-2026-10-03.json`；正式密钥、已装证书对照、Alpha数据延续及历史schema迁移未验收。厂商APK不能作为原生包更新 |
 | 深浅色与Mock | ThemedActivity、values-night、MockDeviceRuntime、Mock构建；云端Mock截图 | 已开发并有离线视觉证据；Mock不发送蓝牙，不能替代真实控制验收 |
-| 萃取提示与提示灯偏好 | 已追踪brewTips/brewTipsLed：鼓励音频播放/停止可自动发送0x21，见 `docs/legacy-brew-preferences.md` | 本地提示、默认关闭偏好、试听和同杯结束反馈已开发；Mock已验证设置持久化、解码/取消/串播、切页停播及重建不重播。后台/真机音频兼容性未验收；提示灯0x21缺真实执行/恢复证据，原生无发送入口 |
+| 萃取提示与提示灯偏好 | 已追踪brewTips/brewTipsLed：鼓励音频播放/停止可自动发送0x21，见 `docs/legacy-brew-preferences.md` | 本地提示、默认关闭偏好、试听和同杯结束反馈已开发；Mock已验证设置持久化、解码/取消/串播、切页停播及重建不重播。后台/真机音频兼容性未验收；提示灯0x21已有六次旧实采平台写入成功（等级1/2及显式结束），仍缺等级0、真实执行/恢复证据，原生无发送入口 |
 
 ## 当前完成判定（2026-10-07）
 

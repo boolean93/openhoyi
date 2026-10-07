@@ -1,0 +1,199 @@
+{
+  "scope": "Offline audit of existing modified legacy App capture; no JS runtime, BLE or hardware operation",
+  "date": "2026-10-08",
+  "sources": [
+    {
+      "file": "1789738671426-49383746-0.jsonl",
+      "sha256": "3681214585c406352a8160d0fea6ea05b5ef7be77f4a22b64d63013a54b22fde",
+      "records": 15657
+    },
+    {
+      "file": "1789783373182-0da5ffdc-0.jsonl",
+      "sha256": "36b6ba2bc017cc6cb42de1bcbc1de7ad6d79c12cb2d9bd4d89525d746e3af785",
+      "records": 17341
+    }
+  ],
+  "writes": [
+    {
+      "sourceFile": "1789738671426-49383746-0.jsonl",
+      "requestSeq": 4189,
+      "elapsedMs": 367416,
+      "operationId": 25,
+      "actionId": null,
+      "lastActionId": "a13",
+      "frameHex": "2102000200",
+      "firmware": "1.1.3",
+      "callbacks": [
+        {
+          "seq": 4190,
+          "stage": "success",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        },
+        {
+          "seq": 4191,
+          "stage": "complete",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        }
+      ],
+      "directUiActions": []
+    },
+    {
+      "sourceFile": "1789738671426-49383746-0.jsonl",
+      "requestSeq": 5833,
+      "elapsedMs": 520566,
+      "operationId": 26,
+      "actionId": "a16",
+      "lastActionId": "a16",
+      "frameHex": "210200FF00",
+      "firmware": "1.1.3",
+      "callbacks": [
+        {
+          "seq": 5836,
+          "stage": "success",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        },
+        {
+          "seq": 5837,
+          "stage": "complete",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        }
+      ],
+      "directUiActions": [
+        {
+          "seq": 5832,
+          "handler": "bound shellBrewEncCancelRelase",
+          "page": "anonymous"
+        }
+      ]
+    },
+    {
+      "sourceFile": "1789783373182-0da5ffdc-0.jsonl",
+      "requestSeq": 4915,
+      "elapsedMs": 438676,
+      "operationId": 23,
+      "actionId": null,
+      "lastActionId": "a13",
+      "frameHex": "2102000200",
+      "firmware": "1.1.3",
+      "callbacks": [
+        {
+          "seq": 4916,
+          "stage": "success",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        },
+        {
+          "seq": 4917,
+          "stage": "complete",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        }
+      ],
+      "directUiActions": []
+    },
+    {
+      "sourceFile": "1789783373182-0da5ffdc-0.jsonl",
+      "requestSeq": 5063,
+      "elapsedMs": 451673,
+      "operationId": 24,
+      "actionId": "a16",
+      "lastActionId": "a16",
+      "frameHex": "210200FF00",
+      "firmware": "1.1.3",
+      "callbacks": [
+        {
+          "seq": 5067,
+          "stage": "success",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        },
+        {
+          "seq": 5068,
+          "stage": "complete",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        }
+      ],
+      "directUiActions": [
+        {
+          "seq": 5062,
+          "handler": "bound shellBrewEncCancelRelase",
+          "page": "anonymous"
+        }
+      ]
+    },
+    {
+      "sourceFile": "1789783373182-0da5ffdc-0.jsonl",
+      "requestSeq": 12568,
+      "elapsedMs": 1752222,
+      "operationId": 38,
+      "actionId": null,
+      "lastActionId": "a43",
+      "frameHex": "2102000100",
+      "firmware": "1.1.3",
+      "callbacks": [
+        {
+          "seq": 12570,
+          "stage": "success",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        },
+        {
+          "seq": 12571,
+          "stage": "complete",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        }
+      ],
+      "directUiActions": []
+    },
+    {
+      "sourceFile": "1789783373182-0da5ffdc-0.jsonl",
+      "requestSeq": 13967,
+      "elapsedMs": 1879586,
+      "operationId": 39,
+      "actionId": "a46",
+      "lastActionId": "a46",
+      "frameHex": "210200FF00",
+      "firmware": "1.1.3",
+      "callbacks": [
+        {
+          "seq": 13970,
+          "stage": "success",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        },
+        {
+          "seq": 13971,
+          "stage": "complete",
+          "errMsg": "writeBLECharacteristicValue:ok"
+        }
+      ],
+      "directUiActions": [
+        {
+          "seq": 13966,
+          "handler": "bound shellBrewEncCancelRelase",
+          "page": "anonymous"
+        }
+      ]
+    }
+  ],
+  "frameCounts": {
+    "2102000200": 2,
+    "210200FF00": 3,
+    "2102000100": 1
+  },
+  "missingLevel0": true,
+  "transportSuccessCount": 6,
+  "semanticAcknowledgementVerified": false,
+  "physicalLightEffectVerified": false,
+  "restorationVerified": false,
+  "nativeWriteEnabled": false,
+  "limitations": [
+    "Transport API success is not firmware acceptance or physical effect.",
+    "Only explicit cancellation writes have a directly correlated UI action; lastActionId on automatic writes is context, not causation.",
+    "No captured level 0; no acceptance for automatic completion, disconnection, sleep or ordinary lighting interaction.",
+    "Existing recordings may omit buffered tails; do not infer absence of operations outside these recorded streams."
+  ],
+  "review": {
+    "independentReadOnly": true,
+    "sourceHashesAndSixWritesVerified": true,
+    "operationCallbacksVerified": true,
+    "directCancellationActionsVerified": true,
+    "blockingIssues": 0,
+    "hardwareVerified": false
+  }
+}
