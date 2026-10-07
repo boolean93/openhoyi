@@ -104,32 +104,9 @@ class MobileService : Service() {
         val machine:MachineWriteRecoveryState.Ownership?)
     private var appRecoveryOwner:AppRecoveryOwner?=null
     val manualShotActive: Boolean get() = passiveShot.active
-    private val shotRecovery by lazy {
-        val prefs = getSharedPreferences("shot_safety", MODE_PRIVATE)
-        ShotRecoveryState(object : ShotRecoveryState.Storage {
-            override fun read(): ShotRecoveryState.Record = ShotRecoveryState.Record(
-                prefs.getBoolean("unresolved_shot", false), prefs.getString("unresolved_shot_address", null))
-            override fun write(record: ShotRecoveryState.Record): Boolean =
-                prefs.edit().putBoolean("unresolved_shot", record.pending)
-                    .putString("unresolved_shot_address", record.address).commit()
-        })
-    }
+    private val shotRecovery by lazy { ShotRecoveryState(RecoveryPreferenceStorage.shot(this)) }
     private val restartShotWarning: String get() = getString(R.string.machine_recovery_shot_restart)
-    private val machineWriteRecovery by lazy {
-        val prefs = getSharedPreferences("machine_write_safety", MODE_PRIVATE)
-        MachineWriteRecoveryState(object : MachineWriteRecoveryState.Storage {
-            override fun read(): MachineWriteRecoveryState.Record {
-                val kind = prefs.getString("pending_kind", null)?.let { raw ->
-                    runCatching { MachineWriteRecoveryState.Kind.valueOf(raw) }
-                        .getOrDefault(MachineWriteRecoveryState.Kind.UNKNOWN)
-                }
-                return MachineWriteRecoveryState.Record(kind, prefs.getString("pending_address", null))
-            }
-            override fun write(record: MachineWriteRecoveryState.Record): Boolean =
-                prefs.edit().putString("pending_kind", record.kind?.name)
-                    .putString("pending_address", record.address).commit()
-        })
-    }
+    private val machineWriteRecovery by lazy { MachineWriteRecoveryState(RecoveryPreferenceStorage.machine(this)) }
     private val machineWriteSafetyResource: Int? get() = MachineRecoveryText.resource(
         machineWriteRecovery.kind, brewPreparation.state)
     val machineWriteSafetyMessage: String? get() = machineWriteSafetyResource?.let { getString(it) }

@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-07",
+  "scope": "complete shot/machine write record after failed clear commit and Service recreation",
+  "red": {
+    "log": "/private/tmp/hoyi-recovery-record-barrier-red.log",
+    "tests": 48,
+    "failures": 48,
+    "errors": 0
+  },
+  "authorizedCorruptClearRed": {
+    "log": "/private/tmp/hoyi-recovery-record-barrier-corrupt-red.log",
+    "tests": 48,
+    "failures": 6,
+    "errors": 0
+  },
+  "full": {
+    "log": "/private/tmp/hoyi-recovery-record-barrier-full-final.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 219,
+    "seconds": 71,
+    "sessionTests": 638,
+    "namedScenarios": 93,
+    "mobileTestsPerVariant": 178,
+    "conditionalRealExportSkippedPerVariant": 1
+  },
+  "finalFixture": {
+    "log": "/private/tmp/hoyi-recovery-record-barrier-fixture-final.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 125,
+    "seconds": 16
+  },
+  "expectedAndroid": {
+    "fixtures": 12,
+    "cacheCleared": 12,
+    "fullRecordsRetained": 12,
+    "blockedEntries": 72,
+    "successfulClears": 12,
+    "serviceRebuilt": true,
+    "falseAndThrowAfterActualCacheDiskMutation": true,
+    "scope": "actual detached Service recovery lazies and six entry gates without Hub, not physical dispatch"
+  },
+  "expectedUpgrade": {
+    "shotMarker": "pending_shot.json",
+    "machineMarker": "pending_machine_write.json",
+    "scope": "same source/schema Mock 1 to 2"
+  },
+  "review": "independent review no production blockers; entry assertion scope closed with actual six entry calls and re-reviewed",
+  "androidRuntime": "not yet verified",
+  "wire": "unchanged protocol commands, gate qualifications, in-memory owner rules and preferences schema",
+  "limitations": [
+    "synthetic commit result faults, no BLE/system/component calls",
+    "damaged marker restores UNKNOWN; no new machine UNKNOWN UI unlock was added",
+    "process recreation protection, no power loss/media corruption guarantee",
+    "old absent records do not establish old app completion",
+    "new Android and upgrade runtime still pending cloud"
+  ]
+}

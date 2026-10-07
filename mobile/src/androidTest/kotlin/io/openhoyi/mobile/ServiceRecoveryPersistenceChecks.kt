@@ -45,6 +45,7 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
             val folder = File(app.cacheDir, "service-recovery-persistence-$id")
             val journal = TraceStore(folder)
             val context = object : ContextWrapper(app) {
+                override fun getNoBackupFilesDir():File=File(folder,"no-backup")
                 override fun getApplicationContext(): Context = this
                 override fun getSystemService(name: String): Any? = error("No system service: $name")
                 override fun checkSelfPermission(permission: String): Int = error("No BLE permission access")

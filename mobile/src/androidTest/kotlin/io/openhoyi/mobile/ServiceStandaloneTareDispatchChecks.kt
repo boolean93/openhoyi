@@ -35,6 +35,7 @@ internal class ServiceStandaloneTareDispatchChecks(private val test:Instrumentat
             val prefs=mutableMapOf<String,Map<String,*>>()
             var systemCalls=0
             val context=object:ContextWrapper(app) {
+                override fun getNoBackupFilesDir():File=File(folder,"no-backup")
                 override fun getApplicationContext():Context=this
                 override fun getSystemService(name:String):Any? { systemCalls++;error("No system service") }
                 override fun checkSelfPermission(permission:String):Int { systemCalls++;error("No permission access") }

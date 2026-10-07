@@ -140,3 +140,6 @@ Host 调度 seam 默认执行同一 Handler 的 `600000ms` 延迟，便于隔离
 
 
 2026-10-07：去皮三条产品路径共享 `StandaloneTare.Storage`。begin获得token前同步保存未确认，失败不发送；新零回报同步清除成功后才CONFIRMED，未知重试的已知失败不能清旧记录。`TarePersistenceBarrier` 将record与独立文件marker分开：先建立并sync marker，再commit偏好，清除须commit与marker删除均成功；避免commit失败已改内存false导致重建放行。生产Mobile/Lab显式传入 `SharedPreferenceTareStorage`（scale_tare_safety/unresolved_tare + noBackupFilesDir/scale_tare_pending）；未注入的回放默认内存，不算产品持久化证明。恢复UNKNOWN只限制新杯，显式去皮可重试，紧急停止/预热取消不受新增门禁。进程恢复不等于物理归零，缺旧版本标记或存储损坏仍需人工确认。
+
+
+2026-10-07：萃取与机器写入的两个Service持久化适配器改为RecoveryPreferenceStorage，共享 `RecoveryPersistenceBarrier<Record>`。pending提交前保存完整设备地址/操作类型JSON marker并fd.sync；clear保留已有marker，旧偏好无marker先补原完整记录，偏好commit与文件删除都成功才清除。读取优先marker，失败缓存false/null不能让新Service误认无操作。JSON损坏由原State恢复UNKNOWN，未新增机器UNKNOWN解锁；仍有已知记录且通过既有资格的当前State可以清除，无需重新解析坏marker。私有文件为noBackupFilesDir/pending_shot.json与pending_machine_write.json，原偏好键/schema、owner校验及人工确认条件不变。所有脱离Service fixture使用独立noBackup目录。

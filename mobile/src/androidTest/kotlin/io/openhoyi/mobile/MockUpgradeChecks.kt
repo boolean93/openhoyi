@@ -64,8 +64,8 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
         check(CoffeeCredentialStore(app).save(address, "123456")) { "Fixture credential could not be stored" }
         check(prefs("coffee_credentials").all.values.none { it == "123456" }) { "Credential must be encrypted" }
         SharedPreferencesCoffeeFailureStore(app).write(address, 1)
-        check(prefs("shot_safety").edit().putBoolean("unresolved_shot", true).putString("unresolved_shot_address", address).commit())
-        check(prefs("machine_write_safety").edit().putString("pending_kind", "SETTING").putString("pending_address", address).commit())
+        check(RecoveryPreferenceStorage.shot(app).write(io.openhoyi.session.ShotRecoveryState.Record(true,address)))
+        check(RecoveryPreferenceStorage.machine(app).write(io.openhoyi.session.MachineWriteRecoveryState.Record(io.openhoyi.session.MachineWriteRecoveryState.Kind.SETTING,address)))
         val now = System.currentTimeMillis()
         val ids = listOf("upgrade-ended", "upgrade-active").iterator()
         val history = ShotHistory(object : ShotHistory.Storage {
@@ -144,6 +144,9 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
         }
         check(prefs("shot_safety").getBoolean("unresolved_shot", false))
         check(prefs("machine_write_safety").getString("pending_kind", null) == "SETTING")
+        check(File(app.noBackupFilesDir,"pending_shot.json").isFile && File(app.noBackupFilesDir,"pending_machine_write.json").isFile)
+        check(RecoveryPreferenceStorage.shot(app).read()==io.openhoyi.session.ShotRecoveryState.Record(true,address))
+        check(RecoveryPreferenceStorage.machine(app).read()==io.openhoyi.session.MachineWriteRecoveryState.Record(io.openhoyi.session.MachineWriteRecoveryState.Kind.SETTING,address))
         check(File(app.noBackupFilesDir,"scale_tare_pending").isFile)
         val tareStorage=io.openhoyi.bluetooth.SharedPreferenceTareStorage(app)
         check(tareStorage.read())

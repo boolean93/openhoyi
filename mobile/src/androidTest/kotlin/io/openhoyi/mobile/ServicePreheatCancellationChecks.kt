@@ -64,6 +64,7 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
             var permissionChecks = 0
             var componentCalls = 0
             val context = object : ContextWrapper(app) {
+                override fun getNoBackupFilesDir():File=File(folder,"no-backup")
                 override fun getApplicationContext(): Context = this
                 override fun getSystemService(name: String): Any? { systemLookups++; error("No system service: $name") }
                 override fun checkSelfPermission(permission: String): Int { permissionChecks++; error("No BLE permission access") }

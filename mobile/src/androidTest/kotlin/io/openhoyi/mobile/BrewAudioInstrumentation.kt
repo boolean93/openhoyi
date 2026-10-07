@@ -54,6 +54,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ServiceShutdownChecks(this).run()
                 ServiceRecoveryGateChecks(this).run()
                 ServiceRecoveryPersistenceChecks(this).run()
+                ServiceRecoveryCacheFailureChecks(this).run()
                 ServiceWriteRegistrationChecks(this).run()
                 ServiceTransportUnknownChecks(this).run()
                 ServiceWriteWatchdogChecks(this).run()
@@ -91,6 +92,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
                 report.putString("stream", "SERVICE_PREHEAT_TIMEOUT_OWNER_CHECKS_PASSED fixtures=6 fakeWrites=8 delayMs=600000 phases=2 allowedCancels=2 blockedCancels=4 reloadedRecords=6 actualScheduledCallback=true simulatedExpiry=true lateCallbackIgnored=true noBle=true detached=true\n" +
+                    "SERVICE_RECOVERY_CACHE_FAILURE_CHECKS_PASSED fixtures=12 cacheCleared=12 fullRecordsRetained=12 blockedEntries=72 serviceRebuilt=true successfulClears=12 throwsAndFalse=true noBle=true detached=true\n" +
                     "SERVICE_DURABLE_TARE_CHECKS_PASSED fixtures=4 fakeWrites=4 fakeBarriers=4 restoredUnknown=4 explicitRetryConfirmed=1 pendingRetained=3 lateCallbackIgnored=true noBle=true detached=true\n" +
                     "SERVICE_STANDALONE_TARE_DISPATCH_CHECKS_PASSED fixtures=10 fakeWrites=2 fakeBarriers=10 blocked=8 newDecodedZero=2 coffeeOfflineAllowed=true lateCallbackIgnored=true noBle=true detached=true\n" +
                     "SERVICE_QUEUED_PREHEAT_OWNER_CHECKS_PASSED fixtures=2 fakeWrites=0 fakeBarriers=2 sameAddressRearm=true curveChanged=true retainedPending=true noBle=true detached=true\n" +

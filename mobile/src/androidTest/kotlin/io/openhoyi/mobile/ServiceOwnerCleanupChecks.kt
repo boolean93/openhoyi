@@ -42,6 +42,7 @@ internal class ServiceOwnerCleanupChecks(private val test: Instrumentation) {
         val folder = File(app.cacheDir, "service-owner-failure-$id")
         val journal = TraceStore(folder)
         val context = object : ContextWrapper(app) {
+                override fun getNoBackupFilesDir():File=File(folder,"no-backup")
             override fun getApplicationContext(): Context = this
             override fun getSystemService(name: String): Any? {
                 if (name == NOTIFICATION_SERVICE) throw SecurityException("Intentional detached notification failure")

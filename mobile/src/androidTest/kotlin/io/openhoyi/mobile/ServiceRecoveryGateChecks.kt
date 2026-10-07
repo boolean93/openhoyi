@@ -45,6 +45,7 @@ internal class ServiceRecoveryGateChecks(private val test: Instrumentation) {
             val journal = TraceStore(folder)
             var shotPreferenceReads = 0
             val context = object : ContextWrapper(app) {
+                override fun getNoBackupFilesDir():File=File(folder,"no-backup")
                 override fun getApplicationContext(): Context = this
                 override fun getSystemService(name: String): Any? = error("No system services: $name")
                 override fun checkSelfPermission(permission: String): Int = error("No BLE permission access")

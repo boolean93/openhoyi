@@ -41,13 +41,38 @@
     "scope": "same source/schema Mock 1 to 2, not historical Alpha upgrade"
   },
   "review": "independent review found commit cache issue; durable marker/barrier fix re-reviewed with no blockers",
-  "androidRuntime": "not yet verified",
+  "androidRuntime": "verified in isolated cloud Mock",
   "wire": "no BOOKOO bytes, machine command or emergency-stop changes",
   "limitations": [
     "synthetic Session states, fake GATT and injected commit failure, not physical tare evidence",
     "durable storage used by production Mobile and Lab; default volatile replay is not persistence proof",
     "new record absence cannot prove an old version last tare completed",
-    "process restart protection does not guarantee power-loss/media-corruption recovery",
-    "persisted Android new-zero/retry/upgrade runtime still pending cloud"
-  ]
+    "process restart protection does not guarantee power-loss/media-corruption recovery"
+  ],
+  "sourceCommit": "76943b604b1a8f1c7481007dea12b33474e35a3f",
+  "cloudRuns": {
+    "native": 37591481773,
+    "mockLifecycle": 37591481806,
+    "mockUpgrade": 37591481803,
+    "mockUi": 37591481757
+  },
+  "cloudStatus": "Mock lifecycle and same-source upgrade completed; actual markers/result read",
+  "actualAndroid": {
+    "artifactDirectory": "/private/tmp/hoyi-durable-tare-mock-37591481806",
+    "fixtures": 4,
+    "fakeWrites": 4,
+    "fakeBarriers": 4,
+    "restoredUnknown": 4,
+    "explicitRetryConfirmed": 1,
+    "pendingRetained": 3,
+    "result": "Mock lifecycle checks passed"
+  },
+  "actualUpgrade": {
+    "artifactDirectory": "/private/tmp/hoyi-durable-tare-upgrade-37591481803",
+    "seedPassed": true,
+    "verifyPassed": true,
+    "mockInstallationVerified": true,
+    "mockDataPreservationVerified": true,
+    "scope": "same source/schema Mock 1 to 2 on qemu, not Alpha/historical schema migration"
+  }
 }
