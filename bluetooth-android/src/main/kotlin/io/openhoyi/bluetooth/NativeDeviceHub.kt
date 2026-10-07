@@ -14,14 +14,16 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     private val onCoffee:(HoyiMessage)->Unit={},private val onWeight:(BookooSample)->Unit={},
     private val diagnostic:(String)->Unit={},
     trace:(DeviceRole,WireTrace)->Unit={_,_->},
-    legacyVerifiedStartFrames:Set<String> = emptySet()) : AutoCloseable {
+    legacyVerifiedStartFrames:Set<String> = emptySet(),
+    tareStorage:StandaloneTare.Storage? = null) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var remembered=rememberedScaleAddress?.takeIf { android.bluetooth.BluetoothAdapter.checkBluetoothAddress(it) }
     private var candidate:String?=null
     private var automaticScaleAttempts=0
     private var closed=false
-    private val standaloneTare=StandaloneTare { SystemClock.elapsedRealtime() }
+    private val standaloneTare=if(tareStorage==null)StandaloneTare { SystemClock.elapsedRealtime() }
+        else StandaloneTare(tareStorage) { SystemClock.elapsedRealtime() }
     private var scaleSampleSerial=0L
     val scaleTareState get()=standaloneTare.state
     private val reconnect=ReconnectPolicy()

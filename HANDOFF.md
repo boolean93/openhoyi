@@ -642,3 +642,8 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 
 
 2026-10-07：独立去皮队列发送前保护已接入。旧路径只在按钮入口检查手动萃取，Hub 出队仅检查 App 萃取；现在同时核对原 Hub/READY 秤地址、当前 READY 与当前手动/App 萃取状态。纯判断14项先RED11失败再GREEN；完整219任务71秒通过，568会话单测、93回放场景、移动双变体各178项（条件真实导出各skip1）。实际Service10场景编译验证，2允许/8拒绝，咖啡机离线允许；独立审查发现fixture清理遗漏并修正，复审无阻塞。最终测试APK重编结果见 evidence/standalone-tare-dispatch-2026-10-07.json；实际Android运行待推送CI，不把编译当运行证明。不用真机、不改去皮报文/机器命令/紧急停止。
+
+
+2026-10-07：去皮未确认持久化已编码：三类产品去皮共享StandaloneTare.Storage，begin先同步标记、写失败无token，新零必须清除成功后CONFIRMED，重启UNKNOWN及未知重试失败保留；Mobile/Lab实际Hub注入适配器。独立审查发现commit=false已改缓存false可使新Hub误读IDLE，已用TarePersistenceBarrier+noBackupFilesDir/scale_tare_pending文件防护：marker先创建/fd.sync，再commit偏好，成功清除才删除marker；marker保留覆盖失败缓存及跨adapter/进程。14状态测试RED12失败、8屏障测试RED7失败，再最终219任务72s全GREEN：590会话单测/93回放场景、两移动变体各178（条件导出skip1）、39823协议/32856通知回放。实际Service原10fixture现注入隔离持久化，新增4恢复/显式retry场景含真实改偏好false后报告失败，marker保持UNKNOWN；升级seed/verify新增第13组偏好及marker，仍同源码/schemaMock1→2。最后复审无阻塞；实际新增Android/升级运行待推送CI，不能以编译代替。详情evidence/durable-tare-2026-10-07.json。预热超时eb8ca74/Mock37588669285六场景及独立去皮f8ed81c/Mock37589463050十场景均实际产物已读通过，见各自evidence。
+
+后续安全核对：同样的SharedPreferences失败缓存语义还应检查旧有shot_safety/machine_write_safety生产存储适配器；本轮只修去皮持久化，不宣称其它适配器已具备相同文件屏障。继续保留用户无真机的限制，旧导出/物理停止/参数回读/其它秤/高风险命令仍未完整验收。

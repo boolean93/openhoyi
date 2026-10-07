@@ -558,6 +558,7 @@ class MobileService : Service() {
             else startForeground(1, note)
             val prefs = getSharedPreferences("devices", MODE_PRIVATE)
             hub = NativeDeviceHub(applicationContext, prefs.getString("scale", null),
+                    tareStorage = io.openhoyi.bluetooth.SharedPreferenceTareStorage(applicationContext),
                 onScaleRemembered = { prefs.edit().putString("scale", it).apply() },
                 onState = ::onDeviceState,
                 onCoffee = ::onCoffeeFrame,

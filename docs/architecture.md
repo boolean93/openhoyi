@@ -137,3 +137,6 @@ Host 调度 seam 默认执行同一 Handler 的 `600000ms` 延迟，便于隔离
 
 
 2026-10-07：独立去皮的产品层授权由 `StandaloneTareDispatchPermit` 判断。Service 捕获原 Hub 与 READY 秤地址，Hub 将动态授权与既有 `DeviceConnectionGate` 一起传至真实秤队列，在出队前核对原 Hub/地址、秤 READY、无机器手动萃取及无 App 活动/未知萃取。不能用首次点击的结果替代发送前判断。兼容 Hub 旧入口保留原 gate；旧 Hub 完成回调不更新新 Hub 的去皮显示。咖啡机未连接时仍允许独立去皮；GATT success 后仍须新的解码零重量确认，失败不自动重发。
+
+
+2026-10-07：去皮三条产品路径共享 `StandaloneTare.Storage`。begin获得token前同步保存未确认，失败不发送；新零回报同步清除成功后才CONFIRMED，未知重试的已知失败不能清旧记录。`TarePersistenceBarrier` 将record与独立文件marker分开：先建立并sync marker，再commit偏好，清除须commit与marker删除均成功；避免commit失败已改内存false导致重建放行。生产Mobile/Lab显式传入 `SharedPreferenceTareStorage`（scale_tare_safety/unresolved_tare + noBackupFilesDir/scale_tare_pending）；未注入的回放默认内存，不算产品持久化证明。恢复UNKNOWN只限制新杯，显式去皮可重试，紧急停止/预热取消不受新增门禁。进程恢复不等于物理归零，缺旧版本标记或存储损坏仍需人工确认。

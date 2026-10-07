@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-07",
+  "scope": "pending tare across owner/process recreation, with commit-cache failure barrier",
+  "red": {
+    "log": "/private/tmp/hoyi-durable-tare-red.log",
+    "tests": 14,
+    "failures": 12,
+    "errors": 0
+  },
+  "barrierRed": {
+    "log": "/private/tmp/hoyi-tare-persistence-barrier-red.log",
+    "tests": 8,
+    "failures": 7,
+    "errors": 0
+  },
+  "full": {
+    "log": "/private/tmp/hoyi-durable-tare-barrier-full.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 219,
+    "seconds": 72,
+    "sessionTests": 590,
+    "namedSessionScenarios": 93,
+    "mobileTestsPerVariant": 178,
+    "conditionalRealExportSkippedPerVariant": 1,
+    "protocolChecks": 39823,
+    "capturedNotifications": 32856
+  },
+  "expectedAndroid": {
+    "restoredFixtures": 4,
+    "fakeWrites": 4,
+    "fakeBarriers": 4,
+    "restoredUnknown": 4,
+    "explicitRetryConfirmed": 1,
+    "pendingRetained": 3,
+    "cacheFalseFailure": "actual preferences cache/disk cleared, failure returned, marker remains and new adapter/tracker UNKNOWN",
+    "originalManualDispatchFixtures": 10
+  },
+  "expectedUpgrade": {
+    "preferences": 13,
+    "tarePendingMarker": true,
+    "scope": "same source/schema Mock 1 to 2, not historical Alpha upgrade"
+  },
+  "review": "independent review found commit cache issue; durable marker/barrier fix re-reviewed with no blockers",
+  "androidRuntime": "not yet verified",
+  "wire": "no BOOKOO bytes, machine command or emergency-stop changes",
+  "limitations": [
+    "synthetic Session states, fake GATT and injected commit failure, not physical tare evidence",
+    "durable storage used by production Mobile and Lab; default volatile replay is not persistence proof",
+    "new record absence cannot prove an old version last tare completed",
+    "process restart protection does not guarantee power-loss/media-corruption recovery",
+    "persisted Android new-zero/retry/upgrade runtime still pending cloud"
+  ]
+}

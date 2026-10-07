@@ -34,7 +34,7 @@
     "expiry": "simulated"
   },
   "review": "independent read-only review: no blockers",
-  "androidRuntime": "not yet verified",
+  "androidRuntime": "verified in isolated cloud Mock",
   "wire": "no bytes, emergency stop or storage schema change",
   "limitations": [
     "captured scheduler parameter and simulated expiry, not actual Android ten-minute timer",
@@ -48,5 +48,17 @@
     "mockUpgrade": 37588669415,
     "mockUi": 37588669359
   },
-  "cloudStatus": "in_progress; actual outputs/artifacts not yet verified"
+  "cloudStatus": "Mock completed and actual markers/result read; other jobs success status only",
+  "actualAndroid": {
+    "artifactDirectory": "/private/tmp/hoyi-preheat-timeout-owner-mock-37588669285",
+    "fixtures": 6,
+    "fakeWrites": 8,
+    "scheduledDelayMs": 600000,
+    "allowedCancels": 2,
+    "blockedCancels": 4,
+    "reloadedRecords": 6,
+    "actualScheduledCallback": true,
+    "simulatedExpiry": true,
+    "result": "Mock lifecycle checks passed"
+  }
 }

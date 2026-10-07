@@ -27,7 +27,7 @@
     "lateDiscoverAndTareCompletionIgnored": true
   },
   "review": "independent read-only review and cleanup correction re-review: no blockers",
-  "androidRuntime": "not yet verified",
+  "androidRuntime": "verified in isolated cloud Mock",
   "wire": "no BOOKOO bytes, machine writes, emergency stop or storage schema change",
   "limitations": [
     "synthetic states, guarded fake GATT, detached Service",
@@ -38,5 +38,23 @@
     "result": "BUILD SUCCESSFUL",
     "tasks": 125,
     "seconds": 17
+  },
+  "sourceCommit": "f8ed81c813c486700125df05768f49fef87252c2",
+  "cloudRuns": {
+    "native": 37589463053,
+    "mockLifecycle": 37589463050,
+    "mockUpgrade": 37589463045,
+    "mockUi": 37589463069
+  },
+  "cloudStatus": "Mock completed and actual markers/result read",
+  "actualAndroid": {
+    "artifactDirectory": "/private/tmp/hoyi-standalone-tare-dispatch-mock-37589463050",
+    "fixtures": 10,
+    "fakeWrites": 2,
+    "fakeBarriers": 10,
+    "blocked": 8,
+    "newDecodedZero": 2,
+    "result": "Mock lifecycle checks passed",
+    "scope": "source f8ed81c before durable tare change"
   }
 }

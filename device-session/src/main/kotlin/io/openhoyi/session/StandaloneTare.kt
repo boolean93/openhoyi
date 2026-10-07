@@ -3,9 +3,15 @@ package io.openhoyi.session
 import kotlin.math.abs
 
 /** Shared tare outcome; a GATT write is not evidence that the scale has zeroed. */
-class StandaloneTare(private val clock: () -> Long) {
+class StandaloneTare(private val storage:Storage=VolatileStorage(),private val clock: () -> Long) {
+    interface Storage { fun read():Boolean; fun write(pending:Boolean):Boolean }
+    private class VolatileStorage:Storage {
+        private var pending=false
+        override fun read()=pending
+        override fun write(pending:Boolean):Boolean { this.pending=pending;return true }
+    }
     enum class State { IDLE, WRITING, WAITING_ZERO, CONFIRMED, FAILED, UNKNOWN }
-    var state = State.IDLE
+    var state = if(runCatching(storage::read).getOrDefault(true))State.UNKNOWN else State.IDLE
         private set
     val unresolved: Boolean get() = state in setOf(State.WRITING, State.WAITING_ZERO, State.UNKNOWN)
     private var priorUnknown = false
@@ -17,6 +23,8 @@ class StandaloneTare(private val clock: () -> Long) {
         if (state == State.WRITING || state == State.WAITING_ZERO) return null
         deadline = null
         priorUnknown = state == State.UNKNOWN
+        // Persist before obtaining a token: no request may enter the queue without this record.
+        if(!persist(true)) { state=State.UNKNOWN;return null }
         state = State.WRITING
         return ++serial
     }
@@ -29,7 +37,7 @@ class StandaloneTare(private val clock: () -> Long) {
                 deadline = clock() + 5000L
                 State.WAITING_ZERO
             }
-            is OperationResult.Failed, is OperationResult.Cancelled -> if (priorUnknown) State.UNKNOWN else State.FAILED
+            is OperationResult.Failed, is OperationResult.Cancelled -> if (priorUnknown || !persist(false)) State.UNKNOWN else State.FAILED
             is OperationResult.Unknown -> State.UNKNOWN
         }
         return true
@@ -39,8 +47,10 @@ class StandaloneTare(private val clock: () -> Long) {
         tick()
         if (state != State.WAITING_ZERO || sampleSerial <= writtenAfterSample) return
         writtenAfterSample = sampleSerial
-        if (abs(hundredthsGram.toLong()) <= 50) state = State.CONFIRMED
+        if (abs(hundredthsGram.toLong()) <= 50) state = if(persist(false))State.CONFIRMED else State.UNKNOWN
     }
+
+    private fun persist(pending:Boolean)=runCatching { storage.write(pending) }.getOrDefault(false)
 
     fun tick() {
         if (state == State.WAITING_ZERO && deadline?.let { clock() >= it } == true) state = State.UNKNOWN

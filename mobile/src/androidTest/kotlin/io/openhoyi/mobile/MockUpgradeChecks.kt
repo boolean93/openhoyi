@@ -17,7 +17,7 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
     private val app get() = test.targetContext.applicationContext as MobileApplication
     private val address = "AA:BB:CC:DD:EE:01"
     private val preferenceNames = listOf("appearance", "app_language", "brew_feedback", "curves", "presets",
-        "devices", "coffee_credentials", "coffee_credential_failures", "shot_safety", "machine_write_safety", "shot_history", "safety")
+        "devices", "coffee_credentials", "coffee_credential_failures", "shot_safety", "machine_write_safety", "shot_history", "safety", "scale_tare_safety")
     private val manifest get() = File(app.filesDir, "upgrade-fixture.json")
     private fun prefs(name: String) = app.getSharedPreferences(name, Context.MODE_PRIVATE)
     private fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
@@ -59,6 +59,7 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
         check(prefs("curves").edit().putString("selected", "factory-v3-001").commit())
         check(prefs("presets").edit().putString("slot_1", "factory-v3-002").commit())
         check(prefs("devices").edit().putString("scale", "AA:BB:CC:DD:EE:02").commit())
+        check(io.openhoyi.bluetooth.SharedPreferenceTareStorage(app).write(true))
         check(prefs("safety").edit().putBoolean("asked_for_notifications", true).commit())
         check(CoffeeCredentialStore(app).save(address, "123456")) { "Fixture credential could not be stored" }
         check(prefs("coffee_credentials").all.values.none { it == "123456" }) { "Credential must be encrypted" }
@@ -86,7 +87,7 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
         manifest.writeText(JSONObject().put("schema", 1).put("uid", Process.myUid())
             .put("preferences", JSONObject(preferenceDigests())).put("files", JSONObject(fileDigests()))
             .put("historyShape", historyShape()).toString())
-        android.util.Log.i("OpenHoyiUpgrade", "SEED preferences=12 encryptedCredential=true filesPreservedFixture=true pendingSafety=true")
+        android.util.Log.i("OpenHoyiUpgrade", "SEED preferences=13 encryptedCredential=true filesPreservedFixture=true pendingSafety=true")
     }
     private fun verify() {
         check(manifest.isFile) { "Upgrade seed manifest is missing" }
@@ -143,6 +144,11 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
         }
         check(prefs("shot_safety").getBoolean("unresolved_shot", false))
         check(prefs("machine_write_safety").getString("pending_kind", null) == "SETTING")
+        check(File(app.noBackupFilesDir,"scale_tare_pending").isFile)
+        val tareStorage=io.openhoyi.bluetooth.SharedPreferenceTareStorage(app)
+        check(tareStorage.read())
+        check(io.openhoyi.session.StandaloneTare(tareStorage) { 0L }.state==io.openhoyi.session.StandaloneTare.State.UNKNOWN)
+        android.util.Log.i("OpenHoyiUpgrade", "TARE_RECOVERY preserved=true restoredUnknown=true noOwner=true")
         android.util.Log.i("OpenHoyiUpgrade", "VERIFY uid=true encryptedCredential=true history=true samplesV1V2=true importedFiles=true pendingControlBlocked=true noOwner=true")
     }
 }
