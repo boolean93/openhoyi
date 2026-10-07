@@ -1,0 +1,44 @@
+{
+  "date": "2026-10-07",
+  "scope": "original preheat owner at automatic timeout",
+  "red": {
+    "log": "/private/tmp/hoyi-preheat-timeout-owner-red-final.log",
+    "tests": 14,
+    "failures": 10
+  },
+  "full": {
+    "log": "/private/tmp/hoyi-preheat-timeout-owner-full.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 219,
+    "seconds": 64,
+    "sessionTests": 554,
+    "namedSessionScenarios": 93,
+    "mobileTestsPerVariant": 178,
+    "conditionalRealExportSkippedPerVariant": 1
+  },
+  "fixtureBuild": {
+    "log": "/private/tmp/hoyi-preheat-timeout-owner-fixture.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 125,
+    "seconds": 17
+  },
+  "expectedAndroid": {
+    "fixtures": 6,
+    "fakeWrites": 8,
+    "scheduledDelayMs": 600000,
+    "phases": 2,
+    "allowedCancels": 2,
+    "blockedCancels": 4,
+    "reloads": 6,
+    "actualScheduledCallback": true,
+    "expiry": "simulated"
+  },
+  "review": "independent read-only review: no blockers",
+  "androidRuntime": "not yet verified",
+  "wire": "no bytes, emergency stop or storage schema change",
+  "limitations": [
+    "captured scheduler parameter and simulated expiry, not actual Android ten-minute timer",
+    "synthetic READY/notifications and guarded fake GATT",
+    "no physical device or BLE actions"
+  ]
+}

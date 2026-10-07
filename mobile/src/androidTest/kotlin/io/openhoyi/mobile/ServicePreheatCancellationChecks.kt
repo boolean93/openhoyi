@@ -25,12 +25,13 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
     private fun recovery(service: MobileService) =
         ((field(service, "machineWriteRecovery\$delegate").get(service) as Lazy<*>).value as MachineWriteRecoveryState)
 
-    private enum class CheckMode { OUTCOMES, BLOCKED, QUEUED_MANUAL, QUEUED_OWNER, QUEUED_PREP }
+    private enum class CheckMode { OUTCOMES, BLOCKED, QUEUED_MANUAL, QUEUED_OWNER, QUEUED_PREP, TIMEOUT_OWNER }
     fun run() = runChecks(CheckMode.OUTCOMES)
     fun runBlocked() = runChecks(CheckMode.BLOCKED)
     fun runQueuedManual() = runChecks(CheckMode.QUEUED_MANUAL)
     fun runQueuedOwner() = runChecks(CheckMode.QUEUED_OWNER)
     fun runQueuedPrepare() = runChecks(CheckMode.QUEUED_PREP)
+    fun runTimeoutOwner() = runChecks(CheckMode.TIMEOUT_OWNER)
     private fun runChecks(checkMode:CheckMode) {
         val blockedOnly=checkMode==CheckMode.BLOCKED
         val app = test.targetContext.applicationContext as MobileApplication
@@ -53,7 +54,7 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
         var fakeWrites=0
         var blockedCancels=0
         var fakeBarriers=0
-        for (ready in listOf(false,true)) for (mode in if(checkMode==CheckMode.OUTCOMES)(0..4).toList() else listOf(0)) {
+        for (ready in listOf(false,true)) for (mode in if(checkMode==CheckMode.OUTCOMES)(0..4).toList() else if(checkMode==CheckMode.TIMEOUT_OWNER)(0..2).toList() else listOf(0)) {
             val kind=MachineWriteRecoveryState.Kind.BREW_WAIT
             val id = UUID.randomUUID().toString()
             val fixtures = names.associateWith { "service_preheat_cancel_${id}_$it" }
@@ -100,6 +101,11 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                             check(!field(instance, "running").getBoolean(instance))
                         }
                         val instance = attach()
+                        val scheduledPreheat=mutableListOf<Pair<Long,()->Unit>>()
+                        if(checkMode==CheckMode.TIMEOUT_OWNER) {
+                            val schedule:(Long,()->Unit)->Unit={ delay,action->scheduledPreheat+=delay to action }
+                            field(instance,"preheatTimeoutScheduler").set(instance,schedule)
+                        }
                         val readback = MobileService::class.java.getDeclaredMethod("onCoffeeFrame",HoyiMessage::class.java).apply { isAccessible=true }
                         val owner = NativeDeviceHub(context,onCoffee={ readback.invoke(instance,it) })
                         hub = owner
@@ -198,6 +204,34 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                         if(ready) {
                             notifyIdle(selected.temperatureC*100+settings.brewCompensationTenthsC*10)
                             check(preparation.state==BrewPreparation.State.READY)
+                        }
+                        if(checkMode==CheckMode.TIMEOUT_OWNER) {
+                            check(scheduledPreheat.size==1 && scheduledPreheat.single().first==BrewPreparationWatchdog.TIMEOUT_MS)
+                            check(preparation.state==if(ready)BrewPreparation.State.READY else BrewPreparation.State.WAITING_TEMP)
+                            notifyIdle(8000)
+                            if(mode==1) {
+                                val old=requireNotNull(recovery(instance).captureOwnership())
+                                check(recovery(instance).clear());check(recovery(instance).arm(kind,address))
+                                check(!recovery(instance).owns(old))
+                            }
+                            if(mode==2)field(instance,"hub").set(instance,null)
+                            val expiry=scheduledPreheat.single().second
+                            expiry()
+                            if(mode==0) {
+                                check(preparation.state==BrewPreparation.State.CANCELLING && calls.size==2)
+                                val c=calls.last();val op=c.third as GattOperation.Write
+                                check(op.endpoint==KnownGatt.coffeeWrite && op.withResponse && op.bytes.contentEquals(CoffeeCommands.brewWait(0).frame.toByteArray()))
+                                session.onComplete(c.first,c.second,OperationResult.Success())
+                                check(preparation.state==BrewPreparation.State.CANCEL_WRITTEN)
+                            }else check(preparation.state==BrewPreparation.State.UNKNOWN && calls.size==1)
+                            check(recovery(instance).pending && prefs.all==saved)
+                            val after=instance.snapshot;val count=calls.size
+                            expiry();session.onComplete(initial.first,initial.second,OperationResult.Success());session.tick()
+                            check(calls.size==count && instance.snapshot===after && scheduledPreheat.size==1 && prefs.all==saved)
+                            val reloaded=attach();check(recovery(reloaded).kind==kind && recovery(reloaded).address==address && recovery(reloaded).pending)
+                            check(systemLookups==0 && permissionChecks==0 && componentCalls==0 && scaleExecutions==0)
+                            fakeWrites+=calls.count { it.third is GattOperation.Write };checkedFixtures++
+                            return@runOnMainSync
                         }
                         val idleBefore=field(instance,"idleSampleSerial").getLong(instance)
                         if(blockedOnly) {
@@ -404,7 +438,8 @@ internal class ServicePreheatCancellationChecks(private val test: Instrumentatio
                 cleanupFailure?.let { throw it }
             }
         }
-        if(checkMode==CheckMode.QUEUED_PREP)check(checkedFixtures==2 && fakeWrites==0 && fakeBarriers==2 && blockedEntries==0)
+        if(checkMode==CheckMode.TIMEOUT_OWNER)check(checkedFixtures==6 && fakeWrites==8 && fakeBarriers==0 && blockedEntries==0)
+        else if(checkMode==CheckMode.QUEUED_PREP)check(checkedFixtures==2 && fakeWrites==0 && fakeBarriers==2 && blockedEntries==0)
         else if(checkMode in setOf(CheckMode.QUEUED_MANUAL,CheckMode.QUEUED_OWNER))check(checkedFixtures==2 && blockedEntries==24 && fakeWrites==2 && fakeBarriers==2 &&
             recoveredAcknowledgements==0 && retainedDisconnected==0)
         else if(blockedOnly)check(checkedFixtures==2 && blockedCancels==20 && fakeWrites==2 && blockedEntries==0 &&

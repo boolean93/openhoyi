@@ -33,7 +33,7 @@
       "readback"
     ]
   },
-  "androidExecution": "not yet verified",
+  "androidExecution": "verified actual Mock artifact37586526470: exact12case marker and result read",
   "wire": "no codec/stop changes; existing exact wire checks retained",
   "limitations": [
     "synthetic READY/readback and fake guarded GATT",
@@ -48,5 +48,6 @@
     "mockUpgrade": 37586526351,
     "mockUi": 37586526455
   },
-  "cloudStatus": "in_progress; actual outputs/artifacts not yet verified"
+  "cloudStatus": "Mock lifecycle actual verified; native/upgrade/UI success status only, outputs not yet inspected",
+  "verifiedMockArtifact": "/private/tmp/hoyi-ordinary-owner-mock-37586526470"
 }

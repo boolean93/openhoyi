@@ -54,5 +54,13 @@
     "tests": 20,
     "failures": 0,
     "errors": 0
-  }
+  },
+  "sourceCommit": "972079aa2a571a3dc68ec6d99d6f13fb577eafc9",
+  "cloudRuns": {
+    "native": 37587431584,
+    "mockLifecycle": 37587431628,
+    "mockUpgrade": 37587431596,
+    "mockUi": 37587431599
+  },
+  "cloudStatus": "in_progress; actual outputs/artifacts not yet verified"
 }

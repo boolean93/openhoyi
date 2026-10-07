@@ -128,3 +128,9 @@ Android `ServiceShotDispatchChecks.runCompletion` 新增 21 个实际 watchShot 
 ### 预热与取消的产品出队授权（2026-10-07）
 
 `BrewWriteDispatchPermit` 要求原 preparation token、原 machine Ownership、BREW_WAIT 类型/精确地址、同 Hub 和产品 READY，且无手动/应用萃取与未决 shot record。预热登记后捕获 owner，同时在出队时核验当前仍为原已验证曲线。取消在明确动作时捕获当前待恢复记录 owner，允许重启后的 UNKNOWN 恢复，不依赖所选曲线或温度就绪；既有 fresh-awake-idle cancel gate 和底层 Session 协议门禁继续执行。记录清除后同地址重建会撤销已经排队的两种请求。回调保持原 FAILED/UNKNOWN 与恢复记录保留，不重发命令。
+
+### 自动预热超时的原请求授权（2026-10-07）
+
+自动超时与用户显式取消分开授权：显式取消仍可捕获当前恢复记录，旧 timer 则必须先保有原登记 Ownership、原 Hub 与地址。`BrewPreparationWatchdog` guarded overload 在授权前后核验原 active token，处理授权重入和异常；拒绝只使原 active token 进入 UNKNOWN，不调用取消入口，不改动新记录或新 preparation。通过后仍走既有 gated cancellation。
+
+Host 调度 seam 默认执行同一 Handler 的 `600000ms` 延迟，便于隔离 instrumentation 捕获并执行实际注册闭包。TIMEOUT_OWNER 的 WAITING/READY × allow/rearm/missingHub 六例检验真实闭包和调度参数，模拟 expiry，不构成物理或 Android 真实等待十分钟的证明。

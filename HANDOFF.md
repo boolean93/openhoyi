@@ -631,3 +631,11 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 - 20 新 policy单测 RED13fail，完整219 tasks/74s通过，Session540/0fail/93named；mobile178each/0fail/conditionalrealexportskip1。随后仅测试改动补足恢复UNKNOWN后旧preparetoken拒绝的分支（原参数false分支无assert），最终目标单测日志以 `/private/tmp/hoyi-preheat-owner-final-unit.log` 为准。
 - 新 actual Service queued PREP两例(rearm/curvechanged)：0fakeWrites/2barriers，record retained；queued CANCEL两阶段(waiting/ready)rearm：2fakepreheatWrites/2barriers/无cancel报文/UNKNOWN/24blockedentries/2reloads。原outcome10与blocked/manual夹具保持，APK/lint12516s通过，独立静态审查无阻塞。
 - 新Android运行仍未验证；上一源56243bf的37586526470已确认进入 Verify lifecycle with targeted logs，仍运行。无ADB、安装、真机BLE操作。
+
+### 2026-10-07 preheat timeout ownership
+
+- 修复旧自动timeout借由显式取消入口捕获新记录owner的问题。timer绑定原 registration owner/Hub/address；guard前后都核验active preparation token，异常/拒绝不会调用cancel，仅原token UNKNOWN。显式手动恢复取消仍不要求curve/tempready。
+- 原600000ms Handler时序不变，private preheatTimeoutScheduler seam便于注入捕获真实闭包；handler生命周期清理路径不变。
+- 14新增单测最终RED10fails ->14pass；完整219 tasks/64s通过，Session554/0fail/93named；mobile178each/0fail/conditionalrealexportskip1。fixture APK/lint12517s通过、shellsyntax/diffcheck通过；独立静态审查无阻塞。
+- 新 TIMEOUT_OWNER actualService6fixtures：WAITING/READY×allow/rearm/missingHub，8fakeWrites、expected600000delay、2cancel允许/4阻止、6record reload，重复expiry/旧callback不改变state/record或重发。simulatedexpiry，不是Android实际计时600秒证据；云端执行未验证。
+- 上一预热source972079a Mock37587431628已确认仍在 Verify lifecycle with targeted logs，没有重启。后续核对新/旧两组实际marker及result，再继续审计余下功能与安全边界。无ADB、安装、真机动作。

@@ -210,6 +210,9 @@ class MobileService : Service() {
     val chartPoints: List<ShotPoint> get() = series.points
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
+    private val preheatTimeoutScheduler:(Long,()->Unit)->Unit={ delay,action->
+        handler.postDelayed({ action() },delay)
+    }
     private val writeWatchdog = MachineWriteWatchdog(
         { delay, callback -> handler.postDelayed({ callback() }, delay) },
         { MachineWriteWatchdog.Serials(settingsSampleSerial, cupSettingsSerial, cupIdleSerial,
@@ -1113,8 +1116,11 @@ class MobileService : Service() {
             when (outcome) {
                 MachineWriteResult.Outcome.WAITING -> {
                     event(ResourceMessage(R.string.service_shot_preheat_written), "brew_wait.written")
-                    handler.postDelayed({
-                        val expiry = BrewPreparationWatchdog.expire(brewPreparation,token,::cancelBrewPreparationMessage)
+                    preheatTimeoutScheduler(BrewPreparationWatchdog.TIMEOUT_MS) {
+                        val expiry = BrewPreparationWatchdog.expire(brewPreparation,token,{
+                            hub === current && machineWriteRecovery.owns(recoveryOwner) &&
+                                current.coffeeAddress?.equals(coffeeAddress,ignoreCase=true)==true
+                        },ResourceMessage(R.string.service_shot_cancel_original_device),::cancelBrewPreparationMessage)
                         when(expiry?.outcome) {
                             BrewPreparationWatchdog.Outcome.CANCEL_REQUESTED ->
                                 event(ResourceMessage(R.string.service_shot_preheat_timeout_cancel), "brew_wait.timeout_cancel_requested")
@@ -1124,7 +1130,7 @@ class MobileService : Service() {
                             }
                             null -> Unit
                         }
-                    }, BrewPreparationWatchdog.TIMEOUT_MS)
+                    }
                 }
                 MachineWriteResult.Outcome.FAILED -> event(ResourceMessage(R.string.service_shot_preheat_not_written), "brew_wait.failed")
                 MachineWriteResult.Outcome.UNKNOWN -> event(ResourceMessage(R.string.service_shot_preheat_unknown), "brew_wait.unknown")
