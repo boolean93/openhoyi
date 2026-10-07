@@ -233,6 +233,7 @@ class MobileService : Service() {
     private val appVisibility: AppVisibility get() = (application as MobileApplication).visibility
     private var hubForeground = false
     private var safetyMessage: String? = null
+    private var safetyNotificationDirty = false
     private var manualSafetyResource: Int? = null
     val manualSafetyMessage: String? get() = manualSafetyResource?.let { getString(it) }
     private var automaticScaleOnly = false
@@ -1389,17 +1390,24 @@ class MobileService : Service() {
             ShotSafetyAlert.resource(shotState, snapshot.coffeeState), manualSafetyResource,
             machineWriteSafetyResource)
         val warning = presentation.warning { id, args -> getString(id, *args) }
-        if (!displayOnly && warning == safetyMessage) return
-        safetyMessage = warning
-        if (!running) return
+        if (!displayOnly && !safetyNotificationDirty && warning == safetyMessage) return
+        if (!running) {
+            safetyMessage = warning
+            safetyNotificationDirty = false
+            return
+        }
+        // A partial update may have changed either platform notification, even if the warning
+        // later returns to the previous value. Do not deduplicate until both operations succeed.
+        safetyNotificationDirty = true
         val manager = try { getSystemService(NotificationManager::class.java) }
         catch (error: RuntimeException) {
             notificationFailure(displayOnly, R.string.notification_update_error, "shot.safety_notify_error", error)
             return
         }
-        runCatching { manager.notify(1, connectionNotification(warning)) }
+        val connectionDelivered = runCatching { manager.notify(1, connectionNotification(warning)) }
             .onFailure { notificationFailure(displayOnly, R.string.notification_update_error, "shot.safety_notify_error", it) }
-        if (warning == null) runCatching { manager.cancel(SAFETY_NOTIFICATION) }
+            .isSuccess
+        val safetyDelivered = if (warning == null) runCatching { manager.cancel(SAFETY_NOTIFICATION) }
             .onFailure { notificationFailure(displayOnly, R.string.notification_unavailable, "shot.safety_notify_error", it) }
         else runCatching {
             val destination = if (presentation.destination == SafetyNotificationPresentation.Destination.HOME)
@@ -1407,6 +1415,11 @@ class MobileService : Service() {
             manager.notify(SAFETY_NOTIFICATION,
                 notificationDisplay.safety(warning, destination, SAFETY_CHANNEL, displayOnly))
         }.onFailure { notificationFailure(displayOnly, R.string.notification_unavailable, "shot.safety_notify_error", it) }
+        // Keep the last fully delivered warning so an ordinary later refresh can retry failures.
+        if (connectionDelivered && safetyDelivered.isSuccess) {
+            safetyMessage = warning
+            safetyNotificationDirty = false
+        }
     }
     /** A display failure must not interrupt Handler and BLE owner cleanup. */
     private fun cancelSafetyNotification() {

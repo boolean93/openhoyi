@@ -184,14 +184,14 @@ grep -F 'SERVICE_RECOVERY_GATE_CHECKS_PASSED fixtures=18 entries=108 acknowledge
 grep -F 'SERVICE_SHUTDOWN_CHECKS_PASSED fixtures=4 allowed=1 blocked=3 pendingPreserved=true localManager=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'SERVICE_OWNER_CLEANUP_CHECKS_PASSED detached=true fakeTransports=true callbacksRemoved=true pendingPreserved=true noBle=true ownerThread=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'HUB_CLEANUP_CHECKS_PASSED fixtures=4 detached=true fakeTransports=true bothOwnersClosed=true tickersRemoved=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true preservedControl=true noOwner=true rendering=true errorReporting=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true preservedControl=true noOwner=true rendering=true errorReporting=true failedDeliveryRetried=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=8 stableKeys=true translatedUpdates=true removed=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 selections=5 fixedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true retryPublished=true partialRepairSynthetic=true' "$output_dir/language-instrumentation.txt" > /dev/null
 
 grep -F 'LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 selections=5' "$output_dir/language-instrumentation.txt" > /dev/null
 

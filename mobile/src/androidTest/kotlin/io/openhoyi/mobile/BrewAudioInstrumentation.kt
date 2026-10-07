@@ -120,14 +120,14 @@ class BrewAudioInstrumentation : Instrumentation() {
                     "SERVICE_SHUTDOWN_CHECKS_PASSED fixtures=4 allowed=1 blocked=3 pendingPreserved=true localManager=true noBle=true\n" +
                     "SERVICE_OWNER_CLEANUP_CHECKS_PASSED detached=true fakeTransports=true callbacksRemoved=true pendingPreserved=true noBle=true ownerThread=true\n" +
                     "HUB_CLEANUP_CHECKS_PASSED fixtures=4 detached=true fakeTransports=true bothOwnersClosed=true tickersRemoved=true noBle=true\n" +
-                    "NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true preservedControl=true noOwner=true rendering=true errorReporting=true\n" +
+                    "NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true preservedControl=true noOwner=true rendering=true errorReporting=true failedDeliveryRetried=true\n" +
                     "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
                     "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n" +
                     "LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true\n" +
                     "LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true\n" +
                     "LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 selections=5 fixedStop=true\n" +
                     "LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 selections=5\n" +
-                    "LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true\n" +
+                    "LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true retryPublished=true partialRepairSynthetic=true\n" +
                     "LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=8 stableKeys=true translatedUpdates=true removed=true\n")
                 finish(Activity.RESULT_OK, report)
                 return

@@ -157,7 +157,57 @@ internal class LanguageServiceNotificationChecks(private val test: Instrumentati
                 }
                 preserved.forEach { (name, values) -> check(context.getSharedPreferences(name, Context.MODE_PRIVATE).all == values) }
             }
+            // A transient lookup failure for a changed warning must preserve the last successful
+            // display, then a regular refresh must publish the new warning and resume deduplication.
+            var retryWarning = ""
             onMain {
+                val priorWarning = field("safetyMessage").get(subject)
+                retryWarning = subject.getString(R.string.service_event_shot_clear_failed)
+                check(retryWarning != priorWarning)
+                field("manualSafetyResource").set(subject, R.string.service_event_shot_clear_failed)
+                val before = displayContext.lookups
+                displayContext.failLookup = true
+                try { normalRefresh.invoke(subject, false) }
+                finally { displayContext.failLookup = false }
+                check(displayContext.lookups == before + 1)
+                check(field("safetyMessage").get(subject) == priorWarning) {
+                    "Failed delivery replaced the last successful warning"
+                }
+                // Simulate one platform operation having applied B while the other failed.
+                // This does not claim to inject an actual NotificationManager.notify failure.
+                val connection = MobileService::class.java.getDeclaredMethod("connectionNotification", String::class.java)
+                    .apply { isAccessible = true }.invoke(subject, retryWarning) as Notification
+                manager.notify(1, connection)
+                field("manualSafetyResource").set(subject, R.string.machine_recovery_shot_restart)
+                normalRefresh.invoke(subject, false)
+                check(displayContext.lookups == before + 2) { "Returning to the old warning suppressed repair of a partial update" }
+                check(!field("safetyNotificationDirty").getBoolean(subject))
+                check(subject.snapshot.copy(message = snapshot.message) == snapshot && field("hub").get(subject) == null)
+            }
+            val originalWarning = subject.getString(R.string.machine_recovery_shot_restart)
+            awaitState {
+                val active = notes()
+                active.size == 2 && active.all {
+                    it.notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString() == originalWarning
+                }
+            }
+            onMain {
+                val before = displayContext.lookups
+                field("manualSafetyResource").set(subject, R.string.service_event_shot_clear_failed)
+                normalRefresh.invoke(subject, false)
+                check(displayContext.lookups == before + 1) { "Changed warning was not retried" }
+            }
+            awaitState {
+                val active = notes()
+                active.size == 2 && active.all {
+                    it.notification.extras.getCharSequence(Notification.EXTRA_TEXT).toString() == retryWarning
+                }
+            }
+            onMain {
+                val before = displayContext.lookups
+                normalRefresh.invoke(subject, false)
+                check(displayContext.lookups == before) { "Successful retry did not restore deduplication" }
+                check(field("safetyMessage").get(subject) == retryWarning)
                 field("manualSafetyResource").set(subject, null)
                 subject.refreshNotificationDisplay()
             }

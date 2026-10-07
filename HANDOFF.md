@@ -683,3 +683,13 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 
 
 2026-10-08：发现通知去重缓存先于平台调用提交。新增NotificationFailureChecks断言：通知服务lookup失败后safetyMessage不得缓存，相同警告的下一次显式刷新必须再次lookup，同时保持无Hub/记录/控制字段/销毁清理。仅修改androidTest，生产源码未变；测试APK与Mock Lint成功（101tasks/26s）。本次预期RED尚未在Android执行，等待精确提交的云端Mock结果，不能把编译当复现。计划docs/superpowers/plans/2026-10-08-notification-delivery-cache.md；必须先读取真实失败位置，再改缓存提交时机。当前watchShot只在状态变化时刷新通知，不能误称每100ms定时重试。
+
+
+26975d6已推送，只含新通知缓存失败断言与计划/HANDOFF；生产代码未改。精确源码Mock37699413282和native37699413259已确认in_progress。既有gh watch句柄7230（日志/private/tmp/hoyi-notification-cache-red-watch.log）仍等待同一Mock；不要因观察超时重启。新Android断言预期失败，尚未取得实际失败结果，下一步先读取产物定位，再修。
+
+94b4ef2/Mock37698316074随后success，实际产物/private/tmp/hoyi-password-mock-37698316074已读：result通过，停止2/4/2、读取20/108/2/4及缓存屏障12/72 marker存在；旧通知故障测试通过不覆盖本轮新的缓存断言。三项精确源码回归已写入legacy-password-candidate证据JSON，等待后续修复一并提交，避免纯状态提交反复启动CI。
+
+
+2026-10-08：26975d6/Mock37699413282实际failure产物已读，准确命中NotificationFailureChecks.kt:70“Failed notification lookup must not mark the warning as delivered”，不是超时/编译/环境失败。MobileService运行中只在连接notify及安全notify/cancel均成功后缓存warning。首轮独立复审发现部分成功后恢复旧warning仍误去重，现用safetyNotificationDirty在平台lookup前失效缓存资格，两路成功才恢复；停止对象语义不变，不重试BLE。第二轮无阻塞，审查不执行测试。
+
+LanguageServiceNotificationChecks追加真实lookup失败、单条平台通知合成部分更新、恢复旧warning后两通知文字核对、再更新新warning/去重；明确synthetic partial publication不是实际notify/cancel故障注入。产品测试marker和shell匹配已同步。最终219tasks/58s完整本地回归、双APK/testAPK/双Lint通过；mobile两变体各182tests/0fail/0error/真实旧导出skip1，Android运行仍未验证。证据notification-delivery-cache-2026-10-08.json。此前94b4ef2三项实际云端回归JSON已一并补录；不把旧绿色任务当本次新缓存修复通过。

@@ -1,0 +1,50 @@
+{
+  "scope": "Notification display cache; no protocol, controls or recovery persistence changes",
+  "baselineCommit": "26975d6a896a38240a921043df6115894789aec1",
+  "cause": "Running Service caches safetyMessage before notification manager lookup and both platform delivery operations; identical warning can then be suppressed after failure",
+  "red": {
+    "run": 37699413282,
+    "status": "completed failure",
+    "test": "NotificationFailureChecks failed-delivery cache assertion",
+    "mockOnly": true,
+    "detachedService": true,
+    "noBleOwner": true,
+    "actualArtifactsRead": true,
+    "artifactDirectory": "/private/tmp/hoyi-notification-cache-red-37699413282",
+    "failure": "Failed notification lookup must not mark the warning as delivered",
+    "location": "NotificationFailureChecks.kt:70"
+  },
+  "additionalTest": "LanguageServiceNotificationChecks transient lookup failure -> actual notification publication -> restored deduplication; runtime pending",
+  "boundaries": [
+    "Detached Service does not verify registered Service lifecycle",
+    "Lookup failure does not cover all notify/cancel failures",
+    "Platform notification success does not prove human observation or hardware safety",
+    "Partial-update test writes a single real platform notification deliberately; it does not inject actual notify/cancel failure"
+  ],
+  "fix": {
+    "cacheCommittedOnlyAfterBothPlatformOperationsSucceed": true,
+    "dirtyBeforePlatformLookup": true,
+    "dirtyBlocksDedupEvenForPreviousWarning": true,
+    "stoppedObjectSemanticsPreserved": true,
+    "noImmediateRetryLoop": true
+  },
+  "localBuild": {
+    "log": "/private/tmp/hoyi-notification-cache-final-build.log",
+    "result": "BUILD SUCCESSFUL",
+    "seconds": 58,
+    "tasks": 219,
+    "debugAndMockTestsEach": 182,
+    "failures": 0,
+    "errors": 0,
+    "skippedEach": 1,
+    "skippedReason": "real legacy export not supplied",
+    "androidRuntime": "not yet verified"
+  },
+  "review": {
+    "rounds": 2,
+    "initialBlockingFinding": "partial publication -> return to cached old warning suppresses repair",
+    "resolution": "dirty validity flag and synthetic partial platform update test",
+    "finalResult": "no remaining blockers",
+    "testsRunByReviewer": false
+  }
+}
