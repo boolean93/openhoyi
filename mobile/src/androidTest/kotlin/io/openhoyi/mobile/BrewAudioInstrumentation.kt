@@ -88,6 +88,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 val home = stage("context") { LanguageContextChecks(this).run() }
                 stage("activeCup") { LanguageActiveCupChecks(this).run() }
                 stage("charts") { LanguageChartChecks(this).run() }
+                stage("chart-legends") { ChartLegendChecks(this).run() }
                 // Home remains the task root after Extraction finishes. NEW_TASK would reuse it,
                 // while startActivitySync waits indefinitely for a new onCreate callback.
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
