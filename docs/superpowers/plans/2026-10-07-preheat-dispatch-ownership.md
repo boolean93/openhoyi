@@ -1,0 +1,5 @@
+# Preheat and cancel dispatch ownership
+
+Capture original pending machine owner, Hub/address at prepareBrew registration and at explicit cancel request (including restart recovery). Recheck same Hub/address/product READY, unchanged pending BREW_WAIT owner, original preparation token, no manual/app shot or pending shot recovery. Preparing target also requires current selected validated profile; cancel target0 remains independent of selection and temperature readiness while keeping existing fresh-awake-idle cancellation gate and Session checks.
+
+Pure shared BrewWriteDispatchPermit with RED tests for both phases, positive restart recovery cancellation, same-address record rearm, foreign/missing ownership and changed caller context. Service callbacks keep existing UNKNOWN/record-retention behavior; no wire or stop changes. Independent review, full build; detached queued cancellation rearm fixture extends existing real Service test. Cloud runtime evidence required before claiming Android verification.

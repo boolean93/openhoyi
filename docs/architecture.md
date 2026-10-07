@@ -124,3 +124,7 @@ Android `ServiceShotDispatchChecks.runCompletion` 新增 21 个实际 watchShot 
 设置、杯数清零、立即睡眠、周睡眠计划注册成功后捕获原 machine Recovery Ownership。实际队列派发核验原 token，失败回调和立即 schedule 确认仅清理原 token。读回分别持有对应 tracker 的原 owner，`OrdinaryWriteReadback` / `CupResetReadback` 新增明确执行清理的 `clearRecord` 回调；Service 使用 owned clear，保留旧确认/未知/重协调语义与确认后失败反馈顺序。函数兼容入口仍保留原清理方式；产品控制路径必须使用 owned 入口。
 
 后续同 kind/同地址重新 arm 不再被旧 confirmed tracker 的重复读回清除。归属失败不访问存储，存储失败保留原归属并允许后续纯本地清理重试；不触发蓝牙重发。
+
+### 预热与取消的产品出队授权（2026-10-07）
+
+`BrewWriteDispatchPermit` 要求原 preparation token、原 machine Ownership、BREW_WAIT 类型/精确地址、同 Hub 和产品 READY，且无手动/应用萃取与未决 shot record。预热登记后捕获 owner，同时在出队时核验当前仍为原已验证曲线。取消在明确动作时捕获当前待恢复记录 owner，允许重启后的 UNKNOWN 恢复，不依赖所选曲线或温度就绪；既有 fresh-awake-idle cancel gate 和底层 Session 协议门禁继续执行。记录清除后同地址重建会撤销已经排队的两种请求。回调保持原 FAILED/UNKNOWN 与恢复记录保留，不重发命令。

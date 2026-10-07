@@ -1,0 +1,58 @@
+{
+  "date": "2026-10-07",
+  "scope": "prepare and explicit cancel queued product authorization",
+  "red": {
+    "log": "/private/tmp/hoyi-preheat-owner-red.log",
+    "tests": 20,
+    "failures": 13
+  },
+  "full": {
+    "log": "/private/tmp/hoyi-preheat-owner-full.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 219,
+    "seconds": 74,
+    "sessionTests": 540,
+    "namedScenarios": 93,
+    "mobileTestsPerVariant": 178,
+    "conditionalRealExportSkipPerVariant": 1
+  },
+  "fixtureBuild": {
+    "log": "/private/tmp/hoyi-preheat-owner-fixture.log",
+    "result": "BUILD SUCCESSFUL",
+    "tasks": 125,
+    "seconds": 16
+  },
+  "expectedAndroid": {
+    "prepare": {
+      "fixtures": 2,
+      "writes": 0,
+      "barriers": 2,
+      "injections": [
+        "same address record rearm",
+        "curve selection changed"
+      ]
+    },
+    "cancel": {
+      "phases": 2,
+      "fakePreheatWrites": 2,
+      "barriers": 2,
+      "blockedEntries": 24,
+      "reloads": 2,
+      "cancelWrites": 0,
+      "outcome": "UNKNOWN pending retained"
+    }
+  },
+  "review": "independent read-only review no blockers",
+  "androidRuntime": "not yet verified",
+  "wire": "no protocol bytes, emergency stop or storage schema changes",
+  "limitations": [
+    "synthetic READY/notifications and guarded fake GATT",
+    "no hardware or physical heating proof"
+  ],
+  "finalPolicyTests": {
+    "log": "/private/tmp/hoyi-preheat-owner-final-unit.log",
+    "tests": 20,
+    "failures": 0,
+    "errors": 0
+  }
+}

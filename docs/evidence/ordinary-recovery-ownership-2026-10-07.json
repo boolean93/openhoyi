@@ -40,5 +40,13 @@
     "no physical hardware or BLE actions",
     "compatible helper callers must opt into owned clear; production four paths connected"
   ],
-  "review": "independent read-only review: no blockers"
+  "review": "independent read-only review: no blockers",
+  "sourceCommit": "56243bf239d25fab4e135b339122ff59559a2acb",
+  "cloudRuns": {
+    "native": 37586526382,
+    "mockLifecycle": 37586526470,
+    "mockUpgrade": 37586526351,
+    "mockUi": 37586526455
+  },
+  "cloudStatus": "in_progress; actual outputs/artifacts not yet verified"
 }

@@ -11,6 +11,7 @@ import io.openhoyi.session.MachineWriteRegistration
 import io.openhoyi.session.MachineWriteAcknowledgement
 import io.openhoyi.session.MachineWriteRecoveryState
 
+import io.openhoyi.session.BrewWriteDispatchPermit
 import io.openhoyi.session.BrewPreparationWatchdog
 import io.openhoyi.session.BrewPreparation
 import io.openhoyi.session.PassiveShotDetector
@@ -1097,13 +1098,15 @@ class MobileService : Service() {
             MachineWriteRegistration.Result.RecordFailed -> return getString(R.string.service_shot_preheat_record_failed)
             is MachineWriteRegistration.Result.Registered -> registration.token
         }
+        val recoveryOwner=requireNotNull(machineWriteRecovery.captureOwnership())
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         refreshSafetyNotification()
         event(ResourceMessage(R.string.service_shot_preheat_queued, profile.temperatureC.toString()), "brew_wait.requested")
         current.setBrewWait(profile.temperatureC, {
-            brewPreparation.permitsWrite(token, profile.temperatureC) && !manualShotActive &&
-                machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
-                machineWriteRecovery.matchesDevice(current.coffeeAddress)
+            BrewWriteDispatchPermit.allows(token,brewPreparation,profile.temperatureC,
+                BrewWriteDispatchPermit.Context(machineWriteRecovery,recoveryOwner,coffeeAddress,current.coffeeAddress,
+                    hub === current,snapshot.coffeeState==DeviceState.READY,manualShotActive,shotRecovery.pending,
+                    ShotGate.active(current.extraction.state),selectedCurve(profileId,slot)==profile && library.validated(profile)))
         }) done@{ result ->
             val outcome = MachineWriteResult.apply(token, result, MachineWriteResult.Request.BrewWait(brewPreparation, idleSampleSerial))
             if (outcome == MachineWriteResult.Outcome.IGNORED) return@done
@@ -1155,13 +1158,16 @@ class MobileService : Service() {
         if (!brewPreparation.active && recovering) {
             if (!brewPreparation.restoreUnknown()) return ResourceMessage(R.string.service_shot_cancel_restore_failed)
         }
+        val coffeeAddress=current.coffeeAddress ?: return ResourceMessage(R.string.service_shot_cancel_original_device)
+        val recoveryOwner=machineWriteRecovery.captureOwnership() ?: return ResourceMessage(R.string.service_shot_cancel_none)
         val token = brewPreparation.beginCancel() ?: return ResourceMessage(R.string.service_shot_cancel_pending)
         recoveryAfterBrewWaitIdleSerial = idleSampleSerial
         event(ResourceMessage(R.string.service_shot_cancel_queued), "brew_wait.cancel_requested")
         current.setBrewWait(0, {
-            brewPreparation.permitsCancelWrite(token, manualShotActive) && brewWaitCancelBlockMessage == null &&
-                machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT &&
-                machineWriteRecovery.matchesDevice(current.coffeeAddress)
+            BrewWriteDispatchPermit.allows(token,brewPreparation,0,
+                BrewWriteDispatchPermit.Context(machineWriteRecovery,recoveryOwner,coffeeAddress,current.coffeeAddress,
+                    hub === current,snapshot.coffeeState==DeviceState.READY,manualShotActive,shotRecovery.pending,
+                    ShotGate.active(current.extraction.state),true)) && brewWaitCancelBlockMessage == null
         }) done@{ result ->
             if (!brewPreparation.cancelled(token, result)) return@done
             when (brewPreparation.state) {

@@ -624,3 +624,10 @@ BOOKOO 前台自动重连修复一个状态机缺口：连接尝试若以 `DISCO
 - 新 actual Service12cases：4kind×queued/failed/readback，预期9fakeWrites/12barriers/12retainedreloads，同kind/addressrearm；原39fixture保持。Android新12执行未验证。
 - 已实际读取1131c7d云端证据：native37553393769 protocol39823/notification32856/session93/releaseguard通过；Mock37553393818 marker39dispatch+21actualwatchShot与result通过；upgrade37553393761 seed/verify/result（samecurrent source/schema Mock1→2，不代表Alpha迁移）。路径见对应evidence。
 - 下一步：读取新12云端运行结果；审计 prepareBrew 与 cancelBrew 的原恢复归属是否也应捕获，并补实际排队 rearm 夹具。当前它们仍主要按BREW_WAIT kind/address与preparation serial判断，不要宣称所有控制入口已统一 token。
+
+### 2026-10-07 preheat/cancel ownership
+
+- 新 BrewWriteDispatchPermit pure policy 和 Service 两处接线：prepare 登记后捕获 owner，cancel 明确动作捕获当前待恢复 owner，出队复核原 Hub/地址/READY/record revision/preparation serial/shot与manual；prepare额外核对selected validated profile。cancel 仍不要求curve/temp ready，restart UNKNOWN可明确取消。
+- 20 新 policy单测 RED13fail，完整219 tasks/74s通过，Session540/0fail/93named；mobile178each/0fail/conditionalrealexportskip1。随后仅测试改动补足恢复UNKNOWN后旧preparetoken拒绝的分支（原参数false分支无assert），最终目标单测日志以 `/private/tmp/hoyi-preheat-owner-final-unit.log` 为准。
+- 新 actual Service queued PREP两例(rearm/curvechanged)：0fakeWrites/2barriers，record retained；queued CANCEL两阶段(waiting/ready)rearm：2fakepreheatWrites/2barriers/无cancel报文/UNKNOWN/24blockedentries/2reloads。原outcome10与blocked/manual夹具保持，APK/lint12516s通过，独立静态审查无阻塞。
+- 新Android运行仍未验证；上一源56243bf的37586526470已确认进入 Verify lifecycle with targeted logs，仍运行。无ADB、安装、真机BLE操作。

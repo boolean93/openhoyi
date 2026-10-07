@@ -66,6 +66,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                 ServicePreheatCancellationChecks(this).run()
                 ServicePreheatCancellationChecks(this).runBlocked()
                 ServicePreheatCancellationChecks(this).runQueuedManual()
+                ServicePreheatCancellationChecks(this).runQueuedOwner()
+                ServicePreheatCancellationChecks(this).runQueuedPrepare()
                 ServiceWriteReadbackChecks(this).run()
                 ServiceWriteReadbackChecks(this).runClearFailure(false)
                 ServiceWriteReadbackChecks(this).runClearFailure(true)
@@ -85,7 +87,9 @@ class BrewAudioInstrumentation : Instrumentation() {
                 stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
                 stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
                 stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
-                report.putString("stream", "SERVICE_ORDINARY_OWNER_CHECKS_PASSED fixtures=12 fakeWrites=9 fakeBarriers=12 retainedReloads=12 phases=queued,failed,readback sameAddressRearm=true lateSuccessIgnored=true noBle=true detached=true\n" +
+                report.putString("stream", "SERVICE_QUEUED_PREHEAT_OWNER_CHECKS_PASSED fixtures=2 fakeWrites=0 fakeBarriers=2 sameAddressRearm=true curveChanged=true retainedPending=true noBle=true detached=true\n" +
+                    "SERVICE_QUEUED_CANCEL_OWNER_CHECKS_PASSED phases=2 fakePreheatWrites=2 fakeBarriers=2 sameAddressRearm=true noCancelDispatch=true unknownRetained=true blockedEntries=24 reloadedRecords=2 lateSuccessIgnored=true noBle=true detached=true\n" +
+                    "SERVICE_ORDINARY_OWNER_CHECKS_PASSED fixtures=12 fakeWrites=9 fakeBarriers=12 retainedReloads=12 phases=queued,failed,readback sameAddressRearm=true lateSuccessIgnored=true noBle=true detached=true\n" +
                     "SERVICE_SHOT_COMPLETION_OWNER_CHECKS_PASSED fixtures=21 fakeWrites=35 fakeBarriers=21 clearedShots=9 retainedShots=12 clearedPreheat=3 retainedPreheat=3 reloadedRecords=21 actualTicker=true syntheticCompletion=true noBle=true detached=true\n" +
                     "SERVICE_SHOT_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=21 fakeBarriers=39 blocked=33 reloadedRecords=39 exactWire=true durableBeforeWrite=true lateSuccessIgnored=true syntheticReady=true noBle=true detached=true\n" +
                     "SERVICE_ORDINARY_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=12 fakeBarriers=39 firstFrameBlocks=28 partialUnknown=7 clearedReloads=28 retainedReloads=11 durableBeforeWrite=true lateSuccessIgnored=true noBle=true detached=true\n" +
