@@ -110,3 +110,10 @@
 - `38e5e82` 的 [advanced-pages 作业](https://github.com/boolean93/openhoyi/actions/runs/37893343542) 已成功。下载 artifact 后核对 compact/wideFont 输出，各为八语言、两主题、十四页、224 fixtures，保留状态与无 BLE 检查均通过；两组实际 PNG 各 56 张，总计 112 张。初步视觉检查中文选豆页确认选项换行完整，阿语深色宽窗口比较页显示 RTL 与可滚动内容；不是全部截图人工验收完成声明。
 - `business-flows.txt` 的实际结果为 `paths=17 inventoryEvents=3 newDrafts=3 language=zh-Hans theme=light sameService=true preservedMachinePrefs=true noBle=true`。覆盖上文列出的本地表单动作；不证明外部分享/SAF、真实电子秤、BLE 或咖啡机已验收。
 - 同一源码 verify、upgrade 与 branch-policy 成功；lifecycle/capture 的空闲超时仍未修复。诊断提交 `ba93758` 已推送，完整新一轮 CI 在运行。
+
+## 原生事件定位与展示整理
+
+- [ba93758 lifecycle 运行](https://github.com/boolean93/openhoyi/actions/runs/37894635098) 的诊断正常完成，正式导航仍失败。下载 `idle-accessibility.txt`：正常 2 秒有 16 个 `TYPE_WINDOW_CONTENT_CHANGED`/subtree 事件，两个圆点坐标各 8 次；TextWatcher 回调为零。暂停仅 Home 刷新后 2 秒事件为零，同一 service 保持 running 且 coffeeAt/weightAt 继续前进，finally 完整恢复且 errors=0。这定位了无条件重建连接状态圆点背景，而非相同按钮文字。
+- Home 圆点改为检查现有 GradientDrawable 颜色，颜色不变时不重建也不 setColor。保持 250ms 刷新、服务采样与设备门禁。正式检查仍需在新源码上证实通过，诊断实验不替代验收。
+- 人工查看中文浅色与阿语深色窄屏全部十四页，确认表单换行、RTL、独立单位阶段图和固定导航；长页截图处于检查器滚动位置，不把部分屏外内容冒称丢失。其它主题/宽窗口仍需继续视觉核对。
+- 库存/批次/选豆使用追加顺序中的本地化批次序号，流水与准备页不再展示内部事件 UUID；内部持久化 ID、幂等消耗、关联与全部原审计记录保持不变。缺失批次仍显示缺失提示，不补造批次。展示增量与随后圆点修正均已分别通过两 APK、AndroidTest 编译与 Lint；正式运行结果待新源码 CI。

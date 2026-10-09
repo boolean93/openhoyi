@@ -517,7 +517,7 @@ class HomeActivity : ThemedActivity() {
         val compactStatus = resources.configuration.screenWidthDp < 400
         coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else label(s.coffeeState))
             else getString(R.string.home_coffee_status, label(s.coffeeState), if (coffeeFresh) getString(R.string.home_live_suffix) else ""))
-        coffeeDot.background = dotShape(when (s.coffeeState) {
+        coffeeDot.showDot(when (s.coffeeState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
             else -> R.color.mobile_muted
@@ -541,7 +541,7 @@ class HomeActivity : ThemedActivity() {
             ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.weightHundredthsGram
         scale.show(if (compactStatus) getString(R.string.home_scale_compact, if (liveScale != null) getString(R.string.home_live) else label(s.scaleState))
             else getString(R.string.home_scale_status, label(s.scaleState), if (liveScale != null) getString(R.string.home_live_suffix) else ""))
-        scaleDot.background = dotShape(when (s.scaleState) {
+        scaleDot.showDot(when (s.scaleState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
             else -> R.color.mobile_muted
@@ -587,6 +587,13 @@ class HomeActivity : ThemedActivity() {
     private fun dotShape(color: Int) = GradientDrawable().apply {
         shape = GradientDrawable.OVAL
         setColor(getColor(color))
+    }
+    private fun View.showDot(colorResource: Int) {
+        val color = getColor(colorResource)
+        val dot = background as? GradientDrawable
+        // Replacing an unchanged background emits native accessibility subtree events.
+        if (dot == null) background = dotShape(colorResource)
+        else if (dot.color?.defaultColor != color) dot.setColor(color)
     }
     private fun statusDot(parent: LinearLayout): View = View(this).apply {
         background = dotShape(R.color.mobile_muted)
