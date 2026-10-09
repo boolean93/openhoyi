@@ -32,7 +32,9 @@ internal class CurveStageView(context: Context) : View(context) {
         }
         if (targets.isEmpty()) {
             if(compact) {
-                paint.style=Paint.Style.FILL;paint.textSize=dp(10f);paint.textAlign=Paint.Align.CENTER
+                paint.style=Paint.Style.FILL
+                paint.color=context.getColor(R.color.mobile_muted)
+                paint.textSize=dp(16f);paint.textAlign=Paint.Align.CENTER
                 canvas.drawText("—",width/2f,height/2f,paint)
             }
             return

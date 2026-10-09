@@ -263,3 +263,11 @@
 - 第二阶段本地绿：完整 device-session JUnit 659 项（0 fail/error/skip），93 场景；bluetooth classifier 2 项；Mobile Debug/Mock 各254项（0 fail/error，1既有skip），Mock AndroidTest APK成功，总命令65s。首次 offline aapt2 缺缓存按已有SDK35参数处理，编译发现父任务 ScaleEvidence 包名错误后修正再得到上述绿；未改构建门禁。独立静态审查当前接线未发现可执行P1/P2，审查不等于硬件证据。
 - 9ebe462 的 advanced run37987428120 终态 failure，而 lifecycle37987427651 success。下载产物显示真实系统选择器 `Downloads-root got 0`：旧等待条件匹配背景已有的Downloads面包屑/标题，抽屉根行尚未出现就执行点击。保留实际失败树，改等待与点击相同的 enabled root-row predicate（唯一匹配），并在根选择后确认 roots_list 不可见且 Downloads breadcrumb 已出现；不延长15秒、不重复点击、不用Mock、不降低7路径标准。修正后的仪器编译与新CI结果另记。
 - 系统目录等待修正后 Mock AndroidTest APK 编译成功（15s），独立审查未发现P1/P2或伪造通过风险；仍待新提交真实CI验证。
+
+## 原需求复核与视觉验收补充
+
+- 对 e14d320 独立只读需求审计确认主体软件已接线：协议抽象/专门秤页、实时分图与状态、预设阶段预览、长期六类复盘字段、永久使用排序、独立库存与幂等投粉扣减、只读曲线交换、设计研究及28页ImageGen。Felicita实验性只读实际接线不等于全功能/实机兼容；导入草稿不等于允许设备执行。备份、归档、两杯图叠加、自动计时和实时粉液比是研究建议，未自动升级为用户硬需求。
+- 实际查看 d390d58 capture 的竖屏运行 `portrait-extraction-running-phone-light.png`、横屏运行 `extraction-running-dark.png`、竖屏曲线 `portrait-curves-phone-light.png`、详情 `curve-detail-dark.png`，以及564d8ab的compact中文电子秤图：竖屏运行首屏可见四项读数、压力轴/单位、实时曲线与固定停止；低频准备项收起，状态保持。横屏分栏，杯中流速为估算且与压力分图。该视觉审查只支持对应旧源码的显示，不替代最新截图或硬件证据。
+- 发现曲线卡片未知压力模式空态沿用网格颜色，白底/暗底均过淡。仅将紧凑缩略图的“—”切到主题次要文字色并增大至16dp；未知流量不转成bar、不伪造目标曲线、不改执行资格。Mock APK编译15s通过；新运行截图待CI。
+- 原工作树 ImageGen manifest 再逐项核对 PNG签名、实际尺寸与generated状态，28/28存在且尺寸匹配。未移动/修改原工作树资产，也不把概念数据当实际遥测。
+- e14d320 的 advanced37989172627、verify37989172643、lifecycle37989172615、upgrade37989172693当前均真实in_progress；branch-policy37989172653 success。未将运行中记为通过，也未重启这些任务。
