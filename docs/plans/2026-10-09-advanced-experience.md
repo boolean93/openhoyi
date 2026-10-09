@@ -90,3 +90,11 @@
 - 新增独立 `advanced-pages` CI，覆盖十四个新增页面、八语言、两主题、compact/wideFont 两窗口矩阵（每 profile 224 fixtures、56 PNG）。只在隔离 Mock 中通过业务 API 初始化明确 fixture；只滚动查看，不点击保存、分享或设备控制；内存/盘文件/设备偏好不变与同一 service 保留必须通过。截图只覆盖中文/阿语两主题，须下载后人工视觉检查；表单提交及对话框仍需单独证据。
 - 新增窗口验收器与更新后的 detached shot fixture 编译通过 `:mobile:assembleMockAndroidTest`。synthetic service 现在显式有私有 history，适应启动前持久化历史的必要门禁；不将其当真实库存或硬件证据。Python scripts 33 项、脚本语法和 diff 检查通过。
 - 尚未合并、发版或操作真实设备。本节不构成全部 A1–A11 完成声明。
+
+## df376a2 运行结果与修正
+
+- 该源码的 verify 和 upgrade 已真实通过。lifecycle 日志明确为 `ERROR: could not get idle state.`，非文件写入权限问题。首页每 250ms 无条件重设按钮文字，即使内容没变也产生文本变化；改为现有 show 增量更新方法，萃取页同类按钮一起修正。实时采样、刷新间隔、设备门禁不变，不以暂停刷新绕过验收。
+- advanced-pages 真正运行到中文浅色 BeanPreparation 后失败：选项 `UI coffee · 剩余 250 g · ui-batch` 被 Android 默认 Spinner 单行省略。保留完整信息，新增可换行原生选项 adapter；相关选豆、复盘、比较、草稿阶段 Spinner 统一采用，不豁免 ellipsis 检查。
+- 核对四栏主导航发现库存主页面没有底栏，lifecycle 后续无法从库存选择冲煮。库存主页面补齐四栏，详情/表单仍保留返回导航；滚动区占用剩余空间，底栏固定。
+- 新增 AdvancedBusinessUiChecks：17 条本地真实控件动作路径，包括非法入库、入库保存、调整取消/确认、选粉不扣/确认幂等/重建/discard、复盘编辑、草稿保存/复制/粘贴导入/重复/冲突另存/非法拒绝。仅 Mock fixture，保留原未知记录及审计流水，不触发外部分享、SAF 或 BLE。此运行须在布局矩阵成功后才能执行，尚未宣称通过。
+- 本地 mobile 两套单测、两种 APK、AndroidTest 编译和 Lint 通过；补齐库存底栏后又验证两种 APK、AndroidTest 编译和 Lint。Python scripts 33 项通过。下一轮精确源码 CI 和截图/表单运行仍待核对。

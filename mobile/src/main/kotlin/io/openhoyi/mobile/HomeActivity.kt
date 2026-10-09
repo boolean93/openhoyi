@@ -453,7 +453,7 @@ class HomeActivity : ThemedActivity() {
             s.coffeeState, running)
         emergencyStop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         emergencyStop.isEnabled = stopAction.enabled
-        emergencyStop.text = if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource)
+        emergencyStop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
@@ -554,11 +554,11 @@ class HomeActivity : ThemedActivity() {
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         selection.show(selected?.let { getString(R.string.home_selected_curve, it.name, getString(if (!library.canStart(it)) R.string.home_curve_readonly else R.string.home_curve_startable)) } ?: getString(R.string.home_curve_missing))
-        brewButton.text = when {
+        brewButton.show(when {
             selected == null -> getString(R.string.home_curve_select)
             !library.canStart(selected) -> getString(R.string.home_curve_replace)
             else -> getString(R.string.home_curve_prepare)
-        }
+        })
         browseCurvesButton.visibility = if (selected == null) View.GONE else View.VISIBLE
         val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
         presetButtons.forEachIndexed { index, button ->

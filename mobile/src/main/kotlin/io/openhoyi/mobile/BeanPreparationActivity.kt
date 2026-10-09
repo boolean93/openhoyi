@@ -5,7 +5,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Spinner
@@ -132,7 +131,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         val form = HoyiUi.card(this, body)
         HoyiUi.label(this, form, getString(R.string.dose_batch), 15, muted = true)
         val selector = Spinner(this).apply {
-            adapter = ArrayAdapter(this@BeanPreparationActivity, android.R.layout.simple_spinner_dropdown_item, batches.map {
+            adapter = HoyiUi.spinnerAdapter(this@BeanPreparationActivity, batches.map {
                 getString(R.string.dose_batch_choice, it.batch.bean.name, BeanQuantity.formatGrams(it.balanceMg), it.batch.id)
             })
             minimumHeight = HoyiUi.dp(this@BeanPreparationActivity, 52)

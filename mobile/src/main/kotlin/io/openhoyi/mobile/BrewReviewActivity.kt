@@ -5,7 +5,6 @@ import android.text.InputFilter
 import android.text.InputType
 import android.view.View
 import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Spinner
@@ -34,7 +33,7 @@ class BrewReviewActivity : ThemedActivity() {
         selectedBeanId = if (savedInstanceState == null) entry.notes.beanId else savedInstanceState.getString("selectedBeanId")
         HoyiUi.label(this, card, getString(R.string.journal_bean), 15, muted = true)
         val select = Spinner(this).apply {
-            adapter = ArrayAdapter(this@BrewReviewActivity, android.R.layout.simple_spinner_dropdown_item,
+            adapter = HoyiUi.spinnerAdapter(this@BrewReviewActivity,
                 listOf(getString(R.string.journal_no_bean)) + beans.map { it.name })
             minimumHeight = HoyiUi.dp(this@BrewReviewActivity, 52)
             contentDescription = getString(R.string.journal_bean)

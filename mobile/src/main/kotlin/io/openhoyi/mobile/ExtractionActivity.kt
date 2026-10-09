@@ -420,8 +420,8 @@ class ExtractionActivity : ThemedActivity() {
             (preparation != BrewPreparation.State.IDLE ||
                 owner?.machineWriteRecoveryKind == MachineWriteRecoveryState.Kind.BREW_WAIT && preparation == BrewPreparation.State.IDLE) &&
             owner?.brewWaitCancelBlock == null
-        cancelPrepare.text = if (preparation == BrewPreparation.State.CANCEL_WRITTEN)
-            getString(R.string.extraction_cancel_prepare_again) else getString(R.string.extraction_cancel_prepare)
+        cancelPrepare.show(if (preparation == BrewPreparation.State.CANCEL_WRITTEN)
+            getString(R.string.extraction_cancel_prepare_again) else getString(R.string.extraction_cancel_prepare))
         start.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
             blocked == null && studioBlocked == null &&
             !settingBusy && !sleepBusy
@@ -429,7 +429,7 @@ class ExtractionActivity : ThemedActivity() {
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
-        stop.text = if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource)
+        stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun chooseReference() {

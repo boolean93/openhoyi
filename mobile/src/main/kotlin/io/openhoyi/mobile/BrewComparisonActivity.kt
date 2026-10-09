@@ -4,7 +4,6 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.LinearLayout
 import android.widget.Spinner
 
@@ -47,7 +46,7 @@ class BrewComparisonActivity : ThemedActivity() {
         fun selector(label: Int, selected: String?, changed: (String) -> Unit) {
             HoyiUi.label(this, selectors, getString(label), 15, muted = true)
             val view = Spinner(this).apply {
-                adapter = ArrayAdapter(this@BrewComparisonActivity, android.R.layout.simple_spinner_dropdown_item, entries.map {
+                adapter = HoyiUi.spinnerAdapter(this@BrewComparisonActivity, entries.map {
                     getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
                 })
                 contentDescription = getString(label)

@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/mock-ui-screenshots.yml'
       - 'scripts/capture_mock_ui.sh'
+      - 'scripts/mock_ui_tap.py'
       - 'mobile/src/main/**'
   workflow_dispatch:
 

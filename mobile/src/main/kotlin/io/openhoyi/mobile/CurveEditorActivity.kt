@@ -3,7 +3,6 @@ package io.openhoyi.mobile
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Spinner
@@ -38,7 +37,7 @@ class CurveEditorActivity : ThemedActivity() {
         val cup = field(card, "cup", R.string.profiles_cup, CurveDraftNumber.format(source.targetHundredthsGram, 2))
         HoyiUi.label(this, card, getString(R.string.profiles_stage_count), 15, muted = true)
         val selector = Spinner(this).apply {
-            adapter = ArrayAdapter(this@CurveEditorActivity, android.R.layout.simple_spinner_dropdown_item, (1..4).map(Int::toString))
+            adapter = HoyiUi.spinnerAdapter(this@CurveEditorActivity, (1..4).map(Int::toString))
             minimumHeight = HoyiUi.dp(this@CurveEditorActivity, 52)
             contentDescription = getString(R.string.profiles_stage_count)
             card.addView(this)

@@ -69,6 +69,25 @@ for path in paths:
 print(f'Advanced page screenshots validated: {len(paths)}')
 PY
 done
+adb shell am force-stop "$package"
+adb shell wm size 450x1000
+adb shell settings put system font_scale 1.0
+python3 - "$output_dir/business-flows.txt" <<'PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    try:
+        result=subprocess.run(['adb','shell','am','instrument','-w','-e','advancedFlows','true',
+            'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],stdout=capture,timeout=600)
+    except subprocess.TimeoutExpired:
+        raise SystemExit('Advanced Mock business paths timed out; partial output retained')
+if result.returncode:
+    raise SystemExit(result.returncode)
+expected='ADVANCED_BUSINESS_UI_CHECKS_PASSED paths=17 inventoryEvents=3 newDrafts=3 language=zh-Hans theme=light sameService=true preservedMachinePrefs=true noBle=true'
+if expected not in output.read_text():
+    raise SystemExit(f'Advanced Mock business paths did not confirm completion: {output}')
+PY
 collect
 adb shell am force-stop "$package"
 adb shell settings put system font_scale 1.0

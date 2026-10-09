@@ -17,7 +17,7 @@ class BeanInventoryActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState) }
     override fun onStart() { super.onStart(); render() }
     private fun render() {
-        val body = beanPage(getString(R.string.beans_title), getString(R.string.beans_subtitle))
+        val body = beanPage(getString(R.string.beans_title), getString(R.string.beans_subtitle), navigation = BeanInventoryActivity::class.java)
         val inventory = beanInventory(body) ?: return
         HoyiUi.button(this, body, getString(R.string.beans_add), primary = true) {
             startActivity(Intent(this, BeanEntryActivity::class.java))
@@ -42,7 +42,8 @@ class BeanInventoryActivity : ThemedActivity() {
 }
 
 /** Centered scrollable body accommodates tablets, font scaling and keyboard insets. */
-internal fun ThemedActivity.beanPage(title: String, subtitle: String? = null): LinearLayout {
+internal fun ThemedActivity.beanPage(title: String, subtitle: String? = null,
+    navigation: Class<out android.app.Activity>? = null): LinearLayout {
     val root = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setBackgroundColor(getColor(R.color.mobile_background))
@@ -58,7 +59,8 @@ internal fun ThemedActivity.beanPage(title: String, subtitle: String? = null): L
         }
     }
     val scroll = ScrollView(this).apply { isFillViewport = true }
-    root.addView(scroll, LinearLayout.LayoutParams(-1, -1))
+    root.addView(scroll, if (navigation == null) LinearLayout.LayoutParams(-1, -1)
+        else LinearLayout.LayoutParams(-1, 0, 1f))
     val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
     scroll.addView(container)
     val body = LinearLayout(this).apply {
@@ -66,7 +68,8 @@ internal fun ThemedActivity.beanPage(title: String, subtitle: String? = null): L
         setPadding(HoyiUi.dp(this@beanPage, 20), HoyiUi.dp(this@beanPage, 20), HoyiUi.dp(this@beanPage, 20), HoyiUi.dp(this@beanPage, 28))
     }
     container.addView(body, LinearLayout.LayoutParams(if (HoyiUi.wide(this)) HoyiUi.dp(this, 640) else -1, -2))
-    HoyiUi.header(this, body, title, subtitle, back = true)
+    HoyiUi.header(this, body, title, subtitle, back = navigation == null)
+    navigation?.let { HoyiUi.navigation(this, root, it) }
     setContentView(root)
     return body
 }

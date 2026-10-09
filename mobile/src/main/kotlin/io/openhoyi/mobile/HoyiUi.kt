@@ -9,13 +9,33 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
 /** Reusable native visual language. The views own no machine or BLE state. */
 internal object HoyiUi {
+    /** Names and batch descriptions must remain readable at phone widths and large fonts. */
+    fun spinnerAdapter(activity: Activity, labels: List<String>): ArrayAdapter<String> =
+        object : ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item, labels) {
+            private fun readable(view: View): View = view.apply {
+                if (this is TextView) {
+                    setSingleLine(false)
+                    ellipsize = null
+                    minHeight = dp(activity, 48)
+                    setTextColor(activity.getColor(R.color.mobile_text))
+                    setBackgroundColor(activity.getColor(R.color.mobile_surface))
+                    layoutParams = layoutParams?.apply { height = ViewGroup.LayoutParams.WRAP_CONTENT }
+                }
+            }
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+                readable(super.getView(position, convertView, parent))
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View =
+                readable(super.getDropDownView(position, convertView, parent))
+        }
     fun dp(activity: Activity, value: Int) = (activity.resources.displayMetrics.density * value).toInt()
     fun wide(activity: Activity): Boolean = activity.resources.configuration.screenWidthDp >= 700
     fun dark(activity: Activity) = activity.resources.configuration.uiMode and
