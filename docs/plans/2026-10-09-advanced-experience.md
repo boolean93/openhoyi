@@ -185,3 +185,9 @@
 - 首轮独立复审发现 UI 250ms 轮询会漏掉中间抖动，因此将窗口归属移至 MobileService：每个 onScaleObservation 回调都推进策略，页面只查询；断线/去皮重置服务窗口。新增短时抖动回归测试，俄语遗漏提示同步补齐，总共覆盖默认中文和7种其它语言。
 - 逐帧修正后独立复审无新 P1/P2。Debug/Mock JVM各254项、0失败、0错误、1项既有跳过，Debug/Mock APK构建通过。全量命令在本机缺失 lint-gradle:31.10.0 后失败，在线补依赖又遇 Google Maven TLS 握手中断；不能把这个命令记为全量通过。将未执行模块检查与测试APK单独完成，Lint仍要求最新CI真实通过，不改规则、不跳过门禁。
 - 补跑通过：Mock AndroidTest APK、protocol-core 39,823 checks、device-session 93 cases、bean-core persistence/idempotency/concurrency/adjustment/write-failure/corruption/overflow。这里只证明软件和回放，不证明真实秤稳定窗口或机器停水。新CI结果尚未产生，完成状态保持未证明。
+
+## 分享兼容回归（先验证缺陷）
+
+- Android官方分享规范要求EXTRA_TEXT纯文本使用text/plain；当前CurveShareActivity使用application/json，可能无法匹配纯文本接收应用。文件application/json仍正确。
+- 扩展现有平台请求拦截测试：文本精确JSON/MIME/无私密额外字段；文件精确URI、ClipData及chooser只读授权。两项均拦截ACTION_CHOOSER并返回取消，不打开外部接收方、不发送给任何人。原9条文档路径、7条picker合约保留，严格完成标记扩至11paths/2shareContracts，仍明确systemPicker=false、externalSend=false。
+- 新测试APK编译通过，未证明运行通过。先推回归在隔离Mock CI上取得真实失败证据，再修正文案分享MIME；本机无已启动模拟器，不安装用户设备。此提交有意保持产品现状，不宣称bugfix完成，不关闭PR门禁。

@@ -41,7 +41,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
             if (documentContracts) {
                 val result = CurveDocumentContractChecks(this).run()
-                report.putString("stream", "CURVE_DOCUMENT_CONTRACT_CHECKS_PASSED paths=${result.paths.size} pickerContracts=${result.pickerContracts} fileFixtures=${result.fileFixtures} newDrafts=${result.newDrafts} realResolver=true signaturePermission=true systemPicker=false noBle=true\n")
+                report.putString("stream", "CURVE_DOCUMENT_CONTRACT_CHECKS_PASSED paths=${result.paths.size} pickerContracts=${result.pickerContracts} shareContracts=${result.shareContracts} fileFixtures=${result.fileFixtures} newDrafts=${result.newDrafts} realResolver=true signaturePermission=true systemPicker=false externalSend=false noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }

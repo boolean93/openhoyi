@@ -102,7 +102,7 @@ with output.open('w') as capture:
         raise SystemExit('Curve document contracts timed out; partial output retained')
 if result.returncode:
     raise SystemExit(result.returncode)
-expected='CURVE_DOCUMENT_CONTRACT_CHECKS_PASSED paths=9 pickerContracts=7 fileFixtures=4 newDrafts=1 realResolver=true signaturePermission=true systemPicker=false noBle=true'
+expected='CURVE_DOCUMENT_CONTRACT_CHECKS_PASSED paths=11 pickerContracts=7 shareContracts=2 fileFixtures=4 newDrafts=1 realResolver=true signaturePermission=true systemPicker=false externalSend=false noBle=true'
 if expected not in output.read_text():
     raise SystemExit(f'Curve document contracts did not confirm completion: {output}')
 PY

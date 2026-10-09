@@ -18,7 +18,7 @@ import java.util.UUID
 
 /** Controlled provider + platform ActivityResult contract, not a real DocumentsUI/hardware test. */
 internal class CurveDocumentContractChecks(private val test: Instrumentation) {
-    data class Result(val paths: List<String>, val pickerContracts: Int, val fileFixtures: Int, val newDrafts: Int)
+    data class Result(val paths: List<String>, val pickerContracts: Int, val shareContracts: Int, val fileFixtures: Int, val newDrafts: Int)
     private val context get() = test.targetContext
     private val opened = mutableListOf<Activity>()
     private fun onMain(action: () -> Unit) {
@@ -98,6 +98,7 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
         var registered = false
         val paths = mutableListOf<String>()
         var pickerContracts = 0
+        var shareContracts = 0
         var ownDraftId: String? = null
         var failure: Throwable? = null
         val baseUri = Uri.parse("content://${CurveFixtureProvider.AUTHORITY}")
@@ -146,6 +147,51 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
                 pickerContracts++
             } finally { test.removeMonitor(monitor) }
         }
+        // Intercept the chooser before any external app or person receives this fixture.
+        fun shareContract(activity: Activity, label: Int, expectedJson: String, uri: Uri? = null) {
+            var observed: Intent? = null
+            var intercepted = 0
+            val monitor = object : Instrumentation.ActivityMonitor() {
+                override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
+                    if (intent.action != Intent.ACTION_CHOOSER) return null
+                    observed = Intent(intent); intercepted++
+                    return Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null)
+                }
+            }
+            test.addMonitor(monitor)
+            try {
+                click(activity, label)
+                onMain {
+                    val chooser = requireNotNull(observed) { "Share chooser was not dispatched" }
+                    check(intercepted == 1 && chooser.action == Intent.ACTION_CHOOSER)
+                    @Suppress("DEPRECATION")
+                    val intent = requireNotNull(chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT))
+                    check(intent.action == Intent.ACTION_SEND && intent.component == null && intent.`package` == null && intent.data == null)
+                    if (uri == null) {
+                        check(intent.type == "text/plain") { "Text sharing must match plain-text receivers, got ${intent.type}" }
+                        check(intent.getStringExtra(Intent.EXTRA_TEXT) == expectedJson)
+                        check(intent.extras?.keySet() == setOf(Intent.EXTRA_TEXT))
+                        check(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION == 0)
+                        intent.clipData?.let { clip ->
+                            check(clip.itemCount == 1 && clip.getItemAt(0).uri == null && clip.getItemAt(0).text?.toString() == expectedJson)
+                        }
+                    } else {
+                        check(intent.type == "application/json")
+                        @Suppress("DEPRECATION")
+                        check(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) == uri)
+                        check(intent.extras?.keySet() == setOf(Intent.EXTRA_STREAM))
+                        check(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+                        check(intent.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION == 0)
+                        check(intent.clipData?.itemCount == 1 && intent.clipData?.getItemAt(0)?.uri == uri)
+                        check(chooser.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0 &&
+                            chooser.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION == 0)
+                        check(chooser.clipData?.itemCount == 1 && chooser.clipData?.getItemAt(0)?.uri == uri)
+                        check(CustomCurveDocument.decode(expectedJson).encode() == expectedJson)
+                    }
+                }
+                shareContracts++
+            } finally { test.removeMonitor(monitor) }
+        }
         try {
             val share = start(CurveShareActivity::class.java) { it.putExtra(CurveShareActivity.CURVE_ID, source.id) }
             var document: CustomCurveDocument? = null
@@ -156,6 +202,8 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
             val expected = requireNotNull(document)
             check(custom.find(expected.id) == null)
             val expectedJson = expected.encode()
+            shareContract(share, R.string.profiles_share_text, expectedJson)
+            record("share-text-exact-parameters-plain-text-no-send")
             call("create", Bundle().apply { putString("document", expectedJson) }); registered = true
             val output = CurveFixtureProvider.uri(session, "output.json")
             picker(share, Intent.ACTION_CREATE_DOCUMENT, Activity.RESULT_CANCELED, null, "openhoyi-${expected.id}.json")
@@ -175,7 +223,9 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
                 check(rootJson.getJSONArray("stages").getJSONObject(index).keys().asSequence().toSet() == setOf("target", "waterTenthsMl"))
             }
             check(stats().getInt("write:output.json") == 1 && custom.list() == drafts)
-            record("create-export-exact-utf8-parameters-only-share-enabled"); close(share)
+            record("create-export-exact-utf8-parameters-only-share-enabled")
+            shareContract(share, R.string.profiles_share_file, expectedJson, output)
+            record("share-file-exact-uri-read-only-grant-no-send"); close(share)
             var input = start(CurveImportActivity::class.java)
             val beforeCancel = bytes("custom_curves_v1.json")
             picker(input, Intent.ACTION_OPEN_DOCUMENT, Activity.RESULT_CANCELED, null)
@@ -236,7 +286,7 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
             val finalStats = stats()
             check(finalStats.getInt("write:output.json") == 1 && finalStats.getInt("read:output.json") == 1 &&
                 finalStats.getInt("read:valid.json") == 2 && finalStats.getInt("read:malformed.json") == 1 && finalStats.getInt("read:oversize.json") == 1)
-            check(paths.size == 9 && pickerContracts == 7 && ownDraftId != null)
+            check(paths.size == 11 && pickerContracts == 7 && shareContracts == 2 && ownDraftId != null)
             invariants()
         } catch (error: Throwable) { failure = error }
         finally {
@@ -246,6 +296,6 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
             cleanup { awaitMain { home.hasWindowFocus() && owner(home) === service }; invariants() }
         }
         failure?.let { throw it }
-        return Result(paths.toList(), pickerContracts, 4, if (ownDraftId == null) 0 else 1)
+        return Result(paths.toList(), pickerContracts, shareContracts, 4, if (ownDraftId == null) 0 else 1)
     }
 }
