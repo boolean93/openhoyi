@@ -26,7 +26,7 @@
     <string name="profiles_edit_copy">Сохранить параметры как новый черновик</string>
     <string name="profiles_share">Поделиться параметрами</string>
     <string name="profiles_share_title">Поделиться параметрами профиля</string>
-    <string name="profiles_copy">Скопировать JSON параметров</string>
+    <string name="profiles_copy">Скопировать параметры кривой</string>
     <string name="profiles_copied">Параметры скопированы</string>
     <string name="profiles_share_text">Поделиться текстом параметров</string>
     <string name="profiles_export_file">Экспортировать файл параметров</string>

@@ -26,7 +26,7 @@
     <string name="profiles_edit_copy">매개변수를 새 초안으로 저장</string>
     <string name="profiles_share">매개변수 공유</string>
     <string name="profiles_share_title">프로파일 매개변수 공유</string>
-    <string name="profiles_copy">매개변수 JSON 복사</string>
+    <string name="profiles_copy">곡선 매개변수 복사</string>
     <string name="profiles_copied">매개변수를 복사했습니다</string>
     <string name="profiles_share_text">매개변수 텍스트 공유</string>
     <string name="profiles_export_file">매개변수 파일 내보내기</string>

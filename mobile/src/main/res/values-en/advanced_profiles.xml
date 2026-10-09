@@ -26,7 +26,7 @@
     <string name="profiles_edit_copy">Save parameters as a new draft</string>
     <string name="profiles_share">Share parameters</string>
     <string name="profiles_share_title">Share profile parameters</string>
-    <string name="profiles_copy">Copy parameter JSON</string>
+    <string name="profiles_copy">Copy curve parameters</string>
     <string name="profiles_copied">Parameters copied</string>
     <string name="profiles_share_text">Share parameter text</string>
     <string name="profiles_export_file">Export parameter file</string>

@@ -26,7 +26,7 @@
     <string name="scale_timer_format">%1$02d:%2$02d.%3$d</string>
     <string name="scale_connect">電子秤に接続</string>
     <string name="scale_settings">秤ツールの設定</string>
-    <string name="scale_connection_subtitle">既存のBluetoothセッションを使用します。名前は候補を探す手がかりにすぎません。</string>
+    <string name="scale_connection_subtitle">近くの秤を検索して選択</string>
     <string name="scale_scan">秤の候補を検索</string>
     <string name="scale_scanning">検索中…</string>
     <string name="scale_scan_empty">候補がありません。秤を検出可能にして検索してください。</string>

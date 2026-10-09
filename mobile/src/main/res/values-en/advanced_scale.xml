@@ -26,7 +26,7 @@
     <string name="scale_timer_format">%1$02d:%2$02d.%3$d</string>
     <string name="scale_connect">Connect scale</string>
     <string name="scale_settings">Scale tool settings</string>
-    <string name="scale_connection_subtitle">Reuses the existing Bluetooth session; names only suggest possible devices</string>
+    <string name="scale_connection_subtitle">Scan and choose a nearby scale</string>
     <string name="scale_scan">Scan for scale candidates</string>
     <string name="scale_scanning">Scanning…</string>
     <string name="scale_scan_empty">No scale candidates yet. Make the scale discoverable, then scan.</string>

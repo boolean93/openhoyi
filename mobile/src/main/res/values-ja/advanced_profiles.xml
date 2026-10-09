@@ -26,7 +26,7 @@
     <string name="profiles_edit_copy">パラメータを別の下書きとして保存</string>
     <string name="profiles_share">パラメータを共有</string>
     <string name="profiles_share_title">プロファイルのパラメータを共有</string>
-    <string name="profiles_copy">パラメータJSONをコピー</string>
+    <string name="profiles_copy">曲線パラメータをコピー</string>
     <string name="profiles_copied">パラメータをコピーしました</string>
     <string name="profiles_share_text">パラメータのテキストを共有</string>
     <string name="profiles_export_file">パラメータファイルをエクスポート</string>

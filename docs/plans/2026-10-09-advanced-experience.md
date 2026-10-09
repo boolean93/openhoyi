@@ -279,3 +279,10 @@
 - 脚本验收加强为基础和精确高级marker同时存在，不能用旧绿色基础marker替代新数据验证。实际Python红为4个assertRaises断言不抛（seed/verify缺高级marker或stores=4仍通过），实现后4tests全部green。高级夹具仪器APK编译16s成功；独立只读审查无P1/P2。新增真实升级结果待新CI。
 - 生命周期37989665035已终态failure。实际下载 `/tmp/openhoyi-lifecycle-5267a90`：ServiceStandaloneTareDispatchChecks:89在RESTORED_ALLOW将DynamicScaleControl强转旧ScaleSessionControl抛ClassCastException，未达到后续安全断言。只改为ScaleControl接口，原!startAllowed、队列字节/endpoint、未知去皮持久化与派发保护全部保留；独立复核未放宽验收。修正后仪器APK编译14s、Python4tests通过，仍待新生命周期实际运行。
 - 生产逻辑、数据库schema、签名/版本、协议白名单未改。不删除未知记录、不自动重发、不合并、不发版；其余页面/系统选择器任务仍按原handle等待，不盲目重启。
+
+## 实际高级升级成功与页面复核
+
+- 24f0097 upgrade37990870091终态success。下载 `/tmp/openhoyi-upgrade-24f0097`，seed/verify均包含严格高级marker `stores=5 protocolPair=true readOnlyDraft=true doseIdempotent=true` 和各自基础marker，证明新增高级fixture实际经过隔离Mock版本1→2更新，并非仅编译。原未决安全记录仍受基础验证保护；不扩大为正式签名/历史schema/硬件结论。
+- 5267a90 advanced37989665052终态success，下载 `/tmp/openhoyi-advanced-5267a90`：compact/wideFont各240fixtures，17业务paths、11文档合约paths、7真实DocumentsUI paths全部成功。实际查看compact中文连接秤页、中文分享参数页、wideFont阿拉伯暗色秤设置页，未见当前窗口文字重叠，RTL和返回方向可见；滚动页未在首屏显示的底部内容不据此冒称全页视觉通过。
+- 连接页截图仍有“复用现有蓝牙会话”实现说明。仅改副标题为“扫描并选择附近的电子秤”，复制按钮改“复制曲线参数”，8语言同步；文件/剪贴板格式与安全能力说明不变。Mock编译1s、catalog资源检查drift为空、diff检查通过，无业务逻辑改动。
+- 24f0097其它完整CI仍待终态；这些已取得证据不替代下一文案提交的精确门禁。本任务仍不合并/发版/安装/操作真实设备。

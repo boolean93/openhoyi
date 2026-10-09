@@ -26,7 +26,7 @@
     <string name="scale_timer_format">%1$02d:%2$02d.%3$d</string>
     <string name="scale_connect">توصيل الميزان</string>
     <string name="scale_settings">إعدادات أداة الميزان</string>
-    <string name="scale_connection_subtitle">تُستخدم جلسة Bluetooth الحالية؛ الأسماء مجرد دليل على الأجهزة المحتملة</string>
+    <string name="scale_connection_subtitle">ابحث عن ميزان قريب واختره</string>
     <string name="scale_scan">البحث عن موازين محتملة</string>
     <string name="scale_scanning">جارٍ البحث…</string>
     <string name="scale_scan_empty">لا توجد موازين محتملة. اجعل الميزان قابلًا للاكتشاف ثم ابحث.</string>

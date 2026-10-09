@@ -26,7 +26,7 @@
     <string name="profiles_edit_copy">Guardar parámetros como nuevo borrador</string>
     <string name="profiles_share">Compartir parámetros</string>
     <string name="profiles_share_title">Compartir parámetros del perfil</string>
-    <string name="profiles_copy">Copiar JSON de parámetros</string>
+    <string name="profiles_copy">Copiar parámetros de curva</string>
     <string name="profiles_copied">Parámetros copiados</string>
     <string name="profiles_share_text">Compartir texto de parámetros</string>
     <string name="profiles_export_file">Exportar archivo de parámetros</string>

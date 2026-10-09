@@ -26,7 +26,7 @@
     <string name="profiles_edit_copy">บันทึกค่าพารามิเตอร์เป็นฉบับร่างใหม่</string>
     <string name="profiles_share">แชร์ค่าพารามิเตอร์</string>
     <string name="profiles_share_title">แชร์ค่าพารามิเตอร์โปรไฟล์</string>
-    <string name="profiles_copy">คัดลอก JSON ค่าพารามิเตอร์</string>
+    <string name="profiles_copy">คัดลอกค่าพารามิเตอร์เส้นโค้ง</string>
     <string name="profiles_copied">คัดลอกค่าพารามิเตอร์แล้ว</string>
     <string name="profiles_share_text">แชร์ข้อความค่าพารามิเตอร์</string>
     <string name="profiles_export_file">ส่งออกไฟล์ค่าพารามิเตอร์</string>

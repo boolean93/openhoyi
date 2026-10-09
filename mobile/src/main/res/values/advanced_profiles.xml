@@ -26,7 +26,7 @@
     <string name="profiles_edit_copy">另存参数草稿</string>
     <string name="profiles_share">分享参数</string>
     <string name="profiles_share_title">分享曲线参数</string>
-    <string name="profiles_copy">复制参数 JSON</string>
+    <string name="profiles_copy">复制曲线参数</string>
     <string name="profiles_copied">参数已复制</string>
     <string name="profiles_share_text">分享参数文本</string>
     <string name="profiles_export_file">导出参数文件</string>

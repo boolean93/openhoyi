@@ -26,7 +26,7 @@
     <string name="scale_timer_format">%1$02d:%2$02d.%3$d</string>
     <string name="scale_connect">เชื่อมต่อเครื่องชั่ง</string>
     <string name="scale_settings">การตั้งค่าเครื่องมือชั่ง</string>
-    <string name="scale_connection_subtitle">ใช้เซสชัน Bluetooth ที่มีอยู่ ชื่อเป็นเพียงเบาะแสของอุปกรณ์ที่อาจใช่</string>
+    <string name="scale_connection_subtitle">ค้นหาและเลือกเครื่องชั่งใกล้เคียง</string>
     <string name="scale_scan">ค้นหาเครื่องชั่งที่เป็นไปได้</string>
     <string name="scale_scanning">กำลังค้นหา…</string>
     <string name="scale_scan_empty">ยังไม่พบเครื่องชั่ง ตั้งเครื่องชั่งให้ค้นพบได้แล้วค้นหาอีกครั้ง</string>

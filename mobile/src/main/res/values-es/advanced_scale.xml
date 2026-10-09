@@ -26,7 +26,7 @@
     <string name="scale_timer_format">%1$02d:%2$02d.%3$d</string>
     <string name="scale_connect">Conectar báscula</string>
     <string name="scale_settings">Ajustes de la herramienta de pesaje</string>
-    <string name="scale_connection_subtitle">Reutiliza la sesión Bluetooth existente; los nombres solo indican posibles dispositivos</string>
+    <string name="scale_connection_subtitle">Busca y elige una báscula cercana</string>
     <string name="scale_scan">Buscar posibles básculas</string>
     <string name="scale_scanning">Buscando…</string>
     <string name="scale_scan_empty">No hay básculas candidatas. Haz que la báscula sea detectable y busca.</string>

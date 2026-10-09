@@ -26,7 +26,7 @@
     <string name="scale_timer_format">%1$02d:%2$02d.%3$d</string>
     <string name="scale_connect">连接电子秤</string>
     <string name="scale_settings">秤工具设置</string>
-    <string name="scale_connection_subtitle">复用现有蓝牙会话；名称仅是候选线索</string>
+    <string name="scale_connection_subtitle">扫描并选择附近的电子秤</string>
     <string name="scale_scan">扫描电子秤候选</string>
     <string name="scale_scanning">正在扫描…</string>
     <string name="scale_scan_empty">尚无电子秤候选。保持秤可被发现后扫描。</string>

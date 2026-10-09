@@ -26,7 +26,7 @@
     <string name="profiles_edit_copy">حفظ المعلمات كمسودة جديدة</string>
     <string name="profiles_share">مشاركة المعلمات</string>
     <string name="profiles_share_title">مشاركة معلمات ملف الاستخلاص</string>
-    <string name="profiles_copy">نسخ JSON المعلمات</string>
+    <string name="profiles_copy">نسخ معلمات المنحنى</string>
     <string name="profiles_copied">تم نسخ المعلمات</string>
     <string name="profiles_share_text">مشاركة نص المعلمات</string>
     <string name="profiles_export_file">تصدير ملف المعلمات</string>
