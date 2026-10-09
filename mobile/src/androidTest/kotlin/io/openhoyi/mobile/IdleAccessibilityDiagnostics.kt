@@ -162,8 +162,15 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
             }
             home=test.waitForMonitorWithTimeout(monitor,10_000) as? HomeActivity
                 ?: error("Home startup not observed")
+            awaitMain {
+                // Window setup can recreate Home during launch. Observe the current Activity,
+                // never wait for a destroyed instance to regain focus or its released binding.
+                (monitor.lastActivity as? HomeActivity)?.takeUnless {it.isDestroyed}?.let {home=it}
+                val current=requireNotNull(home)
+                !current.isDestroyed && current.hasWindowFocus() &&
+                    current.window.decorView.isLaidOut && owner(current)?.running==true
+            }
             val screen=requireNotNull(home)
-            awaitMain {screen.hasWindowFocus() && screen.window.decorView.isLaidOut && owner(screen)?.running==true}
             SystemClock.sleep(1_000) // Discard launch events; both measured windows remain exactly 2s.
             watch(screen);dumpNodes(screen,"baseline-start")
             windows+=sample(screen,"baseline")

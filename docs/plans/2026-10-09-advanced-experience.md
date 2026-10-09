@@ -123,3 +123,8 @@
 - 代码核对发现 ExtractionTrendView 的刻度使用 dp 字号，原 TextView 几何矩阵不能验证 Canvas 内文字。改用 Android 原生 sp 转换；左右刻度按文字宽度与 font metrics 计算边距，时间刻度首尾分别向内对齐，轴标题留两行基线间距。图表高度随系统字体增大，固定停止入口不变。未来区域仍仅表示没有实际数据，不增加预测；狭窄尾部不强塞超宽提示。
 - 新增 TrendChartTextChecks：在实际 ExtractionActivity 的图表尺寸/语言/主题/系统字号下绘制生产 View，拦截实际 Canvas.drawText 调用，核对与原生 TextView 的 11sp 字号一致、文字范围未越界。两物理量各检查空态、实际采样、延长历史参考三种数据，不操作机器或改变活动图表。接入原 compact/wideFont 八语言两主题矩阵，每 profile 96 个图表 fixture，并要求专门运行标记。
 - 初次测试编译因 Kotlin 可变捕获变量 smart cast 失败，改为闭包前固定 Activity 引用后编译通过。随后改用原生 sp 转换与 TextView 对照的最终源码两 APK、Mock AndroidTest 与 Lint 构建成功（43s）；脚本语法与 diff 检查通过。新增运行检查尚未在模拟器验证。
+
+## 诊断启动配置重建
+
+- `30e076b` 的 verify/upgrade/branch-policy 已成功，lifecycle 在诊断启动阶段失败，未执行正式导航。下载 artifact：Home 已启动 Mock service，随后出现 `recreating:HomeActivity`、旧实例 configuration 销毁、新 Home 启动；诊断保存旧 Activity 引用，等待旧实例的 focus/service 直至超时。因此本次没有事件窗口数据，不能据此断言圆点修复有效或无效。
+- 诊断改为在既有 10 秒启动期限内通过 ActivityMonitor 跟踪当前 Home，要求当前实例未销毁、有焦点、完成布局且绑定的原服务 running。不增加期限、不忽略失败，不清数据，也不改生命周期正式检查。Mock AndroidTest 编译成功（18s），diff 检查通过；CI 结果待补。
