@@ -18,10 +18,12 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var advancedPageProfile: String? = null
     private var pageProfile: String? = null
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        advancedPageProfile = arguments?.getString("advancedPageChecks")
         pageProfile = arguments?.getString("pageChecks")
         languageChecks = arguments?.getString("languageChecks") == "true"
         upgradeChecks = arguments?.getString("upgradeChecks")
@@ -35,6 +37,14 @@ class BrewAudioInstrumentation : Instrumentation() {
                 val phase = requireNotNull(upgradeChecks)
                 MockUpgradeChecks(this).run(phase)
                 report.putString("stream", "MOCK_UPGRADE_${phase.uppercase(java.util.Locale.ROOT)}_PASSED\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (advancedPageProfile != null) {
+                val profile = requireNotNull(advancedPageProfile)
+                val result = AdvancedPageChecks(this).run(profile)
+                report.putString("stream", "ADVANCED_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=14 fixtures=${result.fixtures} preservedState=true noBle=true\n" +
+                    "ADVANCED_PAGE_SCREENSHOTS profile=$profile count=${result.screenshots} directory=${result.directory.absolutePath}\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
@@ -186,7 +196,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }

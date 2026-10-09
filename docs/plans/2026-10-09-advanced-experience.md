@@ -82,3 +82,11 @@
 - 另增加首次 journal 观察失败后重启仍绑定原杯、不能改绑下一杯的回归。独立静态末审两处修复均无新增 P1/P2；运行测试以本节之后的实际输出为准。
 
 末轮修正后实跑：mobile Debug/Mock 各 247 tests、0 failures、0 errors、1 skipped；两种 APK 构建、Mock AndroidTest 编译、Lint 通过。编译资源复验两种 APK 各 9,305 配置匹配；Python scripts 32 项、localization 21 项通过。尚未进行模拟器运行验收、推送、PR 或发布。
+
+## PR 与运行验收增量
+
+- 已普通推送 `feature/advanced-experience`，草稿 PR：[#2](https://github.com/boolean93/openhoyi/pull/2)，目标 `develop`。9d483f9 源码的 branch-policy 和 upgrade 已通过；verify 当时仍运行。
+- 9d483f9 的 lifecycle 和 capture 失败：平台 `uiautomator dump` 返回零却未生成层级文件，随后 cat 失败。原脚本未保留 dump stdout/stderr，当前不能断言是 idle timeout 或权限问题。新增诊断保留、删除旧 dump 防止误用旧树、零返回但无文件的失败回归；下一轮 CI 收集根因，不把诊断补齐当作运行修复已通过。
+- 新增独立 `advanced-pages` CI，覆盖十四个新增页面、八语言、两主题、compact/wideFont 两窗口矩阵（每 profile 224 fixtures、56 PNG）。只在隔离 Mock 中通过业务 API 初始化明确 fixture；只滚动查看，不点击保存、分享或设备控制；内存/盘文件/设备偏好不变与同一 service 保留必须通过。截图只覆盖中文/阿语两主题，须下载后人工视觉检查；表单提交及对话框仍需单独证据。
+- 新增窗口验收器与更新后的 detached shot fixture 编译通过 `:mobile:assembleMockAndroidTest`。synthetic service 现在显式有私有 history，适应启动前持久化历史的必要门禁；不将其当真实库存或硬件证据。Python scripts 33 项、脚本语法和 diff 检查通过。
+- 尚未合并、发版或操作真实设备。本节不构成全部 A1–A11 完成声明。

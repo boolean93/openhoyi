@@ -78,6 +78,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                                 .apply { isAccessible=true }.invoke(instance,context)
                             Service::class.java.getDeclaredField("mApplication").apply { isAccessible=true }.set(instance,app)
                             field(instance,"logs").set(instance,journal);field(instance,"mock").set(instance,null)
+                            field(instance,"history").set(instance,detachedShotHistory())
                             check(!field(instance,"running").getBoolean(instance))
                         }
                         val instance=attach();val owner=NativeDeviceHub(context);hub=owner

@@ -1,8 +1,16 @@
 import unittest
-from mock_ui_tap import find_target
+from unittest.mock import patch
+import subprocess
+from mock_ui_tap import find_target, read_hierarchy
 
 
 class MockUiTapTest(unittest.TestCase):
+    def test_zero_exit_without_dump_is_not_success_or_stale_data(self):
+        error = subprocess.CalledProcessError(1, ['adb'], stderr='No such file')
+        with patch('mock_ui_tap.adb', side_effect=['', 'ERROR: idle timeout', error]) as calls:
+            with self.assertRaisesRegex(ValueError, 'idle timeout'):
+                read_hierarchy()
+            self.assertEqual(('shell', 'rm', '-f', '/data/local/tmp/openhoyi-mock-ui.xml'), calls.call_args_list[0].args)
     def test_list_label_taps_its_row_not_the_list_center(self):
         xml = '<hierarchy><node class="android.widget.ListView" clickable="true" enabled="true" bounds="[0,0][100,500]"><node bounds="[0,20][100,80]"><node text="Shot" /></node></node></hierarchy>'
         self.assertEqual((50, 50), find_target(xml, 'Shot'))

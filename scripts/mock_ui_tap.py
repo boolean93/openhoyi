@@ -40,14 +40,25 @@ def find_target(xml, text, contains=False):
     return next(iter(targets), None)
 
 
-def adb(*args):
-    return subprocess.run(['adb', *args], check=True, capture_output=True, text=True, timeout=30).stdout
+def adb(*args, include_stderr=False):
+    result = subprocess.run(['adb', *args], check=True, capture_output=True, text=True, timeout=30)
+    return result.stdout + (result.stderr if include_stderr else '')
 
 
 def ensure_mock():
     state = adb('shell', 'dumpsys', 'activity', 'activities')
     if not re.search(r'topResumedActivity=.*\b' + re.escape(PACKAGE) + r'/', state):
         raise ValueError('foreground activity is not isolated Mock')
+
+
+def read_hierarchy():
+    # Never reuse an old dump if the platform reports success without writing one.
+    adb('shell', 'rm', '-f', '/data/local/tmp/openhoyi-mock-ui.xml')
+    result = adb('shell', 'uiautomator', 'dump', '/data/local/tmp/openhoyi-mock-ui.xml', include_stderr=True)
+    try:
+        return adb('shell', 'cat', '/data/local/tmp/openhoyi-mock-ui.xml')
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f'Mock hierarchy was not written; dump output: {result}; read error: {error.stderr}') from error
 
 
 def main():
@@ -61,8 +72,7 @@ def main():
     directions = (["up"] * 6 + ["down"] * 12) if args.scroll else []
     for attempt in range(len(directions) + 1):
         ensure_mock()
-        adb('shell', 'uiautomator', 'dump', '/data/local/tmp/openhoyi-mock-ui.xml')
-        xml = adb('shell', 'cat', '/data/local/tmp/openhoyi-mock-ui.xml')
+        xml = read_hierarchy()
         point = find_target(xml, args.text, args.contains)
         if point is not None:
             ensure_mock()
