@@ -166,3 +166,10 @@
 - 下载 [47002ce lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37945344521) 与 [96db8c8 lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37945705671) artifact：诊断回调跟踪及 finally 注销成功，正常/暂停两个窗口均零事件、同一服务持续采样；`result.txt` 的正式前后台/重建生命周期检查通过，音频与反馈五组检查通过。作业整体仍失败在后续 languageChecks 的 LanguageContextChecks，未执行页面/Canvas 全矩阵，不将阶段通过冒称必需 lifecycle 全绿。
 - 真实报错 `Visible Home navigation did not use zh-Hans`。源码仍要求底栏出现旧 `ui_settings`，实际四栏已是冲煮/曲线/历史/豆子。改为用独立 locale context 逐项解析四个真实入口，要求 Home/Application/Service 三处资源一致且 Home 中对应文字可见；保留布局方向、主题、同一服务、无事件重放和原偏好检查。测试 APK 完整构建成功（24s），diff 检查通过，运行待 CI。
 - `96db8c8` verify 已通过，advanced-pages 作业 37945705688 仍在运行；文件合约运行结果尚未知。当前生产 UI 新增窄屏修正，需要对应最终提交再次通过四项必需检查。
+
+## 文件交换运行通过与阶段图 fixture 单位修正
+
+- [96db8c8 advanced-pages](https://github.com/boolean93/openhoyi/actions/runs/37945705688) 已成功，下载核对两组各 224 fixtures/56 PNG、17 条业务 UI 路径与九条文件合约路径。文件输出逐项确认精确 UTF-8 参数导出、取消不读写、实际 ContentResolver 导入预览不自动保存、明确保存只读草稿、重复幂等、非法 UTF-8/超64KiB/未知 URI 拒绝；`signaturePermission=true realResolver=true systemPicker=false noBle=true`。这证实独立 Java Provider 和签名权限实际运行，但不证明 DocumentsUI 选择器或外部分享发送。
+- 新增页面窄屏中文深色/阿语浅色十四页已补查，结合此前中文浅色/阿语深色，四组窄屏新增页面截图均已人工查看；未发现所查看画面中文字省略、单位缺失、导航错位。长表单部分截图为自动滚动位置；不将屏外内容判丢失，也不宣称全宽屏或所有状态视觉验收完成。
+- [85eb1c7 lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37946887485) 诊断、正式前后台、音频反馈、语言 context 与 activeCup 阶段通过；整体失败于下一 charts 阶段，仍未运行完整页面/Canvas 矩阵。报 `Native scientific ordering reversed for CurveStageView zh-Hans`，源码定位 fixture `2,4,6,8` 单位为十分之一 bar；在固定 0..12bar 轴只跨 0.6bar，340dp 画布绘图区约294dp，对应上升约14.7dp，不能达到原20dp阈值，与 RTL 无关。fixture 改为 `20,40,60,80`，即2..8bar；不降低阈值、不变生产轴/图表、不跳过语言。Mock AndroidTest 完整构建成功（22s），diff 检查通过；新运行待 CI。
+- 当前生产 UI 修改后的 capture/advanced-pages 仍运行。完整必需 lifecycle 尚未通过，不合并、不发版、不以阶段通过完成 A1–A11。
