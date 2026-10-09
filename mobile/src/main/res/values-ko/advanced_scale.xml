@@ -9,7 +9,7 @@
     <string name="scale_disconnected">전자저울이 준비되지 않았습니다</string>
     <string name="scale_mock_notice">데모 모드: 실제 기기 측정값이 아닙니다</string>
     <string name="scale_battery_format">배터리 %1$d%%</string>
-    <string name="scale_battery_unavailable">이 검증된 프로토콜은 현재 배터리 정보를 제공하지 않습니다</string>
+    <string name="scale_battery_unavailable">이 프로토콜은 배터리 정보를 제공하지 않습니다</string>
     <string name="scale_tare">영점 조정</string>
     <string name="scale_tare_requested">영점 조정 요청이 접수되었으며 아직 0으로 돌아왔는지는 확인되지 않았습니다</string>
     <string name="scale_tare_idle">영점 조정: 아직 요청하지 않음</string>
@@ -27,18 +27,18 @@
     <string name="scale_connect">전자저울 연결</string>
     <string name="scale_settings">저울 도구 설정</string>
     <string name="scale_connection_subtitle">기존 Bluetooth 세션을 사용합니다. 이름은 후보 기기를 찾는 단서일 뿐입니다.</string>
-    <string name="scale_scan">BOOKOO 후보 검색</string>
+    <string name="scale_scan">저울 후보 검색</string>
     <string name="scale_scanning">검색 중…</string>
-    <string name="scale_scan_empty">아직 BOOKOO 후보가 없습니다. 저울을 검색 가능한 상태로 만든 후 검색하세요.</string>
+    <string name="scale_scan_empty">저울 후보가 없습니다. 저울을 검색 가능한 상태로 만든 후 검색하세요.</string>
     <string name="scale_candidate_format">%1$s · %2$s · %3$d dBm</string>
     <string name="scale_connection_state">연결 상태: %1$s</string>
     <string name="scale_owner_required">먼저 연결 관리에서 Bluetooth 권한을 허용하고 Bluetooth를 켜세요</string>
     <string name="scale_owner_failed">Bluetooth 세션이 아직 시작되지 않았습니다. 연결 관리를 여세요.</string>
     <string name="scale_connection_manager">연결 관리 열기</string>
-    <string name="scale_offline_evidence">ACAIA / FELICITA / DIFLUID는 구버전 오프라인 파서 후보만 있으며 실기기 검증을 거치지 않았습니다. 연결, 영점 조정, 자동 출수 중지는 제공하지 않습니다.</string>
+    <string name="scale_offline_evidence">Felicita는 실기기 미검증인 실험적 읽기 전용 연결입니다. ACAIA / DIFLUID는 오프라인 분석만 지원하며 연결이나 제어는 불가능합니다.</string>
     <string name="scale_settings_subtitle">이 앱의 표시만 변경하며 기기 설정 명령은 보내지 않습니다</string>
     <string name="scale_precision">0.1 g 단위로 표시(끄면 0.01 g 단위)</string>
-    <string name="scale_capabilities_title">현재 검증된 기능</string>
+    <string name="scale_capabilities_title">현재 프로토콜 기능</string>
     <string name="scale_capability_weight">무게 수신</string>
     <string name="scale_capability_tare">영점 조정 요청 및 0 측정값 확인</string>
     <string name="scale_capability_flow">기기 유량 수신</string>
@@ -52,4 +52,8 @@
     <string name="scale_dose_help">이번에 분쇄할 원두가 저울 위에 있는지 확인한 후 측정값을 사용하세요. 컵 안의 액체 무게를 자동으로 투입량으로 사용하지 않습니다. 측정값이 최소 1초 동안 안정되고 변동 폭이 0.1 g 이하가 될 때까지 기다리세요.</string>
     <string name="scale_dose_capture">현재 원두 무게를 이번 투입량으로 사용</string>
     <string name="scale_dose_not_ready">추출 중이 아닐 때 안정적이고 최신인 양수의 실제 원두 무게만 가져올 수 있습니다</string>
+    <string name="scale_read_only_live">실험적 읽기 전용 프로토콜: 실기기 미검증, 영점 조정 및 자동 정지 미지원</string>
+    <string name="scale_capability_read_only">읽기 전용 프로토콜 보고</string>
+    <string name="scale_memory_failed">저울과 프로토콜을 저장하지 못했습니다. 다음 실행 시 자동 재연결이 불가능할 수 있습니다</string>
+    <string name="scale_protocol_unsupported">지원하지 않는 저울 프로토콜</string>
 </resources>

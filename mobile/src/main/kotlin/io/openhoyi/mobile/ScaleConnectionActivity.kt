@@ -11,7 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import io.openhoyi.session.DeviceRole
 
-/** Existing service scans actual BOOKOO candidates. Unsupported families never get connect UI. */
+/** The existing service owns scanning and the single scale connection for all supported adapters. */
 class ScaleConnectionActivity:ScaleOwnerActivity() {
     private lateinit var status:TextView
     private lateinit var scan:Button
@@ -68,15 +68,17 @@ class ScaleConnectionActivity:ScaleOwnerActivity() {
         scan.setText(if(service?.snapshot?.scanning==true)R.string.scale_scanning else R.string.scale_scan)
         scan.isEnabled=!BuildConfig.MOCK_MODE && service?.snapshot?.scanning!=true && (service==null || changesAllowed())
         val candidates=service?.snapshot?.candidates.orEmpty().filter {it.candidateRole==DeviceRole.BOOKOO}
-        val key=candidates.joinToString {"${it.address}:${it.rssi}"}+":"+changesAllowed()
+        val key=candidates.joinToString {"${it.address}:${it.rssi}:${it.scaleProtocolId}"}+":"+changesAllowed()
         if(renderedKey==key)return
         renderedKey=key;rows.removeAllViews()
         if(candidates.isEmpty())HoyiUi.label(this,rows,getString(R.string.scale_scan_empty),14,muted=true)
         else candidates.forEach {candidate->
+            if(candidate.scaleProtocolId==io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
+                HoyiUi.label(this,rows,getString(R.string.scale_read_only_live),14,muted=true)
             HoyiUi.button(this,rows,getString(R.string.scale_candidate_format,candidate.advertisedName,candidate.address,candidate.rssi)) {
                 if(BuildConfig.MOCK_MODE || !changesAllowed()) {message(getString(R.string.scale_active_guard));return@button}
                 if(!radioUsable()) {message(getString(R.string.scale_owner_required));return@button}
-                owner?.connectScale(candidate.address);renderScale()
+                candidate.scaleProtocolId?.let { owner?.connectScale(candidate.address,it) };renderScale()
             }.isEnabled=!BuildConfig.MOCK_MODE && changesAllowed()
         }
     }

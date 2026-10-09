@@ -559,7 +559,11 @@ class MobileService : Service() {
             val prefs = getSharedPreferences("devices", MODE_PRIVATE)
             hub = NativeDeviceHub(applicationContext, prefs.getString("scale", null),
                     tareStorage = io.openhoyi.bluetooth.SharedPreferenceTareStorage(applicationContext),
-                onScaleRemembered = { prefs.edit().putString("scale", it).apply() },
+                rememberedScaleProtocolId = prefs.getString("scaleProtocol", null),
+                onScaleSelectionRemembered = { address, protocolId ->
+                    if (!prefs.edit().putString("scale", address).putString("scaleProtocol", protocolId).commit())
+                        event(ResourceMessage(R.string.scale_memory_failed), "scale.memory_failed")
+                },
                 onState = ::onDeviceState,
                 onCoffee = ::onCoffeeFrame,
                 onWeight = {
@@ -681,13 +685,20 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_coffee_connect_failed, error.javaClass.simpleName), "coffee.connect_failed")
         }
     }
-    fun connectScale(address: String) {
+    fun connectScale(address: String, protocolId: String = io.openhoyi.session.BookooScaleProtocolAdapter.id) {
+        if (io.openhoyi.session.ScaleSelectionPolicy.adapter(protocolId) == null) {
+            event(ResourceMessage(R.string.scale_protocol_unsupported)); return
+        }
         if (mock != null) { event(ResourceMessage(R.string.service_scale_mock), "mock.connect"); return }
         if (manualShotActive) { event(ResourceMessage(R.string.service_scale_manual_block)); return }
         manualDeviceUse()
         if (ShotGate.active(shotState)) { event(ResourceMessage(R.string.service_scale_shot_block)); return }
         val current = hub ?: return
-        if (!current.connectScale(address)) { event(ResourceMessage(R.string.service_scale_already_connected)); return }
+        try {
+            if (!current.connectScale(address, protocolId)) { event(ResourceMessage(R.string.service_scale_already_connected)); return }
+        } catch (_: RuntimeException) {
+            event(ResourceMessage(R.string.service_event_communication_error), "scale.connect_failed"); return
+        }
         snapshot = snapshot.copy(weight = null, weightAt = null,
             scaleObservation = null, scaleCapabilities = null)
         event(ResourceMessage(R.string.service_scale_connect))

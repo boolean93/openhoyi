@@ -32,7 +32,7 @@ class ScaleSettingsActivity:ScaleOwnerActivity() {
             listOf(R.string.scale_capability_weight to actual.weight,R.string.scale_capability_tare to actual.tare,
                 R.string.scale_capability_flow to actual.deviceFlow,R.string.scale_capability_battery to actual.battery,
                 R.string.scale_capability_timer to actual.deviceTimer).joinToString("\n") {(name,available)->
-                getString(R.string.scale_capability_format,getString(name),getString(if(available)R.string.scale_capability_yes else R.string.scale_capability_no))
+                getString(R.string.scale_capability_format,getString(name),getString(if(!available)R.string.scale_capability_no else if(snapshot?.scaleObservation?.evidence==io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY)R.string.scale_capability_read_only else R.string.scale_capability_yes))
             }
         }
     }

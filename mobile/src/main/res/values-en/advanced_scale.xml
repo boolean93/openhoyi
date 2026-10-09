@@ -9,7 +9,7 @@
     <string name="scale_disconnected">Scale is not ready</string>
     <string name="scale_mock_notice">Demo mode: not a real device reading</string>
     <string name="scale_battery_format">Battery %1$d%%</string>
-    <string name="scale_battery_unavailable">This verified protocol does not currently provide battery data</string>
+    <string name="scale_battery_unavailable">Battery unavailable with this protocol</string>
     <string name="scale_tare">Tare</string>
     <string name="scale_tare_requested">Tare request accepted; zeroing is not yet confirmed</string>
     <string name="scale_tare_idle">Tare: not requested</string>
@@ -27,18 +27,18 @@
     <string name="scale_connect">Connect scale</string>
     <string name="scale_settings">Scale tool settings</string>
     <string name="scale_connection_subtitle">Reuses the existing Bluetooth session; names only suggest possible devices</string>
-    <string name="scale_scan">Scan for BOOKOO candidates</string>
+    <string name="scale_scan">Scan for scale candidates</string>
     <string name="scale_scanning">Scanning…</string>
-    <string name="scale_scan_empty">No BOOKOO candidates yet. Make the scale discoverable, then scan.</string>
+    <string name="scale_scan_empty">No scale candidates yet. Make the scale discoverable, then scan.</string>
     <string name="scale_candidate_format">%1$s · %2$s · %3$d dBm</string>
     <string name="scale_connection_state">Connection state: %1$s</string>
     <string name="scale_owner_required">Grant Bluetooth permission and turn Bluetooth on in connection management first</string>
     <string name="scale_owner_failed">The Bluetooth session has not started. Open connection management.</string>
     <string name="scale_connection_manager">Open connection management</string>
-    <string name="scale_offline_evidence">ACAIA / FELICITA / DIFLUID only have legacy offline parser candidates, not verified on hardware. Connection, tare, and automatic water stop are unavailable.</string>
+    <string name="scale_offline_evidence">Felicita has an experimental read-only connection, not hardware-validated. ACAIA / DIFLUID remain offline parsers without connection or control.</string>
     <string name="scale_settings_subtitle">Changes display in this app only; no device settings commands are sent</string>
     <string name="scale_precision">Display to 0.1 g (0.01 g when off)</string>
-    <string name="scale_capabilities_title">Currently verified capabilities</string>
+    <string name="scale_capabilities_title">Current protocol capabilities</string>
     <string name="scale_capability_weight">Weight reporting</string>
     <string name="scale_capability_tare">Tare request and zero-reading observation</string>
     <string name="scale_capability_flow">Device flow reporting</string>
@@ -52,4 +52,8 @@
     <string name="scale_dose_help">Confirm that the scale holds the beans to be ground for this shot, then capture the reading. Liquid weight in the cup is never automatically treated as a dose. Wait for at least 1 second of stable readings, varying by no more than 0.1 g.</string>
     <string name="scale_dose_capture">Use current bean weight as this shot’s dose</string>
     <string name="scale_dose_not_ready">Only a stable, fresh, positive reading of real bean weight can be captured, with no extraction in progress</string>
+    <string name="scale_read_only_live">Experimental read-only protocol: not hardware-validated; no tare or automatic stop</string>
+    <string name="scale_capability_read_only">Reported by read-only protocol</string>
+    <string name="scale_memory_failed">Scale and protocol could not be saved; automatic reconnect may be unavailable next launch</string>
+    <string name="scale_protocol_unsupported">Unsupported scale protocol</string>
 </resources>

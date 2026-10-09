@@ -159,12 +159,20 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
             node.contentDescription?.toString() in setOf("Show roots","Open navigation drawer") ||
                 node.viewIdResourceName=="android:id/home"
         }
-        await("downloads-root") {tree {nodes->nodes.any {it.isVisibleToUser && it.text?.toString()=="Downloads"}}}
-        pickerAction("Downloads-root") {node->node.text?.toString()=="Downloads" && hasAncestorId(node,setOf("item_root","roots_list"))}
+        // A Downloads breadcrumb is already visible before the drawer opens. Wait for
+        // the actual enabled root row, not any matching title in the active window.
+        val downloadsRoot:(AccessibilityNodeInfo)->Boolean={node->
+            node.text?.toString()=="Downloads" && hasAncestorId(node,setOf("item_root","roots_list"))
+        }
+        await("downloads-root") {tree {nodes->
+            nodes.count {it.isVisibleToUser && it.isEnabled && downloadsRoot(it)}==1
+        }}
+        pickerAction("Downloads-root",downloadsRoot)
         await("downloads-root-open") {tree {nodes->
-            nodes.first().packageName?.toString()==pickerPackage && nodes.any {
-                it.isVisibleToUser && (it.text?.toString()=="Downloads" || it.contentDescription?.toString()=="Downloads")
-            }
+            nodes.first().packageName?.toString()==pickerPackage &&
+                nodes.none {it.isVisibleToUser && it.viewIdResourceName=="$pickerPackage:id/roots_list"} &&
+                nodes.any {it.isVisibleToUser && it.viewIdResourceName=="$pickerPackage:id/breadcrumb_text" &&
+                    it.text?.toString()=="Downloads"}
         }}
         dumpTree("downloads-open")
     }

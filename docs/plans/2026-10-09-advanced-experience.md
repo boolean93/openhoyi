@@ -249,3 +249,17 @@
 
 - 会话阶段末轮独立静态审查未发现P1/P2。新增5项只读会话JUnit（订阅与正确g帧就绪、写能力/命令伪装拒绝、离线证据/订阅超时、READY重入丢弃旧重量、Coffee携带只读adapter仍认证和固定coffeeWrite）完整运行通过。device-session651tests无失败/错误/跳过，另93回放cases；protocol-core39823checks及新ASCII检查通过；Debug/Mock各254tests无失败/错误、1既有skip；AndroidTest构建成功（统一命令58s，补Coffee测试后会话11s）。称豆策略新LIVE来源拒绝回归通过。
 - 本阶段没有新增第二BLEowner、机器写白名单、自动去皮或重量停水许可；Registry将readOnlyCandidates和verified connectable分开。仍待Hub/协议ID记忆/扫描/连接UI实际接线，再做端到端与具体设备验收。564d8ab的实际DocumentsUI作业37986089154仍运行，不借本地会话通过冒称该7路径已成功。
+
+## A1 第二阶段：扫描、单连接所有权与协议记忆
+
+- 延续 `feature/advanced-experience`（来源 `develop`，PR #2 目标 `develop`），不混入治理工作树、不直接推主干、不发版。
+- 广播名称仅作候选提示：BOOKOO 保持原路径，FELICITA 指向显式实验性只读适配器；其他品牌不推断协议。扫描候选携带协议 ID，首页与电子秤连接页传递该 ID。
+- Hub 只保留一个秤 owner。替换前撤销旧回调并关闭旧 owner，关闭失败阻断后续新建；地址相同但协议不同也按替换处理。动态控制代理保持原 ExtractionController，未决去皮记录不会因换秤清除。
+- 仅当前 owner 真正 READY 后保存地址与协议一对值。旧地址记录仅在协议键缺失时迁移为 BOOKOO，未知/空协议拒绝自动重连。SharedPreferences 原子保存失败给出明确提示。
+- 电子秤页面区分 LIVE_READ_ONLY，8语言说明实验性、未实机验收、无去皮/自动停水；能力标注只读协议回报，不冒称已验证。当前协议无电量数据时不猜电量。
+- 初始 slot 红测试 5 项中 3 项断言失败：旧 owner 关闭顺序、关闭失败阻断、协议记忆校验。分类器 2 项中 1 项红（Felicita 不识别），实现后分类器 2 项通过。完整绿测试及独立审查仍待记录。
+- 实际系统 DocumentsUI 验证已取得作业 37986089154 的成功产物（源码 564d8ab）。`curve-system-documents.txt` 确认 7 路径全部通过：取消创建不导出、Downloads 精确 UTF-8 JSON 导出、取消打开不预览不保存、打开文件仅预览、取消预览不建草稿、确认一次仅建本地只读草稿、仅删除身份核验过的自身测试文件。17 业务路径和 11 文档合约路径也有成功标记。此证据不替代新接线提交的 CI 或硬件验收。
+- 本阶段仍不等于全部型号兼容或新增控制权限；具体设备/固件验收尚缺。不合并、不发版、不操作真实机器。
+- 第二阶段本地绿：完整 device-session JUnit 659 项（0 fail/error/skip），93 场景；bluetooth classifier 2 项；Mobile Debug/Mock 各254项（0 fail/error，1既有skip），Mock AndroidTest APK成功，总命令65s。首次 offline aapt2 缺缓存按已有SDK35参数处理，编译发现父任务 ScaleEvidence 包名错误后修正再得到上述绿；未改构建门禁。独立静态审查当前接线未发现可执行P1/P2，审查不等于硬件证据。
+- 9ebe462 的 advanced run37987428120 终态 failure，而 lifecycle37987427651 success。下载产物显示真实系统选择器 `Downloads-root got 0`：旧等待条件匹配背景已有的Downloads面包屑/标题，抽屉根行尚未出现就执行点击。保留实际失败树，改等待与点击相同的 enabled root-row predicate（唯一匹配），并在根选择后确认 roots_list 不可见且 Downloads breadcrumb 已出现；不延长15秒、不重复点击、不用Mock、不降低7路径标准。修正后的仪器编译与新CI结果另记。
+- 系统目录等待修正后 Mock AndroidTest APK 编译成功（15s），独立审查未发现P1/P2或伪造通过风险；仍待新提交真实CI验证。

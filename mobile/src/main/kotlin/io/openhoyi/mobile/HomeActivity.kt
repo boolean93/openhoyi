@@ -311,8 +311,10 @@ class HomeActivity : ThemedActivity() {
             if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, Context.BIND_AUTO_CREATE)
             return bound
         }
-        val address = getSharedPreferences("devices", MODE_PRIVATE).getString("scale", null)
-        if (address == null || !BluetoothAdapter.checkBluetoothAddress(address) || missingBle().isNotEmpty())
+        val prefs = getSharedPreferences("devices", MODE_PRIVATE)
+        val selection = io.openhoyi.session.ScaleSelectionPolicy.remembered(prefs.getString("scale", null), prefs.getString("scaleProtocol", null)) ?: return false
+        val address = selection.address
+        if (!BluetoothAdapter.checkBluetoothAddress(address) || missingBle().isNotEmpty())
             return false
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter ?: return false
         return try {
@@ -368,12 +370,12 @@ class HomeActivity : ThemedActivity() {
     }
     private fun choose(device: DiscoveredDevice) {
         if (BuildConfig.MOCK_MODE) {
-            if (device.candidateRole == DeviceRole.BOOKOO) service?.connectScale(device.address)
+            if (device.candidateRole == DeviceRole.BOOKOO) device.scaleProtocolId?.let { service?.connectScale(device.address, it) }
             else service?.connectCoffee(device.address, "000000")
             render()
             return
         }
-        if (device.candidateRole == DeviceRole.BOOKOO) { service?.connectScale(device.address); return }
+        if (device.candidateRole == DeviceRole.BOOKOO) { device.scaleProtocolId?.let { service?.connectScale(device.address, it) }; return }
         if (service?.connectRememberedCoffee(device.address) == true) return
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
@@ -568,10 +570,12 @@ class HomeActivity : ThemedActivity() {
             val label = getString(R.string.home_slot_curve, slot.toString(), item?.name ?: id)
             if (button.text.toString() != label) button.text = label
         }
-        val keys = s.candidates.map { "${it.address}:${it.advertisedName}" }
+        val keys = s.candidates.map { "${it.address}:${it.advertisedName}:${it.scaleProtocolId}" }
         if (keys != candidateKeys) {
             candidateKeys = keys; candidates.removeAllViews()
             s.candidates.forEach { device ->
+                if (device.scaleProtocolId == io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
+                    HoyiUi.label(this, candidates, getString(R.string.scale_read_only_live), 14, muted = true)
                 button(candidates, getString(R.string.home_candidate, device.advertisedName, getString(if (device.candidateRole == DeviceRole.COFFEE) R.string.home_coffee else R.string.home_scale))) { choose(device) }
             }
         }

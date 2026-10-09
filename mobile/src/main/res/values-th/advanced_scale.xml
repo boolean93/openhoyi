@@ -9,7 +9,7 @@
     <string name="scale_disconnected">เครื่องชั่งยังไม่พร้อม</string>
     <string name="scale_mock_notice">โหมดสาธิต ไม่ใช่ค่าจากอุปกรณ์จริง</string>
     <string name="scale_battery_format">แบตเตอรี่ %1$d%%</string>
-    <string name="scale_battery_unavailable">โปรโตคอลที่ตรวจสอบแล้วนี้ยังไม่ให้ข้อมูลแบตเตอรี่</string>
+    <string name="scale_battery_unavailable">โปรโตคอลนี้ไม่ให้ข้อมูลแบตเตอรี่</string>
     <string name="scale_tare">หักน้ำหนักภาชนะ</string>
     <string name="scale_tare_requested">รับคำขอหักน้ำหนักแล้ว แต่ยังไม่ยืนยันว่ากลับเป็นศูนย์</string>
     <string name="scale_tare_idle">หักน้ำหนัก: ยังไม่ได้ขอ</string>
@@ -27,18 +27,18 @@
     <string name="scale_connect">เชื่อมต่อเครื่องชั่ง</string>
     <string name="scale_settings">การตั้งค่าเครื่องมือชั่ง</string>
     <string name="scale_connection_subtitle">ใช้เซสชัน Bluetooth ที่มีอยู่ ชื่อเป็นเพียงเบาะแสของอุปกรณ์ที่อาจใช่</string>
-    <string name="scale_scan">ค้นหาอุปกรณ์ที่อาจเป็น BOOKOO</string>
+    <string name="scale_scan">ค้นหาเครื่องชั่งที่เป็นไปได้</string>
     <string name="scale_scanning">กำลังค้นหา…</string>
-    <string name="scale_scan_empty">ยังไม่พบอุปกรณ์ที่อาจเป็น BOOKOO ตั้งเครื่องชั่งให้ค้นพบได้แล้วค้นหาอีกครั้ง</string>
+    <string name="scale_scan_empty">ยังไม่พบเครื่องชั่ง ตั้งเครื่องชั่งให้ค้นพบได้แล้วค้นหาอีกครั้ง</string>
     <string name="scale_candidate_format">%1$s · %2$s · %3$d dBm</string>
     <string name="scale_connection_state">สถานะการเชื่อมต่อ: %1$s</string>
     <string name="scale_owner_required">ให้สิทธิ์ Bluetooth และเปิด Bluetooth ในการจัดการการเชื่อมต่อก่อน</string>
     <string name="scale_owner_failed">เซสชัน Bluetooth ยังไม่เริ่ม โปรดเปิดการจัดการการเชื่อมต่อ</string>
     <string name="scale_connection_manager">เปิดการจัดการการเชื่อมต่อ</string>
-    <string name="scale_offline_evidence">ACAIA / FELICITA / DIFLUID มีเพียงตัวแยกวิเคราะห์ข้อมูลออฟไลน์รุ่นเก่าที่อาจรองรับ ยังไม่ได้ตรวจสอบกับอุปกรณ์จริง จึงยังไม่ให้เชื่อมต่อ หักน้ำหนัก หรือหยุดน้ำอัตโนมัติ</string>
+    <string name="scale_offline_evidence">Felicita รองรับการเชื่อมต่ออ่านอย่างเดียวแบบทดลอง ยังไม่ยืนยันกับอุปกรณ์จริง ส่วน ACAIA / DIFLUID รองรับเพียงการแยกข้อมูลออฟไลน์ ไม่มีการเชื่อมต่อหรือควบคุม</string>
     <string name="scale_settings_subtitle">ปรับเฉพาะการแสดงผลในแอปนี้ ไม่ส่งคำสั่งตั้งค่าไปยังอุปกรณ์</string>
     <string name="scale_precision">แสดงละเอียดถึง 0.1 กรัม (0.01 กรัมเมื่อปิด)</string>
-    <string name="scale_capabilities_title">ความสามารถที่ตรวจสอบแล้วในปัจจุบัน</string>
+    <string name="scale_capabilities_title">ความสามารถของโปรโตคอลปัจจุบัน</string>
     <string name="scale_capability_weight">รับค่าชั่งน้ำหนัก</string>
     <string name="scale_capability_tare">ขอหักน้ำหนักและตรวจพบค่าศูนย์</string>
     <string name="scale_capability_flow">รับค่าอัตราการไหลจากอุปกรณ์</string>
@@ -52,4 +52,8 @@
     <string name="scale_dose_help">ยืนยันว่าเมล็ดที่จะบดสำหรับการสกัดครั้งนี้อยู่บนเครื่องชั่ง แล้วจึงใช้ค่าที่อ่านได้ ระบบจะไม่ใช้ค่าชั่งของเหลวในแก้วเป็นปริมาณผงกาแฟโดยอัตโนมัติ รอให้ค่าชั่งคงที่อย่างน้อย 1 วินาที โดยเปลี่ยนแปลงไม่เกิน 0.1 กรัม</string>
     <string name="scale_dose_capture">ใช้ค่าเมล็ดที่ชั่งอยู่เป็นปริมาณผงกาแฟครั้งนี้</string>
     <string name="scale_dose_not_ready">ใช้ได้เฉพาะค่าชั่งเมล็ดจริงที่คงที่ เป็นค่าล่าสุดและเป็นบวก และต้องไม่ได้กำลังสกัด</string>
+    <string name="scale_read_only_live">โปรโตคอลอ่านอย่างเดียวแบบทดลอง: ยังไม่ยืนยันกับอุปกรณ์จริง ไม่รองรับหักน้ำหนักหรือตัดน้ำอัตโนมัติ</string>
+    <string name="scale_capability_read_only">ข้อมูลจากโปรโตคอลอ่านอย่างเดียว</string>
+    <string name="scale_memory_failed">บันทึกเครื่องชั่งและโปรโตคอลไม่สำเร็จ การเชื่อมต่อใหม่อัตโนมัติอาจใช้ไม่ได้เมื่อเปิดครั้งถัดไป</string>
+    <string name="scale_protocol_unsupported">ไม่รองรับโปรโตคอลเครื่องชั่งนี้</string>
 </resources>

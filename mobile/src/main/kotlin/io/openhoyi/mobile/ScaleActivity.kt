@@ -150,6 +150,7 @@ class ScaleActivity:ScaleOwnerActivity() {
             snapshot?.scaleState!=DeviceState.READY->R.string.scale_disconnected
             live==null->R.string.scale_stale
             live.evidence==ScaleEvidence.OFFLINE_CANDIDATE->R.string.scale_offline_evidence
+            live.evidence==ScaleEvidence.LIVE_READ_ONLY->R.string.scale_read_only_live
             else->R.string.scale_live
         })
         battery.text=live?.batteryPercent?.takeIf {live.capabilities.battery && it in 0..100}

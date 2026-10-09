@@ -9,7 +9,7 @@
     <string name="scale_disconnected">Весы не готовы</string>
     <string name="scale_mock_notice">Демонстрационный режим: это не показание реального устройства</string>
     <string name="scale_battery_format">Батарея %1$d%%</string>
-    <string name="scale_battery_unavailable">Этот проверенный протокол пока не предоставляет данные о батарее</string>
+    <string name="scale_battery_unavailable">Протокол не передаёт заряд батареи</string>
     <string name="scale_tare">Тарировать</string>
     <string name="scale_tare_requested">Запрос тарирования принят; обнуление ещё не подтверждено</string>
     <string name="scale_tare_idle">Тарирование: запрос ещё не отправлен</string>
@@ -27,18 +27,18 @@
     <string name="scale_connect">Подключить весы</string>
     <string name="scale_settings">Настройки инструмента весов</string>
     <string name="scale_connection_subtitle">Используется существующий сеанс Bluetooth; название лишь указывает на возможное устройство</string>
-    <string name="scale_scan">Найти возможные весы BOOKOO</string>
+    <string name="scale_scan">Найти возможные весы</string>
     <string name="scale_scanning">Поиск…</string>
-    <string name="scale_scan_empty">Возможные весы BOOKOO пока не найдены. Сделайте весы обнаруживаемыми и запустите поиск.</string>
+    <string name="scale_scan_empty">Весы не найдены. Включите обнаружение весов и запустите поиск.</string>
     <string name="scale_candidate_format">%1$s · %2$s · %3$d dBm</string>
     <string name="scale_connection_state">Состояние подключения: %1$s</string>
     <string name="scale_owner_required">Сначала разрешите доступ к Bluetooth и включите его в управлении подключениями</string>
     <string name="scale_owner_failed">Сеанс Bluetooth ещё не запущен. Откройте управление подключениями.</string>
     <string name="scale_connection_manager">Открыть управление подключениями</string>
-    <string name="scale_offline_evidence">Для ACAIA / FELICITA / DIFLUID есть только старые варианты офлайн-парсеров без проверки на реальных устройствах. Подключение, тарирование и автоматическая остановка воды недоступны.</string>
+    <string name="scale_offline_evidence">Felicita: экспериментальное подключение только для чтения, без проверки на устройстве. ACAIA / DIFLUID доступны только для офлайн-разбора, без подключения и управления.</string>
     <string name="scale_settings_subtitle">Меняется только отображение в приложении; команды настройки устройству не отправляются</string>
     <string name="scale_precision">Показывать с точностью до 0.1 г (до 0.01 г, если выключено)</string>
-    <string name="scale_capabilities_title">Проверенные возможности</string>
+    <string name="scale_capabilities_title">Возможности текущего протокола</string>
     <string name="scale_capability_weight">Получение веса</string>
     <string name="scale_capability_tare">Запрос тарирования и проверка нулевого показания</string>
     <string name="scale_capability_flow">Получение потока от устройства</string>
@@ -52,4 +52,8 @@
     <string name="scale_dose_help">Убедитесь, что на весах зёрна для помола на эту экстракцию, затем сохраните показание. Вес жидкости в чашке не принимается автоматически за дозу. Дождитесь стабильных показаний в течение хотя бы 1 секунды с колебаниями не более 0,1 г.</string>
     <string name="scale_dose_capture">Использовать текущий вес зёрен как дозу для этой экстракции</string>
     <string name="scale_dose_not_ready">Можно использовать только стабильное, свежее и положительное значение веса настоящих зёрен, когда экстракция не идёт</string>
+    <string name="scale_read_only_live">Экспериментальный протокол только для чтения: не проверен на устройстве; без тары и автоостановки</string>
+    <string name="scale_capability_read_only">Сообщено протоколом только для чтения</string>
+    <string name="scale_memory_failed">Не удалось сохранить весы и протокол; автоподключение при следующем запуске может быть недоступно</string>
+    <string name="scale_protocol_unsupported">Протокол весов не поддерживается</string>
 </resources>
