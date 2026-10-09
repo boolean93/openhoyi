@@ -122,22 +122,41 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
         } catch(error:Throwable) {status("CURVE_SYSTEM_DOCUMENT_TREE_UNAVAILABLE stage=$stage error=$error")}
     }
     private fun pickerVisible():Boolean=runCatching {tree {nodes->nodes.first().packageName?.toString()==pickerPackage}}.getOrDefault(false)
+    private fun clickPickerMatch(label:String,nodes:List<AccessibilityNodeInfo>,matches:List<AccessibilityNodeInfo>) {
+        check(matches.size==1) {"Expected exactly one system picker node for $label, got ${matches.size}"}
+        var target:AccessibilityNodeInfo?=matches.single()
+        var depth=0
+        while(target!=null && !target.isClickable) {
+            check(++depth<=40) {"Unexpected system picker ancestor depth"}
+            val parent=target.parent
+            if(parent!=null && nodes.none {it===parent})(nodes as MutableList).add(parent)
+            target=parent
+        }
+        // Never retry after dispatch: even a failed ACTION_CLICK is an uncertain UI outcome.
+        check(target?.packageName?.toString()==pickerPackage && target.isVisibleToUser && target.isEnabled &&
+            target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {"System picker click failed: $label"}
+    }
     private fun pickerAction(label:String,predicate:(AccessibilityNodeInfo)->Boolean) {
         try {
             tree {nodes->
                 check(nodes.first().packageName?.toString()==pickerPackage) {"Not the verified system picker"}
-                val matches=nodes.filter {it.isVisibleToUser && it.isEnabled && predicate(it)}
-                check(matches.size==1) {"Expected exactly one system picker node for $label, got ${matches.size}"}
-                var target:AccessibilityNodeInfo?=matches.single()
-                while(target!=null && !target.isClickable) {
-                    val parent=target.parent
-                    // Parent objects must also be released after this action.
-                    if(parent!=null && nodes.none {it===parent})(nodes as MutableList).add(parent)
-                    target=parent
-                }
-                check(target?.packageName?.toString()==pickerPackage && target.isEnabled &&
-                    target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {"System picker click failed: $label"}
+                clickPickerMatch(label,nodes,nodes.filter {it.isVisibleToUser && it.isEnabled && predicate(it)})
             }
+        } catch(error:Throwable) {dumpTree("action-failed-$label");throw error}
+    }
+    private fun awaitPickerAction(label:String,predicate:(AccessibilityNodeInfo)->Boolean) {
+        try {
+            await("action-$label") {tree {nodes->
+                check(nodes.first().packageName?.toString()==pickerPackage) {"Not the verified system picker"}
+                val matches=nodes.filter {it.isVisibleToUser && it.isEnabled && predicate(it)}
+                if(matches.isEmpty())false else {
+                    // Match and dispatch from this same tree. A second snapshot may lose the row
+                    // during drawer transitions even after the first snapshot found it.
+                    clickPickerMatch(label,nodes,matches)
+                    status("CURVE_SYSTEM_DOCUMENT_ACTION label=$label matchingSnapshot=true dispatchedOnce=true")
+                    true
+                }
+            }}
         } catch(error:Throwable) {dumpTree("action-failed-$label");throw error}
     }
     @Suppress("DEPRECATION")
@@ -164,10 +183,7 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
         val downloadsRoot:(AccessibilityNodeInfo)->Boolean={node->
             node.text?.toString()=="Downloads" && hasAncestorId(node,setOf("item_root","roots_list"))
         }
-        await("downloads-root") {tree {nodes->
-            nodes.count {it.isVisibleToUser && it.isEnabled && downloadsRoot(it)}==1
-        }}
-        pickerAction("Downloads-root",downloadsRoot)
+        awaitPickerAction("Downloads-root",downloadsRoot)
         await("downloads-root-open") {tree {nodes->
             nodes.first().packageName?.toString()==pickerPackage &&
                 nodes.none {it.isVisibleToUser && it.viewIdResourceName=="$pickerPackage:id/roots_list"} &&
