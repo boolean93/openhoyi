@@ -31,7 +31,7 @@ class CurveShareActivity : ThemedActivity() {
             Toast.makeText(this, R.string.profiles_copied, Toast.LENGTH_SHORT).show()
         }
         HoyiUi.button(this, body, getString(R.string.profiles_share_text), primary = true) {
-            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_TEXT, json), getString(R.string.profiles_share_title)))
+            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, json), getString(R.string.profiles_share_title)))
         }
         HoyiUi.button(this, body, getString(R.string.profiles_export_file)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json")

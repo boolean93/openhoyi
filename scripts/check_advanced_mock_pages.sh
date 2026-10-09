@@ -48,7 +48,7 @@ with Path(output).open('w') as capture:
         raise SystemExit('Advanced Mock page matrix timed out; partial output retained')
 if result.returncode:
     raise SystemExit(result.returncode)
-expected=f'ADVANCED_PAGE_LAYOUT_CHECKS_PASSED profile={profile} languages=8 themes=2 pages=14 fixtures=224 preservedState=true noBle=true'
+expected=f'ADVANCED_PAGE_LAYOUT_CHECKS_PASSED profile={profile} languages=8 themes=2 pages=15 fixtures=240 preservedState=true noBle=true'
 if expected not in Path(output).read_text():
     raise SystemExit(f'Advanced Mock page matrix did not confirm completion: {output}')
 PY
@@ -57,8 +57,8 @@ PY
 from pathlib import Path
 import struct,sys
 paths=list(Path(sys.argv[1]).glob('*.png'))
-if len(paths)<56:
-    raise SystemExit(f'Incomplete advanced page screenshots: {len(paths)}/56')
+if len(paths)!=60:
+    raise SystemExit(f'Incomplete advanced page screenshots: {len(paths)}/60')
 for path in paths:
     data=path.read_bytes()
     if len(data)<10000 or data[:8]!=b'\x89PNG\r\n\x1a\n':

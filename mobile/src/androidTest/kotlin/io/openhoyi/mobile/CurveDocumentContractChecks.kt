@@ -153,7 +153,8 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
             var intercepted = 0
             val monitor = object : Instrumentation.ActivityMonitor() {
                 override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
-                    if (intent.action != Intent.ACTION_CHOOSER) return null
+                    // Fail closed even if the product regresses to direct ACTION_SEND or
+                    // another external Activity: inspect only after cancelling the launch.
                     observed = Intent(intent); intercepted++
                     return Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null)
                 }

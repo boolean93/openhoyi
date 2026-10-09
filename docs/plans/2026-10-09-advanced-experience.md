@@ -191,3 +191,13 @@
 - Android官方分享规范要求EXTRA_TEXT纯文本使用text/plain；当前CurveShareActivity使用application/json，可能无法匹配纯文本接收应用。文件application/json仍正确。
 - 扩展现有平台请求拦截测试：文本精确JSON/MIME/无私密额外字段；文件精确URI、ClipData及chooser只读授权。两项均拦截ACTION_CHOOSER并返回取消，不打开外部接收方、不发送给任何人。原9条文档路径、7条picker合约保留，严格完成标记扩至11paths/2shareContracts，仍明确systemPicker=false、externalSend=false。
 - 新测试APK编译通过，未证明运行通过。先推回归在隔离Mock CI上取得真实失败证据，再修正文案分享MIME；本机无已启动模拟器，不安装用户设备。此提交有意保持产品现状，不宣称bugfix完成，不关闭PR门禁。
+- 分享回归独立审查发现拦截器不能只取消正确的ACTION_CHOOSER：若产品回归成直接ACTION_SEND，外部应用可能先收到参数再断言失败。改为在分享点击作用域取消全部启动，再检查实际action必须CHOOSER，确保失败路径也不会外发。此项仅修测试保护，不改产品。
+
+## c707593 完整 CI 证据
+
+- PR verify `37951104607` 成功；日志明确执行mobile:lintDebug并BUILD SUCCESSFUL，不再只有本机未能获取依赖的间接状态。branch-policy `37951105193`、upgrade `37951104724`、lifecycle `37951104790` 全部成功，均为c70759374a7580bcbe671ba2c02612cbf67b939a。
+- lifecycle下载至 `/tmp/openhoyi-lifecycle-c707593`。compact与wideFont各96fixtures/8语言/2主题/6页面完成；LanguageSelector包括switch/restore/unchanged/saveFailure/sameService通过；TrendChartText两种profile均完成2metrics/3cases；ChartLegend64fixtures/4widths及语言图表scientificOrdering均通过。诊断、音效、真实页面/服务状态门禁和生命周期Mock检查通过，仍不代表真实设备结果。
+- advanced `37951105531` 成功，artifact `/tmp/openhoyi-advanced-c707593`：compact/wideFont各224fixtures/14页面，业务17paths，原文档9paths/7pickerContracts均实际通过。该提交尚不包含新11paths/2shareContracts，不能用这份证据替代分享回归。
+- 分享红验证已取得：33b8fdc run37951781297终态失败，artifact `/tmp/openhoyi-advanced-33b8fdc/curve-document-contracts.txt` 明确 `Text sharing must match plain-text receivers, got application/json`，不是构建、启动或监控失败。随后只将EXTRA_TEXT分享改为text/plain，文件application/json保持不变；新11paths/2shareContracts等待真实绿验证。
+- 扩展页面矩阵为15个上下文（保留原14页，新增ScaleActivity-Capture），每profile240fixtures/60PNG；截图文件名区分捕获上下文，不覆盖普通秤页。新增8语言2主题的稳定称豆说明、按钮布局和Mock不可捕获断言，脚本要求精确60截图及15/240完成标记。软件检查仍不证明真实秤稳定称豆或外部接收方验收。
+- 分享修复/默认阻断拦截/捕获上下文矩阵的末轮独立复审无新P1/P2；Debug/Mock/AndroidTest APK统一构建通过（26s），Debug/Mock各254 tests、0 failures/errors、1既有skip。git diff --check、shell语法与branch policy通过。Android实际新合约和15上下文矩阵尚待最新CI，不能把编译或旧c707593通过当作新运行通过。

@@ -68,7 +68,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (advancedPageProfile != null) {
                 val profile = requireNotNull(advancedPageProfile)
                 val result = AdvancedPageChecks(this).run(profile)
-                report.putString("stream", "ADVANCED_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=14 fixtures=${result.fixtures} preservedState=true noBle=true\n" +
+                report.putString("stream", "ADVANCED_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=15 fixtures=${result.fixtures} preservedState=true noBle=true\n" +
                     "ADVANCED_PAGE_SCREENSHOTS profile=$profile count=${result.screenshots} directory=${result.directory.absolutePath}\n")
                 finish(Activity.RESULT_OK, report)
                 return

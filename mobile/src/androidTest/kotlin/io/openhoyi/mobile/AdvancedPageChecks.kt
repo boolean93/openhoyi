@@ -111,6 +111,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
             page(BeanLedgerActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, batch.id),
             page(BeanPreparationActivity::class.java),
             page(ScaleActivity::class.java), page(ScaleConnectionActivity::class.java), page(ScaleSettingsActivity::class.java),
+            page(ScaleActivity::class.java).putExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, true),
             page(BrewReviewActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, observations[0].id),
             page(BrewComparisonActivity::class.java).putExtra(BrewComparisonActivity.FIRST_SHOT_ID, observations[0].id)
                 .putExtra(BrewComparisonActivity.SECOND_SHOT_ID, observations[1].id),
@@ -119,7 +120,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
             page(CurveImportActivity::class.java),
             page(CurveImportPreviewActivity::class.java).putExtra(CurveImportPreviewActivity.DOCUMENT, preview),
         )
-        check(pages.size == 14 && AppLanguage.entries.size == 8)
+        check(pages.size == 15 && AppLanguage.entries.size == 8)
         var currentPage: Activity? = null
         var completed = 0
         var screenshots = 0
@@ -150,7 +151,8 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                 }
                 rebuildHome()
                 for (intent in pages) {
-                    val name = requireNotNull(intent.component).shortClassName.substringAfterLast('.')
+                    val name = requireNotNull(intent.component).shortClassName.substringAfterLast('.') +
+                        if (intent.getBooleanExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, false)) "-Capture" else ""
                     val fixture = "$profile ${language.tag} dark=$dark page=$name"
                     test.sendStatus(0, Bundle().apply { putString("stream", "ADVANCED_PAGE_START $fixture\n") })
                     val activity = test.startActivitySync(intent).also { currentPage = it }
@@ -166,6 +168,14 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                         }
                         check(config.locales[0] == language.locale && HoyiUi.dark(activity) == dark) { "$fixture locale/theme mismatch" }
                         check(activity.window.decorView.layoutDirection == if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR)
+                        if (intent.getBooleanExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, false)) {
+                            check(activity is ScaleActivity && service!!.beanDoseCaptureAt(SystemClock.elapsedRealtime()) == null)
+                            val labels = descendants(root(activity)).filterIsInstance<TextView>()
+                            check(labels.single { it.isClickable && it.text.toString() == activity.getString(R.string.scale_dose_capture) }.let {
+                                it.isShown && !it.isEnabled
+                            }) { "$fixture Mock must not capture real bean weight" }
+                            check(labels.any { it.isShown && it.text.toString() == activity.getString(R.string.scale_dose_help) })
+                        }
                     }
                     checkPage(activity, fixture)
                     if (language == AppLanguage.CHINESE || language == AppLanguage.ARABIC) {
@@ -185,7 +195,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                     assertState()
                 }
             }
-            check(completed == 224 && screenshots == 56) { "Incomplete advanced matrix: pages=$completed screenshots=$screenshots" }
+            check(completed == 240 && screenshots == 60) { "Incomplete advanced matrix: pages=$completed screenshots=$screenshots" }
         } catch (error: Throwable) { failure = error }
         finally {
             fun cleanup(action: () -> Unit) {
