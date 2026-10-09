@@ -149,3 +149,8 @@
 - 独立代码审查未发现可执行 P1/P2；明确保留 DocumentsUI、外部分享发送与手机萃取阶段人工核对缺口，不以受控结果回传冒称系统选择器验收。
 - [9d59188 lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37943745682) 再次在诊断启动超时，日志仍为 Home 配置重建，正式检查未运行。ActivityMonitor.lastActivity 对配置重建的实例跟踪不可靠；诊断改为启动前注册临时 Application 生命周期回调，识别实际创建/启动/恢复的 Home，销毁时仅清除对应实例引用。回调 finally 注销并记录清理结果。保持同一个绝对启动期限、焦点/布局/原服务 running 检查和独立正式验收流程；不暂停生产刷新或豁免失败。
 - 此修正 Mock AndroidTest 完整构建成功（16s），分支规则与 diff 检查通过；Android 运行证据仍待新源码 CI。`9d59188` advanced-pages 作业 37943745544 仍在运行，不重启或以观察等待代替终态。
+
+## 文件测试独立进程运行时修正
+
+- 作业 37943745544 已失败。下载输出核对 compact/wideFont 两组布局矩阵与 17 条实际业务路径均通过；文件合约输出为 Process crashed，未执行九条文件路径。logcat 明确 test APK 独立进程初始化 CurveFixtureProvider 时缺少 kotlin.collections.SetsKt：instrumentation 可使用目标 APK Kotlin 库，不代表独立 Provider 进程也有该库。
+- 测试专用 Provider 改为 Java，仅使用 Android/JDK 类，不改生产文件交换或依赖、不复制目标 APK 运行库。原 signature 权限、调用包/签名、注册 UUID、固定路径与读写限制保留；清理仅注册 fixture 目录，并不跟随符号链接。测试 APK 构建成功（17s），javap 字节码检查 kotlin 引用为零，diff 检查通过。运行时签名权限与九条文件路径仍待新源码 CI；不将字节码或编译证据冒称 Android 运行成功。
