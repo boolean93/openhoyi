@@ -10,11 +10,13 @@ data class CurveLibraryItem(
     val details: String,
     val controlProfile: CurveProfile?,
     val factoryCurve: FactoryCurve? = null,
+    val customDocument: CustomCurveDocument? = null,
 )
 
-class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWireProof? = null) {
+class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWireProof? = null,
+                   private val draftsProvider: () -> List<CurveLibraryItem> = { emptyList() }) {
     val legacyVerifiedStartFrames: Set<String> get() = proof?.allowedFrames() ?: emptySet()
-    val items: List<CurveLibraryItem> = java.util.Collections.unmodifiableList(
+    private val verifiedItems: List<CurveLibraryItem> = java.util.Collections.unmodifiableList(
         CurveCatalog.profiles.map { profile ->
             CurveLibraryItem(profile.id, profile.name, "已采集验证",
                 "${profile.endMode}\n温度 ${profile.temperatureC} °C · 最多 ${profile.maximumWaterMl} ml · ${profile.parameters.segmentCount} 段\n目标重量 ${if (profile.targetHundredthsGram == 0) "不使用" else "${format(profile.targetHundredthsGram / 100.0)} g"}\n启动报文与采集样本逐字节一致。",
@@ -24,11 +26,16 @@ class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWirePr
                 "旧版工厂曲线 v3 · ${if (proof == null) "报文校验不可用，仅供浏览" else "启动报文对照通过，待实机验收"}\n温度 ${curve.temperatureC} °C · 水量 ${curve.flowMl} ml · ${curve.segmentCount} 段\n目标重量 ${if (curve.weightTenthsGram == 0) "不使用" else "${format(curve.weightTenthsGram / 10.0)} g"}\n分段目标 ${curve.targets.take(curve.segmentCount).joinToString(" / ")}\n分段水量 ${curve.segmentFlowMl.take(curve.segmentCount).joinToString(" / ")} ml\n\n${curve.tips}",
                 null, curve)
         })
+    val items: List<CurveLibraryItem> get() = java.util.Collections.unmodifiableList(verifiedItems + draftsProvider().filter {
+        it.customDocument != null && it.id == it.customDocument.id && it.controlProfile == null && it.factoryCurve == null &&
+            it.id.startsWith("draft-")
+    })
     fun find(id: String): CurveLibraryItem? = items.firstOrNull { it.id == id }
-    fun canStart(item: CurveLibraryItem): Boolean = item.controlProfile?.let(CurveCatalog::validated) == true ||
-        (item.factoryCurve != null && proof != null)
+    fun canStart(item: CurveLibraryItem): Boolean = item.customDocument == null && !item.id.startsWith("draft-") &&
+        (item.controlProfile?.let(CurveCatalog::validated) == true || (item.factoryCurve != null && proof != null))
     fun resolve(id: String, scaleConnected: Boolean, slot: Int = 7): CurveProfile? {
         val item = find(id) ?: return null
+        if (item.customDocument != null || item.id.startsWith("draft-")) return null
         item.controlProfile?.let { return it.takeIf { slot == 7 && CurveCatalog.validated(it) } }
         val curve = item.factoryCurve ?: return null
         if (slot !in 1..5 && slot != 7) return null

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dose_title">选豆与投粉确认</string>
+    <string name="dose_subtitle">保存选豆不扣库存；明确确认投粉后只扣一次</string>
+    <string name="dose_batch">选择库存批次</string>
+    <string name="dose_batch_choice">%1$s · 剩余 %2$s g · %3$s</string>
+    <string name="dose_amount">实际投粉量（g，最多 3 位小数）</string>
+    <string name="dose_save_selection">保存选豆（不扣库存）</string>
+    <string name="dose_saved">选豆已保存，尚未扣减库存</string>
+    <string name="dose_confirm">确认已经投粉并扣减库存</string>
+    <string name="dose_retry">用同一准备记录重试确认</string>
+    <string name="dose_confirmed">库存已扣减 %1$s g。开始失败也不会自动回库；更正须在库存页记调整流水。</string>
+    <string name="dose_attempted">投粉确认尚未完成，库存可能已扣减。重试会核对同一事件，不会重复扣减。请勿另建准备记录重扣。</string>
+    <string name="dose_summary">豆款：%1$s\n批次：%2$s\n实际投粉：%3$s g</string>
+    <string name="dose_record">准备记录 %1$s</string>
+    <string name="dose_next_cup">上一份投粉已关联一杯。下一杯请重新填写；不会自动复用。</string>
+    <string name="dose_cancel_selection">取消选豆，重新选择</string>
+    <string name="dose_discard">明确放弃此准备（不回库）</string>
+    <string name="dose_discard_title">放弃当前投粉准备</string>
+    <string name="dose_discard_message">将先核对库存流水，再放弃这份准备记录。已发生的扣减不会退回库存；需要更正时请新增调整流水。</string>
+    <string name="dose_discard_confirm">核对流水并放弃</string>
+    <string name="dose_cancel_dialog">保留准备</string>
+    <string name="dose_return">返回冲煮页</string>
+    <string name="dose_scale">从称豆页面取当前读数</string>
+    <string name="dose_scale_hint">仅在没有进行中或结果未知的冲煮时可称豆。读数不会自动扣库存。</string>
+    <string name="dose_scale_wait">服务状态未确认，可手动填写粉量；暂不能进入称豆。</string>
+    <string name="dose_scale_blocked">当前冲煮活动或恢复状态未解除，暂不能称豆</string>
+    <string name="dose_scale_invalid">没有可用的真实称豆读数，请重新称豆或手动填写</string>
+    <string name="dose_bad_amount">请填写大于 0 的实际粉量，最多 3 位小数，且不得超出范围</string>
+    <string name="dose_empty">还没有库存批次，请先添加一袋豆子</string>
+    <string name="dose_add_beans">添加库存批次</string>
+    <string name="dose_save_failed">选豆保存失败，未扣减库存。请稍后重试。</string>
+    <string name="dose_confirm_failed">投粉确认未完成。请用同一准备记录重试，或明确核对流水后放弃。</string>
+    <string name="dose_discard_failed">准备记录仍保留。无法核对或保存，请勿另建记录重扣。</string>
+    <string name="dose_changed">准备记录已变化，请重新核对</string>
+    <string name="dose_ledger_conflict">准备记录与库存流水不一致，无法确认成功。原记录已保留。</string>
+    <string name="dose_start_unconfirmed">请先完成投粉确认，或在准备页明确放弃本次选豆。</string>
+    <string name="dose_start_unavailable">投粉准备数据不可用，请先到准备页核对；不会重建或覆盖原记录。</string>
+    <string name="dose_association_pending">已扣库存，复盘关联待恢复。恢复前不能新建准备，也不会再次扣库存。</string>
+    <string name="dose_association_retry">恢复这杯复盘关联（只填空项）</string>
+    <string name="dose_association_failed">复盘关联尚未恢复，原准备仍保留。不会创建虚构记录或再次扣库存。</string>
+</resources>

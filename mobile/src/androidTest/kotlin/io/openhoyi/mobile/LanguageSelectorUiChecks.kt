@@ -22,11 +22,11 @@ internal class LanguageSelectorUiChecks(private val test: Instrumentation) {
             Thread.sleep(25)
         }
     }
-    private fun owner(page: MachineSettingsActivity) = MachineSettingsActivity::class.java.getDeclaredField("service")
+    private fun owner(page: AppSettingsActivity) = AppSettingsActivity::class.java.getDeclaredField("service")
         .apply { isAccessible = true }.get(page) as? MobileService
-    private fun card(page: MachineSettingsActivity) = MachineSettingsActivity::class.java.getDeclaredField("languageCard")
+    private fun card(page: AppSettingsActivity) = AppSettingsActivity::class.java.getDeclaredField("languageCard")
         .apply { isAccessible = true }.get(page) as AppLanguagePreferencesCard
-    fun run(initial: MachineSettingsActivity, onPageChanged: (MachineSettingsActivity) -> Unit): MachineSettingsActivity {
+    fun run(initial: AppSettingsActivity, onPageChanged: (AppSettingsActivity) -> Unit): AppSettingsActivity {
         check(BuildConfig.MOCK_MODE && initial.packageName == "io.openhoyi.mobile.mock")
         var current = initial
         val app = initial.application as MobileApplication
@@ -50,13 +50,13 @@ internal class LanguageSelectorUiChecks(private val test: Instrumentation) {
         }
         fun choose(language: AppLanguage) {
             val dialog = open()
-            val monitor = test.addMonitor(MachineSettingsActivity::class.java.name, null, false)
+            val monitor = test.addMonitor(AppSettingsActivity::class.java.name, null, false)
             try {
                 onMain {
                     val index = AppLanguage.entries.indexOf(language)
                     check(dialog.listView.performItemClick(null, index, dialog.listView.adapter.getItemId(index)))
                 }
-                current = test.waitForMonitorWithTimeout(monitor, 10000) as? MachineSettingsActivity
+                current = test.waitForMonitorWithTimeout(monitor, 10000) as? AppSettingsActivity
                     ?: error("Language selector did not recreate settings")
                 onPageChanged(current)
                 test.waitForIdleSync()
@@ -80,6 +80,18 @@ internal class LanguageSelectorUiChecks(private val test: Instrumentation) {
             choose(alternate)
             choose(originalLanguage)
             onMain {
+                val previousTheme = current.themeCheckBox.isChecked
+                val appearance = current.getSharedPreferences("appearance", Context.MODE_PRIVATE)
+                val storedTheme = appearance.getBoolean("dark", false)
+                val writer = current.appearanceWrite
+                try {
+                    current.appearanceWrite = { false }
+                    check(current.themeCheckBox.performClick())
+                    check(current.themeCheckBox.isChecked == previousTheme)
+                    check(appearance.getBoolean("dark", false) == storedTheme)
+                    check(current.themeError.text.toString() == current.getString(R.string.app_settings_theme_failed))
+                    check(owner(current) === service && service.snapshot.message === message)
+                } finally { current.appearanceWrite = writer; current.themeError.text = "" }
                 var callbacks = 0
                 val failed = AppLanguagePreference(object : AppLanguagePreference.Storage {
                     override fun read() = originalLanguage.tag

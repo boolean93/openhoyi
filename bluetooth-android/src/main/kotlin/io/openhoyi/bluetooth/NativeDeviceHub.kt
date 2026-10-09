@@ -15,7 +15,8 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
     private val diagnostic:(String)->Unit={},
     trace:(DeviceRole,WireTrace)->Unit={_,_->},
     legacyVerifiedStartFrames:Set<String> = emptySet(),
-    tareStorage:StandaloneTare.Storage? = null) : AutoCloseable {
+    tareStorage:StandaloneTare.Storage? = null,
+    private val onScaleObservation:(ScaleObservation)->Unit = {}) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var remembered=rememberedScaleAddress?.takeIf { android.bluetooth.BluetoothAdapter.checkBluetoothAddress(it) }
@@ -38,10 +39,17 @@ class NativeDeviceHub(context:Context,rememberedScaleAddress:String?=null,
             if(state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED))extraction.scaleDisconnected()
             if(state==DeviceState.READY)candidate?.let{remembered=it;onScaleRemembered(it)}
             onState(DeviceRole.BOOKOO,state)
-        },weightFrame={sample,time->standaloneTare.sample(++scaleSampleSerial,sample.weightHundredthsGram);extraction.weight(WeightReading(sample.weightHundredthsGram,time));onWeight(sample)},diagnostic=diagnostic,trace={trace(DeviceRole.BOOKOO,it)})
+        },weightFrame={sample,_->onWeight(sample)},
+        scaleObservation={sample->
+            if(sample.evidence==ScaleEvidence.VERIFIED_TRANSPORT && sample.capabilities.weight && sample.capabilities.tare)
+                standaloneTare.sample(++scaleSampleSerial,sample.hundredthsGram)
+            extraction.weight(sample)
+            onScaleObservation(sample)
+        },diagnostic=diagnostic,trace={trace(DeviceRole.BOOKOO,it)})
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=ScaleSessionControl(scale.session,standaloneTare,{scaleSampleSerial})
     val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()})
+    val scaleCapabilities:ScaleCapabilities get()=scale.session.scaleCapabilities
     val scaleAddress:String? get()=scale.session.address.takeIf { scale.session.state==DeviceState.READY }
     val coffeeFirmware:CoffeeFirmware? get()=coffee.session.observedFirmware
     val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }

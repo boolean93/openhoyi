@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dose_title">Bean selection and dose confirmation</string>
+    <string name="dose_subtitle">Saving a bean selection does not deduct stock; explicit dose confirmation deducts it only once</string>
+    <string name="dose_batch">Choose stock batch</string>
+    <string name="dose_batch_choice">%1$s · %2$s g remaining · %3$s</string>
+    <string name="dose_amount">Actual dose (g, up to 3 decimal places)</string>
+    <string name="dose_save_selection">Save bean selection (no stock deduction)</string>
+    <string name="dose_saved">Bean selection saved; stock has not been deducted</string>
+    <string name="dose_confirm">Confirm beans have been dosed and deduct stock</string>
+    <string name="dose_retry">Retry confirmation with the same preparation record</string>
+    <string name="dose_confirmed">%1$s g deducted from stock. A failed start will not return it automatically; corrections require an adjustment entry on the inventory page.</string>
+    <string name="dose_attempted">Dose confirmation is incomplete; stock may already have been deducted. Retrying checks the same event without deducting again. Do not create another preparation record to deduct it again.</string>
+    <string name="dose_summary">Beans: %1$s\nBatch: %2$s\nActual dose: %3$s g</string>
+    <string name="dose_record">Preparation record %1$s</string>
+    <string name="dose_next_cup">The previous dose is linked to a shot. Enter a new dose for the next shot; it will not be reused automatically.</string>
+    <string name="dose_cancel_selection">Cancel bean selection and choose again</string>
+    <string name="dose_discard">Explicitly abandon this preparation (no stock return)</string>
+    <string name="dose_discard_title">Abandon current dose preparation</string>
+    <string name="dose_discard_message">Stock transactions will be checked before this preparation record is abandoned. Any stock already deducted will not be returned; add an adjustment entry if a correction is needed.</string>
+    <string name="dose_discard_confirm">Check transactions and abandon</string>
+    <string name="dose_cancel_dialog">Keep preparation</string>
+    <string name="dose_return">Return to brewing page</string>
+    <string name="dose_scale">Capture current reading from the bean-weighing page</string>
+    <string name="dose_scale_hint">Beans can only be weighed when no brew is active or has an unknown result. Readings do not automatically deduct stock.</string>
+    <string name="dose_scale_wait">Service state is unconfirmed. You can enter the dose manually, but bean weighing is currently unavailable.</string>
+    <string name="dose_scale_blocked">Bean weighing is unavailable while the current brew activity or recovery state remains unresolved</string>
+    <string name="dose_scale_invalid">No usable real bean-weight reading. Weigh the beans again or enter the dose manually.</string>
+    <string name="dose_bad_amount">Enter an actual dose greater than 0, with up to 3 decimal places, within the supported range</string>
+    <string name="dose_empty">No stock batches yet. Add a bag of beans first.</string>
+    <string name="dose_add_beans">Add stock batch</string>
+    <string name="dose_save_failed">Could not save the bean selection. Stock has not been deducted. Please try again later.</string>
+    <string name="dose_confirm_failed">Dose confirmation is incomplete. Retry with the same preparation record, or explicitly check the transactions before abandoning it.</string>
+    <string name="dose_discard_failed">The preparation record has been kept. Transactions could not be checked or changes saved. Do not create another record to deduct again.</string>
+    <string name="dose_changed">The preparation record has changed. Please check it again.</string>
+    <string name="dose_ledger_conflict">The preparation record and stock transactions do not match. Success cannot be confirmed. The original record has been kept.</string>
+    <string name="dose_start_unconfirmed">Complete dose confirmation first, or explicitly abandon this bean selection on the preparation page.</string>
+    <string name="dose_start_unavailable">Dose preparation data is unavailable. Check it on the preparation page first; original records will not be recreated or overwritten.</string>
+    <string name="dose_association_pending">Stock deducted; the review link awaits recovery. No new preparation can be created until recovery, and stock will not be deducted again.</string>
+    <string name="dose_association_retry">Restore this shot’s review link (fill empty fields only)</string>
+    <string name="dose_association_failed">The review link has not been restored. The original preparation is kept. No fictional records will be created and stock will not be deducted again.</string>
+</resources>

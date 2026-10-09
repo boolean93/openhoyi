@@ -9,6 +9,8 @@ class ShotHistory(
     private val storage: Storage,
     private val now: () -> Long = System::currentTimeMillis,
     private val newId: () -> String = { UUID.randomUUID().toString() },
+    private val onObservedUse: (Entry) -> Unit = {},
+    private val onEntryChanged: (Entry) -> Unit = {},
 ) {
     interface Storage {
         fun read(): String
@@ -25,6 +27,7 @@ class ShotHistory(
         val reason: String?,
         val weightHundredthsGram: Int?,
         val slot: Int? = null,
+        val observedRunning: Boolean = false,
     )
 
     private val records = decode(storage.read()).toMutableList()
@@ -32,16 +35,21 @@ class ShotHistory(
     val entries: List<Entry> get() = records.sortedByDescending { it.startedAtMs }.toList()
 
     init {
+        // Migrate only entries that positively establish observed use, before restart marks them unknown.
+        records.filter { it.curveId != "manual" && it.observedRunning }.forEach(onObservedUse)
         var changed = false
+        val interrupted = mutableListOf<Entry>()
         for (index in records.indices) {
             val entry = records[index]
             if (entry.status in setOf(Status.STARTING, Status.RUNNING, Status.STOP_REQUESTED)) {
                 records[index] = entry.copy(status = Status.UNKNOWN, reason = "进程中断")
+                interrupted += records[index]
                 changed = true
             }
         }
         if (trim()) changed = true
         if (changed) persist()
+        interrupted.forEach(::notifyChanged)
     }
 
     fun begin(curveId: String, atMs: Long = now(), slot: Int = 7): String {
@@ -51,9 +59,20 @@ class ShotHistory(
         require(if (curveId == "manual") slot == 6 else slot in 1..5 || slot == 7)
         val id = newId()
         require(id.isNotBlank() && records.none { it.id == id })
-        records.add(Entry(id, curveId, atMs, null, null, Status.STARTING, null, null, slot))
+        val next = records.toMutableList().apply {
+            add(Entry(id, curveId, atMs, null, null, Status.STARTING, null, null, slot))
+            val cutoff = now() - 30L * 24 * 60 * 60 * 1000
+            removeAll { it.startedAtMs < cutoff }
+            if (size > 500) {
+                val oldest = sortedBy { it.startedAtMs }.take(size - 500).map { it.id }.toSet()
+                removeAll { it.id in oldest }
+            }
+        }
+        storage.write(next.joinToString("\n", postfix = if (next.isEmpty()) "" else "\n", transform = ::encode))
+        records.clear()
+        records.addAll(next)
         activeId = id
-        persist()
+        records.firstOrNull { it.id == id }?.let(::notifyChanged)
         return id
     }
 
@@ -81,8 +100,23 @@ class ShotHistory(
         if (entry != updated) {
             records[index] = updated
             persist()
+            notifyChanged(updated)
         }
+        if (updated.observedRunning && updated.curveId != "manual") onObservedUse(updated)
         if (terminal) activeId = null
+    }
+
+    /** Fresh valve-open extraction telemetry, not a successful command callback, establishes use. */
+    fun observeRunning() {
+        val index = records.indexOfFirst { it.id == activeId }
+        if (index < 0 || records[index].curveId == "manual") return
+        val entry = records[index]
+        if (!entry.observedRunning) {
+            records[index] = entry.copy(observedRunning = true)
+            persist()
+            notifyChanged(records[index])
+        }
+        onObservedUse(records[index])
     }
 
     /** A disconnected passive shot has no session to reconcile; retain UNKNOWN and free the next slot. */
@@ -91,6 +125,9 @@ class ShotHistory(
         transition(ExtractionState.OUTCOME_UNKNOWN, reason, null, atMs)
         activeId = null
     }
+
+    // Optional reporting must never alter the machine callback/control path.
+    private fun notifyChanged(entry: Entry) { runCatching { onEntryChanged(entry) } }
 
     private fun persist() {
         trim()
@@ -113,17 +150,19 @@ class ShotHistory(
         value.endedAtMs?.toString().orEmpty(), value.elapsedMs?.toString().orEmpty(),
         value.status.name, safe(value.reason.orEmpty()), value.weightHundredthsGram?.toString().orEmpty(),
         value.slot?.toString().orEmpty(),
+        value.observedRunning.toString(),
     ).joinToString("\t")
 
     private fun decode(value: String): List<Entry> = value.lineSequence().mapNotNull { line ->
         val fields = line.split('\t')
-        if (fields.size !in 8..9) return@mapNotNull null
+        if (fields.size !in 8..10) return@mapNotNull null
         runCatching {
             Entry(unsafe(fields[0]), unsafe(fields[1]), fields[2].toLong(),
                 fields[3].takeIf(String::isNotEmpty)?.toLong(), fields[4].takeIf(String::isNotEmpty)?.toLong(),
                 Status.valueOf(fields[5]), unsafe(fields[6]).ifEmpty { null },
                 fields[7].takeIf(String::isNotEmpty)?.toInt(),
-                fields.getOrNull(8)?.takeIf(String::isNotEmpty)?.toInt())
+                fields.getOrNull(8)?.takeIf(String::isNotEmpty)?.toInt(),
+                fields.getOrNull(9)?.toBooleanStrict() ?: false)
         }.getOrNull()?.takeIf { it.id.isNotBlank() && it.curveId.isNotBlank() && it.startedAtMs >= 0 &&
             (it.slot == null || if (it.curveId == "manual") it.slot == 6
                 else it.slot in 1..5 || it.slot == 7) }

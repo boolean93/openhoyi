@@ -36,11 +36,13 @@ class ExtractionActivity : ThemedActivity() {
     private var visible = false
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var curveSummary: TextView
+    private lateinit var overviewHeading: TextView
     private lateinit var deviceSummary: TextView
     private lateinit var shotSummary: TextView
     private lateinit var readiness: TextView
     private lateinit var chooseCurve: Button
     private lateinit var connectDevices: Button
+    private lateinit var chooseBeans: Button
     private lateinit var live: TextView
     private lateinit var elapsedValue: TextView
     private lateinit var pressureValue: TextView
@@ -50,7 +52,14 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var preparationStatus: TextView
     private lateinit var notificationStatus: TextView
     private lateinit var alarmStatus: TextView
-    private lateinit var chart: ShotChartView
+    private lateinit var chart: ExtractionTrendView
+    private lateinit var cupFlowChart: ExtractionTrendView
+    private lateinit var referenceStatus: TextView
+    private lateinit var traceCurve: TextView
+    private lateinit var referenceChoice: Button
+    private lateinit var stageTargets: TextView
+    private var referenceId: String? = null
+    private var referenceCurveId: String? = null
     private lateinit var start: Button
     private lateinit var stop: Button
     private lateinit var prepare: Button
@@ -68,6 +77,7 @@ class ExtractionActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        referenceId = savedInstanceState?.getString("referenceShotId")
         feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -120,7 +130,7 @@ class ExtractionActivity : ThemedActivity() {
             columns!!.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(10) })
         } else content
         val stateCard = card(left)
-        HoyiUi.label(this, stateCard, getString(R.string.extraction_overview), 19, true)
+        overviewHeading = HoyiUi.label(this, stateCard, getString(R.string.extraction_overview), 19, true)
         curveSummary = text(stateCard, getString(R.string.extraction_curve_initial), 18, true)
         deviceSummary = text(stateCard, getString(R.string.extraction_devices_initial), 14)
         shotSummary = text(stateCard, getString(R.string.extraction_shot_initial), 14)
@@ -134,6 +144,9 @@ class ExtractionActivity : ThemedActivity() {
         connectDevices = HoyiUi.button(this, stateCard, getString(R.string.extraction_connect_devices)) {
             startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
         }.apply { visibility = View.GONE }
+        chooseBeans = HoyiUi.button(this,stateCard,getString(R.string.dose_title)) {
+            startActivity(Intent(this,BeanPreparationActivity::class.java))
+        }
         preparationStatus = text(stateCard, getString(R.string.extraction_prepare_initial), 14)
         notificationStatus = text(stateCard, "", 14)
         alarmStatus = text(stateCard, getString(R.string.home_alarm_initial), 14)
@@ -159,15 +172,25 @@ class ExtractionActivity : ThemedActivity() {
             return cell(a) to cell(b)
         }
         metricRow(getString(R.string.extraction_elapsed), getString(R.string.extraction_pressure)).also { elapsedValue = it.first; pressureValue = it.second }
-        metricRow(getString(R.string.extraction_weight), getString(R.string.extraction_scale_flow)).also { weightValue = it.first; flowValue = it.second }
+        metricRow(getString(R.string.extraction_weight), getString(R.string.live_cup_flow_metric)).also { weightValue = it.first; flowValue = it.second }
         live = text(metrics, "", 13)
         weightTarget = text(metrics, "", 15, true)
         val chartCard = card(right)
-        HoyiUi.label(this, chartCard, getString(R.string.extraction_chart), 19, true)
-        chart = ShotChartView(this)
-        chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(if (HoyiUi.wide(this)) 260 else 220)).apply {
+        traceCurve = HoyiUi.label(this,chartCard,"",14,muted=true)
+        HoyiUi.label(this, chartCard, getString(R.string.live_pressure_chart), 19, true)
+        chart = ExtractionTrendView(this, ExtractionTrendMetric.PRESSURE)
+        chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(210)).apply {
             topMargin = dp(12)
         })
+        HoyiUi.label(this, chartCard, getString(R.string.live_cup_flow_chart), 19, true)
+        HoyiUi.label(this, chartCard, getString(R.string.live_cup_flow_source), 13, muted = true)
+        cupFlowChart = ExtractionTrendView(this, ExtractionTrendMetric.CUP_FLOW)
+        chartCard.addView(cupFlowChart, LinearLayout.LayoutParams(-1, dp(180)).apply { topMargin = dp(12) })
+        referenceChoice = HoyiUi.button(this, chartCard, getString(R.string.reference_choose)) { chooseReference() }
+        referenceStatus = HoyiUi.label(this, chartCard, getString(R.string.reference_off), 13, muted = true)
+        val targets = card(right)
+        HoyiUi.label(this, targets, getString(R.string.reference_targets), 17, true)
+        stageTargets = HoyiUi.label(this, targets, "", 14, muted = true)
         val actions = card(right)
         HoyiUi.label(this, actions, getString(R.string.extraction_prepare_heading), 19, true)
         prepare = button(actions, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
@@ -248,6 +271,7 @@ class ExtractionActivity : ThemedActivity() {
     }
     override fun onSaveInstanceState(outState: Bundle) {
         feedbackUi.save(outState)
+        outState.putString("referenceShotId",referenceId)
         super.onSaveInstanceState(outState)
     }
     private fun render() {
@@ -256,6 +280,12 @@ class ExtractionActivity : ThemedActivity() {
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val state = owner?.shotState ?: ExtractionState.IDLE
+        val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
+            ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
+        overviewHeading.visibility=if(active) View.GONE else View.VISIBLE
+        curveSummary.visibility=if(active) View.GONE else View.VISIBLE
+        deviceSummary.visibility=if(active) View.GONE else View.VISIBLE
+        chooseBeans.visibility=if(active) View.GONE else View.VISIBLE
         val item = selected()
         val library = (application as MobileApplication).curves
         val profile = item?.let { library.resolve(it.id, snapshot.scaleState == DeviceState.READY, presetSlot) }
@@ -329,15 +359,18 @@ class ExtractionActivity : ThemedActivity() {
             SystemClock.elapsedRealtime()))
         val now = SystemClock.elapsedRealtime()
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
-        elapsedValue.show(if (frame is ExtractionTelemetry) "${frame.elapsedSeconds} s" else "—")
+        elapsedValue.show(if (frame is ExtractionTelemetry && !frame.brewWait) "${frame.elapsedSeconds} s" else "—")
         pressureValue.show(when (frame) {
             is ExtractionTelemetry -> "${frame.pressureTenthsBar / 10.0} bar"
             is IdleTelemetry -> "${frame.brewPressureTenthsBar / 10.0} bar"
             else -> "—"
         })
-        val scale = LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)
-        weightValue.show("${scale?.let { number(it.weightHundredthsGram) } ?: "—"} g")
-        flowValue.show("${scale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
+        val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
+            ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)?.weightHundredthsGram
+        weightValue.show("${scale?.let(::number) ?: "—"} g")
+        val cupFlow = if (scale != null && frame is ExtractionTelemetry && !frame.brewWait)
+            CupFlowProjection.values(owner?.chartPoints.orEmpty()).lastOrNull() else null
+        flowValue.show("${cupFlow?.let { String.format(java.util.Locale.ROOT, "%.1f", it) } ?: "—"} g/s")
         live.show(getString(R.string.extraction_live_temperature, when (frame) {
             is ExtractionTelemetry -> number(frame.brewTemperatureHundredthsC)
             is IdleTelemetry -> number(frame.brewTemperatureHundredthsC)
@@ -346,7 +379,7 @@ class ExtractionActivity : ThemedActivity() {
         val target = if (state != ExtractionState.IDLE) owner?.activeShotTargetHundredthsGram
             else profile?.targetHundredthsGram
         weightTarget.show(if (owner?.manualShotActive != true && target != null && target > 0) {
-            val progress = getString(R.string.extraction_weight_progress, scale?.let { number(it.weightHundredthsGram) } ?: "—", number(target))
+            val progress = getString(R.string.extraction_weight_progress, scale?.let(::number) ?: "—", number(target))
             val advice = when {
                 owner?.scalePreflight == true -> getString(R.string.extraction_preflight_weight_advice)
                 owner?.stopReason == StopReason.TARGET_WEIGHT.name -> getString(R.string.extraction_target_stop_advice)
@@ -358,8 +391,27 @@ class ExtractionActivity : ThemedActivity() {
             }
             "$progress\n$advice"
         } else if (target == 0 && profile != null) getString(R.string.extraction_no_weight_advice) else "")
-        val points = owner?.chartPoints ?: emptyList()
+        val rawPoints=owner?.chartPoints ?: emptyList()
+        val points = ExtractionReference.align(rawPoints).points
         if (chart.points != points) chart.points = points
+        if (cupFlowChart.points != points) cupFlowChart.points = points
+        val plottedItem=if(rawPoints.isNotEmpty() || active) owner?.chartCurveId?.let(library::find) else item
+        traceCurve.show(if(rawPoints.isNotEmpty()) getString(R.string.reference_trace_curve,
+            plottedItem?.name ?: getString(if(owner?.chartCurveId=="manual") R.string.extraction_manual_label
+                else R.string.profiles_missing)) else "")
+        val referenceCurve = plottedItem?.id?.takeIf { owner?.manualShotActive != true }
+        referenceChoice.isEnabled = referenceCurve != null
+        if (referenceCurveId != referenceCurve) {
+            referenceCurveId = referenceCurve
+            loadReference(referenceId, referenceCurve)
+        }
+        stageTargets.show(plottedItem?.let { source ->
+            val targets=CurveStageParameters.pressureTargets(source)
+            if(targets.isNotEmpty())
+                targets.mapIndexed {index,target -> getString(R.string.reference_stage,(index+1).toString(),
+                    String.format(Locale.ROOT,"%.1f",target/10.0))}.joinToString("\n")
+            else getString(R.string.reference_raw)
+        }.orEmpty())
         prepare.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
             blocked == null && owner.machineSettingsFresh && studio && !temperatureReady &&
             !settingBusy && !sleepBusy &&
@@ -380,6 +432,35 @@ class ExtractionActivity : ThemedActivity() {
         stop.text = if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
+    private fun chooseReference() {
+        val curveId=referenceCurveId ?: return
+        val app=application as MobileApplication
+        val records=app.journalResult.getOrNull()?.entries().orEmpty().filter {
+            it.observation.curveId==curveId && it.observation.status=="ENDED"
+        }.take(20)
+        val labels=listOf(getString(R.string.reference_off))+records.map {journalDate(it.observation.startedAtMs)}
+        AlertDialog.Builder(this).setTitle(R.string.reference_choose)
+            .setItems(labels.toTypedArray()) {_,index ->
+                render()
+                if (referenceCurveId == curveId) loadReference(if(index==0) null else records[index-1].observation.id,curveId)
+            }
+            .setNegativeButton(R.string.machine_settings_cancel,null).show()
+    }
+    private fun loadReference(id:String?,curveId:String?) {
+        if (curveId != referenceCurveId) return
+        val app=application as MobileApplication
+        val record=id?.let {app.journalResult.getOrNull()?.find(it)}
+            ?.takeIf {it.observation.curveId==curveId && it.observation.status=="ENDED"}
+        val timeline=record?.let {runCatching {ExtractionReference.align(app.samples.load(it.observation.id))}.getOrNull()}
+        val available=timeline?.points?.isNotEmpty()==true
+        referenceId=if(available) id else null
+        chart.reference=if(available) requireNotNull(timeline).points else emptyList()
+        cupFlowChart.reference=chart.reference
+        referenceStatus.show(if(available) getString(R.string.reference_legend)+"\n"+
+            getString(R.string.reference_source,journalDate(requireNotNull(record).observation.startedAtMs),
+                getString(if(requireNotNull(timeline).observedOrigin) R.string.reference_align_observed else R.string.reference_align_recorded))
+            else getString(if(id==null) R.string.reference_off else R.string.reference_unavailable))
+    }
     private fun shotLabel(state: ExtractionState) = when (state) {
         ExtractionState.IDLE -> getString(R.string.machine_settings_tab_standby)
         ExtractionState.STARTING -> getString(R.string.extraction_state_starting)

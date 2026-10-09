@@ -3,7 +3,6 @@ package io.openhoyi.mobile
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.Path
 import android.util.TypedValue
 import android.view.View
 
@@ -31,24 +30,29 @@ internal class CurveStageView(context: Context) : View(context) {
             val y = bottom - (bottom - top) * fraction
             canvas.drawLine(left, y, right, y, paint)
         }
-        if (targets.isEmpty()) return
-        val values = targets.take(4)
-        val maximum = maxOf(1, values.maxOrNull() ?: 1)
-        val path = Path()
-        values.forEachIndexed { index, target ->
-            val x = left + (right - left) * (index + .5f) / values.size
-            val y = bottom - (bottom - top) * (target.coerceAtLeast(0).toFloat() / maximum)
-            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        if (targets.isEmpty()) {
+            if(compact) {
+                paint.style=Paint.Style.FILL;paint.textSize=dp(10f);paint.textAlign=Paint.Align.CENTER
+                canvas.drawText("—",width/2f,height/2f,paint)
+            }
+            return
         }
+        val values = targets.take(4)
+        if(values.any {it !in 0..120}) return
         paint.color = context.getColor(R.color.mobile_accent)
         paint.strokeWidth = dp(if (compact) 2f else 3f)
         paint.strokeCap = Paint.Cap.ROUND
-        canvas.drawPath(path, paint)
+        values.forEachIndexed {index,target->
+            val start=left+(right-left)*(index+.12f)/values.size
+            val end=left+(right-left)*(index+.88f)/values.size
+            val y=bottom-(bottom-top)*CurveStageParameters.pressureFraction(target)
+            canvas.drawLine(start,y,end,y,paint)
+        }
         if (compact) {
             paint.style = Paint.Style.FILL
             values.forEachIndexed { index, target ->
                 val x = left + (right - left) * (index + .5f) / values.size
-                val y = bottom - (bottom - top) * (target.coerceAtLeast(0).toFloat() / maximum)
+                val y = bottom - (bottom - top) * CurveStageParameters.pressureFraction(target)
                 canvas.drawCircle(x, y, dp(2.5f), paint)
             }
             return
@@ -58,8 +62,10 @@ internal class CurveStageView(context: Context) : View(context) {
         paint.textAlign = Paint.Align.CENTER
         values.forEachIndexed { index, target ->
             val x = left + (right - left) * (index + .5f) / values.size
-            val y = bottom - (bottom - top) * (target.coerceAtLeast(0).toFloat() / maximum)
+            val y = bottom - (bottom - top) * CurveStageParameters.pressureFraction(target)
             canvas.drawCircle(x, y, dp(4f), paint)
+            canvas.drawText(java.lang.String.format(java.util.Locale.ROOT,"%.1f bar",target/10.0),x,
+                (y-dp(8f)).coerceAtLeast(top+dp(12f)),paint)
             paint.color = context.getColor(R.color.mobile_muted)
             canvas.drawText(context.getString(R.string.chart_stage, (index + 1).toString()), x, height - paddingBottom - dp(5f), paint)
             paint.color = context.getColor(R.color.mobile_accent)

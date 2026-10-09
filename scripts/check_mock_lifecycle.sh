@@ -80,19 +80,33 @@ sleep 3
 assert_edges 1 1
 
 # Framework navigation order must not hide the app on readers that have no service binding.
-for item in '1 CurveActivity' '2 ExtractionActivity' '3 HistoryActivity' '4 MachineSettingsActivity' '0 HomeActivity'; do
-  read -r index page <<< "$item"
-  adb shell input tap "$((160 * (2 * index + 1)))" 888
+tap_control() { python3 scripts/mock_ui_tap.py "$1" --scroll; sleep 2; }
+for item in '曲线 CurveActivity' '历史 HistoryActivity' '豆子 BeanInventoryActivity' '冲煮 HomeActivity'; do
+  read -r label page <<< "$item"
+  tap_control "$label"
   assert_activity "$page"
-  sleep 2
   assert_edges 1 1
 done
+tap_control '实时萃取'
+assert_activity ExtractionActivity
+assert_edges 1 1
+tap_control '冲煮'
+tap_control '应用设置'
+assert_activity AppSettingsActivity
+assert_edges 1 1
+tap_control '机器设置'
+assert_activity MachineSettingsActivity
+assert_edges 1 1
+tap_control '冲煮'
+tap_control '应用设置'
+assert_activity AppSettingsActivity
+assert_edges 1 1
 
-# The existing theme Switch calls Activity.recreate(). Require a NEW config-stop callback.
+# The application theme checkbox calls Activity.recreate(). Require a NEW config-stop callback.
 cp "$output_dir/lifecycle.txt" "$output_dir/before-theme-switch.txt"
-adb shell input tap 1530 103
+tap_control '深色主题'
 sleep 3
-assert_activity HomeActivity
+assert_activity AppSettingsActivity
 adb shell run-as "$package" cat shared_prefs/appearance.xml > "$output_dir/appearance.xml"
 grep 'name="dark" value="true"' "$output_dir/appearance.xml" >/dev/null
 assert_edges 1 1
@@ -100,12 +114,12 @@ python3 - "$output_dir" <<'PYCODE'
 from pathlib import Path
 import json,sys
 root=Path(sys.argv[1])
-marker="recreating:HomeActivity"
+marker="recreating:AppSettingsActivity"
 before=(root/"before-theme-switch.txt").read_text().splitlines().count(marker)
 after=(root/"lifecycle.txt").read_text().splitlines().count(marker)
 if after<=before:
-    raise SystemExit("Theme Switch did not produce a new Home configuration-stop callback")
-(root/"theme-recreation.json").write_text(json.dumps({"homeConfigurationStopsBefore":before,"homeConfigurationStopsAfter":after})+"\n")
+    raise SystemExit("Theme Switch did not produce a new AppSettings configuration-stop callback")
+(root/"theme-recreation.json").write_text(json.dumps({"settingsConfigurationStopsBefore":before,"settingsConfigurationStopsAfter":after})+"\n")
 PYCODE
 
 # True background closes visibility once. Rebuilding a stopped page must not reopen it.
@@ -124,11 +138,11 @@ python3 - "$output_dir" <<'PYCODE'
 from pathlib import Path
 import json,sys
 root=Path(sys.argv[1])
-marker="destroyed:HomeActivity:configuration"
+marker="destroyed:AppSettingsActivity:configuration"
 before=(root/"before-background-resize.txt").read_text().splitlines().count(marker)
 after=(root/"after-background-resize.txt").read_text().splitlines().count(marker)
 # Android may defer stopped-activity relaunch. Record this limit instead of claiming that path ran.
-(root/"background-resize.json").write_text(json.dumps({"homeConfigurationDestroyObservedWhileBackground":after>before})+"\n")
+(root/"background-resize.json").write_text(json.dumps({"settingsConfigurationDestroyObservedWhileBackground":after>before})+"\n")
 PYCODE
 adb shell am start -W -n "$package/io.openhoyi.mobile.HomeActivity"
 assert_activity HomeActivity
@@ -211,7 +225,7 @@ for profile in compact wideFont; do
   fi
   sleep 2
   run_instrumentation "$output_dir/language-pages-$profile.txt" "$mode"
-  grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true" "$output_dir/language-pages-$profile.txt" >/dev/null
 done

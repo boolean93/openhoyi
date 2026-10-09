@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_settings_title">إعدادات التطبيق</string>
+    <string name="app_settings_subtitle">تُحفظ السمة واللغة والتنبيهات أثناء الاستخلاص على هذا الجهاز فقط</string>
+    <string name="app_settings_appearance">المظهر</string>
+    <string name="app_settings_dark">السمة الداكنة</string>
+    <string name="app_settings_theme_failed">تعذّر حفظ السمة. تمت استعادة الاختيار السابق.</string>
+    <string name="app_settings_export">تصدير سجلات التشخيص</string>
+    <string name="app_settings_export_hint">يتم التصدير فقط بعد اختيار موقع الملف؛ لا تُرسل السجلات تلقائيًا</string>
+    <string name="app_settings_machine">إعدادات الآلة</string>
+</resources>

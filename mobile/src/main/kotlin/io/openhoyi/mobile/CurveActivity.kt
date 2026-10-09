@@ -19,6 +19,8 @@ class CurveActivity : ThemedActivity() {
     private lateinit var availability: TextView
     private lateinit var select: Button
     private lateinit var assignPreset: Button
+    private lateinit var editDraft: Button
+    private lateinit var shareParameters: Button
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var search: EditText
     private lateinit var resultCount: TextView
@@ -29,6 +31,7 @@ class CurveActivity : ThemedActivity() {
     private lateinit var detailScroll: ScrollView
     private var compact = false
     private var category = CurveCategoryFilter.ALL
+    private var sortMode = CurveSortMode.RECENT
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
     private var detailBackCallback: android.window.OnBackInvokedCallback? = null
@@ -38,6 +41,9 @@ class CurveActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         category = CurveCategoryFilter.restore(savedInstanceState?.getString("category"))
+        sortMode = CurveSortMode.restore(getSharedPreferences("curves", MODE_PRIVATE).getString("sort", null))
+        // Initializes migration of existing positively observed shots, not selection events.
+        runCatching { (application as MobileApplication).history }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -88,6 +94,29 @@ class CurveActivity : ThemedActivity() {
             background = HoyiUi.shape(this@CurveActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         }
         browser.addView(search, LinearLayout.LayoutParams(-1, dp(52)))
+        val customAvailable = (application as MobileApplication).customCurvesResult.isSuccess
+        HoyiUi.button(this, browser, getString(R.string.profiles_new)) {
+            startActivity(Intent(this, CurveEditorActivity::class.java))
+        }.isEnabled = customAvailable
+        HoyiUi.button(this, browser, getString(R.string.profiles_import)) {
+            startActivity(Intent(this, CurveImportActivity::class.java))
+        }.isEnabled = customAvailable
+        if (!customAvailable) HoyiUi.label(this, browser, getString(R.string.profiles_unavailable), 14, muted = true)
+        val sort = Spinner(this)
+        sort.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+            listOf(getString(R.string.curve_sort_recent), getString(R.string.curve_sort_most_used)))
+        sort.setSelection(sortMode.ordinal)
+        sort.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                sortMode = CurveSortMode.entries[position]
+                getSharedPreferences("curves", MODE_PRIVATE).edit().putString("sort", sortMode.name).apply()
+                refreshList()
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+        browser.addView(sort, LinearLayout.LayoutParams(-1, dp(48)))
+        if ((application as MobileApplication).curveUsageResult.isFailure)
+            HoyiUi.label(this, browser, getString(R.string.curve_usage_unavailable), 13, muted = true)
         val categories = CurveCategoryFilter.entries
         val filter = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -174,7 +203,10 @@ class CurveActivity : ThemedActivity() {
                 val item = visibleItems[position]
                 val views = row.tag as RowViews
                 views.title.text = item.name
-                views.subtitle.text = getString(R.string.curve_row_summary, CurveCategoryFilter.display(this@CurveActivity, item.category), if (library.canStart(item)) getString(R.string.home_curve_startable) else getString(R.string.curve_browse_only))
+                views.subtitle.text = getString(R.string.curve_row_summary, if (item.customDocument != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(this@CurveActivity, item.category), if (library.canStart(item)) getString(R.string.home_curve_startable) else getString(R.string.curve_browse_only))
+                (application as MobileApplication).curveUsageResult.getOrNull()?.let { ledger ->
+                    views.subtitle.append(getString(R.string.curve_usage_count, ledger.stats(item.id).count))
+                }
                 views.preview.targets = stageTargets(item)
                 row.background = HoyiUi.shape(this@CurveActivity,
                     if (item.id == selected?.id) R.color.mobile_accent_soft else R.color.mobile_surface,
@@ -205,6 +237,12 @@ class CurveActivity : ThemedActivity() {
             .apply { visibility = View.GONE }
         details = HoyiUi.label(this, preview, "", 15)
         availability = HoyiUi.label(this, preview, "", 15, true).apply { visibility = View.GONE }
+        editDraft = HoyiUi.button(this, detailPane, getString(R.string.profiles_edit_copy)) {
+            selected?.let { startActivity(Intent(this, CurveEditorActivity::class.java).putExtra(CurveEditorActivity.CURVE_ID, it.id)) }
+        }.apply { visibility = View.GONE }
+        shareParameters = HoyiUi.button(this, detailPane, getString(R.string.profiles_share)) {
+            selected?.let { startActivity(Intent(this, CurveShareActivity::class.java).putExtra(CurveShareActivity.CURVE_ID, it.id)) }
+        }.apply { visibility = View.GONE }
         val actions = if (compact) detailPanel else LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             detailPanel.addView(this)
@@ -246,6 +284,17 @@ class CurveActivity : ThemedActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (!::adapter.isInitialized) return
+        val previousId = selected?.id
+        val wasVisible = !compact || detailPanel.visibility == View.VISIBLE
+        refreshList()
+        previousId?.let(library::find)?.let {
+            if (wasVisible) show(it) else { selected = it; adapter.notifyDataSetChanged() }
+        }
+    }
+
     private fun showBrowser() {
         detailPanel.visibility = View.GONE
         browserPane.visibility = View.VISIBLE
@@ -280,8 +329,11 @@ class CurveActivity : ThemedActivity() {
     private fun show(item: CurveLibraryItem) {
         selected = item
         stageChart.targets = stageTargets(item)
-        stageChart.visibility = View.VISIBLE
+        val draft = item.customDocument
+        val hasPressureSchematic = stageChart.targets.isNotEmpty()
+        stageChart.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
         stageCaption.visibility = View.VISIBLE
+        stageCaption.text = getString(if (hasPressureSchematic) R.string.profiles_stage_caption else R.string.reference_raw)
         if (compact) {
             browserPane.visibility = View.GONE
             detailPanel.visibility = View.VISIBLE
@@ -290,9 +342,15 @@ class CurveActivity : ThemedActivity() {
         }
         val canStart = library.canStart(item)
         detailTitle.text = item.name
-        detailCategory.text = CurveCategoryFilter.display(this, item.category)
-        details.text = curveDetailsText.render(item, canStart)
-        availability.text = if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
+        detailCategory.text = if (draft != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(this, item.category)
+        details.text = if (draft != null) profileSummary(draft) else curveDetailsText.render(item, canStart)
+        availability.text = if (draft != null) getString(R.string.profiles_read_only) else if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
+        val copyable = runCatching { CustomCurveDocument.fromLibraryItem(item) }.getOrNull()
+        editDraft.text = getString(if (draft != null) R.string.profiles_edit else R.string.profiles_edit_copy)
+        editDraft.visibility = View.VISIBLE
+        editDraft.isEnabled = (application as MobileApplication).customCurvesResult.isSuccess && copyable?.controlMode == CustomCurveDocument.ControlMode.PRESSURE
+        shareParameters.visibility = View.VISIBLE
+        shareParameters.isEnabled = copyable != null
         availability.setTextColor(getColor(if (canStart) R.color.mobile_accent else R.color.mobile_muted))
         availability.visibility = View.VISIBLE
         select.isEnabled = canStart
@@ -305,7 +363,9 @@ class CurveActivity : ThemedActivity() {
 
     private fun refreshList() {
         if (!::adapter.isInitialized || !::search.isInitialized) return
-        visibleItems = CurveSearch.filter(library.items, category, search.text.toString())
+        val filtered = CurveSearch.filter(library.items, category, search.text.toString())
+        val ledger = (application as MobileApplication).curveUsageResult.getOrNull()
+        visibleItems = if (ledger == null) filtered else CurveOrdering.sort(filtered, sortMode, ledger)
         resultCount.text = getString(R.string.curve_result_count, visibleItems.size.toString())
         adapter.clear()
         adapter.addAll(visibleItems.map { it.id })
@@ -322,13 +382,11 @@ class CurveActivity : ThemedActivity() {
             select.visibility = View.GONE
             assignPreset.isEnabled = false
             assignPreset.visibility = View.GONE
+            editDraft.visibility = View.GONE
+            shareParameters.visibility = View.GONE
         }
     }
-    private fun stageTargets(item: CurveLibraryItem): List<Int> =
-        item.factoryCurve?.targets?.take(item.factoryCurve.segmentCount)
-            ?: item.controlProfile?.parameters?.let {
-                listOf(it.target1, it.target2, it.target3, it.target4).take(it.segmentCount)
-            } ?: emptyList()
+    private fun stageTargets(item: CurveLibraryItem): List<Int> = CurveStageParameters.pressureTargets(item)
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("selected", selected?.id)
         outState.putString("category", category.name)

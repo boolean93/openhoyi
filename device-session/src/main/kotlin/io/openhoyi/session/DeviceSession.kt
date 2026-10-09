@@ -19,7 +19,15 @@ object KnownGatt {
 class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->Long,
     private val stateChanged:(DeviceState)->Unit={}, private val coffeeFrame:(HoyiMessage,Long)->Unit={_,_->},
     private val weightFrame:(BookooSample,Long)->Unit={_,_->},private val diagnostic:(String)->Unit={},
-    legacyVerifiedStartFrames:Set<String> = emptySet()) {
+    legacyVerifiedStartFrames:Set<String> = emptySet(),
+    val scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter,
+    private val scaleObservation:(ScaleObservation)->Unit = {}) {
+    init { require(role==DeviceRole.COFFEE || (scaleAdapter.transportVerified && scaleAdapter.writeEndpoint!=null &&
+        scaleAdapter.notifyEndpoint!=null && scaleAdapter.initializationCommands.isNotEmpty())) { "Offline scale candidates cannot connect" }
+        if(role!=DeviceRole.COFFEE)require(scaleAdapter.initializationCommands.first().delayMs>=0 &&
+            scaleAdapter.initializationCommands.zipWithNext().all {(a,b)->b.delayMs>a.delayMs}) { "Invalid scale initialization timing" }
+    }
+    val scaleCapabilities:ScaleCapabilities get()=scaleAdapter.capabilities
     private val additionalStartFrames = legacyVerifiedStartFrames.toSet().also { frames ->
         require(frames.size <= 1200 && frames.all { hex ->
             hex.matches(Regex("02[0-9A-F]{38}")) &&
@@ -27,7 +35,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 (hex.substring(2, 4).toInt(16) and 7).let { it in 1..5 || it == 7 }
         }) { "Invalid legacy start-frame permit" }
     }
-    private val queue=GattQueue(GuardedGattDriver(role,driver),clock){fail(it)}
+    private val queue=GattQueue(GuardedGattDriver(role,driver,scaleAdapter),clock){fail(it)}
     // Request order also detects cancellation before a new GATT generation exists.
     private var connectionRequest=0L
     val generation:Long get()=queue.generation
@@ -48,8 +56,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private fun clearSleepReadback() {
         sleepFirst=null;sleepSecond=null;sleepFirstAtMs=null;sleepSecondAtMs=null
     }
-    private var notifyEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeNotify else KnownGatt.bookooNotify
-    private var writeEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeWrite else KnownGatt.bookooWrite
+    private var notifyEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeNotify else scaleAdapter.notifyEndpoint!!
+    private var writeEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeWrite else scaleAdapter.writeEndpoint!!
     private var withResponse=true
     private var stageDeadline=0L
     private var initNext=0
@@ -103,7 +111,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                         step(expected,GattOperation.Write(writeEndpoint,auth!!.frame.toByteArray(),withResponse),5000){
                             initializationState(expected,DeviceState.SYNCHRONIZING,10_000)
                         }
-                    }else{initNext=0;initBusy=false;initDue=clock()+500}
+                    }else{initNext=0;initBusy=false;initDue=clock()+scaleAdapter.initializationCommands.first().delayMs}
                 }
             }
         }
@@ -154,11 +162,17 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 }
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
-        }else when(val decoded=BookooCodec.decode(bytes)) {
+        }else when(val decoded=scaleAdapter.decode(bytes,now)) {
             is DecodeResult.Valid -> {
                 if(state==DeviceState.SYNCHRONIZING)setState(DeviceState.READY)
                 if(this.generation!=generation||!queue.active)return
-                if(state==DeviceState.READY)weightFrame(decoded.value,now)
+                if(state==DeviceState.READY) {
+                    scaleObservation(decoded.value)
+                    // Compatibility callback is deliberately outside generic extraction logic.
+                    if(this.generation==generation && queue.active && state==DeviceState.READY &&
+                        scaleAdapter===BookooScaleProtocolAdapter)
+                        (BookooCodec.decode(bytes) as? DecodeResult.Valid)?.let { weightFrame(it.value,now) }
+                }
             }
             else -> diagnostic("scale decode: ${decoded::class.simpleName}")
         }
@@ -181,13 +195,13 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         }
         if(state in listOf(DeviceState.INITIALIZING,DeviceState.SYNCHRONIZING)&&clock()>=stageDeadline){fail("protocol initialization timeout");return}
         if(role==DeviceRole.BOOKOO&&state==DeviceState.INITIALIZING&&!initBusy&&clock()>=initDue){
-            val commands=BookooCodec.initializationCommands();val cmd=commands[initNext]
+            val commands=scaleAdapter.initializationCommands;val cmd=commands[initNext]
             initBusy=true
             val expected=generation
             step(expected,GattOperation.Write(writeEndpoint,cmd.frame.toByteArray(),withResponse),5000){
                 initBusy=false;initNext++
                 if(initNext==commands.size)initializationState(expected,DeviceState.SYNCHRONIZING,5000)
-                else initDue=clock()+500
+                else initDue=clock()+(commands[initNext].delayMs-commands[initNext-1].delayMs)
             }
         }
     }
@@ -277,8 +291,13 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         send(CoffeeCommands.stop(slot),DeviceRole.COFFEE,urgent=true,
             beforeDispatch=::sameTarget,callback=callback)
     }
-    fun tare(beforeDispatch:()->Boolean,callback:(OperationResult)->Unit)=send(BookooCodec.tare(),DeviceRole.BOOKOO,
-        beforeDispatch=beforeDispatch,callback=callback)
+    fun tare(beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
+        val command=scaleAdapter.tareCommand
+        if(!scaleAdapter.capabilities.tare || command==null) {
+            callback(OperationResult.Failed("scale tare not supported by verified adapter"));return
+        }
+        send(command,DeviceRole.BOOKOO,beforeDispatch=beforeDispatch,callback=callback)
+    }
     private fun sendFromIdle(command:EncodedCommand,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
         if (!canControlFromIdle()) {
             callback(OperationResult.Failed("fresh awake idle telemetry without blocking alarms required"))

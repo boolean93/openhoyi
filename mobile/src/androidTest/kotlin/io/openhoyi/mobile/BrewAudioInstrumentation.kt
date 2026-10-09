@@ -41,7 +41,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             if (pageProfile != null) {
                 val profile = requireNotNull(pageProfile)
                 LanguagePageChecks(this).run(profile)
-                report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true\n" +
+                report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true\n" +
                     "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true\n" +
                     "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true\n")
                 finish(Activity.RESULT_OK, report)
@@ -289,8 +289,8 @@ class BrewAudioInstrumentation : Instrumentation() {
         }
         try {
             runOnMainSync { check(feedbackPrefs.setEnabled(false)) }
-            val settings = startActivitySync(Intent(targetContext, MachineSettingsActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MachineSettingsActivity
+            val settings = startActivitySync(Intent(targetContext, AppSettingsActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as AppSettingsActivity
             waitForIdleSync()
             runOnMainSync {
                 check(!settings.feedbackCard.enabledSwitch.isChecked)
@@ -321,7 +321,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             removeMonitor(temporaryMonitor)
             waitForIdleSync()
             runOnMainSync {
-                check(playback(settings.feedbackCard)?.playing == false) { "Settings exit left preview active" }
+                check(playback(settings.feedbackCard)?.playing == false) { "App settings exit left preview active" }
                 temporaryExtraction.finish()
             }
             waitForIdleSync()

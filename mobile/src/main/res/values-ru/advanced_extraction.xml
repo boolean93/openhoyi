@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="live_pressure_chart">Давление экстракции · бар</string>
+    <string name="live_cup_flow_chart">Поток в чашку · г/с</string>
+    <string name="live_cup_flow_source">Оценка по изменению показаний весов, только для справки</string>
+    <string name="live_cup_flow_metric">Поток в чашку (оценка)</string>
+    <string name="live_chart_no_data">Данных пока нет</string>
+    <string name="live_time_axis">Время · с</string>
+    <string name="ui_brew">Приготовить кофе</string>
+</resources>

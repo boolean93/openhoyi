@@ -6,6 +6,16 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ShotSeriesTest {
+    @Test fun plottedIdentityBelongsToItsShotAndSurvivesFinishUntilNextBegin() {
+        val series=ShotSeries()
+        series.begin("shot-a",1000,"curve-a")
+        assertEquals("curve-a",series.curveId)
+        series.finish()
+        assertEquals("curve-a",series.curveId)
+        series.begin("shot-b",2000,"curve-b")
+        assertEquals("curve-b",series.curveId)
+        assertTrue(series.points.isEmpty())
+    }
     private val frame = ExtractionTelemetry(1, 2, 93, 120, 9200, 24, 0x40, 0, ByteFrame(byteArrayOf()))
 
     @Test fun recordsMachineTelemetryAndOnlyFreshScaleWeight() {
@@ -53,4 +63,22 @@ class ShotSeriesTest {
         assertEquals("shot-partial", series.finish()?.first)
         assertNull(series.checkpoint(7_000, force = true))
     }
+    @Test fun preservesObservedPreheatAndBrewingPhaseWithoutDeletingSamples() {
+        val series=ShotSeries();series.begin("phase",1000)
+        series.machine(frame.copy(statusBits=0x60),1000,0,1000)
+        series.machine(frame.copy(statusBits=0x40),1500,100,1500)
+        series.machine(frame.copy(statusBits=0),2000,200,2000)
+        assertEquals(listOf(false,true,false),series.points.map {it.brewing})
+        assertEquals(3,series.points.size)
+        assertNull(ShotPoint(0,90,0,0,9200,null).brewing)
+    }
+    @Test fun pressureProjectionKeepsTimelineAndMarksExplicitNonBrewingAsGaps() {
+        val points=listOf(ShotPoint(250,900,0,0,9200,0,brewing=false),
+            ShotPoint(750,90,0,0,9200,100,brewing=true),
+            ShotPoint(1250,100,0,0,9200,200,brewing=false),
+            ShotPoint(1750,80,0,0,9200,300,brewing=null))
+        assertEquals(listOf(null,9f,null,8f),RealtimeShotProjection.values(points))
+        assertEquals(listOf(250L,750L,1250L,1750L),points.map {it.elapsedMs})
+    }
+
 }

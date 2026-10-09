@@ -53,3 +53,32 @@
 - bean-core 先红验证：addBatch stub 抛 NotImplementedError；实现后 Gradle verify 通过，覆盖重启、幂等、并发、余额调整、写入失败、损坏和溢出。独立规格及质量审查通过；Android 页面与适配仍需单独审查。
 - Android AtomicFile 的 finishWrite 存在仅记日志不抛的失败路径，已用 FileOutputStream.fd.sync + Files.move(ATOMIC_MOVE, REPLACE_EXISTING) 的 AtomicDocumentStorage 替换；不支持原子 move 时明确失败，不降级截断写。新增 sync/move 失败测试。
 - 当前功能全量验证、Lint、界面运行和后续模块尚在推进；本节不是完成声明。
+
+## 2026-10-09 接线与恢复增量
+
+- A1/A2：通用 ScaleObservation/Capabilities/Adapter 接入唯一 NativeDeviceHub；独立秤、连接、设置页已注册并有入口。显示资格与目标重量控制资格分离，断开/切换/关闭同时清通用读数。BOOKOO 仍为实接协议，其它候选保留离线证据，不宣称设备兼容验收。
+- A3：压力/秤重估算杯中流速分图；800ms 连续采样回归修复。ShotPoint 新增 nullable brewing 真实证据，样本 V3 兼容 V1/V2（旧证据不补猜），预热点保留原始记录但实时图断开，预热不显示萃取用时。
+- A6/A9：长期日志与准备页接线。准备 ID 先持久化再消费，confirm 写失败可同 ID 重试。claimed 尚未 associated 的剂量不能被下一杯覆盖；同一恢复函数在进程启动、显式日志恢复与准备页重试中填现有复盘空项，成功才确认关联，不再次扣豆。日志终态写失败可由同 identity 的近期持久化终态修复，不降级已知终态、不清用户 notes。
+- A10：版本化最小参数文档、本地压力草稿编辑、主动复制/文本文件分享、粘贴/文件导入预览、冲突另存和动态草稿库已实现。草稿不可 resolve/start，不能放宽执行白名单。
+- 新增用户文字覆盖现有七语言，共49份 advanced locale 文件；资源 key、XML、占位符、日期与换行已校验。没有新增翻译屏蔽或硬编码用户文案。
+- 库存、protocol-core check（39,823 checks）、device-session check 与当时移动端236项测试及 Debug编译统一通过；此后增加关联恢复测试和接线，必须以最新重跑结果为准。独立审查找到的持久化关联、终态重放与比较页刷新问题已实现修正，仍需末轮复审。
+- 当时未完成：A4参考对照、A11全局设置与聚焦、界面运行/布局验收、完整质量审查、生命周期/升级检查以及PR四项CI。未推送、未安装、未发版，以上不代表完整需求已交付。
+
+## 2026-10-09 参考曲线、导航与编译资源验证
+
+- A4：只读历史参考默认关闭，仅主动选择同曲线已结束记录；按实际萃取开始对齐，旧记录无阶段证据时标明记录起点，不把历史画成预测。图表身份绑定 ShotSeries 实际采样杯的 curveId，不使用用户后来选择的下一杯配方。
+- A5：阶段目标采用固定 0–12 bar 轴和离散阶段线，流量/原始模式不冒充压力，阶段顺序不冒充时间轴。
+- A11：四栏导航为冲煮/曲线/历史/豆子；应用设置独立承载主题、语言、反馈、信息与导出。设备设置保持独立控制门禁。首页新增实时萃取入口，无已选配方也能查看实际手动萃取。
+- 最新全量软件回归通过：mobile Debug 与 Mock 各 245 项（各 1 skipped），device-session 646 项，app 9 项；protocol 回放 39,823 checks。新增首页入口和字符串修正后，再次运行 mobile 两套单测、Debug/Mock 构建、Mock AndroidTest 编译和 Lint，成功。
+- 编译字符串校验扩展到分模块 XML，仍要求精确 key/value/语言集合一致；修复 Android 会吞掉未加引号的前导空格。Alpha/Mock 各核对 9,305 条编译字符串配置，literalRoundTrips=6；localization 21 项测试通过。
+- UI 自动化从旧五栏固定坐标改为隔离 Mock 前台检查、明确控件文字和有界滚动；重复匹配报错而非猜测。新增 XML 控件定位测试 4 项通过。脚本语法已通过，但尚未在 CI 模拟器运行，不声明运行或视觉验收通过。
+- 仍待：末轮独立代码审查、原生页面运行/布局验收、生命周期和升级检查、推送及 develop PR 四项 CI。新增型号实机与发布仍不在本任务授权内，不以 Mock 替代。
+
+## 2026-10-09 末轮独立审查修正
+
+- 参考曲线审查发现旧选择弹窗捕获过去身份：选择时先刷新当前图表身份，身份不符拒绝加载；加载入口再次核验。独立静态复查确认原 P2 路径关闭，不冒称 UI 已执行。
+- 库存恢复审查发现首次 journal.observe/claim 失败可能让旧 confirmed dose 关联到下一杯（P1）。调整为 MobileService 在 Mock/真实启动派发前持久化 history 与 dose->shotId；claim 保存失败不派发；journal 回调只恢复已有绑定，不再首次 claim。日志关联失败保留原杯所有权以便重启恢复。
+- 增加 ShotHistory.begin 写失败重试回归，先红确认旧实现提前占用 activeId；改为局部 next 保存成功后才替换内存、设置 activeId、通知 observer。未派发启动的存储失败不制造未知硬件结果。
+- 另增加首次 journal 观察失败后重启仍绑定原杯、不能改绑下一杯的回归。独立静态末审两处修复均无新增 P1/P2；运行测试以本节之后的实际输出为准。
+
+末轮修正后实跑：mobile Debug/Mock 各 247 tests、0 failures、0 errors、1 skipped；两种 APK 构建、Mock AndroidTest 编译、Lint 通过。编译资源复验两种 APK 各 9,305 配置匹配；Python scripts 32 项、localization 21 项通过。尚未进行模拟器运行验收、推送、PR 或发布。

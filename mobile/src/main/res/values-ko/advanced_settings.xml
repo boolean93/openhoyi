@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_settings_title">앱 설정</string>
+    <string name="app_settings_subtitle">테마, 언어, 추출 피드백은 이 기기에만 저장됩니다</string>
+    <string name="app_settings_appearance">화면 모양</string>
+    <string name="app_settings_dark">어두운 테마</string>
+    <string name="app_settings_theme_failed">테마를 저장하지 못했습니다. 이전 선택으로 복원했습니다.</string>
+    <string name="app_settings_export">진단 로그 내보내기</string>
+    <string name="app_settings_export_hint">파일 저장 위치를 선택한 후에만 내보내며 로그를 자동으로 보내지 않습니다</string>
+    <string name="app_settings_machine">머신 설정</string>
+</resources>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reference_choose">過去の参考記録を選択</string>
+    <string name="reference_off">参考を非表示</string>
+    <string name="reference_legend">実線：今回のリアルタイムデータ · 破線：過去の参考記録。予測ではありません。</string>
+    <string name="reference_source">参考：%1$s\n%2$s</string>
+    <string name="reference_align_observed">実際の抽出を初めて観測した時点に揃えます。欠損部分はそのまま残します。</string>
+    <string name="reference_align_recorded">過去の記録に段階マーカーがないため、記録の開始時点に揃えます。抽出開始の確認を意味するものではありません。</string>
+    <string name="reference_unavailable">この1杯のサンプルを利用できないため、参考曲線は生成していません</string>
+    <string name="reference_targets">段階ごとの圧力設定（時間に沿った予測ではありません）</string>
+    <string name="reference_stage">段階 %1$s：%2$s bar</string>
+    <string name="reference_raw">このレシピには生の流量目標値が含まれるため、圧力やカップへの流量と同じグラフには描画しません</string>
+    <string name="reference_trace_curve">グラフに表示中の記録：%1$s</string>
+</resources>

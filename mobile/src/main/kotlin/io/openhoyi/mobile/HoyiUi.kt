@@ -135,15 +135,14 @@ internal object HoyiUi {
         }
         parent.addView(bar, LinearLayout.LayoutParams(-1, -2))
         val items = listOf(
-            Triple(R.drawable.nav_home, activity.getString(R.string.ui_home), HomeActivity::class.java),
+            Triple(R.drawable.nav_home, activity.getString(R.string.ui_brew), HomeActivity::class.java),
             Triple(R.drawable.nav_curves, activity.getString(R.string.ui_curves), CurveActivity::class.java),
-            Triple(R.drawable.nav_extraction, activity.getString(R.string.ui_extraction), ExtractionActivity::class.java),
             Triple(R.drawable.nav_history, activity.getString(R.string.ui_history), HistoryActivity::class.java),
-            Triple(R.drawable.nav_settings, activity.getString(R.string.ui_settings), MachineSettingsActivity::class.java),
+            Triple(R.drawable.nav_beans, activity.getString(R.string.ui_beans), BeanInventoryActivity::class.java),
         )
         val wide = wide(activity)
         items.forEach { (icon, label, target) ->
-            val active = selected == target
+            val active = selected == target || (target == HomeActivity::class.java && selected == ExtractionActivity::class.java)
             val tint = activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
             val item = LinearLayout(activity).apply {
                 orientation = if (wide) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL

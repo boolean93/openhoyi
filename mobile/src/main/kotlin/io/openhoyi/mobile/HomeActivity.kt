@@ -122,19 +122,13 @@ class HomeActivity : ThemedActivity() {
         HoyiUi.navigation(this, root, HomeActivity::class.java)
         setContentView(root)
         val header = HoyiUi.header(this, content, "HOYI",
-            if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.home_subtitle))
-        val themeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
-        if (HoyiUi.wide(this)) header.addView(themeRow)
-        else content.addView(themeRow)
-        HoyiUi.label(this, themeRow, getString(R.string.home_dark_mode), 14, muted = true)
-        themeRow.addView(Switch(this).apply {
-            contentDescription = getString(R.string.home_dark_description)
-            isChecked = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
-            setOnCheckedChangeListener { _, dark ->
-                getSharedPreferences("appearance", MODE_PRIVATE).edit().putBoolean("dark", dark).apply()
-                recreate()
-            }
-        })
+            if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.ui_brew))
+        HoyiUi.button(this, header, getString(R.string.app_settings_title)) {
+            startActivity(Intent(this, AppSettingsActivity::class.java))
+        }.apply {
+            maxWidth=dp(144)
+            layoutParams=LinearLayout.LayoutParams(-2,-2).apply {marginStart=dp(12)}
+        }
         safetyWarning = text(content, "", 17, true).apply {
             setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
         }
@@ -287,11 +281,9 @@ class HomeActivity : ThemedActivity() {
         right.removeView(curveCard)
         right.addView(curveCard, 0)
         val tools = card(content, getString(R.string.home_records))
-        button(tools, getString(R.string.home_history)) { startActivity(Intent(this, HistoryActivity::class.java)) }
-        button(tools, getString(R.string.home_export)) {
-            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
-        }
+        button(tools, getString(R.string.extraction_title)) { startActivity(Intent(this, ExtractionActivity::class.java)) }
+        button(tools, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
+        button(tools, getString(R.string.scale_title)) { startActivity(Intent(this, ScaleActivity::class.java)) }
         button(tools, getString(R.string.home_shutdown)) {
             val owner = service
             owner?.shutdown()
@@ -545,7 +537,8 @@ class HomeActivity : ThemedActivity() {
             }
             else -> listOf(brewTemperature, brewPressure, steamTemperature, steamPressure).forEach { it.show("—") }
         }
-        val liveScale = LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)
+        val liveScale = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.hundredthsGram
+            ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.weightHundredthsGram
         scale.show(if (compactStatus) getString(R.string.home_scale_compact, if (liveScale != null) getString(R.string.home_live) else label(s.scaleState))
             else getString(R.string.home_scale_status, label(s.scaleState), if (liveScale != null) getString(R.string.home_live_suffix) else ""))
         scaleDot.background = dotShape(when (s.scaleState) {
@@ -553,8 +546,11 @@ class HomeActivity : ThemedActivity() {
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
             else -> R.color.mobile_muted
         })
-        scaleWeight.show("${liveScale?.let { number(it.weightHundredthsGram) } ?: "—"} g" +
-            "  ·  ${liveScale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
+        val liveDeviceFlow = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.let {
+            it.deviceFlowHundredths.takeIf { _ -> it.capabilities.deviceFlow }
+        } ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.deviceFlowHundredths
+        scaleWeight.show("${liveScale?.let(::number) ?: "—"} g" +
+            "  ·  ${liveDeviceFlow?.let(::number) ?: "—"} g/s")
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         selection.show(selected?.let { getString(R.string.home_selected_curve, it.name, getString(if (!library.canStart(it)) R.string.home_curve_readonly else R.string.home_curve_startable)) } ?: getString(R.string.home_curve_missing))

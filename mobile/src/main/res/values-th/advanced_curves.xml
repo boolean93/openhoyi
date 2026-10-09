@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_sort_recent">ใช้ล่าสุด</string>
+    <string name="curve_sort_most_used">จำนวนครั้งที่ใช้</string>
+    <string name="curve_usage_count">" · ใช้ %1$d ครั้ง"</string>
+    <string name="curve_usage_unavailable">ไม่สามารถใช้ประวัติการใช้งานได้ชั่วคราว เก็บไฟล์ต้นฉบับไว้แล้ว</string>
+</resources>

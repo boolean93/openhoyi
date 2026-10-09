@@ -46,28 +46,44 @@ assert_activity() {
   return 1
 }
 
+tap_control() {
+  python3 scripts/mock_ui_tap.py "$1" --scroll
+  sleep 2
+}
+
 tap_nav() {
-  local index="$1" expected="$2"
-  # Five equal native navigation targets occupy the bar above the AVD taskbar.
-  adb shell input tap "$((160 * (2 * index + 1)))" 888
+  local expected="$2"
+  case "$expected" in
+    HomeActivity) tap_control '冲煮' ;;
+    CurveActivity) tap_control '曲线' ;;
+    HistoryActivity) tap_control '历史' ;;
+    BeanInventoryActivity) tap_control '豆子' ;;
+    ExtractionActivity)
+      tap_control '冲煮'
+      tap_control '实时萃取'
+      ;;
+    AppSettingsActivity)
+      tap_control '冲煮'
+      tap_control '应用设置'
+      ;;
+    MachineSettingsActivity)
+      tap_control '冲煮'
+      tap_control '应用设置'
+      tap_control '机器设置'
+      ;;
+    *) echo "Unsupported Mock route: $expected" >&2; return 1 ;;
+  esac
   assert_activity "$expected"
-  sleep 2
 }
 
-tap_portrait_nav() {
-  local index="$1" expected="$2"
-  # The five targets span the 600 px portrait app bar above system navigation.
-  adb shell input tap "$((60 * (2 * index + 1)))" 900
-  assert_activity "$expected"
-  sleep 2
-}
+tap_portrait_nav() { tap_nav "$@"; }
+tap_phone_nav() { tap_nav "$@"; }
 
-tap_phone_nav() {
-  local index="$1" expected="$2"
-  # 450x900 at 200 dpi is a 360 dp-wide phone with the same five-item bar.
-  adb shell input tap "$((45 * (2 * index + 1)))" 785
-  assert_activity "$expected"
-  sleep 2
+toggle_theme() {
+  tap_nav 0 AppSettingsActivity
+  tap_control '深色主题'
+  assert_activity AppSettingsActivity
+  tap_nav 0 HomeActivity
 }
 
 capture() {
@@ -115,7 +131,7 @@ tap_nav 4 MachineSettingsActivity
 capture settings-light
 
 tap_nav 0 HomeActivity
-adb shell input tap 1530 103
+toggle_theme
 sleep 5
 capture home-dark
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/theme-pref.xml"
@@ -130,10 +146,10 @@ tap_nav 4 MachineSettingsActivity
 capture settings-dark
 
 tap_nav 1 CurveActivity
-adb shell input tap 250 515
+tap_control '采集曲线 2'
 sleep 2
 capture curve-detail-dark
-adb shell input tap 1160 800
+tap_control '使用此曲线'
 sleep 2
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/curves.xml > "$output_dir/selected-curve.xml"
 grep 'name="selected">capture-2<' "$output_dir/selected-curve.xml" >/dev/null
@@ -141,11 +157,11 @@ tap_nav 0 HomeActivity
 capture home-selected-dark
 tap_nav 2 ExtractionActivity
 capture extraction-ready-dark
-adb shell input tap 800 805
+tap_control '开始萃取'
 sleep 2
 capture extraction-confirm-dark
 adb logcat -c
-adb shell input tap 1150 575
+tap_control '开始模拟'
 sleep 3
 adb logcat -d -s OpenHoyiMobile:I | grep 'Mock 萃取已开始' > "$output_dir/shot-start-log.txt"
 capture extraction-running-dark
@@ -153,7 +169,7 @@ sleep 34
 capture extraction-ended-dark
 tap_nav 3 HistoryActivity
 capture history-list-dark
-adb shell input tap 600 390
+tap_control '采集曲线 2'
 assert_activity HistoryDetailActivity
 capture history-detail-dark
 
@@ -171,20 +187,20 @@ capture portrait-history-dark
 tap_portrait_nav 4 MachineSettingsActivity
 capture portrait-settings-dark
 tap_portrait_nav 3 HistoryActivity
-adb shell input tap 220 400
+tap_control '采集曲线 2'
 capture portrait-history-detail-dark
 adb shell input keyevent KEYCODE_BACK
 assert_activity HistoryActivity
 sleep 2
 tap_portrait_nav 1 CurveActivity
-adb shell input tap 220 410
+tap_control '采集曲线 2'
 capture portrait-curve-detail-dark
 adb shell input keyevent KEYCODE_BACK
 assert_activity CurveActivity
 sleep 2
 
 tap_portrait_nav 0 HomeActivity
-adb shell input tap 130 173
+toggle_theme
 sleep 5
 capture portrait-home-light
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/portrait-theme-pref.xml"

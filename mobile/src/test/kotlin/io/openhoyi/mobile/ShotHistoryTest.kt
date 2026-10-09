@@ -5,6 +5,25 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ShotHistoryTest {
+    @Test fun failedBeginDoesNotReserveTheActiveSlotOrNotifyObservers() {
+        var failWrite = true
+        var observed = 0
+        var disk = ""
+        val history = ShotHistory(object : ShotHistory.Storage {
+            override fun read() = disk
+            override fun write(value: String) { check(!failWrite); disk = value }
+        }, now = { 1_000_000L }, newId = { "retry-shot" }, onEntryChanged = { observed++ })
+        assertThrows(IllegalStateException::class.java) { history.begin("capture-2") }
+        assertTrue(history.entries.isEmpty())
+        assertEquals(0, observed)
+        failWrite = false
+        assertEquals("retry-shot", history.begin("capture-2"))
+        assertEquals(1, observed)
+        assertEquals("retry-shot", ShotHistory(object : ShotHistory.Storage {
+            override fun read() = disk
+            override fun write(value: String) { disk = value }
+        }, now = { 1_000_000L }).entries.single().id)
+    }
     private class Memory : ShotHistory.Storage {
         var value: String = ""
         override fun read() = value
@@ -60,7 +79,7 @@ class ShotHistoryTest {
         history.begin("factory-v3-001", slot = 3)
         history.transition(ExtractionState.ENDED_OBSERVED, null, null)
         assertEquals(3, ShotHistory(disk, now = { 1_000_000L }).entries.single().slot)
-        disk.value = disk.value.trimEnd().substringBeforeLast('\t') + "\n"
+        disk.value = disk.value.trimEnd().split('\t').take(8).joinToString("\t") + "\n"
         assertNull(ShotHistory(disk, now = { 1_000_000L }).entries.single().slot)
     }
 

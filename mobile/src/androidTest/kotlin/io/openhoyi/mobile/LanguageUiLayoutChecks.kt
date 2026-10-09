@@ -15,8 +15,8 @@ internal object LanguageUiLayoutChecks {
         check(BuildConfig.MOCK_MODE && home.packageName == "io.openhoyi.mobile.mock")
         verifyClippingDetection(home)
         val pages = listOf(HomeActivity::class.java, CurveActivity::class.java, ExtractionActivity::class.java,
-            HistoryActivity::class.java, MachineSettingsActivity::class.java)
-        val labels = listOf(R.string.ui_home, R.string.ui_curves, R.string.ui_extraction, R.string.ui_history, R.string.ui_settings)
+            HistoryActivity::class.java, AppSettingsActivity::class.java)
+        val labels = listOf(R.string.ui_brew, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)
         val expectedDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
         val normalTextSizes = mutableMapOf<String, Float>()
         for (widthDp in listOf(320, 360, 600, 700, 1000)) for (fontScale in listOf(1f, 1.3f)) for (page in pages) {
@@ -36,7 +36,7 @@ internal object LanguageUiLayoutChecks {
             measure(activity, root, widthDp)
             check(root.layoutDirection == expectedDirection)
             val bar = root.getChildAt(0) as ViewGroup
-            check(bar.childCount == 5) { "$fixture missing navigation entries" }
+            check(bar.childCount == labels.size) { "$fixture missing navigation entries" }
             for (index in 0 until bar.childCount) {
                 val item = bar.getChildAt(index) as LinearLayout
                 check(item.orientation == if (widthDp >= 700) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL) {
@@ -62,7 +62,7 @@ internal object LanguageUiLayoutChecks {
                 orientation = LinearLayout.VERTICAL
                 layoutDirection = expectedDirection
             }
-            HoyiUi.header(activity, body, activity.getString(R.string.machine_settings_title), activity.getString(R.string.machine_settings_subtitle))
+            HoyiUi.header(activity, body, activity.getString(R.string.app_settings_title), activity.getString(R.string.app_settings_subtitle))
             val stop = HoyiUi.button(activity, body, activity.getString(R.string.home_stop), danger = true) { error("Layout fixture must not click controls") }
             measure(activity, body, widthDp - 48)
             check(body.layoutDirection == expectedDirection)

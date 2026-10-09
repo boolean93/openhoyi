@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reference_choose">เลือกข้อมูลอ้างอิงในอดีต</string>
+    <string name="reference_off">ซ่อนข้อมูลอ้างอิง</string>
+    <string name="reference_legend">เส้นทึบ: ข้อมูลเรียลไทม์ของครั้งนี้ · เส้นประ: ข้อมูลอ้างอิงในอดีต ไม่ใช่การคาดการณ์</string>
+    <string name="reference_source">ข้อมูลอ้างอิง: %1$s\n%2$s</string>
+    <string name="reference_align_observed">จัดแนวตามครั้งแรกที่สังเกตพบการสกัดจริง โดยคงช่วงที่ขาดไว้</string>
+    <string name="reference_align_recorded">ประวัติไม่มีเครื่องหมายช่วง จึงจัดแนวตามจุดเริ่มบันทึก ไม่ได้ยืนยันจุดเริ่มการสกัด</string>
+    <string name="reference_unavailable">ไม่สามารถใช้ข้อมูลตัวอย่างของแก้วนี้ได้ จึงไม่ได้สร้างกราฟอ้างอิง</string>
+    <string name="reference_targets">ค่าแรงดันที่ตั้งในแต่ละช่วง (ไม่ใช่การคาดการณ์ตามเวลา)</string>
+    <string name="reference_stage">ช่วง %1$s: %2$s bar</string>
+    <string name="reference_raw">สูตรนี้มีค่าเป้าหมายอัตราการไหลดิบ จึงไม่วาดรวมกับแรงดันหรืออัตราการไหลลงแก้ว</string>
+    <string name="reference_trace_curve">บันทึกที่แสดงในกราฟ: %1$s</string>
+</resources>

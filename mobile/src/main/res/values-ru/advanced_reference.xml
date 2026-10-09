@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reference_choose">Выбрать исторический ориентир</string>
+    <string name="reference_off">Скрыть ориентир</string>
+    <string name="reference_legend">Сплошная линия: текущие данные этой экстракции · Пунктир: исторический ориентир, а не прогноз</string>
+    <string name="reference_source">Ориентир: %1$s\n%2$s</string>
+    <string name="reference_align_observed">Совмещение по первому наблюдению фактической экстракции; пропуски сохраняются</string>
+    <string name="reference_align_recorded">В истории нет меток этапов; совмещение по началу записи не подтверждает начало экстракции</string>
+    <string name="reference_unavailable">Замеры этой экстракции недоступны; график ориентира не создан</string>
+    <string name="reference_targets">Настройки давления по этапам (не прогноз во времени)</string>
+    <string name="reference_stage">Этап %1$s: %2$s бар</string>
+    <string name="reference_raw">В рецепте есть исходные целевые значения потока; они не строятся на одном графике с давлением или потоком в чашку</string>
+    <string name="reference_trace_curve">Запись на графике: %1$s</string>
+</resources>

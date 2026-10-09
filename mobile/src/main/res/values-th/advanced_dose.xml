@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dose_title">เลือกเมล็ดและยืนยันการใส่ผงกาแฟ</string>
+    <string name="dose_subtitle">การบันทึกเมล็ดที่เลือกไม่หักสต็อก จะหักเพียงครั้งเดียวหลังยืนยันชัดเจนว่าใส่ผงกาแฟแล้ว</string>
+    <string name="dose_batch">เลือกล็อตจากสต็อก</string>
+    <string name="dose_batch_choice">%1$s · เหลือ %2$s กรัม · %3$s</string>
+    <string name="dose_amount">ปริมาณผงกาแฟจริง (กรัม, ทศนิยมไม่เกิน 3 ตำแหน่ง)</string>
+    <string name="dose_save_selection">บันทึกเมล็ดที่เลือก (ไม่หักสต็อก)</string>
+    <string name="dose_saved">บันทึกเมล็ดที่เลือกแล้ว ยังไม่ได้หักสต็อก</string>
+    <string name="dose_confirm">ยืนยันว่าใส่ผงกาแฟแล้วและหักสต็อก</string>
+    <string name="dose_retry">ลองยืนยันอีกครั้งด้วยบันทึกการเตรียมเดิม</string>
+    <string name="dose_confirmed">หักสต็อก %1$s กรัมแล้ว แม้เริ่มไม่สำเร็จก็จะไม่คืนสต็อกอัตโนมัติ หากต้องแก้ไขให้เพิ่มรายการปรับในหน้าสต็อก</string>
+    <string name="dose_attempted">การยืนยันการใส่ผงกาแฟยังไม่เสร็จ สต็อกอาจถูกหักแล้ว การลองใหม่จะตรวจสอบเหตุการณ์เดิมโดยไม่หักซ้ำ อย่าสร้างบันทึกการเตรียมใหม่เพื่อหักอีกครั้ง</string>
+    <string name="dose_summary">เมล็ดกาแฟ: %1$s\nล็อต: %2$s\nปริมาณผงกาแฟจริง: %3$s กรัม</string>
+    <string name="dose_record">บันทึกการเตรียม %1$s</string>
+    <string name="dose_next_cup">ผงกาแฟชุดก่อนเชื่อมกับการสกัดหนึ่งแก้วแล้ว สำหรับแก้วถัดไปให้กรอกใหม่ จะไม่นำกลับมาใช้โดยอัตโนมัติ</string>
+    <string name="dose_cancel_selection">ยกเลิกเมล็ดที่เลือกแล้วเลือกใหม่</string>
+    <string name="dose_discard">ยืนยันละทิ้งการเตรียมนี้ (ไม่คืนสต็อก)</string>
+    <string name="dose_discard_title">ละทิ้งการเตรียมผงกาแฟปัจจุบัน</string>
+    <string name="dose_discard_message">จะตรวจสอบประวัติสต็อกก่อนละทิ้งบันทึกการเตรียมนี้ สต็อกที่หักไปแล้วจะไม่คืน หากต้องแก้ไขให้เพิ่มรายการปรับ</string>
+    <string name="dose_discard_confirm">ตรวจสอบประวัติและละทิ้ง</string>
+    <string name="dose_cancel_dialog">เก็บการเตรียมไว้</string>
+    <string name="dose_return">กลับไปหน้าชงกาแฟ</string>
+    <string name="dose_scale">รับค่าปัจจุบันจากหน้าชั่งเมล็ด</string>
+    <string name="dose_scale_hint">ชั่งเมล็ดได้เฉพาะเมื่อไม่มีการชงที่กำลังดำเนินการหรือมีผลไม่ทราบแน่ชัด ค่าที่อ่านได้จะไม่หักสต็อกอัตโนมัติ</string>
+    <string name="dose_scale_wait">ยังไม่ยืนยันสถานะบริการ กรอกปริมาณผงกาแฟเองได้ แต่ยังเข้าชั่งเมล็ดไม่ได้</string>
+    <string name="dose_scale_blocked">ยังชั่งเมล็ดไม่ได้จนกว่ากิจกรรมการชงปัจจุบันหรือสถานะการกู้คืนจะได้รับการแก้ไข</string>
+    <string name="dose_scale_invalid">ไม่มีค่าชั่งเมล็ดจริงที่ใช้ได้ โปรดชั่งใหม่หรือกรอกเอง</string>
+    <string name="dose_bad_amount">กรอกปริมาณผงกาแฟจริงที่มากกว่า 0 มีทศนิยมไม่เกิน 3 ตำแหน่ง และอยู่ในช่วงที่รองรับ</string>
+    <string name="dose_empty">ยังไม่มีล็อตในสต็อก โปรดเพิ่มเมล็ดกาแฟหนึ่งถุงก่อน</string>
+    <string name="dose_add_beans">เพิ่มล็อตในสต็อก</string>
+    <string name="dose_save_failed">บันทึกเมล็ดที่เลือกไม่สำเร็จ ยังไม่ได้หักสต็อก โปรดลองอีกครั้งภายหลัง</string>
+    <string name="dose_confirm_failed">การยืนยันการใส่ผงกาแฟยังไม่เสร็จ โปรดลองใหม่ด้วยบันทึกการเตรียมเดิม หรือยืนยันตรวจสอบประวัติก่อนละทิ้ง</string>
+    <string name="dose_discard_failed">ยังเก็บบันทึกการเตรียมไว้ ตรวจสอบประวัติหรือบันทึกไม่ได้ อย่าสร้างบันทึกใหม่เพื่อหักซ้ำ</string>
+    <string name="dose_changed">บันทึกการเตรียมเปลี่ยนแปลงแล้ว โปรดตรวจสอบอีกครั้ง</string>
+    <string name="dose_ledger_conflict">บันทึกการเตรียมไม่ตรงกับประวัติสต็อก จึงยืนยันความสำเร็จไม่ได้ เก็บบันทึกเดิมไว้แล้ว</string>
+    <string name="dose_start_unconfirmed">ยืนยันการใส่ผงกาแฟให้เสร็จก่อน หรือยืนยันละทิ้งเมล็ดที่เลือกครั้งนี้ในหน้าการเตรียม</string>
+    <string name="dose_start_unavailable">ไม่สามารถใช้ข้อมูลการเตรียมผงกาแฟได้ โปรดตรวจสอบในหน้าการเตรียมก่อน จะไม่สร้างบันทึกเดิมใหม่หรือเขียนทับ</string>
+    <string name="dose_association_pending">หักสต็อกแล้ว การเชื่อมกับรีวิวรอกู้คืน ก่อนกู้คืนจะสร้างการเตรียมใหม่ไม่ได้ และจะไม่หักสต็อกอีก</string>
+    <string name="dose_association_retry">กู้คืนการเชื่อมรีวิวของแก้วนี้ (เติมเฉพาะช่องว่าง)</string>
+    <string name="dose_association_failed">ยังไม่ได้กู้คืนการเชื่อมรีวิว เก็บการเตรียมเดิมไว้ จะไม่สร้างบันทึกที่ไม่ได้เกิดขึ้นจริงหรือหักสต็อกอีก</string>
+</resources>
