@@ -271,3 +271,11 @@
 - 发现曲线卡片未知压力模式空态沿用网格颜色，白底/暗底均过淡。仅将紧凑缩略图的“—”切到主题次要文字色并增大至16dp；未知流量不转成bar、不伪造目标曲线、不改执行资格。Mock APK编译15s通过；新运行截图待CI。
 - 原工作树 ImageGen manifest 再逐项核对 PNG签名、实际尺寸与generated状态，28/28存在且尺寸匹配。未移动/修改原工作树资产，也不把概念数据当实际遥测。
 - e14d320 的 advanced37989172627、verify37989172643、lifecycle37989172615、upgrade37989172693当前均真实in_progress；branch-policy37989172653 success。未将运行中记为通过，也未重启这些任务。
+
+## 高级数据升级覆盖与生命周期实际失败修正
+
+- 5267a90 的 verify37989665039 和 upgrade37989665086 已成功。升级产物保存 `/tmp/openhoyi-upgrade-5267a90`，基础seed/verify标记通过；此PR运行使用GitHub合并树，产物 declaredSourceCommit=de34e2bc，sourceCommitVerified=false，不把该声明包装成APK源码独立认证。仍只证明同当前schema的隔离Mock版本1→2，不是正式Alpha/实机/历史schema迁移。
+- 审核升级fixture发现只覆盖基础数据，未覆盖新增库存/剂量/长期复盘/永久使用/本地草稿。追加5存储fixture，包含库存购入/消费/调整流水与余额、确认剂量及永久eventId、40天前完整notes、使用次数与时间、自制压力草稿；同时保存秤地址＋协议、排序、精度偏好。升级后先核对原字节，再读取模型；重复消费/usage记录/导入均必须幂等且5文件字节不变，草稿仍不可执行、未知控制与去皮记录仍保留。
+- 脚本验收加强为基础和精确高级marker同时存在，不能用旧绿色基础marker替代新数据验证。实际Python红为4个assertRaises断言不抛（seed/verify缺高级marker或stores=4仍通过），实现后4tests全部green。高级夹具仪器APK编译16s成功；独立只读审查无P1/P2。新增真实升级结果待新CI。
+- 生命周期37989665035已终态failure。实际下载 `/tmp/openhoyi-lifecycle-5267a90`：ServiceStandaloneTareDispatchChecks:89在RESTORED_ALLOW将DynamicScaleControl强转旧ScaleSessionControl抛ClassCastException，未达到后续安全断言。只改为ScaleControl接口，原!startAllowed、队列字节/endpoint、未知去皮持久化与派发保护全部保留；独立复核未放宽验收。修正后仪器APK编译14s、Python4tests通过，仍待新生命周期实际运行。
+- 生产逻辑、数据库schema、签名/版本、协议白名单未改。不删除未知记录、不自动重发、不合并、不发版；其余页面/系统选择器任务仍按原handle等待，不盲目重启。
