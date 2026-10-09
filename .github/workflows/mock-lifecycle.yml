@@ -2,29 +2,9 @@ name: Verify Mock lifecycle
 
 on:
   push:
-    branches: [feature/native-ble]
-    paths:
-      - '.github/workflows/mock-lifecycle.yml'
-      - 'scripts/check_mock_lifecycle.sh'
-      - 'mobile/src/androidTest/**'
-      - 'mobile/build.gradle.kts'
-      - 'mobile/distribution.gradle.kts'
-      - 'mobile/src/main/**'
-      - 'mobile/src/mock/**'
-      - 'bluetooth-android/src/main/**'
-      - 'device-session/src/main/**'
-      - 'protocol-core/src/main/**'
-      - 'trace-core/src/main/**'
-      - 'bluetooth-android/build.gradle.kts'
-      - 'device-session/build.gradle.kts'
-      - 'protocol-core/build.gradle.kts'
-      - 'trace-core/build.gradle.kts'
-      - 'build.gradle.kts'
-      - 'settings.gradle.kts'
-      - 'gradle.properties'
-      - 'gradle/**'
-      - 'gradlew'
-      - 'gradlew.bat'
+    branches: [main, develop, 'feature/**', 'fix/**', 'chore/**', 'docs/**', 'release/**', 'hotfix/**']
+  pull_request:
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:

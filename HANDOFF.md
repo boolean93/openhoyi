@@ -719,3 +719,8 @@ ShotChartView现按Paint.advance/ink宽度流式排布，完整长项按字符�
 
 
 随后41851ea/Mock37703092602已success，实际产物/private/tmp/hoyi-chart-legends-green-37703092602已读取：64图例组合完整文字/边界/无覆盖/绘图区/五路径标记，以及原48时间方向标记通过，result.txt通过；原停止2/4/2、读取20/108/2/4标记仍通过。watch45012已终态退出。生产修复RED→GREEN闭环，证据与计划/当前对标基线更新。font-scale、全部取值/空态/母语/注册Service及真机不在本次证明范围；不继续追踪纯证据提交启动的无关CI，不把软件绿色当全目标完成。
+
+
+2026-10-09：用户要求统一项目规划、推送、发版规则。新增AGENTS/docs/git-workflow/任务与PR模板、Python策略与本地hook、无路径过滤的main/develop PR四项CI、可审查GitHub规则JSON。main仍d0e88b1，develop从c3710e3创建，feature/native-ble保留；本任务chore/git-governance，目标develop，不发版。新增未跟踪docs/research和docs/ui/advanced-2026-10-08为他人资料，不纳入提交。
+
+8项Python测试/5工作流YAML解析通过。独立审查发现并修复标签预检读取工作树及空stdin误通过：从标签commit读取审批记录，独立tag --name预检，未提交审批不能通过；sourceCommit可指向APK源码前一提交，diff只允许当前发布记录，避免自身SHA循环。最终复审无阻塞。远端已启用integration规则24759469、immutable-tags规则24759471，active/no-bypass；实际develop规则API已读取，PR+branch-policy/verify/lifecycle/upgrade严格检查、禁force/delete。默认分支develop，auto-merge启用但不会跳过检查，双主干回合前不自动删分支。治理PR尚待创建与四项CI；不把配置文件存在当已合并或已发版。实机/导出/签名阻塞仍有效。

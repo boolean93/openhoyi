@@ -1,0 +1,24 @@
+name: Branch policy
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+  push:
+    branches: [main, develop, 'feature/**', 'fix/**', 'chore/**', 'docs/**', 'release/**', 'hotfix/**']
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  policy:
+    name: branch-policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test policy
+        run: python3 -m unittest discover -s scripts -p test_git_policy.py
+      - name: Check branch route, plan and release evidence
+        run: python3 scripts/git_policy.py ci

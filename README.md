@@ -2,6 +2,10 @@
 
 纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。仓库提供两套独立 Android 包：`OpenHOYI Lab`（`io.openhoyi.lab`）用于诊断与采集；`OpenHOYI Alpha`（`io.openhoyi.mobile`）是日常使用版的第一段原生功能。Lab 已实测咖啡机和 BOOKOO 双设备连接、后台及短时锁屏收数。Alpha 已具备首页连接/实时状态、曲线与五槽位启动报文校验、常用机器设置、运行模式和拨杆模式写入与回读状态、曲线温度预热、一次性立即睡眠、实时/历史曲线，以及需要显式确认的萃取与手动停止页面；Alpha已有受监护启动与手动停止的局部实机记录，见 `docs/alpha-acceptance.md`；目标重量停止、设置写入和异常路径仍待实机验收。
 
+## 协作与发布
+
+所有任务遵守 [Git工作流](docs/git-workflow.md) 和 [AGENTS.md](AGENTS.md)。默认集成分支为develop，main只接受release/hotfix PR；规划使用 [任务模板](docs/plans/task-template.md)。
+
 ## 模块
 
 | 模块 | 边界 |
