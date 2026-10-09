@@ -109,4 +109,23 @@ PY
 collect
 adb shell am force-stop "$package"
 adb shell settings put system font_scale 1.0
+python3 - "$output_dir/curve-system-documents.txt" <<'PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    try:
+        result=subprocess.run(['adb','shell','am','instrument','-w','-e','systemDocuments','true',
+            '-e','disposableCiEmulator','true',
+            'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],stdout=capture,timeout=600)
+    except subprocess.TimeoutExpired:
+        raise SystemExit('Actual system document picker timed out; partial output retained')
+if result.returncode:
+    raise SystemExit(result.returncode)
+expected='CURVE_SYSTEM_DOCUMENT_CHECKS_PASSED paths=7 newDrafts=1 systemPicker=true externalSend=false noBle=true'
+if expected not in output.read_text():
+    raise SystemExit(f'Actual system document picker did not confirm completion: {output}')
+PY
+collect
+adb shell am force-stop "$package"
 adb shell wm size 1600x1000

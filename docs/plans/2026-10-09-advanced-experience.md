@@ -201,3 +201,31 @@
 - 分享红验证已取得：33b8fdc run37951781297终态失败，artifact `/tmp/openhoyi-advanced-33b8fdc/curve-document-contracts.txt` 明确 `Text sharing must match plain-text receivers, got application/json`，不是构建、启动或监控失败。随后只将EXTRA_TEXT分享改为text/plain，文件application/json保持不变；新11paths/2shareContracts等待真实绿验证。
 - 扩展页面矩阵为15个上下文（保留原14页，新增ScaleActivity-Capture），每profile240fixtures/60PNG；截图文件名区分捕获上下文，不覆盖普通秤页。新增8语言2主题的稳定称豆说明、按钮布局和Mock不可捕获断言，脚本要求精确60截图及15/240完成标记。软件检查仍不证明真实秤稳定称豆或外部接收方验收。
 - 分享修复/默认阻断拦截/捕获上下文矩阵的末轮独立复审无新P1/P2；Debug/Mock/AndroidTest APK统一构建通过（26s），Debug/Mock各254 tests、0 failures/errors、1既有skip。git diff --check、shell语法与branch policy通过。Android实际新合约和15上下文矩阵尚待最新CI，不能把编译或旧c707593通过当作新运行通过。
+
+## 系统文件选择器验收补齐（进行中）
+
+- 用户要求曲线分享与复制到自己的App；受控provider虽证明真实ContentResolver文件往返，但systemPicker=false，不能替代实际DocumentsUI。新增独立Mock instrumentation由可丢弃CI模拟器实际操作系统选择器，导出唯一UUID测试JSON到Downloads，再由系统打开同文件、预览和确认只读草稿，取消不读写路径一起验证。
+- 明确-e disposableCiEmulator true且qemu/hardware身份、Mock包及系统DocumentsUI门禁；不启动Alpha/BLE、不发送外部消息、不安装用户设备。仅完整核对测试身份/文件名/参数后删除本次文件；未知文件不删。新增已确认本地测试草稿保留，inventory/journal/device prefs保持。
+- 原分享合约与15上下文页面矩阵保留，新增系统选择器检查单独输出真实路径标记，失败保留树诊断且不输出PASS。代码与实际CI均待验证，不能先宣称已完成。
+
+## 原始需求完成审计（保持范围，不以现有最小实现替代）
+
+| 用户需求 | 当前权威证据 | 尚缺证据/能力 |
+|---|---|---|
+| 新分支基于正确基线 | merge-base为66ebda95；feature/advanced-experience；PR2目标develop；本地/CI分支策略 | 最新提交全部必需CI与是否整合仍需核对 |
+| 电子秤协议抽象与更多协议 | ScaleProtocolAdapter/Capabilities/Observation、BOOKOO真实链路、三候选离线decoder；protocol-core39823回放 | Acaia/Felicita/DiFluid不是完整可连接兼容；需用户指定具体第二型号和可验证设备证据 |
+| 独立电子秤页面 | 同service重量/去皮/本地计时/连接/设置页；8语言矩阵 | 稳定捕获真实秤验收待做；完整流速图/自动计时联动尚未实现，不能算已有 |
+| 实时状态/图表更明确 | 压力与估算杯中流速分图、时间轴/单位/断点/来源、固定停止；c707593语言图表与矩阵、85eb1c7实际450x900运行/结束截图 | d390d58最新截图/扩展上下文矩阵待结果；真实机器状态与停水不由Mock证明 |
+| 预设直观/预期效果调研 | 阶段示意固定bar轴、永久使用排序、同曲线已结束历史参考；研究报告A4/R1 | 不伪造条件结束段未来时间线；口感预测按用户要求可不做 |
+| 每杯感受、豆子、粉量、研磨、下次调整 | 长期BrewJournal及Notes、编辑/导出/两杯文字比较；BrewJournalTest/业务UI | 完整批次与配方版本快照、两杯图叠加尚未实现，不包装为已有 |
+| 次数倒序/使用记录倒序 | 永久CurveUsageLedger、CurveOrdering和持久偏好；真实观察口径/去重/旧缓存清理覆盖 | 无新功能缺口；完整最新CI仍需确认 |
+| 独立库存及自动扣除 | bean-core纯模块整数mg、幂等流水；BeanPreparation显式投粉ID/恢复；17paths业务UI | 真实称豆取值待验收；归档/用户备份恢复尚未实现，不能宣称已有 |
+| 自制曲线分享/复制入自己的App | 草稿编辑/复制、版本化最小JSON、导入先预览/确认；33b8fdc分享MIME红验证 | d390d58新11paths/2shareContracts待绿；真实DocumentsUI正在补；草稿仍不可执行，完整自制配方执行不是已有能力 |
+| 国内外设计调研及逐页ImageGen | research报告官方来源；原openhoyi-native/docs/ui/advanced-2026-10-08/manifest.json与PNG | 原工作树资产保持不动、不代提交；设计示意不是功能或硬件验收 |
+
+以上不是完成声明。只读交换和离线协议不能代替完整兼容，单个绿检查不能代替最新完整源码门禁；用户明确要求的尚缺部分保留在目标中。调研报告本身声明为建议而非已批准规格，表内更完整设想的差异须如实展示，但不自动新增为硬交付条件，也不能把未实现建议称为已完成。
+- d390d58完整四项必需CI通过：verify37953346908、upgrade37953346695、lifecycle37953346773、branch-policy37953346846。advanced37953346689成功并下载 `/tmp/openhoyi-advanced-d390d58`：实际标记compact/wideFont各15pages/240fixtures，业务17paths，文档11paths/7pickerContracts/2shareContracts通过；文本MIME红验证后的实际绿验证已取得，仍明确systemPicker=false。
+- 系统选择器测试首轮独立复审发现活动窗口切换时root暂空会过早抛错，未使用原15秒等待。仅新增专门RootNotReady异常并在await转为false，树尺寸/重复节点/错误身份等其它异常仍硬失败；不扩大期限、不放宽完成标记。
+
+- 2026-10-10：系统选择器 RootNotReady 修正后末轮独立复审无新 P1/P2；Mock AndroidTest APK 编译成功（17s），提交前再次离线构建成功（全部 up-to-date）。diff、shell 语法和分支策略检查通过，fetch 后 merge-base 仍为66ebda95。真实系统选择器7路径仍待新提交CI，不以编译代替运行。
+- d390d58 capture37953339599 已终态成功，截图下载到 `/tmp/openhoyi-capture-d390d58`；这里只记录下载成功，尚不以全部截图视觉验收完成作为结论。

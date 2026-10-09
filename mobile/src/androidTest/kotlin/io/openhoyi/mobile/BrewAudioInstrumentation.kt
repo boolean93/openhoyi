@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var systemDocuments = false
+    private var disposableCiEmulator = false
     private var documentContracts = false
     private var idleEvents = false
     private var advancedFlows = false
@@ -26,6 +28,8 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        systemDocuments = arguments?.getString("systemDocuments") == "true"
+        disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
         documentContracts = arguments?.getString("documentContracts") == "true"
         idleEvents = arguments?.getString("idleEvents") == "true"
         advancedFlows = arguments?.getString("advancedFlows") == "true"
@@ -39,6 +43,13 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (systemDocuments) {
+                val result = CurveSystemDocumentChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "CURVE_SYSTEM_DOCUMENT_CHECKS_PASSED paths=${result.paths.size} newDrafts=${result.newDrafts} systemPicker=${result.systemPicker} externalSend=${result.externalSend} noBle=${result.noBle}\n" +
+                    "CURVE_SYSTEM_DOCUMENT_PATHS ${result.paths.joinToString(",")}\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (documentContracts) {
                 val result = CurveDocumentContractChecks(this).run()
                 report.putString("stream", "CURVE_DOCUMENT_CONTRACT_CHECKS_PASSED paths=${result.paths.size} pickerContracts=${result.pickerContracts} shareContracts=${result.shareContracts} fileFixtures=${result.fileFixtures} newDrafts=${result.newDrafts} realResolver=true signaturePermission=true systemPicker=false externalSend=false noBle=true\n")
