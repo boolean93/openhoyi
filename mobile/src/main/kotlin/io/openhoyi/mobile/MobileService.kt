@@ -350,7 +350,23 @@ class MobileService : Service() {
         }
     }
 
+    /** Invalidates UI stability even if a disconnect/reconnect occurs between page refreshes. */
+    private var scaleConnectionEpoch = 0L
+    private val beanDoseCapture = BeanDoseCapturePolicy()
+    internal fun resetBeanDoseCapture() = beanDoseCapture.reset()
+    internal fun beanDoseCaptureAt(now: Long): Int? {
+        if (BuildConfig.MOCK_MODE || manualShotActive ||
+            !io.openhoyi.session.DeviceConnectionGate.mayChangeScale(shotState) ||
+            tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO)) {
+            beanDoseCapture.reset(); return null
+        }
+        return beanDoseCapture.update(scaleConnectionEpoch,
+            LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now), now)
+    }
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
+        if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
+            scaleConnectionEpoch++; beanDoseCapture.reset()
+        }
         snapshot = if (role == DeviceRole.COFFEE) {
             if (state != DeviceState.READY) {
                 finishBrewFeedback(false)
@@ -555,6 +571,8 @@ class MobileService : Service() {
                 onScaleObservation = { observation ->
                     snapshot = snapshot.copy(scaleObservation = observation,
                         scaleCapabilities = observation.capabilities)
+                    // Consume every notification, not just the last frame at the UI refresh.
+                    beanDoseCaptureAt(SystemClock.elapsedRealtime())
                 },
                 diagnostic = { detail ->
                     if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
@@ -708,6 +726,8 @@ class MobileService : Service() {
         if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
             return getString(R.string.service_tare_waiting)
         val scaleAddress=current.scaleAddress
+        scaleConnectionEpoch++ // A tare attempt invalidates any bean stability window.
+        beanDoseCapture.reset()
         event(ResourceMessage(R.string.service_tare_requested), "scale.tare_requested")
         current.tareScale({
             io.openhoyi.session.StandaloneTareDispatchPermit.allows(scaleAddress,current.scaleAddress,

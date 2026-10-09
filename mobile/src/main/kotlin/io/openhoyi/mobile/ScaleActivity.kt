@@ -86,6 +86,10 @@ class ScaleActivity:ScaleOwnerActivity() {
     private lateinit var connectionButton:Button
     private var capture:Button?=null
     private var timer=LocalScaleTimer()
+    private fun stableDose(now:Long):Int? {
+        return owner?.beanDoseCaptureAt(now)
+    }
+    override fun onStop() {owner?.resetBeanDoseCapture();super.onStop()}
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         timer=LocalScaleTimer(LocalScaleTimer.State(savedInstanceState?.getLong("scale.timer.accumulated") ?: 0,
@@ -103,6 +107,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         tare=HoyiUi.button(this,body,getString(R.string.scale_tare),primary=true) {
             val service=owner ?: return@button
             if(BuildConfig.MOCK_MODE || !changesAllowed()) {message(getString(R.string.scale_active_guard));return@button}
+            service.resetBeanDoseCapture()
             message(service.tareScale() ?: getString(R.string.scale_tare_requested));renderScale()
         }
         tareStatus=HoyiUi.label(this,body,"",13,muted=true)
@@ -117,11 +122,11 @@ class ScaleActivity:ScaleOwnerActivity() {
             val dose=HoyiUi.card(this,body,getString(R.string.scale_dose_title))
             HoyiUi.label(this,dose,getString(R.string.scale_dose_help),14,muted=true)
             capture=HoyiUi.button(this,dose,getString(R.string.scale_dose_capture),primary=true) {
-                val live=owner?.let {LiveTelemetry.scale(it.snapshot.scaleObservation,it.snapshot.scaleState,SystemClock.elapsedRealtime())}
-                if(BuildConfig.MOCK_MODE || !changesAllowed() || live==null || live.evidence!=ScaleEvidence.VERIFIED_TRANSPORT || live.hundredthsGram<=0) {
+                val stable=stableDose(SystemClock.elapsedRealtime())
+                if(stable==null) {
                     message(getString(R.string.scale_dose_not_ready));return@button
                 }
-                setResult(RESULT_OK,Intent().putExtra(EXTRA_BEAN_DOSE_HUNDREDTHS_GRAM,live.hundredthsGram));finish()
+                setResult(RESULT_OK,Intent().putExtra(EXTRA_BEAN_DOSE_HUNDREDTHS_GRAM,stable));finish()
             }
         }
         connectionButton=HoyiUi.button(this,body,getString(R.string.scale_connect)) {startActivity(Intent(this,ScaleConnectionActivity::class.java))}
@@ -163,7 +168,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         val tenths=timer.elapsedMs(now)/100
         timerValue.text=getString(R.string.scale_timer_format,tenths/600,(tenths/10)%60,tenths%10)
         timerToggle.setText(if(timer.running)R.string.scale_timer_pause else R.string.scale_timer_start)
-        capture?.isEnabled=!BuildConfig.MOCK_MODE && allowed && live?.evidence==ScaleEvidence.VERIFIED_TRANSPORT && live.hundredthsGram>0
+        capture?.isEnabled=stableDose(now)!=null
         connectionButton.isEnabled=service==null || allowed
     }
 }

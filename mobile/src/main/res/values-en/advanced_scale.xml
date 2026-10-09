@@ -49,7 +49,7 @@
     <string name="scale_capability_no">Unavailable</string>
     <string name="scale_capability_no_device">Not connected; no live device capabilities</string>
     <string name="scale_dose_title">Weigh beans for the dose</string>
-    <string name="scale_dose_help">Confirm that the scale holds the beans to be ground for this shot, then capture the reading. Liquid weight in the cup is never automatically treated as a dose.</string>
+    <string name="scale_dose_help">Confirm that the scale holds the beans to be ground for this shot, then capture the reading. Liquid weight in the cup is never automatically treated as a dose. Wait for at least 1 second of stable readings, varying by no more than 0.1 g.</string>
     <string name="scale_dose_capture">Use current bean weight as this shot’s dose</string>
-    <string name="scale_dose_not_ready">Only a fresh, positive reading of real bean weight can be captured, with no extraction in progress</string>
+    <string name="scale_dose_not_ready">Only a stable, fresh, positive reading of real bean weight can be captured, with no extraction in progress</string>
 </resources>

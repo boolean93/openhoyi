@@ -49,7 +49,7 @@
     <string name="scale_capability_no">利用不可</string>
     <string name="scale_capability_no_device">未接続のため、実機のリアルタイム機能は利用できません</string>
     <string name="scale_dose_title">豆を量って粉量に取り込む</string>
-    <string name="scale_dose_help">今回挽く豆が秤に載っていることを確認してから測定値を取り込んでください。カップ内の液体重量を自動で粉量として扱うことはありません。</string>
+    <string name="scale_dose_help">今回挽く豆が秤に載っていることを確認してから測定値を取り込んでください。カップ内の液体重量を自動で粉量として扱うことはありません。 測定値が1秒以上安定し、変動が0.1 g以内になるまで待ってください。</string>
     <string name="scale_dose_capture">現在の豆の重量を今回の粉量に使用</string>
-    <string name="scale_dose_not_ready">抽出中ではなく、実際の豆の重量が最新かつ正の値である場合のみ取り込めます</string>
+    <string name="scale_dose_not_ready">抽出中ではなく、実際の豆の重量が安定した最新の正の値である場合のみ取り込めます</string>
 </resources>

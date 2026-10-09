@@ -49,7 +49,7 @@
     <string name="scale_capability_no">غير متاح</string>
     <string name="scale_capability_no_device">غير متصل؛ لا تتوفر قدرات مباشرة للجهاز</string>
     <string name="scale_dose_title">وزن الحبوب لتحديد الجرعة</string>
-    <string name="scale_dose_help">تأكد أن الحبوب المراد طحنها لهذا الاستخلاص على الميزان، ثم خذ القراءة. لا يُعتبر وزن السائل في الكوب تلقائيًا جرعة بن.</string>
+    <string name="scale_dose_help">تأكد أن الحبوب المراد طحنها لهذا الاستخلاص على الميزان، ثم خذ القراءة. لا يُعتبر وزن السائل في الكوب تلقائيًا جرعة بن. انتظر قراءات مستقرة لمدة ثانية واحدة على الأقل، بتفاوت لا يتجاوز 0.1 غ.</string>
     <string name="scale_dose_capture">استخدام وزن الحبوب الحالي كجرعة لهذا الاستخلاص</string>
-    <string name="scale_dose_not_ready">يمكن أخذ قراءة حديثة وموجبة لوزن حبوب حقيقية فقط، عندما لا يكون الاستخلاص جاريًا</string>
+    <string name="scale_dose_not_ready">يمكن أخذ قراءة مستقرة وحديثة وموجبة لوزن حبوب حقيقية فقط، عندما لا يكون الاستخلاص جاريًا</string>
 </resources>

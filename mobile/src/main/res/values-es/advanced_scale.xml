@@ -49,7 +49,7 @@
     <string name="scale_capability_no">No disponible</string>
     <string name="scale_capability_no_device">Sin conexión; no hay funciones de dispositivo en tiempo real</string>
     <string name="scale_dose_title">Pesar el café para la dosis</string>
-    <string name="scale_dose_help">Confirma que en la báscula está el café que vas a moler para esta extracción y toma la lectura. El peso del líquido en la taza no se usa automáticamente como dosis.</string>
+    <string name="scale_dose_help">Confirma que en la báscula está el café que vas a moler para esta extracción y toma la lectura. El peso del líquido en la taza no se usa automáticamente como dosis. Espera al menos 1 segundo de lecturas estables, con una variación máxima de 0,1 g.</string>
     <string name="scale_dose_capture">Usar el peso actual del café como dosis de esta extracción</string>
-    <string name="scale_dose_not_ready">Solo se puede tomar una lectura reciente y positiva del peso real del café, sin una extracción en curso</string>
+    <string name="scale_dose_not_ready">Solo se puede tomar una lectura estable, reciente y positiva del peso real del café, sin una extracción en curso</string>
 </resources>

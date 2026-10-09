@@ -86,7 +86,9 @@ internal class LanguageSelectorUiChecks(private val test: Instrumentation) {
                 val writer = current.appearanceWrite
                 try {
                     current.appearanceWrite = { false }
-                    check(current.themeCheckBox.performClick())
+                    // CompoundButton toggles before super.performClick(); its Boolean only
+                    // reports an OnClickListener, not the OnCheckedChangeListener used here.
+                    current.themeCheckBox.performClick()
                     check(current.themeCheckBox.isChecked == previousTheme)
                     check(appearance.getBoolean("dark", false) == storedTheme)
                     check(current.themeError.text.toString() == current.getString(R.string.app_settings_theme_failed))

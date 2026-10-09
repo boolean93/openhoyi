@@ -49,7 +49,7 @@
     <string name="scale_capability_no">不可用</string>
     <string name="scale_capability_no_device">未连接，无实时设备能力</string>
     <string name="scale_dose_title">称豆取粉量</string>
-    <string name="scale_dose_help">确认秤上是本次要研磨的豆子，再取此读数。不会把杯中液重自动当粉量。</string>
+    <string name="scale_dose_help">确认秤上是本次要研磨的豆子，再取此读数。不会把杯中液重自动当粉量。 等待读数稳定至少 1 秒，波动不超过 0.1 g。</string>
     <string name="scale_dose_capture">用当前豆重作为本次粉量</string>
-    <string name="scale_dose_not_ready">只能取用新鲜、正值且非萃取中的真实豆重</string>
+    <string name="scale_dose_not_ready">只能取用稳定、新鲜、正值且非萃取中的真实豆重</string>
 </resources>

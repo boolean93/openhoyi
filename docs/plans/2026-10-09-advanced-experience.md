@@ -173,3 +173,15 @@
 - 新增页面窄屏中文深色/阿语浅色十四页已补查，结合此前中文浅色/阿语深色，四组窄屏新增页面截图均已人工查看；未发现所查看画面中文字省略、单位缺失、导航错位。长表单部分截图为自动滚动位置；不将屏外内容判丢失，也不宣称全宽屏或所有状态视觉验收完成。
 - [85eb1c7 lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37946887485) 诊断、正式前后台、音频反馈、语言 context 与 activeCup 阶段通过；整体失败于下一 charts 阶段，仍未运行完整页面/Canvas 矩阵。报 `Native scientific ordering reversed for CurveStageView zh-Hans`，源码定位 fixture `2,4,6,8` 单位为十分之一 bar；在固定 0..12bar 轴只跨 0.6bar，340dp 画布绘图区约294dp，对应上升约14.7dp，不能达到原20dp阈值，与 RTL 无关。fixture 改为 `20,40,60,80`，即2..8bar；不降低阈值、不变生产轴/图表、不跳过语言。Mock AndroidTest 完整构建成功（22s），diff 检查通过；新运行待 CI。
 - 当前生产 UI 修改后的 capture/advanced-pages 仍运行。完整必需 lifecycle 尚未通过，不合并、不发版、不以阶段通过完成 A1–A11。
+
+## 2026-10-09 完整范围复核与稳定称豆补齐
+
+- 独立只读审计确认 A1–A11 主体接线存在，但 A9 原先仅检查单点新鲜正重量，未实现计划要求的稳定读数，不能算完成。新增 `BeanDoseCapturePolicy`：同一 owner/连接 epoch、至少5个不同时间戳样本、跨度至少1000ms、波动至多0.1g、相邻样本/最新读数至多750ms；重复渲染不计为新样本，时间倒退、无效或离线来源、零/负重、断线、去皮、退出页面均使稳定资格失效。按钮和点击共同复验，只回传称豆粉量，不修改库存或停水资格。Mock仍不可捕获真实粉量。七语言说明同步。
+- 红验证：空实现下6项测试中5项断言失败；实现后6项全部通过。首次构建因 Maven aapt2 未缓存失败，使用既有 SDK35 aapt2 参数后得到真实测试结果，没有改动构建门禁。
+- `c95e93b` 的高级页面检查 run `37948248365` 已成功；生命周期 run `37948248377` 在 LanguageSelectorUiChecks:89 失败。本机 Android35 源码证实 CompoundButton.performClick 先toggle，然后返回父类 OnClickListener 是否处理，不能表示 OnCheckedChangeListener 是否处理。因此去掉错误的返回值断言，保留点击后回滚、磁盘偏好、错误文案及同owner/同message的断言；待新生命周期实际运行验证。
+- 审计同时记录更完整设想尚未落地：秤工具流速图/自动计时联动、长期配方与豆批次快照、两杯曲线叠加、库存归档/用户备份恢复、实时粉液比。不能把已有最小实现说成这些能力已完成，也不能把它们或硬件/系统分享待验收静默删除。现行交付条目与调研完整设想的差异保留，后续需逐项核对。
+- 本段不代表全量需求交付，不合并、不发版；最新构建、独立复审、四项必需CI及页面运行结果继续追加。
+
+- 首轮独立复审发现 UI 250ms 轮询会漏掉中间抖动，因此将窗口归属移至 MobileService：每个 onScaleObservation 回调都推进策略，页面只查询；断线/去皮重置服务窗口。新增短时抖动回归测试，俄语遗漏提示同步补齐，总共覆盖默认中文和7种其它语言。
+- 逐帧修正后独立复审无新 P1/P2。Debug/Mock JVM各254项、0失败、0错误、1项既有跳过，Debug/Mock APK构建通过。全量命令在本机缺失 lint-gradle:31.10.0 后失败，在线补依赖又遇 Google Maven TLS 握手中断；不能把这个命令记为全量通过。将未执行模块检查与测试APK单独完成，Lint仍要求最新CI真实通过，不改规则、不跳过门禁。
+- 补跑通过：Mock AndroidTest APK、protocol-core 39,823 checks、device-session 93 cases、bean-core persistence/idempotency/concurrency/adjustment/write-failure/corruption/overflow。这里只证明软件和回放，不证明真实秤稳定窗口或机器停水。新CI结果尚未产生，完成状态保持未证明。
