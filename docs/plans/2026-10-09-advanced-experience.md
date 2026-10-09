@@ -142,3 +142,10 @@
 - Provider 仅 test APK 存在，signature read/write 权限加调用包/签名核验，仅已注册 UUID 和四个固定路径可用；清理仅自身明确注册的 fixture 目录。只 Mock 请求该测试权限，main manifest 无 provider/权限。初始化保留原库存、复盘、剂量、偏好与未知记录，新增一份明确导入的测试草稿保留，设备执行资格仍被拒绝。
 - 已接 `documentContracts=true` instrumentation 与 advanced-pages 单独阶段/严格标记。Android-35 与已构建 Mock/main/test 类缓存的 Kotlin compiler 直接编译通过，scripts 33 项、XML 解析、bash 语法、diff 检查通过。这不是 Gradle APK 构建、manifest 合并、签名权限实际授予或 Android 运行通过；这些仍待补。
 - 本地 `40f2226` 已提交但未推送。推送的自动审批因额度用尽无法完成，操作未执行；不是代码安全否决，不绕过审批。文件测试子任务也在同一额度限制下停止，主任务已核对其代码并完成本地接线。完整 CI、最新截图/Canvas 运行和最终审查仍未完成，PR 保持草稿。
+
+## 执行恢复与诊断实例跟踪修正
+
+- 额度恢复后通过正常审批推送 `40f2226` 与 `9d59188`，未绕过保护、未使用 reset。完整 Debug/Mock APK、Mock AndroidTest 和 lintDebug 构建成功。核对打包 manifest：测试 provider 只在 test APK，权限为 signature；只有 Mock 请求该权限，Debug 不含测试 provider/权限。Mock/test APK 验签通过且同一 debug 证书；不是正式发布签名或运行时权限授予证据。
+- 独立代码审查未发现可执行 P1/P2；明确保留 DocumentsUI、外部分享发送与手机萃取阶段人工核对缺口，不以受控结果回传冒称系统选择器验收。
+- [9d59188 lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37943745682) 再次在诊断启动超时，日志仍为 Home 配置重建，正式检查未运行。ActivityMonitor.lastActivity 对配置重建的实例跟踪不可靠；诊断改为启动前注册临时 Application 生命周期回调，识别实际创建/启动/恢复的 Home，销毁时仅清除对应实例引用。回调 finally 注销并记录清理结果。保持同一个绝对启动期限、焦点/布局/原服务 running 检查和独立正式验收流程；不暂停生产刷新或豁免失败。
+- 此修正 Mock AndroidTest 完整构建成功（16s），分支规则与 diff 检查通过；Android 运行证据仍待新源码 CI。`9d59188` advanced-pages 作业 37943745544 仍在运行，不重启或以观察等待代替终态。

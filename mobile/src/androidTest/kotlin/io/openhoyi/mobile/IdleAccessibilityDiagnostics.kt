@@ -2,6 +2,8 @@ package io.openhoyi.mobile
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Instrumentation
+import android.app.Activity
+import android.app.Application
 import android.content.Intent
 import android.graphics.Rect
 import android.os.Bundle
@@ -38,8 +40,7 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
         test.runOnMainSync {try {action()} catch(failure:Throwable) {error=failure}}
         error?.let {throw it}
     }
-    private fun awaitMain(predicate:()->Boolean) {
-        val deadline=SystemClock.elapsedRealtime()+10_000
+    private fun awaitMain(deadline:Long=SystemClock.elapsedRealtime()+10_000,predicate:()->Boolean) {
         while(true) {
             var ready=false;onMain {ready=predicate()}
             if(ready)return
@@ -136,7 +137,28 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
         var restored=false
         val windows=mutableListOf<Window>()
         val monitor=test.addMonitor(HomeActivity::class.java.name,null,false)
+        val app=context.applicationContext as Application
+        val currentHome=AtomicReference<HomeActivity?>(null)
+        val callbacks=object:Application.ActivityLifecycleCallbacks {
+            private fun track(activity:Activity,phase:String) {
+                if(activity is HomeActivity) {
+                    currentHome.set(activity)
+                    stream("IDLE_DIAGNOSTIC_HOME phase=$phase identity=${System.identityHashCode(activity)}")
+                }
+            }
+            override fun onActivityCreated(activity:Activity,state:Bundle?)=track(activity,"created")
+            override fun onActivityStarted(activity:Activity)=track(activity,"started")
+            override fun onActivityResumed(activity:Activity)=track(activity,"resumed")
+            override fun onActivityPaused(activity:Activity) {}
+            override fun onActivityStopped(activity:Activity) {}
+            override fun onActivitySaveInstanceState(activity:Activity,state:Bundle) {}
+            override fun onActivityDestroyed(activity:Activity) {
+                if(activity is HomeActivity) currentHome.compareAndSet(activity,null)
+            }
+        }
+        var callbacksRegistered=false
         try {
+            onMain {app.registerActivityLifecycleCallbacks(callbacks);callbacksRegistered=true}
             info.flags=priorFlags or AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
             automation.serviceInfo=info
             automation.setOnAccessibilityEventListener {event->
@@ -162,16 +184,19 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
             }
             home=test.waitForMonitorWithTimeout(monitor,10_000) as? HomeActivity
                 ?: error("Home startup not observed")
-            awaitMain {
-                // Window setup can recreate Home during launch. Observe the current Activity,
-                // never wait for a destroyed instance to regain focus or its released binding.
-                (monitor.lastActivity as? HomeActivity)?.takeUnless {it.isDestroyed}?.let {home=it}
-                val current=requireNotNull(home)
-                !current.isDestroyed && current.hasWindowFocus() &&
+            val readyDeadline=SystemClock.elapsedRealtime()+10_000
+            fun ready():Boolean {
+                // ActivityMonitor does not reliably report configuration relaunches.
+                // Application callbacks observe each framework-created replacement.
+                val current=currentHome.get() ?: return false
+                home=current
+                return !current.isDestroyed && current.hasWindowFocus() &&
                     current.window.decorView.isLaidOut && owner(current)?.running==true
             }
-            val screen=requireNotNull(home)
+            awaitMain(readyDeadline,::ready)
             SystemClock.sleep(1_000) // Discard launch events; both measured windows remain exactly 2s.
+            awaitMain(readyDeadline,::ready)
+            val screen=requireNotNull(home)
             watch(screen);dumpNodes(screen,"baseline-start")
             windows+=sample(screen,"baseline")
             dumpNodes(screen,"baseline-end")
@@ -212,8 +237,11 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
                 watcherBindings.clear()
             }}
             cleanup {test.removeMonitor(monitor)}
+            cleanup {onMain {
+                if(callbacksRegistered) {app.unregisterActivityLifecycleCallbacks(callbacks);callbacksRegistered=false}
+            }}
             cleanup {onMain {home?.let {if(!it.isDestroyed)it.finish()}}}
-            stream("IDLE_DIAGNOSTIC_CLEANUP listenerRemoved=$listenerRemoved serviceInfoFlagsRestored=$flagsRestored watcherBindings=${watcherBindings.size} refreshRestored=$restored serviceStopInvoked=false errors=${cleanupErrors.size}")
+            stream("IDLE_DIAGNOSTIC_CLEANUP listenerRemoved=$listenerRemoved serviceInfoFlagsRestored=$flagsRestored callbacksRemoved=${!callbacksRegistered} watcherBindings=${watcherBindings.size} refreshRestored=$restored serviceStopInvoked=false errors=${cleanupErrors.size}")
             check(cleanupErrors.isEmpty()) {"Idle diagnostic cleanup failed: ${cleanupErrors.joinToString {it.toString()}}"}
         }
     }
