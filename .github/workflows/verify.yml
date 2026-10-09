@@ -18,6 +18,7 @@ jobs:
           persist-credentials: false
       - name: Verify staged translation catalogs
         run: |
+          python3 -m unittest discover -s scripts -p test_git_policy.py
           python3 -m unittest discover -s scripts -p test_apk_distribution.py
           python3 -m unittest discover -s scripts -p test_mock_upgrade.py
           python3 -m unittest discover -s localization/tests
