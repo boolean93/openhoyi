@@ -36,8 +36,20 @@ object ScaleObservationDecoder {
             is DecodeResult.Unknown -> decoded
         }
     /** Offline evidence only; deliberately cannot produce extraction-eligible observations. */
-    fun offline(family:LegacyScaleFamily,bytes:ByteArray,receivedAtMs:Long):DecodeResult<ScaleObservation> =
-        when(val decoded=LegacyScaleCandidateCodec.decode(family,bytes)) {
+    fun offline(family:LegacyScaleFamily,bytes:ByteArray,receivedAtMs:Long):DecodeResult<ScaleObservation> {
+        val felicitaNotificationShape=bytes.size>4 || (bytes.size>=3 &&
+            (bytes[0].toInt() and 255)==1 && (bytes[1].toInt() and 255)==2)
+        if(family==LegacyScaleFamily.FELICITA && felicitaNotificationShape) {
+            return when(val decoded=FelicitaNotificationCodec.decode(bytes)) {
+                is DecodeResult.Valid -> if(decoded.value.unit==FelicitaNotification.Unit.GRAM)
+                    DecodeResult.Valid(ScaleObservation(decoded.value.signedHundredths,receivedAtMs,
+                        ScaleCapabilities(),ScaleEvidence.OFFLINE_CANDIDATE,raw=decoded.value.raw))
+                    else DecodeResult.Unknown(decoded.value.raw)
+                is DecodeResult.Invalid -> decoded
+                is DecodeResult.Unknown -> decoded
+            }
+        }
+        return when(val decoded=LegacyScaleCandidateCodec.decode(family,bytes)) {
             is DecodeResult.Valid -> {
                 val hundredths=decoded.value.weightGrams*100.0
                 if(!hundredths.isFinite() || hundredths<Int.MIN_VALUE || hundredths>Int.MAX_VALUE)
@@ -48,4 +60,5 @@ object ScaleObservationDecoder {
             is DecodeResult.Invalid -> decoded
             is DecodeResult.Unknown -> decoded
         }
+    }
 }

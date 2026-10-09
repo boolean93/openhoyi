@@ -183,13 +183,15 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
         } catch(error:Throwable) {dumpTree("name-save-failed");throw error}
     }
     private fun cancelPicker(activity:Activity) {
-        repeat(3) {
-            var focus=false;onMain {focus=activity.hasWindowFocus()}
-            if(focus)return
-            check(test.uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)) {"System back rejected"}
-            SystemClock.sleep(250)
+        check(pickerVisible()) {"Cancellation requires the verified picker in the foreground"}
+        // Global back is asynchronous. Repeating it on a timer can also pop the caller
+        // after DocumentsUI has finished but before window focus has been delivered.
+        check(test.uiAutomation.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)) {"System back rejected"}
+        awaitMain("picker-cancel-return") {
+            check(!activity.isFinishing && !activity.isDestroyed) {"Picker cancellation removed its caller"}
+            activity.hasWindowFocus()
         }
-        awaitMain("picker-cancel-return") {activity.hasWindowFocus()}
+        status("CURVE_SYSTEM_DOCUMENT_CANCEL caller=${activity.javaClass.simpleName} alive=true focused=true singleBack=true")
     }
     private fun traceSnapshot(app:MobileApplication):Map<String,List<Byte>> {
         val output=ByteArrayOutputStream();val done=CountDownLatch(1);var failure:Throwable?=null

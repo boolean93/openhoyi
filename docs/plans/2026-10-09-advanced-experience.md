@@ -229,3 +229,12 @@
 
 - 2026-10-10：系统选择器 RootNotReady 修正后末轮独立复审无新 P1/P2；Mock AndroidTest APK 编译成功（17s），提交前再次离线构建成功（全部 up-to-date）。diff、shell 语法和分支策略检查通过，fetch 后 merge-base 仍为66ebda95。真实系统选择器7路径仍待新提交CI，不以编译代替运行。
 - d390d58 capture37953339599 已终态成功，截图下载到 `/tmp/openhoyi-capture-d390d58`；这里只记录下载成功，尚不以全部截图视觉验收完成作为结论。
+
+
+## 2026-10-10 系统选择器失败定位与 Felicita 完整通知修正
+
+- 5072619四项必需CI通过：branch-policy37956012991、verify37956012903、upgrade37956013045、lifecycle37956012993。advanced37956012768终态失败，artifact下载 `/tmp/openhoyi-advanced-5072619/advanced-mock-pages`：compact/wideFont各15pages/240fixtures、业务17paths、受控文档11paths/7pickerContracts/2shareContracts通过；实际DocumentsUI仅首取消路径通过，不能把整体验收记为成功。
+- 系统选择器实际失败在 `real-create-result-write`，诊断树显示Home而非分享页。cancelPicker原先每250ms重复Back最多3次，异步返回可能继续弹出caller；修为只发一次Back，在原15秒期限等待原caller存活且focus，不允许Home顶替。加入caller存活状态标记。此为有证据的竞态假设修正，真实新运行仍待CI；没有超时扩容或跳过路径，没有删除未知文件。
+- 第二协议补核见调研附录：Felicita公开18字节ASCII通知被原旧二进制候选误读。回归真实红 `Felicita ASCII weight expected 0, got 258`；新独立FelicitaNotificationCodec按已知帧形态解析正负六位显示单位、严格长度/数字/尾部，GRAM按整数投射、OUNCE不标g，电量和未知字段保留raw不猜百分比。已识别3/4字节ASCII截断另取红验证，再路由独立codec拒绝，不回退伪造旧二进制重量。旧2/4字节拆包API证据保留，完整通知不再走它。
+- 新checks进入ProtocolChecks主入口；green完整protocol-core39823checks、32856captured通知回放，另有Felicita检查PASS；device-session93cases通过；Debug/Mock各254tests、0failures/errors、1既有skip；Mock AndroidTest APK构建成功，总命令59s。diff/branch策略通过。末轮独立静态复审无新P1/P2；该审查的公开来源网络读取失败，因此不声称独立网络复核成功，父任务gh api固定源实际读取成功。
+- 仍是OFFLINE_CANDIDATE，无新增GATT端点、连接或控制许可，不能把解析修复说成Felicita实机兼容。公开Acaia SDK仅AAR，本轮未引入额外BLEowner、未逆向、未给厂商发消息。新完整CI与系统选择器运行待提交后验证；不合并、不发版。

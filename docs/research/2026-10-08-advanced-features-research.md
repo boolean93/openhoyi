@@ -327,3 +327,10 @@ A1 契约与日志/曲线 ID 约定在 M0 明确，避免 M1 重做；多品牌�
 | UUID、curveId、缺少复盘字段及 30 天/500 条保留 | [ShotHistory.kt](../../mobile/src/main/kotlin/io/openhoyi/mobile/ShotHistory.kt:18)、[保留策略](../../mobile/src/main/kotlin/io/openhoyi/mobile/ShotHistory.kt:100) |
 
 对接时必须明确时间轴：当前采样用本机单调时钟的通知到达时间，不是机器 `elapsedSeconds`；机器点拼接最近 1500ms 内的秤数据。做目标误差或两杯对照前，需要确定对齐策略并显示不确定性。现有采样最多 2000 点，满后减半并提高采样间隔；显示降采样和统计所用数据也必须区分。
+
+
+## 2026-10-10 协议来源补核（不代表实机兼容）
+
+- Acaia 官方 Android SDK 固定来源为 [8dc977e](https://github.com/acaia/acaia_sdk_android/tree/8dc977e8123eb5e13b5370b3f357e6af082c79e0)。README 列出 Pearl/Lunar/Pearl S/Cinco/Pyxis、重量通知、去皮和计时；协议实现以 AAR 提供，不是公开 GATT 源码。[许可证](https://github.com/acaia/acaia_sdk_android/blob/8dc977e8123eb5e13b5370b3f357e6af082c79e0/LICENSE)允许按其条款使用未修改二进制，禁止逆向。架构判断：直接加入其扫描/连接管理不能证明与现有唯一 BLE owner 相容，因此本轮不直接引入该 SDK，不通过逆向取得协议，不触发向厂商发送消息。
+- Felicita 公开证据固定到 Beanconqueror [b975d393](https://github.com/graphefruit/Beanconqueror/tree/b975d39319588c80b47f0531b207e00df55c8743)。[作者说明](https://github.com/graphefruit/Beanconqueror/blob/b975d39319588c80b47f0531b207e00df55c8743/src/classes/devices/felicita/felicita-readme.md)给出18字节通知样本：第3到8索引为六位ASCII数字，按百分之一克；9到10为单位；15为电量范围129..158。索引2的正负符号、首尾形态需要显式识别，不能将任意18字节都视作克重。[常量](https://github.com/graphefruit/Beanconqueror/blob/b975d39319588c80b47f0531b207e00df55c8743/src/classes/devices/felicita/constants.ts)给出FFE0/FFE1，但来源不是厂商全型号协议或本项目设备验收。
+- 原旧拆包 Felicita 候选按头两个字节转换重量，不能用来声称支持上述完整通知；公开样本会被误读为2.58g而非0g。新增真实帧形态的独立离线解析和回归，未知单位不标作克重，负重不丢符号，电量越界不伪造。保持OFFLINE_CANDIDATE，不授予连接、去皮或重量停水资格。完整第二型号连接仍需具体型号、固件与可验证设备证据。

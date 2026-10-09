@@ -27,6 +27,8 @@ object LegacyScaleCandidateCodec {
                 candidate(if (u(10) and 2 != 0) -magnitude else magnitude)
             }
             LegacyScaleFamily.FELICITA -> {
+                // Old 2/4-byte extraction evidence only, never a full ASCII notification.
+                if (bytes.size > 4) return DecodeResult.Unknown(raw)
                 if (bytes.size < 2) return invalid("Truncated Felicita weight")
                 candidate(((u(0) shl 8) or u(1)) / 100.0)
             }
