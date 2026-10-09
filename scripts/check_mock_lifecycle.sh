@@ -153,8 +153,13 @@ after=(root/"after-background-resize.txt").read_text().splitlines().count(marker
 (root/"background-resize.json").write_text(json.dumps({"settingsConfigurationDestroyObservedWhileBackground":after>before})+"\n")
 PYCODE
 adb shell am start -W -n "$package/io.openhoyi.mobile.HomeActivity"
-assert_activity HomeActivity
+# Bringing an existing launcher task forward resumes its top page, not its root.
+# Require that page to be retained, then explicitly navigate back to brewing.
+assert_activity AppSettingsActivity
 sleep 3
+assert_edges 2 2
+tap_control '冲煮'
+assert_activity HomeActivity
 assert_edges 2 2
 adb shell input keyevent KEYCODE_HOME
 sleep 3

@@ -238,6 +238,15 @@ tap_phone_nav 1 CurveActivity
 capture portrait-curves-phone-light
 tap_phone_nav 2 ExtractionActivity
 capture portrait-extraction-phone-light
+# The narrow-phone matrix must include an actual active Mock shot, not only standby.
+tap_control '开始萃取'
+adb logcat -c
+tap_control '开始模拟'
+sleep 3
+adb logcat -d -s OpenHoyiMobile:I | grep 'Mock 萃取已开始' > "$output_dir/shot-start-phone-log.txt"
+capture portrait-extraction-running-phone-light
+sleep 34
+capture portrait-extraction-ended-phone-light
 tap_phone_nav 3 HistoryActivity
 capture portrait-history-phone-light
 tap_phone_nav 4 MachineSettingsActivity

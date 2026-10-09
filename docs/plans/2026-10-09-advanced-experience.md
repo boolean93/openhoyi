@@ -128,3 +128,10 @@
 
 - `30e076b` 的 verify/upgrade/branch-policy 已成功，lifecycle 在诊断启动阶段失败，未执行正式导航。下载 artifact：Home 已启动 Mock service，随后出现 `recreating:HomeActivity`、旧实例 configuration 销毁、新 Home 启动；诊断保存旧 Activity 引用，等待旧实例的 focus/service 直至超时。因此本次没有事件窗口数据，不能据此断言圆点修复有效或无效。
 - 诊断改为在既有 10 秒启动期限内通过 ActivityMonitor 跟踪当前 Home，要求当前实例未销毁、有焦点、完成布局且绑定的原服务 running。不增加期限、不忽略失败，不清数据，也不改生命周期正式检查。Mock AndroidTest 编译成功（18s），diff 检查通过；CI 结果待补。
+
+## 原生首页修复证据与后台恢复检查
+
+- [30e076b capture](https://github.com/boolean93/openhoyi/actions/runs/37895242544) 已成功，下载确认 35 张实际 PNG、Mock 开始日志和偏好文件。其正常刷新/暂停刷新两个诊断窗口事件均为零，service identity 不变且两类采样时间继续前进。已视觉查看横屏准备/萃取中以及手机待机页；压力与杯中估算流速明确分图，固定停止入口可见。不将旧源码截图替代 6e79d78 大字体修正的验收。
+- [d918261 lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37896095529) 的诊断也成功（正常 2 秒零事件、同一 service 持续采样）；正式页面导航、主题重建、后台可见性边缘检查已通过。失败点是从后台 `am start HomeActivity` 带回已有任务顶部 AppSettingsActivity，而脚本要求 HomeActivity。运行明确返回 HOT/原任务前台，不是应用未恢复。
+- 调整为先严格确认保留 AppSettingsActivity 和 2/2 可见性计数，再通过真实“冲煮”控件导航并严格确认 HomeActivity 与计数仍 2/2；后台退出仍要求 2/3。没有清任务、销毁页面、修改可见性逻辑或放松计数。
+- 原截图矩阵手机仅待机，补窄屏真实 Mock 开始、萃取中和结束截图/开始日志。所有启动仅隔离 Mock，不操作蓝牙；不以这两张待运行截图预称手机运行可读性通过。scripts 33 项、两脚本 bash 语法、diff 检查通过。
