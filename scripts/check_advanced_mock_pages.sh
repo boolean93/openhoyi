@@ -90,5 +90,23 @@ if expected not in output.read_text():
 PY
 collect
 adb shell am force-stop "$package"
+python3 - "$output_dir/curve-document-contracts.txt" <<'PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    try:
+        result=subprocess.run(['adb','shell','am','instrument','-w','-e','documentContracts','true',
+            'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],stdout=capture,timeout=600)
+    except subprocess.TimeoutExpired:
+        raise SystemExit('Curve document contracts timed out; partial output retained')
+if result.returncode:
+    raise SystemExit(result.returncode)
+expected='CURVE_DOCUMENT_CONTRACT_CHECKS_PASSED paths=9 pickerContracts=7 fileFixtures=4 newDrafts=1 realResolver=true signaturePermission=true systemPicker=false noBle=true'
+if expected not in output.read_text():
+    raise SystemExit(f'Curve document contracts did not confirm completion: {output}')
+PY
+collect
+adb shell am force-stop "$package"
 adb shell settings put system font_scale 1.0
 adb shell wm size 1600x1000

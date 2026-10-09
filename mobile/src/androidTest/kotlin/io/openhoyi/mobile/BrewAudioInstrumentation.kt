@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var documentContracts = false
     private var idleEvents = false
     private var advancedFlows = false
     private var advancedPageProfile: String? = null
@@ -25,6 +26,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        documentContracts = arguments?.getString("documentContracts") == "true"
         idleEvents = arguments?.getString("idleEvents") == "true"
         advancedFlows = arguments?.getString("advancedFlows") == "true"
         advancedPageProfile = arguments?.getString("advancedPageChecks")
@@ -37,6 +39,12 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (documentContracts) {
+                val result = CurveDocumentContractChecks(this).run()
+                report.putString("stream", "CURVE_DOCUMENT_CONTRACT_CHECKS_PASSED paths=${result.paths.size} pickerContracts=${result.pickerContracts} fileFixtures=${result.fileFixtures} newDrafts=${result.newDrafts} realResolver=true signaturePermission=true systemPicker=false noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (idleEvents) {
                 IdleAccessibilityDiagnostics(this).run()
                 report.putString("stream", "IDLE_ACCESSIBILITY_DIAGNOSTIC_DONE\n")
@@ -214,7 +222,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }

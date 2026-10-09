@@ -135,3 +135,10 @@
 - [d918261 lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37896095529) 的诊断也成功（正常 2 秒零事件、同一 service 持续采样）；正式页面导航、主题重建、后台可见性边缘检查已通过。失败点是从后台 `am start HomeActivity` 带回已有任务顶部 AppSettingsActivity，而脚本要求 HomeActivity。运行明确返回 HOT/原任务前台，不是应用未恢复。
 - 调整为先严格确认保留 AppSettingsActivity 和 2/2 可见性计数，再通过真实“冲煮”控件导航并严格确认 HomeActivity 与计数仍 2/2；后台退出仍要求 2/3。没有清任务、销毁页面、修改可见性逻辑或放松计数。
 - 原截图矩阵手机仅待机，补窄屏真实 Mock 开始、萃取中和结束截图/开始日志。所有启动仅隔离 Mock，不操作蓝牙；不以这两张待运行截图预称手机运行可读性通过。scripts 33 项、两脚本 bash 语法、diff 检查通过。
+
+## 文件交换合约测试与当前执行限制
+
+- 新增 CurveDocumentContractChecks、test APK 内 CurveFixtureProvider 和 test manifest：通过真实页面按钮核对七个 ACTION_CREATE_DOCUMENT/ACTION_OPEN_DOCUMENT 请求与取消/成功回传；生产 Activity 使用真实 ContentResolver 读写四份受控文件。九条路径核对精确 UTF-8 参数导出、成功后文件分享才启用、取消不读写、导入先预览不自动保存、明确确认后只读草稿、重复确认幂等、非法 UTF-8/超 64KiB 拒绝、未知 URI 拒绝。输出明确 `systemPicker=false`，不冒称真正 DocumentsUI 选择器或外部分享发送已验收。
+- Provider 仅 test APK 存在，signature read/write 权限加调用包/签名核验，仅已注册 UUID 和四个固定路径可用；清理仅自身明确注册的 fixture 目录。只 Mock 请求该测试权限，main manifest 无 provider/权限。初始化保留原库存、复盘、剂量、偏好与未知记录，新增一份明确导入的测试草稿保留，设备执行资格仍被拒绝。
+- 已接 `documentContracts=true` instrumentation 与 advanced-pages 单独阶段/严格标记。Android-35 与已构建 Mock/main/test 类缓存的 Kotlin compiler 直接编译通过，scripts 33 项、XML 解析、bash 语法、diff 检查通过。这不是 Gradle APK 构建、manifest 合并、签名权限实际授予或 Android 运行通过；这些仍待补。
+- 本地 `40f2226` 已提交但未推送。推送的自动审批因额度用尽无法完成，操作未执行；不是代码安全否决，不绕过审批。文件测试子任务也在同一额度限制下停止，主任务已核对其代码并完成本地接线。完整 CI、最新截图/Canvas 运行和最终审查仍未完成，PR 保持草稿。
