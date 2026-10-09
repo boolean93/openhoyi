@@ -179,13 +179,13 @@ class ExtractionActivity : ThemedActivity() {
         traceCurve = HoyiUi.label(this,chartCard,"",14,muted=true)
         HoyiUi.label(this, chartCard, getString(R.string.live_pressure_chart), 19, true)
         chart = ExtractionTrendView(this, ExtractionTrendMetric.PRESSURE)
-        chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(210)).apply {
+        chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp((210 * maxOf(1f, resources.configuration.fontScale)).toInt())).apply {
             topMargin = dp(12)
         })
         HoyiUi.label(this, chartCard, getString(R.string.live_cup_flow_chart), 19, true)
         HoyiUi.label(this, chartCard, getString(R.string.live_cup_flow_source), 13, muted = true)
         cupFlowChart = ExtractionTrendView(this, ExtractionTrendMetric.CUP_FLOW)
-        chartCard.addView(cupFlowChart, LinearLayout.LayoutParams(-1, dp(180)).apply { topMargin = dp(12) })
+        chartCard.addView(cupFlowChart, LinearLayout.LayoutParams(-1, dp((180 * maxOf(1f, resources.configuration.fontScale)).toInt())).apply { topMargin = dp(12) })
         referenceChoice = HoyiUi.button(this, chartCard, getString(R.string.reference_choose)) { chooseReference() }
         referenceStatus = HoyiUi.label(this, chartCard, getString(R.string.reference_off), 13, muted = true)
         val targets = card(right)

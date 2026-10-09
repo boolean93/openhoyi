@@ -43,14 +43,22 @@ internal class ExtractionTrendView(context: Context, private val metric: Extract
         color=context.getColor(R.color.mobile_muted);strokeWidth=dp(2f);style=Paint.Style.STROKE
         pathEffect=DashPathEffect(floatArrayOf(dp(6f),dp(4f)),0f)
     }
-    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = context.getColor(R.color.chart_label); textSize = dp(11f) }
+    private val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = context.getColor(R.color.chart_label)
+        textSize = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
+            11f, resources.displayMetrics)
+    }
     private val emptyArea = Paint().apply { color = context.getColor(R.color.mobile_accent_soft); alpha = 75 }
     private val path = Path()
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val left = dp(48f); val right = width - dp(16f)
-        val top = dp(20f); val bottom = height - dp(36f)
+        val metrics = text.fontMetrics
+        val labelHeight = metrics.descent - metrics.ascent
+        val left = maxOf(dp(48f), text.measureText(String.format(Locale.ROOT, "%.1f", maximum)) + dp(10f))
+        val right = width - dp(16f)
+        val top = maxOf(dp(20f), labelHeight / 2 + dp(8f))
+        val bottom = height - labelHeight * 2 - dp(18f)
         if (right <= left || bottom <= top) return
         if (points.isEmpty() && reference.isEmpty()) {
             text.textAlign = Paint.Align.CENTER
@@ -64,20 +72,24 @@ internal class ExtractionTrendView(context: Context, private val metric: Extract
         fun y(v: Float) = bottom - (bottom - top) * v / maximum
         val endX = x(points.lastOrNull()?.elapsedMs ?: 0)
         canvas.drawRect(endX, top, right, bottom, emptyArea)
-        if (right - endX > dp(80f)) canvas.drawText(context.getString(R.string.live_chart_no_data), endX + dp(8f), top + dp(20f), text)
+        val noData = context.getString(R.string.live_chart_no_data)
+        if (right - endX >= text.measureText(noData) + dp(16f))
+            canvas.drawText(noData, endX + dp(8f), top - metrics.ascent, text)
+        text.textAlign = Paint.Align.RIGHT
         for (row in 0..4) {
             val value = maximum * row / 4
             val py = y(value)
             canvas.drawLine(left, py, right, py, grid)
-            canvas.drawText(String.format(Locale.ROOT, "%.1f", value), dp(2f), py + dp(4f), text)
+            canvas.drawText(String.format(Locale.ROOT, "%.1f", value), left - dp(8f), py - (metrics.ascent + metrics.descent) / 2, text)
         }
         for (column in 0..3) {
             val px = left + (right - left) * column / 3
             canvas.drawLine(px, top, px, bottom, grid)
-            canvas.drawText(String.format(Locale.ROOT, "%.0f", timeSeconds * column / 3), px - dp(6f), bottom + dp(16f), text)
+            text.textAlign = when (column) { 0 -> Paint.Align.LEFT; 3 -> Paint.Align.RIGHT; else -> Paint.Align.CENTER }
+            canvas.drawText(String.format(Locale.ROOT, "%.0f", timeSeconds * column / 3), px, bottom + dp(6f) - metrics.ascent, text)
         }
         text.textAlign = Paint.Align.CENTER
-        canvas.drawText(context.getString(R.string.live_time_axis), (left + right) / 2, height - dp(2f), text)
+        canvas.drawText(context.getString(R.string.live_time_axis), (left + right) / 2, height - dp(4f) - metrics.descent, text)
         text.textAlign = Paint.Align.LEFT
         drawTrace(canvas,reference,referenceProjected,referenceLine,::x,::y,false)
         drawTrace(canvas,points,projected,line,::x,::y,true)

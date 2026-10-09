@@ -231,6 +231,7 @@ for profile in compact wideFont; do
   sleep 2
   run_instrumentation "$output_dir/language-pages-$profile.txt" "$mode"
   grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=2 cases=3 fontScale=true viewport=true noBle=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true" "$output_dir/language-pages-$profile.txt" >/dev/null
 done

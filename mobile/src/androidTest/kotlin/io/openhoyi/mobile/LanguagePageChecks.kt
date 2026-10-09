@@ -115,7 +115,11 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     when (activity) {
                         is HomeActivity -> detailChecks.warnings(activity, fixture) { checkPage(activity, it) }
                         is CurveActivity -> detailChecks.curves(activity, fixture) { checkPage(activity, it) }
-                        is ExtractionActivity -> detailChecks.cancelStart(activity, fixture)
+                        is ExtractionActivity -> {
+                            val extraction = activity
+                            onMain { TrendChartTextChecks.run(extraction, fixture) }
+                            detailChecks.cancelStart(activity, fixture)
+                        }
                     }
                     if (activity is AppSettingsActivity) {
                         activity = LanguageSelectorUiChecks(test).run(activity) { currentPage = it }
