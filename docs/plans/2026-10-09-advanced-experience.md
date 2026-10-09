@@ -104,3 +104,9 @@
 - lifecycle 与 capture 仍在首次首页导航失败，日志依旧为 `ERROR: could not get idle state.`。仅避免相同按钮文字重设不足以解决问题；上一节描述的是源码发现与修改，不能作为根因已证实或运行已修复的证据。advanced-pages 作业仍在运行，尚无终态。
 - 新增仅 Mock 的 `idleEvents=true` instrumentation：记录本包无障碍事件类型、变化类型、来源文字/坐标及 TextWatcher 回调，比较正常刷新 2 秒与仅暂停 Home 刷新 2 秒。服务不停止，记录同一 owner、采样时间及运行状态；finally 恢复刷新、监听与 flags。诊断标记不是验收 PASS。
 - lifecycle/capture 在正式导航前采集诊断并保留输出；正式检查另起正常刷新进程，不沿用暂停窗口，不放宽 idle、可见性或数据门禁。脚本 33 项、bash 语法及 diff 检查通过；运行证据待 CI。
+
+## 新增页面与业务路径运行证据
+
+- `38e5e82` 的 [advanced-pages 作业](https://github.com/boolean93/openhoyi/actions/runs/37893343542) 已成功。下载 artifact 后核对 compact/wideFont 输出，各为八语言、两主题、十四页、224 fixtures，保留状态与无 BLE 检查均通过；两组实际 PNG 各 56 张，总计 112 张。初步视觉检查中文选豆页确认选项换行完整，阿语深色宽窗口比较页显示 RTL 与可滚动内容；不是全部截图人工验收完成声明。
+- `business-flows.txt` 的实际结果为 `paths=17 inventoryEvents=3 newDrafts=3 language=zh-Hans theme=light sameService=true preservedMachinePrefs=true noBle=true`。覆盖上文列出的本地表单动作；不证明外部分享/SAF、真实电子秤、BLE 或咖啡机已验收。
+- 同一源码 verify、upgrade 与 branch-policy 成功；lifecycle/capture 的空闲超时仍未修复。诊断提交 `ba93758` 已推送，完整新一轮 CI 在运行。
