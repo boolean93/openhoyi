@@ -47,7 +47,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         error = beanError(body).also { view -> errorResource?.let(view::setText) }
         if (current != null && current.shotId != null && !current.associated) {
             val card = HoyiUi.card(this, body)
-            HoyiUi.label(this, card, getString(R.string.dose_summary, current.beanName, current.batchId, BeanQuantity.formatGrams(current.amountMg)), 18, true)
+            HoyiUi.label(this, card, getString(R.string.dose_summary, current.beanName, beanBatchNumber(inventory, current.batchId), BeanQuantity.formatGrams(current.amountMg)), 18, true)
             val consumed = inventory.events().any { it.eventId == current.eventId && it.kind == InventoryEventKind.CONSUME &&
                 it.batchId == current.batchId && it.deltaMg == -current.amountMg }
             HoyiUi.label(this, card, getString(if (consumed) R.string.dose_association_pending else R.string.dose_ledger_conflict), 17, true)
@@ -68,8 +68,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         }
         if (current != null && current.shotId == null) {
             val card = HoyiUi.card(this, body)
-            HoyiUi.label(this, card, getString(R.string.dose_summary, current.beanName, current.batchId, BeanQuantity.formatGrams(current.amountMg)), 18, true)
-            HoyiUi.label(this, card, getString(R.string.dose_record, current.eventId), 13, muted = true)
+            HoyiUi.label(this, card, getString(R.string.dose_summary, current.beanName, beanBatchNumber(inventory, current.batchId), BeanQuantity.formatGrams(current.amountMg)), 18, true)
             val ledger = inventory.events().find { it.eventId == current.eventId }
             val matches = ledger?.let { it.kind == InventoryEventKind.CONSUME && it.batchId == current.batchId && it.deltaMg == -current.amountMg } == true
             if (current.confirmed) {
@@ -132,7 +131,8 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         HoyiUi.label(this, form, getString(R.string.dose_batch), 15, muted = true)
         val selector = Spinner(this).apply {
             adapter = HoyiUi.spinnerAdapter(this@BeanPreparationActivity, batches.map {
-                getString(R.string.dose_batch_choice, it.batch.bean.name, BeanQuantity.formatGrams(it.balanceMg), it.batch.id)
+                getString(R.string.dose_batch_choice, it.batch.bean.name, BeanQuantity.formatGrams(it.balanceMg),
+                    getString(R.string.beans_batch_id, beanBatchNumber(inventory, it.batch.id)))
             })
             minimumHeight = HoyiUi.dp(this@BeanPreparationActivity, 52)
             contentDescription = getString(R.string.dose_batch)

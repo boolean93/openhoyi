@@ -18,11 +18,10 @@ class BeanLedgerActivity : ThemedActivity() {
                 InventoryEventKind.ADJUST -> R.string.beans_event_adjust
             })
             val card = HoyiUi.card(this, body, getString(R.string.beans_event_title, kind, BeanQuantity.formatGrams(event.deltaMg)))
-            HoyiUi.label(this, card, batches[event.batchId]?.batch?.bean?.name ?: event.batchId, 17, true)
+            HoyiUi.label(this, card, batches[event.batchId]?.batch?.bean?.name ?: getString(R.string.beans_missing), 17, true)
             HoyiUi.label(this, card, getString(R.string.beans_event_balance, BeanQuantity.formatGrams(event.balanceMg)), 16)
             event.reason?.let { HoyiUi.label(this, card, getString(R.string.beans_event_reason, it), 15) }
-            HoyiUi.label(this, card, getString(R.string.beans_batch_id, event.batchId), 13, muted = true)
-            HoyiUi.label(this, card, getString(R.string.beans_event_id, event.eventId), 13, muted = true)
+            HoyiUi.label(this, card, getString(R.string.beans_batch_id, beanBatchNumber(inventory, event.batchId)), 13, muted = true)
         }
     }
 }

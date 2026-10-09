@@ -30,7 +30,7 @@ class BeanInventoryActivity : ThemedActivity() {
         batches.forEach { item ->
             val card = HoyiUi.card(this, body, item.batch.bean.name)
             HoyiUi.label(this, card, getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg)), 25, true)
-            HoyiUi.label(this, card, getString(R.string.beans_batch_id, item.batch.id), 13, muted = true)
+            HoyiUi.label(this, card, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 13, muted = true)
             HoyiUi.button(this, card, getString(R.string.beans_batch_title)) {
                 startActivity(Intent(this, BeanBatchActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, item.batch.id))
             }
@@ -79,6 +79,13 @@ internal fun ThemedActivity.beanInventory(body: LinearLayout): BeanInventory? {
     return result.getOrNull().also {
         if (it == null) HoyiUi.label(this, HoyiUi.card(this, body), getString(R.string.beans_unavailable), 17, true)
     }
+}
+
+/** Display-only ordinal from the append-only inventory order; durable IDs remain internal. */
+internal fun ThemedActivity.beanBatchNumber(inventory: BeanInventory, batchId: String): String {
+    val index = inventory.batches().indexOfFirst { it.batch.id == batchId }
+    return if (index < 0) getString(R.string.beans_not_set)
+    else java.text.NumberFormat.getIntegerInstance(resources.configuration.locales[0]).format(index + 1)
 }
 
 internal fun ThemedActivity.beanInput(parent: LinearLayout, label: Int, numeric: Boolean = false): EditText {
