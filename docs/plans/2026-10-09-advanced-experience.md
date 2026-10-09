@@ -160,3 +160,9 @@
 - [9d59188 capture](https://github.com/boolean93/openhoyi/actions/runs/37943737764) 成功，下载核对 37 张 PNG，新增手机运行/结束两张均为 450x900，开始日志存在。人工确认两张真实状态分别为萃取中/已结束。但运行页标题与状态说明占用太多空间，四项读数第二行被首屏截断且图表在屏外；不是手机可读性验收通过。
 - 窄屏活动萃取隐藏重复页面大标题、概览/实时数据小标题和重复状态文字；Mock 身份仍显示。压缩卡片、读数间距，压力/杯中流速图仍分图且字体按 sp；窄屏图高分别 160/140dp 随字体放大。温度与目标重量/停止说明保留在图表之后，不删除信息。只有新鲜且明确零告警可隐藏“无警”，未知/过期/非零告警保留；准备状态只在实际 RUNNING、机器设置新鲜、准备 IDLE 时隐藏普通说明，异常/启动/取消状态保留。固定停止入口及所有控制逻辑不改。
 - 首次 lintDebug 报条件表达式 SuspiciousIndentation，改为明确布尔变量后最终 Debug/Mock APK、Mock AndroidTest 与 lintDebug 完整构建成功（1m1s），不增加 suppress/baseline。布局修正仍需新源码实际手机截图和大字体矩阵，不以构建当视觉通过。
+
+## 生命周期进展与导航语言检查更新
+
+- 下载 [47002ce lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37945344521) 与 [96db8c8 lifecycle](https://github.com/boolean93/openhoyi/actions/runs/37945705671) artifact：诊断回调跟踪及 finally 注销成功，正常/暂停两个窗口均零事件、同一服务持续采样；`result.txt` 的正式前后台/重建生命周期检查通过，音频与反馈五组检查通过。作业整体仍失败在后续 languageChecks 的 LanguageContextChecks，未执行页面/Canvas 全矩阵，不将阶段通过冒称必需 lifecycle 全绿。
+- 真实报错 `Visible Home navigation did not use zh-Hans`。源码仍要求底栏出现旧 `ui_settings`，实际四栏已是冲煮/曲线/历史/豆子。改为用独立 locale context 逐项解析四个真实入口，要求 Home/Application/Service 三处资源一致且 Home 中对应文字可见；保留布局方向、主题、同一服务、无事件重放和原偏好检查。测试 APK 完整构建成功（24s），diff 检查通过，运行待 CI。
+- `96db8c8` verify 已通过，advanced-pages 作业 37945705688 仍在运行；文件合约运行结果尚未知。当前生产 UI 新增窄屏修正，需要对应最终提交再次通过四项必需检查。
