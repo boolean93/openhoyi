@@ -42,6 +42,7 @@ class BeanDoseCapturePolicyTest {
             { it.update("scale", sample(2300), 2250) },
             { it.update("scale", sample(1500), 1500) },
             { it.update("scale", sample(2250, evidence = ScaleEvidence.OFFLINE_CANDIDATE), 2250) },
+            { it.update("scale", sample(2250, evidence = ScaleEvidence.LIVE_READ_ONLY), 2250) },
             { it.update("scale", sample(3000), 3000) }
         )) {
             val policy = BeanDoseCapturePolicy()

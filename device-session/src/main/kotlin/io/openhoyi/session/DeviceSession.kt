@@ -22,10 +22,20 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     legacyVerifiedStartFrames:Set<String> = emptySet(),
     val scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter,
     private val scaleObservation:(ScaleObservation)->Unit = {}) {
-    init { require(role==DeviceRole.COFFEE || (scaleAdapter.transportVerified && scaleAdapter.writeEndpoint!=null &&
-        scaleAdapter.notifyEndpoint!=null && scaleAdapter.initializationCommands.isNotEmpty())) { "Offline scale candidates cannot connect" }
-        if(role!=DeviceRole.COFFEE)require(scaleAdapter.initializationCommands.first().delayMs>=0 &&
-            scaleAdapter.initializationCommands.zipWithNext().all {(a,b)->b.delayMs>a.delayMs}) { "Invalid scale initialization timing" }
+    init {
+        if(role!=DeviceRole.COFFEE) {
+            if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified &&
+                scaleAdapter.notifyEndpoint!=null && scaleAdapter.writeEndpoint==null &&
+                scaleAdapter.initializationCommands.isEmpty() && scaleAdapter.tareCommand==null &&
+                !scaleAdapter.capabilities.tare && !scaleAdapter.capabilities.validatedWeightControl) {
+                "Read-only scale adapter cannot expose control or characteristic writes"
+            } else {
+                require(scaleAdapter.transportVerified && scaleAdapter.writeEndpoint!=null &&
+                    scaleAdapter.notifyEndpoint!=null && scaleAdapter.initializationCommands.isNotEmpty()) { "Offline scale candidates cannot connect" }
+                require(scaleAdapter.initializationCommands.first().delayMs>=0 &&
+                    scaleAdapter.initializationCommands.zipWithNext().all {(a,b)->b.delayMs>a.delayMs}) { "Invalid scale initialization timing" }
+            }
+        }
     }
     val scaleCapabilities:ScaleCapabilities get()=scaleAdapter.capabilities
     private val additionalStartFrames = legacyVerifiedStartFrames.toSet().also { frames ->
@@ -57,7 +67,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         sleepFirst=null;sleepSecond=null;sleepFirstAtMs=null;sleepSecondAtMs=null
     }
     private var notifyEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeNotify else scaleAdapter.notifyEndpoint!!
-    private var writeEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeWrite else scaleAdapter.writeEndpoint!!
+    private var writeEndpoint=if(role==DeviceRole.COFFEE)KnownGatt.coffeeWrite else scaleAdapter.writeEndpoint
     private var withResponse=true
     private var stageDeadline=0L
     private var initNext=0
@@ -102,13 +112,18 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             step(expected,GattOperation.Discover,10_000){ result ->
                 val write=result.characteristics.singleOrNull{it.endpoint==writeEndpoint&&(it.write||it.writeWithoutResponse)}
                 val notify=result.characteristics.singleOrNull{it.endpoint==notifyEndpoint&&(it.notify||it.indicate)}
-                if(write==null||notify==null){fail("required GATT characteristics missing or ambiguous");return@step}
-                withResponse=write.write
+                val subscriptionOnly=role!=DeviceRole.COFFEE && scaleAdapter.readOnlyTransport
+                if((!subscriptionOnly && write==null)||notify==null){fail("required GATT characteristics missing or ambiguous");return@step}
+                withResponse=write?.write ?: true
                 if(!initializationState(expected,DeviceState.SUBSCRIBING))return@step
                 step(expected,GattOperation.Subscribe(notifyEndpoint,!notify.notify),5000){
+                    if(subscriptionOnly) {
+                        initializationState(expected,DeviceState.SYNCHRONIZING,5000)
+                        return@step
+                    }
                     if(!initializationState(expected,DeviceState.INITIALIZING,10_000))return@step
                     if(role==DeviceRole.COFFEE){
-                        step(expected,GattOperation.Write(writeEndpoint,auth!!.frame.toByteArray(),withResponse),5000){
+                        step(expected,GattOperation.Write(requireNotNull(writeEndpoint),auth!!.frame.toByteArray(),withResponse),5000){
                             initializationState(expected,DeviceState.SYNCHRONIZING,10_000)
                         }
                     }else{initNext=0;initBusy=false;initDue=clock()+scaleAdapter.initializationCommands.first().delayMs}
@@ -164,6 +179,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
         }else when(val decoded=scaleAdapter.decode(bytes,now)) {
             is DecodeResult.Valid -> {
+                val expectedEvidence=if(scaleAdapter.readOnlyTransport)ScaleEvidence.LIVE_READ_ONLY else ScaleEvidence.VERIFIED_TRANSPORT
+                if(decoded.value.evidence!=expectedEvidence) {diagnostic("scale evidence rejected");return}
                 if(state==DeviceState.SYNCHRONIZING)setState(DeviceState.READY)
                 if(this.generation!=generation||!queue.active)return
                 if(state==DeviceState.READY) {
@@ -198,7 +215,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             val commands=scaleAdapter.initializationCommands;val cmd=commands[initNext]
             initBusy=true
             val expected=generation
-            step(expected,GattOperation.Write(writeEndpoint,cmd.frame.toByteArray(),withResponse),5000){
+            step(expected,GattOperation.Write(requireNotNull(writeEndpoint),cmd.frame.toByteArray(),withResponse),5000){
                 initBusy=false;initNext++
                 if(initNext==commands.size)initializationState(expected,DeviceState.SYNCHRONIZING,5000)
                 else initDue=clock()+(commands[initNext].delayMs-commands[initNext-1].delayMs)
@@ -208,7 +225,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private fun send(command:EncodedCommand,expectedRole:DeviceRole,urgent:Boolean=false,
         beforeDispatch:()->Boolean={true},callback:(OperationResult)->Unit) {
         if(role!=expectedRole||state!=DeviceState.READY){callback(OperationResult.Failed("device not ready or wrong role"));return}
-        queue.enqueue(GattOperation.Write(writeEndpoint,command.frame.toByteArray(),withResponse),5000,urgent,
+        val endpoint=writeEndpoint ?: run {callback(OperationResult.Failed("scale transport is read-only"));return}
+        queue.enqueue(GattOperation.Write(endpoint,command.frame.toByteArray(),withResponse),5000,urgent,
             beforeDispatch={state==DeviceState.READY && beforeDispatch()},callback=callback)
     }
     private fun canControlFromIdle():Boolean {

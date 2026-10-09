@@ -238,3 +238,14 @@
 - 第二协议补核见调研附录：Felicita公开18字节ASCII通知被原旧二进制候选误读。回归真实红 `Felicita ASCII weight expected 0, got 258`；新独立FelicitaNotificationCodec按已知帧形态解析正负六位显示单位、严格长度/数字/尾部，GRAM按整数投射、OUNCE不标g，电量和未知字段保留raw不猜百分比。已识别3/4字节ASCII截断另取红验证，再路由独立codec拒绝，不回退伪造旧二进制重量。旧2/4字节拆包API证据保留，完整通知不再走它。
 - 新checks进入ProtocolChecks主入口；green完整protocol-core39823checks、32856captured通知回放，另有Felicita检查PASS；device-session93cases通过；Debug/Mock各254tests、0failures/errors、1既有skip；Mock AndroidTest APK构建成功，总命令59s。diff/branch策略通过。末轮独立静态复审无新P1/P2；该审查的公开来源网络读取失败，因此不声称独立网络复核成功，父任务gh api固定源实际读取成功。
 - 仍是OFFLINE_CANDIDATE，无新增GATT端点、连接或控制许可，不能把解析修复说成Felicita实机兼容。公开Acaia SDK仅AAR，本轮未引入额外BLEowner、未逆向、未给厂商发消息。新完整CI与系统选择器运行待提交后验证；不合并、不发版。
+
+
+## A1 后续：第二协议只读连接接线（不替代完整兼容目标）
+
+- 先补已公开Felicita ASCII形态的静态适配器和显式订阅型会话契约；读端点FFE0/FFE1，不提供写端点/初始化写命令/去皮或控制能力。新增LIVE_READ_ONLY区别于离线与已验证控制数据，必须订阅完成且收到正确端点的完整克重通知才READY，不能用旧二进制候选或oz帧就绪。原BOOKOO初始化/写许可保持。
+- 再接现有NativeDeviceHub唯一秤槽、地址与协议ID配对记忆/恢复、扫描候选与独立连接页。换协议先关闭原连接且受活动萃取门禁约束；未知协议记录不默认为BOOKOO。只读来源说明需要同步8语言，不把只读模式开放为稳定称豆或重量停水。
+- 验证订阅无应用级写入、错误单位/端点/截断不就绪、离线证据不能冒充在线、超时/旧generation/READY回调重入、原BOOKOO回归。随后补Hub/记忆/UI路径，最新完整CI和真实第二型号验收仍不可省略。
+- 第一阶段真实红：可编译ReadOnlyScaleSessionTest因当前构造器拒绝无写端点的适配器失败（1test1failure，IllegalArgumentException），不是设备运行证据。接口/会话初步实现后device-session完整检查通过；后续新增边界检查与移动端编译仍待验证。此阶段未接入可供用户选择的真实连接入口，不能宣称Felicita端到端兼容完成。
+
+- 会话阶段末轮独立静态审查未发现P1/P2。新增5项只读会话JUnit（订阅与正确g帧就绪、写能力/命令伪装拒绝、离线证据/订阅超时、READY重入丢弃旧重量、Coffee携带只读adapter仍认证和固定coffeeWrite）完整运行通过。device-session651tests无失败/错误/跳过，另93回放cases；protocol-core39823checks及新ASCII检查通过；Debug/Mock各254tests无失败/错误、1既有skip；AndroidTest构建成功（统一命令58s，补Coffee测试后会话11s）。称豆策略新LIVE来源拒绝回归通过。
+- 本阶段没有新增第二BLEowner、机器写白名单、自动去皮或重量停水许可；Registry将readOnlyCandidates和verified connectable分开。仍待Hub/协议ID记忆/扫描/连接UI实际接线，再做端到端与具体设备验收。564d8ab的实际DocumentsUI作业37986089154仍运行，不借本地会话通过冒称该7路径已成功。

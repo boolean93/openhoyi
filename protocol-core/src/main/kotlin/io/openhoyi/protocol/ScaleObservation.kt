@@ -10,7 +10,7 @@ data class ScaleCapabilities(
     val deviceTimer:Boolean = false,
     val validatedWeightControl:Boolean = false,
 )
-enum class ScaleEvidence { VERIFIED_TRANSPORT, OFFLINE_CANDIDATE }
+enum class ScaleEvidence { VERIFIED_TRANSPORT, OFFLINE_CANDIDATE, LIVE_READ_ONLY }
 
 data class ScaleObservation(
     val hundredthsGram:Int,
