@@ -31,6 +31,21 @@ adb shell wm density 200
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb install -r "$apk"
+test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+test -s "$test_apk"
+adb install -r "$test_apk"
+python3 - "$output_dir/idle-accessibility.txt" <<'PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    result=subprocess.run(['adb','shell','am','instrument','-w','-e','idleEvents','true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],stdout=capture,timeout=90)
+if result.returncode or 'IDLE_ACCESSIBILITY_DIAGNOSTIC_DONE' not in output.read_text():
+    raise SystemExit('Idle accessibility diagnostic failed; output retained')
+PY
+# Formal capture gets normal continuous rendering, not the diagnostic pause.
+adb shell am force-stop io.openhoyi.mobile.mock
 adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
 sleep 15
 

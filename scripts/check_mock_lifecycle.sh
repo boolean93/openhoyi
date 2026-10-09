@@ -26,9 +26,11 @@ run_instrumentation() {
 from pathlib import Path
 import subprocess,sys
 output,mode=sys.argv[1:]
-if mode not in ("audio", "language", "pagesCompact", "pagesWideFont"):
+if mode not in ("audio", "language", "pagesCompact", "pagesWideFont", "idle"):
     raise SystemExit("Unsupported Mock instrumentation mode")
 command=["adb", "shell", "am", "instrument", "-w"]
+if mode == "idle":
+    command += ["-e", "idleEvents", "true"]
 if mode == "language":
     command += ["-e", "languageChecks", "true"]
 if mode in ("pagesCompact", "pagesWideFont"):
@@ -71,6 +73,12 @@ adb shell wm density 200
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb install -r "$apk"
+test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+test -s "$test_apk"
+adb install -r "$test_apk"
+run_instrumentation "$output_dir/idle-accessibility.txt" idle
+grep -F 'IDLE_ACCESSIBILITY_DIAGNOSTIC_DONE' "$output_dir/idle-accessibility.txt" >/dev/null
+# The diagnostic experiment restores refresh. Formal navigation uses a fresh process.
 adb shell am force-stop "$package"
 adb shell run-as "$package" rm -f shared_prefs/appearance.xml
 adb logcat -c
@@ -154,9 +162,6 @@ assert_edges 2 3
 printf 'Mock lifecycle checks passed\n' > "$output_dir/result.txt"
 
 # Actual decoder and cancellation checks use only the isolated Mock target.
-test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
-test -s "$test_apk"
-adb install -r "$test_apk"
 run_instrumentation "$output_dir/audio-instrumentation.txt" audio
 grep -F 'LOCAL_AUDIO_CHECKS_PASSED clips=14 cancelledPrepare=true sequence=true' "$output_dir/audio-instrumentation.txt" >/dev/null
 

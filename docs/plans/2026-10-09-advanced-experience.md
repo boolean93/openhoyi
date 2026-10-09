@@ -98,3 +98,9 @@
 - 核对四栏主导航发现库存主页面没有底栏，lifecycle 后续无法从库存选择冲煮。库存主页面补齐四栏，详情/表单仍保留返回导航；滚动区占用剩余空间，底栏固定。
 - 新增 AdvancedBusinessUiChecks：17 条本地真实控件动作路径，包括非法入库、入库保存、调整取消/确认、选粉不扣/确认幂等/重建/discard、复盘编辑、草稿保存/复制/粘贴导入/重复/冲突另存/非法拒绝。仅 Mock fixture，保留原未知记录及审计流水，不触发外部分享、SAF 或 BLE。此运行须在布局矩阵成功后才能执行，尚未宣称通过。
 - 本地 mobile 两套单测、两种 APK、AndroidTest 编译和 Lint 通过；补齐库存底栏后又验证两种 APK、AndroidTest 编译和 Lint。Python scripts 33 项通过。下一轮精确源码 CI 和截图/表单运行仍待核对。
+
+## 38e5e82 空闲超时诊断
+
+- lifecycle 与 capture 仍在首次首页导航失败，日志依旧为 `ERROR: could not get idle state.`。仅避免相同按钮文字重设不足以解决问题；上一节描述的是源码发现与修改，不能作为根因已证实或运行已修复的证据。advanced-pages 作业仍在运行，尚无终态。
+- 新增仅 Mock 的 `idleEvents=true` instrumentation：记录本包无障碍事件类型、变化类型、来源文字/坐标及 TextWatcher 回调，比较正常刷新 2 秒与仅暂停 Home 刷新 2 秒。服务不停止，记录同一 owner、采样时间及运行状态；finally 恢复刷新、监听与 flags。诊断标记不是验收 PASS。
+- lifecycle/capture 在正式导航前采集诊断并保留输出；正式检查另起正常刷新进程，不沿用暂停窗口，不放宽 idle、可见性或数据门禁。脚本 33 项、bash 语法及 diff 检查通过；运行证据待 CI。
