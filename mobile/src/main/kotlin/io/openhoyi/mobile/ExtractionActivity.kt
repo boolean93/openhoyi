@@ -64,6 +64,10 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var stop: Button
     private lateinit var prepare: Button
     private lateinit var cancelPrepare: Button
+    private lateinit var pageHeader: LinearLayout
+    private lateinit var liveHeading: TextView
+    private lateinit var modeBadge: TextView
+    private var narrow = false
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
@@ -114,9 +118,11 @@ class ExtractionActivity : ThemedActivity() {
         })
         HoyiUi.navigation(this, root, ExtractionActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, content, getString(R.string.extraction_title),
+        pageHeader = HoyiUi.header(this, content, getString(R.string.extraction_title),
             if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else getString(R.string.extraction_subtitle))
         val wide = HoyiUi.wide(this)
+        narrow = !wide
+        if (narrow) content.setPadding(dp(16), dp(8), dp(16), dp(16))
         val columns = if (wide) LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             content.addView(this, LinearLayout.LayoutParams(-1, -2))
@@ -130,6 +136,7 @@ class ExtractionActivity : ThemedActivity() {
             columns!!.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(10) })
         } else content
         val stateCard = card(left)
+        modeBadge = text(stateCard, getString(R.string.extraction_mock_subtitle), 12).apply { visibility = View.GONE }
         overviewHeading = HoyiUi.label(this, stateCard, getString(R.string.extraction_overview), 19, true)
         curveSummary = text(stateCard, getString(R.string.extraction_curve_initial), 18, true)
         deviceSummary = text(stateCard, getString(R.string.extraction_devices_initial), 14)
@@ -151,20 +158,21 @@ class ExtractionActivity : ThemedActivity() {
         notificationStatus = text(stateCard, "", 14)
         alarmStatus = text(stateCard, getString(R.string.home_alarm_initial), 14)
         val metrics = card(left)
-        HoyiUi.label(this, metrics, getString(R.string.extraction_live_data), 19, true)
+        liveHeading = HoyiUi.label(this, metrics, getString(R.string.extraction_live_data), 19, true)
         fun metricRow(a: String, b: String): Pair<TextView, TextView> {
             val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            metrics.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
+            metrics.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (narrow) 4 else 10) })
             fun cell(title: String): TextView {
                 val box = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
-                    setPadding(dp(16), dp(12), dp(16), dp(12))
+                    val inset = if (narrow) 8 else 16
+                    setPadding(dp(inset), dp(if (narrow) 6 else 12), dp(inset), dp(if (narrow) 6 else 12))
                     background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 12)
                 }
                 row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
                 HoyiUi.label(this, box, title, 13, muted = true)
                 return HoyiUi.label(this, box, "—", 27, true).apply {
-                    setPadding(0, dp(8), 0, 0)
+                    setPadding(0, dp(if (narrow) 4 else 8), 0, 0)
                     setSingleLine(true)
                     setAutoSizeTextTypeUniformWithConfiguration(16, 27, 1, TypedValue.COMPLEX_UNIT_SP)
                 }
@@ -179,15 +187,24 @@ class ExtractionActivity : ThemedActivity() {
         traceCurve = HoyiUi.label(this,chartCard,"",14,muted=true)
         HoyiUi.label(this, chartCard, getString(R.string.live_pressure_chart), 19, true)
         chart = ExtractionTrendView(this, ExtractionTrendMetric.PRESSURE)
-        chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp((210 * maxOf(1f, resources.configuration.fontScale)).toInt())).apply {
+        chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(((if (narrow) 160 else 210) * maxOf(1f, resources.configuration.fontScale)).toInt())).apply {
             topMargin = dp(12)
         })
         HoyiUi.label(this, chartCard, getString(R.string.live_cup_flow_chart), 19, true)
         HoyiUi.label(this, chartCard, getString(R.string.live_cup_flow_source), 13, muted = true)
         cupFlowChart = ExtractionTrendView(this, ExtractionTrendMetric.CUP_FLOW)
-        chartCard.addView(cupFlowChart, LinearLayout.LayoutParams(-1, dp((180 * maxOf(1f, resources.configuration.fontScale)).toInt())).apply { topMargin = dp(12) })
+        chartCard.addView(cupFlowChart, LinearLayout.LayoutParams(-1, dp(((if (narrow) 140 else 180) * maxOf(1f, resources.configuration.fontScale)).toInt())).apply { topMargin = dp(12) })
         referenceChoice = HoyiUi.button(this, chartCard, getString(R.string.reference_choose)) { chooseReference() }
         referenceStatus = HoyiUi.label(this, chartCard, getString(R.string.reference_off), 13, muted = true)
+        if (narrow) {
+            // Keep the four current measurements and pressure plot ahead of secondary prose.
+            // Temperature and target-weight/stop advice remain available, never discarded.
+            val details = card(right)
+            metrics.removeView(live)
+            metrics.removeView(weightTarget)
+            details.addView(live)
+            details.addView(weightTarget)
+        }
         val targets = card(right)
         HoyiUi.label(this, targets, getString(R.string.reference_targets), 17, true)
         stageTargets = HoyiUi.label(this, targets, "", 14, muted = true)
@@ -282,6 +299,10 @@ class ExtractionActivity : ThemedActivity() {
         val state = owner?.shotState ?: ExtractionState.IDLE
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
+        pageHeader.visibility = if (active && narrow) View.GONE else View.VISIBLE
+        modeBadge.visibility = if (active && narrow && BuildConfig.MOCK_MODE) View.VISIBLE else View.GONE
+        liveHeading.visibility = if (active && narrow) View.GONE else View.VISIBLE
+        shotSummary.visibility = if (active && narrow) View.GONE else View.VISIBLE
         overviewHeading.visibility=if(active) View.GONE else View.VISIBLE
         curveSummary.visibility=if(active) View.GONE else View.VISIBLE
         deviceSummary.visibility=if(active) View.GONE else View.VISIBLE
@@ -352,12 +373,20 @@ class ExtractionActivity : ThemedActivity() {
                     BrewPreparation.State.FAILED -> getString(R.string.extraction_prepare_failed)
                     BrewPreparation.State.UNKNOWN -> getString(R.string.extraction_prepare_unknown)
                 })
+        // Only omit the normal idle preparation explanation during an observed live shot.
+        // Starting, waiting, cancellation, failed and unknown preparation remain visible.
+        val normalLivePreparation = active && narrow && state == ExtractionState.RUNNING &&
+            snapshot.settings != null && owner?.machineSettingsFresh == true && preparation == BrewPreparation.State.IDLE
+        preparationStatus.visibility = if (normalLivePreparation) View.GONE else View.VISIBLE
         notificationStatus.show(if (BuildConfig.MOCK_MODE || notificationsAllowed()) "" else
             getString(R.string.extraction_notification_warning))
         notificationStatus.visibility = if (notificationStatus.text.isEmpty()) View.GONE else View.VISIBLE
         alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             SystemClock.elapsedRealtime()))
         val now = SystemClock.elapsedRealtime()
+        val alarmFresh = snapshot.alarmAt?.let { it <= now && now - it <= 1500 } == true
+        alarmStatus.visibility = if (active && narrow && snapshot.alarmBits == 0 && alarmFresh)
+            View.GONE else View.VISIBLE
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
         elapsedValue.show(if (frame is ExtractionTelemetry && !frame.brewWait) "${frame.elapsedSeconds} s" else "—")
         pressureValue.show(when (frame) {
@@ -485,7 +514,12 @@ class ExtractionActivity : ThemedActivity() {
         text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
         setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD); parent.addView(this)
     }
-    private fun card(parent: LinearLayout) = HoyiUi.card(this, parent)
+    private fun card(parent: LinearLayout) = HoyiUi.card(this, parent).apply {
+        if (narrow) {
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(8)
+        }
+    }
     private fun button(parent: LinearLayout, value: String, action: () -> Unit) =
         HoyiUi.button(this, parent, value, action = action)
 }

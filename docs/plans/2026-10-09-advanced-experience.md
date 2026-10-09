@@ -154,3 +154,9 @@
 
 - 作业 37943745544 已失败。下载输出核对 compact/wideFont 两组布局矩阵与 17 条实际业务路径均通过；文件合约输出为 Process crashed，未执行九条文件路径。logcat 明确 test APK 独立进程初始化 CurveFixtureProvider 时缺少 kotlin.collections.SetsKt：instrumentation 可使用目标 APK Kotlin 库，不代表独立 Provider 进程也有该库。
 - 测试专用 Provider 改为 Java，仅使用 Android/JDK 类，不改生产文件交换或依赖、不复制目标 APK 运行库。原 signature 权限、调用包/签名、注册 UUID、固定路径与读写限制保留；清理仅注册 fixture 目录，并不跟随符号链接。测试 APK 构建成功（17s），javap 字节码检查 kotlin 引用为零，diff 检查通过。运行时签名权限与九条文件路径仍待新源码 CI；不将字节码或编译证据冒称 Android 运行成功。
+
+## 窄屏实时萃取首屏修正
+
+- [9d59188 capture](https://github.com/boolean93/openhoyi/actions/runs/37943737764) 成功，下载核对 37 张 PNG，新增手机运行/结束两张均为 450x900，开始日志存在。人工确认两张真实状态分别为萃取中/已结束。但运行页标题与状态说明占用太多空间，四项读数第二行被首屏截断且图表在屏外；不是手机可读性验收通过。
+- 窄屏活动萃取隐藏重复页面大标题、概览/实时数据小标题和重复状态文字；Mock 身份仍显示。压缩卡片、读数间距，压力/杯中流速图仍分图且字体按 sp；窄屏图高分别 160/140dp 随字体放大。温度与目标重量/停止说明保留在图表之后，不删除信息。只有新鲜且明确零告警可隐藏“无警”，未知/过期/非零告警保留；准备状态只在实际 RUNNING、机器设置新鲜、准备 IDLE 时隐藏普通说明，异常/启动/取消状态保留。固定停止入口及所有控制逻辑不改。
+- 首次 lintDebug 报条件表达式 SuspiciousIndentation，改为明确布尔变量后最终 Debug/Mock APK、Mock AndroidTest 与 lintDebug 完整构建成功（1m1s），不增加 suppress/baseline。布局修正仍需新源码实际手机截图和大字体矩阵，不以构建当视觉通过。
