@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import io.openhoyi.protocol.CoffeeCommands
+import io.openhoyi.protocol.CustomPressureStartPolicy
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -38,6 +39,7 @@ class CustomPressureCurveAdapterTest {
                 val profile=CustomPressureCurveAdapter.profile(doc,scale,slot)
                 assertNotNull("Supported recipe ${doc.id} slot=$slot scale=$scale",profile)
                 profile!!
+                assertTrue(CustomPressureStartPolicy.permits(profile.parameters))
                 assertEquals(doc.id,profile.id)
                 assertEquals(if(scale)doc.targetHundredthsGram else 0,profile.targetHundredthsGram)
                 assertEquals(fields[if(scale)3 else 2],CoffeeCommands.start(profile.parameters).frame.hex())

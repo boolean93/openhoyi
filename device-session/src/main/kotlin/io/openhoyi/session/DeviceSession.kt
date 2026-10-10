@@ -21,7 +21,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private val weightFrame:(BookooSample,Long)->Unit={_,_->},private val diagnostic:(String)->Unit={},
     legacyVerifiedStartFrames:Set<String> = emptySet(),
     val scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter,
-    private val scaleObservation:(ScaleObservation)->Unit = {}) {
+    private val scaleObservation:(ScaleObservation)->Unit = {},
+    private val customPressureStartPermit:(StartParameters)->Boolean = {false}) {
     init {
         if(role!=DeviceRole.COFFEE) {
             if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified &&
@@ -249,7 +250,9 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private fun permittedStart(parameters:StartParameters):EncodedCommand? {
         val command=runCatching { CoffeeCommands.start(parameters) }.getOrNull() ?: return null
         val captured=setOf("02175B006C005A410000015E1600AA00000000DA","02DF5C0046001426140000A0050190008C000059","02DF5C00880014231200009605019000820000AC")
-        return command.takeIf { it.frame.hex() in captured || it.frame.hex() in additionalStartFrames }
+        return command.takeIf { it.frame.hex() in captured || it.frame.hex() in additionalStartFrames ||
+            (CustomPressureStartPolicy.permits(parameters) &&
+                runCatching {customPressureStartPermit(parameters)}.getOrDefault(false)) }
     }
     private fun canStartExtraction(parameters:StartParameters):Boolean {
         if(!canControlWithFreshSettings()) return false
@@ -272,7 +275,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             context.capturedAt<=now && now-context.capturedAt<5000 &&
             settings.flags and 0x26 == context.settingsFlags &&
             settings.brewTemperatureC==context.brewTemperatureC &&
-            settings.brewCompensationTenthsC==context.compensationTenthsC && canStartExtraction(parameters)
+            settings.brewCompensationTenthsC==context.compensationTenthsC &&
+            permittedStart(parameters)!=null && canStartExtraction(parameters)
     }
     fun startExtraction(parameters:StartParameters,callback:(OperationResult)->Unit) {
         val context=captureStartContext(parameters)

@@ -14,7 +14,8 @@ data class CurveLibraryItem(
 )
 
 class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWireProof? = null,
-                   private val draftsProvider: () -> List<CurveLibraryItem> = { emptyList() }) {
+                   private val draftsProvider: () -> List<CurveLibraryItem> = { emptyList() },
+                   private val enableCustomPressureExecution:Boolean=false) {
     val legacyVerifiedStartFrames: Set<String> get() = proof?.allowedFrames() ?: emptySet()
     private val verifiedItems: List<CurveLibraryItem> = java.util.Collections.unmodifiableList(
         CurveCatalog.profiles.map { profile ->
@@ -31,17 +32,28 @@ class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWirePr
             it.id.startsWith("draft-")
     })
     fun find(id: String): CurveLibraryItem? = items.firstOrNull { it.id == id }
-    fun canStart(item: CurveLibraryItem): Boolean = item.customDocument == null && !item.id.startsWith("draft-") &&
-        (item.controlProfile?.let(CurveCatalog::validated) == true || (item.factoryCurve != null && proof != null))
+    fun canStart(item: CurveLibraryItem): Boolean {
+        if(item.customDocument!=null)return enableCustomPressureExecution && find(item.id)==item &&
+            CustomPressureCurveAdapter.profile(item.customDocument,false)!=null
+        return !item.id.startsWith("draft-") &&
+            (item.controlProfile?.let(CurveCatalog::validated) == true || (item.factoryCurve != null && proof != null))
+    }
     fun resolve(id: String, scaleConnected: Boolean, slot: Int = 7): CurveProfile? {
         val item = find(id) ?: return null
-        if (item.customDocument != null || item.id.startsWith("draft-")) return null
+        if(item.customDocument!=null)return if(enableCustomPressureExecution && slot==7)
+            CustomPressureCurveAdapter.profile(item.customDocument,scaleConnected,slot) else null
+        if (item.id.startsWith("draft-")) return null
         item.controlProfile?.let { return it.takeIf { slot == 7 && CurveCatalog.validated(it) } }
         val curve = item.factoryCurve ?: return null
         if (slot !in 1..5 && slot != 7) return null
         return FactoryCurveAdapter.profile(curve, scaleConnected, slot).takeIf { proof?.validated(it) == true }
     }
-    fun validated(profile: CurveProfile): Boolean = CurveCatalog.validated(profile) || proof?.validated(profile) == true
+    fun validated(profile: CurveProfile): Boolean {
+        if(profile.id.startsWith("draft-"))return profile.scaleMode?.let {
+            resolve(profile.id,it,profile.parameters.slot)==profile
+        } == true
+        return CurveCatalog.validated(profile) || proof?.validated(profile) == true
+    }
     companion object {
         private fun format(value: Double): String = String.format(Locale.ROOT, "%.1f", value)
         fun categoryName(raw: String): String = when (raw) {
