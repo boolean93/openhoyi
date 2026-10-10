@@ -44,3 +44,9 @@
 - 新增CustomCurveExecutionChecks：仅disposable CI Mock，通过实际导入/预览确认/库选择/启动确认/停止按钮，断言Service运行和结束、历史、永久使用次数、journal及无Bluetooth hub。既有记录保持，拒绝已有未知/未结束记录，不清理未知状态。接入advanced页面脚本末尾，尚待当前提交模拟器运行确认。
 
 - 独立复审补充真实模拟器门禁：customExecution必须同时满足Mock隔离包、disposable标志、ranchu/goldfish硬件和ro.kernel.qemu=1；不能仅凭旗标写用户Mock数据。
+
+## 第四阶段：第二秤真实会话故障回放
+
+- 扩展ReadOnlyScaleSessionTest，使用虚拟GattDriver驱动真实DeviceSession/GattQueue。新增订阅拒绝和5秒超时后旧token/通知不晋级、GATT缺失/重复/不支持notify/错误端点不订阅、indicate路径仍需完整gram帧、断连重连拒绝旧generation且保留有符号读数/时间戳/raw/evidence。
+- 全路径断言无characteristic Write和无BOOKOO兼容weightFrame；原错单位/错端点/坏帧/offline冒充live/去皮拒绝/READY回调重入检查保留。协议公开形状来源不变，没有生成控制指令或新增全型号保证。
+- 专项9项通过；完整device-session 674JUnit（0fail/error/skip）、93既有回放cases通过。独立静态审查无P1/P2；审查未运行Gradle，这些是虚拟会话回放而非实机效果证据。
