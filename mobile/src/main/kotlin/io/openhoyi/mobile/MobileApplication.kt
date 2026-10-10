@@ -53,7 +53,7 @@ class MobileApplication : Application() {
         }
             .onFailure { logs.record("factory.wire_proof_failed", mapOf("type" to it.javaClass.simpleName)) }
             .getOrNull()
-        CurveLibrary(factory, proof, draftsProvider = { customCurvesResult.getOrNull()?.items().orEmpty() })
+        CurveLibrary(factory, proof, draftsProvider = { customCurvesResult.getOrNull()?.items().orEmpty() }, enableCustomPressureExecution = true)
     }
     val samples: ShotSamplesRepository by lazy {
         ShotSamplesRepository(File(filesDir, "shot_samples")) { error ->

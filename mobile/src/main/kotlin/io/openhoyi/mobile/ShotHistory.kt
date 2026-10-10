@@ -55,8 +55,8 @@ class ShotHistory(
     fun begin(curveId: String, atMs: Long = now(), slot: Int = 7): String {
         require(activeId == null) { "Previous shot has not been resolved in the history" }
         require(curveId == "manual" || CurveCatalog.find(curveId) != null ||
-            curveId.matches(Regex("factory-v3-(00[1-9]|0[1-9][0-9]|100)")))
-        require(if (curveId == "manual") slot == 6 else slot in 1..5 || slot == 7)
+            curveId.matches(Regex("factory-v3-(00[1-9]|0[1-9][0-9]|100)")) || canonicalDraftId(curveId))
+        require(if (curveId == "manual") slot == 6 else if (canonicalDraftId(curveId)) slot == 7 else slot in 1..5 || slot == 7)
         val id = newId()
         require(id.isNotBlank() && records.none { it.id == id })
         val next = records.toMutableList().apply {
@@ -167,6 +167,10 @@ class ShotHistory(
             (it.slot == null || if (it.curveId == "manual") it.slot == 6
                 else it.slot in 1..5 || it.slot == 7) }
     }.toList()
+
+    // History records identity only; this is not a device-execution permission.
+    private fun canonicalDraftId(value:String):Boolean = value.startsWith("draft-") &&
+        runCatching { UUID.fromString(value.removePrefix("draft-")).toString() == value.removePrefix("draft-") }.getOrDefault(false)
 
     private fun safe(value: String): String = Base64.getUrlEncoder().withoutPadding()
         .encodeToString(value.toByteArray(Charsets.UTF_8))

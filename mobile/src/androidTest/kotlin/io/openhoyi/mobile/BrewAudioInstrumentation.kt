@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var customExecution = false
     private var systemDocuments = false
     private var disposableCiEmulator = false
     private var documentContracts = false
@@ -28,6 +29,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        customExecution = arguments?.getString("customExecution") == "true"
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
         documentContracts = arguments?.getString("documentContracts") == "true"
@@ -43,6 +45,12 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (customExecution) {
+                CustomCurveExecutionChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "CUSTOM_CURVE_EXECUTION_CHECKS_PASSED import=true select=true confirm=true running=true ended=true history=true usage=true journal=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (systemDocuments) {
                 val result = CurveSystemDocumentChecks(this).run(disposableCiEmulator)
                 report.putString("stream", "CURVE_SYSTEM_DOCUMENT_CHECKS_PASSED paths=${result.paths.size} newDrafts=${result.newDrafts} systemPicker=${result.systemPicker} externalSend=${result.externalSend} noBle=${result.noBle}\n" +
@@ -233,7 +241,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }

@@ -593,6 +593,10 @@ class MobileService : Service() {
                     })
                 },
                 legacyVerifiedStartFrames = (application as MobileApplication).curves.legacyVerifiedStartFrames,
+                customPressureStartPermit = { parameters ->
+                    (application as MobileApplication).curves.permitsCustomPressureStart(
+                        getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null), parameters)
+                },
             )
             running = true
             event(ResourceMessage(R.string.service_event_started))

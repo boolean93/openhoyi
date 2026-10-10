@@ -12,7 +12,8 @@ class AndroidDevice(context:Context,role:DeviceRole,stateChanged:(DeviceState)->
     coffeeFrame:(HoyiMessage,Long)->Unit={_,_->},weightFrame:(BookooSample,Long)->Unit={_,_->},diagnostic:(String)->Unit={},trace:(WireTrace)->Unit={},
     legacyVerifiedStartFrames:Set<String> = emptySet(),
     scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter,
-    scaleObservation:(ScaleObservation)->Unit = {}) : AutoCloseable {
+    scaleObservation:(ScaleObservation)->Unit = {},
+    customPressureStartPermit:(StartParameters)->Boolean = {false}) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var closed=false
@@ -21,7 +22,7 @@ class AndroidDevice(context:Context,role:DeviceRole,stateChanged:(DeviceState)->
         override fun disconnected(generation:Long,reason:String)=session.onDisconnected(generation,reason)
         override fun notification(generation:Long,endpoint:Endpoint,bytes:ByteArray)=session.onNotification(generation,endpoint,bytes)
     },trace)
-    val session:DeviceSession=DeviceSession(role,driver,{SystemClock.elapsedRealtime()},stateChanged,coffeeFrame,weightFrame,diagnostic,legacyVerifiedStartFrames,scaleAdapter,scaleObservation)
+    val session:DeviceSession=DeviceSession(role,driver,{SystemClock.elapsedRealtime()},stateChanged,coffeeFrame,weightFrame,diagnostic,legacyVerifiedStartFrames,scaleAdapter,scaleObservation,customPressureStartPermit)
     private val ticker=object:Runnable {override fun run(){if(!closed){session.tick();handler.postDelayed(this,50)}}}
     init {handler.post(ticker)}
     override fun close(){check(Looper.myLooper()==Looper.getMainLooper());closed=true;handler.removeCallbacks(ticker);session.disconnect()}

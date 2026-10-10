@@ -264,7 +264,7 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
         var service:MobileService?=null;var message:SnapshotMessage?=null
         onMain {service=owner(home);message=service!!.snapshot.message}
         val traces=traceSnapshot(app)
-        val source=app.curves.items.firstOrNull {it.controlProfile!=null && runCatching {CustomCurveDocument.fromLibraryItem(it)}.isSuccess}
+        val source=app.curves.items.firstOrNull {it.controlProfile!=null && runCatching {CustomCurveDocument.fromLibraryItem(it).controlMode == CustomCurveDocument.ControlMode.FLOW_RAW}.getOrDefault(false)}
             ?: error("No captured shareable profile")
         val paths=mutableListOf<String>();var saved=false;var exported:Uri?=null
         var expected:CustomCurveDocument?=null;var filename="";var failure:Throwable?=null

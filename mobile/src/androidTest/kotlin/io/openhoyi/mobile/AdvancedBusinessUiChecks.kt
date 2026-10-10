@@ -253,8 +253,8 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             fill(editor, R.string.profiles_temperature, "93")
             click(editor, R.string.profiles_save); awaitMain { editor.isDestroyed }; opened.remove(editor)
             val draft = custom.list().single { it.name == recipeName }; ownCurveIds += draft.id
-            check(draft.temperatureC == 93 && !app.curves.canStart(requireNotNull(app.curves.find(draft.id))))
-            record("curve-editor-save-readonly")
+            check(draft.temperatureC == 93 && app.curves.canStart(requireNotNull(app.curves.find(draft.id))))
+            record("curve-editor-save-compatible-no-auto-start")
             val share = start(CurveShareActivity::class.java) { it.putExtra(CurveShareActivity.CURVE_ID, draft.id) }
             click(share, R.string.profiles_copy)
             var copied = ""
@@ -322,7 +322,10 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             }
             record("curve-import-invalid-three"); close(invalidImport)
             check(preparation.current() == null && ownEvents().size == 3 && ownCurveIds.size == 3 && paths.size == 17)
-            ownCurveIds.forEach { check(!app.curves.canStart(requireNotNull(app.curves.find(it)))) }
+            ownCurveIds.forEach {
+                val item=requireNotNull(app.curves.find(it))
+                check(app.curves.canStart(item) == (CustomPressureCurveAdapter.profile(requireNotNull(item.customDocument),false)!=null))
+            }
             invariants()
         } catch (error: Throwable) { failure = error }
         finally {

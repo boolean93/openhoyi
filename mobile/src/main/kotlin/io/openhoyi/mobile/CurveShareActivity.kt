@@ -90,7 +90,7 @@ internal fun ThemedActivity.profileSummary(doc: CustomCurveDocument): String = b
 }
 internal fun ThemedActivity.profileCard(body: LinearLayout, doc: CustomCurveDocument) {
     val card = HoyiUi.card(this, body, doc.name)
-    HoyiUi.label(this, card, getString(R.string.profiles_read_only), 15, true)
+    HoyiUi.label(this, card, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null) R.string.profiles_pressure_compatible else R.string.profiles_read_only), 15, true)
     if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
         card.addView(CurveStageView(this).apply { targets = doc.stages.map { it.target } }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 160)))
         HoyiUi.label(this, card, getString(R.string.profiles_stage_caption), 13, muted = true)

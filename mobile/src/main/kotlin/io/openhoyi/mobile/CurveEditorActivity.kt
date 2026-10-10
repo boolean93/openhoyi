@@ -14,7 +14,7 @@ class CurveEditorActivity : ThemedActivity() {
     private var stageCount = 2
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val body = beanPage(getString(R.string.profiles_editor), getString(R.string.profiles_read_only))
+        val body = beanPage(getString(R.string.profiles_editor), getString(R.string.profiles_pressure_execution_limits))
         val store = profileStore(body) ?: return
         val sourceId = intent.getStringExtra(CURVE_ID)
         draftId = savedInstanceState?.getString("draftId") ?: draftId

@@ -18,7 +18,7 @@
     <string name="profiles_invalid">参数无效：名称须为 1–100 字，温度 75–105 °C，杯重 0–200 g，压力 0–12 bar，每段水量须大于 0 且不超过 6553.5 mL。</string>
     <string name="profiles_unavailable">自制曲线数据不可用，原文件已保留。无法编辑或保存。</string>
     <string name="profiles_missing">找不到这条曲线</string>
-    <string name="profiles_read_only">本地参数草稿 · 仅供查看，不能启动机器</string>
+    <string name="profiles_read_only">参数仅供查看 · 暂不支持运行</string>
     <string name="profiles_stage_caption">阶段目标示意 · 压力单位 bar · 横轴为阶段，不是秒，也不是未来压力预测</string>
     <string name="profiles_flow_raw">流量控制目标的单位尚未确认。仅保留并显示原始数值；不提供流量编辑或启动。</string>
     <string name="profiles_copy_warning">采集和工厂曲线只生成最小参数副本，不覆盖原曲线，也不包含原始启动报文。</string>
@@ -40,7 +40,7 @@
     <string name="profiles_import_hint">粘贴或选择 JSON 文件。先检查兼容信息，再决定是否保存。最多 64 KiB。</string>
     <string name="profiles_import_invalid">无法读取曲线参数：版本、字段或范围不支持，或文件超过 64 KiB。原文件未改变。</string>
     <string name="profiles_import_preview">导入预览</string>
-    <string name="profiles_compatibility">格式 v1 · 本地参数兼容 · 未取得机器执行资格</string>
+    <string name="profiles_compatibility">格式 v1 · 导入不会自动选择或启动机器</string>
     <string name="profiles_import_save">保存导入草稿</string>
     <string name="profiles_conflict">相同 ID 已有不同参数。现有草稿不会被覆盖。</string>
     <string name="profiles_existing">现有草稿</string>
@@ -50,4 +50,6 @@
     <string name="profiles_summary">温度 %1$d °C · 最终杯重 %2$s g · %3$d 个阶段</string>
     <string name="profiles_stage_pressure_summary">阶段 %1$d：%2$s bar · 本段水量 %3$s mL</string>
     <string name="profiles_stage_raw_summary">阶段 %1$d：目标原始值 %2$d · 本段水量 %3$s mL</string>
+    <string name="profiles_pressure_compatible">压力参数兼容 · 保存后可用于冲煮</string>
+    <string name="profiles_pressure_execution_limits">运行需使用兼容固件；水量须为整数 mL，杯重须以 0.1 g 为步长。其它参数仍可保存查看。</string>
 </resources>

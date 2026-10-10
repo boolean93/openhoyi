@@ -92,7 +92,7 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
         var service: MobileService? = null
         var message: SnapshotMessage? = null
         onMain { service = owner(home); message = service!!.snapshot.message }
-        val source = app.curves.items.firstOrNull { it.controlProfile != null && runCatching { CustomCurveDocument.fromLibraryItem(it) }.isSuccess }
+        val source = app.curves.items.firstOrNull { it.controlProfile != null && runCatching { CustomCurveDocument.fromLibraryItem(it).controlMode == CustomCurveDocument.ControlMode.FLOW_RAW }.getOrDefault(false) }
             ?: error("No shareable captured parameter fixture")
         val session = UUID.randomUUID().toString()
         var registered = false

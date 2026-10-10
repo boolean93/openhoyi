@@ -7,6 +7,21 @@ class CustomCurveExecutionLibraryTest {
     private fun doc()=CustomCurveDocument("draft-00000000-0000-4000-8000-000000000001","My pressure",92,1800,
         CustomCurveDocument.ControlMode.PRESSURE,listOf(CustomCurveDocument.Stage(30,150),CustomCurveDocument.Stage(90,400)))
     private fun item(doc:CustomCurveDocument)=CurveLibraryItem(doc.id,doc.name,"local-draft","",null,customDocument=doc)
+    @Test fun dispatchPermitRequiresSelectedSavedRecipeAndExactCurrentParameters() {
+        var current=listOf(item(doc()))
+        val library=CurveLibrary(emptyList(),draftsProvider={current},enableCustomPressureExecution=true)
+        val withoutScale=requireNotNull(library.resolve(doc().id,false)).parameters
+        val withScale=requireNotNull(library.resolve(doc().id,true)).parameters
+        assertTrue(library.permitsCustomPressureStart(doc().id,withoutScale))
+        assertTrue(library.permitsCustomPressureStart(doc().id,withScale))
+        assertFalse(library.permitsCustomPressureStart(null,withoutScale))
+        assertFalse(library.permitsCustomPressureStart("capture-1",withoutScale))
+        assertFalse(library.permitsCustomPressureStart(doc().id,withoutScale.copy(target1=31)))
+        assertFalse(library.permitsCustomPressureStart(doc().id,withoutScale.copy(slot=1)))
+        current=listOf(item(doc().copy(temperatureC=93)))
+        assertFalse(library.permitsCustomPressureStart(doc().id,withoutScale))
+        current=emptyList();assertFalse(library.permitsCustomPressureStart(doc().id,withoutScale))
+    }
     @Test fun explicitlyEnabledStoredPressureRecipeResolvesToLocallyValidatedParameters() {
         val original=item(doc());val library=CurveLibrary(emptyList(),draftsProvider={listOf(original)},enableCustomPressureExecution=true)
         assertTrue(library.canStart(original))

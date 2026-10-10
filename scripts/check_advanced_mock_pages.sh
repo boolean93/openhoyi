@@ -129,3 +129,21 @@ PY
 collect
 adb shell am force-stop "$package"
 adb shell wm size 1600x1000
+
+# Run after non-execution checks so completed CI-owned shot evidence is not their baseline.
+python3 - "$output_dir/custom-curve-execution.txt" <<'CHECK_PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    result=subprocess.run(['adb','shell','am','instrument','-w','-e','customExecution','true',
+        '-e','disposableCiEmulator','true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],stdout=capture,timeout=180)
+if result.returncode:
+    raise SystemExit(result.returncode)
+expected='CUSTOM_CURVE_EXECUTION_CHECKS_PASSED import=true select=true confirm=true running=true ended=true history=true usage=true journal=true noBle=true'
+if expected not in output.read_text():
+    raise SystemExit(f'Custom curve execution did not confirm completion: {output}')
+CHECK_PY
+collect
+adb shell am force-stop "$package"

@@ -18,7 +18,7 @@
     <string name="profiles_invalid">Недопустимые параметры: название — 1–100 символов, температура — 75–105 °C, вес в чашке — 0–200 г, давление — 0–12 бар, вода на каждом этапе — больше 0 и не более 6553.5 мл.</string>
     <string name="profiles_unavailable">Данные пользовательских профилей недоступны. Исходный файл сохранён. Редактирование и сохранение невозможны.</string>
     <string name="profiles_missing">Этот профиль не найден</string>
-    <string name="profiles_read_only">Локальный черновик параметров · Только просмотр; запуск машины невозможен</string>
+    <string name="profiles_read_only">Параметры только для просмотра · Запуск пока не поддерживается</string>
     <string name="profiles_stage_caption">Схема целей по этапам · Давление в барах · Горизонтальная ось показывает этапы, а не секунды или прогноз будущего давления</string>
     <string name="profiles_flow_raw">Единицы целевого значения потока ещё не подтверждены. Сохраняются и отображаются только исходные значения; редактирование потока и запуск машины недоступны.</string>
     <string name="profiles_copy_warning">Из записанных и заводских профилей создаются только минимальные копии параметров. Исходные профили не перезаписываются, исходные сообщения запуска не включаются.</string>
@@ -40,7 +40,7 @@
     <string name="profiles_import_hint">Вставьте JSON или выберите файл JSON. Проверьте совместимость, прежде чем решать, сохранять ли его. Максимум 64 KiB.</string>
     <string name="profiles_import_invalid">Не удалось прочитать параметры профиля: версия, поля или диапазоны не поддерживаются либо файл превышает 64 KiB. Исходный файл не изменён.</string>
     <string name="profiles_import_preview">Предпросмотр импорта</string>
-    <string name="profiles_compatibility">Формат v1 · Локальные параметры совместимы · Допуск к выполнению на машине не получен</string>
+    <string name="profiles_compatibility">Формат v1 · Импорт не выбирает профиль и не запускает машину автоматически</string>
     <string name="profiles_import_save">Сохранить импортированный черновик</string>
     <string name="profiles_conflict">Этот ID уже существует с другими параметрами. Существующий черновик не будет перезаписан.</string>
     <string name="profiles_existing">Существующий черновик</string>
@@ -50,4 +50,6 @@
     <string name="profiles_summary">Температура %1$d °C · Итоговый вес в чашке %2$s г · Этапов: %3$d</string>
     <string name="profiles_stage_pressure_summary">Этап %1$d: %2$s бар · Вода на этом этапе %3$s мл</string>
     <string name="profiles_stage_raw_summary">Этап %1$d: Исходное целевое значение %2$d · Вода на этом этапе %3$s мл</string>
+    <string name="profiles_pressure_compatible">Параметры давления совместимы · После сохранения можно использовать для приготовления</string>
+    <string name="profiles_pressure_execution_limits">Для запуска нужна совместимая прошивка, объём воды в целых mL и вес в чашке с шагом 0.1 g. Остальные параметры можно сохранить для просмотра.</string>
 </resources>

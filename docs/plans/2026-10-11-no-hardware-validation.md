@@ -34,3 +34,13 @@
 - CurveLibrary新增显式默认关闭开关。开启后仅当前保存且无损可表示的压力文档可resolve；编辑/移除撤销旧profile。未保存、原始流量、非整ml或非0.1g参数不能取得资格。真实红为3测试2断言失败，随后3项绿。864独立oracle帧对比同时核对参数策略。
 - 完整device-session JUnit670（0fail/error/skip）、93回放cases；Mobile Debug/Mock各261（0fail/error、1既有skip）；统一回归27s。两轮独立静态复审无P1/P2，建议的五类队列故障注入已落实并通过。
 - 应用开关、AndroidDevice/Hub的host许可传递以及UI/模拟器全流程尚未接通；当前不能宣称用户端自制曲线完整可执行。下一阶段继续这些接线，不因暂无真机而停止。
+
+## 第三阶段：产品入口与执行闭环（正在验证）
+
+- MobileApplication显式开启受限压力执行；CurveLibrary许可只匹配当前选中且当前保存配方的精确参数，slot7，分别按有/无秤产生参数。AndroidDevice/NativeDeviceHub传递默认拒绝的回调，MobileService每次许可重新读当前选中ID。导入不选择、不启动机器，原始流量仍只读。
+- 编辑、库详情、分享预览同步展示参数兼容和无损边界，8语言52key一致。原只读升级/文档断言使用FLOW_RAW fixture保留，不删只读控制测试。
+- 独立审查发现ShotHistory拒绝draft，阻断真实和Mock启动。先新增回归取得红（规范draft ID begin抛出IllegalArgumentException），随后支持规范UUID、仅临时slot7；历史身份不构成设备许可。新测试核对拒绝非法ID和预设槽位、结束和使用证据持久化。
+- 本地Debug/Mock各263测试（0fail/error，1既有skip），仪表测试Kotlin编译通过；统一命令27s。只通过编译不代表模拟器路径已执行。
+- 新增CustomCurveExecutionChecks：仅disposable CI Mock，通过实际导入/预览确认/库选择/启动确认/停止按钮，断言Service运行和结束、历史、永久使用次数、journal及无Bluetooth hub。既有记录保持，拒绝已有未知/未结束记录，不清理未知状态。接入advanced页面脚本末尾，尚待当前提交模拟器运行确认。
+
+- 独立复审补充真实模拟器门禁：customExecution必须同时满足Mock隔离包、disposable标志、ranchu/goldfish硬件和ro.kernel.qemu=1；不能仅凭旗标写用户Mock数据。

@@ -18,7 +18,7 @@
     <string name="profiles_invalid">매개변수가 유효하지 않습니다. 이름은 1–100자, 온도는 75–105 °C, 컵 무게는 0–200 g, 압력은 0–12 bar여야 하며 각 단계의 물 양은 0보다 크고 6553.5 mL 이하여야 합니다.</string>
     <string name="profiles_unavailable">사용자 프로파일 데이터를 사용할 수 없습니다. 원본 파일은 보존되었습니다. 편집하거나 저장할 수 없습니다.</string>
     <string name="profiles_missing">이 프로파일을 찾을 수 없습니다</string>
-    <string name="profiles_read_only">로컬 매개변수 초안 · 보기 전용이며 머신을 시작할 수 없습니다</string>
+    <string name="profiles_read_only">보기 전용 매개변수 · 현재 실행은 지원하지 않습니다</string>
     <string name="profiles_stage_caption">단계별 목표 도식 · 압력 단위 bar · 가로축은 단계이며 초 단위 시간이나 향후 압력 예측이 아닙니다</string>
     <string name="profiles_flow_raw">유량 제어 목표의 단위는 아직 확인되지 않았습니다. 원시 값만 보존하고 표시하며 유량 편집이나 머신 시작은 제공하지 않습니다.</string>
     <string name="profiles_copy_warning">수집된 프로파일과 공장 프로파일에서는 최소 매개변수 사본만 생성합니다. 원본 프로파일을 덮어쓰지 않으며 원본 시작 메시지를 포함하지 않습니다.</string>
@@ -40,7 +40,7 @@
     <string name="profiles_import_hint">JSON을 붙여넣거나 JSON 파일을 선택하세요. 호환 정보를 확인한 후 저장 여부를 결정하세요. 최대 64 KiB입니다.</string>
     <string name="profiles_import_invalid">프로파일 매개변수를 읽을 수 없습니다. 버전, 필드 또는 범위가 지원되지 않거나 파일이 64 KiB를 초과했습니다. 원본 파일은 변경되지 않았습니다.</string>
     <string name="profiles_import_preview">가져오기 미리 보기</string>
-    <string name="profiles_compatibility">형식 v1 · 로컬 매개변수 호환 · 머신 실행 자격은 확보되지 않음</string>
+    <string name="profiles_compatibility">형식 v1 · 가져와도 프로파일을 자동 선택하거나 머신을 시작하지 않습니다</string>
     <string name="profiles_import_save">가져온 초안 저장</string>
     <string name="profiles_conflict">같은 ID에 다른 매개변수가 이미 있습니다. 기존 초안을 덮어쓰지 않습니다.</string>
     <string name="profiles_existing">기존 초안</string>
@@ -50,4 +50,6 @@
     <string name="profiles_summary">온도 %1$d °C · 최종 컵 무게 %2$s g · %3$d단계</string>
     <string name="profiles_stage_pressure_summary">단계 %1$d: %2$s bar · 이 단계의 물 양 %3$s mL</string>
     <string name="profiles_stage_raw_summary">단계 %1$d: 원시 목표값 %2$d · 이 단계의 물 양 %3$s mL</string>
+    <string name="profiles_pressure_compatible">압력 매개변수 호환 · 저장 후 추출에 사용할 수 있습니다</string>
+    <string name="profiles_pressure_execution_limits">실행하려면 호환 펌웨어가 필요합니다. 물 양은 정수 mL, 컵 무게는 0.1 g 단위여야 합니다. 다른 매개변수도 저장하여 볼 수 있습니다.</string>
 </resources>

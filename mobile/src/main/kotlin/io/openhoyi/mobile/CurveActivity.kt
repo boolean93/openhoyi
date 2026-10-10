@@ -344,7 +344,7 @@ class CurveActivity : ThemedActivity() {
         detailTitle.text = item.name
         detailCategory.text = if (draft != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(this, item.category)
         details.text = if (draft != null) profileSummary(draft) else curveDetailsText.render(item, canStart)
-        availability.text = if (draft != null) getString(R.string.profiles_read_only) else if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
+        availability.text = if (draft != null) getString(if (canStart) R.string.profiles_pressure_compatible else R.string.profiles_read_only) else if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
         val copyable = runCatching { CustomCurveDocument.fromLibraryItem(item) }.getOrNull()
         editDraft.text = getString(if (draft != null) R.string.profiles_edit else R.string.profiles_edit_copy)
         editDraft.visibility = View.VISIBLE

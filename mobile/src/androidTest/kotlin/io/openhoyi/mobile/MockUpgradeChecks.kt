@@ -106,7 +106,7 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
     private val advancedNotes get() = BrewJournal.Notes("upgrade-bean", "Upgrade coffee", 18000,
         "E6 12", "Tracked as expected", "Sweet", "Slightly coarser")
     private val advancedDraft get() = CustomCurveDocument("draft-00000000-0000-4000-8000-000000000001",
-        "Upgrade local recipe", 93, 3600, CustomCurveDocument.ControlMode.PRESSURE,
+        "Upgrade local recipe", 93, 3600, CustomCurveDocument.ControlMode.FLOW_RAW,
         listOf(CustomCurveDocument.Stage(30, 100), CustomCurveDocument.Stage(90, 400)))
     private fun advancedMarker(phase:String) = test.sendStatus(0, Bundle().apply {
         putString("stream", "MOCK_UPGRADE_ADVANCED_${phase}_PASSED stores=5 protocolPair=true readOnlyDraft=true doseIdempotent=true\n")

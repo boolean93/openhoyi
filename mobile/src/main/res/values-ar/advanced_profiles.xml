@@ -18,7 +18,7 @@
     <string name="profiles_invalid">معلمات غير صالحة: الاسم من 1–100 حرف، والحرارة 75–105 °C، ووزن الكوب 0–200 غ، والضغط 0–12 بار، وماء كل مرحلة أكبر من 0 ولا يتجاوز 6553.5 mL.</string>
     <string name="profiles_unavailable">بيانات ملفات الاستخلاص المخصصة غير متاحة. تم الاحتفاظ بالملف الأصلي. لا يمكن التعديل أو الحفظ.</string>
     <string name="profiles_missing">لم يتم العثور على ملف الاستخلاص هذا</string>
-    <string name="profiles_read_only">مسودة معلمات محلية · للعرض فقط؛ لا يمكن تشغيل الآلة</string>
+    <string name="profiles_read_only">المعلمات للعرض فقط · التشغيل غير مدعوم حاليًا</string>
     <string name="profiles_stage_caption">مخطط أهداف المراحل · الضغط بالبار · المحور الأفقي يمثل المراحل، وليس الثواني أو توقعًا للضغط المستقبلي</string>
     <string name="profiles_flow_raw">لم يتم تأكيد وحدات هدف التحكم في التدفق بعد. تُحفظ وتُعرض القيم الخام فقط؛ لا يتوفر تعديل التدفق أو تشغيل الآلة.</string>
     <string name="profiles_copy_warning">تُنشأ فقط نسخ بالحد الأدنى من المعلمات من ملفات الاستخلاص المسجّلة والمصنعية. لا تُستبدل الملفات الأصلية ولا تُضمّن رسائل التشغيل الأصلية.</string>
@@ -40,7 +40,7 @@
     <string name="profiles_import_hint">الصق JSON أو اختر ملف JSON. تحقق من معلومات التوافق قبل أن تقرر الحفظ. الحد الأقصى 64 KiB.</string>
     <string name="profiles_import_invalid">تعذّر قراءة معلمات الاستخلاص: الإصدار أو الحقول أو النطاقات غير مدعومة، أو الملف يتجاوز 64 KiB. لم يتغير الملف الأصلي.</string>
     <string name="profiles_import_preview">معاينة الاستيراد</string>
-    <string name="profiles_compatibility">التنسيق v1 · معلمات محلية متوافقة · لم تحصل على أهلية التنفيذ على الآلة</string>
+    <string name="profiles_compatibility">التنسيق v1 · الاستيراد لا يختار ملف الاستخلاص أو يشغّل الآلة تلقائيًا</string>
     <string name="profiles_import_save">حفظ المسودة المستوردة</string>
     <string name="profiles_conflict">يوجد المعرف نفسه بمعلمات مختلفة. لن تُستبدل المسودة الموجودة.</string>
     <string name="profiles_existing">المسودة الموجودة</string>
@@ -50,4 +50,6 @@
     <string name="profiles_summary">الحرارة %1$d °C · الوزن النهائي في الكوب %2$s غ · عدد المراحل %3$d</string>
     <string name="profiles_stage_pressure_summary">المرحلة %1$d: %2$s بار · ماء هذه المرحلة %3$s mL</string>
     <string name="profiles_stage_raw_summary">المرحلة %1$d: قيمة الهدف الخام %2$d · ماء هذه المرحلة %3$s mL</string>
+    <string name="profiles_pressure_compatible">معلمات الضغط متوافقة · يمكن استخدامها للتحضير بعد الحفظ</string>
+    <string name="profiles_pressure_execution_limits">يتطلب التشغيل برنامجًا ثابتًا متوافقًا، وكميات ماء بأعداد صحيحة بوحدة mL، ووزن الكوب بخطوات 0.1 g. يمكن حفظ المعلمات الأخرى للعرض أيضًا.</string>
 </resources>

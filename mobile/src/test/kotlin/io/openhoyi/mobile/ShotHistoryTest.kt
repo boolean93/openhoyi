@@ -5,6 +5,23 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ShotHistoryTest {
+    @Test fun customRecipeHistoryUsesBoundedUuidIdentityAndTemporarySlot() {
+        val disk=Memory()
+        val history=ShotHistory(disk,now={1_000_000L},newId={"custom-shot"})
+        val id="draft-00000000-0000-4000-8000-000000000001"
+        assertThrows(IllegalArgumentException::class.java) {history.begin(id,slot=1)}
+        for(invalid in listOf("draft-bogus", "draft-", id+"-extra"))
+            assertThrows(IllegalArgumentException::class.java) {history.begin(invalid)}
+        history.begin(id)
+        history.observeRunning()
+        history.transition(ExtractionState.RUNNING,null,null)
+        history.transition(ExtractionState.ENDED_OBSERVED,null,3600,1_030_000L)
+        val restored=ShotHistory(disk,now={1_031_000L}).entries.single()
+        assertEquals(id,restored.curveId);assertEquals(7,restored.slot)
+        assertEquals(ShotHistory.Status.ENDED,restored.status)
+        assertTrue(restored.observedRunning)
+    }
+
     @Test fun failedBeginDoesNotReserveTheActiveSlotOrNotifyObservers() {
         var failWrite = true
         var observed = 0

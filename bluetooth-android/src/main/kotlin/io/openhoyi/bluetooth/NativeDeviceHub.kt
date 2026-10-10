@@ -18,7 +18,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     tareStorage:StandaloneTare.Storage? = null,
     private val onScaleObservation:(ScaleObservation)->Unit = {},
     rememberedScaleProtocolId:String?=null,
-    private val onScaleSelectionRemembered:(address:String,protocolId:String)->Unit={_,_->}) : AutoCloseable {
+    private val onScaleSelectionRemembered:(address:String,protocolId:String)->Unit={_,_->},
+    customPressureStartPermit:(StartParameters)->Boolean={false}) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var remembered=ScaleSelectionPolicy.remembered(rememberedScaleAddress,rememberedScaleProtocolId)
@@ -39,7 +40,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     private val coffee:AndroidDevice=AndroidDevice(context,DeviceRole.COFFEE,
         stateChanged={onState(DeviceRole.COFFEE,it)},
         coffeeFrame={frame,time->extraction.machineFrame(frame,time);onCoffee(frame)},diagnostic=diagnostic,
-        trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames)
+        trace={trace(DeviceRole.COFFEE,it)},legacyVerifiedStartFrames=legacyVerifiedStartFrames,
+        customPressureStartPermit=customPressureStartPermit)
     private val coffeeControl=CoffeeSessionControl(coffee.session)
     private val scaleControl=DynamicScaleControl({scaleSlot.current?.owner?.control},{standaloneTare.unresolved})
     val extraction:ExtractionController=ExtractionController(coffeeControl,scaleControl,{SystemClock.elapsedRealtime()})

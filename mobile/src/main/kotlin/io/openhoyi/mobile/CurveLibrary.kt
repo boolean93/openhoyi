@@ -16,6 +16,11 @@ data class CurveLibraryItem(
 class CurveLibrary(factory: List<FactoryCurve>, private val proof: FactoryWireProof? = null,
                    private val draftsProvider: () -> List<CurveLibraryItem> = { emptyList() },
                    private val enableCustomPressureExecution:Boolean=false) {
+    fun permitsCustomPressureStart(selectedId:String?,parameters:io.openhoyi.protocol.StartParameters):Boolean {
+        if(selectedId == null || !selectedId.startsWith("draft-") || parameters.slot != 7 ||
+            !io.openhoyi.protocol.CustomPressureStartPolicy.permits(parameters))return false
+        return listOf(false,true).any { resolve(selectedId,it)?.parameters == parameters }
+    }
     val legacyVerifiedStartFrames: Set<String> get() = proof?.allowedFrames() ?: emptySet()
     private val verifiedItems: List<CurveLibraryItem> = java.util.Collections.unmodifiableList(
         CurveCatalog.profiles.map { profile ->

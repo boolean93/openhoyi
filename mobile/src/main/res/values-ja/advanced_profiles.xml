@@ -18,7 +18,7 @@
     <string name="profiles_invalid">パラメータが無効です。名前は1–100文字、温度は75–105 °C、カップ重量は0–200 g、圧力は0–12 bar、各段階の水量は0より大きく6553.5 mL以下にしてください。</string>
     <string name="profiles_unavailable">自作プロファイルのデータを利用できません。元のファイルは保持されています。編集や保存はできません。</string>
     <string name="profiles_missing">このプロファイルが見つかりません</string>
-    <string name="profiles_read_only">ローカルパラメータの下書き · 閲覧専用。マシンを開始できません。</string>
+    <string name="profiles_read_only">パラメータは閲覧専用 · 現在は実行非対応</string>
     <string name="profiles_stage_caption">段階ごとの目標の図 · 圧力単位はbar · 横軸は段階で、秒数でも将来の圧力予測でもありません</string>
     <string name="profiles_flow_raw">流量制御の目標値の単位は未確認です。生の数値のみを保持・表示し、流量の編集やマシンの開始はできません。</string>
     <string name="profiles_copy_warning">収集済み・工場出荷時のプロファイルからは最小限のパラメータのコピーのみを作成します。元のプロファイルは上書きせず、元の開始メッセージも含めません。</string>
@@ -40,7 +40,7 @@
     <string name="profiles_import_hint">JSONを貼り付けるか、JSONファイルを選択してください。互換情報を確認してから保存するか決めてください。最大64 KiBです。</string>
     <string name="profiles_import_invalid">プロファイルのパラメータを読み取れません。バージョン・項目・範囲が非対応、またはファイルが64 KiBを超えています。元のファイルは変更されていません。</string>
     <string name="profiles_import_preview">インポート内容の確認</string>
-    <string name="profiles_compatibility">形式v1 · ローカルパラメータ互換 · マシンでの実行資格は未取得</string>
+    <string name="profiles_compatibility">形式v1 · インポートしてもプロファイルの自動選択やマシンの開始は行いません</string>
     <string name="profiles_import_save">インポートした下書きを保存</string>
     <string name="profiles_conflict">同じIDに異なるパラメータが既にあります。既存の下書きは上書きされません。</string>
     <string name="profiles_existing">既存の下書き</string>
@@ -50,4 +50,6 @@
     <string name="profiles_summary">温度 %1$d °C · 最終カップ重量 %2$s g · %3$d 段階</string>
     <string name="profiles_stage_pressure_summary">段階 %1$d：%2$s bar · この段階の水量 %3$s mL</string>
     <string name="profiles_stage_raw_summary">段階 %1$d：目標の生の値 %2$d · この段階の水量 %3$s mL</string>
+    <string name="profiles_pressure_compatible">圧力パラメータは互換性あり · 保存後に抽出で使用できます</string>
+    <string name="profiles_pressure_execution_limits">実行には対応ファームウェアが必要です。水量は整数mL、カップ重量は0.1 g刻みにしてください。それ以外のパラメータも保存して閲覧できます。</string>
 </resources>
