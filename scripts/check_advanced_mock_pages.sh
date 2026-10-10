@@ -142,7 +142,7 @@ with output.open('w') as capture:
 if result.returncode:
     raise SystemExit(result.returncode)
 expected='CUSTOM_CURVE_EXECUTION_CHECKS_PASSED import=true select=true confirm=true running=true ended=true history=true usage=true journal=true noBle=true'
-if expected not in output.read_text():
+if expected not in output.read_text() or 'SERVICE_CUSTOM_PRESSURE_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=21 fakeBarriers=39 blocked=33 reloadedRecords=39 exactWire=true durableBeforeWrite=true lateSuccessIgnored=true noBle=true detached=true' not in output.read_text():
     raise SystemExit(f'Custom curve execution did not confirm completion: {output}')
 CHECK_PY
 collect

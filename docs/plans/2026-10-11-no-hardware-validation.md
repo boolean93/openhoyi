@@ -50,3 +50,11 @@
 - 扩展ReadOnlyScaleSessionTest，使用虚拟GattDriver驱动真实DeviceSession/GattQueue。新增订阅拒绝和5秒超时后旧token/通知不晋级、GATT缺失/重复/不支持notify/错误端点不订阅、indicate路径仍需完整gram帧、断连重连拒绝旧generation且保留有符号读数/时间戳/raw/evidence。
 - 全路径断言无characteristic Write和无BOOKOO兼容weightFrame；原错单位/错端点/坏帧/offline冒充live/去皮拒绝/READY回调重入检查保留。协议公开形状来源不变，没有生成控制指令或新增全型号保证。
 - 专项9项通过；完整device-session 674JUnit（0fail/error/skip）、93既有回放cases通过。独立静态审查无P1/P2；审查未运行Gradle，这些是虚拟会话回放而非实机效果证据。
+
+## 第五阶段：自制压力配方真实Service虚拟派发
+
+- CustomCurveExecutionChecks在严格disposable/qemu门禁内完成自己的UI配方后，复用ServiceShotDispatchChecks的39种TARE/WEIGHT_START/FLOW_START窗口。实际MobileService→NativeDeviceHub→AndroidDevice→DeviceSession→GuardedGattDriver，未通过Mock runtime替代此链路；只替换底层为虚拟GattDriver。
+- 自制配方frame必须不在legacy factory白名单；仅本次doc按窗口切换目标重量，finally恢复原doc。安全prefs/历史/TraceStore使用每窗口私有fixture；原应用机器prefs逐项保持，无系统BLE服务、权限或组件派发。
+- 保留39fixture、21writes、39barriers、33blocked、39持久化重载、exactWire、durableBeforeWrite与lateSuccessIgnored断言。自制配方被切换时session许可立即撤销，原captured模式的既有检查不变。
+- 仪表Kotlin编译17s成功；独立静态审查无P1/P2，未独立运行Gradle。脚本必须同时取得UI全流程marker及SERVICE_CUSTOM_PRESSURE_DISPATCH_CHECKS_PASSED marker；尚待新提交实际模拟器运行，不把编译当闭环通过。
+- b64d780升级CI38068204356已success，实际下载/tmp/openhoyi-upgrade-b64d780，seed/verify均含严格stores=5 protocolPair=true readOnlyDraft=true doseIdempotent=true marker。其它运行门禁和当前新增检查仍需新源码结果。

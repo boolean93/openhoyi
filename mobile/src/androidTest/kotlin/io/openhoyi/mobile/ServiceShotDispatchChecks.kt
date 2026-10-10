@@ -27,7 +27,13 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
 
     fun run()=runChecks(false)
     fun runCompletion()=runChecks(true)
-    private fun runChecks(completion:Boolean) {
+    fun runCustom(document:CustomCurveDocument) {
+        val app=test.targetContext.applicationContext as MobileApplication
+        val store=app.customCurvesResult.getOrThrow()
+        check(store.find(document.id)==document) {"Only this CI run's saved recipe may be exercised"}
+        try {runChecks(false,document)} finally {store.save(document)}
+    }
+    private fun runChecks(completion:Boolean,custom:CustomCurveDocument?=null) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
@@ -60,7 +66,13 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
             }
             var outerFailure:Throwable?=null
             try {
-                val selected=CurveCatalog.profiles[if(window=="FLOW_START")1 else 2]
+                val selected=if(custom==null) CurveCatalog.profiles[if(window=="FLOW_START")1 else 2] else {
+                    app.customCurvesResult.getOrThrow().save(custom.copy(targetHundredthsGram=if(window=="FLOW_START")0 else custom.targetHundredthsGram))
+                    requireNotNull(app.curves.resolve(custom.id,true,7)).also {
+                        check(it.parameters.pressureLogic.not() && it.parameters.variableFlowLogic.not())
+                        check(CoffeeCommands.start(it.parameters).frame.hex() !in app.curves.legacyVerifiedStartFrames)
+                    }
+                }
                 check(app.curves.resolve(selected.id,true,7)==selected && app.curves.validated(selected))
                 val curvePrefs=app.getSharedPreferences(fixtures.getValue("curves"),Context.MODE_PRIVATE)
                 check(curvePrefs.edit().putString("selected",selected.id).commit())
@@ -81,7 +93,9 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                             field(instance,"history").set(instance,detachedShotHistory())
                             check(!field(instance,"running").getBoolean(instance))
                         }
-                        val instance=attach();val owner=NativeDeviceHub(context);hub=owner
+                        val instance=attach();val owner=NativeDeviceHub(context,customPressureStartPermit={parameters ->
+                            custom!=null && app.curves.permitsCustomPressureStart(curvePrefs.getString("selected",null),parameters)
+                        });hub=owner
                         field(instance,"hub").set(instance,owner)
                         val devices=listOf("coffee","scale").map { field(owner,it).get(owner) as AndroidDevice }
                         val sessions=devices.map { it.session }
@@ -173,7 +187,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         }
                         val allowed=completion || mode=="ALLOW" || mode=="PREHEAT_ALLOW"
                         // Session's original eligibility remains intact: product-only injections must drive rejection.
-                        check(sessions[0].captureStartContext(selected.parameters)!=null)
+                        check((sessions[0].captureStartContext(selected.parameters)!=null)==(custom==null || mode!="CURVE"))
                         val expectedShot=shotPrefs.all.toMap();val expectedMachine=prefs.all.toMap()
                         complete(index,blocker)
                         if(allowed && window=="TARE") {

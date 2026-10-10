@@ -122,6 +122,11 @@ internal class CustomCurveExecutionChecks(private val test:Instrumentation) {
             check(app.customCurvesResult.getOrThrow().list().filter {it.id!=doc.id}==originalDrafts)
             check(app.journalResult.getOrThrow().entries().any {it.observation.id==shot.id && it.observation.curveId==doc.id})
             noBle()
+            ServiceShotDispatchChecks(test).runCustom(doc)
+            check(app.customCurvesResult.getOrThrow().find(doc.id)==doc)
+            test.sendStatus(0,android.os.Bundle().apply {putString("stream",
+                "SERVICE_CUSTOM_PRESSURE_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=21 fakeBarriers=39 blocked=33 reloadedRecords=39 exactWire=true durableBeforeWrite=true lateSuccessIgnored=true noBle=true detached=true\n")})
+            noBle()
         } finally {
             // CI-owned completed records remain as evidence; never clear safety or unknown records.
             main {opened.asReversed().filter {!it.isDestroyed}.forEach {it.finish()}}
