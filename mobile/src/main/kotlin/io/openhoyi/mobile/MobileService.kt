@@ -227,10 +227,9 @@ class MobileService : Service() {
                     event(ResourceMessage(R.string.service_event_mock_temperature_ready), "mock.brew_wait_ready")
             }
             (snapshot.coffee as? io.openhoyi.protocol.ExtractionTelemetry)?.let { frame ->
-                observeBrewFeedback(frame, now)
-                series.machine(frame, now, snapshot.weight?.weightHundredthsGram,
-                    snapshot.weightAt, snapshot.weight?.deviceFlowHundredths)
-                saveSeriesCheckpoint(now)
+                // Mock samples use the same observation/history projection as real telemetry.
+                // These remain synthetic and never authorize a Bluetooth write.
+                recordMachinePoint(frame, now)
             }
             handler.postDelayed(this, 250)
         }

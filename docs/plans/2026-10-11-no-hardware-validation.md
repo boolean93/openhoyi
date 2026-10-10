@@ -58,3 +58,11 @@
 - 保留39fixture、21writes、39barriers、33blocked、39持久化重载、exactWire、durableBeforeWrite与lateSuccessIgnored断言。自制配方被切换时session许可立即撤销，原captured模式的既有检查不变。
 - 仪表Kotlin编译17s成功；独立静态审查无P1/P2，未独立运行Gradle。脚本必须同时取得UI全流程marker及SERVICE_CUSTOM_PRESSURE_DISPATCH_CHECKS_PASSED marker；尚待新提交实际模拟器运行，不把编译当闭环通过。
 - b64d780升级CI38068204356已success，实际下载/tmp/openhoyi-upgrade-b64d780，seed/verify均含严格stores=5 protocolPair=true readOnlyDraft=true doseIdempotent=true marker。其它运行门禁和当前新增检查仍需新源码结果。
+
+## 第六阶段：实际模拟器揭示的Mock使用观察缺口
+
+- b64d780 advanced38068204352终态failure，产物/tmp/openhoyi-advanced-b64d780：compact/wideFont各240fixture、17业务paths、11文档合约和7实际DocumentsUI paths全部通过；新增CustomCurveExecutionChecks在114行等待RUNNING且history.observedRunning时超时。不能据此前面通过宣称执行闭环通过。
+- 根因：Mock采样循环原直接调用feedback/series/checkpoint，绕过recordMachinePoint中的CurveUseEvidence/history.observeRunning。即使收到Mock阀门开启且非预热的萃取遥测，也从不标记使用；测试强断言必不成立。
+- 修复仅将Mock循环三步替换为一次共用recordMachinePoint调用。原真实路径不改，仍由阀门/非预热遥测而非command-success或RUNNING状态计数；shot ID幂等。Mock包隔离且不授予BLE控制，不把synthetic观察冒称物理证据。
+- 原15秒和UI确认/使用一次/结束/历史/journal断言保留，仅增加超时阶段说明。完整Debug/Mock各263测试（0fail/error、1既有skip）和仪表编译57s成功；独立静态审查无P1/P2。最新实际运行待确认，不能把本地编译当作修复完成。
+- 排障结论：Mock采样与真实遥测的产品投影应共用观察入口；分别验证命令被接受、状态变化、实际样本证据与持久化业务结果，不能只看到图表在动就认为历史/使用记录闭环成立。

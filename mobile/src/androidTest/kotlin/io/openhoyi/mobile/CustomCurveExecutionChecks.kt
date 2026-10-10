@@ -21,12 +21,12 @@ internal class CustomCurveExecutionChecks(private val test:Instrumentation) {
         test.runOnMainSync {try {action()} catch(failure:Throwable) {error=failure}}
         error?.let {throw it}
     }
-    private fun await(condition:()->Boolean) {
+    private fun await(stage:String="UI",condition:()->Boolean) {
         val deadline=SystemClock.elapsedRealtime()+15000
         while(true) {
             var ready=false;main {ready=condition()}
             if(ready)return
-            check(SystemClock.elapsedRealtime()<deadline) {"Custom execution UI timed out"}
+            check(SystemClock.elapsedRealtime()<deadline) {"Custom execution timed out: $stage"}
             Thread.sleep(25)
         }
     }
@@ -111,7 +111,7 @@ internal class CustomCurveExecutionChecks(private val test:Instrumentation) {
                 if(matches.size==1) {check(matches.single().performAction(AccessibilityNodeInfo.ACTION_CLICK));confirmed=true}
                 else {check(SystemClock.elapsedRealtime()<deadline);Thread.sleep(25)}
             }
-            await {service.shotState==ExtractionState.RUNNING && app.history.entries.any {it.curveId==doc.id && it.observedRunning}}
+            await("running-observed-usage") {service.shotState==ExtractionState.RUNNING && app.history.entries.any {it.curveId==doc.id && it.observedRunning}}
             noBle()
             check(app.curveUsageResult.getOrThrow().stats(doc.id).count==1L)
             click(extraction,R.string.extraction_stop)
