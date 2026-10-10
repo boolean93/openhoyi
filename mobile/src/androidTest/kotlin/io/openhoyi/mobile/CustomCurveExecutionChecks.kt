@@ -38,14 +38,26 @@ internal class CustomCurveExecutionChecks(private val test:Instrumentation) {
         opened+=it;test.waitForIdleSync();await {it.hasWindowFocus() && root(it).isLaidOut}
     }
     private fun click(activity:Activity,label:Int) {
+        val text=activity.getString(label)
+        test.sendStatus(0,android.os.Bundle().apply {putString("stream","CUSTOM_EXECUTION_UI_ACTION waiting=$text\n")})
+        // Service telemetry and the activity's periodic render are separate main-loop tasks.
+        // A running service does not mean the corresponding control has rendered yet.
+        await("visible-enabled-action:$text") {
+            val matches=views(root(activity)).filterIsInstance<TextView>().filter {
+                it.isShown && it.isClickable && it.text.toString()==text
+            }
+            check(matches.size<=1) {"Ambiguous UI action: $text"}
+            activity.hasWindowFocus() && matches.singleOrNull()?.isEnabled==true
+        }
         main {
             val button=views(root(activity)).filterIsInstance<TextView>().single {
-                it.isShown && it.isClickable && it.text.toString()==activity.getString(label)
+                it.isShown && it.isClickable && it.text.toString()==text
             }
             check(button.isEnabled)
             button.requestRectangleOnScreen(android.graphics.Rect(0,0,button.width,button.height),true)
             check(button.performClick())
         }
+        test.sendStatus(0,android.os.Bundle().apply {putString("stream","CUSTOM_EXECUTION_UI_ACTION clicked=$text\n")})
         test.waitForIdleSync()
     }
     fun run(disposable:Boolean) {
