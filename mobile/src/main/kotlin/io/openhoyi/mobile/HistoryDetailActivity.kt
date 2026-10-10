@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowInsets
@@ -13,8 +14,9 @@ import java.util.Locale
 
 /** Historical chart is decoded from bounded local samples off the UI thread. */
 class HistoryDetailActivity : ThemedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState) }
+    override fun onStart() { super.onStart(); render() }
+    private fun render() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -41,7 +43,9 @@ class HistoryDetailActivity : ThemedActivity() {
         HoyiUi.header(this, body, if (BuildConfig.MOCK_MODE) getString(R.string.history_detail_mock_title) else getString(R.string.history_detail_title), back = true)
         val shotId = intent.getStringExtra("shotId")
         val app = application as MobileApplication
+        val permanent = shotId?.let { app.journalResult.getOrNull()?.find(it) }
         val entry = runCatching { app.history.entries.firstOrNull { it.id == shotId } }.getOrNull()
+            ?: permanent?.observation?.historySummary()
         if (entry == null) {
             HoyiUi.label(this, HoyiUi.card(this, body), getString(R.string.history_missing), 17)
             return
@@ -77,6 +81,17 @@ class HistoryDetailActivity : ThemedActivity() {
         }
         entry.slot?.takeIf { it in 1..5 }?.let {
             HoyiUi.label(this, summary, getString(R.string.history_slot, it.toString()), 14).apply { setPadding(0, dp(10), 0, 0) }
+        }
+        if (permanent != null) {
+            journalNotes(HoyiUi.card(this, body, getString(R.string.journal_notes_title)), permanent.notes)
+            HoyiUi.button(this, body, getString(R.string.journal_review), primary = true) {
+                startActivity(Intent(this, BrewReviewActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.id))
+            }
+            HoyiUi.button(this, body, getString(R.string.journal_compare)) {
+                startActivity(Intent(this, BrewComparisonActivity::class.java).putExtra(BrewComparisonActivity.FIRST_SHOT_ID, entry.id))
+            }
+        } else {
+            HoyiUi.label(this, HoyiUi.card(this, body), getString(if (app.journalResult.isFailure) R.string.journal_unavailable else R.string.journal_migrate_hint), 15)
         }
         val chartCard = HoyiUi.card(this, body, getString(R.string.extraction_chart))
         val chart = ShotChartView(this)

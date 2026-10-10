@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="live_pressure_chart">추출 압력 · bar</string>
+    <string name="live_cup_flow_chart">컵 유입 유량 · g/s</string>
+    <string name="live_cup_flow_source">저울의 무게 변화로 추정한 참고용 값입니다</string>
+    <string name="live_cup_flow_metric">컵 유입 유량(추정)</string>
+    <string name="live_chart_no_data">아직 데이터가 없습니다</string>
+    <string name="live_time_axis">시간 · s</string>
+    <string name="ui_brew">추출</string>
+</resources>

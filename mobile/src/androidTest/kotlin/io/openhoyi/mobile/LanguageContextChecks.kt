@@ -67,13 +67,18 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
                     // Resolve the expected Android resource independently from the production context wrapper.
                     val config = Configuration(context.resources.configuration).apply { setLocale(language.locale) }
                     val expected = context.createConfigurationContext(config)
-                    val label = expected.getString(R.string.ui_settings)
                     check(home.resources.configuration.locales[0] == language.locale)
                     check(app.resources.configuration.locales[0] == language.locale)
                     check(owner!!.resources.configuration.locales[0] == language.locale)
-                    check(home.getString(R.string.ui_settings) == label && app.getString(R.string.ui_settings) == label &&
-                        owner!!.getString(R.string.ui_settings) == label)
-                    check(containsText(home.window.decorView, label)) { "Visible Home navigation did not use ${language.tag}" }
+                    // Settings is now a secondary entry, not a bottom-navigation destination.
+                    // Independently verify every actual destination in all three resource contexts.
+                    for (id in listOf(R.string.ui_brew, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)) {
+                        val label = expected.getString(id)
+                        check(home.getString(id) == label && app.getString(id) == label && owner!!.getString(id) == label)
+                        check(containsText(home.window.decorView, label)) {
+                            "Visible Home navigation did not use ${language.tag}: $label"
+                        }
+                    }
                     val expectedDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
                     check(home.window.decorView.layoutDirection == expectedDirection)
                     check((home.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==

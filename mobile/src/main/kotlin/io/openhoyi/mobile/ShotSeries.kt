@@ -11,9 +11,13 @@ data class ShotPoint(
     val temperatureHundredthsC: Int,
     val weightHundredthsGram: Int?,
     val scaleFlowHundredths: Int? = null,
+    /** Null is legacy/unknown evidence; false is an observed non-brewing machine phase. */
+    val brewing: Boolean? = null,
 )
 
 class ShotSeries {
+    var curveId: String? = null
+        private set
     private var id: String? = null
     private var startedAtMs = 0L
     private var minimumGapMs = 0L
@@ -21,9 +25,11 @@ class ShotSeries {
     private val recorded = mutableListOf<ShotPoint>()
     val points: List<ShotPoint> get() = recorded.toList()
 
-    fun begin(shotId: String, atElapsedMs: Long) {
+    fun begin(shotId: String, atElapsedMs: Long, curveId: String? = null) {
         require(shotId.isNotBlank())
+        require(curveId == null || curveId.isNotBlank())
         id = shotId
+        this.curveId = curveId
         startedAtMs = atElapsedMs
         minimumGapMs = 0
         lastCheckpointAtMs = null
@@ -50,7 +56,7 @@ class ShotSeries {
         }
         val point = ShotPoint(elapsed, frame.pressureTenthsBar, frame.flowTenthsMlPerSecond,
             frame.totalWaterTenthsMl, frame.brewTemperatureHundredthsC, freshWeight,
-            scaleFlowHundredths.takeIf { freshWeight != null })
+            scaleFlowHundredths.takeIf { freshWeight != null }, frame.valveOpen && !frame.brewWait)
         if (last != null && elapsed - last.elapsedMs < minimumGapMs) {
             recorded[recorded.lastIndex] = point
             return
@@ -72,4 +78,9 @@ class ShotSeries {
     }
 
     companion object { const val MAX_POINTS = 2_000 }
+}
+
+/** Aligned display-only pressure values. Null marks a plot gap, not a deleted sample. */
+internal object RealtimeShotProjection {
+    fun values(points:List<ShotPoint>):List<Float?> = points.map { if(it.brewing==false)null else it.pressureTenthsBar/10f }
 }

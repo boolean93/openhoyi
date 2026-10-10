@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reference_choose">과거 참고 기록 선택</string>
+    <string name="reference_off">참고 숨기기</string>
+    <string name="reference_legend">실선: 이번 추출의 실시간 데이터 · 점선: 과거 참고 기록이며 예측이 아닙니다</string>
+    <string name="reference_source">참고: %1$s\n%2$s</string>
+    <string name="reference_align_observed">실제 추출이 처음 관측된 시점에 맞춥니다. 누락된 구간은 그대로 둡니다.</string>
+    <string name="reference_align_recorded">과거 기록에 단계 표시가 없어 기록 시작점에 맞춥니다. 추출 시작이 확인되었다는 뜻은 아닙니다.</string>
+    <string name="reference_unavailable">이 잔의 샘플을 사용할 수 없어 참고 곡선을 생성하지 않았습니다</string>
+    <string name="reference_targets">단계별 압력 설정(시간에 따른 예측이 아님)</string>
+    <string name="reference_stage">단계 %1$s: %2$s bar</string>
+    <string name="reference_raw">이 레시피에는 원시 유량 목표값이 포함되어 있어 압력이나 컵 유입 유량과 같은 그래프에 그리지 않습니다</string>
+    <string name="reference_trace_curve">차트에 표시된 기록: %1$s</string>
+</resources>

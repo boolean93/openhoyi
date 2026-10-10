@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dose_title">Selección de café y confirmación de dosis</string>
+    <string name="dose_subtitle">Guardar el café seleccionado no descuenta existencias; la confirmación explícita de la dosis las descuenta una sola vez</string>
+    <string name="dose_batch">Elegir lote de inventario</string>
+    <string name="dose_batch_choice">%1$s · Quedan %2$s g · %3$s</string>
+    <string name="dose_amount">Dosis real (g, hasta 3 decimales)</string>
+    <string name="dose_save_selection">Guardar café seleccionado (sin descontar existencias)</string>
+    <string name="dose_saved">Café seleccionado guardado; aún no se han descontado existencias</string>
+    <string name="dose_confirm">Confirmar que se ha dosificado el café y descontar existencias</string>
+    <string name="dose_retry">Reintentar la confirmación con el mismo registro de preparación</string>
+    <string name="dose_confirmed">Se han descontado %1$s g. Un fallo al iniciar no los devuelve automáticamente; cualquier corrección requiere un movimiento de ajuste en el inventario.</string>
+    <string name="dose_attempted">La confirmación de la dosis no está completa; puede que ya se hayan descontado existencias. Al reintentar se verifica el mismo evento, sin volver a descontar. No crees otro registro de preparación para descontar de nuevo.</string>
+    <string name="dose_summary">Café: %1$s\nLote: %2$s\nDosis real: %3$s g</string>
+    <string name="dose_record">Registro de preparación %1$s</string>
+    <string name="dose_next_cup">La dosis anterior está vinculada a una extracción. Introduce una dosis nueva para la siguiente; no se reutiliza automáticamente.</string>
+    <string name="dose_cancel_selection">Cancelar la selección de café y volver a elegir</string>
+    <string name="dose_discard">Descartar explícitamente esta preparación (sin devolver existencias)</string>
+    <string name="dose_discard_title">Descartar la preparación de dosis actual</string>
+    <string name="dose_discard_message">Se comprobarán los movimientos antes de descartar este registro de preparación. Las existencias ya descontadas no se devolverán; añade un movimiento de ajuste si necesitas corregirlas.</string>
+    <string name="dose_discard_confirm">Comprobar movimientos y descartar</string>
+    <string name="dose_cancel_dialog">Conservar preparación</string>
+    <string name="dose_return">Volver a la página de preparación de café</string>
+    <string name="dose_scale">Tomar la lectura actual de la página de pesaje de café</string>
+    <string name="dose_scale_hint">Solo se puede pesar café si no hay una preparación en curso ni un resultado desconocido. Las lecturas no descuentan existencias automáticamente.</string>
+    <string name="dose_scale_wait">El estado del servicio no está confirmado. Puedes introducir la dosis manualmente, pero el pesaje de café no está disponible por ahora.</string>
+    <string name="dose_scale_blocked">No se puede pesar café mientras no se resuelva la actividad de preparación o el estado de recuperación actual</string>
+    <string name="dose_scale_invalid">No hay una lectura real utilizable del peso del café. Vuelve a pesarlo o introduce la dosis manualmente.</string>
+    <string name="dose_bad_amount">Introduce una dosis real mayor que 0, con hasta 3 decimales y dentro del rango permitido</string>
+    <string name="dose_empty">Aún no hay lotes de inventario. Añade primero una bolsa de café.</string>
+    <string name="dose_add_beans">Añadir lote de inventario</string>
+    <string name="dose_save_failed">No se ha podido guardar el café seleccionado. No se han descontado existencias. Inténtalo más tarde.</string>
+    <string name="dose_confirm_failed">La confirmación de la dosis no está completa. Reinténtala con el mismo registro de preparación, o comprueba explícitamente los movimientos antes de descartarlo.</string>
+    <string name="dose_discard_failed">Se conserva el registro de preparación. No se han podido comprobar los movimientos o guardar los cambios. No crees otro registro para descontar de nuevo.</string>
+    <string name="dose_changed">El registro de preparación ha cambiado. Compruébalo de nuevo.</string>
+    <string name="dose_ledger_conflict">El registro de preparación no coincide con los movimientos de inventario. No se puede confirmar el éxito. Se conserva el registro original.</string>
+    <string name="dose_start_unconfirmed">Completa primero la confirmación de la dosis, o descarta explícitamente esta selección de café en la página de preparación.</string>
+    <string name="dose_start_unavailable">Los datos de preparación de dosis no están disponibles. Compruébalos primero en la página de preparación; no se recrearán ni sobrescribirán los registros originales.</string>
+    <string name="dose_association_pending">Existencias descontadas; el vínculo con la valoración está pendiente de recuperación. No se puede crear otra preparación hasta recuperarlo ni se volverán a descontar existencias.</string>
+    <string name="dose_association_retry">Restaurar el vínculo con la valoración de esta extracción (solo campos vacíos)</string>
+    <string name="dose_association_failed">El vínculo con la valoración aún no se ha restaurado. Se conserva la preparación original. No se crearán registros ficticios ni se volverán a descontar existencias.</string>
+</resources>

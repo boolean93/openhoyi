@@ -61,6 +61,7 @@ internal class ServiceStopFeedbackChecks(private val test:Instrumentation) {
                             ContextWrapper::class.java.getDeclaredMethod("attachBaseContext",Context::class.java).apply { isAccessible=true }.invoke(service,context)
                             Service::class.java.getDeclaredField("mApplication").apply { isAccessible=true }.set(service,app)
                             field(service,"mock").set(service,null);field(service,"logs").set(service,journal)
+                            field(service,"history").set(service,detachedShotHistory())
                             check(!field(service,"running").getBoolean(service))
                         }
                         val service=attach();val hub=NativeDeviceHub(context);owner=hub

@@ -19,12 +19,12 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
         val temporary = File.createTempFile("samples-", ".tmp", directory)
         try {
             temporary.bufferedWriter(Charsets.UTF_8).use { writer ->
-                writer.appendLine(HEADER_V2)
+                writer.appendLine(HEADER_V3)
                 points.forEach { point ->
                     writer.appendLine(listOf(point.elapsedMs, point.pressureTenthsBar,
                         point.machineFlowTenthsMlPerSecond, point.waterTenthsMl,
                         point.temperatureHundredthsC, point.weightHundredthsGram ?: "",
-                        point.scaleFlowHundredths ?: "").joinToString("\t"))
+                        point.scaleFlowHundredths ?: "", point.brewing?.toString() ?: "").joinToString("\t"))
                 }
             }
             try {
@@ -44,6 +44,7 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
         val fieldCount = when (lines.firstOrNull()) {
             HEADER_V1 -> 6
             HEADER_V2 -> 7
+            HEADER_V3 -> 8
             else -> throw IOException("Invalid shot samples header")
         }
         if (lines.size > ShotSeries.MAX_POINTS + 1)
@@ -55,11 +56,17 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
             val weight = fields[5].takeIf(String::isNotEmpty)?.toIntOrNull()
             if (fields[5].isNotEmpty() && weight == null) throw IOException("Invalid shot sample weight")
             val scaleFlow = fields.getOrNull(6)?.takeIf(String::isNotEmpty)?.toIntOrNull()
-            if (fieldCount == 7 && fields[6].isNotEmpty() && scaleFlow == null)
+            if (fieldCount >= 7 && fields[6].isNotEmpty() && scaleFlow == null)
                 throw IOException("Invalid shot sample scale flow")
+            val brewing = when(fields.getOrNull(7)) {
+                null, "" -> null
+                "true" -> true
+                "false" -> false
+                else -> throw IOException("Invalid shot sample brewing evidence")
+            }
             try {
                 ShotPoint(numbers[0], Math.toIntExact(numbers[1]), Math.toIntExact(numbers[2]),
-                    Math.toIntExact(numbers[3]), Math.toIntExact(numbers[4]), weight, scaleFlow)
+                    Math.toIntExact(numbers[3]), Math.toIntExact(numbers[4]), weight, scaleFlow, brewing)
             } catch (_: ArithmeticException) { throw IOException("Shot sample value outside integer range") }
         }
         if (points.any { it.elapsedMs < 0 } ||
@@ -89,6 +96,7 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
     companion object {
         private const val HEADER_V1 = "# openhoyi-shot-points-v1"
         private const val HEADER_V2 = "# openhoyi-shot-points-v2"
+        private const val HEADER_V3 = "# openhoyi-shot-points-v3"
         private val ID_PATTERN = Regex("[A-Za-z0-9-]{1,64}")
         private val FILE_PATTERN = Regex("samples-[A-Za-z0-9-]{1,64}\\.tsv")
     }

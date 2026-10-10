@@ -18,10 +18,24 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var customExecution = false
+    private var systemDocuments = false
+    private var disposableCiEmulator = false
+    private var documentContracts = false
+    private var idleEvents = false
+    private var advancedFlows = false
+    private var advancedPageProfile: String? = null
     private var pageProfile: String? = null
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        customExecution = arguments?.getString("customExecution") == "true"
+        systemDocuments = arguments?.getString("systemDocuments") == "true"
+        disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
+        documentContracts = arguments?.getString("documentContracts") == "true"
+        idleEvents = arguments?.getString("idleEvents") == "true"
+        advancedFlows = arguments?.getString("advancedFlows") == "true"
+        advancedPageProfile = arguments?.getString("advancedPageChecks")
         pageProfile = arguments?.getString("pageChecks")
         languageChecks = arguments?.getString("languageChecks") == "true"
         upgradeChecks = arguments?.getString("upgradeChecks")
@@ -31,6 +45,31 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (customExecution) {
+                CustomCurveExecutionChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "CUSTOM_CURVE_EXECUTION_CHECKS_PASSED import=true select=true confirm=true running=true ended=true history=true usage=true journal=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (systemDocuments) {
+                val result = CurveSystemDocumentChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "CURVE_SYSTEM_DOCUMENT_CHECKS_PASSED paths=${result.paths.size} newDrafts=${result.newDrafts} systemPicker=${result.systemPicker} externalSend=${result.externalSend} noBle=${result.noBle}\n" +
+                    "CURVE_SYSTEM_DOCUMENT_PATHS ${result.paths.joinToString(",")}\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (documentContracts) {
+                val result = CurveDocumentContractChecks(this).run()
+                report.putString("stream", "CURVE_DOCUMENT_CONTRACT_CHECKS_PASSED paths=${result.paths.size} pickerContracts=${result.pickerContracts} shareContracts=${result.shareContracts} fileFixtures=${result.fileFixtures} newDrafts=${result.newDrafts} realResolver=true signaturePermission=true systemPicker=false externalSend=false noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (idleEvents) {
+                IdleAccessibilityDiagnostics(this).run()
+                report.putString("stream", "IDLE_ACCESSIBILITY_DIAGNOSTIC_DONE\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (upgradeChecks != null) {
                 val phase = requireNotNull(upgradeChecks)
                 MockUpgradeChecks(this).run(phase)
@@ -38,12 +77,28 @@ class BrewAudioInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, report)
                 return
             }
+            if (advancedFlows) {
+                val result = AdvancedBusinessUiChecks(this).run()
+                report.putString("stream", "ADVANCED_BUSINESS_UI_CHECKS_PASSED paths=${result.paths.size} inventoryEvents=${result.inventoryEvents} newDrafts=${result.newDrafts} language=zh-Hans theme=light sameService=true preservedMachinePrefs=true noBle=true\n" +
+                    "ADVANCED_BUSINESS_UI_PATHS ${result.paths.joinToString(",")}\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (advancedPageProfile != null) {
+                val profile = requireNotNull(advancedPageProfile)
+                val result = AdvancedPageChecks(this).run(profile)
+                report.putString("stream", "ADVANCED_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=15 fixtures=${result.fixtures} preservedState=true noBle=true\n" +
+                    "ADVANCED_PAGE_SCREENSHOTS profile=$profile count=${result.screenshots} directory=${result.directory.absolutePath}\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (pageProfile != null) {
                 val profile = requireNotNull(pageProfile)
                 LanguagePageChecks(this).run(profile)
-                report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true\n" +
+                report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true\n" +
                     "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true\n" +
-                    "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true\n")
+                    "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true\n" +
+                    "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=2 cases=3 fontScale=true viewport=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
@@ -186,7 +241,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }
@@ -289,8 +344,8 @@ class BrewAudioInstrumentation : Instrumentation() {
         }
         try {
             runOnMainSync { check(feedbackPrefs.setEnabled(false)) }
-            val settings = startActivitySync(Intent(targetContext, MachineSettingsActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MachineSettingsActivity
+            val settings = startActivitySync(Intent(targetContext, AppSettingsActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as AppSettingsActivity
             waitForIdleSync()
             runOnMainSync {
                 check(!settings.feedbackCard.enabledSwitch.isChecked)
@@ -321,7 +376,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             removeMonitor(temporaryMonitor)
             waitForIdleSync()
             runOnMainSync {
-                check(playback(settings.feedbackCard)?.playing == false) { "Settings exit left preview active" }
+                check(playback(settings.feedbackCard)?.playing == false) { "App settings exit left preview active" }
                 temporaryExtraction.finish()
             }
             waitForIdleSync()

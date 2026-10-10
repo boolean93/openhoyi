@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reference_choose">Elegir referencia histórica</string>
+    <string name="reference_off">Ocultar referencia</string>
+    <string name="reference_legend">Línea continua: datos en tiempo real de esta extracción · Línea discontinua: referencia histórica, no una predicción</string>
+    <string name="reference_source">Referencia: %1$s\n%2$s</string>
+    <string name="reference_align_observed">Alineada con la primera extracción real observada; se conservan los huecos</string>
+    <string name="reference_align_recorded">El historial no tiene marcadores de etapa; se alinea con el inicio del registro, sin confirmar el inicio de la extracción</string>
+    <string name="reference_unavailable">Las muestras de esta extracción no están disponibles; no se ha generado una curva de referencia</string>
+    <string name="reference_targets">Presiones configuradas por etapa (no son una predicción temporal)</string>
+    <string name="reference_stage">Etapa %1$s: %2$s bar</string>
+    <string name="reference_raw">Esta receta incluye objetivos de flujo originales, que no se dibujan junto con la presión ni el flujo hacia la taza</string>
+    <string name="reference_trace_curve">Registro mostrado en el gráfico: %1$s</string>
+</resources>

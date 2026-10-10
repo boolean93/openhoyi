@@ -1,0 +1,51 @@
+name: Verify advanced Mock pages
+
+on:
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  advanced-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Build isolated Mock and page instrumentation
+        run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify advanced pages and capture real windows
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel_7_pro
+          ram-size: 2048M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/check_advanced_mock_pages.sh
+      - name: Upload advanced page evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: advanced-mock-pages
+          path: build/advanced-mock-pages/
+          if-no-files-found: warn
+          retention-days: 7
