@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_settings_title">Ajustes de la app</string>
+    <string name="app_settings_subtitle">El tema, el idioma y las notificaciones de extracción solo se guardan en este dispositivo</string>
+    <string name="app_settings_appearance">Apariencia</string>
+    <string name="app_settings_dark">Tema oscuro</string>
+    <string name="app_settings_theme_failed">No se ha podido guardar el tema. Se ha restaurado la selección anterior.</string>
+    <string name="app_settings_export">Exportar registros de diagnóstico</string>
+    <string name="app_settings_export_hint">Solo se exportan tras elegir dónde guardar el archivo; no se envían automáticamente</string>
+    <string name="app_settings_machine">Ajustes de la máquina</string>
+</resources>

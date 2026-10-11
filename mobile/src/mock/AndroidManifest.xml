@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <!-- Only the isolated Mock may read/write the same-signature test APK's fixture provider. -->
+    <uses-permission android:name="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE" />
     <uses-permission android:name="android.permission.BLUETOOTH" tools:node="remove" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" tools:node="remove" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" tools:node="remove" />

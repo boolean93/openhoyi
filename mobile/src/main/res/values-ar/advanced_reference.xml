@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reference_choose">اختيار مرجع تاريخي</string>
+    <string name="reference_off">إخفاء المرجع</string>
+    <string name="reference_legend">الخط المتصل: بيانات مباشرة لهذا الاستخلاص · الخط المتقطع: مرجع تاريخي وليس توقعًا</string>
+    <string name="reference_source">المرجع: %1$s\n%2$s</string>
+    <string name="reference_align_observed">المحاذاة حسب أول ملاحظة للاستخلاص الفعلي؛ تُحفظ الفجوات</string>
+    <string name="reference_align_recorded">السجل التاريخي يفتقر إلى علامات المراحل، لذا تتم المحاذاة مع بداية السجل؛ هذا لا يؤكد بداية الاستخلاص</string>
+    <string name="reference_unavailable">عينات هذا الاستخلاص غير متاحة؛ لم يُنشأ منحنى مرجعي</string>
+    <string name="reference_targets">إعدادات ضغط المراحل (ليست توقعًا زمنيًا)</string>
+    <string name="reference_stage">المرحلة %1$s: %2$s بار</string>
+    <string name="reference_raw">تتضمن هذه الوصفة أهداف تدفق خام، ولا تُرسم مع الضغط أو التدفق إلى الكوب على الرسم نفسه</string>
+    <string name="reference_trace_curve">السجل المعروض في الرسم: %1$s</string>
+</resources>
