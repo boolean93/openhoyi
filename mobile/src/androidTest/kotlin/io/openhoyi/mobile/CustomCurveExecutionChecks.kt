@@ -126,7 +126,8 @@ internal class CustomCurveExecutionChecks(private val test:Instrumentation) {
             await("running-observed-usage") {service.shotState==ExtractionState.RUNNING && app.history.entries.any {it.curveId==doc.id && it.observedRunning}}
             noBle()
             check(app.curveUsageResult.getOrThrow().stats(doc.id).count==1L)
-            click(extraction,R.string.extraction_stop)
+            // render() applies the shared running-shot stop label, not the initial label.
+            click(extraction,R.string.home_stop)
             await {service.shotState==ExtractionState.ENDED_OBSERVED && app.history.entries.any {it.curveId==doc.id && it.status==ShotHistory.Status.ENDED}}
             val shot=app.history.entries.single {it.curveId==doc.id}
             check(shot.slot==7 && shot.observedRunning && shot.endedAtMs!=null)

@@ -73,3 +73,10 @@
 - advanced38069413595终态failure：480布局fixture、17业务路径、11文档合约、7实际系统文件选择路径通过，新增customExecution在click内single找不到控件。原异常缺少操作名称，不能据此宣称具体按钮根因已经运行证实。
 - 调查发现Service遥测任务和ExtractionActivity的250ms渲染独立；先观察到运行状态不保证停止按钮已经从GONE变为可见。测试改为在原15秒窗口内等待唯一真实控件可见、可用及窗口焦点，再单次performClick；操作前后打印按钮名称。若根因不是渲染竞态，新日志会明确定位，不伪装通过。
 - 不修改产品代码、不直接调用Service、不增加重复点击、不放宽运行/使用一次/结束/历史/journal和39真实Service虚拟派发断言。仪表Kotlin编译16秒通过；完整模拟器闭环仍待新提交验证。
+
+## 第八阶段：第二轮产物证实停止按钮文案匹配错误
+
+- 66bdfed advanced38070557074 attempt1在系统DocumentsUI的Downloads导航ACTION_CLICK返回false，未进入自制执行。终态后同源码完整重跑一次；attempt2系统picker7路径通过，未改/跳过picker断言。
+- attempt2的操作日志依次确认导入预览、保存、选择、开始；运行遥测/历史observedRunning和永久使用次数=1检查已走过。随后等待visible-enabled-action:立即停止超时，原渲染竞态假设不足以解释失败。
+- 根因已追到ExtractionActivity.render：创建时设置extraction_stop，但每次渲染按StopActionPresentation把RUNNING标签替换为home_stop（立即停止萃取）。测试错误地一直匹配创建时标签；对应实际截图也显示立即停止萃取。仅将停止点击的预期资源改为home_stop，仍等待唯一可见启用控件、单次点击、不直接调用Service。停止后的结束、历史、journal与39自制派发场景仍待实际运行，不冒称已通过。
+- 仪表Kotlin编译18秒通过，git diff --check通过；独立只读审查无P1/P2，确认RUNNING共享标签与真实控件一致、原强断言未弱化。审查未运行Gradle，实际闭环待新提交CI。
