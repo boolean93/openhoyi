@@ -71,6 +71,9 @@ internal object HoyiUi {
 
     fun button(activity: Activity, parent: LinearLayout, value: String, primary: Boolean = false,
                danger: Boolean = false, action: () -> Unit): Button = Button(activity).apply {
+        // Controls align by their bounds, not the final line's text baseline.
+        // Baseline alignment can shift a wrapped weighted button below its measured row.
+        parent.isBaselineAligned = false
         text = value
         isAllCaps = false
         textSize = if (primary || danger) 17f else 15f
@@ -98,7 +101,7 @@ internal object HoyiUi {
 
     fun tabs(activity: Activity, parent: LinearLayout, labels: List<String>, selected: Int,
              onSelect: (Int) -> Unit) {
-        val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+        val row = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
         parent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(activity, 12) })
         labels.forEachIndexed { index, label ->
             val active = index == selected

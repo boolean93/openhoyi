@@ -249,7 +249,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }

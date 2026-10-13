@@ -22,6 +22,7 @@ internal class BeanActionRows(private val activity: ThemedActivity) : LinearLayo
         if (child !is Button) { super.addView(child, index, params); return }
         val current = row?.takeIf { it.childCount < 2 } ?: LinearLayout(context).apply {
             orientation = HORIZONTAL
+            isBaselineAligned = false
             this@BeanActionRows.attachRow(this)
             row = this
         }
@@ -46,9 +47,10 @@ internal fun ThemedActivity.beanList(body: LinearLayout): LinearLayout {
     return LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; scroll.addView(this) }
 }
 
-/** Each input section stays alive while another section is selected, preserving unsaved text. */
+/** Short sections follow their content height; only explicit multiline editors fill the workspace.
+ * Each section stays alive while another section is selected, preserving unsaved text. */
 internal class BeanSections(private val activity: ThemedActivity, body: LinearLayout,
-    labels: List<String>, selected: Int = 0, changed: (Int) -> Unit = {}) {
+    labels: List<String>, selected: Int = 0, elasticPanels: Set<Int> = emptySet(), changed: (Int) -> Unit = {}) {
     val panels: List<LinearLayout>
     val selector: Spinner
     private val frame: FrameLayout
@@ -63,12 +65,14 @@ internal class BeanSections(private val activity: ThemedActivity, body: LinearLa
         }
         frame = FrameLayout(activity)
         host.addView(frame, LinearLayout.LayoutParams(-1, 0, 1f))
-        panels = labels.map {
+        panels = labels.mapIndexed { index, _ ->
             LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(HoyiUi.dp(activity, 12), 0, HoyiUi.dp(activity, 12), HoyiUi.dp(activity, 8))
                 background = HoyiUi.shape(activity, R.color.mobile_surface, 12, R.color.mobile_border)
-                frame.addView(this, FrameLayout.LayoutParams(-1, -1))
+                tag = if (index in elasticPanels) "bean-elastic-section" else "bean-short-section"
+                frame.addView(this, FrameLayout.LayoutParams(-1,
+                    if (index in elasticPanels) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT))
                 visibility = View.GONE
             }
         }

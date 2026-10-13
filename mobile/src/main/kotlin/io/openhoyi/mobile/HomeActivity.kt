@@ -242,6 +242,7 @@ class HomeActivity : ThemedActivity() {
         selection = text(curveCard, getString(R.string.home_curve_missing), if (HoyiUi.wide(this)) 26 else 21, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
         }
+        selection.minimumHeight = dp(48)
         selection.setOnClickListener {
             AlertDialog.Builder(this).setTitle(getString(R.string.home_current_curve))
                 .setMessage(selection.text).setPositiveButton(android.R.string.ok, null).show()

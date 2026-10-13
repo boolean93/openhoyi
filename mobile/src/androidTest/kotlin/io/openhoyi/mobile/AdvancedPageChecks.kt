@@ -253,7 +253,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                 check(control.getGlobalVisibleRect(rect) && rect.width() == control.width && rect.height() == control.height) {
                     "$fixture clipped control: ${if (control is TextView) control.text else control.javaClass.simpleName} visible=$rect size=${control.width}x${control.height}"
                 }
-                check(control.height >= HoyiUi.dp(activity, 48)) { "$fixture control below 48dp" }
+                check(control.height >= HoyiUi.dp(activity, 48)) { "$fixture control below 48dp: ${if (control is TextView) control.text else control.javaClass.simpleName} height=${control.height}" }
             }
         }
         onMain { scrolls.forEach { it.scrollTo(0, 0) } }

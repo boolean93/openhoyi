@@ -15,12 +15,13 @@ internal object SingleScreenPageChecks {
     /** Call on the UI thread after layout. This never clicks or changes device state. */
     fun verify(activity: Activity) {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
+        if (activity is ExtractionActivity) TrendChartTextChecks.run(activity, "single-screen overlay")
         val fixture = activity.javaClass.simpleName + " " + activity.resources.configuration
         fun visibleFully(view: View) {
             val rect = Rect()
             check(view.width > 0 && view.height > 0 && view.getGlobalVisibleRect(rect) &&
                 rect.width() == view.width && rect.height() == view.height) {
-                "$fixture clipped ${view.javaClass.simpleName}: ${view.width}x${view.height} visible=$rect"
+                "$fixture clipped ${view.javaClass.simpleName}: ${view.width}x${view.height} visible=$rect text=${(view as? TextView)?.text} parent=${(view.parent as? View)?.height} top=${view.top} bottom=${view.bottom}"
             }
         }
         val views = mutableListOf<View>()

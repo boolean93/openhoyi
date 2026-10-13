@@ -35,7 +35,7 @@ class BrewReviewActivity : ThemedActivity() {
             beanDetails(journalCurve(entry.observation.curveId), journalObservationText(entry.observation))
         }
         section = savedInstanceState?.getInt("section") ?: 0
-        val sections = BeanSections(this, body, listOf(R.string.journal_bean, R.string.journal_grind, R.string.journal_expectation, R.string.journal_taste, R.string.journal_next).map(::getString), section) { section = it }
+        val sections = BeanSections(this, body, listOf(R.string.journal_bean, R.string.journal_grind, R.string.journal_expectation, R.string.journal_taste, R.string.journal_next).map(::getString), section, elasticPanels = setOf(1, 2, 3, 4)) { section = it }
         val card = sections.panels[0]
         val previousBean = entry.notes.beanId?.let { Bean(it, requireNotNull(entry.notes.beanName)) }
         val beans = (listOfNotNull(previousBean) + app.beanInventoryResult.getOrNull()?.batches().orEmpty().map { it.batch.bean }).distinctBy { it.id }

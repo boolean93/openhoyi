@@ -27,7 +27,8 @@ internal class ExtractionOverlayView(context: Context) : View(context) {
     private fun refresh() {
         data = ExtractionOverlayProjection.build(points, reference)
         contentDescription = context.getString(R.string.live_pressure_chart) + "; " + context.getString(R.string.live_cup_flow_chart) + "; " +
-            context.getString(R.string.live_cup_flow_source)
+            context.getString(R.string.live_cup_flow_source) +
+            if (reference.isNotEmpty()) "; " + context.getString(R.string.reference_legend) else ""
         invalidate()
     }
     override fun onDraw(canvas: Canvas) {
@@ -36,6 +37,21 @@ internal class ExtractionOverlayView(context: Context) : View(context) {
         val lineHeight = fm.descent - fm.ascent
         val inset = maxOf(dp(40f), text.measureText(format(maxOf(data.pressureMaximum, data.flowMaximum))) + dp(10f))
         val left = inset; val right = width - inset
+        if (right <= left) return
+        fun wrapped(value: String, available: Float): List<String> {
+            var remaining = value
+            val lines = mutableListOf<String>()
+            while (remaining.isNotEmpty()) {
+                var count = text.breakText(remaining, true, available, null).coerceAtLeast(1)
+                if (count < remaining.length) {
+                    val space = remaining.lastIndexOf(' ', count - 1)
+                    if (space > 0) count = space
+                }
+                lines += remaining.take(count).trimEnd()
+                remaining = remaining.drop(count).trimStart()
+            }
+            return lines
+        }
         // Wrapped legend uses physical height; large fonts never paint over traces.
         val labels = listOf(context.getString(R.string.live_pressure_chart), context.getString(R.string.live_cup_flow_chart))
         val colors = listOf(pressureColor, flowColor)
@@ -46,8 +62,18 @@ internal class ExtractionOverlayView(context: Context) : View(context) {
             stroke.color = colors[index]; stroke.pathEffect = null
             canvas.drawLine(legendX, legendY + fm.ascent / 2, legendX + dp(14f), legendY + fm.ascent / 2, stroke)
             text.color = colors[index]; text.textAlign = Paint.Align.LEFT
-            canvas.drawText(label, legendX + dp(20f), legendY, text)
-            legendX += needed
+            val lines = wrapped(label, right - legendX - dp(20f))
+            lines.forEachIndexed { line, value -> canvas.drawText(value, legendX + dp(20f), legendY + line * lineHeight, text) }
+            legendY += (lines.size - 1) * lineHeight
+            legendX = if (lines.size > 1) right else legendX + needed
+        }
+        if (reference.isNotEmpty()) {
+            text.color = context.getColor(R.color.chart_label)
+            text.textAlign = Paint.Align.LEFT
+            legendY += lineHeight + dp(5f)
+            val lines = wrapped(context.getString(R.string.reference_legend), right - left)
+            lines.forEachIndexed { line, value -> canvas.drawText(value, left, legendY + line * lineHeight, text) }
+            legendY += (lines.size - 1) * lineHeight
         }
         val top = legendY + fm.descent + lineHeight + dp(8f)
         val bottom = height - lineHeight * 2 - dp(14f)

@@ -145,7 +145,7 @@ class CurveActivity : ThemedActivity() {
                 text = name.label(this@CurveActivity)
                 textSize = 15f
                 gravity = android.view.Gravity.CENTER
-                minHeight = dp(44)
+                minHeight = dp(48)
                 setPadding(dp(16), dp(8), dp(16), dp(8))
                 isClickable = true
                 isFocusable = true
@@ -165,8 +165,7 @@ class CurveActivity : ThemedActivity() {
         browser.addView(listHeader, LinearLayout.LayoutParams(-1, dp(48)))
         resultCount = HoyiUi.label(this, listHeader, "", 13, muted = true).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            setSingleLine(true)
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            maxLines = 2
         }
         listHeader.addView(TextView(this).apply {
             text = getString(R.string.curve_legacy)

@@ -129,9 +129,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         }
         timerValue=HoyiUi.label(this,timerHeading,"",32,true)
         // The timer is explicitly local, not an unconfirmed scale command.
-        val timerHelp=HoyiUi.label(this,timerCard,getString(R.string.scale_timer_help),13,muted=true)
-        timerHelp.setOnClickListener {android.app.AlertDialog.Builder(this).setTitle(getString(R.string.scale_timer_title))
-            .setMessage(getString(R.string.scale_timer_help)).setPositiveButton(android.R.string.ok,null).show()}
+        HoyiUi.label(this,timerCard,getString(R.string.scale_timer_help),13,muted=true)
         val timerActions=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
         timerCard.addView(timerActions)
         timerToggle=HoyiUi.button(this,timerActions,getString(R.string.scale_timer_start)) {
@@ -148,6 +146,8 @@ class ScaleActivity:ScaleOwnerActivity() {
             }
             HoyiUi.label(this,body,getString(R.string.scale_dose_help),13,muted=true).apply {
                 maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END
+                minimumHeight=HoyiUi.dp(this@ScaleActivity,48)
+                tag="full-text-details"
                 setOnClickListener {android.app.AlertDialog.Builder(this@ScaleActivity).setTitle(getString(R.string.scale_dose_title))
                     .setMessage(getString(R.string.scale_dose_help)).setPositiveButton(android.R.string.ok,null).show()}
             }
