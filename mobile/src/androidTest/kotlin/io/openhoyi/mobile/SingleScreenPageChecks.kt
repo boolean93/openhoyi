@@ -48,6 +48,9 @@ internal object SingleScreenPageChecks {
         if (activity is LegacyHistoryDetailActivity) check(views.any { it is LegacyShotChartView }) {
             "$fixture populated legacy chart not inspected"
         }
+        if (activity is LegacyCurveActivity) check(views.filterIsInstance<ListView>().single().count > 0) {
+            "$fixture imported read-only curves not displayed"
+        }
         views.filterIsInstance<ListView>().forEach { visibleFully(it) }
         views.filterIsInstance<ScrollView>().forEach { viewport ->
             visibleFully(viewport)

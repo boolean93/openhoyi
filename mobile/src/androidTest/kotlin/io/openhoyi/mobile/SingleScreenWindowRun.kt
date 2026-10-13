@@ -73,6 +73,12 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
         val legacyId = "single-screen-legacy-shot"
         app.legacyHistory.import(java.io.ByteArrayInputStream("""{"version":1,"items":[{"id":"$legacyId","createdAt":1700000000000,"durationSec":30,"chartSlot":6,"profileName":"Single screen fixture","points":{"t":[0,1,2],"press":[0,2,4],"flow":[0,1,2],"wFlow":[0,1,2],"wTrend":[0,1,3]}}]}""".toByteArray()))
         val legacyBefore = app.legacyHistory.list()
+        // Legacy imports remain read-only and separate from executable profiles.
+        // Seed only an absent store; never replace existing imported records.
+        if (app.legacyCurves.load() == null) app.legacyCurves.import(java.io.ByteArrayInputStream(
+            """{"format":"openhoyi-legacy-curves-v1","factoryVersion":3,"categoryConfig":{"labels":{"test":"测试分类"}},"items":[{"name":"单屏旧曲线测试","category":"test","factory":false,"temp":93,"flow":70,"weight":360,"seg":2,"press1":9,"flow1":30,"press2":6,"flow2":40,"singleScreenFixture":true}]}""".toByteArray()))
+        val legacyCurvesBefore = requireNotNull(app.legacyCurves.load())
+        check(legacyCurvesBefore.curves.isNotEmpty())
         val oldLanguage = app.languagePreferences.current
         val languagePrefs = context.getSharedPreferences("app_language", Context.MODE_PRIVATE)
         val oldLanguageStorage = languagePrefs.all.toMap()
@@ -104,6 +110,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
         val directory = File(requireNotNull(context.getExternalFilesDir(null)), "single-screen-window-checks").apply { mkdirs() }
         val failures = mutableListOf<String>()
         var checked = 0
+        var chineseFormCaptures = 0
         try {
         for (language in AppLanguage.entries) for (dark in listOf(false, true)) {
             main {
@@ -169,6 +176,29 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                         File(stateDirectory, "$name-populated.png").outputStream().use { changed.compress(Bitmap.CompressFormat.PNG, 100, it) }
                     } finally { changed.recycle() }
                 }
+                if (language == AppLanguage.CHINESE) chineseFormCaptures +=
+                    ChineseFormWindowChecks.run(test, activity, directory, name) { awaitDraw(activity) }
+                if (language == AppLanguage.CHINESE && activity is ScaleActivity) {
+                    val capturePage = test.startActivitySync(page(ScaleActivity::class.java)
+                        .putExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, true))
+                    try {
+                        test.waitForIdleSync()
+                        awaitDraw(capturePage)
+                        main {
+                            SingleScreenPageChecks.verify(capturePage)
+                            val capture = ScaleActivity::class.java.getDeclaredField("capture")
+                                .apply { isAccessible = true }.get(capturePage) as android.widget.Button
+                            check(capture.isShown && !capture.isEnabled) { "Mock must not accept real bean weight" }
+                        }
+                        val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                        try {
+                            val extra = File(directory, "chinese-extra-states").apply { mkdirs() }
+                            File(extra, "$name-dose-capture.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                        } finally { bitmap.recycle() }
+                    } finally { main { capturePage.finish() } }
+                    test.waitForIdleSync()
+                    awaitDraw(activity)
+                }
                 checked++
                 test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_PAGE_OK $name\n") })
             } catch (error: Throwable) {
@@ -192,12 +222,14 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
         main {
             check(shotIds.associateWith { app.samples.load(it) } == sampleBaseline)
             check(app.legacyHistory.list() == legacyBefore)
+            check(app.legacyCurves.load() == legacyCurvesBefore)
             check(inventory.events() == inventoryBefore && journal.exportJson() == journalBefore)
             check(app.beanPreparationResult.getOrThrow().current() == preparationBefore)
             check(app.customCurvesResult.getOrThrow().list() == customBefore)
         }
-        File(directory, "result.txt").writeText("checked=$checked pages=21 fixtures=336 legacyDetailFixture=true\n" + failures.joinToString("\n\n"))
+        File(directory, "result.txt").writeText("checked=$checked pages=21 fixtures=336 legacyDetailFixture=true chineseFormCaptures=$chineseFormCaptures\n" + failures.joinToString("\n\n"))
         check(checked == 336 && failures.isEmpty()) { "Single-screen geometry failed: checked=$checked/336\n${failures.joinToString("\n")}" }
+        check(chineseFormCaptures >= 44) { "Chinese form groups/long editor evidence incomplete: $chineseFormCaptures" }
         test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_WINDOW_GEOMETRY_PASSED pages=21 fixtures=336 legacyDetailFixture=true noBle=true\n") })
     }
 }
