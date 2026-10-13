@@ -178,6 +178,32 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                 }
                 if (language == AppLanguage.CHINESE) chineseFormCaptures +=
                     ChineseFormWindowChecks.run(test, activity, directory, name) { awaitDraw(activity) }
+                if (language == AppLanguage.CHINESE && activity is HomeActivity) {
+                    val home = activity
+                    val serviceField = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }
+                    val boundDeadline = SystemClock.elapsedRealtime() + 10000
+                    while (true) {
+                        var bound = false
+                        main { bound = serviceField.get(home) != null }
+                        if (bound) break
+                        check(SystemClock.elapsedRealtime() < boundDeadline) { "$name Mock service not bound for warnings" }
+                        Thread.sleep(25)
+                    }
+                    val safetyDirectory = File(directory, "chinese-safety-states").apply { mkdirs() }
+                    var warningIndex = 0
+                    LanguageDetailChecks(test).warnings(home, name) {
+                        awaitDraw(home)
+                        main { SingleScreenPageChecks.verify(home) }
+                        val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                        try {
+                            File(safetyDirectory, "$name-warning-${warningIndex++}.png").outputStream().use {
+                                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                            }
+                        } finally { bitmap.recycle() }
+                    }
+                    check(warningIndex == 3) { "$name incomplete full warning states" }
+                    awaitDraw(home) // Do not label the warning's old frame as the ordinary home page.
+                }
                 checked++
                 test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_PAGE_OK $name\n") })
             } catch (error: Throwable) {

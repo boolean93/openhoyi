@@ -62,11 +62,14 @@ if len(forms)<44:
 extra=list((root/'chinese-extra-states').glob('*.png'))
 if len(extra)!=2:
     raise SystemExit(f'Incomplete Chinese scale dose captures: {len(extra)}/2')
-for path in paths+states+forms+extra:
+safety=list((root/'chinese-safety-states').glob('*.png'))
+if len(safety)!=6:
+    raise SystemExit(f'Incomplete Chinese full warning captures: {len(safety)}/6')
+for path in paths+states+forms+extra+safety:
     data=path.read_bytes()
     if len(data)<10000 or data[:8]!=b'\x89PNG\r\n\x1a\n':
         raise SystemExit(f'Invalid screenshot: {path}')
     if not all(struct.unpack('>II',data[16:24])):
         raise SystemExit(f'Empty screenshot: {path}')
-print(f'Validated 336 pages, 64 initial/populated captures, {len(forms)} Chinese form states and 2 scale dose captures')
+print(f'Validated 336 pages, 64 initial/populated captures, {len(forms)} Chinese form states, 2 scale dose captures and 6 full warning captures')
 CHECK_PY

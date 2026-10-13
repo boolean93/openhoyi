@@ -241,11 +241,12 @@ class HomeActivity : ThemedActivity() {
 
         val curveCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
             setPadding(dp(16), dp(12), dp(16), dp(12))
             background = HoyiUi.shape(this@HomeActivity, R.color.mobile_surface, 18, R.color.mobile_border)
         }
-        content.addView(curveCard, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
+        // A curve name and an entry action are a summary, not a full-height workspace.
+        // Keep unused space outside the card instead of presenting a large empty panel.
+        content.addView(curveCard, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         selection = text(curveCard, getString(R.string.home_curve_missing), if (HoyiUi.wide(this)) 26 else 21, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
         }
