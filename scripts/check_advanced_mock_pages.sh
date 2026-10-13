@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# Keep layout and business independently runnable. A deferred translation defect
+# must not prevent Chinese inventory/review/import safety checks from executing.
+suite=${1:-all}
+case "$suite" in all|pages|business) ;; *) exit 2 ;; esac
+
 # Disposable CI emulator, isolated Mock only. Never launch Alpha or a device transport.
 package=io.openhoyi.mobile.mock
 output_dir="$PWD/build/advanced-mock-pages"
@@ -27,6 +32,7 @@ adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb install -r "$apk"
 adb install -r "$test_apk"
+if [ "$suite" != business ]; then
 for profile in compact wideFont; do
   adb shell am force-stop "$package"
   if [ "$profile" = compact ]; then
@@ -69,6 +75,13 @@ for path in paths:
 print(f'Advanced page screenshots validated: {len(paths)}')
 PY
 done
+fi
+if [ "$suite" = pages ]; then
+  collect
+  adb shell am force-stop "$package"
+  adb shell settings put system font_scale 1.0
+  exit 0
+fi
 adb shell am force-stop "$package"
 adb shell wm size 450x1000
 adb shell settings put system font_scale 1.0

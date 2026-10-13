@@ -12,6 +12,10 @@ jobs:
   advanced-pages:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [pages, business]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -40,12 +44,12 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_advanced_mock_pages.sh
+          script: bash scripts/check_advanced_mock_pages.sh ${{ matrix.suite }}
       - name: Upload advanced page evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: advanced-mock-pages
+          name: advanced-mock-pages-${{ matrix.suite }}
           path: build/advanced-mock-pages/
           if-no-files-found: warn
           retention-days: 7
