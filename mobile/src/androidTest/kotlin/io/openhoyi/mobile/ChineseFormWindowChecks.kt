@@ -184,7 +184,8 @@ internal object ChineseFormWindowChecks {
                 }
             }
             // Only click the Mock page's observed short EditText; the editor's OK cannot save the page.
-            if (!HoyiUi.wide(activity)) {
+            // A wide but short tablet still loses its form space to the real IME.
+            if (!HoyiUi.wide(activity) || activity.resources.configuration.screenHeightDp <= 720) {
                 main { sections.setSelection(0) }
                 waitForDraw()
                 lateinit var field: EditText

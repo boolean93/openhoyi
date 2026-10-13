@@ -2,11 +2,15 @@
 set -Eeuo pipefail
 # Only a disposable CI emulator: never apply display overrides to the user's tablet.
 profile=${1:?profile required}
+density=200
 case "$profile" in
   phone) size=450x1000; font=1.0 ;;
   tablet-landscape) size=1600x1000; font=1.0 ;;
   tablet-portrait) size=1000x1600; font=1.0 ;;
   tablet-large-font) size=1600x1000; font=1.3 ;;
+  # Xiaomi M2105K81AC: actual physical pixels/density, not the older roomy fixture.
+  tablet-user-landscape) size=2560x1600; density=360; font=1.0 ;;
+  tablet-user-portrait) size=1600x2560; density=360; font=1.0 ;;
   *) exit 2 ;;
 esac
 package=io.openhoyi.mobile.mock
@@ -18,7 +22,7 @@ collect() {
   adb pull "/sdcard/Android/data/$package/files/single-screen-window-checks" "$output_dir/" || true
 }
 trap collect EXIT
-adb shell wm density 200
+adb shell wm density "$density"
 adb shell wm size "$size"
 adb shell settings put system font_scale "$font"
 adb shell settings put system accelerometer_rotation 0

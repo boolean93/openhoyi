@@ -114,10 +114,10 @@ internal fun ThemedActivity.beanDetails(title: String, value: String) {
         .setPositiveButton(android.R.string.ok, null).create())
 }
 
-/** Compact short fields edit in a focused dialog, so IME resize cannot crowd out sibling fields/actions.
+/** Compact or low-height short fields edit in a focused dialog, so IME resize cannot crowd out sibling fields/actions.
  * Every keystroke also updates the durable page draft used by onSaveInstanceState. */
 internal fun ThemedActivity.beanCompactEditor(field: android.widget.EditText, label: String) {
-    if (HoyiUi.wide(this)) return
+    if (HoyiUi.wide(this) && resources.configuration.screenHeightDp > 720) return
     field.showSoftInputOnFocus = false
     var dialog: AlertDialog? = null
     fun edit() {
