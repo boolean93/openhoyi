@@ -114,14 +114,15 @@ internal fun ThemedActivity.beanDetails(title: String, value: String) {
         .setPositiveButton(android.R.string.ok, null).create())
 }
 
-/** Compact or low-height short fields edit in a focused dialog, so IME resize cannot crowd out sibling fields/actions.
+/** Focused fields keep usable space above the IME; low-height tablets also focus multiline editors.
  * Every keystroke also updates the durable page draft used by onSaveInstanceState. */
 internal fun ThemedActivity.beanCompactEditor(field: android.widget.EditText, label: String) {
     if (HoyiUi.wide(this) && resources.configuration.screenHeightDp > 720) return
     field.showSoftInputOnFocus = false
     var dialog: AlertDialog? = null
     fun edit() {
-        if (field.inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0) {
+        val multiline = field.inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0
+        if (multiline && !HoyiUi.wide(this)) {
             field.showSoftInputOnFocus = true
             (getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                 .showSoftInput(field, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
@@ -130,10 +131,19 @@ internal fun ThemedActivity.beanCompactEditor(field: android.widget.EditText, la
         if (dialog != null || isFinishing || isDestroyed) return
         val editor = android.widget.EditText(this).apply {
             inputType = field.inputType
+            filters = field.filters
             textSize = 18f
             setText(field.text.toString())
-            setSelectAllOnFocus(true)
-            minHeight = HoyiUi.dp(this@beanCompactEditor, 52)
+            setSelectAllOnFocus(!multiline)
+            minHeight = HoyiUi.dp(this@beanCompactEditor, if (multiline) 128 else 52)
+            if (multiline) {
+                setSingleLine(false)
+                minLines = 4
+                maxLines = 6
+                gravity = android.view.Gravity.TOP
+                isVerticalScrollBarEnabled = true
+                setSelection(field.selectionStart.coerceIn(0, text.length))
+            }
             setTextColor(getColor(R.color.mobile_text))
             setPadding(HoyiUi.dp(this@beanCompactEditor, 12), HoyiUi.dp(this@beanCompactEditor, 8), HoyiUi.dp(this@beanCompactEditor, 12), HoyiUi.dp(this@beanCompactEditor, 8))
             addTextChangedListener(object : android.text.TextWatcher {

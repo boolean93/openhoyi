@@ -161,7 +161,30 @@ internal object ChineseFormWindowChecks {
                             tap(field)
                             val keyboard = awaitKeyboard()
                             waitForDraw()
-                            if (keyboard == null) gaps += "long-editor IME not observed; no IME screenshot claimed"
+                            if (HoyiUi.wide(activity) && activity.resources.configuration.screenHeightDp <= 720) {
+                                var label = ""
+                                main { label = descendants(content).filterIsInstance<TextView>().single { it.labelFor == field.id }.text.toString() }
+                                val focused = requireNotNull(observeEditor(test, activity.packageName, label, activity.getString(android.R.string.ok))) {
+                                    "$name low-height multiline editor did not open its focused input window"
+                                }
+                                try {
+                                    val inputBounds = Rect(); val confirmBounds = Rect()
+                                    focused.input.getBoundsInScreen(inputBounds); focused.confirm.getBoundsInScreen(confirmBounds)
+                                    check(focused.input.isVisibleToUser && focused.input.isEditable && focused.input.isEnabled)
+                                    check(focused.input.text?.toString() == longText) { "$name focused long editor lost the draft" }
+                                    check(inputBounds.height() >= HoyiUi.dp(activity, 128)) { "$name focused long editor still has only a single-line viewport" }
+                                    check(focused.confirm.isVisibleToUser && focused.confirm.isClickable && confirmBounds.height() >= HoyiUi.dp(activity, 48))
+                                    if (keyboard == null) gaps += "focused long editor observed; IME not observed"
+                                    else check(!Rect.intersects(inputBounds, keyboard) && !Rect.intersects(confirmBounds, keyboard)) { "$name focused long editor hidden by IME" }
+                                    capture("section-$position-long-focused${if (keyboard == null) "" else "-ime"}")
+                                    editorObserved = true
+                                    imeObserved = imeObserved || keyboard != null
+                                    check(focused.confirm.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { "$name long editor confirmation not reachable" }
+                                } finally { focused.input.recycle(); focused.confirm.recycle() }
+                                waitForDraw()
+                                main { check(field.text.toString() == longText) }
+                            }
+                            else if (keyboard == null) gaps += "long-editor IME not observed; no IME screenshot claimed"
                             else {
                                 main {
                                     longEditor(field, longText)
