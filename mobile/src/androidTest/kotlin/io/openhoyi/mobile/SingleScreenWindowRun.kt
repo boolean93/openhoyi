@@ -8,11 +8,14 @@ import android.graphics.Bitmap
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.ViewGroup
+import android.view.View
+import android.widget.ListView
+import android.widget.TextView
 import io.openhoyi.bean.Bean
 import io.openhoyi.bean.BeanBatch
 import java.io.File
 
-/** Mock-only additive named fixtures; no clicks, deductions, BLE, clearing or unknown-record mutation. */
+/** Mock-only additive named fixtures; navigation only, no deductions, BLE or record mutation. */
 internal class SingleScreenWindowRun(private val test: Instrumentation) {
     private fun main(action: () -> Unit) {
         var error: Throwable? = null
@@ -105,6 +108,37 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                 Thread.sleep(300)
                 test.waitForIdleSync()
                 main { SingleScreenPageChecks.verify(activity) }
+                // Verify the actual populated states too, not just empty previews.
+                if (activity is CurveActivity || activity is HistoryActivity) {
+                    val stateDirectory = File(directory, "states").apply { mkdirs() }
+                    test.uiAutomation.takeScreenshot()?.let { bitmap ->
+                        try { File(stateDirectory, "$name-initial.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+                        finally { bitmap.recycle() }
+                    }
+                    main {
+                        fun children(view: View): List<View> = listOf(view) +
+                            if (view is ViewGroup) (0 until view.childCount).flatMap { children(view.getChildAt(it)) } else emptyList()
+                        val views = children(activity.findViewById(android.R.id.content))
+                        if (activity is CurveActivity) {
+                            val list = views.filterIsInstance<ListView>().single()
+                            check(list.count > 0)
+                            check(list.performItemClick(list.adapter.getView(0, null, list), 0, list.adapter.getItemId(0)))
+                        } else {
+                            check(views.filterIsInstance<TextView>().single { it.text.toString() == activity.getString(R.string.journal_tab) }.performClick())
+                        }
+                    }
+                    test.waitForIdleSync()
+                    main {
+                        SingleScreenPageChecks.verify(activity)
+                        if (activity is CurveActivity) {
+                            val chart = CurveActivity::class.java.getDeclaredField("stageChart").apply { isAccessible = true }.get(activity) as CurveStageView
+                            check(chart.isShown && chart.targets.isNotEmpty()) { "Selected curve has no preview" }
+                        } else {
+                            val list = HistoryActivity::class.java.getDeclaredField("historyList").apply { isAccessible = true }.get(activity) as ListView
+                            check(list.isShown && list.count >= 2) { "Journal fixture not displayed" }
+                        }
+                    }
+                }
                 checked++
                 test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_PAGE_OK $name\n") })
             } catch (error: Throwable) {

@@ -45,7 +45,7 @@ class BeanBatchActivity : ThemedActivity() {
         val item = inventory.batches().find { it.batch.id == id }
         if (item == null) { HoyiUi.label(this, body, getString(R.string.beans_missing), 17); return }
         val card = HoyiUi.card(this, body)
-        card.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
+        card.layoutParams = LinearLayout.LayoutParams(-1, -2)
         HoyiUi.label(this, card, item.batch.bean.name, 23, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
             tag = "full-text-details"

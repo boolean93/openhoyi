@@ -47,7 +47,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         val current = preparation.current()
         error = beanError(body).also { view -> errorResource?.let(view::setText) }
         if (current != null && current.shotId != null && !current.associated) {
-            val card = HoyiUi.card(this, body).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, 0, 1f) }
+            val card = HoyiUi.card(this, body).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2) }
             beanCompactSummary(card, getString(R.string.dose_summary, current.beanName, beanBatchNumber(inventory, current.batchId), BeanQuantity.formatGrams(current.amountMg)))
             val consumed = inventory.events().any { it.eventId == current.eventId && it.kind == InventoryEventKind.CONSUME &&
                 it.batchId == current.batchId && it.deltaMg == -current.amountMg }
@@ -68,7 +68,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
             return
         }
         if (current != null && current.shotId == null) {
-            val card = HoyiUi.card(this, body).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, 0, 1f) }
+            val card = HoyiUi.card(this, body).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2) }
             beanCompactSummary(card, getString(R.string.dose_summary, current.beanName, beanBatchNumber(inventory, current.batchId), BeanQuantity.formatGrams(current.amountMg)))
             val ledger = inventory.events().find { it.eventId == current.eventId }
             val matches = ledger?.let { it.kind == InventoryEventKind.CONSUME && it.batchId == current.batchId && it.deltaMg == -current.amountMg } == true
@@ -128,7 +128,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
             HoyiUi.button(this, beanActions(body), getString(R.string.dose_add_beans), primary = true) { startActivity(Intent(this, BeanEntryActivity::class.java)) }
             return
         }
-        val form = HoyiUi.card(this, body).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, 0, 1f) }
+        val form = HoyiUi.card(this, body).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2) }
         HoyiUi.label(this, form, getString(R.string.dose_batch), 15, muted = true)
         val selector = Spinner(this).apply {
             adapter = beanChoiceAdapter(batches.map {

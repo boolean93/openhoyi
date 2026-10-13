@@ -95,10 +95,12 @@ for item in '曲线 CurveActivity' '历史 HistoryActivity' '豆子 BeanInventor
   assert_activity "$page"
   assert_edges 1 1
 done
+tap_control '设备连接'
 tap_control '实时萃取'
 assert_activity ExtractionActivity
 assert_edges 1 1
 tap_control '冲煮'
+tap_control '设备连接'
 tap_control '应用设置'
 assert_activity AppSettingsActivity
 assert_edges 1 1
@@ -106,6 +108,7 @@ tap_control '机器设置'
 assert_activity MachineSettingsActivity
 assert_edges 1 1
 tap_control '冲煮'
+tap_control '设备连接'
 tap_control '应用设置'
 assert_activity AppSettingsActivity
 assert_edges 1 1
