@@ -46,11 +46,14 @@ root=Path(sys.argv[1])
 paths=list(root.glob('*.png'))
 if len(paths)!=336:
     raise SystemExit(f'Incomplete screenshots: {len(paths)}/336')
-for path in paths:
+states=list((root/'states').glob('*.png'))
+if len(states)!=64:
+    raise SystemExit(f'Incomplete initial/populated state screenshots: {len(states)}/64')
+for path in paths+states:
     data=path.read_bytes()
     if len(data)<10000 or data[:8]!=b'\x89PNG\r\n\x1a\n':
         raise SystemExit(f'Invalid screenshot: {path}')
     if not all(struct.unpack('>II',data[16:24])):
         raise SystemExit(f'Empty screenshot: {path}')
-print('Validated 336 screenshots; geometry assertions ran in attached windows')
+print('Validated 336 page screenshots and 64 initial/populated captures; geometry assertions ran in attached windows')
 CHECK_PY

@@ -81,7 +81,7 @@ internal fun ThemedActivity.beanPage(title: String, subtitle: String? = null,
         header.contentDescription = "$title. $description"
         HoyiUi.button(this, header, "ⓘ") { beanDetails(title, description) }.apply {
             layoutParams = LinearLayout.LayoutParams(HoyiUi.dp(this@beanPage, 48), -2)
-            contentDescription = getString(R.string.journal_detail)
+            contentDescription = getString(R.string.ui_full_details)
         }
     }
     val body = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }

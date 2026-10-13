@@ -14,6 +14,8 @@ import android.widget.TextView
 import io.openhoyi.bean.Bean
 import io.openhoyi.bean.BeanBatch
 import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** Mock-only additive named fixtures; navigation only, no deductions, BLE or record mutation. */
 internal class SingleScreenWindowRun(private val test: Instrumentation) {
@@ -21,6 +23,26 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
         var error: Throwable? = null
         test.runOnMainSync { try { action() } catch (e: Throwable) { error = e } }
         error?.let { throw it }
+    }
+    private fun awaitDraw(activity: Activity) {
+        val drawn = CountDownLatch(1)
+        main {
+            val decor = activity.window.decorView
+            val observer = decor.viewTreeObserver
+            val listener = object : android.view.ViewTreeObserver.OnDrawListener {
+                override fun onDraw() {
+                    drawn.countDown()
+                    decor.post { if (observer.isAlive) observer.removeOnDrawListener(this) }
+                }
+            }
+            observer.addOnDrawListener(listener)
+            decor.invalidate()
+        }
+        check(drawn.await(5, TimeUnit.SECONDS)) { "Changed page did not draw" }
+        // OnDraw precedes RenderThread's buffer submission. Allow the compositor
+        // to receive it; queue-idle alone can return an identical old screenshot.
+        Thread.sleep(250)
+        test.waitForIdleSync()
     }
     fun run() {
         val context = test.targetContext
@@ -127,7 +149,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                             check(views.filterIsInstance<TextView>().single { it.text.toString() == activity.getString(R.string.journal_tab) }.performClick())
                         }
                     }
-                    test.waitForIdleSync()
+                    awaitDraw(activity)
                     main {
                         SingleScreenPageChecks.verify(activity)
                         if (activity is CurveActivity) {
@@ -138,6 +160,14 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                             check(list.isShown && list.count >= 2) { "Journal fixture not displayed" }
                         }
                     }
+                    val changed = requireNotNull(test.uiAutomation.takeScreenshot())
+                    try {
+                        val initialFile = File(stateDirectory, "$name-initial.png")
+                        val initial = requireNotNull(android.graphics.BitmapFactory.decodeFile(initialFile.absolutePath))
+                        try { check(!changed.sameAs(initial)) { "State screenshot still shows the initial frame" } }
+                        finally { initial.recycle() }
+                        File(stateDirectory, "$name-populated.png").outputStream().use { changed.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                    } finally { changed.recycle() }
                 }
                 checked++
                 test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_PAGE_OK $name\n") })

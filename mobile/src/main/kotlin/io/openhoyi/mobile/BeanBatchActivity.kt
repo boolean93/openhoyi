@@ -53,7 +53,7 @@ class BeanBatchActivity : ThemedActivity() {
         HoyiUi.label(this, card, getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg)), 30, true)
         HoyiUi.label(this, card, getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), 15, muted = true)
         HoyiUi.label(this, card, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 13, muted = true)
-        HoyiUi.button(this, beanActions(body), getString(R.string.journal_detail)) {
+        HoyiUi.button(this, beanActions(body), getString(R.string.ui_full_details)) {
             val details = listOf(R.string.beans_purchased to item.batch.purchasedOn,
                 R.string.beans_roasted to item.batch.roastedOn, R.string.beans_opened to item.batch.openedOn)
                 .joinToString("\n") { (label, date) -> getString(R.string.beans_date_value, getString(label), date?.toString() ?: getString(R.string.beans_not_set)) }
