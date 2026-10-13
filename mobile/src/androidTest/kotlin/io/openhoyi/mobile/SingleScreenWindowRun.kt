@@ -178,27 +178,6 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                 }
                 if (language == AppLanguage.CHINESE) chineseFormCaptures +=
                     ChineseFormWindowChecks.run(test, activity, directory, name) { awaitDraw(activity) }
-                if (language == AppLanguage.CHINESE && activity is ScaleActivity) {
-                    val capturePage = test.startActivitySync(page(ScaleActivity::class.java)
-                        .putExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, true))
-                    try {
-                        test.waitForIdleSync()
-                        awaitDraw(capturePage)
-                        main {
-                            SingleScreenPageChecks.verify(capturePage)
-                            val capture = ScaleActivity::class.java.getDeclaredField("capture")
-                                .apply { isAccessible = true }.get(capturePage) as android.widget.Button
-                            check(capture.isShown && !capture.isEnabled) { "Mock must not accept real bean weight" }
-                        }
-                        val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
-                        try {
-                            val extra = File(directory, "chinese-extra-states").apply { mkdirs() }
-                            File(extra, "$name-dose-capture.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                        } finally { bitmap.recycle() }
-                    } finally { main { capturePage.finish() } }
-                    test.waitForIdleSync()
-                    awaitDraw(activity)
-                }
                 checked++
                 test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_PAGE_OK $name\n") })
             } catch (error: Throwable) {
@@ -210,6 +189,36 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                     finally { bitmap.recycle() }
                 activity?.let { main { it.finish() } }
             }
+        }
+        // Do not synchronously start the same NEW_TASK root while its ordinary
+        // instance is foreground: Android can reuse it without creating a new
+        // Activity, leaving Instrumentation.startActivitySync waiting forever.
+        if (language == AppLanguage.CHINESE) {
+            val name = "${language.tag}-${if (dark) "dark" else "light"}-ScaleActivity-dose-capture"
+            var capturePage: Activity? = null
+            try {
+                test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_STATE_START $name\n") })
+                capturePage = test.startActivitySync(page(ScaleActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+                    .putExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, true))
+                test.waitForIdleSync()
+                awaitDraw(capturePage)
+                main {
+                    SingleScreenPageChecks.verify(capturePage)
+                    val capture = ScaleActivity::class.java.getDeclaredField("capture")
+                        .apply { isAccessible = true }.get(capturePage) as android.widget.Button
+                    check(capture.isShown && !capture.isEnabled) { "Mock must not accept real bean weight" }
+                }
+                val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                try {
+                    val extra = File(directory, "chinese-extra-states").apply { mkdirs() }
+                    File(extra, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+                } finally { bitmap.recycle() }
+                test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_STATE_OK $name\n") })
+            } catch (error: Throwable) {
+                failures += "$name: ${error.stackTraceToString()}"
+                test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_STATE_FAILED $name ${error.message}\n") })
+            } finally { capturePage?.let { main { it.finish() } }; test.waitForIdleSync() }
         }
         }
         } finally {
