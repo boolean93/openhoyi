@@ -39,6 +39,11 @@ internal object SingleScreenPageChecks {
             visibleFully(it)
             check(it.height >= HoyiUi.dp(activity, 48)) { "$fixture clickable target below 48dp: ${it.javaClass.simpleName} ${it.height}" }
         }
+        if (activity is HistoryDetailActivity || activity is BrewComparisonActivity) {
+            val charts = views.filterIsInstance<ShotChartView>()
+            check(charts.size == if (activity is BrewComparisonActivity) 2 else 1) { "$fixture missing historical chart" }
+            check(charts.all { it.points.size >= 2 }) { "$fixture historical charts are not populated" }
+        }
         if (activity is LegacyHistoryDetailActivity) check(views.any { it is LegacyShotChartView }) {
             "$fixture populated legacy chart not inspected"
         }
