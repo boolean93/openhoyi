@@ -129,7 +129,17 @@ internal fun ThemedActivity.beanCompactEditor(field: android.widget.EditText, la
             return
         }
         if (dialog != null || isFinishing || isDestroyed) return
-        val editor = android.widget.EditText(this).apply {
+        val initialSelectionStart = field.selectionStart.coerceIn(0, field.text.length)
+        val initialSelectionEnd = field.selectionEnd.coerceIn(0, field.text.length)
+        val editor = object : android.widget.EditText(this) {
+            // EditText can call this override while its superclass is constructing.
+            var trackSelection = false
+            override fun onSelectionChanged(start: Int, end: Int) {
+                super.onSelectionChanged(start, end)
+                if (trackSelection && start >= 0 && end >= 0) field.setSelection(
+                    start.coerceAtMost(field.text.length), end.coerceAtMost(field.text.length))
+            }
+        }.apply {
             inputType = field.inputType
             filters = field.filters
             textSize = 18f
@@ -142,15 +152,18 @@ internal fun ThemedActivity.beanCompactEditor(field: android.widget.EditText, la
                 maxLines = 6
                 gravity = android.view.Gravity.TOP
                 isVerticalScrollBarEnabled = true
-                setSelection(field.selectionStart.coerceIn(0, text.length))
+                setSelection(initialSelectionStart, initialSelectionEnd)
             }
             setTextColor(getColor(R.color.mobile_text))
             setPadding(HoyiUi.dp(this@beanCompactEditor, 12), HoyiUi.dp(this@beanCompactEditor, 8), HoyiUi.dp(this@beanCompactEditor, 12), HoyiUi.dp(this@beanCompactEditor, 8))
             addTextChangedListener(object : android.text.TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { field.setText(s) }
-                override fun afterTextChanged(s: android.text.Editable?) = Unit
+                override fun afterTextChanged(s: android.text.Editable?) {
+                    field.setSelection(selectionStart.coerceIn(0, field.text.length), selectionEnd.coerceIn(0, field.text.length))
+                }
             })
+            trackSelection = true
         }
         dialog = AlertDialog.Builder(this).setTitle(label).setView(editor)
             .setPositiveButton(android.R.string.ok, null).create().also { focused ->

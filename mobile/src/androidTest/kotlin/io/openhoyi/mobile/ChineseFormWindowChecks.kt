@@ -179,8 +179,39 @@ internal object ChineseFormWindowChecks {
                                     capture("section-$position-long-focused${if (keyboard == null) "" else "-ime"}")
                                     editorObserved = true
                                     imeObserved = imeObserved || keyboard != null
+                                    // Exercise the real native filter and editing, not just the initial text.
+                                    val oversized = "测".repeat(16032)
+                                    check(focused.input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, oversized)
+                                    }))
+                                    waitForDraw()
+                                    check(focused.input.refresh() && focused.input.text?.length == 16000) { "$name native editor lost its original length limit" }
+                                    main { check(field.text.toString() == oversized.take(16000)) }
+                                    val edited = longText + "\n末尾编辑检查"
+                                    check(focused.input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, edited)
+                                    }))
+                                    check(focused.input.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
+                                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, edited.length)
+                                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, edited.length)
+                                    }))
+                                    waitForDraw()
+                                    main { check(field.text.toString() == edited && field.selectionStart == edited.length) }
                                     check(focused.confirm.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { "$name long editor confirmation not reachable" }
                                 } finally { focused.input.recycle(); focused.confirm.recycle() }
+                                waitForDraw()
+                                val edited = longText + "\n末尾编辑检查"
+                                main { check(field.text.toString() == edited && field.selectionStart == edited.length) }
+                                tap(field)
+                                val reopened = requireNotNull(observeEditor(test, activity.packageName, label, activity.getString(android.R.string.ok)))
+                                try {
+                                    check(reopened.input.text?.toString() == edited && reopened.input.textSelectionStart == edited.length) { "$name reopened editor lost its edit position" }
+                                    capture("section-$position-long-reopened")
+                                    check(reopened.input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, longText)
+                                    }))
+                                    check(reopened.confirm.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+                                } finally { reopened.input.recycle(); reopened.confirm.recycle() }
                                 waitForDraw()
                                 main { check(field.text.toString() == longText) }
                             }

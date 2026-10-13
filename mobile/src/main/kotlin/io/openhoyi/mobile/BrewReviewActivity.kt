@@ -57,6 +57,9 @@ class BrewReviewActivity : ThemedActivity() {
             fields[key] = it
             if (!numeric) { it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; it.setSingleLine(false); it.minLines = 2; it.gravity = android.view.Gravity.TOP; it.layoutParams = (it.layoutParams as LinearLayout.LayoutParams).apply { height = 0; weight = 1f }; it.filters = arrayOf(InputFilter.LengthFilter(16000)) }
             it.setText(savedInstanceState?.getString(key) ?: initial)
+            val length = it.text.length
+            it.setSelection((savedInstanceState?.getInt("selectionStart:$key", 0) ?: 0).coerceIn(0, length),
+                (savedInstanceState?.getInt("selectionEnd:$key", 0) ?: 0).coerceIn(0, length))
         }
         val dose = field("dose", R.string.journal_dose, entry.notes.doseMg?.let(BeanQuantity::formatGrams).orEmpty(), true)
         val grind = field("grind", R.string.journal_grind, entry.notes.grind)
@@ -83,7 +86,11 @@ class BrewReviewActivity : ThemedActivity() {
         super.onSaveInstanceState(outState)
         outState.putString("selectedBeanId", selectedBeanId)
         outState.putInt("section", section)
-        fields.forEach { (key, field) -> outState.putString(key, field.text.toString()) }
+        fields.forEach { (key, field) ->
+            outState.putString(key, field.text.toString())
+            outState.putInt("selectionStart:$key", field.selectionStart)
+            outState.putInt("selectionEnd:$key", field.selectionEnd)
+        }
     }
 }
 
