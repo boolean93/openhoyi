@@ -174,8 +174,9 @@ internal fun ThemedActivity.beanShowDialog(dialog: AlertDialog, dismissed: () ->
 }
 
 /** Selected names are bounded; opening the native dropdown exposes each complete label. */
-internal fun ThemedActivity.beanChoiceAdapter(labels: List<String>): android.widget.ArrayAdapter<String> =
+internal fun ThemedActivity.beanChoiceAdapter(labels: List<String>, selectedLabels: List<String> = labels): android.widget.ArrayAdapter<String> =
     object : android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, labels) {
+        init { require(selectedLabels.size == labels.size) }
         private fun readable(view: View, selected: Boolean): View = view.apply {
             if (this is android.widget.TextView) {
                 setSingleLine(false)
@@ -189,7 +190,12 @@ internal fun ThemedActivity.beanChoiceAdapter(labels: List<String>): android.wid
                 layoutParams = layoutParams?.apply { height = ViewGroup.LayoutParams.WRAP_CONTENT }
             }
         }
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View = readable(super.getView(position, convertView, parent), true)
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View = readable(super.getView(position, convertView, parent), true).apply {
+            if (this is android.widget.TextView) {
+                text = selectedLabels[position]
+                contentDescription = labels[position]
+            }
+        }
         override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View = readable(super.getDropDownView(position, convertView, parent), false)
     }
 
@@ -200,6 +206,6 @@ internal fun ThemedActivity.beanCompactSummary(parent: LinearLayout, value: Stri
         contentDescription = value
         tag = "full-text-details"
     }
-    HoyiUi.button(this, parent, getString(R.string.journal_detail)) { beanDetails(getString(R.string.journal_detail), value) }
+    HoyiUi.button(this, parent, getString(R.string.ui_full_details)) { beanDetails(getString(R.string.ui_full_details), value) }
     return summary
 }

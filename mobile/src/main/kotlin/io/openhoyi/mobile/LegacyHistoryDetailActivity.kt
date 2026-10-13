@@ -53,15 +53,26 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
     }
 
     private fun showShot(body: LinearLayout, shot: LegacyShot) {
+        val summaryText = getString(R.string.legacy_history_summary,
+            shot.profileName.ifBlank { getString(R.string.legacy_history_unnamed) },
+            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(shot.createdAtMs)), shot.durationSec.toString())
+        val disclaimer = getString(R.string.legacy_history_chart_disclaimer)
         val summary = HoyiUi.card(this, body, getString(R.string.legacy_history_record))
-        text(summary, getString(R.string.legacy_history_summary, shot.profileName.ifBlank { getString(R.string.legacy_history_unnamed) }, SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(shot.createdAtMs)), shot.durationSec.toString()), 16)
+        text(summary, summaryText, 16)
         val chart = HoyiUi.card(this, body, getString(R.string.curve_view_legacy)).apply {
             layoutParams = LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) }
             setPadding(dp(12), dp(8), dp(12), dp(8))
         }
         chart.addView(LegacyShotChartView(this).apply { points = shot.points },
             LinearLayout.LayoutParams(-1, 0, 1f))
-        text(chart, getString(R.string.legacy_history_chart_disclaimer), 14)
+        text(chart, disclaimer, 14)
+        // One explicit full-details entry preserves both texts without duplicate
+        // overview buttons taking height from the historical plot.
+        HoyiUi.button(this, body, getString(R.string.extraction_overview)) {
+            android.app.AlertDialog.Builder(this).setTitle(getString(R.string.legacy_history_detail_title))
+                .setMessage(summaryText + "\n\n" + disclaimer)
+                .setPositiveButton(android.R.string.ok, null).show()
+        }
     }
 
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false) {
@@ -71,12 +82,6 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
             setPadding(0, dp(6), 0, dp(6))
             maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
             tag = "full-text-details"
-        })
-        parent.addView(android.widget.Button(this).apply {
-            text = getString(R.string.extraction_overview)
-            minHeight = dp(48)
-            setOnClickListener { android.app.AlertDialog.Builder(this@LegacyHistoryDetailActivity)
-                .setMessage(value).setPositiveButton(android.R.string.ok, null).show() }
         })
     }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()

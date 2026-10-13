@@ -105,7 +105,7 @@ internal fun ThemedActivity.profileCard(body: LinearLayout, doc: CustomCurveDocu
         card.addView(android.view.View(this), LinearLayout.LayoutParams(-1, 0, 1f))
     }
     HoyiUi.label(this, card, getString(R.string.profiles_summary, doc.temperatureC, CurveDraftNumber.format(doc.targetHundredthsGram, 2), doc.stages.size), 14)
-    HoyiUi.button(this, card, getString(R.string.journal_detail)) { beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode()) }
+    HoyiUi.button(this, card, getString(R.string.ui_full_details)) { beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode()) }
 }
 
 internal fun ThemedActivity.profilePreviewDialog(doc: CustomCurveDocument) {

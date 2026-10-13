@@ -75,9 +75,11 @@ class BrewComparisonActivity : ThemedActivity() {
             selectors.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
             HoyiUi.label(this, cell, getString(label), 13, muted = true)
             val view = Spinner(this).apply {
+                // The compact selected chip identifies the cup by its timestamp;
+                // the dropdown/accessibility keeps the complete date + curve label.
                 adapter = beanChoiceAdapter(entries.map {
                     getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
-                })
+                }, entries.map { journalDate(it.observation.startedAtMs) })
                 contentDescription = getString(label)
                 minimumHeight = HoyiUi.dp(this@BrewComparisonActivity, 48)
                 cell.addView(this)
