@@ -11,4 +11,5 @@
     <string name="reference_stage">Stage %1$s: %2$s bar</string>
     <string name="reference_raw">This recipe includes raw flow targets, which are not plotted together with pressure or flow into the cup</string>
     <string name="reference_trace_curve">Record shown in chart: %1$s</string>
+    <string name="reference_legend_compact">Solid: live · Dashed: history (not forecast)</string>
 </resources>

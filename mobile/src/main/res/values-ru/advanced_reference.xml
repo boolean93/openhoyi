@@ -11,4 +11,5 @@
     <string name="reference_stage">Этап %1$s: %2$s бар</string>
     <string name="reference_raw">В рецепте есть исходные целевые значения потока; они не строятся на одном графике с давлением или потоком в чашку</string>
     <string name="reference_trace_curve">Запись на графике: %1$s</string>
+    <string name="reference_legend_compact">Сплошная: сейчас · Пунктир: история (не прогноз)</string>
 </resources>

@@ -11,4 +11,5 @@
     <string name="reference_stage">段階 %1$s：%2$s bar</string>
     <string name="reference_raw">このレシピには生の流量目標値が含まれるため、圧力やカップへの流量と同じグラフには描画しません</string>
     <string name="reference_trace_curve">グラフに表示中の記録：%1$s</string>
+    <string name="reference_legend_compact">実線：今回 · 破線：履歴（予測ではありません）</string>
 </resources>

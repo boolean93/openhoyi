@@ -116,14 +116,30 @@ class ExtractionActivity : ThemedActivity() {
         referenceStatus = text(details, getString(R.string.reference_off), 13)
         traceCurve = text(details, "", 13)
         stageTargets = text(details, "", 13)
-        curveSummary = text(content, getString(R.string.extraction_curve_initial), 16, true).apply {
+        // Wide windows allocate the remaining height to the plot, not full-width tools.
+        // Safety guidance stays above this split; the side panel is bounded and never scrolls.
+        val plotColumn = if (narrow) content else LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val sidePanel = if (narrow) content else LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(4), dp(4), dp(4))
+            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_surface, 10)
+        }
+        curveSummary = text(sidePanel, getString(R.string.extraction_curve_initial), 16, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
         }
-        deviceSummary = text(content, getString(R.string.extraction_devices_initial), 12)
+        deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 12)
         readiness = text(content, getString(R.string.extraction_waiting_service), 14, true)
         readiness.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        if (!narrow) {
+            val workspace = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4) })
+            workspace.addView(plotColumn, LinearLayout.LayoutParams(0, -1, 1f).apply { marginEnd = dp(10) })
+            // On the smallest wide window leave at least ~400dp for the dual-axis plot.
+            val sideWidth = minOf(300, resources.configuration.screenWidthDp * 3 / 10)
+            workspace.addView(sidePanel, LinearLayout.LayoutParams(dp(sideWidth), -1))
+        }
         val metrics = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        content.addView(metrics, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+        plotColumn.addView(metrics, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
         fun reading(label: String): TextView {
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -141,25 +157,35 @@ class ExtractionActivity : ThemedActivity() {
         chart = ExtractionOverlayView(this).apply {
             background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_surface, 10)
         }
-        content.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6); bottomMargin = dp(4) })
-        val toolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        content.addView(toolbar)
+        plotColumn.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6); bottomMargin = dp(4) })
+        val toolbar = LinearLayout(this).apply { orientation = if (narrow) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
+        sidePanel.addView(toolbar)
         fun compact(parent: LinearLayout, title: String, action: () -> Unit): Button =
             HoyiUi.button(this, parent, title, action = action).apply {
                 textSize = 13f
                 setPadding(dp(6), dp(4), dp(6), dp(4))
                 minHeight = dp(48); minimumHeight = dp(48)
-                layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) }
+                layoutParams = if (parent.orientation == LinearLayout.VERTICAL)
+                    LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) }
+                else LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) }
             }
         chooseCurve = compact(toolbar, getString(R.string.extraction_choose_curve)) { startActivity(Intent(this, CurveActivity::class.java)) }
         connectDevices = compact(toolbar, getString(R.string.extraction_connect_devices)) {
             startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
         }
         chooseBeans = compact(toolbar, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
-        val secondary = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        content.addView(secondary)
-        referenceChoice = compact(secondary, getString(R.string.reference_choose)) { chooseReference() }
-        val detailsButton = compact(secondary, getString(R.string.extraction_overview)) {
+        val secondary = LinearLayout(this).apply { orientation = if (narrow) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
+        sidePanel.addView(secondary)
+        val referenceTools = if (narrow) secondary else LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            secondary.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
+        }
+        val preparationTools = if (narrow) secondary else LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            secondary.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
+        }
+        referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }
+        val detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
             val info = listOf(curveSummary, deviceSummary, shotSummary, live, weightTarget, traceCurve, stageTargets, referenceStatus)
                 .map { it.text.toString() }.filter { it.isNotBlank() }.joinToString("\n\n") +
                 "\n\n" + getString(R.string.live_cup_flow_source)
@@ -167,8 +193,10 @@ class ExtractionActivity : ThemedActivity() {
                 .setPositiveButton(android.R.string.ok, null).show()
         }
         curveSummary.setOnLongClickListener { detailsButton.performClick(); true }
-        prepare = compact(secondary, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
-        cancelPrepare = compact(secondary, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
+        prepare = compact(preparationTools, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
+        cancelPrepare = compact(preparationTools, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
+        // These can describe UNKNOWN writes or stale alarms. Keep them outside the
+        // tools panel so longer translations cannot push a safety message offscreen.
         preparationStatus = text(content, getString(R.string.extraction_prepare_initial), 12)
         notificationStatus = text(content, "", 12)
         alarmStatus = text(content, getString(R.string.home_alarm_initial), 13).apply {

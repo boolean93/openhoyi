@@ -53,7 +53,7 @@ internal class ExtractionOverlayView(context: Context) : View(context) {
             return lines
         }
         // Wrapped legend uses physical height; large fonts never paint over traces.
-        val labels = listOf(context.getString(R.string.live_pressure_chart), context.getString(R.string.live_cup_flow_chart))
+        val labels = listOf(context.getString(R.string.extraction_pressure), context.getString(R.string.live_cup_flow_chart))
         val colors = listOf(pressureColor, flowColor)
         var legendX = left; var legendY = dp(5f) - fm.ascent
         labels.forEachIndexed { index, label ->
@@ -71,17 +71,17 @@ internal class ExtractionOverlayView(context: Context) : View(context) {
             text.color = context.getColor(R.color.chart_label)
             text.textAlign = Paint.Align.LEFT
             legendY += lineHeight + dp(5f)
-            val lines = wrapped(context.getString(R.string.reference_legend), right - left)
+            val lines = wrapped(context.getString(R.string.reference_legend_compact), right - left)
             lines.forEachIndexed { line, value -> canvas.drawText(value, left, legendY + line * lineHeight, text) }
             legendY += (lines.size - 1) * lineHeight
         }
-        val top = legendY + fm.descent + lineHeight + dp(8f)
+        val top = legendY + fm.descent + lineHeight * 1.5f + dp(8f)
         val bottom = height - lineHeight * 2 - dp(14f)
         if (right <= left || bottom - top < dp(24f)) return
         text.color = pressureColor; text.textAlign = Paint.Align.RIGHT
-        canvas.drawText("bar", left - dp(7f), top - dp(6f), text)
+        canvas.drawText("bar", left - dp(7f), top - fm.descent - lineHeight / 2 - dp(3f), text)
         text.color = flowColor; text.textAlign = Paint.Align.LEFT
-        canvas.drawText("g/s", right + dp(7f), top - dp(6f), text)
+        canvas.drawText("g/s", right + dp(7f), top - fm.descent - lineHeight / 2 - dp(3f), text)
         for (row in 0..4) {
             val py = bottom - (bottom - top) * row / 4
             canvas.drawLine(left, py, right, py, grid)

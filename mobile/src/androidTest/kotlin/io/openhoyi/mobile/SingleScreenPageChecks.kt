@@ -59,6 +59,9 @@ internal object SingleScreenPageChecks {
         views.filter { it is ShotChartView || it is CurveStageView || it is ExtractionOverlayView || it is LegacyShotChartView }.forEach { chart ->
             visibleFully(chart)
             check(chart.height >= HoyiUi.dp(activity, 96)) { "$fixture chart lost its usable viewport: ${chart.height}" }
+            if (chart is ExtractionOverlayView && HoyiUi.wide(activity)) check(chart.height >= content.height * .4f) {
+                "$fixture wide extraction plot is not the primary area: ${chart.height}/${content.height}"
+            }
         }
     }
 }

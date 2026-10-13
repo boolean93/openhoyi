@@ -11,4 +11,5 @@
     <string name="reference_stage">المرحلة %1$s: %2$s بار</string>
     <string name="reference_raw">تتضمن هذه الوصفة أهداف تدفق خام، ولا تُرسم مع الضغط أو التدفق إلى الكوب على الرسم نفسه</string>
     <string name="reference_trace_curve">السجل المعروض في الرسم: %1$s</string>
+    <string name="reference_legend_compact">متصل: مباشر · متقطع: سابق (ليس توقعًا)</string>
 </resources>

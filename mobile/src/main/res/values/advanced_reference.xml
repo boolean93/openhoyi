@@ -10,4 +10,5 @@
     <string name="reference_stage">第 %1$s 阶段：%2$s bar</string>
     <string name="reference_raw">此配方包含原始流量目标，不与压力或杯中流速混画</string>
     <string name="reference_trace_curve">图中记录：%1$s</string>
+    <string name="reference_legend_compact">实线：本次 · 虚线：历史（非预测）</string>
 </resources>

@@ -159,13 +159,14 @@ class CurveActivity : ThemedActivity() {
         }
         updateFilterChips()
         val listHeader = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = if (compact) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
+            isBaselineAligned = false
             gravity = android.view.Gravity.CENTER_VERTICAL
         }
-        browser.addView(listHeader, LinearLayout.LayoutParams(-1, dp(48)))
+        browser.addView(listHeader, LinearLayout.LayoutParams(-1, -2))
         resultCount = HoyiUi.label(this, listHeader, "", 13, muted = true).apply {
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            maxLines = 2
+            layoutParams = if (compact) LinearLayout.LayoutParams(-1, -2)
+                else LinearLayout.LayoutParams(0, -2, 1f)
         }
         listHeader.addView(TextView(this).apply {
             text = getString(R.string.curve_legacy)
@@ -177,7 +178,7 @@ class CurveActivity : ThemedActivity() {
             contentDescription = getString(R.string.curve_legacy_description)
             setTextColor(getColor(R.color.mobile_accent))
             setOnClickListener { startActivity(Intent(this@CurveActivity, LegacyCurveActivity::class.java)) }
-        }, LinearLayout.LayoutParams(-2, -1).apply { marginStart = dp(8) })
+        }, LinearLayout.LayoutParams(if (compact) -1 else -2, -2).apply { if (!compact) marginStart = dp(8) })
         val list = ListView(this).apply {
             divider = null
             dividerHeight = dp(6)

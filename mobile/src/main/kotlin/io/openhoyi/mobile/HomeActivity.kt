@@ -75,6 +75,9 @@ class HomeActivity : ThemedActivity() {
     private var candidateKeys = emptyList<String>()
     private lateinit var devicePanel: LinearLayout
     private var deviceDialog: AlertDialog? = null
+    private lateinit var presetHost: LinearLayout
+    private lateinit var presetRail: HorizontalScrollView
+    private lateinit var quickPresets: Button
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
@@ -123,8 +126,8 @@ class HomeActivity : ThemedActivity() {
         setContentView(root)
         val header = HoyiUi.header(this, content, "HOYI",
             if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.ui_brew))
-        HoyiUi.button(this, header, getString(R.string.app_settings_title)) {
-            startActivity(Intent(this, AppSettingsActivity::class.java))
+        HoyiUi.button(this, header, getString(R.string.home_device_connection)) {
+            showDevicePanel()
         }.apply {
             maxWidth=dp(144)
             layoutParams=LinearLayout.LayoutParams(-2,-2).apply {marginStart=dp(12)}
@@ -175,6 +178,12 @@ class HomeActivity : ThemedActivity() {
             orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(16))
         }
         val deviceCard = devicePanel
+        button(deviceCard, getString(R.string.app_settings_title)) {
+            startActivity(Intent(this, AppSettingsActivity::class.java))
+        }
+        button(deviceCard, getString(R.string.extraction_title)) {
+            startActivity(Intent(this, ExtractionActivity::class.java))
+        }
         status = text(content, getString(R.string.home_not_connected_initial), 13)
         val deviceRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         content.addView(deviceRow)
@@ -186,7 +195,6 @@ class HomeActivity : ThemedActivity() {
         coffee = text(machineChip, getString(R.string.home_coffee_initial), 14, true)
         scaleDot = statusDot(scaleChip)
         scale = text(scaleChip, getString(R.string.home_scale_initial), 14, true)
-        button(content, getString(R.string.home_device_connection)) { showDevicePanel() }
         scanButton = button(deviceCard, getString(R.string.home_scan)) { enableAndScan() }
         candidates = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         deviceCard.addView(candidates)
@@ -238,7 +246,6 @@ class HomeActivity : ThemedActivity() {
             background = HoyiUi.shape(this@HomeActivity, R.color.mobile_surface, 18, R.color.mobile_border)
         }
         content.addView(curveCard, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
-        text(curveCard, getString(R.string.home_current_curve), 14)
         selection = text(curveCard, getString(R.string.home_curve_missing), if (HoyiUi.wide(this)) 26 else 21, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
         }
@@ -253,12 +260,15 @@ class HomeActivity : ThemedActivity() {
             startActivity(Intent(this, if (item != null && library.canStart(item))
                 ExtractionActivity::class.java else CurveActivity::class.java))
         }
-        browseCurvesButton = button(curveCard, getString(R.string.home_curve_browse)) { startActivity(Intent(this, CurveActivity::class.java)) }
+        browseCurvesButton = button(deviceCard, getString(R.string.home_curve_browse)) { startActivity(Intent(this, CurveActivity::class.java)) }
         // Presets are an independently scrollable horizontal rail, not a tall five-row card.
-        val presets = android.widget.HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        val presets = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
+        presetRail = presets
+        presetHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val presetRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         presets.addView(presetRow)
-        content.addView(presets, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
+        presetHost.addView(presets, LinearLayout.LayoutParams(-1, -2))
+        content.addView(presetHost, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
         presets.contentDescription = getString(R.string.home_quick_curves) + ". " + getString(R.string.home_quick_curves_hint)
         presetButtons = (1..5).map { slot ->
             button(presetRow, getString(R.string.home_slot, slot.toString())) {
@@ -280,7 +290,10 @@ class HomeActivity : ThemedActivity() {
                 layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4); topMargin = dp(6) }
             }
         }
-        tool(R.string.extraction_title, ExtractionActivity::class.java)
+        quickPresets = button(tools, getString(R.string.home_quick_curves)) { showDevicePanel() }.apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4); topMargin = dp(6) }
+            visibility = View.GONE
+        }
         tool(R.string.dose_title, BeanPreparationActivity::class.java)
         tool(R.string.scale_title, ScaleActivity::class.java)
         render()
@@ -439,6 +452,15 @@ class HomeActivity : ThemedActivity() {
             ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
+        // Full warnings and recovery take priority. The five shortcut buttons stay
+        // available through an explicit entry, instead of compressing the main CTA.
+        val presetParent = if (warning == null) presetHost else devicePanel
+        if (presetRail.parent !== presetParent) {
+            (presetRail.parent as? android.view.ViewGroup)?.removeView(presetRail)
+            presetParent.addView(presetRail, 0, LinearLayout.LayoutParams(-1, -2))
+        }
+        presetHost.visibility = if (warning == null) View.VISIBLE else View.GONE
+        quickPresets.visibility = if (warning == null) View.GONE else View.VISIBLE
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
             owner?.machineWriteAcknowledgementAvailable != true) View.GONE else View.VISIBLE
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)

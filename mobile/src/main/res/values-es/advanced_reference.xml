@@ -11,4 +11,5 @@
     <string name="reference_stage">Etapa %1$s: %2$s bar</string>
     <string name="reference_raw">Esta receta incluye objetivos de flujo originales, que no se dibujan junto con la presión ni el flujo hacia la taza</string>
     <string name="reference_trace_curve">Registro mostrado en el gráfico: %1$s</string>
+    <string name="reference_legend_compact">Continua: actual · Discontinua: historial (no predicción)</string>
 </resources>

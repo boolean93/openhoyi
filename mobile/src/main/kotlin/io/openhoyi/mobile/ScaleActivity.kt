@@ -144,12 +144,9 @@ class ScaleActivity:ScaleOwnerActivity() {
                 if(stable==null) {message(getString(R.string.scale_dose_not_ready));return@button}
                 setResult(RESULT_OK,Intent().putExtra(EXTRA_BEAN_DOSE_HUNDREDTHS_GRAM,stable));finish()
             }
-            HoyiUi.label(this,body,getString(R.string.scale_dose_help),13,muted=true).apply {
-                maxLines=2;ellipsize=android.text.TextUtils.TruncateAt.END
-                minimumHeight=HoyiUi.dp(this@ScaleActivity,48)
-                tag="full-text-details"
-                setOnClickListener {android.app.AlertDialog.Builder(this@ScaleActivity).setTitle(getString(R.string.scale_dose_title))
-                    .setMessage(getString(R.string.scale_dose_help)).setPositiveButton(android.R.string.ok,null).show()}
+            HoyiUi.button(this,body,"ⓘ " + getString(R.string.scale_dose_title)) {
+                android.app.AlertDialog.Builder(this@ScaleActivity).setTitle(getString(R.string.scale_dose_title))
+                    .setMessage(getString(R.string.scale_dose_help)).setPositiveButton(android.R.string.ok,null).show()
             }
         }
         val tools=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}

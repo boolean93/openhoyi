@@ -27,6 +27,12 @@ internal object TrendChartTextChecks {
                 probe.draw(canvas)
                 check(canvas.labels >= 19) { "Overlay plot has no usable labeled viewport" }
                 check("bar" in canvas.texts && "g/s" in canvas.texts) { "Independent physical units missing" }
+                if (data.second.isNotEmpty()) {
+                    val compact = activity.getString(R.string.reference_legend_compact).filterNot(Char::isWhitespace)
+                    check(canvas.texts.joinToString("").filterNot(Char::isWhitespace).contains(compact)) {
+                        "Historical reference is not explained in the plot"
+                    }
+                }
             } finally { bitmap.recycle() }
         }
     }
@@ -35,6 +41,7 @@ internal object TrendChartTextChecks {
         private val fixture: String) : Canvas(bitmap) {
         var labels = 0
         val texts = mutableListOf<String>()
+        private val bounds = mutableListOf<Pair<String, android.graphics.RectF>>()
         override fun drawText(text: String, x: Float, y: Float, paint: Paint) {
             check(kotlin.math.abs(paint.textSize - nativeTextSize) < .1f) {
                 "$fixture label does not follow system font scale: $text"
@@ -50,6 +57,13 @@ internal object TrendChartTextChecks {
                 y + metrics.ascent >= -1f && y + metrics.descent <= height + 1f) {
                 "$fixture chart text outside actual viewport: $text at $left,$y size=${width}x$height"
             }
+            val current = android.graphics.RectF(left, y + metrics.ascent, left + textWidth, y + metrics.descent)
+            bounds.forEach { (oldText, old) ->
+                val horizontal = minOf(old.right, current.right) - maxOf(old.left, current.left)
+                val vertical = minOf(old.bottom, current.bottom) - maxOf(old.top, current.top)
+                check(horizontal <= 1f || vertical <= 1f) { "$fixture chart labels overlap: $oldText / $text" }
+            }
+            bounds += text to current
             texts += text
             labels++
             super.drawText(text, x, y, paint)

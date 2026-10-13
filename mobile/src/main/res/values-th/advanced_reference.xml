@@ -11,4 +11,5 @@
     <string name="reference_stage">ช่วง %1$s: %2$s bar</string>
     <string name="reference_raw">สูตรนี้มีค่าเป้าหมายอัตราการไหลดิบ จึงไม่วาดรวมกับแรงดันหรืออัตราการไหลลงแก้ว</string>
     <string name="reference_trace_curve">บันทึกที่แสดงในกราฟ: %1$s</string>
+    <string name="reference_legend_compact">เส้นทึบ: ครั้งนี้ · เส้นประ: ประวัติ (ไม่ใช่คาดการณ์)</string>
 </resources>
