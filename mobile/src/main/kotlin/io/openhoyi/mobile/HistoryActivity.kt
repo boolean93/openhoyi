@@ -14,6 +14,8 @@ import java.util.Locale
 class HistoryActivity : ThemedActivity() {
     private data class RowViews(val title: TextView, val status: TextView, val meta: TextView)
     private lateinit var adapter: ArrayAdapter<ShotHistory.Entry>
+    private lateinit var historyList: ListView
+    private val listStates = mutableMapOf<Boolean, android.os.Parcelable>()
     private lateinit var count: TextView
     private lateinit var emptyTitle: TextView
     private lateinit var emptyMessage: TextView
@@ -25,10 +27,15 @@ class HistoryActivity : ThemedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showJournal = savedInstanceState?.getBoolean("showJournal") ?: false
+        savedInstanceState?.getParcelable<android.os.Parcelable>("localList")?.let { listStates[false] = it }
+        savedInstanceState?.getParcelable<android.os.Parcelable>("journalList")?.let { listStates[true] = it }
         buildScreen()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        historyList.onSaveInstanceState()?.let { listStates[showJournal] = it }
+        outState.putParcelable("localList", listStates[false])
+        outState.putParcelable("journalList", listStates[true])
         outState.putBoolean("showJournal", showJournal)
     }
     private fun buildScreen() {
@@ -50,16 +57,16 @@ class HistoryActivity : ThemedActivity() {
         }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(16), dp(20), dp(12))
+            setPadding(dp(12), dp(8), dp(12), dp(8))
         }
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         HoyiUi.navigation(this, root, HistoryActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, body, getString(R.string.home_history), getString(R.string.history_subtitle))
+        HoyiUi.header(this, body, getString(R.string.home_history))
         count = HoyiUi.label(this, body, "", 14, muted = true)
         HoyiUi.tabs(this, body, listOf(getString(R.string.history_local_tab), getString(R.string.journal_tab), getString(R.string.history_legacy_tab)), selected = if (showJournal) 1 else 0) {
             if (it == 2) startActivity(Intent(this, LegacyHistoryActivity::class.java))
-            else { showJournal = it == 1; buildScreen(); render() }
+            else { historyList.onSaveInstanceState()?.let { state -> listStates[showJournal] = state }; showJournal = it == 1; buildScreen(); render() }
         }
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         body.addView(actions)
@@ -133,6 +140,7 @@ class HistoryActivity : ThemedActivity() {
                 return card
             }
         }
+        historyList = list
         list.adapter = adapter
         val content = FrameLayout(this)
         body.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
@@ -154,6 +162,7 @@ class HistoryActivity : ThemedActivity() {
             if (showJournal) migrateRecent() else startActivity(Intent(this, CurveActivity::class.java))
         }
         list.emptyView = emptyHolder
+        listStates[showJournal]?.let { list.onRestoreInstanceState(it) }
         list.setOnItemClickListener { _, _, position, _ ->
             startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", rows[position].id))
         }
@@ -190,6 +199,8 @@ class HistoryActivity : ThemedActivity() {
         render()
     }
     private fun render() {
+        // Adapter refreshes must not send a returning reader back to the first record.
+        val position = historyList.onSaveInstanceState()
         if (showJournal) {
             val journal = (application as MobileApplication).journalResult.getOrNull()
             rows = journal?.entries()?.map { it.observation.historySummary() }.orEmpty()
@@ -200,6 +211,7 @@ class HistoryActivity : ThemedActivity() {
             emptyAction.text = getString(R.string.journal_migrate)
             emptyAction.visibility = if (journal == null) View.GONE else View.VISIBLE
             adapter.clear(); adapter.addAll(rows)
+            (listStates.remove(showJournal) ?: position)?.let { historyList.onRestoreInstanceState(it) }
             return
         }
         val history = runCatching { (application as MobileApplication).history }.getOrNull()
@@ -217,6 +229,7 @@ class HistoryActivity : ThemedActivity() {
         }
         adapter.clear()
         adapter.addAll(rows)
+        (listStates.remove(showJournal) ?: position)?.let { historyList.onRestoreInstanceState(it) }
     }
     private fun status(value: ShotHistory.Status) = when (value) {
         ShotHistory.Status.STARTING -> getString(R.string.extraction_state_starting)

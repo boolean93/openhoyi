@@ -26,18 +26,18 @@ class CurveShareActivity : ThemedActivity() {
         exportedUri = savedInstanceState?.getString("exportedUri")?.let(Uri::parse)
         profileCard(body, doc)
         val json = doc.encode()
-        HoyiUi.button(this, body, getString(R.string.profiles_copy)) {
+        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_copy)) {
             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText(getString(R.string.profiles_json), json))
             Toast.makeText(this, R.string.profiles_copied, Toast.LENGTH_SHORT).show()
         }
-        HoyiUi.button(this, body, getString(R.string.profiles_share_text), primary = true) {
+        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_share_text), primary = true) {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, json), getString(R.string.profiles_share_title)))
         }
-        HoyiUi.button(this, body, getString(R.string.profiles_export_file)) {
+        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_export_file)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json")
                 .putExtra(Intent.EXTRA_TITLE, "openhoyi-${doc.id}.json"), EXPORT)
         }
-        shareFile = HoyiUi.button(this, body, getString(R.string.profiles_share_file)) {
+        shareFile = HoyiUi.button(this, beanActions(body), getString(R.string.profiles_share_file)) {
             exportedUri?.let { uri ->
                 startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, uri)
                     .apply { clipData = ClipData.newUri(contentResolver, getString(R.string.profiles_json), uri) }
@@ -89,11 +89,32 @@ internal fun ThemedActivity.profileSummary(doc: CustomCurveDocument): String = b
     }
 }
 internal fun ThemedActivity.profileCard(body: LinearLayout, doc: CustomCurveDocument) {
-    val card = HoyiUi.card(this, body, doc.name)
-    HoyiUi.label(this, card, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null) R.string.profiles_pressure_compatible else R.string.profiles_read_only), 15, true)
+    val card = HoyiUi.card(this, body)
+    card.setPadding(HoyiUi.dp(this, 10), HoyiUi.dp(this, 8), HoyiUi.dp(this, 10), HoyiUi.dp(this, 8))
+    card.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = HoyiUi.dp(this@profileCard, 6) }
+    HoyiUi.label(this, card, doc.name, 20, true).apply {
+        maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+        tag = "full-text-details"
+    }
+    HoyiUi.label(this, card, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null) R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, true)
     if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
-        card.addView(CurveStageView(this).apply { targets = doc.stages.map { it.target } }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 160)))
+        card.addView(CurveStageView(this).apply { targets = doc.stages.map { it.target } }, LinearLayout.LayoutParams(-1, 0, 1f))
         HoyiUi.label(this, card, getString(R.string.profiles_stage_caption), 13, muted = true)
-    } else HoyiUi.label(this, card, getString(R.string.profiles_flow_raw), 15, muted = true)
-    HoyiUi.label(this, card, profileSummary(doc), 16).setPadding(0, HoyiUi.dp(this, 12), 0, 0)
+    } else {
+        HoyiUi.label(this, card, getString(R.string.profiles_flow_raw), 15, muted = true)
+        card.addView(android.view.View(this), LinearLayout.LayoutParams(-1, 0, 1f))
+    }
+    HoyiUi.label(this, card, getString(R.string.profiles_summary, doc.temperatureC, CurveDraftNumber.format(doc.targetHundredthsGram, 2), doc.stages.size), 14)
+    HoyiUi.button(this, card, getString(R.string.journal_detail)) { beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode()) }
+}
+
+internal fun ThemedActivity.profilePreviewDialog(doc: CustomCurveDocument) {
+    val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; minimumHeight = (resources.displayMetrics.heightPixels * 0.55f).toInt() }
+    profileCard(content, doc)
+    val dialog = android.app.AlertDialog.Builder(this).setTitle(R.string.profiles_preview).setView(content)
+        .setPositiveButton(android.R.string.ok, null).create()
+    dialog.setOnShowListener {
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.94f).toInt(), (resources.displayMetrics.heightPixels * 0.78f).toInt())
+    }
+    beanShowDialog(dialog)
 }

@@ -22,6 +22,7 @@ class CurveActivity : ThemedActivity() {
     private lateinit var editDraft: Button
     private lateinit var shareParameters: Button
     private lateinit var adapter: ArrayAdapter<String>
+    private lateinit var curveList: ListView
     private lateinit var search: EditText
     private lateinit var resultCount: TextView
     private lateinit var stageChart: CurveStageView
@@ -62,22 +63,27 @@ class CurveActivity : ThemedActivity() {
         }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(16), dp(20), dp(12))
+            setPadding(dp(12), dp(8), dp(12), dp(8))
         }
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         HoyiUi.navigation(this, root, CurveActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, body, getString(R.string.curve_title), getString(R.string.curve_subtitle))
+        HoyiUi.header(this, body, getString(R.string.curve_title))
         val work = LinearLayout(this).apply { orientation = if (HoyiUi.wide(this@CurveActivity)) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
         body.addView(work, LinearLayout.LayoutParams(-1, 0, 1f))
         compact = !HoyiUi.wide(this)
         val browser = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         browserPane = browser
         detailPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val detailPane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        detailScroll = ScrollView(this).apply { isFillViewport = true; addView(detailPane) }
-        if (compact) HoyiUi.button(this, detailPanel, getString(R.string.curve_back)) { showBrowser() }
-        detailPanel.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        val detailPane = detailPanel
+        val detailToolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        detailPanel.addView(detailToolbar)
+        if (compact) HoyiUi.button(this, detailToolbar, getString(R.string.curve_back)) { showBrowser() }
+            .layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) }
+        HoyiUi.button(this, detailToolbar, getString(R.string.curve_detail_title)) { showParameterDetails() }
+            .layoutParams = LinearLayout.LayoutParams(if (compact) 0 else -1, -2, if (compact) 1f else 0f)
+
+
         if (!compact) {
             work.addView(browser, LinearLayout.LayoutParams(0, -1, .95f))
             work.addView(detailPanel, LinearLayout.LayoutParams(0, -1, 1.05f).apply { marginStart = dp(16) })
@@ -93,17 +99,19 @@ class CurveActivity : ThemedActivity() {
             setPadding(dp(16), 0, dp(16), 0)
             background = HoyiUi.shape(this@CurveActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         }
-        browser.addView(search, LinearLayout.LayoutParams(-1, dp(52)))
+        browser.addView(search, LinearLayout.LayoutParams(-1, dp(48)))
         val customAvailable = (application as MobileApplication).customCurvesResult.isSuccess
-        HoyiUi.button(this, browser, getString(R.string.profiles_new)) {
+        val creation = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        browser.addView(creation)
+        HoyiUi.button(this, creation, getString(R.string.profiles_new)) {
             startActivity(Intent(this, CurveEditorActivity::class.java))
-        }.isEnabled = customAvailable
-        HoyiUi.button(this, browser, getString(R.string.profiles_import)) {
+        }.apply { isEnabled = customAvailable; layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6); topMargin = dp(6) } }
+        HoyiUi.button(this, creation, getString(R.string.profiles_import)) {
             startActivity(Intent(this, CurveImportActivity::class.java))
-        }.isEnabled = customAvailable
+        }.apply { isEnabled = customAvailable; layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) } }
         if (!customAvailable) HoyiUi.label(this, browser, getString(R.string.profiles_unavailable), 14, muted = true)
         val sort = Spinner(this)
-        sort.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item,
+        sort.adapter = HoyiUi.spinnerAdapter(this,
             listOf(getString(R.string.curve_sort_recent), getString(R.string.curve_sort_most_used)))
         sort.setSelection(sortMode.ordinal)
         sort.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -114,14 +122,14 @@ class CurveActivity : ThemedActivity() {
             }
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
         }
-        browser.addView(sort, LinearLayout.LayoutParams(-1, dp(48)))
+        browser.addView(sort, LinearLayout.LayoutParams(-1, -2))
         if ((application as MobileApplication).curveUsageResult.isFailure)
             HoyiUi.label(this, browser, getString(R.string.curve_usage_unavailable), 13, muted = true)
         val categories = CurveCategoryFilter.entries
         val filter = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
         val filterRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         filter.addView(filterRow)
-        browser.addView(filter, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(10) })
+        browser.addView(filter, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(2) })
         val filterChips = mutableListOf<TextView>()
         fun updateFilterChips() {
             filterChips.forEachIndexed { index, chip ->
@@ -188,7 +196,7 @@ class CurveActivity : ThemedActivity() {
                         background = HoyiUi.shape(this@CurveActivity, R.color.mobile_accent_soft, 10)
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                     }
-                    addView(thumbnail, LinearLayout.LayoutParams(dp(78), dp(52)).apply { marginEnd = dp(12) })
+                    addView(thumbnail, LinearLayout.LayoutParams(dp(78), dp(48)).apply { marginEnd = dp(12) })
                     val words = LinearLayout(this@CurveActivity).apply { orientation = LinearLayout.VERTICAL }
                     addView(words, LinearLayout.LayoutParams(0, -2, 1f))
                     val title = HoyiUi.label(this@CurveActivity, words, "", 16, true).apply {
@@ -214,6 +222,7 @@ class CurveActivity : ThemedActivity() {
                 return row
             }
         }
+        curveList = list
         list.adapter = adapter
         val listHolder = FrameLayout(this)
         browser.addView(listHolder, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
@@ -228,32 +237,44 @@ class CurveActivity : ThemedActivity() {
         list.emptyView = emptyState
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
 
-        val preview = HoyiUi.card(this, detailPane, getString(R.string.curve_detail_title))
-        detailTitle = HoyiUi.label(this, preview, getString(R.string.curve_detail_initial), 21, true)
-        detailCategory = HoyiUi.label(this, preview, getString(R.string.curve_detail_hint), 14, muted = true)
-        stageChart = CurveStageView(this).apply { visibility = View.GONE }
-        preview.addView(stageChart, LinearLayout.LayoutParams(-1, dp(150)).apply { topMargin = dp(14) })
-        stageCaption = HoyiUi.label(this, preview, getString(R.string.curve_stage_caption), 12, muted = true)
-            .apply { visibility = View.GONE }
-        details = HoyiUi.label(this, preview, "", 15)
-        availability = HoyiUi.label(this, preview, "", 15, true).apply { visibility = View.GONE }
-        editDraft = HoyiUi.button(this, detailPane, getString(R.string.profiles_edit_copy)) {
-            selected?.let { startActivity(Intent(this, CurveEditorActivity::class.java).putExtra(CurveEditorActivity.CURVE_ID, it.id)) }
-        }.apply { visibility = View.GONE }
-        shareParameters = HoyiUi.button(this, detailPane, getString(R.string.profiles_share)) {
-            selected?.let { startActivity(Intent(this, CurveShareActivity::class.java).putExtra(CurveShareActivity.CURVE_ID, it.id)) }
-        }.apply { visibility = View.GONE }
-        val actions = if (compact) detailPanel else LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            detailPanel.addView(this)
+        // Only the library list scrolls. The preview consumes the remaining screen height.
+        detailTitle = HoyiUi.label(this, detailPane, getString(R.string.curve_detail_initial), 19, true).apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            tag = "full-text-details"
         }
-        select = HoyiUi.button(this, actions, getString(R.string.curve_use), primary = true) {
-            selected?.let { item ->
-                getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
-                finish()
-            }
-        }.apply { isEnabled = false; visibility = View.GONE }
-        assignPreset = HoyiUi.button(this, actions, getString(R.string.curve_assign_slot)) {
+        detailCategory = HoyiUi.label(this, detailPane, getString(R.string.curve_detail_hint), 13, muted = true)
+        stageChart = CurveStageView(this).apply { visibility = View.GONE }
+        // Kept as a bounded, non-overflowing viewport for existing layout selectors.
+        detailScroll = ScrollView(this).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            addView(stageChart, FrameLayout.LayoutParams(-1, -1))
+            background = HoyiUi.shape(this@CurveActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+        }
+        detailPane.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6) })
+        stageCaption = HoyiUi.label(this, detailPane, getString(R.string.curve_stage_caption), 12, muted = true)
+            .apply { visibility = View.GONE }
+        // Full metadata is retained, never truncated; the dedicated dialog owns its local scrolling.
+        details = TextView(this).apply { textSize = 15f; setTextColor(getColor(R.color.mobile_text)) }
+        availability = HoyiUi.label(this, detailPane, "", 13, true).apply { visibility = View.GONE }
+        val secondary = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        detailPane.addView(secondary)
+        shareParameters = HoyiUi.button(this, secondary, getString(R.string.profiles_share)) {
+            selected?.let { startActivity(Intent(this, CurveShareActivity::class.java).putExtra(CurveShareActivity.CURVE_ID, it.id)) }
+        }.apply {
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
+        }
+        val editing = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        detailPane.addView(editing)
+        editDraft = HoyiUi.button(this, secondary, getString(R.string.profiles_edit_copy)) {
+            selected?.let { startActivity(Intent(this, CurveEditorActivity::class.java).putExtra(CurveEditorActivity.CURVE_ID, it.id)) }
+        }.apply {
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(6); topMargin = dp(6) }
+        }
+        assignPreset = HoyiUi.button(this, editing, getString(R.string.curve_assign_slot)) {
             val item = selected?.takeIf { it.factoryCurve != null && library.canStart(it) } ?: return@button
             AlertDialog.Builder(this).setTitle(getString(R.string.curve_choose_slot))
                 .setItems((1..5).map { getString(R.string.home_slot, it.toString()) }.toTypedArray()) { _, index ->
@@ -262,12 +283,18 @@ class CurveActivity : ThemedActivity() {
                         .putString(PresetSlots.key(slot), item.id).apply()
                     Toast.makeText(this, getString(R.string.curve_slot_assigned, item.name, slot.toString()), Toast.LENGTH_SHORT).show()
                 }.show()
-        }.apply { isEnabled = false; visibility = View.GONE }
-        if (!compact) {
-            select.layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
-                topMargin = dp(10); marginEnd = dp(8)
+        }.apply {
+            isEnabled = false; visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
+        }
+        select = HoyiUi.button(this, editing, getString(R.string.curve_use), primary = true) {
+            selected?.let { item ->
+                getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
+                finish()
             }
-            assignPreset.layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(10) }
+        }.apply {
+            isEnabled = false; visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6); marginStart = dp(6) }
         }
         search.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
@@ -276,6 +303,7 @@ class CurveActivity : ThemedActivity() {
         })
         search.setText(savedInstanceState?.getString("query").orEmpty())
         refreshList()
+        savedInstanceState?.getParcelable<android.os.Parcelable>("listState")?.let { curveList.onRestoreInstanceState(it) }
         val initialId = savedInstanceState?.getString("selected")
             ?: getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)
         initialId?.let(library::find)?.let { item ->
@@ -361,14 +389,23 @@ class CurveActivity : ThemedActivity() {
         adapter.notifyDataSetChanged()
     }
 
+    private fun showParameterDetails() {
+        val item = selected ?: return
+        AlertDialog.Builder(this).setTitle(item.name)
+            .setMessage(item.name + "\n\n" + details.text.toString() + "\n\n" + availability.text.toString())
+            .setPositiveButton(android.R.string.ok, null).show()
+    }
+
     private fun refreshList() {
         if (!::adapter.isInitialized || !::search.isInitialized) return
+        val viewport = curveList.onSaveInstanceState()
         val filtered = CurveSearch.filter(library.items, category, search.text.toString())
         val ledger = (application as MobileApplication).curveUsageResult.getOrNull()
         visibleItems = if (ledger == null) filtered else CurveOrdering.sort(filtered, sortMode, ledger)
         resultCount.text = getString(R.string.curve_result_count, visibleItems.size.toString())
         adapter.clear()
         adapter.addAll(visibleItems.map { it.id })
+        viewport?.let { curveList.onRestoreInstanceState(it) }
         if (selected != null && selected !in visibleItems) {
             selected = null
             stageChart.targets = emptyList()
@@ -388,6 +425,7 @@ class CurveActivity : ThemedActivity() {
     }
     private fun stageTargets(item: CurveLibraryItem): List<Int> = CurveStageParameters.pressureTargets(item)
     override fun onSaveInstanceState(outState: Bundle) {
+        outState.putParcelable("listState", curveList.onSaveInstanceState())
         outState.putString("selected", selected?.id)
         outState.putString("category", category.name)
         outState.putString("query", search.text.toString())

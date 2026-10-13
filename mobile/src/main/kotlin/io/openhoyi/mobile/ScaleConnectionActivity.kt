@@ -24,7 +24,10 @@ class ScaleConnectionActivity:ScaleOwnerActivity() {
         status=HoyiUi.label(this,body,"",14,muted=true)
         scan=HoyiUi.button(this,body,getString(R.string.scale_scan),primary=true) {scanCandidates()}
         HoyiUi.button(this,body,getString(R.string.scale_connection_manager)) {startActivity(Intent(this,HomeActivity::class.java))}
-        rows=HoyiUi.card(this,body)
+        val devices=android.widget.ScrollView(this).apply {isFillViewport=true}
+        rows=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(0,HoyiUi.dp(this@ScaleConnectionActivity,8),0,0)}
+        devices.addView(rows)
+        body.addView(devices,LinearLayout.LayoutParams(-1,0,1f))
         HoyiUi.label(this,body,getString(R.string.scale_offline_evidence),14,muted=true)
         renderScale()
     }

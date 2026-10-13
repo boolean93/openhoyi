@@ -10,7 +10,7 @@ class ScaleSettingsActivity:ScaleOwnerActivity() {
     private lateinit var capabilities:TextView
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
-        val body=scaleBody(R.string.scale_settings,R.string.scale_settings_subtitle)
+        val body=scaleBody(R.string.scale_settings,R.string.scale_settings_subtitle,scrollable=true)
         val prefs=getSharedPreferences("scale_tool",MODE_PRIVATE)
         body.addView(Switch(this).apply {
             text=getString(R.string.scale_precision);isChecked=prefs.getBoolean("one_decimal",false)

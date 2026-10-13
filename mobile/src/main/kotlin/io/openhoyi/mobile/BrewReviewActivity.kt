@@ -18,6 +18,7 @@ class BrewReviewActivity : ThemedActivity() {
     companion object { const val SHOT_ID = "shotId" }
     private val fields = linkedMapOf<String, EditText>()
     private var selectedBeanId: String? = null
+    private var section = 0
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val body = beanPage(getString(R.string.journal_title), getString(R.string.journal_subtitle))
@@ -26,14 +27,22 @@ class BrewReviewActivity : ThemedActivity() {
         val id = intent.getStringExtra(SHOT_ID)
         val entry = id?.let(journal::find)
         if (entry == null) { HoyiUi.label(this, body, getString(R.string.journal_missing), 17); return }
-        journalSummary(body, entry.observation)
-        val card = HoyiUi.card(this, body, getString(R.string.journal_notes_title))
+        HoyiUi.label(this, body, getString(R.string.journal_field_value, getString(R.string.journal_state), journalStatus(entry.observation.status)), 14, true)
+        if (entry.observation.status == "UNKNOWN") HoyiUi.label(this, body, getString(R.string.history_unknown_warning), 14, true).apply {
+            setTextColor(getColor(R.color.mobile_danger))
+        }
+        HoyiUi.button(this, beanActions(body), getString(R.string.journal_detail)) {
+            beanDetails(journalCurve(entry.observation.curveId), journalObservationText(entry.observation))
+        }
+        section = savedInstanceState?.getInt("section") ?: 0
+        val sections = BeanSections(this, body, listOf(R.string.journal_bean, R.string.journal_grind, R.string.journal_expectation, R.string.journal_taste, R.string.journal_next).map(::getString), section) { section = it }
+        val card = sections.panels[0]
         val previousBean = entry.notes.beanId?.let { Bean(it, requireNotNull(entry.notes.beanName)) }
         val beans = (listOfNotNull(previousBean) + app.beanInventoryResult.getOrNull()?.batches().orEmpty().map { it.batch.bean }).distinctBy { it.id }
         selectedBeanId = if (savedInstanceState == null) entry.notes.beanId else savedInstanceState.getString("selectedBeanId")
         HoyiUi.label(this, card, getString(R.string.journal_bean), 15, muted = true)
         val select = Spinner(this).apply {
-            adapter = HoyiUi.spinnerAdapter(this@BrewReviewActivity,
+            adapter = beanChoiceAdapter(
                 listOf(getString(R.string.journal_no_bean)) + beans.map { it.name })
             minimumHeight = HoyiUi.dp(this@BrewReviewActivity, 52)
             contentDescription = getString(R.string.journal_bean)
@@ -44,9 +53,9 @@ class BrewReviewActivity : ThemedActivity() {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedBeanId = beans.getOrNull(position - 1)?.id }
         }
         select.setSelection(beans.indexOfFirst { it.id == selectedBeanId }.let { if (it < 0) 0 else it + 1 })
-        fun field(key: String, label: Int, initial: String, numeric: Boolean = false) = beanInput(card, label, numeric).also {
+        fun field(key: String, label: Int, initial: String, numeric: Boolean = false) = beanInput(sections.panels[when (key) { "grind" -> 1; "expectation" -> 2; "taste" -> 3; "next" -> 4; else -> 0 }].apply { tag = "bean-full-field" }, label, numeric).also {
             fields[key] = it
-            if (!numeric) { it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; it.setSingleLine(false); it.minLines = 2; it.filters = arrayOf(InputFilter.LengthFilter(16000)) }
+            if (!numeric) { it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; it.setSingleLine(false); it.minLines = 2; it.gravity = android.view.Gravity.TOP; it.layoutParams = (it.layoutParams as LinearLayout.LayoutParams).apply { height = 0; weight = 1f }; it.filters = arrayOf(InputFilter.LengthFilter(16000)) }
             it.setText(savedInstanceState?.getString(key) ?: initial)
         }
         val dose = field("dose", R.string.journal_dose, entry.notes.doseMg?.let(BeanQuantity::formatGrams).orEmpty(), true)
@@ -55,13 +64,13 @@ class BrewReviewActivity : ThemedActivity() {
         val taste = field("taste", R.string.journal_taste, entry.notes.taste)
         val next = field("next", R.string.journal_next, entry.notes.nextAdjustment)
         val error = beanError(body)
-        val save = HoyiUi.button(this, body, getString(R.string.journal_save), primary = true) {}
+        val save = HoyiUi.button(this, beanActions(body), getString(R.string.journal_save), primary = true) {}
         save.setOnClickListener {
             val available = app.journalResult.getOrNull()
             if (available == null) { error.setText(R.string.journal_unavailable); save.isEnabled = false; return@setOnClickListener }
             val doseMg = runCatching { dose.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
                 BeanQuantity.parseGrams(it).also { mg -> require(mg > 0) }
-            } }.getOrElse { error.setText(R.string.journal_bad_dose); return@setOnClickListener }
+            } }.getOrElse { sections.selector.setSelection(0); error.setText(R.string.journal_bad_dose); return@setOnClickListener }
             val bean = beans.find { it.id == selectedBeanId }
             val notes = BrewJournal.Notes(bean?.id, bean?.name, doseMg, grind.text.toString().trim(),
                 expectation.text.toString().trim(), taste.text.toString().trim(), next.text.toString().trim())
@@ -73,6 +82,7 @@ class BrewReviewActivity : ThemedActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString("selectedBeanId", selectedBeanId)
+        outState.putInt("section", section)
         fields.forEach { (key, field) -> outState.putString(key, field.text.toString()) }
     }
 }
@@ -114,4 +124,13 @@ internal fun ThemedActivity.journalNotes(parent: LinearLayout, notes: BrewJourna
     journalField(parent, R.string.journal_expectation, notes.curveExpectation)
     journalField(parent, R.string.journal_taste, notes.taste)
     journalField(parent, R.string.journal_next, notes.nextAdjustment)
+}
+
+internal fun ThemedActivity.journalObservationText(shot: BrewJournal.Observation): String = buildString {
+    append(getString(R.string.journal_state)).append(": ").append(journalStatus(shot.status))
+    append("\n").append(getString(R.string.journal_started)).append(": ").append(journalDate(shot.startedAtMs))
+    append("\n").append(getString(R.string.journal_ended)).append(": ").append(shot.endedAtMs?.let { journalDate(it) } ?: getString(R.string.journal_optional))
+    append("\n").append(getString(R.string.journal_elapsed)).append(": ").append(shot.elapsedMs?.let { getString(R.string.journal_seconds, BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString()) } ?: getString(R.string.journal_optional))
+    append("\n").append(getString(R.string.journal_weight)).append(": ").append(shot.weightHundredthsGram?.let { getString(R.string.journal_grams, BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString()) } ?: getString(R.string.journal_optional))
+    if (shot.status == "UNKNOWN") append("\n").append(getString(R.string.history_unknown_warning))
 }

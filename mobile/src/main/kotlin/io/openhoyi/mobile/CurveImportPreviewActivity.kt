@@ -23,10 +23,9 @@ class CurveImportPreviewActivity : ThemedActivity() {
         val error = beanError(body)
         if (existing != null) {
             HoyiUi.label(this, body, getString(R.string.profiles_conflict), 17, true)
-            HoyiUi.label(this, body, getString(R.string.profiles_existing), 18, true)
-            profileCard(body, existing)
-            HoyiUi.button(this, body, getString(R.string.profiles_keep_existing)) { finish() }
-            val copy = HoyiUi.button(this, body, getString(R.string.profiles_save_copy), primary = true) {}
+            HoyiUi.button(this, beanActions(body), getString(R.string.profiles_existing)) { profilePreviewDialog(existing) }
+            HoyiUi.button(this, beanActions(body), getString(R.string.profiles_keep_existing)) { finish() }
+            val copy = HoyiUi.button(this, beanActions(body), getString(R.string.profiles_save_copy), primary = true) {}
             copy.setOnClickListener {
                 if (finishedSave) return@setOnClickListener
                 copy.isEnabled = false
@@ -34,7 +33,7 @@ class CurveImportPreviewActivity : ThemedActivity() {
                 else { error.setText(R.string.profiles_save_failed); copy.isEnabled = true }
             }
         } else {
-            val save = HoyiUi.button(this, body, getString(R.string.profiles_import_save), primary = true) {}
+            val save = HoyiUi.button(this, beanActions(body), getString(R.string.profiles_import_save), primary = true) {}
             save.setOnClickListener {
                 if (finishedSave) return@setOnClickListener
                 save.isEnabled = false

@@ -42,7 +42,7 @@ class LegacyCurveActivity : ThemedActivity() {
                     intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
                         insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
                 }
-                view.setPadding(dp(20) + bars[0], dp(12) + bars[1], dp(20) + bars[2], dp(12) + bars[3])
+                view.setPadding(dp(16) + bars[0], dp(8) + bars[1], dp(16) + bars[2], dp(8) + bars[3])
                 insets
             }
         }
@@ -56,7 +56,7 @@ class LegacyCurveActivity : ThemedActivity() {
                     .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_CURVES)
         }
         val content = FrameLayout(this)
-        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(14) })
+        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         list = ListView(this).apply { divider = null; dividerHeight = dp(8) }
         adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {

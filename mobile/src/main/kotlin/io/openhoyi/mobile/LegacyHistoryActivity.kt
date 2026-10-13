@@ -40,7 +40,7 @@ class LegacyHistoryActivity : ThemedActivity() {
                     intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
                         insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
                 }
-                view.setPadding(dp(20) + bars[0], dp(12) + bars[1], dp(20) + bars[2], dp(12) + bars[3])
+                view.setPadding(dp(16) + bars[0], dp(8) + bars[1], dp(16) + bars[2], dp(8) + bars[3])
                 insets
             }
         }
@@ -71,7 +71,7 @@ class LegacyHistoryActivity : ThemedActivity() {
             }
         }
         val content = FrameLayout(this)
-        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(14) })
+        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         list = ListView(this).apply {
             adapter = this@LegacyHistoryActivity.adapter
             divider = null

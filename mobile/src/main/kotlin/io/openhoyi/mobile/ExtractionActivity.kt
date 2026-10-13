@@ -52,8 +52,7 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var preparationStatus: TextView
     private lateinit var notificationStatus: TextView
     private lateinit var alarmStatus: TextView
-    private lateinit var chart: ExtractionTrendView
-    private lateinit var cupFlowChart: ExtractionTrendView
+    private lateinit var chart: ExtractionOverlayView
     private lateinit var referenceStatus: TextView
     private lateinit var traceCurve: TextView
     private lateinit var referenceChoice: Button
@@ -86,132 +85,106 @@ class ExtractionActivity : ThemedActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
-        }
-        val scroll = ScrollView(this).apply { setBackgroundColor(getColor(R.color.mobile_background)) }
-        root.setOnApplyWindowInsetsListener { view, insets ->
-            if (Build.VERSION.SDK_INT >= 30) {
-                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            } else {
-                @Suppress("DEPRECATION")
-                view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+            setOnApplyWindowInsetsListener { view, insets ->
+                if (Build.VERSION.SDK_INT >= 30) {
+                    val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                    view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                } else {
+                    @Suppress("DEPRECATION")
+                    view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+                }
+                insets
             }
-            insets
         }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(28)) }
-        scroll.addView(content)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        stop = Button(this).apply {
-            text = getString(R.string.extraction_stop)
-            isAllCaps = false
-            textSize = 18f
-            minHeight = dp(56)
-            setTextColor(getColor(android.R.color.white))
-            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_stop_button, 12)
-            visibility = View.GONE
-            setOnClickListener { service?.stopShot(); render() }
+        narrow = !HoyiUi.wide(this)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(6), dp(12), dp(4))
         }
-        start = HoyiUi.button(this, root, getString(R.string.extraction_start), primary = true) { confirmStart() }
-        (start.layoutParams as LinearLayout.LayoutParams).setMargins(dp(24), dp(4), dp(24), dp(8))
-        root.addView(stop, LinearLayout.LayoutParams(-1, -2).apply {
-            setMargins(dp(24), dp(4), dp(24), dp(12))
-        })
-        HoyiUi.navigation(this, root, ExtractionActivity::class.java)
+        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         pageHeader = HoyiUi.header(this, content, getString(R.string.extraction_title),
-            if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else getString(R.string.extraction_subtitle))
-        val wide = HoyiUi.wide(this)
-        narrow = !wide
-        if (narrow) content.setPadding(dp(16), dp(8), dp(16), dp(16))
-        val columns = if (wide) LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            content.addView(this, LinearLayout.LayoutParams(-1, -2))
-        } else null
-        val left = if (wide) LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            columns!!.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(10) })
-        } else content
-        val right = if (wide) LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            columns!!.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(10) })
-        } else content
-        val stateCard = card(left)
-        modeBadge = text(stateCard, getString(R.string.extraction_mock_subtitle), 12).apply { visibility = View.GONE }
-        overviewHeading = HoyiUi.label(this, stateCard, getString(R.string.extraction_overview), 19, true)
-        curveSummary = text(stateCard, getString(R.string.extraction_curve_initial), 18, true)
-        deviceSummary = text(stateCard, getString(R.string.extraction_devices_initial), 14)
-        shotSummary = text(stateCard, getString(R.string.extraction_shot_initial), 14)
-        readiness = text(stateCard, getString(R.string.extraction_waiting_service), 16, true).apply {
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 12)
+            if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else null)
+        // Secondary prose remains available in a details dialog, not in the plot's height budget.
+        val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        overviewHeading = HoyiUi.label(this, details, getString(R.string.extraction_overview), 17, true)
+        modeBadge = text(details, getString(R.string.extraction_mock_subtitle), 12)
+        shotSummary = text(details, getString(R.string.extraction_shot_initial), 13)
+        liveHeading = text(details, getString(R.string.extraction_live_data), 15)
+        live = text(details, "", 13)
+        weightTarget = text(details, "", 14)
+        referenceStatus = text(details, getString(R.string.reference_off), 13)
+        traceCurve = text(details, "", 13)
+        stageTargets = text(details, "", 13)
+        curveSummary = text(content, getString(R.string.extraction_curve_initial), 16, true).apply {
+            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
         }
-        chooseCurve = HoyiUi.button(this, stateCard, getString(R.string.extraction_choose_curve)) {
-            startActivity(Intent(this, CurveActivity::class.java))
-        }.apply { visibility = View.GONE }
-        connectDevices = HoyiUi.button(this, stateCard, getString(R.string.extraction_connect_devices)) {
-            startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
-        }.apply { visibility = View.GONE }
-        chooseBeans = HoyiUi.button(this,stateCard,getString(R.string.dose_title)) {
-            startActivity(Intent(this,BeanPreparationActivity::class.java))
-        }
-        preparationStatus = text(stateCard, getString(R.string.extraction_prepare_initial), 14)
-        notificationStatus = text(stateCard, "", 14)
-        alarmStatus = text(stateCard, getString(R.string.home_alarm_initial), 14)
-        val metrics = card(left)
-        liveHeading = HoyiUi.label(this, metrics, getString(R.string.extraction_live_data), 19, true)
-        fun metricRow(a: String, b: String): Pair<TextView, TextView> {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            metrics.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (narrow) 4 else 10) })
-            fun cell(title: String): TextView {
-                val box = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    val inset = if (narrow) 8 else 16
-                    setPadding(dp(inset), dp(if (narrow) 6 else 12), dp(inset), dp(if (narrow) 6 else 12))
-                    background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 12)
-                }
-                row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
-                HoyiUi.label(this, box, title, 13, muted = true)
-                return HoyiUi.label(this, box, "—", 27, true).apply {
-                    setPadding(0, dp(if (narrow) 4 else 8), 0, 0)
-                    setSingleLine(true)
-                    setAutoSizeTextTypeUniformWithConfiguration(16, 27, 1, TypedValue.COMPLEX_UNIT_SP)
-                }
+        deviceSummary = text(content, getString(R.string.extraction_devices_initial), 12)
+        readiness = text(content, getString(R.string.extraction_waiting_service), 14, true)
+        readiness.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        val metrics = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        content.addView(metrics, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+        fun reading(label: String): TextView {
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(6), dp(4), dp(6), dp(4))
+                background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 8)
             }
-            return cell(a) to cell(b)
+            metrics.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(3) })
+            HoyiUi.label(this, cell, label, 11, muted = true)
+            return HoyiUi.label(this, cell, "—", if (narrow) 20 else 26, true)
         }
-        metricRow(getString(R.string.extraction_elapsed), getString(R.string.extraction_pressure)).also { elapsedValue = it.first; pressureValue = it.second }
-        metricRow(getString(R.string.extraction_weight), getString(R.string.live_cup_flow_metric)).also { weightValue = it.first; flowValue = it.second }
-        live = text(metrics, "", 13)
-        weightTarget = text(metrics, "", 15, true)
-        val chartCard = card(right)
-        traceCurve = HoyiUi.label(this,chartCard,"",14,muted=true)
-        HoyiUi.label(this, chartCard, getString(R.string.live_pressure_chart), 19, true)
-        chart = ExtractionTrendView(this, ExtractionTrendMetric.PRESSURE)
-        chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(((if (narrow) 160 else 210) * maxOf(1f, resources.configuration.fontScale)).toInt())).apply {
-            topMargin = dp(12)
-        })
-        HoyiUi.label(this, chartCard, getString(R.string.live_cup_flow_chart), 19, true)
-        HoyiUi.label(this, chartCard, getString(R.string.live_cup_flow_source), 13, muted = true)
-        cupFlowChart = ExtractionTrendView(this, ExtractionTrendMetric.CUP_FLOW)
-        chartCard.addView(cupFlowChart, LinearLayout.LayoutParams(-1, dp(((if (narrow) 140 else 180) * maxOf(1f, resources.configuration.fontScale)).toInt())).apply { topMargin = dp(12) })
-        referenceChoice = HoyiUi.button(this, chartCard, getString(R.string.reference_choose)) { chooseReference() }
-        referenceStatus = HoyiUi.label(this, chartCard, getString(R.string.reference_off), 13, muted = true)
-        if (narrow) {
-            // Keep the four current measurements and pressure plot ahead of secondary prose.
-            // Temperature and target-weight/stop advice remain available, never discarded.
-            val details = card(right)
-            metrics.removeView(live)
-            metrics.removeView(weightTarget)
-            details.addView(live)
-            details.addView(weightTarget)
+        elapsedValue = reading(getString(R.string.extraction_elapsed))
+        pressureValue = reading(getString(R.string.extraction_pressure))
+        weightValue = reading(getString(R.string.extraction_weight))
+        flowValue = reading(getString(R.string.live_cup_flow_metric))
+        chart = ExtractionOverlayView(this).apply {
+            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_surface, 10)
         }
-        val targets = card(right)
-        HoyiUi.label(this, targets, getString(R.string.reference_targets), 17, true)
-        stageTargets = HoyiUi.label(this, targets, "", 14, muted = true)
-        val actions = card(right)
-        HoyiUi.label(this, actions, getString(R.string.extraction_prepare_heading), 19, true)
-        prepare = button(actions, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
-        cancelPrepare = button(actions, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
+        content.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6); bottomMargin = dp(4) })
+        val toolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        content.addView(toolbar)
+        fun compact(parent: LinearLayout, title: String, action: () -> Unit): Button =
+            HoyiUi.button(this, parent, title, action = action).apply {
+                textSize = 13f
+                setPadding(dp(6), dp(4), dp(6), dp(4))
+                minHeight = dp(48); minimumHeight = dp(48)
+                layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) }
+            }
+        chooseCurve = compact(toolbar, getString(R.string.extraction_choose_curve)) { startActivity(Intent(this, CurveActivity::class.java)) }
+        connectDevices = compact(toolbar, getString(R.string.extraction_connect_devices)) {
+            startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }
+        chooseBeans = compact(toolbar, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
+        val secondary = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        content.addView(secondary)
+        referenceChoice = compact(secondary, getString(R.string.reference_choose)) { chooseReference() }
+        val detailsButton = compact(secondary, getString(R.string.extraction_overview)) {
+            val info = listOf(curveSummary, deviceSummary, shotSummary, live, weightTarget, traceCurve, stageTargets, referenceStatus)
+                .map { it.text.toString() }.filter { it.isNotBlank() }.joinToString("\n\n") +
+                "\n\n" + getString(R.string.live_cup_flow_source)
+            AlertDialog.Builder(this).setTitle(getString(R.string.extraction_overview)).setMessage(info)
+                .setPositiveButton(android.R.string.ok, null).show()
+        }
+        curveSummary.setOnLongClickListener { detailsButton.performClick(); true }
+        prepare = compact(secondary, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
+        cancelPrepare = compact(secondary, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
+        preparationStatus = text(content, getString(R.string.extraction_prepare_initial), 12)
+        notificationStatus = text(content, "", 12)
+        alarmStatus = text(content, getString(R.string.home_alarm_initial), 13).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_ASSERTIVE
+        }
+        start = HoyiUi.button(this, root, getString(R.string.extraction_start), primary = true) { confirmStart() }
+        (start.layoutParams as LinearLayout.LayoutParams).setMargins(dp(12), 0, dp(12), dp(4))
+        stop = HoyiUi.button(this, root, getString(R.string.extraction_stop), danger = true) {
+            service?.stopShot(); render()
+        }.apply {
+            setTextColor(getColor(android.R.color.white))
+            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_stop_button, 10)
+            visibility = View.GONE
+        }
+        (stop.layoutParams as LinearLayout.LayoutParams).setMargins(dp(12), 0, dp(12), dp(4))
+        HoyiUi.navigation(this, root, ExtractionActivity::class.java)
         render()
     }
     override fun onStart() {
@@ -423,7 +396,6 @@ class ExtractionActivity : ThemedActivity() {
         val rawPoints=owner?.chartPoints ?: emptyList()
         val points = ExtractionReference.align(rawPoints).points
         if (chart.points != points) chart.points = points
-        if (cupFlowChart.points != points) cupFlowChart.points = points
         val plottedItem=if(rawPoints.isNotEmpty() || active) owner?.chartCurveId?.let(library::find) else item
         traceCurve.show(if(rawPoints.isNotEmpty()) getString(R.string.reference_trace_curve,
             plottedItem?.name ?: getString(if(owner?.chartCurveId=="manual") R.string.extraction_manual_label
@@ -484,7 +456,6 @@ class ExtractionActivity : ThemedActivity() {
         val available=timeline?.points?.isNotEmpty()==true
         referenceId=if(available) id else null
         chart.reference=if(available) requireNotNull(timeline).points else emptyList()
-        cupFlowChart.reference=chart.reference
         referenceStatus.show(if(available) getString(R.string.reference_legend)+"\n"+
             getString(R.string.reference_source,journalDate(requireNotNull(record).observation.startedAtMs),
                 getString(if(requireNotNull(timeline).observedOrigin) R.string.reference_align_observed else R.string.reference_align_recorded))

@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var singleScreenChecks = false
     private var customExecution = false
     private var systemDocuments = false
     private var disposableCiEmulator = false
@@ -29,6 +30,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        singleScreenChecks = arguments?.getString("singleScreenChecks") == "true"
         customExecution = arguments?.getString("customExecution") == "true"
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
@@ -45,6 +47,12 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (singleScreenChecks) {
+                SingleScreenWindowRun(this).run()
+                report.putString("stream", "SINGLE_SCREEN_WINDOW_CHECKS_PASSED noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (customExecution) {
                 CustomCurveExecutionChecks(this).run(disposableCiEmulator)
                 report.putString("stream", "CUSTOM_CURVE_EXECUTION_CHECKS_PASSED import=true select=true confirm=true running=true ended=true history=true usage=true journal=true noBle=true\n")

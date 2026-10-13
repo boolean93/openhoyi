@@ -49,11 +49,25 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         }
         test.waitForIdleSync()
     }
-    private fun fill(root: View, label: String, value: String, index: Int = 0) = onMain {
-        val title = views(root).filterIsInstance<TextView>().filter { it.text.toString() == label && it.labelFor != View.NO_ID }[index]
-        val input = root.findViewById<EditText>(title.labelFor)
-        check(input.isEnabled)
-        input.setText(value)
+    private fun fill(root: View, label: String, value: String, index: Int = 0) {
+        lateinit var input: EditText
+        var sections: Spinner? = null
+        onMain {
+            val title = views(root).filterIsInstance<TextView>().filter { it.text.toString() == label && it.labelFor != View.NO_ID }[index]
+            input = root.findViewById(title.labelFor)
+            sections = views(root).filterIsInstance<Spinner>().singleOrNull { it.tag == "bean-sections" }
+        }
+        if (!input.isShown && sections != null) {
+            for (position in 0 until requireNotNull(sections).count) {
+                onMain { sections!!.setSelection(position) }
+                test.waitForIdleSync()
+                if (input.isShown) break
+            }
+        }
+        onMain {
+            check(input.isShown && input.isEnabled) { "Input section is not visible: $label" }
+            input.setText(value)
+        }
     }
     private fun fill(activity: Activity, label: Int, value: String, index: Int = 0) = fill(root(activity), activity.getString(label), value, index)
     private fun start(type: Class<out Activity>, extras: (Intent) -> Unit = {}): Activity {
@@ -226,7 +240,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             record("dose-discard-no-refund"); close(prep)
             var review = start(BrewReviewActivity::class.java) { it.putExtra(BrewReviewActivity.SHOT_ID, shotId) }
             onMain {
-                val selector = views(root(review)).filterIsInstance<Spinner>().single()
+                val selector = views(root(review)).filterIsInstance<Spinner>().single { it.contentDescription == review.getString(R.string.journal_bean) }
                 selector.setSelection(inventory.batches().map { it.batch.bean }.distinctBy { it.id }.indexOfFirst { it.name == beanName } + 1)
             }
             test.waitForIdleSync()

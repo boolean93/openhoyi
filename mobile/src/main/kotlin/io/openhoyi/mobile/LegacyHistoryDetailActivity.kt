@@ -5,7 +5,6 @@ import android.os.Build
 import android.os.Bundle
 import android.view.WindowInsets
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -31,11 +30,9 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
         }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(20), dp(24), dp(28))
+            setPadding(dp(16), dp(8), dp(16), dp(8))
         }
-        val scroll = ScrollView(this)
-        scroll.addView(body)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         HoyiUi.header(this, body, getString(R.string.legacy_history_detail_title), getString(R.string.legacy_history_readonly), back = true)
         val id = intent.getStringExtra("legacyId")
@@ -58,9 +55,12 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
     private fun showShot(body: LinearLayout, shot: LegacyShot) {
         val summary = HoyiUi.card(this, body, getString(R.string.legacy_history_record))
         text(summary, getString(R.string.legacy_history_summary, shot.profileName.ifBlank { getString(R.string.legacy_history_unnamed) }, SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(shot.createdAtMs)), shot.durationSec.toString()), 16)
-        val chart = HoyiUi.card(this, body, getString(R.string.curve_view_legacy))
+        val chart = HoyiUi.card(this, body, getString(R.string.curve_view_legacy)).apply {
+            layoutParams = LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) }
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+        }
         chart.addView(LegacyShotChartView(this).apply { points = shot.points },
-            LinearLayout.LayoutParams(-1, dp(300)))
+            LinearLayout.LayoutParams(-1, 0, 1f))
         text(chart, getString(R.string.legacy_history_chart_disclaimer), 14)
     }
 
@@ -69,6 +69,14 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
             text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
             if (bold) setTypeface(null, Typeface.BOLD)
             setPadding(0, dp(6), 0, dp(6))
+            maxLines = 3; ellipsize = android.text.TextUtils.TruncateAt.END
+            tag = "full-text-details"
+        })
+        parent.addView(android.widget.Button(this).apply {
+            text = getString(R.string.extraction_overview)
+            minHeight = dp(48)
+            setOnClickListener { android.app.AlertDialog.Builder(this@LegacyHistoryDetailActivity)
+                .setMessage(value).setPositiveButton(android.R.string.ok, null).show() }
         })
     }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()

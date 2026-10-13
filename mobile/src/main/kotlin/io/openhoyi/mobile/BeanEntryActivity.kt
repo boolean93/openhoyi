@@ -16,6 +16,7 @@ class BeanEntryActivity : ThemedActivity() {
     private var batchId = UUID.randomUUID().toString()
     private var newBeanId = UUID.randomUUID().toString()
     private var saved = false
+    private var section = 0
     private var selectedBeanId: String? = null
     private val fields = linkedMapOf<String, EditText>()
 
@@ -29,25 +30,24 @@ class BeanEntryActivity : ThemedActivity() {
         if (saved) { finish(); return }
         val body = beanPage(getString(R.string.beans_entry_title))
         val inventory = beanInventory(body) ?: return
-        val card = HoyiUi.card(this, body)
+        section = savedInstanceState?.getInt("section") ?: 0
+        val sections = BeanSections(this, body, listOf(getString(R.string.beans_identity), getString(R.string.beans_initial_input), getString(R.string.beans_dates_optional)), section) { section = it }
+        val card = sections.panels[0]
         val beans = inventory.batches().map { it.batch.bean }.distinctBy { it.id }
         HoyiUi.label(this, card, getString(R.string.beans_identity), 15, muted = true)
         val selector = Spinner(this).apply {
-            adapter = ArrayAdapter(this@BeanEntryActivity, android.R.layout.simple_spinner_dropdown_item,
+            adapter = beanChoiceAdapter(
                 listOf(getString(R.string.beans_new_identity)) + beans.map { it.name })
             minimumHeight = HoyiUi.dp(this@BeanEntryActivity, 52)
             contentDescription = getString(R.string.beans_identity)
             card.addView(this)
         }
-        fun input(key: String, label: Int, numeric: Boolean = false) = beanInput(card, label, numeric).also {
+        fun input(key: String, label: Int, numeric: Boolean = false) = beanInput(when (key) { "quantity" -> sections.panels[1]; "purchased", "roasted", "opened" -> sections.panels[2]; else -> card }, label, numeric).also {
             fields[key] = it
             it.setText(savedInstanceState?.getString(key).orEmpty())
         }
         val name = input("name", R.string.beans_name)
         val quantity = input("quantity", R.string.beans_initial_input, true)
-        HoyiUi.label(this, card, getString(R.string.beans_dates_optional), 14, muted = true).apply {
-            setPadding(0, HoyiUi.dp(this@BeanEntryActivity, 20), 0, 0)
-        }
         val purchased = input("purchased", R.string.beans_purchased)
         val roasted = input("roasted", R.string.beans_roasted)
         val opened = input("opened", R.string.beans_opened)
@@ -61,24 +61,24 @@ class BeanEntryActivity : ThemedActivity() {
         }
         selector.setSelection(beans.indexOfFirst { it.id == selectedBeanId }.let { if (it < 0) 0 else it + 1 })
         val error = beanError(body)
-        val save = HoyiUi.button(this, body, getString(R.string.beans_save), primary = true) {}
+        val save = HoyiUi.button(this, beanActions(body), getString(R.string.beans_save), primary = true) {}
         save.setOnClickListener {
             if (saved) return@setOnClickListener
             error.text = ""
             val mg = runCatching { BeanQuantity.parseGrams(quantity.text.toString()) }.getOrElse {
-                error.setText(R.string.beans_bad_quantity); return@setOnClickListener
+                sections.selector.setSelection(1); error.setText(R.string.beans_bad_quantity); return@setOnClickListener
             }
-            if (mg <= 0) { error.setText(R.string.beans_positive_quantity); return@setOnClickListener }
+            if (mg <= 0) { sections.selector.setSelection(1); error.setText(R.string.beans_positive_quantity); return@setOnClickListener }
             val bean = beans.find { it.id == selectedBeanId } ?: Bean(newBeanId, name.text.toString().trim())
             if (bean.name.isBlank() || bean.name.length > 4096) {
-                error.setText(R.string.beans_name_required); return@setOnClickListener
+                sections.selector.setSelection(0); error.setText(R.string.beans_name_required); return@setOnClickListener
             }
             val dates = runCatching { listOf(purchased, roasted, opened).map { field ->
                 field.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
                     require(Regex("[0-9]{4}-[0-9]{2}-[0-9]{2}").matches(it))
                     LocalDate.parse(it)
                 }
-            } }.getOrElse { error.setText(R.string.beans_bad_date); return@setOnClickListener }
+            } }.getOrElse { sections.selector.setSelection(2); error.setText(R.string.beans_bad_date); return@setOnClickListener }
             save.isEnabled = false
             val result = runCatching { inventory.addBatch(eventId, BeanBatch(batchId, bean, mg, dates[0], dates[1], dates[2])) }
             if (result.isSuccess) { saved = true; finish() }
@@ -92,6 +92,7 @@ class BeanEntryActivity : ThemedActivity() {
         outState.putString("newBeanId", newBeanId)
         outState.putString("selectedBeanId", selectedBeanId)
         outState.putBoolean("saved", saved)
+        outState.putInt("section", section)
         fields.forEach { (key, field) -> outState.putString(key, field.text.toString()) }
     }
 }
