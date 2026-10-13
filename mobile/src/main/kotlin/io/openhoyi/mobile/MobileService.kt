@@ -30,6 +30,8 @@ import android.util.Log
 import io.openhoyi.bluetooth.DiscoveredDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.BookooSample
+import io.openhoyi.protocol.ScaleObservation
+import io.openhoyi.protocol.ScaleCapabilities
 import io.openhoyi.protocol.HoyiMessage
 import io.openhoyi.protocol.IdleTelemetry
 import io.openhoyi.protocol.MachineSettingChange
@@ -64,6 +66,8 @@ data class MobileSnapshot(
     val sleepSecondAt: Long? = null,
     val weight: BookooSample? = null,
     val weightAt: Long? = null,
+    val scaleObservation: ScaleObservation? = null,
+    val scaleCapabilities: ScaleCapabilities? = null,
     val candidates: List<DiscoveredDevice> = emptyList(),
     val scanning: Boolean = false,
     val message: SnapshotMessage? = null,
@@ -185,6 +189,7 @@ class MobileService : Service() {
     val tareState: StandaloneTare.State get() = if (mock?.tareChanged == true)
         StandaloneTare.State.CONFIRMED else hub?.scaleTareState ?: StandaloneTare.State.IDLE
     val chartPoints: List<ShotPoint> get() = series.points
+    val chartCurveId: String? get() = series.curveId
     private val ownerId = java.util.UUID.randomUUID().toString()
     private val handler = Handler(Looper.getMainLooper())
     private val preheatTimeoutScheduler:(Long,()->Unit)->Unit={ delay,action->
@@ -222,10 +227,9 @@ class MobileService : Service() {
                     event(ResourceMessage(R.string.service_event_mock_temperature_ready), "mock.brew_wait_ready")
             }
             (snapshot.coffee as? io.openhoyi.protocol.ExtractionTelemetry)?.let { frame ->
-                observeBrewFeedback(frame, now)
-                series.machine(frame, now, snapshot.weight?.weightHundredthsGram,
-                    snapshot.weightAt, snapshot.weight?.deviceFlowHundredths)
-                saveSeriesCheckpoint(now)
+                // Mock samples use the same observation/history projection as real telemetry.
+                // These remain synthetic and never authorize a Bluetooth write.
+                recordMachinePoint(frame, now)
             }
             handler.postDelayed(this, 250)
         }
@@ -345,7 +349,23 @@ class MobileService : Service() {
         }
     }
 
+    /** Invalidates UI stability even if a disconnect/reconnect occurs between page refreshes. */
+    private var scaleConnectionEpoch = 0L
+    private val beanDoseCapture = BeanDoseCapturePolicy()
+    internal fun resetBeanDoseCapture() = beanDoseCapture.reset()
+    internal fun beanDoseCaptureAt(now: Long): Int? {
+        if (BuildConfig.MOCK_MODE || manualShotActive ||
+            !io.openhoyi.session.DeviceConnectionGate.mayChangeScale(shotState) ||
+            tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO)) {
+            beanDoseCapture.reset(); return null
+        }
+        return beanDoseCapture.update(scaleConnectionEpoch,
+            LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now), now)
+    }
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
+        if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
+            scaleConnectionEpoch++; beanDoseCapture.reset()
+        }
         snapshot = if (role == DeviceRole.COFFEE) {
             if (state != DeviceState.READY) {
                 finishBrewFeedback(false)
@@ -359,7 +379,8 @@ class MobileService : Service() {
                     settings = null, settingsAt = null, sleepFirst = null, sleepSecond = null, sleepFirstAt = null, sleepSecondAt = null)
             else snapshot.copy(coffeeState = state)
         } else if (state != DeviceState.READY) {
-            snapshot.copy(scaleState = state, weight = null, weightAt = null)
+            snapshot.copy(scaleState = state, weight = null, weightAt = null,
+                scaleObservation = null, scaleCapabilities = null)
         }
         else snapshot.copy(scaleState = state)
         if (role == DeviceRole.COFFEE) when (state) {
@@ -465,7 +486,7 @@ class MobileService : Service() {
                 passiveHistoryId = runCatching { history?.begin("manual", slot = 6) }
                     .onFailure { event(ResourceMessage(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
                 val id = passiveHistoryId ?: java.util.UUID.randomUUID().toString()
-                series.begin(id, passiveEvent.first.atMs)
+                series.begin(id, passiveEvent.first.atMs, "manual")
                 val feedbackSlot = passiveEvent.first.frame.slotOrPhase
                 beginBrewFeedback(id, feedbackSlot, if (feedbackSlot == 6) 0 else null, appShot = false)
                 recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
@@ -537,7 +558,11 @@ class MobileService : Service() {
             val prefs = getSharedPreferences("devices", MODE_PRIVATE)
             hub = NativeDeviceHub(applicationContext, prefs.getString("scale", null),
                     tareStorage = io.openhoyi.bluetooth.SharedPreferenceTareStorage(applicationContext),
-                onScaleRemembered = { prefs.edit().putString("scale", it).apply() },
+                rememberedScaleProtocolId = prefs.getString("scaleProtocol", null),
+                onScaleSelectionRemembered = { address, protocolId ->
+                    if (!prefs.edit().putString("scale", address).putString("scaleProtocol", protocolId).commit())
+                        event(ResourceMessage(R.string.scale_memory_failed), "scale.memory_failed")
+                },
                 onState = ::onDeviceState,
                 onCoffee = ::onCoffeeFrame,
                 onWeight = {
@@ -545,6 +570,12 @@ class MobileService : Service() {
                     val receivedAt = SystemClock.elapsedRealtime()
                     if (ScaleReadingPolicy.isFresh(it.weightHundredthsGram, receivedAt, receivedAt))
                         snapshot = snapshot.copy(weight = it, weightAt = receivedAt)
+                },
+                onScaleObservation = { observation ->
+                    snapshot = snapshot.copy(scaleObservation = observation,
+                        scaleCapabilities = observation.capabilities)
+                    // Consume every notification, not just the last frame at the UI refresh.
+                    beanDoseCaptureAt(SystemClock.elapsedRealtime())
                 },
                 diagnostic = { detail ->
                     if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
@@ -561,6 +592,10 @@ class MobileService : Service() {
                     })
                 },
                 legacyVerifiedStartFrames = (application as MobileApplication).curves.legacyVerifiedStartFrames,
+                customPressureStartPermit = { parameters ->
+                    (application as MobileApplication).curves.permitsCustomPressureStart(
+                        getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null), parameters)
+                },
             )
             running = true
             event(ResourceMessage(R.string.service_event_started))
@@ -653,14 +688,22 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_coffee_connect_failed, error.javaClass.simpleName), "coffee.connect_failed")
         }
     }
-    fun connectScale(address: String) {
+    fun connectScale(address: String, protocolId: String = io.openhoyi.session.BookooScaleProtocolAdapter.id) {
+        if (io.openhoyi.session.ScaleSelectionPolicy.adapter(protocolId) == null) {
+            event(ResourceMessage(R.string.scale_protocol_unsupported)); return
+        }
         if (mock != null) { event(ResourceMessage(R.string.service_scale_mock), "mock.connect"); return }
         if (manualShotActive) { event(ResourceMessage(R.string.service_scale_manual_block)); return }
         manualDeviceUse()
         if (ShotGate.active(shotState)) { event(ResourceMessage(R.string.service_scale_shot_block)); return }
         val current = hub ?: return
-        if (!current.connectScale(address)) { event(ResourceMessage(R.string.service_scale_already_connected)); return }
-        snapshot = snapshot.copy(weight = null, weightAt = null)
+        try {
+            if (!current.connectScale(address, protocolId)) { event(ResourceMessage(R.string.service_scale_already_connected)); return }
+        } catch (_: RuntimeException) {
+            event(ResourceMessage(R.string.service_event_communication_error), "scale.connect_failed"); return
+        }
+        snapshot = snapshot.copy(weight = null, weightAt = null,
+            scaleObservation = null, scaleCapabilities = null)
         event(ResourceMessage(R.string.service_scale_connect))
     }
     fun disconnect(role: DeviceRole) {
@@ -697,6 +740,8 @@ class MobileService : Service() {
         if (tareState in setOf(StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO))
             return getString(R.string.service_tare_waiting)
         val scaleAddress=current.scaleAddress
+        scaleConnectionEpoch++ // A tare attempt invalidates any bean stability window.
+        beanDoseCapture.reset()
         event(ResourceMessage(R.string.service_tare_requested), "scale.tare_requested")
         current.tareScale({
             io.openhoyi.session.StandaloneTareDispatchPermit.allows(scaleAddress,current.scaleAddress,
@@ -1170,6 +1215,15 @@ class MobileService : Service() {
         return null
     }
     fun startShot(profileId: String, expectedScaleMode: Boolean? = null, slot: Int = 7): String? {
+        val app = application as MobileApplication
+        val preparation = app.beanPreparationResult.getOrElse { return getString(R.string.dose_start_unavailable) }
+        if (preparation.current()?.let { it.shotId != null && !it.associated } == true)
+            return getString(R.string.dose_start_unavailable)
+        preparation.current()?.takeIf { it.shotId == null }?.let { dose ->
+            if (!dose.confirmed) return getString(R.string.dose_start_unconfirmed)
+            if (runCatching { preparation.verifyConfirmed(app.beanInventoryResult.getOrThrow()) }.isFailure)
+                return getString(R.string.dose_start_unavailable)
+        }
         if (mock != null) {
             if (mock.isSleeping) return getString(R.string.service_shot_mock_sleeping)
             val profile = selectedCurve(profileId, slot) ?: return getString(R.string.start_block_curve_missing)
@@ -1181,11 +1235,10 @@ class MobileService : Service() {
                 mock.cancelPreheat(now)
                 brewPreparation.consumed()
             }
+            val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
             mock.start(now, slot)
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
-            val shotId = runCatching { history?.begin(profile.id, slot = slot) }.getOrNull()
-                ?: java.util.UUID.randomUUID().toString()
-            series.begin(shotId, SystemClock.elapsedRealtime())
+            series.begin(shotId, SystemClock.elapsedRealtime(), profile.id)
             beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
             event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
             return null
@@ -1230,8 +1283,12 @@ class MobileService : Service() {
             "targetHundredthsGram" to profile.targetHundredthsGram.toString(),
             "scaleMode" to (profile.scaleMode?.toString() ?: "captured"), "slot" to slot.toString()))
         val coffeeAddress=current.coffeeAddress ?: return getString(R.string.service_shot_identity_missing)
+        val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
         val originalMachineIntent=MachineWriteRecoveryState.Record(machineWriteRecovery.kind,machineWriteRecovery.address)
-        if (!shotRecovery.arm(coffeeAddress)) return getString(R.string.service_shot_record_failed)
+        if (!shotRecovery.arm(coffeeAddress)) {
+            runCatching { history?.transition(ExtractionState.IDLE, null, null) }
+            return getString(R.string.service_shot_record_failed)
+        }
         val shotOwner=requireNotNull(shotRecovery.captureOwnership())
         val machineOwner=machineWriteRecovery.captureOwnership()
         appRecoveryOwner=AppRecoveryOwner(current,coffeeAddress,shotOwner,machineOwner)
@@ -1251,6 +1308,7 @@ class MobileService : Service() {
             current.extraction.state == ExtractionState.IDLE) {
             if (!shotRecovery.clear(shotOwner)) manualSafetyResource = R.string.machine_recovery_shot_restart
             else appRecoveryOwner=null
+            runCatching { history?.transition(ExtractionState.IDLE, null, null) }
             event(ResourceMessage(R.string.service_shot_session_rejected), "shot.rejected")
             return getString(R.string.service_shot_session_rejected)
         }
@@ -1258,10 +1316,7 @@ class MobileService : Service() {
         if (brewPreparation.active) brewPreparation.consumed()
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
-        val shotId = runCatching { history?.begin(profile.id, slot = slot) }
-            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
-            .getOrNull() ?: java.util.UUID.randomUUID().toString()
-        series.begin(shotId, SystemClock.elapsedRealtime())
+        series.begin(shotId, SystemClock.elapsedRealtime(), profile.id)
         beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
             finishBrewFeedback(false)
@@ -1271,6 +1326,22 @@ class MobileService : Service() {
         event(ResourceMessage(if (current.extraction.preparingScale) R.string.service_shot_waiting_tare
             else R.string.service_shot_requested, profile.name), "shot.requested")
         return null
+    }
+    /** Persist shot identity and consumed-dose ownership before any start dispatch. */
+    private fun beginPreparedShot(curveId: String, slot: Int): String? {
+        val app = application as MobileApplication
+        val id = runCatching { requireNotNull(history).begin(curveId, slot = slot) }
+            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "shot.history_error") }
+            .getOrNull() ?: return null
+        return runCatching {
+            app.beanPreparationResult.getOrThrow().claim(id)
+            // Journal association is recoverable; durable ownership is not optional.
+            app.reconcileJournal()
+            id
+        }.onFailure {
+            runCatching { history?.transition(ExtractionState.IDLE, null, null) }
+            event(ResourceMessage(R.string.dose_start_unavailable), "bean.shot_claim_failed")
+        }.getOrNull()
     }
     fun stopShot() {
         if (mock != null) {
@@ -1332,11 +1403,16 @@ class MobileService : Service() {
         history?.entries?.map(ShotHistory.Entry::id)?.toSet()?.let(app.samples::prune)
     }
     private fun recordMachinePoint(frame: io.openhoyi.protocol.ExtractionTelemetry, atMs: Long) {
+        if (CurveUseEvidence.matches(frame)) runCatching { history?.observeRunning() }
+            .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "curve.usage_observation_failed") }
         observeBrewFeedback(frame, atMs)
+        val observation = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, atMs)
         series.machine(frame, atMs,
-            snapshot.weight?.weightHundredthsGram?.takeIf { snapshot.scaleState == DeviceState.READY },
-            snapshot.weightAt,
-            snapshot.weight?.deviceFlowHundredths?.takeIf { snapshot.scaleState == DeviceState.READY })
+            observation?.hundredthsGram ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState,
+                snapshot.weightAt, atMs)?.weightHundredthsGram,
+            observation?.receivedAtMs ?: snapshot.weightAt,
+            observation?.deviceFlowHundredths?.takeIf { observation.capabilities.deviceFlow }
+                ?: snapshot.weight?.deviceFlowHundredths?.takeIf { snapshot.scaleState == DeviceState.READY })
         saveSeriesCheckpoint(atMs)
     }
     private fun saveSeriesCheckpoint(atElapsedMs: Long = SystemClock.elapsedRealtime(), force: Boolean = false) {
@@ -1587,7 +1663,8 @@ class MobileService : Service() {
         handler.removeCallbacks(stopAutomaticScale)
         hubForeground = false
         snapshot = snapshot.copy(coffeeState = DeviceState.DISCONNECTED, scaleState = DeviceState.DISCONNECTED,
-            coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null, scanning = false)
+            coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null, scanning = false,
+            weight = null, weightAt = null, scaleObservation = null, scaleCapabilities = null)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }

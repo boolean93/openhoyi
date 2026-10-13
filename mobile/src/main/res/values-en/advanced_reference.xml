@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reference_choose">Choose historical reference</string>
+    <string name="reference_off">Hide reference</string>
+    <string name="reference_legend">Solid line: live data from this shot · Dashed line: historical reference, not a prediction</string>
+    <string name="reference_source">Reference: %1$s\n%2$s</string>
+    <string name="reference_align_observed">Aligned to the first observed actual extraction; gaps are preserved</string>
+    <string name="reference_align_recorded">History has no stage markers, so alignment uses the record start; this does not confirm the extraction start</string>
+    <string name="reference_unavailable">Samples for this shot are unavailable; no reference curve has been generated</string>
+    <string name="reference_targets">Stage pressure settings (not a time-based prediction)</string>
+    <string name="reference_stage">Stage %1$s: %2$s bar</string>
+    <string name="reference_raw">This recipe includes raw flow targets, which are not plotted together with pressure or flow into the cup</string>
+    <string name="reference_trace_curve">Record shown in chart: %1$s</string>
+</resources>

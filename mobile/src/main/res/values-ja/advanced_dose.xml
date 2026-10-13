@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dose_title">豆の選択と粉量の確認</string>
+    <string name="dose_subtitle">豆の選択を保存しても在庫は減りません。投粉を明示的に確認した後、一度だけ減らします。</string>
+    <string name="dose_batch">在庫ロットを選択</string>
+    <string name="dose_batch_choice">%1$s · 残り %2$s g · %3$s</string>
+    <string name="dose_amount">実際の粉量（g、小数点以下3桁まで）</string>
+    <string name="dose_save_selection">豆の選択を保存（在庫は減らしません）</string>
+    <string name="dose_saved">豆の選択を保存しました。在庫はまだ減っていません。</string>
+    <string name="dose_confirm">投粉済みであることを確認して在庫を減らす</string>
+    <string name="dose_retry">同じ準備記録で確認を再試行</string>
+    <string name="dose_confirmed">在庫を %1$s g 減らしました。開始に失敗しても自動で在庫には戻りません。訂正は在庫ページで調整履歴を追加してください。</string>
+    <string name="dose_attempted">投粉の確認が未完了です。在庫は既に減っている可能性があります。再試行では同じイベントを確認し、二重に減らしません。新たな準備記録を作って再度減らさないでください。</string>
+    <string name="dose_summary">銘柄：%1$s\nロット：%2$s\n実際の粉量：%3$s g</string>
+    <string name="dose_record">準備記録 %1$s</string>
+    <string name="dose_next_cup">前の粉量は1杯の記録に紐付け済みです。次の1杯は再入力してください。自動で再利用しません。</string>
+    <string name="dose_cancel_selection">豆の選択を取り消して選び直す</string>
+    <string name="dose_discard">この準備を明示的に破棄（在庫には戻しません）</string>
+    <string name="dose_discard_title">現在の投粉準備を破棄</string>
+    <string name="dose_discard_message">在庫の入出庫履歴を確認してから、この準備記録を破棄します。既に減らした在庫は戻しません。訂正が必要な場合は調整履歴を追加してください。</string>
+    <string name="dose_discard_confirm">履歴を確認して破棄</string>
+    <string name="dose_cancel_dialog">準備を保持</string>
+    <string name="dose_return">抽出ページに戻る</string>
+    <string name="dose_scale">豆の計量ページから現在の測定値を取り込む</string>
+    <string name="dose_scale_hint">抽出中でも結果不明でもない場合のみ豆を計量できます。測定値によって在庫が自動で減ることはありません。</string>
+    <string name="dose_scale_wait">サービスの状態が未確認です。粉量は手入力できますが、豆の計量は現在利用できません。</string>
+    <string name="dose_scale_blocked">現在の抽出処理または復旧状態が解消されていないため、豆を計量できません</string>
+    <string name="dose_scale_invalid">利用できる実際の豆の測定値がありません。豆を量り直すか、手入力してください。</string>
+    <string name="dose_bad_amount">0より大きい実際の粉量を、小数点以下3桁までで許容範囲内に入力してください</string>
+    <string name="dose_empty">在庫ロットがまだありません。先に豆を1袋追加してください。</string>
+    <string name="dose_add_beans">在庫ロットを追加</string>
+    <string name="dose_save_failed">豆の選択を保存できませんでした。在庫は減っていません。後でもう一度お試しください。</string>
+    <string name="dose_confirm_failed">投粉の確認が未完了です。同じ準備記録で再試行するか、履歴を明示的に確認してから破棄してください。</string>
+    <string name="dose_discard_failed">準備記録は保持されています。履歴の確認または保存ができません。新たな記録を作って二重に在庫を減らさないでください。</string>
+    <string name="dose_changed">準備記録が変更されました。もう一度確認してください。</string>
+    <string name="dose_ledger_conflict">準備記録と在庫の履歴が一致せず、成功を確認できません。元の記録は保持されています。</string>
+    <string name="dose_start_unconfirmed">先に投粉の確認を完了するか、準備ページで今回の豆の選択を明示的に破棄してください。</string>
+    <string name="dose_start_unavailable">投粉準備のデータを利用できません。先に準備ページで確認してください。元の記録を再作成したり上書きしたりしません。</string>
+    <string name="dose_association_pending">在庫は減っています。振り返りとの紐付けは復旧待ちです。復旧するまで新しい準備は作れず、在庫を再度減らすこともありません。</string>
+    <string name="dose_association_retry">この1杯の振り返りとの紐付けを復旧（空欄のみ入力）</string>
+    <string name="dose_association_failed">振り返りとの紐付けはまだ復旧していません。元の準備は保持されています。架空の記録を作成したり在庫を再度減らしたりしません。</string>
+</resources>
