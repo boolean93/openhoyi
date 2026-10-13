@@ -202,7 +202,19 @@ internal object ChineseFormWindowChecks {
                                 waitForDraw()
                                 val edited = longText + "\n末尾编辑检查"
                                 main { check(field.text.toString() == edited && field.selectionStart == edited.length) }
-                                tap(field)
+                                // A coordinate tap intentionally moves a text caret. Reopen using
+                                // the observed accessibility click to test position preservation itself.
+                                val activeRoot = requireNotNull(test.uiAutomation.rootInActiveWindow)
+                                try {
+                                    check(activeRoot.packageName?.toString() == activity.packageName)
+                                    val nodes = activeRoot.findAccessibilityNodeInfosByText(edited)
+                                    try {
+                                        val input = nodes.single { it.isEditable && it.isVisibleToUser && it.text?.toString() == edited }
+                                        check(input.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { "$name observed long field cannot reopen" }
+                                    } finally { nodes.forEach { it.recycle() } }
+                                } finally { activeRoot.recycle() }
+                                test.waitForIdleSync()
+                                waitForDraw()
                                 val reopened = requireNotNull(observeEditor(test, activity.packageName, label, activity.getString(android.R.string.ok)))
                                 try {
                                     check(reopened.input.text?.toString() == edited && reopened.input.textSelectionStart == edited.length) { "$name reopened editor lost its edit position" }
