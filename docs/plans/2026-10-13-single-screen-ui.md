@@ -108,3 +108,11 @@ Capture Mock UI 38338260188（5470b28）通过；已复查中文横屏 dark 和�
 回归新增tablet-user-landscape（2560×1600/360）与tablet-user-portrait（1600×2560/360），保留旧四配置及全部断言；覆盖仅用于临时CI模拟器，不修改物理设备尺寸、密度、字体。Android34模拟器不能代替Android13/MIUI实机输入法验证。其他语言布局优化后置。
 
 b92c0ee的38386189880已终止：三个旧平板各336窗口通过，手机332/336，仅RU/ES浅深色高压历史轴标签重叠。中文四配置各42主窗口、全部表单分组/长文本/IME及剂量捕获通过（竖屏46、手机52表单补图），之前Scale调度超时已修复。不把整项失败称为全绿；新增实际平板配置尚待CI，低高度输入法修复尚待新APK实机复查。
+
+## 平板短输入修复实机复查
+
+04f6b6df146ce7306aa7a4f99d0a2acbdcf7abad 已本地离线编译Mock/androidTest及266 JVM测试（0失败、0错误、1跳过）。使用缓存同版aapt2标准文件名绕过失效本地代理，不改依赖/代理。Mock v6 0.1.0-tablet-zh APK SHA256 8f2bf49ce89e2222e4b7185e1deaac3a696ed90067721ba9b3193d1422cb8b64，证书与v5相同，ADB install -r Success并回读versionCode6。停止Mock后升级前后15个files/shared_prefs文件名和内容摘要完全相同。声明源码提交为04f6b6d，工具sourceCommitVerified=false仍保留。
+
+实际MIUI输入法横屏复查：日期输入框117px、确定按钮108px，均在键盘上方，关闭后3日期字段恢复完整，无输入/页面保存。旋转恢复accelerometer_rotation=1、user_rotation=0，留在Mock首页。实际图和升级hash证据保存在build/single-screen-evidence/tablet-m2105k81ac，未把Mock模拟当硬件验收。新增实际平板回归38388258852待终态，中文其余状态继续核对；本任务仍未完整验收。
+
+独立只读复审04f6b6d未发现明确P1/P2；检查既有弹窗草稿同步/销毁和新增CI尺寸密度，确认实机IME图。边界：实机直接检查购入日期，CI点击各表单初始分区短字段；第三个日期直接编辑及弹窗改字后旋转仍需补证。未声称全部21页实机验收。
