@@ -119,6 +119,15 @@ internal fun ThemedActivity.beanDetails(title: String, value: String) {
 internal fun ThemedActivity.beanCompactEditor(field: android.widget.EditText, label: String) {
     if (HoyiUi.wide(this) && resources.configuration.screenHeightDp > 720) return
     field.showSoftInputOnFocus = false
+    // Callers finish configuring multiline input after creating this field.
+    // Modal fields must activate on their first tap, not spend that tap taking
+    // touch focus. Keyboard/accessibility activation remains available.
+    field.post {
+        val inline = field.inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0 && !HoyiUi.wide(this)
+        field.isFocusableInTouchMode = inline
+        field.isFocusable = true
+        field.showSoftInputOnFocus = inline
+    }
     var dialog: AlertDialog? = null
     fun edit() {
         val multiline = field.inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0

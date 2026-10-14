@@ -150,3 +150,11 @@ MIUI横屏多行聚焦窗口填入8行，实际编辑区355px≈158dp，6行可�
 本地生产修复Mock/JVM已通过（30s）；完整新补证、同签名递增安装和实机关闭重开仍待验证。用户再次解锁，已补实际曲线编辑与阶段预览横竖屏截图。旋转使旧预览弹窗随Activity关闭，横屏图重新点击预览获取，未将背景编辑页误记为预览，未保存曲线。
 
 补证新增原弹窗window消失、主页面window获焦及IME隐藏连续观察，再从记录的原pageWindowId新树重开，全文/16000限制/选择范围断言保留。首次测试编译因hidden accessibilityWindowId失败，改公开createAccessibilityNodeInfo().windowId并回收后21s编译通过。各清理恢复独立尝试并保存primary/suppressed错误，不再以背景标签裁切覆盖原失败。当前本地266项JVM：0失败、0错误、1跳过；新CI尚未通过，实机未更新v10。
+
+## v10实机关闭通过与首次点按缺陷
+
+c639fe0冻结后完整本地构建/JVM/androidTest通过。Mock v10同签名递增覆盖安装Success，回读10/0.1.0-tablet-editor-close-zh；升级前后15原文件名与hash完全一致。APK SHA256 485c33f33c6a61a1f6bc1992a1b297aa9303e8d173635ff54889b8962efa6e15，sourceCommitVerified仍false。
+
+首次触摸长字段只获得焦点，没有开弹窗；测试在输入前守卫停止，第二次触摸才出现原生窗口。该缺陷未验收，不能把第二次触摸作为首次成功。窗口打开后空输入区实际288px=128dp，输入8行271字符全部保留；确认后观察到窗口消失、field无焦点、MIUI mInputShown=false，未自动重开，未保存草稿。
+
+修复首次触摸：helper创建后延迟读取最终inputType，仅对modal字段取消touch-focus，保持isFocusable键盘/无障碍激活；手机内联多行仍触摸聚焦和原生IME，宽高平板路径不变。延迟回调只设置焦点策略，绝不开窗。现有补证每字段单次tap后要求命名原生窗口，可覆盖首次激活。v11新构建/实机及CI待验证。
