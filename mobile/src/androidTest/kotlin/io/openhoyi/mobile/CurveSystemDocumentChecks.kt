@@ -169,9 +169,22 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
         }
         current?.recycle();return false
     }
+    private fun downloadsOpen(nodes:List<AccessibilityNodeInfo>):Boolean =
+        nodes.first().packageName?.toString()==pickerPackage &&
+            nodes.none {it.isVisibleToUser && it.viewIdResourceName=="$pickerPackage:id/roots_list"} &&
+            nodes.filter {it.isVisibleToUser && it.viewIdResourceName=="$pickerPackage:id/breadcrumb_text"}
+                .map {it.text?.toString()}==listOf("Downloads")
     private fun downloads() {
         await("picker-visible") {pickerVisible()}
         dumpTree("picker-before-downloads")
+        // DocumentsUI remembers its directory. Do not reopen its drawer when the
+        // observed final breadcrumb already proves we are at the Downloads root.
+        // A nested directory or an open roots drawer does not satisfy this check.
+        if(tree {nodes->downloadsOpen(nodes)}) {
+            status("CURVE_SYSTEM_DOCUMENT_ACTION label=Downloads-root alreadyVerified=true dispatched=false")
+            dumpTree("downloads-open")
+            return
+        }
         // Deliberately support only known English AOSP/Google DocumentsUI navigation semantics.
         // Any different tree requires recorded investigation, never coordinate guessing.
         pickerAction("show-roots") {node->
@@ -184,12 +197,7 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
             node.text?.toString()=="Downloads" && hasAncestorId(node,setOf("item_root","roots_list"))
         }
         awaitPickerAction("Downloads-root",downloadsRoot)
-        await("downloads-root-open") {tree {nodes->
-            nodes.first().packageName?.toString()==pickerPackage &&
-                nodes.none {it.isVisibleToUser && it.viewIdResourceName=="$pickerPackage:id/roots_list"} &&
-                nodes.any {it.isVisibleToUser && it.viewIdResourceName=="$pickerPackage:id/breadcrumb_text" &&
-                    it.text?.toString()=="Downloads"}
-        }}
+        await("downloads-root-open") {tree {nodes->downloadsOpen(nodes)}}
         dumpTree("downloads-open")
     }
     private fun nameAndSave(filename:String) {

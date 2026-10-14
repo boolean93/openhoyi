@@ -145,7 +145,7 @@ internal fun ThemedActivity.beanCompactEditor(field: android.widget.EditText, la
             textSize = 18f
             setText(field.text.toString())
             setSelectAllOnFocus(!multiline)
-            minHeight = HoyiUi.dp(this@beanCompactEditor, if (multiline) 128 else 52)
+            minimumHeight = HoyiUi.dp(this@beanCompactEditor, if (multiline) 128 else 52)
             if (multiline) {
                 setSingleLine(false)
                 minLines = 4
@@ -173,11 +173,23 @@ internal fun ThemedActivity.beanCompactEditor(field: android.widget.EditText, la
                     editor.requestFocus()
                     focused.window?.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE or android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
                 }
-                beanShowDialog(focused) { field.clearFocus(); dialog = null }
+                beanShowDialog(focused) {
+                    val start = editor.selectionStart.coerceIn(0, field.text.length)
+                    val end = editor.selectionEnd.coerceIn(0, field.text.length)
+                    editor.trackSelection = false
+                    // Move focus to the actual page root, not an editable descendant.
+                    // Closing an editor must not reactivate it through focus recovery.
+                    findViewById<ViewGroup>(android.R.id.content)?.getChildAt(0)?.requestFocus()
+                    field.clearFocus()
+                    field.setSelection(start, end)
+                    (getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                        .hideSoftInputFromWindow(window.decorView.windowToken, 0)
+                    dialog = null
+                }
             }
     }
     field.setOnClickListener { edit() }
-    field.onFocusChangeListener = View.OnFocusChangeListener { _, focused -> if (focused) field.post { edit() } }
+    // Only explicit activation opens a modal editor; transient layout/window focus does not.
 }
 
 /** A helper-created dialog cannot outlive its Activity or retain the old draft after rotation. */

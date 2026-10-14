@@ -41,6 +41,9 @@ internal object ChineseFormWindowChecks {
         var originalSection = 0
         var stageSelector: Spinner? = null
         var originalStages = 0
+        var pageWindowId = -1
+        var activeEditorLabel: String? = null
+        var primaryFailure: Throwable? = null
         main {
             sections = descendants(content).filterIsInstance<Spinner>().single { it.tag == "bean-sections" }
             originalSection = sections.selectedItemPosition
@@ -107,6 +110,90 @@ internal object ChineseFormWindowChecks {
             } while (SystemClock.elapsedRealtime() < deadline)
             return null
         }
+        // Public API only; called from main-thread blocks after attaching this page.
+        fun pageWindowIdOnMain(): Int {
+            val node = content.createAccessibilityNodeInfo()
+            return try { node.windowId } finally { node.recycle() }
+        }
+        fun attemptCleanups(steps: List<() -> Unit>) {
+            var first: Throwable? = null
+            steps.forEach { step ->
+                try { step() } catch (error: Throwable) {
+                    val previous = first
+                    if (previous == null) first = error else if (previous !== error) previous.addSuppressed(error)
+                }
+            }
+            first?.let { throw it }
+        }
+        fun preserveCleanup(primary: Throwable?, cleanup: () -> Unit) {
+            try { cleanup() } catch (error: Throwable) {
+                if (primary == null) throw error
+                if (error !== primary) primary.addSuppressed(error)
+            }
+        }
+        fun awaitEditor(label: String): EditorObservation {
+            val deadline = SystemClock.elapsedRealtime() + 5000
+            do {
+                observeEditor(test, activity.packageName, label, activity.getString(android.R.string.ok), pageWindowId)
+                    ?.let { return it }
+                Thread.sleep(50)
+            } while (SystemClock.elapsedRealtime() < deadline)
+            error("$name named native editor not observed: $label pageWindowId=$pageWindowId")
+        }
+        fun awaitPageReady(label: String? = null, closedWindowId: Int? = null) {
+            val deadline = SystemClock.elapsedRealtime() + 5000
+            var stable = 0
+            do {
+                var pageFocused = false
+                main { pageFocused = activity.hasWindowFocus() && pageWindowIdOnMain() == pageWindowId }
+                val windows = test.uiAutomation.windows
+                val oldEditorGone = try { closedWindowId == null || windows.none { it.id == closedWindowId } }
+                    finally { windows.forEach { it.recycle() } }
+                val editor = label?.let { observeEditor(test, activity.packageName, it, activity.getString(android.R.string.ok), pageWindowId) }
+                val noEditor = editor == null
+                editor?.let { it.input.recycle(); it.confirm.recycle() }
+                if (pageFocused && oldEditorGone && noEditor && keyboardBounds() == null) stable++ else stable = 0
+                if (stable >= 2) { waitForDraw(); return }
+                Thread.sleep(50)
+            } while (SystemClock.elapsedRealtime() < deadline)
+            error("$name editor-close/page-focus/IME-hidden boundary timed out: label=$label closedWindowId=$closedWindowId pageWindowId=$pageWindowId")
+        }
+        fun confirmEditor(editor: EditorObservation, label: String) {
+            val windowId = editor.input.windowId
+            check(windowId != pageWindowId && editor.confirm.windowId == windowId)
+            check(editor.confirm.refresh() && editor.confirm.isVisibleToUser && editor.confirm.isEnabled && editor.confirm.isClickable) {
+                "$name native confirmation became stale: $label windowId=$windowId"
+            }
+            check(editor.confirm.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { "$name native editor confirmation not reachable: $label" }
+            awaitPageReady(label, windowId)
+            activeEditorLabel = null
+        }
+        fun cleanupEditor() {
+            val label = activeEditorLabel
+            val editor = label?.let { observeEditor(test, activity.packageName, it, activity.getString(android.R.string.ok), pageWindowId) }
+            if (editor != null) try { confirmEditor(editor, requireNotNull(label)) }
+                finally { editor.input.recycle(); editor.confirm.recycle() }
+            main {
+                // android.R.id.content itself is not the focusable beanPage root.
+                check(content.getChildAt(0).requestFocus()) { "$name actual page root refused focus" }
+                (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .hideSoftInputFromWindow(activity.window.decorView.windowToken, 0)
+            }
+            awaitPageReady(label)
+            activeEditorLabel = null
+        }
+        fun freshPageRoot(): AccessibilityNodeInfo {
+            val windows = test.uiAutomation.windows
+            val root = try {
+                windows.singleOrNull { it.id == pageWindowId && it.type == AccessibilityWindowInfo.TYPE_APPLICATION }?.root
+            } finally { windows.forEach { it.recycle() } }
+            val observed = requireNotNull(root) { "$name original page accessibility window disappeared: $pageWindowId" }
+            if (!observed.refresh() || observed.windowId != pageWindowId || observed.packageName?.toString() != activity.packageName) {
+                observed.recycle()
+                error("$name original page accessibility root is stale or belongs to another window")
+            }
+            return observed
+        }
         val automation = test.uiAutomation
         val accessibility = requireNotNull(automation.serviceInfo)
         val originalFlags = accessibility.flags
@@ -115,6 +202,9 @@ internal object ChineseFormWindowChecks {
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
             automation.serviceInfo = accessibility
             test.waitForIdleSync()
+            main { pageWindowId = pageWindowIdOnMain() }
+            check(pageWindowId >= 0) { "$name page has no accessibility window id" }
+            awaitPageReady()
             if (activity is CurveEditorActivity) {
                 // Expose all four stages by an observed local draft selector; no save action.
                 main { sections.setSelection(1) }
@@ -148,6 +238,7 @@ internal object ChineseFormWindowChecks {
                         original = field.text.toString(); selection = field.selectionStart; originalScroll = field.scrollY
                         field.setText(longText)
                     }
+                    var longFailure: Throwable? = null
                     try {
                         waitForDraw()
                         main { longEditor(field, longText) }
@@ -158,16 +249,17 @@ internal object ChineseFormWindowChecks {
                         capture("section-$position-long-end")
                         longStates += 2
                         if (position == 1) {
+                            var fieldLabel = ""
+                            main { fieldLabel = descendants(content).filterIsInstance<TextView>().single { it.labelFor == field.id }.text.toString() }
+                            if (HoyiUi.wide(activity) && activity.resources.configuration.screenHeightDp <= 720) activeEditorLabel = fieldLabel
                             tap(field)
                             val keyboard = awaitKeyboard()
                             waitForDraw()
                             if (HoyiUi.wide(activity) && activity.resources.configuration.screenHeightDp <= 720) {
-                                var label = ""
-                                main { label = descendants(content).filterIsInstance<TextView>().single { it.labelFor == field.id }.text.toString() }
-                                val focused = requireNotNull(observeEditor(test, activity.packageName, label, activity.getString(android.R.string.ok))) {
-                                    "$name low-height multiline editor did not open its focused input window"
-                                }
+                                val label = fieldLabel
+                                val focused = awaitEditor(label)
                                 try {
+                                    check(focused.input.refresh() && focused.confirm.refresh())
                                     val inputBounds = Rect(); val confirmBounds = Rect()
                                     focused.input.getBoundsInScreen(inputBounds); focused.confirm.getBoundsInScreen(confirmBounds)
                                     check(focused.input.isVisibleToUser && focused.input.isEditable && focused.input.isEnabled)
@@ -196,33 +288,46 @@ internal object ChineseFormWindowChecks {
                                         putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, edited.length)
                                     }))
                                     waitForDraw()
-                                    main { check(field.text.toString() == edited && field.selectionStart == edited.length) }
-                                    check(focused.confirm.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { "$name long editor confirmation not reachable" }
+                                    main {
+                                        check(field.text.toString() == edited && field.selectionStart == edited.length && field.selectionEnd == edited.length) {
+                                            "$name native long edit lost draft/caret: chars=${field.text.length} selection=${field.selectionStart}:${field.selectionEnd} expected=${edited.length}"
+                                        }
+                                    }
+                                    confirmEditor(focused, label)
                                 } finally { focused.input.recycle(); focused.confirm.recycle() }
                                 waitForDraw()
                                 val edited = longText + "\n末尾编辑检查"
-                                main { check(field.text.toString() == edited && field.selectionStart == edited.length) }
+                                main {
+                                    check(field.text.toString() == edited && field.selectionStart == edited.length && field.selectionEnd == edited.length) {
+                                        "$name confirmed long editor changed draft/caret: chars=${field.text.length} selection=${field.selectionStart}:${field.selectionEnd} expected=${edited.length}"
+                                    }
+                                }
                                 // A coordinate tap intentionally moves a text caret. Reopen using
                                 // the observed accessibility click to test position preservation itself.
-                                val activeRoot = requireNotNull(test.uiAutomation.rootInActiveWindow)
+                                val activeRoot = freshPageRoot()
                                 try {
                                     check(activeRoot.packageName?.toString() == activity.packageName)
                                     val nodes = activeRoot.findAccessibilityNodeInfosByText(edited)
                                     try {
                                         val input = nodes.single { it.isEditable && it.isVisibleToUser && it.text?.toString() == edited }
+                                        check(input.windowId == pageWindowId && input.refresh()) { "$name observed long field belongs to a stale window" }
+                                        activeEditorLabel = label
                                         check(input.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { "$name observed long field cannot reopen" }
                                     } finally { nodes.forEach { it.recycle() } }
                                 } finally { activeRoot.recycle() }
                                 test.waitForIdleSync()
                                 waitForDraw()
-                                val reopened = requireNotNull(observeEditor(test, activity.packageName, label, activity.getString(android.R.string.ok)))
+                                val reopened = awaitEditor(label)
                                 try {
-                                    check(reopened.input.text?.toString() == edited && reopened.input.textSelectionStart == edited.length) { "$name reopened editor lost its edit position" }
+                                    check(reopened.input.refresh()) { "$name reopened native input is stale" }
+                                    check(reopened.input.text?.toString() == edited && reopened.input.textSelectionStart == edited.length && reopened.input.textSelectionEnd == edited.length) {
+                                        "$name reopened editor lost its edit position: selection=${reopened.input.textSelectionStart}:${reopened.input.textSelectionEnd} expected=${edited.length}"
+                                    }
                                     capture("section-$position-long-reopened")
                                     check(reopened.input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
                                         putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, longText)
                                     }))
-                                    check(reopened.confirm.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+                                    confirmEditor(reopened, label)
                                 } finally { reopened.input.recycle(); reopened.confirm.recycle() }
                                 waitForDraw()
                                 main { check(field.text.toString() == longText) }
@@ -238,14 +343,20 @@ internal object ChineseFormWindowChecks {
                                 imeObserved = true
                             }
                         }
+                    } catch (error: Throwable) {
+                        longFailure = error
+                        throw error
                     } finally {
-                        main {
-                            (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(field.windowToken, 0)
-                            field.clearFocus(); content.requestFocus()
-                            field.setText(original); field.setSelection(selection.coerceIn(0, original.length)); field.scrollTo(0, originalScroll)
+                        preserveCleanup(longFailure) {
+                            attemptCleanups(listOf(
+                                { cleanupEditor() },
+                                { main {
+                                    field.clearFocus()
+                                    field.setText(original); field.setSelection(selection.coerceIn(0, original.length)); field.scrollTo(0, originalScroll)
+                                } },
+                                { waitForDraw(); main { SingleScreenPageChecks.verify(activity) } }
+                            ))
                         }
-                        waitForDraw()
-                        main { SingleScreenPageChecks.verify(activity) }
                     }
                 }
             }
@@ -264,14 +375,10 @@ internal object ChineseFormWindowChecks {
                     label = descendants(content).filterIsInstance<TextView>().single { it.labelFor == field.id }.text.toString()
                     original = field.text.toString()
                 }
+                activeEditorLabel = label
                 tap(field)
-                val deadline = SystemClock.elapsedRealtime() + 5000
-                var observed: EditorObservation? = null
-                while (observed == null && SystemClock.elapsedRealtime() < deadline) {
-                    observed = observeEditor(test, activity.packageName, label, activity.getString(android.R.string.ok))
-                    if (observed == null) Thread.sleep(50)
-                }
-                val editor = requireNotNull(observed) { "$name clicked local field but its named editor/confirmation was not observed" }
+                val editor = awaitEditor(label)
+                var editorFailure: Throwable? = null
                 try {
                     val keyboard = awaitKeyboard()
                     waitForDraw()
@@ -289,10 +396,14 @@ internal object ChineseFormWindowChecks {
                     capture(if (keyboard == null) "short-editor" else "short-editor-ime")
                     editorObserved = true
                     imeObserved = imeObserved || keyboard != null
+                } catch (error: Throwable) {
+                    editorFailure = error
+                    throw error
                 } finally {
-                    try {
-                        check(editor.confirm.performAction(AccessibilityNodeInfo.ACTION_CLICK)) { "$name observed editor OK was not reachable" }
-                    } finally { editor.input.recycle(); editor.confirm.recycle() }
+                    preserveCleanup(editorFailure) {
+                        try { confirmEditor(editor, label) }
+                        finally { editor.input.recycle(); editor.confirm.recycle() }
+                    }
                 }
                 main {
                     (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager).hideSoftInputFromWindow(field.windowToken, 0)
@@ -302,21 +413,42 @@ internal object ChineseFormWindowChecks {
                 main { SingleScreenPageChecks.verify(activity) }
             } else gaps += "wide inline input: compact native editor/IME evidence not attempted"
             allStatesChecked = true
+        } catch (error: Throwable) {
+            primaryFailure = error
+            throw error
         } finally {
-            try {
-                main { stageSelector?.setSelection(originalStages) }
-                waitForDraw()
-                main { sections.setSelection(originalSection) }
+            var cleanupFailure: Throwable? = null
+            fun cleanupStep(action: () -> Unit) {
+                try { action() } catch (error: Throwable) {
+                    completed = false
+                    val first = cleanupFailure
+                    if (first == null) cleanupFailure = error else if (first !== error) first.addSuppressed(error)
+                }
+            }
+            cleanupStep { cleanupEditor() }
+            cleanupStep { main { stageSelector?.setSelection(originalStages) } }
+            cleanupStep { waitForDraw() }
+            cleanupStep { main { sections.setSelection(originalSection) } }
+            cleanupStep {
                 waitForDraw()
                 main { SingleScreenPageChecks.verify(activity) }
-                completed = allStatesChecked
-            } finally {
-                accessibility.flags = originalFlags
-                automation.serviceInfo = accessibility
+                completed = allStatesChecked && primaryFailure == null && cleanupFailure == null
+            }
+            cleanupStep { accessibility.flags = originalFlags; automation.serviceInfo = accessibility }
+            cleanupStep {
                 File(evidence, "$name-result.txt").writeText("completed=$completed screenshots=$screenshots sections=$sectionCount longStates=$longStates " +
-                    "editorObserved=$editorObserved imeObserved=$imeObserved noSave=true\n" + gaps.joinToString("\n"))
+                    "editorObserved=$editorObserved imeObserved=$imeObserved pageWindowId=$pageWindowId noSave=true\n" + gaps.joinToString("\n") +
+                    (primaryFailure?.let { "\nPRIMARY\n" + it.stackTraceToString() } ?: "") +
+                    (cleanupFailure?.let { "\nCLEANUP\n" + it.stackTraceToString() } ?: ""))
+            }
+            cleanupStep {
                 test.sendStatus(0, Bundle().apply { putString("stream", "CHINESE_FORM_STATES $name completed=$completed screenshots=$screenshots sections=$sectionCount " +
-                    "longStates=$longStates editorObserved=$editorObserved imeObserved=$imeObserved noSave=true\n") })
+                    "longStates=$longStates editorObserved=$editorObserved imeObserved=$imeObserved pageWindowId=$pageWindowId noSave=true\n") })
+            }
+            cleanupFailure?.let { error ->
+                val primary = primaryFailure
+                if (primary == null) throw error
+                if (primary !== error) primary.addSuppressed(error)
             }
         }
 
@@ -324,10 +456,10 @@ internal object ChineseFormWindowChecks {
     }
 
     private data class EditorObservation(val input: AccessibilityNodeInfo, val confirm: AccessibilityNodeInfo)
-    private fun observeEditor(test: Instrumentation, packageName: String, label: String, ok: String): EditorObservation? {
+    private fun observeEditor(test: Instrumentation, packageName: String, label: String, ok: String, pageWindowId: Int): EditorObservation? {
         val windows = test.uiAutomation.windows
         try {
-            for (window in windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }) {
+            for (window in windows.filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.id != pageWindowId }) {
                 val root = window.root ?: continue
                 val nodes = mutableListOf<AccessibilityNodeInfo>()
                 fun visit(node: AccessibilityNodeInfo) {

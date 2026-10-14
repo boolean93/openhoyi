@@ -140,3 +140,13 @@ Mock v7/v8/v9均同证书递增覆盖安装并回读版本，更新前后各15�
 MIUI横屏多行聚焦窗口填入8行，实际编辑区355px≈158dp，6行可见，确定108px并在键盘上方。确认重开在末尾补字END，再旋转：178字符全保留、分组保持。首次核对脚本预期-END，但ADB实际传入END，按实际字符独立复核通过，不伪称首次断言成功。退出不保存后长期复盘文件SHA256保持原值；恢复accelerometer_rotation=1/user_rotation=0。图片与升级hash保存于build/single-screen-evidence/tablet-m2105k81ac。
 
 光标连续性的CI重开改为观测同包、全文匹配的Editable节点Accessibility ACTION_CLICK，避免坐标触点自然改变caret造成假失败；仍严格验证编辑、16000限制、全文与caret位置。新完整CI和实际图独立复审仍待结果，全部21页实机状态尚未完整验收。
+
+## 输入弹窗关闭边界修复（2026-10-14，未验收）
+
+1519566 的完整CI已终止：原生及升级通过；生命周期仅compact俄语萃取轴标签重叠（后置）。单屏矩阵除tablet-portrait外失败，实际横屏中文BrewReview长编辑在确认后没有产生reopened图，清理时背景投粉标签被IME挤压，不能沿用此前中文通过结论。生产字段的焦点回调会排队自动重开弹窗，dismiss清焦点可能再次触发；移除自动焦点开窗，只保留显式点击，关闭时先保存选择范围、移焦实际页面根、关闭键盘，恢复光标。多行128dp改为View minimumHeight，不受TextView minLines替换。
+
+独立中文业务38393938795的17业务路径及11文档合约通过，真实DocumentsUI再次在Downloads-root点击失败，后续执行门禁未运行。修复测试导航：仅当真实picker包、无roots_list且最后可见breadcrumb为Downloads时保留已验证目录；否则仍按已观察语义单次导航并验证最后breadcrumb，不重试不确定点击、不跳过7条真实文件路径。
+
+本地生产修复Mock/JVM已通过（30s）；完整新补证、同签名递增安装和实机关闭重开仍待验证。用户再次解锁，已补实际曲线编辑与阶段预览横竖屏截图。旋转使旧预览弹窗随Activity关闭，横屏图重新点击预览获取，未将背景编辑页误记为预览，未保存曲线。
+
+补证新增原弹窗window消失、主页面window获焦及IME隐藏连续观察，再从记录的原pageWindowId新树重开，全文/16000限制/选择范围断言保留。首次测试编译因hidden accessibilityWindowId失败，改公开createAccessibilityNodeInfo().windowId并回收后21s编译通过。各清理恢复独立尝试并保存primary/suppressed错误，不再以背景标签裁切覆盖原失败。当前本地266项JVM：0失败、0错误、1跳过；新CI尚未通过，实机未更新v10。
