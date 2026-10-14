@@ -158,3 +158,13 @@ c639fe0冻结后完整本地构建/JVM/androidTest通过。Mock v10同签名递�
 首次触摸长字段只获得焦点，没有开弹窗；测试在输入前守卫停止，第二次触摸才出现原生窗口。该缺陷未验收，不能把第二次触摸作为首次成功。窗口打开后空输入区实际288px=128dp，输入8行271字符全部保留；确认后观察到窗口消失、field无焦点、MIUI mInputShown=false，未自动重开，未保存草稿。
 
 修复首次触摸：helper创建后延迟读取最终inputType，仅对modal字段取消touch-focus，保持isFocusable键盘/无障碍激活；手机内联多行仍触摸聚焦和原生IME，宽高平板路径不变。延迟回调只设置焦点策略，绝不开窗。现有补证每字段单次tap后要求命名原生窗口，可覆盖首次激活。v11新构建/实机及CI待验证。
+
+## v11实机输入通过、业务通过与CI光标no-op定位
+
+5ee5a62生产修复本地266 JVM零失败/零错误1跳过、Mock/androidTest编译通过（41s，冻结后up-to-date验证5s）。Mock v11同签名覆盖安装Success，回读11/0.1.0-tablet-first-tap-zh，升级前后15原文件名/hash一致；APK SHA256 984989845e0d359d27ea84fb3194b4efa20ca4232810c88e80d9143780c9064f，仍sourceCommitVerified=false。
+
+实际MIUI长/短字段首次一次tap直接开窗（空长288px/短117px），确认后窗口真实消失、IME mInputShown=false、原field未聚焦；8行271字符单次重开可在原末尾续写END，旋转后274字符及研磨分区保留。退出未保存草稿后原brew_journal_v1.json SHA256不变，原旋转1/0恢复，留在Mock首页。独立逐张复查6张输入状态图无P1/P2；曲线编辑/阶段预览/分享横竖6图也已复查。实时萃取准备横屏已截图，不启动萃取。
+
+38498512001独立business作业成功：17业务路径、11文档合约、7真实DocumentsUI路径、Mock完整执行及39 detached无BLE写入门禁全部通过；pages仅后置RU粉量捕获重量文字溢出。38498512016原生、38498512013升级通过；38498512015 lifecycle仅后置compact RU萃取轴标签重叠，不能称整体CI全绿。
+
+38498512005实际横屏补证失败不再被cleanup掩盖：PRIMARY准确指向ACTION_SET_SELECTION到已在的末尾返回false；本地公开Android SDK TextView.java确认ACTION_SET_TEXT主动将caret置于末尾，同位置ACTION_SET_SELECTION no-op返回false。这是测试动作前置条件错误，不能简单接受false。测试改为先验证新全文、实际将native/background光标移到0再移回末尾，两次动作必须成功并验证双端选择范围，确认/重开/16000过滤全部原样。只改补证，不再次安装APK；新完整CI仍待通过。

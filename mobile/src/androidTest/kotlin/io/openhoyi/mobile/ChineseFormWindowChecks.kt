@@ -275,19 +275,43 @@ internal object ChineseFormWindowChecks {
                                     val oversized = "测".repeat(16032)
                                     check(focused.input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
                                         putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, oversized)
-                                    }))
+                                    })) { "$name ACTION_SET_TEXT oversized native draft was rejected" }
                                     waitForDraw()
                                     check(focused.input.refresh() && focused.input.text?.length == 16000) { "$name native editor lost its original length limit" }
-                                    main { check(field.text.toString() == oversized.take(16000)) }
+                                    main { check(field.text.toString() == oversized.take(16000)) { "$name filtered native draft did not reach the page" } }
                                     val edited = longText + "\n末尾编辑检查"
                                     check(focused.input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
                                         putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, edited)
-                                    }))
+                                    })) { "$name ACTION_SET_TEXT edited native draft was rejected" }
+                                    waitForDraw()
+                                    check(focused.input.refresh() && focused.input.text?.toString() == edited) {
+                                        "$name native edited text was not fully observed before caret movement"
+                                    }
+                                    // ACTION_SET_TEXT already leaves the native caret at the end.
+                                    // Move it away first: setting an unchanged selection is a native no-op.
+                                    check(focused.input.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
+                                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+                                        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, 0)
+                                    })) { "$name ACTION_SET_SELECTION start 0:0 was rejected" }
+                                    waitForDraw()
+                                    check(focused.input.refresh() && focused.input.text?.toString() == edited &&
+                                        focused.input.textSelectionStart == 0 && focused.input.textSelectionEnd == 0) {
+                                        "$name native start caret/text mismatch: selection=${focused.input.textSelectionStart}:${focused.input.textSelectionEnd} expected=0:0"
+                                    }
+                                    main {
+                                        check(field.text.toString() == edited && field.selectionStart == 0 && field.selectionEnd == 0) {
+                                            "$name page start caret/text mismatch: selection=${field.selectionStart}:${field.selectionEnd} expected=0:0"
+                                        }
+                                    }
                                     check(focused.input.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
                                         putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, edited.length)
                                         putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, edited.length)
-                                    }))
+                                    })) { "$name ACTION_SET_SELECTION end ${edited.length}:${edited.length} was rejected" }
                                     waitForDraw()
+                                    check(focused.input.refresh() && focused.input.text?.toString() == edited &&
+                                        focused.input.textSelectionStart == edited.length && focused.input.textSelectionEnd == edited.length) {
+                                        "$name native end caret/text mismatch: selection=${focused.input.textSelectionStart}:${focused.input.textSelectionEnd} expected=${edited.length}"
+                                    }
                                     main {
                                         check(field.text.toString() == edited && field.selectionStart == edited.length && field.selectionEnd == edited.length) {
                                             "$name native long edit lost draft/caret: chars=${field.text.length} selection=${field.selectionStart}:${field.selectionEnd} expected=${edited.length}"
@@ -326,7 +350,7 @@ internal object ChineseFormWindowChecks {
                                     capture("section-$position-long-reopened")
                                     check(reopened.input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
                                         putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, longText)
-                                    }))
+                                    })) { "$name ACTION_SET_TEXT reopened native draft restore was rejected" }
                                     confirmEditor(reopened, label)
                                 } finally { reopened.input.recycle(); reopened.confirm.recycle() }
                                 waitForDraw()
