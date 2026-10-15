@@ -3,9 +3,15 @@ package io.openhoyi.mobile
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
 
 /** Draw the production Canvas view, checking actual text calls rather than child TextViews. */
 internal object TrendChartTextChecks {
+    private fun descendants(view: View): List<View> = listOf(view) +
+        if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+
     fun run(activity: ExtractionActivity, fixture: String) {
         val actual = ExtractionActivity::class.java.getDeclaredField("chart")
             .apply { isAccessible = true }.get(activity) as ExtractionOverlayView
@@ -17,22 +23,41 @@ internal object TrendChartTextChecks {
             samples to samples.map { it.copy(elapsedMs = it.elapsedMs + 60_000, pressureTenthsBar = 1234) })
         for ((index, data) in cases.withIndex()) {
             val probe = ExtractionOverlayView(activity)
-            probe.layout(0, 0, actual.width, actual.height)
             probe.points = data.first
             probe.reference = data.second
-            val bitmap = Bitmap.createBitmap(actual.width, actual.height, Bitmap.Config.ARGB_8888)
+            probe.measure(View.MeasureSpec.makeMeasureSpec(actual.width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(actual.height, View.MeasureSpec.EXACTLY))
+            probe.layout(0, 0, actual.width, actual.height)
+            val children = descendants(probe)
+            val controls = children.filter { it.tag?.toString()?.startsWith("chart-metric:") == true }
+            val expected = if (data.first.any { it.weightHundredthsGram != null } || data.second.any { it.weightHundredthsGram != null })
+                listOf("PRESSURE", "WATER", "WEIGHT", "TEMPERATURE") else listOf("PRESSURE", "WATER", "TEMPERATURE")
+            check(controls.map { it.tag } == expected.map { "chart-metric:$it" }) { "$fixture missing four-metric legend" }
+            controls.forEach { control ->
+                val label = (control as TextView).text.toString()
+                check(label.contains("–") && label.contains(when (control.tag) {
+                    "chart-metric:PRESSURE" -> "bar"
+                    "chart-metric:WATER" -> "ml"
+                    "chart-metric:WEIGHT" -> "g"
+                    else -> "°C"
+                })) { "$fixture metric has no independent unit/range: $label" }
+                LanguageUiLayoutChecks.textFits(control, "$fixture metric legend")
+            }
+            check(controls.none { (it as TextView).text.contains("g/s") || it.text.contains("ml/s") })
+            if (data.second.isNotEmpty()) {
+                val explanation = children.single { it.tag == "chart-reference-caption" } as TextView
+                check(explanation.visibility == View.VISIBLE && explanation.text.isNotBlank()) { "$fixture historical reference is not explained" }
+                LanguageUiLayoutChecks.textFits(explanation, "$fixture reference")
+            }
+            val plot = children.single { it.tag == "chart-plot" }
+            check(plot.width > 0 && plot.height >= HoyiUi.dp(activity, 64)) { "$fixture missing usable plot viewport: ${plot.width}x${plot.height}" }
+            val bitmap = Bitmap.createBitmap(plot.width, plot.height, Bitmap.Config.ARGB_8888)
             try {
                 val nativeTextSize = android.widget.TextView(activity).apply { textSize = 11f }.textSize
                 val canvas = TextBoundsCanvas(bitmap, nativeTextSize, "$fixture overlay case=$index")
-                probe.draw(canvas)
-                check(canvas.labels >= 19) { "Overlay plot has no usable labeled viewport" }
-                check("bar" in canvas.texts && "g/s" in canvas.texts) { "Independent physical units missing" }
-                if (data.second.isNotEmpty()) {
-                    val compact = activity.getString(R.string.reference_legend_compact).filterNot(Char::isWhitespace)
-                    check(canvas.texts.joinToString("").filterNot(Char::isWhitespace).contains(compact)) {
-                        "Historical reference is not explained in the plot"
-                    }
-                }
+                plot.draw(canvas)
+                check(canvas.labels >= 6) { "Four-metric plot has no usable labeled viewport" }
+                check("bar" in canvas.texts && "g/s" !in canvas.texts && "ml/s" !in canvas.texts) { "Physical units missing or replaced with flow" }
             } finally { bitmap.recycle() }
         }
     }

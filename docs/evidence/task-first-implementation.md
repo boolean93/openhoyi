@@ -56,3 +56,23 @@
 已补工具基本翻译（不关闭lint）；生命周期路径改用原生Back从Extraction返回Home，保留所有Activity/前后台边计数断言；秤页064655b将读数固定，次要说明/计时工具局部滚动，去皮/捕获固定；独立规格/质量审查通过，本地294项JVM及两assemble通过，仍待实屏重跑。尚未以新源码重跑这些失败，不宣称恢复绿色。四指标原生控件检查已先写，旧图没有该图例，准备记录真实失败再替换；预期的新增图表失败与原回归分开报告。
 
 本地尝试lintDebug，但离线缓存缺少lint-gradle:31.10.0，在extractDebugAnnotations前失败，未进入新资源检查；不记为lint通过，待云端原verify检查。七语言新增资源已逐份XML解析成功，不等于lint验收。旧single-screen手机产物显示西班牙语旧ExtractionOverlay轴刻度0.0/3.0纵向重叠（334/336），不是框架专项漏报成功；新图必须按实际高度决定tick密度，原文字边界断言保留。
+
+
+## 930c7ad第二轮云端结果与图表实施
+
+原verify38730308188已成功，实际lint已通过MissingTranslation；upgrade亦成功。专项38730308099是先测的旧图red：三窗口frame24仍成功，而FourMetricChartChecks明确`machine-only: expected usable four-metric legend, got []`（logcat），不是业务控制失败。之后7cd5c89接入四指标native View/Canvas；e71cc8b依规格复查修正参考只画focus指标，避免八线；文字不透明、非焦点线alpha210。图表独立规格复查通过，质量/新源码编译/UIgreen继续验证中。
+
+生命周期push38730299537已通过原前后台边计数、theme配置重建、clips14/本地反馈/页面离开音频检查，随后LanguageUiLayoutChecks仍假定root首子为旧bottom bar，报missing navigation entries；正在迁移结构/阈值测试，保持8语言/2主题/5宽/2字号、textFits负向fixture、48dp和停止断言。新导航真实24页归属已经专项证明，但不能冒充这轮完整生命周期成功。
+
+b425b4d新增只读每杯图身份，真实缺属性红灯后完整JVM295项/0失败/0错误/1既有跳过，独立规格/质量审查通过。身份只影响展示量程会话；active id/finish/checkpoint/控制未改。
+
+
+## 新图与测试迁移当前本地状态（待云端）
+
+原高级页面38730308241的pages/business均实际成功：秤页64/48sp自然高度+局部次区滚动修复通过原8语言2主题页面矩阵，业务路径继续通过。仅代表930c7ad源码，不能代替后续新图整项回归。
+
+图表7cd5c89/e71cc8b/9914ea3实现四指标原生图、独立范围、原始秤读数语义、真实分段、仅焦点历史参考、真实参考身份/日期/对齐直接展示；root将traceIdentity/referenceLabel接入Activity。质量审查的短高静默空白已改为明确native提示/局部可滚图例且暂不绘制不完整轴，正常高度恢复；新增100dp/font1.3压缩及恢复断言。正常3fixture仍要求可用plot、物理轴、文字bounds/字号不降；成功标记改为实际4fixture并包含shortHeight=true。
+
+导航组件a5c31d8/b5c208b适应真实Frame与640dp测量，保留全部8语言2主题5宽2字号/48dp/RTL/textFits负fixture及独立header/stop。dummy不再假装实际五种页；实际Home重建后检查BREW选中，24真实页专项保留。质量审查发现GONE tools子树未测量，已只跳过该GONE分支，不改textFits本体。
+
+独立规格/质量复查均通过。root统一`:mobile:testMockUnitTest :mobile:assembleMock :mobile:assembleMockAndroidTest`使用SDK35离线aapt2参数，实际BUILD SUCCESSFUL in42s；独立XML295项0失败0错误1既有skip。最后GONE/选中重测的测试修正另编译AndroidTest实际BUILD SUCCESSFUL in20s；无新图真实UIgreen，不宣称图表/21页/短高整体验收完成。后续继续F3冲煮工作台与剩余集合/表单页面，不做发版。

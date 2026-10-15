@@ -421,6 +421,7 @@ class ExtractionActivity : ThemedActivity() {
             }
             "$progress\n$advice"
         } else if (target == 0 && profile != null) getString(R.string.extraction_no_weight_advice) else "")
+        chart.traceIdentity = owner?.chartTraceIdentity
         val rawPoints=owner?.chartPoints ?: emptyList()
         val points = ExtractionReference.align(rawPoints).points
         if (chart.points != points) chart.points = points
@@ -488,6 +489,7 @@ class ExtractionActivity : ThemedActivity() {
             getString(R.string.reference_source,journalDate(requireNotNull(record).observation.startedAtMs),
                 getString(if(requireNotNull(timeline).observedOrigin) R.string.reference_align_observed else R.string.reference_align_recorded))
             else getString(if(id==null) R.string.reference_off else R.string.reference_unavailable))
+        chart.referenceLabel = if (available) referenceStatus.text.toString() else null
     }
     private fun shotLabel(state: ExtractionState) = when (state) {
         ExtractionState.IDLE -> getString(R.string.machine_settings_tab_standby)

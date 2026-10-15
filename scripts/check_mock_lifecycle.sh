@@ -221,10 +221,10 @@ grep -F 'LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOr
 grep -F 'CHART_LEGEND_CHECKS_PASSED languages=8 themes=2 widths=4 fixtures=64 fullLabels=true withinBounds=true noOverlap=true plotPreserved=true nativeCanvas=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=8 stableKeys=true translatedUpdates=true removed=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 selections=5 fixedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 destinations=4 tools=2 fixedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true retryPublished=true partialRepairSynthetic=true' "$output_dir/language-instrumentation.txt" > /dev/null
 
-grep -F 'LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 selections=5' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 destinations=4 tools=2 actualHomeSelected=true' "$output_dir/language-instrumentation.txt" > /dev/null
 
 # Real window layout matrices, still solely the disposable cloud Mock emulator.
 # A fresh Mock process prevents startActivitySync waiting on an existing NEW_TASK root.
@@ -242,7 +242,7 @@ for profile in compact wideFont; do
   sleep 2
   run_instrumentation "$output_dir/language-pages-$profile.txt" "$mode"
   grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
-  grep -F "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=2 cases=3 fontScale=true viewport=true noBle=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true" "$output_dir/language-pages-$profile.txt" >/dev/null
 done

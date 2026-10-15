@@ -47,7 +47,7 @@ with output.open('w') as capture:
     result=subprocess.run(['adb','shell','am','instrument','-w','-e','fourMetricChartChecks','true',
         'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
         stdout=capture,stderr=subprocess.STDOUT,timeout=180)
-if result.returncode or 'FOUR_METRIC_CHART_CHECKS_PASSED fixtures=3 nativeComponent=true noBle=true' not in output.read_text():
+if result.returncode or 'FOUR_METRIC_CHART_CHECKS_PASSED fixtures=4 nativeComponent=true shortHeight=true noBle=true' not in output.read_text():
     print(output.read_text())
     raise SystemExit('Four-metric native component checks failed; evidence retained')
 CHART_PY

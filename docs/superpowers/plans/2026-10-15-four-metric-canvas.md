@@ -16,8 +16,8 @@
 
 ## Task 1：真实原生失败检查
 
-- [ ] `FourMetricChartChecks`已先写，三个fixture：机器三项、满配四项、缺口/水计数重置/真实参考。故意设置两个flow=999，累计量/秤重不相同。旧View缺少`chart-metric:WATER`等原生可点击图例，应在CI实际失败，保存精确日志；代码编译不算红灯。
-- [ ] 原同页`TrendChartTextChecks`需改为新指标/物理轴合同，不再断言g/s是默认轴；保留字号/文字不出界/不重叠/参考说明/实际绘图区检查。旧CupFlowProjection测试和高级信息保留。
+- [x] `FourMetricChartChecks`已先写，三个fixture：机器三项、满配四项、缺口/水计数重置/真实参考。故意设置两个flow=999，累计量/秤重不相同。旧View缺少`chart-metric:WATER`等原生可点击图例，应在CI实际失败，保存精确日志；代码编译不算红灯。
+- [x] 原同页`TrendChartTextChecks`需改为新指标/物理轴合同，不再断言g/s是默认轴；保留字号/文字不出界/不重叠/参考说明/实际绘图区检查。旧CupFlowProjection测试和高级信息保留。
 
 ## Task 2：原生图例与数据会话
 
@@ -32,17 +32,17 @@ internal class ExtractionOverlayView(context: Context): LinearLayout(context) {
 }
 ```
 
-- [ ] 接收上述四属性。投影传入上一帧rangeMap，同杯只扩；traceIdentity改变清范围。参考只显示已有完整数据，不能根据配方补预测。
-- [ ] `orientation=VERTICAL`。图例用真实原生Button/TextView点击控件，按PRESSURE/WATER/(WEIGHT)/TEMPERATURE顺序，tag=`chart-metric:<ENUM>`，字号14sp且尊重fontScale，目标≥48dp。测量实际文字宽度/高度后逐行排布，不缩字或裁字；窄窗可两行，不能固定四等分造成长标题裁切。不要每帧重建按钮、抢焦点；仅series集合/布局列数改变时更新容器布局，现有按钮实例可保留。
-- [ ] 每个标签为中文“压力 · bar”“累计注水 · ml”“秤读数 · g”“温度 · °C”。无杯重/归零上下文不称出液量；默认当前/参考都是未知杯重，不能从重量非空猜。无有效重量移除g轴及其按钮，保留机三项；后来缺测保留已有重量段及按钮。
-- [ ] 点选指标使该native控件isSelected=true、其余false，突出该线并选择窄屏物理刻度；初始全部同等强调，窄窗初始压力轴。一次只能一个选中，点击当前可保持选中。标记颜色和短线样式，不能只凭颜色区分；蓝实线压力、青长虚线注水、深青实线+点重量、琥珀点线温度。压力沿用chart_pressure。新增专用语义色task_chart_water=#007F81、task_chart_weight=#005B53、task_chart_temperature=#946000；夜间分别#64C7C4/#7DDCCE/#FFC36B。颜色置values/task_chart.xml与values-night/task_chart.xml，不改旧图全局资源。
-- [ ] native辅助文字：“点选指标查看对应刻度”“本杯采样至 %1$s s”或空采样等待，不能写成当前/结束时刻。参考存在时直接显示referenceLabel及“灰色细线：历史参考，不是本杯预测”，不是仅藏在详情。水reset存在时显示“注水计数发生重置，已分段显示”；只有gap不能声称具体断连原因。
-- [ ] 所有新文案在7种已有语言给基本翻译以符合MissingTranslation必需lint；优先中文，其他语言精修后续，不加lintignore或translatable=false规避。
+- [x] 接收上述四属性。投影传入上一帧rangeMap，同杯只扩；traceIdentity改变清范围。参考只显示已有完整数据，不能根据配方补预测。
+- [x] `orientation=VERTICAL`。图例用真实原生Button/TextView点击控件，按PRESSURE/WATER/(WEIGHT)/TEMPERATURE顺序，tag=`chart-metric:<ENUM>`，字号14sp且尊重fontScale，目标≥48dp。测量实际文字宽度/高度后逐行排布，不缩字或裁字；窄窗可两行，不能固定四等分造成长标题裁切。不要每帧重建按钮、抢焦点；仅series集合/布局列数改变时更新容器布局，现有按钮实例可保留。
+- [x] 每个标签为中文“压力 · bar”“累计注水 · ml”“秤读数 · g”“温度 · °C”，并在第二行始终给该项真实min–max（例如0–12），不能仅在选中后才知道非选中曲线量程。无杯重/归零上下文不称出液量；默认当前/参考都是未知杯重，不能从重量非空猜。无有效重量移除g轴及其按钮，保留机三项；后来缺测保留已有重量段及按钮。
+- [x] 点选指标使该native控件isSelected=true、其余false，突出该线并选择窄屏物理刻度；初始全部同等强调，窄窗初始压力轴。一次只能一个选中，点击当前可保持选中。标记颜色和短线样式，不能只凭颜色区分；蓝实线压力、青长虚线注水、深青实线+点重量、琥珀点线温度。压力沿用chart_pressure。新增专用语义色task_chart_water=#007F81、task_chart_weight=#005B53、task_chart_temperature=#946000；夜间分别#64C7C4/#7DDCCE/#FFC36B。颜色置values/task_chart.xml与values-night/task_chart.xml，不改旧图全局资源。
+- [x] native辅助文字：“点选指标查看对应刻度”“本杯采样至 %1$s s”或空采样等待，不能写成当前/结束时刻。参考存在时直接显示referenceLabel及“灰色细线：历史参考，不是本杯预测”，不是仅藏在详情。水reset存在时显示“注水计数发生重置，已分段显示”；只有gap不能声称具体断连原因。
+- [x] 所有新文案在7种已有语言给基本翻译以符合MissingTranslation必需lint；优先中文，其他语言精修后续，不加lintignore或translatable=false规避。
 
 ## Task 3：一张Canvas与明确物理刻度
 
-- [ ] 子Canvas View占容器剩余高度：`addView(plot,LayoutParams(-1,0,1f))`。控件字号至少11sp，`scaledDensity`而非density；辅助提示可按14sp。测量fontMetrics，文字上下界和图例不遮线。字体过大/短高时保留坐标主体，不能悄悄不绘图；若需局部图例滚动须只包图例，图/主操作不整页滚。
-- [ ] 图仅一个plot，时间从0到data.timeEndMs，共用x，不同metric各用自己的range。数据/边界算法：
+- [x] 子Canvas View占容器剩余高度：`addView(plot,LayoutParams(-1,0,1f))`。控件字号至少11sp，`scaledDensity`而非density；辅助提示可按14sp。测量fontMetrics，文字上下界和图例不遮线。字体过大/短高时保留坐标主体，不能悄悄不绘图；若需局部图例滚动须只包图例，图/主操作不整页滚。
+- [x] 图仅一个plot，时间从0到data.timeEndMs，共用x，不同metric各用自己的range。数据/边界算法：
 
 ```kotlin
 fun x(ms:Long)=left+(right-left)*(ms.toDouble()/data.timeEndMs).toFloat()
@@ -53,9 +53,9 @@ fun y(value:Float,range:ChartRange)=bottom-(bottom-top)*(value-range.low)/(range
 
 不coerce原值到0、不积分flow、不跨segments连线、不延长最后点。每个系列可clip到plot安全区，但range必须先覆盖全部真实值和参考值。current末帧可细竖线；不能在timeEndMs（可能来自更长reference）伪画本杯末帧。参考灰色细线/点与本杯线型+色区分。
 
-- [ ] 量测每metric的unit和5行tick字符串宽度＋8dp得到axisColumn；四项左右各两列、三项左两列右一列。使用`TaskLayoutPolicy.chartAxes(availableWidthDp,measuredAxisGuttersDp)`，保证有效plot≥320dp才全刻度；否则仅一列focusMetric刻度，native标签明确当前focus，不把其他值拿该轴单位解释。单位与tick数值对齐，左右列不重叠。高度允许时5行，否则按实际fontMetrics+至少8dp间隔减少行数，短高也保留上下界两行；不可保留5行导致重叠。窄plot必要时明确只保留一侧轴，不留三列空白。
-- [ ] 底部时间0/中点/终点秒及时间单位，按实际文本宽避重叠；不强制旧图19标签断言。空采样显示真正空态；reference-only可显示完整灰参考但本杯observed仍未知。
-- [ ] Canvas contentDescription包含各metric名称/单位、最近采样值（不是live值）、gap/重置和参考语义，native图例可读屏选择。无权通过图例触发去皮/控制或修改采样。
+- [x] 量测每metric的unit和5行tick字符串宽度＋8dp得到axisColumn；四项左右各两列、三项左两列右一列。使用`TaskLayoutPolicy.chartAxes(availableWidthDp,measuredAxisGuttersDp)`，保证有效plot≥320dp才全刻度；否则仅一列focusMetric刻度，native标签明确当前focus，所有图例保留自己的单位和min–max；图旁明确“各项使用独立量程”，不把其他值拿该轴单位解释。单位与tick数值对齐，左右列不重叠。高度允许时5行，否则按实际fontMetrics+至少8dp间隔减少行数，短高也保留上下界两行；不可保留5行导致重叠。窄plot必要时明确只保留一侧轴，不留三列空白。
+- [x] 底部时间0/中点/终点秒及时间单位，按实际文本宽避重叠；不强制旧图19标签断言。空采样显示真正空态；reference-only可显示完整灰参考但本杯observed仍未知。
+- [x] Canvas contentDescription包含各metric名称/单位、最近采样值（不是live值）、gap/重置和参考语义，native图例可读屏选择。无权通过图例触发去皮/控制或修改采样。
 
 ## Task 4：接线、真实运行和提交
 
@@ -74,6 +74,19 @@ chart.traceIdentity=owner?.chartTraceIdentity
 chart.referenceLabel=if(available) referenceStatus.text.toString() else null
 ```
 
-- [ ] 根新增ShotSeries身份保持/同配方下一杯不同ID测试，先红后绿；仅readonly身份字段，不改active id/finish/checkpoint。
+- [x] 根新增ShotSeries身份保持/同配方下一杯不同ID测试，先红后绿；仅readonly身份字段，不改active id/finish/checkpoint。
 - [ ] `:mobile:testMockUnitTest :mobile:assembleMock :mobile:assembleMockAndroidTest :mobile:lintDebug`，本地offline+aapt2覆盖同既有证据。Gradle不并行争用；独立规格审查，再质量审查。
 - [ ] 推送PR#4，三窗口新fixture从真实失败转通过；取回实际组件和Activity截图逐张检查满配/无秤/断点/参考与窄窗轴。组件bitmap只证明native绘制，不当成真实运行杯或全部21页完成。保留原业务17路径、未知门禁、生命周期、升级及所有必需CI。
+
+
+## 当前执行证据
+
+930c7ad/CI38730308099三个窗口均真实失败；下载手机artifact的logcat明确`machine-only: expected usable four-metric legend, got []`，同轮24页框架检查仍通过。失败抛在main导致instrumentation只报Process crashed，完整断言已在logcat留存；后续测试helper将异常传回runner，避免缺失清晰失败报告（不降低断言）。已据此允许图表实现者改生产View。
+
+只读图表身份b425b4d先红后绿，完整295项JVM/0失败/0错误/1既有跳过；独立规格和质量审查通过。Canvas仍实现中，未声称native检查转绿。
+
+
+质量审查新增短高边界：若总高小于完整轴+48dp图例，不能静默空白。新增100dp高/320dp宽/font1.3原生fixture，检查明确短高说明位于可见区域、原始文字完整并保存bitmap；常规三fixture保持，短高退化不冒充完整图。真实主页面短高仍由F3减少工具/重复说明释放空间，不遮停止。
+
+
+7cd5c89/e71cc8b/9914ea3实现及修复完成，独立规格复查、质量复查无剩余具体阻断。根当前统一命令295项JVM0失败1skip+两assemble成功；最后两行GONE测试修复后另编译AndroidTest。当前仍无新图UIgreen和截图证据，保留CI步骤未完成；满配出液上下文尚未新增，图中重量明确为原始“秤读数”。F3仍需落实主读数/释放高度并核实实时杯重上下文，不能以F2缩小全部21页范围。

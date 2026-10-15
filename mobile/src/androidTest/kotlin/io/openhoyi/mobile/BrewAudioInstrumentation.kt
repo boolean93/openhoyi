@@ -53,7 +53,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
             if (fourMetricChartChecks) {
                 FourMetricChartChecks(this).run()
-                report.putString("stream", "FOUR_METRIC_CHART_CHECKS_PASSED fixtures=3 nativeComponent=true noBle=true\n")
+                report.putString("stream", "FOUR_METRIC_CHART_CHECKS_PASSED fixtures=4 nativeComponent=true shortHeight=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
@@ -122,7 +122,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true\n" +
                     "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true\n" +
                     "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true\n" +
-                    "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=2 cases=3 fontScale=true viewport=true noBle=true\n")
+                    "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
@@ -206,8 +206,8 @@ class BrewAudioInstrumentation : Instrumentation() {
                     "LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true\n" +
                     "CHART_LEGEND_CHECKS_PASSED languages=8 themes=2 widths=4 fixtures=64 fullLabels=true withinBounds=true noOverlap=true plotPreserved=true nativeCanvas=true noBle=true\n" +
                     "LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true\n" +
-                    "LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 selections=5 fixedStop=true\n" +
-                    "LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 selections=5\n" +
+                    "LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 destinations=4 tools=2 fixedStop=true\n" +
+                    "LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 destinations=4 tools=2 actualHomeSelected=true\n" +
                     "LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true retryPublished=true partialRepairSynthetic=true\n" +
                     "LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=8 stableKeys=true translatedUpdates=true removed=true\n")
                 finish(Activity.RESULT_OK, report)
