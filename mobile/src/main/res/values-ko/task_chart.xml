@@ -1,0 +1,14 @@
+<resources>
+    <string name="task_chart_pressure">압력</string>
+    <string name="task_chart_water">누적 주수량</string>
+    <string name="task_chart_weight">저울 읽기값</string>
+    <string name="task_chart_temperature">온도</string>
+    <string name="task_chart_hint">지표를 선택하면 해당 눈금 표시</string>
+    <string name="task_chart_independent">지표별 독립 범위; 눈금: %1$s · %2$s</string>
+    <string name="task_chart_observed">이 잔의 샘플: %1$s s까지</string>
+    <string name="task_chart_waiting">이 잔의 샘플 대기 중</string>
+    <string name="task_chart_reference">얇은 회색 선: 과거 참조, 예측 아님</string>
+    <string name="task_chart_water_reset">주수 카운터 초기화; 구간 분리 표시</string>
+    <string name="task_chart_gap">샘플 누락; 구간 분리 표시</string>
+    <string name="task_chart_latest">%1$s, 최근 샘플값 %2$s %3$s</string>
+</resources>

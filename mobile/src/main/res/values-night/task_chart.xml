@@ -1,0 +1,5 @@
+<resources>
+    <color name="task_chart_water">#64C7C4</color>
+    <color name="task_chart_weight">#7DDCCE</color>
+    <color name="task_chart_temperature">#FFC36B</color>
+</resources>
