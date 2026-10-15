@@ -1,0 +1,2957 @@
+{
+  "format": "openhoyi-legacy-curves-v1",
+  "items": [
+    {
+      "name": "Oracle pressure 1",
+      "flow": 1,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 75,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 0,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 1,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000001",
+        "name": "Oracle pressure 1",
+        "temperatureC": 75,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 0,
+            "waterTenthsMl": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 2",
+      "flow": 2,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 75,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 120,
+      "press2": 120,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 1,
+      "flow2": 1,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000002",
+        "name": "Oracle pressure 2",
+        "temperatureC": 75,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 3",
+      "flow": 3,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 75,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 0,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 1,
+      "flow2": 1,
+      "flow3": 1,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000003",
+        "name": "Oracle pressure 3",
+        "temperatureC": 75,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 0,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 0,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 0,
+            "waterTenthsMl": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 4",
+      "flow": 4,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 75,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 120,
+      "press2": 120,
+      "press3": 120,
+      "press4": 120,
+      "flow1": 1,
+      "flow2": 1,
+      "flow3": 1,
+      "flow4": 1,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000004",
+        "name": "Oracle pressure 4",
+        "temperatureC": 75,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 5",
+      "flow": 1,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 0,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 1,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000005",
+        "name": "Oracle pressure 5",
+        "temperatureC": 105,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 0,
+            "waterTenthsMl": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 6",
+      "flow": 2,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 120,
+      "press2": 120,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 1,
+      "flow2": 1,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000006",
+        "name": "Oracle pressure 6",
+        "temperatureC": 105,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 7",
+      "flow": 3,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 0,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 1,
+      "flow2": 1,
+      "flow3": 1,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000007",
+        "name": "Oracle pressure 7",
+        "temperatureC": 105,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 0,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 0,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 0,
+            "waterTenthsMl": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 8",
+      "flow": 4,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 120,
+      "press2": 120,
+      "press3": 120,
+      "press4": 120,
+      "flow1": 1,
+      "flow2": 1,
+      "flow3": 1,
+      "flow4": 1,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000008",
+        "name": "Oracle pressure 8",
+        "temperatureC": 105,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 9",
+      "flow": 6553,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 75,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 0,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 6553,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000009",
+        "name": "Oracle pressure 9",
+        "temperatureC": 75,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 0,
+            "waterTenthsMl": 65530
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 10",
+      "flow": 13106,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 75,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 120,
+      "press2": 120,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 6553,
+      "flow2": 6553,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000000a",
+        "name": "Oracle pressure 10",
+        "temperatureC": 75,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 11",
+      "flow": 19659,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 75,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 0,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 6553,
+      "flow2": 6553,
+      "flow3": 6553,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000000b",
+        "name": "Oracle pressure 11",
+        "temperatureC": 75,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 0,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 0,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 0,
+            "waterTenthsMl": 65530
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 12",
+      "flow": 26212,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 75,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 120,
+      "press2": 120,
+      "press3": 120,
+      "press4": 120,
+      "flow1": 6553,
+      "flow2": 6553,
+      "flow3": 6553,
+      "flow4": 6553,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000000c",
+        "name": "Oracle pressure 12",
+        "temperatureC": 75,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 13",
+      "flow": 6553,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 0,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 6553,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000000d",
+        "name": "Oracle pressure 13",
+        "temperatureC": 105,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 0,
+            "waterTenthsMl": 65530
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 14",
+      "flow": 13106,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 120,
+      "press2": 120,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 6553,
+      "flow2": 6553,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000000e",
+        "name": "Oracle pressure 14",
+        "temperatureC": 105,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 15",
+      "flow": 19659,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 0,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 6553,
+      "flow2": 6553,
+      "flow3": 6553,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000000f",
+        "name": "Oracle pressure 15",
+        "temperatureC": 105,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 0,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 0,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 0,
+            "waterTenthsMl": 65530
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 16",
+      "flow": 26212,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 120,
+      "press2": 120,
+      "press3": 120,
+      "press4": 120,
+      "flow1": 6553,
+      "flow2": 6553,
+      "flow3": 6553,
+      "flow4": 6553,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000010",
+        "name": "Oracle pressure 16",
+        "temperatureC": 105,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          },
+          {
+            "target": 120,
+            "waterTenthsMl": 65530
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 17",
+      "flow": 254,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 90,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 44,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 254,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000011",
+        "name": "Oracle pressure 17",
+        "temperatureC": 90,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 44,
+            "waterTenthsMl": 2540
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 18",
+      "flow": 205,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 85,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 35,
+      "press2": 7,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 21,
+      "flow2": 184,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000012",
+        "name": "Oracle pressure 18",
+        "temperatureC": 85,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 35,
+            "waterTenthsMl": 210
+          },
+          {
+            "target": 7,
+            "waterTenthsMl": 1840
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 19",
+      "flow": 561,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 90,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 4,
+      "press2": 88,
+      "press3": 1,
+      "press4": 0,
+      "flow1": 177,
+      "flow2": 112,
+      "flow3": 272,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000013",
+        "name": "Oracle pressure 19",
+        "temperatureC": 90,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 4,
+            "waterTenthsMl": 1770
+          },
+          {
+            "target": 88,
+            "waterTenthsMl": 1120
+          },
+          {
+            "target": 1,
+            "waterTenthsMl": 2720
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 20",
+      "flow": 322,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 102,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 16,
+      "press2": 60,
+      "press3": 116,
+      "press4": 3,
+      "flow1": 2,
+      "flow2": 118,
+      "flow3": 124,
+      "flow4": 78,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000014",
+        "name": "Oracle pressure 20",
+        "temperatureC": 102,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 16,
+            "waterTenthsMl": 20
+          },
+          {
+            "target": 60,
+            "waterTenthsMl": 1180
+          },
+          {
+            "target": 116,
+            "waterTenthsMl": 1240
+          },
+          {
+            "target": 3,
+            "waterTenthsMl": 780
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 21",
+      "flow": 233,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 81,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 47,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 233,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000015",
+        "name": "Oracle pressure 21",
+        "temperatureC": 81,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 47,
+            "waterTenthsMl": 2330
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 22",
+      "flow": 204,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 94,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 37,
+      "press2": 2,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 72,
+      "flow2": 132,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000016",
+        "name": "Oracle pressure 22",
+        "temperatureC": 94,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 37,
+            "waterTenthsMl": 720
+          },
+          {
+            "target": 2,
+            "waterTenthsMl": 1320
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 23",
+      "flow": 374,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 88,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 88,
+      "press2": 44,
+      "press3": 98,
+      "press4": 0,
+      "flow1": 104,
+      "flow2": 156,
+      "flow3": 114,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000017",
+        "name": "Oracle pressure 23",
+        "temperatureC": 88,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 88,
+            "waterTenthsMl": 1040
+          },
+          {
+            "target": 44,
+            "waterTenthsMl": 1560
+          },
+          {
+            "target": 98,
+            "waterTenthsMl": 1140
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 24",
+      "flow": 594,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 102,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 45,
+      "press2": 65,
+      "press3": 13,
+      "press4": 88,
+      "flow1": 84,
+      "flow2": 231,
+      "flow3": 36,
+      "flow4": 243,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000018",
+        "name": "Oracle pressure 24",
+        "temperatureC": 102,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 45,
+            "waterTenthsMl": 840
+          },
+          {
+            "target": 65,
+            "waterTenthsMl": 2310
+          },
+          {
+            "target": 13,
+            "waterTenthsMl": 360
+          },
+          {
+            "target": 88,
+            "waterTenthsMl": 2430
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 25",
+      "flow": 187,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 85,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 43,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 187,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000019",
+        "name": "Oracle pressure 25",
+        "temperatureC": 85,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 43,
+            "waterTenthsMl": 1870
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 26",
+      "flow": 227,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 84,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 40,
+      "press2": 59,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 114,
+      "flow2": 113,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000001a",
+        "name": "Oracle pressure 26",
+        "temperatureC": 84,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 40,
+            "waterTenthsMl": 1140
+          },
+          {
+            "target": 59,
+            "waterTenthsMl": 1130
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 27",
+      "flow": 399,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 76,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 15,
+      "press2": 69,
+      "press3": 29,
+      "press4": 0,
+      "flow1": 16,
+      "flow2": 257,
+      "flow3": 126,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000001b",
+        "name": "Oracle pressure 27",
+        "temperatureC": 76,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 15,
+            "waterTenthsMl": 160
+          },
+          {
+            "target": 69,
+            "waterTenthsMl": 2570
+          },
+          {
+            "target": 29,
+            "waterTenthsMl": 1260
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 28",
+      "flow": 724,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 87,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 111,
+      "press2": 22,
+      "press3": 45,
+      "press4": 109,
+      "flow1": 155,
+      "flow2": 146,
+      "flow3": 136,
+      "flow4": 287,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000001c",
+        "name": "Oracle pressure 28",
+        "temperatureC": 87,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 111,
+            "waterTenthsMl": 1550
+          },
+          {
+            "target": 22,
+            "waterTenthsMl": 1460
+          },
+          {
+            "target": 45,
+            "waterTenthsMl": 1360
+          },
+          {
+            "target": 109,
+            "waterTenthsMl": 2870
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 29",
+      "flow": 111,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 85,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 102,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 111,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000001d",
+        "name": "Oracle pressure 29",
+        "temperatureC": 85,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 102,
+            "waterTenthsMl": 1110
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 30",
+      "flow": 403,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 95,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 51,
+      "press2": 95,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 188,
+      "flow2": 215,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000001e",
+        "name": "Oracle pressure 30",
+        "temperatureC": 95,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 51,
+            "waterTenthsMl": 1880
+          },
+          {
+            "target": 95,
+            "waterTenthsMl": 2150
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 31",
+      "flow": 268,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 93,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 93,
+      "press2": 115,
+      "press3": 33,
+      "press4": 0,
+      "flow1": 52,
+      "flow2": 38,
+      "flow3": 178,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000001f",
+        "name": "Oracle pressure 31",
+        "temperatureC": 93,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 93,
+            "waterTenthsMl": 520
+          },
+          {
+            "target": 115,
+            "waterTenthsMl": 380
+          },
+          {
+            "target": 33,
+            "waterTenthsMl": 1780
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 32",
+      "flow": 980,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 90,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 9,
+      "press2": 26,
+      "press3": 98,
+      "press4": 119,
+      "flow1": 161,
+      "flow2": 267,
+      "flow3": 264,
+      "flow4": 288,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000020",
+        "name": "Oracle pressure 32",
+        "temperatureC": 90,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 9,
+            "waterTenthsMl": 1610
+          },
+          {
+            "target": 26,
+            "waterTenthsMl": 2670
+          },
+          {
+            "target": 98,
+            "waterTenthsMl": 2640
+          },
+          {
+            "target": 119,
+            "waterTenthsMl": 2880
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 33",
+      "flow": 93,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 83,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 88,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 93,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000021",
+        "name": "Oracle pressure 33",
+        "temperatureC": 83,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 88,
+            "waterTenthsMl": 930
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 34",
+      "flow": 383,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 94,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 58,
+      "press2": 12,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 209,
+      "flow2": 174,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000022",
+        "name": "Oracle pressure 34",
+        "temperatureC": 94,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 58,
+            "waterTenthsMl": 2090
+          },
+          {
+            "target": 12,
+            "waterTenthsMl": 1740
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 35",
+      "flow": 474,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 104,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 78,
+      "press2": 98,
+      "press3": 25,
+      "press4": 0,
+      "flow1": 273,
+      "flow2": 4,
+      "flow3": 197,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000023",
+        "name": "Oracle pressure 35",
+        "temperatureC": 104,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 78,
+            "waterTenthsMl": 2730
+          },
+          {
+            "target": 98,
+            "waterTenthsMl": 40
+          },
+          {
+            "target": 25,
+            "waterTenthsMl": 1970
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 36",
+      "flow": 671,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 102,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 62,
+      "press2": 15,
+      "press3": 42,
+      "press4": 109,
+      "flow1": 79,
+      "flow2": 170,
+      "flow3": 232,
+      "flow4": 190,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000024",
+        "name": "Oracle pressure 36",
+        "temperatureC": 102,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 62,
+            "waterTenthsMl": 790
+          },
+          {
+            "target": 15,
+            "waterTenthsMl": 1700
+          },
+          {
+            "target": 42,
+            "waterTenthsMl": 2320
+          },
+          {
+            "target": 109,
+            "waterTenthsMl": 1900
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 37",
+      "flow": 100,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 75,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 51,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 100,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000025",
+        "name": "Oracle pressure 37",
+        "temperatureC": 75,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 51,
+            "waterTenthsMl": 1000
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 38",
+      "flow": 272,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 89,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 38,
+      "press2": 39,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 264,
+      "flow2": 8,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000026",
+        "name": "Oracle pressure 38",
+        "temperatureC": 89,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 38,
+            "waterTenthsMl": 2640
+          },
+          {
+            "target": 39,
+            "waterTenthsMl": 80
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 39",
+      "flow": 706,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 92,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 76,
+      "press2": 100,
+      "press3": 4,
+      "press4": 0,
+      "flow1": 233,
+      "flow2": 243,
+      "flow3": 230,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000027",
+        "name": "Oracle pressure 39",
+        "temperatureC": 92,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 76,
+            "waterTenthsMl": 2330
+          },
+          {
+            "target": 100,
+            "waterTenthsMl": 2430
+          },
+          {
+            "target": 4,
+            "waterTenthsMl": 2300
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 40",
+      "flow": 695,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 93,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 63,
+      "press2": 97,
+      "press3": 64,
+      "press4": 45,
+      "flow1": 110,
+      "flow2": 53,
+      "flow3": 270,
+      "flow4": 262,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000028",
+        "name": "Oracle pressure 40",
+        "temperatureC": 93,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 63,
+            "waterTenthsMl": 1100
+          },
+          {
+            "target": 97,
+            "waterTenthsMl": 530
+          },
+          {
+            "target": 64,
+            "waterTenthsMl": 2700
+          },
+          {
+            "target": 45,
+            "waterTenthsMl": 2620
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 41",
+      "flow": 164,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 89,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 92,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 164,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000029",
+        "name": "Oracle pressure 41",
+        "temperatureC": 89,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 92,
+            "waterTenthsMl": 1640
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 42",
+      "flow": 268,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 93,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 34,
+      "press2": 6,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 108,
+      "flow2": 160,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000002a",
+        "name": "Oracle pressure 42",
+        "temperatureC": 93,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 34,
+            "waterTenthsMl": 1080
+          },
+          {
+            "target": 6,
+            "waterTenthsMl": 1600
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 43",
+      "flow": 300,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 100,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 93,
+      "press2": 115,
+      "press3": 112,
+      "press4": 0,
+      "flow1": 154,
+      "flow2": 131,
+      "flow3": 15,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000002b",
+        "name": "Oracle pressure 43",
+        "temperatureC": 100,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 93,
+            "waterTenthsMl": 1540
+          },
+          {
+            "target": 115,
+            "waterTenthsMl": 1310
+          },
+          {
+            "target": 112,
+            "waterTenthsMl": 150
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 44",
+      "flow": 532,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 26,
+      "press2": 84,
+      "press3": 1,
+      "press4": 63,
+      "flow1": 189,
+      "flow2": 16,
+      "flow3": 159,
+      "flow4": 168,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000002c",
+        "name": "Oracle pressure 44",
+        "temperatureC": 105,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 26,
+            "waterTenthsMl": 1890
+          },
+          {
+            "target": 84,
+            "waterTenthsMl": 160
+          },
+          {
+            "target": 1,
+            "waterTenthsMl": 1590
+          },
+          {
+            "target": 63,
+            "waterTenthsMl": 1680
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 45",
+      "flow": 30,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 101,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 43,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 30,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000002d",
+        "name": "Oracle pressure 45",
+        "temperatureC": 101,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 43,
+            "waterTenthsMl": 300
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 46",
+      "flow": 588,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 92,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 45,
+      "press2": 110,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 298,
+      "flow2": 290,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000002e",
+        "name": "Oracle pressure 46",
+        "temperatureC": 92,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 45,
+            "waterTenthsMl": 2980
+          },
+          {
+            "target": 110,
+            "waterTenthsMl": 2900
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 47",
+      "flow": 561,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 90,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 53,
+      "press2": 112,
+      "press3": 90,
+      "press4": 0,
+      "flow1": 68,
+      "flow2": 297,
+      "flow3": 196,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000002f",
+        "name": "Oracle pressure 47",
+        "temperatureC": 90,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 53,
+            "waterTenthsMl": 680
+          },
+          {
+            "target": 112,
+            "waterTenthsMl": 2970
+          },
+          {
+            "target": 90,
+            "waterTenthsMl": 1960
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 48",
+      "flow": 780,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 99,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 96,
+      "press2": 102,
+      "press3": 79,
+      "press4": 103,
+      "flow1": 186,
+      "flow2": 78,
+      "flow3": 230,
+      "flow4": 286,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000030",
+        "name": "Oracle pressure 48",
+        "temperatureC": 99,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 96,
+            "waterTenthsMl": 1860
+          },
+          {
+            "target": 102,
+            "waterTenthsMl": 780
+          },
+          {
+            "target": 79,
+            "waterTenthsMl": 2300
+          },
+          {
+            "target": 103,
+            "waterTenthsMl": 2860
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 49",
+      "flow": 129,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 79,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 73,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 129,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000031",
+        "name": "Oracle pressure 49",
+        "temperatureC": 79,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 73,
+            "waterTenthsMl": 1290
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 50",
+      "flow": 286,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 96,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 98,
+      "press2": 69,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 39,
+      "flow2": 247,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000032",
+        "name": "Oracle pressure 50",
+        "temperatureC": 96,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 98,
+            "waterTenthsMl": 390
+          },
+          {
+            "target": 69,
+            "waterTenthsMl": 2470
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 51",
+      "flow": 701,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 91,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 82,
+      "press2": 99,
+      "press3": 50,
+      "press4": 0,
+      "flow1": 188,
+      "flow2": 258,
+      "flow3": 255,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000033",
+        "name": "Oracle pressure 51",
+        "temperatureC": 91,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 82,
+            "waterTenthsMl": 1880
+          },
+          {
+            "target": 99,
+            "waterTenthsMl": 2580
+          },
+          {
+            "target": 50,
+            "waterTenthsMl": 2550
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 52",
+      "flow": 789,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 89,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 42,
+      "press2": 40,
+      "press3": 20,
+      "press4": 10,
+      "flow1": 232,
+      "flow2": 210,
+      "flow3": 69,
+      "flow4": 278,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000034",
+        "name": "Oracle pressure 52",
+        "temperatureC": 89,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 42,
+            "waterTenthsMl": 2320
+          },
+          {
+            "target": 40,
+            "waterTenthsMl": 2100
+          },
+          {
+            "target": 20,
+            "waterTenthsMl": 690
+          },
+          {
+            "target": 10,
+            "waterTenthsMl": 2780
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 53",
+      "flow": 266,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 72,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 266,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000035",
+        "name": "Oracle pressure 53",
+        "temperatureC": 105,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 72,
+            "waterTenthsMl": 2660
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 54",
+      "flow": 393,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 94,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 111,
+      "press2": 119,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 122,
+      "flow2": 271,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000036",
+        "name": "Oracle pressure 54",
+        "temperatureC": 94,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 111,
+            "waterTenthsMl": 1220
+          },
+          {
+            "target": 119,
+            "waterTenthsMl": 2710
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 55",
+      "flow": 141,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 102,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 78,
+      "press2": 104,
+      "press3": 61,
+      "press4": 0,
+      "flow1": 5,
+      "flow2": 88,
+      "flow3": 48,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000037",
+        "name": "Oracle pressure 55",
+        "temperatureC": 102,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 78,
+            "waterTenthsMl": 50
+          },
+          {
+            "target": 104,
+            "waterTenthsMl": 880
+          },
+          {
+            "target": 61,
+            "waterTenthsMl": 480
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 56",
+      "flow": 759,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 94,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 76,
+      "press2": 22,
+      "press3": 93,
+      "press4": 33,
+      "flow1": 285,
+      "flow2": 278,
+      "flow3": 43,
+      "flow4": 153,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000038",
+        "name": "Oracle pressure 56",
+        "temperatureC": 94,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 76,
+            "waterTenthsMl": 2850
+          },
+          {
+            "target": 22,
+            "waterTenthsMl": 2780
+          },
+          {
+            "target": 93,
+            "waterTenthsMl": 430
+          },
+          {
+            "target": 33,
+            "waterTenthsMl": 1530
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 57",
+      "flow": 138,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 101,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 22,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 138,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000039",
+        "name": "Oracle pressure 57",
+        "temperatureC": 101,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 22,
+            "waterTenthsMl": 1380
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 58",
+      "flow": 301,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 23,
+      "press2": 73,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 292,
+      "flow2": 9,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000003a",
+        "name": "Oracle pressure 58",
+        "temperatureC": 105,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 23,
+            "waterTenthsMl": 2920
+          },
+          {
+            "target": 73,
+            "waterTenthsMl": 90
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 59",
+      "flow": 738,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 91,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 76,
+      "press2": 76,
+      "press3": 13,
+      "press4": 0,
+      "flow1": 290,
+      "flow2": 279,
+      "flow3": 169,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000003b",
+        "name": "Oracle pressure 59",
+        "temperatureC": 91,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 76,
+            "waterTenthsMl": 2900
+          },
+          {
+            "target": 76,
+            "waterTenthsMl": 2790
+          },
+          {
+            "target": 13,
+            "waterTenthsMl": 1690
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 60",
+      "flow": 624,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 105,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 27,
+      "press2": 10,
+      "press3": 4,
+      "press4": 35,
+      "flow1": 109,
+      "flow2": 98,
+      "flow3": 169,
+      "flow4": 248,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000003c",
+        "name": "Oracle pressure 60",
+        "temperatureC": 105,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 27,
+            "waterTenthsMl": 1090
+          },
+          {
+            "target": 10,
+            "waterTenthsMl": 980
+          },
+          {
+            "target": 4,
+            "waterTenthsMl": 1690
+          },
+          {
+            "target": 35,
+            "waterTenthsMl": 2480
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 61",
+      "flow": 9,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 99,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 29,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 9,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000003d",
+        "name": "Oracle pressure 61",
+        "temperatureC": 99,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 29,
+            "waterTenthsMl": 90
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 62",
+      "flow": 321,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 104,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 109,
+      "press2": 88,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 151,
+      "flow2": 170,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000003e",
+        "name": "Oracle pressure 62",
+        "temperatureC": 104,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 109,
+            "waterTenthsMl": 1510
+          },
+          {
+            "target": 88,
+            "waterTenthsMl": 1700
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 63",
+      "flow": 646,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 89,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 81,
+      "press2": 88,
+      "press3": 59,
+      "press4": 0,
+      "flow1": 168,
+      "flow2": 274,
+      "flow3": 204,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-00000000003f",
+        "name": "Oracle pressure 63",
+        "temperatureC": 89,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 81,
+            "waterTenthsMl": 1680
+          },
+          {
+            "target": 88,
+            "waterTenthsMl": 2740
+          },
+          {
+            "target": 59,
+            "waterTenthsMl": 2040
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 64",
+      "flow": 738,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 102,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 11,
+      "press2": 66,
+      "press3": 76,
+      "press4": 77,
+      "flow1": 183,
+      "flow2": 124,
+      "flow3": 216,
+      "flow4": 215,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000040",
+        "name": "Oracle pressure 64",
+        "temperatureC": 102,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 11,
+            "waterTenthsMl": 1830
+          },
+          {
+            "target": 66,
+            "waterTenthsMl": 1240
+          },
+          {
+            "target": 76,
+            "waterTenthsMl": 2160
+          },
+          {
+            "target": 77,
+            "waterTenthsMl": 2150
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 65",
+      "flow": 274,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 96,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 80,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 274,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000041",
+        "name": "Oracle pressure 65",
+        "temperatureC": 96,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 80,
+            "waterTenthsMl": 2740
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 66",
+      "flow": 479,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 83,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 113,
+      "press2": 111,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 222,
+      "flow2": 257,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000042",
+        "name": "Oracle pressure 66",
+        "temperatureC": 83,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 113,
+            "waterTenthsMl": 2220
+          },
+          {
+            "target": 111,
+            "waterTenthsMl": 2570
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 67",
+      "flow": 453,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 85,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 83,
+      "press2": 59,
+      "press3": 90,
+      "press4": 0,
+      "flow1": 110,
+      "flow2": 134,
+      "flow3": 209,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000043",
+        "name": "Oracle pressure 67",
+        "temperatureC": 85,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 83,
+            "waterTenthsMl": 1100
+          },
+          {
+            "target": 59,
+            "waterTenthsMl": 1340
+          },
+          {
+            "target": 90,
+            "waterTenthsMl": 2090
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 68",
+      "flow": 401,
+      "weight": 180,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 76,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 25,
+      "press2": 73,
+      "press3": 103,
+      "press4": 59,
+      "flow1": 202,
+      "flow2": 79,
+      "flow3": 93,
+      "flow4": 27,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000044",
+        "name": "Oracle pressure 68",
+        "temperatureC": 76,
+        "targetHundredthsGram": 1800,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 25,
+            "waterTenthsMl": 2020
+          },
+          {
+            "target": 73,
+            "waterTenthsMl": 790
+          },
+          {
+            "target": 103,
+            "waterTenthsMl": 930
+          },
+          {
+            "target": 59,
+            "waterTenthsMl": 270
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 69",
+      "flow": 279,
+      "weight": 1999,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 104,
+      "press": false,
+      "chart": false,
+      "seg": 1,
+      "press1": 39,
+      "press2": 0,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 279,
+      "flow2": 0,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000045",
+        "name": "Oracle pressure 69",
+        "temperatureC": 104,
+        "targetHundredthsGram": 19990,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 39,
+            "waterTenthsMl": 2790
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 70",
+      "flow": 299,
+      "weight": 2000,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 83,
+      "press": false,
+      "chart": false,
+      "seg": 2,
+      "press1": 54,
+      "press2": 48,
+      "press3": 0,
+      "press4": 0,
+      "flow1": 151,
+      "flow2": 148,
+      "flow3": 0,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000046",
+        "name": "Oracle pressure 70",
+        "temperatureC": 83,
+        "targetHundredthsGram": 20000,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 54,
+            "waterTenthsMl": 1510
+          },
+          {
+            "target": 48,
+            "waterTenthsMl": 1480
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 71",
+      "flow": 467,
+      "weight": 0,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 104,
+      "press": false,
+      "chart": false,
+      "seg": 3,
+      "press1": 98,
+      "press2": 53,
+      "press3": 97,
+      "press4": 0,
+      "flow1": 231,
+      "flow2": 18,
+      "flow3": 218,
+      "flow4": 0,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000047",
+        "name": "Oracle pressure 71",
+        "temperatureC": 104,
+        "targetHundredthsGram": 0,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 98,
+            "waterTenthsMl": 2310
+          },
+          {
+            "target": 53,
+            "waterTenthsMl": 180
+          },
+          {
+            "target": 97,
+            "waterTenthsMl": 2180
+          }
+        ]
+      }
+    },
+    {
+      "name": "Oracle pressure 72",
+      "flow": 789,
+      "weight": 1,
+      "wdelta": 0,
+      "time": 0,
+      "temp": 86,
+      "press": false,
+      "chart": false,
+      "seg": 4,
+      "press1": 105,
+      "press2": 76,
+      "press3": 28,
+      "press4": 2,
+      "flow1": 250,
+      "flow2": 300,
+      "flow3": 227,
+      "flow4": 12,
+      "time1": 0,
+      "customDocument": {
+        "schema": 1,
+        "kind": "openhoyi.local-curve",
+        "id": "draft-00000000-0000-4000-8000-000000000048",
+        "name": "Oracle pressure 72",
+        "temperatureC": 86,
+        "targetHundredthsGram": 10,
+        "controlMode": "pressure",
+        "stages": [
+          {
+            "target": 105,
+            "waterTenthsMl": 2500
+          },
+          {
+            "target": 76,
+            "waterTenthsMl": 3000
+          },
+          {
+            "target": 28,
+            "waterTenthsMl": 2270
+          },
+          {
+            "target": 2,
+            "waterTenthsMl": 120
+          }
+        ]
+      }
+    }
+  ]
+}

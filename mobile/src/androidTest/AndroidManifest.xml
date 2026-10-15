@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Test-only visibility for verifying the actual system picker identity. -->
+    <queries>
+        <package android:name="com.android.documentsui" />
+        <package android:name="com.google.android.documentsui" />
+        <package android:name="com.android.providers.downloads" />
+        <package android:name="com.android.externalstorage" />
+    </queries>
+    <permission
+        android:name="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE" />
+    <application>
+        <provider
+            android:name="io.openhoyi.mobile.CurveFixtureProvider"
+            android:authorities="io.openhoyi.mobile.mock.test.curve-fixtures"
+            android:exported="true"
+            android:grantUriPermissions="false"
+            android:readPermission="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE"
+            android:writePermission="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE" />
+    </application>
+</manifest>

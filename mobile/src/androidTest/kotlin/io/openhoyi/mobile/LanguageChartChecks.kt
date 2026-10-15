@@ -18,7 +18,9 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
                 val legacy = LegacyShotChartView(context).apply {
                     points = listOf(LegacyPoint(0.0, 2.0, 0.0, 0.0, 0.0), LegacyPoint(1.0, 10.0, 0.0, 0.0, 0.0))
                 }
-                val stages = CurveStageView(context).apply { targets = listOf(2, 4, 6, 8) }
+                // Targets are tenths of a bar on the new fixed 0..12 bar scale.
+                // 2,4,6,8 meant only 0.2..0.8 bar, below the 20dp rise assertion.
+                val stages = CurveStageView(context).apply { targets = listOf(20, 40, 60, 80) }
                 verifyIncreasing(native, context.getColor(R.color.chart_pressure), 42f, 18f, 74f, 28f, language)
                 verifyIncreasing(legacy, context.getColor(R.color.chart_pressure), 42f, 18f, 52f, 30f, language)
                 verifyIncreasing(stages, context.getColor(R.color.mobile_accent), 20f, 20f, 18f, 28f, language)

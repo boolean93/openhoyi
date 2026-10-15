@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_sort_recent">المستخدمة مؤخرًا</string>
+    <string name="curve_sort_most_used">عدد مرات الاستخدام</string>
+    <string name="curve_usage_count">" · مرات الاستخدام: %1$d"</string>
+    <string name="curve_usage_unavailable">سجل الاستخدام غير متاح مؤقتًا. تم الاحتفاظ بالملف الأصلي.</string>
+</resources>
