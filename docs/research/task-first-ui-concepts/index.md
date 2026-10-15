@@ -53,7 +53,8 @@
 
 ## 规范与生成记录
 
-- [整合书面规格（待本轮审阅）](../../superpowers/specs/2026-10-15-task-first-ui-design.md)
+- [已确认书面规格](../../superpowers/specs/2026-10-15-task-first-ui-design.md)
+- [全量实施路线](../../superpowers/plans/2026-10-15-task-first-ui-roadmap.md)与[首批可执行计划](../../superpowers/plans/2026-10-15-task-first-layout-policy.md)：21页目标不缩减，逐批实现与验证。
 - [原功能/数据契约静态对照](../2026-10-15-ui-source-contract-audit.md)：记录工具、设备/恢复/槽位、历史参考、本地趣味反馈和流水来源的补充；不能当新版运行验收。
 - [官方原则及整体草案](../2026-10-15-task-first-ui-redesign-draft.md)
 - [四指标来源与可用性规范](../2026-10-15-extraction-chart-capabilities.md)
