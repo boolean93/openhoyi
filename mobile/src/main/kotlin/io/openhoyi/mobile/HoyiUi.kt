@@ -1,7 +1,6 @@
 package io.openhoyi.mobile
 
 import android.app.Activity
-import android.content.Intent
 import android.content.res.Configuration
 import android.content.res.ColorStateList
 import android.graphics.Typeface
@@ -37,7 +36,9 @@ internal object HoyiUi {
                 readable(super.getDropDownView(position, convertView, parent))
         }
     fun dp(activity: Activity, value: Int) = (activity.resources.displayMetrics.density * value).toInt()
-    fun wide(activity: Activity): Boolean = activity.resources.configuration.screenWidthDp >= 700
+    fun wide(activity: Activity): Boolean = activity.resources.configuration.let {
+        TaskLayoutPolicy.decide(it.screenWidthDp.coerceAtLeast(1), it.screenHeightDp).twoPaneAllowed
+    }
     fun dark(activity: Activity) = activity.resources.configuration.uiMode and
         Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
@@ -146,58 +147,12 @@ internal object HoyiUi {
         subtitle?.let { label(activity, words, it, 13, muted = true).apply {
             setPadding(0, dp(activity, 4), 0, 0)
         } }
+        row.addView(TaskNavigationView.createToolsHost(activity), LinearLayout.LayoutParams(-2, -2))
         return row
     }
 
+    @Suppress("UNUSED_PARAMETER") // Retained for existing page callers; the actual Activity determines selection.
     fun navigation(activity: Activity, parent: LinearLayout, selected: Class<out Activity>) {
-        val bar = LinearLayout(activity).apply {
-            orientation = LinearLayout.HORIZONTAL
-            minimumHeight = dp(activity, 62)
-            setPadding(dp(activity, 8), dp(activity, 6), dp(activity, 8), dp(activity, 6))
-            background = shape(activity, R.color.mobile_surface, 0)
-        }
-        parent.addView(bar, LinearLayout.LayoutParams(-1, -2))
-        val items = listOf(
-            Triple(R.drawable.nav_home, activity.getString(R.string.ui_brew), HomeActivity::class.java),
-            Triple(R.drawable.nav_curves, activity.getString(R.string.ui_curves), CurveActivity::class.java),
-            Triple(R.drawable.nav_history, activity.getString(R.string.ui_history), HistoryActivity::class.java),
-            Triple(R.drawable.nav_beans, activity.getString(R.string.ui_beans), BeanInventoryActivity::class.java),
-        )
-        val wide = wide(activity)
-        items.forEach { (icon, label, target) ->
-            val active = selected == target || (target == HomeActivity::class.java && selected == ExtractionActivity::class.java)
-            val tint = activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
-            val item = LinearLayout(activity).apply {
-                orientation = if (wide) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-                minimumHeight = dp(activity, 50)
-                gravity = Gravity.CENTER
-                contentDescription = label
-                isClickable = true
-                isFocusable = true
-                if (active) background = shape(activity, R.color.mobile_accent_soft, 10)
-                setOnClickListener {
-                    if (activity.javaClass != target) {
-                        activity.startActivity(Intent(activity, target).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
-                    }
-                }
-            }
-            item.addView(ImageView(activity).apply {
-                setImageResource(icon)
-                imageTintList = ColorStateList.valueOf(tint)
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LinearLayout.LayoutParams(dp(activity, 20), dp(activity, 20)))
-            item.addView(TextView(activity).apply {
-                text = label
-                textSize = if (wide) 14f else 11f
-                setTextColor(tint)
-                if (active) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LinearLayout.LayoutParams(-2, -2).apply {
-                if (wide) marginStart = dp(activity, 8) else topMargin = dp(activity, 2)
-            })
-            bar.addView(item, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                marginStart = dp(activity, 2); marginEnd = dp(activity, 2)
-            })
-        }
+        TaskPageFrame.install(activity, parent)
     }
 }

@@ -89,7 +89,7 @@ internal fun ThemedActivity.beanPage(title: String, subtitle: String? = null,
     val actions = BeanActionRows(this)
     shell.addView(actions, LinearLayout.LayoutParams(-1, -2))
     body.tag = BeanPageRegions(actions)
-    navigation?.let { HoyiUi.navigation(this, root, it) }
+    HoyiUi.navigation(this, root, navigation ?: javaClass)
     setContentView(root)
     return body
 }

@@ -33,6 +33,7 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
             setPadding(dp(16), dp(8), dp(16), dp(8))
         }
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
+        HoyiUi.navigation(this, root, LegacyHistoryDetailActivity::class.java)
         setContentView(root)
         HoyiUi.header(this, body, getString(R.string.legacy_history_detail_title), getString(R.string.legacy_history_readonly), back = true)
         val id = intent.getStringExtra("legacyId")

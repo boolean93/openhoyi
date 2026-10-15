@@ -38,6 +38,7 @@ class HistoryDetailActivity : ThemedActivity() {
             setPadding(dp(12), dp(8), dp(12), dp(8))
         }
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
+        HoyiUi.navigation(this, root, HistoryDetailActivity::class.java)
         setContentView(root)
         HoyiUi.header(this, body, if (BuildConfig.MOCK_MODE) getString(R.string.history_detail_mock_title) else getString(R.string.history_detail_title), back = true)
         val shotId = intent.getStringExtra("shotId")
