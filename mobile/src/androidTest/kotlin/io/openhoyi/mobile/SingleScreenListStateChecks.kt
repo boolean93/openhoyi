@@ -33,6 +33,9 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
     companion object {
         private const val COUNT = 40
         const val BATCH_ID = "single-screen-list-batch-01"
+        val sampleFixtureIds: List<String> get() = (1..COUNT).map {
+            "single-screen-list-shot-${it.toString().padStart(2, '0')}"
+        }
         fun seed(app: MobileApplication) {
             check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
             val inventory = app.beanInventoryResult.getOrThrow()
@@ -43,6 +46,11 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             val originalLegacyCurves = app.legacyCurves.load()
             // Initialize existing recent-history migration before freezing setup baselines.
             app.history.entries
+            // Thirty seconds and 36.00g match each named journal observation.
+            val fixtureSamples = (0..30).map { second ->
+                ShotPoint(second * 1000L, if (second < 4) second * 20 else 90 - (second - 4),
+                    25, second * 30, 9300, second * 120, 120, true)
+            }
             for (index in 1..COUNT) {
                 val suffix = index.toString().padStart(2, '0')
                 val batch = BeanBatch("single-screen-list-batch-$suffix",
@@ -56,6 +64,9 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                 val old = journal.find(id)
                 if (old == null) journal.observe(observation)
                 else check(old.observation == observation) { "Named journal fixture conflicts; not overwritten" }
+                val existingSamples = app.samples.load(id)
+                if (existingSamples.isEmpty()) app.samples.save(id, fixtureSamples)
+                else check(existingSamples == fixtureSamples) { "Named journal sample fixture conflicts: $id; not overwritten" }
             }
             val legacy = (1..COUNT).map { index -> LegacyShot("single-screen-list-legacy-$index",
                 1700100000000L + index * 60000L, 30, 6, "列表恢复旧记录 $index", null,
@@ -82,6 +93,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
 
     private val context get() = test.targetContext
     private val opened = mutableListOf<Activity>()
+    private val diagnostics = mutableListOf<String>()
     private fun main(action: () -> Unit) {
         var error: Throwable? = null
         test.runOnMainSync { try { action() } catch (failure: Throwable) { error = failure } }
@@ -175,10 +187,27 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         main { saved = anchor(list(activity)) }
         return requireNotNull(saved)
     }
-    private fun restored(activity: Activity, saved: Anchor) {
-        listReady(activity)
-        await { anchor(list(activity)) == saved }
-        main { SingleScreenPageChecks.verify(activity); check(anchor(list(activity)) == saved) }
+    private fun viewport(activity: Activity): String {
+        var result = "unavailable"
+        main {
+            val view = list(activity)
+            val actual = if (view.childCount > 0) anchor(view).toString() else "<no child>"
+            result = "actual=$actual count=${view.count} height=${view.height} childCount=${view.childCount} shown=${view.isShown} layoutRequested=${view.isLayoutRequested}"
+        }
+        return result
+    }
+    private fun restored(activity: Activity, saved: Anchor, stage: String = "restore") {
+        try {
+            listReady(activity)
+            await { anchor(list(activity)) == saved }
+            main { SingleScreenPageChecks.verify(activity); check(anchor(list(activity)) == saved) }
+        } catch (failure: Throwable) {
+            var actual = "diagnostic unavailable"
+            try { actual = viewport(activity) } catch (secondary: Throwable) {
+                if (secondary !== failure) failure.addSuppressed(secondary)
+            }
+            throw IllegalStateException("${activity.javaClass.simpleName} stage=$stage saved=$saved $actual", failure)
+        }
     }
     private fun clickVisible(activity: Activity) {
         main {
@@ -214,7 +243,9 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         }
         test.waitForIdleSync()
         val saved = scrollList(activity)
+        diagnostics += "CurveActivity stage=before-click saved=$saved ${viewport(activity)}"
         clickVisible(activity)
+        diagnostics += "CurveActivity stage=after-click saved=$saved ${viewport(activity)}"
         val selected = field(activity, "selected") as CurveLibraryItem
         fun browser(page: Activity) {
             if (!HoyiUi.wide(page)) {
@@ -223,10 +254,11 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             }
         }
         browser(activity)
-        restored(activity, saved)
+        diagnostics += "CurveActivity stage=after-detail-return saved=$saved ${viewport(activity)}"
+        restored(activity, saved, "click-show-detail-return-before-recreate")
         evidence += "CurveActivity detail-return position=${saved.position} offset=${saved.offset} gesture=swipe selected=${selected.id}"
         val replacement = recreate(activity)
-        restored(replacement, saved)
+        restored(replacement, saved, "recreate")
         main {
             check((field(replacement, "search") as EditText).text.toString() == "factory-v3")
             check(field(replacement, "category") == category)
@@ -316,6 +348,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
     }
     fun run(directory: File): Int {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
+        diagnostics.clear()
         val prefs = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val originalPrefs = prefs.all.toMap()
         fun preferenceNames() = File(context.applicationInfo.dataDir, "shared_prefs").listFiles().orEmpty()
@@ -371,7 +404,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                         val saved = scrollList(activity)
                         activity = recreate(activity)
                         if (activity is HistoryActivity) main { check(field(activity, "showJournal") == true) }
-                        restored(activity, saved)
+                        restored(activity, saved, "recreate")
                         evidence += "${type.simpleName} recreate position=${saved.position} offset=${saved.offset} gesture=swipe journal=${activity is HistoryActivity}"
                         if (activity is LegacyCurveActivity) {
                             clickVisible(activity)
@@ -380,7 +413,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                             ready(activity)
                         } else detailReturn(activity, if (activity is HistoryActivity) HistoryDetailActivity::class.java
                             else LegacyHistoryDetailActivity::class.java) { clickVisible(activity) }
-                        restored(activity, saved)
+                        restored(activity, saved, "detail-return")
                         evidence += "${type.simpleName} detail-return position=${saved.position} offset=${saved.offset} gesture=swipe"
                     }
                 } catch (failure: Throwable) {
@@ -405,10 +438,13 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         }
         val resultFile = File(directory, "list-state-result.txt")
         fun writeResult() = resultFile.writeText("pages=7 restoreFixtures=${evidence.size} language=zh-Hans appearance=light noBle=true gesture=swipe syntheticCandidates=true noScan=true noConnect=true\n" +
-            (evidence + failures).joinToString("\n"))
+            (evidence + diagnostics + failures).joinToString("\n"))
         // Evidence output is also independent: a file failure must not suppress streams,
         // and a stream failure must not make the suite return a success count.
         attempt("output result") { writeResult() }
+        for (line in diagnostics) attempt("output diagnostic stream") {
+            test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_LIST_STATE_DIAGNOSTIC $line\n") })
+        }
         for (line in evidence) attempt("output evidence stream") {
             test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_LIST_STATE_OK $line\n") })
         }

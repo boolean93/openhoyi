@@ -72,7 +72,8 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
         // Named additive fixtures are installed once, before every immutable baseline.
         // They never replace original inventory, journal or legacy rows.
         SingleScreenListStateChecks.seed(app)
-        val sampleBaseline = shotIds.associateWith { app.samples.load(it) }
+        val sampleIds = shotIds + SingleScreenListStateChecks.sampleFixtureIds
+        val sampleBaseline = sampleIds.associateWith { app.samples.load(it) }
         val legacyId = "single-screen-legacy-shot"
         app.legacyHistory.import(java.io.ByteArrayInputStream("""{"version":1,"items":[{"id":"$legacyId","createdAt":1700000000000,"durationSec":30,"chartSlot":6,"profileName":"Single screen fixture","points":{"t":[0,1,2],"press":[0,2,4],"flow":[0,1,2],"wFlow":[0,1,2],"wTrend":[0,1,3]}}]}""".toByteArray()))
         val legacyBefore = app.legacyHistory.list()
@@ -270,7 +271,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
             }
         }
         main {
-            check(shotIds.associateWith { app.samples.load(it) } == sampleBaseline)
+            check(sampleIds.associateWith { app.samples.load(it) } == sampleBaseline)
             check(app.legacyHistory.list() == legacyBefore)
             check(app.legacyCurves.load() == legacyCurvesBefore)
             check(inventory.events() == inventoryBefore && journal.exportJson() == journalBefore)

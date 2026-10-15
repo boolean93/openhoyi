@@ -355,6 +355,8 @@ class CurveActivity : ThemedActivity() {
     }
 
     private fun show(item: CurveLibraryItem) {
+        // Changing the preview must not move the independent library viewport.
+        val viewport = curveList.onSaveInstanceState()
         selected = item
         stageChart.targets = stageTargets(item)
         val draft = item.customDocument
@@ -387,6 +389,7 @@ class CurveActivity : ThemedActivity() {
         assignPreset.visibility = if (item.factoryCurve != null) View.VISIBLE else View.GONE
         assignPreset.isEnabled = item.factoryCurve != null && canStart
         adapter.notifyDataSetChanged()
+        viewport?.let { curveList.onRestoreInstanceState(it) }
     }
 
     private fun showParameterDetails() {

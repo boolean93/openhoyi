@@ -473,7 +473,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         }
         failure?.let { throw it }
         test.sendStatus(0, android.os.Bundle().apply { putString("stream",
-            "ADVANCED_BUSINESS_UI_FULL_FIELDS_PASSED beanDates=3 notesFields=7 curveFields=12 stages=4 durableStores=3 unsavedRotation=true reopenedRotation=true paths=17\n") })
+            "ADVANCED_BUSINESS_UI_FULL_FIELDS_PASSED beanDates=3 notesFields=7 curveFields=12 stages=4 durableStores=3 unsavedRecreation=true reopenedRecreation=true paths=17\n") })
         return Result(paths.toList(), ownEvents().size, ownCurveIds.size)
     }
 }
