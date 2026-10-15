@@ -54,9 +54,12 @@ internal object FourMetricChartProjection {
             }
             val low = minOf(metric.floor, values.minOrNull() ?: metric.floor, old?.low ?: metric.floor)
             val high = maxOf(metric.ceiling, values.maxOrNull() ?: metric.ceiling, old?.high ?: metric.ceiling)
+            // Float division/multiplication can round inward at large magnitudes.
+            val roundedLow = floor(low / metric.step) * metric.step
+            val roundedHigh = ceil(high / metric.step) * metric.step
             MetricChartSeries(metric, current, historic, ChartRange(
-                floor(low / metric.step) * metric.step,
-                ceil(high / metric.step) * metric.step,
+                minOf(low, roundedLow),
+                maxOf(high, roundedHigh),
             ))
         }
         return FourMetricChartData(

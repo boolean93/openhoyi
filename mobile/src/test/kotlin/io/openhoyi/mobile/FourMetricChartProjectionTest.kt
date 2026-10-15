@@ -142,6 +142,22 @@ class FourMetricChartProjectionTest {
         assertEquals(expanded.series.map { it.range }, later.series.map { it.range })
     }
 
+    @Test fun largeNegativeWaterCannotRoundLowerBoundInsideObservedMinimum() {
+        val water = FourMetricChartProjection.build(listOf(point(0, water = -1688510903),
+            point(1000, water = 1342177000)), emptyList()).series(ChartMetric.WATER)
+        val minimum = water.current.flatten().minOf { it.value }
+        assertTrue("Lower bound ${water.range.low} clips observed minimum $minimum",
+            water.range.low <= minimum)
+    }
+
+    @Test fun largePositiveWaterCannotRoundUpperBoundInsideObservedMaximum() {
+        val water = FourMetricChartProjection.build(listOf(point(0, water = -1688510903),
+            point(1000, water = 1342177000)), emptyList()).series(ChartMetric.WATER)
+        val maximum = water.current.flatten().maxOf { it.value }
+        assertTrue("Upper bound ${water.range.high} clips observed maximum $maximum",
+            water.range.high >= maximum)
+    }
+
     @Test fun negativeDuplicateAndReversedTimesAreRejectedForEachInputWithoutMutation() {
         val invalidInputs = listOf(listOf(point(-1)), listOf(point(0), point(0)),
             listOf(point(1000), point(0)))
