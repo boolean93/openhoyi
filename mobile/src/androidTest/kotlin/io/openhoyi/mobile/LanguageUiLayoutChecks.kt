@@ -99,6 +99,8 @@ internal object LanguageUiLayoutChecks {
             measure(activity, body, widthDp - 48)
             check(body.layoutDirection == expectedDirection)
             fun inspect(view: View) {
+                // GONE subtrees are not measured; INVISIBLE views still reserve layout space.
+                if (view.visibility == View.GONE) return
                 if (view is TextView) textFits(view, fixture)
                 if (view is ViewGroup) for (index in 0 until view.childCount) inspect(view.getChildAt(index))
             }
