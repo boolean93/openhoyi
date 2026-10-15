@@ -57,7 +57,11 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
             shot.profileName.ifBlank { getString(R.string.legacy_history_unnamed) },
             SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(shot.createdAtMs)), shot.durationSec.toString())
         val disclaimer = getString(R.string.legacy_history_chart_disclaimer)
-        val summary = HoyiUi.card(this, body, getString(R.string.legacy_history_record))
+        // The page already identifies this as a read-only record. Keep its
+        // metadata compact so the historical plot receives the remaining height.
+        val summary = HoyiUi.card(this, body).apply {
+            setPadding(dp(12), dp(4), dp(12), dp(4))
+        }
         text(summary, summaryText, 16)
         val chart = HoyiUi.card(this, body, getString(R.string.curve_view_legacy)).apply {
             layoutParams = LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) }
