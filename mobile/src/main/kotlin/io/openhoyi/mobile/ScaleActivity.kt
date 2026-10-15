@@ -103,14 +103,15 @@ class ScaleActivity:ScaleOwnerActivity() {
         guard=HoyiUi.label(this,body,"",14,muted=true)
         val reading=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER
+            minimumHeight=HoyiUi.dp(this@ScaleActivity,128)
             background=HoyiUi.shape(this@ScaleActivity,R.color.mobile_surface,18,R.color.mobile_border)
             setPadding(HoyiUi.dp(this@ScaleActivity,12),0,HoyiUi.dp(this@ScaleActivity,12),0)
         }
-        body.addView(reading,LinearLayout.LayoutParams(-1,0,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)})
-        weight=HoyiUi.label(this,reading,getString(R.string.scale_unavailable),if(HoyiUi.wide(this))96 else 72,true).apply {
-            setAutoSizeTextTypeUniformWithConfiguration(36,if(HoyiUi.wide(this@ScaleActivity))96 else 72,2,android.util.TypedValue.COMPLEX_UNIT_SP)
-            layoutParams=LinearLayout.LayoutParams(-1,0,1f);gravity=android.view.Gravity.CENTER
-            maxLines=1;typeface=android.graphics.Typeface.create("sans-serif-light",android.graphics.Typeface.NORMAL)
+        body.addView(reading,LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)})
+        weight=HoyiUi.label(this,reading,getString(R.string.scale_unavailable),if(HoyiUi.wide(this))64 else 48,true).apply {
+            // Natural height preserves system font scaling and long/negative readings.
+            layoutParams=LinearLayout.LayoutParams(-1,-2);gravity=android.view.Gravity.CENTER
+            typeface=android.graphics.Typeface.create("sans-serif-light",android.graphics.Typeface.NORMAL)
         }
         tareStatus=HoyiUi.label(this,reading,"",13,muted=true).apply {setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,8))}
         tare=HoyiUi.button(this,body,getString(R.string.scale_tare),primary=true) {
@@ -119,8 +120,13 @@ class ScaleActivity:ScaleOwnerActivity() {
             service.resetBeanDoseCapture()
             message(service.tareScale() ?: getString(R.string.scale_tare_requested));renderScale()
         }
+        // Only secondary content scrolls; weight, tare and capture stay fixed.
+        val secondary=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
+        body.addView(ScrollView(this).apply {
+            isFillViewport=false;addView(secondary)
+        },LinearLayout.LayoutParams(-1,0,1f))
         val timerCard=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
-        body.addView(timerCard)
+        secondary.addView(timerCard)
         val timerHeading=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
         timerCard.addView(timerHeading,LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)})
         HoyiUi.label(this,timerHeading,getString(R.string.scale_timer_title),14,true).apply {
@@ -139,22 +145,23 @@ class ScaleActivity:ScaleOwnerActivity() {
             layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6)}
         }
         if(intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
-            capture=HoyiUi.button(this,body,getString(R.string.scale_dose_capture),primary=true) {
-                val stable=stableDose(SystemClock.elapsedRealtime())
-                if(stable==null) {message(getString(R.string.scale_dose_not_ready));return@button}
-                setResult(RESULT_OK,Intent().putExtra(EXTRA_BEAN_DOSE_HUNDREDTHS_GRAM,stable));finish()
-            }
-            // Dose provenance and stability instructions stay directly visible,
-            // rather than being truncated or available only after another tap.
-            HoyiUi.label(this,body,getString(R.string.scale_dose_help),13,muted=true)
+            // Full dose provenance remains available in the local scroll region.
+            HoyiUi.label(this,secondary,getString(R.string.scale_dose_help),13,muted=true)
         }
         val tools=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
-        body.addView(tools)
+        secondary.addView(tools)
         connectionButton=HoyiUi.button(this,tools,getString(R.string.scale_connect)) {startActivity(Intent(this,ScaleConnectionActivity::class.java))}.apply {
             layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6);marginEnd=HoyiUi.dp(this@ScaleActivity,6)}
         }
         HoyiUi.button(this,tools,getString(R.string.scale_settings)) {startActivity(Intent(this,ScaleSettingsActivity::class.java))}.apply {
             layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6)}
+        }
+        if(intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
+            capture=HoyiUi.button(this,body,getString(R.string.scale_dose_capture),primary=true) {
+                val stable=stableDose(SystemClock.elapsedRealtime())
+                if(stable==null) {message(getString(R.string.scale_dose_not_ready));return@button}
+                setResult(RESULT_OK,Intent().putExtra(EXTRA_BEAN_DOSE_HUNDREDTHS_GRAM,stable));finish()
+            }
         }
         renderScale()
     }
