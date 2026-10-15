@@ -159,18 +159,35 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             Thread.sleep(25)
             event(MotionEvent.ACTION_MOVE, startY + (endY - startY) * step / 16)
         }
-        // Pause while still down so ACTION_UP cannot fling past the captured anchor.
-        Thread.sleep(150)
+        // AbsListView computes velocity inside onTouchUp BEFORE adding the UP
+        // event to VelocityTracker. Sleeping alone leaves the last moving samples
+        // active. Supply real stationary MOVE samples before releasing the finger.
+        repeat(4) {
+            Thread.sleep(50)
+            event(MotionEvent.ACTION_MOVE, endY)
+        }
         event(MotionEvent.ACTION_UP, endY)
         test.waitForIdleSync()
+    }
+    /** Capture the baseline only after the real gesture has stopped moving. */
+    private fun <T : Any> settled(read: () -> T?): T {
+        var candidate: T? = null
+        var stableSince = 0L
+        await {
+            val current = read()
+            val now = SystemClock.elapsedRealtime()
+            if (current == null || current != candidate) {
+                candidate = current
+                stableSince = now
+                false
+            } else now - stableSince >= 250
+        }
+        return requireNotNull(candidate)
     }
     private fun swipeScroll(activity: Activity, scroll: ScrollView): Int {
         main { check(scroll.canScrollVertically(1)) { "${activity.javaClass.simpleName} insufficient real scroll range" } }
         swipe(scroll)
-        var saved = 0
-        await { scroll.scrollY > 0 && !scroll.isLayoutRequested }
-        main { saved = scroll.scrollY; check(saved > 0) }
-        return saved
+        return settled { scroll.scrollY.takeIf { it > 0 && !scroll.isLayoutRequested } }
     }
     private fun scrollList(activity: Activity): Anchor {
         listReady(activity)
@@ -182,10 +199,11 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         var first = 0
         main { first = list(activity).firstVisiblePosition }
         if (first == 0) swipe(list(activity))
-        var saved: Anchor? = null
-        await { list(activity).firstVisiblePosition > 0 }
-        main { saved = anchor(list(activity)) }
-        return requireNotNull(saved)
+        return settled {
+            val view = list(activity)
+            if (view.firstVisiblePosition > 0 && view.childCount > 0 && !view.isLayoutRequested)
+                anchor(view) else null
+        }
     }
     private fun viewport(activity: Activity): String {
         var result = "unavailable"
