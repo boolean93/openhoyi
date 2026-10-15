@@ -7,7 +7,7 @@
     <string name="task_chart_independent">Rangos independientes; escala: %1$s · %2$s</string>
     <string name="task_chart_observed">Muestras de esta taza hasta %1$s s</string>
     <string name="task_chart_waiting">Esperando muestras de esta taza</string>
-    <string name="task_chart_reference">Líneas grises finas: referencia histórica, no predicción</string>
+    <string name="task_chart_reference">Línea gris fina: referencia histórica de %1$s, no predicción</string>
     <string name="task_chart_water_reset">Contador de agua reiniciado; segmentos separados</string>
     <string name="task_chart_gap">Huecos de muestreo; segmentos separados</string>
     <string name="task_chart_latest">%1$s, último valor muestreado %2$s %3$s</string>

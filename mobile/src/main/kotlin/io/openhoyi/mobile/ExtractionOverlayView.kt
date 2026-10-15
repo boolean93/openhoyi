@@ -132,7 +132,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         buttons.forEach { (metric, button) ->
             button.isSelected = selected == metric
             button.setTextColor(metricColor(metric))
-            button.alpha = if (selected == null || selected == metric) 1f else .72f
+            button.alpha = 1f
             button.typeface = android.graphics.Typeface.create(button.typeface,
                 if (selected == metric) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         }
@@ -152,7 +152,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
                 ?: context.getString(R.string.task_chart_waiting),
         )
         val referenceNotes = if (reference.isNotEmpty()) listOfNotNull(
-            referenceLabel?.takeIf { it.isNotBlank() }, context.getString(R.string.task_chart_reference),
+            referenceLabel?.takeIf { it.isNotBlank() }, context.getString(R.string.task_chart_reference, metricName(focusMetric)),
         ) else emptyList()
         val referenceText = referenceNotes.joinToString("\n")
         if (referenceCaption.text.toString() != referenceText) referenceCaption.text = referenceText
@@ -305,7 +305,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             fun drawSeries(series: MetricChartSeries, historic: Boolean) {
                 val segments = if (historic) series.reference else series.current
                 stroke.color = if (historic) context.getColor(R.color.chart_label) else metricColor(series.metric)
-                stroke.alpha = if (historic) 125 else if (selected == null || selected == series.metric) 255 else 110
+                stroke.alpha = if (historic) 125 else if (selected == null || selected == series.metric) 255 else 210
                 stroke.strokeWidth = dp(if (historic) 1f else if (selected == series.metric) 3f else 2f)
                 stroke.pathEffect = if (historic) null else effect(series.metric)
                 stroke.strokeCap = if (series.metric == ChartMetric.TEMPERATURE) Paint.Cap.ROUND else Paint.Cap.BUTT
@@ -324,7 +324,8 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
                     }
                 }
             }
-            data.series.forEach { drawSeries(it, true) }
+            // One focused historical metric avoids overlaying eight competing traces.
+            data.series.firstOrNull { it.metric == focusMetric }?.let { drawSeries(it, true) }
             data.series.sortedBy { it.metric == selected }.forEach { drawSeries(it, false) }
             data.observedThroughMs?.let { canvas.drawLine(x(it), top, x(it), bottom, grid) }
             canvas.restore()

@@ -10,7 +10,7 @@
     <string name="task_chart_independent">各项使用独立量程；刻度焦点：%1$s · %2$s</string>
     <string name="task_chart_observed">本杯采样至 %1$s s</string>
     <string name="task_chart_waiting">等待本杯采样</string>
-    <string name="task_chart_reference">灰色细线：历史参考，不是本杯预测</string>
+    <string name="task_chart_reference">灰色细线：%1$s的历史参考，不是本杯预测</string>
     <string name="task_chart_water_reset">注水计数发生重置，已分段显示</string>
     <string name="task_chart_gap">存在采样缺口，曲线分段显示</string>
     <string name="task_chart_latest">%1$s，最近采样值 %2$s %3$s</string>
