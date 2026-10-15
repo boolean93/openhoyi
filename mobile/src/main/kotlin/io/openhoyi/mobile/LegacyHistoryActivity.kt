@@ -25,9 +25,12 @@ class LegacyHistoryActivity : ThemedActivity() {
     private lateinit var emptyTitle: TextView
     private lateinit var emptyMessage: TextView
     private var refreshGeneration = 0
+    private var listState: android.os.Parcelable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        @Suppress("DEPRECATION")
+        listState = savedInstanceState?.getParcelable("listState")
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -101,6 +104,7 @@ class LegacyHistoryActivity : ThemedActivity() {
 
     override fun onStart() {
         super.onStart()
+        rememberList()
         val generation = ++refreshGeneration
         count.text = getString(R.string.legacy_history_loading)
         emptyState.visibility = View.GONE
@@ -119,8 +123,25 @@ class LegacyHistoryActivity : ThemedActivity() {
                     else getString(R.string.legacy_history_empty_message)
                 emptyState.visibility = if (adapter.count == 0) View.VISIBLE else View.GONE
                 list.visibility = if (adapter.count == 0) View.GONE else View.VISIBLE
+                if (adapter.count > 0) list.post {
+                    if (!isFinishing && !isDestroyed && generation == refreshGeneration)
+                        listState?.let { list.onRestoreInstanceState(it) }
+                }
             }
         }, "legacy-history-list").start()
+    }
+
+    private fun rememberList() {
+        if (::list.isInitialized && list.isShown && !list.isLayoutRequested && list.childCount > 0)
+            listState = list.onSaveInstanceState()
+    }
+
+    override fun onStop() { rememberList(); super.onStop() }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        rememberList()
+        outState.putParcelable("listState", listState)
+        super.onSaveInstanceState(outState)
     }
 
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()

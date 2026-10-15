@@ -168,3 +168,15 @@ c639fe0冻结后完整本地构建/JVM/androidTest通过。Mock v10同签名递�
 38498512001独立business作业成功：17业务路径、11文档合约、7真实DocumentsUI路径、Mock完整执行及39 detached无BLE写入门禁全部通过；pages仅后置RU粉量捕获重量文字溢出。38498512016原生、38498512013升级通过；38498512015 lifecycle仅后置compact RU萃取轴标签重叠，不能称整体CI全绿。
 
 38498512005实际横屏补证失败不再被cleanup掩盖：PRIMARY准确指向ACTION_SET_SELECTION到已在的末尾返回false；本地公开Android SDK TextView.java确认ACTION_SET_TEXT主动将caret置于末尾，同位置ACTION_SET_SELECTION no-op返回false。这是测试动作前置条件错误，不能简单接受false。测试改为先验证新全文、实际将native/background光标移到0再移回末尾，两次动作必须成功并验证双端选择范围，确认/重开/16000过滤全部原样。只改补证，不再次安装APK；新完整CI仍待通过。
+
+## 完整字段与列表恢复审计补齐（2026-10-15，待CI）
+
+48623b4的38499864890已终止：实际横屏、旧横屏、旧竖屏、大字体各336窗口成功；实际竖屏仅RU曲线数量超宽，手机仅ES高压萃取轴标签重叠，中文六配置共252普通窗口及分区/长文/IME/完整警告补证通过。38499864904独立business成功，原生38499864897及升级38499864958成功；整体仍有后置语言失败，不能称全绿。
+
+完成度审计未发现新的冗余布局P1/P2，但发现两项缺证：既有业务只保存部分非默认字段，列表没有实际滑动后重建/返回补证。新增实际可见分区填写全部三日期、7项Notes、四阶段12项配方字段；保存前旋转、保存后只读独立解码3真实存储，并重开/再次旋转核对全值。保留原17路径、幂等/取消/所有原始记录与机器偏好不变检查，CI额外要求FULL_FIELDS标记，不以分区截图代替保存证据。
+
+新增中文light的7页14项真实窗口内触摸swipe恢复检查：Curve query/filter/sort/selected、History journal tab、库存/流水、两Legacy页、秤候选列表。CI只在隔离Mock追加40条明确命名库存/历史与只读Legacy fixtures，不覆盖原记录；整个UI阶段记录、库存、使用次数、选曲线、偏好及服务message/shotState保持原值。秤40个候选是明确synthetic的UI-only展示fixture，只在原Mock owner hub=null/mock!=null下替换candidates，所有连接按钮必须禁用，无扫描/连接/BLE；finally仅恢复candidates，绝不回滚实时时钟帧，不能当秤协议/硬件验收。
+
+代码审计确认两Legacy页和ScaleConnection没有滚动恢复，补Parcelable/scrollY保存与异步数据填充后的守卫恢复，扫描、连接、导入和记录逻辑不改。独立复审发现补证清理可能覆盖primary的P2，已将候选还原/基线/所有Activity关闭/prefs/输出分别尝试并保留原始错误；复审关闭该P2。当前266 JVM零失败零错误1跳过、Mock/androidTest统一编译通过（42s，清理修正后22s），shell语法/diff检查通过，新增行为尚需CI实跑，不勾选整体验收。
+
+实机Mock v11仅新增一袋MockDemo-NotRealStock-250g，保存按钮只派发一次。250g与三日期2026-10-09/2026-10-07/2026-10-14从实际详情和独立二进制校验均正确，恰好一个ADD事件；原15个文件摘要完全不变，只新增bean_inventory_v1.bin。批次、流水、选豆准备横竖屏及日期详情7图已取得；没有调整、扣减、保存选豆或清除活动/未知恢复门禁。原旋转1/0恢复。物理App仍v11，新列表生产修复拟以同证书递增Mock v12覆盖，不安装辅助测试包、不更新Alpha。

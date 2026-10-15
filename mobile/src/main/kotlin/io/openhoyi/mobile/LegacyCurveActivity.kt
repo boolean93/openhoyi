@@ -27,9 +27,12 @@ class LegacyCurveActivity : ThemedActivity() {
     private lateinit var emptyMessage: TextView
     private var bundle: LegacyCurveBundle? = null
     private var refreshGeneration = 0
+    private var listState: android.os.Parcelable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        @Suppress("DEPRECATION")
+        listState = savedInstanceState?.getParcelable("listState")
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -112,6 +115,19 @@ class LegacyCurveActivity : ThemedActivity() {
 
     override fun onStart() { super.onStart(); refresh() }
 
+    private fun rememberList() {
+        if (::list.isInitialized && list.isShown && !list.isLayoutRequested && list.childCount > 0)
+            listState = list.onSaveInstanceState()
+    }
+
+    override fun onStop() { rememberList(); super.onStop() }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        rememberList()
+        outState.putParcelable("listState", listState)
+        super.onSaveInstanceState(outState)
+    }
+
     @Deprecated("Platform activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
@@ -138,6 +154,7 @@ class LegacyCurveActivity : ThemedActivity() {
     }
 
     private fun refresh() {
+        rememberList()
         val generation = ++refreshGeneration
         count.text = getString(R.string.legacy_curve_loading)
         emptyState.visibility = View.GONE
@@ -162,6 +179,10 @@ class LegacyCurveActivity : ThemedActivity() {
                     else getString(R.string.legacy_curve_empty_message)
                 emptyState.visibility = if (adapter.count == 0) View.VISIBLE else View.GONE
                 list.visibility = if (adapter.count == 0) View.GONE else View.VISIBLE
+                if (adapter.count > 0) list.post {
+                    if (!isFinishing && !isDestroyed && generation == refreshGeneration)
+                        listState?.let { list.onRestoreInstanceState(it) }
+                }
             }
         }, "legacy-curve-list").start()
     }

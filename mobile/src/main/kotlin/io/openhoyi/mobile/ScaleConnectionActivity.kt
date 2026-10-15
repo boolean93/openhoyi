@@ -18,18 +18,32 @@ class ScaleConnectionActivity:ScaleOwnerActivity() {
     private lateinit var rows:LinearLayout
     private var renderedKey:String?=null
     private var scanPending=false
+    private lateinit var candidateScroll:android.widget.ScrollView
+    private var savedScrollY=0
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
+        savedScrollY=savedInstanceState?.getInt("candidateScrollY") ?: 0
         val body=scaleBody(R.string.scale_connect,R.string.scale_connection_subtitle)
         status=HoyiUi.label(this,body,"",14,muted=true)
         scan=HoyiUi.button(this,body,getString(R.string.scale_scan),primary=true) {scanCandidates()}
         HoyiUi.button(this,body,getString(R.string.scale_connection_manager)) {startActivity(Intent(this,HomeActivity::class.java))}
         val devices=android.widget.ScrollView(this).apply {isFillViewport=true}
+        candidateScroll=devices
         rows=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(0,HoyiUi.dp(this@ScaleConnectionActivity,8),0,0)}
         devices.addView(rows)
         body.addView(devices,LinearLayout.LayoutParams(-1,0,1f))
         HoyiUi.label(this,body,getString(R.string.scale_offline_evidence),14,muted=true)
         renderScale()
+    }
+    private fun rememberCandidatePosition() {
+        if(::candidateScroll.isInitialized && !candidateScroll.isLayoutRequested &&
+            rows.height>candidateScroll.height) savedScrollY=candidateScroll.scrollY
+    }
+    override fun onStop() {rememberCandidatePosition();super.onStop()}
+    override fun onSaveInstanceState(outState:Bundle) {
+        rememberCandidatePosition()
+        outState.putInt("candidateScrollY",savedScrollY)
+        super.onSaveInstanceState(outState)
     }
     private fun radioUsable():Boolean {
         val permissions=if(Build.VERSION.SDK_INT>=31) listOf(Manifest.permission.BLUETOOTH_SCAN,Manifest.permission.BLUETOOTH_CONNECT)
@@ -73,6 +87,7 @@ class ScaleConnectionActivity:ScaleOwnerActivity() {
         val candidates=service?.snapshot?.candidates.orEmpty().filter {it.candidateRole==DeviceRole.BOOKOO}
         val key=candidates.joinToString {"${it.address}:${it.rssi}:${it.scaleProtocolId}"}+":"+changesAllowed()
         if(renderedKey==key)return
+        rememberCandidatePosition()
         renderedKey=key;rows.removeAllViews()
         if(candidates.isEmpty())HoyiUi.label(this,rows,getString(R.string.scale_scan_empty),14,muted=true)
         else candidates.forEach {candidate->
@@ -84,5 +99,6 @@ class ScaleConnectionActivity:ScaleOwnerActivity() {
                 candidate.scaleProtocolId?.let { owner?.connectScale(candidate.address,it) };renderScale()
             }.isEnabled=!BuildConfig.MOCK_MODE && changesAllowed()
         }
+        candidateScroll.post {if(!isFinishing && !isDestroyed)candidateScroll.scrollTo(0,savedScrollY)}
     }
 }

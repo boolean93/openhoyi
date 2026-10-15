@@ -14,6 +14,10 @@ import android.widget.EditText
 import android.widget.Spinner
 import android.widget.TextView
 import io.openhoyi.bean.InventoryEventKind
+import io.openhoyi.bean.BeanInventory
+import io.openhoyi.bean.InventoryStorage
+import java.io.File
+import java.time.LocalDate
 import java.util.UUID
 
 /** UI writes only to this run's local fixtures. Never clicks machine/BLE, external share or SAF. */
@@ -49,27 +53,93 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         }
         test.waitForIdleSync()
     }
-    private fun fill(root: View, label: String, value: String, index: Int = 0) {
+    /** Resolve every field by its actual label, and select its live visible section before access. */
+    private fun visibleInput(root: View, label: String, index: Int = 0): EditText {
         lateinit var input: EditText
         var sections: Spinner? = null
+        var shown = false
+        var sectionCount = 0
         onMain {
-            val title = views(root).filterIsInstance<TextView>().filter { it.text.toString() == label && it.labelFor != View.NO_ID }[index]
+            val title = views(root).filterIsInstance<TextView>()
+                .filter { it.text.toString() == label && it.labelFor != View.NO_ID }
+                .getOrNull(index) ?: error("Input label not found: $label index=$index")
             input = root.findViewById(title.labelFor)
             sections = views(root).filterIsInstance<Spinner>().singleOrNull { it.tag == "bean-sections" }
+            shown = input.isShown
+            sectionCount = sections?.count ?: 0
         }
-        if (!input.isShown && sections != null) {
-            for (position in 0 until requireNotNull(sections).count) {
-                onMain { sections!!.setSelection(position) }
-                test.waitForIdleSync()
-                if (input.isShown) break
-            }
+        if (!shown && sections != null) for (position in 0 until sectionCount) {
+            onMain { sections!!.setSelection(position) }
+            test.waitForIdleSync()
+            awaitMain { sections!!.selectedItemPosition == position && !root.isLayoutRequested }
+            onMain { shown = input.isShown }
+            if (shown) break
         }
         onMain {
-            check(input.isShown && input.isEnabled) { "Input section is not visible: $label" }
-            input.setText(value)
+            val rect = android.graphics.Rect()
+            check(input.isShown && input.isEnabled && input.getGlobalVisibleRect(rect) &&
+                rect.width() == input.width && rect.height() == input.height && input.width > 0 && input.height > 0) {
+                "Input section is not fully visible/enabled: $label index=$index"
+            }
         }
+        return input
+    }
+    private fun fill(root: View, label: String, value: String, index: Int = 0) {
+        val input = visibleInput(root, label, index)
+        onMain { input.setText(value); check(input.text.toString() == value) { "Input rejected fixture: $label" } }
     }
     private fun fill(activity: Activity, label: Int, value: String, index: Int = 0) = fill(root(activity), activity.getString(label), value, index)
+    private fun assertInput(activity: Activity, label: Int, expected: String, index: Int = 0) {
+        val input = visibleInput(root(activity), activity.getString(label), index)
+        onMain { check(input.text.toString() == expected) { "Restored field differs: ${activity.getString(label)} index=$index expected=$expected actual=${input.text}" } }
+    }
+    private fun assertReviewFields(activity: Activity, notes: BrewJournal.Notes) {
+        assertInput(activity, R.string.journal_dose, BeanQuantity.formatGrams(requireNotNull(notes.doseMg)))
+        onMain {
+            val bean = views(root(activity)).filterIsInstance<Spinner>().single { it.contentDescription == activity.getString(R.string.journal_bean) }
+            check(bean.isShown && bean.selectedItem.toString() == notes.beanName) { "Restored journal bean selection differs" }
+        }
+        assertInput(activity, R.string.journal_grind, notes.grind)
+        assertInput(activity, R.string.journal_expectation, notes.curveExpectation)
+        assertInput(activity, R.string.journal_taste, notes.taste)
+        assertInput(activity, R.string.journal_next, notes.nextAdjustment)
+    }
+    private fun assertCurveFields(activity: Activity, name: String, temperature: Int, cup: Int, stages: List<CustomCurveDocument.Stage>) {
+        assertInput(activity, R.string.profiles_name, name)
+        assertInput(activity, R.string.profiles_temperature, temperature.toString())
+        assertInput(activity, R.string.profiles_cup, CurveDraftNumber.format(cup, 2))
+        onMain {
+            val count = views(root(activity)).filterIsInstance<Spinner>().single { it.contentDescription == activity.getString(R.string.profiles_stage_count) }
+            check(count.isShown && count.selectedItem.toString() == stages.size.toString()) { "Restored curve stage count differs" }
+        }
+        stages.forEachIndexed { index, stage ->
+            assertInput(activity, R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), index)
+            assertInput(activity, R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1), index)
+        }
+    }
+    private fun persistedBytes(name: String): ByteArray = requireNotNull(
+        AtomicDocumentStorage(File(context.filesDir, name).toPath()).read()) { "Saved document missing on disk: $name" }
+    private fun persistedInventory(): BeanInventory {
+        val bytes = persistedBytes("bean_inventory_v1.bin")
+        return BeanInventory(object : InventoryStorage {
+            override fun read(): ByteArray = bytes.copyOf()
+            override fun write(bytes: ByteArray) { error("Read-only inventory verification cannot write") }
+        })
+    }
+    private fun persistedJournal(): BrewJournal {
+        val document = persistedBytes("brew_journal_v1.json").toString(Charsets.UTF_8)
+        return BrewJournal(object : BrewJournal.Storage {
+            override fun read(): String = document
+            override fun write(value: String) { error("Read-only journal verification cannot write") }
+        })
+    }
+    private fun persistedCurves(): CustomCurveStore {
+        val document = persistedBytes("custom_curves_v1.json").toString(Charsets.UTF_8)
+        return CustomCurveStore(object : CustomCurveStore.Storage {
+            override fun read(): String = document
+            override fun write(value: String) { error("Read-only curve verification cannot write") }
+        })
+    }
     private fun start(type: Class<out Activity>, extras: (Intent) -> Unit = {}): Activity {
         val intent = Intent(context, type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).also(extras)
         val activity = test.startActivitySync(intent).also { opened += it }
@@ -139,6 +209,12 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         val beanName = "UI beans $token"
         val shotId = "ui-flow-shot-$token"
         val taste = "UI taste $token"
+        val grind = "UI fine $token"
+        val expectation = "UI expectation $token"
+        val nextAdjustment = "UI coarser $token"
+        val purchased = LocalDate.of(2026, 10, 2)
+        val roasted = LocalDate.of(2026, 9, 28)
+        val openedDate = LocalDate.of(2026, 10, 3)
         val observation = BrewJournal.Observation(shotId, "capture-1", 1700000000000L, 1700000030000L, 30000L, "ENDED", null, 3600)
         val paths = mutableListOf<String>()
         var batchId: String? = null
@@ -186,11 +262,24 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             }
             record("entry-invalid-four")
             fill(entry, R.string.beans_initial_input, "100")
+            fill(entry, R.string.beans_purchased, purchased.toString())
+            fill(entry, R.string.beans_roasted, roasted.toString())
+            fill(entry, R.string.beans_opened, openedDate.toString())
+            entry = recreate(entry)
+            assertInput(entry, R.string.beans_name, beanName)
+            assertInput(entry, R.string.beans_initial_input, "100")
+            assertInput(entry, R.string.beans_purchased, purchased.toString())
+            assertInput(entry, R.string.beans_roasted, roasted.toString())
+            assertInput(entry, R.string.beans_opened, openedDate.toString())
             click(entry, R.string.beans_save)
             awaitMain { entry.isDestroyed }
             opened.remove(entry)
             batchId = inventory.batches().single { it.batch.bean.name == beanName }.batch.id
             check(balance() == 100000L && ownEvents().single().kind == InventoryEventKind.ADD)
+            val savedBatch = inventory.batches().single { it.batch.id == batchId }.batch
+            check(savedBatch.initialMg == 100000L && savedBatch.bean.name == beanName &&
+                savedBatch.purchasedOn == purchased && savedBatch.roastedOn == roasted && savedBatch.openedOn == openedDate) { "Saved bean batch lost a date/field" }
+            check(persistedInventory().batches().single { it.batch.id == batchId }.batch == savedBatch) { "Bean batch differs after disk reload" }
             record("entry-save")
             val batch = start(BeanBatchActivity::class.java) { it.putExtra(BeanBatchActivity.BATCH_ID, batchId) }
             click(batch, R.string.beans_adjust)
@@ -245,29 +334,60 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             }
             test.waitForIdleSync()
             fill(review, R.string.journal_dose, "18")
-            fill(review, R.string.journal_grind, "UI fine")
+            fill(review, R.string.journal_grind, grind)
+            fill(review, R.string.journal_expectation, expectation)
             fill(review, R.string.journal_taste, taste)
-            fill(review, R.string.journal_next, "UI coarser")
+            fill(review, R.string.journal_next, nextAdjustment)
+            val expectedNotes = BrewJournal.Notes(savedBatch.bean.id, beanName, 18000,
+                grind, expectation, taste, nextAdjustment)
+            review = recreate(review)
+            assertReviewFields(review, expectedNotes)
             click(review, R.string.journal_save); awaitMain { review.isDestroyed }; opened.remove(review)
             check(journal.find(shotId)?.observation == observation)
-            check(journal.find(shotId)?.notes == BrewJournal.Notes(
-                inventory.batches().single { it.batch.id == batchId }.batch.bean.id, beanName, 18000,
-                "UI fine", "", taste, "UI coarser"))
+            check(journal.find(shotId)?.notes == expectedNotes) { "Journal save lost a notes field" }
+            check(persistedJournal().find(shotId) == BrewJournal.Entry(observation, expectedNotes)) { "Journal differs after disk reload" }
             review = start(BrewReviewActivity::class.java) { it.putExtra(BrewReviewActivity.SHOT_ID, shotId) }
+            assertReviewFields(review, expectedNotes)
             review = recreate(review)
-            onMain { check(views(root(review)).filterIsInstance<EditText>().any { it.text.toString() == taste }) }
+            assertReviewFields(review, expectedNotes)
+            check(journal.find(shotId)?.notes == expectedNotes)
             record("journal-edit-reopen-recreate"); close(review)
-            val editor = start(CurveEditorActivity::class.java)
+            var editor = start(CurveEditorActivity::class.java)
             val recipeName = "UI recipe $token"
             fill(editor, R.string.profiles_name, recipeName)
             fill(editor, R.string.profiles_temperature, "200")
             click(editor, R.string.profiles_save)
             check(!editor.isFinishing && custom.list() == initialCurves)
             record("curve-editor-invalid")
-            fill(editor, R.string.profiles_temperature, "93")
+            val temperature = 94
+            val cup = 4170
+            val stages = listOf(CustomCurveDocument.Stage(24, 120), CustomCurveDocument.Stage(57, 230),
+                CustomCurveDocument.Stage(83, 340), CustomCurveDocument.Stage(69, 450))
+            fill(editor, R.string.profiles_temperature, temperature.toString())
+            fill(editor, R.string.profiles_cup, CurveDraftNumber.format(cup, 2))
+            onMain {
+                val selector = views(root(editor)).filterIsInstance<Spinner>().single { it.contentDescription == editor.getString(R.string.profiles_stage_count) }
+                check(selector.isShown && selector.isEnabled) { "Stage count selector is not visible" }
+                selector.setSelection(3)
+            }
+            test.waitForIdleSync()
+            awaitMain { views(root(editor)).filterIsInstance<Spinner>().single { it.tag == "bean-sections" }.count == 6 }
+            stages.forEachIndexed { index, stage ->
+                fill(editor, R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), index)
+                fill(editor, R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1), index)
+            }
+            editor = recreate(editor)
+            assertCurveFields(editor, recipeName, temperature, cup, stages)
             click(editor, R.string.profiles_save); awaitMain { editor.isDestroyed }; opened.remove(editor)
             val draft = custom.list().single { it.name == recipeName }; ownCurveIds += draft.id
-            check(draft.temperatureC == 93 && app.curves.canStart(requireNotNull(app.curves.find(draft.id))))
+            val expectedDraft = CustomCurveDocument(draft.id, recipeName, temperature, cup, CustomCurveDocument.ControlMode.PRESSURE, stages)
+            check(draft == expectedDraft && persistedCurves().find(draft.id) == expectedDraft) { "Curve document lost a saved field/stage or differs on disk" }
+            check(app.curves.canStart(requireNotNull(app.curves.find(draft.id))))
+            var reopenedEditor = start(CurveEditorActivity::class.java) { it.putExtra(CurveEditorActivity.CURVE_ID, draft.id) }
+            assertCurveFields(reopenedEditor, recipeName, temperature, cup, stages)
+            reopenedEditor = recreate(reopenedEditor)
+            assertCurveFields(reopenedEditor, recipeName, temperature, cup, stages)
+            close(reopenedEditor)
             record("curve-editor-save-compatible-no-auto-start")
             val share = start(CurveShareActivity::class.java) { it.putExtra(CurveShareActivity.CURVE_ID, draft.id) }
             click(share, R.string.profiles_copy)
@@ -352,6 +472,8 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             }
         }
         failure?.let { throw it }
+        test.sendStatus(0, android.os.Bundle().apply { putString("stream",
+            "ADVANCED_BUSINESS_UI_FULL_FIELDS_PASSED beanDates=3 notesFields=7 curveFields=12 stages=4 durableStores=3 unsavedRotation=true reopenedRotation=true paths=17\n") })
         return Result(paths.toList(), ownEvents().size, ownCurveIds.size)
     }
 }

@@ -100,6 +100,9 @@ if result.returncode:
 expected='ADVANCED_BUSINESS_UI_CHECKS_PASSED paths=17 inventoryEvents=3 newDrafts=3 language=zh-Hans theme=light sameService=true preservedMachinePrefs=true noBle=true'
 if expected not in output.read_text():
     raise SystemExit(f'Advanced Mock business paths did not confirm completion: {output}')
+full_fields='ADVANCED_BUSINESS_UI_FULL_FIELDS_PASSED beanDates=3 notesFields=7 curveFields=12 stages=4 durableStores=3 unsavedRotation=true reopenedRotation=true paths=17'
+if full_fields not in output.read_text():
+    raise SystemExit(f'Complete bean/review/four-stage fields did not survive save/reload/recreation: {output}')
 PY
 collect
 adb shell am force-stop "$package"

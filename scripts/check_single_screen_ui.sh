@@ -44,12 +44,18 @@ if result.returncode:
 expected='SINGLE_SCREEN_WINDOW_GEOMETRY_PASSED pages=21 fixtures=336 legacyDetailFixture=true noBle=true'
 if expected not in output.read_text():
     raise SystemExit('Single screen matrix did not confirm all 336 populated windows')
+list_expected='SINGLE_SCREEN_LIST_STATE_PASSED pages=7 restoreFixtures=14 language=zh-Hans appearance=light noBle=true'
+if list_expected not in output.read_text():
+    raise SystemExit('Actual list scroll/recreation/return checks did not confirm all 14 fixtures')
 CHECK_PY
 collect
 python3 - "$output_dir/single-screen-window-checks" <<'CHECK_PY'
 from pathlib import Path
 import struct,sys
 root=Path(sys.argv[1])
+list_result=root/'list-state-result.txt'
+if not list_result.is_file() or 'pages=7 restoreFixtures=14 language=zh-Hans appearance=light noBle=true' not in list_result.read_text():
+    raise SystemExit('List restoration evidence missing/incomplete')
 paths=list(root.glob('*.png'))
 if len(paths)!=336:
     raise SystemExit(f'Incomplete screenshots: {len(paths)}/336')
