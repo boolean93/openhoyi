@@ -99,7 +99,10 @@ tap_control '设备连接'
 tap_control '实时萃取'
 assert_activity ExtractionActivity
 assert_edges 1 1
-tap_control '冲煮'
+# Brew is already selected in Extraction: selecting it must not leave an active cup.
+# Return through the original Activity back stack, retaining the lifecycle assertions.
+adb shell input keyevent KEYCODE_BACK
+assert_activity HomeActivity
 tap_control '设备连接'
 tap_control '应用设置'
 assert_activity AppSettingsActivity

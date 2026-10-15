@@ -63,8 +63,8 @@ HoyiUi.navigation(this, root, javaClass)
 ## Task 3: 真窗口检查与CI
 
 - [x] 新runner开关`taskFrameChecks=true`只在MOCK_MODE允许，显式分支运行`TaskFrameChecks`，不改变原runner分支或原成功标记。
-- [ ] 原生instrumentation打开全部24页，等待实际layout，检查唯一Frame、4个主导航的相对顺序/选中归属、至少48dp、工具可达及宽轨/窄栏模式，输出`TASK_FRAME_CHECKS_PASSED pages=24 noBle=true`及实际PNG。它只验本批框架，不宣称业务21页或四指标图已通过。
-- [ ] 三个主要CI窗口为用户平板横屏2560×1600/density360、竖屏1600×2560/density360、phone450×1000/density200；各自保留结果/崩溃日志/截图。不运行对真实平板的ADB命令。
+- [x] 原生instrumentation打开全部24页，等待实际layout，检查唯一Frame、4个主导航的相对顺序/选中归属、至少48dp、工具可达及宽轨/窄栏模式，输出`TASK_FRAME_CHECKS_PASSED pages=24 noBle=true`及实际PNG。它只验本批框架，不宣称业务21页或四指标图已通过。
+- [x] 三个主要CI窗口为用户平板横屏2560×1600/density360、竖屏1600×2560/density360、phone450×1000/density200；各自保留结果/崩溃日志/截图。不运行对真实平板的ADB命令。
 - [ ] 保留现有生命周期/升级/业务/窗口工作流，不能关闭必需CI。以新源码运行框架专项，人工查看实际截图；如果旧业务页因新宽度露出问题，记录并修复真实布局，不缩小总范围或伪造通过。
 
 ## 验证命令
@@ -79,3 +79,6 @@ python3 scripts/git_policy.py branch
 ```
 
 本机缓存环境使用已验证的`--offline -Pandroid.aapt2FromMavenOverride=/Users/boolean93/Library/Android/sdk/build-tools/35.0.0/aapt2`，不将其写进CI或全局配置。新组件独立规格审查、代码质量审查后再提交；最终证据写`docs/evidence/task-first-implementation.md`。框架通过仍不等于四指标图或21页视觉改版完成。
+
+
+首轮c3a5675/CI38727735636三窗口框架通过；原verify/lifecycle/俄语Scale回归仍有失败，不勾选整体验收。见实施证据与真实读图记录。

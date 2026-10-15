@@ -32,7 +32,7 @@
 以上为首批策略交付时状态；后续进度见下。
 
 
-## 共享导航与页面容器（本地验证完成，CI待执行）
+## 共享导航与页面容器（本地与三窗口专项通过）
 
 `56502ef`接入24个真实Activity的统一导航、电子秤/设置工具入口及青绿主题。原内容View和LayoutParams迁移，不新增整页滚动、不改业务/控制逻辑。按configuration窗口宽选择rail/bottom（避免原root padding影响600dp阈值），实际容器高度决定工具位置。
 
@@ -42,4 +42,17 @@
 
 本地完整命令：`:mobile:testMockUnitTest :mobile:assembleMock :mobile:assembleMockAndroidTest`，沿用上文离线aapt2参数；实际`BUILD SUCCESSFUL in 43s`，JUnit汇总275项、0失败、0错误、1跳过。脚本`bash -n`及`git diff --check`通过。伪ADB测试证明非模拟器在第一个`getprop ro.kernel.qemu`之后立即拒绝，未调用显示修改/安装命令；没有操作真实平板。
 
-新增CI三窗口：平板横屏2560×1600/density360、竖屏1600×2560/density360、手机450×1000/density200，保存实际24页截图和运行结果。工作流尚待推送执行。四指标图与21页内容改版仍未完成；容器通过不能当总体UI通过。无发版、无用户设备安装。
+新增CI三窗口：平板横屏2560×1600/density360、竖屏1600×2560/density360、手机450×1000/density200，保存实际24页截图和运行结果。源码c3a5675的PR工作流38727735636三窗口均实际成功，每窗24页与导航/焦点检查通过。取回72张真实截图，人工抽看五张（横屏Home/Extraction/Curve及竖屏/手机Extraction），见`task-first-ui-review.md`。四指标图与21页内容改版仍未完成；容器通过不能当总体UI通过。无发版、无用户设备安装。
+
+
+## 四指标纯投影（294项本地JVM通过，Canvas尚未替换）
+
+`7fae22e`新增纯模型，`555c356`修复质量审查发现的极大Float取整向内裁峰问题。完整19项专项含两个真实先失败后修复的边界回归；完整XML294项、0失败、0错误、1既有跳过，控制者独立核对。默认压力/累计注水/有值的秤读数/温度；不使用flow、不补0g，不跨缺口或水计数重置连线，参考不补本杯未来，量程覆盖负值并同杯只扩不缩。无服务/持久化/控制写入；独立规格审查、修复后质量复查通过。
+
+## c3a5675原有回归的失败与处置
+
+三窗口框架通过不等于全部CI通过。PR原有business路径与upgrade通过；verify因新增task_tools缺7语言被MissingTranslation阻断；lifecycle在Extraction点已选BREW后仍留Extraction，旧脚本却继续找Home设备连接；advanced-pages在俄语Scale粉量Capture中主重量被挤到29px、实际字体高53px而失败。
+
+已补工具基本翻译（不关闭lint）；生命周期路径改用原生Back从Extraction返回Home，保留所有Activity/前后台边计数断言；秤页064655b将读数固定，次要说明/计时工具局部滚动，去皮/捕获固定；独立规格/质量审查通过，本地294项JVM及两assemble通过，仍待实屏重跑。尚未以新源码重跑这些失败，不宣称恢复绿色。四指标原生控件检查已先写，旧图没有该图例，准备记录真实失败再替换；预期的新增图表失败与原回归分开报告。
+
+本地尝试lintDebug，但离线缓存缺少lint-gradle:31.10.0，在extractDebugAnnotations前失败，未进入新资源检查；不记为lint通过，待云端原verify检查。七语言新增资源已逐份XML解析成功，不等于lint验收。旧single-screen手机产物显示西班牙语旧ExtractionOverlay轴刻度0.0/3.0纵向重叠（334/336），不是框架专项漏报成功；新图必须按实际高度决定tick密度，原文字边界断言保留。
