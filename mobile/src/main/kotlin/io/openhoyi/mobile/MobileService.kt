@@ -188,6 +188,7 @@ class MobileService : Service() {
     private var secondSleepSerial = 0L
     val tareState: StandaloneTare.State get() = if (mock?.tareChanged == true)
         StandaloneTare.State.CONFIRMED else hub?.scaleTareState ?: StandaloneTare.State.IDLE
+    val chartTraceIdentity: String? get() = series.traceIdentity
     val chartPoints: List<ShotPoint> get() = series.points
     val chartCurveId: String? get() = series.curveId
     private val ownerId = java.util.UUID.randomUUID().toString()

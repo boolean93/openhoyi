@@ -6,6 +6,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ShotSeriesTest {
+    @Test fun chartRangesCanDistinguishTwoCupsOfTheSameCurve() {
+        val series = ShotSeries()
+        assertNull(series.traceIdentity)
+        series.begin("cup-1", 0, "capture-1")
+        assertEquals("cup-1", series.traceIdentity)
+        series.finish()
+        assertEquals("cup-1", series.traceIdentity)
+        series.begin("cup-2", 1000, "capture-1")
+        assertEquals("cup-2", series.traceIdentity)
+        assertEquals("capture-1", series.curveId)
+    }
+
     @Test fun plottedIdentityBelongsToItsShotAndSurvivesFinishUntilNextBegin() {
         val series=ShotSeries()
         series.begin("shot-a",1000,"curve-a")

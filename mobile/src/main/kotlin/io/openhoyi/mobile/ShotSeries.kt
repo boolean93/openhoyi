@@ -16,6 +16,9 @@ data class ShotPoint(
 )
 
 class ShotSeries {
+    /** Display identity outlives active recording, so a finished graph keeps its scales. */
+    var traceIdentity: String? = null
+        private set
     var curveId: String? = null
         private set
     private var id: String? = null
@@ -29,6 +32,7 @@ class ShotSeries {
         require(shotId.isNotBlank())
         require(curveId == null || curveId.isNotBlank())
         id = shotId
+        traceIdentity = shotId
         this.curveId = curveId
         startedAtMs = atElapsedMs
         minimumGapMs = 0
