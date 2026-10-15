@@ -16,7 +16,7 @@
 
 **Files:** 无手工改动已有业务文件；只新增分支/merge记录。
 
-- [ ] Step 1: 从design工作树核对基线和祖先关系。
+- [x] Step 1: 从design工作树核对基线和祖先关系。
 
 ```bash
 git status --short
@@ -26,7 +26,7 @@ git merge-base --is-ancestor 7fe992fd472e7a1db5e82c8c821595a78a8ec770 ed01de0f1b
 
 预期两个祖先命令退出0。若不是0，先重新核对依赖，不能用reset覆盖。
 
-- [ ] Step 2: 新建工作树并显式引入依赖及已提交设计文档。
+- [x] Step 2: 新建工作树并显式引入依赖及已提交设计文档。
 
 ```bash
 git worktree add /Users/boolean93/workspace/hoyi_app/openhoyi-task-first -b feature/task-first-ui origin/develop
@@ -36,7 +36,7 @@ git -C /Users/boolean93/workspace/hoyi_app/openhoyi-task-first merge --no-ff doc
 
 预期无冲突；出现冲突保留两侧并检查具体文件，不自动采用整侧。只本地合并，不改变远端PR状态。
 
-- [ ] Step 3: 核对新树业务源码仍等于依赖，然后建立单测baseline。
+- [x] Step 3: 核对新树业务源码仍等于依赖，然后建立单测baseline。
 
 ```bash
 git diff --exit-code ed01de0f1b6f6449257e3480053340a9bb75b160 -- mobile bean-core device-session protocol-core bluetooth-android
@@ -52,7 +52,7 @@ python3 scripts/git_policy.py branch
 - Create: `mobile/src/main/kotlin/io/openhoyi/mobile/TaskLayoutPolicy.kt`
 - Test: `mobile/src/test/kotlin/io/openhoyi/mobile/TaskLayoutPolicyTest.kt`
 
-- [ ] Step 1: 创建下面完整测试文件。
+- [x] Step 1: 创建下面完整测试文件。
 
 ```kotlin
 package io.openhoyi.mobile
@@ -109,13 +109,13 @@ class TaskLayoutPolicyTest {
 }
 ```
 
-- [ ] Step 2: 在新feature树执行以下定向单测，确认因缺少策略类型/对象而失败，不把其他错误当作预期红灯。
+- [x] Step 2: 在新feature树执行以下定向单测，确认因缺少策略类型/对象而失败，不把其他错误当作预期红灯。
 
 ```bash
 ./gradlew :mobile:testMockUnitTest --tests io.openhoyi.mobile.TaskLayoutPolicyTest --no-daemon --console=plain
 ```
 
-- [ ] Step 3: 创建下面完整实现文件。窗口尺寸均指扣系统栏/IME后可用尺寸；最小内容宽度由View测量传入，不用固定fontScale猜文本宽度。360dp是六个48dp目标＋40dp品牌区＋32dp间隔的导航容量，同时是该基础策略的默认双栏最小可用高度；页面可传入更严格高度。
+- [x] Step 3: 创建下面完整实现文件。窗口尺寸均指扣系统栏/IME后可用尺寸；最小内容宽度由View测量传入，不用固定fontScale猜文本宽度。360dp是六个48dp目标＋40dp品牌区＋32dp间隔的导航容量，同时是该基础策略的默认双栏最小可用高度；页面可传入更严格高度。
 
 ```kotlin
 package io.openhoyi.mobile
@@ -169,7 +169,7 @@ internal object TaskLayoutPolicy {
 }
 ```
 
-- [ ] Step 4: 重跑定向单测，预期7项通过；再运行全部Mock单测，确认没有新回归。
+- [x] Step 4: 重跑定向单测，预期7项通过；再运行全部Mock单测，确认没有新回归。
 
 ```bash
 ./gradlew :mobile:testMockUnitTest --tests io.openhoyi.mobile.TaskLayoutPolicyTest --no-daemon --console=plain
@@ -177,7 +177,7 @@ internal object TaskLayoutPolicy {
 git diff --check
 ```
 
-- [ ] Step 5: 只提交两个新文件，不加入其他工作树的文件。
+- [x] Step 5: 只提交两个新文件，不加入其他工作树的文件。
 
 ```bash
 git add mobile/src/main/kotlin/io/openhoyi/mobile/TaskLayoutPolicy.kt mobile/src/test/kotlin/io/openhoyi/mobile/TaskLayoutPolicyTest.kt
@@ -185,5 +185,7 @@ git commit -m "feat: define task-first adaptive layout policy"
 ```
 
 ## 本批完成边界
+
+2026-10-15实际记录：任务1依赖树建立、基线单测完成；任务2提交`45494cb`，7项定向/273项完整Mock单测0失败，完整套件有1项既有跳过，规格及质量审查通过。普通Gradle命令受本机无效代理阻挡，实际成功命令额外使用`--offline -Pandroid.aapt2FromMavenOverride=/Users/boolean93/Library/Android/sdk/build-tools/35.0.0/aapt2`，未持久更改配置。详见`docs/evidence/task-first-implementation.md`。
 
 纯窗口策略通过不等于真实导航、图表、IME或21页完成。必须在F1真实Frame和F2图表接线后用实际控件/测量/读图验证；本批不宣布改版完成、不推送主干、不发版。
