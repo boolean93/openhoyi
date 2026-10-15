@@ -71,7 +71,7 @@
 7. BeanInventoryActivity：豆款/余量为中心的列表-详情；选豆场景“用于本杯”为主，新增为工具栏次操作，不能同时设两个填充主动作。
 8. BeanEntryActivity：按识别、日期、数量分组，固定保存，所有三日期完整保留。
 9. BeanBatchActivity：余量与豆款摘要，调整/流水明确区分，不做满屏同权重大按钮。
-10. BeanLedgerActivity：紧凑时间线及数量变化，局部滚动，保留事件来源。
+10. BeanLedgerActivity：按原事件顺序展示类型、数量变化、余量、批次与真实原因，局部滚动；模型无时间戳，不画日期/时间，不虚构具体本杯来源。
 11. BeanPreparationActivity：本杯选豆与粉量任务面板；确认与自动扣减边界不变。
 12. BrewReviewActivity：豆子/研磨等结构信息紧凑，感受与下次调整拥有主要编辑空间；不连续弹窗打断输入。
 13. CurveEditorActivity：阶段表/图相邻，完整四阶段字段分组；保存固定，不冒充时间轨迹。

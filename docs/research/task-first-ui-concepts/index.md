@@ -17,7 +17,7 @@
 | BeanInventoryActivity 豆子库存 | [库存v2](bean-inventory-v2.png) | 使用本豆款为主动作，新增为工具栏；库存模块仍独立 |
 | BeanEntryActivity 入库 | [入库v2](bean-entry-v2.png) | 三日期等原字段保留；限宽表单，去掉说明墙和错误文案；另补[键盘v2](bean-entry-keyboard-v2.png) |
 | BeanBatchActivity 批次详情 | [批次v1](bean-batch-v1.png) | 余量、调整与流水区分；不虚增价格/产地等数据字段 |
-| BeanLedgerActivity 库存流水 | [流水v2](bean-ledger-v2.png) | 来源/事件保留；正常耗用负数改中性色，入库用青色，不把普通耗用当危险 |
+| BeanLedgerActivity 库存流水 | [流水v3](bean-ledger-v3.png) | 按已有事件顺序显示类型/变更/余量/批次/真实原因；模型没有时间戳或永久本杯归属，已去掉虚构时间列；正常耗用中性色 |
 | BeanPreparationActivity 本杯用豆 | [用豆v1](bean-preparation-v1.png) | 选择与实际扣减分开；确认前后余量清晰，恢复不重复扣减 |
 | BrewReviewActivity 本杯复盘 | [复盘v3](brew-review-v3.png) | 豆子、粉量、研磨与三块笔记完整；研磨自由文本，无固定单位 |
 | CurveEditorActivity 曲线编辑 | [编辑v1](curve-editor-v1.png) | 名称/温度/目标液重/阶段数/四阶段压力与注水量完整；预览为分类阶段，无虚构时间轴 |
@@ -36,7 +36,8 @@
 - `extraction-no-scale-v1.png`：运行中连接入口不符合原设备变更门禁，弃用，以v2为准。
 - `history-list-v1.png`：数据来源分组不全；v2修复来源，v3才更新为四指标，v1/v2不再作为当前指标依据。
 - `bean-inventory-v1.png`：两处填充主动作，弃用，以v2为准。
-- `brew-preparation-v1.png`、`bean-entry-v1.png`、`bean-ledger-v1.png`、`history-detail-v1.png`：分别含无语义装饰、说明墙/错误文案、正常耗用危险红、导航顺序不一致，使用对应v2。
+- `brew-preparation-v1.png`、`bean-entry-v1.png`、`history-detail-v1.png`：分别含无语义装饰、说明墙/错误文案、导航顺序不一致，使用对应v2。
+- `bean-ledger-v1/v2.png`：v1正常耗用危险红，v2仅修颜色，但两版均编造模型不存在的时间/具体本杯来源，弃用，以v3为准。
 - ImageGen曲线坐标均为示意，不可直接充当绘图背景。例如部分稿件端点与文字读数/时长不严密对应，真正绘图必须从已保存的采样投影，不能按图片“校准”数据。
 - 彩色装饰圆点若不编码真实类别/状态，应统一中性图标或删掉；不得凭图片虚增分类数据。
 
@@ -53,8 +54,10 @@
 ## 规范与生成记录
 
 - [整合书面规格（待本轮审阅）](../../superpowers/specs/2026-10-15-task-first-ui-design.md)
+- [原功能/数据契约静态对照](../2026-10-15-ui-source-contract-audit.md)：记录工具、设备/恢复/槽位、历史参考、本地趣味反馈和流水来源的补充；不能当新版运行验收。
 - [官方原则及整体草案](../2026-10-15-task-first-ui-redesign-draft.md)
 - [四指标来源与可用性规范](../2026-10-15-extraction-chart-capabilities.md)
 - [本轮生成工具与编辑页提示词](generation-prompts-2026-10-15.md)
 - 本轮其余提示词：[分享](prompts/curve-share-v1.txt)、[导入及纠错](prompts/curve-import-v2.txt)、[冲突预览](prompts/curve-import-preview-v1.txt)、[秤连接](prompts/scale-connection-v1.txt)、[旧曲线](prompts/legacy-curve-v1.txt)、[旧记录](prompts/legacy-history-v1.txt)、[旧详情](prompts/legacy-history-detail-v1.txt)。均使用内置ImageGen，不是CLI。
 - 本轮修订与异常/响应式提示词：[准备v2](prompts/brew-preparation-v2.txt)、[入库v2](prompts/bean-entry-v2.txt)、[流水v2](prompts/bean-ledger-v2.txt)、[记录v3](prompts/history-list-v3.txt)、[详情v2](prompts/history-detail-v2.txt)、[停止中v2](prompts/extraction-stopping-v2.txt)、[未知v2](prompts/extraction-unknown-v2.txt)、[竖屏v2](prompts/extraction-portrait-v2.txt)、[键盘v2](prompts/bean-entry-keyboard-v2.txt)。内置ImageGen生成并逐图核对；纠错中间稿未选用，不作为交付版本。
+- [流水v3提示词](prompts/bean-ledger-v3.txt)：内置ImageGen修正，不新增模型字段；v2仅作颜色修订历史记录，不作为当前稿。
