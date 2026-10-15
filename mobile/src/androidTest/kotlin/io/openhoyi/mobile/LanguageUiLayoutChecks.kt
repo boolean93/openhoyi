@@ -14,49 +14,81 @@ internal object LanguageUiLayoutChecks {
     fun components(home: HomeActivity, language: AppLanguage, dark: Boolean) {
         check(BuildConfig.MOCK_MODE && home.packageName == "io.openhoyi.mobile.mock")
         verifyClippingDetection(home)
-        val pages = listOf(HomeActivity::class.java, CurveActivity::class.java, ExtractionActivity::class.java,
-            HistoryActivity::class.java, AppSettingsActivity::class.java)
-        val labels = listOf(R.string.ui_brew, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)
+        val primary = listOf(TaskDestination.BREW, TaskDestination.CURVES, TaskDestination.HISTORY, TaskDestination.BEANS)
+        val tools = listOf(TaskDestination.SCALE, TaskDestination.SETTINGS)
+        val labels = mapOf(TaskDestination.BREW to R.string.ui_brew, TaskDestination.CURVES to R.string.ui_curves,
+            TaskDestination.HISTORY to R.string.ui_history, TaskDestination.BEANS to R.string.ui_beans,
+            TaskDestination.SCALE to R.string.scale_title, TaskDestination.SETTINGS to R.string.ui_settings)
         val expectedDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
         val normalTextSizes = mutableMapOf<String, Float>()
-        for (widthDp in listOf(320, 360, 600, 700, 1000)) for (fontScale in listOf(1f, 1.3f)) for (page in pages) {
+        val heightDp = 640
+        for (widthDp in listOf(320, 360, 600, 700, 1000)) for (fontScale in listOf(1f, 1.3f)) {
             val configuration = Configuration(home.resources.configuration).apply {
                 screenWidthDp = widthDp
+                screenHeightDp = heightDp
                 this.fontScale = fontScale
             }
             val activity = LayoutHost(home.createConfigurationContext(configuration))
-            check(HoyiUi.wide(activity) == (widthDp >= 700) && activity.resources.configuration.screenWidthDp == widthDp)
-            check(activity.resources.configuration.fontScale == fontScale)
-            val fixture = "${language.tag} dark=$dark width=$widthDp fontScale=$fontScale selected=${page.simpleName}"
+            // Independent approved policy: 840dp breakpoint, room for both panes, and usable height.
+            val expectedWide = widthDp >= 840 && widthDp >= 320 + 280 + 72 + 24 + 32 && heightDp >= 360
+            check(HoyiUi.wide(activity) == expectedWide && activity.resources.configuration.screenWidthDp == widthDp)
+            check(activity.resources.configuration.screenHeightDp == heightDp && activity.resources.configuration.fontScale == fontScale)
+            val fixture = "${language.tag} dark=$dark width=$widthDp height=$heightDp fontScale=$fontScale host=LayoutHost"
             val root = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutDirection = expectedDirection
             }
-            HoyiUi.navigation(activity, root, page)
-            measure(activity, root, widthDp)
-            check(root.layoutDirection == expectedDirection)
-            val bar = root.getChildAt(0) as ViewGroup
-            check(bar.childCount == labels.size) { "$fixture missing navigation entries" }
-            for (index in 0 until bar.childCount) {
-                val item = bar.getChildAt(index) as LinearLayout
-                check(item.orientation == if (widthDp >= 700) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL) {
-                    "$fixture incorrect navigation orientation"
-                }
-                check(item.isClickable && item.isFocusable && item.height >= HoyiUi.dp(activity, 48) &&
-                    item.width >= HoyiUi.dp(activity, 48)) { "$fixture navigation target too small" }
-                val label = (0 until item.childCount).map { item.getChildAt(it) }.filterIsInstance<TextView>().single()
-                check(label.text.toString().isNotBlank() && label.text.toString() == activity.getString(labels[index])) {
-                    "$fixture incorrect navigation label at $index"
-                }
-                val sizeKey = "$widthDp/${page.name}/$index"
-                if (fontScale == 1f) normalTextSizes[sizeKey] = label.textSize
-                else check(label.textSize > requireNotNull(normalTextSizes[sizeKey])) { "$fixture font scaling did not enlarge actual text" }
+            TaskPageFrame.install(activity, root)
+            measure(activity, root, widthDp, heightDp)
+            val frame = root.findViewWithTag<View>(TaskPageFrame.TAG) as TaskPageFrame
+            check(frame.width == HoyiUi.dp(activity, widthDp) && frame.height == HoyiUi.dp(activity, heightDp)) {
+                "$fixture frame did not receive the exact window size"
+            }
+            val expectedMode = if (widthDp >= 600) TaskNavigationMode.RAIL else TaskNavigationMode.BOTTOM
+            check(frame.mode == expectedMode && frame.navigation.orientation ==
+                if (expectedMode == TaskNavigationMode.RAIL) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL) {
+                "$fixture incorrect navigation mode/orientation"
+            }
+            check(root.layoutDirection == expectedDirection && frame.layoutDirection == expectedDirection &&
+                frame.navigation.layoutDirection == expectedDirection) { "$fixture incorrect navigation direction" }
+            val targets = descendants(frame.navigation).filter { it.tag?.toString()?.startsWith("task-nav:") == true }
+            val expectedDestinations = primary + if (frame.toolsInTopBar) emptyList() else tools
+            check(targets.map { it.tag } == expectedDestinations.map { "task-nav:${it.name}" }) {
+                "$fixture incorrect primary/tool navigation entries or order"
+            }
+            fun checkScaled(label: TextView, key: String) {
+                if (fontScale == 1f) normalTextSizes[key] = label.textSize
+                else check(label.textSize > requireNotNull(normalTextSizes[key])) { "$fixture font scaling did not enlarge actual text" }
+            }
+            targets.forEachIndexed { index, target ->
+                val item = target as LinearLayout
+                check(!item.isSelected) { "$fixture detached LayoutHost must not impersonate an actual selected Activity" }
+                checkTarget(activity, item, fixture)
+                check(item.layoutDirection == expectedDirection) { "$fixture incorrect item direction" }
+                val label = descendants(item).filterIsInstance<TextView>().single()
+                val expectedLabel = activity.getString(requireNotNull(labels[expectedDestinations[index]]))
+                check(label.text.toString().isNotBlank() && label.text.toString() == expectedLabel &&
+                    item.contentDescription.toString() == expectedLabel) { "$fixture incorrect navigation label at $index" }
+                checkScaled(label, "$widthDp/${expectedDestinations[index]}")
                 textFits(label, fixture)
-                val bounds = Rect(0, 0, label.width, label.height)
-                bar.offsetDescendantRectToMyCoords(label, bounds)
-                check(bounds.left >= 0 && bounds.top >= 0 && bounds.right <= bar.width && bounds.bottom <= bar.height) {
-                    "$fixture navigation label outside bar: ${label.text} $bounds bar=${bar.width}x${bar.height}"
+                // Rail scrolling is allowed; the complete label must fit its own touch target.
+                inside(item, label, fixture)
+            }
+            if (frame.toolsInTopBar) {
+                val menu = descendants(frame).filterIsInstance<TextView>().single {
+                    it.tag == "task-tools-menu" && it.visibility == View.VISIBLE &&
+                        (it.parent as View).visibility == View.VISIBLE
                 }
+                check(menu.text.toString() == activity.getString(R.string.task_tools) &&
+                    menu.contentDescription.toString() == menu.text.toString()) { "$fixture incorrect tools menu label" }
+                checkTarget(activity, menu, fixture)
+                check(menu.layoutDirection == expectedDirection) { "$fixture incorrect tools direction" }
+                // The menu exists at every bottom width, so this baseline also covers a compact rail.
+                checkScaled(menu, "tools-menu")
+                textFits(menu, fixture)
+                inside(menu.parent as ViewGroup, menu, fixture)
+            } else {
+                check(frame.mode == TaskNavigationMode.RAIL) { "$fixture tools disappeared outside the rail" }
             }
             val body = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
@@ -82,9 +114,27 @@ internal object LanguageUiLayoutChecks {
         override fun getTheme(): android.content.res.Resources.Theme = baseContext.theme
     }
 
-    private fun measure(activity: Activity, view: View, widthDp: Int) {
+    private fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) {
+        (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) }
+    } else emptyList()
+
+    private fun checkTarget(activity: Activity, view: View, fixture: String) {
+        check(view.isClickable && view.isFocusable && view.height >= HoyiUi.dp(activity, 48) &&
+            view.width >= HoyiUi.dp(activity, 48)) { "$fixture navigation target too small: ${view.tag}" }
+    }
+
+    private fun inside(parent: ViewGroup, child: View, fixture: String) {
+        val bounds = Rect(0, 0, child.width, child.height)
+        parent.offsetDescendantRectToMyCoords(child, bounds)
+        check(bounds.left >= 0 && bounds.top >= 0 && bounds.right <= parent.width && bounds.bottom <= parent.height) {
+            "$fixture label outside its target: $bounds target=${parent.width}x${parent.height}"
+        }
+    }
+
+    private fun measure(activity: Activity, view: View, widthDp: Int, heightDp: Int? = null) {
         view.measure(View.MeasureSpec.makeMeasureSpec(HoyiUi.dp(activity, widthDp), View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+            if (heightDp == null) View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            else View.MeasureSpec.makeMeasureSpec(HoyiUi.dp(activity, heightDp), View.MeasureSpec.EXACTLY))
         view.layout(0, 0, view.measuredWidth, view.measuredHeight)
     }
 

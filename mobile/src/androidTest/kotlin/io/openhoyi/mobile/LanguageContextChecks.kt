@@ -79,6 +79,13 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
                             "Visible Home navigation did not use ${language.tag}: $label"
                         }
                     }
+                    val frame = home.window.decorView.findViewWithTag<View>(TaskPageFrame.TAG) as TaskPageFrame
+                    for (destination in listOf(TaskDestination.BREW, TaskDestination.CURVES, TaskDestination.HISTORY, TaskDestination.BEANS)) {
+                        val item = requireNotNull(frame.navigation.findViewWithTag<View>("task-nav:${destination.name}"))
+                        check(item.isSelected == (destination == TaskDestination.BREW)) {
+                            "${language.tag} dark=$dark real Home selected state incorrect: ${destination.name}"
+                        }
+                    }
                     val expectedDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
                     check(home.window.decorView.layoutDirection == expectedDirection)
                     check((home.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
