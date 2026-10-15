@@ -11,4 +11,5 @@
     <string name="task_chart_water_reset">ตัวนับน้ำรีเซ็ต แสดงแยกช่วง</string>
     <string name="task_chart_gap">ข้อมูลขาดช่วง แสดงแยกช่วง</string>
     <string name="task_chart_latest">%1$s ค่าตัวอย่างล่าสุด %2$s %3$s</string>
+    <string name="task_chart_compact_notice">พื้นที่กราฟไม่พอ โปรดขยายหน้าต่าง</string>
 </resources>

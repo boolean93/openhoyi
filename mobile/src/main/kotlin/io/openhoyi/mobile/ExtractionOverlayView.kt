@@ -39,6 +39,15 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
     private val focusMetric get() = selected ?: ChartMetric.PRESSURE
     private val buttons = linkedMapOf<ChartMetric, Button>()
     private val legend = LegendLayout(context)
+    private var compactMode = false
+    private val compactNotice = TextView(context).apply {
+        tag = "chart-compact-notice"
+        textSize = 14f
+        text = context.getString(R.string.task_chart_compact_notice)
+        setTextColor(context.getColor(R.color.chart_label))
+        setPadding(dp(6f).toInt(), dp(4f).toInt(), dp(6f).toInt(), dp(4f).toInt())
+        visibility = GONE
+    }
     private val explanation = TextView(context).apply {
         textSize = 11f
         setTextColor(context.getColor(R.color.chart_label))
@@ -53,6 +62,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
     }
     private val headerContent = LinearLayout(context).apply {
         orientation = VERTICAL
+        addView(compactNotice, LayoutParams(-1, -2))
         addView(legend, LayoutParams(-1, -2))
         addView(explanation, LayoutParams(-1, -2))
         addView(referenceCaption, LayoutParams(-1, -2))
@@ -71,11 +81,18 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        // Only the legend/notes scroll in genuinely short windows; the plot keeps physical axes.
-        val height = MeasureSpec.getSize(heightMeasureSpec)
-        val fm = plot.labels.fontMetrics
-        val plotMinimum = ceil((fm.descent - fm.ascent) * 5 + dp(32f)).toInt()
-        val cap = (height - plotMinimum).coerceAtLeast(dp(48f).toInt())
+        val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+        val plotMinimum = plot.minimumAxisHeight()
+        val compact = height < plotMinimum + dp(48f).toInt()
+        if (compact != compactMode) {
+            compactMode = compact
+            compactNotice.visibility = if (compact) VISIBLE else GONE
+            plot.visibility = if (compact) GONE else VISIBLE
+            // A newly necessary notice must not start below an old legend scroll offset.
+            if (compact) header.scrollTo(0, 0)
+        }
+        // The notice replaces an unusable plot; only the native header scrolls.
+        val cap = if (compact) height else height - plotMinimum
         header.measure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST))
         val wanted = header.measuredHeight.coerceAtMost(cap)
         if (header.layoutParams.height != wanted) header.layoutParams.height = wanted
@@ -245,6 +262,11 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         }
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val path = Path()
+        fun minimumAxisHeight(): Int {
+            val fm = labels.fontMetrics
+            // Four lines of axis margins + one tick height and >=8dp tick separation.
+            return ceil((fm.descent - fm.ascent) * 5 + dp(32f)).toInt()
+        }
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val fm = labels.fontMetrics
@@ -264,7 +286,9 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             val right = width - outer - rightAxes.sumOf { columns.getValue(it.metric).toDouble() }.toFloat()
             val top = lineHeight * 1.5f + dp(5f)
             val bottom = height - lineHeight * 2.5f - dp(9f)
-            if (right <= left || bottom <= top) return
+            // Parent measurement exposes the native notice instead of a too-short plot.
+            // Also reject overlapping ticks if this child is ever drawn independently.
+            if (right <= left || bottom - top < lineHeight + dp(8f)) return
             val rows = ((bottom - top) / (lineHeight + dp(8f))).toInt().plus(1).coerceIn(2, 5)
             labels.textAlign = Paint.Align.LEFT
             var columnX = outer

@@ -14,4 +14,5 @@
     <string name="task_chart_water_reset">注水计数发生重置，已分段显示</string>
     <string name="task_chart_gap">存在采样缺口，曲线分段显示</string>
     <string name="task_chart_latest">%1$s，最近采样值 %2$s %3$s</string>
+    <string name="task_chart_compact_notice">图表空间不足，请调大窗口</string>
 </resources>

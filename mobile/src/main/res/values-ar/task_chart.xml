@@ -11,4 +11,5 @@
     <string name="task_chart_water_reset">إعادة ضبط عداد الماء؛ مقاطع منفصلة</string>
     <string name="task_chart_gap">فجوات في العينات؛ مقاطع منفصلة</string>
     <string name="task_chart_latest">%1$s، آخر قيمة مسجلة %2$s %3$s</string>
+    <string name="task_chart_compact_notice">مساحة الرسم غير كافية. كبّر النافذة.</string>
 </resources>

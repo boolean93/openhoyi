@@ -11,4 +11,5 @@
     <string name="task_chart_water_reset">注水カウンターをリセット、区間を分けて表示</string>
     <string name="task_chart_gap">サンプル欠落、区間を分けて表示</string>
     <string name="task_chart_latest">%1$s、直近のサンプル値 %2$s %3$s</string>
+    <string name="task_chart_compact_notice">グラフの表示領域が足りません。ウィンドウを広げてください。</string>
 </resources>

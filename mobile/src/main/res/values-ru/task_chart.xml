@@ -11,4 +11,5 @@
     <string name="task_chart_water_reset">Сброс счётчика воды; отдельные сегменты</string>
     <string name="task_chart_gap">Пропуски данных; отдельные сегменты</string>
     <string name="task_chart_latest">%1$s, последнее измерение %2$s %3$s</string>
+    <string name="task_chart_compact_notice">Недостаточно места для графика. Увеличьте окно.</string>
 </resources>
