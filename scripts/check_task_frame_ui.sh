@@ -16,6 +16,7 @@ collect() {
   adb logcat -d -s AndroidRuntime:E > "$output_dir/logcat.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb pull "/sdcard/Android/data/$package/files/task-frame-checks" "$output_dir/screenshots" || true
+  adb pull "/sdcard/Android/data/$package/files/four-metric-chart-checks" "$output_dir/chart-components" || true
 }
 trap collect EXIT
 adb shell wm size "$size"
@@ -37,3 +38,16 @@ if result.returncode or 'TASK_FRAME_CHECKS_PASSED pages=24 noBle=true' not in ou
     print(output.read_text())
     raise SystemExit('Task frame checks failed; evidence retained')
 CHECK_PY
+
+python3 - "$output_dir/chart-result.txt" <<'CHART_PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    result=subprocess.run(['adb','shell','am','instrument','-w','-e','fourMetricChartChecks','true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
+        stdout=capture,stderr=subprocess.STDOUT,timeout=180)
+if result.returncode or 'FOUR_METRIC_CHART_CHECKS_PASSED fixtures=3 nativeComponent=true noBle=true' not in output.read_text():
+    print(output.read_text())
+    raise SystemExit('Four-metric native component checks failed; evidence retained')
+CHART_PY

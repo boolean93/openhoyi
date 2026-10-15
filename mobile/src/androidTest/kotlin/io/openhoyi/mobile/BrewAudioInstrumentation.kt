@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var fourMetricChartChecks = false
     private var taskFrameChecks = false
     private var singleScreenChecks = false
     private var customExecution = false
@@ -31,6 +32,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
         singleScreenChecks = arguments?.getString("singleScreenChecks") == "true"
         customExecution = arguments?.getString("customExecution") == "true"
@@ -49,6 +51,12 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (fourMetricChartChecks) {
+                FourMetricChartChecks(this).run()
+                report.putString("stream", "FOUR_METRIC_CHART_CHECKS_PASSED fixtures=3 nativeComponent=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (taskFrameChecks) {
                 TaskFrameChecks(this).run()
                 report.putString("stream", "TASK_FRAME_CHECKS_PASSED pages=24 noBle=true\n")
@@ -257,7 +265,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }
