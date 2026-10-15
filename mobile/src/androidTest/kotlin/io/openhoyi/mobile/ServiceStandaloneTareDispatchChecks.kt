@@ -86,7 +86,7 @@ internal class ServiceStandaloneTareDispatchChecks(private val test:Instrumentat
                         val hub=NativeDeviceHub(context,tareStorage=guardedStorage);owner=hub;
                         if(restored) {
                             check(hub.scaleTareState==StandaloneTare.State.UNKNOWN)
-                            check(!(field(hub,"scaleControl").get(hub) as ScaleSessionControl).startAllowed)
+                            check(!(field(hub,"scaleControl").get(hub) as ScaleControl).startAllowed)
                         }
                         field(instance,"hub").set(instance,hub)
                         val scale=(field(hub,"scale").get(hub) as AndroidDevice).session

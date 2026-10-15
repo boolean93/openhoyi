@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_settings_title">アプリ設定</string>
+    <string name="app_settings_subtitle">テーマ、言語、抽出時のフィードバックはこの端末にのみ保存します</string>
+    <string name="app_settings_appearance">外観</string>
+    <string name="app_settings_dark">ダークテーマ</string>
+    <string name="app_settings_theme_failed">テーマを保存できませんでした。元の選択に戻しました。</string>
+    <string name="app_settings_export">診断ログをエクスポート</string>
+    <string name="app_settings_export_hint">ファイルの保存先を選んでからエクスポートします。ログは自動で送信しません。</string>
+    <string name="app_settings_machine">マシン設定</string>
+</resources>

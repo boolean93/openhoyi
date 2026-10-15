@@ -14,14 +14,32 @@ import java.util.Locale
 class HistoryActivity : ThemedActivity() {
     private data class RowViews(val title: TextView, val status: TextView, val meta: TextView)
     private lateinit var adapter: ArrayAdapter<ShotHistory.Entry>
+    private lateinit var historyList: ListView
+    private val listStates = mutableMapOf<Boolean, android.os.Parcelable>()
     private lateinit var count: TextView
     private lateinit var emptyTitle: TextView
     private lateinit var emptyMessage: TextView
     private lateinit var emptyAction: Button
     private var rows = emptyList<ShotHistory.Entry>()
+    private var showJournal = false
+    private val journalActions = mutableListOf<Button>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        showJournal = savedInstanceState?.getBoolean("showJournal") ?: false
+        savedInstanceState?.getParcelable<android.os.Parcelable>("localList")?.let { listStates[false] = it }
+        savedInstanceState?.getParcelable<android.os.Parcelable>("journalList")?.let { listStates[true] = it }
+        buildScreen()
+    }
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        historyList.onSaveInstanceState()?.let { listStates[showJournal] = it }
+        outState.putParcelable("localList", listStates[false])
+        outState.putParcelable("journalList", listStates[true])
+        outState.putBoolean("showJournal", showJournal)
+    }
+    private fun buildScreen() {
+        journalActions.clear()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
@@ -39,32 +57,36 @@ class HistoryActivity : ThemedActivity() {
         }
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(16), dp(20), dp(12))
+            setPadding(dp(12), dp(8), dp(12), dp(8))
         }
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         HoyiUi.navigation(this, root, HistoryActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, body, getString(R.string.home_history), getString(R.string.history_subtitle))
+        HoyiUi.header(this, body, getString(R.string.home_history))
         count = HoyiUi.label(this, body, "", 14, muted = true)
-        HoyiUi.tabs(this, body, listOf(getString(R.string.history_local_tab), getString(R.string.history_legacy_tab)), selected = 0) {
-            if (it == 1) startActivity(Intent(this, LegacyHistoryActivity::class.java))
+        HoyiUi.tabs(this, body, listOf(getString(R.string.history_local_tab), getString(R.string.journal_tab), getString(R.string.history_legacy_tab)), selected = if (showJournal) 1 else 0) {
+            if (it == 2) startActivity(Intent(this, LegacyHistoryActivity::class.java))
+            else { historyList.onSaveInstanceState()?.let { state -> listStates[showJournal] = state }; showJournal = it == 1; buildScreen(); render() }
         }
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         body.addView(actions)
         fun action(title: String, click: () -> Unit) {
             val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             actions.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
-            HoyiUi.button(this, box, title, action = click)
+            HoyiUi.button(this, box, title, action = click).also { if (showJournal) journalActions += it }
         }
-        action(getString(R.string.history_export)) {
+        action(getString(if (showJournal) R.string.journal_export else R.string.history_export)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT)
-                .addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
-                .putExtra(Intent.EXTRA_TITLE, "openhoyi-history-${System.currentTimeMillis()}.zip"), EXPORT_HISTORY)
+                .addCategory(Intent.CATEGORY_OPENABLE).setType(if (showJournal) "application/json" else "application/zip")
+                .putExtra(Intent.EXTRA_TITLE, if (showJournal) "openhoyi-journal-${System.currentTimeMillis()}.json" else "openhoyi-history-${System.currentTimeMillis()}.zip"),
+                if (showJournal) EXPORT_JOURNAL else EXPORT_HISTORY)
         }
-        action(getString(R.string.history_import)) {
-            startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
+        action(getString(if (showJournal) R.string.journal_migrate else R.string.history_import)) {
+            if (showJournal) migrateRecent()
+            else startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
         }
+        if (showJournal) action(getString(R.string.journal_compare)) { startActivity(Intent(this, BrewComparisonActivity::class.java)) }
         val list = ListView(this).apply {
             divider = null
             dividerHeight = dp(8)
@@ -112,9 +134,13 @@ class HistoryActivity : ThemedActivity() {
                     entry.weightHundredthsGram?.let { append(getString(R.string.history_meta_scale, "%.2f".format(Locale.ROOT, it / 100.0))) }
                     entry.slot?.takeIf { it in 1..5 }?.let { append(getString(R.string.extraction_slot_suffix, it.toString())) }
                 }
+                if (showJournal) (application as MobileApplication).journalResult.getOrNull()?.find(entry.id)?.notes?.taste?.takeIf { it.isNotBlank() }?.let {
+                    views.meta.append("\n" + getString(R.string.journal_field_value, getString(R.string.journal_taste), it))
+                }
                 return card
             }
         }
+        historyList = list
         list.adapter = adapter
         val content = FrameLayout(this)
         body.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
@@ -133,9 +159,10 @@ class HistoryActivity : ThemedActivity() {
         emptyMessage = HoyiUi.label(this, emptyCard,
             getString(R.string.history_empty_message), 16, muted = true)
         emptyAction = HoyiUi.button(this, emptyCard, getString(R.string.history_select_curve), primary = true) {
-            startActivity(Intent(this, CurveActivity::class.java))
+            if (showJournal) migrateRecent() else startActivity(Intent(this, CurveActivity::class.java))
         }
         list.emptyView = emptyHolder
+        listStates[showJournal]?.let { list.onRestoreInstanceState(it) }
         list.setOnItemClickListener { _, _, position, _ ->
             startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", rows[position].id))
         }
@@ -149,8 +176,44 @@ class HistoryActivity : ThemedActivity() {
             data?.data?.let { (application as MobileApplication).exportHistory(it) }
         if (requestCode == IMPORT_LEGACY && resultCode == RESULT_OK)
             data?.data?.let { (application as MobileApplication).importLegacyHistory(it) }
+        if (requestCode == EXPORT_JOURNAL && resultCode == RESULT_OK) data?.data?.let { uri ->
+            val document = runCatching { (application as MobileApplication).journalResult.getOrThrow().exportJson() }
+            Thread({
+                val result = document.mapCatching { json ->
+                    val output = contentResolver.openOutputStream(uri) ?: error("No document output")
+                    output.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+                }
+                runOnUiThread {
+                    if (!isFinishing && !isDestroyed) Toast.makeText(this, getString(if (result.isSuccess) R.string.journal_export_success else R.string.journal_export_failed), Toast.LENGTH_LONG).show()
+                }
+            }, "journal-export").start()
+        }
+    }
+    private fun migrateRecent() {
+        val app = application as MobileApplication
+        val result = runCatching {
+            val recent = app.history.entries.map { it.journalObservation() }
+            app.reconcileJournal().getOrThrow().importRecent(recent)
+        }
+        Toast.makeText(this, result.fold({ getString(R.string.journal_migrated, it) }, { getString(R.string.journal_save_failed) }), Toast.LENGTH_LONG).show()
+        render()
     }
     private fun render() {
+        // Adapter refreshes must not send a returning reader back to the first record.
+        val position = historyList.onSaveInstanceState()
+        if (showJournal) {
+            val journal = (application as MobileApplication).journalResult.getOrNull()
+            rows = journal?.entries()?.map { it.observation.historySummary() }.orEmpty()
+            journalActions.forEach { it.isEnabled = journal != null }
+            count.text = if (journal == null) getString(R.string.journal_unavailable) else getString(R.string.journal_count, rows.size)
+            emptyTitle.text = getString(if (journal == null) R.string.journal_unavailable else R.string.journal_empty)
+            emptyMessage.text = getString(if (journal == null) R.string.journal_unavailable else R.string.journal_empty_hint)
+            emptyAction.text = getString(R.string.journal_migrate)
+            emptyAction.visibility = if (journal == null) View.GONE else View.VISIBLE
+            adapter.clear(); adapter.addAll(rows)
+            (listStates.remove(showJournal) ?: position)?.let { historyList.onRestoreInstanceState(it) }
+            return
+        }
         val history = runCatching { (application as MobileApplication).history }.getOrNull()
         if (history == null) {
             count.text = getString(R.string.history_unavailable); rows = emptyList()
@@ -166,6 +229,7 @@ class HistoryActivity : ThemedActivity() {
         }
         adapter.clear()
         adapter.addAll(rows)
+        (listStates.remove(showJournal) ?: position)?.let { historyList.onRestoreInstanceState(it) }
     }
     private fun status(value: ShotHistory.Status) = when (value) {
         ShotHistory.Status.STARTING -> getString(R.string.extraction_state_starting)
@@ -177,5 +241,5 @@ class HistoryActivity : ThemedActivity() {
     }
     private fun date(epochMs: Long) = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(epochMs))
     private fun dp(value: Int) = HoyiUi.dp(this, value)
-    private companion object { const val EXPORT_HISTORY = 41; const val IMPORT_LEGACY = 42 }
+    private companion object { const val EXPORT_HISTORY = 41; const val IMPORT_LEGACY = 42; const val EXPORT_JOURNAL = 43 }
 }

@@ -89,7 +89,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                 rebuildHome()
                 onMain { check(owner(home) === service) }
                 val pages = listOf(HomeActivity::class.java, CurveActivity::class.java, ExtractionActivity::class.java,
-                    HistoryActivity::class.java, MachineSettingsActivity::class.java)
+                    HistoryActivity::class.java, AppSettingsActivity::class.java, MachineSettingsActivity::class.java)
                 for (page in pages) {
                     val fixture = "$profile ${language.tag} dark=$dark page=${page.simpleName}"
                     android.util.Log.i("OpenHoyiLanguage", "PAGE_START $fixture")
@@ -101,7 +101,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     test.waitForIdleSync()
                     awaitMain {
                         activity.window.decorView.isLaidOut && root(activity).height > 0 && !root(activity).isLayoutRequested &&
-                            (activity !is ExtractionActivity && activity !is MachineSettingsActivity || owner(activity) === service)
+                            (activity !is ExtractionActivity && activity !is MachineSettingsActivity && activity !is AppSettingsActivity || owner(activity) === service)
                     }
                     onMain {
                         val config = activity.resources.configuration
@@ -115,12 +115,18 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     when (activity) {
                         is HomeActivity -> detailChecks.warnings(activity, fixture) { checkPage(activity, it) }
                         is CurveActivity -> detailChecks.curves(activity, fixture) { checkPage(activity, it) }
-                        is ExtractionActivity -> detailChecks.cancelStart(activity, fixture)
+                        is ExtractionActivity -> {
+                            val extraction = activity
+                            onMain { TrendChartTextChecks.run(extraction, fixture) }
+                            detailChecks.cancelStart(activity, fixture)
+                        }
                     }
-                    if (activity is MachineSettingsActivity) {
+                    if (activity is AppSettingsActivity) {
                         activity = LanguageSelectorUiChecks(test).run(activity) { currentPage = it }
                         currentPage = activity
                         checkPage(activity, "$fixture selectorRestored")
+                    }
+                    if (activity is MachineSettingsActivity) {
                         val tabs = MachineSettingsActivity::class.java.getDeclaredField("settingTabs")
                             .apply { isAccessible = true }.get(activity) as List<*>
                         val labels = listOf(R.string.machine_settings_tab_temperature, R.string.machine_settings_tab_functions,
@@ -146,7 +152,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     }
                 }
             }
-            check(completed == 80) { "Page matrix incomplete: $completed" }
+            check(completed == 96) { "Page matrix incomplete: $completed" }
         } catch (error: Throwable) { failure = error }
         finally {
             fun cleanup(action: () -> Unit) {
@@ -220,10 +226,10 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
     private fun checkGeometry(activity: Activity, fixture: String) {
         val root = root(activity)
         val bar = root.getChildAt(root.childCount - 1) as LinearLayout
-        check(bar.childCount == 5)
+        check(bar.childCount == 4)
         fullyVisible(bar, fixture)
         check(bar.bottom <= root.height - root.paddingBottom && bar.top >= root.paddingTop)
-        val labels = listOf(R.string.ui_home, R.string.ui_curves, R.string.ui_extraction, R.string.ui_history, R.string.ui_settings)
+        val labels = listOf(R.string.ui_brew, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)
         for (index in 0 until bar.childCount) {
             val item = bar.getChildAt(index) as ViewGroup
             check(item.isClickable && item.isFocusable && item.width >= HoyiUi.dp(activity, 48) && item.height >= HoyiUi.dp(activity, 48))
