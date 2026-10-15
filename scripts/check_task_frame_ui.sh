@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+profile=${1:?Expected tablet-user-landscape, tablet-user-portrait or phone}
+case "$profile" in
+  tablet-user-landscape) size=2560x1600; density=360 ;;
+  tablet-user-portrait) size=1600x2560; density=360 ;;
+  phone) size=450x1000; density=200 ;;
+  *) exit 2 ;;
+esac
+# Fail before display changes or installation on any physical device.
+[[ "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" == 1 ]] || { echo 'Disposable emulator required' >&2; exit 1; }
+package=io.openhoyi.mobile.mock
+output_dir="$PWD/build/task-frame-ui/$profile"
+mkdir -p "$output_dir"
+collect() {
+  adb logcat -d -s AndroidRuntime:E > "$output_dir/logcat.txt" || true
+  adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
+  adb pull "/sdcard/Android/data/$package/files/task-frame-checks" "$output_dir/screenshots" || true
+}
+trap collect EXIT
+adb shell wm size "$size"
+adb shell wm density "$density"
+adb shell settings put system font_scale 1.0
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 0
+adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
+adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+python3 - "$output_dir/result.txt" <<'CHECK_PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    result=subprocess.run(['adb','shell','am','instrument','-w','-e','taskFrameChecks','true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
+        stdout=capture,stderr=subprocess.STDOUT,timeout=600)
+if result.returncode or 'TASK_FRAME_CHECKS_PASSED pages=24 noBle=true' not in output.read_text():
+    print(output.read_text())
+    raise SystemExit('Task frame checks failed; evidence retained')
+CHECK_PY

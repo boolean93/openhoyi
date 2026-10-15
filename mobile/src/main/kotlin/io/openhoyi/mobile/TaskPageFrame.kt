@@ -17,7 +17,7 @@ internal class TaskPageFrame private constructor(private val activity: Activity)
         private set
     var toolsInTopBar = true
         private set
-    private var configured: Pair<TaskNavigationMode, Boolean>? = null
+    private var configuredMode: TaskNavigationMode? = null
 
     init { tag = TAG; railScroll.addView(navigation) }
 
@@ -36,9 +36,8 @@ internal class TaskPageFrame private constructor(private val activity: Activity)
         mode = policy.navigation
         toolsInTopBar = compactTools
         navigation.render(mode, mode == TaskNavigationMode.RAIL && !compactTools)
-        val next = mode to compactTools
-        if (configured != next) {
-            configured = next
+        if (configuredMode != mode) {
+            configuredMode = mode
             removeAllViews()
             if (navigation.parent === this) removeView(navigation)
             if (navigation.parent === railScroll) railScroll.removeView(navigation)
