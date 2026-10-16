@@ -73,3 +73,9 @@ Historical ShotChartView migrated to the shared four-metric native renderer, kee
 BeanLedger replaces repeated padded cards with flat neutral rows: kind/change/after-balance lead, bean/batch metadata follows, full actual adjustment reason wraps when present. Reverse source order, batch filter, list scroll persistence and inventory reads unchanged; no timestamps inferred. BeanBatch render now uses primary balance/name and supporting initial quantity/batch/three actual dates, retaining fixed Full details/Ledger/Adjust actions and unabridged details. adjustment() and all preview/recheck/UUID/commit/recovery code unchanged.
 
 Local `/tmp/task-inventory-layout-build.log` assembleMock + assembleMockAndroidTest succeeded. Read-only layout edit does not add mirror unit tests; existing business invariants and actual populated native page/list restoration checks remain. This change is later than running33ab403 CI and is not claimed covered by it. Native screenshot and independent review remain pending.
+
+## 2026-10-16 scale workspace layout
+
+ScaleActivity now uses stable TaskWorkspace regions: readout/tare primary, App timer/connection/settings in local supporting scroll; freshness/battery/activity guard remain fixed above and dose capture below. Capture intent makes capture sole primary-colored action, normal scale retains primary tare. Status/help increased to14sp. ScaleOwnerActivity, renderScale, stableDose, service/tare callbacks and timer/state logic unchanged.
+
+Local `/tmp/task-scale-workspace-build.log`: JVM + both Mock APKs BUILD SUCCESSFUL in43s, 295 tests/0failures/0errors/1existing skip. Scale UI change and inventory d8a9e75 are not in running33ab403 CI. Actual scale/capture screenshots, full native gates and independent review still required; no physical scale command or device install performed.
