@@ -149,3 +149,9 @@ ff1ef65 single-screen phone/tablet-landscape/tablet-large-font failed only Chine
 Android34 local SDK View.java:8099 requestRectangleOnScreen requires content coordinates and subtracts child scroll offsets during ascent; getDrawingRect:17862 includes scroll offsets. Test previously passed0,0,width,height after EditText itself scrolled to the end, thereby asking the enclosing region for the text origin rather than editor viewport. All four requests now use getDrawingRect, retaining full geometry/IME avoidance/local scrolling/draft/filter/accessibility assertions. Added inline-ime-viewport screenshot before validation. No production editor behavior or threshold changed. Local `/tmp/task-review-coordinate-build.log` JVM+twoAPKs successful24s; new native run remains required.
 
 ff1ef65 lifecycle38842891557 and advanced38842891517 now terminal SUCCESS, including original tare persistence fixtures and inline-review business paths. This is evidence for ff1ef65 only, not the subsequent local batches or full UI completion.
+
+## 2026-10-16 native history date hierarchy
+
+HistoryActivity adds the real local-calendar date at the first record of each contiguous day, preserving source order, adapter record count/positions/IDs and source-specific saved list states. Flat rows replace card gaps; status/meta now14sp, original name/time/duration/raw-scale/slot/taste content and three-source tools unchanged. No synthetic date rows or data writes. This fulfills the date-list portion only; adaptive inline detail pane remains outstanding.
+
+Local `/tmp/task-history-date-build.log` JVM+bothMockAPKs BUILD SUCCESSFUL in44s. Native screenshots/list restoration and independent review pending; precedingff1ef65 CI does not cover this batch.

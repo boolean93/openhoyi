@@ -12,7 +12,7 @@ import java.util.Locale
 
 /** Native extraction outcomes with separate legacy import actions. */
 class HistoryActivity : ThemedActivity() {
-    private data class RowViews(val title: TextView, val status: TextView, val meta: TextView)
+    private data class RowViews(val day: TextView, val title: TextView, val status: TextView, val meta: TextView)
     private lateinit var adapter: ArrayAdapter<ShotHistory.Entry>
     private lateinit var historyList: ListView
     private val listStates = mutableMapOf<Boolean, android.os.Parcelable>()
@@ -88,16 +88,20 @@ class HistoryActivity : ThemedActivity() {
         }
         if (showJournal) action(getString(R.string.journal_compare)) { startActivity(Intent(this, BrewComparisonActivity::class.java)) }
         val list = ListView(this).apply {
-            divider = null
-            dividerHeight = dp(8)
+            divider = android.graphics.drawable.ColorDrawable(getColor(R.color.mobile_border))
+            dividerHeight = dp(1)
         }
         adapter = object : ArrayAdapter<ShotHistory.Entry>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
                 val card = convertView as? LinearLayout ?: LinearLayout(this@HistoryActivity).apply {
                     orientation = LinearLayout.VERTICAL
-                    minimumHeight = dp(80)
-                    setPadding(dp(18), dp(13), dp(18), dp(13))
-                    background = HoyiUi.shape(this@HistoryActivity, R.color.mobile_surface, 14, R.color.mobile_border)
+                    minimumHeight = dp(64)
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    background = HoyiUi.shape(this@HistoryActivity, R.color.mobile_surface, 0)
+                    val day = HoyiUi.label(this@HistoryActivity, this, "", 14, true).apply {
+                        setTextColor(getColor(R.color.mobile_accent))
+                        setPadding(0, dp(6), 0, dp(10))
+                    }
                     val header = LinearLayout(this@HistoryActivity).apply {
                         orientation = LinearLayout.HORIZONTAL
                         gravity = android.view.Gravity.CENTER_VERTICAL
@@ -110,18 +114,24 @@ class HistoryActivity : ThemedActivity() {
                         ellipsize = android.text.TextUtils.TruncateAt.END
                     }
                     header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
-                    val state = TextView(this@HistoryActivity).apply { textSize = 13f }
+                    val state = TextView(this@HistoryActivity).apply { textSize = 14f }
                     header.addView(state, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12) })
                     val meta = TextView(this@HistoryActivity).apply {
-                        textSize = 13f
+                        textSize = 14f
                         setTextColor(getColor(R.color.mobile_muted))
                         setPadding(0, dp(8), 0, 0)
                     }
                     addView(meta)
-                    tag = RowViews(title, state, meta)
+                    tag = RowViews(day, title, state, meta)
                 }
                 val entry = requireNotNull(getItem(position))
                 val views = card.tag as RowViews
+                val day = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(entry.startedAtMs))
+                val previousDay = if (position > 0) getItem(position - 1)?.let {
+                    SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it.startedAtMs))
+                } else null
+                views.day.text = day
+                views.day.visibility = if (day != previousDay) View.VISIBLE else View.GONE
                 val library = runCatching { (application as MobileApplication).curves }.getOrNull()
                 views.title.text = if (entry.curveId == "manual") getString(R.string.extraction_manual_label)
                     else library?.find(entry.curveId)?.name ?: entry.curveId
