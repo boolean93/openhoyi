@@ -22,6 +22,12 @@ class HistoryActivity : ThemedActivity() {
     private lateinit var emptyAction: Button
     private var rows = emptyList<ShotHistory.Entry>()
     private var showJournal = false
+    private lateinit var collection: TaskCollectionLayout
+    private lateinit var detailContent: LinearLayout
+    private val selectedIds = mutableMapOf<Boolean, String>()
+    private var restoreDetail = false
+    private var compact = true
+    private var backCallback: android.window.OnBackInvokedCallback? = null
     private val journalActions = mutableListOf<Button>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,16 +35,23 @@ class HistoryActivity : ThemedActivity() {
         showJournal = savedInstanceState?.getBoolean("showJournal") ?: false
         savedInstanceState?.getParcelable<android.os.Parcelable>("localList")?.let { listStates[false] = it }
         savedInstanceState?.getParcelable<android.os.Parcelable>("journalList")?.let { listStates[true] = it }
+        savedInstanceState?.getString("localSelection")?.let { selectedIds[false] = it }
+        savedInstanceState?.getString("journalSelection")?.let { selectedIds[true] = it }
+        restoreDetail = savedInstanceState?.getBoolean("detailRequested") ?: false
         buildScreen()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        historyList.onSaveInstanceState()?.let { listStates[showJournal] = it }
+        rememberList()
         outState.putParcelable("localList", listStates[false])
         outState.putParcelable("journalList", listStates[true])
         outState.putBoolean("showJournal", showJournal)
+        outState.putString("localSelection", selectedIds[false])
+        outState.putString("journalSelection", selectedIds[true])
+        outState.putBoolean("detailRequested", collection.detailRequested)
     }
     private fun buildScreen() {
+        updateBack(false)
         journalActions.clear()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -66,7 +79,7 @@ class HistoryActivity : ThemedActivity() {
         count = HoyiUi.label(this, body, "", 14, muted = true)
         HoyiUi.tabs(this, body, listOf(getString(R.string.history_local_tab), getString(R.string.journal_tab), getString(R.string.history_legacy_tab)), selected = if (showJournal) 1 else 0) {
             if (it == 2) startActivity(Intent(this, LegacyHistoryActivity::class.java))
-            else { historyList.onSaveInstanceState()?.let { state -> listStates[showJournal] = state }; showJournal = it == 1; buildScreen(); render() }
+            else { rememberList(); showJournal = it == 1; restoreDetail = false; buildScreen(); render() }
         }
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         body.addView(actions)
@@ -103,7 +116,7 @@ class HistoryActivity : ThemedActivity() {
                         setPadding(0, dp(6), 0, dp(10))
                     }
                     val header = LinearLayout(this@HistoryActivity).apply {
-                        orientation = LinearLayout.HORIZONTAL
+                        orientation = LinearLayout.VERTICAL
                         gravity = android.view.Gravity.CENTER_VERTICAL
                     }
                     addView(header)
@@ -113,9 +126,9 @@ class HistoryActivity : ThemedActivity() {
                         maxLines = 2
                         ellipsize = android.text.TextUtils.TruncateAt.END
                     }
-                    header.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+                    header.addView(title, LinearLayout.LayoutParams(-1, -2))
                     val state = TextView(this@HistoryActivity).apply { textSize = 14f }
-                    header.addView(state, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(12) })
+                    header.addView(state, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
                     val meta = TextView(this@HistoryActivity).apply {
                         textSize = 14f
                         setTextColor(getColor(R.color.mobile_muted))
@@ -125,6 +138,7 @@ class HistoryActivity : ThemedActivity() {
                     tag = RowViews(day, title, state, meta)
                 }
                 val entry = requireNotNull(getItem(position))
+                card.setBackgroundColor(getColor(if (selectedIds[showJournal] == entry.id) R.color.mobile_accent_soft else R.color.mobile_surface))
                 val views = card.tag as RowViews
                 val day = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(entry.startedAtMs))
                 val previousDay = if (position > 0) getItem(position - 1)?.let {
@@ -152,8 +166,19 @@ class HistoryActivity : ThemedActivity() {
         }
         historyList = list
         list.adapter = adapter
+        collection = TaskCollectionLayout(this)
+        body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
+        val back = HoyiUi.button(this, collection.detailBody, getString(R.string.history_back_to_list)) { showList() }
+        collection.onPresentationChanged = { split, visible ->
+            compact = !split
+            back.visibility = if (compact) View.VISIBLE else View.GONE
+            updateBack(compact && visible)
+        }
+        collection.detailRequested = restoreDetail
+        detailContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        collection.detailBody.addView(detailContent, LinearLayout.LayoutParams(-1, 0, 1f))
         val content = FrameLayout(this)
-        body.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
+        collection.browserBody.addView(content, LinearLayout.LayoutParams(-1, -1))
         content.addView(list, FrameLayout.LayoutParams(-1, -1))
         val emptyHolder = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -162,7 +187,7 @@ class HistoryActivity : ThemedActivity() {
         content.addView(emptyHolder, FrameLayout.LayoutParams(-1, -1))
         val emptyCard = HoyiUi.card(this, emptyHolder)
         if (HoyiUi.wide(this)) (emptyCard.layoutParams as LinearLayout.LayoutParams).apply {
-            width = dp(520)
+            width = -1
             gravity = android.view.Gravity.CENTER_HORIZONTAL
         }.also { emptyCard.layoutParams = it }
         emptyTitle = HoyiUi.label(this, emptyCard, getString(R.string.history_empty_title), 19, true)
@@ -174,7 +199,11 @@ class HistoryActivity : ThemedActivity() {
         list.emptyView = emptyHolder
         listStates[showJournal]?.let { list.onRestoreInstanceState(it) }
         list.setOnItemClickListener { _, _, position, _ ->
-            startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", rows[position].id))
+            rememberList()
+            selectedIds[showJournal] = rows[position].id
+            collection.detailRequested = true
+            renderSelection()
+            adapter.notifyDataSetChanged()
         }
     }
     override fun onStart() { super.onStart(); render() }
@@ -210,7 +239,7 @@ class HistoryActivity : ThemedActivity() {
     }
     private fun render() {
         // Adapter refreshes must not send a returning reader back to the first record.
-        val position = historyList.onSaveInstanceState()
+        val position = if (historyList.isShown && historyList.childCount > 0) historyList.onSaveInstanceState() else null
         if (showJournal) {
             val journal = (application as MobileApplication).journalResult.getOrNull()
             rows = journal?.entries()?.map { it.observation.historySummary() }.orEmpty()
@@ -221,7 +250,8 @@ class HistoryActivity : ThemedActivity() {
             emptyAction.text = getString(R.string.journal_migrate)
             emptyAction.visibility = if (journal == null) View.GONE else View.VISIBLE
             adapter.clear(); adapter.addAll(rows)
-            (listStates.remove(showJournal) ?: position)?.let { historyList.onRestoreInstanceState(it) }
+            (listStates[showJournal] ?: position)?.let { historyList.onRestoreInstanceState(it) }
+            renderSelection()
             return
         }
         val history = runCatching { (application as MobileApplication).history }.getOrNull()
@@ -239,8 +269,49 @@ class HistoryActivity : ThemedActivity() {
         }
         adapter.clear()
         adapter.addAll(rows)
-        (listStates.remove(showJournal) ?: position)?.let { historyList.onRestoreInstanceState(it) }
+        (listStates[showJournal] ?: position)?.let { historyList.onRestoreInstanceState(it) }
+        renderSelection()
     }
+    private fun renderSelection() {
+        detailContent.removeAllViews()
+        detailContent.tag = null
+        val selected = rows.firstOrNull { it.id == selectedIds[showJournal] }
+        if (selected == null) {
+            selectedIds.remove(showJournal)
+            collection.detailRequested = false
+            HoyiUi.label(this, detailContent, getString(R.string.history_select_record), 18)
+            return
+        }
+        detailContent.tag = "history-selection-${selected.id}"
+        HoyiUi.button(this, detailContent, getString(R.string.ui_full_details)) {
+            startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", selected.id))
+        }
+        renderHistoryDetail(detailContent, selected.id)
+    }
+    private fun rememberList() {
+        if (::historyList.isInitialized && historyList.isShown && !historyList.isLayoutRequested && historyList.childCount > 0)
+            historyList.onSaveInstanceState()?.let { listStates[showJournal] = it }
+    }
+    private fun showList() {
+        collection.detailRequested = false
+        updateBack(false)
+        historyList.post { listStates[showJournal]?.let { historyList.onRestoreInstanceState(it) } }
+    }
+    private fun updateBack(active: Boolean) {
+        if (Build.VERSION.SDK_INT < 33) return
+        if (active && backCallback == null) {
+            backCallback = android.window.OnBackInvokedCallback { showList() }.also {
+                onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, it)
+            }
+        } else if (!active) {
+            backCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+            backCallback = null
+        }
+    }
+    @Deprecated("Platform back callback")
+    override fun onBackPressed() { if (compact && collection.detailRequested) showList() else super.onBackPressed() }
+    override fun onStop() { rememberList(); super.onStop() }
+    override fun onDestroy() { updateBack(false); super.onDestroy() }
     private fun status(value: ShotHistory.Status) = when (value) {
         ShotHistory.Status.STARTING -> getString(R.string.extraction_state_starting)
         ShotHistory.Status.RUNNING -> getString(R.string.extraction_state_running)

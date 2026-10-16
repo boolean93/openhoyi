@@ -497,8 +497,31 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                                 if (back != null) check(back.performClick())
                             }
                             ready(activity)
-                        } else detailReturn(activity, if (activity is HistoryActivity) HistoryDetailActivity::class.java
-                            else LegacyHistoryDetailActivity::class.java) { clickVisible(activity) }
+                        } else if (activity is HistoryActivity) {
+                            clickVisible(activity)
+                            var selectedTag: Any? = null
+                            main {
+                                check((field(activity, "collection") as TaskCollectionLayout).detailRequested)
+                                selectedTag = (field(activity, "detailContent") as View).tag
+                                check(selectedTag.toString().startsWith("history-selection-"))
+                            }
+                            activity = recreate(activity)
+                            main { check((field(activity, "detailContent") as View).tag == selectedTag) }
+                            detailReturn(activity, HistoryDetailActivity::class.java) {
+                                main {
+                                    val expand = views(activity.window.decorView).filterIsInstance<Button>().single {
+                                        it.isShown && it.text.toString() == activity.getString(R.string.ui_full_details)
+                                    }
+                                    check(expand.performClick())
+                                }
+                            }
+                            main {
+                                views(activity.window.decorView).filterIsInstance<Button>().singleOrNull {
+                                    it.isShown && it.text.toString() == activity.getString(R.string.history_back_to_list)
+                                }?.let { check(it.performClick()) }
+                            }
+                            ready(activity)
+                        } else detailReturn(activity, LegacyHistoryDetailActivity::class.java) { clickVisible(activity) }
                         restored(activity, saved, "detail-return")
                         evidence += "${type.simpleName} detail-return position=${saved.position} offset=${saved.offset} gesture=swipe"
                     }
