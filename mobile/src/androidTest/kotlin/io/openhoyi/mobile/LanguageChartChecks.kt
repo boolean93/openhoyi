@@ -19,6 +19,7 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
                 val legacy = LegacyShotChartView(context).apply {
                     points = listOf(LegacyPoint(0.0, 2.0, 0.0, 0.0, 0.0), LegacyPoint(1.0, 10.0, 0.0, 0.0, 0.0))
                 }
+                verifyLegacyOverlap(context)
                 // Targets are tenths of a bar on the new fixed 0..12 bar scale.
                 // 2,4,6,8 meant only 0.2..0.8 bar, below the 20dp rise assertion.
                 val stages = CurveStageView(context).apply { targets = listOf(20, 40, 60, 80) }
@@ -28,6 +29,28 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
                     listOf(R.color.stage_one, R.color.stage_two, R.color.stage_three, R.color.stage_four).map(context::getColor))
             }
         }
+    }
+    private fun verifyLegacyOverlap(context: android.content.Context) {
+        val density = context.resources.displayMetrics.density
+        val width = (600 * density).toInt()
+        val height = (340 * density).toInt()
+        val chart = LegacyShotChartView(context).apply {
+            // Both physical series project onto exactly the same diagonal.
+            points = listOf(LegacyPoint(0.0, 0.0, 0.0, 0.0, 0.0),
+                LegacyPoint(10.0, 12.0, 6.0, 0.0, 0.0))
+            layout(0, 0, width, height)
+        }
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        try {
+            chart.draw(Canvas(bitmap))
+            val colors = listOf(R.color.chart_pressure, R.color.chart_water).map(context::getColor)
+            val counts = IntArray(2)
+            for (x in width / 4 until width * 3 / 4) for (y in height / 4 until height * 3 / 4) {
+                val index = colors.indexOf(bitmap.getPixel(x, y))
+                if (index >= 0) counts[index]++
+            }
+            check(counts.all { it > 20 }) { "Overlapping legacy series must remain distinguishable: ${counts.toList()}" }
+        } finally { bitmap.recycle() }
     }
     private fun verifyIncreasing(view: View, color: Int, leftDp: Float, rightDp: Float,
         topDp: Float, bottomDp: Float, language: AppLanguage, stageColors: List<Int> = emptyList()) {
