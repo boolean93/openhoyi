@@ -28,7 +28,32 @@ class BrewReviewActivity : ThemedActivity() {
         val id = intent.getStringExtra(SHOT_ID)
         val entry = id?.let(journal::find)
         if (entry == null) { HoyiUi.label(this, body, getString(R.string.journal_missing), 17); return }
-        HoyiUi.label(this, body, getString(R.string.journal_field_value, getString(R.string.journal_state), journalStatus(entry.observation.status)), 14, true)
+        val observation = entry.observation
+        val cupContext = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
+        }
+        body.addView(cupContext, LinearLayout.LayoutParams(-1, -2))
+        HoyiUi.label(this, cupContext,
+            journalCurve(observation.curveId) + " · " + journalDate(observation.startedAtMs), 14, muted = true).apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            tag = "full-text-details"
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = HoyiUi.dp(this@BrewReviewActivity, 16) }
+        }
+        val elapsed = observation.elapsedMs?.let {
+            getString(R.string.journal_seconds, BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString())
+        } ?: "—"
+        val weightText = observation.weightHundredthsGram?.let {
+            getString(R.string.journal_grams, BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString())
+        } ?: "—"
+        HoyiUi.label(this, cupContext, listOf(journalStatus(observation.status),
+            getString(R.string.journal_field_value, getString(R.string.journal_elapsed), elapsed),
+            getString(R.string.journal_field_value, getString(R.string.history_end_scale), weightText)).joinToString(" · "), 14, true).apply {
+            gravity = android.view.Gravity.END
+            layoutParams = LinearLayout.LayoutParams(0, -2, 2f)
+        }
         if (entry.observation.status == "UNKNOWN") HoyiUi.label(this, body, getString(R.string.history_unknown_warning), 14, true).apply {
             setTextColor(getColor(R.color.mobile_danger))
         }
