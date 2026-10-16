@@ -17,7 +17,29 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     private val stages = ScrollView(activity).apply { addView(stageContent) }
     private val metadataContent = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
     private val metadataScroll = ScrollView(activity).apply { addView(metadataContent) }
-    private val previewScroll = ScrollView(activity).apply { isFillViewport = true; addView(supportingBody) }
+    private val previewScroll = object : ScrollView(activity) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            supportingBody.findViewWithTag<View>("task-form-stage-preview")?.let { chart ->
+                val width = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight -
+                    supportingBody.paddingLeft - supportingBody.paddingRight).coerceAtLeast(0)
+                val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+                val freeHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                var fixedHeight = paddingTop + paddingBottom + supportingBody.paddingTop + supportingBody.paddingBottom
+                for (index in 0 until supportingBody.childCount) {
+                    val child = supportingBody.getChildAt(index)
+                    if (child !== chart && child.visibility != View.GONE) {
+                        child.measure(exactWidth, freeHeight)
+                        val params = child.layoutParams as LinearLayout.LayoutParams
+                        fixedHeight += child.measuredHeight + params.topMargin + params.bottomMargin
+                    }
+                }
+                // Use the real wrapped text/action budget. Short/IME windows retain local scrolling.
+                chart.layoutParams.height = (View.MeasureSpec.getSize(heightMeasureSpec) - fixedHeight)
+                    .coerceIn(dp(160), dp(280))
+            }
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        }
+    }.apply { isFillViewport = true; addView(supportingBody) }
     private val lower = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
     private val stagePane = cell()
     private val host = object : LinearLayout(activity) {

@@ -49,6 +49,13 @@ class BeanEntryActivity : ThemedActivity() {
         }
         val name = input("name", R.string.beans_name)
         val quantity = input("quantity", R.string.beans_initial_input, true)
+        listOf(name, quantity).forEach { field ->
+            val parent = field.parent as android.widget.LinearLayout
+            (0 until parent.childCount).map { parent.getChildAt(it) }
+                .filterIsInstance<android.widget.TextView>().single { it.labelFor == field.id }.apply {
+                    setPadding(0, HoyiUi.dp(this@BeanEntryActivity, 4), 0, HoyiUi.dp(this@BeanEntryActivity, 4))
+                }
+        }
         val purchased = input("purchased", R.string.beans_purchased)
         val roasted = input("roasted", R.string.beans_roasted)
         val opened = input("opened", R.string.beans_opened)

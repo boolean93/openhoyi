@@ -297,6 +297,14 @@ internal object ChineseFormWindowChecks {
                         "$name metadata inputs are not aligned: $topPositions"
                     }
                     fullyVisible(requireNotNull(stageSelector))
+                    listOf(R.string.profiles_preview, R.string.ui_full_details).forEach { action ->
+                        descendants(content).filterIsInstance<Button>().single {
+                            it.text.toString() == activity.getString(action)
+                        }.let(::fullyVisible)
+                    }
+                    descendants(content).filterIsInstance<TextView>().single {
+                        it.text.toString() == activity.getString(R.string.task_form_stage_caption)
+                    }.let(::fullyVisible)
                 }
                 capture("four-stage-table")
             }
