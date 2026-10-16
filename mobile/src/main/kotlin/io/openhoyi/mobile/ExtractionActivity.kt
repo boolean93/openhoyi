@@ -50,6 +50,7 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var weightValue: TextView
     private lateinit var quantityLabel: TextView
     private lateinit var temperatureValue: TextView
+    private lateinit var waterValue: TextView
     private lateinit var preparationSummary: TextView
     private lateinit var flowValue: TextView
     private lateinit var weightTarget: TextView
@@ -156,10 +157,13 @@ class ExtractionActivity : ThemedActivity() {
         weightValue = reading(getString(R.string.task_extraction_water), quantity = true)
         val secondaryReadings = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         metrics.addView(secondaryReadings)
-        pressureValue = HoyiUi.label(this, secondaryReadings, "", 14).apply {
+        pressureValue = HoyiUi.label(this, secondaryReadings, "", 18, true).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
         }
-        temperatureValue = HoyiUi.label(this, secondaryReadings, "", 14).apply {
+        waterValue = HoyiUi.label(this, secondaryReadings, "", 18, true).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
+        }
+        temperatureValue = HoyiUi.label(this, secondaryReadings, "", 18, true).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         }
         flowValue = text(details, "", 14)
@@ -441,10 +445,11 @@ class ExtractionActivity : ThemedActivity() {
         // Connected but stale scales stay explicitly unknown; no cup/tare evidence is inferred.
         val scaleQuantity = scale != null || snapshot.scaleState == DeviceState.READY
         quantityLabel.show(getString(if (scaleQuantity) R.string.task_extraction_scale else R.string.task_extraction_water))
-        weightValue.show(if (scaleQuantity) "${scale?.let(::number) ?: "—"} g" else {
-            val water = (frame as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.totalWaterTenthsMl
-            "${water?.let { String.format(Locale.ROOT, "%.1f", it / 10.0) } ?: "—"} ml"
-        })
+        val water = (frame as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.totalWaterTenthsMl
+        val waterText = "${water?.let { String.format(Locale.ROOT, "%.1f", it / 10.0) } ?: "—"} ml"
+        weightValue.show(if (scaleQuantity) "${scale?.let(::number) ?: "—"} g" else waterText)
+        waterValue.show(getString(R.string.task_extraction_water) + " " + waterText)
+        waterValue.visibility = if (scaleQuantity) View.VISIBLE else View.GONE
         val cupFlow = if (scale != null && frame is ExtractionTelemetry && !frame.brewWait)
             CupFlowProjection.values(owner?.chartPoints.orEmpty()).lastOrNull() else null
         flowValue.show(getString(R.string.task_extraction_flow,
