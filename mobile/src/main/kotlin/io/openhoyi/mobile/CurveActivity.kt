@@ -47,6 +47,7 @@ class CurveActivity : ThemedActivity() {
     private var sortMode = CurveSortMode.RECENT
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
+    private lateinit var selectionDock: TaskActionDock
     private var detailBackCallback: android.window.OnBackInvokedCallback? = null
     private val curveDetailsText by lazy { CurveDetailsText(this) }
     private val library get() = (application as MobileApplication).curves
@@ -306,7 +307,9 @@ class CurveActivity : ThemedActivity() {
             setPadding(dp(6), dp(4), dp(6), dp(4))
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         }
-        select = HoyiUi.button(this, detailPane, getString(R.string.curve_use), primary = true) {
+        selectionDock = TaskActionDock(this, edgeInsetDp = 0, wideMinimumDp = 400)
+        detailPane.addView(selectionDock, LinearLayout.LayoutParams(-1, -2))
+        select = HoyiUi.button(this, selectionDock, getString(R.string.curve_use), primary = true) {
             selected?.let { item ->
                 getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
                 finish()
@@ -440,7 +443,7 @@ class CurveActivity : ThemedActivity() {
         }
         // Measure the full normal presentation, even when its metadata is currently in fallback.
         // Otherwise hiding metadata would make the next measure flip back into a too-short plot.
-        val actionHeight = naturalHeightOf(detailToolbar) + naturalHeightOf(select)
+        val actionHeight = naturalHeightOf(detailToolbar) + naturalHeightOf(selectionDock)
         val metadataHeight = listOf(detailTitle, detailCategory, availability).sumOf(::naturalHeightOf) +
             if (hasPressure) naturalHeightOf(stageCaption) else 0
         val contentMinimum = if (hasPressure) (dp(96) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt() + dp(6)

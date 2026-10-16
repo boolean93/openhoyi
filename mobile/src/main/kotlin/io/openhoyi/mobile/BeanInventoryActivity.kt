@@ -191,6 +191,9 @@ internal fun ThemedActivity.beanPage(title: String, subtitle: String? = null,
         header.contentDescription = "$title. $description"
         HoyiUi.button(this, header, "ⓘ") { beanDetails(title, description) }.apply {
             layoutParams = LinearLayout.LayoutParams(HoyiUi.dp(this@beanPage, 48), -2)
+            // This is a square icon target, not a text action with 16dp side insets.
+            setPadding(HoyiUi.dp(this@beanPage, 8), HoyiUi.dp(this@beanPage, 8),
+                HoyiUi.dp(this@beanPage, 8), HoyiUi.dp(this@beanPage, 8))
             contentDescription = getString(R.string.ui_full_details)
         }
     }
