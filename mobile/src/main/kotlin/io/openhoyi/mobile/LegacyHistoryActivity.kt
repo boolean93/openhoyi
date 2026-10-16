@@ -58,11 +58,11 @@ class LegacyHistoryActivity : ThemedActivity() {
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
                 val card = convertView as? LinearLayout ?: LinearLayout(this@LegacyHistoryActivity).apply {
                     orientation = LinearLayout.VERTICAL
-                    minimumHeight = dp(76)
-                    setPadding(dp(18), dp(13), dp(18), dp(13))
-                    background = HoyiUi.shape(this@LegacyHistoryActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+                    minimumHeight = dp(64)
+                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    background = HoyiUi.shape(this@LegacyHistoryActivity, R.color.mobile_surface, 0)
                     val title = HoyiUi.label(this@LegacyHistoryActivity, this, "", 17, true)
-                    val subtitle = HoyiUi.label(this@LegacyHistoryActivity, this, "", 13, muted = true)
+                    val subtitle = HoyiUi.label(this@LegacyHistoryActivity, this, "", 14, muted = true)
                     subtitle.setPadding(0, dp(7), 0, 0)
                     tag = RowViews(title, subtitle)
                 }
@@ -77,8 +77,8 @@ class LegacyHistoryActivity : ThemedActivity() {
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         list = ListView(this).apply {
             adapter = this@LegacyHistoryActivity.adapter
-            divider = null
-            dividerHeight = dp(8)
+            divider = android.graphics.drawable.ColorDrawable(getColor(R.color.mobile_border))
+            dividerHeight = dp(1)
             setOnItemClickListener { _, _, position, _ ->
                 startActivity(Intent(this@LegacyHistoryActivity, LegacyHistoryDetailActivity::class.java)
                     .putExtra("legacyId", rows[position].id))
