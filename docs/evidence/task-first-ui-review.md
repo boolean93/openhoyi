@@ -175,3 +175,10 @@ User explicitly cancelled portrait compatibility for ROI. Spec§9 and roadmap no
 Default single-screen matrix now user-landscape/general-landscape/large-font-landscape; task-frame defaults user-landscape while retaining its internal1.0/1.3font and short component checks. Advanced/lifecycle page matrices now landscape1.0 + wideFont1.3; advanced business uses landscape, no assertion/path dropped. Background resize remains a landscape-to-landscape configuration transition. Capture script removes only its portrait/phone tail after existing landscape light/dark/extraction flows. Old compact instrumentation/manual profiles remain available, not default release criteria.
 
 bash -n passed for5 affected/relevant scripts;7 embedded Python blocks parsed with ast; `/tmp/task-landscape-scope-build.log` bothMockAPKs BUILD SUCCESSFUL22s. No production protocol/schema/manifest/signature/version changes. Exact updated CI remains pending. Prior2773b29 run still active; observed landscape failures remain in-scope and must be diagnosed separately, not waived by this user change.
+
+
+## 2026-10-16 922752c 用户平板横屏实图抽查
+
+实际读取CI38846239450的2560×1600图片：inventory-selected-restored.png选中列表行与完整批次信息相符，三日期、批次/全库存两种流水及选豆入口可见；列表首行位于已滚动位置，不是丢失标题。zh-Hans-light-ExtractionActivity.png为未选择曲线/未开始状态，主图、实时压力温度/原始秤读数和禁用启动可见，不算运行中或硬件验收。zh-Hans-light-HistoryDetailActivity.png为31真实fixture点/30s，压力/累计水量/原始秤读数/温度同图；右侧个人记录、固定复盘与对比可见，四量程不混单位。图片均在build/task-first-evidence/ci-922752c-user-landscape下。此抽查不覆盖尚未原生运行的50784e5用豆新布局和7dbb2f9历史双栏，也不补全所有21页状态视觉验收。
+
+三个横屏的instrumentation与result均336场景/7列表14恢复通过；原工作流后置截图计数失败，明确两张新增恢复截图单独分类后，在三份实际产物上精确校验成功。922752c四项必需CI与advanced/task-frame/Capture全成功。849e1c1已普通推送新原生CI，仍待结果。
