@@ -224,13 +224,20 @@ internal object ChineseFormWindowChecks {
                 main { sections.setSelection(position) }
                 waitForDraw()
                 main { check(sections.selectedItemPosition == position); SingleScreenPageChecks.verify(activity) }
-                if (activity is BeanEntryActivity || activity is CurveEditorActivity) {
+                if (activity is BeanEntryActivity || activity is CurveEditorActivity || activity is BrewReviewActivity) {
                     lateinit var groupField: EditText
                     main {
-                        val form = descendants(content).single { it.tag == "task-form-scroll" } as android.widget.ScrollView
-                        val cards = form.getChildAt(0) as ViewGroup
-                        val card = cards.getChildAt(position)
-                        groupField = descendants(card).filterIsInstance<EditText>().first { it.isShown }
+                        if (activity is BrewReviewActivity) {
+                            val label = activity.getString(listOf(R.string.journal_dose, R.string.journal_grind,
+                                R.string.journal_expectation, R.string.journal_taste, R.string.journal_next)[position])
+                            val title = descendants(content).filterIsInstance<TextView>().single { it.labelFor != View.NO_ID && it.text.toString() == label }
+                            groupField = content.findViewById(title.labelFor)
+                        } else {
+                            val form = descendants(content).single { it.tag == "task-form-scroll" } as android.widget.ScrollView
+                            val cards = form.getChildAt(0) as ViewGroup
+                            val card = cards.getChildAt(position)
+                            groupField = descendants(card).filterIsInstance<EditText>().first { it.isShown }
+                        }
                         groupField.requestRectangleOnScreen(Rect(0, 0, groupField.width, groupField.height), true)
                     }
                     waitForDraw()
@@ -246,7 +253,10 @@ internal object ChineseFormWindowChecks {
                         "第${index}段：这杯咖啡入口有柑橘与蜂蜜的香气，后段口感柔和。下次保持相同粉量，比较研磨、温度与压力阶段的差异，并记录完整的观察。"
                     }
                     main {
-                        field = descendants(content).filterIsInstance<EditText>().single { it.isShown }
+                        val title = descendants(content).filterIsInstance<TextView>().single {
+                            it.labelFor != View.NO_ID && it.text.toString() == sections.selectedItem.toString()
+                        }
+                        field = content.findViewById(title.labelFor)
                         check(field.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0)
                         original = field.text.toString(); selection = field.selectionStart; originalScroll = field.scrollY
                         field.setText(longText)
@@ -264,11 +274,11 @@ internal object ChineseFormWindowChecks {
                         if (position == 1) {
                             var fieldLabel = ""
                             main { fieldLabel = descendants(content).filterIsInstance<TextView>().single { it.labelFor == field.id }.text.toString() }
-                            if (HoyiUi.wide(activity) && activity.resources.configuration.screenHeightDp <= 720) activeEditorLabel = fieldLabel
+                            if (!field.showSoftInputOnFocus && HoyiUi.wide(activity) && activity.resources.configuration.screenHeightDp <= 720) activeEditorLabel = fieldLabel
                             tap(field)
                             val keyboard = awaitKeyboard()
                             waitForDraw()
-                            if (HoyiUi.wide(activity) && activity.resources.configuration.screenHeightDp <= 720) {
+                            if (!field.showSoftInputOnFocus && HoyiUi.wide(activity) && activity.resources.configuration.screenHeightDp <= 720) {
                                 val label = fieldLabel
                                 val focused = awaitEditor(label)
                                 try {
@@ -369,6 +379,60 @@ internal object ChineseFormWindowChecks {
                                 waitForDraw()
                                 main { check(field.text.toString() == longText) }
                             }
+                            else if (field.showSoftInputOnFocus) {
+                                main { field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true) }
+                                waitForDraw()
+                                main {
+                                    longEditor(field, longText)
+                                    val bounds = Rect(); field.getGlobalVisibleRect(bounds)
+                                    if (keyboard != null) check(!Rect.intersects(bounds, keyboard)) { "$name inline long editor hidden by IME" }
+                                }
+                                val root = freshPageRoot()
+                                try {
+                                    val nodes = root.findAccessibilityNodeInfosByText(longText)
+                                    try {
+                                        val input = nodes.single { it.isEditable && it.isVisibleToUser && it.text?.toString() == longText }
+                                        val oversized = "测".repeat(16032)
+                                        check(input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                                            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, oversized)
+                                        }))
+                                        waitForDraw()
+                                        check(input.refresh() && input.text?.length == 16000) { "$name inline length filter changed" }
+                                        main { check(field.text.toString() == oversized.take(16000)) }
+                                        val edited = longText + "\n末尾编辑检查"
+                                        check(input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                                            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, edited)
+                                        }))
+                                        waitForDraw()
+                                        for (caret in listOf(0, edited.length)) {
+                                            check(input.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
+                                                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, caret)
+                                                putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, caret)
+                                            }))
+                                            waitForDraw()
+                                            check(input.refresh() && input.text?.toString() == edited && input.textSelectionStart == caret && input.textSelectionEnd == caret)
+                                            main { check(field.text.toString() == edited && field.selectionStart == caret && field.selectionEnd == caret) }
+                                        }
+                                        check(input.performAction(AccessibilityNodeInfo.ACTION_CLEAR_FOCUS))
+                                        waitForDraw()
+                                        check(input.refresh() && input.performAction(AccessibilityNodeInfo.ACTION_FOCUS))
+                                        waitForDraw()
+                                        check(input.refresh() && input.text?.toString() == edited &&
+                                            input.textSelectionStart == edited.length && input.textSelectionEnd == edited.length) {
+                                            "$name inline refocus lost text/caret"
+                                        }
+                                        capture(if (keyboard == null) "section-$position-long-inline" else "section-$position-long-inline-ime")
+                                        check(input.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply {
+                                            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, longText)
+                                        }))
+                                    } finally { nodes.forEach { it.recycle() } }
+                                } finally { root.recycle() }
+                                waitForDraw()
+                                main { check(field.text.toString() == longText) }
+                                inlineObserved = true
+                                imeObserved = imeObserved || keyboard != null
+                                if (keyboard == null) gaps += "inline long text editing observed; IME not observed"
+                            }
                             else if (keyboard == null) gaps += "long-editor IME not observed; no IME screenshot claimed"
                             else {
                                 main {
@@ -399,18 +463,24 @@ internal object ChineseFormWindowChecks {
             }
             // Only click the Mock page's observed short EditText; the editor's OK cannot save the page.
             // A wide but short tablet still loses its form space to the real IME.
-            if (activity is BeanEntryActivity || activity is CurveEditorActivity) {
+            if (activity is BeanEntryActivity || activity is CurveEditorActivity || activity is BrewReviewActivity) {
                 main { sections.setSelection(0) }
                 waitForDraw()
                 lateinit var field: EditText
                 var original = ""
                 var originalStart = 0
                 var originalEnd = 0
+                var editedShort = "中文草稿  未保存"
+                var editStart = 2
+                var editEnd = 4
                 main {
                     field = descendants(content).filterIsInstance<EditText>().first { it.isShown && it.isEnabled }
                     original = field.text.toString()
                     originalStart = field.selectionStart.coerceAtLeast(0)
                     originalEnd = field.selectionEnd.coerceAtLeast(0)
+                    if (field.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_NUMBER) {
+                        editedShort = "18.50"; editStart = 1; editEnd = 3
+                    }
                     field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
                 }
                 waitForDraw()
@@ -429,13 +499,13 @@ internal object ChineseFormWindowChecks {
                         val bounds = Rect(); field.getGlobalVisibleRect(bounds)
                         if (keyboard != null) check(!Rect.intersects(bounds, keyboard)) { "$name inline input hidden by IME" }
                         check(field.text.toString() == original) { "$name inline focus changed draft" }
-                        field.setText("中文草稿  未保存")
-                        field.setSelection(2, 4)
+                        field.setText(editedShort)
+                        field.setSelection(editStart, editEnd)
                         SingleScreenPageChecks.verify(activity)
                     }
                     waitForDraw()
                     main {
-                        check(field.text.toString() == "中文草稿  未保存" && field.selectionStart == 2 && field.selectionEnd == 4)
+                        check(field.text.toString() == editedShort && field.selectionStart == editStart && field.selectionEnd == editEnd)
                         // Fixed page actions must remain reachable while the real inline input owns focus.
                         descendants(content).filterIsInstance<Button>().filter { button ->
                             button.isShown && generateSequence(button.parent) { it.parent }.none {

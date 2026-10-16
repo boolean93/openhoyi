@@ -19,6 +19,7 @@ class BrewReviewActivity : ThemedActivity() {
     private val fields = linkedMapOf<String, EditText>()
     private var selectedBeanId: String? = null
     private var section = 0
+    private var form: TaskReviewSections? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val body = beanPage(getString(R.string.journal_title), getString(R.string.journal_subtitle))
@@ -35,7 +36,8 @@ class BrewReviewActivity : ThemedActivity() {
             beanDetails(journalCurve(entry.observation.curveId), journalObservationText(entry.observation))
         }
         section = savedInstanceState?.getInt("section") ?: 0
-        val sections = BeanSections(this, body, listOf(R.string.journal_bean, R.string.journal_grind, R.string.journal_expectation, R.string.journal_taste, R.string.journal_next).map(::getString), section, elasticPanels = setOf(1, 2, 3, 4)) { section = it }
+        val sections = TaskReviewSections(this, body, listOf(R.string.journal_bean, R.string.journal_grind, R.string.journal_expectation, R.string.journal_taste, R.string.journal_next).map(::getString), section) { section = it }
+        form = sections
         val card = sections.panels[0]
         val previousBean = entry.notes.beanId?.let { Bean(it, requireNotNull(entry.notes.beanName)) }
         val beans = (listOfNotNull(previousBean) + app.beanInventoryResult.getOrNull()?.batches().orEmpty().map { it.batch.bean }).distinctBy { it.id }
@@ -55,7 +57,7 @@ class BrewReviewActivity : ThemedActivity() {
         select.setSelection(beans.indexOfFirst { it.id == selectedBeanId }.let { if (it < 0) 0 else it + 1 })
         fun field(key: String, label: Int, initial: String, numeric: Boolean = false) = beanInput(sections.panels[when (key) { "grind" -> 1; "expectation" -> 2; "taste" -> 3; "next" -> 4; else -> 0 }].apply { tag = "bean-full-field" }, label, numeric).also {
             fields[key] = it
-            if (!numeric) { it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; it.setSingleLine(false); it.minLines = 2; it.gravity = android.view.Gravity.TOP; it.layoutParams = (it.layoutParams as LinearLayout.LayoutParams).apply { height = 0; weight = 1f }; it.filters = arrayOf(InputFilter.LengthFilter(16000)) }
+            if (!numeric) { it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; it.setSingleLine(false); it.minLines = 2; it.gravity = android.view.Gravity.TOP; it.layoutParams = (it.layoutParams as LinearLayout.LayoutParams).apply { height = HoyiUi.dp(this@BrewReviewActivity, 160); weight = 0f }; it.filters = arrayOf(InputFilter.LengthFilter(16000)) }
             it.setText(savedInstanceState?.getString(key) ?: initial)
             val length = it.text.length
             it.setSelection((savedInstanceState?.getInt("selectionStart:$key", 0) ?: 0).coerceIn(0, length),
@@ -66,6 +68,8 @@ class BrewReviewActivity : ThemedActivity() {
         val expectation = field("expectation", R.string.journal_expectation, entry.notes.curveExpectation)
         val taste = field("taste", R.string.journal_taste, entry.notes.taste)
         val next = field("next", R.string.journal_next, entry.notes.nextAdjustment)
+        sections.fitMultiline(listOf(grind, expectation, taste, next))
+        sections.restore(savedInstanceState, fields)
         val error = beanError(body)
         val save = HoyiUi.button(this, beanActions(body), getString(R.string.journal_save), primary = true) {}
         save.setOnClickListener {
@@ -73,7 +77,7 @@ class BrewReviewActivity : ThemedActivity() {
             if (available == null) { error.setText(R.string.journal_unavailable); save.isEnabled = false; return@setOnClickListener }
             val doseMg = runCatching { dose.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
                 BeanQuantity.parseGrams(it).also { mg -> require(mg > 0) }
-            } }.getOrElse { sections.selector.setSelection(0); error.setText(R.string.journal_bad_dose); return@setOnClickListener }
+            } }.getOrElse { sections.jumpTo(0); error.setText(R.string.journal_bad_dose); return@setOnClickListener }
             val bean = beans.find { it.id == selectedBeanId }
             val notes = BrewJournal.Notes(bean?.id, bean?.name, doseMg, grind.text.toString().trim(),
                 expectation.text.toString().trim(), taste.text.toString().trim(), next.text.toString().trim())
@@ -86,6 +90,7 @@ class BrewReviewActivity : ThemedActivity() {
         super.onSaveInstanceState(outState)
         outState.putString("selectedBeanId", selectedBeanId)
         outState.putInt("section", section)
+        form?.save(outState, fields)
         fields.forEach { (key, field) ->
             outState.putString(key, field.text.toString())
             outState.putInt("selectionStart:$key", field.selectionStart)
