@@ -18,17 +18,31 @@ internal class CurveStageView(context: Context) : View(context) {
         super.onDraw(canvas)
         val density = resources.displayMetrics.density
         fun dp(value: Float) = value * density
-        val left = paddingLeft + dp(if (compact) 8f else 20f)
+        paint.textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12f, resources.displayMetrics)
+        val metrics = paint.fontMetrics
+        val labelHeight = metrics.descent - metrics.ascent
+        val left = paddingLeft + if (compact) dp(8f) else paint.measureText("12") + dp(16f)
         val right = width - paddingRight - dp(if (compact) 8f else 20f)
-        val top = paddingTop + dp(if (compact) 8f else 18f)
-        val bottom = height - paddingBottom - dp(if (compact) 8f else 28f)
+        val top = paddingTop + if (compact) dp(8f) else labelHeight + dp(16f)
+        val bottom = height - paddingBottom - if (compact) dp(8f) else labelHeight + dp(16f)
         if (right <= left || bottom <= top) return
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = density
         paint.color = context.getColor(R.color.chart_grid)
-        for (fraction in if (compact) listOf(0f) else listOf(0f, .5f, 1f)) {
+        for (fraction in if (compact) listOf(0f) else listOf(0f, .25f, .5f, .75f, 1f)) {
             val y = bottom - (bottom - top) * fraction
             canvas.drawLine(left, y, right, y, paint)
+        }
+        if (!compact) {
+            paint.style = Paint.Style.FILL
+            paint.color = context.getColor(R.color.mobile_muted)
+            paint.textAlign = Paint.Align.RIGHT
+            for (tick in listOf(0, 3, 6, 9, 12)) {
+                val y = bottom - (bottom - top) * tick / 12f
+                canvas.drawText(tick.toString(), left - dp(8f), y - (metrics.ascent + metrics.descent) / 2, paint)
+            }
+            paint.textAlign = Paint.Align.LEFT
+            canvas.drawText("bar", left, paddingTop + dp(8f) - metrics.ascent, paint)
         }
         if (targets.isEmpty()) {
             if(compact) {
@@ -41,7 +55,7 @@ internal class CurveStageView(context: Context) : View(context) {
         }
         val values = targets.take(4)
         if(values.any {it !in 0..120}) return
-        paint.color = context.getColor(R.color.mobile_accent)
+        paint.color = context.getColor(R.color.chart_pressure)
         paint.strokeWidth = dp(if (compact) 2f else 3f)
         paint.strokeCap = Paint.Cap.ROUND
         values.forEachIndexed {index,target->
@@ -67,10 +81,11 @@ internal class CurveStageView(context: Context) : View(context) {
             val y = bottom - (bottom - top) * CurveStageParameters.pressureFraction(target)
             canvas.drawCircle(x, y, dp(4f), paint)
             canvas.drawText(java.lang.String.format(java.util.Locale.ROOT,"%.1f bar",target/10.0),x,
-                (y-dp(8f)).coerceAtLeast(top+dp(12f)),paint)
+                (y-dp(8f)).coerceAtLeast(paddingTop+dp(8f)-metrics.ascent),paint)
             paint.color = context.getColor(R.color.mobile_muted)
-            canvas.drawText(context.getString(R.string.chart_stage, (index + 1).toString()), x, height - paddingBottom - dp(5f), paint)
-            paint.color = context.getColor(R.color.mobile_accent)
+            canvas.drawText(context.getString(R.string.chart_stage, (index + 1).toString()), x,
+                height - paddingBottom - dp(8f) - metrics.descent, paint)
+            paint.color = context.getColor(R.color.chart_pressure)
         }
     }
 }
