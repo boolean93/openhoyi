@@ -9,3 +9,5 @@
 验证：字体源SHA256不变、编译/完整JVM/两MockAPK、APK内font/license及压缩体积；native字体权重/完整汉字/真实文本测量和截图后续CI，不能以代码已设fontFamily当完全视觉一致。Android官方字体资源说明：https://developer.android.com/develop/ui/views/text-and-emoji/fonts-in-xml 。
 
 实现后复核：原setTypeface(null,BOLD)会绕开主题固定字体，已替换为统一700接口。native TaskTypographyEvidence检查默认字体真实测量、API28+权重及theme bold，并给24页截图附字号/字重/行高/padding/可见文字边界JSON。最终本地JVM/两MockAPK成功（/tmp/task-fixed-font-complete-build.log），297/0/0/1。APK内原字体/OFL哈希与来源相同，字体压缩11,276,545字节；native渲染与设计稿对照尚未执行，不宣称完全一致。
+
+视觉测量证据补充：同一截图树同时输出可见容器path/class/tag、实际宽高/全局可见边界、padding/margins、GradientDrawable当前圆角、clickable/enabled；文字记录同path可关联。不把系统裁切后的边界当完整尺寸，两者均记录；用于按原稿核对，不加入宽松自动相似度或替换视觉审查。
