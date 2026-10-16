@@ -56,14 +56,10 @@ class BrewComparisonActivity : ThemedActivity() {
         val support = workspace.details
         val sourceLegend = HoyiUi.label(this, toolbarBody, "", 14, true).apply { tag = "comparison-source-legend" }
         val warning = HoyiUi.label(this, toolbarBody, "", 14, true).apply { visibility = View.GONE }
-        val metricSelector = Spinner(this).apply {
-            tag = "comparison-metric"
-            minimumHeight = dp(48)
-            adapter = beanChoiceAdapter(ChartMetric.entries.map(::metricName))
-            contentDescription = getString(R.string.task_comparison_metric)
-            toolbarBody.addView(this, LinearLayout.LayoutParams(-1, -2))
-            setSelection(selectedMetric.ordinal)
+        val metricSelector = ComparisonMetricTabs(this, selectedMetric, ::metricName) { metric ->
+            selectedMetric = metric; chart.metric = metric; refresh()
         }
+        toolbarBody.addView(metricSelector, LinearLayout.LayoutParams(-1, -2))
         chart = TwoCupChartView(this).apply { metric = selectedMetric }
         workspace.setChart(chart)
         val selectors = object : LinearLayout(this) {
@@ -138,8 +134,6 @@ class BrewComparisonActivity : ThemedActivity() {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
             setPadding(dp(16), dp(8), 0, dp(8))
         }
-        toolbarBody.removeView(metricSelector)
-        comparisonActions.addView(metricSelector, LinearLayout.LayoutParams(dp(220), -2))
         val summaryTable = ComparisonSummaryTable(this)
         support.addView(summaryTable, LinearLayout.LayoutParams(-1, -2))
         val sourceCards = LinearLayout(this).apply {
@@ -168,13 +162,6 @@ class BrewComparisonActivity : ThemedActivity() {
                 val values = (0 until notes.childCount).map { (notes.getChildAt(it) as TextView).text.toString() }
                 beanDetails(getString(label), journalObservationText(entry.observation) + "\n\n" + values.joinToString("\n"))
             }.apply { asTaskTextAction() }
-        }
-        metricSelector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-            override fun onItemSelected(parent: AdapterView<*>?, item: View?, position: Int, id: Long) {
-                val metric = ChartMetric.entries[position]
-                if (selectedMetric != metric) { selectedMetric = metric; chart.metric = metric; refresh() }
-            }
         }
         fun ensureSamples(entry: BrewJournal.Entry?) {
             entry ?: return

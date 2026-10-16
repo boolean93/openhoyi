@@ -27,7 +27,8 @@ internal object TwoCupComparisonPageChecks {
         }
         val root = activity.window.decorView
         val chart = root.findViewWithTag<TwoCupChartView>("two-cup-chart")
-        val selector = root.findViewWithTag<Spinner>("comparison-metric")
+        fun metricButton(metric: ChartMetric) = root.findViewWithTag<android.widget.Button>("comparison-metric-${metric.name}")
+        fun selectMetric(metric: ChartMetric) { check(metricButton(metric).performClick()) }
         val swap = root.findViewWithTag<View>("comparison-swap")
         fun summary(column: Int) = (0..2).map {
             val row = root.findViewWithTag<android.widget.LinearLayout>("comparison-summary-row-$it")
@@ -45,12 +46,12 @@ internal object TwoCupComparisonPageChecks {
             firstSamples = chart.firstPoints; secondSamples = chart.secondPoints
             check(firstSamples.size >= 2 && secondSamples.size >= 2)
             originalSummaries = listOf(summary(0), summary(1))
-            originalMetric = selector.selectedItemPosition
+            originalMetric = chart.metric.ordinal
             if (activity.resources.configuration.let {
                 it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
             }) {
-                listOf(selector, swap, root.findViewWithTag<View>("comparison-first"),
-                    root.findViewWithTag<View>("comparison-second")).forEach { control ->
+                (ChartMetric.entries.map(::metricButton) + listOf(swap, root.findViewWithTag<View>("comparison-first"),
+                    root.findViewWithTag<View>("comparison-second"))).forEach { control ->
                     val bounds = android.graphics.Rect()
                     check(control.isShown && control.getGlobalVisibleRect(bounds) &&
                         bounds.width() == control.width && bounds.height() == control.height && control.height > 0) {
@@ -62,11 +63,12 @@ internal object TwoCupComparisonPageChecks {
         }
         try {
             for (metric in ChartMetric.entries) {
-                main { selector.setSelection(metric.ordinal) }
+                main { selectMetric(metric) }
                 test.waitForIdleSync()
                 await { chart.metric == metric && !chart.isLayoutRequested }
                 main {
                     check(chart.firstPoints == firstSamples && chart.secondPoints == secondSamples)
+                    check(metricButton(metric).isSelected && metricButton(metric).height >= HoyiUi.dp(activity, 48))
                     check(chart.focusedSeries?.metric == metric && chart.plotBounds.height() >= HoyiUi.dp(activity, 96))
                 }
             }
@@ -108,7 +110,7 @@ internal object TwoCupComparisonPageChecks {
                     val entries = (activity.application as MobileApplication).journalResult.getOrThrow().entries()
                     firstSelector.setSelection(entries.indexOfFirst { it.observation.id == first } + 1)
                 }
-                selector.setSelection(originalMetric)
+                selectMetric(ChartMetric.entries[originalMetric])
             }
             test.waitForIdleSync()
             await { id("firstId") == first && id("secondId") == second && chart.metric.ordinal == originalMetric }

@@ -518,3 +518,11 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 原来源时间、状态、采样、对齐和缺失/重置/间隙说明保留表格后方，局部滚动可达；表格不是对旧安全文字的替换。原详情和完整笔记操作仍保留。
 - 扩展TwoCupComparisonPageChecks：真实选择清空后摘要三值为—；交换身份后摘要随两杯原值交换。保留全部指标/原样本/占位选择/恢复断言。指标控件仍未改分段形式，新表格实图未取得，不能称整页完成。
 - 最终Mock/test APK编译43s成功（/tmp/task-comparison-summary-final-build.log），diff/branch policy通过；运行和视觉结果待CI。
+
+### 指标分段选择与修正后表单截图（2026-10-16）
+
+- 两杯对比指标下拉框替换为同一行四个真实按钮；保留本地化名称/单位、16sp字体、48dp触摸目标、键盘焦点和选中状态。TwoCupComparisonPageChecks以performClick逐一切换，保留原样本不变/交换/清空/恢复和图高断言。不是通过隐藏长标签腾空间。
+- Mock/test APK最终构建成功6s（/tmp/task-comparison-tabs-final-build.log，91项up-to-date；此前实际编译45s成功）。diff检查及分支规则通过；新指标控件尚无运行截图，不宣告视觉完成。
+- 下载f525db3 task-frame run38888397896至ci-f525db3-task-frame，24页框架检查通过。目视用户平板2560×1600中文浅色：BeanEntry五个输入框及保存按钮均完整；CurveEditor双阶段状态的图注、温度/杯重摘要、预览与详情动作均完整可见，旧图表挤出底部动作的问题在此状态不再出现。
+- 该编辑图只有两个阶段，不覆盖四阶段或IME；BrewComparison基线为“至少需要两杯长期记录”的空状态，不可证明新全宽图/结果表。对应有数据和四阶段检查仍待后续CI，当前证据不外推。
+- 7e4cee1 single-screen38885378343已读取三profile失败：用户平板入库日期117px仅104px可见、编辑第四阶段117px仅107px可见；一般横屏/大字号IME阶段表头受裁切。这是f3233d6/f525db3之前版本，不能据此重复修改或认为新版本失败。修正后专项断言仍需核实。
