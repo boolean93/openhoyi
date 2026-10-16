@@ -69,7 +69,9 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var pageHeader: LinearLayout
     private lateinit var liveHeading: TextView
     private lateinit var modeBadge: TextView
-    private var narrow = false
+    // Chrome compaction must not depend on height that this same chrome consumes.
+    // The workspace independently uses its actual remaining width and height.
+    private val compactChrome get() = resources.configuration.screenWidthDp < 840
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
@@ -99,7 +101,6 @@ class ExtractionActivity : ThemedActivity() {
                 insets
             }
         }
-        narrow = !HoyiUi.wide(this)
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), dp(6), dp(12), dp(4))
@@ -162,8 +163,6 @@ class ExtractionActivity : ThemedActivity() {
         }
         plotColumn.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4); bottomMargin = dp(4) })
         workspace.onPrimarySpaceAvailable = { width, height ->
-            narrow = !TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
-                (height / resources.displayMetrics.density).toInt()).twoPaneAllowed
             val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
             val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
             metrics.measure(exactWidth, naturalHeight)
@@ -311,10 +310,10 @@ class ExtractionActivity : ThemedActivity() {
         val state = owner?.shotState ?: ExtractionState.IDLE
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
-        pageHeader.visibility = if (active && narrow) View.GONE else View.VISIBLE
-        modeBadge.visibility = if (active && narrow && BuildConfig.MOCK_MODE) View.VISIBLE else View.GONE
-        liveHeading.visibility = if (active && narrow) View.GONE else View.VISIBLE
-        shotSummary.visibility = if (active && narrow) View.GONE else View.VISIBLE
+        pageHeader.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
+        modeBadge.visibility = if (active && compactChrome && BuildConfig.MOCK_MODE) View.VISIBLE else View.GONE
+        liveHeading.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
+        shotSummary.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
         overviewHeading.visibility=if(active) View.GONE else View.VISIBLE
         curveSummary.visibility=if(active) View.GONE else View.VISIBLE
         deviceSummary.visibility=if(active) View.GONE else View.VISIBLE
@@ -406,7 +405,7 @@ class ExtractionActivity : ThemedActivity() {
             SystemClock.elapsedRealtime()))
         val now = SystemClock.elapsedRealtime()
         val alarmFresh = snapshot.alarmAt?.let { it <= now && now - it <= 1500 } == true
-        alarmStatus.visibility = if (active && narrow && snapshot.alarmBits == 0 && alarmFresh)
+        alarmStatus.visibility = if (active && compactChrome && snapshot.alarmBits == 0 && alarmFresh)
             View.GONE else View.VISIBLE
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
         elapsedValue.show(if (frame is ExtractionTelemetry && !frame.brewWait) "${frame.elapsedSeconds} s" else "—")
@@ -546,7 +545,7 @@ class ExtractionActivity : ThemedActivity() {
         setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD); parent.addView(this)
     }
     private fun card(parent: LinearLayout) = HoyiUi.card(this, parent).apply {
-        if (narrow) {
+        if (compactChrome) {
             setPadding(dp(12), dp(8), dp(12), dp(8))
             (layoutParams as LinearLayout.LayoutParams).topMargin = dp(8)
         }
