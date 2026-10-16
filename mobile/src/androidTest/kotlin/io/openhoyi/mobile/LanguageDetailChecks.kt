@@ -61,7 +61,28 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                 check(details.text.toString() == display.render(item, allowed))
                 check(availability.text.toString() == activity.getString(if (allowed) R.string.curve_verified else R.string.curve_unavailable))
                 check(select.isEnabled == allowed && select.text.toString() == activity.getString(if (allowed) R.string.curve_use else R.string.curve_cannot_start))
-                check(scroll.height > 0) { "$fixture detail=$kind no scroll viewport" }
+                val chart = field(activity, "stageChart").get(activity) as CurveStageView
+                if (chart.isShown) {
+                    check(chart.targets == CurveStageParameters.pressureTargets(item) && chart.height >= HoyiUi.dp(activity, 96)) {
+                        "$fixture detail=$kind unusable or incorrect pressure schematic"
+                    }
+                    check(scroll.isShown && scroll.height > 0)
+                } else {
+                    val fallback = field(activity, "previewFallbackScroll").get(activity) as ScrollView
+                    val text = field(activity, "previewFallback").get(activity) as TextView
+                    check(fallback.isShown && fallback.height > 0 && text.text.isNotBlank()) {
+                        "$fixture detail=$kind missing explicit preview fallback"
+                    }
+                    if (CurveStageParameters.pressureTargets(item).isEmpty()) {
+                        check(text.text.contains(activity.getString(R.string.task_curve_library_no_pressure)))
+                    } else {
+                        CurveStageParameters.pressureTargets(item).forEachIndexed { index, target ->
+                            check(text.text.contains(activity.getString(R.string.reference_stage, (index + 1).toString(),
+                                String.format(java.util.Locale.ROOT, "%.1f", target / 10.0))))
+                        }
+                    }
+                    LanguageUiLayoutChecks.textFits(text, "$fixture detail=$kind explicit fallback")
+                }
                 val visible = Rect()
                 check(select.isShown && select.getGlobalVisibleRect(visible) && visible.width() == select.width && visible.height() == select.height) {
                     "$fixture detail=$kind action is clipped"

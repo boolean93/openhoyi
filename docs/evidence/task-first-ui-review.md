@@ -26,3 +26,22 @@ PR工作流38733280170三个窗口均实际成功：每窗24页Frame/导航检�
 - 萃取主读数仍是旧时间/压力/重量/流速，未落实时间＋有效出液或注水的层级，副工具仍占两行。F3必须重排，不能以组件green交付全页。
 
 决定：widget明确语义背景、轻量描边图例；窄窗/竖屏最多两列完整自适应行；把hint放读屏和控件语义，常态可见说明压成“各项独立量程 · 本杯采样至…”，必要reference/gap/reset信息保留。随后主页面F3释放图高。短高说明是异常退化，不代替正常窗口完整图。
+
+## 699fee0 工作台实际截图（2026-10-16）
+
+Actions38835933986专项三窗口实际成功，取回`build/task-first-evidence/ci-699fee0-task-frame`。每窗result pages24、chart fixtures4、Home每个fontScale1.0/1.3各normal/180dp/recovery3fixture都有实际PASSED，且记录实际字号，不从脚本设定推断。
+
+本轮人工实际读图：横屏Home/Extraction、手机Extraction、手机Home font1.3 short180；不是全矩阵视觉签收。Home已由参数/槽位堆叠改为主预览与右侧摘要；无选曲状态诚实空提示，主按钮选择曲线。短高保留完整“空间不足/阶段非时间预测/阶段1 9.0bar”文本，辅区仍有48dp可滚视口。Extraction横屏单图明显扩大、两主读数/pressure+rawtemp次级，右侧工具；手机单图及工具局部滚动都保留，主开始固定。
+
+仍有缺口：此处框架截图为空采样准备态，不能证明活跃杯停止/未知状态或长语言；手机图例3指标仍2+1行，属于真实窄窗折行，尚非全图视觉定稿；整体仍需活跃/四指标/来源/缺口/2主题/完整页面流程验收。Home共享直接启动确认还未迁入，当前“准备萃取”导航诚实保留。原有single-screen/lifecycle全项仍在运行，不能以专项成功声称总体通过。
+
+顺带读了56d0684横屏CurveActivity/BeanInventoryActivity/CurveEditorActivity/HistoryActivity：曲线库顶部多排工具占高且711dp竖屏仍硬双栏；曲线编辑仅两字段+巨大留白/强制分组，未实现参数表邻接预览。原库存/历史空态不是已完成集合改版证据。后续须继续原21页，不以共享壳算这些页验收完成。
+
+## 2026-10-16 inline forms and exact CI failure follow-up
+
+- Local worktree based on `95a90ce`: BeanEntry/CurveEditor now keep short fields in bounded inline cards, fixed actions, native inline IME, <=680dp readable form width. Curve editor has validated current stage preview on eligible large windows. Invalid raw drafts clear the preview. No save/control semantics changed.
+- Root finished interrupted implementer work, fixed FrameLayout.LayoutParams compilation, added actual inline focus/caret/IME checks and per-group scrolling visibility. Existing BrewReview modal/long-text checks remain. Independent inline-form spec/quality review is still pending; this is not visual acceptance.
+- `/tmp/task-inline-build.log`: testMockUnitTest + assembleMock + assembleMockAndroidTest BUILD SUCCESSFUL, 295 tests / 0 failures / 0 errors / 1 existing skip. Later per-group/check-source changes require incremental test APK compilation and native CI.
+- Exact remote `699fee0` single-screen run `38835933987`: phone succeeded; tablet jobs failed. Downloaded tablet-user-portrait evidence shows all page geometry/language captures and six list restoration paths passed before ScaleConnection test selected all ScrollViews with single(). Navigation rail introduces a second valid ScrollView. Test now resolves actual candidateScroll and asserts it owns rows; swipe/recreation/navigation/source safety checks stay unchanged. This does not prove the other tablet failures share the same cause.
+- Exact `699fee0` lifecycle failure was a real compact AppSettings tools-button clipping issue after scrolling. TaskPageFrame now hosts tools outside scrolling settings headers, with an actual scroll-to-bottom visibility assertion. New fix still needs native CI.
+- Final incremental validation after per-group inline visibility and exact scale viewport fixes: `/tmp/task-inline-final-test-build.log`, assembleMockAndroidTest BUILD SUCCESSFUL in 24s. Native execution and independent reviews remain pending; no new CI run or device acceptance is claimed.

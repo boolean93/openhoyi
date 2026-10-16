@@ -266,7 +266,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         diagnostics += "CurveActivity stage=after-click saved=$saved ${viewport(activity)}"
         val selected = field(activity, "selected") as CurveLibraryItem
         fun browser(page: Activity) {
-            if (!HoyiUi.wide(page)) {
+            if (!list(page).isShown) {
                 check(test.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK))
                 await { list(page).isShown && page.hasWindowFocus() }
             }
@@ -307,7 +307,9 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         fun render(page: Activity) {
             page.javaClass.getDeclaredMethod("renderScale").apply { isAccessible = true }.invoke(page)
         }
-        fun localScroll(page: Activity) = children(page).filterIsInstance<ScrollView>().single()
+        fun localScroll(page: Activity): ScrollView = (field(page, "candidateScroll") as ScrollView).also {
+            check(it.getChildAt(0) === field(page, "rows")) { "Scale candidate viewport does not own the tested rows" }
+        }
         fun disabledCandidates(page: Activity) {
             val buttons = views(field(page, "rows") as View).filterIsInstance<Button>()
             check(buttons.size == 40 && buttons.all { !it.isEnabled }) { "Synthetic Mock candidates must not connect" }

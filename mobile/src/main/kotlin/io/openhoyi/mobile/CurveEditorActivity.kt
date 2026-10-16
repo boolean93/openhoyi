@@ -9,6 +9,7 @@ import android.widget.Spinner
 
 class CurveEditorActivity : ThemedActivity() {
     companion object { const val CURVE_ID = "curveId" }
+    private var form: TaskFormSections? = null
     private val fields = linkedMapOf<String, EditText>()
     private var draftId = CustomCurveDocument.newId()
     private var stageCount = 2
@@ -31,7 +32,8 @@ class CurveEditorActivity : ThemedActivity() {
         stageCount = savedInstanceState?.getInt("stageCount") ?: source.stages.size
         section = savedInstanceState?.getInt("section") ?: 0
         val sectionLabels = listOf(getString(R.string.profiles_name), getString(R.string.profiles_stage_count)) + (1..4).map { getString(R.string.profiles_stage, it) }
-        val sections = BeanSections(this, body, sectionLabels, section) { section = it }
+        val sections = TaskFormSections(this, body, sectionLabels, section) { section = it }
+        form = sections
         val card = sections.panels[0]
         fun field(parent: LinearLayout, key: String, label: Int, initial: String, numeric: Boolean = true) = beanInput(parent, label, numeric).also {
             fields[key] = it; it.setText(savedInstanceState?.getString(key) ?: initial)
@@ -52,11 +54,10 @@ class CurveEditorActivity : ThemedActivity() {
             field(row, "target-$index", R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1))
             field(row, "water-$index", R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1))
         }
+        var previewChanged: () -> Unit = {}
         fun visibility() {
-            val active = sections.selector.selectedItemPosition.coerceIn(0, stageCount + 1)
-            sections.selector.adapter = HoyiUi.spinnerAdapter(this, sectionLabels.take(stageCount + 2))
-            sections.selector.setSelection(active)
-            sections.panels.forEachIndexed { index, row -> row.visibility = if (index == active) View.VISIBLE else View.GONE }
+            sections.setVisiblePanelCount(stageCount + 2)
+            previewChanged()
         }
         selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -69,6 +70,34 @@ class CurveEditorActivity : ThemedActivity() {
             CurveDraftNumber.parse(temperature.text.toString(), 0), CurveDraftNumber.parse(cup.text.toString(), 2), CustomCurveDocument.ControlMode.PRESSURE,
             (0 until stageCount).map { CustomCurveDocument.Stage(CurveDraftNumber.parse(fields.getValue("target-$it").text.toString(), 1), CurveDraftNumber.parse(fields.getValue("water-$it").text.toString(), 1)) })
             .also { it.validate() }
+        val preview = CurveStageView(this).apply { tag = "task-form-stage-preview" }
+        HoyiUi.label(this, sections.supportingBody, getString(R.string.profiles_preview), 16, true)
+        sections.supportingBody.addView(preview, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 180)))
+        HoyiUi.label(this, sections.supportingBody, getString(R.string.task_form_stage_caption), 14, muted = true)
+        val previewStatus = HoyiUi.label(this, sections.supportingBody, "", 14).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        previewChanged = {
+            runCatching { parsed() }.onSuccess { doc ->
+                preview.targets = doc.stages.map { it.target }
+                preview.contentDescription = profileSummary(doc)
+                previewStatus.text = profileSummary(doc)
+            }.onFailure {
+                preview.targets = emptyList()
+                preview.contentDescription = getString(R.string.profiles_invalid)
+                previewStatus.setText(R.string.profiles_invalid)
+            }
+            Unit
+        }
+        fields.values.forEach { field ->
+            field.addTextChangedListener(object : android.text.TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { previewChanged() }
+                override fun afterTextChanged(s: android.text.Editable?) = Unit
+            })
+        }
+        previewChanged()
+        sections.restore(savedInstanceState, fields)
         HoyiUi.button(this, beanActions(body), getString(R.string.profiles_preview)) {
             runCatching { parsed() }.onSuccess { profilePreviewDialog(it); error.text = "" }.onFailure { error.setText(R.string.profiles_invalid) }
         }
@@ -87,5 +116,6 @@ class CurveEditorActivity : ThemedActivity() {
         outState.putString("draftId", draftId); outState.putInt("stageCount", stageCount)
         outState.putInt("section", section)
         fields.forEach { (key, field) -> outState.putString(key, field.text.toString()) }
+        form?.save(outState, fields)
     }
 }

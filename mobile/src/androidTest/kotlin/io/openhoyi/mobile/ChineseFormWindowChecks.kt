@@ -55,6 +55,7 @@ internal object ChineseFormWindowChecks {
         var sectionCount = 0
         var longStates = 0
         var editorObserved = false
+        var inlineObserved = false
         var imeObserved = false
         val gaps = mutableListOf<String>()
         fun capture(suffix: String) {
@@ -223,6 +224,18 @@ internal object ChineseFormWindowChecks {
                 main { sections.setSelection(position) }
                 waitForDraw()
                 main { check(sections.selectedItemPosition == position); SingleScreenPageChecks.verify(activity) }
+                if (activity is BeanEntryActivity || activity is CurveEditorActivity) {
+                    lateinit var groupField: EditText
+                    main {
+                        val form = descendants(content).single { it.tag == "task-form-scroll" } as android.widget.ScrollView
+                        val cards = form.getChildAt(0) as ViewGroup
+                        val card = cards.getChildAt(position)
+                        groupField = descendants(card).filterIsInstance<EditText>().first { it.isShown }
+                        groupField.requestRectangleOnScreen(Rect(0, 0, groupField.width, groupField.height), true)
+                    }
+                    waitForDraw()
+                    main { fullyVisible(groupField) }
+                }
                 capture("section-$position")
                 if (activity is BrewReviewActivity && position > 0) {
                     lateinit var field: EditText
@@ -386,7 +399,67 @@ internal object ChineseFormWindowChecks {
             }
             // Only click the Mock page's observed short EditText; the editor's OK cannot save the page.
             // A wide but short tablet still loses its form space to the real IME.
-            if (!HoyiUi.wide(activity) || activity.resources.configuration.screenHeightDp <= 720) {
+            if (activity is BeanEntryActivity || activity is CurveEditorActivity) {
+                main { sections.setSelection(0) }
+                waitForDraw()
+                lateinit var field: EditText
+                var original = ""
+                var originalStart = 0
+                var originalEnd = 0
+                main {
+                    field = descendants(content).filterIsInstance<EditText>().first { it.isShown && it.isEnabled }
+                    original = field.text.toString()
+                    originalStart = field.selectionStart.coerceAtLeast(0)
+                    originalEnd = field.selectionEnd.coerceAtLeast(0)
+                    field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
+                }
+                waitForDraw()
+                tap(field)
+                val keyboard = awaitKeyboard()
+                waitForDraw()
+                try {
+                    main {
+                        check(activity.hasWindowFocus() && pageWindowIdOnMain() == pageWindowId)
+                        check(field.hasFocus()) { "$name inline field did not retain focus" }
+                        field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
+                    }
+                    waitForDraw()
+                    main {
+                        fullyVisible(field)
+                        val bounds = Rect(); field.getGlobalVisibleRect(bounds)
+                        if (keyboard != null) check(!Rect.intersects(bounds, keyboard)) { "$name inline input hidden by IME" }
+                        check(field.text.toString() == original) { "$name inline focus changed draft" }
+                        field.setText("中文草稿  未保存")
+                        field.setSelection(2, 4)
+                        SingleScreenPageChecks.verify(activity)
+                    }
+                    waitForDraw()
+                    main {
+                        check(field.text.toString() == "中文草稿  未保存" && field.selectionStart == 2 && field.selectionEnd == 4)
+                        // Fixed page actions must remain reachable while the real inline input owns focus.
+                        descendants(content).filterIsInstance<Button>().filter { button ->
+                            button.isShown && generateSequence(button.parent) { it.parent }.none {
+                                it is android.widget.ScrollView
+                            }
+                        }.forEach { button ->
+                            fullyVisible(button)
+                            val bounds = Rect(); button.getGlobalVisibleRect(bounds)
+                            check(button.height >= HoyiUi.dp(activity, 48))
+                            if (keyboard != null) check(!Rect.intersects(bounds, keyboard)) { "$name fixed action hidden by IME" }
+                        }
+                    }
+                    capture(if (keyboard == null) "short-inline" else "short-inline-ime")
+                    inlineObserved = true
+                    imeObserved = imeObserved || keyboard != null
+                    if (keyboard == null) gaps += "inline editing observed; IME not observed"
+                } finally {
+                    main {
+                        field.setText(original)
+                        field.setSelection(originalStart.coerceAtMost(original.length), originalEnd.coerceAtMost(original.length))
+                    }
+                    cleanupEditor()
+                }
+            } else if (!HoyiUi.wide(activity) || activity.resources.configuration.screenHeightDp <= 720) {
                 main { sections.setSelection(0) }
                 waitForDraw()
                 lateinit var field: EditText
@@ -461,13 +534,13 @@ internal object ChineseFormWindowChecks {
             cleanupStep { accessibility.flags = originalFlags; automation.serviceInfo = accessibility }
             cleanupStep {
                 File(evidence, "$name-result.txt").writeText("completed=$completed screenshots=$screenshots sections=$sectionCount longStates=$longStates " +
-                    "editorObserved=$editorObserved imeObserved=$imeObserved pageWindowId=$pageWindowId noSave=true\n" + gaps.joinToString("\n") +
+                    "editorObserved=$editorObserved inlineObserved=$inlineObserved imeObserved=$imeObserved pageWindowId=$pageWindowId noSave=true\n" + gaps.joinToString("\n") +
                     (primaryFailure?.let { "\nPRIMARY\n" + it.stackTraceToString() } ?: "") +
                     (cleanupFailure?.let { "\nCLEANUP\n" + it.stackTraceToString() } ?: ""))
             }
             cleanupStep {
                 test.sendStatus(0, Bundle().apply { putString("stream", "CHINESE_FORM_STATES $name completed=$completed screenshots=$screenshots sections=$sectionCount " +
-                    "longStates=$longStates editorObserved=$editorObserved imeObserved=$imeObserved pageWindowId=$pageWindowId noSave=true\n") })
+                    "longStates=$longStates editorObserved=$editorObserved inlineObserved=$inlineObserved imeObserved=$imeObserved pageWindowId=$pageWindowId noSave=true\n") })
             }
             cleanupFailure?.let { error ->
                 val primary = primaryFailure

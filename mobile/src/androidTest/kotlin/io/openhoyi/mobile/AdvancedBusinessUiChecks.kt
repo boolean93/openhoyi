@@ -45,6 +45,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
     private fun click(activity: Activity, label: Int) = click(root(activity), activity.getString(label))
     private fun click(root: View, text: String) {
+        if (CurveMenuChecks.clickIfNeeded(test, root, text)) return
         onMain {
             val button = views(root).filterIsInstance<TextView>().single { it.isShown && it.isClickable && it.text.toString() == text }
             check(button.isEnabled) { "Disabled UI action: $text" }
@@ -53,6 +54,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         }
         test.waitForIdleSync()
     }
+
     /** Resolve every field by its actual label, and select its live visible section before access. */
     private fun visibleInput(root: View, label: String, index: Int = 0): EditText {
         lateinit var input: EditText
@@ -75,6 +77,11 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             onMain { shown = input.isShown }
             if (shown) break
         }
+        onMain {
+            input.requestRectangleOnScreen(android.graphics.Rect(0, 0, input.width, input.height), true)
+        }
+        test.waitForIdleSync()
+        awaitMain { !root.isLayoutRequested }
         onMain {
             val rect = android.graphics.Rect()
             check(input.isShown && input.isEnabled && input.getGlobalVisibleRect(rect) &&

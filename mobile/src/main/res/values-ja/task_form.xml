@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_form_jump">セクションへ移動</string>
+    <string name="task_form_optional_iso_dates">日付は任意です。形式：YYYY-MM-DD</string>
+    <string name="task_form_stage_caption">段階ごとの目標図。時間の予測ではありません</string>
+</resources>

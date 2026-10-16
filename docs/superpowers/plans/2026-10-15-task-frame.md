@@ -82,3 +82,7 @@ python3 scripts/git_policy.py branch
 
 
 首轮c3a5675/CI38727735636三窗口框架通过；原verify/lifecycle/俄语Scale回归仍有失败，不勾选整体验收。见实施证据与真实读图记录。
+
+## 699fee0 真实设置滚动失败后的修复
+
+生命周期实际compact zh-Hans AppSettings scroll417时工具菜单globalRect移到y=-386，LanguagePageChecks完整可见断言正确失败。原因：TaskPageFrame把全局tools塞入原settings滚动内容中的header，滚动会带走。保留设置原ScrollView及字段/回调，只对存在scroll祖先的header隐藏其tools，使用frame.pageContent固定fallbackTools（已用于无header页）。原正常固定header保持原工具位置；rail完整时仍隐藏两处，compact时仅一个固定菜单。新增TaskFrameChecks对实际AppSettings内部滚到底检查固定工具仍完整可见，然后恢复滚动；不删原生命周期scroll遍历/工具可见断言。已有真实失败为red证据，修复后编译/native待验证。

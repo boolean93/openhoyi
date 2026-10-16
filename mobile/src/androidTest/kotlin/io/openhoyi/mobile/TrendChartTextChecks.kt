@@ -62,7 +62,7 @@ internal object TrendChartTextChecks {
         }
     }
 
-    private class TextBoundsCanvas(bitmap: Bitmap, private val nativeTextSize: Float,
+    internal class TextBoundsCanvas(bitmap: Bitmap, private val nativeTextSize: Float,
         private val fixture: String) : Canvas(bitmap) {
         var labels = 0
         val texts = mutableListOf<String>()

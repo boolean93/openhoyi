@@ -16,6 +16,8 @@ collect() {
   adb logcat -d -s AndroidRuntime:E > "$output_dir/logcat.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb pull "/sdcard/Android/data/$package/files/task-frame-checks" "$output_dir/screenshots" || true
+  adb pull "/sdcard/Android/data/$package/files/curve-library-checks" "$output_dir/curve-library" || true
+  adb pull "/sdcard/Android/data/$package/files/two-cup-chart-checks" "$output_dir/two-cup-components" || true
   adb pull "/sdcard/Android/data/$package/files/home-workbench-checks" "$output_dir/home-workbench" || true
   adb pull "/sdcard/Android/data/$package/files/four-metric-chart-checks" "$output_dir/chart-components" || true
 }
@@ -70,5 +72,45 @@ if result.returncode or 'HOME_WORKBENCH_CHECKS_PASSED fixtures=3 shortHeight=tru
     raise SystemExit('Home workbench checks failed; evidence retained')
 HOME_PY
   adb pull "/sdcard/Android/data/$package/files/home-workbench-checks" "$output_dir/home-font-$font_scale"
+done
+adb shell settings put system font_scale 1.0
+
+for font_scale in 1.0 1.3; do
+  adb shell settings put system font_scale "$font_scale"
+  adb shell am force-stop "$package"
+  python3 - "$output_dir/two-cup-$font_scale.txt" "$font_scale" <<'TWO_CUP_PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    result=subprocess.run(['adb','shell','am','instrument','-w','-e','twoCupChartChecks','true',
+        '-e','expectedFontScale',sys.argv[2],
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
+        stdout=capture,stderr=subprocess.STDOUT,timeout=180)
+if result.returncode or 'TWO_CUP_CHART_CHECKS_PASSED fixtures=9 sharedScale=true recovery=true noBle=true' not in output.read_text():
+    print(output.read_text())
+    raise SystemExit('Two-cup native checks failed; evidence retained')
+TWO_CUP_PY
+  adb pull "/sdcard/Android/data/$package/files/two-cup-chart-checks" "$output_dir/two-cup-font-$font_scale"
+done
+adb shell settings put system font_scale 1.0
+
+for font_scale in 1.0 1.3; do
+  adb shell settings put system font_scale "$font_scale"
+  adb shell am force-stop "$package"
+  python3 - "$output_dir/curve-library-$font_scale.txt" "$font_scale" <<'CURVE_PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    result=subprocess.run(['adb','shell','am','instrument','-w','-e','curveLibraryChecks','true',
+        '-e','expectedFontScale',sys.argv[2],
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
+        stdout=capture,stderr=subprocess.STDOUT,timeout=180)
+if result.returncode or 'CURVE_LIBRARY_VIEWPORT_CHECKS_PASSED fixtures=3 shortHeight=true recovery=true readOnly=true noBle=true' not in output.read_text():
+    print(output.read_text())
+    raise SystemExit('Curve library viewport checks failed; evidence retained')
+CURVE_PY
+  adb pull "/sdcard/Android/data/$package/files/curve-library-checks" "$output_dir/curve-library-font-$font_scale"
 done
 adb shell settings put system font_scale 1.0

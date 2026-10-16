@@ -140,10 +140,29 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                     check(SystemClock.elapsedRealtime() < deadline) { "$name layout timeout" }
                     Thread.sleep(25)
                 }
-                // Allow asynchronous sample readers to attach the actual chart.
-                Thread.sleep(300)
+                // Wait for actual comparison sources, not an assumed background-thread duration.
+                if (activity is BrewComparisonActivity) {
+                    val sampleDeadline = SystemClock.elapsedRealtime() + 10000
+                    var detail = ""
+                    while (true) {
+                        var loaded = false
+                        main {
+                            val chart = activity.window.decorView.findViewWithTag<TwoCupChartView>("two-cup-chart")
+                            loaded = chart != null && chart.firstPoints.size >= 2 && chart.secondPoints.size >= 2 &&
+                                !activity.findViewById<ViewGroup>(android.R.id.content).isLayoutRequested && !chart.isLayoutRequested
+                            detail = chart?.let { "first=${it.firstPoints.size} second=${it.secondPoints.size} message=${it.comparisonMessage}" } ?: "chart missing"
+                        }
+                        if (loaded) break
+                        check(SystemClock.elapsedRealtime() < sampleDeadline) { "$name comparison samples timeout: $detail" }
+                        Thread.sleep(25)
+                    }
+                } else Thread.sleep(300)
                 test.waitForIdleSync()
                 main { SingleScreenPageChecks.verify(activity) }
+                if (language == AppLanguage.CHINESE && activity is BrewComparisonActivity) {
+                    TwoCupComparisonPageChecks.run(test, activity)
+                    main { SingleScreenPageChecks.verify(activity) }
+                }
                 // Verify the actual populated states too, not just empty previews.
                 if (activity is CurveActivity || activity is HistoryActivity) {
                     val stateDirectory = File(directory, "states").apply { mkdirs() }

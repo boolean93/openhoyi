@@ -117,6 +117,11 @@ internal fun ThemedActivity.beanDetails(title: String, value: String) {
 /** Focused fields keep usable space above the IME; low-height tablets also focus multiline editors.
  * Every keystroke also updates the durable page draft used by onSaveInstanceState. */
 internal fun ThemedActivity.beanCompactEditor(field: android.widget.EditText, label: String) {
+    var ancestor = field.parent
+    while (ancestor is View) {
+        if (ancestor.tag == "task-inline-form") return
+        ancestor = ancestor.parent
+    }
     if (HoyiUi.wide(this) && resources.configuration.screenHeightDp > 720) return
     field.showSoftInputOnFocus = false
     // Callers finish configuring multiline input after creating this field.

@@ -83,6 +83,19 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                             check(targets.drop(4).map { it.tag } == TaskNavigationModel.tools.map { "task-nav:${it.name}" })
                             check(targets.drop(4).all { it.isShown })
                         }
+                        if (activity is AppSettingsActivity && frame.toolsInTopBar) {
+                            // The original settings page scrolls. Its global tool entry must not.
+                            descendants(frame.pageContent).filterIsInstance<android.widget.ScrollView>().forEach { scroll ->
+                                val maximum = (scroll.getChildAt(0).height - scroll.height + scroll.paddingTop + scroll.paddingBottom).coerceAtLeast(0)
+                                scroll.scrollTo(0, maximum)
+                                val menu = descendants(frame.pageContent).single { it.tag == "task-tools-menu" && it.isShown }
+                                val visible = Rect()
+                                check(menu.getGlobalVisibleRect(visible) && visible.width() == menu.width && visible.height() == menu.height) {
+                                    "Settings scrolling hid global tools"
+                                }
+                                scroll.scrollTo(0, 0)
+                            }
+                        }
                         // A standalone installation proves identity/order/LP preservation and idempotence.
                         val parent = LinearLayout(activity)
                         val child = View(activity)

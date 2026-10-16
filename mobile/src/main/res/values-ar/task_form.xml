@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_form_jump">الانتقال إلى القسم</string>
+    <string name="task_form_optional_iso_dates">التواريخ اختيارية؛ استخدم YYYY-MM-DD</string>
+    <string name="task_form_stage_caption">مخطط أهداف المراحل، وليس توقعًا زمنيًا</string>
+</resources>

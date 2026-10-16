@@ -52,13 +52,24 @@ internal class TaskPageFrame private constructor(private val activity: Activity)
             }
         }
         val host = pageContent.findViewWithTag<View>("task-tools-host")
-        if (host != null) {
+        // Settings retain their original scrolling content. Tools must not scroll away with its header.
+        var ancestor = host?.parent
+        var scrollingHeader = false
+        while (ancestor is View && ancestor !== pageContent) {
+            if (ancestor is ScrollView || ancestor is android.widget.HorizontalScrollView) scrollingHeader = true
+            ancestor = ancestor.parent
+        }
+        if (host != null && !scrollingHeader) {
             host.visibility = if (compactTools) VISIBLE else GONE
             if (fallbackTools.parent === pageContent) pageContent.removeView(fallbackTools)
         } else if (compactTools) {
+            host?.visibility = GONE
             if (fallbackTools.parent == null) pageContent.addView(fallbackTools, 0, LayoutParams(-1, -2))
             fallbackTools.visibility = VISIBLE
-        } else fallbackTools.visibility = GONE
+        } else {
+            host?.visibility = GONE
+            fallbackTools.visibility = GONE
+        }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 

@@ -40,10 +40,14 @@ internal object SingleScreenPageChecks {
             visibleFully(it)
             check(it.height >= HoyiUi.dp(activity, 48)) { "$fixture clickable target below 48dp: ${it.javaClass.simpleName} ${it.height}" }
         }
-        if (activity is HistoryDetailActivity || activity is BrewComparisonActivity) {
+        if (activity is HistoryDetailActivity) {
             val charts = views.filterIsInstance<ShotChartView>()
-            check(charts.size == if (activity is BrewComparisonActivity) 2 else 1) { "$fixture missing historical chart" }
-            check(charts.all { it.points.size >= 2 }) { "$fixture historical charts are not populated" }
+            check(charts.size == 1 && charts.single().points.size >= 2) { "$fixture missing populated historical chart" }
+        }
+        if (activity is BrewComparisonActivity) {
+            val chart = views.filterIsInstance<TwoCupChartView>().single()
+            check(chart.firstPoints.size >= 2 && chart.secondPoints.size >= 2) { "$fixture two real comparison sources not populated" }
+            check(chart.plotBounds.height() >= HoyiUi.dp(activity, 96)) { "$fixture comparison lost its usable shared plot" }
         }
         if (activity is LegacyHistoryDetailActivity) check(views.any { it is LegacyShotChartView }) {
             "$fixture populated legacy chart not inspected"
@@ -55,11 +59,21 @@ internal object SingleScreenPageChecks {
         views.filterIsInstance<ScrollView>().forEach { viewport ->
             visibleFully(viewport)
             check(viewport.parent !== content.getChildAt(0)) { "$fixture whole page is a ScrollView" }
-            if (activity is CurveActivity) check(viewport.childCount == 0 || viewport.getChildAt(0).height <= viewport.height - viewport.paddingTop - viewport.paddingBottom) {
-                "$fixture page preview unexpectedly scrolls"
+            if (activity is CurveActivity) {
+                val fallback = CurveActivity::class.java.getDeclaredField("previewFallbackScroll")
+                    .apply { isAccessible = true }.get(activity) as ScrollView
+                if (viewport === fallback) {
+                    check(viewport.height > 0 && viewport.childCount == 1) { "$fixture explicit stage details are unreachable" }
+                    val text = CurveActivity::class.java.getDeclaredField("previewFallback")
+                        .apply { isAccessible = true }.get(activity) as TextView
+                    check(text.text.isNotBlank())
+                    LanguageUiLayoutChecks.textFits(text, "$fixture local stage fallback")
+                } else check(viewport.childCount == 0 || viewport.getChildAt(0).height <= viewport.height - viewport.paddingTop - viewport.paddingBottom) {
+                    "$fixture normal graphical preview unexpectedly scrolls"
+                }
             }
         }
-        views.filter { it is ShotChartView || it is CurveStageView || it is ExtractionOverlayView || it is LegacyShotChartView }.forEach { chart ->
+        views.filter { it is TwoCupChartView || it is ShotChartView || it is CurveStageView || it is ExtractionOverlayView || it is LegacyShotChartView }.forEach { chart ->
             visibleFully(chart)
             check(chart.height >= HoyiUi.dp(activity, 96)) { "$fixture chart lost its usable viewport: ${chart.height}" }
             if (chart is ExtractionOverlayView && HoyiUi.wide(activity)) check(chart.height >= content.height * .4f) {
