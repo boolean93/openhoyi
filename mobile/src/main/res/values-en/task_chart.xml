@@ -12,4 +12,6 @@
     <string name="task_chart_gap">Sampling gaps; shown as separate segments</string>
     <string name="task_chart_latest">%1$s, latest sampled value %2$s %3$s</string>
     <string name="task_chart_compact_notice">Chart space is too small. Enlarge the window.</string>
+    <string name="task_chart_summary_observed">Independent ranges · Cup samples through %1$s s</string>
+    <string name="task_chart_summary_waiting">Independent ranges · Waiting for cup samples</string>
 </resources>

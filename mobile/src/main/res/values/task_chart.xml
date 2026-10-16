@@ -15,4 +15,6 @@
     <string name="task_chart_gap">存在采样缺口，曲线分段显示</string>
     <string name="task_chart_latest">%1$s，最近采样值 %2$s %3$s</string>
     <string name="task_chart_compact_notice">图表空间不足，请调大窗口</string>
+    <string name="task_chart_summary_observed">各项独立量程 · 本杯采样至 %1$s s</string>
+    <string name="task_chart_summary_waiting">各项独立量程 · 等待本杯采样</string>
 </resources>

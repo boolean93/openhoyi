@@ -12,4 +12,6 @@
     <string name="task_chart_gap">Huecos de muestreo; segmentos separados</string>
     <string name="task_chart_latest">%1$s, último valor muestreado %2$s %3$s</string>
     <string name="task_chart_compact_notice">No hay espacio para el gráfico. Amplía la ventana.</string>
+    <string name="task_chart_summary_observed">Rangos independientes · Muestras hasta %1$s s</string>
+    <string name="task_chart_summary_waiting">Rangos independientes · Esperando muestras</string>
 </resources>

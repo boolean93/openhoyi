@@ -6,6 +6,7 @@ import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -75,6 +76,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
 
     init {
         orientation = VERTICAL
+        setBackgroundColor(context.getColor(R.color.mobile_surface))
         addView(header, LayoutParams(-1, -2))
         addView(plot, LayoutParams(-1, 0, 1f))
         rebuildProjection()
@@ -113,6 +115,11 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
                     tag = "chart-metric:$metric"
                     textSize = 14f
                     isAllCaps = false
+                    backgroundTintList = null
+                    background = legendBackground(false)
+                    elevation = 0f
+                    stateListAnimator = null
+                    setTextColor(metricColor(metric))
                     minWidth = dp(48f).toInt(); minimumWidth = minWidth
                     minHeight = dp(48f).toInt(); minimumHeight = minHeight
                     setPadding(dp(6f).toInt(), dp(3f).toInt(), dp(6f).toInt(), dp(3f).toInt())
@@ -130,7 +137,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             val range = data.series.first { it.metric == metric }.range
             val title = "${metricName(metric)} · ${metric.unit}\n${format(range.low)}–${format(range.high)} ${metric.unit}"
             if (button.text.toString() != title) button.text = title
-            button.contentDescription = title.replace('\n', ';')
+            button.contentDescription = title.replace('\n', ';') + "; " + context.getString(R.string.task_chart_hint)
         }
         // Weight may appear after the temperature button was created.
         metrics.forEachIndexed { index, metric ->
@@ -145,13 +152,22 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         plot.invalidate()
     }
 
+    private fun legendBackground(focused: Boolean) = GradientDrawable().apply {
+        setColor(context.getColor(if (focused) R.color.mobile_accent_soft else R.color.mobile_surface))
+        cornerRadius = dp(8f)
+        setStroke(dp(1f).toInt(), context.getColor(R.color.mobile_border))
+    }
+
     private fun updateSelection() {
         buttons.forEach { (metric, button) ->
-            button.isSelected = selected == metric
-            button.setTextColor(metricColor(metric))
-            button.alpha = 1f
-            button.typeface = android.graphics.Typeface.create(button.typeface,
-                if (selected == metric) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            // The initial pressure axis is focused without dimming other current curves.
+            val focused = focusMetric == metric
+            if (button.isSelected != focused) {
+                button.isSelected = focused
+                button.background = legendBackground(focused)
+                button.typeface = android.graphics.Typeface.create(button.typeface,
+                    if (focused) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            }
         }
     }
 
@@ -163,10 +179,8 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
 
     private fun updateDescription() {
         val notes = mutableListOf(
-            context.getString(R.string.task_chart_hint),
-            context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit),
-            data.observedThroughMs?.let { context.getString(R.string.task_chart_observed, seconds(it)) }
-                ?: context.getString(R.string.task_chart_waiting),
+            data.observedThroughMs?.let { context.getString(R.string.task_chart_summary_observed, seconds(it)) }
+                ?: context.getString(R.string.task_chart_summary_waiting),
         )
         val referenceNotes = if (reference.isNotEmpty()) listOfNotNull(
             referenceLabel?.takeIf { it.isNotBlank() }, context.getString(R.string.task_chart_reference, metricName(focusMetric)),
@@ -179,7 +193,9 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         if (hasGaps()) notes += context.getString(R.string.task_chart_gap)
         val description = notes.joinToString("\n")
         if (explanation.text.toString() != description) explanation.text = description
-        plot.contentDescription = (notes + referenceNotes + data.series.map { series ->
+        plot.contentDescription = (notes + context.getString(R.string.task_chart_hint) +
+            context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit) +
+            referenceNotes + data.series.map { series ->
             val latest = series.current.lastOrNull()?.lastOrNull()
             context.getString(R.string.task_chart_latest, metricName(series.metric),
                 latest?.let { format(it.value) } ?: "—", series.metric.unit)
@@ -223,30 +239,40 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         @Deprecated("Deprecated in Android") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
     }
 
-    /** Wrap by measured text, never by a fixed four-column percentage. */
+    /** Natural text wrapping, with at most two columns below the wide-window breakpoint. */
     private inner class LegendLayout(context: Context) : ViewGroup(context) {
+        private val gap get() = dp(4f).toInt()
+        private val twoColumns get() = resources.configuration.screenWidthDp < 840
+
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val available = MeasureSpec.getSize(widthMeasureSpec)
-            var x = 0; var y = 0; var rowHeight = 0
+            val childWidth = if (twoColumns) ((available - gap) / 2).coerceAtLeast(1) else available
+            var x = 0; var y = 0; var rowHeight = 0; var rowCount = 0
             for (i in 0 until childCount) {
                 val child = getChildAt(i)
-                child.measure(MeasureSpec.makeMeasureSpec(available, MeasureSpec.AT_MOST),
+                child.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.AT_MOST),
                     MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-                if (x > 0 && x + child.measuredWidth > available) { y += rowHeight; x = 0; rowHeight = 0 }
-                x += child.measuredWidth
+                if (rowCount > 0 && (x + child.measuredWidth > available || twoColumns && rowCount == 2)) {
+                    y += rowHeight + gap; x = 0; rowHeight = 0; rowCount = 0
+                }
+                x += child.measuredWidth + gap
                 rowHeight = maxOf(rowHeight, child.measuredHeight)
+                rowCount++
             }
             setMeasuredDimension(available, y + rowHeight)
         }
         override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-            var x = 0; var y = 0; var rowHeight = 0
+            var x = 0; var y = 0; var rowHeight = 0; var rowCount = 0
             for (i in 0 until childCount) {
                 val child = getChildAt(i)
-                if (x > 0 && x + child.measuredWidth > width) { y += rowHeight; x = 0; rowHeight = 0 }
+                if (rowCount > 0 && (x + child.measuredWidth > width || twoColumns && rowCount == 2)) {
+                    y += rowHeight + gap; x = 0; rowHeight = 0; rowCount = 0
+                }
                 val childLeft = if (layoutDirection == View.LAYOUT_DIRECTION_RTL) width - x - child.measuredWidth else x
                 child.layout(childLeft, y, childLeft + child.measuredWidth, y + child.measuredHeight)
-                x += child.measuredWidth
+                x += child.measuredWidth + gap
                 rowHeight = maxOf(rowHeight, child.measuredHeight)
+                rowCount++
             }
         }
         override fun generateDefaultLayoutParams() = ViewGroup.LayoutParams(-2, -2)
