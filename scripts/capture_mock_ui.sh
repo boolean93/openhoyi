@@ -186,6 +186,9 @@ capture extraction-ended-dark
 tap_nav 3 HistoryActivity
 capture history-list-dark
 tap_control '采集曲线 2'
+assert_activity HistoryActivity
+capture history-selected-dark
+tap_control '查看详情'
 assert_activity HistoryDetailActivity
 capture history-detail-dark
 

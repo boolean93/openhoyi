@@ -16,3 +16,5 @@
 849e1c1标准横屏CI38847380282：部分语言HistoryDetail缺实际样本；新防串杯判断在视图尚未挂载时丢弃快速IO结果。改为chart.post等待挂载后执行，并保留终止/已移除视图拒绝更新。列表恢复位置/偏移其实完全一致，失败来自图高223/890不足40%主区域要求。对照history-list-v3：来源切换与列表工具应归左栏，而不是占满整页图上方。将原来源tabs/count/actions原实例移入browserBody，保留全部入口、回调和滚动门槛，给右侧图完整高度；不降低图高或样本断言。精确CI仍待验证。
 
 新增实际选中历史图的恢复后截图，先等待已有fixture样本、执行原完整页面检查再拍图；脚本单独强制collection-details/history-selected-restored.png存在和PNG有效，不混入336页计数。截图产物同时附系统字体fallback配置、构建指纹、density/fontScale以支持视觉一致性审计；读配置失败保留缺口，不称精确字体已认证。
+
+截图流程同步：849e1c1 Capture Mock UI38847375558已完成模拟萃取，但仍在点击历史条目后等待旧HistoryDetailActivity跳转。改为断言仍在HistoryActivity、捕获history-selected-dark，再通过实际“查看详情”按钮进入并断言原全屏详情。沿用完整模拟萃取与页面/PNG检查，不直接启动详情绕过交互。bash语法检查通过，原生新流程待执行。
