@@ -507,6 +507,17 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                             }
                             activity = recreate(activity)
                             main { check((field(activity, "detailContent") as View).tag == selectedTag) }
+                            await {
+                                views(activity.window.decorView).filterIsInstance<ShotChartView>().singleOrNull()?.points?.size?.let { it >= 2 } == true
+                            }
+                            main { SingleScreenPageChecks.verify(activity) }
+                            val detailDirectory = File(directory, "collection-details").apply { mkdirs() }
+                            val selectedImage = requireNotNull(test.uiAutomation.takeScreenshot())
+                            try {
+                                File(detailDirectory, "history-selected-restored.png").outputStream().use {
+                                    check(selectedImage.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+                                }
+                            } finally { selectedImage.recycle() }
                             detailReturn(activity, HistoryDetailActivity::class.java) {
                                 main {
                                     val expand = views(activity.window.decorView).filterIsInstance<Button>().single {

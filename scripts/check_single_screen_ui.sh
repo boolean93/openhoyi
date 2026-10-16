@@ -17,6 +17,15 @@ package=io.openhoyi.mobile.mock
 output_dir="$PWD/build/single-screen-ui/$profile"
 mkdir -p "$output_dir"
 collect() {
+  mkdir -p "$output_dir/font-environment"
+  adb shell getprop ro.build.fingerprint > "$output_dir/font-environment/build-fingerprint.txt" || true
+  adb shell wm density > "$output_dir/font-environment/density.txt" || true
+  adb shell settings get system font_scale > "$output_dir/font-environment/font-scale.txt" || true
+  for font_config in /system/etc/fonts.xml /system/etc/font_fallback.xml /product/etc/fonts_customization.xml; do
+    if adb shell test -f "$font_config"; then
+      adb pull "$font_config" "$output_dir/font-environment/" || true
+    fi
+  done
   adb logcat -d -s AndroidRuntime:E > "$output_dir/logcat.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb pull "/sdcard/Android/data/$package/files/single-screen-window-checks" "$output_dir/" || true
@@ -63,6 +72,9 @@ if not all(path.is_file() for path in restored):
 paths=[path for path in root.glob('*.png') if path.name not in restore_names]
 if len(paths)!=336:
     raise SystemExit(f'Incomplete screenshots: {len(paths)}/336')
+collection_details=list((root/'collection-details').glob('*.png'))
+if {path.name for path in collection_details} != {'history-selected-restored.png'}:
+    raise SystemExit('Populated restored history-pane screenshot missing')
 states=list((root/'states').glob('*.png'))
 if len(states)!=64:
     raise SystemExit(f'Incomplete initial/populated state screenshots: {len(states)}/64')
@@ -75,7 +87,7 @@ if len(extra)!=2:
 safety=list((root/'chinese-safety-states').glob('*.png'))
 if len(safety)!=6:
     raise SystemExit(f'Incomplete Chinese full warning captures: {len(safety)}/6')
-for path in paths+states+forms+extra+safety+restored:
+for path in paths+states+forms+extra+safety+restored+collection_details:
     data=path.read_bytes()
     if len(data)<10000 or data[:8]!=b'\x89PNG\r\n\x1a\n':
         raise SystemExit(f'Invalid screenshot: {path}')

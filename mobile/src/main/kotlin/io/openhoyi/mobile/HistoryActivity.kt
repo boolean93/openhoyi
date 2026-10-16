@@ -77,10 +77,12 @@ class HistoryActivity : ThemedActivity() {
         setContentView(root)
         HoyiUi.header(this, body, getString(R.string.home_history))
         count = HoyiUi.label(this, body, "", 14, muted = true)
+        val sourcesIndex = body.childCount
         HoyiUi.tabs(this, body, listOf(getString(R.string.history_local_tab), getString(R.string.journal_tab), getString(R.string.history_legacy_tab)), selected = if (showJournal) 1 else 0) {
             if (it == 2) startActivity(Intent(this, LegacyHistoryActivity::class.java))
             else { rememberList(); showJournal = it == 1; restoreDetail = false; buildScreen(); render() }
         }
+        val sources = body.getChildAt(sourcesIndex)
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         body.addView(actions)
         fun action(title: String, click: () -> Unit) {
@@ -168,6 +170,11 @@ class HistoryActivity : ThemedActivity() {
         list.adapter = adapter
         collection = TaskCollectionLayout(this)
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
+        // Source controls belong to the record browser, not above the selected chart.
+        listOf(sources, count, actions).forEach { control ->
+            body.removeView(control)
+            collection.browserBody.addView(control, LinearLayout.LayoutParams(-1, -2))
+        }
         val back = HoyiUi.button(this, collection.detailBody, getString(R.string.history_back_to_list)) { showList() }
         collection.onPresentationChanged = { split, visible ->
             compact = !split
@@ -178,7 +185,7 @@ class HistoryActivity : ThemedActivity() {
         detailContent = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         collection.detailBody.addView(detailContent, LinearLayout.LayoutParams(-1, 0, 1f))
         val content = FrameLayout(this)
-        collection.browserBody.addView(content, LinearLayout.LayoutParams(-1, -1))
+        collection.browserBody.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         content.addView(list, FrameLayout.LayoutParams(-1, -1))
         val emptyHolder = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL

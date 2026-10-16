@@ -107,3 +107,8 @@ BeanPreparation改为主区完整本杯信息/原生内联粉量，辅区预计�
 History接入TaskCollectionLayout，选中ID按本机/长期来源分开保存，保留日期分组、三来源工具、列表位置、重建和短高度返回。右栏与HistoryDetailActivity共用HistoryDetailContent，完整保留真实状态/未知提示/原四指标/复盘编辑与对比/来源和流速明细；只更新仍挂载的chart，已移除的旧选中图不接异步结果。保留显式全屏详情入口。SingleScreenListStateChecks新增选中详情重建一致性，再进入真实全屏详情并校验原列表偏移。最终本地完整JVM/两MockAPK构建45s成功，295/0/0/1；新native检查与读图未执行，独立审查未完成。
 
 922752c用户平板横屏CI38846239450/job116797301420标失败，但下载的instrumentation及result显示336/336窗口、21页、7列表14恢复fixture全部通过，复盘短输入原生修正已通过这档；job后置失败原因仍在取证，不当全CI通过。
+
+
+## 2026-10-16 历史加载/双栏高度原生失败修正
+
+849e1c1标准横屏实际日志多语言HistoryDetail缺样本，实读en-light-HistoryDetailActivity截图仍显示Reading local samples；共享渲染对未挂载图过早返回丢结果。改chart.post等待挂载后处理并保留已销毁/脱离检查。History列表恢复anchor完全一致但图223/890未达40%：按认可history-list-v3把三来源tabs/count/原工具动作原实例移至左侧browser，右侧保留完整高度，不放宽阈值。新增恢复后有采样的双栏截图和原完整页面检查，截图产物增加字体配置/构建/density/fontScale供后续一致性审计。最终完整JVM/两MockAPK构建22s，297/0/0/1，bash语法与diff检查通过；精确新原生CI与视觉尚待执行。

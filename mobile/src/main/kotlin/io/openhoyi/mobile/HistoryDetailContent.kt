@@ -83,8 +83,10 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
     }
     Thread({
         val points = runCatching { app.samples.load(entry.id) }
-        runOnUiThread {
-            if (isFinishing || isDestroyed || !chart.isAttachedToWindow) return@runOnUiThread
+        // View.post queues pre-attach results until the chart can receive them. A late
+        // result for an already detached selection still cannot update the visible cup.
+        chart.post {
+            if (isFinishing || isDestroyed || !chart.isAttachedToWindow) return@post
             points.onSuccess {
                 chart.points = it
                 chartStatus.text = if (it.isEmpty()) getString(R.string.history_no_samples) else
