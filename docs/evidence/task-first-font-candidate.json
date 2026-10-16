@@ -1,0 +1,44 @@
+{
+  "revision": "a85815a42757630ce188fdad368c2dfc444d4773",
+  "files": [
+    {
+      "file": "NotoSansSC-variable.ttf",
+      "bytes": 17772300,
+      "sha256": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+      "source": "https://raw.githubusercontent.com/google/fonts/a85815a42757630ce188fdad368c2dfc444d4773/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf"
+    },
+    {
+      "file": "OFL.txt",
+      "bytes": 4388,
+      "sha256": "1c05c68c34f9708415aada51f17e1b0092d2cea709bf4a94cd38114f9e73d7d9",
+      "source": "https://raw.githubusercontent.com/google/fonts/a85815a42757630ce188fdad368c2dfc444d4773/ofl/notosanssc/OFL.txt"
+    },
+    {
+      "file": "METADATA.pb",
+      "bytes": 1296,
+      "sha256": "c6c4bdb785793b2de1da177caeeffcd0c90d7680bdab2de8f88ab45007bc59bc",
+      "source": "https://raw.githubusercontent.com/google/fonts/a85815a42757630ce188fdad368c2dfc444d4773/ofl/notosanssc/METADATA.pb"
+    }
+  ],
+  "status": "candidate only; not yet bundled or visually approved",
+  "inspection": {
+    "family": "Noto Sans SC Thin",
+    "version": "Version 2.004-H2;hotconv 1.0.118;makeotfexe 2.5.65603",
+    "axes": [
+      {
+        "tag": "wght",
+        "min": 100.0,
+        "default": 100.0,
+        "max": 900.0
+      }
+    ],
+    "chineseResourceCharacters": 574,
+    "missingChineseResourceCharacters": []
+  },
+  "limitations": [
+    "Not bundled in app; 17,772,300-byte source file",
+    "Default variable weight is 100, not normal 400; explicit weight required",
+    "Coverage checks only current 574 CJK unified characters in default resources, not arbitrary user notes or all locales",
+    "No claim that ImageGen original typography is this font; visual comparison pending"
+  ]
+}
