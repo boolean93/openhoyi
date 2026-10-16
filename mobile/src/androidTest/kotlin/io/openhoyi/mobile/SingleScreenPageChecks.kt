@@ -40,6 +40,23 @@ internal object SingleScreenPageChecks {
             visibleFully(it)
             check(it.height >= HoyiUi.dp(activity, 48)) { "$fixture clickable target below 48dp: ${it.javaClass.simpleName} ${it.height}" }
         }
+        val config = activity.resources.configuration
+        if (activity is ScaleActivity && config.screenWidthDp in 600..839 &&
+            content.height >= HoyiUi.dp(activity, 850) && config.fontScale <= 1.3f &&
+            config.locales[0].language == "zh") {
+            val all = mutableListOf<View>()
+            fun descend(view: View) {
+                all += view
+                if (view is ViewGroup) for (i in 0 until view.childCount) descend(view.getChildAt(i))
+            }
+            descend(content)
+            // On the user's tall portrait tablet, routine tools must not sit below a local fold.
+            listOf(R.string.scale_timer_reset, R.string.scale_connect, R.string.scale_settings).forEach { id ->
+                val button = all.filterIsInstance<Button>().single { it.text.toString() == activity.getString(id) }
+                visibleFully(button)
+                LanguageUiLayoutChecks.textFits(button, "$fixture portrait scale tool")
+            }
+        }
         if (activity is HistoryDetailActivity) {
             val charts = views.filterIsInstance<ShotChartView>()
             check(charts.size == 1 && charts.single().points.size >= 2) { "$fixture missing populated historical chart" }

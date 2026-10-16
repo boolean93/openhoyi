@@ -17,6 +17,14 @@ internal class TaskWorkspaceLayout(context: Context) : LinearLayout(context) {
         }
     }.apply { isFillViewport = false; addView(secondaryBody) }
     private var paneMode: Boolean? = null
+    /** Optional compact readout budget; charts retain their default expanding primary region. */
+    var compactPrimaryHeightDp: Int? = null
+        set(value) {
+            require(value == null || value > 0)
+            if (field == value) return
+            field = value
+            requestLayout()
+        }
     // Returns primary height needed within the budget after a reachable supporting viewport.
     // The callback may choose a local text fallback when that primary budget is insufficient.
     var onPrimarySpaceAvailable: ((width: Int, height: Int) -> Int)? = null
@@ -37,7 +45,8 @@ internal class TaskWorkspaceLayout(context: Context) : LinearLayout(context) {
         val supportingMinimum = if (twoPane) 0 else minOf(dp(48), height)
         val primaryBudget = height - supportingMinimum
         val primaryRequired = onPrimarySpaceAvailable?.invoke(primaryWidth.coerceAtLeast(0), primaryBudget) ?: 0
-        val secondaryHeight = minOf(dp(160), height / 3, (height - primaryRequired).coerceAtLeast(0))
+        val compactPrimaryHeight = compactPrimaryHeightDp?.let { minOf(dp(it), primaryBudget).coerceAtLeast(0) }
+        val secondaryHeight = if (compactPrimaryHeight != null) height - compactPrimaryHeight else minOf(dp(160), height / 3, (height - primaryRequired).coerceAtLeast(0))
             .coerceAtLeast(supportingMinimum)
         // Keep the same children, listeners and focus when the available area changes.
         if (paneMode != twoPane || (twoPane && supportingScroll.layoutParams.width != secondaryWidth)) {
@@ -46,6 +55,14 @@ internal class TaskWorkspaceLayout(context: Context) : LinearLayout(context) {
             primaryBody.layoutParams = if (twoPane) LayoutParams(0, -1, 1f) else LayoutParams(-1, 0, 1f)
             supportingScroll.layoutParams = if (twoPane) LayoutParams(secondaryWidth, -1).apply { marginStart = dp(24) }
                 else LayoutParams(-1, -2)
+        }
+        if (!twoPane) {
+            val params = primaryBody.layoutParams as LayoutParams
+            val desiredHeight = compactPrimaryHeight ?: 0
+            val desiredWeight = if (compactPrimaryHeight == null) 1f else 0f
+            if (params.height != desiredHeight || params.weight != desiredWeight) {
+                primaryBody.layoutParams = LayoutParams(-1, desiredHeight, desiredWeight)
+            }
         }
         supportingScroll.heightLimit = if (twoPane) Int.MAX_VALUE else secondaryHeight
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)

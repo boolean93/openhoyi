@@ -101,7 +101,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         freshness=HoyiUi.label(this,info,"",14,muted=true).apply {layoutParams=LinearLayout.LayoutParams(0,-2,1f)}
         battery=HoyiUi.label(this,info,"",14,muted=true)
         guard=HoyiUi.label(this,body,"",14,muted=true)
-        val workspace=TaskWorkspaceLayout(this)
+        val workspace=TaskWorkspaceLayout(this).apply { compactPrimaryHeightDp=320 }
         body.addView(workspace,LinearLayout.LayoutParams(-1,0,1f))
         val primary=workspace.primaryBody
         val secondary=workspace.secondaryBody

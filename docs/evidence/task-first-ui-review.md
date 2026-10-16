@@ -121,3 +121,9 @@ Advanced38841222253 succeeded: compact and wideFont each240 fixtures/8languages/
 Scan/manager use paired tool row. Candidate remains native Button, now flat/start-aligned with full17sp bold name and14sp scaled address/RSSI/candidate-specific read-only notice. Native ripple/min64dp; no name truncation. Original service, radio checks, guarded callbacks, list order and saved scroll unchanged; status/scan text only update when changed. Existing40 synthetic candidates must remain disabled with same owner/no scan/no connection across recreation/navigation.
 
 Local `/tmp/task-scale-list-build.log` JVM+twoAPK BUILD SUCCESSFUL in45s. This and inline-review9e13664 are newer than9d457ef CI; native screenshots/independent review pending. No hardware install or control.
+
+## 2026-10-16 scale portrait workspace correction
+
+Based on9d457ef actual tablet-user-portrait screenshot: TaskWorkspace now has an opt-in compact primary height budget; Scale requests320dp including readout/tare. Its support scroll uses the remaining height and natural content instead of160dp cap, placing routine tools directly beneath the readout rather than below a large blank card. Other charts/pages keep default expanding primary behavior; two-pane behavior unchanged. Setter requests layout and restoring null restores default weighted allocation. No field recreation/control changes.
+
+SingleScreenPageChecks adds a real attached-window check for Chinese600–839dp-wide tall portrait<=1.3font: reset timer, connect and settings buttons must be fully visible with text fitting without local scrolling. Existing all-target/text checks remain. Local `/tmp/task-scale-portrait-final-build.log` JVM+twoAPK BUILD SUCCESSFUL in44s. Exact new native/visual evidence pending; runningff1ef65 does not include this correction.
