@@ -60,4 +60,6 @@
     <string name="scale_trend_title">Últimos 10 segundos</string>
     <string name="scale_trend_empty">Sin muestras; esperando datos de la báscula</string>
     <string name="scale_trend_summary">Última lectura %1$s g · hace %2$s s</string>
+    <string name="scale_current_weight">Peso actual</string>
+    <string name="scale_device_section">Dispositivo</string>
 </resources>

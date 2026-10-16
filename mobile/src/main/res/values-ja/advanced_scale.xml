@@ -60,4 +60,6 @@
     <string name="scale_trend_title">直近10秒</string>
     <string name="scale_trend_empty">受信データなし。スケールのデータを待っています</string>
     <string name="scale_trend_summary">最終値 %1$s g · %2$s 秒前</string>
+    <string name="scale_current_weight">現在の重量</string>
+    <string name="scale_device_section">デバイス</string>
 </resources>

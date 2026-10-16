@@ -60,4 +60,6 @@
     <string name="scale_trend_title">최근 10초</string>
     <string name="scale_trend_empty">수신 데이터 없음. 저울 데이터를 기다리는 중</string>
     <string name="scale_trend_summary">마지막 측정 %1$s g · %2$s초 전</string>
+    <string name="scale_current_weight">현재 무게</string>
+    <string name="scale_device_section">기기</string>
 </resources>

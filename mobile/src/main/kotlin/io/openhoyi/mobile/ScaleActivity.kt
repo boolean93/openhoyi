@@ -79,6 +79,7 @@ class ScaleActivity:ScaleOwnerActivity() {
     private lateinit var weight:TextView
     private lateinit var freshness:TextView
     private lateinit var battery:TextView
+    private lateinit var deviceStatus:TextView
     private lateinit var guard:TextView
     private lateinit var tareStatus:TextView
     private lateinit var tare:Button
@@ -100,7 +101,6 @@ class ScaleActivity:ScaleOwnerActivity() {
         val info=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
         body.addView(info)
         freshness=HoyiUi.label(this,info,"",14,muted=true).apply {layoutParams=LinearLayout.LayoutParams(0,-2,1f)}
-        battery=HoyiUi.label(this,info,"",14,muted=true)
         guard=HoyiUi.label(this,body,"",14,muted=true)
         val workspace=TaskWorkspaceLayout(this)
         body.addView(workspace,LinearLayout.LayoutParams(-1,0,1f))
@@ -113,6 +113,11 @@ class ScaleActivity:ScaleOwnerActivity() {
             setPadding(HoyiUi.dp(this@ScaleActivity,12),0,HoyiUi.dp(this@ScaleActivity,12),0)
         }
         primary.addView(reading,LinearLayout.LayoutParams(-1,0,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)})
+        HoyiUi.label(this,reading,getString(R.string.scale_current_weight),16,muted=true).apply {
+            gravity=android.view.Gravity.CENTER
+            layoutParams=LinearLayout.LayoutParams(-1,-2)
+            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,16))
+        }
         weight=HoyiUi.label(this,reading,getString(R.string.scale_unavailable),if(HoyiUi.wide(this))64 else 48,true).apply {
             // Natural height preserves system font scaling and long/negative readings.
             layoutParams=LinearLayout.LayoutParams(-1,-2);gravity=android.view.Gravity.CENTER
@@ -134,7 +139,14 @@ class ScaleActivity:ScaleOwnerActivity() {
                 val params = view.layoutParams as LinearLayout.LayoutParams
                 return view.measuredHeight + params.topMargin + params.bottomMargin
             }
-            val required = natural(reading) + natural(tare)
+            val buttonWidth = minOf(width, HoyiUi.dp(this,240)).coerceAtLeast(0)
+            (tare.layoutParams as LinearLayout.LayoutParams).apply {
+                this.width=buttonWidth; gravity=android.view.Gravity.CENTER_HORIZONTAL
+            }
+            tare.measure(android.view.View.MeasureSpec.makeMeasureSpec(buttonWidth, android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED))
+            val tareParams=tare.layoutParams as LinearLayout.LayoutParams
+            val required = natural(reading) + tare.measuredHeight + tareParams.topMargin + tareParams.bottomMargin
             required + trend.fit(width, height - required)
         }
         // Only TaskWorkspace secondary content scrolls; weight, tare and capture stay fixed.
@@ -163,13 +175,27 @@ class ScaleActivity:ScaleOwnerActivity() {
             // Full dose provenance remains available in the local scroll region.
             HoyiUi.label(this,secondary,getString(R.string.scale_dose_help),14,muted=true)
         }
-        val tools=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
-        secondary.addView(tools)
+        val device=LinearLayout(this).apply {
+            orientation=LinearLayout.VERTICAL
+            setPadding(0,HoyiUi.dp(this@ScaleActivity,24),0,0)
+        }
+        secondary.addView(device,LinearLayout.LayoutParams(-1,-2))
+        HoyiUi.label(this,device,getString(R.string.scale_device_section),20,true).apply {
+            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,16))
+        }
+        battery=HoyiUi.label(this,device,"",14,muted=true).apply {
+            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,16))
+        }
+        deviceStatus=HoyiUi.label(this,device,"",14,muted=true).apply {
+            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,8))
+        }
+        val tools=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
+        device.addView(tools)
         connectionButton=HoyiUi.button(this,tools,getString(R.string.scale_connect)) {startActivity(Intent(this,ScaleConnectionActivity::class.java))}.apply {
-            layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6);marginEnd=HoyiUi.dp(this@ScaleActivity,6)}
+            layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)}
         }
         HoyiUi.button(this,tools,getString(R.string.scale_settings)) {startActivity(Intent(this,ScaleSettingsActivity::class.java))}.apply {
-            layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6)}
+            layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6)}
         }
         if(intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
             capture=HoyiUi.button(this,body,getString(R.string.scale_dose_capture),primary=true) {
@@ -200,6 +226,7 @@ class ScaleActivity:ScaleOwnerActivity() {
             live.evidence==ScaleEvidence.LIVE_READ_ONLY->R.string.scale_read_only_live
             else->R.string.scale_live
         }))
+        deviceStatus.setIfChanged(freshness.text.toString())
         if (::trend.isInitialized) trend.present(service?.scaleTrendAt(now).orEmpty(), now, freshness.text.toString())
         battery.setIfChanged(live?.batteryPercent?.takeIf {live.capabilities.battery && it in 0..100}
             ?.let {getString(R.string.scale_battery_format,it)} ?: getString(R.string.scale_battery_unavailable))

@@ -60,4 +60,6 @@
     <string name="scale_trend_title">Последние 10 секунд</string>
     <string name="scale_trend_empty">Нет измерений; ожидание данных весов</string>
     <string name="scale_trend_summary">Последнее: %1$s г · %2$s с назад</string>
+    <string name="scale_current_weight">Текущий вес</string>
+    <string name="scale_device_section">Устройство</string>
 </resources>

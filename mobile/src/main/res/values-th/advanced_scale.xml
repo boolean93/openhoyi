@@ -60,4 +60,6 @@
     <string name="scale_trend_title">10 วินาทีล่าสุด</string>
     <string name="scale_trend_empty">ยังไม่มีข้อมูล กำลังรอข้อมูลจากเครื่องชั่ง</string>
     <string name="scale_trend_summary">ค่าล่าสุด %1$s g · %2$s วินาทีที่แล้ว</string>
+    <string name="scale_current_weight">น้ำหนักปัจจุบัน</string>
+    <string name="scale_device_section">อุปกรณ์</string>
 </resources>

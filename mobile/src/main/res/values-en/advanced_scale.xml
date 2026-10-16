@@ -60,4 +60,6 @@
     <string name="scale_trend_title">Last 10 seconds</string>
     <string name="scale_trend_empty">No received samples; waiting for scale data</string>
     <string name="scale_trend_summary">Last reading %1$s g · %2$s s ago</string>
+    <string name="scale_current_weight">Current weight</string>
+    <string name="scale_device_section">Device</string>
 </resources>

@@ -60,4 +60,6 @@
     <string name="scale_trend_title">آخر 10 ثوانٍ</string>
     <string name="scale_trend_empty">لا توجد عينات؛ بانتظار بيانات الميزان</string>
     <string name="scale_trend_summary">آخر قراءة %1$s غ · منذ %2$s ث</string>
+    <string name="scale_current_weight">الوزن الحالي</string>
+    <string name="scale_device_section">الجهاز</string>
 </resources>
