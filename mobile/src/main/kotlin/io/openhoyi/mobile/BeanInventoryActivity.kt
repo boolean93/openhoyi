@@ -227,6 +227,8 @@ internal fun ThemedActivity.beanInput(parent: LinearLayout, label: Int, numeric:
         id = android.view.View.generateViewId()
         title.labelFor = id
         textSize = 18f
+        typeface = TaskTypography.face(this@beanInput, 400)
+        includeFontPadding = false
         setTextColor(getColor(R.color.mobile_text))
         setHintTextColor(getColor(R.color.mobile_muted))
         inputType = if (numeric) InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL else InputType.TYPE_CLASS_TEXT
