@@ -11,3 +11,7 @@ Adapt ChineseFormWindowChecks to actual inline fields and keyboard; preserve lon
 ## 原生长文本坐标修正
 
 ff1ef65的phone/tablet-landscape/tablet-large-font中文复盘均在键盘弹出后的longEditor可见性失败；此前长文本top/end两状态已通过。源码证据Android34 View.requestRectangleOnScreen明确接收content coordinates，并向父层换算时减child.scrollY；测试在EditText已滚到末尾后仍传(0,0,width,height)，请求的是文本起点而非当前可见编辑框，导致外层ScrollView错误滚动。使用getDrawingRect取得含自身scrollX/Y的当前视口，保留所有完整可见/IME遮挡/文本/本地滚动/16000限制断言。键盘后检查前增加截图，若仍失败有直接可视证据。不修改App文本/焦点/滚动门槛或缩小需求。精确新提交原生重跑仍需确认。
+
+## 横屏IME短输入的实际高度修正
+
+2773b29横屏日志已完成8个longStates、inlineObserved/imeObserved=true；新的失败在ChineseFormWindowChecks:505短粉量字段，65px输入仅60px可见，不是旧长文本坐标问题。TaskReviewSections参数区最低48dp，原生短输入最低52dp。按参数区短EditText实际测量高度+面板上下padding确定最低预算（不是缩小字体或输入目标）；长文本既有自适应/16000过滤/滚动断言不变。继续现有横屏原生输入/IME断言验证。

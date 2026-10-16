@@ -90,3 +90,8 @@ Home a8f9bf8→c7a4b83：阶段预览/真实只读用豆与使用记录摘要/�
 Extraction1daf622：时间/真实数量两主读数，压力/机器原始温度次级，单图占主要剩余空间；工具局部滚动，flow仅详情，不从raw scale推算出液。原确认方法与start/stop/prepare/cancel门禁保留。参考来源标签只包含实际日期与对齐，陈旧“实线本杯/虚线参考”说明另改成真实灰参考语义。规格审查发现临界高度chrome显隐反馈振荡P2，修复中，未宣称此页完成。
 
 root实际完整命令（沿用SDK35离线aapt2覆盖）：`:mobile:testMockUnitTest :mobile:assembleMock :mobile:assembleMockAndroidTest`，日志`/tmp/task-workbench-build.log`，BUILD SUCCESSFUL in51s/96tasks；独立解析66个JUnit XML，295tests/0fail/0error/1既有skip。此结果覆盖1daf622及当时root测试，但不覆盖后续修复和双杯实现；原生窗口与云端lint仍须重跑。本地lint没有新增通过证据。无用户设备安装、无发版、PR#4仍draft。
+
+
+## 2026-10-16 横屏复盘短输入高度修正
+
+2773b29 single-screen38844288915已终止为失败。用户平板横屏也在ChineseFormWindowChecks短输入检查失败：117px字段只显示108px，与普通横屏65/60px均对应52dp字段被48dp参数视口裁切；此前8个长文本状态和IME检查通过。生产布局改按原生短输入测量高度与面板padding保留参数区，不削弱测试。`/tmp/task-review-native-height-build.log`完整JVM/两MockAPK构建成功44s；JUnit295/0fail/0error/1skip。精确修正后的原生横屏结果仍待CI。库存列表详情与横屏范围变更一起进入新轮验收；不代表全部21页完成。

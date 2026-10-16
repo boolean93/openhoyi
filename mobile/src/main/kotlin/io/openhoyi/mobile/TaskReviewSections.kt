@@ -32,7 +32,20 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
                 (height / density).toInt()).twoPaneAllowed && width >= dp(624)
             val nextOrientation = if (split) HORIZONTAL else VERTICAL
             val parameterWidth = if (split) dp(280) else width
-            val parameterHeight = if (split) -1 else minOf(dp(180), height / 3).coerceAtLeast(minOf(dp(48), height))
+            // A short native input is at least 52dp, before panel padding. Do not allocate
+            // a 48dp viewport merely because that is the minimum touch target elsewhere.
+            var parameterMinimum = dp(48)
+            panels.take(2).forEach { panel ->
+                for (index in 0 until panel.childCount) {
+                    val field = panel.getChildAt(index)
+                    if (field is EditText && field.inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE == 0) {
+                        field.measure(MeasureSpec.makeMeasureSpec((parameterWidth - panel.paddingLeft - panel.paddingRight).coerceAtLeast(0), MeasureSpec.EXACTLY),
+                            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                        parameterMinimum = maxOf(parameterMinimum, field.measuredHeight + panel.paddingTop + panel.paddingBottom)
+                    }
+                }
+            }
+            val parameterHeight = if (split) -1 else minOf(dp(180), height / 3).coerceAtLeast(minOf(parameterMinimum, height))
             if (orientation != nextOrientation || parameterScroll.layoutParams.width != parameterWidth ||
                 parameterScroll.layoutParams.height != parameterHeight) {
                 orientation = nextOrientation
