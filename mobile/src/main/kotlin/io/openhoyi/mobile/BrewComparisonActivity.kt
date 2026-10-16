@@ -94,35 +94,46 @@ class BrewComparisonActivity : ThemedActivity() {
             getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
         }
         val shortLabels = listOf(getString(R.string.task_comparison_choose_cup)) + entries.map { journalDate(it.observation.startedAtMs) }
-        fun cupSelector(label: Int, selected: String?, changed: (String) -> Unit): Spinner {
+        fun cupSelector(label: Int, selected: String?, changed: (String?) -> Unit): (String?) -> Unit {
             val cell = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             selectors.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
             HoyiUi.label(this, cell, getString(label), 13, muted = true)
-            return Spinner(this).apply {
+            // Track the displayed position separately from identity: an absent ID initially
+            // shares the placeholder position, but must survive its automatic initial callback.
+            var displayedPosition = choiceIds.indexOf(selected).coerceAtLeast(0)
+            val spinner = Spinner(this).apply {
                 tag = if (label == R.string.journal_first) "comparison-first" else "comparison-second"
                 adapter = beanChoiceAdapter(labels, shortLabels)
                 contentDescription = getString(label)
                 minimumHeight = dp(48)
                 cell.addView(this, LinearLayout.LayoutParams(-1, -2))
-                setSelection(choiceIds.indexOf(selected).coerceAtLeast(0))
+                setSelection(displayedPosition)
                 onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                     override fun onNothingSelected(parent: AdapterView<*>?) = Unit
                     override fun onItemSelected(parent: AdapterView<*>?, item: View?, position: Int, id: Long) {
-                        choiceIds[position]?.let(changed)
+                        if (position != displayedPosition) {
+                            displayedPosition = position
+                            changed(choiceIds[position])
+                        }
                     }
                 }
             }
+            return { identity ->
+                // Swapping is an identity operation, not a user clearing an absent record.
+                displayedPosition = choiceIds.indexOf(identity).coerceAtLeast(0)
+                spinner.setSelection(displayedPosition)
+            }
         }
-        val firstSelector = cupSelector(R.string.journal_first, firstId) { id ->
+        val displayFirstSelection = cupSelector(R.string.journal_first, firstId) { id ->
             if (firstId != id) { firstId = id; refresh() }
         }
-        val secondSelector = cupSelector(R.string.journal_second, secondId) { id ->
+        val displaySecondSelection = cupSelector(R.string.journal_second, secondId) { id ->
             if (secondId != id) { secondId = id; refresh() }
         }
         HoyiUi.button(this, support, getString(R.string.task_comparison_swap)) {
             val previous = firstId; firstId = secondId; secondId = previous
-            firstSelector.setSelection(choiceIds.indexOf(firstId).coerceAtLeast(0))
-            secondSelector.setSelection(choiceIds.indexOf(secondId).coerceAtLeast(0))
+            displayFirstSelection(firstId)
+            displaySecondSelection(secondId)
             refresh()
         }.tag = "comparison-swap"
         val shared = HoyiUi.label(this, support, "", 14, true)
