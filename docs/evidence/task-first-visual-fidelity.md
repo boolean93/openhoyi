@@ -239,3 +239,15 @@ b349502 task-frame38870529947 completed/success，产物result.txt为TASK_FRAME_
 500d5d6 task-frame38872022602 completed/success，已下载并实读用户平板BrewReviewActivity.png：实际为“找不到这杯记录”的缺失记录态。24页框架检查通过不能证明复盘双数值或字段标签；继续等待正常fixture的single-screen/advanced证据。2fc59a5 native38871320546、lifecycle38871320525、upgrade38871320508和task-frame38871320557均成功；这些也不替代500d5d6正常复盘的实屏。418fec6新历史构图single-screen38873060543和task-frame38873060561查询时queued。
 
 源码确认AdvancedBusinessUiChecks已有冲突保留/副本及重复导入幂等断言，但不输出冲突截图。本候选在已有流程中新增review-saved-notes、import-new、import-conflict三张实际窗口截图，采集前验证窗口和对应按钮，脚本校验PNG完整性及1600×1000尺寸。未改变17路径、库存事件、文档或设备断言。测试APK24秒构建成功，bash -n和diff检查通过；尚未运行本候选原生流程，不将截图代码存在当作截图已产生。范围是中文浅色标准字号CI横屏，不等同用户平板或字体1.3验收。
+
+## 7b03ebe运行态实屏复核
+
+Capture38870992324 completed/success，已下载并实读ci-7b03ebe-capture/mock-ui-screenshots/extraction-running-dark.png（1600×1000）。时间6s、秤读数4.20g、压力6.0bar、累计注水3.6ml、机器温度93.00°C均出现；四指标同图、独立量程和右下固定红色停止仍在。正常运行态禁用的预热/取消预热组确实已消失，这一项从代码候选推进到实屏证据。
+
+仍未对齐项：右侧“选择历史参考/萃取概览”仍为两块边框按钮，图例的名称+单位+量程较密；需要与认可稿同主题/同内容区继续校准。没有把此Mock正常态推及未知、断连、预热恢复、用户2560×1600或字号1.3。复盘正常态single-screen38871320553此时仍in_progress，历史构图single-screen38873060543仍queued；没有重启或取消这些任务。
+
+## 导入预览构图候选
+
+仅CurveImportPreviewActivity从共享profileCard改为任务双区：左侧24sp标题，14sp/24sp三项参数摘要和原CurveStageView；右侧冲突文本、本地预览及保留本地；保存/副本独立TaskActionDock限宽。无冲突态不显示警告，兼容性说明明确导入不自动选曲线/启动。未修改分享页、profilePreviewDialog、finishedSave、保存失败按钮恢复、importDocument冲突重绘和saveCopy逻辑。
+
+双Mock APK40秒成功，diff检查通过；实际布局、冲突行为、字号1.3仍待精确提交CI。认可稿内嵌阶段参数表尚有缺口，目前完整参数在原详情入口，不能把此候选视为整页一致。224cec0新增的业务截图检查将提供两种导入状态证据，不得用无冲突截图证明冲突态。
