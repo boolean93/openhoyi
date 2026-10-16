@@ -79,8 +79,12 @@ class BrewReviewActivity : ThemedActivity() {
         val previousBean = entry.notes.beanId?.let { Bean(it, requireNotNull(entry.notes.beanName)) }
         val beans = (listOfNotNull(previousBean) + app.beanInventoryResult.getOrNull()?.batches().orEmpty().map { it.batch.bean }).distinctBy { it.id }
         selectedBeanId = if (savedInstanceState == null) entry.notes.beanId else savedInstanceState.getString("selectedBeanId")
-        HoyiUi.label(this, card, getString(R.string.journal_bean), 15, muted = true)
+        val beanLabel = HoyiUi.label(this, card, getString(R.string.journal_bean), 16, true).apply {
+            setPadding(0,HoyiUi.dp(this@BrewReviewActivity,8),0,HoyiUi.dp(this@BrewReviewActivity,6))
+        }
         val select = Spinner(this).apply {
+            this.id=android.view.View.generateViewId()
+            beanLabel.labelFor=this.id
             adapter = beanChoiceAdapter(
                 listOf(getString(R.string.journal_no_bean)) + beans.map { it.name })
             minimumHeight = HoyiUi.dp(this@BrewReviewActivity, 52)
@@ -92,7 +96,7 @@ class BrewReviewActivity : ThemedActivity() {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedBeanId = beans.getOrNull(position - 1)?.id }
         }
         select.setSelection(beans.indexOfFirst { it.id == selectedBeanId }.let { if (it < 0) 0 else it + 1 })
-        fun field(key: String, label: Int, initial: String, numeric: Boolean = false) = beanInput(sections.panels[when (key) { "grind" -> 1; "expectation" -> 2; "taste" -> 3; "next" -> 4; else -> 0 }].apply { tag = "bean-full-field" }, label, numeric).also {
+        fun field(key: String, label: Int, initial: String, numeric: Boolean = false) = beanInput(sections.panels[when (key) { "grind" -> 1; "expectation" -> 2; "taste" -> 3; "next" -> 4; else -> 0 }].apply { tag = "bean-full-field" }, label, numeric, emphasizeLabel=true).also {
             fields[key] = it
             if (!numeric) { it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; it.setSingleLine(false); it.minLines = 2; it.gravity = android.view.Gravity.TOP; it.layoutParams = (it.layoutParams as LinearLayout.LayoutParams).apply { height = HoyiUi.dp(this@BrewReviewActivity, 160); weight = 0f }; it.filters = arrayOf(InputFilter.LengthFilter(16000)) }
             it.setText(savedInstanceState?.getString(key) ?: initial)

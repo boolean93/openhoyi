@@ -202,3 +202,17 @@ bf2ed46 task-frame38866479646和single-screen38866479455均completed/success。�
 ## 复盘结果摘要对照
 
 实读4ecc593用户平板中文浅色正常态BrewReviewActivity/window.png与brew-review-v3：参数/笔记两区和标题同行选择器已生效，但结果顶栏仍一行14sp文本，不符合稿中独立时长/秤读数数值层级。候选保留原elapsedMs/weightHundredthsGram格式与观察状态，改24sp/700双数值、14sp标签及独立状态列，UNKNOWN警告未动。豆款、研磨、三块笔记、保存与恢复未改。没有将此正常空笔记截图视为与稿件相同数据态；候选仍需多语言/大字号/IME和新实屏证明。
+
+## 字体修复24页与正常/运行态证据
+
+b349502 task-frame38870529947 completed/success，产物result.txt为TASK_FRAME_CHECKS_PASSED pages=24 noBle=true：此前OOM路径已走完。和693e696同窗口24份typography.json按view path比对，weight/textSizePx/lineHeightPx/includeFontPadding零差异。407个同文本节点的绝对坐标/内边距存在315项差异；Home/Curve主要统一上移11px，不能把它们直接认定为字体宽度变化或声称像素完全一致。需要按实际内容区归一核对；不扩大为低内存全部场景或API26–27验收。
+
+1c256c8 single-screen38869788055 completed/success，实读用户平板正常库存截图：上方全局新增/流水文字入口、批次文字入口、右下限宽选豆主操作已出现；result.txt checked=336 pages=21，list-state-result.txt库存recreate及navigation-detail-return均scrollY=626，列表恢复通过。仍缺原稿日期/流水摘要层级，不关闭整页验收。
+
+693e696 Capture38870134243 completed/success，实读extraction-running-dark.png：6s/4.20g主值、6.0bar/3.6ml/93.00°C辅助读数均出现，四系列同图和红色停止保留。此为1600×1000深色Mock运行态，不能证明用户2560×1600或1.3字体同场景；尚不包含7b03ebe收起预热工具的改动。
+
+进一步定位11px偏移：HomeActivity的root/0实际系统顶部padding在693e696为74px，在b349502为63px，底部内容边界均1465px；内容首层top同步74→63。这能解释统一上移，不应通过改应用padding抵消系统差异。字体缓存修复不改变应用间距token；其他非统一边界差异仍需逐页按内容区核对。
+
+## 复盘字段标签候选
+
+按同一brew-review-v3，复盘字段标签从15sp灰色改16sp/500正文色，豆款标签也统一并通过labelFor关联原选择框。beanInput强调选项默认false，只在复盘启用；其他页字段样式、输入/保存/草稿和视口策略未改。首次编译因局部记录id遮蔽Spinner.id失败，明确this.id后重建；未放松任何检查。新字段样式和2fc59a5结果摘要仍待实际正常/长内容/大字号/IME截图，不因旧CI绿色标记完成。
