@@ -65,9 +65,10 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
             CurveDraftNumber.format(stage.waterTenthsMl, 1)), false, index)
     }
     workspace.onPrimarySpaceAvailable = { width, height ->
-        val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+        val contentWidth = (width - preview.paddingLeft - preview.paddingRight).coerceAtLeast(0)
+        val exactWidth = View.MeasureSpec.makeMeasureSpec(contentWidth, View.MeasureSpec.EXACTLY)
         val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        var fixedHeight = 0
+        var fixedHeight = preview.paddingTop + preview.paddingBottom
         for (index in 0 until preview.childCount) {
             val child = preview.getChildAt(index)
             if (child !== chart && child !== table) {

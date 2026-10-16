@@ -24,7 +24,14 @@ class CurveShareActivity : ThemedActivity() {
         if (doc == null) { HoyiUi.label(this, body, getString(R.string.profiles_missing), 17); return }
         document = doc
         exportedUri = savedInstanceState?.getString("exportedUri")?.let(Uri::parse)
-        val workspace = TaskWorkspaceLayout(this)
+        val workspace = TaskWorkspaceLayout(this).apply {
+            fillSecondaryViewport = true
+            listOf(primaryBody, secondaryBody).forEach { pane ->
+                val inset = HoyiUi.dp(this@CurveShareActivity, 16)
+                pane.setPadding(inset, inset, inset, inset)
+                pane.background = HoyiUi.shape(this@CurveShareActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+            }
+        }
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply {
             topMargin = HoyiUi.dp(this@CurveShareActivity, 16)
         })
@@ -51,7 +58,7 @@ class CurveShareActivity : ThemedActivity() {
         HoyiUi.button(this, actions, getString(R.string.profiles_export_file)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json")
                 .putExtra(Intent.EXTRA_TITLE, "openhoyi-${doc.id}.json"), EXPORT)
-        }
+        }.asTaskTextAction()
         shareFile = HoyiUi.button(this, actions, getString(R.string.profiles_share_file)) {
             exportedUri?.let { uri ->
                 startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, uri)
@@ -65,7 +72,7 @@ class CurveShareActivity : ThemedActivity() {
         }
         HoyiUi.button(this, actions, getString(R.string.ui_full_details)) {
             beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
-        }
+        }.asTaskTextAction()
     }
     @Deprecated("Platform activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

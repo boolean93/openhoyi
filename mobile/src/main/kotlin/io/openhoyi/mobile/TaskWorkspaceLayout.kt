@@ -16,6 +16,9 @@ internal class TaskWorkspaceLayout(context: Context) : LinearLayout(context) {
                 minOf(heightLimit, MeasureSpec.getSize(heightMeasureSpec)), MeasureSpec.AT_MOST))
         }
     }.apply { isFillViewport = false; addView(secondaryBody) }
+    var fillSecondaryViewport: Boolean
+        get() = supportingScroll.isFillViewport
+        set(value) { supportingScroll.isFillViewport = value }
     private var paneMode: Boolean? = null
     /** Optional compact readout budget; charts retain their default expanding primary region. */
     var compactPrimaryHeightDp: Int? = null
