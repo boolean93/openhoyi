@@ -38,6 +38,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 val chart = field("stageChart") as CurveStageView
                 val fallback = field("previewFallbackScroll") as ScrollView
                 val text = field("previewFallback") as TextView
+                val metrics = field("previewMetrics") as CurvePreviewMetrics
                 val ability = field("availability") as TextView
                 val select = field("select") as Button
                 val directory = File(context.getExternalFilesDir(null), "curve-library-checks").apply { mkdirs() }
@@ -59,10 +60,17 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         }
                     }
                     if (chart.visibility == View.VISIBLE) {
+                        check(metrics.visibility == View.VISIBLE && metrics.contentDescription.isNotBlank())
+                        for (columnIndex in 0 until metrics.childCount) {
+                            val column=metrics.getChildAt(columnIndex) as android.view.ViewGroup
+                            for (labelIndex in 0 until column.childCount)
+                                LanguageUiLayoutChecks.textFits(column.getChildAt(labelIndex) as TextView,"$name recipe metric")
+                        }
                         check(chart.height >= HoyiUi.dp(activity, 96) && ability.visibility == View.VISIBLE && ability.parent != null)
                     } else {
                         check(fallback.visibility == View.VISIBLE && fallback.height > 0)
                         check(text.text.contains(chosen.name) && text.text.contains(ability.text))
+                        check(text.text.contains(metrics.contentDescription))
                         check(text.text.contains(activity.getString(R.string.profiles_stage_caption)))
                         CurveStageParameters.pressureTargets(chosen).forEachIndexed { index, value ->
                             check(text.text.contains(activity.getString(R.string.reference_stage, (index + 1).toString(),

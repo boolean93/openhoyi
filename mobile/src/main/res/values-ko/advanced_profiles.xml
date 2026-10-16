@@ -52,4 +52,7 @@
     <string name="profiles_stage_raw_summary">단계 %1$d: 원시 목표값 %2$d · 이 단계의 물 양 %3$s mL</string>
     <string name="profiles_pressure_compatible">압력 매개변수 호환 · 저장 후 추출에 사용할 수 있습니다</string>
     <string name="profiles_pressure_execution_limits">실행하려면 호환 펌웨어가 필요합니다. 물 양은 정수 mL, 컵 무게는 0.1 g 단위여야 합니다. 다른 매개변수도 저장하여 볼 수 있습니다.</string>
+    <string name="curve_preview_temperature">설정 온도</string>
+    <string name="curve_preview_weight">목표 추출량</string>
+    <string name="curve_preview_stages">단계 수</string>
 </resources>

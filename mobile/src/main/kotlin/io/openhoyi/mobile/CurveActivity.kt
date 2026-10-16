@@ -14,6 +14,7 @@ import android.widget.*
 class CurveActivity : ThemedActivity() {
     private data class RowViews(val title: TextView, val subtitle: TextView, val preview: CurveStageView)
     private lateinit var detailTitle: TextView
+    private lateinit var previewMetrics: CurvePreviewMetrics
     private lateinit var detailCategory: TextView
     private lateinit var details: TextView
     private lateinit var availability: TextView
@@ -258,6 +259,8 @@ class CurveActivity : ThemedActivity() {
         }
         detailCategory = HoyiUi.label(this, detailPane, getString(R.string.curve_detail_hint), 13, muted = true)
         availability = HoyiUi.label(this, detailPane, "", 13, true).apply { visibility = View.GONE }
+        previewMetrics = CurvePreviewMetrics(this).apply { visibility=View.GONE; tag="curve-preview-metrics" }
+        detailPane.addView(previewMetrics,LinearLayout.LayoutParams(-1,-2))
         stageChart = CurveStageView(this).apply { visibility = View.GONE }
         // Kept as a bounded, non-overflowing viewport for existing layout selectors.
         detailScroll = ScrollView(this).apply {
@@ -391,6 +394,8 @@ class CurveActivity : ThemedActivity() {
         selected = item
         stageChart.targets = stageTargets(item)
         val draft = item.customDocument
+        previewMetrics.present(item)
+        previewMetrics.visibility=View.VISIBLE
         val hasPressureSchematic = stageChart.targets.isNotEmpty()
         shortPreview = false
         stageChart.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
@@ -453,7 +458,7 @@ class CurveActivity : ThemedActivity() {
         // Measure the full normal presentation, even when its metadata is currently in fallback.
         // Otherwise hiding metadata would make the next measure flip back into a too-short plot.
         val actionHeight = naturalHeightOf(detailToolbar) + naturalHeightOf(selectionDock)
-        val metadataHeight = listOf(detailCategory, availability).sumOf(::naturalHeightOf) +
+        val metadataHeight = listOf(detailCategory, availability, previewMetrics).sumOf(::naturalHeightOf) +
             if (hasPressure) naturalHeightOf(stageCaption) else 0
         val contentMinimum = if (hasPressure) (dp(96) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt() + dp(6)
             else {
@@ -461,7 +466,7 @@ class CurveActivity : ThemedActivity() {
                 rawReasonMeasure.measuredHeight
             }
         shortPreview = height - detailPanel.paddingTop - detailPanel.paddingBottom - actionHeight - metadataHeight < contentMinimum
-        listOf(detailCategory, availability).forEach {
+        listOf(detailCategory, availability, previewMetrics).forEach {
             it.visibility = if (shortPreview) View.GONE else View.VISIBLE
         }
         stageCaption.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
@@ -476,7 +481,7 @@ class CurveActivity : ThemedActivity() {
             previewFallbackScroll.layoutParams = LinearLayout.LayoutParams(-1, fallbackHeight, fallbackWeight)
         previewSpacer.visibility = if (!hasPressure && !shortPreview) View.VISIBLE else View.GONE
         val fallbackText = if (shortPreview) listOf(
-            item.name, detailCategory.text.toString(), availability.text.toString(),
+            item.name, detailCategory.text.toString(), previewMetrics.contentDescription.toString(), availability.text.toString(),
             if (hasPressure) getString(R.string.profiles_stage_caption) else getString(R.string.task_curve_library_no_pressure),
             if (hasPressure) getString(R.string.task_curve_library_short_preview,
                 stageChart.targets.mapIndexed { index, value -> getString(R.string.reference_stage,
@@ -516,6 +521,7 @@ class CurveActivity : ThemedActivity() {
             detailTitle.visibility = View.VISIBLE
             detailCategory.visibility = View.VISIBLE
             detailCategory.text = getString(R.string.curve_detail_hint)
+            previewMetrics.visibility = View.GONE
             details.text = ""
             availability.visibility = View.GONE
             select.isEnabled = false
