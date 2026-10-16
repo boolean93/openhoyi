@@ -160,7 +160,25 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                 test.waitForIdleSync()
                 main { SingleScreenPageChecks.verify(activity) }
                 if (language == AppLanguage.CHINESE && activity is BrewComparisonActivity) {
-                    TwoCupComparisonPageChecks.run(test, activity)
+                    val comparison = activity
+                    TwoCupComparisonPageChecks.run(test, comparison) { metric ->
+                        awaitDraw(comparison)
+                        val evidence = File(directory, "comparison-metrics/$name/${metric.name.lowercase(java.util.Locale.ROOT)}")
+                            .apply { check(mkdirs() || isDirectory) }
+                        main {
+                            val chart = comparison.window.decorView.findViewWithTag<TwoCupChartView>("two-cup-chart")
+                            check(chart.metric == metric && chart.firstPoints.size >= 2 && chart.secondPoints.size >= 2)
+                            TaskTypographyEvidence.capture(comparison, evidence)
+                            File(evidence, "sources.txt").writeText(
+                                "metric=$metric firstSamples=${chart.firstPoints.size} secondSamples=${chart.secondPoints.size}\n")
+                        }
+                        val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                        try {
+                            File(evidence, "window.png").outputStream().use {
+                                check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                            }
+                        } finally { bitmap.recycle() }
+                    }
                     main { SingleScreenPageChecks.verify(activity) }
                 }
                 // Verify the actual populated states too, not just empty previews.

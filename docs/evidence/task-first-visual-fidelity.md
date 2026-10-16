@@ -600,3 +600,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 概览加入同一参数全文。LanguageActiveCupChecks从反射旧段落改为查找实际温度行，保留isShown/本杯温度、快照身份、语言重建不换杯和停止操作断言；不是查询脱离界面的隐藏摘要。
 - 新分行增加的右栏自然高度需大字号/短高CI和运行图验证，不能凭布局源码宣称全部内容同时可见。
 - Mock/test APK构建44s成功（/tmp/task-live-recipe-build.log），diff和分支规则通过；新增可见温度行断言与新布局实图待CI。
+
+### 两杯对比摘要实图与四指标取证补充（2026-10-16）
+
+- edd89da advanced38888881932 completed/success，下载ci-edd89da-pages，普通/大字号各240夹具通过。目视中文浅色对比页与brew-comparison-v1：全宽图表和三行双杯摘要实际生效，缺失第二杯时长/重量显示—，未知结果提示保留；原指标仍下拉框，因为fb19415在此版本之后。
+- 该高级夹具两杯记录没有保存采样，图为0..1s空图，不能证明双轨迹绘制。大字号截图停在支持区下滚位置，摘要只见口感行，不能将其认作全表同时可见，也不能在没有滚动状态证据时直接认作裁切。
+- 复用SingleScreenWindowRun既有非空两杯采样，四指标真实点击且断言通过后，等待绘制并分别保存comparison-metrics/<language-theme-page>/<metric>/window.png、字体JSON及sources.txt；保存前再次检查两杯至少两点及指标正确。原清空/交换/finally恢复全部保留，不新增或伪造采样。
+- test APK构建24s成功（/tmp/task-comparison-metric-evidence-build.log），diff和分支规则通过。新四指标图尚待CI；f525db3普通横屏已success，用户/大字号仍in_progress。

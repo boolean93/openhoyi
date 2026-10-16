@@ -7,7 +7,7 @@ import android.widget.Spinner
 
 /** Real controls and actual cup identities. No journal or sample mutations. */
 internal object TwoCupComparisonPageChecks {
-    fun run(test: Instrumentation, activity: BrewComparisonActivity) {
+    fun run(test: Instrumentation, activity: BrewComparisonActivity, captureMetric: (ChartMetric) -> Unit) {
         fun main(action: () -> Unit) {
             var failure: Throwable? = null
             test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
@@ -71,6 +71,7 @@ internal object TwoCupComparisonPageChecks {
                     check(metricButton(metric).isSelected && metricButton(metric).height >= HoyiUi.dp(activity, 48))
                     check(chart.focusedSeries?.metric == metric && chart.plotBounds.height() >= HoyiUi.dp(activity, 96))
                 }
+                captureMetric(metric)
             }
             // The real placeholder must clear identity and data, not only its displayed chip.
             val firstSelector = root.findViewWithTag<Spinner>("comparison-first")
