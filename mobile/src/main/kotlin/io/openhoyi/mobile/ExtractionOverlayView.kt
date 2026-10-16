@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
@@ -8,6 +9,9 @@ import android.graphics.Path
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.view.View
+import android.view.MotionEvent
+import android.graphics.RectF
+import android.widget.SeekBar
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
@@ -26,6 +30,8 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         set(value) {
             if (field == value) return
             field = value
+            inspectionDialog?.dismiss()
+            inspectedTime = null
             previousRanges = emptyMap()
             rebuildProjection()
             // The Activity sets identity before replacing points; do not retain the old cup range.
@@ -34,6 +40,8 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
     var referenceLabel: String? = null
         set(value) { if (field != value) { field = value; updateDescription() } }
 
+    private var inspectedTime: Long? = null
+    private var inspectionDialog: AlertDialog? = null
     private var previousRanges: Map<ChartMetric, ChartRange> = emptyMap()
     private var data = FourMetricChartProjection.build(emptyList(), emptyList())
     private var selected: ChartMetric? = null
@@ -147,8 +155,13 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
                 legend.addView(button, index)
             }
         }
+        if (inspectedTime != null && points.none { it.elapsedMs == inspectedTime }) {
+            inspectedTime = null
+            inspectionDialog?.dismiss()
+        }
         updateSelection()
         updateDescription()
+        plot.isEnabled = points.isNotEmpty()
         plot.invalidate()
     }
 
@@ -193,7 +206,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         if (hasGaps()) notes += context.getString(R.string.task_chart_gap)
         val description = notes.joinToString("\n")
         if (explanation.text.toString() != description) explanation.text = description
-        plot.contentDescription = (notes + context.getString(R.string.task_chart_hint) +
+        plot.contentDescription = (notes + context.getString(R.string.task_chart_inspect_hint) + context.getString(R.string.task_chart_hint) +
             context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit) +
             referenceNotes + data.series.map { series ->
             val latest = series.current.lastOrNull()?.lastOrNull()
@@ -202,6 +215,63 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         }).joinToString("; ")
         // Do not group the native clickable legend into one accessibility node.
         contentDescription = null
+    }
+
+    override fun onDetachedFromWindow() {
+        inspectionDialog?.dismiss()
+        super.onDetachedFromWindow()
+    }
+
+    private fun inspectSample() {
+        if (points.isEmpty() || inspectionDialog != null) return
+        // A live append must not move the observation under a user's finger.
+        val samples = points.toList()
+        val body = LinearLayout(context).apply {
+            orientation = VERTICAL
+            setPadding(dp(20f).toInt(), dp(12f).toInt(), dp(20f).toInt(), dp(12f).toInt())
+        }
+        val readout = TextView(context).apply {
+            tag = "chart-sample-readout"
+            textSize = 18f
+            setTextColor(context.getColor(R.color.mobile_text))
+            setTextIsSelectable(true)
+        }
+        body.addView(ScrollView(context).apply { addView(readout) }, LayoutParams(-1, dp(220f).toInt()))
+        val slider = SeekBar(context).apply {
+            tag = "chart-sample-slider"
+            max = samples.lastIndex
+            isEnabled = samples.size > 1
+            contentDescription = context.getString(R.string.task_chart_inspect_hint)
+        }
+        body.addView(slider, LayoutParams(-1, dp(48f).toInt()))
+        fun show(index: Int) {
+            val point = samples[index]
+            inspectedTime = point.elapsedMs
+            val title = context.getString(R.string.task_chart_sample_time,
+                String.format(Locale.ROOT, "%.2f", point.elapsedMs / 1000.0))
+            readout.text = (listOf(title) + ChartInspection.values(point).map { (metric, value) ->
+                val displayed = value?.let { String.format(Locale.ROOT,
+                    if (metric == ChartMetric.WEIGHT || metric == ChartMetric.TEMPERATURE) "%.2f" else "%.1f", it) + " " + metric.unit }
+                    ?: context.getString(if (metric == ChartMetric.PRESSURE) R.string.task_chart_not_brewing else R.string.task_chart_missing_scale)
+                "${metricName(metric)}: $displayed"
+            }).joinToString("\n\n")
+            if (android.os.Build.VERSION.SDK_INT >= 30) slider.stateDescription = title
+            else slider.contentDescription = title + "; " + context.getString(R.string.task_chart_inspect_hint)
+            plot.invalidate()
+        }
+        slider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) { show(progress) }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        val initial = ChartInspection.nearestIndex(samples, inspectedTime ?: samples.last().elapsedMs)!!
+        slider.progress = initial
+        show(initial)
+        inspectionDialog = AlertDialog.Builder(context).setTitle(R.string.extraction_chart).setView(body)
+            .setPositiveButton(android.R.string.ok, null).create().also { dialog ->
+                dialog.setOnDismissListener { inspectionDialog = null }
+                dialog.show()
+            }
     }
 
     private fun metricName(metric: ChartMetric) = context.getString(when (metric) {
@@ -279,6 +349,19 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
     }
 
     private inner class MetricPlot(context: Context) : View(context) {
+        private val plotBounds = RectF()
+        init {
+            isFocusable = true
+            setOnClickListener { inspectSample() }
+        }
+        override fun onTouchEvent(event: MotionEvent): Boolean {
+            if (event.actionMasked == MotionEvent.ACTION_UP && plotBounds.contains(event.x, event.y) && points.isNotEmpty()) {
+                val fraction = ((event.x - plotBounds.left) / plotBounds.width()).coerceIn(0f, 1f)
+                val time = (fraction.toDouble() * data.timeEndMs).toLong()
+                inspectedTime = ChartInspection.nearestIndex(points, time)?.let { points[it].elapsedMs }
+            }
+            return super.onTouchEvent(event)
+        }
         val labels = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = 11f * resources.displayMetrics.scaledDensity
             color = context.getColor(R.color.chart_label)
@@ -314,7 +397,9 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             val bottom = height - lineHeight * 2.5f - dp(9f)
             // Parent measurement exposes the native notice instead of a too-short plot.
             // Also reject overlapping ticks if this child is ever drawn independently.
+            plotBounds.setEmpty()
             if (right <= left || bottom - top < lineHeight + dp(8f)) return
+            plotBounds.set(left, top, right, bottom)
             val rows = ((bottom - top) / (lineHeight + dp(8f))).toInt().plus(1).coerceIn(2, 5)
             labels.textAlign = Paint.Align.LEFT
             var columnX = outer
@@ -378,6 +463,14 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             data.series.firstOrNull { it.metric == focusMetric }?.let { drawSeries(it, true) }
             data.series.sortedBy { it.metric == selected }.forEach { drawSeries(it, false) }
             data.observedThroughMs?.let { canvas.drawLine(x(it), top, x(it), bottom, grid) }
+            inspectedTime?.let { time ->
+                stroke.color = context.getColor(R.color.mobile_text)
+                stroke.alpha = 255
+                stroke.strokeWidth = dp(1.5f)
+                stroke.pathEffect = DashPathEffect(floatArrayOf(dp(3f), dp(3f)), 0f)
+                canvas.drawLine(x(time), top, x(time), bottom, stroke)
+                stroke.pathEffect = null
+            }
             canvas.restore()
             if (points.isEmpty() && reference.isEmpty()) {
                 val empty = context.getString(R.string.chart_empty_title)
