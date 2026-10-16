@@ -51,4 +51,6 @@
     <string name="journal_grams">%1$s g</string>
     <string name="journal_selector_title">%1$s · %2$s</string>
     <string name="journal_detail">查看记录与采样</string>
+    <string name="journal_parameters">本杯参数</string>
+    <string name="journal_notes">我的记录</string>
 </resources>

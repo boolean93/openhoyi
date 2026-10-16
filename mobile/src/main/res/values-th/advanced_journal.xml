@@ -51,4 +51,6 @@
     <string name="journal_grams">%1$s กรัม</string>
     <string name="journal_selector_title">%1$s · %2$s</string>
     <string name="journal_detail">ดูบันทึกและข้อมูลตัวอย่าง</string>
+    <string name="journal_parameters">ค่าของกาแฟแก้วนี้</string>
+    <string name="journal_notes">บันทึกของฉัน</string>
 </resources>

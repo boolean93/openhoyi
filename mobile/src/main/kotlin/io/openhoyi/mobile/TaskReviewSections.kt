@@ -72,6 +72,8 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         tag = "task-inline-form"
         body.addView(this, LinearLayout.LayoutParams(-1, 0, 1f))
     }
+    private val parameterHeading = sectionHeading(parameters, R.string.journal_parameters)
+    private val notesHeading = sectionHeading(notes, R.string.journal_notes)
     val panels = labels.indices.map { index ->
         LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -85,7 +87,7 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         contentDescription = activity.getString(R.string.task_form_jump)
         adapter = HoyiUi.spinnerAdapter(activity, labels)
         minimumHeight = dp(48)
-        host.addView(this, LinearLayout.LayoutParams(-1, -2))
+        host.addView(this, LinearLayout.LayoutParams(dp(240), -2).apply { gravity = android.view.Gravity.END })
         setSelection(selectedIndex)
         onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -98,6 +100,12 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         }
     }
     init { host.addView(regions, LinearLayout.LayoutParams(-1, 0, 1f)) }
+
+    private fun sectionHeading(parent: LinearLayout, label: Int) =
+        HoyiUi.label(activity, parent, activity.getString(label), 20, true).apply {
+            setPadding(dp(8), dp(16), dp(8), dp(16))
+            if (android.os.Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
+        }
 
     private fun dp(value: Int) = HoyiUi.dp(activity, value)
     private fun reveal(index: Int) {
@@ -113,13 +121,15 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             val panel = panels[1]
             val budget = parameterScroll.height - panel.paddingTop - panel.paddingBottom
             if (budget > 0) {
-                val height = minOf(dp(160), budget).coerceAtLeast(dp(48))
+                val height = minOf(dp(52), budget).coerceAtLeast(dp(48))
                 if (field.layoutParams.height != height) field.layoutParams =
                     (field.layoutParams as LinearLayout.LayoutParams).apply { this.height = height; weight = 0f }
             }
         }
         if (noteScroll.width <= 0 || noteScroll.height <= 0) return
-        var noteChrome = 0
+        notesHeading.measure(View.MeasureSpec.makeMeasureSpec(noteScroll.width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        var noteChrome = notesHeading.measuredHeight
         panels.drop(2).forEach { panel ->
             noteChrome += panel.paddingTop + panel.paddingBottom
             for (index in 0 until panel.childCount) {

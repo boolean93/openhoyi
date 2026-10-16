@@ -51,4 +51,6 @@
     <string name="journal_grams">%1$s غ</string>
     <string name="journal_selector_title">%1$s · %2$s</string>
     <string name="journal_detail">عرض السجل والعينات</string>
+    <string name="journal_parameters">معلمات الكوب</string>
+    <string name="journal_notes">ملاحظاتي</string>
 </resources>

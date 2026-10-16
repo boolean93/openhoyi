@@ -51,4 +51,6 @@
     <string name="journal_grams">%1$s г</string>
     <string name="journal_selector_title">%1$s · %2$s</string>
     <string name="journal_detail">Посмотреть запись и замеры</string>
+    <string name="journal_parameters">Параметры чашки</string>
+    <string name="journal_notes">Мои заметки</string>
 </resources>

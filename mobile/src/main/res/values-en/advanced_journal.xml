@@ -51,4 +51,6 @@
     <string name="journal_grams">%1$s g</string>
     <string name="journal_selector_title">%1$s · %2$s</string>
     <string name="journal_detail">View record and samples</string>
+    <string name="journal_parameters">Cup parameters</string>
+    <string name="journal_notes">My notes</string>
 </resources>

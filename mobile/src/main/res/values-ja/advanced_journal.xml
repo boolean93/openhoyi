@@ -51,4 +51,6 @@
     <string name="journal_grams">%1$s g</string>
     <string name="journal_selector_title">%1$s · %2$s</string>
     <string name="journal_detail">記録とサンプルを表示</string>
+    <string name="journal_parameters">この一杯の設定</string>
+    <string name="journal_notes">自分の記録</string>
 </resources>
