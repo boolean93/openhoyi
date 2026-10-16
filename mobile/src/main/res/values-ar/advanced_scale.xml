@@ -62,4 +62,7 @@
     <string name="scale_trend_summary">آخر قراءة %1$s غ · منذ %2$s ث</string>
     <string name="scale_current_weight">الوزن الحالي</string>
     <string name="scale_device_section">الجهاز</string>
+    <string name="scale_device_battery_label">البطارية</string>
+    <string name="scale_device_status_label">حالة البيانات</string>
+    <string name="scale_battery_value">%1$d%%</string>
 </resources>

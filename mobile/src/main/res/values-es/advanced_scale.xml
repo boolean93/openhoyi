@@ -62,4 +62,7 @@
     <string name="scale_trend_summary">Última lectura %1$s g · hace %2$s s</string>
     <string name="scale_current_weight">Peso actual</string>
     <string name="scale_device_section">Dispositivo</string>
+    <string name="scale_device_battery_label">Batería</string>
+    <string name="scale_device_status_label">Estado de datos</string>
+    <string name="scale_battery_value">%1$d%%</string>
 </resources>

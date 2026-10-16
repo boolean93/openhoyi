@@ -62,4 +62,7 @@
     <string name="scale_trend_summary">ค่าล่าสุด %1$s g · %2$s วินาทีที่แล้ว</string>
     <string name="scale_current_weight">น้ำหนักปัจจุบัน</string>
     <string name="scale_device_section">อุปกรณ์</string>
+    <string name="scale_device_battery_label">แบตเตอรี่</string>
+    <string name="scale_device_status_label">สถานะข้อมูล</string>
+    <string name="scale_battery_value">%1$d%%</string>
 </resources>

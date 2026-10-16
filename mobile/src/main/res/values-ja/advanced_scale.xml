@@ -62,4 +62,7 @@
     <string name="scale_trend_summary">最終値 %1$s g · %2$s 秒前</string>
     <string name="scale_current_weight">現在の重量</string>
     <string name="scale_device_section">デバイス</string>
+    <string name="scale_device_battery_label">バッテリー</string>
+    <string name="scale_device_status_label">データ状態</string>
+    <string name="scale_battery_value">%1$d%%</string>
 </resources>

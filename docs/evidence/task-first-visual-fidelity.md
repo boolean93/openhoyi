@@ -540,3 +540,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 本轮仅将读数单位设为RelativeSizeSpan(0.45)，主值64/48sp和字重不动，完整本地化文本保留在同一TextView中；单位从各语言格式资源取得，包含泰语/俄语/阿语，不硬编码g。无数据仍—，不改去皮与采样。
 - 后续需新实图核对尺寸/排版，设备信息结构和有数据状态仍未完成验收。
 - Mock/test APK构建41s成功（/tmp/task-scale-unit-build.log），diff和分支规则通过；指标切换single-screen38889727697三个profile仍queued，未把排队当失败或取消重跑。
+
+### 电子秤设备信息行（2026-10-16，待实图）
+
+- 按scale-v2将原散落电量/状态说明改为标签和值两列，14sp/16sp、35%/65%、8dp上下内边距、48dp最小行高及1dp分隔线；值允许换行，保持在原支持区局部滚动中。设备标题、连接/设置入口与门禁未变。
+- 电量仍只取有效live读数、battery能力且0..100的数据；显示纯百分比以避免重复标签。无能力/缺失解释、freshness全部状态保留。未添加无来源的BOOKOO型号、稳定状态或82%电量。
+- 八语言标签/百分比资源XML解析通过；Mock/test APK构建44s成功（/tmp/task-scale-device-rows-build.log），diff及分支规则通过。新行高/换行需后续实际窗口验证，不能以编译替代视觉验收。
+- 查询7a141fa/cbe8076/fb19415的截图和single-screen任务均queued，未取消或重复启动。尚无这几批的运行截图。

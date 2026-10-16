@@ -62,4 +62,7 @@
     <string name="scale_trend_summary">마지막 측정 %1$s g · %2$s초 전</string>
     <string name="scale_current_weight">현재 무게</string>
     <string name="scale_device_section">기기</string>
+    <string name="scale_device_battery_label">배터리</string>
+    <string name="scale_device_status_label">데이터 상태</string>
+    <string name="scale_battery_value">%1$d%%</string>
 </resources>

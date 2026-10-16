@@ -187,12 +187,29 @@ class ScaleActivity:ScaleOwnerActivity() {
         HoyiUi.label(this,device,getString(R.string.scale_device_section),20,true).apply {
             setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,16))
         }
-        battery=HoyiUi.label(this,device,"",14,muted=true).apply {
-            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,16))
+        fun deviceRow(label: Int): TextView {
+            device.addView(android.view.View(this).apply { setBackgroundColor(getColor(R.color.mobile_border)) },
+                LinearLayout.LayoutParams(-1, HoyiUi.dp(this,1)))
+            val row=LinearLayout(this).apply {
+                orientation=LinearLayout.HORIZONTAL
+                isBaselineAligned=false
+                gravity=android.view.Gravity.CENTER_VERTICAL
+                minimumHeight=HoyiUi.dp(this@ScaleActivity,48)
+                setPadding(0,HoyiUi.dp(this@ScaleActivity,8),0,HoyiUi.dp(this@ScaleActivity,8))
+            }
+            device.addView(row,LinearLayout.LayoutParams(-1,-2))
+            HoyiUi.label(this,row,getString(label),14,muted=true).apply {
+                layoutParams=LinearLayout.LayoutParams(0,-2,0.35f)
+                setPadding(0,0,HoyiUi.dp(this@ScaleActivity,8),0)
+            }
+            return HoyiUi.label(this,row,"",16).apply {
+                layoutParams=LinearLayout.LayoutParams(0,-2,0.65f)
+                gravity=android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+                setPadding(0,0,0,0)
+            }
         }
-        deviceStatus=HoyiUi.label(this,device,"",14,muted=true).apply {
-            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,8))
-        }
+        battery=deviceRow(R.string.scale_device_battery_label)
+        deviceStatus=deviceRow(R.string.scale_device_status_label)
         val tools=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
         device.addView(tools)
         connectionButton=toolLink(tools,getString(R.string.scale_connect)) {startActivity(Intent(this,ScaleConnectionActivity::class.java))}.apply {
@@ -233,7 +250,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         deviceStatus.setIfChanged(freshness.text.toString())
         if (::trend.isInitialized) trend.present(service?.scaleTrendAt(now).orEmpty(), now, freshness.text.toString())
         battery.setIfChanged(live?.batteryPercent?.takeIf {live.capabilities.battery && it in 0..100}
-            ?.let {getString(R.string.scale_battery_format,it)} ?: getString(R.string.scale_battery_unavailable))
+            ?.let {getString(R.string.scale_battery_value,it)} ?: getString(R.string.scale_battery_unavailable))
         val allowed=changesAllowed()
         guard.setIfChanged(if(service!=null && !allowed)getString(R.string.scale_active_guard)else "")
         guard.visibility=if(guard.text.isEmpty())android.view.View.GONE else android.view.View.VISIBLE

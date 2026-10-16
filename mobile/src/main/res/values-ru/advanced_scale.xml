@@ -62,4 +62,7 @@
     <string name="scale_trend_summary">Последнее: %1$s г · %2$s с назад</string>
     <string name="scale_current_weight">Текущий вес</string>
     <string name="scale_device_section">Устройство</string>
+    <string name="scale_device_battery_label">Заряд</string>
+    <string name="scale_device_status_label">Статус данных</string>
+    <string name="scale_battery_value">%1$d%%</string>
 </resources>
