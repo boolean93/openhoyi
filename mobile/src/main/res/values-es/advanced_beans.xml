@@ -51,4 +51,6 @@
     <string name="beans_event_balance">Existencias tras este movimiento: %1$s g</string>
     <string name="beans_event_id">Registro %1$s</string>
     <string name="beans_event_reason">Motivo: %1$s</string>
+    <string name="beans_back_to_list">Volver al inventario</string>
+    <string name="beans_batch_ledger">Movimientos del lote</string>
 </resources>

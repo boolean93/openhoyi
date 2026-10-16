@@ -409,15 +409,57 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                         await { (field(activity, "listScroll") as ScrollView).scrollY == saved }
                         main { SingleScreenPageChecks.verify(activity) }
                         evidence += "${type.simpleName} recreate scrollY=$saved gesture=swipe"
+                        if (activity is BeanInventoryActivity) {
+                            var selectedId: String? = null
+                            var selectedMetadata = emptyList<String>()
+                            main {
+                                val scroll = field(activity, "listScroll") as ScrollView
+                                check(views(scroll).filterIsInstance<Button>().first {
+                                    it.isShown && it.getGlobalVisibleRect(Rect())
+                                }.performClick())
+                                selectedId = field(activity, "selectedBatchId") as String
+                                selectedMetadata = views(activity.findViewById<ViewGroup>(android.R.id.content)
+                                    .findViewWithTag<View>("inventory-batch-metadata")).filterIsInstance<TextView>().map { it.text.toString() }
+                                check(selectedMetadata.size >= 7)
+                            }
+                            activity = recreate(activity)
+                            ready(activity)
+                            main {
+                                check(field(activity, "selectedBatchId") == selectedId)
+                                check((field(activity, "collection") as TaskCollectionLayout).detailRequested)
+                                check(views(activity.findViewById<ViewGroup>(android.R.id.content)
+                                    .findViewWithTag<View>("inventory-batch-metadata")).filterIsInstance<TextView>().map { it.text.toString() } == selectedMetadata)
+                            }
+                            val shot = requireNotNull(test.uiAutomation.takeScreenshot())
+                            try { File(directory, "inventory-selected-restored.png").outputStream().use {
+                                check(shot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+                            } } finally { shot.recycle() }
+                            main {
+                                views(activity.window.decorView).filterIsInstance<Button>().singleOrNull {
+                                    it.isShown && it.text.toString() == activity.getString(R.string.beans_back_to_list)
+                                }?.let { check(it.performClick()) }
+                            }
+                            await { (field(activity, "listScroll") as ScrollView).let { it.isShown && it.scrollY == saved } }
+                        }
                         detailReturn(activity, BeanBatchActivity::class.java) {
                             if (activity is BeanInventoryActivity) main {
                                 val scroll = field(activity, "listScroll") as ScrollView
                                 val button = views(scroll).filterIsInstance<Button>().first { it.isShown && it.getGlobalVisibleRect(android.graphics.Rect()) }
                                 check(button.performClick())
+                                check(field(activity, "selectedBatchId") != null)
+                                val batchDetails = views(activity.window.decorView).filterIsInstance<Button>().single {
+                                    it.isShown && it.text.toString() == activity.getString(R.string.beans_batch_title)
+                                }
+                                check(batchDetails.performClick())
                             } else main { activity.startActivity(Intent(activity, BeanBatchActivity::class.java)
                                 .putExtra(BeanBatchActivity.BATCH_ID, BATCH_ID)) }
                         }
-                        await { (field(activity, "listScroll") as ScrollView).scrollY == saved }
+                        if (activity is BeanInventoryActivity) main {
+                            views(activity.window.decorView).filterIsInstance<Button>().singleOrNull {
+                                it.isShown && it.text.toString() == activity.getString(R.string.beans_back_to_list)
+                            }?.let { check(it.performClick()) }
+                        }
+                        await { (field(activity, "listScroll") as ScrollView).let { it.isShown && it.scrollY == saved } }
                         main { SingleScreenPageChecks.verify(activity) }
                         evidence += "${type.simpleName} navigation-detail-return scrollY=$saved gesture=swipe"
                     } else {

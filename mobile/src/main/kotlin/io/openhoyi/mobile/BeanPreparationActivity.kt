@@ -14,7 +14,7 @@ import java.util.UUID
 
 /** Explicit human bean/dose intent. This screen never starts extraction or writes a device command. */
 class BeanPreparationActivity : ScaleOwnerActivity() {
-    companion object { private const val CAPTURE = 63 }
+    companion object { private const val CAPTURE = 63; const val EXTRA_BATCH_ID = "prepareBeanBatchId" }
     private var nextEventId = UUID.randomUUID().toString()
     private var draftBatchId: String? = null
     private var draftAmount = ""
@@ -29,7 +29,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         nextEventId = savedInstanceState?.getString("nextEventId") ?: nextEventId
-        draftBatchId = savedInstanceState?.getString("draftBatchId")
+        draftBatchId = savedInstanceState?.getString("draftBatchId") ?: intent.getStringExtra(EXTRA_BATCH_ID)
         draftAmount = savedInstanceState?.getString("draftAmount").orEmpty()
         errorResource = savedInstanceState?.getInt("errorResource", 0)?.takeIf { it != 0 }
         renderPreparation()

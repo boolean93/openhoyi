@@ -155,3 +155,15 @@ ff1ef65 lifecycle38842891557 and advanced38842891517 now terminal SUCCESS, inclu
 HistoryActivity adds the real local-calendar date at the first record of each contiguous day, preserving source order, adapter record count/positions/IDs and source-specific saved list states. Flat rows replace card gaps; status/meta now14sp, original name/time/duration/raw-scale/slot/taste content and three-source tools unchanged. No synthetic date rows or data writes. This fulfills the date-list portion only; adaptive inline detail pane remains outstanding.
 
 Local `/tmp/task-history-date-build.log` JVM+bothMockAPKs BUILD SUCCESSFUL in44s. Native screenshots/list restoration and independent review pending; precedingff1ef65 CI does not cover this batch.
+
+## 2026-10-16 inventory collection and explicit preparation entry
+
+BeanInventory now uses compact continuous native batch rows plus adaptive detail pane: name/balance/ordinal/initial quantity/three dates, original batch adjustment page and scoped ledger, explicit preparation entry. Global add/all-ledger retained; scoped ledger/back labels localized in8 languages. Stable batch ID/detail-request/list scroll survive recreation; deferred one-shot scroll restore waits until hidden list actually has visible layout. Inventory still owns no BLE/session. BeanPreparation intent seeds only draftBatchId; original active preparation branches and all save/consume/recovery code unchanged.
+
+Advanced business flow now actually clicks inventory batch then preparation, confirms correct batch and unchanged preparation/balance/events before original invalid/save/consume/restore paths. List-state check recreates selected details, compares ID+7 metadata strings, captures inventory-selected-restored.png, returns through native back and verifies original list position. No original safety/inventory assertion removed.
+
+Local final `/tmp/task-inventory-entry-build.log`: testMockUnitTest+assembleMock+assembleMockAndroidTest BUILD SUCCESSFUL45s,295tests/0failures/0errors/1existing skip. Earlier compile passes45/46/41s are development evidence only. Exact new native geometry/business/recreation/screenshots and independent review remain pending; running2773b29 does not include inventory batch.
+
+## 2026-10-16 scale portrait actual correction image
+
+Root viewed exact2773b29 task-frame38844288879 tablet-user-portrait/screenshots/ScaleActivity.png under build/task-first-evidence/ci-2773b29-task-frame-portrait. Compared9d457ef screenshot: reading card no longer expands to push tools below the local fold; timer start/reset, connect and settings all fully visible beneath readout/tare. Mock/no-readout and unavailable-battery labels remain honest. This closes the observed normal portrait fold issue visually, not full language/max-font/capture/hardware acceptance. Six-window native suite38844288915 still running at this entry.

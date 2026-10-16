@@ -51,4 +51,6 @@
     <string name="beans_event_balance">المخزون بعد هذه العملية: %1$s غ</string>
     <string name="beans_event_id">السجل %1$s</string>
     <string name="beans_event_reason">السبب: %1$s</string>
+    <string name="beans_back_to_list">العودة إلى المخزون</string>
+    <string name="beans_batch_ledger">سجل هذه الدفعة</string>
 </resources>

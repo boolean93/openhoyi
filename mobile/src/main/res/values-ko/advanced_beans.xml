@@ -51,4 +51,6 @@
     <string name="beans_event_balance">이번 기록 후 재고: %1$s g</string>
     <string name="beans_event_id">기록 %1$s</string>
     <string name="beans_event_reason">사유: %1$s</string>
+    <string name="beans_back_to_list">재고 목록으로 돌아가기</string>
+    <string name="beans_batch_ledger">이 배치의 내역</string>
 </resources>

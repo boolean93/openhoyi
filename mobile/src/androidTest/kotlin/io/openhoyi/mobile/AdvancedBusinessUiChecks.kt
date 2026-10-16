@@ -305,11 +305,29 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             dialogClick(preview, AlertDialog.BUTTON_POSITIVE, batch.getString(R.string.beans_confirm_adjust))
             check(balance() == 90000L && ownEvents().size == 2 && ownEvents().last().let { it.kind == InventoryEventKind.ADJUST && it.deltaMg == -10000L && it.reason == "UI recount" })
             record("adjust-confirm-preview"); close(batch)
-            var prep = start(BeanPreparationActivity::class.java)
+            val inventoryPage = start(BeanInventoryActivity::class.java)
+            onMain {
+                val row = root(inventoryPage).findViewWithTag<android.widget.Button>("inventory-batch-$batchId")
+                check(row.isShown && row.isEnabled)
+                row.requestRectangleOnScreen(android.graphics.Rect(0, 0, row.width, row.height), true)
+                check(row.performClick())
+            }
+            test.waitForIdleSync()
+            val prepMonitor = test.addMonitor(BeanPreparationActivity::class.java.name, null, false)
+            var prep: Activity
+            try {
+                click(inventoryPage, R.string.dose_title)
+                prep = test.waitForMonitorWithTimeout(prepMonitor, 10000) ?: error("Inventory preparation entry missing")
+                opened += prep
+                test.waitForIdleSync()
+                awaitMain { prep.hasWindowFocus() && root(prep).isLaidOut && !root(prep).isLayoutRequested }
+            } finally { test.removeMonitor(prepMonitor) }
+            check(prep.intent.getStringExtra(BeanPreparationActivity.EXTRA_BATCH_ID) == batchId)
+            check(preparation.current() == null && balance() == 90000L && ownEvents().size == 2) { "Inventory navigation consumed or saved a dose" }
             awaitMain { ScaleOwnerActivity::class.java.getDeclaredField("owner").apply { isAccessible = true }.get(prep) === service }
             onMain {
                 val selector = views(root(prep)).filterIsInstance<Spinner>().single()
-                selector.setSelection(inventory.batches().indexOfFirst { it.batch.id == batchId })
+                check(selector.selectedItemPosition == inventory.batches().indexOfFirst { it.batch.id == batchId }) { "Inventory entry lost preselected batch" }
             }
             test.waitForIdleSync()
             fill(prep, R.string.dose_amount, "18.0001")

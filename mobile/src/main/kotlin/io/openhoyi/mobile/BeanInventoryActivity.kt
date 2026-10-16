@@ -16,36 +16,146 @@ import io.openhoyi.bean.BeanInventory
 class BeanInventoryActivity : ThemedActivity() {
     private var listScroll: ScrollView? = null
     private var savedScrollY = 0
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); savedScrollY = savedInstanceState?.getInt("listScrollY") ?: 0 }
-    override fun onStop() { savedScrollY = listScroll?.scrollY ?: savedScrollY; super.onStop() }
+    private var pendingListRestore = false
+    private var selectedBatchId: String? = null
+    private var detailRequested = false
+    private var collection: TaskCollectionLayout? = null
+    private var compact = true
+    private var backCallback: android.window.OnBackInvokedCallback? = null
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        savedScrollY = savedInstanceState?.getInt("listScrollY") ?: 0
+        selectedBatchId = savedInstanceState?.getString("selectedBatchId")
+        detailRequested = savedInstanceState?.getBoolean("detailRequested") ?: false
+    }
+    private fun rememberList() {
+        listScroll?.takeIf { !pendingListRestore && it.isShown && !it.isLayoutRequested }?.let { savedScrollY = it.scrollY }
+    }
+    override fun onStop() { rememberList(); super.onStop() }
     override fun onSaveInstanceState(outState: Bundle) {
+        rememberList()
+        outState.putInt("listScrollY", savedScrollY)
+        outState.putString("selectedBatchId", selectedBatchId)
+        outState.putBoolean("detailRequested", collection?.detailRequested ?: detailRequested)
         super.onSaveInstanceState(outState)
-        outState.putInt("listScrollY", listScroll?.scrollY ?: savedScrollY)
     }
     override fun onStart() { super.onStart(); render() }
+    override fun onDestroy() { updateBack(false); super.onDestroy() }
+    private fun restoreListWhenReady() {
+        val scroll = listScroll ?: return
+        if (pendingListRestore && scroll.isShown && scroll.height > 0 && scroll.getChildAt(0).height > 0) {
+            scroll.scrollTo(0, savedScrollY)
+            pendingListRestore = false
+        }
+    }
+    private fun showList() {
+        detailRequested = false; collection?.detailRequested = false; updateBack(false)
+        listScroll?.post { restoreListWhenReady() }
+    }
+    private fun updateBack(active: Boolean) {
+        if (Build.VERSION.SDK_INT < 33) return
+        if (active && backCallback == null) {
+            backCallback = android.window.OnBackInvokedCallback { showList() }.also {
+                onBackInvokedDispatcher.registerOnBackInvokedCallback(android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT, it)
+            }
+        } else if (!active) {
+            backCallback?.let { onBackInvokedDispatcher.unregisterOnBackInvokedCallback(it) }
+            backCallback = null
+        }
+    }
+    @Deprecated("Platform back callback")
+    override fun onBackPressed() {
+        if (compact && collection?.detailRequested == true) showList() else super.onBackPressed()
+    }
     private fun render() {
+        rememberList()
+        detailRequested = collection?.detailRequested ?: detailRequested
+        collection = null; listScroll = null
+        updateBack(false)
         val body = beanPage(getString(R.string.beans_title), getString(R.string.beans_subtitle), navigation = BeanInventoryActivity::class.java)
         val inventory = beanInventory(body) ?: return
-        HoyiUi.button(this, beanActions(body), getString(R.string.beans_add), primary = true) {
+        val batches = inventory.batches()
+        HoyiUi.button(this, beanActions(body), getString(R.string.beans_add), primary = batches.isEmpty()) {
             startActivity(Intent(this, BeanEntryActivity::class.java))
         }
-        val batches = inventory.batches()
-        val list = beanList(body)
-        listScroll = list.parent as ScrollView
-        listScroll?.post { listScroll?.scrollTo(0, savedScrollY) }
         if (batches.isEmpty()) {
+            collection = null; selectedBatchId = null; detailRequested = false
+            val list = beanList(body)
+            listScroll = list.parent as ScrollView
             val empty = HoyiUi.card(this, list, getString(R.string.beans_empty))
             HoyiUi.label(this, empty, getString(R.string.beans_empty_hint), 16, muted = true)
+            return
         }
-        batches.forEach { item ->
-            val card = HoyiUi.card(this, list, item.batch.bean.name)
-            HoyiUi.label(this, card, getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg)), 25, true)
-            HoyiUi.label(this, card, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 13, muted = true)
-            HoyiUi.button(this, card, getString(R.string.beans_batch_title)) {
+        if (batches.none { it.batch.id == selectedBatchId }) {
+            selectedBatchId = batches.first().batch.id
+            detailRequested = false
+        }
+        val panes = TaskCollectionLayout(this).also { collection = it }
+        body.addView(panes, LinearLayout.LayoutParams(-1, 0, 1f))
+        val list = beanList(panes.browserBody)
+        listScroll = list.parent as ScrollView
+        pendingListRestore = true
+        listScroll?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> restoreListWhenReady() }
+        listScroll?.post { restoreListWhenReady() }
+        val back = HoyiUi.button(this, panes.detailBody, getString(R.string.beans_back_to_list)) { showList() }
+        val metadata = beanList(panes.detailBody).apply { tag = "inventory-batch-metadata" }
+        val actions = BeanActionRows(this)
+        panes.detailBody.addView(actions, LinearLayout.LayoutParams(-1, -2))
+        val rowButtons = mutableMapOf<String, android.widget.Button>()
+        fun showSelected() {
+            val item = batches.single { it.batch.id == selectedBatchId }
+            metadata.removeAllViews(); actions.removeAllViews()
+            HoyiUi.label(this, metadata, item.batch.bean.name, 21, true)
+            HoyiUi.label(this, metadata, getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg)), 30, true)
+            HoyiUi.label(this, metadata, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 14, muted = true)
+            HoyiUi.label(this, metadata, getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), 15)
+            listOf(R.string.beans_purchased to item.batch.purchasedOn, R.string.beans_roasted to item.batch.roastedOn,
+                R.string.beans_opened to item.batch.openedOn).forEach { (label, date) ->
+                HoyiUi.label(this, metadata, getString(R.string.beans_date_value, getString(label), date?.toString() ?: getString(R.string.beans_not_set)), 15)
+            }
+            HoyiUi.button(this, actions, getString(R.string.beans_batch_title)) {
                 startActivity(Intent(this, BeanBatchActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, item.batch.id))
             }
+            HoyiUi.button(this, actions, getString(R.string.beans_batch_ledger)) {
+                startActivity(Intent(this, BeanLedgerActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, item.batch.id))
+            }
+            HoyiUi.button(this, actions, getString(R.string.dose_title), primary = true) {
+                startActivity(Intent(this, BeanPreparationActivity::class.java).putExtra(BeanPreparationActivity.EXTRA_BATCH_ID, item.batch.id))
+            }
+            rowButtons.forEach { (id, button) ->
+                button.isActivated = id == selectedBatchId
+                button.background = android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
+                    HoyiUi.shape(this@BeanInventoryActivity, if (id == selectedBatchId) R.color.mobile_accent_soft else R.color.mobile_surface, 0), null)
+            }
         }
-        if (batches.isNotEmpty()) HoyiUi.button(this, beanActions(body), getString(R.string.beans_ledger)) {
+        batches.forEach { item ->
+            val description = item.batch.bean.name + "\n" + getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg)) +
+                " · " + getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id))
+            rowButtons[item.batch.id] = HoyiUi.button(this, list, description) {
+                rememberList(); selectedBatchId = item.batch.id; showSelected(); detailRequested = true; panes.detailRequested = true
+            }.apply {
+                tag = "inventory-batch-${item.batch.id}"
+                gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                textSize = 17f
+                text = android.text.SpannableString(description).apply {
+                    setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, item.batch.bean.name.length, 0)
+                    setSpan(android.text.style.RelativeSizeSpan(14f / 17f), item.batch.bean.name.length, description.length, 0)
+                }
+                setPadding(HoyiUi.dp(this@BeanInventoryActivity, 12), HoyiUi.dp(this@BeanInventoryActivity, 10),
+                    HoyiUi.dp(this@BeanInventoryActivity, 12), HoyiUi.dp(this@BeanInventoryActivity, 10))
+                minimumHeight = HoyiUi.dp(this@BeanInventoryActivity, 64)
+                layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = HoyiUi.dp(this@BeanInventoryActivity, 1) }
+            }
+        }
+        panes.onPresentationChanged = { twoPane, detailVisible ->
+            compact = !twoPane
+            back.visibility = if (compact) android.view.View.VISIBLE else android.view.View.GONE
+            updateBack(compact && detailVisible)
+        }
+        showSelected()
+        panes.detailRequested = detailRequested
+        HoyiUi.button(this, beanActions(body), getString(R.string.beans_ledger)) {
             startActivity(Intent(this, BeanLedgerActivity::class.java))
         }
     }
