@@ -33,7 +33,7 @@ class HistoryDetailActivity : ThemedActivity() {
         HoyiUi.navigation(this, root, HistoryDetailActivity::class.java)
         setContentView(root)
         HoyiUi.header(this, body, if (BuildConfig.MOCK_MODE) getString(R.string.history_detail_mock_title) else getString(R.string.history_detail_title), back = true)
-        renderHistoryDetail(body, intent.getStringExtra("shotId"))
+        renderHistoryDetail(body, intent.getStringExtra("shotId"), standalone = true)
     }
     private fun dp(value: Int) = HoyiUi.dp(this, value)
 }
