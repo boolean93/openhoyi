@@ -49,6 +49,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
     private val buttons = linkedMapOf<ChartMetric, Button>()
     private val legend = LegendLayout(context)
     private var compactMode = false
+    private var showLegendRanges = true
     private val compactNotice = TextView(context).apply {
         tag = "chart-compact-notice"
         textSize = 14f
@@ -101,6 +102,11 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             // A newly necessary notice must not start below an old legend scroll offset.
             if (compact) header.scrollTo(0, 0)
         }
+        val showRanges = compact || !plot.showsAllAxes(MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight)
+        if (showLegendRanges != showRanges) {
+            showLegendRanges = showRanges
+            buttons.forEach { (metric, button) -> updateLegendText(metric, button) }
+        }
         // The notice replaces an unusable plot; only the native header scrolls.
         val cap = if (compact) height else height - plotMinimum
         header.measure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST))
@@ -144,10 +150,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
                 }.also { legend.addView(it) }
             }
             // Stable instances preserve accessibility focus while samples arrive.
-            val range = data.series.first { it.metric == metric }.range
-            val title = "${metricName(metric)} · ${metric.unit}\n${format(range.low)}–${format(range.high)} ${metric.unit}"
-            if (button.text.toString() != title) button.text = title
-            button.contentDescription = title.replace('\n', ';') + "; " + context.getString(R.string.task_chart_hint)
+            updateLegendText(metric, button)
         }
         // Weight may appear after the temperature button was created.
         metrics.forEachIndexed { index, metric ->
@@ -164,7 +167,17 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         updateSelection()
         updateDescription()
         plot.isEnabled = points.isNotEmpty()
+        if (plot.width > 0 && showLegendRanges != (compactMode || !plot.showsAllAxes(plot.width))) requestLayout()
         plot.invalidate()
+    }
+
+    private fun updateLegendText(metric: ChartMetric, button: Button) {
+        val range = data.series.first { it.metric == metric }.range
+        val name = "${metricName(metric)} · ${metric.unit}"
+        val fullTitle = "$name\n${format(range.low)}–${format(range.high)} ${metric.unit}"
+        val visibleTitle = if (showLegendRanges) fullTitle else name
+        if (button.text.toString() != visibleTitle) button.text = visibleTitle
+        button.contentDescription = fullTitle.replace('\n', ';') + "; " + context.getString(R.string.task_chart_hint)
     }
 
     private fun legendBackground(): Drawable {
@@ -386,18 +399,22 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             // Four lines of axis margins + one tick height and >=8dp tick separation.
             return ceil((fm.descent - fm.ascent) * 5 + dp(32f)).toInt()
         }
+        private fun axisColumns() = data.series.associate { series ->
+            val strings = (0..4).map { format(series.range.low + (series.range.high - series.range.low) * it / 4) } + series.metric.unit
+            series.metric to (strings.maxOf { labels.measureText(it) } + dp(8f))
+        }
+        fun showsAllAxes(availableWidth: Int): Boolean {
+            val gutters = axisColumns().values.sum() + dp(10f)
+            return TaskLayoutPolicy.chartAxes((availableWidth / resources.displayMetrics.density).toInt(),
+                ceil(gutters / resources.displayMetrics.density).toInt()) == TaskChartAxisMode.ALL_SCALES
+        }
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val fm = labels.fontMetrics
             val lineHeight = fm.descent - fm.ascent
-            val columns = data.series.associate { series ->
-                val strings = (0..4).map { format(series.range.low + (series.range.high - series.range.low) * it / 4) } + series.metric.unit
-                series.metric to (strings.maxOf { labels.measureText(it) } + dp(8f))
-            }
+            val columns = axisColumns()
             val outer = dp(5f)
-            val allGutters = columns.values.sum() + outer * 2
-            val allAxes = TaskLayoutPolicy.chartAxes((width / resources.displayMetrics.density).toInt(),
-                ceil(allGutters / resources.displayMetrics.density).toInt()) == TaskChartAxisMode.ALL_SCALES
+            val allAxes = showsAllAxes(width)
             val axes = if (allAxes) data.series else data.series.filter { it.metric == focusMetric }
             val leftAxes = if (allAxes) axes.take(2) else axes
             val rightAxes = if (allAxes) axes.drop(2) else emptyList()

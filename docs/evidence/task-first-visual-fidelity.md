@@ -421,3 +421,19 @@ f41b781 single-screen38878319787全部成功（用户平板、普通横屏、大
 依据f41b781分享页用户平板浅深实图，分享页两区增加mobile_surface/12dp圆角/边界/16dp内边距；右侧开启填满支持区的可选属性，TaskWorkspace默认行为不变，内容多仍可局部滚动。导出和详情改为文本操作，保留原Button最小触摸范围、16sp/500、焦点描边、涟漪及禁用前景色；分享文本、复制、文件分享层级和导出/URI逻辑不变。分享预览测量扣除内边距后再决定图高/表格，不沿用全宽预算。双APK构建43秒通过，日志/tmp/task-share-panel-build.log；本候选仍需实际截图与交互CI。
 
 444d9d4 advanced38880099292现已全部success。下载business至build/task-first-evidence/ci-444d9d4-business，实际查看import-conflict.png：青/蓝/橙/紫目标线、数值、轻分区及参数表阶段文字一致，2.4/5.7/8.3/6.9bar与12/23/34/45ml未改变；该浅色1600×1000图支持配色改动生效。系统剪贴板仍遮下方阶段名，属于7fcb665截图等待之前，不能称无遮挡验收。17路径和原12字段4阶段恢复日志通过。仅此business图不能证明全部深色/大字号像素检查或新紧凑编辑布局通过；不能把advanced成功混为全量视觉一致。
+
+## 2026-10-16 无浮层导入窗口验收证据
+
+7fcb665 advanced38880593942已全部success。下载business至build/task-first-evidence/ci-7fcb665-business并实际查看import-conflict.png：1600×1000浅色、四阶段、冲突状态，系统剪贴板预览确已消退，四行阶段名/压力/水量和保存副本按钮完整可见。对照444d9d4同状态图，之前遮挡第三/四行的系统浮层已不在；阶段色与数值保持。17路径及12字段4阶段保存/重开/重建断言通过。等待逻辑未清剪贴板、未点击关闭，也未裁图。此项采集缺陷有实际图证明修正，不能扩大为用户平板/大字号或21+3页全量验收。
+
+本轮未发现新失败，最新failure仍为已有418fec6/693e696等历史运行。229f798 single-screen38881692281与advanced38881692269仍queued；c31bfd1 single-screen38881146289/advanced38881146368仍queued，task-frame push38881138966已success但本轮未看该截图，不冒称流水视觉通过。
+
+历史/实时共用图的面积问题定位到ExtractionOverlayView：图例每项同时列名称单位和完整量程，header还含独立量程说明，MetricPlot再绘四轴/刻度/时间轴。此处存在信息重复，但窄窗聚焦模式仍必须始终可见其他指标单位与min/max；下一步不得直接删量程或缩字号求图大，应先分清全轴与聚焦模式再设计呈现，同时保留48dp图例触摸及原科学绘图检查。本轮未修改该组件。
+
+## 2026-10-16 宽图例去重与历史绘图区间距候选
+
+历史详情实图中，完整四物理轴旁图例重复上下限；现ExtractionOverlayView仅在图可用且ALL_SCALES时显示名称+单位。窄窗聚焦轴或过矮提示仍显示完整量程；可访问描述始终保留范围。图例判断和Canvas绘制共享axisColumns/showsAllAxes计算，范围变化跨越布局阈值会请求重新测量，避免轴切换后漏掉范围。14sp图例、11sp轴、48dp触摸、独立投影、采样缺口、线型及选择状态不变。
+
+历史独立详情去掉chartCard8dp四周与额外8dp上边距，保留指标组16dp底间距，嵌入式详情不变；40sp结果读数不缩小。理论上释放外围空间，但真实绘图区增长及视觉比例必须由新截图证明。
+
+ChartLegendChecks仍检查准确可访问名称/范围、物理单位、48dp、文本边界、四线与RTL；240/300dp明确要求可见量程。对未显示范围的图例，新增实际Canvas单位/两个上下限必须存在的断言。TrendChartTextChecks同样不以contentDescription代替可见物理轴，检查真实绘图文本。Mock/test APK42秒构建通过，日志/tmp/task-chart-legend-density-build.log。真实Canvas检查和新窗口尚待CI；229f798 advanced38881692269本轮查询仍queued，无新失败据此宣布修复。

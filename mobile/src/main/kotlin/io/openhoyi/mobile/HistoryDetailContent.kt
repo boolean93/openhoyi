@@ -88,9 +88,9 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
     }
     val chartCard = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
-        setPadding(dp(8), dp(8), dp(8), dp(8))
+        if (!standalone) setPadding(dp(8), dp(8), dp(8), dp(8))
     }
-    plotBody.addView(chartCard, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
+    plotBody.addView(chartCard, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = if (standalone) 0 else dp(8) })
     val chart = ShotChartView(this).apply { contentDescription = getString(R.string.extraction_chart) }
     chartCard.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
     val chartStatus = HoyiUi.label(this, chartCard, getString(R.string.history_loading_samples), 14, muted = true)

@@ -53,9 +53,14 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                                 "WEIGHT" -> "0.0–50.0 g"
                                 else -> "80.0–100.0 °C"
                             }
-                            check(label == "${context.getString(metric.second)} · ${metric.third}\n$expectedRange") {
+                            val name = "${context.getString(metric.second)} · ${metric.third}"
+                            check(label == "$name\n$expectedRange" || label == name) {
                                 "$fixture metric name, physical range or unit changed: $label"
                             }
+                            check(control.contentDescription.toString().contains("$name;$expectedRange")) {
+                                "$fixture accessible physical range missing"
+                            }
+                            if (widthDp <= 300) check(label.contains(expectedRange)) { "$fixture focused axis lost visible range" }
                             check(!label.contains("ml/s") && !label.contains("g/s")) { "$fixture flow replaced quantity" }
                             check(control.width >= 48 * density && control.height >= 48 * density)
                             LanguageUiLayoutChecks.textFits(control, fixture)
@@ -72,6 +77,14 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                                 TextView(context).apply { textSize = 11f }.textSize, fixture)
                             plot.draw(textCanvas)
                             check(textCanvas.labels >= 6 && "bar" in textCanvas.texts)
+                            controls.filter { !it.text.contains('–') }.forEach { control ->
+                                val description = control.contentDescription.toString()
+                                val unit = description.substringBefore(';').substringAfterLast(" · ")
+                                val endpoints = description.substringAfter(';').substringBefore(' ').split('–')
+                                check(unit in textCanvas.texts && endpoints.size == 2 && endpoints.all { it in textCanvas.texts }) {
+                                    "$fixture compact legend without complete visible axis: $description"
+                                }
+                            }
                             if (widthDp >= 540) check(listOf("bar", "ml", "g", "°C").all { it in textCanvas.texts }) {
                                 "$fixture independent physical axes missing"
                             }

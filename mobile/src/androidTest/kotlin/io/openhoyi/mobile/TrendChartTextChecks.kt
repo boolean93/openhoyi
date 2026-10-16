@@ -35,7 +35,7 @@ internal object TrendChartTextChecks {
             check(controls.map { it.tag } == expected.map { "chart-metric:$it" }) { "$fixture missing four-metric legend" }
             controls.forEach { control ->
                 val label = (control as TextView).text.toString()
-                check(label.contains("–") && label.contains(when (control.tag) {
+                check(control.contentDescription.toString().contains("–") && label.contains(when (control.tag) {
                     "chart-metric:PRESSURE" -> "bar"
                     "chart-metric:WATER" -> "ml"
                     "chart-metric:WEIGHT" -> "g"
@@ -57,6 +57,14 @@ internal object TrendChartTextChecks {
                 val canvas = TextBoundsCanvas(bitmap, nativeTextSize, "$fixture overlay case=$index")
                 plot.draw(canvas)
                 check(canvas.labels >= 6) { "Four-metric plot has no usable labeled viewport" }
+                controls.filter { !(it as TextView).text.contains('–') }.forEach { control ->
+                    val description = control.contentDescription.toString()
+                    val unit = description.substringBefore(';').substringAfterLast(" · ")
+                    val endpoints = description.substringAfter(';').substringBefore(' ').split('–')
+                    check(unit in canvas.texts && endpoints.size == 2 && endpoints.all { it in canvas.texts }) {
+                        "$fixture missing physical axis behind compact legend: $description"
+                    }
+                }
                 check("bar" in canvas.texts && "g/s" !in canvas.texts && "ml/s" !in canvas.texts) { "Physical units missing or replaced with flow" }
             } finally { bitmap.recycle() }
         }
