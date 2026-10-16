@@ -504,3 +504,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 详情/笔记/交换改文字操作，辅助字13→14sp；没有缩图中文字。原测试继续验证四指标不改变原样本、清空真实身份、交换和恢复；新增用户平板标准字号四个工具全显与图表占窗口80%以上断言。
 - 本步不是完整对齐：指标仍原生下拉框，底部还未整理为时长/结束秤重/口感的结构化摘要表，数据来源说明也需要后续实图核对。不得将本次构图变更当成整页完成。
 - 最终Mock/test APK编译成功41s（/tmp/task-comparison-final-build.log）；diff/branch policy通过。新布局的图高、工具全显和各语言运行待CI验证。
+
+### 编辑器新增面板后的CI失败定位（2026-10-16）
+
+- baf1155 single-screen38884756522用户平板334/336：中文浅/深色四阶段字段117px仅107px可见。large-font334/336：中文浅/深色IME中“阶段”表头layout34px、available15px。下载两套产物ci-baf1155-tablet-user-landscape/ci-baf1155-tablet-large-font并读取instrumentation.txt确认，不能以其他页或框架CI成功覆盖。
+- 根因分别为新增面板/元数据留白占用阶段高度，以及阶段选择器/列头固定在滚动区外，短高时被父布局约束高度。将元数据标签上下留白8+6dp收紧为4+4dp（字体14sp、输入18sp/52dp不变），选择器/列标题和字段放进同一阶段局部滚动区。字段键、数据、保存和原断言不改。
+- f3233d6此前修的是右侧预览图预算，本次补齐左侧阶段表的独立问题。两项都需要新版本实际CI验证，不能称旧失败已自动消失。
+- Mock/test APK编译42s成功（/tmp/task-editor-stage-scroll-build.log），diff/branch policy通过。运行断言待CI，保留失败来源和后续回归追踪。

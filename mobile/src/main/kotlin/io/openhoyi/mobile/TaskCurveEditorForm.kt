@@ -66,9 +66,9 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         host.addView(lower, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
         lower.addView(stagePane, LinearLayout.LayoutParams(0, -1, 1.1f))
         lower.addView(previewScroll, LinearLayout.LayoutParams(0, -1, 1f).apply { marginStart = dp(24) })
-        stagePane.addView(stageHeader, LinearLayout.LayoutParams(-1, -2))
+        stageContent.addView(stageHeader, LinearLayout.LayoutParams(-1, -2))
         val columns = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
-        stagePane.addView(columns, LinearLayout.LayoutParams(-1, -2))
+        stageContent.addView(columns, LinearLayout.LayoutParams(-1, -2))
         listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).forEachIndexed { index, label ->
             HoyiUi.label(activity, columns, activity.getString(label), 14, muted = true).apply {
                 layoutParams = if (index == 0) LinearLayout.LayoutParams(dp(64), -2)

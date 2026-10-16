@@ -49,7 +49,10 @@ class CurveEditorActivity : ThemedActivity() {
             } else beanInput(parent, label, numeric).also { editor ->
                 if (compactLabel != null) for (index in 0 until parent.childCount) {
                     val title = parent.getChildAt(index) as? android.widget.TextView ?: continue
-                    if (title.labelFor == editor.id) { title.text = compactLabel; title.textSize = 14f }
+                    if (title.labelFor == editor.id) {
+                        title.text = compactLabel; title.textSize = 14f
+                        title.setPadding(0, HoyiUi.dp(this@CurveEditorActivity, 4), 0, HoyiUi.dp(this@CurveEditorActivity, 4))
+                    }
                 }
             }
             input.contentDescription = getString(label)
