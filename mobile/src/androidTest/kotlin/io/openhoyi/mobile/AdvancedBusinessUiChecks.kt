@@ -55,6 +55,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 }
             }
         }
+        awaitUnobscuredContent(activity, name)
         val directory = File(requireNotNull(context.getExternalFilesDir(null)), "advanced-page-screenshots/business")
         check(directory.isDirectory || directory.mkdirs())
         val bitmap = requireNotNull(test.uiAutomation.takeScreenshot()) { "$name screenshot missing" }
@@ -63,6 +64,52 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
             }
         } finally { bitmap.recycle() }
+    }
+    /** Read-only: let transient clipboard controls expire; never dismiss UI or alter clipboard data. */
+    private fun awaitUnobscuredContent(activity: Activity, name: String) {
+        val automation = test.uiAutomation
+        val info = automation.serviceInfo
+        val originalFlags = info.flags
+        try {
+            info.flags = originalFlags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            automation.serviceInfo = info
+            val deadline = SystemClock.elapsedRealtime() + 15000
+            while (true) {
+                val contentBounds = android.graphics.Rect()
+                onMain { check(root(activity).getGlobalVisibleRect(contentBounds)) }
+                val overlaps = mutableListOf<String>()
+                fun inspect(node: android.view.accessibility.AccessibilityNodeInfo) {
+                    try {
+                        if (node.isVisibleToUser && node.isClickable) {
+                            val bounds = android.graphics.Rect()
+                            node.getBoundsInScreen(bounds)
+                            if (android.graphics.Rect.intersects(bounds, contentBounds))
+                                overlaps += "${node.packageName}/${node.className} bounds=$bounds"
+                        }
+                        for (index in 0 until node.childCount) node.getChild(index)?.let(::inspect)
+                    } finally { node.recycle() }
+                }
+                val windows = automation.windows
+                var appWindowObserved = false
+                try {
+                    for (window in windows) {
+                        val node = window.root ?: continue
+                        if (node.packageName?.toString() == activity.packageName) {
+                            appWindowObserved = true
+                            node.recycle()
+                        } else inspect(node)
+                    }
+                } finally { windows.forEach { it.recycle() } }
+                if (appWindowObserved && overlaps.isEmpty()) return
+                check(SystemClock.elapsedRealtime() < deadline) {
+                    "$name screenshot not ready: appWindowObserved=$appWindowObserved systemControls=${overlaps.joinToString()}"
+                }
+                Thread.sleep(100)
+            }
+        } finally {
+            info.flags = originalFlags
+            automation.serviceInfo = info
+        }
     }
     private fun click(activity: Activity, label: Int) = click(root(activity), activity.getString(label))
     private fun click(root: View, text: String) {

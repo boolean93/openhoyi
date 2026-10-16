@@ -377,3 +377,13 @@ ChineseFormWindowChecks 对编辑页按真实字段定位六组，而不是旧�
 浅/深主题所有阶段文字对mobile_background/mobile_surface对比度最低4.84；计入12/255透明分区叠色后最低4.55。为文字清晰度，浅色橙色比示意稿更深，不从图片直接采色导致低对比。XML解析与计算通过。LanguageChartChecks增加每个阶段实际列的颜色像素检查，并继续检查LTR/RTL科学上升顺序；原实时/历史单色检查保留。测试已编译，尚未运行，不把静态配色计算当Canvas像素检查通过。
 
 Mock + instrumentation构建 `BUILD SUCCESSFUL in 46s`，日志 `/tmp/task-stage-palette-build.log`。仍需精确源码CI、浅深色/大字体实际截图，字体/间距/区域比例及21+3页总目标仍未完成。没有重新生成概念稿来追认实现差异。
+
+## 2026-10-16 导入图高证据与系统浮层污染修正
+
+d3f81bc advanced 38877245190 的business产物已取得（整个run当时仍in_progress）。已查看build/task-first-evidence/ci-d3f81bc-business下import-new与import-conflict两张1600×1000实际窗口：移走左侧兼容提示/详情动作后，绘图区域约y350–570，四阶段表与右侧决策/底部保存可同时显示；新导入与冲突都保留94°C、41.7g、4阶段及对应参数。17路径和12字段4阶段保存恢复日志通过。
+
+两张图左下仍有Android系统剪贴板预览，遮住表格后两行的阶段文字，不能称完整无遮挡视觉验收。页面本身是否被系统浮层遮住，与应用几何溢出分开判断。当前444d9d4另新增颜色，故d3图片不能当新配色证据。
+
+本次只修改AdvancedBusinessUiChecks截图准备：临时读取交互窗口，在确认应用窗口存在后，等待其它窗口可见可点击节点不再与应用内容矩形相交；最多15秒，超时记录窗口观测及节点范围并失败，finally恢复accessibility flags。不给剪贴板清空/关闭操作，不注入触摸，不裁剪或重绘图像。仍使用真实全屏takeScreenshot和原四张尺寸门禁。构建test APK41秒通过，`/tmp/task-business-overlay-build.log`；等待逻辑实际运行与无浮层新图仍待CI，未将编译包装为成功消除浮层。
+
+最新查询：70dab05 task-frame38879399856仍in_progress；f41b781 advanced38878322390已有business产物，但正常分享布局截图仍待single-screen。全21+3页目标未完成。
