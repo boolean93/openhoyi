@@ -474,3 +474,11 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - single-screen38881692281结束failure：用户平板335/336；唯一失败为中文浅色BrewReviewActivity短字段编辑后cleanupEditor等待page-focus/IME-hidden超时；14项列表恢复全部成功。不是四阶段字段裁切断言失败。artifact logcat.txt为空；现有失败未记录超时瞬间窗口条件，根因未证实。
 - 新增ChineseFormWindowChecks边界诊断：实际窗口ID/焦点类、所有窗口类型与bounds、IME窗口和insets可见性、hide请求返回值；超时独立截图。等待5秒/两次稳定/原失败断言保持，未重试或取消测试，生产代码未改。test APK编译24s成功（/tmp/task-form-ime-diagnostics-build.log）；diff/branch policy通过。这只是证据补强，不称已修复。
 - 目视ci-229f798-user-failure/.../chinese-form-states/zh-Hans-light-CurveEditorActivity-four-stage-table.png：用户平板2560×1600四行八字段完整显示，上方三字段对齐，阶段/色带对应；结果completed=true、screenshots=8、inlineObserved=true、imeObserved=true。右侧旧双按钮仍需局部滚动；baf1155已改文字操作但尚待其实际截图，不能将旧证据覆盖新面板。
+
+### 批次摘要与分享面板实图（2026-10-16）
+
+- e837af4 run38884386706的pages产物已下载ci-e837af4-pages；landscape/wideFont各240夹具通过。目视中文浅色批次页1600×1000普通/1.3字号：三列摘要、三日期、真实入库行、文字入口和限宽调整按钮完整，修正旧双栏留白和按钮矩阵成立。只有单条ADD/250g数据，不能覆盖三条近期事件/长原因、用户平板或比例超过100%；概念的分隔线/进度条粗细仍有差异。
+- 0d5a393 pages产物ci-0d5a393-pages，中文浅色分享页可见左右面板，14/24sp摘要层次、双阶段颜色和完整表格、主分享/次复制/文字导出操作分级，禁用文件按钮及条件说明完整。对应441e862面板改动已获得实际运行图，不再仅是源码推断。
+- 分享页截图仍两阶段，与curve-share-v1四阶段状态不同。新增业务流程中已持久化四阶段draft的curve-share-four-stages截图与五行完整可见、未导出文件禁用断言；不发送外部内容，原JSON复制隔离校验保留。待新CI验证。
+- 分享面板宽度比例、摘要子卡、表格网格/标题与生成图仍未完全一致，不能标整页完成。实时图表并不在该15页产物内，0d5a393图例修改尚未因此获得验收。
+- 新增四阶段分享证据代码编译test APK成功24s（/tmp/task-share-four-stage-evidence-build.log）；shell语法/diff/branch检查通过。未将编译当作运行验收。
