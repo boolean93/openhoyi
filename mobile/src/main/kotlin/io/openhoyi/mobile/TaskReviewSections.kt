@@ -16,7 +16,12 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
     private val parameters = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val notes = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private var multilineFields = emptyList<EditText>()
-    private val parameterScroll = ScrollView(activity).apply { addView(parameters) }
+    private val parameterScroll = object : ScrollView(activity) {
+        override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
+            super.onSizeChanged(w, h, oldw, oldh)
+            post { fitEditors() }
+        }
+    }.apply { addView(parameters) }
     private val noteScroll = object : ScrollView(activity) {
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
@@ -100,6 +105,17 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
     fun jumpTo(index: Int) { selector.setSelection(index); reveal(index) }
     fun fitMultiline(fields: List<EditText>) { multilineFields = fields; noteScroll.post { fitEditors() } }
     private fun fitEditors() {
+        // Parameter and notes viewports resize independently under the IME.
+        // A collapsed notes viewport must not leave the grind editor at its old 160dp.
+        multilineFields.filter { it.parent === panels[1] }.forEach { field ->
+            val panel = panels[1]
+            val budget = parameterScroll.height - panel.paddingTop - panel.paddingBottom
+            if (budget > 0) {
+                val height = minOf(dp(160), budget).coerceAtLeast(dp(48))
+                if (field.layoutParams.height != height) field.layoutParams =
+                    (field.layoutParams as LinearLayout.LayoutParams).apply { this.height = height; weight = 0f }
+            }
+        }
         if (noteScroll.width <= 0 || noteScroll.height <= 0) return
         var noteChrome = 0
         panels.drop(2).forEach { panel ->
@@ -114,8 +130,8 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             }
         }
         val noteHeight = ((noteScroll.height - noteChrome) / 3).coerceIn(dp(48), dp(160))
-        multilineFields.forEach { field ->
-            val height = if (field.parent === panels[1]) minOf(dp(160), parameterScroll.height).coerceAtLeast(dp(48)) else noteHeight
+        multilineFields.filter { it.parent !== panels[1] }.forEach { field ->
+            val height = noteHeight
             if (field.layoutParams.height != height) field.layoutParams = (field.layoutParams as LinearLayout.LayoutParams).apply { this.height = height; weight = 0f }
         }
     }
