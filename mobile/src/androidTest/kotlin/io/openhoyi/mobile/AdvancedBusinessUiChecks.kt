@@ -449,8 +449,27 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             ownCurveIds += savedCopy.id
             check(savedCopy.id != imported.id && custom.find(imported.id) == imported && savedCopy.copy(id = conflict.id) == conflict)
             record("curve-conflict-save-copy"); close(importPages.first)
-            val invalidImport = start(CurveImportActivity::class.java)
+            var invalidImport = start(CurveImportActivity::class.java)
             val beforeInvalid = custom.list()
+            val rawImportDraft = "  {未完成的原文\n  保留空格}  "
+            fill(invalidImport, R.string.profiles_json, rawImportDraft)
+            onMain {
+                val field = views(root(invalidImport)).filterIsInstance<EditText>().single()
+                check(field.showSoftInputOnFocus && field.isFocusableInTouchMode) { "Import raw text must edit inline" }
+                check(field.requestFocus())
+                field.setSelection(3, 8)
+            }
+            invalidImport = recreate(invalidImport)
+            onMain {
+                val field = views(root(invalidImport)).filterIsInstance<EditText>().single()
+                check(field.text.toString() == rawImportDraft && field.hasFocus() &&
+                    field.selectionStart == 3 && field.selectionEnd == 8) { "Import recreation changed raw draft/focus/caret" }
+                check(custom.list() == beforeInvalid) { "Import editing or recreation wrote a curve" }
+                // Return to a non-IME geometry before the unchanged invalid-preview scenarios.
+                check((root(invalidImport) as ViewGroup).getChildAt(0).requestFocus())
+                (invalidImport.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
+                    .hideSoftInputFromWindow(field.windowToken, 0)
+            }
             for (invalid in listOf("{bad", imported.encode().replace("\"schema\":1", "\"schema\":99"), imported.copy(temperatureC = 200).toJson().toString())) {
                 check(runCatching { CustomCurveDocument.decode(invalid) }.isFailure) { "Negative import fixture is valid" }
                 fill(invalidImport, R.string.profiles_json, invalid)

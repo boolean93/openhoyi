@@ -18,7 +18,9 @@ class CurveImportActivity : ThemedActivity() {
         super.onCreate(savedInstanceState)
         val body = beanPage(getString(R.string.profiles_import), getString(R.string.profiles_import_hint))
         profileStore(body) ?: return
-        val editor = beanWorkspace(body).apply { tag = "bean-full-field" }
+        val workspace = beanWorkspace(body).apply { tag = "task-inline-form" }
+        val sources = BeanActionRows(this).also { workspace.addView(it) }
+        val editor = beanWorkspace(workspace).apply { tag = "bean-full-field" }
         text = beanInput(editor, R.string.profiles_json).apply {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             setSingleLine(false); minLines = 1
@@ -27,7 +29,7 @@ class CurveImportActivity : ThemedActivity() {
             setText(savedInstanceState?.getString("text").orEmpty())
         }
         error = beanError(body)
-        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_paste)) {
+        HoyiUi.button(this, sources, getString(R.string.profiles_paste)) {
             // Clipboard is read only after this explicit user action, never on resume/start.
             val value = runCatching {
                 (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).primaryClip?.takeIf { it.itemCount > 0 }
@@ -36,11 +38,18 @@ class CurveImportActivity : ThemedActivity() {
             if (value == null || value.toByteArray(Charsets.UTF_8).size > CustomCurveDocument.MAX_BYTES) error.setText(R.string.profiles_import_invalid)
             else { text.setText(value); error.text = "" }
         }
-        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_open_file)) {
+        HoyiUi.button(this, sources, getString(R.string.profiles_open_file)) {
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
                 .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain")), OPEN)
         }
         HoyiUi.button(this, beanActions(body), getString(R.string.profiles_import_preview), primary = true) { preview(text.text.toString()) }
+        if (savedInstanceState?.containsKey("text") == true) text.post {
+            if (isFinishing || isDestroyed) return@post
+            if (savedInstanceState.getBoolean("textFocused")) text.requestFocus()
+            text.setSelection(savedInstanceState.getInt("textStart").coerceIn(0, text.length()),
+                savedInstanceState.getInt("textEnd").coerceIn(0, text.length()))
+            text.scrollTo(savedInstanceState.getInt("textScrollX"), savedInstanceState.getInt("textScrollY"))
+        }
     }
     private fun preview(value: String) {
         if (runCatching { CustomCurveDocument.decode(value) }.isFailure) { error.setText(R.string.profiles_import_invalid); return }
@@ -77,7 +86,14 @@ class CurveImportActivity : ThemedActivity() {
         super.onSaveInstanceState(outState)
         if (::text.isInitialized) {
             val value = text.text.toString()
-            if (value.toByteArray(Charsets.UTF_8).size <= CustomCurveDocument.MAX_BYTES) outState.putString("text", value)
+            if (value.toByteArray(Charsets.UTF_8).size <= CustomCurveDocument.MAX_BYTES) {
+                outState.putString("text", value)
+                outState.putInt("textStart", text.selectionStart.coerceAtLeast(0))
+                outState.putInt("textEnd", text.selectionEnd.coerceAtLeast(0))
+                outState.putBoolean("textFocused", text.hasFocus())
+                outState.putInt("textScrollX", text.scrollX)
+                outState.putInt("textScrollY", text.scrollY)
+            }
         }
     }
 }
