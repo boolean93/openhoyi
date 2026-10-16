@@ -67,7 +67,7 @@ with output.open('w') as capture:
     result=subprocess.run(['adb','shell','am','instrument','-w','-e','homeWorkbenchChecks','true','-e','expectedFontScale',sys.argv[2],
         'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
         stdout=capture,stderr=subprocess.STDOUT,timeout=180)
-if result.returncode or 'HOME_WORKBENCH_CHECKS_PASSED fixtures=3 shortHeight=true recovery=true readOnly=true noBle=true' not in output.read_text():
+if result.returncode or 'HOME_WORKBENCH_CHECKS_PASSED fixtures=4 shortHeight=true recovery=true recentSelection=true readOnly=true noBle=true' not in output.read_text():
     print(output.read_text())
     raise SystemExit('Home workbench checks failed; evidence retained')
 HOME_PY

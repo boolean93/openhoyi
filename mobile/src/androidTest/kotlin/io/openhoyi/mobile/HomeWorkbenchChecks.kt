@@ -28,6 +28,12 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
         val app = context.applicationContext as MobileApplication
         val preferences = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val before = preferences.all.toMap()
+        val ledger = app.curveUsageResult.getOrThrow()
+        val recentFixtures = app.curves.items.filter(app.curves::canStart).take(3)
+        check(recentFixtures.size == 3)
+        main { recentFixtures.forEachIndexed { index, item ->
+            ledger.record("home-recent-fixture-$index", item.id, 1700001000000L + index * 1000)
+        } }
         val inventory = app.beanInventoryResult.getOrThrow().events()
         val preparation = app.beanPreparationResult.getOrThrow().current()
         val journal = app.journalResult.getOrThrow().exportJson()
@@ -103,9 +109,40 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                     } finally { bitmap.recycle() }
                 }
                 try {
+                    measure("recent-wide", 960, 720)
+                    val recent = workspace.findViewWithTag<View>("home-recent-curves")
+                    check(recent.isShown) { "Recent recipes missing from wide preparation view" }
+                    val expectedRecent = CurveOrdering.recentUsed(app.curves.items, ledger, 3)
+                    val serviceField = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }
+                    val owner = serviceField.get(activity) as? MobileService
+                    val state = owner?.shotState
+                    expectedRecent.forEachIndexed { index, item ->
+                        val row = workspace.findViewWithTag<TextView>("home-recent-curve-$index")
+                        check(row.isShown && row.isEnabled && row.text.startsWith(item.name))
+                        check(row.height >= HoyiUi.dp(activity, 48))
+                        LanguageUiLayoutChecks.textFits(row, "recent-wide")
+                    }
+                    check(workspace.findViewWithTag<View>("home-recent-curve-0").performClick())
+                    check(preferences.getString("selected", null) == expectedRecent.first().id)
+                    check(serviceField.get(activity) === owner && owner?.shotState == state)
+                    check(stage.targets == CurveStageParameters.pressureTargets(expectedRecent.first()))
+                    check(preferences.edit().putString("selected", chosen.id).commit())
+                    HomeActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }.invoke(activity)
                     measure("normal", 360, 640)
                     check(stage.visibility == View.VISIBLE)
                     measure("short-180dp", 360, 180)
+                    check(workspace.findViewWithTag<View>("home-recent-curves").visibility == View.GONE)
+                    val recentEntry = workspace.findViewWithTag<View>("home-recent-fallback")
+                    check(recentEntry.isShown && recentEntry.isEnabled && recentEntry.isClickable)
+                    check(recentEntry.height >= HoyiUi.dp(activity, 48))
+                    check(supporting.height >= recentEntry.height) { "Short recent entry taller than its viewport" }
+                    recentEntry.requestRectangleOnScreen(android.graphics.Rect(0, 0, recentEntry.width, recentEntry.height), true)
+                    val entryPosition = IntArray(2); recentEntry.getLocationOnScreen(entryPosition)
+                    val viewportPosition = IntArray(2); supporting.getLocationOnScreen(viewportPosition)
+                    check(entryPosition[1] >= viewportPosition[1] &&
+                        entryPosition[1] + recentEntry.height <= viewportPosition[1] + supporting.height) {
+                        "Short recent entry cannot be revealed completely"
+                    }
                     measure("recovered", 360, 640)
                     check(stage.visibility == View.VISIBLE)
                 } finally {

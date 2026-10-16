@@ -48,7 +48,7 @@ internal class HomeRecentCurves(private val activity: ThemedActivity, primary: L
             dialog?.dismiss()
             dialog = builder.setNegativeButton(android.R.string.cancel, null).show()
         }
-    }
+    }.apply { tag = "home-recent-fallback" }
 
     private fun select(item: CurveLibraryItem) {
         if (active()) return

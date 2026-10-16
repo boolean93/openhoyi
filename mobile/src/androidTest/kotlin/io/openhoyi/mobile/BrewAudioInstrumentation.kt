@@ -73,7 +73,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (homeWorkbenchChecks) {
                 HomeWorkbenchChecks(this).run(expectedHomeFontScale)
-                report.putString("stream", "HOME_WORKBENCH_CHECKS_PASSED fixtures=3 shortHeight=true recovery=true readOnly=true noBle=true fontScale=$expectedHomeFontScale\n")
+                report.putString("stream", "HOME_WORKBENCH_CHECKS_PASSED fixtures=4 shortHeight=true recovery=true recentSelection=true readOnly=true noBle=true fontScale=$expectedHomeFontScale\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
