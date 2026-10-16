@@ -30,9 +30,11 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity) : Line
         details.measure(exactWidth, freeHeight)
         val touch = HoyiUi.dp(activity, 48)
         val chartMinimum = chart?.minimumChartHeight() ?: 0
+        // Cup selection and metric controls must not lose space to a scrollable summary.
+        // Reserve the plot minimum and a reachable details viewport before sizing controls.
+        val toolbarBudget = minOf(toolbar.measuredHeight, (height - chartMinimum - touch).coerceAtLeast(touch))
         val detailBudget = minOf(details.measuredHeight, height / 3,
-            (height - chartMinimum - touch).coerceAtLeast(touch))
-        val toolbarBudget = minOf(toolbar.measuredHeight, (height - chartMinimum - detailBudget).coerceAtLeast(touch))
+            (height - chartMinimum - toolbarBudget).coerceAtLeast(touch))
         toolbarScroll.layoutParams.height = toolbarBudget
         detailsScroll.layoutParams.height = detailBudget
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)

@@ -20,7 +20,7 @@
 | CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 有列表；选中详情与排序后的状态需另图 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 记录不存在 | 8 |
-| BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 框架不足两杯；edd89da高级图已验证全宽/摘要；fb19415实图已有四指标分段按钮，但缺采样，双轨迹仍需专项图 | 9 |
+| BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 框架不足两杯；edd89da高级图已验证全宽/摘要；fb19415用户平板有采样双轨迹实图，但指标按钮被裁半；高度预算修正待CI，四指标专项图仍缺 | 9 |
 | BeanInventoryActivity | [库存v2](../research/task-first-ui-concepts/bean-inventory-v2.png) | 库存空态 | 11 |
 | BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 新豆款空表单；f3233d6用户平板表单检查通过，模式选择仍有差异；3d235e9日期入口待运行图 | 20 |
 | BeanBatchActivity | [批次v1](../research/task-first-ui-concepts/bean-batch-v1.png) | 批次不存在 | 8 |
@@ -28,7 +28,7 @@
 | BeanPreparationActivity | [用豆v1](../research/task-first-ui-concepts/bean-preparation-v1.png) | 无库存批次 | 10 |
 | BrewReviewActivity | [复盘v3](../research/task-first-ui-concepts/brew-review-v3.png) | 记录不存在；不能验证复盘表单 | 9 |
 | CurveEditorActivity | [编辑v1](../research/task-first-ui-concepts/curve-editor-v1.png) | f525db3三横屏窗口检查通过；用户平板四阶段输入及预览动作实图完整，93cc75d已改直接分段选择，等待新图 | 31 |
-| CurveShareActivity | [分享v1](../research/task-first-ui-concepts/curve-share-v1.png) | 曲线不存在；709a337业务图另证四阶段；abe9614分区待新图 | 9 |
+| CurveShareActivity | [分享v1](../research/task-first-ui-concepts/curve-share-v1.png) | 曲线不存在；abe9614业务实图四阶段表格完整，预览/参数标题及底部说明归位；字体/图高仍待对齐 | 9 |
 | CurveImportActivity | [导入v2](../research/task-first-ui-concepts/curve-import-v2.png) | 空JSON输入；合法/非法/键盘另验 | 13 |
 | CurveImportPreviewActivity | [冲突预览v1](../research/task-first-ui-concepts/curve-import-preview-v1.png) | 参数不可读错误态；正常/冲突需业务图 | 9 |
 | ScaleActivity | [电子秤v2](../research/task-first-ui-concepts/scale-v2.png) | 55f3f3f普通/大字号实图已证单位缩小与设备两列；仍无有效重量/趋势，用户平板及设备身份待验 | 25 |

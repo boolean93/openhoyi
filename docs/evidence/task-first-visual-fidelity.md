@@ -651,3 +651,11 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 等服务观察到连接状态变化后开始，采样至少5秒/两点；无秤要求全部点weightHundredthsGram=null及snapshot重量/时间戳均空，有秤要求存在重量点。机器压力/注水/温度大于零，当前主数值标签分别为秤重/注水。不是隐藏曲线或改图代替真实采样。
 - 保存active-cup-visual/with-scale及no-scale的window.png、字体测量JSON、source.txt，点击既有停止并确认ENDED_OBSERVED；finally恢复模拟连接和语言/曲线偏好。此为Mock实际流程，不代表物理停水。
 - Capture脚本在原浅色用户平板流程后重启Home启动Mock服务，再运行仅允许disposableCiEmulator的instrumentation入口，必须结果标记通过并拉取产物。脚本未在本地执行；bash -n/diff/branch检查通过，Mock/test APK构建23s成功（/tmp/task-no-scale-capture-build.log）。运行和图片尚待CI，不能声称无秤视觉验收完成。
+
+### 分享分区实图与对比操作裁切定位（2026-10-16）
+
+- abe9614 advanced/run38891161712 completed/success，下载ci-abe9614-advanced。业务17路径通过，12曲线字段/4阶段与3日期/7笔记字段持久化、重建检查均通过。
+- 实读business/curve-share-four-stages.png并对照curve-share-v1：预览标题、4个阶段参数标题、同行详情及右栏底部范围说明实际归位；四阶段表格全部完整，94°C/41.7g及2.4/5.7/8.3/6.9bar对应保存数据。导出后文件分享仍禁用。该图1600×1000，不外推用户平板/四阶段大字号；图高、字体、单位排版和图标仍有差异，不是整页完成。
+- fb19415 single/run38889727697终态failure，下载用户平板ci-fb19415-user。result=334/336，仅浅/深色BrewComparisonActivity指标按钮裁切：实际高108px但visibleRect高54px。实图同时显示压力双杯实/虚线（样本曲线重合）与两杯摘要，不再只凭高级空图讨论，但尚无四指标逐图。
+- 定位TaskComparisonLayout先为details分配height/3再压缩toolbar，新增分段行后正常用户平板也被裁。候选先保留图表下限和48dp详情，再按自然高度分配toolbar，剩余空间给局部滚动详情；原完整可见/点击尺寸/图表门禁不放宽。新CI待验。
+- 修正源码Mock/test APK构建41s成功（/tmp/task-comparison-toolbar-budget-build.log），diff及分支规则通过；这只证明构建，窗口裁切是否消除仍须新CI实图。没有安装、设备操作、合并或发版。
