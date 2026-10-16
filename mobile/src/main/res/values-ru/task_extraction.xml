@@ -1,0 +1,9 @@
+<resources>
+    <string name="task_extraction_elapsed">Время</string>
+    <string name="task_extraction_scale">Показание весов</string>
+    <string name="task_extraction_water">Всего воды</string>
+    <string name="task_extraction_pressure">Давление %1$s bar</string>
+    <string name="task_extraction_temperature">Темп. машины %1$s °C</string>
+    <string name="task_extraction_supporting">Чашка и инструменты</string>
+    <string name="task_extraction_flow">Поток в чашку (оценка) %1$s g/s</string>
+</resources>

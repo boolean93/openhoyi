@@ -47,6 +47,9 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var elapsedValue: TextView
     private lateinit var pressureValue: TextView
     private lateinit var weightValue: TextView
+    private lateinit var quantityLabel: TextView
+    private lateinit var temperatureValue: TextView
+    private lateinit var preparationSummary: TextView
     private lateinit var flowValue: TextView
     private lateinit var weightTarget: TextView
     private lateinit var preparationStatus: TextView
@@ -116,53 +119,66 @@ class ExtractionActivity : ThemedActivity() {
         referenceStatus = text(details, getString(R.string.reference_off), 13)
         traceCurve = text(details, "", 13)
         stageTargets = text(details, "", 13)
-        // Wide windows allocate the remaining height to the plot, not full-width tools.
-        // Safety guidance stays above this split; the side panel is bounded and never scrolls.
-        val plotColumn = if (narrow) content else LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val sidePanel = if (narrow) content else LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(4), dp(4), dp(4))
-            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_surface, 10)
+        readiness = text(content, getString(R.string.extraction_waiting_service), 14, true).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
+        val workspace = TaskWorkspaceLayout(this)
+        content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4) })
+        val plotColumn = workspace.primaryBody
+        val sidePanel = workspace.secondaryBody.apply {
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+        }
+        HoyiUi.label(this, sidePanel, getString(R.string.task_extraction_supporting), 16, true)
         curveSummary = text(sidePanel, getString(R.string.extraction_curve_initial), 16, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
         }
-        deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 12)
-        readiness = text(content, getString(R.string.extraction_waiting_service), 14, true)
-        readiness.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        if (!narrow) {
-            val workspace = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4) })
-            workspace.addView(plotColumn, LinearLayout.LayoutParams(0, -1, 1f).apply { marginEnd = dp(10) })
-            // On the smallest wide window leave at least ~400dp for the dual-axis plot.
-            val sideWidth = minOf(300, resources.configuration.screenWidthDp * 3 / 10)
-            workspace.addView(sidePanel, LinearLayout.LayoutParams(dp(sideWidth), -1))
-        }
+        deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 14)
         val metrics = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        plotColumn.addView(metrics, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
-        fun reading(label: String): TextView {
+        plotColumn.addView(metrics, LinearLayout.LayoutParams(-1, -2))
+        fun reading(label: String, quantity: Boolean = false): TextView {
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(6), dp(4), dp(6), dp(4))
+                setPadding(dp(8), dp(4), dp(8), dp(4))
                 background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 8)
             }
-            metrics.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(3) })
-            HoyiUi.label(this, cell, label, 11, muted = true)
-            return HoyiUi.label(this, cell, "—", if (narrow) 20 else 26, true)
+            metrics.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
+            val heading = HoyiUi.label(this, cell, label, 14, muted = true)
+            if (quantity) quantityLabel = heading
+            return HoyiUi.label(this, cell, "—", 26, true)
         }
-        elapsedValue = reading(getString(R.string.extraction_elapsed))
-        pressureValue = reading(getString(R.string.extraction_pressure))
-        weightValue = reading(getString(R.string.extraction_weight))
-        flowValue = reading(getString(R.string.live_cup_flow_metric))
+        elapsedValue = reading(getString(R.string.task_extraction_elapsed))
+        weightValue = reading(getString(R.string.task_extraction_water), quantity = true)
+        val secondaryReadings = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        plotColumn.addView(secondaryReadings, LinearLayout.LayoutParams(-1, -2))
+        pressureValue = HoyiUi.label(this, secondaryReadings, "", 14).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
+        }
+        temperatureValue = HoyiUi.label(this, secondaryReadings, "", 14).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
+        flowValue = text(details, "", 14)
         chart = ExtractionOverlayView(this).apply {
             background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_surface, 10)
         }
-        plotColumn.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6); bottomMargin = dp(4) })
-        val toolbar = LinearLayout(this).apply { orientation = if (narrow) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
+        plotColumn.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4); bottomMargin = dp(4) })
+        workspace.onPrimarySpaceAvailable = { width, height ->
+            narrow = !TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
+                (height / resources.displayMetrics.density).toInt()).twoPaneAllowed
+            val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+            val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            metrics.measure(exactWidth, naturalHeight)
+            secondaryReadings.measure(exactWidth, naturalHeight)
+            // Reserve real plot space before allocating the locally scrollable tools.
+            // Font scaling grows this budget; no plot/text minimum is lowered.
+            val chartHeight = maxOf((dp(240) * resources.configuration.fontScale).toInt(),
+                (height * .55f).toInt())
+            metrics.measuredHeight + secondaryReadings.measuredHeight + chartHeight + dp(8)
+        }
+        val toolbar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         sidePanel.addView(toolbar)
         fun compact(parent: LinearLayout, title: String, action: () -> Unit): Button =
             HoyiUi.button(this, parent, title, action = action).apply {
-                textSize = 13f
+                textSize = 14f
                 setPadding(dp(6), dp(4), dp(6), dp(4))
                 minHeight = dp(48); minimumHeight = dp(48)
                 layoutParams = if (parent.orientation == LinearLayout.VERTICAL)
@@ -174,19 +190,13 @@ class ExtractionActivity : ThemedActivity() {
             startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
         }
         chooseBeans = compact(toolbar, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
-        val secondary = LinearLayout(this).apply { orientation = if (narrow) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
-        sidePanel.addView(secondary)
-        val referenceTools = if (narrow) secondary else LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            secondary.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-        }
-        val preparationTools = if (narrow) secondary else LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            secondary.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-        }
+        val referenceTools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        sidePanel.addView(referenceTools, LinearLayout.LayoutParams(-1, -2))
+        val preparationTools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        sidePanel.addView(preparationTools, LinearLayout.LayoutParams(-1, -2))
         referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }
         val detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
-            val info = listOf(curveSummary, deviceSummary, shotSummary, live, weightTarget, traceCurve, stageTargets, referenceStatus)
+            val info = listOf(curveSummary, deviceSummary, shotSummary, live, flowValue, weightTarget, traceCurve, stageTargets, referenceStatus)
                 .map { it.text.toString() }.filter { it.isNotBlank() }.joinToString("\n\n") +
                 "\n\n" + getString(R.string.live_cup_flow_source)
             AlertDialog.Builder(this).setTitle(getString(R.string.extraction_overview)).setMessage(info)
@@ -195,6 +205,7 @@ class ExtractionActivity : ThemedActivity() {
         curveSummary.setOnLongClickListener { detailsButton.performClick(); true }
         prepare = compact(preparationTools, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
         cancelPrepare = compact(preparationTools, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
+        preparationSummary = text(sidePanel, "", 12).apply { visibility = View.GONE }
         // These can describe UNKNOWN writes or stale alarms. Keep them outside the
         // tools panel so longer translations cannot push a safety message offscreen.
         preparationStatus = text(content, getString(R.string.extraction_prepare_initial), 12)
@@ -331,7 +342,13 @@ class ExtractionActivity : ThemedActivity() {
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,
             SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
         val slotLabel = if (presetSlot == 7) "" else getString(R.string.extraction_slot_suffix, presetSlot.toString())
-        curveSummary.show(getString(R.string.extraction_curve_summary, item?.name ?: getString(R.string.extraction_unselected), slotLabel))
+        val observedCup = owner?.chartPoints?.isNotEmpty() == true || active || state == ExtractionState.OUTCOME_UNKNOWN
+        val displayCurve = if (observedCup) owner?.chartCurveId?.let(library::find) else item
+        val displayCurveName = displayCurve?.name ?: getString(if (observedCup) {
+            if (owner?.chartCurveId == "manual") R.string.extraction_manual_label else R.string.profiles_missing
+        } else R.string.extraction_unselected)
+        curveSummary.show(getString(R.string.extraction_curve_summary, displayCurveName,
+            if (observedCup) "" else slotLabel))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(this, snapshot.coffeeState), DeviceStatusText.label(this, snapshot.scaleState)))
         shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else shotLabel(state), owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
         val guidance = when {
@@ -374,11 +391,14 @@ class ExtractionActivity : ThemedActivity() {
                     BrewPreparation.State.FAILED -> getString(R.string.extraction_prepare_failed)
                     BrewPreparation.State.UNKNOWN -> getString(R.string.extraction_prepare_unknown)
                 })
-        // Only omit the normal idle preparation explanation during an observed live shot.
-        // Starting, waiting, cancellation, failed and unknown preparation remain visible.
-        val normalLivePreparation = active && narrow && state == ExtractionState.RUNNING &&
-            snapshot.settings != null && owner?.machineSettingsFresh == true && preparation == BrewPreparation.State.IDLE
-        preparationStatus.visibility = if (normalLivePreparation) View.GONE else View.VISIBLE
+        // Only fresh, non-actionable idle prose may live with the supporting details.
+        // Writing, temperature wait, cancellation, failures and unknown outcomes stay fixed.
+        val normalPreparation = snapshot.settings != null && owner?.machineSettingsFresh == true &&
+            owner.machineControlSafetyMessage == null && preparation == BrewPreparation.State.IDLE &&
+            (!studio || temperatureReady)
+        preparationSummary.show(preparationStatus.text.toString())
+        preparationSummary.visibility = if (normalPreparation) View.VISIBLE else View.GONE
+        preparationStatus.visibility = if (normalPreparation) View.GONE else View.VISIBLE
         notificationStatus.show(if (BuildConfig.MOCK_MODE || notificationsAllowed()) "" else
             getString(R.string.extraction_notification_warning))
         notificationStatus.visibility = if (notificationStatus.text.isEmpty()) View.GONE else View.VISIBLE
@@ -390,22 +410,31 @@ class ExtractionActivity : ThemedActivity() {
             View.GONE else View.VISIBLE
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
         elapsedValue.show(if (frame is ExtractionTelemetry && !frame.brewWait) "${frame.elapsedSeconds} s" else "—")
-        pressureValue.show(when (frame) {
-            is ExtractionTelemetry -> "${frame.pressureTenthsBar / 10.0} bar"
-            is IdleTelemetry -> "${frame.brewPressureTenthsBar / 10.0} bar"
+        pressureValue.show(getString(R.string.task_extraction_pressure, when (frame) {
+            is ExtractionTelemetry -> String.format(Locale.ROOT, "%.1f", frame.pressureTenthsBar / 10.0)
+            is IdleTelemetry -> String.format(Locale.ROOT, "%.1f", frame.brewPressureTenthsBar / 10.0)
             else -> "—"
-        })
+        }))
         val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
             ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)?.weightHundredthsGram
-        weightValue.show("${scale?.let(::number) ?: "—"} g")
+        // Connected but stale scales stay explicitly unknown; no cup/tare evidence is inferred.
+        val scaleQuantity = scale != null || snapshot.scaleState == DeviceState.READY
+        quantityLabel.show(getString(if (scaleQuantity) R.string.task_extraction_scale else R.string.task_extraction_water))
+        weightValue.show(if (scaleQuantity) "${scale?.let(::number) ?: "—"} g" else {
+            val water = (frame as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.totalWaterTenthsMl
+            "${water?.let { String.format(Locale.ROOT, "%.1f", it / 10.0) } ?: "—"} ml"
+        })
         val cupFlow = if (scale != null && frame is ExtractionTelemetry && !frame.brewWait)
             CupFlowProjection.values(owner?.chartPoints.orEmpty()).lastOrNull() else null
-        flowValue.show("${cupFlow?.let { String.format(java.util.Locale.ROOT, "%.1f", it) } ?: "—"} g/s")
-        live.show(getString(R.string.extraction_live_temperature, when (frame) {
+        flowValue.show(getString(R.string.task_extraction_flow,
+            cupFlow?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"))
+        val rawTemperature = when (frame) {
             is ExtractionTelemetry -> number(frame.brewTemperatureHundredthsC)
             is IdleTelemetry -> number(frame.brewTemperatureHundredthsC)
             else -> "—"
-        }))
+        }
+        temperatureValue.show(getString(R.string.task_extraction_temperature, rawTemperature))
+        live.show(getString(R.string.extraction_live_temperature, rawTemperature))
         val target = if (state != ExtractionState.IDLE) owner?.activeShotTargetHundredthsGram
             else profile?.targetHundredthsGram
         weightTarget.show(if (owner?.manualShotActive != true && target != null && target > 0) {
@@ -425,7 +454,7 @@ class ExtractionActivity : ThemedActivity() {
         val rawPoints=owner?.chartPoints ?: emptyList()
         val points = ExtractionReference.align(rawPoints).points
         if (chart.points != points) chart.points = points
-        val plottedItem=if(rawPoints.isNotEmpty() || active) owner?.chartCurveId?.let(library::find) else item
+        val plottedItem=if(rawPoints.isNotEmpty() || active || state == ExtractionState.OUTCOME_UNKNOWN) owner?.chartCurveId?.let(library::find) else item
         traceCurve.show(if(rawPoints.isNotEmpty()) getString(R.string.reference_trace_curve,
             plottedItem?.name ?: getString(if(owner?.chartCurveId=="manual") R.string.extraction_manual_label
                 else R.string.profiles_missing)) else "")
@@ -485,11 +514,12 @@ class ExtractionActivity : ThemedActivity() {
         val available=timeline?.points?.isNotEmpty()==true
         referenceId=if(available) id else null
         chart.reference=if(available) requireNotNull(timeline).points else emptyList()
-        referenceStatus.show(if(available) getString(R.string.reference_legend)+"\n"+
-            getString(R.string.reference_source,journalDate(requireNotNull(record).observation.startedAtMs),
-                getString(if(requireNotNull(timeline).observedOrigin) R.string.reference_align_observed else R.string.reference_align_recorded))
-            else getString(if(id==null) R.string.reference_off else R.string.reference_unavailable))
-        chart.referenceLabel = if (available) referenceStatus.text.toString() else null
+        val source = if (available) getString(R.string.reference_source,
+            journalDate(requireNotNull(record).observation.startedAtMs),
+            getString(if (requireNotNull(timeline).observedOrigin) R.string.reference_align_observed else R.string.reference_align_recorded)) else null
+        referenceStatus.show(if (source != null) getString(R.string.reference_legend) + "\n" + source
+            else getString(if (id == null) R.string.reference_off else R.string.reference_unavailable))
+        chart.referenceLabel = source
     }
     private fun shotLabel(state: ExtractionState) = when (state) {
         ExtractionState.IDLE -> getString(R.string.machine_settings_tab_standby)
