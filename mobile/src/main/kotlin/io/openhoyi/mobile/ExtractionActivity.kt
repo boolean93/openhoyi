@@ -139,13 +139,16 @@ class ExtractionActivity : ThemedActivity() {
         fun reading(label: String, quantity: Boolean = false): TextView {
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(8), dp(4), dp(8), dp(4))
-                background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 8)
+                setPadding(dp(TaskVisualTokens.RELATED_GAP_DP), dp(TaskVisualTokens.RELATED_GAP_DP),
+                    dp(TaskVisualTokens.RELATED_GAP_DP), dp(TaskVisualTokens.RELATED_GAP_DP))
             }
             metrics.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
             val heading = HoyiUi.label(this, cell, label, 14, muted = true)
             if (quantity) quantityLabel = heading
-            return HoyiUi.label(this, cell, "—", 26, true)
+            return HoyiUi.label(this, cell, "—", TaskVisualTokens.LIVE_VALUE_SP, true).apply {
+                typeface = Typeface.create(TaskVisualTokens.BODY_FAMILY, Typeface.BOLD)
+                fontFeatureSettings = "tnum"
+            }
         }
         elapsedValue = reading(getString(R.string.task_extraction_elapsed))
         weightValue = reading(getString(R.string.task_extraction_water), quantity = true)

@@ -42,7 +42,7 @@ internal object HoyiUi {
     fun dark(activity: Activity) = activity.resources.configuration.uiMode and
         Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
 
-    fun shape(activity: Activity, color: Int, radius: Int = 16, stroke: Int? = null): GradientDrawable =
+    fun shape(activity: Activity, color: Int, radius: Int = TaskVisualTokens.CARD_RADIUS_DP, stroke: Int? = null): GradientDrawable =
         GradientDrawable().apply {
             setColor(activity.getColor(color))
             cornerRadius = dp(activity, radius).toFloat()
@@ -54,7 +54,7 @@ internal object HoyiUi {
         text = value
         textSize = size.toFloat()
         setTextColor(activity.getColor(if (muted) R.color.mobile_muted else R.color.mobile_text))
-        if (bold) typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        typeface = Typeface.create(if (bold) TaskVisualTokens.EMPHASIS_FAMILY else TaskVisualTokens.BODY_FAMILY, Typeface.NORMAL)
         includeFontPadding = false
         parent.addView(this)
     }
@@ -62,11 +62,12 @@ internal object HoyiUi {
     fun card(activity: Activity, parent: LinearLayout, title: String? = null): LinearLayout =
         LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(activity, 20), dp(activity, 18), dp(activity, 20), dp(activity, 18))
-            background = shape(activity, R.color.mobile_surface, 18, R.color.mobile_border)
-            parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(activity, 14) })
-            if (title != null) label(activity, this, title, 19, true).apply {
-                setPadding(0, 0, 0, dp(activity, 12))
+            setPadding(dp(activity, TaskVisualTokens.CARD_PADDING_DP), dp(activity, TaskVisualTokens.CARD_PADDING_DP),
+                dp(activity, TaskVisualTokens.CARD_PADDING_DP), dp(activity, TaskVisualTokens.CARD_PADDING_DP))
+            background = shape(activity, R.color.mobile_surface, TaskVisualTokens.CARD_RADIUS_DP, R.color.mobile_border)
+            parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(activity, TaskVisualTokens.GROUP_GAP_DP) })
+            if (title != null) label(activity, this, title, TaskVisualTokens.SECTION_SP, true).apply {
+                setPadding(0, 0, 0, dp(activity, TaskVisualTokens.RELATED_GAP_DP))
             }
         }
 
@@ -77,8 +78,8 @@ internal object HoyiUi {
         parent.isBaselineAligned = false
         text = value
         isAllCaps = false
-        textSize = if (primary || danger) 17f else 15f
-        typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        textSize = TaskVisualTokens.BODY_SP.toFloat()
+        typeface = Typeface.create(TaskVisualTokens.EMPHASIS_FAMILY, Typeface.NORMAL)
         val foreground = activity.getColor(when {
             primary -> android.R.color.white
             danger -> R.color.mobile_danger
@@ -86,18 +87,18 @@ internal object HoyiUi {
         })
         setTextColor(ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
             intArrayOf(activity.getColor(R.color.mobile_muted), foreground)))
-        minHeight = dp(activity, if (primary || danger) 54 else 48)
+        minHeight = dp(activity, if (primary || danger) TaskVisualTokens.PRIMARY_TARGET_DP else TaskVisualTokens.TOUCH_TARGET_DP)
         minimumHeight = minHeight
         elevation = 0f
         background = StateListDrawable().apply {
             addState(intArrayOf(-android.R.attr.state_enabled),
-                shape(activity, R.color.mobile_accent_soft, 12, R.color.mobile_border))
+                shape(activity, R.color.mobile_accent_soft, TaskVisualTokens.CONTROL_RADIUS_DP, R.color.mobile_border))
             addState(intArrayOf(), shape(activity,
-                if (primary) R.color.mobile_primary_button else R.color.mobile_surface, 12,
+                if (primary) R.color.mobile_primary_button else R.color.mobile_surface, TaskVisualTokens.CONTROL_RADIUS_DP,
                 if (primary) null else if (danger) R.color.mobile_danger else R.color.mobile_border))
         }
         setOnClickListener { action() }
-        parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(activity, 10) })
+        parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(activity, TaskVisualTokens.RELATED_GAP_DP) })
     }
 
     fun tabs(activity: Activity, parent: LinearLayout, labels: List<String>, selected: Int,
@@ -117,7 +118,7 @@ internal object HoyiUi {
                 contentDescription = activity.getString(R.string.ui_tab_description, label, if (active) activity.getString(R.string.ui_current_page_suffix) else "")
                 setTextColor(activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted))
                 background = shape(activity,
-                    if (active) R.color.mobile_accent_soft else R.color.mobile_surface, 12, R.color.mobile_border)
+                    if (active) R.color.mobile_accent_soft else R.color.mobile_surface, TaskVisualTokens.CONTROL_RADIUS_DP, R.color.mobile_border)
                 if (!active) setOnClickListener { onSelect(index) }
             }, LinearLayout.LayoutParams(0, -2, 1f).apply {
                 if (index < labels.lastIndex) marginEnd = dp(activity, 8)
