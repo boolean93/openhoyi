@@ -126,6 +126,14 @@ class ExtractionActivity : ThemedActivity() {
         readiness = text(content, getString(R.string.extraction_waiting_service), 14, true).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
+        if (!compactChrome) {
+            // Keep guidance visible alongside the title on a tablet. Compact running
+            // layouts hide the header, so their guidance must remain outside it.
+            content.removeView(readiness)
+            pageHeader.addView(readiness, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                marginStart = dp(16)
+            })
+        }
         val workspace = TaskWorkspaceLayout(this)
         content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4) })
         val plotColumn = workspace.primaryBody
@@ -202,7 +210,7 @@ class ExtractionActivity : ThemedActivity() {
         sidePanel.addView(referenceTools, LinearLayout.LayoutParams(-1, -2))
         preparationTools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         sidePanel.addView(preparationTools, LinearLayout.LayoutParams(-1, -2))
-        referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }
+        referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }.apply { asTaskTextAction() }
         val detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
             val info = listOf(curveSummary, deviceSummary, shotSummary, live, flowValue, weightTarget, traceCurve, stageTargets, referenceStatus)
                 .map { it.text.toString() }.filter { it.isNotBlank() }.joinToString("\n\n") +
@@ -210,6 +218,7 @@ class ExtractionActivity : ThemedActivity() {
             AlertDialog.Builder(this).setTitle(getString(R.string.extraction_overview)).setMessage(info)
                 .setPositiveButton(android.R.string.ok, null).show()
         }
+        detailsButton.asTaskTextAction()
         curveSummary.setOnLongClickListener { detailsButton.performClick(); true }
         prepare = compact(preparationTools, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
         cancelPrepare = compact(preparationTools, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
@@ -522,7 +531,18 @@ class ExtractionActivity : ThemedActivity() {
         start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
     }
-    private fun TextView.show(value: String) { if (text.toString() != value) text = value }
+    private fun TextView.show(value: String) {
+        if (text.toString() == value) return
+        if (this === elapsedValue || this === weightValue) {
+            text = android.text.SpannableString(value).apply {
+                val unitStart = value.lastIndexOf(' ') + 1
+                if (unitStart > 0 && unitStart < value.length) {
+                    setSpan(android.text.style.RelativeSizeSpan(0.55f), unitStart, value.length,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        } else text = value
+    }
     private fun chooseReference() {
         val curveId=referenceCurveId ?: return
         val app=application as MobileApplication
