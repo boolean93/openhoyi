@@ -629,3 +629,11 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 三日期输入右侧加入24dp线性向量图标、48dp独立点击区域；FrameLayout保留原输入宽度权重与行高，end padding为按钮让位，RTL采用END。焦点边框、涟漪及本地化字段描述保留。
 - 日历初值取有效现值，否则今天只用于选择焦点；取消不写字段，确认写ISO日期。保留手动编辑/清空、可选值及原保存验证。销毁Activity时关闭日历，无库存写入逻辑变化。
 - 业务UI检查增加打开/初值/取消/确认后原重建与持久化检查，窗口检查增加三个入口全显及48dp断言。Mock/test APK构建45s成功（/tmp/task-bean-date-picker-build.log），diff/分支检查通过；新增运行断言和实际截图待CI，不能以编译充当视觉通过。
+
+### 电子秤单位与设备行实际截图（2026-10-16）
+
+- 55f3f3f advanced/run38890558531 completed/success，产物ci-55f3f3f-pages。landscape/wideFont日志均明确8语言×2主题×15页=240夹具通过，preservedState/noBle=true。
+- 已逐图查看中文浅色ScaleActivity普通/1.3字号截图并对照scale-v2：主读数单位g明显小于占位主值，电量/数据状态两列实际生效，长状态大字号自然换行，计时、去皮、趋势图、连接/设置入口可见。这里只证明无读数状态的层级和信息行，不证明有效数字、稳定读数、电量82%或真实去皮。
+- 仍有差异：认可稿的连接设备摘要、设备型号行与分区分隔未齐；主值只有—，趋势为空，不能据此核对有数据曲线/稳定状态。图像1600×1000，不代替优先用户平板2560×1600专项；字号/间距的完整测量仍未闭环。
+- 源码核实MobileSnapshot含scaleState/scaleObservation/scaleCapabilities/candidates，但无当前连接设备的名称/型号字段。候选advertisedName存在于扫描列表，不能未经身份绑定就拿某个候选名当当前型号；后续设备身份展示需从同一连接所有者提供可信关联，不写死BOOKOO。
+- 最新萃取aaf1c44 capture/run38893146356及e15e00e/run38892839825仍queued；旧fb19415 single/run38889727697仍in_progress。没有取消/重启，也没有借秤页面通过外推萃取页。

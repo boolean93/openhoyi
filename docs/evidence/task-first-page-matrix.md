@@ -22,16 +22,16 @@
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 记录不存在 | 8 |
 | BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 框架不足两杯；edd89da高级图已验证全宽/摘要；fb19415实图已有四指标分段按钮，但缺采样，双轨迹仍需专项图 | 9 |
 | BeanInventoryActivity | [库存v2](../research/task-first-ui-concepts/bean-inventory-v2.png) | 库存空态 | 11 |
-| BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 新豆款空表单；f3233d6用户平板表单检查通过，尚有模式选择/日期交互差异 | 20 |
+| BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 新豆款空表单；f3233d6用户平板表单检查通过，模式选择仍有差异；3d235e9日期入口待运行图 | 20 |
 | BeanBatchActivity | [批次v1](../research/task-first-ui-concepts/bean-batch-v1.png) | 批次不存在 | 8 |
 | BeanLedgerActivity | [流水v3](../research/task-first-ui-concepts/bean-ledger-v3.png) | 空流水表头；有事件状态需另图 | 14 |
 | BeanPreparationActivity | [用豆v1](../research/task-first-ui-concepts/bean-preparation-v1.png) | 无库存批次 | 10 |
 | BrewReviewActivity | [复盘v3](../research/task-first-ui-concepts/brew-review-v3.png) | 记录不存在；不能验证复盘表单 | 9 |
-| CurveEditorActivity | [编辑v1](../research/task-first-ui-concepts/curve-editor-v1.png) | f525db3三横屏窗口检查通过；用户平板四阶段输入及预览动作实图完整，阶段数量下拉框仍与稿不同 | 31 |
+| CurveEditorActivity | [编辑v1](../research/task-first-ui-concepts/curve-editor-v1.png) | f525db3三横屏窗口检查通过；用户平板四阶段输入及预览动作实图完整，93cc75d已改直接分段选择，等待新图 | 31 |
 | CurveShareActivity | [分享v1](../research/task-first-ui-concepts/curve-share-v1.png) | 曲线不存在；709a337业务图另证四阶段；abe9614分区待新图 | 9 |
 | CurveImportActivity | [导入v2](../research/task-first-ui-concepts/curve-import-v2.png) | 空JSON输入；合法/非法/键盘另验 | 13 |
 | CurveImportPreviewActivity | [冲突预览v1](../research/task-first-ui-concepts/curve-import-preview-v1.png) | 参数不可读错误态；正常/冲突需业务图 | 9 |
-| ScaleActivity | [电子秤v2](../research/task-first-ui-concepts/scale-v2.png) | Mock无有效重量；单位/设备行修改晚于截图 | 25 |
+| ScaleActivity | [电子秤v2](../research/task-first-ui-concepts/scale-v2.png) | 55f3f3f普通/大字号实图已证单位缩小与设备两列；仍无有效重量/趋势，用户平板及设备身份待验 | 25 |
 | ScaleConnectionActivity | [连接v1](../research/task-first-ui-concepts/scale-connection-v1.png) | 无候选；候选/连接/实验协议限制需另验 | 13 |
 | LegacyCurveActivity | [旧曲线v1](../research/task-first-ui-concepts/legacy-curve-v1.png) | 未导入空态；另已读27ae12b有40条数据的列表，未选中详情；重复说明与全宽导入按钮待收敛 | 13 |
 | LegacyHistoryActivity | [旧记录v1](../research/task-first-ui-concepts/legacy-history-v1.png) | 框架零条；另已读27ae12b的41条记录列表，非空列表成立，构图待对齐 | 13 |
@@ -45,7 +45,7 @@
 - 709a337 advanced/run38886601670：15业务页8语言×2主题、常规/1.3字号各240夹具通过。四阶段分享图已人工核对；分区调整abe9614在其后，须新图。
 - 27ae12b single/run38885839398：普通横屏通过，用户平板332/336、大字号334/336；失败仅旧入库/编辑裁切，后续f525db3/run38888405636三个横屏各336夹具通过，第四阶段裁切专项已关闭。复盘IME本轮未复现不等于根因已修。
 - cbe8076补用户平板浅色真实Mock启动流程；不是硬件验收，也未覆盖无秤运行态。
-- 55f3f3f前后电子秤单位和设备行仍待新图；fb19415指标分段、edd89da摘要表已有实际高级夹具图，但空图不能覆盖有采样双轨迹。
+- 55f3f3f电子秤普通/大字号实图已核对单位和设备行，仅无读数状态；fb19415指标分段、edd89da摘要表已有实际高级夹具图，但空图不能覆盖有采样双轨迹。
 
 ## 下一步优先级
 
