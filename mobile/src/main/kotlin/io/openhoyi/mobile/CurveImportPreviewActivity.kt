@@ -53,12 +53,35 @@ class CurveImportPreviewActivity : ThemedActivity() {
                 setPadding(0, HoyiUi.dp(this@CurveImportPreviewActivity, 4), 0, 0)
             }
         }
+        var stageChart: CurveStageView? = null
         if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
-            preview.addView(CurveStageView(this).apply { targets = doc.stages.map { it.target } }, LinearLayout.LayoutParams(-1, 0, 1f))
+            stageChart = CurveStageView(this).apply { targets = doc.stages.map { it.target } }
+            preview.addView(stageChart, LinearLayout.LayoutParams(-1, 0, 1f))
             HoyiUi.label(this, preview, getString(R.string.profiles_stage_caption), 14, muted = true)
         } else HoyiUi.label(this, preview, getString(R.string.profiles_flow_raw), 15, muted = true)
+        val table = if (stageChart != null) stageTable(doc).also {
+            preview.addView(it, LinearLayout.LayoutParams(-1, -2))
+        } else null
         HoyiUi.button(this, preview, getString(R.string.ui_full_details)) {
             beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
+        }
+        if (table != null) workspace.onPrimarySpaceAvailable = { width, height ->
+            val exactWidth = android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY)
+            val unspecified = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+            var fixedHeight = 0
+            for (index in 0 until preview.childCount) {
+                val child = preview.getChildAt(index)
+                if (child !== stageChart && child !== table) {
+                    child.measure(exactWidth, unspecified)
+                    val params = child.layoutParams as LinearLayout.LayoutParams
+                    fixedHeight += child.measuredHeight + params.topMargin + params.bottomMargin
+                }
+            }
+            table.measure(exactWidth, unspecified)
+            val minimumChart = HoyiUi.dp(this, 160)
+            val showTable = height >= fixedHeight + table.measuredHeight + minimumChart
+            table.visibility = if (showTable) android.view.View.VISIBLE else android.view.View.GONE
+            fixedHeight + minimumChart + if (showTable) table.measuredHeight else 0
         }
         val dock = TaskActionDock(this, edgeInsetDp = 0)
         body.addView(dock, LinearLayout.LayoutParams(-1, -2))
@@ -90,6 +113,27 @@ class CurveImportPreviewActivity : ThemedActivity() {
         }
         HoyiUi.label(this, decisions, getString(R.string.profiles_compatibility), 14, muted = true).apply {
             setPadding(0, HoyiUi.dp(this@CurveImportPreviewActivity, 16), 0, 0)
+        }
+    }
+    private fun stageTable(doc: CustomCurveDocument) = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(0, HoyiUi.dp(this@CurveImportPreviewActivity, 16), 0, 0)
+        tag = "import-stage-table"
+        fun row(values: List<String>, heading: Boolean) {
+            val line = LinearLayout(this@CurveImportPreviewActivity).apply { orientation = LinearLayout.HORIZONTAL }
+            addView(line, LinearLayout.LayoutParams(-1, -2))
+            values.forEach { value ->
+                HoyiUi.label(this@CurveImportPreviewActivity, line, value, 14, bold = heading, muted = heading).apply {
+                    setPadding(HoyiUi.dp(this@CurveImportPreviewActivity, 8), HoyiUi.dp(this@CurveImportPreviewActivity, 4),
+                        HoyiUi.dp(this@CurveImportPreviewActivity, 8), HoyiUi.dp(this@CurveImportPreviewActivity, 4))
+                    layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                }
+            }
+        }
+        row(listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).map(::getString), true)
+        doc.stages.forEachIndexed { index, stage ->
+            row(listOf(getString(R.string.profiles_stage, index + 1), CurveDraftNumber.format(stage.target, 1),
+                CurveDraftNumber.format(stage.waterTenthsMl, 1)), false)
         }
     }
     override fun onSaveInstanceState(outState: Bundle) { super.onSaveInstanceState(outState); outState.putBoolean("finishedSave", finishedSave) }

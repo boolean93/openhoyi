@@ -55,4 +55,7 @@
     <string name="curve_preview_temperature">Temperatura</string>
     <string name="curve_preview_weight">Peso objetivo</string>
     <string name="curve_preview_stages">Etapas</string>
+    <string name="import_table_stage">Etapa</string>
+    <string name="import_table_pressure">Presión · bar</string>
+    <string name="import_table_water">Agua de etapa · ml</string>
 </resources>

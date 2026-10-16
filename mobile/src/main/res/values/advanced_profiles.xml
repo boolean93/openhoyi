@@ -55,4 +55,7 @@
     <string name="curve_preview_temperature">设定温度</string>
     <string name="curve_preview_weight">目标液重</string>
     <string name="curve_preview_stages">阶段数</string>
+    <string name="import_table_stage">阶段</string>
+    <string name="import_table_pressure">压力 · bar</string>
+    <string name="import_table_water">本段水量 · ml</string>
 </resources>

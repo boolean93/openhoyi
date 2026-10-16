@@ -55,4 +55,7 @@
     <string name="curve_preview_temperature">설정 온도</string>
     <string name="curve_preview_weight">목표 추출량</string>
     <string name="curve_preview_stages">단계 수</string>
+    <string name="import_table_stage">단계</string>
+    <string name="import_table_pressure">압력 · bar</string>
+    <string name="import_table_water">단계 물량 · ml</string>
 </resources>

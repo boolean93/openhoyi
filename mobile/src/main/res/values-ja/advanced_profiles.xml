@@ -55,4 +55,7 @@
     <string name="curve_preview_temperature">設定温度</string>
     <string name="curve_preview_weight">目標抽出量</string>
     <string name="curve_preview_stages">段階数</string>
+    <string name="import_table_stage">段階</string>
+    <string name="import_table_pressure">圧力 · bar</string>
+    <string name="import_table_water">段階注水量 · ml</string>
 </resources>

@@ -267,3 +267,9 @@ Capture38870992324 completed/success，已下载并实读ci-7b03ebe-capture/mock
 693e696 single-screen38870140692仅tablet-large-font失败。已实读产物instrumentation.txt：336个页面已完成，列表恢复13/14；ScaleConnectionActivity recreate scrollY=352通过，进入HomeActivity设备管理后，在detailReturn等待detail.isDestroyed && activity.hasWindowFocus处超时。无OutOfMemory/应用断言越界证据，日志中的ColorBuffer警告不能单独证明根因。较新2fc59a5大字号同矩阵通过，说明不是每次出现，仍不能以此关闭旧失败。
 
 候选仅给detailReturn原等待失败添加主线程状态诊断（详情/父页destroyed、finishing、focus、task及父页attached），保留等待时间、断言与恢复逻辑，不盲目重跑693e696或延长超时。等待后续证据定位；此项尚未修复。
+
+## 导入阶段参数表候选
+
+在e98d7c7左右构图基础上补压力配方内嵌三列表：阶段、压力bar、本段水量ml，直接使用文档阶段值，14sp文本与8dp横向/4dp纵向单元间距。通过已有workspace测量回调实测标题、指标、说明、详情入口及表格高度，剩余图表预算至少160dp才显示；短高收起表格但完整参数入口不移除。原始流量文档不绘制压力表，保存/冲突逻辑未改。
+
+八语言表头XML解析和键检查通过；首次资源脚本误列仓库不存在的values-de路径，已按实际zh/en/ja/ko/ru/th/ar/es集合补全，没有新建不支持语言。双Mock APK43秒成功，diff检查通过。当前仅为候选，实际表格可见性、字号1.3、短高和冲突状态截图未验收，不能声明与概念稿已一致。

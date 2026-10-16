@@ -55,4 +55,7 @@
     <string name="curve_preview_temperature">Temperature</string>
     <string name="curve_preview_weight">Target yield</string>
     <string name="curve_preview_stages">Stages</string>
+    <string name="import_table_stage">Stage</string>
+    <string name="import_table_pressure">Pressure · bar</string>
+    <string name="import_table_water">Stage water · ml</string>
 </resources>

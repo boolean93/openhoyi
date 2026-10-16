@@ -55,4 +55,7 @@
     <string name="curve_preview_temperature">Температура</string>
     <string name="curve_preview_weight">Целевой вес</string>
     <string name="curve_preview_stages">Этапы</string>
+    <string name="import_table_stage">Этап</string>
+    <string name="import_table_pressure">Давление · bar</string>
+    <string name="import_table_water">Вода этапа · ml</string>
 </resources>

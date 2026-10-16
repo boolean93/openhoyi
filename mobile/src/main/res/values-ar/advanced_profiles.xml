@@ -55,4 +55,7 @@
     <string name="curve_preview_temperature">درجة الحرارة</string>
     <string name="curve_preview_weight">الوزن المستهدف</string>
     <string name="curve_preview_stages">المراحل</string>
+    <string name="import_table_stage">المرحلة</string>
+    <string name="import_table_pressure">الضغط · bar</string>
+    <string name="import_table_water">ماء المرحلة · ml</string>
 </resources>

@@ -55,4 +55,7 @@
     <string name="curve_preview_temperature">อุณหภูมิ</string>
     <string name="curve_preview_weight">น้ำหนักเป้าหมาย</string>
     <string name="curve_preview_stages">จำนวนช่วง</string>
+    <string name="import_table_stage">ขั้นตอน</string>
+    <string name="import_table_pressure">แรงดัน · bar</string>
+    <string name="import_table_water">น้ำในขั้นตอน · ml</string>
 </resources>
