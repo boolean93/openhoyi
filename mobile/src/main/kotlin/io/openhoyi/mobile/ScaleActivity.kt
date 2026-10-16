@@ -189,7 +189,6 @@ class ScaleActivity:ScaleOwnerActivity() {
         if(!::weight.isInitialized)return
         val service=owner;val snapshot=service?.snapshot;val now=SystemClock.elapsedRealtime()
         val live=snapshot?.let {LiveTelemetry.scale(it.scaleObservation,it.scaleState,now)}
-        if (::trend.isInitialized) trend.present(service?.scaleTrendAt(now).orEmpty(), now)
         val digits=if(getSharedPreferences("scale_tool",MODE_PRIVATE).getBoolean("one_decimal",false))1 else 2
         weight.setIfChanged(live?.let {getString(R.string.scale_weight_format,String.format(Locale.getDefault(),"%.${digits}f",it.hundredthsGram/100.0))}
             ?: getString(R.string.scale_unavailable))
@@ -201,6 +200,7 @@ class ScaleActivity:ScaleOwnerActivity() {
             live.evidence==ScaleEvidence.LIVE_READ_ONLY->R.string.scale_read_only_live
             else->R.string.scale_live
         }))
+        if (::trend.isInitialized) trend.present(service?.scaleTrendAt(now).orEmpty(), now, freshness.text.toString())
         battery.setIfChanged(live?.batteryPercent?.takeIf {live.capabilities.battery && it in 0..100}
             ?.let {getString(R.string.scale_battery_format,it)} ?: getString(R.string.scale_battery_unavailable))
         val allowed=changesAllowed()

@@ -93,7 +93,11 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                             field(instance,"history").set(instance,detachedShotHistory())
                             check(!field(instance,"running").getBoolean(instance))
                         }
-                        val instance=attach();val owner=NativeDeviceHub(context,customPressureStartPermit={parameters ->
+                        val instance=attach()
+                        val receiveScale = MobileService::class.java.getDeclaredMethod("onScaleObservation", ScaleObservation::class.java)
+                            .apply { isAccessible = true }
+                        val owner=NativeDeviceHub(context,onScaleObservation={ observation -> receiveScale.invoke(instance, observation) },
+                            customPressureStartPermit={parameters ->
                             custom!=null && app.curves.permitsCustomPressureStart(curvePrefs.getString("selected",null),parameters)
                         });hub=owner
                         field(instance,"hub").set(instance,owner)
@@ -136,6 +140,13 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                             sessions[1].onNotification(sessions[1].generation,KnownGatt.bookooNotify,bytes)
                             now=SystemClock.elapsedRealtime()
                             field(instance,"snapshot").set(instance,instance.snapshot.copy(weightAt=now))
+                            val observation = requireNotNull(instance.snapshot.scaleObservation)
+                            val trend = instance.scaleTrendAt(now)
+                            check(trend.isNotEmpty()) { "Decoded scale notification did not reach trend history" }
+                            check(trend.last().atMs == observation.receivedAtMs &&
+                                trend.last().hundredthsGram == observation.hundredthsGram &&
+                                trend.last().evidence == observation.evidence)
+                            check(trend.map { it.atMs }.distinct().size == trend.size)
                         }
                         zero()
                         val machine=recovery(instance)

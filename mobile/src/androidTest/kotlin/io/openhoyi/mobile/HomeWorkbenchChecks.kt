@@ -151,6 +151,7 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                     workspace.layout(0, 0, originalWidth, originalHeight)
                     workspace.requestLayout()
                 }
+                ScaleTrendPanelChecks.verify(activity, directory)
                 check(app.beanInventoryResult.getOrThrow().events() == inventory)
                 check(app.beanPreparationResult.getOrThrow().current() == preparation)
                 check(app.journalResult.getOrThrow().exportJson() == journal)

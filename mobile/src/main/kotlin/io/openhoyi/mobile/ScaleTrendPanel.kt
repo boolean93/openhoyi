@@ -19,6 +19,9 @@ internal class ScaleTrendPanel(private val activity: ThemedActivity, primary: Li
     private var detailStatus: android.widget.TextView? = null
     private var values = emptyList<ScaleTrendWindow.Point>()
     private var now = 0L
+    private var sourceDescription = ""
+    private fun detailSummary() = listOf(sourceDescription, plot.contentDescription.toString())
+        .filter { it.isNotBlank() }.joinToString("\n")
     private val fallback = HoyiUi.button(activity, secondary, activity.getString(R.string.scale_trend_title)) { open() }.apply {
         tag = "scale-trend-fallback"
     }
@@ -35,12 +38,12 @@ internal class ScaleTrendPanel(private val activity: ThemedActivity, primary: Li
         fallback.visibility = if (inline) View.GONE else View.VISIBLE
         return if (inline) block.measuredHeight else 0
     }
-    fun present(points: List<ScaleTrendWindow.Point>, at: Long) {
-        values = points; now = at
+    fun present(points: List<ScaleTrendWindow.Point>, at: Long, sourceDescription: String) {
+        values = points; now = at; this.sourceDescription = sourceDescription
         plot.present(points, at)
         if (status.text.toString() != plot.contentDescription.toString()) status.text = plot.contentDescription
         detailPlot?.present(points, at)
-        detailStatus?.let { if (it.text.toString() != plot.contentDescription.toString()) it.text = plot.contentDescription }
+        detailStatus?.let { if (it.text.toString() != detailSummary()) it.text = detailSummary() }
     }
     private fun open() {
         dismiss()
@@ -50,7 +53,7 @@ internal class ScaleTrendPanel(private val activity: ThemedActivity, primary: Li
         }
         val chart = ScaleTrendView(activity).also { detailPlot = it; it.present(values, now) }
         content.addView(chart, LinearLayout.LayoutParams(-1, dp(240)))
-        detailStatus = HoyiUi.label(activity, content, plot.contentDescription.toString(), 14, muted = true)
+        detailStatus = HoyiUi.label(activity, content, detailSummary(), 14, muted = true)
         dialog = AlertDialog.Builder(activity).setTitle(R.string.scale_trend_title).setView(android.widget.ScrollView(activity).apply { addView(content) })
             .setNegativeButton(android.R.string.cancel, null).create().also {
                 it.setOnDismissListener { detailPlot = null; detailStatus = null; dialog = null }

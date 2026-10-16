@@ -366,6 +366,12 @@ class MobileService : Service() {
         return beanDoseCapture.update(scaleConnectionEpoch,
             LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now), now)
     }
+    private fun onScaleObservation(observation: ScaleObservation) {
+        scaleTrend.observe(observation, snapshot.scaleState, SystemClock.elapsedRealtime())
+        snapshot = snapshot.copy(scaleObservation = observation, scaleCapabilities = observation.capabilities)
+        // Consume every notification, not just the last frame at the UI refresh.
+        beanDoseCaptureAt(SystemClock.elapsedRealtime())
+    }
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
             scaleConnectionEpoch++; beanDoseCapture.reset()
@@ -576,13 +582,7 @@ class MobileService : Service() {
                     if (ScaleReadingPolicy.isFresh(it.weightHundredthsGram, receivedAt, receivedAt))
                         snapshot = snapshot.copy(weight = it, weightAt = receivedAt)
                 },
-                onScaleObservation = { observation ->
-                    scaleTrend.observe(observation, snapshot.scaleState, SystemClock.elapsedRealtime())
-                    snapshot = snapshot.copy(scaleObservation = observation,
-                        scaleCapabilities = observation.capabilities)
-                    // Consume every notification, not just the last frame at the UI refresh.
-                    beanDoseCaptureAt(SystemClock.elapsedRealtime())
-                },
+                onScaleObservation = ::onScaleObservation,
                 diagnostic = { detail ->
                     if (detail.startsWith("scale.auto_reconnect.")) event(detail, "scale.auto_reconnect")
                     else event(ResourceMessage(R.string.service_event_communication_error), "ble.diagnostic")

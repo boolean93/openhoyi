@@ -11,3 +11,5 @@
 第二步候选：MobileService原onScaleObservation接只读缓存，每条真实通知一次；非READY分段、切换所选秤/关闭owner清缓存。ScaleActivity只读points，无独立BLE owner；Canvas固定最近10秒时间窗、g轴、分段不连线、无数据文本与最新读数年龄。正常主区显示，空间不够时次区按钮打开可滚动详情，onStop关闭；复制摘要不代表硬件采样验收。
 
 增加ScaleTrendChartChecks于现有8语言×2主题原生图表阶段，验证左右真实线段、中央缺口无连线、空态无旧像素，独立结果标记成为lifecycle脚本必需项。此原生测试尚未实际运行，不冒称通过。首次构建因不存在android.R.string.close失败，使用cancel后完整JVM/双APK48秒通过；304 tests/0 failures/0 errors/1既有skip。加入结果标记/避免重复摘要setText后最终双APK39秒通过，shell语法/diff检查通过。后续还需真实图表截图、service假GATT采样接线与短高入口可达证据。
+
+第三步候选（审查后）：复用服务真实onScaleObservation方法，隔离fake GATT通知检查receivedAtMs/重量/证据进入缓存且时间不重复；仍用synthetic READY，不证明服务断连或切秤清理。新增原生Panel四状态组件截图，以及fallback打开弹窗、状态变为断连后文案实时更新、dismiss释放检查。详情现在同步页面的连接/过期/来源提示，不把保留的10秒历史当实时连接。组件短高fixture不是完整ScaleActivity短高窗口验收；后续必须补真实窗口可达及滚动检查。无新BLE owner、无设备操作、无安装/合并/发版。
