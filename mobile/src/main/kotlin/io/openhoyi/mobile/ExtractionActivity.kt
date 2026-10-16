@@ -215,16 +215,18 @@ class ExtractionActivity : ThemedActivity() {
         alarmStatus = text(content, getString(R.string.home_alarm_initial), 13).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_ASSERTIVE
         }
-        start = HoyiUi.button(this, root, getString(R.string.extraction_start), primary = true) { confirmStart() }
-        (start.layoutParams as LinearLayout.LayoutParams).setMargins(dp(12), 0, dp(12), dp(4))
-        stop = HoyiUi.button(this, root, getString(R.string.extraction_stop), danger = true) {
+        val actionDock = TaskActionDock(this)
+        root.addView(actionDock, LinearLayout.LayoutParams(-1, -2))
+        start = HoyiUi.button(this, actionDock, getString(R.string.extraction_start), primary = true) { confirmStart() }
+        (start.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
+        stop = HoyiUi.button(this, actionDock, getString(R.string.extraction_stop), danger = true) {
             service?.stopShot(); render()
         }.apply {
             setTextColor(getColor(android.R.color.white))
             background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_stop_button, 10)
             visibility = View.GONE
         }
-        (stop.layoutParams as LinearLayout.LayoutParams).setMargins(dp(12), 0, dp(12), dp(4))
+        (stop.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
         HoyiUi.navigation(this, root, ExtractionActivity::class.java)
         render()
     }
