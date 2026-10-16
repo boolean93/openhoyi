@@ -7,3 +7,5 @@
 遵守docs/git-workflow.md；沿用develop66ebda9+ed01de0依赖，feature/task-first-ui→develop草稿PR#4。双Mock APK构建和现有原生回归；不安装/合并/发版，不改协议/签名/schema；普通push和追加revert回退。已有CI排队，本地提交后可随下一批验证，不重复触发同源任务。
 
 本地双Mock APK构建42秒成功（/tmp/task-inventory-hierarchy-build.log），diff检查通过；现有列表恢复测试比较同一批次修改前后完整元数据，不依赖旧余量单行字符串。新增排版实际截图/大字体仍待新原生运行。
+
+正常态实屏复核后继续：新增/全局流水移入列表-详情上方的文字工具区；批次详情与批次流水使用次级文字按钮；选豆确认独立放入现有TaskActionDock（详情宽≥360dp且平板时280–320dp限宽），空库存新增也使用限宽dock。保持所有目标Activity/批次参数、48dp点击与焦点反馈、唯一主操作及列表位置恢复逻辑。仅BeanInventoryActivity布局，不改共享beanPage，其他库存页面不受此批影响。仍按原分支/CI/不发版/回退边界执行。

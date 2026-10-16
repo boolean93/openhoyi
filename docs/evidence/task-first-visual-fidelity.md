@@ -162,3 +162,17 @@ task-frame38864826234成功，下载用户平板产物并实读ScaleActivity.png
 ## 曲线库三项参数预览候选
 
 对照curve-library-v2，先前温度/目标液重/阶段数只有完整参数弹窗可见，主预览缺少三列摘要。候选增加14sp标签、24sp/700数值、16dp上下间隔，直接读取已有三类配方模型；零目标显示既有“不使用”，缺失显示破折号，不推测未知参数。短高模式把三项完整摘要纳入现有滚动fallback，仍保留全参数入口与原启动门禁。8语言标签补齐。双Mock APK45秒成功；现有原生组件检查新增正常态三列文本完整性与短高摘要保留断言，尚待执行和实际截图，不能宣称已对齐整页。
+
+## aac1155 电子秤实屏与库存正常态复核
+
+已下载并实读task-frame38866128495用户平板ScaleActivity.png：去皮结果居中位于按钮下方；清零、连接、设置无卡片边框，主计时与去皮可区分。当前是无设备Mock态，不能用—g证明18g正常态或硬件读数。整体状态重复、设备真实型号缺口及图表有数据整页仍需核对；不关闭本页验收。
+
+为避免用库存空态替代正常态，从已成功single-screen38864418212下载single-screen-tablet-user-landscape，并实读visual-baselines/zh-Hans-light-BeanInventoryActivity/window.png：24sp豆名、40sp/700余量、普通列表透明已落地；底部仍有全局新增/流水两个宽按钮，详情的批次/流水/选豆按钮占两整排。与bean-inventory-v2的顶部维护工具和有限宽主操作不一致。下一批应整理全局新增/流水到工具区，限定选豆主操作宽度，同时保留所有入口、批次选择和滚动恢复。此截图仅普通字号中文浅色正常态，不覆盖全部语言/主题/大字号。
+
+bf2ed46曲线三项摘要的task-frame38866479646和single-screen38866479455当前queued，native38866474145与lifecycle38866474104 in_progress。候选尚无实际截图，不能用aac1155旧图替代。
+
+## 曲线摘要原生证据与库存操作候选
+
+bf2ed46 task-frame38866479646和single-screen38866479455均completed/success。下载task-frame用户平板产物，实读curve-library-font-1.3/normal.png（360×640dp组件，非整页横屏）：91°C/27.00g/2阶段完整，阶段图与说明仍可见；curve-library-1.3.txt三fixture短高/恢复通过。组件标题窄宽换行不能当作完整横屏标题布局验收。7285e2f lifecycle38864826313 attempt2 completed/success，之前SDK压缩包失败闭环。
+
+库存候选把全局新增/流水移到上方文字工具区、批次详情/流水改文字入口，选豆主操作独立限宽dock，空库存新增也限宽。只改BeanInventoryActivity，没有触及库存写入和共享beanPage。双Mock APK37秒成功、diff检查通过；新布局实际窗口/大字号/列表恢复待CI，不用旧截图判定新布局通过。

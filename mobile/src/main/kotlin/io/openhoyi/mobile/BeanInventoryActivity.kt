@@ -75,10 +75,12 @@ class BeanInventoryActivity : ThemedActivity() {
         val body = beanPage(getString(R.string.beans_title), getString(R.string.beans_subtitle), navigation = BeanInventoryActivity::class.java)
         val inventory = beanInventory(body) ?: return
         val batches = inventory.batches()
-        HoyiUi.button(this, beanActions(body), getString(R.string.beans_add), primary = batches.isEmpty()) {
-            startActivity(Intent(this, BeanEntryActivity::class.java))
-        }
         if (batches.isEmpty()) {
+            val dock=TaskActionDock(this,edgeInsetDp=0)
+            beanActions(body).addView(dock,LinearLayout.LayoutParams(-1,-2))
+            HoyiUi.button(this,dock,getString(R.string.beans_add),primary=true) {
+                startActivity(Intent(this,BeanEntryActivity::class.java))
+            }
             collection = null; selectedBatchId = null; detailRequested = false
             val list = beanList(body)
             listScroll = list.parent as ScrollView
@@ -90,6 +92,14 @@ class BeanInventoryActivity : ThemedActivity() {
             selectedBatchId = batches.first().batch.id
             detailRequested = false
         }
+        val tools=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.END; isBaselineAligned=false }
+        body.addView(tools,LinearLayout.LayoutParams(-1,-2))
+        inventoryLink(tools,getString(R.string.beans_add)) {
+            startActivity(Intent(this,BeanEntryActivity::class.java))
+        }.layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+        inventoryLink(tools,getString(R.string.beans_ledger)) {
+            startActivity(Intent(this,BeanLedgerActivity::class.java))
+        }.layoutParams=LinearLayout.LayoutParams(0,-2,1f)
         val panes = TaskCollectionLayout(this).also { collection = it }
         body.addView(panes, LinearLayout.LayoutParams(-1, 0, 1f))
         val list = beanList(panes.browserBody)
@@ -101,10 +111,12 @@ class BeanInventoryActivity : ThemedActivity() {
         val metadata = beanList(panes.detailBody).apply { tag = "inventory-batch-metadata" }
         val actions = BeanActionRows(this)
         panes.detailBody.addView(actions, LinearLayout.LayoutParams(-1, -2))
+        val primaryDock=TaskActionDock(this,edgeInsetDp=0,wideMinimumDp=360)
+        panes.detailBody.addView(primaryDock,LinearLayout.LayoutParams(-1,-2))
         val rowButtons = mutableMapOf<String, android.widget.Button>()
         fun showSelected() {
             val item = batches.single { it.batch.id == selectedBatchId }
-            metadata.removeAllViews(); actions.removeAllViews()
+            metadata.removeAllViews(); actions.removeAllViews(); primaryDock.removeAllViews()
             HoyiUi.label(this, metadata, item.batch.bean.name, 24, true).apply {
                 setPadding(0, HoyiUi.dp(this@BeanInventoryActivity, 8), 0, HoyiUi.dp(this@BeanInventoryActivity, 16))
             }
@@ -120,13 +132,13 @@ class BeanInventoryActivity : ThemedActivity() {
                 R.string.beans_opened to item.batch.openedOn).forEach { (label, date) ->
                 HoyiUi.label(this, metadata, getString(R.string.beans_date_value, getString(label), date?.toString() ?: getString(R.string.beans_not_set)), 15)
             }
-            HoyiUi.button(this, actions, getString(R.string.beans_batch_title)) {
+            inventoryLink(actions, getString(R.string.beans_batch_title)) {
                 startActivity(Intent(this, BeanBatchActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, item.batch.id))
             }
-            HoyiUi.button(this, actions, getString(R.string.beans_batch_ledger)) {
+            inventoryLink(actions, getString(R.string.beans_batch_ledger)) {
                 startActivity(Intent(this, BeanLedgerActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, item.batch.id))
             }
-            HoyiUi.button(this, actions, getString(R.string.dose_title), primary = true) {
+            HoyiUi.button(this, primaryDock, getString(R.string.dose_title), primary = true) {
                 startActivity(Intent(this, BeanPreparationActivity::class.java).putExtra(BeanPreparationActivity.EXTRA_BATCH_ID, item.batch.id))
             }
             rowButtons.forEach { (id, button) ->
@@ -162,10 +174,21 @@ class BeanInventoryActivity : ThemedActivity() {
         }
         showSelected()
         panes.detailRequested = detailRequested
-        HoyiUi.button(this, beanActions(body), getString(R.string.beans_ledger)) {
-            startActivity(Intent(this, BeanLedgerActivity::class.java))
-        }
     }
+    private fun inventoryLink(parent:LinearLayout,value:String,action:()->Unit)=
+        HoyiUi.button(this,parent,value,action=action).apply {
+            gravity=Gravity.START or Gravity.CENTER_VERTICAL
+            setTextColor(android.content.res.ColorStateList(
+                arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
+                intArrayOf(getColor(R.color.mobile_muted),getColor(R.color.mobile_accent))))
+            val states=android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused),HoyiUi.shape(this@BeanInventoryActivity,android.R.color.transparent,8,R.color.mobile_accent))
+                addState(intArrayOf(),HoyiUi.shape(this@BeanInventoryActivity,android.R.color.transparent,8))
+            }
+            background=android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
+                states,HoyiUi.shape(this@BeanInventoryActivity,android.R.color.white,8))
+        }
 }
 
 /** Fixed header, elastic workspace and fixed actions; never wraps the whole page in a ScrollView. */
