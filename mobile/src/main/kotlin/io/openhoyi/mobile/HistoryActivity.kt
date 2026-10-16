@@ -290,10 +290,9 @@ class HistoryActivity : ThemedActivity() {
             return
         }
         detailContent.tag = "history-selection-${selected.id}"
-        HoyiUi.button(this, detailContent, getString(R.string.ui_full_details)) {
+        renderHistoryDetail(detailContent, selected.id) {
             startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", selected.id))
         }
-        renderHistoryDetail(detailContent, selected.id)
     }
     private fun rememberList() {
         if (::historyList.isInitialized && historyList.isShown && !historyList.isLayoutRequested && historyList.childCount > 0)

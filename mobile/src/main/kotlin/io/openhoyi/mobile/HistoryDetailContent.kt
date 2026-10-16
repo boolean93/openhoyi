@@ -10,7 +10,7 @@ import java.util.Date
 import java.util.Locale
 
 /** Same read-only detail in the collection pane and the dedicated full-screen page. */
-internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: String?) {
+internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: String?, openFullPage: (() -> Unit)? = null) {
     val app = application as MobileApplication
     val permanent = shotId?.let { app.journalResult.getOrNull()?.find(it) }
     val entry = runCatching { app.history.entries.firstOrNull { it.id == shotId } }.getOrNull()
@@ -51,36 +51,45 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         setPadding(0, dp(6), 0, dp(6))
         setTextColor(getColor(R.color.mobile_danger))
     }
-    val workspace = TaskWorkspaceLayout(this)
-    body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
-    workspace.onPrimarySpaceAvailable = { _, budget -> minOf(budget, dp(220)) }
-    val support = workspace.secondaryBody
-    HoyiUi.label(this, support, entry.reason?.let(::reasonLabel) ?: getString(R.string.history_no_reason), 14, muted = true)
+    // The collection already owns the browser/detail split. Keep its chart full width.
     val chartCard = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(8), dp(8), dp(8), dp(8))
-        background = HoyiUi.shape(this@renderHistoryDetail, R.color.mobile_surface, 12, R.color.mobile_border)
     }
-    workspace.primaryBody.addView(chartCard, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6) })
+    body.addView(chartCard, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
     val chart = ShotChartView(this).apply { contentDescription = getString(R.string.extraction_chart) }
     chartCard.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
     val chartStatus = HoyiUi.label(this, chartCard, getString(R.string.history_loading_samples), 14, muted = true)
-    HoyiUi.button(this, support, getString(R.string.history_outcome_title) + " / " + getString(R.string.journal_notes_title)) {
+    if (permanent != null) {
+        listOf(R.string.journal_bean to permanent.notes.beanName,
+            R.string.journal_taste to permanent.notes.taste).forEach { (label, value) ->
+            HoyiUi.label(this, body, getString(R.string.journal_field_value, getString(label),
+                value?.takeIf { it.isNotBlank() } ?: getString(R.string.journal_optional)), TaskVisualTokens.BODY_SP).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                tag = "full-text-details"
+                setPadding(0, dp(4), 0, 0)
+            }
+        }
+    }
+    val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+    body.addView(actions)
+    fun action(title: String, primary: Boolean = false, click: () -> Unit) {
+        HoyiUi.button(this, actions, title, primary = primary, action = click).layoutParams =
+            LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(8); marginEnd = dp(8) }
+    }
+    action(getString(R.string.history_outcome_title) + " / " + getString(R.string.journal_notes_title)) {
         showDetails(entry, curve, permanent, app.journalResult.isFailure, chart.points)
     }
     if (permanent != null) {
-        journalNotes(HoyiUi.card(this, support, getString(R.string.journal_notes_title)), permanent.notes)
-        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        body.addView(actions)
-        HoyiUi.button(this, actions, getString(R.string.journal_review), primary = true) {
+        action(getString(R.string.journal_review), primary = true) {
             startActivity(Intent(this, BrewReviewActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.id))
-        }.layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6); marginEnd = dp(6) }
-        HoyiUi.button(this, actions, getString(R.string.journal_compare)) {
+        }
+        action(getString(R.string.journal_compare)) {
             startActivity(Intent(this, BrewComparisonActivity::class.java).putExtra(BrewComparisonActivity.FIRST_SHOT_ID, entry.id))
-        }.layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
-    } else {
-        HoyiUi.label(this, support, getString(if (app.journalResult.isFailure) R.string.journal_unavailable else R.string.journal_migrate_hint), 14, muted = true)
+        }
     }
+    openFullPage?.let { action(getString(R.string.ui_full_details), click = it) }
     Thread({
         val points = runCatching { app.samples.load(entry.id) }
         // View.post queues pre-attach results until the chart can receive them. A late

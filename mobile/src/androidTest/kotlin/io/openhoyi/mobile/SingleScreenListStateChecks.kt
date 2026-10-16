@@ -511,6 +511,16 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                                 views(activity.window.decorView).filterIsInstance<ShotChartView>().singleOrNull()?.points?.size?.let { it >= 2 } == true
                             }
                             main { SingleScreenPageChecks.verify(activity) }
+                            // Model readiness does not mean the compositor has presented its new frame.
+                            val committedFrame = java.util.concurrent.CountDownLatch(1)
+                            main {
+                                val chart = views(activity.window.decorView).filterIsInstance<ShotChartView>().single()
+                                check(chart.points.size >= 2 && chart.isHardwareAccelerated)
+                                check(android.os.Build.VERSION.SDK_INT >= 29)
+                                chart.viewTreeObserver.registerFrameCommitCallback { committedFrame.countDown() }
+                                chart.invalidate()
+                            }
+                            check(committedFrame.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Populated history frame was not committed" }
                             val detailDirectory = File(directory, "collection-details").apply { mkdirs() }
                             val selectedImage = requireNotNull(test.uiAutomation.takeScreenshot())
                             try {

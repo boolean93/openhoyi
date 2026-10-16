@@ -18,3 +18,9 @@
 新增实际选中历史图的恢复后截图，先等待已有fixture样本、执行原完整页面检查再拍图；脚本单独强制collection-details/history-selected-restored.png存在和PNG有效，不混入336页计数。截图产物同时附系统字体fallback配置、构建指纹、density/fontScale以支持视觉一致性审计；读配置失败保留缺口，不称精确字体已认证。
 
 截图流程同步：849e1c1 Capture Mock UI38847375558已完成模拟萃取，但仍在点击历史条目后等待旧HistoryDetailActivity跳转。改为断言仍在HistoryActivity、捕获history-selected-dark，再通过实际“查看详情”按钮进入并断言原全屏详情。沿用完整模拟萃取与页面/PNG检查，不直接启动详情绕过交互。bash语法检查通过，原生新流程待执行。
+
+实读be3a538标准横屏collection-details/history-selected-restored.png仍是读取中，尽管native已等待模型points>=2：截图可能在新帧提交前取到旧帧，不能当有数据视觉证据。增加API35硬件绘制帧提交回调等待，再截图；保留样本和原布局门槛，5秒超时失败，不以任意固定sleep掩盖。此截图仍未验收。
+
+be3a538用户平板报告确认336页面通过，但历史恢复阶段chart434/1402违反原40%门槛；不是列表位置恢复错误。根因是集合详情再套TaskWorkspace，右栏可用宽不足624dp后额外堆叠支持区。对照history-list-v3改为完整宽度图、图下豆子/感受两行摘要和同一操作栏，完整字段/原因/流量明细仍由原详情对话框提供；全屏入口合并到操作栏而非顶部独占一行。保留原40%和14恢复断言，使用已失败CI作为回归证据，不放宽阈值。截图帧同步测试已本地编译23秒通过，原生仍待验证。
+
+全宽图候选本地验证：testMockUnitTest + assembleMock + assembleMockAndroidTest成功45秒，297 tests / 0 failures / 0 errors / 1既有skip；git diff --check通过。三横屏原生截图与字体断言待新CI，不称已修复实屏。
