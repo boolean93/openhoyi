@@ -23,3 +23,7 @@ Worker only BrewComparisonActivity.kt, new TwoCupChartView.kt, all8 locales new 
 ## Root validation
 
 Original ru failure is regression evidence, not new feature red proof. Add real native checks for one plot/first+second populated, focus toggles/shared physical axis/swap/context, missing/gap/longName/font1.3/recovery. Adapt original SingleScreenPageChecks equivalent contract from2ShotCharts to1TwoCupChart, keep >=96dp and all visibility. Existing business17/lifecycle/upgrade/data baselines remain. Run JVM295 and2APK builds then actual3window screenshots/8languages2themes, read actual output. No claim wholeF5 or21pages complete for this batch.
+
+## Actual wide-font regression follow-up
+
+Exact d86a599 advanced pages run38838413516: business passed; compact240page fixtures passed, wideFont failed at BrewComparison selected date2023-11-1422:13:20 ellipsis. Actual supporting column280–320dp splits into two too-small cells. Stack selectors below600dp measured selector width; retain stable instances/identities and use complete selected-date text (opt-in unlimited lines, others unchanged). No geometry or text-fit check removed. Repeat exact native CI before acceptance.

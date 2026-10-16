@@ -60,3 +60,10 @@ Historical ShotChartView migrated to the shared four-metric native renderer, kee
 - Also inspected d86a599 two-cup-font-1.3/water.png: shared ml axis 0–60, shared elapsed seconds, A solid/B dashed, reset/gap segments remain disconnected; 45ml isolated sample stays a point. This is deterministic component evidence, not a populated two-cup page/hardware claim. Actual font1.3 log confirms 9 two-cup fixtures and 3 curve-library fixtures passed.
 - Historical flow measurements remain available as actual elapsed-time/ machine ml/s / optional scale-derived g/s in full-details advanced table; raw scale absence remains —. No old flow integration or control changes.
 - Final historical source validation: `/tmp/task-history-final-build.log` JVM + Mock/APK tests build succeeded in43s; final exact-range AndroidTest update `/tmp/task-history-ranges-build.log` succeeded in20s. All 16 changed form/history locale XML files parse and git diff --check passes. Historical native runtime and independent review remain pending.
+
+## 2026-10-16 d86a599 full-run outcomes and date fix
+
+- Exact d86a599: single-screen run38838413546 success across six profiles; lifecycle38838413486 success; upgrade38838413491 success; verify38838413488 success; task-frame38838413476 success. These close the prior settings tools clipping and scale viewport-test failure at this source.
+- Advanced run38838413516 failed only pages job; business job succeeded. Downloaded advanced-mock-pages-pages/wideFont.txt reports BrewComparison selected date2023-11-1422:13:20 ellipsized. compact.txt proves240 fixtures/8languages/2themes passed. No blanket advanced success claim.
+- Fix uses full-width stacked cup selectors below600dp actual selector width; stable widgets, IDs, callbacks remain. Selected date opts into unrestricted line wrapping through beanChoiceAdapter selectedMaxLines, default stays2 for other callers. Full dropdown names unchanged. Original no-ellipsis/geometry/native selection checks remain.
+- Local final date-fix validation `/tmp/task-comparison-date-build.log`: testMockUnitTest + assembleMock + assembleMockAndroidTest BUILD SUCCESSFUL in49s; native rerun still pending.

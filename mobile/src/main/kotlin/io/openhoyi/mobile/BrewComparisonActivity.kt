@@ -88,7 +88,18 @@ class BrewComparisonActivity : ThemedActivity() {
             toolbarScroll.heightLimit = minOf(fixedHeight, toolbarBudget.coerceAtLeast(0))
             toolbarScroll.heightLimit + graphMinimum
         }
-        val selectors = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; support.addView(this) }
+        val selectors = object : LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                // A narrow supporting column cannot fit two complete date/time choices side by side.
+                val next = if (View.MeasureSpec.getSize(widthMeasureSpec) >= dp(600)) HORIZONTAL else VERTICAL
+                if (orientation != next) {
+                    orientation = next
+                    for (index in 0 until childCount) getChildAt(index).layoutParams =
+                        if (next == HORIZONTAL) LayoutParams(0, -2, 1f) else LayoutParams(-1, -2)
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply { orientation = LinearLayout.HORIZONTAL; support.addView(this) }
         val choiceIds = listOf<String?>(null) + entries.map { it.observation.id }
         val labels = listOf(getString(R.string.task_comparison_choose_cup)) + entries.map {
             getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
@@ -103,7 +114,7 @@ class BrewComparisonActivity : ThemedActivity() {
             var displayedPosition = choiceIds.indexOf(selected).coerceAtLeast(0)
             val spinner = Spinner(this).apply {
                 tag = if (label == R.string.journal_first) "comparison-first" else "comparison-second"
-                adapter = beanChoiceAdapter(labels, shortLabels)
+                adapter = beanChoiceAdapter(labels, shortLabels, selectedMaxLines = Int.MAX_VALUE)
                 contentDescription = getString(label)
                 minimumHeight = dp(48)
                 cell.addView(this, LinearLayout.LayoutParams(-1, -2))

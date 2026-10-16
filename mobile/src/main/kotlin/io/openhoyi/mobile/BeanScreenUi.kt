@@ -223,14 +223,15 @@ internal fun ThemedActivity.beanShowDialog(dialog: AlertDialog, dismissed: () ->
 }
 
 /** Selected names are bounded; opening the native dropdown exposes each complete label. */
-internal fun ThemedActivity.beanChoiceAdapter(labels: List<String>, selectedLabels: List<String> = labels): android.widget.ArrayAdapter<String> =
+internal fun ThemedActivity.beanChoiceAdapter(labels: List<String>, selectedLabels: List<String> = labels,
+    selectedMaxLines: Int = 2): android.widget.ArrayAdapter<String> =
     object : android.widget.ArrayAdapter<String>(this, android.R.layout.simple_spinner_dropdown_item, labels) {
-        init { require(selectedLabels.size == labels.size) }
+        init { require(selectedLabels.size == labels.size); require(selectedMaxLines > 0) }
         private fun readable(view: View, selected: Boolean): View = view.apply {
             if (this is android.widget.TextView) {
                 setSingleLine(false)
-                maxLines = if (selected) 2 else Int.MAX_VALUE
-                ellipsize = if (selected) android.text.TextUtils.TruncateAt.END else null
+                maxLines = if (selected) selectedMaxLines else Int.MAX_VALUE
+                ellipsize = if (selected && selectedMaxLines != Int.MAX_VALUE) android.text.TextUtils.TruncateAt.END else null
                 minHeight = HoyiUi.dp(this@beanChoiceAdapter, 48)
                 setTextColor(getColor(R.color.mobile_text))
                 setBackgroundColor(getColor(R.color.mobile_surface))
