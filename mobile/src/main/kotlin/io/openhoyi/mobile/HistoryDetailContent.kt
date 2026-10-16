@@ -21,7 +21,7 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
     }
     val curve = if (entry.curveId == "manual") getString(R.string.extraction_manual_label) else
         runCatching { app.curves.find(entry.curveId)?.name }.getOrNull() ?: entry.curveId
-    HoyiUi.label(this, body, curve, 18, true).apply {
+    if (!standalone) HoyiUi.label(this, body, curve, 18, true).apply {
         // The fixed details button exposes the unabridged name and metadata.
         maxLines = 2
         ellipsize = android.text.TextUtils.TruncateAt.END
@@ -32,11 +32,18 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         gravity = android.view.Gravity.CENTER_VERTICAL
     }
     body.addView(summary)
+    if (standalone) HoyiUi.label(this, summary, "$curve · ${date(entry.startedAtMs)}", 14, muted = true).apply {
+        maxLines = 1
+        ellipsize = android.text.TextUtils.TruncateAt.END
+        tag = "full-text-details"
+        layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) }
+    }
     HoyiUi.label(this, summary, status(entry.status), 14, true).apply {
         setTextColor(getColor(if (entry.status == ShotHistory.Status.UNKNOWN) R.color.mobile_danger else R.color.mobile_accent))
-        layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        layoutParams = if (standalone) LinearLayout.LayoutParams(-2, -2)
+            else LinearLayout.LayoutParams(0, -2, 1f)
     }
-    HoyiUi.label(this, summary, date(entry.startedAtMs), 14, muted = true)
+    if (!standalone) HoyiUi.label(this, summary, date(entry.startedAtMs), 14, muted = true)
     val values = listOf(
         getString(R.string.history_duration) + " " + (entry.elapsedMs?.let {
             getString(R.string.history_duration_value, "%.1f".format(Locale.ROOT, it / 1000.0))
@@ -114,10 +121,26 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
                 R.string.journal_expectation to notes.curveExpectation,
                 R.string.journal_taste to notes.taste,
                 R.string.journal_next to notes.nextAdjustment
-            ).forEach { (label, value) ->
-                HoyiUi.label(this, notesBody, getString(label), 14, muted = true)
-                HoyiUi.label(this, notesBody, value?.takeIf { it.isNotBlank() }
-                    ?: getString(R.string.journal_optional), 16).apply { setPadding(0, dp(8), 0, dp(16)) }
+            ).forEachIndexed { index, (label, value) ->
+                val text = value?.takeIf { it.isNotBlank() } ?: getString(R.string.journal_optional)
+                if (index < 3) {
+                    val row = LinearLayout(this).apply {
+                        orientation = LinearLayout.HORIZONTAL
+                        isBaselineAligned = false
+                        setPadding(0, dp(8), 0, dp(8))
+                    }
+                    notesBody.addView(row, LinearLayout.LayoutParams(-1, -2))
+                    HoyiUi.label(this, row, getString(label), 14, muted = true).apply {
+                        layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
+                    }
+                    HoyiUi.label(this, row, text, 16).apply {
+                        gravity = android.view.Gravity.END
+                        layoutParams = LinearLayout.LayoutParams(0, -2, 1.3f)
+                    }
+                } else {
+                    HoyiUi.label(this, notesBody, getString(label), 16, true).apply { setPadding(0, dp(16), 0, 0) }
+                    HoyiUi.label(this, notesBody, text, 16).apply { setPadding(0, dp(8), 0, dp(8)) }
+                }
             }
         }
         else HoyiUi.label(this, notesBody, getString(if (app.journalResult.isFailure)
