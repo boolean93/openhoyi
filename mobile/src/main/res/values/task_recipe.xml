@@ -1,0 +1,5 @@
+<resources>
+    <string name="task_recipe_temperature">配方设定温度</string>
+    <string name="task_recipe_target">目标重量</string>
+    <string name="task_recipe_dose">记录粉量</string>
+</resources>

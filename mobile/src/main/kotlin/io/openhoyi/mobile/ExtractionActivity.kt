@@ -37,6 +37,7 @@ class ExtractionActivity : ThemedActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var curveSummary: TextView
     private lateinit var overviewHeading: TextView
+    private lateinit var recipeSummary: TextView
     private lateinit var deviceSummary: TextView
     private lateinit var shotSummary: TextView
     private lateinit var readiness: TextView
@@ -133,6 +134,7 @@ class ExtractionActivity : ThemedActivity() {
         curveSummary = text(sidePanel, getString(R.string.extraction_curve_initial), 16, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
         }
+        recipeSummary = HoyiUi.label(this, sidePanel, "", 14).apply { setPadding(0, dp(8), 0, dp(8)) }
         deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 14)
         val metrics = TaskLiveReadouts(this)
         plotColumn.addView(metrics, LinearLayout.LayoutParams(-1, -2))
@@ -348,11 +350,26 @@ class ExtractionActivity : ThemedActivity() {
         val slotLabel = if (presetSlot == 7) "" else getString(R.string.extraction_slot_suffix, presetSlot.toString())
         val observedCup = owner?.chartPoints?.isNotEmpty() == true || active || state == ExtractionState.OUTCOME_UNKNOWN
         val displayCurve = if (observedCup) owner?.chartCurveId?.let(library::find) else item
-        val displayCurveName = displayCurve?.name ?: getString(if (observedCup) {
+        val recipe = if (observedCup) owner?.activeShotRecipe?.forTrace(owner.chartTraceIdentity)
+            else profile?.let { ShotRecipeSnapshot.capture("preview", it) }
+        val displayCurveName = recipe?.name ?: displayCurve?.name ?: getString(if (observedCup) {
             if (owner?.chartCurveId == "manual") R.string.extraction_manual_label else R.string.profiles_missing
         } else R.string.extraction_unselected)
         curveSummary.show(getString(R.string.extraction_curve_summary, displayCurveName,
             if (observedCup) "" else slotLabel))
+        val cupNotes = if (observedCup) owner?.chartTraceIdentity?.let {
+            (application as MobileApplication).journalResult.getOrNull()?.find(it)?.notes
+        } else null
+        fun recipeRow(label: Int, value: String?) = getString(R.string.journal_field_value,
+            getString(label), value ?: "—")
+        recipeSummary.show(listOf(
+            recipeRow(R.string.task_recipe_temperature, recipe?.temperatureC?.let { "$it °C" }),
+            recipeRow(R.string.task_recipe_target, recipe?.let {
+                if (it.targetHundredthsGram > 0) "${number(it.targetHundredthsGram)} g" else getString(R.string.extraction_no_weight_target)
+            }),
+            recipeRow(R.string.journal_bean, cupNotes?.beanName?.takeIf { it.isNotBlank() }),
+            recipeRow(R.string.task_recipe_dose, cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" }),
+        ).joinToString("\n"))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(this, snapshot.coffeeState), DeviceStatusText.label(this, snapshot.scaleState)))
         shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else shotLabel(state), owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
         val guidance = when {

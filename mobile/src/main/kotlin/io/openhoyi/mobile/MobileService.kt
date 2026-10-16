@@ -188,6 +188,7 @@ class MobileService : Service() {
     private var secondSleepSerial = 0L
     val tareState: StandaloneTare.State get() = if (mock?.tareChanged == true)
         StandaloneTare.State.CONFIRMED else hub?.scaleTareState ?: StandaloneTare.State.IDLE
+    internal var activeShotRecipe: ShotRecipeSnapshot? = null; private set
     val chartTraceIdentity: String? get() = series.traceIdentity
     val chartPoints: List<ShotPoint> get() = series.points
     val chartCurveId: String? get() = series.curveId
@@ -1240,6 +1241,7 @@ class MobileService : Service() {
             mock.start(now, slot)
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
             series.begin(shotId, SystemClock.elapsedRealtime(), profile.id)
+            activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile)
             beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
             event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
             return null
@@ -1318,6 +1320,7 @@ class MobileService : Service() {
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
         series.begin(shotId, SystemClock.elapsedRealtime(), profile.id)
+        activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile)
         beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
             finishBrewFeedback(false)
