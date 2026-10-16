@@ -182,3 +182,9 @@ bf2ed46 task-frame38866479646和single-screen38866479455均completed/success。�
 实读4ecc593用户平板单屏基线是待机/未选曲线，不能与extraction-four-series-v3运行态比较。另实读390a7ae Capture的extraction-running-dark.png，确认旧运行态具有同图四指标、时间/秤读数主值及固定红色停止，但顶部辅助读数仅压力和温度，缺少累计注水。该旧运行图不是当前候选证据；还有禁用预热工具等视觉差距，不能关闭核心页验收。
 
 候选补机器累计注水辅助读数（只有主值显示秤重时出现），与无秤主注水共用经过LiveTelemetry过滤的同一数值及预浸等待规则；压力/注水/温度辅助字号提升至18sp/500，主数值40sp/700不变。没有把未知秤重改称已验证出液，缺失/过期仍为—，不动停止/报警/采样。新运行态实屏及大字号尚待验证。
+
+## 字体内存失败定位
+
+1c256c8 push task-frame38869781029实际失败：HomeActivity采集TaskTypographyEvidence时，Font.Builder.createBuffer分配17,772,319字节失败；堆上限201,326,592字节，剩余约2.4MiB。此时未进入库存检查，不能归为库存几何失败，也不能当基础设施下载问题重跑掩盖。代码核对发现主题四字重family之外，TaskTypography又按字重加载独立XML，每份指向同一17MB字体。
+
+候选API28+复用主题family，以精确weight创建Typeface并保留缓存；API26–27原精确字体资源路径保留。没有换字体、删字重检查、扩大堆或降低截图分辨率。既有TaskTypographyEvidence继续检查主题字形宽度、400默认及300/400/500/700实际字重、粗体700；实际内存和字形回归仍须新CI证明。
