@@ -181,8 +181,8 @@ class CurveActivity : ThemedActivity() {
         }
         resultCount = HoyiUi.label(this, browser, "", 13, muted = true)
         val list = ListView(this).apply {
-            divider = null
-            dividerHeight = dp(6)
+            divider = android.graphics.drawable.ColorDrawable(getColor(R.color.mobile_border))
+            dividerHeight = dp(1)
             selector = HoyiUi.shape(this@CurveActivity, R.color.mobile_accent_soft, 12)
         }
         adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
@@ -194,7 +194,7 @@ class CurveActivity : ThemedActivity() {
                     setPadding(dp(12), dp(10), dp(12), dp(10))
                     val thumbnail = CurveStageView(this@CurveActivity).apply {
                         compact = true
-                        background = HoyiUi.shape(this@CurveActivity, R.color.mobile_accent_soft, 10)
+                        background = HoyiUi.shape(this@CurveActivity, R.color.mobile_surface, 8, R.color.mobile_border)
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                     }
                     addView(thumbnail, LinearLayout.LayoutParams(dp(78), dp(48)).apply { marginEnd = dp(12) })
@@ -217,9 +217,10 @@ class CurveActivity : ThemedActivity() {
                     views.subtitle.append(getString(R.string.curve_usage_count, ledger.stats(item.id).count))
                 }
                 views.preview.targets = stageTargets(item)
-                row.background = HoyiUi.shape(this@CurveActivity,
-                    if (item.id == selected?.id) R.color.mobile_accent_soft else R.color.mobile_surface,
-                    12, R.color.mobile_border)
+                row.isSelected = item.id == selected?.id
+                row.background = if (row.isSelected) HoyiUi.shape(this@CurveActivity,
+                    R.color.mobile_accent_soft, 0, R.color.mobile_accent) else
+                    android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
                 return row
             }
         }
