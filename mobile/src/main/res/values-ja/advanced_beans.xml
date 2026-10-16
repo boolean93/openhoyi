@@ -53,4 +53,5 @@
     <string name="beans_event_reason">理由：%1$s</string>
     <string name="beans_back_to_list">在庫一覧に戻る</string>
     <string name="beans_batch_ledger">このロットの履歴</string>
+    <string name="beans_balance_label">残量</string>
 </resources>

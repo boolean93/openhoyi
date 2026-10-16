@@ -53,4 +53,5 @@
     <string name="beans_event_reason">Motivo: %1$s</string>
     <string name="beans_back_to_list">Volver al inventario</string>
     <string name="beans_batch_ledger">Movimientos del lote</string>
+    <string name="beans_balance_label">Peso restante</string>
 </resources>

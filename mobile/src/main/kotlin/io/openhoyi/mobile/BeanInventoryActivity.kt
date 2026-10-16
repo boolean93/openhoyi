@@ -105,8 +105,15 @@ class BeanInventoryActivity : ThemedActivity() {
         fun showSelected() {
             val item = batches.single { it.batch.id == selectedBatchId }
             metadata.removeAllViews(); actions.removeAllViews()
-            HoyiUi.label(this, metadata, item.batch.bean.name, 21, true)
-            HoyiUi.label(this, metadata, getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg)), 30, true)
+            HoyiUi.label(this, metadata, item.batch.bean.name, 24, true).apply {
+                setPadding(0, HoyiUi.dp(this@BeanInventoryActivity, 8), 0, HoyiUi.dp(this@BeanInventoryActivity, 16))
+            }
+            HoyiUi.label(this, metadata, getString(R.string.beans_balance_label), 14, muted = true)
+            HoyiUi.label(this, metadata, getString(R.string.beans_quantity_g, BeanQuantity.formatGrams(item.balanceMg)), 40, true).apply {
+                typeface = TaskTypography.face(this@BeanInventoryActivity, 700)
+                setPadding(0, HoyiUi.dp(this@BeanInventoryActivity, 8), 0, HoyiUi.dp(this@BeanInventoryActivity, 16))
+                contentDescription = getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg))
+            }
             HoyiUi.label(this, metadata, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 14, muted = true)
             HoyiUi.label(this, metadata, getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), 15)
             listOf(R.string.beans_purchased to item.batch.purchasedOn, R.string.beans_roasted to item.batch.roastedOn,
@@ -126,7 +133,7 @@ class BeanInventoryActivity : ThemedActivity() {
                 button.isActivated = id == selectedBatchId
                 button.background = android.graphics.drawable.RippleDrawable(
                     android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
-                    HoyiUi.shape(this@BeanInventoryActivity, if (id == selectedBatchId) R.color.mobile_accent_soft else R.color.mobile_surface, 0), null)
+                    HoyiUi.shape(this@BeanInventoryActivity, if (id == selectedBatchId) R.color.mobile_accent_soft else android.R.color.transparent, 0), null)
             }
         }
         batches.forEach { item ->
