@@ -32,11 +32,16 @@ class CurveActivity : ThemedActivity() {
     private lateinit var detailScroll: ScrollView
     private lateinit var collection: TaskCollectionLayout
     private lateinit var detailBack: Button
+    private lateinit var detailToolbar: LinearLayout
     private lateinit var detailActions: Button
     private lateinit var previewFallback: TextView
     private lateinit var previewFallbackScroll: ScrollView
     private lateinit var previewSpacer: Space
     private var shortPreview = false
+    private val rawReasonMeasure by lazy { TextView(this).apply {
+        textSize = 14f
+        text = getString(R.string.task_curve_library_no_pressure)
+    } }
     private var compact = false
     private var category = CurveCategoryFilter.ALL
     private var sortMode = CurveSortMode.RECENT
@@ -83,10 +88,11 @@ class CurveActivity : ThemedActivity() {
         detailPanel = collection.detailBody
         val browser = browserPane
         val detailPane = detailPanel
-        val detailToolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        detailToolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         detailPanel.addView(detailToolbar)
         detailBack = HoyiUi.button(this, detailToolbar, getString(R.string.curve_back)) { showBrowser() }.apply {
-            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(6) }
+            setPadding(dp(6), dp(4), dp(6), dp(4))
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) }
         }
         collection.onPresentationChanged = { twoPane, detailVisible ->
             compact = !twoPane
@@ -238,6 +244,7 @@ class CurveActivity : ThemedActivity() {
             tag = "full-text-details"
         }
         detailCategory = HoyiUi.label(this, detailPane, getString(R.string.curve_detail_hint), 13, muted = true)
+        availability = HoyiUi.label(this, detailPane, "", 13, true).apply { visibility = View.GONE }
         stageChart = CurveStageView(this).apply { visibility = View.GONE }
         // Kept as a bounded, non-overflowing viewport for existing layout selectors.
         detailScroll = ScrollView(this).apply {
@@ -250,6 +257,7 @@ class CurveActivity : ThemedActivity() {
         detailPane.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6) })
         previewFallback = TextView(this).apply { textSize = 14f; setTextColor(getColor(R.color.mobile_muted)) }
         previewFallbackScroll = ScrollView(this).apply {
+            tag = "curve-preview-fallback"
             visibility = View.GONE
             addView(previewFallback)
         }
@@ -260,7 +268,6 @@ class CurveActivity : ThemedActivity() {
             .apply { visibility = View.GONE }
         // Full metadata is retained, never truncated; the dedicated dialog owns its local scrolling.
         details = TextView(this).apply { textSize = 15f; setTextColor(getColor(R.color.mobile_text)) }
-        availability = TextView(this).apply { textSize = 13f; visibility = View.GONE }
         val secondary = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         shareParameters = HoyiUi.button(this, secondary, getString(R.string.profiles_share)) {
             selected?.let { startActivity(Intent(this, CurveShareActivity::class.java).putExtra(CurveShareActivity.CURVE_ID, it.id)) }
@@ -289,9 +296,14 @@ class CurveActivity : ThemedActivity() {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
         }
         val parameterDetails = HoyiUi.button(this, secondary, getString(R.string.curve_detail_title)) { showParameterDetails() }
-        detailActions = HoyiUi.button(this, detailPane, getString(R.string.task_curve_library_actions)) {
+        detailActions = HoyiUi.button(this, detailToolbar, getString(R.string.task_curve_library_actions)) {
             showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft, assignPreset))
-        }.apply { tag = "curve-detail-actions"; visibility = View.GONE }
+        }.apply {
+            tag = "curve-detail-actions"
+            visibility = View.GONE
+            setPadding(dp(6), dp(4), dp(6), dp(4))
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
         select = HoyiUi.button(this, detailPane, getString(R.string.curve_use), primary = true) {
             selected?.let { item ->
                 getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
@@ -414,28 +426,49 @@ class CurveActivity : ThemedActivity() {
     }
 
     private fun updatePreviewSpace(width: Int, height: Int) {
-        if (!::stageChart.isInitialized || selected == null || stageChart.targets.isEmpty()) return
+        val item = selected ?: return
+        if (!::stageChart.isInitialized) return
+        val hasPressure = stageChart.targets.isNotEmpty()
         val exactWidth = View.MeasureSpec.makeMeasureSpec(width.coerceAtLeast(0), View.MeasureSpec.EXACTLY)
         val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        val fixedHeight = (0 until detailPanel.childCount).map { detailPanel.getChildAt(it) }
-            .filter { it !== detailScroll && it !== previewFallbackScroll && it !== previewSpacer && it.visibility != View.GONE }
-            .sumOf { child ->
-                child.measure(exactWidth, naturalHeight)
-                val params = child.layoutParams as LinearLayout.LayoutParams
-                child.measuredHeight + params.topMargin + params.bottomMargin
+        fun naturalHeightOf(child: View): Int {
+            child.measure(exactWidth, naturalHeight)
+            val params = child.layoutParams as LinearLayout.LayoutParams
+            return child.measuredHeight + params.topMargin + params.bottomMargin
+        }
+        // Measure the full normal presentation, even when its metadata is currently in fallback.
+        // Otherwise hiding metadata would make the next measure flip back into a too-short plot.
+        val actionHeight = naturalHeightOf(detailToolbar) + naturalHeightOf(select)
+        val metadataHeight = listOf(detailTitle, detailCategory, availability).sumOf(::naturalHeightOf) +
+            if (hasPressure) naturalHeightOf(stageCaption) else 0
+        val contentMinimum = if (hasPressure) (dp(96) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt() + dp(6)
+            else {
+                rawReasonMeasure.measure(exactWidth, naturalHeight)
+                rawReasonMeasure.measuredHeight
             }
-        val room = height - detailPanel.paddingTop - detailPanel.paddingBottom - fixedHeight - dp(6)
-        val tooShort = room < (dp(96) * resources.configuration.fontScale).toInt()
-        if (shortPreview == tooShort) return
-        shortPreview = tooShort
-        detailScroll.visibility = if (tooShort) View.GONE else View.VISIBLE
-        stageChart.visibility = if (tooShort) View.GONE else View.VISIBLE
-        previewFallbackScroll.visibility = if (tooShort) View.VISIBLE else View.GONE
-        previewFallbackScroll.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
-        previewSpacer.visibility = View.GONE
-        if (tooShort) previewFallback.text = getString(R.string.task_curve_library_short_preview,
-            stageChart.targets.mapIndexed { index, value -> getString(R.string.reference_stage,
-                (index + 1).toString(), String.format(java.util.Locale.ROOT, "%.1f", value / 10.0)) }.joinToString("; "))
+        shortPreview = height - detailPanel.paddingTop - detailPanel.paddingBottom - actionHeight - metadataHeight < contentMinimum
+        listOf(detailTitle, detailCategory, availability).forEach {
+            it.visibility = if (shortPreview) View.GONE else View.VISIBLE
+        }
+        stageCaption.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
+        detailScroll.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
+        stageChart.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
+        val fallback = shortPreview || !hasPressure
+        previewFallbackScroll.visibility = if (fallback) View.VISIBLE else View.GONE
+        val fallbackHeight = if (shortPreview) 0 else -2
+        val fallbackWeight = if (shortPreview) 1f else 0f
+        val currentParams = previewFallbackScroll.layoutParams as LinearLayout.LayoutParams
+        if (currentParams.height != fallbackHeight || currentParams.weight != fallbackWeight)
+            previewFallbackScroll.layoutParams = LinearLayout.LayoutParams(-1, fallbackHeight, fallbackWeight)
+        previewSpacer.visibility = if (!hasPressure && !shortPreview) View.VISIBLE else View.GONE
+        val fallbackText = if (shortPreview) listOf(
+            item.name, detailCategory.text.toString(), availability.text.toString(),
+            if (hasPressure) getString(R.string.profiles_stage_caption) else getString(R.string.task_curve_library_no_pressure),
+            if (hasPressure) getString(R.string.task_curve_library_short_preview,
+                stageChart.targets.mapIndexed { index, value -> getString(R.string.reference_stage,
+                    (index + 1).toString(), String.format(java.util.Locale.ROOT, "%.1f", value / 10.0)) }.joinToString("; ")) else "",
+        ).filter { it.isNotBlank() }.joinToString("\n\n") else getString(R.string.task_curve_library_no_pressure)
+        if (previewFallback.text.toString() != fallbackText) previewFallback.text = fallbackText
     }
 
     private fun showParameterDetails() {
@@ -466,6 +499,8 @@ class CurveActivity : ThemedActivity() {
             stageChart.visibility = View.GONE
             stageCaption.visibility = View.GONE
             detailTitle.text = getString(R.string.curve_detail_initial)
+            detailTitle.visibility = View.VISIBLE
+            detailCategory.visibility = View.VISIBLE
             detailCategory.text = getString(R.string.curve_detail_hint)
             details.text = ""
             availability.visibility = View.GONE
