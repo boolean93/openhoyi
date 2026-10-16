@@ -672,3 +672,11 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 检查ExtractionOverlayView的原生图例换行、48dp目标、说明行和MetricPlot轴边距，以及固定状态/操作区：不能仅凭截图把这些全部当空白删除。先记录实际测量再定位可收敛的高度。
 - 有/无秤运行态截图同时保存geometry.json：content/chart/legend/explanation/plotView/dataPlot/stop屏幕像素边界、density/fontScale及绘图区占图表高度比例。dataPlot取已绘制RectF而非layoutParams估算，要求实际可见非空。产品字体/门禁/布局不变。
 - instrumentation APK构建23s成功（/tmp/task-live-chart-geometry-build.log），diff/分支检查通过。尚无新geometry产物，不宣称已测得比例或已放大主图。aaf1c44 capture/run38893146356刚完成success，正在下载用于核对参数分行。
+
+### 萃取右栏参数实图与固定操作区域修正（2026-10-16）
+
+- aaf1c44 capture/run38893146356 completed/success，下载ci-aaf1c44-capture，已实读用户平板extraction-running-light.png：四行参数、分隔与右对齐值真实生效；“不使用（由咖啡机按水量结束）”完整换行，缺豆/粉量仍—，设定92°C与实时93°C区分。文字操作和停止完整可见；图高仍不足，不宣称全页通过。
+- 实图和源码对应发现root级TaskActionDock虽只绘右侧按钮，却让左图也损失整个操作行高度。新增专用TaskExtractionWorkspace：宽横屏主区全高，右侧ScrollView+固定footer；窄横屏仍主区/局部工具区/固定底部动作。原30%/280–320dp右栏和24dp间距、原按钮实例/回调、点击尺寸保留，不改共享TaskWorkspaceLayout或其他页面。
+- 准备/通知/告警三行移到workspace之前，全宽固定并保留原未知/过期/可见逻辑，不进入工具滚动区。新增实际运行取证断言：停止完整可见、宽窗图表底部进入停止所在纵向区域；不以隐藏状态说明放大图表。
+- 新布局尚待CI截图、geometry.json及大字号/短高回归；旧aaf1c44图不能覆盖本改动。无安装、设备操作、合并或发版。
+- 最终源码Mock/test APK重新构建40s成功（/tmp/task-extraction-side-dock-final-build.log），diff/分支规则通过。没有把编译作为新增窗口断言通过。

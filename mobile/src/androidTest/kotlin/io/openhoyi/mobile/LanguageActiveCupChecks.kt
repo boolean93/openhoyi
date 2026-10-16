@@ -60,6 +60,16 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                 .get(screen) as ExtractionOverlayView
             fun chartChild(name: String) = ExtractionOverlayView::class.java.getDeclaredField(name)
                 .apply { isAccessible = true }.get(overlay) as android.view.View
+            val stopBounds = android.graphics.Rect()
+            check(stop(screen).getGlobalVisibleRect(stopBounds) && stopBounds.width() == stop(screen).width &&
+                stopBounds.height() == stop(screen).height) { "Running fixed stop is clipped" }
+            if (screen.resources.configuration.screenWidthDp >= 1000) {
+                val chartLocation = IntArray(2)
+                overlay.getLocationOnScreen(chartLocation)
+                check(chartLocation[1] + overlay.height > stopBounds.top) {
+                    "Full-width action row still steals the chart's bottom area"
+                }
+            }
             val plot = chartChild("plot")
             val axes = plot.javaClass.getDeclaredField("plotBounds").apply { isAccessible = true }
                 .get(plot) as android.graphics.RectF

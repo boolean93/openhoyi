@@ -134,7 +134,7 @@ class ExtractionActivity : ThemedActivity() {
                 marginStart = dp(16)
             })
         }
-        val workspace = TaskWorkspaceLayout(this)
+        val workspace = TaskExtractionWorkspace(this)
         content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4) })
         val plotColumn = workspace.primaryBody
         val sidePanel = workspace.secondaryBody.apply {
@@ -231,8 +231,13 @@ class ExtractionActivity : ThemedActivity() {
         alarmStatus = text(content, getString(R.string.home_alarm_initial), 13).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_ASSERTIVE
         }
-        val actionDock = TaskActionDock(this)
-        root.addView(actionDock, LinearLayout.LayoutParams(-1, -2))
+        // Safety messages remain fixed and full-width, outside the scrolling tools.
+        listOf(preparationStatus, notificationStatus, alarmStatus).forEach { status ->
+            content.removeView(status)
+            content.addView(status, content.indexOfChild(workspace))
+        }
+        val actionDock = TaskActionDock(this, edgeInsetDp = 0)
+        workspace.setFooter(actionDock)
         start = HoyiUi.button(this, actionDock, getString(R.string.extraction_start), primary = true) { confirmStart() }
         (start.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
         stop = HoyiUi.button(this, actionDock, getString(R.string.extraction_stop), danger = true) {
