@@ -33,8 +33,10 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             val width = MeasureSpec.getSize(widthMeasureSpec)
             val height = MeasureSpec.getSize(heightMeasureSpec)
             val density = resources.displayMetrics.density
+            // These are independently scrolling editor viewports, not a chart/tool workspace.
+            // The IME may reduce height without removing the width needed for two usable panes.
             val split = TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
-                (height / density).toInt()).twoPaneAllowed && width >= dp(624)
+                (height / density).toInt(), twoPaneMinimumHeightDp = 0).twoPaneAllowed && width >= dp(624)
             val nextOrientation = if (split) HORIZONTAL else VERTICAL
             val parameterWidth = if (split) dp(280) else width
             // A short native input is at least 52dp, before panel padding. Do not allocate

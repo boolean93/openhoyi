@@ -23,13 +23,17 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
         failure?.let { throw it }
     }
-    private fun awaitMain(condition: () -> Boolean) {
+    private fun awaitMain(diagnostic: () -> String = { "unspecified condition" }, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 10000
         while (true) {
             var ready = false
             onMain { ready = condition() }
             if (ready) return
-            check(SystemClock.elapsedRealtime() < deadline) { "Page condition timed out" }
+            if (SystemClock.elapsedRealtime() >= deadline) {
+                var detail = ""
+                onMain { detail = diagnostic() }
+                error("Page condition timed out: $detail")
+            }
             Thread.sleep(25)
         }
     }
@@ -147,7 +151,12 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     completed++
                     if (currentPage != null) {
                         onMain { activity.finish() }
-                        awaitMain { activity.isDestroyed && home.hasWindowFocus() && owner(home) === service }
+                        awaitMain(diagnostic = {
+                            "return from ${activity.javaClass.simpleName}: childDestroyed=${activity.isDestroyed} " +
+                                "homeDestroyed=${home.isDestroyed} homeFinishing=${home.isFinishing} " +
+                                "homeFocus=${home.hasWindowFocus()} homeAttached=${home.window.decorView.isAttachedToWindow} " +
+                                "sameService=${owner(home) === service} serviceRunning=${service?.running} homeTask=${home.taskId}"
+                        }) { activity.isDestroyed && home.hasWindowFocus() && owner(home) === service }
                         currentPage = null
                     }
                 }

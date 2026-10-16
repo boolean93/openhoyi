@@ -9,3 +9,7 @@
 0cd05cc/CI38852903588新诊断：阿拉伯语浅色ScaleSettings返回时childDestroyed=true、homeDestroyed=true、homeAttached=false、sameService=false，但serviceRunning=true。证据证明原测试等的是已销毁首页，不支持把它当按钮/字体缺陷。新增非阻断Home ActivityMonitor，仅在旧首页已销毁且捕获新实例同taskId时接续；仍要求实际focus、原service身份、语言/主题一致，全部业务/磁盘不变与240/60不删。不启动新页面、不延长超时、不重试场景；记录每次重建。Monitor在finally移除。原生产不改；精确新原生结果待验证。
 
 首页重建跟踪候选测试APK编译22秒通过，diff check通过。待下次原生高级矩阵证明返回链路，不提前标失败已修复。
+
+0cd05cc必需lifecycle38852903551失败在LanguagePageChecks150（阿拉伯语深色AppSettings返回等待），同源push lifecycle成功；现有信息仅Page condition timed out，不能推断同一根因。仅补充销毁/focus/attached/原service与taskId诊断，保持10秒/原断言，不直接套用高级矩阵修复。新原生证据待下一轮。
+
+多语言返回诊断测试APK编译22秒通过，未改生产，原生待验证。
