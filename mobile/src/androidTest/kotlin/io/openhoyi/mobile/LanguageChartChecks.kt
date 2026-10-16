@@ -23,7 +23,7 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
                 val stages = CurveStageView(context).apply { targets = listOf(20, 40, 60, 80) }
                 verifyIncreasing(native, context.getColor(R.color.chart_pressure), 42f, 18f, 74f, 28f, language)
                 verifyIncreasing(legacy, context.getColor(R.color.chart_pressure), 42f, 18f, 52f, 30f, language)
-                verifyIncreasing(stages, context.getColor(R.color.mobile_accent), 20f, 20f, 18f, 28f, language)
+                verifyIncreasing(stages, context.getColor(R.color.chart_pressure), 20f, 20f, 18f, 28f, language)
             }
         }
     }

@@ -5,3 +5,5 @@
 遵守docs/git-workflow.md，develop66ebda9+ed01de0依赖，feature/task-first-ui→develop草稿PR#4。仅绘制，不改协议或曲线数据，不安装发版合并。验证双APK、现有阶段投影测试及后续原生浅深色/大小字预览截图，不能以Canvas代码代替视觉验收；普通push/PR，revert回退。
 
 本批JVM与双Mock APK47秒成功，diff check通过；原生阶段坐标/标签位置待新截图，不认定视觉完成。
+
+2026-10-16原生回归：ba1abdb lifecycle38859504790在LanguageChartChecks旧mobile_accent像素预期失败。生产与实际截图已为chart_pressure，本次同步预期颜色，不改采样/语言/方向/20dp阈值。测试APK构建后需新原生运行。
