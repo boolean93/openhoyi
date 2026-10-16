@@ -60,4 +60,5 @@
     <string name="import_table_water">段階注水量 · ml</string>
     <string name="profiles_share_methods">共有方法</string>
     <string name="profiles_export_first">書き出しが完了するとファイルを共有できます。</string>
+    <string name="profiles_stage_summary">%1$d 段階のパラメータ</string>
 </resources>

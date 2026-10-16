@@ -60,4 +60,5 @@
     <string name="import_table_water">단계 물량 · ml</string>
     <string name="profiles_share_methods">공유 방법</string>
     <string name="profiles_export_first">내보내기가 완료되면 파일을 공유할 수 있습니다.</string>
+    <string name="profiles_stage_summary">%1$d단계 매개변수</string>
 </resources>

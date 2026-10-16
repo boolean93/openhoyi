@@ -67,12 +67,10 @@ class CurveShareActivity : ThemedActivity() {
             }
         }.apply { isEnabled = exportedUri != null }
         HoyiUi.label(this, actions, getString(R.string.profiles_export_first), 14, muted = true)
+        actions.addView(android.view.View(this), LinearLayout.LayoutParams(1, 0, 1f))
         HoyiUi.label(this, actions, getString(R.string.profiles_text_hint), 14, muted = true).apply {
             setPadding(0, HoyiUi.dp(this@CurveShareActivity, 24), 0, 0)
         }
-        HoyiUi.button(this, actions, getString(R.string.ui_full_details)) {
-            beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
-        }.asTaskTextAction()
     }
     @Deprecated("Platform activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

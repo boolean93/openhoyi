@@ -60,4 +60,5 @@
     <string name="import_table_water">本段水量 · ml</string>
     <string name="profiles_share_methods">分享方式</string>
     <string name="profiles_export_first">成功导出后可分享文件。</string>
+    <string name="profiles_stage_summary">%1$d 个阶段参数</string>
 </resources>

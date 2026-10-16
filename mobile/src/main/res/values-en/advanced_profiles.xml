@@ -60,4 +60,5 @@
     <string name="import_table_water">Stage water · ml</string>
     <string name="profiles_share_methods">Sharing options</string>
     <string name="profiles_export_first">Export successfully before sharing the file.</string>
+    <string name="profiles_stage_summary">%1$d stage parameters</string>
 </resources>

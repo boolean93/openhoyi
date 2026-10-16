@@ -38,17 +38,39 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
             setPadding(0, HoyiUi.dp(this@sharePreview, 4), 0, 0)
         }
     }
+    fun parameterHeading() {
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        preview.addView(heading, LinearLayout.LayoutParams(-1, -2))
+        HoyiUi.label(this, heading, getString(R.string.profiles_stage_summary, doc.stages.size), 16, true).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            setPadding(0, 0, 0, 0)
+        }
+        HoyiUi.button(this, heading, getString(R.string.ui_full_details)) {
+            beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
+        }.apply {
+            asTaskTextAction()
+            layoutParams = LinearLayout.LayoutParams(-2, -2)
+        }
+    }
     if (doc.controlMode != CustomCurveDocument.ControlMode.PRESSURE) {
         HoyiUi.label(this, preview, getString(R.string.profiles_flow_raw), 16, muted = true)
+        parameterHeading()
         return
+    }
+    HoyiUi.label(this, preview, getString(R.string.profiles_preview), 20, true).apply {
+        setPadding(0, 0, 0, 0)
     }
     val chart = CurveStageView(this).apply { targets = doc.stages.map { it.target } }
     preview.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
     HoyiUi.label(this, preview, getString(R.string.task_form_stage_caption), 14, muted = true)
+    parameterHeading()
     val table = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         tag = "share-stage-table"
-        setPadding(0, HoyiUi.dp(this@sharePreview, 16), 0, 0)
     }
     preview.addView(table, LinearLayout.LayoutParams(-1, -2))
     fun row(values: List<String>, heading: Boolean, stageIndex: Int? = null) {
