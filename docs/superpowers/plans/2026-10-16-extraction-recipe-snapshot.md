@@ -7,3 +7,7 @@
 防串杯与库编辑测试先运行，确认因未实现ShotRecipeSnapshot编译失败；再实现。需完整JVM/双APK、后续原生同杯断言与视觉截图。当前不把摘要出现等同真实设备验收。
 
 完整本地JVM/双Mock APK51秒成功，298 tests/0 failures/0 errors/1既有skip，diff check通过。真实起杯快照绑定与原生摘要截图尚未验证，不当已完成视觉验收。旧0cd05cc大字体补读：334/336、14恢复通过，仅复盘两主题IME长框98px可见77px，已纳入e6eedb8双栏候选，不再有搜索框失败。
+
+补原生集成验证：LanguageActiveCupChecks在实际Mock起杯后核对snapshot.traceId与杯ID一致，切8语言重建后仍同一快照且原生摘要显示该温度；ServiceShotDispatchChecks在原真实服务+隔离GATT的接受请求路径核对name/temp/target与发送前selected一致。原字节/写入/未知状态断言保留，未添加真实设备调用。需下一批CI执行。
+
+本批原生断言随双Mock APK编译成功（37秒），运行结果仍待下一批CI；编译不证明原生断言通过。

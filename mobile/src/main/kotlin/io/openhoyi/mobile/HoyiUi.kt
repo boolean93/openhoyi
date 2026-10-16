@@ -80,6 +80,7 @@ internal object HoyiUi {
         isAllCaps = false
         textSize = TaskVisualTokens.BODY_SP.toFloat()
         typeface = TaskTypography.face(activity, 500)
+        includeFontPadding = false
         val foreground = activity.getColor(when {
             primary -> android.R.color.white
             danger -> R.color.mobile_danger
@@ -107,6 +108,10 @@ internal object HoyiUi {
                 if (primary) 0x33FFFFFF else activity.getColor(R.color.mobile_accent_soft)))
         background = android.graphics.drawable.RippleDrawable(feedback, states,
             shape(activity, android.R.color.white, TaskVisualTokens.CONTROL_RADIUS_DP))
+        // Explicit spacing avoids platform Button padding inflating the bundled CJK face.
+        // Keep wrap-content height so large fonts and translated labels can grow.
+        setPadding(dp(activity, TaskVisualTokens.GROUP_GAP_DP), dp(activity, TaskVisualTokens.RELATED_GAP_DP),
+            dp(activity, TaskVisualTokens.GROUP_GAP_DP), dp(activity, TaskVisualTokens.RELATED_GAP_DP))
         setOnClickListener { action() }
         parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(activity, TaskVisualTokens.RELATED_GAP_DP) })
     }

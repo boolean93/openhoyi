@@ -159,6 +159,11 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         field(instance,"snapshot").set(instance,instance.snapshot.copy(coffeeAt=now,weightAt=now))
                         check(instance.startShot(selected.id,selected.scaleMode,7)==null) { "$window/$mode initial request rejected" }
                         check(owner.extraction.state==ExtractionState.STARTING)
+                        val recipe = requireNotNull(instance.activeShotRecipe?.forTrace(instance.chartTraceIdentity))
+                        check(recipe.name == selected.name && recipe.temperatureC == selected.temperatureC &&
+                            recipe.targetHundredthsGram == selected.targetHundredthsGram) {
+                            "$window/$mode accepted request lost its recipe snapshot"
+                        }
                         check(shotPrefs.getBoolean("unresolved_shot",false) && shotPrefs.getString("unresolved_shot_address",null)==address)
                         if(preheat)check(preparation.state==BrewPreparation.State.IDLE && machine.kind==MachineWriteRecoveryState.Kind.BREW_WAIT)
                         if(window=="WEIGHT_START") {

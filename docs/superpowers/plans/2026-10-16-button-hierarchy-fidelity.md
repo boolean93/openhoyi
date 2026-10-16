@@ -7,3 +7,7 @@
 仅样式，不改设备/数据/业务，不发版/安装/合并/改签名版本。验证双Mock APK与现有原生浅深色/大小字/可达检查；逐页真实截图才可视觉验收，不新增镜像样式断言。旧0cd05ccCI运行时不推送打断，普通追加提交/revert回退。
 
 本地按钮样式双Mock APK成功38秒；补充TaskTypographyEvidence的elevation/translationZ/stateListAnimator和Ripple内容圆角测量后，测试APK编译成功21秒。状态层测量排除mask，不将mask误作按钮实际底板。diff check通过，原生效果待新截图，0cd05cc任务仍运行。
+
+e6eedb8原生Home测量进一步显示：浏览曲线库按钮高度150px（density2.25，约66.7dp），includeFontPadding=true，默认上下padding各23px。统一关闭额外字体留白，并在背景设置后明确左右16dp、上下8dp；仍保持16sp/500、48/56dp最小触控高度、wrap-content及长文本换行，不设固定高度或缩字。页面已有显式padding覆盖仍保留。此项需构建与下一批原生截图验证，不能据代码推断最终高度或视觉通过。
+
+本批双Mock APK构建37秒成功，git diff --check通过。e6eedb8高级页面CI已成功，单屏用户平板和大字体任务失败、整体仍运行；本批按钮修改尚未推送，不将旧CI结果归于新样式。

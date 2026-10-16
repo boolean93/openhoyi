@@ -54,11 +54,14 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                 test.runOnMainSync { check(original.startShot("capture-2", null, 7) == null) }
                 awaitMain { original.snapshot.coffee is ExtractionTelemetry && original.chartPoints.isNotEmpty() &&
                     observedState(original) == ExtractionState.RUNNING }
+                var recipe: ShotRecipeSnapshot? = null
                 var id: String? = null
                 var first: ShotPoint? = null
                 var message: SnapshotMessage? = null
                 test.runOnMainSync {
                     id = requireNotNull(cupId(original)); first = original.chartPoints.first()
+                    recipe = requireNotNull(original.activeShotRecipe?.forTrace(original.chartTraceIdentity))
+                    check(recipe!!.traceId == id) { "Recipe snapshot belongs to a different cup" }
                     message = original.snapshot.message
                     check(app.languagePreferences.select(language) != AppLanguagePreference.Selection.SAVE_FAILED)
                 }
@@ -74,6 +77,12 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     check(screen.resources.configuration.locales[0] == language.locale)
                     check(original.shotState == ExtractionState.RUNNING && cupId(original) == id)
                     check(original.chartPoints.first() == first && original.snapshot.message === message)
+                    check(original.activeShotRecipe === recipe && recipe?.forTrace(original.chartTraceIdentity) != null)
+                    val summary = ExtractionActivity::class.java.getDeclaredField("recipeSummary").apply { isAccessible = true }
+                        .get(screen) as android.widget.TextView
+                    check(summary.isShown && summary.text.contains("${recipe!!.temperatureC} °C")) {
+                        "${language.tag} active recipe temperature missing after recreation"
+                    }
                     val action = stop(screen)
                     check(action.text.toString() == screen.getString(R.string.home_stop))
                     check(action.getGlobalVisibleRect(android.graphics.Rect()))
