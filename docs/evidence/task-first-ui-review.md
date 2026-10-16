@@ -79,3 +79,9 @@ Local `/tmp/task-inventory-layout-build.log` assembleMock + assembleMockAndroidT
 ScaleActivity now uses stable TaskWorkspace regions: readout/tare primary, App timer/connection/settings in local supporting scroll; freshness/battery/activity guard remain fixed above and dose capture below. Capture intent makes capture sole primary-colored action, normal scale retains primary tare. Status/help increased to14sp. ScaleOwnerActivity, renderScale, stableDose, service/tare callbacks and timer/state logic unchanged.
 
 Local `/tmp/task-scale-workspace-build.log`: JVM + both Mock APKs BUILD SUCCESSFUL in43s, 295 tests/0failures/0errors/1existing skip. Scale UI change and inventory d8a9e75 are not in running33ab403 CI. Actual scale/capture screenshots, full native gates and independent review still required; no physical scale command or device install performed.
+
+## 2026-10-16 history detail workspace
+
+HistoryDetail chart now owns TaskWorkspace primary; actual stop reason, full journal fields and full-details/advanced-flow entry use supporting local scroll. Curve/status/date/time/raw-end-scale and UNKNOWN warning remain fixed above, review/compare below. Compact primary budget reservation limits auxiliary allocation without hiding its48dp access. Dates/status text raised to14sp. Original sample loads, journal reads and intents unchanged; no record writes. Exact populated inner-plot native requirement remains96dp.
+
+Local `/tmp/task-history-workspace-build.log`: testMockUnitTest + assembleMock + assembleMockAndroidTest BUILD SUCCESSFUL in43s, 295tests/0failures/0errors/1existing skip. This later layout is not covered by running33ab403. Native screenshots and independent review pending.

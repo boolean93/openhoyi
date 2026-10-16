@@ -67,7 +67,7 @@ class HistoryDetailActivity : ThemedActivity() {
             setTextColor(getColor(if (entry.status == ShotHistory.Status.UNKNOWN) R.color.mobile_danger else R.color.mobile_accent))
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         }
-        HoyiUi.label(this, summary, date(entry.startedAtMs), 12, muted = true)
+        HoyiUi.label(this, summary, date(entry.startedAtMs), 14, muted = true)
         val values = listOf(
             getString(R.string.history_duration) + " " + (entry.elapsedMs?.let {
                 getString(R.string.history_duration_value, "%.1f".format(Locale.ROOT, it / 1000.0))
@@ -77,25 +77,30 @@ class HistoryDetailActivity : ThemedActivity() {
             } ?: "—")
         )
         HoyiUi.label(this, body, values.joinToString(" · "), 15, true).apply { setPadding(0, dp(6), 0, dp(6)) }
-        HoyiUi.label(this, body, entry.reason?.let(::reasonLabel) ?: getString(R.string.history_no_reason), 13, muted = true)
         if (entry.status == ShotHistory.Status.UNKNOWN) HoyiUi.label(this, body,
             getString(R.string.history_unknown_warning), 14, true).apply {
             setPadding(0, dp(6), 0, dp(6))
             setTextColor(getColor(R.color.mobile_danger))
         }
+        val workspace = TaskWorkspaceLayout(this)
+        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
+        workspace.onPrimarySpaceAvailable = { _, budget -> minOf(budget, dp(220)) }
+        val support = workspace.secondaryBody
+        HoyiUi.label(this, support, entry.reason?.let(::reasonLabel) ?: getString(R.string.history_no_reason), 14, muted = true)
         val chartCard = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(8), dp(8), dp(8), dp(8))
             background = HoyiUi.shape(this@HistoryDetailActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         }
-        body.addView(chartCard, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6) })
+        workspace.primaryBody.addView(chartCard, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(6) })
         val chart = ShotChartView(this).apply { contentDescription = getString(R.string.extraction_chart) }
         chartCard.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
-        val chartStatus = HoyiUi.label(this, chartCard, getString(R.string.history_loading_samples), 12, muted = true)
-        HoyiUi.button(this, body, getString(R.string.history_outcome_title) + " / " + getString(R.string.journal_notes_title)) {
+        val chartStatus = HoyiUi.label(this, chartCard, getString(R.string.history_loading_samples), 14, muted = true)
+        HoyiUi.button(this, support, getString(R.string.history_outcome_title) + " / " + getString(R.string.journal_notes_title)) {
             showDetails(entry, curve, permanent, app.journalResult.isFailure, chart.points)
         }
         if (permanent != null) {
+            journalNotes(HoyiUi.card(this, support, getString(R.string.journal_notes_title)), permanent.notes)
             val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
             body.addView(actions)
             HoyiUi.button(this, actions, getString(R.string.journal_review), primary = true) {
@@ -105,7 +110,7 @@ class HistoryDetailActivity : ThemedActivity() {
                 startActivity(Intent(this, BrewComparisonActivity::class.java).putExtra(BrewComparisonActivity.FIRST_SHOT_ID, entry.id))
             }.layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
         } else {
-            HoyiUi.label(this, body, getString(if (app.journalResult.isFailure) R.string.journal_unavailable else R.string.journal_migrate_hint), 13, muted = true)
+            HoyiUi.label(this, support, getString(if (app.journalResult.isFailure) R.string.journal_unavailable else R.string.journal_migrate_hint), 14, muted = true)
         }
         Thread({
             val points = runCatching { app.samples.load(entry.id) }
