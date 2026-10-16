@@ -92,20 +92,24 @@ internal fun ThemedActivity.profileCard(body: LinearLayout, doc: CustomCurveDocu
     val card = HoyiUi.card(this, body)
     card.setPadding(HoyiUi.dp(this, 10), HoyiUi.dp(this, 8), HoyiUi.dp(this, 10), HoyiUi.dp(this, 8))
     card.layoutParams = LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = HoyiUi.dp(this@profileCard, 6) }
-    HoyiUi.label(this, card, doc.name, 20, true).apply {
+    val workspace = TaskWorkspaceLayout(this)
+    card.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
+    workspace.onPrimarySpaceAvailable = { _, budget -> minOf(budget, HoyiUi.dp(this, 240)) }
+    val primary = workspace.primaryBody
+    val support = workspace.secondaryBody
+    HoyiUi.label(this, primary, doc.name, 20, true).apply {
         maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
         tag = "full-text-details"
     }
-    HoyiUi.label(this, card, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null) R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, true)
+    HoyiUi.label(this, primary, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null) R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, true)
     if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
-        card.addView(CurveStageView(this).apply { targets = doc.stages.map { it.target } }, LinearLayout.LayoutParams(-1, 0, 1f))
-        HoyiUi.label(this, card, getString(R.string.profiles_stage_caption), 13, muted = true)
+        primary.addView(CurveStageView(this).apply { targets = doc.stages.map { it.target } }, LinearLayout.LayoutParams(-1, 0, 1f))
+        HoyiUi.label(this, primary, getString(R.string.profiles_stage_caption), 14, muted = true)
     } else {
-        HoyiUi.label(this, card, getString(R.string.profiles_flow_raw), 15, muted = true)
-        card.addView(android.view.View(this), LinearLayout.LayoutParams(-1, 0, 1f))
+        HoyiUi.label(this, primary, getString(R.string.profiles_flow_raw), 15, muted = true)
     }
-    HoyiUi.label(this, card, getString(R.string.profiles_summary, doc.temperatureC, CurveDraftNumber.format(doc.targetHundredthsGram, 2), doc.stages.size), 14)
-    HoyiUi.button(this, card, getString(R.string.ui_full_details)) { beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode()) }
+    HoyiUi.label(this, support, profileSummary(doc), 15)
+    HoyiUi.button(this, support, getString(R.string.ui_full_details)) { beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode()) }
 }
 
 internal fun ThemedActivity.profilePreviewDialog(doc: CustomCurveDocument) {

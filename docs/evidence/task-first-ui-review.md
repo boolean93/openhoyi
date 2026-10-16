@@ -85,3 +85,9 @@ Local `/tmp/task-scale-workspace-build.log`: JVM + both Mock APKs BUILD SUCCESSF
 HistoryDetail chart now owns TaskWorkspace primary; actual stop reason, full journal fields and full-details/advanced-flow entry use supporting local scroll. Curve/status/date/time/raw-end-scale and UNKNOWN warning remain fixed above, review/compare below. Compact primary budget reservation limits auxiliary allocation without hiding its48dp access. Dates/status text raised to14sp. Original sample loads, journal reads and intents unchanged; no record writes. Exact populated inner-plot native requirement remains96dp.
 
 Local `/tmp/task-history-workspace-build.log`: testMockUnitTest + assembleMock + assembleMockAndroidTest BUILD SUCCESSFUL in43s, 295tests/0failures/0errors/1existing skip. This later layout is not covered by running33ab403. Native screenshots and independent review pending.
+
+## 2026-10-16 curve delivery preview workspace
+
+Shared profileCard (Share/ImportPreview/explicit preview dialog) now uses bounded primary stage/name/capability area plus full parameter support. It shows actual temperature/target/all stages alongside or beneath the pressure schematic; raw-flow sources retain read-only warning without a fake graph. Full name/JSON details remain. Existing share/SAF/import/conflict callbacks unchanged. Caption uses14sp.
+
+Local `/tmp/task-curve-delivery-build.log`: JVM + two Mock APKs BUILD SUCCESSFUL in45s. Actual short-window minimum plot, localized full parameters, dialog and page screenshots, plus independent review remain pending. This batch is later than running33ab403 and has not been pushed yet.
