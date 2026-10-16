@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [tablet-user-landscape, tablet-user-portrait, phone]
+        profile: [tablet-user-landscape]
     steps:
       - uses: actions/checkout@v7
         with:

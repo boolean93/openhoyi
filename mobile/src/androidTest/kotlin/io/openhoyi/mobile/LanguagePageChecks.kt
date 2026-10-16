@@ -42,9 +42,9 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
 
     fun run(profile: String) {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
-        check(profile == "compact" || profile == "wideFont")
+        check(profile in listOf("compact", "landscape", "wideFont"))
         val expectedWidth = if (profile == "compact") 360 else 1280
-        val expectedScale = if (profile == "compact") 1f else 1.3f
+        val expectedScale = if (profile == "wideFont") 1.3f else 1f
         val app = context.applicationContext as MobileApplication
         val oldLanguage = app.languagePreferences.current
         val languagePrefs = context.getSharedPreferences("app_language", Context.MODE_PRIVATE)

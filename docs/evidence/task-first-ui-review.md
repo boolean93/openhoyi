@@ -167,3 +167,11 @@ Local final `/tmp/task-inventory-entry-build.log`: testMockUnitTest+assembleMock
 ## 2026-10-16 scale portrait actual correction image
 
 Root viewed exact2773b29 task-frame38844288879 tablet-user-portrait/screenshots/ScaleActivity.png under build/task-first-evidence/ci-2773b29-task-frame-portrait. Compared9d457ef screenshot: reading card no longer expands to push tools below the local fold; timer start/reset, connect and settings all fully visible beneath readout/tare. Mock/no-readout and unavailable-battery labels remain honest. This closes the observed normal portrait fold issue visually, not full language/max-font/capture/hardware acceptance. Six-window native suite38844288915 still running at this entry.
+
+## 2026-10-16 explicit landscape-only scope change
+
+User explicitly cancelled portrait compatibility for ROI. Spec§9 and roadmap now supersede their prior portrait delivery criteria: target user tablet landscape, keep full21 pages/business/safety and landscape fonts/IME/short-height. Existing portrait fallback code retained but not a new optimization/gate; no orientation lock imposed.
+
+Default single-screen matrix now user-landscape/general-landscape/large-font-landscape; task-frame defaults user-landscape while retaining its internal1.0/1.3font and short component checks. Advanced/lifecycle page matrices now landscape1.0 + wideFont1.3; advanced business uses landscape, no assertion/path dropped. Background resize remains a landscape-to-landscape configuration transition. Capture script removes only its portrait/phone tail after existing landscape light/dark/extraction flows. Old compact instrumentation/manual profiles remain available, not default release criteria.
+
+bash -n passed for5 affected/relevant scripts;7 embedded Python blocks parsed with ast; `/tmp/task-landscape-scope-build.log` bothMockAPKs BUILD SUCCESSFUL22s. No production protocol/schema/manifest/signature/version changes. Exact updated CI remains pending. Prior2773b29 run still active; observed landscape failures remain in-scope and must be diagnosed separately, not waived by this user change.

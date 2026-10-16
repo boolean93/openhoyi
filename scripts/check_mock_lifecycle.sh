@@ -26,15 +26,15 @@ run_instrumentation() {
 from pathlib import Path
 import subprocess,sys
 output,mode=sys.argv[1:]
-if mode not in ("audio", "language", "pagesCompact", "pagesWideFont", "idle"):
+if mode not in ("audio", "language", "pagesLandscape", "pagesWideFont", "idle"):
     raise SystemExit("Unsupported Mock instrumentation mode")
 command=["adb", "shell", "am", "instrument", "-w"]
 if mode == "idle":
     command += ["-e", "idleEvents", "true"]
 if mode == "language":
     command += ["-e", "languageChecks", "true"]
-if mode in ("pagesCompact", "pagesWideFont"):
-    command += ["-e", "pageChecks", "compact" if mode == "pagesCompact" else "wideFont"]
+if mode in ("pagesLandscape", "pagesWideFont"):
+    command += ["-e", "pageChecks", "landscape" if mode == "pagesLandscape" else "wideFont"]
 command += ["io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation"]
 with Path(output).open("w") as capture:
     try:
@@ -141,7 +141,7 @@ adb shell input keyevent KEYCODE_HOME
 sleep 3
 assert_edges 1 2
 cp "$output_dir/lifecycle.txt" "$output_dir/before-background-resize.txt"
-adb shell wm size 1000x1600
+adb shell wm size 1200x800
 sleep 3
 assert_edges 1 2
 adb shell wm size 1600x1000
@@ -228,12 +228,12 @@ grep -F 'LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=
 
 # Real window layout matrices, still solely the disposable cloud Mock emulator.
 # A fresh Mock process prevents startActivitySync waiting on an existing NEW_TASK root.
-for profile in compact wideFont; do
+for profile in landscape wideFont; do
   adb shell am force-stop "$package"
-  if [ "$profile" = compact ]; then
-    adb shell wm size 450x1000
+  if [ "$profile" = landscape ]; then
+    adb shell wm size 1600x1000
     adb shell settings put system font_scale 1.0
-    mode=pagesCompact
+    mode=pagesLandscape
   else
     adb shell wm size 1600x1000
     adb shell settings put system font_scale 1.3

@@ -94,8 +94,6 @@ tap_nav() {
   assert_activity "$expected"
 }
 
-tap_portrait_nav() { tap_nav "$@"; }
-tap_phone_nav() { tap_nav "$@"; }
 
 toggle_theme() {
   tap_nav 0 AppSettingsActivity
@@ -191,66 +189,5 @@ tap_control '采集曲线 2'
 assert_activity HistoryDetailActivity
 capture history-detail-dark
 
-adb shell wm size 600x1000
-adb shell am force-stop io.openhoyi.mobile.mock
-adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
-sleep 3
-capture portrait-home-dark
-tap_portrait_nav 1 CurveActivity
-capture portrait-curves-dark
-tap_portrait_nav 2 ExtractionActivity
-capture portrait-extraction-dark
-tap_portrait_nav 3 HistoryActivity
-capture portrait-history-dark
-tap_portrait_nav 4 MachineSettingsActivity
-capture portrait-settings-dark
-tap_portrait_nav 3 HistoryActivity
-tap_control '采集曲线 2'
-capture portrait-history-detail-dark
-adb shell input keyevent KEYCODE_BACK
-assert_activity HistoryActivity
-sleep 2
-tap_portrait_nav 1 CurveActivity
-tap_control '采集曲线 2'
-capture portrait-curve-detail-dark
-adb shell input keyevent KEYCODE_BACK
-assert_activity CurveActivity
-sleep 2
 
-tap_portrait_nav 0 HomeActivity
-toggle_theme
-sleep 5
-capture portrait-home-light
-adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/portrait-theme-pref.xml"
-grep 'name="dark" value="false"' "$output_dir/portrait-theme-pref.xml" >/dev/null
-tap_portrait_nav 1 CurveActivity
-capture portrait-curves-light
-tap_portrait_nav 2 ExtractionActivity
-capture portrait-extraction-light
-tap_portrait_nav 3 HistoryActivity
-capture portrait-history-light
-tap_portrait_nav 4 MachineSettingsActivity
-capture portrait-settings-light
-
-adb shell wm size 450x900
-adb shell am force-stop io.openhoyi.mobile.mock
-adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
-sleep 3
-capture portrait-home-phone-light
-tap_phone_nav 1 CurveActivity
-capture portrait-curves-phone-light
-tap_phone_nav 2 ExtractionActivity
-capture portrait-extraction-phone-light
-# The narrow-phone matrix must include an actual active Mock shot, not only standby.
-tap_control '开始萃取'
-adb logcat -c
-tap_control '开始模拟'
-sleep 3
-adb logcat -d -s OpenHoyiMobile:I | grep 'Mock 萃取已开始' > "$output_dir/shot-start-phone-log.txt"
-capture portrait-extraction-running-phone-light
-sleep 34
-capture portrait-extraction-ended-phone-light
-tap_phone_nav 3 HistoryActivity
-capture portrait-history-phone-light
-tap_phone_nav 4 MachineSettingsActivity
-capture portrait-settings-phone-light
+# Portrait capture retired by the user on 2026-10-16; landscape flows above remain.

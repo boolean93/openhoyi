@@ -33,10 +33,10 @@ adb shell settings put system user_rotation 0
 adb install -r "$apk"
 adb install -r "$test_apk"
 if [ "$suite" != business ]; then
-for profile in compact wideFont; do
+for profile in landscape wideFont; do
   adb shell am force-stop "$package"
-  if [ "$profile" = compact ]; then
-    adb shell wm size 450x1000
+  if [ "$profile" = landscape ]; then
+    adb shell wm size 1600x1000
     adb shell settings put system font_scale 1.0
   else
     adb shell wm size 1600x1000
@@ -83,7 +83,7 @@ if [ "$suite" = pages ]; then
   exit 0
 fi
 adb shell am force-stop "$package"
-adb shell wm size 450x1000
+adb shell wm size 1600x1000
 adb shell settings put system font_scale 1.0
 python3 - "$output_dir/business-flows.txt" <<'PY'
 from pathlib import Path

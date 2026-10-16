@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **2026-10-16范围更新**：用户取消竖屏兼容要求；后续仅横屏专项实施/验收。21页、原业务安全、大字号/IME/短高仍保留，按[横屏范围计划](2026-10-16-landscape-only-scope.md)执行。旧竖屏证据只作历史，不新增竖屏任务。
+
 **Goal:** 按已确认规格实现全部21页任务工作台改版，优先中文及用户平板，不删除原功能或削弱门禁。
 
 **Architecture:** 保留现有原生Android View、Activity和业务/服务所有权。新共享布局与展示投影只接收窗口、已有采样及状态，不调用BLE或库存写入；页面通过原确认和业务回调执行操作。共享层、图表、业务页面与验收分开提交。
@@ -32,7 +34,7 @@
 
 | 批次 | 负责文件（目录`mobile/src/main/kotlin/io/openhoyi/mobile/`） | 交付与验证边界 |
 |---|---|---|
-| F1 共享展示基础 | 新`TaskLayoutPolicy.kt`；随后`TaskPageFrame.kt`、`TaskNavigationView.kt`、`TaskControls.kt`；接入`HoyiUi.kt`；语义资源`mobile/src/main/res/values/colors.xml`、`values-night/colors.xml`、`values/strings.xml` | 先以纯窗口规则测试锁定用户平板横竖、窄窗/IME/字体测量后的最小宽度；真实Frame再用instrumentation检查Insets/导航/单主操作。禁止在此引入设备/库存所有权 |
+| F1 共享展示基础 | 新`TaskLayoutPolicy.kt`；随后`TaskPageFrame.kt`、`TaskNavigationView.kt`、`TaskControls.kt`；接入`HoyiUi.kt`；语义资源`mobile/src/main/res/values/colors.xml`、`values-night/colors.xml`、`values/strings.xml` | 先以纯窗口规则测试锁定用户平板横屏、短高/IME/字体测量后的最小宽度；真实Frame再用instrumentation检查Insets/导航/单主操作。禁止在此引入设备/库存所有权 |
 | F2 四指标图表 | 新`ShotChartModel.kt`、`ShotChartProjection.kt`、`ShotMetricChartView.kt`；迁移`ExtractionOverlayProjection.kt`、`ExtractionOverlayView.kt`、`ShotChartView.kt`；保留`ShotSeries.kt`/存储原语义 | 确定采样验证bar/ml/g/°C、时间、四独立量程、聚焦模式、缺口/负值/超范围/参考/旧来源。用可计算端点而非PNG非空证明正确，不修改记录和控制 |
 | F3 冲煮任务（2页） | `HomeActivity.kt`、`ExtractionActivity.kt`、`BrewFeedbackDialog.kt`；原`StopActionPresentation.kt`与`ShotGate.kt`作为不变契约 | 准备→原确认→运行→观察结果→复盘；设备面板、五槽、预热/取消、告警/通知、历史参考、一次趣味反馈保留。实测停止中/未知/手动，不复制状态机 |
 | F4 曲线任务（6页） | `CurveActivity.kt`、`CurveEditorActivity.kt`、`CurveShareActivity.kt`、`CurveImportActivity.kt`、`CurveImportPreviewActivity.kt`、`LegacyCurveActivity.kt`；`CurveStageView.kt` | 连续列表及排序/分类/恢复；完整四阶段、阶段非时间；绑定槽位、分享/显式导入/冲突、旧版只读。不得扩大协议控制能力 |
@@ -60,12 +62,11 @@
 ./gradlew :mobile:testMockUnitTest :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
 bash scripts/check_advanced_mock_pages.sh business
 bash scripts/check_single_screen_ui.sh tablet-user-landscape
-bash scripts/check_single_screen_ui.sh tablet-user-portrait
-bash scripts/check_single_screen_ui.sh phone
+bash scripts/check_single_screen_ui.sh tablet-landscape
 bash scripts/check_single_screen_ui.sh tablet-large-font
 ```
 
-后四条只在一次性CI模拟器运行，脚本会覆盖模拟器显示/字号，禁止在用户平板上执行。现有脚本的旧页数/截图计数和源码查找方式若与新壳不匹配，先更新成能验证相同或更强契约的测试，不删业务断言或只修改成功标记。新增短高IME、1.3/系统最大字号、深色等场景时单独记录实际窗口与截图；不能把增加计数当验收。
+后三条只在一次性CI模拟器运行，脚本会覆盖模拟器显示/字号，禁止在用户平板上执行。现有脚本的旧页数/截图计数和源码查找方式若与新壳不匹配，先更新成能验证相同或更强契约的测试，不删业务断言或只修改成功标记。新增短高IME、1.3/系统最大字号、深色等场景时单独记录实际窗口与截图；不能把增加计数当验收。
 
 业务基线应保留现有检查的实际断言：17路径、库存耗用与重入、四阶段完整字段/导入冲突、真实系统文档选择器、服务所有者、断连/结果未知写入、停止、声音一次性与恢复、列表/光标、升级。新导航可改测试选取路径，但事件/数据/门禁断言不降低。
 
