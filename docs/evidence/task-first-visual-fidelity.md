@@ -622,3 +622,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 仍调用原stageCount/visibility/previewChanged，字段实例不重建、不清隐藏内容，初始状态不触发回调，保存与Bundle恢复逻辑不变。没有改曲线数据或设备行为。
 - 业务检查改为实际点击，并增加填完四阶段后4→2→4内容保留检查；原持久化/重建/重新打开断言保留。窗口检查保留11项输入及预览完整性，增加四按钮完整、48dp、选中项断言。
 - 首轮instrumentation构建因缺Button导入失败，已修正。最终Mock/test APK构建43s成功（/tmp/task-editor-stage-tabs-final-build.log），diff/branch检查通过。新增原生断言尚待CI运行；没有用旧f525db3的窗口通过替代新控件实图，整页字体/间距仍未完成验收。
+
+### 入库日期日历入口（2026-10-16，待实图）
+
+- 实读f525db3用户平板中文浅色BeanEntryActivity与bean-entry-v2：居中表单/三个日期行完整，但日期只有纯文字输入，没有认可稿右侧日历入口；新豆款模式仍为下拉，底部说明/间距仍有差异。本次没有缩减这些剩余项。
+- 三日期输入右侧加入24dp线性向量图标、48dp独立点击区域；FrameLayout保留原输入宽度权重与行高，end padding为按钮让位，RTL采用END。焦点边框、涟漪及本地化字段描述保留。
+- 日历初值取有效现值，否则今天只用于选择焦点；取消不写字段，确认写ISO日期。保留手动编辑/清空、可选值及原保存验证。销毁Activity时关闭日历，无库存写入逻辑变化。
+- 业务UI检查增加打开/初值/取消/确认后原重建与持久化检查，窗口检查增加三个入口全显及48dp断言。Mock/test APK构建45s成功（/tmp/task-bean-date-picker-build.log），diff/分支检查通过；新增运行断言和实际截图待CI，不能以编译充当视觉通过。

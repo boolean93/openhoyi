@@ -1,5 +1,6 @@
 package io.openhoyi.mobile
 
+import android.app.DatePickerDialog
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
@@ -15,6 +16,7 @@ class BeanEntryActivity : ThemedActivity() {
     private var eventId = UUID.randomUUID().toString()
     private var batchId = UUID.randomUUID().toString()
     private var newBeanId = UUID.randomUUID().toString()
+    private var dateDialog: DatePickerDialog? = null
     private var saved = false
     private var section = 0
     private var selectedBeanId: String? = null
@@ -75,7 +77,35 @@ class BeanEntryActivity : ThemedActivity() {
             label.textSize = 14f
             label.setPadding(0, 0, HoyiUi.dp(this, 16), 0)
             dateRow.addView(label, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
-            dateRow.addView(field, android.widget.LinearLayout.LayoutParams(0, -2, 2f))
+            val dateInput = android.widget.FrameLayout(this)
+            dateRow.addView(dateInput, android.widget.LinearLayout.LayoutParams(0, -2, 2f))
+            field.setPaddingRelative(field.paddingStart, field.paddingTop, HoyiUi.dp(this, 56), field.paddingBottom)
+            dateInput.addView(field, android.widget.FrameLayout.LayoutParams(-1, -2))
+            val calendar = android.widget.ImageButton(this).apply {
+                tag = "bean-date-picker-${fields.entries.single { it.value === field }.key}"
+                contentDescription = label.text
+                tooltipText = label.text
+                setImageResource(R.drawable.form_calendar)
+                imageTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_muted))
+                setPadding(HoyiUi.dp(this@BeanEntryActivity, 12), HoyiUi.dp(this@BeanEntryActivity, 12),
+                    HoyiUi.dp(this@BeanEntryActivity, 12), HoyiUi.dp(this@BeanEntryActivity, 12))
+                val states = android.graphics.drawable.StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(this@BeanEntryActivity, android.R.color.transparent, 8, R.color.mobile_accent))
+                    addState(intArrayOf(), HoyiUi.shape(this@BeanEntryActivity, android.R.color.transparent, 8))
+                }
+                background = android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)), states,
+                    HoyiUi.shape(this@BeanEntryActivity, android.R.color.white, 8))
+                setOnClickListener {
+                    val initial = runCatching { LocalDate.parse(field.text.toString().trim()) }.getOrNull() ?: LocalDate.now()
+                    dateDialog?.dismiss()
+                    dateDialog = DatePickerDialog(this@BeanEntryActivity, { _, year, month, day ->
+                        field.setText(LocalDate.of(year, month + 1, day).toString())
+                    }, initial.year, initial.monthValue - 1, initial.dayOfMonth).apply { show() }
+                }
+            }
+            dateInput.addView(calendar, android.widget.FrameLayout.LayoutParams(HoyiUi.dp(this, 48), HoyiUi.dp(this, 48),
+                android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL))
         }
         selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -113,6 +143,11 @@ class BeanEntryActivity : ThemedActivity() {
             if (result.isSuccess) { saved = true; finish() }
             else { error.setText(R.string.beans_save_failed); save.isEnabled = true }
         }
+    }
+    override fun onDestroy() {
+        dateDialog?.dismiss()
+        dateDialog = null
+        super.onDestroy()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)

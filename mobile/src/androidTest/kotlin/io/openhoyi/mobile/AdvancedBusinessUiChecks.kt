@@ -343,6 +343,32 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             record("entry-invalid-four")
             fill(entry, R.string.beans_initial_input, "100")
             fill(entry, R.string.beans_purchased, purchased.toString())
+            fun purchasePicker(): android.app.DatePickerDialog {
+                var picker: android.app.DatePickerDialog? = null
+                onMain {
+                    check(root(entry).findViewWithTag<View>("bean-date-picker-purchased").performClick())
+                    picker = BeanEntryActivity::class.java.getDeclaredField("dateDialog").apply { isAccessible = true }
+                        .get(entry) as android.app.DatePickerDialog
+                    check(requireNotNull(picker).isShowing)
+                }
+                test.waitForIdleSync()
+                return requireNotNull(picker)
+            }
+            val cancelledDate = purchasePicker()
+            onMain {
+                check(cancelledDate.datePicker.year == purchased.year && cancelledDate.datePicker.month == purchased.monthValue - 1 &&
+                    cancelledDate.datePicker.dayOfMonth == purchased.dayOfMonth)
+                cancelledDate.datePicker.updateDate(2026, 9, 3)
+                cancelledDate.getButton(AlertDialog.BUTTON_NEGATIVE).performClick()
+            }
+            assertInput(entry, R.string.beans_purchased, purchased.toString())
+            val confirmedDate = purchasePicker()
+            onMain {
+                confirmedDate.datePicker.updateDate(2026, 9, 3)
+                confirmedDate.getButton(AlertDialog.BUTTON_POSITIVE).performClick()
+            }
+            assertInput(entry, R.string.beans_purchased, "2026-10-03")
+            fill(entry, R.string.beans_purchased, purchased.toString())
             fill(entry, R.string.beans_roasted, roasted.toString())
             fill(entry, R.string.beans_opened, openedDate.toString())
             entry = recreate(entry)
