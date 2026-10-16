@@ -78,8 +78,8 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     check(original.shotState == ExtractionState.RUNNING && cupId(original) == id)
                     check(original.chartPoints.first() == first && original.snapshot.message === message)
                     check(original.activeShotRecipe === recipe && recipe?.forTrace(original.chartTraceIdentity) != null)
-                    val summary = ExtractionActivity::class.java.getDeclaredField("recipeSummary").apply { isAccessible = true }
-                        .get(screen) as android.widget.TextView
+                    val summary = screen.window.decorView.findViewWithTag<android.widget.TextView>(
+                        "recipe-value-${R.string.task_recipe_temperature}")
                     check(summary.isShown && summary.text.contains("${recipe!!.temperatureC} °C")) {
                         "${language.tag} active recipe temperature missing after recreation"
                     }

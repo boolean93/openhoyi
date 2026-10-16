@@ -592,3 +592,11 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 时间及主数量保留40sp/700，单位RelativeSizeSpan0.55；完整字符串与无障碍读法不改，未知—不造单位。历史参考/概览改文字操作，48dp目标及原回调保留。
 - 报警、未知结果、停止固定区和图例/量程说明未改，右栏配方段落仍是后续差异。本次页头释放空间需实际量测，不宣称主图已达到设计稿比例。
 - Mock/test APK构建43s成功（/tmp/task-live-chart-priority-build.log），diff/branch通过；窗口检查/运行态截图待CI。f525db3 single38888405636三profile仍in_progress，未取消/重跑。
+
+### 实时本杯参数信息行（2026-10-16，待实图）
+
+- cbe8076用户平板运行图的右栏配方段落改为TaskRecipeSummary四行，标签14sp/值16sp、8dp上下内边距与细分隔；单位和无目标说明不省略，长值自然换行，继续在原支持区局部滚动。
+- 来源逻辑保持：运行/已有采样/未知结果使用trace匹配的activeShotRecipe和本杯notes；未开始才显示待选profile。缺失—，未用下一杯设置补当前杯，未将设定92°C冒充实时93°C。
+- 概览加入同一参数全文。LanguageActiveCupChecks从反射旧段落改为查找实际温度行，保留isShown/本杯温度、快照身份、语言重建不换杯和停止操作断言；不是查询脱离界面的隐藏摘要。
+- 新分行增加的右栏自然高度需大字号/短高CI和运行图验证，不能凭布局源码宣称全部内容同时可见。
+- Mock/test APK构建44s成功（/tmp/task-live-recipe-build.log），diff和分支规则通过；新增可见温度行断言与新布局实图待CI。
