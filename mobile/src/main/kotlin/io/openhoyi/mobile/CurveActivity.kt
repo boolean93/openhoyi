@@ -106,6 +106,8 @@ class CurveActivity : ThemedActivity() {
             hint = getString(R.string.curve_search_hint)
             setSingleLine(true)
             textSize = 16f
+            typeface = TaskTypography.face(this@CurveActivity, 400)
+            includeFontPadding = false
             setPadding(dp(16), dp(8), dp(16), dp(8))
             minimumHeight = dp(48)
             background = HoyiUi.shape(this@CurveActivity, R.color.mobile_surface, 12, R.color.mobile_border)
@@ -146,6 +148,7 @@ class CurveActivity : ThemedActivity() {
         fun updateFilterChips() {
             filterChips.forEachIndexed { index, chip ->
                 val chosen = categories[index] == category
+                chip.isSelected = chosen
                 chip.setTextColor(getColor(if (chosen) R.color.mobile_accent else R.color.mobile_muted))
                 chip.background = HoyiUi.shape(this, if (chosen) R.color.mobile_accent_soft else R.color.mobile_surface,
                     10, R.color.mobile_border)
@@ -156,6 +159,8 @@ class CurveActivity : ThemedActivity() {
             filterChips += TextView(this).apply {
                 text = name.label(this@CurveActivity)
                 textSize = 15f
+                typeface = TaskTypography.face(this@CurveActivity, 400)
+                includeFontPadding = false
                 gravity = android.view.Gravity.CENTER
                 minHeight = dp(48)
                 setPadding(dp(16), dp(8), dp(16), dp(8))
