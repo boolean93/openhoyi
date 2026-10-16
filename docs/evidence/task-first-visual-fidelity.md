@@ -615,3 +615,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 实读ci-fb19415-pages/landscape-screenshots/zh-Hans-light-BrewComparisonActivity.png：四指标分段按钮、单位及压力选中态实际显示，全宽图与三行双杯摘要存在；第一/第二杯、实虚线图例及未知结果提示保留。该高级夹具没有采样，0..1s空图不能作为双轨迹渲染证据。
 - fb19415 single/run38889727697当前三个job均在实际窗口截图步骤in_progress；ce8c964专项run38893548072仍queued。未取消/重跑。最新萃取/分享/秤/旧版详情改动不能借本次较旧版本通过外推；仍等待对应新图。
 - 本轮只更新证据和24页矩阵，不修改产品代码、不安装或操作设备、不合并/发布。
+
+### 编辑阶段数量直接选择（2026-10-16，待实图）
+
+- 对照curve-editor-v1，将1–4段从Spinner改为同一行192dp四等宽按钮；16sp、48dp点击区，8dp内边距。当前项采用primary_button实色/白字，避免深色accent浅色背景与白字低对比；保留键盘焦点、涟漪和本地化阶段辅助描述。
+- 仍调用原stageCount/visibility/previewChanged，字段实例不重建、不清隐藏内容，初始状态不触发回调，保存与Bundle恢复逻辑不变。没有改曲线数据或设备行为。
+- 业务检查改为实际点击，并增加填完四阶段后4→2→4内容保留检查；原持久化/重建/重新打开断言保留。窗口检查保留11项输入及预览完整性，增加四按钮完整、48dp、选中项断言。
+- 首轮instrumentation构建因缺Button导入失败，已修正。最终Mock/test APK构建43s成功（/tmp/task-editor-stage-tabs-final-build.log），diff/branch检查通过。新增原生断言尚待CI运行；没有用旧f525db3的窗口通过替代新控件实图，整页字体/间距仍未完成验收。

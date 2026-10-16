@@ -2,10 +2,8 @@ package io.openhoyi.mobile
 
 import android.os.Bundle
 import android.view.View
-import android.widget.AdapterView
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.Spinner
 
 class CurveEditorActivity : ThemedActivity() {
     companion object { const val CURVE_ID = "curveId" }
@@ -70,12 +68,6 @@ class CurveEditorActivity : ThemedActivity() {
         HoyiUi.label(this, sections.stageHeader, getString(R.string.profiles_stage_count), 16, true).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         }
-        val selector = Spinner(this).apply {
-            adapter = HoyiUi.spinnerAdapter(this@CurveEditorActivity, (1..4).map(Int::toString))
-            minimumHeight = HoyiUi.dp(this@CurveEditorActivity, 52)
-            contentDescription = getString(R.string.profiles_stage_count)
-            sections.stageHeader.addView(this, LinearLayout.LayoutParams(HoyiUi.dp(this@CurveEditorActivity, 80), -2))
-        }
         (0..3).forEach { index ->
             val stage = source.stages.getOrNull(index) ?: CustomCurveDocument.Stage(60, 100)
             val row = sections.stageRows[index]
@@ -87,11 +79,11 @@ class CurveEditorActivity : ThemedActivity() {
             sections.setStageCount(stageCount)
             previewChanged()
         }
-        selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { stageCount = position + 1; visibility() }
+        val selector = CurveStageCountTabs(this, stageCount) { count ->
+            stageCount = count
+            visibility()
         }
-        selector.setSelection(stageCount - 1)
+        sections.stageHeader.addView(selector, LinearLayout.LayoutParams(HoyiUi.dp(this, 192), -2))
         visibility()
         val error = beanError(body)
         fun parsed(): CustomCurveDocument = CustomCurveDocument(draftId, name.text.toString().trim(),

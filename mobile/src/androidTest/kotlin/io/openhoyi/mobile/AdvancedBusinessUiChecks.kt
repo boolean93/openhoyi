@@ -11,6 +11,7 @@ import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.Button
 import android.widget.Spinner
 import android.widget.TextView
 import io.openhoyi.bean.InventoryEventKind
@@ -188,8 +189,8 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         assertInput(activity, R.string.profiles_temperature, temperature.toString())
         assertInput(activity, R.string.profiles_cup, CurveDraftNumber.format(cup, 2))
         onMain {
-            val count = views(root(activity)).filterIsInstance<Spinner>().single { it.contentDescription == activity.getString(R.string.profiles_stage_count) }
-            check(count.isShown && count.selectedItem.toString() == stages.size.toString()) { "Restored curve stage count differs" }
+            val count = views(root(activity)).filterIsInstance<CurveStageCountTabs>().single()
+            check(count.isShown && count.selectedCount == stages.size) { "Restored curve stage count differs" }
         }
         stages.forEachIndexed { index, stage ->
             assertInput(activity, R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), index)
@@ -479,9 +480,9 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             fill(editor, R.string.profiles_temperature, temperature.toString())
             fill(editor, R.string.profiles_cup, CurveDraftNumber.format(cup, 2))
             onMain {
-                val selector = views(root(editor)).filterIsInstance<Spinner>().single { it.contentDescription == editor.getString(R.string.profiles_stage_count) }
+                val selector = views(root(editor)).filterIsInstance<CurveStageCountTabs>().single()
                 check(selector.isShown && selector.isEnabled) { "Stage count selector is not visible" }
-                selector.setSelection(3)
+                check(selector.findViewWithTag<Button>("curve-stage-count-4").performClick())
             }
             test.waitForIdleSync()
             awaitMain {
@@ -491,6 +492,14 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 fill(editor, R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), index)
                 fill(editor, R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1), index)
             }
+            onMain {
+                val selector = views(root(editor)).filterIsInstance<CurveStageCountTabs>().single()
+                check(selector.findViewWithTag<Button>("curve-stage-count-2").performClick())
+                check(!views(root(editor)).single { it.tag == "curve-editor-stage-3" }.isShown)
+                check(selector.findViewWithTag<Button>("curve-stage-count-4").performClick())
+            }
+            test.waitForIdleSync()
+            assertCurveFields(editor, recipeName, temperature, cup, stages)
             editor = recreate(editor)
             assertCurveFields(editor, recipeName, temperature, cup, stages)
             onMain { views(root(editor)).filterIsInstance<android.widget.ScrollView>().forEach { it.scrollTo(0, 0) } }

@@ -41,7 +41,7 @@ internal object ChineseFormWindowChecks {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
         var sections: Spinner? = null
         var originalSection = 0
-        var stageSelector: Spinner? = null
+        var stageSelector: CurveStageCountTabs? = null
         var originalStages = 0
         var pageWindowId = -1
         var activeEditorLabel: String? = null
@@ -274,11 +274,9 @@ internal object ChineseFormWindowChecks {
                 main { selectSection(1) }
                 waitForDraw()
                 main {
-                    stageSelector = descendants(content).filterIsInstance<Spinner>().single {
-                        it.isShown && it !== sections && it.contentDescription?.toString() == activity.getString(R.string.profiles_stage_count)
-                    }
-                    originalStages = requireNotNull(stageSelector).selectedItemPosition
-                    requireNotNull(stageSelector).setSelection(3)
+                    stageSelector = descendants(content).filterIsInstance<CurveStageCountTabs>().single { it.isShown }
+                    originalStages = requireNotNull(stageSelector).selectedCount
+                    check(requireNotNull(stageSelector).findViewWithTag<Button>("curve-stage-count-4").performClick())
                 }
                 waitForDraw()
             }
@@ -297,6 +295,12 @@ internal object ChineseFormWindowChecks {
                         "$name metadata inputs are not aligned: $topPositions"
                     }
                     fullyVisible(requireNotNull(stageSelector))
+                    (1..4).forEach { count ->
+                        val button = requireNotNull(stageSelector).findViewWithTag<Button>("curve-stage-count-$count")
+                        fullyVisible(button)
+                        check(button.width >= HoyiUi.dp(activity, 48) && button.height >= HoyiUi.dp(activity, 48))
+                        check(button.isSelected == (count == 4))
+                    }
                     listOf(R.string.profiles_preview, R.string.ui_full_details).forEach { action ->
                         descendants(content).filterIsInstance<Button>().single {
                             it.text.toString() == activity.getString(action)
@@ -720,7 +724,7 @@ internal object ChineseFormWindowChecks {
                 }
             }
             cleanupStep { cleanupEditor() }
-            cleanupStep { main { stageSelector?.setSelection(originalStages) } }
+            cleanupStep { main { stageSelector?.findViewWithTag<Button>("curve-stage-count-$originalStages")?.performClick() } }
             cleanupStep { waitForDraw() }
             cleanupStep { main { selectSection(originalSection) } }
             cleanupStep {
