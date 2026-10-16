@@ -217,3 +217,23 @@ sleep 34
 capture extraction-ended-light
 
 # Portrait capture retired by the user on 2026-10-16; landscape flows above remain.
+
+# Reuse actual start/recreation/stop checks at this same user-tablet geometry.
+# Separate raw-source scenarios; do not hide weight values to fake no-scale data.
+adb shell am force-stop io.openhoyi.mobile.mock
+# Home owns Mock service startup; Extraction only binds an existing owner.
+adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
+python3 - "$output_dir" <<'PYCAPTURE'
+import subprocess
+import sys
+from pathlib import Path
+out = Path(sys.argv[1])
+with (out / 'active-cup-visual.txt').open('w') as log:
+    subprocess.run(['adb', 'shell', 'am', 'instrument', '-w', '-e', 'activeCupVisual', 'true',
+        '-e', 'disposableCiEmulator', 'true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
+        stdout=log, stderr=subprocess.STDOUT, timeout=120, check=True)
+if 'ACTIVE_CUP_VISUAL_PASSED states=2 actualMockStartStop=true noBle=true' not in (out / 'active-cup-visual.txt').read_text():
+    raise SystemExit('Active cup visual checks failed; output retained')
+PYCAPTURE
+adb pull /sdcard/Android/data/io.openhoyi.mobile.mock/files/active-cup-visual "$output_dir/active-cup-visual"

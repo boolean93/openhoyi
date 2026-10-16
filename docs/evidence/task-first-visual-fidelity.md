@@ -644,3 +644,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 新增Mock内部scaleConnected状态，默认true；false时输出DISCONNECTED、weight=null、weightAt=null，机器压力/注水/温度和运行状态不变。没有增加产品设置、广播入口或真实BLE连接操作。
 - 指定MockDeviceRuntimeTest 14项通过（0失败/错误/跳过），新检查涵盖断秤空闲、运行机器三项值、结束仍无重量及恢复采样。Mock/test APK构建48s成功（/tmp/task-no-scale-fixture-build.log），diff/分支规则通过。
 - 这里只完成数据夹具基础，尚未将新状态接入真实开始/停止截图流程；无秤实图、主数量语义及三线实际绘制仍是明确未完成项。不能将本次单测作为视觉或硬件验收。
+
+### 有秤/无秤真实Mock运行截图接入（2026-10-16，待CI）
+
+- LanguageActiveCupChecks新visualEvidence模式复用真实startShot、语言重建、本杯身份/配方一致性、固定停止和安全偏好断言；只增加中文有秤/无秤两杯取证，原八语言默认模式不变。
+- 等服务观察到连接状态变化后开始，采样至少5秒/两点；无秤要求全部点weightHundredthsGram=null及snapshot重量/时间戳均空，有秤要求存在重量点。机器压力/注水/温度大于零，当前主数值标签分别为秤重/注水。不是隐藏曲线或改图代替真实采样。
+- 保存active-cup-visual/with-scale及no-scale的window.png、字体测量JSON、source.txt，点击既有停止并确认ENDED_OBSERVED；finally恢复模拟连接和语言/曲线偏好。此为Mock实际流程，不代表物理停水。
+- Capture脚本在原浅色用户平板流程后重启Home启动Mock服务，再运行仅允许disposableCiEmulator的instrumentation入口，必须结果标记通过并拉取产物。脚本未在本地执行；bash -n/diff/branch检查通过，Mock/test APK构建23s成功（/tmp/task-no-scale-capture-build.log）。运行和图片尚待CI，不能声称无秤视觉验收完成。

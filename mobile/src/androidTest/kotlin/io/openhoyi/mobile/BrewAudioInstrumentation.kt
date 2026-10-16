@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var activeCupVisual = false
     private var curveLibraryChecks = false
     private var twoCupChartChecks = false
     private var expectedHomeFontScale = 1f
@@ -36,6 +37,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        activeCupVisual = arguments?.getString("activeCupVisual") == "true"
         curveLibraryChecks = arguments?.getString("curveLibraryChecks") == "true"
         twoCupChartChecks = arguments?.getString("twoCupChartChecks") == "true"
         expectedHomeFontScale = arguments?.getString("expectedFontScale")?.toFloatOrNull() ?: 1f
@@ -59,6 +61,13 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (activeCupVisual) {
+                check(disposableCiEmulator) { "Active cup captures require a disposable CI emulator" }
+                LanguageActiveCupChecks(this).run(visualEvidence = true)
+                report.putString("stream", "ACTIVE_CUP_VISUAL_PASSED states=2 actualMockStartStop=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (curveLibraryChecks) {
                 CurveLibraryViewportChecks(this).run(expectedHomeFontScale)
                 report.putString("stream", "CURVE_LIBRARY_VIEWPORT_CHECKS_PASSED fixtures=3 shortHeight=true recovery=true readOnly=true noBle=true fontScale=$expectedHomeFontScale\n")

@@ -30,7 +30,37 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
         val series = MobileService::class.java.getDeclaredField("series").apply { isAccessible = true }.get(owner)
         return ShotSeries::class.java.getDeclaredField("id").apply { isAccessible = true }.get(series) as? String
     }
-    fun run() {
+    private fun captureRunning(screen: ExtractionActivity, owner: MobileService, connected: Boolean) {
+        awaitMain { (owner.snapshot.coffee as? ExtractionTelemetry)?.elapsedSeconds?.let { it >= 5 } == true &&
+            owner.chartPoints.size >= 2 && screen.hasWindowFocus() }
+        test.waitForIdleSync()
+        Thread.sleep(300)
+        val directory = java.io.File(requireNotNull(test.targetContext.getExternalFilesDir(null)),
+            "active-cup-visual/${if (connected) "with-scale" else "no-scale"}").apply { check(mkdirs() || isDirectory) }
+        test.runOnMainSync {
+            check(owner.shotState == ExtractionState.RUNNING)
+            val points = owner.chartPoints
+            check(points.size >= 2 && points.last().waterTenthsMl > 0 && points.last().pressureTenthsBar > 0 &&
+                points.last().temperatureHundredthsC > 0)
+            if (connected) check(points.any { it.weightHundredthsGram != null })
+            else check(points.all { it.weightHundredthsGram == null } && owner.snapshot.weight == null && owner.snapshot.weightAt == null)
+            val label = ExtractionActivity::class.java.getDeclaredField("quantityLabel").apply { isAccessible = true }
+                .get(screen) as android.widget.TextView
+            check(label.isShown && label.text.toString() == screen.getString(
+                if (connected) R.string.task_extraction_scale else R.string.task_extraction_water))
+            check(stop(screen).isShown && stop(screen).isEnabled)
+            TaskTypographyEvidence.capture(screen, directory)
+            java.io.File(directory, "source.txt").writeText(
+                "mock=true scaleConnected=$connected samples=${points.size} weightedSamples=${points.count { it.weightHundredthsGram != null }} state=${owner.shotState}\n")
+        }
+        val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+        try {
+            java.io.File(directory, "window.png").outputStream().use {
+                check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+            }
+        } finally { bitmap.recycle() }
+    }
+    fun run(visualEvidence: Boolean = false) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
@@ -46,11 +76,20 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
         var owner: MobileService? = null
         test.runOnMainSync { owner = service(screen) }
         val original = requireNotNull(owner)
+        val runtime = MobileService::class.java.getDeclaredField("mock").apply { isAccessible = true }
+            .get(original) as MockDeviceRuntime
+        val originalScaleConnected = runtime.scaleConnected
         val safety = listOf("devices", "presets", "shot_safety", "machine_write_safety")
             .associateWith { context.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         try {
             test.runOnMainSync { check(curves.edit().putString("selected", "capture-2").commit()) }
-            for (language in AppLanguage.entries) {
+            val cases = if (visualEvidence) listOf(AppLanguage.CHINESE to true, AppLanguage.CHINESE to false)
+                else AppLanguage.entries.map { it to originalScaleConnected }
+            for ((language, connected) in cases) {
+                if (visualEvidence) {
+                    test.runOnMainSync { runtime.scaleConnected = connected }
+                    awaitMain { (original.snapshot.scaleState == io.openhoyi.session.DeviceState.READY) == connected }
+                }
                 test.runOnMainSync { check(original.startShot("capture-2", null, 7) == null) }
                 awaitMain { original.snapshot.coffee is ExtractionTelemetry && original.chartPoints.isNotEmpty() &&
                     observedState(original) == ExtractionState.RUNNING }
@@ -90,7 +129,10 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     safety.forEach { (name, values) ->
                         check(context.getSharedPreferences(name, Context.MODE_PRIVATE).all == values)
                     }
-                    check(action.performClick())
+                }
+                if (visualEvidence) captureRunning(screen, original, connected)
+                test.runOnMainSync {
+                    check(stop(screen).performClick())
                     // Mock stop is synchronous. Do not let a later natural ending satisfy the button check.
                     check(original.shotState == ExtractionState.ENDED_OBSERVED)
                 }
@@ -100,6 +142,7 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
         } finally {
             test.runOnMainSync {
                 original.stopShot()
+                runtime.scaleConnected = originalScaleConnected
                 check(app.languagePreferences.select(oldLanguage) != AppLanguagePreference.Selection.SAVE_FAILED)
                 restoreMockPreferences(languagePrefs, oldLanguageStorage)
                 restoreMockPreferences(curves, oldCurves)
