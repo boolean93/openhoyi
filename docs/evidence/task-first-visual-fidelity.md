@@ -251,3 +251,19 @@ Capture38870992324 completed/success，已下载并实读ci-7b03ebe-capture/mock
 仅CurveImportPreviewActivity从共享profileCard改为任务双区：左侧24sp标题，14sp/24sp三项参数摘要和原CurveStageView；右侧冲突文本、本地预览及保留本地；保存/副本独立TaskActionDock限宽。无冲突态不显示警告，兼容性说明明确导入不自动选曲线/启动。未修改分享页、profilePreviewDialog、finishedSave、保存失败按钮恢复、importDocument冲突重绘和saveCopy逻辑。
 
 双Mock APK40秒成功，diff检查通过；实际布局、冲突行为、字号1.3仍待精确提交CI。认可稿内嵌阶段参数表尚有缺口，目前完整参数在原详情入口，不能把此候选视为整页一致。224cec0新增的业务截图检查将提供两种导入状态证据，不得用无冲突截图证明冲突态。
+
+## 复盘大字号正常态与键盘实屏
+
+38871320553整个工作流尚in_progress，但tablet-large-font和tablet-landscape子任务均completed/success；用户平板子任务仍in_progress。已下载large-font产物，result.txt为checked=336 pages=21，中文浅色复盘表单状态completed=true screenshots=17 sections=5 longStates=8 inlineObserved=true imeObserved=true noSave=true。实读正常态window.png及section-1-long-inline-ime.png：30s/36g独立结果层级已显示；1.3字体下普通页面各字段/保存完整；键盘态研磨末尾编辑位置和保存按钮可见。
+
+同brew-review-v3对照仍有差距：页标题与结果摘要分两行占高，查看记录仍为边框按钮，底部“仅保存复盘，不改变库存”说明未常显；这一提交尚不含500d5d6的16sp/500字段标签，不能拿旧图验新标签。键盘态顶部摘要未收紧，使正文可视区偏小，属于下一项体验改进，不因几何检查通过关闭。普通态fixture为空笔记，不等同认可稿的填充数据。此证据只覆盖2fc59a5标准CI横屏1600×1000大字号，不推及用户平板或全部21页一致。
+
+历史构图418fec6 task-frame38873060561 completed/success；single-screen38873060543已in_progress，仍需带记录截图确认全屏左右构图和图高。e98d7c7 single-screen38874021152及task-frame38874021083查询时queued。本轮仅审读证据，没有新增样式提交触发更多任务。
+
+## 新完成失败任务分诊
+
+500d5d6 Capture38872022621明确在sdkmanager安装system-images;android-34;default;x86_64时“ZipFile unknown archive”失败，模拟器尚未启动；后续5554连接拒绝是清理失败。已对终止任务执行failed-only重跑，尚未证明成功，未修改应用或检查。
+
+693e696 single-screen38870140692仅tablet-large-font失败。已实读产物instrumentation.txt：336个页面已完成，列表恢复13/14；ScaleConnectionActivity recreate scrollY=352通过，进入HomeActivity设备管理后，在detailReturn等待detail.isDestroyed && activity.hasWindowFocus处超时。无OutOfMemory/应用断言越界证据，日志中的ColorBuffer警告不能单独证明根因。较新2fc59a5大字号同矩阵通过，说明不是每次出现，仍不能以此关闭旧失败。
+
+候选仅给detailReturn原等待失败添加主线程状态诊断（详情/父页destroyed、finishing、focus、task及父页attached），保留等待时间、断言与恢复逻辑，不盲目重跑693e696或延长超时。等待后续证据定位；此项尚未修复。

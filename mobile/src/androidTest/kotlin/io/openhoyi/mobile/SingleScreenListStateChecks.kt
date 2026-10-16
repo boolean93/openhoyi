@@ -243,7 +243,19 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             opened += detail
             ready(detail)
             main { SingleScreenPageChecks.verify(detail); detail.finish() }
-            await { detail.isDestroyed && activity.hasWindowFocus() }
+            try {
+                await { detail.isDestroyed && activity.hasWindowFocus() }
+            } catch (failure: Throwable) {
+                var state = ""
+                main {
+                    state = "detail=${detail.javaClass.simpleName} destroyed=${detail.isDestroyed} finishing=${detail.isFinishing} " +
+                        "focus=${detail.hasWindowFocus()} task=${detail.taskId}; " +
+                        "parent=${activity.javaClass.simpleName} destroyed=${activity.isDestroyed} finishing=${activity.isFinishing} " +
+                        "focus=${activity.hasWindowFocus()} task=${activity.taskId} " +
+                        "attached=${activity.window.decorView.isAttachedToWindow}"
+                }
+                throw IllegalStateException("Detail return did not restore parent: $state", failure)
+            }
             opened.remove(detail)
             ready(activity)
         } finally { test.removeMonitor(monitor) }
