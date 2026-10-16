@@ -54,4 +54,8 @@
     <string name="beans_back_to_list">재고 목록으로 돌아가기</string>
     <string name="beans_batch_ledger">이 배치의 내역</string>
     <string name="beans_balance_label">남은 무게</string>
+    <string name="ledger_type">유형</string>
+    <string name="ledger_change">변동</string>
+    <string name="ledger_balance">변동 후</string>
+    <string name="ledger_order">기록 순서, 최신순</string>
 </resources>

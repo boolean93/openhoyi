@@ -54,4 +54,8 @@
     <string name="beans_back_to_list">Назад к запасам</string>
     <string name="beans_batch_ledger">Операции партии</string>
     <string name="beans_balance_label">Оставшийся вес</string>
+    <string name="ledger_type">Тип</string>
+    <string name="ledger_change">Изменение</string>
+    <string name="ledger_balance">Остаток после</string>
+    <string name="ledger_order">По порядку записей, новые сверху</string>
 </resources>

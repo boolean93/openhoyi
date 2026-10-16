@@ -54,4 +54,8 @@
     <string name="beans_back_to_list">返回库存列表</string>
     <string name="beans_batch_ledger">此批次流水</string>
     <string name="beans_balance_label">剩余重量</string>
+    <string name="ledger_type">类型</string>
+    <string name="ledger_change">变更</string>
+    <string name="ledger_balance">变更后</string>
+    <string name="ledger_order">按记录顺序，最新在前</string>
 </resources>

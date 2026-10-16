@@ -54,4 +54,8 @@
     <string name="beans_back_to_list">在庫一覧に戻る</string>
     <string name="beans_batch_ledger">このロットの履歴</string>
     <string name="beans_balance_label">残量</string>
+    <string name="ledger_type">種類</string>
+    <string name="ledger_change">増減</string>
+    <string name="ledger_balance">変更後</string>
+    <string name="ledger_order">記録順、新しい順</string>
 </resources>

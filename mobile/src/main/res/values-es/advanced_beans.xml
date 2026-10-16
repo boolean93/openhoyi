@@ -54,4 +54,8 @@
     <string name="beans_back_to_list">Volver al inventario</string>
     <string name="beans_batch_ledger">Movimientos del lote</string>
     <string name="beans_balance_label">Peso restante</string>
+    <string name="ledger_type">Tipo</string>
+    <string name="ledger_change">Cambio</string>
+    <string name="ledger_balance">Saldo posterior</string>
+    <string name="ledger_order">Orden de registro, más reciente primero</string>
 </resources>

@@ -54,4 +54,8 @@
     <string name="beans_back_to_list">Back to inventory</string>
     <string name="beans_batch_ledger">Batch ledger</string>
     <string name="beans_balance_label">Remaining weight</string>
+    <string name="ledger_type">Type</string>
+    <string name="ledger_change">Change</string>
+    <string name="ledger_balance">Balance after</string>
+    <string name="ledger_order">Record order, newest first</string>
 </resources>
