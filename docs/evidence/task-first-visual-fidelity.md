@@ -188,3 +188,13 @@ bf2ed46 task-frame38866479646和single-screen38866479455均completed/success。�
 1c256c8 push task-frame38869781029实际失败：HomeActivity采集TaskTypographyEvidence时，Font.Builder.createBuffer分配17,772,319字节失败；堆上限201,326,592字节，剩余约2.4MiB。此时未进入库存检查，不能归为库存几何失败，也不能当基础设施下载问题重跑掩盖。代码核对发现主题四字重family之外，TaskTypography又按字重加载独立XML，每份指向同一17MB字体。
 
 候选API28+复用主题family，以精确weight创建Typeface并保留缓存；API26–27原精确字体资源路径保留。没有换字体、删字重检查、扩大堆或降低截图分辨率。既有TaskTypographyEvidence继续检查主题字形宽度、400默认及300/400/500/700实际字重、粗体700；实际内存和字形回归仍须新CI证明。
+
+## 693e696 用户平板实屏证据
+
+已确认task-frame38870140486 completed/success，下载用户平板产物并实读ExtractionActivity与BeanInventoryActivity：18sp压力/累计注水/温度位于主读数旁，待机无累计数据正确为—；空库存新增已为右下有限宽按钮。截图分别是未选曲线待机和空库存，不能覆盖运行态图表空间或库存正常态工具栏/列表恢复。未把同版本通过泛化为b349502字体修复通过：后者task-frame38870529947和single-screen38870529964查询仍queued，Capture38870524533和lifecycle38870524546 in_progress。
+
+## 运行态准备工具收敛候选
+
+旧运行态截图中，禁用的预热/取消预热仍占据右侧两枚按钮。本批仅在active+normalPreparation+两按钮禁用+无BREW_WAIT恢复记录时收起整组；非active自动恢复。normalPreparation已有新鲜设置、无控制安全消息、准备IDLE和到温/咖啡馆模式约束，其他等待/失败/未知状态不被本条件隐藏。没有改变按钮原启用判定、点击处理、固定状态及停止。尚待运行态实屏和异常状态回归，不能将代码条件视为原生验收。
+
+本轮再次核实b349502 task-frame38870529947与Capture38870524533、库存正常态single-screen38869788055及萃取Capture38870134243均in_progress，未因等待重新启动任务。

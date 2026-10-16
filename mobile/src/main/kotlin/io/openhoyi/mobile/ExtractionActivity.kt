@@ -51,6 +51,7 @@ class ExtractionActivity : ThemedActivity() {
     private lateinit var quantityLabel: TextView
     private lateinit var temperatureValue: TextView
     private lateinit var waterValue: TextView
+    private lateinit var preparationTools: LinearLayout
     private lateinit var preparationSummary: TextView
     private lateinit var flowValue: TextView
     private lateinit var weightTarget: TextView
@@ -199,7 +200,7 @@ class ExtractionActivity : ThemedActivity() {
         chooseBeans = compact(toolbar, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
         val referenceTools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         sidePanel.addView(referenceTools, LinearLayout.LayoutParams(-1, -2))
-        val preparationTools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        preparationTools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         sidePanel.addView(preparationTools, LinearLayout.LayoutParams(-1, -2))
         referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }
         val detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
@@ -505,6 +506,11 @@ class ExtractionActivity : ThemedActivity() {
             (preparation != BrewPreparation.State.IDLE ||
                 owner?.machineWriteRecoveryKind == MachineWriteRecoveryState.Kind.BREW_WAIT && preparation == BrewPreparation.State.IDLE) &&
             owner?.brewWaitCancelBlock == null
+        // Only remove non-actionable preparation controls during a running cup.
+        // Unresolved preparation/recovery states retain their controls and fixed status.
+        val hideIdlePreparation = active && normalPreparation && !prepare.isEnabled && !cancelPrepare.isEnabled &&
+            owner?.machineWriteRecoveryKind != MachineWriteRecoveryState.Kind.BREW_WAIT
+        preparationTools.visibility = if (hideIdlePreparation) View.GONE else View.VISIBLE
         cancelPrepare.show(if (preparation == BrewPreparation.State.CANCEL_WRITTEN)
             getString(R.string.extraction_cancel_prepare_again) else getString(R.string.extraction_cancel_prepare))
         start.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
