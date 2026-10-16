@@ -428,8 +428,32 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                         evidence += "${type.simpleName} recreate position=${saved.position} offset=${saved.offset} gesture=swipe journal=${activity is HistoryActivity}"
                         if (activity is LegacyCurveActivity) {
                             clickVisible(activity)
-                            await { !activity.hasWindowFocus() }
-                            check(test.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK))
+                            await { (field(activity, "collection") as TaskCollectionLayout).detailRequested }
+                            var selectedText = ""
+                            main {
+                                val detail = field(activity, "detail") as android.widget.TextView
+                                check(detail.isShown && detail.text.isNotBlank())
+                                selectedText = detail.text.toString()
+                            }
+                            activity = recreate(activity)
+                            await {
+                                (field(activity, "collection") as TaskCollectionLayout).detailRequested &&
+                                    (field(activity, "detail") as android.widget.TextView).text.toString() == selectedText
+                            }
+                            ready(activity)
+                            val detailShot = requireNotNull(test.uiAutomation.takeScreenshot())
+                            try {
+                                File(directory, "legacy-curve-selected-restored.png").outputStream().use {
+                                    check(detailShot.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+                                }
+                            } finally { detailShot.recycle() }
+                            main {
+                                // Wide mode keeps its list visible; compact mode has an explicit native return.
+                                val back = views(activity.window.decorView).filterIsInstance<Button>().singleOrNull {
+                                    it.isShown && it.text.toString() == activity.getString(R.string.curve_back)
+                                }
+                                if (back != null) check(back.performClick())
+                            }
                             ready(activity)
                         } else detailReturn(activity, if (activity is HistoryActivity) HistoryDetailActivity::class.java
                             else LegacyHistoryDetailActivity::class.java) { clickVisible(activity) }
