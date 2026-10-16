@@ -432,13 +432,17 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 selector.setSelection(3)
             }
             test.waitForIdleSync()
-            awaitMain { views(root(editor)).filterIsInstance<Spinner>().single { it.tag == "bean-sections" }.count == 6 }
+            awaitMain {
+                (0..3).all { index -> views(root(editor)).single { it.tag == "curve-editor-stage-$index" }.isShown }
+            }
             stages.forEachIndexed { index, stage ->
                 fill(editor, R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), index)
                 fill(editor, R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1), index)
             }
             editor = recreate(editor)
             assertCurveFields(editor, recipeName, temperature, cup, stages)
+            onMain { views(root(editor)).filterIsInstance<android.widget.ScrollView>().forEach { it.scrollTo(0, 0) } }
+            captureState(editor, "curve-editor-four-stages", listOf(R.string.profiles_save))
             click(editor, R.string.profiles_save); awaitMain { editor.isDestroyed }; opened.remove(editor)
             val draft = custom.list().single { it.name == recipeName }; ownCurveIds += draft.id
             val expectedDraft = CustomCurveDocument(draft.id, recipeName, temperature, cup, CustomCurveDocument.ControlMode.PRESSURE, stages)

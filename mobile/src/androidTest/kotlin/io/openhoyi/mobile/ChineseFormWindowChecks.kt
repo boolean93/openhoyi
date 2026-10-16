@@ -39,7 +39,7 @@ internal object ChineseFormWindowChecks {
         fun scrollAncestor(view: View) = generateSequence(view.parent) { it.parent }
             .filterIsInstance<android.widget.ScrollView>().firstOrNull()
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
-        lateinit var sections: Spinner
+        var sections: Spinner? = null
         var originalSection = 0
         var stageSelector: Spinner? = null
         var originalStages = 0
@@ -47,8 +47,26 @@ internal object ChineseFormWindowChecks {
         var activeEditorLabel: String? = null
         var primaryFailure: Throwable? = null
         main {
-            sections = descendants(content).filterIsInstance<Spinner>().single { it.tag == "bean-sections" }
-            originalSection = sections.selectedItemPosition
+            sections = descendants(content).filterIsInstance<Spinner>().singleOrNull { it.tag == "bean-sections" }
+            check(activity is CurveEditorActivity || sections != null)
+            originalSection = sections?.selectedItemPosition ?: 0
+        }
+        fun editorField(position: Int): EditText {
+            val label = activity.getString(when (position) {
+                0 -> R.string.profiles_name
+                1 -> R.string.profiles_cup
+                else -> R.string.profiles_pressure
+            })
+            val titles = descendants(content).filterIsInstance<TextView>().filter {
+                it.labelFor != View.NO_ID && it.text.toString() == label
+            }
+            return content.findViewById(titles[if (position < 2) 0 else position - 2].labelFor)
+        }
+        fun selectSection(position: Int) {
+            if (activity is CurveEditorActivity) {
+                val field = editorField(position)
+                field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
+            } else requireNotNull(sections).setSelection(position)
         }
         val evidence = File(directory, "chinese-form-states").apply { check(mkdirs() || isDirectory) }
         var allStatesChecked = false
@@ -216,7 +234,7 @@ internal object ChineseFormWindowChecks {
             awaitPageReady()
             if (activity is CurveEditorActivity) {
                 // Expose all four stages by an observed local draft selector; no save action.
-                main { sections.setSelection(1) }
+                main { selectSection(1) }
                 waitForDraw()
                 main {
                     stageSelector = descendants(content).filterIsInstance<Spinner>().single {
@@ -227,11 +245,11 @@ internal object ChineseFormWindowChecks {
                 }
                 waitForDraw()
             }
-            main { sectionCount = sections.count }
+            main { sectionCount = if (activity is CurveEditorActivity) 6 else requireNotNull(sections).count }
             for (position in 0 until sectionCount) {
-                main { sections.setSelection(position) }
+                main { selectSection(position) }
                 waitForDraw()
-                main { check(sections.selectedItemPosition == position); SingleScreenPageChecks.verify(activity) }
+                main { check(activity is CurveEditorActivity || requireNotNull(sections).selectedItemPosition == position); SingleScreenPageChecks.verify(activity) }
                 if (activity is BeanEntryActivity || activity is CurveEditorActivity || activity is BrewReviewActivity) {
                     lateinit var groupField: EditText
                     main {
@@ -240,6 +258,8 @@ internal object ChineseFormWindowChecks {
                                 R.string.journal_expectation, R.string.journal_taste, R.string.journal_next)[position])
                             val title = descendants(content).filterIsInstance<TextView>().single { it.labelFor != View.NO_ID && it.text.toString() == label }
                             groupField = content.findViewById(title.labelFor)
+                        } else if (activity is CurveEditorActivity) {
+                            groupField = editorField(position)
                         } else {
                             val form = descendants(content).single { it.tag == "task-form-scroll" } as android.widget.ScrollView
                             val cards = form.getChildAt(0) as ViewGroup
@@ -262,7 +282,7 @@ internal object ChineseFormWindowChecks {
                     }
                     main {
                         val title = descendants(content).filterIsInstance<TextView>().single {
-                            it.labelFor != View.NO_ID && it.text.toString() == sections.selectedItem.toString()
+                            it.labelFor != View.NO_ID && it.text.toString() == requireNotNull(sections).selectedItem.toString()
                         }
                         field = content.findViewById(title.labelFor)
                         check(field.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0)
@@ -508,7 +528,7 @@ internal object ChineseFormWindowChecks {
             // Only click the Mock page's observed short EditText; the editor's OK cannot save the page.
             // A wide but short tablet still loses its form space to the real IME.
             if (activity is BeanEntryActivity || activity is CurveEditorActivity || activity is BrewReviewActivity) {
-                main { sections.setSelection(0) }
+                main { selectSection(0) }
                 waitForDraw()
                 lateinit var field: EditText
                 var original = ""
@@ -574,7 +594,7 @@ internal object ChineseFormWindowChecks {
                     cleanupEditor()
                 }
             } else if (!HoyiUi.wide(activity) || activity.resources.configuration.screenHeightDp <= 720) {
-                main { sections.setSelection(0) }
+                main { selectSection(0) }
                 waitForDraw()
                 lateinit var field: EditText
                 var label = ""
@@ -639,7 +659,7 @@ internal object ChineseFormWindowChecks {
             cleanupStep { cleanupEditor() }
             cleanupStep { main { stageSelector?.setSelection(originalStages) } }
             cleanupStep { waitForDraw() }
-            cleanupStep { main { sections.setSelection(originalSection) } }
+            cleanupStep { main { selectSection(originalSection) } }
             cleanupStep {
                 waitForDraw()
                 main { SingleScreenPageChecks.verify(activity) }

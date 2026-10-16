@@ -9,11 +9,10 @@ import android.widget.Spinner
 
 class CurveEditorActivity : ThemedActivity() {
     companion object { const val CURVE_ID = "curveId" }
-    private var form: TaskFormSections? = null
+    private var form: TaskCurveEditorForm? = null
     private val fields = linkedMapOf<String, EditText>()
     private var draftId = CustomCurveDocument.newId()
     private var stageCount = 2
-    private var section = 0
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val body = beanPage(getString(R.string.profiles_editor), getString(R.string.profiles_pressure_execution_limits))
@@ -30,33 +29,39 @@ class CurveEditorActivity : ThemedActivity() {
         if (source.controlMode != CustomCurveDocument.ControlMode.PRESSURE) { profileCard(body, source); return }
         if (sourceId != null && !sourceId.startsWith("draft-")) HoyiUi.label(this, body, getString(R.string.profiles_copy_warning), 15, muted = true)
         stageCount = savedInstanceState?.getInt("stageCount") ?: source.stages.size
-        section = savedInstanceState?.getInt("section") ?: 0
-        val sectionLabels = listOf(getString(R.string.task_form_basic), getString(R.string.task_form_targets)) + (1..4).map { getString(R.string.profiles_stage, it) }
-        val sections = TaskFormSections(this, body, sectionLabels, section) { section = it }
+        val sections = TaskCurveEditorForm(this, body)
         form = sections
-        val card = sections.panels[0]
         fun field(parent: LinearLayout, key: String, label: Int, initial: String, numeric: Boolean = true) = beanInput(parent, label, numeric).also {
             fields[key] = it; it.setText(savedInstanceState?.getString(key) ?: initial)
         }
-        val name = field(card, "name", R.string.profiles_name, source.name, false)
-        val temperature = field(card, "temperature", R.string.profiles_temperature, source.temperatureC.toString())
-        val cup = field(sections.panels[1], "cup", R.string.profiles_cup, CurveDraftNumber.format(source.targetHundredthsGram, 2))
-        HoyiUi.label(this, sections.panels[1], getString(R.string.profiles_stage_count), 15, muted = true)
+        val name = field(sections.metadata[0], "name", R.string.profiles_name, source.name, false)
+        val temperature = field(sections.metadata[1], "temperature", R.string.profiles_temperature, source.temperatureC.toString())
+        val cup = field(sections.metadata[2], "cup", R.string.profiles_cup, CurveDraftNumber.format(source.targetHundredthsGram, 2))
+        HoyiUi.label(this, sections.stageHeader, getString(R.string.profiles_stage_count), 16, true).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
         val selector = Spinner(this).apply {
             adapter = HoyiUi.spinnerAdapter(this@CurveEditorActivity, (1..4).map(Int::toString))
             minimumHeight = HoyiUi.dp(this@CurveEditorActivity, 52)
             contentDescription = getString(R.string.profiles_stage_count)
-            sections.panels[1].addView(this)
+            sections.stageHeader.addView(this, LinearLayout.LayoutParams(HoyiUi.dp(this@CurveEditorActivity, 80), -2))
         }
         (0..3).forEach { index ->
             val stage = source.stages.getOrNull(index) ?: CustomCurveDocument.Stage(60, 100)
-            val row = sections.panels[index + 2]
-            field(row, "target-$index", R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1))
-            field(row, "water-$index", R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1))
+            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+            sections.stageRows[index].addView(row)
+            fun stageCell() = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; tag = "bean-full-field"
+                row.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    if (row.childCount > 0) marginStart = HoyiUi.dp(this@CurveEditorActivity, 16)
+                })
+            }
+            field(stageCell(), "target-$index", R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1))
+            field(stageCell(), "water-$index", R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1))
         }
         var previewChanged: () -> Unit = {}
         fun visibility() {
-            sections.setVisiblePanelCount(stageCount + 2)
+            sections.setStageCount(stageCount)
             previewChanged()
         }
         selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -71,8 +76,8 @@ class CurveEditorActivity : ThemedActivity() {
             (0 until stageCount).map { CustomCurveDocument.Stage(CurveDraftNumber.parse(fields.getValue("target-$it").text.toString(), 1), CurveDraftNumber.parse(fields.getValue("water-$it").text.toString(), 1)) })
             .also { it.validate() }
         val preview = CurveStageView(this).apply { tag = "task-form-stage-preview" }
-        HoyiUi.label(this, sections.supportingBody, getString(R.string.profiles_preview), 16, true)
-        sections.supportingBody.addView(preview, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 180)))
+        HoyiUi.label(this, sections.supportingBody, getString(R.string.profiles_preview), 20, true)
+        sections.supportingBody.addView(preview, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 280)))
         HoyiUi.label(this, sections.supportingBody, getString(R.string.task_form_stage_caption), 14, muted = true)
         val previewStatus = HoyiUi.label(this, sections.supportingBody, "", 14).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -98,10 +103,12 @@ class CurveEditorActivity : ThemedActivity() {
         }
         previewChanged()
         sections.restore(savedInstanceState, fields)
-        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_preview)) {
+        HoyiUi.button(this, sections.supportingBody, getString(R.string.profiles_preview)) {
             runCatching { parsed() }.onSuccess { profilePreviewDialog(it); error.text = "" }.onFailure { error.setText(R.string.profiles_invalid) }
         }
-        val save = HoyiUi.button(this, beanActions(body), getString(R.string.profiles_save), primary = true) {}
+        val dock = TaskActionDock(this, edgeInsetDp = 0)
+        body.addView(dock, LinearLayout.LayoutParams(-1, -2))
+        val save = HoyiUi.button(this, dock, getString(R.string.profiles_save), primary = true) {}
         save.setOnClickListener {
             val doc = runCatching { parsed() }.getOrElse { error.setText(R.string.profiles_invalid); return@setOnClickListener }
             val available = (application as MobileApplication).customCurvesResult.getOrNull()
@@ -114,7 +121,6 @@ class CurveEditorActivity : ThemedActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString("draftId", draftId); outState.putInt("stageCount", stageCount)
-        outState.putInt("section", section)
         fields.forEach { (key, field) -> outState.putString(key, field.text.toString()) }
         form?.save(outState, fields)
     }

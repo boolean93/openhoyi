@@ -335,3 +335,29 @@ fb209f8 advanced38875194305全工作流completed/success，business和pages均�
 本地 Mock + instrumentation APK：`BUILD SUCCESSFUL in 45s`，日志 `/tmp/task-share-composition-build.log`。这只证明编译，不证明实际字号/间距/比例已对齐。现有 AdvancedBusinessUiChecks 只验证复制；另有 CurveDocumentContractChecks 的拦截式分享、取消/成功导出、UTF-8参数、只读URI授权，以及 CurveSystemDocumentChecks 的系统选择器路径，不能混称实际向第三方发送验证。本轮未启动外部分享、安装或硬件操作。
 
 未完成：新源码用户平板与1.3字号截图、右栏各操作可达性、四阶段表与图高、阶段色及卡片边界细节。总目标仍21功能页+3设置页，不以此页构建通过代替视觉验收。此前 d3f81bc task-frame 38877244920 已成功，其 single-screen 38877244702 和 advanced 38877245190 本轮查询仍 queued；不取消旧任务。
+
+## 2026-10-16 编辑页结构审计与新 CI 证据边界
+
+前一轮 f41b781 是有效实现进展。本轮重新查询：f41b781 single-screen 38878319787、advanced 38878322390 尚 queued，task-frame push 38878313279 正在运行；未据此重启或取消任何工作流。
+
+已下载并查看 d3f81bc task-frame 38877244920 用户平板产物（build/task-first-evidence/ci-d3f81bc-task-frame）。其中 CurveImportPreviewActivity 是无输入文档的非法状态，HistoryDetailActivity 是记录缺失状态；这两张只能证明对应空/错误界面，不能证明 d3f81bc 导入图高或65c040a详情密度已正确。9d5156d advanced 38876652959 的 business/pages 两个任务均仍 in_progress，尚无产物，研磨度第二行修正仍待实际窗口。
+
+编辑页的有效对照采用418fec6 single-screen用户平板正常窗口与 curve-editor-v1.png；CurveEditorActivity 从418fec6到当前无改动，适用于当前结构审计。数据2阶段与稿中4阶段不同，不算缺陷；如下结构差异与数据无关：
+
+| 项目 | 当前实际 | 已认可目标 | 判定 |
+|---|---|---|---|
+| 基本参数 | 左栏名称/温度纵排、液重在下一个卡片 | 顶部名称、温度、液重并排 | 未达成 |
+| 阶段编辑 | 六分组通用表单，阶段卡片位于首屏下方 | 左侧紧凑阶段参数表，1–4段可见可编辑 | 未达成 |
+| 预览 | 右侧280dp固定栏、180dp图、大段重复摘要 | 与阶段表并排、足够大的图和轻量说明 | 未达成 |
+| 动作 | 底部预览与保存各半屏宽 | 有限宽度主保存，预览已有内联反馈不应同等突出 | 未达成 |
+| 字体间距 | 表单采用beanInput默认字重/通用卡片12dp与10dp间隔 | 与稿和规格一致的16sp正文、14sp说明、8/16dp节奏 | 待按新结构逐项验证 |
+
+根因代码定位：CurveEditorActivity 直接复用 TaskFormSections（基础/目标/4阶段六组），TaskFormSections将所有panel纵向排列并限制预览栏280dp；不是遗漏一次样式设置。下一步应新增编辑页专用布局，避免修改共享表单而影响豆子页面。保持同一批EditText实例与name/temperature/cup/target-N/water-N键、stageCount、draftId、form-focus/selection及本地保存逻辑；仅重排控件。横屏标准高度顶部3栏、下方阶段表/预览；大字号或IME时阶段区局部滚动，保存固定可达。不得取消校验、减少4阶段覆盖或把实际图改成静态图片来追求截图一致。
+
+### 编辑页专用布局候选实现
+
+新增 TaskCurveEditorForm：元数据三列，下方阶段参数/预览两栏；阶段压力与注水量并排。旧六分组跳转下拉移除，阶段数量Spinner仍保留1–4；stageCount、draftId、全部字段key及解析保存不变。元数据和阶段各自局部滚动，焦点/选区恢复沿用原key，增加metadata-scroll；未修改共享TaskFormSections。右侧预览图从180dp扩大到280dp，预览弹窗入口移至右栏，保存改为有限宽TaskActionDock。
+
+ChineseFormWindowChecks 对编辑页按真实字段定位六组，而不是旧跳转Spinner，继续逐个检查可见范围及IME。AdvancedBusinessUiChecks仍完整保存/重开/重建12字段4阶段，额外保存 curve-editor-four-stages.png；脚本强制检查第四张业务截图存在且为1600×1000。未降低任何业务路径计数或可见性要求。
+
+首轮双APK构建41秒通过，新增业务截图后双APK23秒通过。仍需精确最终源码CI与实际截图，尤其四阶段是否能在标准字号同时呈现、冗长字段标签占高、元数据三列对齐、右栏摘要密度、短高度IME。这里是结构修正候选，不是宣告编辑页已与概念稿一致。无实机安装/发送/合并/发布。
