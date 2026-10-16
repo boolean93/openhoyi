@@ -613,7 +613,7 @@ class MachineSettingsActivity : ThemedActivity() {
         textSize = size.toFloat()
         setTextColor(getColor(R.color.mobile_text))
         setPadding(0, dp(6), 0, dp(6))
-        if (bold) setTypeface(null, Typeface.BOLD)
+        if (bold) typeface = TaskTypography.face(context, 700)
         parent.addView(this)
     }
     private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)

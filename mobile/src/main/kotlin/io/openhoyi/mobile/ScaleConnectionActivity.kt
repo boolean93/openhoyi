@@ -108,7 +108,7 @@ class ScaleConnectionActivity:ScaleOwnerActivity() {
                 isEnabled=!BuildConfig.MOCK_MODE && changesAllowed()
                 gravity=android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
                 textSize=17f
-                typeface=android.graphics.Typeface.create("sans-serif",android.graphics.Typeface.NORMAL)
+                typeface=TaskTypography.face(this@ScaleConnectionActivity)
                 text=android.text.SpannableString(description).apply {
                     setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD),0,name.length,0)
                     setSpan(android.text.style.RelativeSizeSpan(14f/17f),name.length,description.length,0)

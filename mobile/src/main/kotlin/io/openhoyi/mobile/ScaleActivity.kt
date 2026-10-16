@@ -115,7 +115,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         weight=HoyiUi.label(this,reading,getString(R.string.scale_unavailable),if(HoyiUi.wide(this))64 else 48,true).apply {
             // Natural height preserves system font scaling and long/negative readings.
             layoutParams=LinearLayout.LayoutParams(-1,-2);gravity=android.view.Gravity.CENTER
-            typeface=android.graphics.Typeface.create("sans-serif-light",android.graphics.Typeface.NORMAL)
+            typeface=TaskTypography.face(this@ScaleActivity, 300)
         }
         tareStatus=HoyiUi.label(this,reading,"",14,muted=true).apply {setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,8))}
         tare=HoyiUi.button(this,primary,getString(R.string.scale_tare),

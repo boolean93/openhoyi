@@ -20,7 +20,7 @@
       "source": "https://raw.githubusercontent.com/google/fonts/a85815a42757630ce188fdad368c2dfc444d4773/ofl/notosanssc/METADATA.pb"
     }
   ],
-  "status": "candidate only; not yet bundled or visually approved",
+  "status": "Bundled Chinese implementation candidate; native rendering and design fidelity pending",
   "inspection": {
     "family": "Noto Sans SC Thin",
     "version": "Version 2.004-H2;hotconv 1.0.118;makeotfexe 2.5.65603",
@@ -36,9 +36,15 @@
     "missingChineseResourceCharacters": []
   },
   "limitations": [
-    "Not bundled in app; 17,772,300-byte source file",
+    "Bundled original variable font, 17,772,300 bytes; no glyph subsetting",
     "Default variable weight is 100, not normal 400; explicit weight required",
     "Coverage checks only current 574 CJK unified characters in default resources, not arbitrary user notes or all locales",
     "No claim that ImageGen original typography is this font; visual comparison pending"
-  ]
+  ],
+  "apkVerification": {
+    "fontBytes": 17772300,
+    "compressedFontBytes": 11276545,
+    "fontAndLicenseHashMatch": true,
+    "nativeWeightChecks": "compiled; not executed yet"
+  }
 }

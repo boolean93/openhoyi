@@ -174,7 +174,7 @@ class HomeActivity : ThemedActivity() {
         }.apply { visibility = View.GONE }
         prominentAlarm = TextView(this).apply {
             textSize = 16f
-            setTypeface(null, Typeface.BOLD)
+            typeface = TaskTypography.face(context, 700)
             setPadding(dp(16), dp(12), dp(16), dp(12))
             background = HoyiUi.shape(this@HomeActivity, R.color.mobile_accent_soft, 12, R.color.mobile_border)
             visibility = View.GONE
@@ -724,7 +724,7 @@ class HomeActivity : ThemedActivity() {
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView =
         TextView(this).apply {
             text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
-            setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD)
+            setPadding(0, dp(6), 0, dp(6)); if (bold) typeface = TaskTypography.face(context, 700)
             parent.addView(this)
         }
     private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)

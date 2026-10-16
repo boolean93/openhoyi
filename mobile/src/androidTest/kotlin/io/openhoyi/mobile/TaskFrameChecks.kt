@@ -105,6 +105,12 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                         check(TaskPageFrame.install(activity, parent) === installed)
                         check(installed.pageContent.getChildAt(0) === child && child.layoutParams === params)
                     }
+                    var typographyFailure: Throwable? = null
+                    test.runOnMainSync {
+                        try { TaskTypographyEvidence.capture(activity, directory) }
+                        catch (failure: Throwable) { typographyFailure = failure }
+                    }
+                    typographyFailure?.let { throw it }
                     val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
                     try {
                         File(directory, "${page.simpleName}.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }

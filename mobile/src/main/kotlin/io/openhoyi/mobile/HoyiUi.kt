@@ -54,7 +54,7 @@ internal object HoyiUi {
         text = value
         textSize = size.toFloat()
         setTextColor(activity.getColor(if (muted) R.color.mobile_muted else R.color.mobile_text))
-        typeface = Typeface.create(if (bold) TaskVisualTokens.EMPHASIS_FAMILY else TaskVisualTokens.BODY_FAMILY, Typeface.NORMAL)
+        typeface = TaskTypography.face(activity, if (bold) 500 else 400)
         includeFontPadding = false
         parent.addView(this)
     }
@@ -79,7 +79,7 @@ internal object HoyiUi {
         text = value
         isAllCaps = false
         textSize = TaskVisualTokens.BODY_SP.toFloat()
-        typeface = Typeface.create(TaskVisualTokens.EMPHASIS_FAMILY, Typeface.NORMAL)
+        typeface = TaskTypography.face(activity, 500)
         val foreground = activity.getColor(when {
             primary -> android.R.color.white
             danger -> R.color.mobile_danger

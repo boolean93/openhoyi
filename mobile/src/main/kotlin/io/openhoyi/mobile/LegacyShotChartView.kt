@@ -21,6 +21,7 @@ class LegacyShotChartView(context: Context) : View(context) {
         color = context.getColor(R.color.chart_water); strokeWidth = dp(2.5f); style = Paint.Style.STROKE
     }
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = TaskTypography.face(context)
         color = context.getColor(R.color.chart_label); textSize = dp(12f)
     }
     private val path = Path()

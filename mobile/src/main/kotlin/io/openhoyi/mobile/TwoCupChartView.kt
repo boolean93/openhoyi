@@ -79,6 +79,7 @@ internal class TwoCupChartView(context: Context) : FrameLayout(context) {
     private inner class ComparisonPlot(context: Context) : View(context) {
         init { tag = "comparison-plot" }
         private val labels = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = TaskTypography.face(context)
             textSize = 11f * resources.displayMetrics.scaledDensity
             color = context.getColor(R.color.chart_label)
         }

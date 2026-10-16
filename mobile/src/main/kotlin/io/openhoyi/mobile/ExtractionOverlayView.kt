@@ -178,8 +178,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             if (button.isSelected != focused) {
                 button.isSelected = focused
                 button.background = legendBackground(focused)
-                button.typeface = android.graphics.Typeface.create(button.typeface,
-                    if (focused) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+                button.typeface = TaskTypography.face(context, if (focused) 700 else 400)
             }
         }
     }
@@ -363,6 +362,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             return super.onTouchEvent(event)
         }
         val labels = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            typeface = TaskTypography.face(context)
             textSize = 11f * resources.displayMetrics.scaledDensity
             color = context.getColor(R.color.chart_label)
         }

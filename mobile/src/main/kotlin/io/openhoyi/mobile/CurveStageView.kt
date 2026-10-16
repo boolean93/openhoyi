@@ -12,7 +12,7 @@ internal class CurveStageView(context: Context) : View(context) {
         set(value) { field = value; invalidate() }
     var compact: Boolean = false
         set(value) { field = value; invalidate() }
-    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = TaskTypography.face(context) }
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)

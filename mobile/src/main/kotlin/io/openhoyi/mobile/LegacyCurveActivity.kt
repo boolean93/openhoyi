@@ -249,7 +249,7 @@ class LegacyCurveActivity : ThemedActivity() {
     private fun label(value: String, size: Int, bold: Boolean = false) = TextView(this).apply {
         text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
         setPadding(0, dp(5), 0, dp(5))
-        if (bold) setTypeface(null, Typeface.BOLD)
+        if (bold) typeface = TaskTypography.face(context, 700)
     }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private companion object { const val IMPORT_CURVES = 43 }

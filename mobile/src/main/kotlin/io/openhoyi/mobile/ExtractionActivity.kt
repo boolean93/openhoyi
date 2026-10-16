@@ -146,7 +146,7 @@ class ExtractionActivity : ThemedActivity() {
             val heading = HoyiUi.label(this, cell, label, 14, muted = true)
             if (quantity) quantityLabel = heading
             return HoyiUi.label(this, cell, "—", TaskVisualTokens.LIVE_VALUE_SP, true).apply {
-                typeface = Typeface.create(TaskVisualTokens.BODY_FAMILY, Typeface.BOLD)
+                typeface = TaskTypography.face(this@ExtractionActivity, 700)
                 fontFeatureSettings = "tnum"
             }
         }
@@ -545,7 +545,7 @@ class ExtractionActivity : ThemedActivity() {
     private companion object { const val NOTIFICATIONS = 31 }
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView = TextView(this).apply {
         text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
-        setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD); parent.addView(this)
+        setPadding(0, dp(6), 0, dp(6)); if (bold) typeface = TaskTypography.face(context, 700); parent.addView(this)
     }
     private fun card(parent: LinearLayout) = HoyiUi.card(this, parent).apply {
         if (compactChrome) {

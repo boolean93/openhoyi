@@ -84,7 +84,7 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false) {
         parent.addView(TextView(this).apply {
             text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
-            if (bold) setTypeface(null, Typeface.BOLD)
+            if (bold) typeface = TaskTypography.face(context, 700)
             setPadding(0, dp(6), 0, dp(6))
         })
     }
