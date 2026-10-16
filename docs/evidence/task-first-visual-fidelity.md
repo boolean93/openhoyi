@@ -666,3 +666,9 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 实读extraction-running-light.png并对照extraction-four-series-v3：运行指导与标题同行，不再另占一整行；时间6s/重量4.20g的单位缩小，历史参考/概览变为文字操作，停止保持右下固定。原四指标独立轴、单位、图例及当前无告警文字仍在。数据来自该次Mock，不能把6秒曲线替换成概念稿24.6秒。
 - 仍未对齐：实际绘图区纵向比例偏小，图例到轴之间的解释区及全页下方固定状态/操作区占高；概念稿的设备摘要和参数分区尚不同，实际次要读数偏密。该图早于aaf1c44参数分行，不能评价后续TaskRecipeSummary。没有删除安全文字或放松图表最小尺寸来追稿。
 - aaf1c44 capture/run38893146356再次核实in_progress，正在Capture tablet UI and simulated shot；不重复启动。后续拿该图核对右栏，再结合a7867fd有/无秤字体JSON分析布局预算。当前截图只有有秤，不关闭无秤缺口。
+
+### 主图高度实际边界取证（2026-10-16，待CI）
+
+- 检查ExtractionOverlayView的原生图例换行、48dp目标、说明行和MetricPlot轴边距，以及固定状态/操作区：不能仅凭截图把这些全部当空白删除。先记录实际测量再定位可收敛的高度。
+- 有/无秤运行态截图同时保存geometry.json：content/chart/legend/explanation/plotView/dataPlot/stop屏幕像素边界、density/fontScale及绘图区占图表高度比例。dataPlot取已绘制RectF而非layoutParams估算，要求实际可见非空。产品字体/门禁/布局不变。
+- instrumentation APK构建23s成功（/tmp/task-live-chart-geometry-build.log），diff/分支检查通过。尚无新geometry产物，不宣称已测得比例或已放大主图。aaf1c44 capture/run38893146356刚完成success，正在下载用于核对参数分行。

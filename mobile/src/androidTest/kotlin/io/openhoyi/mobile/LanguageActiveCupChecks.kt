@@ -50,6 +50,32 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                 if (connected) R.string.task_extraction_scale else R.string.task_extraction_water))
             check(stop(screen).isShown && stop(screen).isEnabled)
             TaskTypographyEvidence.capture(screen, directory)
+            fun bounds(view: android.view.View): org.json.JSONObject {
+                val location = IntArray(2)
+                view.getLocationOnScreen(location)
+                return org.json.JSONObject().put("x", location[0]).put("y", location[1])
+                    .put("width", view.width).put("height", view.height).put("visible", view.isShown)
+            }
+            val overlay = ExtractionActivity::class.java.getDeclaredField("chart").apply { isAccessible = true }
+                .get(screen) as ExtractionOverlayView
+            fun chartChild(name: String) = ExtractionOverlayView::class.java.getDeclaredField(name)
+                .apply { isAccessible = true }.get(overlay) as android.view.View
+            val plot = chartChild("plot")
+            val axes = plot.javaClass.getDeclaredField("plotBounds").apply { isAccessible = true }
+                .get(plot) as android.graphics.RectF
+            check(plot.isShown && !axes.isEmpty) { "Running chart has no measurable data plot" }
+            val plotLocation = IntArray(2)
+            plot.getLocationOnScreen(plotLocation)
+            val dataBounds = org.json.JSONObject().put("x", plotLocation[0] + axes.left)
+                .put("y", plotLocation[1] + axes.top).put("width", axes.width()).put("height", axes.height())
+            val geometry = org.json.JSONObject().put("density", screen.resources.displayMetrics.density)
+                .put("fontScale", screen.resources.configuration.fontScale)
+                .put("content", bounds(screen.findViewById(android.R.id.content)))
+                .put("chart", bounds(overlay)).put("legend", bounds(chartChild("legend")))
+                .put("explanation", bounds(chartChild("explanation"))).put("plotView", bounds(plot))
+                .put("dataPlot", dataBounds).put("stop", bounds(stop(screen)))
+                .put("dataPlotFractionOfChart", axes.height() / overlay.height)
+            java.io.File(directory, "geometry.json").writeText(geometry.toString(2))
             java.io.File(directory, "source.txt").writeText(
                 "mock=true scaleConnected=$connected samples=${points.size} weightedSamples=${points.count { it.weightHundredthsGram != null }} state=${owner.shotState}\n")
         }

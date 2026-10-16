@@ -15,3 +15,7 @@
 - 采样到5秒且至少两点后核对机器三指标、重量有无和主数值标签，保存window.png、TaskTypographyEvidence和source.txt；finally恢复模拟连接状态、语言及曲线偏好。
 - BrewAudioInstrumentation增加activeCupVisual入口，仅Mock包且明确disposableCiEmulator才运行。capture_mock_ui.sh末尾重新启动Home（负责Mock服务启动）后调用，120秒进程上限、结果标记必需，下载active-cup-visual。既有2560×1600/density360浅色环境沿用，所有旧截图/校验保留。
 - 本地只bash语法/构建；运行和实图由CI完成，未完成前不宣称第3/4步通过。
+
+## 主图高度测量补充
+
+针对e15e00e实际运行图的主绘图区偏矮，截图前读取实际chart/legend/explanation/plotView/plotBounds/stop的屏幕像素边界，保存geometry.json及density/fontScale。使用已绘制的plotBounds，不以layoutParams估算；要求当前绘图区存在。仅instrumentation增加反射取证，不修改产品布局或放宽最小图高。后续按相同内容区与认可稿比较图高占比，并区分图例、说明、轴边距和外部操作区占高。
