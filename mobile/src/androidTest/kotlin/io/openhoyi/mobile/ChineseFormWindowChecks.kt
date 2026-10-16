@@ -48,7 +48,7 @@ internal object ChineseFormWindowChecks {
         var primaryFailure: Throwable? = null
         main {
             sections = descendants(content).filterIsInstance<Spinner>().singleOrNull { it.tag == "bean-sections" }
-            check(activity is CurveEditorActivity || sections != null)
+            check(activity is CurveEditorActivity || activity is BeanEntryActivity || sections != null)
             originalSection = sections?.selectedItemPosition ?: 0
         }
         fun editorField(position: Int): EditText {
@@ -64,6 +64,11 @@ internal object ChineseFormWindowChecks {
         fun selectSection(position: Int) {
             if (activity is CurveEditorActivity) {
                 val field = editorField(position)
+                field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
+            } else if (activity is BeanEntryActivity) {
+                val form = descendants(content).single { it.tag == "task-form-scroll" } as android.widget.ScrollView
+                val panel = (form.getChildAt(0) as ViewGroup).getChildAt(position)
+                val field = descendants(panel).filterIsInstance<EditText>().first()
                 field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
             } else requireNotNull(sections).setSelection(position)
         }
@@ -231,6 +236,16 @@ internal object ChineseFormWindowChecks {
             main { pageWindowId = pageWindowIdOnMain() }
             check(pageWindowId >= 0) { "$name page has no accessibility window id" }
             awaitPageReady()
+            if (activity is BeanEntryActivity && activity.resources.configuration.let {
+                it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
+            }) main {
+                val inputs = descendants(content).filterIsInstance<EditText>()
+                check(inputs.size == 5) { "$name missing bean entry fields" }
+                inputs.forEach(::fullyVisible)
+                descendants(content).filterIsInstance<Button>().single {
+                    it.text.toString() == activity.getString(R.string.beans_save)
+                }.let(::fullyVisible)
+            }
             if (activity is CurveEditorActivity) {
                 // Expose all four stages by an observed local draft selector; no save action.
                 main { selectSection(1) }
@@ -262,11 +277,11 @@ internal object ChineseFormWindowChecks {
                 }
                 capture("four-stage-table")
             }
-            main { sectionCount = if (activity is CurveEditorActivity) 6 else requireNotNull(sections).count }
+            main { sectionCount = if (activity is CurveEditorActivity) 6 else if (activity is BeanEntryActivity) 3 else requireNotNull(sections).count }
             for (position in 0 until sectionCount) {
                 main { selectSection(position) }
                 waitForDraw()
-                main { check(activity is CurveEditorActivity || requireNotNull(sections).selectedItemPosition == position); SingleScreenPageChecks.verify(activity) }
+                main { check(activity is CurveEditorActivity || activity is BeanEntryActivity || requireNotNull(sections).selectedItemPosition == position); SingleScreenPageChecks.verify(activity) }
                 if (activity is BeanEntryActivity || activity is CurveEditorActivity || activity is BrewReviewActivity) {
                     lateinit var groupField: EditText
                     main {

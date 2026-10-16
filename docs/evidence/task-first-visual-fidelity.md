@@ -459,3 +459,12 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 与curve-editor-v1比较仍缺少三块元数据卡片和左右面板，右侧两行全宽按钮强调过重。继续增加既有surface/border、12dp圆角、16dp内边距，将两入口改为同排文字操作；不改字段解析/保存和错误提示，也不减字号或触摸目标。
 - 这是1600×1000业务截图证据，不冒称用户平板四阶段单屏验收；该版本single-screen38881692281仍运行，新增面板也需要新源码CI。阶段数量仍使用原生选择器而非概念分段控件，图表高度及新增边距后的标准字号四阶段可见性尚待实图验收。
 - 本轮Mock/test APK编译成功42s（/tmp/task-editor-panels-build.log）；diff检查与branch policy通过。运行及视觉验收仍待新CI，不据此宣告完成。
+
+### 入库表单对照（2026-10-16，实施后待截图）
+
+- 目视f41b781用户平板中文浅色BeanEntryActivity/window.png与bean-entry-v2：旧版重复分区跳转/标题、多张纵向卡片占高，日期起始已接近底部，保存按钮跨满页面，不符合居中紧凑表单的已批准稿。
+- TaskFormSections仅BeanEntryActivity引用；改为最大680dp单卡，16dp内边距/8dp相关项间距，取消跳转下拉框及重复标题。五字段/三个逻辑分区、局部滚动、错误跳转、草稿焦点选区保持；保存放卡内240dp按钮。日期14sp标签、18sp输入同排，真实YYYY-MM-DD格式提示，无新增日历行为。
+- ChineseFormWindowChecks现在通过真实字段定位入库三分区，不保留测试专用隐藏控件；原可见性、IME、编辑/恢复检查不删除。新增标准用户平板五字段及保存按钮全显断言，待CI运行。库存逻辑不变。
+- 尚未对齐新/已有豆款分段选择、日历选择交互；当前仍原生豆款选择器和文字日期。不可将本轮称为完整视觉验收，也未生成新图覆盖偏差。
+- 最终Mock/test APK编译成功43s（/tmp/task-bean-entry-final-build.log）；diff/branch policy通过。运行证据仍待新CI。
+- 另已下载229f798的large-font产物：result.txt为336窗口/21页、56表单截图；list-state-result.txt为7页14恢复夹具；编辑器浅色表单completed=true、inlineObserved=true、imeObserved=true。这是修改前版本的大字号运行证据，不覆盖本轮入库表单或baf1155新增面板。

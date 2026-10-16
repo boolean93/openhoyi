@@ -36,7 +36,6 @@ class BeanEntryActivity : ThemedActivity() {
         form = sections
         val card = sections.panels[0]
         val beans = inventory.batches().map { it.batch.bean }.distinctBy { it.id }
-        HoyiUi.label(this, card, getString(R.string.beans_identity), 15, muted = true)
         val selector = Spinner(this).apply {
             adapter = beanChoiceAdapter(
                 listOf(getString(R.string.beans_new_identity)) + beans.map { it.name })
@@ -50,10 +49,27 @@ class BeanEntryActivity : ThemedActivity() {
         }
         val name = input("name", R.string.beans_name)
         val quantity = input("quantity", R.string.beans_initial_input, true)
-        HoyiUi.label(this, sections.panels[2], getString(R.string.task_form_optional_iso_dates), 14, muted = true)
         val purchased = input("purchased", R.string.beans_purchased)
         val roasted = input("roasted", R.string.beans_roasted)
         val opened = input("opened", R.string.beans_opened)
+        listOf(purchased, roasted, opened).forEach { field ->
+            field.hint = "YYYY-MM-DD"
+            field.tooltipText = getString(R.string.task_form_optional_iso_dates)
+            val parent = field.parent as android.widget.LinearLayout
+            val label = (0 until parent.childCount).map { parent.getChildAt(it) }
+                .filterIsInstance<android.widget.TextView>().single { it.labelFor == field.id }
+            parent.removeView(label); parent.removeView(field)
+            val dateRow = android.widget.LinearLayout(this).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+                gravity = android.view.Gravity.CENTER_VERTICAL
+                isBaselineAligned = false
+                parent.addView(this, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = HoyiUi.dp(this@BeanEntryActivity, 8) })
+            }
+            label.textSize = 14f
+            label.setPadding(0, 0, HoyiUi.dp(this, 16), 0)
+            dateRow.addView(label, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
+            dateRow.addView(field, android.widget.LinearLayout.LayoutParams(0, -2, 2f))
+        }
         selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
@@ -65,7 +81,9 @@ class BeanEntryActivity : ThemedActivity() {
         selector.setSelection(beans.indexOfFirst { it.id == selectedBeanId }.let { if (it < 0) 0 else it + 1 })
         sections.restore(savedInstanceState, fields)
         val error = beanError(body)
-        val save = HoyiUi.button(this, beanActions(body), getString(R.string.beans_save), primary = true) {}
+        val save = HoyiUi.button(this, sections.actions, getString(R.string.beans_save), primary = true) {}.apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(HoyiUi.dp(this@BeanEntryActivity, 240), -2)
+        }
         save.setOnClickListener {
             if (saved) return@setOnClickListener
             error.text = ""
