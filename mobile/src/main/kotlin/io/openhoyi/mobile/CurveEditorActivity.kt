@@ -123,13 +123,20 @@ class CurveEditorActivity : ThemedActivity() {
         }
         previewChanged()
         sections.restore(savedInstanceState, fields)
-        HoyiUi.button(this, sections.supportingBody, getString(R.string.profiles_preview)) {
-            runCatching { parsed() }.onSuccess { profilePreviewDialog(it); error.text = "" }.onFailure { error.setText(R.string.profiles_invalid) }
+        val supportingActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+            sections.supportingBody.addView(this, LinearLayout.LayoutParams(-1, -2).apply {
+                topMargin = HoyiUi.dp(this@CurveEditorActivity, 8)
+            })
         }
-        HoyiUi.button(this, sections.supportingBody, getString(R.string.ui_full_details)) {
+        HoyiUi.button(this, supportingActions, getString(R.string.profiles_preview)) {
+            runCatching { parsed() }.onSuccess { profilePreviewDialog(it); error.text = "" }.onFailure { error.setText(R.string.profiles_invalid) }
+        }.apply { layoutParams = LinearLayout.LayoutParams(0, -2, 1f); asTaskTextAction() }
+        HoyiUi.button(this, supportingActions, getString(R.string.ui_full_details)) {
             beanDetails(getString(R.string.profiles_editor), listOf(R.string.profiles_temperature, R.string.profiles_cup,
                 R.string.profiles_pressure, R.string.profiles_water, R.string.profiles_pressure_execution_limits).joinToString("\n\n") { getString(it) })
-        }
+        }.apply { layoutParams = LinearLayout.LayoutParams(0, -2, 1f); asTaskTextAction() }
         val dock = TaskActionDock(this, edgeInsetDp = 0)
         body.addView(dock, LinearLayout.LayoutParams(-1, -2))
         val save = HoyiUi.button(this, dock, getString(R.string.profiles_save), primary = true) {}

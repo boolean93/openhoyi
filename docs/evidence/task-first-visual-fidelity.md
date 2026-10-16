@@ -452,3 +452,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 概念稿的流水时间、“本杯使用”没有模型依据，不照搬；呈现真实事件类型、带符号重量和原因，点击可看完整原因及变更后余额。比例无初始量时为—，超过100%保留真实百分比；进度轨道仅限0–100%。调整预览/确认逻辑未改。
 - 新增业务测试确认库存变更后batch-after-adjustment截图；脚本要求五张业务状态PNG。最终Mock/test APK编译成功44s（/tmp/task-batch-final-build.log），shell语法、git diff --check、branch policy通过；尚未执行新版本运行测试，不能宣告与图一致。
 - 229f798 advanced run38881692269已成功；single-screen38881692281仍in_progress。该状态不证明本轮批次页，也不替代编辑页四阶段截图目视对照。
+
+### 曲线编辑器四阶段实图对照（2026-10-16）
+
+- 229f798 advanced38881692269成功；下载ci-229f798-business，目视curve-editor-four-stages.png（1600×1000，中文浅色，四阶段2.4/5.7/8.3/6.9bar，温度94°C/41.7g）。三元数据输入对齐，四行阶段输入完整，阶段色与预览对应；business-flows.txt证明17条业务路径和四阶段12字段保存/重建检查通过。
+- 与curve-editor-v1比较仍缺少三块元数据卡片和左右面板，右侧两行全宽按钮强调过重。继续增加既有surface/border、12dp圆角、16dp内边距，将两入口改为同排文字操作；不改字段解析/保存和错误提示，也不减字号或触摸目标。
+- 这是1600×1000业务截图证据，不冒称用户平板四阶段单屏验收；该版本single-screen38881692281仍运行，新增面板也需要新源码CI。阶段数量仍使用原生选择器而非概念分段控件，图表高度及新增边距后的标准字号四阶段可见性尚待实图验收。
+- 本轮Mock/test APK编译成功42s（/tmp/task-editor-panels-build.log）；diff检查与branch policy通过。运行及视觉验收仍待新CI，不据此宣告完成。

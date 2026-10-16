@@ -30,6 +30,10 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }.apply { orientation = LinearLayout.VERTICAL; tag = "task-inline-form" }
 
     init {
+        (metadata + listOf(stagePane, supportingBody)).forEach { panel ->
+            panel.background = HoyiUi.shape(activity, R.color.mobile_surface, 12, R.color.mobile_border)
+            panel.setPadding(dp(16), dp(16), dp(16), dp(16))
+        }
         body.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
         host.addView(metadataScroll, LinearLayout.LayoutParams(-1, -2))
         metadata.forEachIndexed { index, cell ->
