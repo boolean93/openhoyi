@@ -8,6 +8,10 @@ enum class CurveSortMode {
 }
 
 object CurveOrdering {
+    fun recentUsed(items: List<CurveLibraryItem>, ledger: CurveUsageLedger, limit: Int): List<CurveLibraryItem> {
+        require(limit > 0)
+        return sort(items.filter { ledger.stats(it.id).lastUsedAtMs != null }, CurveSortMode.RECENT, ledger).take(limit)
+    }
     fun sort(items: List<CurveLibraryItem>, mode: CurveSortMode, ledger: CurveUsageLedger): List<CurveLibraryItem> {
         val stats = items.associate { it.id to ledger.stats(it.id) }
         val recency = compareByDescending<CurveLibraryItem> { stats.getValue(it.id).lastUsedAtMs ?: Long.MIN_VALUE }

@@ -85,6 +85,7 @@ class HomeActivity : ThemedActivity() {
     private lateinit var beanSummary: TextView
     private lateinit var temperatureSummary: TextView
     private lateinit var usageSummary: TextView
+    private lateinit var recentCurves: HomeRecentCurves
     private var selectionDetails = ""
     private lateinit var quickPresets: Button
     private val connection = object : ServiceConnection {
@@ -272,6 +273,12 @@ class HomeActivity : ThemedActivity() {
             addView(fallbackBody)
         }
         primary.addView(stageFallback, LinearLayout.LayoutParams(-1, 0, 1f))
+        recentCurves = HomeRecentCurves(this, primary, secondary,
+            active = { service?.let { ShotGate.active(it.shotState) || it.manualShotActive } == true }) { item ->
+            getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
+            render()
+        }
+        recentCurves.refresh()
         workspace.onPrimarySpaceAvailable = { width, height ->
             val lines = if (height < dp(240)) 1 else 2
             if (selection.maxLines != lines) selection.maxLines = lines
@@ -283,10 +290,11 @@ class HomeActivity : ThemedActivity() {
             previewUnavailable.measure(exactWidth, naturalHeight)
             val detailHeight = if (stagePreview.targets.isEmpty()) previewUnavailable.measuredHeight else dp(96)
             val required = selection.measuredHeight + previewNote.measuredHeight + detailHeight
+            val recentHeight = recentCurves.fit(width, height - required)
             textStagePreview = height < required
             updateStagePreviewVisibility()
             // This budget already excludes the supporting viewport; only stage details scroll here.
-            if (textStagePreview) height else required
+            if (textStagePreview) height else required + recentHeight
         }
         text(secondary, getString(R.string.task_brew_cup_summary), 16, true)
         beanSummary = text(secondary, "", 16).apply {
@@ -350,6 +358,7 @@ class HomeActivity : ThemedActivity() {
     override fun onStart() {
         feedbackUi.start()
         super.onStart()
+        recentCurves.refresh()
         visible = true
         if (!startRememberedScaleService()) bindExisting()
         handler.post(refresh)
@@ -359,6 +368,7 @@ class HomeActivity : ThemedActivity() {
         visible = false; handler.removeCallbacks(refresh)
         deviceDialog?.dismiss()
         presetDialog?.dismiss()
+        recentCurves.dismiss()
         release(); super.onStop()
     }
     private fun bindExisting() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0) }
@@ -614,6 +624,7 @@ class HomeActivity : ThemedActivity() {
         val library = app.curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         val cupActive = shotActive || owner?.manualShotActive == true
+        recentCurves.updateAvailability()
         val displayed = if (cupActive) owner?.chartCurveId?.let(library::find) else selected
         val title = displayed?.name ?: getString(if (cupActive && owner?.chartCurveId == "manual") R.string.extraction_manual_label
             else if (cupActive) R.string.task_brew_curve_unknown else R.string.home_curve_missing)
