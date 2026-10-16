@@ -318,8 +318,9 @@ class ExtractionActivity : ThemedActivity() {
         liveHeading.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
         shotSummary.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
         overviewHeading.visibility=if(active) View.GONE else View.VISIBLE
-        curveSummary.visibility=if(active) View.GONE else View.VISIBLE
-        deviceSummary.visibility=if(active) View.GONE else View.VISIBLE
+        // Running cups still need an identity and live connection context in the supporting pane.
+        curveSummary.visibility = View.VISIBLE
+        deviceSummary.visibility = View.VISIBLE
         chooseBeans.visibility=if(active) View.GONE else View.VISIBLE
         val item = selected()
         val library = (application as MobileApplication).curves
