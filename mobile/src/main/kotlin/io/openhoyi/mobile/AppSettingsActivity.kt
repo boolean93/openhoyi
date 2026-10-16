@@ -110,6 +110,11 @@ class AppSettingsActivity : ThemedActivity() {
         feedbackCard.start(); feedbackCard.refresh()
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
     }
+    override fun onPause() {
+        // Stop when leaving the interactive page, not after the next page finishes drawing.
+        feedbackCard.pausePreview()
+        super.onPause()
+    }
     override fun onStop() {
         feedbackCard.stop(); languageCard.close(); release()
         super.onStop()

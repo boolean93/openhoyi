@@ -51,5 +51,6 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
         finally { updating = false }
     }
     fun start() { prefs.observe(this) { enabled -> if (!enabled) stopAudio(); refresh() } }
+    fun pausePreview() { stopAudio(); refresh() }
     fun stop() { prefs.unobserve(this); stopAudio() }
 }
