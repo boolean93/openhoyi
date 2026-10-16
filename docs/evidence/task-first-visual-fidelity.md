@@ -291,3 +291,13 @@ e98d7c7 advanced38874021113、single-screen38874021152查询仍in_progress；本
 双Mock APK23秒成功（/tmp/task-history-density-build.log），diff检查通过；实际图高增益、长字段、大字号和间距仍需新截图，不把节省空间的意图当测量结果。
 
 e98d7c7 advanced38874021113的business子任务已completed/success，pages仍in_progress。下载产物并实读business/import-conflict.png：94°C/41.7g/4阶段摘要、左图右冲突选择、右下限宽另存副本均出现；business-flows.txt确认17路径、3库存事件、3新草稿和完整字段恢复。此截图为1600×1000中文浅色，尚不含fb209f8内嵌表；左下系统剪贴板浮层遮住部分导航，不作为无浮层像素验收或用户平板验收。冲突标题、次操作和阶段颜色仍与认可稿有差距，不关闭导入页视觉范围。
+
+## 已保存复盘状态与长研磨字段
+
+实读同一e98d7c7业务产物review-saved-notes.png：新版16sp/500字段标签已显示，长豆名换行，三块已保存笔记内容与固定保存可见。此前500d5d6只有空态的标签验证缺口，在1600×1000中文浅色标准字号这一范围得到补充；不是用户平板或全部字体状态验收。
+
+发现长研磨字段出现半行：BrewReviewActivity.field给非数字字段设minLines=2，但TaskReviewSections.fitEditors对panels[1]强制min(52dp,budget)且至少48dp，未按实际lineHeight+上下padding计算。下一修改应在参数区预算足够时按两行实测高度显示，短高保持可编辑/滚动与固定保存，不能简单扩大所有笔记框。当前保存/重建完整字段测试通过，故问题是可见行高，不据此宣称文本丢失。
+
+fb209f8完整SHA查询：task-frame38875187723、upgrade38875187771成功；advanced38875194305、task-frame38875194422仍in_progress，single-screen38875194439queued。框架默认无文档态不能证明内嵌表出现，继续等待正常/冲突业务截图。
+
+研磨行高候选将正常预算目标改为max(52dp,2×lineHeight+compoundPaddingTop+compoundPaddingBottom)，预算不足仍沿用原48–52dp回退；仅panels[1]的研磨编辑框受影响，其他笔记及保存恢复不改。双Mock APK40秒成功（/tmp/task-review-grind-height-build.log），diff检查通过。等待同一长研磨fixture截图与IME/字体1.3原生检查，未标记视觉缺陷已闭环。

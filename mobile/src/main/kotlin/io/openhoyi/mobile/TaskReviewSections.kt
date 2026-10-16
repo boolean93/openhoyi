@@ -129,7 +129,10 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             val panel = panels[1]
             val budget = parameterScroll.height - panel.paddingTop - panel.paddingBottom
             if (budget > 0) {
-                val height = minOf(dp(52), budget).coerceAtLeast(dp(48))
+                // The editor requests two lines. A fixed 52dp box clips the second
+                // line with the bundled font, especially at larger font scales.
+                val twoLines = maxOf(dp(52), field.lineHeight * 2 + field.compoundPaddingTop + field.compoundPaddingBottom)
+                val height = if (budget >= twoLines) twoLines else minOf(dp(52), budget).coerceAtLeast(dp(48))
                 if (field.layoutParams.height != height) field.layoutParams =
                     (field.layoutParams as LinearLayout.LayoutParams).apply { this.height = height; weight = 0f }
             }
