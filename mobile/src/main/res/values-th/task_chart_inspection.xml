@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_chart_inspect_hint">เลือกกราฟเพื่อดูตัวอย่างจริง ใช้แถบเลื่อนหรือปุ่มลูกศรเพื่อดูทีละจุด</string>
+    <string name="task_chart_sample_time">ตัวอย่างการสกัดนี้ · %1$s วินาที</string>
+    <string name="task_chart_missing_scale">ไม่มีค่าจากตาชั่งที่บันทึกไว้ในเวลานี้</string>
+    <string name="task_chart_not_brewing">ไม่ได้กำลังสกัดในเวลานี้</string>
+</resources>

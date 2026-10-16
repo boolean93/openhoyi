@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="live_pressure_chart">ضغط الاستخلاص · بار</string>
+    <string name="live_cup_flow_chart">التدفق إلى الكوب · غ/ث</string>
+    <string name="live_cup_flow_source">تقدير بناءً على تغير الوزن على الميزان، للعرض فقط</string>
+    <string name="live_cup_flow_metric">التدفق إلى الكوب (تقديري)</string>
+    <string name="live_chart_no_data">لا توجد بيانات بعد</string>
+    <string name="live_time_axis">الوقت · ث</string>
+    <string name="ui_brew">تحضير القهوة</string>
+</resources>

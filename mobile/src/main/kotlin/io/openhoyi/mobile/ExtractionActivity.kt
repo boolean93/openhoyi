@@ -36,25 +36,45 @@ class ExtractionActivity : ThemedActivity() {
     private var visible = false
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var curveSummary: TextView
+    private lateinit var overviewHeading: TextView
+    private lateinit var recipeSummary: TaskRecipeSummary
     private lateinit var deviceSummary: TextView
     private lateinit var shotSummary: TextView
     private lateinit var readiness: TextView
     private lateinit var chooseCurve: Button
     private lateinit var connectDevices: Button
+    private lateinit var chooseBeans: Button
     private lateinit var live: TextView
     private lateinit var elapsedValue: TextView
     private lateinit var pressureValue: TextView
     private lateinit var weightValue: TextView
+    private lateinit var quantityLabel: TextView
+    private lateinit var temperatureValue: TextView
+    private lateinit var waterValue: TextView
+    private lateinit var preparationTools: LinearLayout
+    private lateinit var preparationSummary: TextView
     private lateinit var flowValue: TextView
     private lateinit var weightTarget: TextView
     private lateinit var preparationStatus: TextView
     private lateinit var notificationStatus: TextView
     private lateinit var alarmStatus: TextView
-    private lateinit var chart: ShotChartView
+    private lateinit var chart: ExtractionOverlayView
+    private lateinit var referenceStatus: TextView
+    private lateinit var traceCurve: TextView
+    private lateinit var referenceChoice: Button
+    private lateinit var stageTargets: TextView
+    private var referenceId: String? = null
+    private var referenceCurveId: String? = null
     private lateinit var start: Button
     private lateinit var stop: Button
     private lateinit var prepare: Button
     private lateinit var cancelPrepare: Button
+    private lateinit var pageHeader: LinearLayout
+    private lateinit var liveHeading: TextView
+    private lateinit var modeBadge: TextView
+    // Chrome compaction must not depend on height that this same chrome consumes.
+    // The workspace independently uses its actual remaining width and height.
+    private val compactChrome get() = resources.configuration.screenWidthDp < 840
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
@@ -68,110 +88,167 @@ class ExtractionActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        referenceId = savedInstanceState?.getString("referenceShotId")
         feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(getColor(R.color.mobile_background))
-        }
-        val scroll = ScrollView(this).apply { setBackgroundColor(getColor(R.color.mobile_background)) }
-        root.setOnApplyWindowInsetsListener { view, insets ->
-            if (Build.VERSION.SDK_INT >= 30) {
-                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
-            } else {
-                @Suppress("DEPRECATION")
-                view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+            setOnApplyWindowInsetsListener { view, insets ->
+                if (Build.VERSION.SDK_INT >= 30) {
+                    val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                    view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                } else {
+                    @Suppress("DEPRECATION")
+                    view.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
+                }
+                insets
             }
-            insets
         }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(28)) }
-        scroll.addView(content)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        stop = Button(this).apply {
-            text = getString(R.string.extraction_stop)
-            isAllCaps = false
-            textSize = 18f
-            minHeight = dp(56)
-            setTextColor(getColor(android.R.color.white))
-            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_stop_button, 12)
-            visibility = View.GONE
-            setOnClickListener { service?.stopShot(); render() }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), dp(6), dp(12), dp(4))
         }
-        start = HoyiUi.button(this, root, getString(R.string.extraction_start), primary = true) { confirmStart() }
-        (start.layoutParams as LinearLayout.LayoutParams).setMargins(dp(24), dp(4), dp(24), dp(8))
-        root.addView(stop, LinearLayout.LayoutParams(-1, -2).apply {
-            setMargins(dp(24), dp(4), dp(24), dp(12))
-        })
-        HoyiUi.navigation(this, root, ExtractionActivity::class.java)
+        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
-        HoyiUi.header(this, content, getString(R.string.extraction_title),
-            if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else getString(R.string.extraction_subtitle))
-        val wide = HoyiUi.wide(this)
-        val columns = if (wide) LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            content.addView(this, LinearLayout.LayoutParams(-1, -2))
-        } else null
-        val left = if (wide) LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            columns!!.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(10) })
-        } else content
-        val right = if (wide) LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            columns!!.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(10) })
-        } else content
-        val stateCard = card(left)
-        HoyiUi.label(this, stateCard, getString(R.string.extraction_overview), 19, true)
-        curveSummary = text(stateCard, getString(R.string.extraction_curve_initial), 18, true)
-        deviceSummary = text(stateCard, getString(R.string.extraction_devices_initial), 14)
-        shotSummary = text(stateCard, getString(R.string.extraction_shot_initial), 14)
-        readiness = text(stateCard, getString(R.string.extraction_waiting_service), 16, true).apply {
-            setPadding(dp(14), dp(12), dp(14), dp(12))
-            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 12)
+        pageHeader = HoyiUi.header(this, content, getString(R.string.extraction_title),
+            if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else null)
+        // Secondary prose remains available in a details dialog, not in the plot's height budget.
+        val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        overviewHeading = HoyiUi.label(this, details, getString(R.string.extraction_overview), 17, true)
+        modeBadge = text(details, getString(R.string.extraction_mock_subtitle), 12)
+        shotSummary = text(details, getString(R.string.extraction_shot_initial), 13)
+        liveHeading = text(details, getString(R.string.extraction_live_data), 15)
+        live = text(details, "", 13)
+        weightTarget = text(details, "", 14)
+        referenceStatus = text(details, getString(R.string.reference_off), 13)
+        traceCurve = text(details, "", 13)
+        stageTargets = text(details, "", 13)
+        readiness = text(content, getString(R.string.extraction_waiting_service), 14, true).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }
-        chooseCurve = HoyiUi.button(this, stateCard, getString(R.string.extraction_choose_curve)) {
-            startActivity(Intent(this, CurveActivity::class.java))
-        }.apply { visibility = View.GONE }
-        connectDevices = HoyiUi.button(this, stateCard, getString(R.string.extraction_connect_devices)) {
-            startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
-        }.apply { visibility = View.GONE }
-        preparationStatus = text(stateCard, getString(R.string.extraction_prepare_initial), 14)
-        notificationStatus = text(stateCard, "", 14)
-        alarmStatus = text(stateCard, getString(R.string.home_alarm_initial), 14)
-        val metrics = card(left)
-        HoyiUi.label(this, metrics, getString(R.string.extraction_live_data), 19, true)
-        fun metricRow(a: String, b: String): Pair<TextView, TextView> {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            metrics.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(10) })
-            fun cell(title: String): TextView {
-                val box = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(dp(16), dp(12), dp(16), dp(12))
-                    background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_accent_soft, 12)
-                }
-                row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
-                HoyiUi.label(this, box, title, 13, muted = true)
-                return HoyiUi.label(this, box, "—", 27, true).apply {
-                    setPadding(0, dp(8), 0, 0)
-                    setSingleLine(true)
-                    setAutoSizeTextTypeUniformWithConfiguration(16, 27, 1, TypedValue.COMPLEX_UNIT_SP)
-                }
+        if (!compactChrome) {
+            // Keep guidance visible alongside the title on a tablet. Compact running
+            // layouts hide the header, so their guidance must remain outside it.
+            content.removeView(readiness)
+            pageHeader.addView(readiness, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                marginStart = dp(16)
+            })
+        }
+        val workspace = TaskExtractionWorkspace(this)
+        content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4) })
+        val plotColumn = workspace.primaryBody
+        val sidePanel = workspace.secondaryBody.apply {
+            setPadding(dp(4), dp(4), dp(4), dp(4))
+        }
+        HoyiUi.label(this, sidePanel, getString(R.string.task_extraction_supporting), 16, true)
+        curveSummary = text(sidePanel, getString(R.string.extraction_curve_initial), 16, true).apply {
+            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
+        }
+        recipeSummary = TaskRecipeSummary(this)
+        sidePanel.addView(recipeSummary, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(8) })
+        deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 14)
+        val metrics = TaskLiveReadouts(this)
+        plotColumn.addView(metrics, LinearLayout.LayoutParams(-1, -2))
+        fun reading(label: String, quantity: Boolean = false): TextView {
+            val cell = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(TaskVisualTokens.RELATED_GAP_DP), dp(TaskVisualTokens.RELATED_GAP_DP),
+                    dp(TaskVisualTokens.RELATED_GAP_DP), dp(TaskVisualTokens.RELATED_GAP_DP))
             }
-            return cell(a) to cell(b)
+            metrics.addView(cell)
+            val heading = HoyiUi.label(this, cell, label, 14, muted = true)
+            if (quantity) quantityLabel = heading
+            return HoyiUi.label(this, cell, "—", TaskVisualTokens.LIVE_VALUE_SP, true).apply {
+                typeface = TaskTypography.face(this@ExtractionActivity, 700)
+                fontFeatureSettings = "tnum"
+            }
         }
-        metricRow(getString(R.string.extraction_elapsed), getString(R.string.extraction_pressure)).also { elapsedValue = it.first; pressureValue = it.second }
-        metricRow(getString(R.string.extraction_weight), getString(R.string.extraction_scale_flow)).also { weightValue = it.first; flowValue = it.second }
-        live = text(metrics, "", 13)
-        weightTarget = text(metrics, "", 15, true)
-        val chartCard = card(right)
-        HoyiUi.label(this, chartCard, getString(R.string.extraction_chart), 19, true)
-        chart = ShotChartView(this)
-        chartCard.addView(chart, LinearLayout.LayoutParams(-1, dp(if (HoyiUi.wide(this)) 260 else 220)).apply {
-            topMargin = dp(12)
-        })
-        val actions = card(right)
-        HoyiUi.label(this, actions, getString(R.string.extraction_prepare_heading), 19, true)
-        prepare = button(actions, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
-        cancelPrepare = button(actions, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
+        elapsedValue = reading(getString(R.string.task_extraction_elapsed))
+        weightValue = reading(getString(R.string.task_extraction_water), quantity = true)
+        val secondaryReadings = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        metrics.addView(secondaryReadings)
+        pressureValue = HoyiUi.label(this, secondaryReadings, "", 18, true).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
+        }
+        waterValue = HoyiUi.label(this, secondaryReadings, "", 18, true).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
+        }
+        temperatureValue = HoyiUi.label(this, secondaryReadings, "", 18, true).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
+        flowValue = text(details, "", 14)
+        chart = ExtractionOverlayView(this).apply {
+            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_surface, 10)
+        }
+        plotColumn.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4); bottomMargin = dp(4) })
+        workspace.onPrimarySpaceAvailable = { width, height ->
+            val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+            val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            metrics.measure(exactWidth, naturalHeight)
+            // Reserve real plot space before allocating the locally scrollable tools.
+            // Font scaling grows this budget; no plot/text minimum is lowered.
+            val chartHeight = maxOf((dp(240) * resources.configuration.fontScale).toInt(),
+                (height * .55f).toInt())
+            metrics.measuredHeight + chartHeight + dp(8)
+        }
+        val toolbar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        sidePanel.addView(toolbar)
+        fun compact(parent: LinearLayout, title: String, action: () -> Unit): Button =
+            HoyiUi.button(this, parent, title, action = action).apply {
+                textSize = 14f
+                setPadding(dp(6), dp(4), dp(6), dp(4))
+                minHeight = dp(48); minimumHeight = dp(48)
+                layoutParams = if (parent.orientation == LinearLayout.VERTICAL)
+                    LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) }
+                else LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) }
+            }
+        chooseCurve = compact(toolbar, getString(R.string.extraction_choose_curve)) { startActivity(Intent(this, CurveActivity::class.java)) }
+        connectDevices = compact(toolbar, getString(R.string.extraction_connect_devices)) {
+            startActivity(Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+        }
+        chooseBeans = compact(toolbar, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
+        val referenceTools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        sidePanel.addView(referenceTools, LinearLayout.LayoutParams(-1, -2))
+        preparationTools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        sidePanel.addView(preparationTools, LinearLayout.LayoutParams(-1, -2))
+        referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }.apply { asTaskTextAction() }
+        val detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
+            val info = listOf(curveSummary, deviceSummary, shotSummary, live, flowValue, weightTarget, traceCurve, stageTargets, referenceStatus)
+                .map { it.text.toString() }.filter { it.isNotBlank() }.joinToString("\n\n") +
+                "\n\n" + recipeSummary.text + "\n\n" + getString(R.string.live_cup_flow_source)
+            AlertDialog.Builder(this).setTitle(getString(R.string.extraction_overview)).setMessage(info)
+                .setPositiveButton(android.R.string.ok, null).show()
+        }
+        detailsButton.asTaskTextAction()
+        curveSummary.setOnLongClickListener { detailsButton.performClick(); true }
+        prepare = compact(preparationTools, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
+        cancelPrepare = compact(preparationTools, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
+        preparationSummary = text(sidePanel, "", 12).apply { visibility = View.GONE }
+        // These can describe UNKNOWN writes or stale alarms. Keep them outside the
+        // tools panel so longer translations cannot push a safety message offscreen.
+        preparationStatus = text(content, getString(R.string.extraction_prepare_initial), 12)
+        notificationStatus = text(content, "", 12)
+        alarmStatus = text(content, getString(R.string.home_alarm_initial), 13).apply {
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_ASSERTIVE
+        }
+        // Safety messages remain fixed and full-width, outside the scrolling tools.
+        listOf(preparationStatus, notificationStatus, alarmStatus).forEach { status ->
+            content.removeView(status)
+            content.addView(status, content.indexOfChild(workspace))
+        }
+        val actionDock = TaskActionDock(this, edgeInsetDp = 0)
+        workspace.setFooter(actionDock)
+        start = HoyiUi.button(this, actionDock, getString(R.string.extraction_start), primary = true) { confirmStart() }
+        (start.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
+        stop = HoyiUi.button(this, actionDock, getString(R.string.extraction_stop), danger = true) {
+            service?.stopShot(); render()
+        }.apply {
+            setTextColor(getColor(android.R.color.white))
+            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_stop_button, 10)
+            visibility = View.GONE
+        }
+        (stop.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
+        HoyiUi.navigation(this, root, ExtractionActivity::class.java)
         render()
     }
     override fun onStart() {
@@ -248,6 +325,7 @@ class ExtractionActivity : ThemedActivity() {
     }
     override fun onSaveInstanceState(outState: Bundle) {
         feedbackUi.save(outState)
+        outState.putString("referenceShotId",referenceId)
         super.onSaveInstanceState(outState)
     }
     private fun render() {
@@ -256,6 +334,17 @@ class ExtractionActivity : ThemedActivity() {
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()
         val state = owner?.shotState ?: ExtractionState.IDLE
+        val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
+            ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
+        pageHeader.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
+        modeBadge.visibility = if (active && compactChrome && BuildConfig.MOCK_MODE) View.VISIBLE else View.GONE
+        liveHeading.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
+        shotSummary.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
+        overviewHeading.visibility=if(active) View.GONE else View.VISIBLE
+        // Running cups still need an identity and live connection context in the supporting pane.
+        curveSummary.visibility = View.VISIBLE
+        deviceSummary.visibility = View.VISIBLE
+        chooseBeans.visibility=if(active) View.GONE else View.VISIBLE
         val item = selected()
         val library = (application as MobileApplication).curves
         val profile = item?.let { library.resolve(it.id, snapshot.scaleState == DeviceState.READY, presetSlot) }
@@ -279,7 +368,26 @@ class ExtractionActivity : ThemedActivity() {
         val sleepBusy = owner?.sleepNowState in setOf(SleepNowTracker.State.WRITING,
             SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
         val slotLabel = if (presetSlot == 7) "" else getString(R.string.extraction_slot_suffix, presetSlot.toString())
-        curveSummary.show(getString(R.string.extraction_curve_summary, item?.name ?: getString(R.string.extraction_unselected), slotLabel))
+        val observedCup = owner?.chartPoints?.isNotEmpty() == true || active || state == ExtractionState.OUTCOME_UNKNOWN
+        val displayCurve = if (observedCup) owner?.chartCurveId?.let(library::find) else item
+        val recipe = if (observedCup) owner?.activeShotRecipe?.forTrace(owner.chartTraceIdentity)
+            else profile?.let { ShotRecipeSnapshot.capture("preview", it) }
+        val displayCurveName = recipe?.name ?: displayCurve?.name ?: getString(if (observedCup) {
+            if (owner?.chartCurveId == "manual") R.string.extraction_manual_label else R.string.profiles_missing
+        } else R.string.extraction_unselected)
+        curveSummary.show(getString(R.string.extraction_curve_summary, displayCurveName,
+            if (observedCup) "" else slotLabel))
+        val cupNotes = if (observedCup) owner?.chartTraceIdentity?.let {
+            (application as MobileApplication).journalResult.getOrNull()?.find(it)?.notes
+        } else null
+        recipeSummary.present(linkedMapOf(
+            R.string.task_recipe_temperature to recipe?.temperatureC?.let { "$it °C" },
+            R.string.task_recipe_target to recipe?.let {
+                if (it.targetHundredthsGram > 0) "${number(it.targetHundredthsGram)} g" else getString(R.string.extraction_no_weight_target)
+            },
+            R.string.journal_bean to cupNotes?.beanName?.takeIf { it.isNotBlank() },
+            R.string.task_recipe_dose to cupNotes?.doseMg?.let { "${BeanQuantity.formatGrams(it)} g" },
+        ))
         deviceSummary.show(getString(R.string.extraction_device_summary, DeviceStatusText.label(this, snapshot.coffeeState), DeviceStatusText.label(this, snapshot.scaleState)))
         shotSummary.show(getString(R.string.extraction_shot_summary, if (owner?.scalePreflight == true) getString(R.string.extraction_preflight_label) else if (owner?.manualShotActive == true) getString(R.string.extraction_manual_label) else shotLabel(state), owner?.stopReason?.let { getString(R.string.extraction_stop_reason_suffix, stopLabel(it)) } ?: ""))
         val guidance = when {
@@ -322,31 +430,55 @@ class ExtractionActivity : ThemedActivity() {
                     BrewPreparation.State.FAILED -> getString(R.string.extraction_prepare_failed)
                     BrewPreparation.State.UNKNOWN -> getString(R.string.extraction_prepare_unknown)
                 })
+        // Only fresh, non-actionable idle prose may live with the supporting details.
+        // Writing, temperature wait, cancellation, failures and unknown outcomes stay fixed.
+        val normalPreparation = snapshot.settings != null && owner?.machineSettingsFresh == true &&
+            owner.machineControlSafetyMessage == null && preparation == BrewPreparation.State.IDLE &&
+            (!studio || temperatureReady)
+        preparationSummary.show(preparationStatus.text.toString())
+        preparationSummary.visibility = if (normalPreparation) View.VISIBLE else View.GONE
+        preparationStatus.visibility = if (normalPreparation) View.GONE else View.VISIBLE
         notificationStatus.show(if (BuildConfig.MOCK_MODE || notificationsAllowed()) "" else
             getString(R.string.extraction_notification_warning))
         notificationStatus.visibility = if (notificationStatus.text.isEmpty()) View.GONE else View.VISIBLE
         alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             SystemClock.elapsedRealtime()))
         val now = SystemClock.elapsedRealtime()
+        val alarmFresh = snapshot.alarmAt?.let { it <= now && now - it <= 1500 } == true
+        alarmStatus.visibility = if (active && compactChrome && snapshot.alarmBits == 0 && alarmFresh)
+            View.GONE else View.VISIBLE
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
-        elapsedValue.show(if (frame is ExtractionTelemetry) "${frame.elapsedSeconds} s" else "—")
-        pressureValue.show(when (frame) {
-            is ExtractionTelemetry -> "${frame.pressureTenthsBar / 10.0} bar"
-            is IdleTelemetry -> "${frame.brewPressureTenthsBar / 10.0} bar"
+        elapsedValue.show(if (frame is ExtractionTelemetry && !frame.brewWait) "${frame.elapsedSeconds} s" else "—")
+        pressureValue.show(getString(R.string.task_extraction_pressure, when (frame) {
+            is ExtractionTelemetry -> String.format(Locale.ROOT, "%.1f", frame.pressureTenthsBar / 10.0)
+            is IdleTelemetry -> String.format(Locale.ROOT, "%.1f", frame.brewPressureTenthsBar / 10.0)
             else -> "—"
-        })
-        val scale = LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)
-        weightValue.show("${scale?.let { number(it.weightHundredthsGram) } ?: "—"} g")
-        flowValue.show("${scale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
-        live.show(getString(R.string.extraction_live_temperature, when (frame) {
+        }))
+        val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
+            ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)?.weightHundredthsGram
+        // Connected but stale scales stay explicitly unknown; no cup/tare evidence is inferred.
+        val scaleQuantity = scale != null || snapshot.scaleState == DeviceState.READY
+        quantityLabel.show(getString(if (scaleQuantity) R.string.task_extraction_scale else R.string.task_extraction_water))
+        val water = (frame as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.totalWaterTenthsMl
+        val waterText = "${water?.let { String.format(Locale.ROOT, "%.1f", it / 10.0) } ?: "—"} ml"
+        weightValue.show(if (scaleQuantity) "${scale?.let(::number) ?: "—"} g" else waterText)
+        waterValue.show(getString(R.string.task_extraction_water) + " " + waterText)
+        waterValue.visibility = if (scaleQuantity) View.VISIBLE else View.GONE
+        val cupFlow = if (scale != null && frame is ExtractionTelemetry && !frame.brewWait)
+            CupFlowProjection.values(owner?.chartPoints.orEmpty()).lastOrNull() else null
+        flowValue.show(getString(R.string.task_extraction_flow,
+            cupFlow?.let { String.format(Locale.ROOT, "%.1f", it) } ?: "—"))
+        val rawTemperature = when (frame) {
             is ExtractionTelemetry -> number(frame.brewTemperatureHundredthsC)
             is IdleTelemetry -> number(frame.brewTemperatureHundredthsC)
             else -> "—"
-        }))
+        }
+        temperatureValue.show(getString(R.string.task_extraction_temperature, rawTemperature))
+        live.show(getString(R.string.extraction_live_temperature, rawTemperature))
         val target = if (state != ExtractionState.IDLE) owner?.activeShotTargetHundredthsGram
             else profile?.targetHundredthsGram
         weightTarget.show(if (owner?.manualShotActive != true && target != null && target > 0) {
-            val progress = getString(R.string.extraction_weight_progress, scale?.let { number(it.weightHundredthsGram) } ?: "—", number(target))
+            val progress = getString(R.string.extraction_weight_progress, scale?.let(::number) ?: "—", number(target))
             val advice = when {
                 owner?.scalePreflight == true -> getString(R.string.extraction_preflight_weight_advice)
                 owner?.stopReason == StopReason.TARGET_WEIGHT.name -> getString(R.string.extraction_target_stop_advice)
@@ -358,8 +490,27 @@ class ExtractionActivity : ThemedActivity() {
             }
             "$progress\n$advice"
         } else if (target == 0 && profile != null) getString(R.string.extraction_no_weight_advice) else "")
-        val points = owner?.chartPoints ?: emptyList()
+        chart.traceIdentity = owner?.chartTraceIdentity
+        val rawPoints=owner?.chartPoints ?: emptyList()
+        val points = ExtractionReference.align(rawPoints).points
         if (chart.points != points) chart.points = points
+        val plottedItem=if(rawPoints.isNotEmpty() || active || state == ExtractionState.OUTCOME_UNKNOWN) owner?.chartCurveId?.let(library::find) else item
+        traceCurve.show(if(rawPoints.isNotEmpty()) getString(R.string.reference_trace_curve,
+            plottedItem?.name ?: getString(if(owner?.chartCurveId=="manual") R.string.extraction_manual_label
+                else R.string.profiles_missing)) else "")
+        val referenceCurve = plottedItem?.id?.takeIf { owner?.manualShotActive != true }
+        referenceChoice.isEnabled = referenceCurve != null
+        if (referenceCurveId != referenceCurve) {
+            referenceCurveId = referenceCurve
+            loadReference(referenceId, referenceCurve)
+        }
+        stageTargets.show(plottedItem?.let { source ->
+            val targets=CurveStageParameters.pressureTargets(source)
+            if(targets.isNotEmpty())
+                targets.mapIndexed {index,target -> getString(R.string.reference_stage,(index+1).toString(),
+                    String.format(Locale.ROOT,"%.1f",target/10.0))}.joinToString("\n")
+            else getString(R.string.reference_raw)
+        }.orEmpty())
         prepare.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
             blocked == null && owner.machineSettingsFresh && studio && !temperatureReady &&
             !settingBusy && !sleepBusy &&
@@ -368,8 +519,13 @@ class ExtractionActivity : ThemedActivity() {
             (preparation != BrewPreparation.State.IDLE ||
                 owner?.machineWriteRecoveryKind == MachineWriteRecoveryState.Kind.BREW_WAIT && preparation == BrewPreparation.State.IDLE) &&
             owner?.brewWaitCancelBlock == null
-        cancelPrepare.text = if (preparation == BrewPreparation.State.CANCEL_WRITTEN)
-            getString(R.string.extraction_cancel_prepare_again) else getString(R.string.extraction_cancel_prepare)
+        // Only remove non-actionable preparation controls during a running cup.
+        // Unresolved preparation/recovery states retain their controls and fixed status.
+        val hideIdlePreparation = active && normalPreparation && !prepare.isEnabled && !cancelPrepare.isEnabled &&
+            owner?.machineWriteRecoveryKind != MachineWriteRecoveryState.Kind.BREW_WAIT
+        preparationTools.visibility = if (hideIdlePreparation) View.GONE else View.VISIBLE
+        cancelPrepare.show(if (preparation == BrewPreparation.State.CANCEL_WRITTEN)
+            getString(R.string.extraction_cancel_prepare_again) else getString(R.string.extraction_cancel_prepare))
         start.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
             blocked == null && studioBlocked == null &&
             !settingBusy && !sleepBusy
@@ -377,9 +533,50 @@ class ExtractionActivity : ThemedActivity() {
         stop.isEnabled = stopAction.enabled
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
-        stop.text = if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource)
+        stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
     }
-    private fun TextView.show(value: String) { if (text.toString() != value) text = value }
+    private fun TextView.show(value: String) {
+        if (text.toString() == value) return
+        if (this === elapsedValue || this === weightValue) {
+            text = android.text.SpannableString(value).apply {
+                val unitStart = value.lastIndexOf(' ') + 1
+                if (unitStart > 0 && unitStart < value.length) {
+                    setSpan(android.text.style.RelativeSizeSpan(0.55f), unitStart, value.length,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        } else text = value
+    }
+    private fun chooseReference() {
+        val curveId=referenceCurveId ?: return
+        val app=application as MobileApplication
+        val records=app.journalResult.getOrNull()?.entries().orEmpty().filter {
+            it.observation.curveId==curveId && it.observation.status=="ENDED"
+        }.take(20)
+        val labels=listOf(getString(R.string.reference_off))+records.map {journalDate(it.observation.startedAtMs)}
+        AlertDialog.Builder(this).setTitle(R.string.reference_choose)
+            .setItems(labels.toTypedArray()) {_,index ->
+                render()
+                if (referenceCurveId == curveId) loadReference(if(index==0) null else records[index-1].observation.id,curveId)
+            }
+            .setNegativeButton(R.string.machine_settings_cancel,null).show()
+    }
+    private fun loadReference(id:String?,curveId:String?) {
+        if (curveId != referenceCurveId) return
+        val app=application as MobileApplication
+        val record=id?.let {app.journalResult.getOrNull()?.find(it)}
+            ?.takeIf {it.observation.curveId==curveId && it.observation.status=="ENDED"}
+        val timeline=record?.let {runCatching {ExtractionReference.align(app.samples.load(it.observation.id))}.getOrNull()}
+        val available=timeline?.points?.isNotEmpty()==true
+        referenceId=if(available) id else null
+        chart.reference=if(available) requireNotNull(timeline).points else emptyList()
+        val source = if (available) getString(R.string.reference_source,
+            journalDate(requireNotNull(record).observation.startedAtMs),
+            getString(if (requireNotNull(timeline).observedOrigin) R.string.reference_align_observed else R.string.reference_align_recorded)) else null
+        referenceStatus.show(if (source != null) getString(R.string.reference_legend) + "\n" + source
+            else getString(if (id == null) R.string.reference_off else R.string.reference_unavailable))
+        chart.referenceLabel = source
+    }
     private fun shotLabel(state: ExtractionState) = when (state) {
         ExtractionState.IDLE -> getString(R.string.machine_settings_tab_standby)
         ExtractionState.STARTING -> getString(R.string.extraction_state_starting)
@@ -402,9 +599,14 @@ class ExtractionActivity : ThemedActivity() {
     private companion object { const val NOTIFICATIONS = 31 }
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView = TextView(this).apply {
         text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
-        setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD); parent.addView(this)
+        setPadding(0, dp(6), 0, dp(6)); if (bold) typeface = TaskTypography.face(context, 700); parent.addView(this)
     }
-    private fun card(parent: LinearLayout) = HoyiUi.card(this, parent)
+    private fun card(parent: LinearLayout) = HoyiUi.card(this, parent).apply {
+        if (compactChrome) {
+            setPadding(dp(12), dp(8), dp(12), dp(8))
+            (layoutParams as LinearLayout.LayoutParams).topMargin = dp(8)
+        }
+    }
     private fun button(parent: LinearLayout, value: String, action: () -> Unit) =
         HoyiUi.button(this, parent, value, action = action)
 }

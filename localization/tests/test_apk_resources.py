@@ -2,6 +2,7 @@ import importlib.util
 from pathlib import Path
 import sys
 import unittest
+import tempfile
 
 LOCALIZATION = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(LOCALIZATION))
@@ -11,6 +12,23 @@ SPEC.loader.exec_module(apk)
 
 
 class ApkResourcesTest(unittest.TestCase):
+    def test_literal_percentage_is_valid_and_must_be_preserved(self):
+        self.assertEqual([], apk.validator.validate({'battery': '%1$d%%'}, {'battery': 'Battery %1$d%%'}))
+        self.assertTrue(apk.validator.validate({'battery': '%1$d%%'}, {'battery': '%1$d'}))
+        self.assertTrue(apk.validator.validate({'battery': '%1$d%%'}, {'battery': '%1$d%'}))
+    def test_split_feature_resources_are_verified_without_weakening_key_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/'values').mkdir()
+            (root/'values'/'advanced.xml').write_text('<resources><string name="extra">Bean: %1$s\\nDose</string></resources>')
+            for tag in apk.validator.LANGUAGES:
+                (root/f'values-{tag}').mkdir()
+                (root/f'values-{tag}'/'advanced.xml').write_text('<resources><string name="extra">'+tag+': %1$s\\nDose</string></resources>')
+            source,catalogs=apk.extend_resources({'message':'中文'},{tag:{'message':tag} for tag in apk.validator.LANGUAGES},root)
+            self.assertEqual('Bean: %1$s\nDose',source['extra'])
+            self.assertEqual('en: %1$s\nDose',catalogs['en']['extra'])
+            (root/'values-en'/'advanced.xml').unlink()
+            with self.assertRaises(ValueError):apk.extend_resources({'message':'中文'},{tag:{'message':tag} for tag in apk.validator.LANGUAGES},root)
     def test_dump_parser_preserves_multiline_spaces_and_literal_quotes(self):
         dump = '\n'.join(['Binary APK', '  type string id=03',
             '    resource 0x7f030000 string/app_name', '      () "Alpha"',

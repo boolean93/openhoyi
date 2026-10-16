@@ -1,0 +1,6 @@
+<resources>
+    <string name="task_curve_library_manage">管理</string>
+    <string name="task_curve_library_actions">曲線の操作</string>
+    <string name="task_curve_library_no_pressure">このデータには圧力ステージがありません。圧力図を作らず、元のパラメータを表示します。</string>
+    <string name="task_curve_library_short_preview">図の領域不足。圧力ステージのパラメータ：%1$s。ステージの概略であり、時間予測ではありません。</string>
+</resources>

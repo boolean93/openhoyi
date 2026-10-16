@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_detail_samples_heading">عينات سابقة</string>
+    <string name="legacy_detail_source_heading">مصدر البيانات والقيود</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_form_jump">跳转到分组</string>
+    <string name="task_form_optional_iso_dates">日期可留空；格式 YYYY-MM-DD</string>
+    <string name="task_form_stage_caption">阶段目标示意，不是时间预测</string>
+    <string name="task_form_basic">基本信息</string>
+    <string name="task_form_targets">萃取目标</string>
+    <string name="task_form_bean_identity">豆款信息</string>
+    <string name="task_form_stock">入库</string>
+    <string name="task_form_dates">日期（选填）</string>
+</resources>

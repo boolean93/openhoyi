@@ -12,9 +12,35 @@ import io.openhoyi.session.OperationResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class MockDeviceRuntimeTest {
+    @Test fun disconnectedScaleHasNoWeightEvidenceWhileMachineKeepsSampling() {
+        val runtime = MockDeviceRuntime { "" }
+        runtime.scaleConnected = false
+        val idle = runtime.sample(1000)
+        assertEquals(io.openhoyi.session.DeviceState.DISCONNECTED, idle.scaleState)
+        assertNull(idle.weight)
+        assertNull(idle.weightAt)
+        runtime.start(1000)
+        val running = runtime.sample(6000)
+        val machine = running.coffee as io.openhoyi.protocol.ExtractionTelemetry
+        assertEquals(50, machine.pressureTenthsBar)
+        assertEquals(30, machine.totalWaterTenthsMl)
+        assertEquals(9300, machine.brewTemperatureHundredthsC)
+        assertEquals(io.openhoyi.session.ExtractionState.RUNNING, runtime.shotState)
+        assertNull(running.weight)
+        assertNull(running.weightAt)
+        runtime.stop()
+        assertNull(runtime.sample(7000).weight)
+        runtime.scaleConnected = true
+        val restored = runtime.sample(8000)
+        assertEquals(io.openhoyi.session.DeviceState.READY, restored.scaleState)
+        assertNotNull(restored.weight)
+        assertEquals(8000L, restored.weightAt)
+    }
+
     @Test fun preheatCancelCapturesReasonWithoutResolvingOrChangingOutcome() {
         var mayResolve = false
         val runtime = MockDeviceRuntime { id ->

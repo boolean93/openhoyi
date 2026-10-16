@@ -1,0 +1,9 @@
+<resources>
+    <string name="task_extraction_elapsed">경과 시간</string>
+    <string name="task_extraction_scale">저울 읽기값</string>
+    <string name="task_extraction_water">누적 주수량</string>
+    <string name="task_extraction_pressure">압력 %1$s bar</string>
+    <string name="task_extraction_temperature">머신 온도 %1$s °C</string>
+    <string name="task_extraction_supporting">잔 정보 및 도구</string>
+    <string name="task_extraction_flow">컵 유량 (추정) %1$s g/s</string>
+</resources>

@@ -1,0 +1,5 @@
+<resources>
+    <string name="task_recipe_temperature">Температура рецепта</string>
+    <string name="task_recipe_target">Целевой вес</string>
+    <string name="task_recipe_dose">Записанная доза</string>
+</resources>

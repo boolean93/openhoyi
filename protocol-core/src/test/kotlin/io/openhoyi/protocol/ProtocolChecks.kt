@@ -8,6 +8,7 @@ private fun verify(value: Boolean) { checks++; check(value) { "Protocol check $c
 private fun hex(s: String) = s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 private fun rejected(block: () -> Unit) { verify(runCatching(block).exceptionOrNull() is IllegalArgumentException) }
 fun main() {
+    runFelicitaNotificationChecks()
     // Legacy scale formats are offline candidates only. They must never feed the live stop policy.
     val acaiaPositive = LegacyScaleCandidateCodec.decode(LegacyScaleFamily.ACAIA,
         hex("EFDD0C08053930000002000000"))

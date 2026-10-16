@@ -18,10 +18,40 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var activeCupVisual = false
+    private var curveLibraryChecks = false
+    private var twoCupChartChecks = false
+    private var expectedHomeFontScale = 1f
+    private var homeWorkbenchChecks = false
+    private var fourMetricChartChecks = false
+    private var taskFrameChecks = false
+    private var singleScreenChecks = false
+    private var customExecution = false
+    private var systemDocuments = false
+    private var disposableCiEmulator = false
+    private var documentContracts = false
+    private var idleEvents = false
+    private var advancedFlows = false
+    private var advancedPageProfile: String? = null
     private var pageProfile: String? = null
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        activeCupVisual = arguments?.getString("activeCupVisual") == "true"
+        curveLibraryChecks = arguments?.getString("curveLibraryChecks") == "true"
+        twoCupChartChecks = arguments?.getString("twoCupChartChecks") == "true"
+        expectedHomeFontScale = arguments?.getString("expectedFontScale")?.toFloatOrNull() ?: 1f
+        homeWorkbenchChecks = arguments?.getString("homeWorkbenchChecks") == "true"
+        fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
+        taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
+        singleScreenChecks = arguments?.getString("singleScreenChecks") == "true"
+        customExecution = arguments?.getString("customExecution") == "true"
+        systemDocuments = arguments?.getString("systemDocuments") == "true"
+        disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
+        documentContracts = arguments?.getString("documentContracts") == "true"
+        idleEvents = arguments?.getString("idleEvents") == "true"
+        advancedFlows = arguments?.getString("advancedFlows") == "true"
+        advancedPageProfile = arguments?.getString("advancedPageChecks")
         pageProfile = arguments?.getString("pageChecks")
         languageChecks = arguments?.getString("languageChecks") == "true"
         upgradeChecks = arguments?.getString("upgradeChecks")
@@ -31,6 +61,75 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            if (activeCupVisual) {
+                check(disposableCiEmulator) { "Active cup captures require a disposable CI emulator" }
+                LanguageActiveCupChecks(this).run(visualEvidence = true)
+                report.putString("stream", "ACTIVE_CUP_VISUAL_PASSED states=2 actualMockStartStop=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (curveLibraryChecks) {
+                CurveLibraryViewportChecks(this).run(expectedHomeFontScale)
+                report.putString("stream", "CURVE_LIBRARY_VIEWPORT_CHECKS_PASSED fixtures=3 shortHeight=true recovery=true readOnly=true noBle=true fontScale=$expectedHomeFontScale\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (twoCupChartChecks) {
+                TwoCupChartChecks(this).run(expectedHomeFontScale)
+                report.putString("stream", "TWO_CUP_CHART_CHECKS_PASSED fixtures=9 sharedScale=true recovery=true noBle=true fontScale=$expectedHomeFontScale\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (homeWorkbenchChecks) {
+                HomeWorkbenchChecks(this).run(expectedHomeFontScale)
+                report.putString("stream", "HOME_WORKBENCH_CHECKS_PASSED fixtures=4 shortHeight=true recovery=true recentSelection=true readOnly=true noBle=true fontScale=$expectedHomeFontScale\n" +
+                    "SCALE_TREND_PANEL_CHECKS_PASSED fixtures=4 shortEntry=true recovery=true empty=true dialogStatus=true dialogDismiss=true componentOnly=true fontScale=$expectedHomeFontScale\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (fourMetricChartChecks) {
+                FourMetricChartChecks(this).run()
+                report.putString("stream", "FOUR_METRIC_CHART_CHECKS_PASSED fixtures=4 nativeComponent=true shortHeight=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (taskFrameChecks) {
+                TaskFrameChecks(this).run()
+                report.putString("stream", "TASK_FRAME_CHECKS_PASSED pages=24 noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (singleScreenChecks) {
+                SingleScreenWindowRun(this).run()
+                report.putString("stream", "SINGLE_SCREEN_WINDOW_CHECKS_PASSED noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (customExecution) {
+                CustomCurveExecutionChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "CUSTOM_CURVE_EXECUTION_CHECKS_PASSED import=true select=true confirm=true running=true ended=true history=true usage=true journal=true noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (systemDocuments) {
+                val result = CurveSystemDocumentChecks(this).run(disposableCiEmulator)
+                report.putString("stream", "CURVE_SYSTEM_DOCUMENT_CHECKS_PASSED paths=${result.paths.size} newDrafts=${result.newDrafts} systemPicker=${result.systemPicker} externalSend=${result.externalSend} noBle=${result.noBle}\n" +
+                    "CURVE_SYSTEM_DOCUMENT_PATHS ${result.paths.joinToString(",")}\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (documentContracts) {
+                val result = CurveDocumentContractChecks(this).run()
+                report.putString("stream", "CURVE_DOCUMENT_CONTRACT_CHECKS_PASSED paths=${result.paths.size} pickerContracts=${result.pickerContracts} shareContracts=${result.shareContracts} fileFixtures=${result.fileFixtures} newDrafts=${result.newDrafts} realResolver=true signaturePermission=true systemPicker=false externalSend=false noBle=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (idleEvents) {
+                IdleAccessibilityDiagnostics(this).run()
+                report.putString("stream", "IDLE_ACCESSIBILITY_DIAGNOSTIC_DONE\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (upgradeChecks != null) {
                 val phase = requireNotNull(upgradeChecks)
                 MockUpgradeChecks(this).run(phase)
@@ -38,12 +137,28 @@ class BrewAudioInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, report)
                 return
             }
+            if (advancedFlows) {
+                val result = AdvancedBusinessUiChecks(this).run()
+                report.putString("stream", "ADVANCED_BUSINESS_UI_CHECKS_PASSED paths=${result.paths.size} inventoryEvents=${result.inventoryEvents} newDrafts=${result.newDrafts} language=zh-Hans theme=light sameService=true preservedMachinePrefs=true noBle=true\n" +
+                    "ADVANCED_BUSINESS_UI_PATHS ${result.paths.joinToString(",")}\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (advancedPageProfile != null) {
+                val profile = requireNotNull(advancedPageProfile)
+                val result = AdvancedPageChecks(this).run(profile)
+                report.putString("stream", "ADVANCED_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=15 fixtures=${result.fixtures} preservedState=true noBle=true\n" +
+                    "ADVANCED_PAGE_SCREENSHOTS profile=$profile count=${result.screenshots} directory=${result.directory.absolutePath}\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (pageProfile != null) {
                 val profile = requireNotNull(pageProfile)
                 LanguagePageChecks(this).run(profile)
-                report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true\n" +
+                report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true\n" +
                     "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true\n" +
-                    "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true\n")
+                    "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true\n" +
+                    "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
@@ -105,6 +220,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                     "SERVICE_ORDINARY_OWNER_CHECKS_PASSED fixtures=12 fakeWrites=9 fakeBarriers=12 retainedReloads=12 phases=queued,failed,readback sameAddressRearm=true lateSuccessIgnored=true noBle=true detached=true\n" +
                     "SERVICE_SHOT_COMPLETION_OWNER_CHECKS_PASSED fixtures=21 fakeWrites=35 fakeBarriers=21 clearedShots=9 retainedShots=12 clearedPreheat=3 retainedPreheat=3 reloadedRecords=21 actualTicker=true syntheticCompletion=true noBle=true detached=true\n" +
                     "SERVICE_SHOT_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=21 fakeBarriers=39 blocked=33 reloadedRecords=39 exactWire=true durableBeforeWrite=true lateSuccessIgnored=true syntheticReady=true noBle=true detached=true\n" +
+                    "SERVICE_SCALE_TREND_RECEIPT_CHECKS_PASSED fakeGatt=true decodedTime=true weight=true evidence=true noDuplicate=true noBle=true\n" +
                     "SERVICE_ORDINARY_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=12 fakeBarriers=39 firstFrameBlocks=28 partialUnknown=7 clearedReloads=28 retainedReloads=11 durableBeforeWrite=true lateSuccessIgnored=true noBle=true detached=true\n" +
                     "SERVICE_QUEUED_CANCEL_MANUAL_CHECKS_PASSED phases=2 fakePreheatWrites=2 fakeBarriers=2 noCancelDispatch=true unknownRetained=true blockedEntries=24 reloadedRecords=2 lateSuccessIgnored=true noBle=true detached=true\n" +
                     "SERVICE_PREHEAT_CANCEL_BLOCKS_CHECKS_PASSED phases=2 blocks=20 fakePreheatWrites=2 noCancelDispatch=true exactResources=true preservedToken=true preservedBaseline=true retainedPending=true noBle=true detached=true\n" +
@@ -125,10 +241,11 @@ class BrewAudioInstrumentation : Instrumentation() {
                     "LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true\n" +
                     "LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true\n" +
                     "LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true\n" +
+                    "SCALE_TREND_CHART_CHECKS_PASSED languages=8 themes=2 nativeSegments=true gaps=true empty=true\n" +
                     "CHART_LEGEND_CHECKS_PASSED languages=8 themes=2 widths=4 fixtures=64 fullLabels=true withinBounds=true noOverlap=true plotPreserved=true nativeCanvas=true noBle=true\n" +
                     "LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true\n" +
-                    "LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 selections=5 fixedStop=true\n" +
-                    "LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 selections=5\n" +
+                    "LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 destinations=4 tools=2 fixedStop=true\n" +
+                    "LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 destinations=4 tools=2 actualHomeSelected=true\n" +
                     "LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true retryPublished=true partialRepairSynthetic=true\n" +
                     "LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=8 stableKeys=true translatedUpdates=true removed=true\n")
                 finish(Activity.RESULT_OK, report)
@@ -186,7 +303,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (curveLibraryChecks) "CURVE_LIBRARY_VIEWPORT_CHECKS_FAILED" else if (twoCupChartChecks) "TWO_CUP_CHART_CHECKS_FAILED" else if (homeWorkbenchChecks) "HOME_WORKBENCH_CHECKS_FAILED" else if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }
@@ -289,8 +406,8 @@ class BrewAudioInstrumentation : Instrumentation() {
         }
         try {
             runOnMainSync { check(feedbackPrefs.setEnabled(false)) }
-            val settings = startActivitySync(Intent(targetContext, MachineSettingsActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as MachineSettingsActivity
+            val settings = startActivitySync(Intent(targetContext, AppSettingsActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as AppSettingsActivity
             waitForIdleSync()
             runOnMainSync {
                 check(!settings.feedbackCard.enabledSwitch.isChecked)
@@ -321,7 +438,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             removeMonitor(temporaryMonitor)
             waitForIdleSync()
             runOnMainSync {
-                check(playback(settings.feedbackCard)?.playing == false) { "Settings exit left preview active" }
+                check(playback(settings.feedbackCard)?.playing == false) { "App settings exit left preview active" }
                 temporaryExtraction.finish()
             }
             waitForIdleSync()

@@ -30,7 +30,73 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
         val series = MobileService::class.java.getDeclaredField("series").apply { isAccessible = true }.get(owner)
         return ShotSeries::class.java.getDeclaredField("id").apply { isAccessible = true }.get(series) as? String
     }
-    fun run() {
+    private fun captureRunning(screen: ExtractionActivity, owner: MobileService, connected: Boolean) {
+        awaitMain { (owner.snapshot.coffee as? ExtractionTelemetry)?.elapsedSeconds?.let { it >= 5 } == true &&
+            owner.chartPoints.size >= 2 && screen.hasWindowFocus() }
+        test.waitForIdleSync()
+        Thread.sleep(300)
+        val directory = java.io.File(requireNotNull(test.targetContext.getExternalFilesDir(null)),
+            "active-cup-visual/${if (connected) "with-scale" else "no-scale"}").apply { check(mkdirs() || isDirectory) }
+        test.runOnMainSync {
+            check(owner.shotState == ExtractionState.RUNNING)
+            val points = owner.chartPoints
+            check(points.size >= 2 && points.last().waterTenthsMl > 0 && points.last().pressureTenthsBar > 0 &&
+                points.last().temperatureHundredthsC > 0)
+            if (connected) check(points.any { it.weightHundredthsGram != null })
+            else check(points.all { it.weightHundredthsGram == null } && owner.snapshot.weight == null && owner.snapshot.weightAt == null)
+            val label = ExtractionActivity::class.java.getDeclaredField("quantityLabel").apply { isAccessible = true }
+                .get(screen) as android.widget.TextView
+            check(label.isShown && label.text.toString() == screen.getString(
+                if (connected) R.string.task_extraction_scale else R.string.task_extraction_water))
+            check(stop(screen).isShown && stop(screen).isEnabled)
+            TaskTypographyEvidence.capture(screen, directory)
+            fun bounds(view: android.view.View): org.json.JSONObject {
+                val location = IntArray(2)
+                view.getLocationOnScreen(location)
+                return org.json.JSONObject().put("x", location[0]).put("y", location[1])
+                    .put("width", view.width).put("height", view.height).put("visible", view.isShown)
+            }
+            val overlay = ExtractionActivity::class.java.getDeclaredField("chart").apply { isAccessible = true }
+                .get(screen) as ExtractionOverlayView
+            fun chartChild(name: String) = ExtractionOverlayView::class.java.getDeclaredField(name)
+                .apply { isAccessible = true }.get(overlay) as android.view.View
+            val stopBounds = android.graphics.Rect()
+            check(stop(screen).getGlobalVisibleRect(stopBounds) && stopBounds.width() == stop(screen).width &&
+                stopBounds.height() == stop(screen).height) { "Running fixed stop is clipped" }
+            if (screen.resources.configuration.screenWidthDp >= 1000) {
+                val chartLocation = IntArray(2)
+                overlay.getLocationOnScreen(chartLocation)
+                check(chartLocation[1] + overlay.height > stopBounds.top) {
+                    "Full-width action row still steals the chart's bottom area"
+                }
+            }
+            val plot = chartChild("plot")
+            val axes = plot.javaClass.getDeclaredField("plotBounds").apply { isAccessible = true }
+                .get(plot) as android.graphics.RectF
+            check(plot.isShown && !axes.isEmpty) { "Running chart has no measurable data plot" }
+            val plotLocation = IntArray(2)
+            plot.getLocationOnScreen(plotLocation)
+            val dataBounds = org.json.JSONObject().put("x", plotLocation[0] + axes.left)
+                .put("y", plotLocation[1] + axes.top).put("width", axes.width()).put("height", axes.height())
+            val geometry = org.json.JSONObject().put("density", screen.resources.displayMetrics.density)
+                .put("fontScale", screen.resources.configuration.fontScale)
+                .put("content", bounds(screen.findViewById(android.R.id.content)))
+                .put("chart", bounds(overlay)).put("legend", bounds(chartChild("legend")))
+                .put("explanation", bounds(chartChild("explanation"))).put("plotView", bounds(plot))
+                .put("dataPlot", dataBounds).put("stop", bounds(stop(screen)))
+                .put("dataPlotFractionOfChart", axes.height() / overlay.height)
+            java.io.File(directory, "geometry.json").writeText(geometry.toString(2))
+            java.io.File(directory, "source.txt").writeText(
+                "mock=true scaleConnected=$connected samples=${points.size} weightedSamples=${points.count { it.weightHundredthsGram != null }} state=${owner.shotState}\n")
+        }
+        val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+        try {
+            java.io.File(directory, "window.png").outputStream().use {
+                check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+            }
+        } finally { bitmap.recycle() }
+    }
+    fun run(visualEvidence: Boolean = false) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
@@ -46,19 +112,31 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
         var owner: MobileService? = null
         test.runOnMainSync { owner = service(screen) }
         val original = requireNotNull(owner)
+        val runtime = MobileService::class.java.getDeclaredField("mock").apply { isAccessible = true }
+            .get(original) as MockDeviceRuntime
+        val originalScaleConnected = runtime.scaleConnected
         val safety = listOf("devices", "presets", "shot_safety", "machine_write_safety")
             .associateWith { context.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         try {
             test.runOnMainSync { check(curves.edit().putString("selected", "capture-2").commit()) }
-            for (language in AppLanguage.entries) {
+            val cases = if (visualEvidence) listOf(AppLanguage.CHINESE to true, AppLanguage.CHINESE to false)
+                else AppLanguage.entries.map { it to originalScaleConnected }
+            for ((language, connected) in cases) {
+                if (visualEvidence) {
+                    test.runOnMainSync { runtime.scaleConnected = connected }
+                    awaitMain { (original.snapshot.scaleState == io.openhoyi.session.DeviceState.READY) == connected }
+                }
                 test.runOnMainSync { check(original.startShot("capture-2", null, 7) == null) }
                 awaitMain { original.snapshot.coffee is ExtractionTelemetry && original.chartPoints.isNotEmpty() &&
                     observedState(original) == ExtractionState.RUNNING }
+                var recipe: ShotRecipeSnapshot? = null
                 var id: String? = null
                 var first: ShotPoint? = null
                 var message: SnapshotMessage? = null
                 test.runOnMainSync {
                     id = requireNotNull(cupId(original)); first = original.chartPoints.first()
+                    recipe = requireNotNull(original.activeShotRecipe?.forTrace(original.chartTraceIdentity))
+                    check(recipe!!.traceId == id) { "Recipe snapshot belongs to a different cup" }
                     message = original.snapshot.message
                     check(app.languagePreferences.select(language) != AppLanguagePreference.Selection.SAVE_FAILED)
                 }
@@ -74,6 +152,12 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     check(screen.resources.configuration.locales[0] == language.locale)
                     check(original.shotState == ExtractionState.RUNNING && cupId(original) == id)
                     check(original.chartPoints.first() == first && original.snapshot.message === message)
+                    check(original.activeShotRecipe === recipe && recipe?.forTrace(original.chartTraceIdentity) != null)
+                    val summary = screen.window.decorView.findViewWithTag<android.widget.TextView>(
+                        "recipe-value-${R.string.task_recipe_temperature}")
+                    check(summary.isShown && summary.text.contains("${recipe!!.temperatureC} °C")) {
+                        "${language.tag} active recipe temperature missing after recreation"
+                    }
                     val action = stop(screen)
                     check(action.text.toString() == screen.getString(R.string.home_stop))
                     check(action.getGlobalVisibleRect(android.graphics.Rect()))
@@ -81,7 +165,10 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     safety.forEach { (name, values) ->
                         check(context.getSharedPreferences(name, Context.MODE_PRIVATE).all == values)
                     }
-                    check(action.performClick())
+                }
+                if (visualEvidence) captureRunning(screen, original, connected)
+                test.runOnMainSync {
+                    check(stop(screen).performClick())
                     // Mock stop is synchronous. Do not let a later natural ending satisfy the button check.
                     check(original.shotState == ExtractionState.ENDED_OBSERVED)
                 }
@@ -91,6 +178,7 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
         } finally {
             test.runOnMainSync {
                 original.stopShot()
+                runtime.scaleConnected = originalScaleConnected
                 check(app.languagePreferences.select(oldLanguage) != AppLanguagePreference.Selection.SAVE_FAILED)
                 restoreMockPreferences(languagePrefs, oldLanguageStorage)
                 restoreMockPreferences(curves, oldCurves)

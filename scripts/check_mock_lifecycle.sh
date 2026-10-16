@@ -26,13 +26,15 @@ run_instrumentation() {
 from pathlib import Path
 import subprocess,sys
 output,mode=sys.argv[1:]
-if mode not in ("audio", "language", "pagesCompact", "pagesWideFont"):
+if mode not in ("audio", "language", "pagesLandscape", "pagesWideFont", "idle"):
     raise SystemExit("Unsupported Mock instrumentation mode")
 command=["adb", "shell", "am", "instrument", "-w"]
+if mode == "idle":
+    command += ["-e", "idleEvents", "true"]
 if mode == "language":
     command += ["-e", "languageChecks", "true"]
-if mode in ("pagesCompact", "pagesWideFont"):
-    command += ["-e", "pageChecks", "compact" if mode == "pagesCompact" else "wideFont"]
+if mode in ("pagesLandscape", "pagesWideFont"):
+    command += ["-e", "pageChecks", "landscape" if mode == "pagesLandscape" else "wideFont"]
 command += ["io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation"]
 with Path(output).open("w") as capture:
     try:
@@ -71,6 +73,12 @@ adb shell wm density 200
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb install -r "$apk"
+test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+test -s "$test_apk"
+adb install -r "$test_apk"
+run_instrumentation "$output_dir/idle-accessibility.txt" idle
+grep -F 'IDLE_ACCESSIBILITY_DIAGNOSTIC_DONE' "$output_dir/idle-accessibility.txt" >/dev/null
+# The diagnostic experiment restores refresh. Formal navigation uses a fresh process.
 adb shell am force-stop "$package"
 adb shell run-as "$package" rm -f shared_prefs/appearance.xml
 adb logcat -c
@@ -80,19 +88,39 @@ sleep 3
 assert_edges 1 1
 
 # Framework navigation order must not hide the app on readers that have no service binding.
-for item in '1 CurveActivity' '2 ExtractionActivity' '3 HistoryActivity' '4 MachineSettingsActivity' '0 HomeActivity'; do
-  read -r index page <<< "$item"
-  adb shell input tap "$((160 * (2 * index + 1)))" 888
+tap_control() { python3 scripts/mock_ui_tap.py "$1" --scroll; sleep 2; }
+for item in '曲线 CurveActivity' '历史 HistoryActivity' '豆子 BeanInventoryActivity' '冲煮 HomeActivity'; do
+  read -r label page <<< "$item"
+  tap_control "$label"
   assert_activity "$page"
-  sleep 2
   assert_edges 1 1
 done
-
-# The existing theme Switch calls Activity.recreate(). Require a NEW config-stop callback.
-cp "$output_dir/lifecycle.txt" "$output_dir/before-theme-switch.txt"
-adb shell input tap 1530 103
-sleep 3
+tap_control '设备连接'
+tap_control '实时萃取'
+assert_activity ExtractionActivity
+assert_edges 1 1
+# Brew is already selected in Extraction: selecting it must not leave an active cup.
+# Return through the original Activity back stack, retaining the lifecycle assertions.
+adb shell input keyevent KEYCODE_BACK
 assert_activity HomeActivity
+tap_control '设备连接'
+tap_control '应用设置'
+assert_activity AppSettingsActivity
+assert_edges 1 1
+tap_control '机器设置'
+assert_activity MachineSettingsActivity
+assert_edges 1 1
+tap_control '冲煮'
+tap_control '设备连接'
+tap_control '应用设置'
+assert_activity AppSettingsActivity
+assert_edges 1 1
+
+# The application theme checkbox calls Activity.recreate(). Require a NEW config-stop callback.
+cp "$output_dir/lifecycle.txt" "$output_dir/before-theme-switch.txt"
+tap_control '深色主题'
+sleep 3
+assert_activity AppSettingsActivity
 adb shell run-as "$package" cat shared_prefs/appearance.xml > "$output_dir/appearance.xml"
 grep 'name="dark" value="true"' "$output_dir/appearance.xml" >/dev/null
 assert_edges 1 1
@@ -100,12 +128,12 @@ python3 - "$output_dir" <<'PYCODE'
 from pathlib import Path
 import json,sys
 root=Path(sys.argv[1])
-marker="recreating:HomeActivity"
+marker="recreating:AppSettingsActivity"
 before=(root/"before-theme-switch.txt").read_text().splitlines().count(marker)
 after=(root/"lifecycle.txt").read_text().splitlines().count(marker)
 if after<=before:
-    raise SystemExit("Theme Switch did not produce a new Home configuration-stop callback")
-(root/"theme-recreation.json").write_text(json.dumps({"homeConfigurationStopsBefore":before,"homeConfigurationStopsAfter":after})+"\n")
+    raise SystemExit("Theme Switch did not produce a new AppSettings configuration-stop callback")
+(root/"theme-recreation.json").write_text(json.dumps({"settingsConfigurationStopsBefore":before,"settingsConfigurationStopsAfter":after})+"\n")
 PYCODE
 
 # True background closes visibility once. Rebuilding a stopped page must not reopen it.
@@ -113,7 +141,7 @@ adb shell input keyevent KEYCODE_HOME
 sleep 3
 assert_edges 1 2
 cp "$output_dir/lifecycle.txt" "$output_dir/before-background-resize.txt"
-adb shell wm size 1000x1600
+adb shell wm size 1200x800
 sleep 3
 assert_edges 1 2
 adb shell wm size 1600x1000
@@ -124,15 +152,20 @@ python3 - "$output_dir" <<'PYCODE'
 from pathlib import Path
 import json,sys
 root=Path(sys.argv[1])
-marker="destroyed:HomeActivity:configuration"
+marker="destroyed:AppSettingsActivity:configuration"
 before=(root/"before-background-resize.txt").read_text().splitlines().count(marker)
 after=(root/"after-background-resize.txt").read_text().splitlines().count(marker)
 # Android may defer stopped-activity relaunch. Record this limit instead of claiming that path ran.
-(root/"background-resize.json").write_text(json.dumps({"homeConfigurationDestroyObservedWhileBackground":after>before})+"\n")
+(root/"background-resize.json").write_text(json.dumps({"settingsConfigurationDestroyObservedWhileBackground":after>before})+"\n")
 PYCODE
 adb shell am start -W -n "$package/io.openhoyi.mobile.HomeActivity"
-assert_activity HomeActivity
+# Bringing an existing launcher task forward resumes its top page, not its root.
+# Require that page to be retained, then explicitly navigate back to brewing.
+assert_activity AppSettingsActivity
 sleep 3
+assert_edges 2 2
+tap_control '冲煮'
+assert_activity HomeActivity
 assert_edges 2 2
 adb shell input keyevent KEYCODE_HOME
 sleep 3
@@ -140,9 +173,6 @@ assert_edges 2 3
 printf 'Mock lifecycle checks passed\n' > "$output_dir/result.txt"
 
 # Actual decoder and cancellation checks use only the isolated Mock target.
-test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
-test -s "$test_apk"
-adb install -r "$test_apk"
 run_instrumentation "$output_dir/audio-instrumentation.txt" audio
 grep -F 'LOCAL_AUDIO_CHECKS_PASSED clips=14 cancelledPrepare=true sequence=true' "$output_dir/audio-instrumentation.txt" >/dev/null
 
@@ -168,6 +198,7 @@ grep -F 'SERVICE_QUEUED_PREHEAT_OWNER_CHECKS_PASSED fixtures=2 fakeWrites=0 fake
 grep -F 'SERVICE_QUEUED_CANCEL_OWNER_CHECKS_PASSED phases=2 fakePreheatWrites=2 fakeBarriers=2 sameAddressRearm=true noCancelDispatch=true unknownRetained=true blockedEntries=24 reloadedRecords=2 lateSuccessIgnored=true noBle=true detached=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'SERVICE_ORDINARY_OWNER_CHECKS_PASSED fixtures=12 fakeWrites=9 fakeBarriers=12 retainedReloads=12 phases=queued,failed,readback sameAddressRearm=true lateSuccessIgnored=true noBle=true detached=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'SERVICE_SHOT_COMPLETION_OWNER_CHECKS_PASSED fixtures=21 fakeWrites=35 fakeBarriers=21 clearedShots=9 retainedShots=12 clearedPreheat=3 retainedPreheat=3 reloadedRecords=21 actualTicker=true syntheticCompletion=true noBle=true detached=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'SERVICE_SCALE_TREND_RECEIPT_CHECKS_PASSED fakeGatt=true decodedTime=true weight=true evidence=true noDuplicate=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'SERVICE_SHOT_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=21 fakeBarriers=39 blocked=33 reloadedRecords=39 exactWire=true durableBeforeWrite=true lateSuccessIgnored=true syntheticReady=true noBle=true detached=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'SERVICE_ORDINARY_DISPATCH_CHECKS_PASSED fixtures=39 fakeWrites=12 fakeBarriers=39 firstFrameBlocks=28 partialUnknown=7 clearedReloads=28 retainedReloads=11 durableBeforeWrite=true lateSuccessIgnored=true noBle=true detached=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'SERVICE_WRITE_WATCHDOG_CHECKS_PASSED fixtures=4 fakeDispatches=5 blockedEntries=48 reloadedRecords=4 exactScheduledDelay=true liveBaselines=true repeatedExpiryIgnored=true retainedPending=true noBle=true detached=true' "$output_dir/language-instrumentation.txt" > /dev/null
@@ -188,22 +219,23 @@ grep -F 'NOTIFICATION_FAILURE_CHECKS_PASSED lookup=true detachedCleanup=true pre
 grep -F 'LANGUAGE_CONTEXT_CHECKS_PASSED languages=8 themes=2 sameService=true preservedState=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_ACTIVE_CUP_CHECKS_PASSED languages=8 sameCup=true retainedSamples=true translatedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_CHART_CHECKS_PASSED languages=8 themes=2 charts=3 scientificOrdering=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'SCALE_TREND_CHART_CHECKS_PASSED languages=8 themes=2 nativeSegments=true gaps=true empty=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'CHART_LEGEND_CHECKS_PASSED languages=8 themes=2 widths=4 fixtures=64 fullLabels=true withinBounds=true noOverlap=true plotPreserved=true nativeCanvas=true noBle=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_NOTIFICATION_FACTORY_CHECKS_PASSED languages=8 stableChannels=true translatedActions=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_NOTIFICATION_POSTING_CHECKS_PASSED languages=8 stableKeys=true translatedUpdates=true removed=true' "$output_dir/language-instrumentation.txt" > /dev/null
-grep -F 'LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 selections=5 fixedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_UI_COMPONENT_LAYOUT_CHECKS_PASSED languages=8 themes=2 compactWidths=320,360,600 destinations=4 tools=2 fixedStop=true' "$output_dir/language-instrumentation.txt" > /dev/null
 grep -F 'LANGUAGE_SERVICE_NOTIFICATION_CHECKS_PASSED languages=8 detached=true eligibility=true dedup=true forcedRefresh=true contextFailure=true retryPublished=true partialRepairSynthetic=true' "$output_dir/language-instrumentation.txt" > /dev/null
 
-grep -F 'LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 selections=5' "$output_dir/language-instrumentation.txt" > /dev/null
+grep -F 'LANGUAGE_UI_WIDE_FONT_LAYOUT_CHECKS_PASSED languages=8 themes=2 widths=320,360,600,700,1000 fontScales=1.0,1.3 destinations=4 tools=2 actualHomeSelected=true' "$output_dir/language-instrumentation.txt" > /dev/null
 
 # Real window layout matrices, still solely the disposable cloud Mock emulator.
 # A fresh Mock process prevents startActivitySync waiting on an existing NEW_TASK root.
-for profile in compact wideFont; do
+for profile in landscape wideFont; do
   adb shell am force-stop "$package"
-  if [ "$profile" = compact ]; then
-    adb shell wm size 450x1000
+  if [ "$profile" = landscape ]; then
+    adb shell wm size 1600x1000
     adb shell settings put system font_scale 1.0
-    mode=pagesCompact
+    mode=pagesLandscape
   else
     adb shell wm size 1600x1000
     adb shell settings put system font_scale 1.3
@@ -211,7 +243,8 @@ for profile in compact wideFont; do
   fi
   sleep 2
   run_instrumentation "$output_dir/language-pages-$profile.txt" "$mode"
-  grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=5 fixtures=80 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  grep -F "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true" "$output_dir/language-pages-$profile.txt" >/dev/null
 done

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_detail_samples_heading">Исторические отсчёты</string>
+    <string name="legacy_detail_source_heading">Источник и ограничения данных</string>
+</resources>

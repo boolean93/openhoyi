@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_form_jump">Перейти к разделу</string>
+    <string name="task_form_optional_iso_dates">Даты необязательны; формат YYYY-MM-DD</string>
+    <string name="task_form_stage_caption">Схема целей этапов, не прогноз времени</string>
+    <string name="task_form_basic">Основная информация</string>
+    <string name="task_form_targets">Цели экстракции</string>
+    <string name="task_form_bean_identity">Информация о кофе</string>
+    <string name="task_form_stock">Поступление</string>
+    <string name="task_form_dates">Даты (необязательно)</string>
+</resources>

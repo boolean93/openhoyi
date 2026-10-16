@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_chart_pressure">Pressure</string>
+    <string name="task_chart_water">Total water</string>
+    <string name="task_chart_weight">Scale reading</string>
+    <string name="task_chart_temperature">Temperature</string>
+    <string name="task_chart_hint">Select a metric to inspect its scale</string>
+    <string name="task_chart_independent">Independent ranges; scale focus: %1$s · %2$s</string>
+    <string name="task_chart_observed">This cup sampled through %1$s s</string>
+    <string name="task_chart_waiting">Waiting for cup samples</string>
+    <string name="task_chart_reference">Thin gray line: historical reference for %1$s, not a prediction</string>
+    <string name="task_chart_water_reset">Water counter reset; shown as separate segments</string>
+    <string name="task_chart_gap">Sampling gaps; shown as separate segments</string>
+    <string name="task_chart_latest">%1$s, latest sampled value %2$s %3$s</string>
+    <string name="task_chart_compact_notice">Chart space is too small. Enlarge the window.</string>
+    <string name="task_chart_summary_observed">Independent ranges · Cup samples through %1$s s</string>
+    <string name="task_chart_summary_waiting">Independent ranges · Waiting for cup samples</string>
+</resources>

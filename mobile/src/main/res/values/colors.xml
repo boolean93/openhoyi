@@ -4,9 +4,9 @@
     <color name="mobile_text">#1C2631</color>
     <color name="mobile_muted">#647183</color>
     <color name="mobile_border">#E0E5EA</color>
-    <color name="mobile_accent">#2865DE</color>
-    <color name="mobile_primary_button">#2865DE</color>
-    <color name="mobile_accent_soft">#E9F0FF</color>
+    <color name="mobile_accent">#006B64</color>
+    <color name="mobile_primary_button">#006B64</color>
+    <color name="mobile_accent_soft">#E6F2EF</color>
     <color name="mobile_success">#0B9D70</color>
     <color name="mobile_danger">#C73D38</color>
     <color name="mobile_stop_button">#D9413C</color>
@@ -18,4 +18,8 @@
     <color name="chart_coffee">#874FB1</color>
     <color name="chart_weight">#CC7027</color>
     <color name="chart_temperature">#B4414C</color>
+    <color name="stage_one">#006B64</color>
+    <color name="stage_two">#3066D1</color>
+    <color name="stage_three">#A34B00</color>
+    <color name="stage_four">#7941A5</color>
 </resources>

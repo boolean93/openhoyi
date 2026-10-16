@@ -1,0 +1,24 @@
+<resources>
+    <string name="task_brew_title">准备冲煮</string>
+    <string name="task_brew_machine_readings">机器读数</string>
+    <string name="task_brew_preview_note">阶段目标示意，不是时间预测</string>
+    <string name="task_brew_cup_summary">本杯摘要</string>
+    <string name="task_brew_no_pressure_preview">没有可验证的压力目标。点配方名称查看详情。</string>
+    <string name="task_brew_live_state">查看实时状态</string>
+    <string name="task_brew_temperature">已修正温度 %1$s °C · 目标 %2$s °C</string>
+    <string name="task_brew_dose_unavailable">用豆记录暂不可用</string>
+    <string name="task_brew_dose_missing">未选择本杯用豆</string>
+    <string name="task_brew_dose_association">上杯记录待关联，前往处理</string>
+    <string name="task_brew_dose_previous">上次用豆</string>
+    <string name="task_brew_dose_pending">扣减结果待核对</string>
+    <string name="task_brew_dose_conflict">库存记录待核对</string>
+    <string name="task_brew_dose_confirmed">已确认用豆</string>
+    <string name="task_brew_dose_selected">待确认用豆</string>
+    <string name="task_brew_dose_entry">查看或修改用豆</string>
+    <string name="task_brew_usage_unavailable">使用记录暂不可用</string>
+    <string name="task_brew_usage_empty">尚无使用记录</string>
+    <string name="task_brew_usage">已使用 %1$s 次 · 上次 %2$s</string>
+    <string name="task_brew_history_entry">查看完整记录</string>
+    <string name="task_brew_curve_unknown">本杯配方暂不可用</string>
+    <string name="task_brew_compact_preview">空间不足，显示完整阶段目标文字</string>
+</resources>

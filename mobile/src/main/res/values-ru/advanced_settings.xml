@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_settings_title">Настройки приложения</string>
+    <string name="app_settings_subtitle">Тема, язык и обратная связь при экстракции сохраняются только на этом устройстве</string>
+    <string name="app_settings_appearance">Оформление</string>
+    <string name="app_settings_dark">Тёмная тема</string>
+    <string name="app_settings_theme_failed">Не удалось сохранить тему. Восстановлен предыдущий выбор.</string>
+    <string name="app_settings_export">Экспортировать диагностические журналы</string>
+    <string name="app_settings_export_hint">Экспорт выполняется только после выбора места сохранения файла; журналы не отправляются автоматически</string>
+    <string name="app_settings_machine">Настройки машины</string>
+</resources>

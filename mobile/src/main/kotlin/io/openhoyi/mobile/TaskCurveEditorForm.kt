@@ -1,0 +1,126 @@
+package io.openhoyi.mobile
+
+import android.os.Bundle
+import android.view.View
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
+
+/** Recipe metadata stays above the stage table; only task regions scroll when height is tight. */
+internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: LinearLayout) {
+    private fun dp(value: Int) = HoyiUi.dp(activity, value)
+    val metadata = List(3) { cell() }
+    val stageRows = List(4) { cell() }
+    val stageHeader = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL }
+    val supportingBody = cell()
+    private val stageContent = cell()
+    private val stages = ScrollView(activity).apply { addView(stageContent) }
+    private val metadataContent = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+    private val metadataScroll = ScrollView(activity).apply { addView(metadataContent) }
+    private val previewScroll = object : ScrollView(activity) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            supportingBody.findViewWithTag<View>("task-form-stage-preview")?.let { chart ->
+                val width = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight -
+                    supportingBody.paddingLeft - supportingBody.paddingRight).coerceAtLeast(0)
+                val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+                val freeHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                var fixedHeight = paddingTop + paddingBottom + supportingBody.paddingTop + supportingBody.paddingBottom
+                for (index in 0 until supportingBody.childCount) {
+                    val child = supportingBody.getChildAt(index)
+                    if (child !== chart && child.visibility != View.GONE) {
+                        child.measure(exactWidth, freeHeight)
+                        val params = child.layoutParams as LinearLayout.LayoutParams
+                        fixedHeight += child.measuredHeight + params.topMargin + params.bottomMargin
+                    }
+                }
+                // Use the real wrapped text/action budget. Short/IME windows retain local scrolling.
+                chart.layoutParams.height = (View.MeasureSpec.getSize(heightMeasureSpec) - fixedHeight)
+                    .coerceIn(dp(160), dp(280))
+            }
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        }
+    }.apply { isFillViewport = true; addView(supportingBody) }
+    private val lower = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+    private val stagePane = cell()
+    private val host = object : LinearLayout(activity) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val height = MeasureSpec.getSize(heightMeasureSpec)
+            metadataContent.measure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            (metadataScroll.layoutParams as LayoutParams).height = minOf(metadataContent.measuredHeight, height / 3)
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        }
+    }.apply { orientation = LinearLayout.VERTICAL; tag = "task-inline-form" }
+
+    init {
+        (metadata + listOf(stagePane, supportingBody)).forEach { panel ->
+            panel.background = HoyiUi.shape(activity, R.color.mobile_surface, 12, R.color.mobile_border)
+            panel.setPadding(dp(16), dp(16), dp(16), dp(16))
+        }
+        body.addView(host, LinearLayout.LayoutParams(-1, 0, 1f))
+        host.addView(metadataScroll, LinearLayout.LayoutParams(-1, -2))
+        metadata.forEachIndexed { index, cell ->
+            metadataContent.addView(cell, LinearLayout.LayoutParams(0, -2, if (index == 0) 1.3f else 1f).apply {
+                if (index > 0) marginStart = dp(16)
+            })
+        }
+        host.addView(lower, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
+        lower.addView(stagePane, LinearLayout.LayoutParams(0, -1, 1.1f))
+        lower.addView(previewScroll, LinearLayout.LayoutParams(0, -1, 1f).apply { marginStart = dp(24) })
+        stageContent.addView(stageHeader, LinearLayout.LayoutParams(-1, -2))
+        val columns = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+        stageContent.addView(columns, LinearLayout.LayoutParams(-1, -2))
+        listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).forEachIndexed { index, label ->
+            HoyiUi.label(activity, columns, activity.getString(label), 14, muted = true).apply {
+                layoutParams = if (index == 0) LinearLayout.LayoutParams(dp(64), -2)
+                    else LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) }
+                setPadding(0, 0, 0, dp(8))
+            }
+        }
+        stagePane.addView(stages, LinearLayout.LayoutParams(-1, 0, 1f))
+        stageRows.forEachIndexed { index, row ->
+            row.tag = "curve-editor-stage-$index"
+            row.orientation = LinearLayout.HORIZONTAL
+            row.isBaselineAligned = false
+            row.gravity = android.view.Gravity.CENTER_VERTICAL
+            stageContent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+            HoyiUi.label(activity, row, activity.getString(R.string.profiles_stage, index + 1), 16, true).apply {
+                setTextColor(CurveStagePalette.color(activity, index))
+                layoutParams = LinearLayout.LayoutParams(dp(64), -2)
+                minimumHeight = dp(48)
+                gravity = android.view.Gravity.CENTER_VERTICAL
+            }
+        }
+    }
+
+    private fun cell() = LinearLayout(activity).apply {
+        orientation = LinearLayout.VERTICAL
+        tag = "bean-full-field"
+    }
+
+    fun setStageCount(count: Int) {
+        stageRows.forEachIndexed { index, row -> row.visibility = if (index < count) View.VISIBLE else View.GONE }
+    }
+
+    fun save(state: Bundle, fields: Map<String, EditText>) {
+        state.putInt("form-scroll", stages.scrollY)
+        state.putInt("metadata-scroll", metadataScroll.scrollY)
+        fields.entries.firstOrNull { it.value.hasFocus() }?.let { (key, field) ->
+            state.putString("form-focus", key)
+            state.putInt("form-start", field.selectionStart)
+            state.putInt("form-end", field.selectionEnd)
+        }
+    }
+
+    fun restore(state: Bundle?, fields: Map<String, EditText>) {
+        if (state == null) return
+        host.post {
+            fields[state.getString("form-focus")]?.takeIf { it.isEnabled && it.isShown }?.let { field ->
+                field.requestFocus()
+                field.setSelection(state.getInt("form-start").coerceIn(0, field.length()),
+                    state.getInt("form-end").coerceIn(0, field.length()))
+            }
+            stages.scrollTo(0, state.getInt("form-scroll"))
+            metadataScroll.scrollTo(0, state.getInt("metadata-scroll"))
+        }
+    }
+}

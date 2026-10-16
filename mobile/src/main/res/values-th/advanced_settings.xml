@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_settings_title">การตั้งค่าแอป</string>
+    <string name="app_settings_subtitle">ธีม ภาษา และการตอบสนองระหว่างสกัดจะบันทึกเฉพาะในอุปกรณ์นี้</string>
+    <string name="app_settings_appearance">รูปลักษณ์</string>
+    <string name="app_settings_dark">ธีมมืด</string>
+    <string name="app_settings_theme_failed">บันทึกธีมไม่สำเร็จ คืนค่าตัวเลือกเดิมแล้ว</string>
+    <string name="app_settings_export">ส่งออกบันทึกการวินิจฉัย</string>
+    <string name="app_settings_export_hint">ส่งออกหลังเลือกตำแหน่งไฟล์เท่านั้น จะไม่ส่งบันทึกให้อัตโนมัติ</string>
+    <string name="app_settings_machine">การตั้งค่าเครื่อง</string>
+</resources>

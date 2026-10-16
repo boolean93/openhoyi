@@ -1,0 +1,24 @@
+<resources>
+    <string name="task_brew_title">Prepare brew</string>
+    <string name="task_brew_machine_readings">Machine readings</string>
+    <string name="task_brew_preview_note">Stage targets, not a time prediction</string>
+    <string name="task_brew_cup_summary">This cup</string>
+    <string name="task_brew_no_pressure_preview">No verified pressure targets. Tap the recipe name for details.</string>
+    <string name="task_brew_live_state">View live status</string>
+    <string name="task_brew_temperature">Corrected temperature %1$s °C · Target %2$s °C</string>
+    <string name="task_brew_dose_unavailable">Bean record unavailable</string>
+    <string name="task_brew_dose_missing">No beans selected for this cup</string>
+    <string name="task_brew_dose_association">Previous cup association pending; open to resolve</string>
+    <string name="task_brew_dose_previous">Previously used beans</string>
+    <string name="task_brew_dose_pending">Consumption outcome needs checking</string>
+    <string name="task_brew_dose_conflict">Inventory record needs checking</string>
+    <string name="task_brew_dose_confirmed">Beans confirmed</string>
+    <string name="task_brew_dose_selected">Beans awaiting confirmation</string>
+    <string name="task_brew_dose_entry">View or edit beans</string>
+    <string name="task_brew_usage_unavailable">Usage record unavailable</string>
+    <string name="task_brew_usage_empty">No recorded uses</string>
+    <string name="task_brew_usage">Used %1$s times · Last %2$s</string>
+    <string name="task_brew_history_entry">View full history</string>
+    <string name="task_brew_curve_unknown">Current recipe unavailable</string>
+    <string name="task_brew_compact_preview">Limited space: full stage targets shown as text</string>
+</resources>

@@ -23,13 +23,17 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
         failure?.let { throw it }
     }
-    private fun awaitMain(condition: () -> Boolean) {
+    private fun awaitMain(diagnostic: () -> String = { "unspecified condition" }, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 10000
         while (true) {
             var ready = false
             onMain { ready = condition() }
             if (ready) return
-            check(SystemClock.elapsedRealtime() < deadline) { "Page condition timed out" }
+            if (SystemClock.elapsedRealtime() >= deadline) {
+                var detail = ""
+                onMain { detail = diagnostic() }
+                error("Page condition timed out: $detail")
+            }
             Thread.sleep(25)
         }
     }
@@ -42,9 +46,9 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
 
     fun run(profile: String) {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
-        check(profile == "compact" || profile == "wideFont")
+        check(profile in listOf("compact", "landscape", "wideFont"))
         val expectedWidth = if (profile == "compact") 360 else 1280
-        val expectedScale = if (profile == "compact") 1f else 1.3f
+        val expectedScale = if (profile == "wideFont") 1.3f else 1f
         val app = context.applicationContext as MobileApplication
         val oldLanguage = app.languagePreferences.current
         val languagePrefs = context.getSharedPreferences("app_language", Context.MODE_PRIVATE)
@@ -89,7 +93,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                 rebuildHome()
                 onMain { check(owner(home) === service) }
                 val pages = listOf(HomeActivity::class.java, CurveActivity::class.java, ExtractionActivity::class.java,
-                    HistoryActivity::class.java, MachineSettingsActivity::class.java)
+                    HistoryActivity::class.java, AppSettingsActivity::class.java, MachineSettingsActivity::class.java)
                 for (page in pages) {
                     val fixture = "$profile ${language.tag} dark=$dark page=${page.simpleName}"
                     android.util.Log.i("OpenHoyiLanguage", "PAGE_START $fixture")
@@ -101,7 +105,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     test.waitForIdleSync()
                     awaitMain {
                         activity.window.decorView.isLaidOut && root(activity).height > 0 && !root(activity).isLayoutRequested &&
-                            (activity !is ExtractionActivity && activity !is MachineSettingsActivity || owner(activity) === service)
+                            (activity !is ExtractionActivity && activity !is MachineSettingsActivity && activity !is AppSettingsActivity || owner(activity) === service)
                     }
                     onMain {
                         val config = activity.resources.configuration
@@ -115,12 +119,18 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     when (activity) {
                         is HomeActivity -> detailChecks.warnings(activity, fixture) { checkPage(activity, it) }
                         is CurveActivity -> detailChecks.curves(activity, fixture) { checkPage(activity, it) }
-                        is ExtractionActivity -> detailChecks.cancelStart(activity, fixture)
+                        is ExtractionActivity -> {
+                            val extraction = activity
+                            onMain { TrendChartTextChecks.run(extraction, fixture) }
+                            detailChecks.cancelStart(activity, fixture)
+                        }
                     }
-                    if (activity is MachineSettingsActivity) {
+                    if (activity is AppSettingsActivity) {
                         activity = LanguageSelectorUiChecks(test).run(activity) { currentPage = it }
                         currentPage = activity
                         checkPage(activity, "$fixture selectorRestored")
+                    }
+                    if (activity is MachineSettingsActivity) {
                         val tabs = MachineSettingsActivity::class.java.getDeclaredField("settingTabs")
                             .apply { isAccessible = true }.get(activity) as List<*>
                         val labels = listOf(R.string.machine_settings_tab_temperature, R.string.machine_settings_tab_functions,
@@ -141,12 +151,17 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     completed++
                     if (currentPage != null) {
                         onMain { activity.finish() }
-                        awaitMain { activity.isDestroyed && home.hasWindowFocus() && owner(home) === service }
+                        awaitMain(diagnostic = {
+                            "return from ${activity.javaClass.simpleName}: childDestroyed=${activity.isDestroyed} " +
+                                "homeDestroyed=${home.isDestroyed} homeFinishing=${home.isFinishing} " +
+                                "homeFocus=${home.hasWindowFocus()} homeAttached=${home.window.decorView.isAttachedToWindow} " +
+                                "sameService=${owner(home) === service} serviceRunning=${service?.running} homeTask=${home.taskId}"
+                        }) { activity.isDestroyed && home.hasWindowFocus() && owner(home) === service }
                         currentPage = null
                     }
                 }
             }
-            check(completed == 80) { "Page matrix incomplete: $completed" }
+            check(completed == 96) { "Page matrix incomplete: $completed" }
         } catch (error: Throwable) { failure = error }
         finally {
             fun cleanup(action: () -> Unit) {
@@ -219,24 +234,43 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
 
     private fun checkGeometry(activity: Activity, fixture: String) {
         val root = root(activity)
-        val bar = root.getChildAt(root.childCount - 1) as LinearLayout
-        check(bar.childCount == 5)
-        fullyVisible(bar, fixture)
-        check(bar.bottom <= root.height - root.paddingBottom && bar.top >= root.paddingTop)
-        val labels = listOf(R.string.ui_home, R.string.ui_curves, R.string.ui_extraction, R.string.ui_history, R.string.ui_settings)
-        for (index in 0 until bar.childCount) {
-            val item = bar.getChildAt(index) as ViewGroup
+        val frame = descendants(root).filterIsInstance<TaskPageFrame>().single()
+        fullyVisible(frame, fixture)
+        fullyVisible(frame.pageContent, fixture)
+        val expectedMode = if (activity.resources.configuration.screenWidthDp >= 600)
+            TaskNavigationMode.RAIL else TaskNavigationMode.BOTTOM
+        check(frame.mode == expectedMode) { "$fixture wrong navigation mode" }
+        val targets = descendants(frame.navigation).filter { it.tag?.toString()?.startsWith("task-nav:") == true }
+        val labels = listOf(R.string.ui_brew, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)
+        check(targets.take(4).map { it.tag } == TaskNavigationModel.primary.map { "task-nav:${it.name}" })
+        targets.take(4).forEachIndexed { index, item ->
             check(item.isClickable && item.isFocusable && item.width >= HoyiUi.dp(activity, 48) && item.height >= HoyiUi.dp(activity, 48))
+            check(item.isSelected == (TaskNavigationModel.primary[index] == TaskNavigationModel.forPage(activity.javaClass.simpleName)))
             fullyVisible(item, fixture)
             val label = descendants(item).filterIsInstance<TextView>().single()
             check(label.text.toString() == activity.getString(labels[index]))
             LanguageUiLayoutChecks.textFits(label, fixture)
             fullyVisible(label, fixture)
         }
-        for (index in 0 until root.childCount - 1) {
-            val child = root.getChildAt(index)
+        if (frame.toolsInTopBar) {
+            val menu = descendants(frame.pageContent).single { it.tag == "task-tools-menu" && it.isShown }
+            fullyVisible(menu, fixture)
+            check(menu.width >= HoyiUi.dp(activity, 48) && menu.height >= HoyiUi.dp(activity, 48))
+        } else {
+            check(targets.drop(4).map { it.tag } == TaskNavigationModel.tools.map { "task-nav:${it.name}" })
+            targets.drop(4).forEach { fullyVisible(it, fixture) }
+        }
+        // Content and fixed actions now live inside the frame; neither may cross its navigation.
+        val content = frame.pageContent
+        val contentBounds = Rect().also { check(content.getGlobalVisibleRect(it)) }
+        val navigationBounds = Rect().also { check(frame.navigation.getGlobalVisibleRect(it)) }
+        check(!Rect.intersects(contentBounds, navigationBounds)) { "$fixture content overlaps navigation" }
+        for (index in 0 until content.childCount) {
+            val child = content.getChildAt(index)
             if (child.visibility != View.VISIBLE) continue
-            check(child.height > 0 && child.bottom <= bar.top) { "$fixture content/fixed action overlaps navigation or has no height" }
+            check(child.height > 0 && child.top >= 0 && child.bottom <= content.height) {
+                "$fixture content/fixed action overlaps navigation or has no height"
+            }
             if (child is Button) {
                 fullyVisible(child, fixture)
                 LanguageUiLayoutChecks.textFits(child, fixture)

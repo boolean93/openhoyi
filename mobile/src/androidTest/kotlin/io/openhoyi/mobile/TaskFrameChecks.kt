@@ -1,0 +1,222 @@
+package io.openhoyi.mobile
+
+import android.app.Activity
+import android.app.Instrumentation
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Rect
+import android.os.Bundle
+import android.os.SystemClock
+import android.view.View
+import android.view.ViewGroup
+import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.EditText
+import android.widget.LinearLayout
+import java.io.File
+
+/** Real windows, isolated Mock only. Checks the frame, not completion of the page redesign. */
+internal class TaskFrameChecks(private val test: Instrumentation) {
+    private fun descendants(view: View): List<View> = listOf(view) +
+        if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+
+    fun run() {
+        check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
+        val app = test.targetContext.applicationContext as MobileApplication
+        val oldLanguage = app.languagePreferences.current
+        val appearance = test.targetContext.getSharedPreferences("appearance", Activity.MODE_PRIVATE)
+        val oldAppearance = appearance.all.toMap()
+        val pages = listOf(
+            HomeActivity::class.java, ExtractionActivity::class.java,
+            CurveActivity::class.java, CurveEditorActivity::class.java, CurveShareActivity::class.java,
+            CurveImportActivity::class.java, CurveImportPreviewActivity::class.java, LegacyCurveActivity::class.java,
+            HistoryActivity::class.java, HistoryDetailActivity::class.java, BrewComparisonActivity::class.java,
+            BrewReviewActivity::class.java, LegacyHistoryActivity::class.java, LegacyHistoryDetailActivity::class.java,
+            BeanInventoryActivity::class.java, BeanEntryActivity::class.java, BeanBatchActivity::class.java,
+            BeanLedgerActivity::class.java, BeanPreparationActivity::class.java,
+            ScaleActivity::class.java, ScaleConnectionActivity::class.java, ScaleSettingsActivity::class.java,
+            MachineSettingsActivity::class.java, AppSettingsActivity::class.java
+        )
+        val directory = File(test.targetContext.getExternalFilesDir(null), "task-frame-checks").apply { mkdirs() }
+        try {
+            test.runOnMainSync {
+                check(app.languagePreferences.select(AppLanguage.CHINESE) != AppLanguagePreference.Selection.SAVE_FAILED)
+                check(appearance.edit().putBoolean("dark", false).commit())
+            }
+            for (page in pages) {
+                test.sendStatus(0, Bundle().apply { putString("stream", "TASK_FRAME_START ${page.simpleName}\n") })
+                val activity = test.startActivitySync(Intent(test.targetContext, page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                try {
+                    val deadline = SystemClock.elapsedRealtime() + 10000
+                    while (true) {
+                        var ready = false
+                        test.runOnMainSync {
+                            ready = activity.hasWindowFocus() && activity.window.decorView.height > 0 &&
+                                !activity.window.decorView.isLayoutRequested
+                        }
+                        if (ready) break
+                        check(SystemClock.elapsedRealtime() < deadline) { "${page.simpleName}: window layout timeout" }
+                        SystemClock.sleep(50)
+                    }
+                    test.runOnMainSync {
+                        val all = descendants(activity.window.decorView)
+                        val frame = all.filterIsInstance<TaskPageFrame>().single()
+                        val expected = if (activity.resources.configuration.screenWidthDp >= 600) TaskNavigationMode.RAIL else TaskNavigationMode.BOTTOM
+                        check(frame.mode == expected) { "${page.simpleName}: ${frame.mode} != $expected" }
+                        val targets = descendants(frame.navigation).filter { it.tag?.toString()?.startsWith("task-nav:") == true }
+                        val primary = targets.take(4)
+                        check(primary.map { it.tag } == TaskNavigationModel.primary.map { "task-nav:${it.name}" })
+                        val selected = TaskNavigationModel.forPage(page.simpleName)
+                        primary.forEachIndexed { index, view ->
+                            check(view.isSelected == (TaskNavigationModel.primary[index] == selected)) { "${page.simpleName}: selected ${view.tag}" }
+                            check(view.isClickable && !view.contentDescription.isNullOrBlank())
+                            val minimum = HoyiUi.dp(activity, 48)
+                            check(view.width >= minimum && view.height >= minimum) { "${page.simpleName}: small target ${view.tag} ${view.width}x${view.height}" }
+                            val bounds = Rect()
+                            check(view.getGlobalVisibleRect(bounds) && bounds.width() == view.width && bounds.height() == view.height) { "${page.simpleName}: clipped ${view.tag}" }
+                        }
+                        if (frame.toolsInTopBar) {
+                            val menu = all.single { it.tag == "task-tools-menu" && it.isShown }
+                            val bounds = Rect()
+                            check(menu.getGlobalVisibleRect(bounds) && bounds.width() == menu.width && bounds.height() == menu.height)
+                            check(menu.width >= HoyiUi.dp(activity, 48) && menu.height >= HoyiUi.dp(activity, 48))
+                        } else {
+                            check(targets.drop(4).map { it.tag } == TaskNavigationModel.tools.map { "task-nav:${it.name}" })
+                            check(targets.drop(4).all { it.isShown })
+                        }
+                        if (activity is AppSettingsActivity && frame.toolsInTopBar) {
+                            // The original settings page scrolls. Its global tool entry must not.
+                            descendants(frame.pageContent).filterIsInstance<android.widget.ScrollView>().forEach { scroll ->
+                                val maximum = (scroll.getChildAt(0).height - scroll.height + scroll.paddingTop + scroll.paddingBottom).coerceAtLeast(0)
+                                scroll.scrollTo(0, maximum)
+                                val menu = descendants(frame.pageContent).single { it.tag == "task-tools-menu" && it.isShown }
+                                val visible = Rect()
+                                check(menu.getGlobalVisibleRect(visible) && visible.width() == menu.width && visible.height() == menu.height) {
+                                    "Settings scrolling hid global tools"
+                                }
+                                scroll.scrollTo(0, 0)
+                            }
+                        }
+                        // A standalone installation proves identity/order/LP preservation and idempotence.
+                        val parent = LinearLayout(activity)
+                        val child = View(activity)
+                        val params = LinearLayout.LayoutParams(37, 41)
+                        parent.addView(child, params)
+                        val installed = TaskPageFrame.install(activity, parent)
+                        check(TaskPageFrame.install(activity, parent) === installed)
+                        check(installed.pageContent.getChildAt(0) === child && child.layoutParams === params)
+                    }
+                    var typographyFailure: Throwable? = null
+                    test.runOnMainSync {
+                        try { TaskTypographyEvidence.capture(activity, directory) }
+                        catch (failure: Throwable) { typographyFailure = failure }
+                    }
+                    typographyFailure?.let { throw it }
+                    val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                    try {
+                        File(directory, "${page.simpleName}.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
+                    } finally { bitmap.recycle() }
+                } finally {
+                    test.runOnMainSync { activity.finish() }
+                    test.waitForIdleSync()
+                }
+            }
+            verifyRoutesAndFocus()
+        } finally {
+            test.runOnMainSync {
+                check(app.languagePreferences.select(oldLanguage) != AppLanguagePreference.Selection.SAVE_FAILED)
+                val edit = appearance.edit().clear()
+                oldAppearance.forEach { (key, value) ->
+                    when (value) {
+                        is Boolean -> edit.putBoolean(key, value)
+                        is String -> edit.putString(key, value)
+                        is Int -> edit.putInt(key, value)
+                        is Long -> edit.putLong(key, value)
+                        is Float -> edit.putFloat(key, value)
+                        is Set<*> -> edit.putStringSet(key, value.filterIsInstance<String>().toSet())
+                    }
+                }
+                check(edit.commit())
+            }
+        }
+    }
+
+    private fun verifyRoutesAndFocus() {
+        val home = test.startActivitySync(Intent(test.targetContext, HomeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
+        try {
+            test.waitForIdleSync()
+            test.runOnMainSync {
+                val frame = descendants(home.window.decorView).filterIsInstance<TaskPageFrame>().single()
+                if (frame.mode == TaskNavigationMode.RAIL) {
+                    val input = EditText(home)
+                    frame.pageContent.addView(input)
+                    input.requestFocus()
+                    check(input.hasFocus())
+                    // Simulate the measured height reduction caused by IME without changing window width.
+                    frame.measure(View.MeasureSpec.makeMeasureSpec(frame.width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(HoyiUi.dp(home, 200), View.MeasureSpec.EXACTLY))
+                    check(input.hasFocus()) { "Moving tools to header cleared input focus" }
+                    frame.pageContent.removeView(input)
+                    frame.requestLayout()
+                }
+            }
+            test.waitForIdleSync()
+            val routes = listOf(
+                TaskDestination.CURVES to CurveActivity::class.java,
+                TaskDestination.HISTORY to HistoryActivity::class.java,
+                TaskDestination.BEANS to BeanInventoryActivity::class.java,
+                TaskDestination.SCALE to ScaleActivity::class.java,
+                TaskDestination.SETTINGS to AppSettingsActivity::class.java
+            )
+            for ((destination, target) in routes) {
+                val monitor = test.addMonitor(target.name, null, false)
+                try {
+                    var popup = false
+                    test.runOnMainSync {
+                        val all = descendants(home.window.decorView)
+                        val direct = all.singleOrNull { it.tag == "task-nav:${destination.name}" && it.isShown }
+                        if (direct != null) check(direct.performClick()) else {
+                            check(all.single { it.tag == "task-tools-menu" && it.isShown }.performClick())
+                            popup = true
+                        }
+                    }
+                    if (popup) {
+                        val label = home.getString(if (destination == TaskDestination.SCALE) R.string.scale_title else R.string.ui_settings)
+                        val deadline = SystemClock.elapsedRealtime() + 5000
+                        var clicked = false
+                        while (!clicked && SystemClock.elapsedRealtime() < deadline) {
+                            val root = test.uiAutomation.rootInActiveWindow
+                            val nodes = root?.findAccessibilityNodeInfosByText(label).orEmpty()
+                            for (node in nodes) {
+                                var candidate: AccessibilityNodeInfo? = node
+                                while (candidate != null && !candidate.isClickable) candidate = candidate.parent
+                                if (candidate?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) { clicked = true; break }
+                            }
+                            if (!clicked) SystemClock.sleep(50)
+                        }
+                        check(clicked) { "Tool menu missing $label" }
+                    }
+                    val opened = test.waitForMonitorWithTimeout(monitor, 10000)
+                        ?: error("Navigation did not open ${target.simpleName}")
+                    test.runOnMainSync { opened.finish() }
+                    test.waitForIdleSync()
+                } finally { test.removeMonitor(monitor) }
+            }
+            // Return to the top-level brew page through the actual selected main destination.
+            test.runOnMainSync { home.finish() }
+            test.waitForIdleSync()
+            val curve = test.startActivitySync(Intent(test.targetContext, CurveActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            val monitor = test.addMonitor(HomeActivity::class.java.name, null, false)
+            try {
+                test.runOnMainSync { descendants(curve.window.decorView).single { it.tag == "task-nav:BREW" }.performClick() }
+                val returned = test.waitForMonitorWithTimeout(monitor, 10000)
+                check(returned is HomeActivity)
+                test.runOnMainSync { returned.finish() }
+            } finally {
+                test.removeMonitor(monitor)
+                test.runOnMainSync { curve.finish() }
+            }
+        } finally { test.runOnMainSync { home.finish() }; test.waitForIdleSync() }
+    }
+}

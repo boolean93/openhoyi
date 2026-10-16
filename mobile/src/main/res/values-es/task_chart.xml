@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_chart_pressure">Presión</string>
+    <string name="task_chart_water">Agua acumulada</string>
+    <string name="task_chart_weight">Lectura de báscula</string>
+    <string name="task_chart_temperature">Temperatura</string>
+    <string name="task_chart_hint">Selecciona una métrica para ver su escala</string>
+    <string name="task_chart_independent">Rangos independientes; escala: %1$s · %2$s</string>
+    <string name="task_chart_observed">Muestras de esta taza hasta %1$s s</string>
+    <string name="task_chart_waiting">Esperando muestras de esta taza</string>
+    <string name="task_chart_reference">Línea gris fina: referencia histórica de %1$s, no predicción</string>
+    <string name="task_chart_water_reset">Contador de agua reiniciado; segmentos separados</string>
+    <string name="task_chart_gap">Huecos de muestreo; segmentos separados</string>
+    <string name="task_chart_latest">%1$s, último valor muestreado %2$s %3$s</string>
+    <string name="task_chart_compact_notice">No hay espacio para el gráfico. Amplía la ventana.</string>
+    <string name="task_chart_summary_observed">Rangos independientes · Muestras hasta %1$s s</string>
+    <string name="task_chart_summary_waiting">Rangos independientes · Esperando muestras</string>
+</resources>

@@ -1,0 +1,5 @@
+<resources>
+    <string name="task_recipe_temperature">Recipe temperature</string>
+    <string name="task_recipe_target">Target weight</string>
+    <string name="task_recipe_dose">Recorded dose</string>
+</resources>

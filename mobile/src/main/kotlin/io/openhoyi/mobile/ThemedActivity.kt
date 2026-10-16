@@ -12,6 +12,11 @@ abstract class ThemedActivity : Activity() {
         super.attachBaseContext(AppLanguageContext.wrap(newBase, language, dark))
     }
 
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        if (resources.configuration.locales[0].language == "zh") theme.applyStyle(R.style.MobileChineseTypography, true)
+        super.onCreate(savedInstanceState)
+    }
+
     override fun onResume() {
         super.onResume()
         val preferredDark = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)

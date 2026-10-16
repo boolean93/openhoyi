@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_form_jump">섹션으로 이동</string>
+    <string name="task_form_optional_iso_dates">날짜는 선택 사항입니다. 형식: YYYY-MM-DD</string>
+    <string name="task_form_stage_caption">단계별 목표 도식이며 시간 예측이 아닙니다</string>
+    <string name="task_form_basic">기본 정보</string>
+    <string name="task_form_targets">추출 목표</string>
+    <string name="task_form_bean_identity">원두 정보</string>
+    <string name="task_form_stock">입고</string>
+    <string name="task_form_dates">날짜 (선택)</string>
+</resources>

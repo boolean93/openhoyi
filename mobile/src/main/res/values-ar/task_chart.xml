@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_chart_pressure">الضغط</string>
+    <string name="task_chart_water">الماء المتراكم</string>
+    <string name="task_chart_weight">قراءة الميزان</string>
+    <string name="task_chart_temperature">الحرارة</string>
+    <string name="task_chart_hint">اختر مؤشراً لعرض تدريجه</string>
+    <string name="task_chart_independent">نطاقات مستقلة؛ التدريج: %1$s · %2$s</string>
+    <string name="task_chart_observed">عينات هذا الكوب حتى %1$s ث</string>
+    <string name="task_chart_waiting">بانتظار عينات الكوب</string>
+    <string name="task_chart_reference">خط رمادي رفيع: مرجع تاريخي لمؤشر %1$s وليس توقعاً</string>
+    <string name="task_chart_water_reset">إعادة ضبط عداد الماء؛ مقاطع منفصلة</string>
+    <string name="task_chart_gap">فجوات في العينات؛ مقاطع منفصلة</string>
+    <string name="task_chart_latest">%1$s، آخر قيمة مسجلة %2$s %3$s</string>
+    <string name="task_chart_compact_notice">مساحة الرسم غير كافية. كبّر النافذة.</string>
+    <string name="task_chart_summary_observed">نطاقات مستقلة · عينات الكوب حتى %1$s ث</string>
+    <string name="task_chart_summary_waiting">نطاقات مستقلة · بانتظار عينات الكوب</string>
+</resources>
