@@ -108,14 +108,14 @@ class ScaleActivity:ScaleOwnerActivity() {
         val reading=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER
             minimumHeight=HoyiUi.dp(this@ScaleActivity,128)
-            background=HoyiUi.shape(this@ScaleActivity,R.color.mobile_surface,18,R.color.mobile_border)
+            background=HoyiUi.shape(this@ScaleActivity,android.R.color.transparent,0)
             setPadding(HoyiUi.dp(this@ScaleActivity,12),0,HoyiUi.dp(this@ScaleActivity,12),0)
         }
         primary.addView(reading,LinearLayout.LayoutParams(-1,0,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)})
         weight=HoyiUi.label(this,reading,getString(R.string.scale_unavailable),if(HoyiUi.wide(this))64 else 48,true).apply {
             // Natural height preserves system font scaling and long/negative readings.
             layoutParams=LinearLayout.LayoutParams(-1,-2);gravity=android.view.Gravity.CENTER
-            typeface=TaskTypography.face(this@ScaleActivity, 300)
+            typeface=TaskTypography.face(this@ScaleActivity, 700)
         }
         tareStatus=HoyiUi.label(this,reading,"",14,muted=true).apply {setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,8))}
         tare=HoyiUi.button(this,primary,getString(R.string.scale_tare),
@@ -128,13 +128,15 @@ class ScaleActivity:ScaleOwnerActivity() {
         // Only TaskWorkspace secondary content scrolls; weight, tare and capture stay fixed.
         val timerCard=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
         secondary.addView(timerCard)
-        val timerHeading=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL;gravity=android.view.Gravity.CENTER_VERTICAL}
+        val timerHeading=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
         timerCard.addView(timerHeading,LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)})
-        HoyiUi.label(this,timerHeading,getString(R.string.scale_timer_title),14,true).apply {
-            layoutParams=LinearLayout.LayoutParams(0,-2,1f)
-
+        HoyiUi.label(this,timerHeading,getString(R.string.scale_timer_title),20,true).apply {
+            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,16))
         }
-        timerValue=HoyiUi.label(this,timerHeading,"",32,true)
+        timerValue=HoyiUi.label(this,timerHeading,"",40,true).apply {
+            typeface=TaskTypography.face(this@ScaleActivity,700)
+            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,8))
+        }
         // The timer is explicitly local, not an unconfirmed scale command.
         HoyiUi.label(this,timerCard,getString(R.string.scale_timer_help),14,muted=true)
         val timerActions=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}

@@ -130,3 +130,7 @@ CI38860026487 task-frame成功，实读curve-library-font-1.0/normal.png（360×
 CI38860435640 task-frame成功，已下载并实读用户平板screenshots/HomeActivity.png：四个次级入口已为左对齐强调色文字，白底卡片去除；主选择按钮仍固定右下。实屏是未选曲线/无用豆状态，不能证明就绪态本杯信息与原稿一致，也不能关闭首页验收。
 
 390a7ae标准横屏HistoryActivity正常态截图及typography.json：标题17sp/lineHeight31px占62px，状态14sp/lineHeight25px占51px，均includeFontPadding=true。后续候选保持字号和字段，显式500/400字重并去font padding，普通行透明；双Mock APK40秒成功。候选原生行高/滚动恢复尚待验证，不能把几何通过当视觉完成。
+
+## 电子秤工具页差异核对
+
+实读390a7ae标准横屏ScaleActivity正常态与scale-v2：当前无读数—，不能与稿中18g/稳定/电量82%视为同状态；结构上主重量300细体、大白卡、横向计时标题和值偏离稿件。候选改700重量、透明主读数区、20sp计时标题+40sp/700数字上下排、16/8dp间距；双Mock APK40秒成功，尚无候选原生图。最近10秒真实趋势、完整设备区与有限宽去皮仍是缺口，不能因本批字体修正关闭电子秤验收。
