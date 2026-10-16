@@ -91,3 +91,9 @@ Local `/tmp/task-history-workspace-build.log`: testMockUnitTest + assembleMock +
 Shared profileCard (Share/ImportPreview/explicit preview dialog) now uses bounded primary stage/name/capability area plus full parameter support. It shows actual temperature/target/all stages alongside or beneath the pressure schematic; raw-flow sources retain read-only warning without a fake graph. Full name/JSON details remain. Existing share/SAF/import/conflict callbacks unchanged. Caption uses14sp.
 
 Local `/tmp/task-curve-delivery-build.log`: JVM + two Mock APKs BUILD SUCCESSFUL in45s. Actual short-window minimum plot, localized full parameters, dialog and page screenshots, plus independent review remain pending. This batch is later than running33ab403 and has not been pushed yet.
+
+## 2026-10-16 scale polling/layout observation race
+
+Exact33ab403 advanced run38839838096: business job succeeded; wideFont passed Chinese comparison and progressed through Thai, then Arabic ScaleActivity failed missing battery TextView.layout. Artifacts at build/task-first-evidence/ci-33ab403-advanced-pages. Previous date ellipsis is no longer the failure. Test awaited settled text in one main callback, then checked in a second;250ms Scale render repeatedly reassigned unchanged text between callbacks. Root changed Scale string assignments to setIfChanged and made initial/each scroll/restored geometry checks atomically observe readiness and assert in one bounded main-thread poll. No clipping assertion removed, no exception catch/skip. Actual changing telemetry and original gates unchanged.
+
+Local `/tmp/task-scale-stable-frame-build.log`: JVM + two Mock APK builds successful. Native rerun still required.33ab403 lifecycle/single-screen were confirmed running after this fix, so no cancellation/restart and no latest-source native success claimed.

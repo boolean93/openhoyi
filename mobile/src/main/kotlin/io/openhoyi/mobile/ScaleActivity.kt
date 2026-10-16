@@ -176,34 +176,35 @@ class ScaleActivity:ScaleOwnerActivity() {
         val service=owner;val snapshot=service?.snapshot;val now=SystemClock.elapsedRealtime()
         val live=snapshot?.let {LiveTelemetry.scale(it.scaleObservation,it.scaleState,now)}
         val digits=if(getSharedPreferences("scale_tool",MODE_PRIVATE).getBoolean("one_decimal",false))1 else 2
-        weight.text=live?.let {getString(R.string.scale_weight_format,String.format(Locale.getDefault(),"%.${digits}f",it.hundredthsGram/100.0))}
-            ?: getString(R.string.scale_unavailable)
-        freshness.setText(when {
+        weight.setIfChanged(live?.let {getString(R.string.scale_weight_format,String.format(Locale.getDefault(),"%.${digits}f",it.hundredthsGram/100.0))}
+            ?: getString(R.string.scale_unavailable))
+        freshness.setIfChanged(getString(when {
             BuildConfig.MOCK_MODE->R.string.scale_mock_notice
             snapshot?.scaleState!=DeviceState.READY->R.string.scale_disconnected
             live==null->R.string.scale_stale
             live.evidence==ScaleEvidence.OFFLINE_CANDIDATE->R.string.scale_offline_evidence
             live.evidence==ScaleEvidence.LIVE_READ_ONLY->R.string.scale_read_only_live
             else->R.string.scale_live
-        })
-        battery.text=live?.batteryPercent?.takeIf {live.capabilities.battery && it in 0..100}
-            ?.let {getString(R.string.scale_battery_format,it)} ?: getString(R.string.scale_battery_unavailable)
+        }))
+        battery.setIfChanged(live?.batteryPercent?.takeIf {live.capabilities.battery && it in 0..100}
+            ?.let {getString(R.string.scale_battery_format,it)} ?: getString(R.string.scale_battery_unavailable))
         val allowed=changesAllowed()
-        guard.text=if(service!=null && !allowed)getString(R.string.scale_active_guard)else ""
+        guard.setIfChanged(if(service!=null && !allowed)getString(R.string.scale_active_guard)else "")
         guard.visibility=if(guard.text.isEmpty())android.view.View.GONE else android.view.View.VISIBLE
         tare.isEnabled=!BuildConfig.MOCK_MODE && allowed && snapshot?.scaleState==DeviceState.READY && snapshot.scaleCapabilities?.tare==true &&
             service?.tareState !in setOf(StandaloneTare.State.WRITING,StandaloneTare.State.WAITING_ZERO)
-        tareStatus.setText(when(service?.tareState) {
+        tareStatus.setIfChanged(getString(when(service?.tareState) {
             StandaloneTare.State.WRITING,StandaloneTare.State.WAITING_ZERO->R.string.scale_tare_waiting
             StandaloneTare.State.CONFIRMED->R.string.scale_tare_confirmed
             StandaloneTare.State.FAILED->R.string.scale_tare_failed
             StandaloneTare.State.UNKNOWN->R.string.scale_tare_unknown
             else->R.string.scale_tare_idle
-        })
+        }))
         val tenths=timer.elapsedMs(now)/100
-        timerValue.text=getString(R.string.scale_timer_format,tenths/600,(tenths/10)%60,tenths%10)
-        timerToggle.setText(if(timer.running)R.string.scale_timer_pause else R.string.scale_timer_start)
+        timerValue.setIfChanged(getString(R.string.scale_timer_format,tenths/600,(tenths/10)%60,tenths%10))
+        timerToggle.setIfChanged(getString(if(timer.running)R.string.scale_timer_pause else R.string.scale_timer_start))
         capture?.isEnabled=stableDose(now)!=null
         connectionButton.isEnabled=service==null || allowed
     }
+    private fun TextView.setIfChanged(value:String) { if(text.toString()!=value) text=value }
 }

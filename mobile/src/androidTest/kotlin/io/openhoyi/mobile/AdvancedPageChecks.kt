@@ -213,14 +213,18 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
     }
 
     private fun checkPage(activity: Activity, fixture: String) {
-        awaitMain {
-            !root(activity).isLayoutRequested && descendants(root(activity)).filterIsInstance<TextView>()
+        fun settledGeometry(label: String) = awaitMain {
+            val ready = !root(activity).isLayoutRequested && descendants(root(activity)).filterIsInstance<TextView>()
                 .filter { it.isShown && !it.text.isNullOrEmpty() }.all { it.isLaidOut && it.layout != null && !it.isLayoutRequested }
+            // Polling telemetry may replace text between two main-thread callbacks.
+            // Validate the same settled frame we observed; never skip a clipping assertion.
+            if (ready) checkGeometry(activity, label)
+            ready
         }
+        settledGeometry(fixture)
         var scrolls = emptyList<ScrollView>()
         var controls = emptyList<View>()
         onMain {
-            checkGeometry(activity, fixture)
             val views = descendants(root(activity))
             scrolls = views.filterIsInstance<ScrollView>().filter { it.isShown }
             controls = views.filter { it.isShown && it.isClickable && it !is ScrollView }
@@ -239,7 +243,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
             while (true) {
                 onMain { scroll.scrollTo(0, position) }
                 test.waitForIdleSync()
-                onMain { checkGeometry(activity, "$fixture scroll=$position") }
+                settledGeometry("$fixture scroll=$position")
                 if (position == maximum) break
                 position = (position + step).coerceAtMost(maximum)
             }
@@ -258,7 +262,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
         }
         onMain { scrolls.forEach { it.scrollTo(0, 0) } }
         test.waitForIdleSync()
-        onMain { checkGeometry(activity, "$fixture restoredTop") }
+        settledGeometry("$fixture restoredTop")
     }
 
     /** No navigation-bar shape assumption: beanPage has none, scale pages have one. */
