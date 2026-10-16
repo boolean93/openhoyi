@@ -89,11 +89,15 @@ class CurveActivity : ThemedActivity() {
         detailPanel = collection.detailBody
         val browser = browserPane
         val detailPane = detailPanel
-        detailToolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        detailToolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
+        }
         detailPanel.addView(detailToolbar)
         detailBack = HoyiUi.button(this, detailToolbar, getString(R.string.curve_back)) { showBrowser() }.apply {
             setPadding(dp(6), dp(4), dp(6), dp(4))
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) }
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) }
         }
         collection.onPresentationChanged = { twoPane, detailVisible ->
             compact = !twoPane
@@ -246,7 +250,8 @@ class CurveActivity : ThemedActivity() {
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
 
         // The continuous list and genuinely short preview fallback scroll locally, never the whole page.
-        detailTitle = HoyiUi.label(this, detailPane, getString(R.string.curve_detail_initial), 19, true).apply {
+        detailTitle = HoyiUi.label(this, detailToolbar, getString(R.string.curve_detail_initial), 20, true).apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) }
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
             tag = "full-text-details"
@@ -309,8 +314,7 @@ class CurveActivity : ThemedActivity() {
         }.apply {
             tag = "curve-detail-actions"
             visibility = View.GONE
-            setPadding(dp(6), dp(4), dp(6), dp(4))
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            layoutParams = LinearLayout.LayoutParams(-2, -2)
         }
         selectionDock = TaskActionDock(this, edgeInsetDp = 0, wideMinimumDp = 400)
         detailPane.addView(selectionDock, LinearLayout.LayoutParams(-1, -2))
@@ -449,7 +453,7 @@ class CurveActivity : ThemedActivity() {
         // Measure the full normal presentation, even when its metadata is currently in fallback.
         // Otherwise hiding metadata would make the next measure flip back into a too-short plot.
         val actionHeight = naturalHeightOf(detailToolbar) + naturalHeightOf(selectionDock)
-        val metadataHeight = listOf(detailTitle, detailCategory, availability).sumOf(::naturalHeightOf) +
+        val metadataHeight = listOf(detailCategory, availability).sumOf(::naturalHeightOf) +
             if (hasPressure) naturalHeightOf(stageCaption) else 0
         val contentMinimum = if (hasPressure) (dp(96) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt() + dp(6)
             else {
@@ -457,7 +461,7 @@ class CurveActivity : ThemedActivity() {
                 rawReasonMeasure.measuredHeight
             }
         shortPreview = height - detailPanel.paddingTop - detailPanel.paddingBottom - actionHeight - metadataHeight < contentMinimum
-        listOf(detailTitle, detailCategory, availability).forEach {
+        listOf(detailCategory, availability).forEach {
             it.visibility = if (shortPreview) View.GONE else View.VISIBLE
         }
         stageCaption.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
