@@ -233,3 +233,9 @@ b349502 task-frame38870529947 completed/success，产物result.txt为TASK_FRAME_
 设计依据仍采用研究稿的Google canonical layouts与Apple Layout/Buttons/Charts：相关记录就近分组、次操作降级、保留图表中心地位。生成图中的示例数据和曲线形状不覆盖真实采样；仅比较相同业务状态下的信息结构与字体/间距。系统栏需从应用内容区分离后比较。上述两页均保持未验收，完整21页+3设置范围不变。
 
 历史详情构图候选已实施：仅全屏路径启用TaskWorkspaceLayout，双结果40sp/700、14sp标签；六个笔记字段在右侧局部滚动区分组展示，对比为右区顶部文字操作，完整信息为下方文字入口，编辑复盘固定限宽dock。列表内详情保留原路径，未知告警和采样加载不变。最终双Mock APK23秒成功，diff检查通过；尚无本候选运行截图，不能认定字重/间距和可用图高已与认可稿一致。
+
+## 状态截图覆盖补缺
+
+500d5d6 task-frame38872022602 completed/success，已下载并实读用户平板BrewReviewActivity.png：实际为“找不到这杯记录”的缺失记录态。24页框架检查通过不能证明复盘双数值或字段标签；继续等待正常fixture的single-screen/advanced证据。2fc59a5 native38871320546、lifecycle38871320525、upgrade38871320508和task-frame38871320557均成功；这些也不替代500d5d6正常复盘的实屏。418fec6新历史构图single-screen38873060543和task-frame38873060561查询时queued。
+
+源码确认AdvancedBusinessUiChecks已有冲突保留/副本及重复导入幂等断言，但不输出冲突截图。本候选在已有流程中新增review-saved-notes、import-new、import-conflict三张实际窗口截图，采集前验证窗口和对应按钮，脚本校验PNG完整性及1600×1000尺寸。未改变17路径、库存事件、文档或设备断言。测试APK24秒构建成功，bash -n和diff检查通过；尚未运行本候选原生流程，不将截图代码存在当作截图已产生。范围是中文浅色标准字号CI横屏，不等同用户平板或字体1.3验收。

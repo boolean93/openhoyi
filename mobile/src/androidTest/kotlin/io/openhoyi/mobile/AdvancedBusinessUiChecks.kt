@@ -43,6 +43,27 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
     private fun views(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
+    /** Capture the already exercised state, not a new fixture or a replacement for assertions. */
+    private fun captureState(activity: Activity, name: String, requiredActions: List<Int>) {
+        test.waitForIdleSync()
+        awaitMain { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
+        onMain {
+            val labels = views(root(activity)).filterIsInstance<TextView>()
+            requiredActions.forEach { id ->
+                check(labels.any { it.isShown && it.isClickable && it.text.toString() == activity.getString(id) }) {
+                    "$name missing expected action ${activity.getString(id)}"
+                }
+            }
+        }
+        val directory = File(requireNotNull(context.getExternalFilesDir(null)), "advanced-page-screenshots/business")
+        check(directory.isDirectory || directory.mkdirs())
+        val bitmap = requireNotNull(test.uiAutomation.takeScreenshot()) { "$name screenshot missing" }
+        try {
+            File(directory, "$name.png").outputStream().use {
+                check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+            }
+        } finally { bitmap.recycle() }
+    }
     private fun click(activity: Activity, label: Int) = click(root(activity), activity.getString(label))
     private fun click(root: View, text: String) {
         if (CurveMenuChecks.clickIfNeeded(test, root, text)) return
@@ -386,6 +407,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             check(journal.find(shotId)?.notes == expectedNotes) { "Journal save lost a notes field" }
             check(persistedJournal().find(shotId) == BrewJournal.Entry(observation, expectedNotes)) { "Journal differs after disk reload" }
             review = start(BrewReviewActivity::class.java) { it.putExtra(BrewReviewActivity.SHOT_ID, shotId) }
+            captureState(review, "review-saved-notes", listOf(R.string.journal_save))
             assertReviewFields(review, expectedNotes)
             review = recreate(review)
             assertReviewFields(review, expectedNotes)
@@ -454,6 +476,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 return input to result
             }
             var importPages = importPreview(imported.encode())
+            captureState(importPages.second, "import-new", listOf(R.string.profiles_import_save))
             click(importPages.second, R.string.profiles_import_save)
             awaitMain { importPages.second.isDestroyed }; opened.remove(importPages.second)
             ownCurveIds += imported.id
@@ -470,6 +493,8 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             record("curve-import-repeat-idempotent"); close(importPages.first)
             val conflict = imported.copy(name = "UI conflict $token")
             importPages = importPreview(conflict.encode())
+            captureState(importPages.second, "import-conflict", listOf(R.string.profiles_existing,
+                R.string.profiles_keep_existing, R.string.profiles_save_copy))
             click(importPages.second, R.string.profiles_keep_existing)
             awaitMain { importPages.second.isDestroyed }; opened.remove(importPages.second)
             check(custom.list() == beforeRepeat)
