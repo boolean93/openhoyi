@@ -202,6 +202,19 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                         File(stateDirectory, "$name-populated.png").outputStream().use { changed.compress(Bitmap.CompressFormat.PNG, 100, it) }
                     } finally { changed.recycle() }
                 }
+                if (language == AppLanguage.CHINESE) {
+                    // Pair the populated fixture window with native measurements before
+                    // form/IME exercises mutate its transient draft or scroll position.
+                    awaitDraw(activity)
+                    val baseline = File(directory, "visual-baselines/$name").apply { check(mkdirs() || isDirectory) }
+                    main { TaskTypographyEvidence.capture(activity, baseline) }
+                    val screenshot = requireNotNull(test.uiAutomation.takeScreenshot())
+                    try {
+                        File(baseline, "window.png").outputStream().use {
+                            check(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
+                        }
+                    } finally { screenshot.recycle() }
+                }
                 if (language == AppLanguage.CHINESE) chineseFormCaptures +=
                     ChineseFormWindowChecks.run(test, activity, directory, name) { awaitDraw(activity) }
                 if (language == AppLanguage.CHINESE && activity is HomeActivity) {
