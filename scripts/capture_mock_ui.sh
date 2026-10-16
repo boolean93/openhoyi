@@ -26,8 +26,14 @@ on_error() {
 trap on_error ERR
 
 # Use a landscape logical display; emulator rotation settings alone did not rotate the AVD.
-adb shell wm size 1600x1000
-adb shell wm density 200
+adb shell wm size 2560x1600
+adb shell wm density 360
+adb shell settings put system font_scale 1.0
+{
+  adb shell wm size
+  adb shell wm density
+  adb shell settings get system font_scale
+} > "$output_dir/display-profile.txt"
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb install -r "$apk"
@@ -130,8 +136,8 @@ print(f'{sys.argv[1]}: {width}x{height}')
 if sys.argv[2].startswith('portrait-'):
     if width >= height:
         raise SystemExit('emulator is not in portrait layout')
-elif width <= height:
-    raise SystemExit('emulator is not in landscape layout')
+elif (width, height) != (2560, 1600):
+    raise SystemExit('screenshot does not match user tablet 2560x1600')
 PY
 }
 
@@ -192,5 +198,22 @@ tap_control '查看详情'
 assert_activity HistoryDetailActivity
 capture history-detail-dark
 
+
+# Capture the approved light-theme running composition at the user's tablet geometry.
+# This is a second real Mock shot, not relabeling the waiting-state screenshot.
+toggle_theme
+adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/light-theme-pref.xml"
+grep 'name="dark" value="false"' "$output_dir/light-theme-pref.xml" >/dev/null
+tap_nav 2 ExtractionActivity
+capture extraction-ready-light
+tap_control '开始萃取'
+capture extraction-confirm-light
+adb logcat -c
+tap_control '开始模拟'
+sleep 3
+adb logcat -d -s OpenHoyiMobile:I | grep 'Mock 萃取已开始' > "$output_dir/shot-start-light-log.txt"
+capture extraction-running-light
+sleep 34
+capture extraction-ended-light
 
 # Portrait capture retired by the user on 2026-10-16; landscape flows above remain.
