@@ -577,3 +577,11 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 八语言资源XML、diff和分支规则通过；Mock/test APK构建43s成功（/tmp/task-legacy-detail-build.log）。本构图仍待实际有数据截图和短高回归，未标视觉完成。
 - f3233d6 single-screen38887181838的大字号job完成success，已下载ci-f3233d6-large-font：result.txt checked=336/pages=21、56表单截图、14列表恢复；中文浅/深色编辑表单completed=true、7截图、6区、inline/IME=true。该版本本轮大字号检查通过，不证明f525db3后的阶段滚动或用户平板四阶段断言；其他job仍运行。
 - cbe8076 capture38889966602已进入Capture tablet UI and simulated shot，截图产物尚未上传；未将运行中视作完成。
+
+### 用户平板浅色运行态与入库裁切结果（2026-10-16）
+
+- cbe8076 Capture38889966602 completed/success，产物ci-cbe8076-capture/mock-ui-screenshots。display-profile.txt核实override2560×1600/density360/fontScale1.0；shot-start-light-log.txt记录实际Mock开始，未发送蓝牙命令。实读extraction-running-light.png并对照extraction-four-series-v3，不再用等待页代替运行态。
+- 图中6秒、4.20g、6bar、3.6ml、93°C；四指标同图、四独立刻度与单位、右下停止和本杯曲线/设定温度92°C均可见。数值属于Mock实采，不能硬替换成概念稿24.6秒/28.4g；无豆款/粉量明确—，无重量目标的含义仍完整。
+- 明确剩余差异：主绘图区比设计稿矮，页头/运行指导与图例/范围说明占高；数值单位与数字同粗同大；右栏配方仍段落而非对齐信息行；历史参考/概览仍重边框按钮。停止位置已符合右下方向，但全页字体、间距及图表面积尚未通过。无秤状态仍缺对应运行图。
+- f3233d6 single38887181838已终态failure：普通横屏/大字号success，用户平板334/336，唯一失败为浅/深色编辑第四阶段117px仅107px可见。入库浅/深色不再失败；中文入库表单completed=true、4截图、3区、inline/IME=true，结合之前实图确认该版本入库末日期裁切修正通过这一窗口检查。
+- 编辑第四阶段为f525db3左侧留白/滚动修正之前；其single38888405636三profile当前均in_progress，不为旧版本失败再次修改或放宽断言。
