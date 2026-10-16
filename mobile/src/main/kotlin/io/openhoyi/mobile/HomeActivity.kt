@@ -306,7 +306,7 @@ class HomeActivity : ThemedActivity() {
             minimumHeight = dp(48)
             setOnClickListener { startActivity(Intent(this@HomeActivity, HistoryActivity::class.java)) }
         }
-        browseCurvesButton = button(secondary, getString(R.string.home_curve_browse)) {
+        browseCurvesButton = workbenchLink(secondary, getString(R.string.home_curve_browse)) {
             startActivity(Intent(this, CurveActivity::class.java))
         }
         presetPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), 0, dp(16), 0) }
@@ -316,9 +316,9 @@ class HomeActivity : ThemedActivity() {
                 startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
             }
         }
-        quickPresets = button(secondary, getString(R.string.home_quick_curves)) { showQuickPresets() }
-        button(secondary, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
-        button(secondary, getString(R.string.scale_title)) { startActivity(Intent(this, ScaleActivity::class.java)) }
+        quickPresets = workbenchLink(secondary, getString(R.string.home_quick_curves)) { showQuickPresets() }
+        workbenchLink(secondary, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
+        workbenchLink(secondary, getString(R.string.scale_title)) { startActivity(Intent(this, ScaleActivity::class.java)) }
         val actionDock = TaskActionDock(this, edgeInsetDp = 0)
         content.addView(actionDock, LinearLayout.LayoutParams(-1, -2))
         brewButton = button(actionDock, getString(R.string.home_curve_select), primary = true) {
@@ -746,5 +746,21 @@ class HomeActivity : ThemedActivity() {
     private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)
     private fun button(parent: LinearLayout, value: String, primary: Boolean = false, action: () -> Unit) =
         HoyiUi.button(this, parent, value, primary = primary, action = action)
+    private fun workbenchLink(parent: LinearLayout, value: String, action: () -> Unit) =
+        HoyiUi.button(this, parent, value, action = action).apply {
+            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            setTextColor(android.content.res.ColorStateList(
+                arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+                intArrayOf(getColor(R.color.mobile_muted), getColor(R.color.mobile_accent))))
+            val states = android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused),
+                    HoyiUi.shape(this@HomeActivity, android.R.color.transparent, 8, R.color.mobile_accent))
+                addState(intArrayOf(), HoyiUi.shape(this@HomeActivity, android.R.color.transparent, 8))
+            }
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
+                    intArrayOf(android.graphics.Color.TRANSPARENT, getColor(R.color.mobile_accent_soft))),
+                states, HoyiUi.shape(this@HomeActivity, android.R.color.white, 8))
+        }
     companion object { private const val PERMISSIONS = 12; private const val ENABLE = 13; private const val EXPORT = 14 }
 }
