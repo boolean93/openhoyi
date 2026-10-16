@@ -12,6 +12,7 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
         test.runOnMainSync {
             for (language in AppLanguage.entries) for (dark in listOf(false, true)) {
                 val context = AppLanguageContext.wrap(test.targetContext, language, dark)
+                ScaleTrendChartChecks.verify(context)
                 val native = ShotChartView(context).apply {
                     points = listOf(ShotPoint(0, 20, 0, 0, 9200, null), ShotPoint(1000, 100, 0, 0, 9200, null))
                 }

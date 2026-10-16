@@ -57,4 +57,7 @@
     <string name="scale_memory_failed">No se pudieron guardar la báscula y el protocolo; podría faltar la reconexión automática al reiniciar</string>
     <string name="scale_protocol_unsupported">Protocolo de báscula no compatible</string>
     <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>
+    <string name="scale_trend_title">Últimos 10 segundos</string>
+    <string name="scale_trend_empty">Sin muestras; esperando datos de la báscula</string>
+    <string name="scale_trend_summary">Última lectura %1$s g · hace %2$s s</string>
 </resources>

@@ -57,4 +57,7 @@
     <string name="scale_memory_failed">Не удалось сохранить весы и протокол; автоподключение при следующем запуске может быть недоступно</string>
     <string name="scale_protocol_unsupported">Протокол весов не поддерживается</string>
     <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>
+    <string name="scale_trend_title">Последние 10 секунд</string>
+    <string name="scale_trend_empty">Нет измерений; ожидание данных весов</string>
+    <string name="scale_trend_summary">Последнее: %1$s г · %2$s с назад</string>
 </resources>

@@ -352,6 +352,8 @@ class MobileService : Service() {
     }
 
     /** Invalidates UI stability even if a disconnect/reconnect occurs between page refreshes. */
+    private val scaleTrend = ScaleTrendWindow()
+    internal fun scaleTrendAt(now: Long): List<ScaleTrendWindow.Point> = scaleTrend.points(now)
     private var scaleConnectionEpoch = 0L
     private val beanDoseCapture = BeanDoseCapturePolicy()
     internal fun resetBeanDoseCapture() = beanDoseCapture.reset()
@@ -367,6 +369,7 @@ class MobileService : Service() {
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
             scaleConnectionEpoch++; beanDoseCapture.reset()
+            scaleTrend.observe(null, state, SystemClock.elapsedRealtime())
         }
         snapshot = if (role == DeviceRole.COFFEE) {
             if (state != DeviceState.READY) {
@@ -574,6 +577,7 @@ class MobileService : Service() {
                         snapshot = snapshot.copy(weight = it, weightAt = receivedAt)
                 },
                 onScaleObservation = { observation ->
+                    scaleTrend.observe(observation, snapshot.scaleState, SystemClock.elapsedRealtime())
                     snapshot = snapshot.copy(scaleObservation = observation,
                         scaleCapabilities = observation.capabilities)
                     // Consume every notification, not just the last frame at the UI refresh.
@@ -706,6 +710,7 @@ class MobileService : Service() {
         }
         snapshot = snapshot.copy(weight = null, weightAt = null,
             scaleObservation = null, scaleCapabilities = null)
+        scaleTrend.clear() // A selected scale starts a new display history, not a mixed-device line.
         event(ResourceMessage(R.string.service_scale_connect))
     }
     fun disconnect(role: DeviceRole) {
@@ -1621,7 +1626,7 @@ class MobileService : Service() {
         catch (error: Exception) {
             Log.w(TAG, "device owner close failed: ${error.javaClass.simpleName}; suppressed=${error.suppressed.size}")
         }
-        finally { hub = null; hubForeground = false }
+        finally { hub = null; hubForeground = false; scaleTrend.clear() }
     }
     fun shutdown() {
         if (mock != null) {

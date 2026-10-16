@@ -57,4 +57,7 @@
     <string name="scale_memory_failed">未能保存秤和协议；下次启动可能无法自动重连</string>
     <string name="scale_protocol_unsupported">不支持此秤协议</string>
     <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>
+    <string name="scale_trend_title">最近 10 秒</string>
+    <string name="scale_trend_empty">暂无接收记录；等待电子秤数据</string>
+    <string name="scale_trend_summary">最近读数 %1$s g · %2$s 秒前</string>
 </resources>

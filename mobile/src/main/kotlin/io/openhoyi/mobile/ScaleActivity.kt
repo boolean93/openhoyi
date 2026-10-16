@@ -87,10 +87,11 @@ class ScaleActivity:ScaleOwnerActivity() {
     private lateinit var connectionButton:Button
     private var capture:Button?=null
     private var timer=LocalScaleTimer()
+    private lateinit var trend: ScaleTrendPanel
     private fun stableDose(now:Long):Int? {
         return owner?.beanDoseCaptureAt(now)
     }
-    override fun onStop() {owner?.resetBeanDoseCapture();super.onStop()}
+    override fun onStop() { if (::trend.isInitialized) trend.dismiss(); owner?.resetBeanDoseCapture();super.onStop()}
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         timer=LocalScaleTimer(LocalScaleTimer.State(savedInstanceState?.getLong("scale.timer.accumulated") ?: 0,
@@ -101,7 +102,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         freshness=HoyiUi.label(this,info,"",14,muted=true).apply {layoutParams=LinearLayout.LayoutParams(0,-2,1f)}
         battery=HoyiUi.label(this,info,"",14,muted=true)
         guard=HoyiUi.label(this,body,"",14,muted=true)
-        val workspace=TaskWorkspaceLayout(this).apply { compactPrimaryHeightDp=320 }
+        val workspace=TaskWorkspaceLayout(this)
         body.addView(workspace,LinearLayout.LayoutParams(-1,0,1f))
         val primary=workspace.primaryBody
         val secondary=workspace.secondaryBody
@@ -124,6 +125,17 @@ class ScaleActivity:ScaleOwnerActivity() {
             if(BuildConfig.MOCK_MODE || !changesAllowed()) {message(getString(R.string.scale_active_guard));return@button}
             service.resetBeanDoseCapture()
             message(service.tareScale() ?: getString(R.string.scale_tare_requested));renderScale()
+        }
+        trend = ScaleTrendPanel(this, primary, secondary)
+        workspace.onPrimarySpaceAvailable = { width, height ->
+            fun natural(view: android.view.View): Int {
+                view.measure(android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY),
+                    android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED))
+                val params = view.layoutParams as LinearLayout.LayoutParams
+                return view.measuredHeight + params.topMargin + params.bottomMargin
+            }
+            val required = natural(reading) + natural(tare)
+            required + trend.fit(width, height - required)
         }
         // Only TaskWorkspace secondary content scrolls; weight, tare and capture stay fixed.
         val timerCard=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
@@ -177,6 +189,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         if(!::weight.isInitialized)return
         val service=owner;val snapshot=service?.snapshot;val now=SystemClock.elapsedRealtime()
         val live=snapshot?.let {LiveTelemetry.scale(it.scaleObservation,it.scaleState,now)}
+        if (::trend.isInitialized) trend.present(service?.scaleTrendAt(now).orEmpty(), now)
         val digits=if(getSharedPreferences("scale_tool",MODE_PRIVATE).getBoolean("one_decimal",false))1 else 2
         weight.setIfChanged(live?.let {getString(R.string.scale_weight_format,String.format(Locale.getDefault(),"%.${digits}f",it.hundredthsGram/100.0))}
             ?: getString(R.string.scale_unavailable))

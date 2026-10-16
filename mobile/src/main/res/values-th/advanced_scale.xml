@@ -57,4 +57,7 @@
     <string name="scale_memory_failed">บันทึกเครื่องชั่งและโปรโตคอลไม่สำเร็จ การเชื่อมต่อใหม่อัตโนมัติอาจใช้ไม่ได้เมื่อเปิดครั้งถัดไป</string>
     <string name="scale_protocol_unsupported">ไม่รองรับโปรโตคอลเครื่องชั่งนี้</string>
     <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>
+    <string name="scale_trend_title">10 วินาทีล่าสุด</string>
+    <string name="scale_trend_empty">ยังไม่มีข้อมูล กำลังรอข้อมูลจากเครื่องชั่ง</string>
+    <string name="scale_trend_summary">ค่าล่าสุด %1$s g · %2$s วินาทีที่แล้ว</string>
 </resources>
