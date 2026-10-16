@@ -15,8 +15,9 @@ test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 test -s "$apk"
 test -s "$test_apk"
 collect() {
-  adb logcat -d -s AndroidRuntime:E OpenHoyiLanguage:I > "$output_dir/logcat.txt" || true
+  adb logcat -d -s AndroidRuntime:E OpenHoyiLanguage:I ActivityTaskManager:I ActivityManager:I WindowManager:I > "$output_dir/logcat.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
+  adb shell dumpsys window windows > "$output_dir/windows.txt" || true
   adb pull "/sdcard/Android/data/$package/files/advanced-page-screenshots" "$output_dir/" || true
 }
 on_error() {

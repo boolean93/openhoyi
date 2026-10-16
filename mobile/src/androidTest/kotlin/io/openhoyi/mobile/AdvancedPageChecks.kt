@@ -27,13 +27,17 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
         failure?.let { throw it }
     }
-    private fun awaitMain(condition: () -> Boolean) {
+    private fun awaitMain(diagnostic: () -> String = { "unspecified condition" }, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 10000
         while (true) {
             var ready = false
             onMain { ready = condition() }
             if (ready) return
-            check(SystemClock.elapsedRealtime() < deadline) { "Advanced page condition timed out" }
+            if (SystemClock.elapsedRealtime() >= deadline) {
+                var detail = ""
+                onMain { detail = diagnostic() }
+                error("Advanced page condition timed out: $detail")
+            }
             Thread.sleep(25)
         }
     }
@@ -190,7 +194,13 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                     assertState()
                     completed++
                     onMain { activity.finish() }
-                    awaitMain { activity.isDestroyed && home.hasWindowFocus() && homeOwner(home) === service }
+                    awaitMain(diagnostic = {
+                        "$fixture return: childDestroyed=${activity.isDestroyed} childFinishing=${activity.isFinishing} " +
+                            "homeDestroyed=${home.isDestroyed} homeFinishing=${home.isFinishing} " +
+                            "homeFocus=${home.hasWindowFocus()} homeAttached=${home.window.decorView.isAttachedToWindow} " +
+                            "sameService=${homeOwner(home) === service} serviceRunning=${service?.running} " +
+                            "childTask=${activity.taskId} homeTask=${home.taskId}"
+                    }) { activity.isDestroyed && home.hasWindowFocus() && homeOwner(home) === service }
                     currentPage = null
                     assertState()
                 }
