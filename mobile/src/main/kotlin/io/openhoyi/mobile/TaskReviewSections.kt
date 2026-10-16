@@ -73,7 +73,15 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         body.addView(this, LinearLayout.LayoutParams(-1, 0, 1f))
     }
     private val parameterHeading = sectionHeading(parameters, R.string.journal_parameters)
-    private val notesHeading = sectionHeading(notes, R.string.journal_notes)
+    private val notesHeader = LinearLayout(activity).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = android.view.Gravity.CENTER_VERTICAL
+        isBaselineAligned = false
+        notes.addView(this, LinearLayout.LayoutParams(-1, -2))
+    }
+    private val notesHeading = sectionHeading(notesHeader, R.string.journal_notes).apply {
+        layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+    }
     val panels = labels.indices.map { index ->
         LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -87,7 +95,7 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         contentDescription = activity.getString(R.string.task_form_jump)
         adapter = HoyiUi.spinnerAdapter(activity, labels)
         minimumHeight = dp(48)
-        host.addView(this, LinearLayout.LayoutParams(dp(240), -2).apply { gravity = android.view.Gravity.END })
+        notesHeader.addView(this, LinearLayout.LayoutParams(dp(200), -2))
         setSelection(selectedIndex)
         onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -127,9 +135,9 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             }
         }
         if (noteScroll.width <= 0 || noteScroll.height <= 0) return
-        notesHeading.measure(View.MeasureSpec.makeMeasureSpec(noteScroll.width, View.MeasureSpec.EXACTLY),
+        notesHeader.measure(View.MeasureSpec.makeMeasureSpec(noteScroll.width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-        var noteChrome = notesHeading.measuredHeight
+        var noteChrome = notesHeader.measuredHeight
         panels.drop(2).forEach { panel ->
             noteChrome += panel.paddingTop + panel.paddingBottom
             for (index in 0 until panel.childCount) {

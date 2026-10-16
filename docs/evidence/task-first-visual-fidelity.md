@@ -120,3 +120,7 @@ CI38859504685 task-frame成功，已下载并实读用户平板screenshots/HomeA
 CI38860026487 task-frame成功，实读curve-library-font-1.0/normal.png（360×640dp组件绘制，不是用户横屏实窗）：返回/标题/操作同排、蓝色压力阶段及完整单位说明保留；curve-library-1.0.txt与1.3.txt均CURVE_LIBRARY_VIEWPORT_CHECKS_PASSED fixtures=3 shortHeight=true recovery=true readOnly=true noBle=true。证明该组件字号/短高/恢复通过，不证明所有语言长名和认可稿整页一致。390a7ae Capture38859825828成功，但此工作流没有正常复盘表单图，仍等待single-screen的visual-baselines，不能用缺失记录页替代。
 
 库存页9744053大字体正常态与bean-inventory-v2对照：现有余量和正文层级弱、普通行白底明显、顶部新增/日期/流水结构仍有差距。本地候选只调整24sp名称、14sp余量标签、40sp/700余量主值、8/16dp留白、普通行透明；双Mock APK42秒成功，未有原生截图。原稿没有真实数据来源的流水时间不得照抄。
+
+## 390a7ae 复盘正常态与表单结果
+
+工作流38859831914标准横屏job成功，已下载single-screen-tablet-landscape：result.txt checked=336 pages=21 fixtures=336，中文浅色复盘completed=true screenshots=17 sections=5 longStates=8 inlineObserved=true imeObserved=true noSave=true。实读正常态window.png确认本杯参数/我的记录标题、52dp研磨视口、左侧查看记录和右下保存；没有用缺失记录页替代。跳转选择器仍占整行留白，后续候选移至笔记标题右侧，尚未原生验证。用户平板/大字体任务仍在跑，标准横屏成功不覆盖其他窗口。

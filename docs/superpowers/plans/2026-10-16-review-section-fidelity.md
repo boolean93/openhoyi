@@ -5,3 +5,7 @@
 沿用develop66ebda9+ed01de0依赖，feature/task-first-ui→develop草稿PR#4，遵守docs/git-workflow.md。不安装/合并/发版、不改协议/签名/schema。Mock双APK编译和现有中文长文本/IME/滚动检查验证，截图核对字体间距。普通push，追加revert回退。
 
 验证：首次编译因无障碍属性名失败，改用API28起的isAccessibilityHeading并保护版本后，双Mock APK构建39秒成功；git diff --check通过。候选尚缺原生截图/IME结果。
+
+390a7ae标准横屏job成功，实读正常表单图确认分区/研磨视口已生效；336窗口、复盘17captures/8longStates/IME通过。但右对齐跳转仍占独立整行，偏离原稿。后续改为笔记滚动区标题同行的200dp跳转选择器，标题占剩余宽度；自然高度按完整标题行测量，控件和五组跳转行为不变，不从测试删除选择器或断言。
+
+笔记标题同行跳转候选双Mock APK构建39秒成功（/tmp/task-review-inline-jump-build.log），diff检查通过；尚待原生表单/IME/截图，不把前一版标准横屏通过当新布局通过。
