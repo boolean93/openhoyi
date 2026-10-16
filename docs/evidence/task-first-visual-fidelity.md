@@ -273,3 +273,13 @@ Capture38870992324 completed/success，已下载并实读ci-7b03ebe-capture/mock
 在e98d7c7左右构图基础上补压力配方内嵌三列表：阶段、压力bar、本段水量ml，直接使用文档阶段值，14sp文本与8dp横向/4dp纵向单元间距。通过已有workspace测量回调实测标题、指标、说明、详情入口及表格高度，剩余图表预算至少160dp才显示；短高收起表格但完整参数入口不移除。原始流量文档不绘制压力表，保存/冲突逻辑未改。
 
 八语言表头XML解析和键检查通过；首次资源脚本误列仓库不存在的values-de路径，已按实际zh/en/ja/ko/ru/th/ar/es集合补全，没有新建不支持语言。双Mock APK43秒成功，diff检查通过。当前仅为候选，实际表格可见性、字号1.3、短高和冲突状态截图未验收，不能声明与概念稿已一致。
+
+## 418fec6历史构图用户平板实屏与大字号失败
+
+single-screen38873060543已终止：用户平板、普通横屏成功，大字号失败。下载并实读用户平板中文浅色HistoryDetailActivity/window.png，result.txt为336窗口/21页、列表恢复14/14。40sp结果双值、左图右记录、右下固定编辑和文字对比已生效。仍明显未对齐：右栏空字段逐项分行占高，次级标题/摘要占用较多纵向空间，图表绘图区偏矮；应压缩元数据与简短字段，而不是缩小图表文字或删完整记录。此fixture为空笔记，不证明长笔记同稿一致。
+
+大字号产物显示335/336页面通过、列表恢复14/14（包括ScaleConnectionActivity设备管理返回，本次scrollY=346）。失败实际位于zh-Hans-light-HomeActivity的LanguageDetailChecks.kt:109：注入manualSafetyResource后，warning.isShown且文本等于预期的断言失败，不是历史详情图高断言。当前失败消息没有区分隐藏还是文字不符，根因未定。HomeActivity实际提示优先级为ShotSafetyAlert→manualSafetyMessage→machineWriteSafetyMessage；必须检查实际显示值/绑定服务/状态，不可删掉安全提示或放松断言。已查看的Home截图是普通空态，不能当失败瞬间的提示证据。未重跑该任务掩盖失败。
+
+e98d7c7 advanced38874021113、single-screen38874021152查询仍in_progress；本轮未新增应用样式，也未将成功子任务扩大为整个工作流成功。
+
+进一步实读失败产物chinese-safety-states/zh-Hans-light-HomeActivity-warning-2.png：红色“无法清除萃取安全记录；请检查机器并重试。”完整显示，符合第三项注入资源。故截图时提示正确，不能证明随后的断言时状态仍一致；不能据截图直接归因于布局。新增断言失败上下文以区分可见性、文字、服务绑定和状态覆盖，原条件/注入/恢复不变。根因和修复仍未完成。

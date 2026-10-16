@@ -106,7 +106,14 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                 checkLayout("$fixture warning=$id")
                 onMain {
                     val warning = field(home, "safetyWarning").get(home) as TextView
-                    check(warning.isShown && warning.text.toString() == home.getString(id))
+                    check(warning.isShown && warning.text.toString() == home.getString(id)) {
+                        "$fixture warning=$id expected=${home.getString(id)} actual=${warning.text} " +
+                            "shown=${warning.isShown} visibility=${warning.visibility} " +
+                            "attached=${warning.isAttachedToWindow} homeFocus=${home.hasWindowFocus()} " +
+                            "homeDestroyed=${home.isDestroyed} sameService=${field(home, "service").get(home) === service} " +
+                            "manualResource=${resource.get(service)} shot=${service.shotState} coffee=${service.snapshot.coffeeState} " +
+                            "safetyResource=${ShotSafetyAlert.resource(service.shotState, service.snapshot.coffeeState)}"
+                    }
                     LanguageUiLayoutChecks.textFits(warning, "$fixture warning=$id")
                     check(service.shotState == state && service.snapshot.message === message)
                 }
