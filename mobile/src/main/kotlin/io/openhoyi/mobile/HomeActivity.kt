@@ -311,7 +311,9 @@ class HomeActivity : ThemedActivity() {
         quickPresets = button(secondary, getString(R.string.home_quick_curves)) { showQuickPresets() }
         button(secondary, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
         button(secondary, getString(R.string.scale_title)) { startActivity(Intent(this, ScaleActivity::class.java)) }
-        brewButton = button(content, getString(R.string.home_curve_select), primary = true) {
+        val actionDock = TaskActionDock(this, edgeInsetDp = 0)
+        content.addView(actionDock, LinearLayout.LayoutParams(-1, -2))
+        brewButton = button(actionDock, getString(R.string.home_curve_select), primary = true) {
             val library = (application as MobileApplication).curves
             val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
             val active = service?.let { ShotGate.active(it.shotState) || it.manualShotActive } == true
@@ -724,7 +726,10 @@ class HomeActivity : ThemedActivity() {
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView =
         TextView(this).apply {
             text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
-            setPadding(0, dp(6), 0, dp(6)); if (bold) typeface = TaskTypography.face(context, 700)
+            includeFontPadding = false
+            typeface = TaskTypography.face(context, if (bold) 700 else 400)
+            val relatedInset = dp(TaskVisualTokens.RELATED_GAP_DP / 2)
+            setPadding(0, relatedInset, 0, relatedInset)
             parent.addView(this)
         }
     private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)

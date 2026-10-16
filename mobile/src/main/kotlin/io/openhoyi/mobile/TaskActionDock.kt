@@ -4,13 +4,13 @@ import android.content.Context
 import android.widget.LinearLayout
 
 /** Fixed task action, aligned with the supporting pane without joining its scroll area. */
-internal class TaskActionDock(context: Context) : LinearLayout(context) {
+internal class TaskActionDock(context: Context, edgeInsetDp: Int = 12) : LinearLayout(context) {
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
 
     init {
         orientation = VERTICAL
         gravity = android.view.Gravity.END
-        setPadding(dp(12), 0, dp(12), dp(4))
+        setPadding(dp(edgeInsetDp), 0, dp(edgeInsetDp), dp(4))
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
