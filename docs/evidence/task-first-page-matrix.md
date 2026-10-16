@@ -1,0 +1,55 @@
+# 全范围视觉验收状态矩阵
+
+2026-10-16，代码基线abe9614。此表不缩减21功能页＋3设置页；所有行目前均**未完成最终视觉验收**。
+
+沿用feature/task-first-ui→develop PR#4及docs/git-workflow.md。本次只整理实证，不操作设备、不合并/发版；文档检查为页面覆盖数量、PNG/JSON存在及JSON解析。后续普通push，可追加revert回退。
+
+## 统一取证要求
+
+- 已批准稿件保持不变；中文、用户横屏2560×1600/density360/fontScale1.0优先；系统栏另计。大字号、短高、IME为额外检查。
+- 同业务状态的实际图、真实字体/布局测量、逐项差异核对才可验收；框架空态通过不能代替有数据页。
+- 字体固定源及Google/Apple应用依据见既有研究与详细审计；固定字体身份不证明ImageGen使用相同字体。
+- 下表“框架证据”均来自f525db3/run38888397896。24份JSON已逐一解析（density/fontScale核实），但不声称24张PNG均已人工比较。
+
+## 24页状态
+
+| 页面 | 认可稿/范围 | 框架证据状态与缺口 | 字体测量条目 |
+|---|---|---|---|
+| HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | 未选曲线；最近配方/本杯就绪待同状态图 | 25 |
+| ExtractionActivity | [满配v3](../research/task-first-ui-concepts/extraction-four-series-v3.png)、[无秤v2](../research/task-first-ui-concepts/extraction-no-scale-v2.png) | 等待/未选曲线；不是运行态 | 33 |
+| CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 有列表；选中详情与排序后的状态需另图 | 31 |
+| HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
+| HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 记录不存在 | 8 |
+| BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 不足两杯；新构图/摘要表/指标按钮晚于截图 | 9 |
+| BeanInventoryActivity | [库存v2](../research/task-first-ui-concepts/bean-inventory-v2.png) | 库存空态 | 11 |
+| BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 新豆款空表单；五输入完整，尚有模式选择/日期交互差异 | 20 |
+| BeanBatchActivity | [批次v1](../research/task-first-ui-concepts/bean-batch-v1.png) | 批次不存在 | 8 |
+| BeanLedgerActivity | [流水v3](../research/task-first-ui-concepts/bean-ledger-v3.png) | 空流水表头；有事件状态需另图 | 14 |
+| BeanPreparationActivity | [用豆v1](../research/task-first-ui-concepts/bean-preparation-v1.png) | 无库存批次 | 10 |
+| BrewReviewActivity | [复盘v3](../research/task-first-ui-concepts/brew-review-v3.png) | 记录不存在；不能验证复盘表单 | 9 |
+| CurveEditorActivity | [编辑v1](../research/task-first-ui-concepts/curve-editor-v1.png) | 双阶段；图注与动作完整；四阶段/IME另验 | 31 |
+| CurveShareActivity | [分享v1](../research/task-first-ui-concepts/curve-share-v1.png) | 曲线不存在；709a337业务图另证四阶段；abe9614分区待新图 | 9 |
+| CurveImportActivity | [导入v2](../research/task-first-ui-concepts/curve-import-v2.png) | 空JSON输入；合法/非法/键盘另验 | 13 |
+| CurveImportPreviewActivity | [冲突预览v1](../research/task-first-ui-concepts/curve-import-preview-v1.png) | 参数不可读错误态；正常/冲突需业务图 | 9 |
+| ScaleActivity | [电子秤v2](../research/task-first-ui-concepts/scale-v2.png) | Mock无有效重量；单位/设备行修改晚于截图 | 25 |
+| ScaleConnectionActivity | [连接v1](../research/task-first-ui-concepts/scale-connection-v1.png) | 无候选；候选/连接/实验协议限制需另验 | 13 |
+| LegacyCurveActivity | [旧曲线v1](../research/task-first-ui-concepts/legacy-curve-v1.png) | 未导入空态；重复只读说明与全宽导入按钮待收敛 | 13 |
+| LegacyHistoryActivity | [旧记录v1](../research/task-first-ui-concepts/legacy-history-v1.png) | 零条记录；有内容列表待核对 | 13 |
+| LegacyHistoryDetailActivity | [旧详情v1](../research/task-first-ui-concepts/legacy-history-detail-v1.png) | 记录不可用；双指标数据图尚未由此验证 | 9 |
+| AppSettingsActivity | 设置页：保留配置/安全说明、允许整页滚动；无独立认可概念稿，不能假称已与稿一致 | 外观/语言/偏好首屏；允许整页滚动，底部项另验 | 26 |
+| MachineSettingsActivity | 设置页：保留配置/安全说明、允许整页滚动；无独立认可概念稿，不能假称已与稿一致 | 模拟回读设置；真实写入/回读不在视觉证据范围 | 37 |
+| ScaleSettingsActivity | 设置页：保留配置/安全说明、允许整页滚动；无独立认可概念稿，不能假称已与稿一致 | 未连接能力说明；有能力状态另验 | 14 |
+
+## 已获得的其他证据（不能跨版本外推）
+
+- 709a337 advanced/run38886601670：15业务页8语言×2主题、常规/1.3字号各240夹具通过。四阶段分享图已人工核对；分区调整abe9614在其后，须新图。
+- 27ae12b single/run38885839398：普通横屏通过，用户平板332/336、大字号334/336；失败仅旧入库/编辑裁切，修正版本f3233d6/f525db3待专项回归。复盘IME本轮未复现不等于根因已修。
+- cbe8076补用户平板浅色真实Mock启动流程；不是硬件验收，也未覆盖无秤运行态。
+- 55f3f3f前后电子秤单位和设备行、fb19415两杯指标分段、edd89da摘要表均已有构建但仍待对应运行图。
+
+## 下一步优先级
+
+1. 等修正后四阶段/IME与有数据对比页专项结果；失败按精确源码追踪，不针对旧失败重复改动。
+2. 获取用户平板浅色运行萃取及无秤状态，逐项核对主值、四/三指标、停止、本杯上下文。
+3. 用已有业务截图填补库存/复盘/导入有数据状态；旧版三页须找实际有内容夹具，空态不能覆盖。
+4. 设置页完整滚动/状态检查及统一字体、间距逐项测量仍保留，不因缺少概念稿而从范围删除。

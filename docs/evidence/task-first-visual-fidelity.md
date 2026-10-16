@@ -2,6 +2,8 @@
 
 2026-10-16。用户明确要求开发与生成图保持一致，包含字体和间距。当前结论：**未通过视觉一致性验收**。21页概念覆盖、原生窗口几何通过，不等于本项完成。
 
+最新全范围状态见[24页验收矩阵](task-first-page-matrix.md)。以下保留按时间追加的历史证据，旧版本描述不代表当前源码。
+
 ## 对照基线
 
 - 设计：docs/research/task-first-ui-concepts/index.md中各页当前版本；萃取为extraction-four-series-v3.png。
