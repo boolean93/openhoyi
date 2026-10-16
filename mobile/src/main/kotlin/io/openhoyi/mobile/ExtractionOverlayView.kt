@@ -124,14 +124,16 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
                     textSize = 14f
                     isAllCaps = false
                     backgroundTintList = null
-                    background = legendBackground(false)
+                    background = legendBackground()
+                    typeface = TaskTypography.face(context, 400)
+                    gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
                     elevation = 0f
                     stateListAnimator = null
                     setTextColor(metricColor(metric))
                     minWidth = dp(48f).toInt(); minimumWidth = minWidth
                     minHeight = dp(48f).toInt(); minimumHeight = minHeight
                     setPadding(dp(6f).toInt(), dp(3f).toInt(), dp(6f).toInt(), dp(3f).toInt())
-                    compoundDrawablePadding = dp(5f).toInt()
+                    compoundDrawablePadding = dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt()
                     setCompoundDrawablesRelative(MetricSwatch(metric), null, null, null)
                     setOnClickListener {
                         selected = metric
@@ -165,10 +167,19 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         plot.invalidate()
     }
 
-    private fun legendBackground(focused: Boolean) = GradientDrawable().apply {
-        setColor(context.getColor(if (focused) R.color.mobile_accent_soft else R.color.mobile_surface))
-        cornerRadius = dp(8f)
-        setStroke(dp(1f).toInt(), context.getColor(R.color.mobile_border))
+    private fun legendBackground(): Drawable {
+        fun fill(color: Int) = GradientDrawable().apply {
+            setColor(color)
+            cornerRadius = dp(8f)
+        }
+        // Keep focus/press feedback without giving each legend entry a permanent card.
+        val feedback = context.getColor(R.color.mobile_accent_soft)
+        val content = android.graphics.drawable.StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), fill(feedback))
+            addState(intArrayOf(), fill(android.graphics.Color.TRANSPARENT))
+        }
+        return android.graphics.drawable.RippleDrawable(
+            android.content.res.ColorStateList.valueOf(feedback), content, fill(android.graphics.Color.WHITE))
     }
 
     private fun updateSelection() {
@@ -177,7 +188,6 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             val focused = focusMetric == metric
             if (button.isSelected != focused) {
                 button.isSelected = focused
-                button.background = legendBackground(focused)
                 button.typeface = TaskTypography.face(context, if (focused) 700 else 400)
             }
         }
@@ -293,7 +303,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
 
     private inner class MetricSwatch(private val metric: ChartMetric) : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(2f) }
-        init { setBounds(0, 0, dp(22f).toInt(), dp(12f).toInt()) }
+        init { setBounds(0, 0, dp(32f).toInt(), dp(12f).toInt()) }
         override fun draw(canvas: Canvas) {
             paint.color = metricColor(metric); paint.pathEffect = effect(metric)
             canvas.drawLine(bounds.left.toFloat(), bounds.exactCenterY(), bounds.right.toFloat(), bounds.exactCenterY(), paint)
@@ -310,7 +320,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
 
     /** Natural text wrapping, with at most two columns below the wide-window breakpoint. */
     private inner class LegendLayout(context: Context) : ViewGroup(context) {
-        private val gap get() = dp(4f).toInt()
+        private val gap get() = dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt()
         private val twoColumns get() = resources.configuration.screenWidthDp < 840
 
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
