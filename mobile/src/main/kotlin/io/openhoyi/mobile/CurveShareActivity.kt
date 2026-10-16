@@ -24,7 +24,7 @@ class CurveShareActivity : ThemedActivity() {
         if (doc == null) { HoyiUi.label(this, body, getString(R.string.profiles_missing), 17); return }
         document = doc
         exportedUri = savedInstanceState?.getString("exportedUri")?.let(Uri::parse)
-        val workspace = TaskWorkspaceLayout(this).apply {
+        val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .38f, supportingMaxWidthDp = 440).apply {
             fillSecondaryViewport = true
             listOf(primaryBody, secondaryBody).forEach { pane ->
                 val inset = HoyiUi.dp(this@CurveShareActivity, 16)

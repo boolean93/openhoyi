@@ -22,12 +22,16 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
         R.string.curve_preview_temperature to "${doc.temperatureC} °C",
         R.string.curve_preview_weight to if (doc.targetHundredthsGram == 0) getString(R.string.curve_details_no_weight)
             else "${CurveDraftNumber.format(doc.targetHundredthsGram, 2)} g"
-    ).forEach { (label, value) ->
+    ).forEachIndexed { index, (label, value) ->
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(0, 0, HoyiUi.dp(this@sharePreview, 8), 0)
+            setPadding(HoyiUi.dp(this@sharePreview, 16), HoyiUi.dp(this@sharePreview, 8),
+                HoyiUi.dp(this@sharePreview, 16), HoyiUi.dp(this@sharePreview, 8))
+            background = HoyiUi.shape(this@sharePreview, R.color.mobile_surface, 8, R.color.mobile_border)
         }
-        metrics.addView(column, LinearLayout.LayoutParams(0, -2, 1f))
+        metrics.addView(column, LinearLayout.LayoutParams(0, -2, 1f).apply {
+            if (index > 0) marginStart = HoyiUi.dp(this@sharePreview, 16)
+        })
         HoyiUi.label(this, column, getString(label), 14, muted = true)
         HoyiUi.label(this, column, value, 24).apply {
             typeface = TaskTypography.face(this@sharePreview, 700)
@@ -40,7 +44,7 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
     }
     val chart = CurveStageView(this).apply { targets = doc.stages.map { it.target } }
     preview.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
-    HoyiUi.label(this, preview, getString(R.string.profiles_stage_caption), 14, muted = true)
+    HoyiUi.label(this, preview, getString(R.string.task_form_stage_caption), 14, muted = true)
     val table = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         tag = "share-stage-table"
@@ -55,6 +59,8 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
                 setPadding(HoyiUi.dp(this@sharePreview, 8), HoyiUi.dp(this@sharePreview, 4),
                     HoyiUi.dp(this@sharePreview, 8), HoyiUi.dp(this@sharePreview, 4))
                 layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                background = HoyiUi.shape(this@sharePreview,
+                    if (heading) R.color.mobile_background else R.color.mobile_surface, 0, R.color.mobile_border)
                 if (column == 0 && stageIndex != null) setTextColor(CurveStagePalette.color(context, stageIndex))
             }
         }

@@ -5,7 +5,9 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 
 /** Stable task regions, with a local supporting scroll area. Insets belong to the page root. */
-internal class TaskWorkspaceLayout(context: Context) : LinearLayout(context) {
+internal class TaskWorkspaceLayout(context: Context,
+    private val supportingWidthFraction: Float = .30f,
+    private val supportingMaxWidthDp: Int = 320) : LinearLayout(context) {
     val primaryBody = LinearLayout(context).apply { orientation = VERTICAL }
     val secondaryBody = LinearLayout(context).apply { orientation = VERTICAL }
     private val supportingScroll = object : ScrollView(context) {
@@ -32,7 +34,11 @@ internal class TaskWorkspaceLayout(context: Context) : LinearLayout(context) {
     // The callback may choose a local text fallback when that primary budget is insufficient.
     var onPrimarySpaceAvailable: ((width: Int, height: Int) -> Int)? = null
 
-    init { tag = "task-workspace"; addView(primaryBody); addView(supportingScroll) }
+    init {
+        require(supportingWidthFraction > 0f && supportingWidthFraction <= .5f)
+        require(supportingMaxWidthDp >= 280)
+        tag = "task-workspace"; addView(primaryBody); addView(supportingScroll)
+    }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val density = resources.displayMetrics.density
@@ -41,7 +47,7 @@ internal class TaskWorkspaceLayout(context: Context) : LinearLayout(context) {
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
         val twoPane = TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
             (height / density).toInt()).twoPaneAllowed && width >= dp(624)
-        val secondaryWidth = (width * .30f).toInt().coerceIn(dp(280), dp(320))
+        val secondaryWidth = (width * supportingWidthFraction).toInt().coerceIn(dp(280), dp(supportingMaxWidthDp))
         val primaryWidth = if (twoPane) width - secondaryWidth - dp(24) else width
         // Keep every secondary action reachable even when the stage graph needs a text fallback.
         // Below 48dp plus the actual title height, both task regions cannot remain fully usable.
