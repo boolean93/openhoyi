@@ -3,4 +3,9 @@
     <string name="task_form_jump">セクションへ移動</string>
     <string name="task_form_optional_iso_dates">日付は任意です。形式：YYYY-MM-DD</string>
     <string name="task_form_stage_caption">段階ごとの目標図。時間の予測ではありません</string>
+    <string name="task_form_basic">基本情報</string>
+    <string name="task_form_targets">抽出目標</string>
+    <string name="task_form_bean_identity">豆の情報</string>
+    <string name="task_form_stock">入庫</string>
+    <string name="task_form_dates">日付（任意）</string>
 </resources>

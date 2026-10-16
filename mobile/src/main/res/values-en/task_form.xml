@@ -3,4 +3,9 @@
     <string name="task_form_jump">Jump to section</string>
     <string name="task_form_optional_iso_dates">Dates are optional; use YYYY-MM-DD</string>
     <string name="task_form_stage_caption">Stage target schematic, not a time prediction</string>
+    <string name="task_form_basic">Basic information</string>
+    <string name="task_form_targets">Extraction targets</string>
+    <string name="task_form_bean_identity">Coffee bean information</string>
+    <string name="task_form_stock">Stock entry</string>
+    <string name="task_form_dates">Dates (optional)</string>
 </resources>

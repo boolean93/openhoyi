@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_history_flow_details">流速明细（高级）</string>
+    <string name="task_history_flow_columns">经过时间 · 机器水流量 · 秤端派生流速；— 表示没有采样</string>
+</resources>

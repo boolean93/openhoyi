@@ -31,7 +31,7 @@ class CurveEditorActivity : ThemedActivity() {
         if (sourceId != null && !sourceId.startsWith("draft-")) HoyiUi.label(this, body, getString(R.string.profiles_copy_warning), 15, muted = true)
         stageCount = savedInstanceState?.getInt("stageCount") ?: source.stages.size
         section = savedInstanceState?.getInt("section") ?: 0
-        val sectionLabels = listOf(getString(R.string.profiles_name), getString(R.string.profiles_stage_count)) + (1..4).map { getString(R.string.profiles_stage, it) }
+        val sectionLabels = listOf(getString(R.string.task_form_basic), getString(R.string.task_form_targets)) + (1..4).map { getString(R.string.profiles_stage, it) }
         val sections = TaskFormSections(this, body, sectionLabels, section) { section = it }
         form = sections
         val card = sections.panels[0]

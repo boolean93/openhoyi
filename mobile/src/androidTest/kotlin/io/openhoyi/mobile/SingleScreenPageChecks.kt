@@ -43,6 +43,10 @@ internal object SingleScreenPageChecks {
         if (activity is HistoryDetailActivity) {
             val charts = views.filterIsInstance<ShotChartView>()
             check(charts.size == 1 && charts.single().points.size >= 2) { "$fixture missing populated historical chart" }
+            val plot = charts.single().findViewWithTag<View>("chart-plot")
+            check(plot.visibility == View.VISIBLE && plot.height >= HoyiUi.dp(activity, 96)) {
+                "$fixture historical four-metric chart has no usable plot"
+            }
         }
         if (activity is BrewComparisonActivity) {
             val chart = views.filterIsInstance<TwoCupChartView>().single()

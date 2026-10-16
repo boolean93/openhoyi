@@ -32,7 +32,7 @@ class BeanEntryActivity : ThemedActivity() {
         val body = beanPage(getString(R.string.beans_entry_title))
         val inventory = beanInventory(body) ?: return
         section = savedInstanceState?.getInt("section") ?: 0
-        val sections = TaskFormSections(this, body, listOf(getString(R.string.beans_identity), getString(R.string.beans_initial_input), getString(R.string.beans_dates_optional)), section) { section = it }
+        val sections = TaskFormSections(this, body, listOf(getString(R.string.task_form_bean_identity), getString(R.string.task_form_stock), getString(R.string.task_form_dates)), section) { section = it }
         form = sections
         val card = sections.panels[0]
         val beans = inventory.batches().map { it.batch.bean }.distinctBy { it.id }

@@ -3,4 +3,9 @@
     <string name="task_form_jump">الانتقال إلى القسم</string>
     <string name="task_form_optional_iso_dates">التواريخ اختيارية؛ استخدم YYYY-MM-DD</string>
     <string name="task_form_stage_caption">مخطط أهداف المراحل، وليس توقعًا زمنيًا</string>
+    <string name="task_form_basic">المعلومات الأساسية</string>
+    <string name="task_form_targets">أهداف الاستخلاص</string>
+    <string name="task_form_bean_identity">معلومات حبوب القهوة</string>
+    <string name="task_form_stock">إضافة مخزون</string>
+    <string name="task_form_dates">التواريخ (اختياري)</string>
 </resources>

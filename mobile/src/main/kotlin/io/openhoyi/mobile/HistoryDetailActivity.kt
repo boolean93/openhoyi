@@ -93,7 +93,7 @@ class HistoryDetailActivity : ThemedActivity() {
         chartCard.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
         val chartStatus = HoyiUi.label(this, chartCard, getString(R.string.history_loading_samples), 12, muted = true)
         HoyiUi.button(this, body, getString(R.string.history_outcome_title) + " / " + getString(R.string.journal_notes_title)) {
-            showDetails(entry, curve, permanent, app.journalResult.isFailure)
+            showDetails(entry, curve, permanent, app.journalResult.isFailure, chart.points)
         }
         if (permanent != null) {
             val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -120,7 +120,7 @@ class HistoryDetailActivity : ThemedActivity() {
         }, "history-detail-reader").start()
     }
     /** Long source metadata and all journal fields are available without shrinking the chart. */
-    private fun showDetails(entry: ShotHistory.Entry, curve: String, permanent: BrewJournal.Entry?, journalFailed: Boolean) {
+    private fun showDetails(entry: ShotHistory.Entry, curve: String, permanent: BrewJournal.Entry?, journalFailed: Boolean, points: List<ShotPoint>) {
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(12), dp(20), dp(12))
@@ -134,6 +134,15 @@ class HistoryDetailActivity : ThemedActivity() {
         HoyiUi.label(this, content, entry.reason?.let(::reasonLabel) ?: getString(R.string.history_no_reason), 15, true)
         if (permanent != null) journalNotes(HoyiUi.card(this, content, getString(R.string.journal_notes_title)), permanent.notes)
         else HoyiUi.label(this, content, getString(if (journalFailed) R.string.journal_unavailable else R.string.journal_migrate_hint), 14)
+        HoyiUi.button(this, content, getString(R.string.task_history_flow_details)) {
+            val rows = points.joinToString("\n") { point ->
+                "%.2f s · %.1f ml/s · %s".format(Locale.ROOT, point.elapsedMs / 1000.0,
+                    point.machineFlowTenthsMlPerSecond / 10.0,
+                    point.scaleFlowHundredths?.let { "%.2f g/s".format(Locale.ROOT, it / 100.0) } ?: "—")
+            }
+            beanDetails(getString(R.string.task_history_flow_details),
+                getString(R.string.task_history_flow_columns) + "\n\n" + rows)
+        }.isEnabled = points.isNotEmpty()
         val viewport = ScrollView(this).apply { addView(content) }
         AlertDialog.Builder(this).setTitle(curve).setView(viewport).setPositiveButton(android.R.string.ok, null).show()
     }

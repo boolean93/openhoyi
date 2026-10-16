@@ -33,21 +33,26 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
         val width = (600 * density).toInt()
         val height = (340 * density).toInt()
         view.layoutDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
+        view.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
         view.layout(0, 0, width, height)
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val target = if (view is ShotChartView) view.findViewWithTag<View>("chart-plot") else view
+        val drawWidth = target.width
+        val drawHeight = target.height
+        val bitmap = Bitmap.createBitmap(drawWidth, drawHeight, Bitmap.Config.ARGB_8888)
         try {
-            view.draw(Canvas(bitmap))
-            val pixels = IntArray(width * height)
-            bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
-            val left = leftDp * density
-            val right = width - rightDp * density
-            val top = (topDp * density).toInt() + 1
-            val bottom = (height - bottomDp * density).toInt() - 1
+            target.draw(Canvas(bitmap))
+            val pixels = IntArray(drawWidth * drawHeight)
+            bitmap.getPixels(pixels, 0, drawWidth, 0, 0, drawWidth, drawHeight)
+            val left = (if (view is ShotChartView) 90f else leftDp) * density
+            val right = drawWidth - (if (view is ShotChartView) 60f else rightDp) * density
+            val top = ((if (view is ShotChartView) 32f else topDp) * density).toInt() + 1
+            val bottom = (drawHeight - (if (view is ShotChartView) 42f else bottomDp) * density).toInt() - 1
             fun meanY(low: Float, high: Float): Double {
                 var total = 0L
                 var count = 0
                 for (x in (left + (right - left) * low).toInt()..(left + (right - left) * high).toInt())
-                    for (y in top..bottom) if (pixels[y * width + x] == color) { total += y; count++ }
+                    for (y in top..bottom) if (pixels[y * drawWidth + x] == color) { total += y; count++ }
                 check(count > 0) { "No rendered series pixels for ${view.javaClass.simpleName} ${language.tag}" }
                 return total.toDouble() / count
             }
