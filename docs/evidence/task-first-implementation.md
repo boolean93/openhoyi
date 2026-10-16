@@ -76,3 +76,17 @@ b425b4d新增只读每杯图身份，真实缺属性红灯后完整JVM295项/0�
 导航组件a5c31d8/b5c208b适应真实Frame与640dp测量，保留全部8语言2主题5宽2字号/48dp/RTL/textFits负fixture及独立header/stop。dummy不再假装实际五种页；实际Home重建后检查BREW选中，24真实页专项保留。质量审查发现GONE tools子树未测量，已只跳过该GONE分支，不改textFits本体。
 
 独立规格/质量复查均通过。root统一`:mobile:testMockUnitTest :mobile:assembleMock :mobile:assembleMockAndroidTest`使用SDK35离线aapt2参数，实际BUILD SUCCESSFUL in42s；独立XML295项0失败0错误1既有skip。最后GONE/选中重测的测试修正另编译AndroidTest实际BUILD SUCCESSFUL in20s；无新图真实UIgreen，不宣称图表/21页/短高整体验收完成。后续继续F3冲煮工作台与剩余集合/表单页面，不做发版。
+
+## 56d0684实际云端结果与工作台后续（2026-10-16）
+
+精确56d0684：Branch policy38733280233、Verify38733280288（含lint）、advanced pages/business38733280281、upgrade38733280100、task-frame38733280170均成功；lifecycle38733280147与single-screen38733280114失败，未当总体通过。
+
+已取回三窗口24页及每窗4个新图fixture。实际抽看横屏four-metrics、手机gaps/reference/short-height与Extraction真实页；组件断言绿但原页面仍拥挤，未视觉验收。原生灰按钮、说明过多后以fb259e2收敛；独立规格和质量静态通过，新截图待跑。
+
+lifecycle实际LanguagePageChecks compact Home仍假定root最后是旧4项bottom bar（229行），本轮迁移至真实Frame：四主项顺序/实际页选中/48dp/完整可见/工具/内容与导航不重叠/原start保留，RTL用全局rect。不删语言矩阵、textFits或业务检查。single-screen真实phone里ru/es Extraction plot0x0、ru对比chart108px不足96dp，是真布局问题，不降低正常plot检查；分别写独立Extraction/双杯计划实施。
+
+Home a8f9bf8→c7a4b83：阶段预览/真实只读用豆与使用记录摘要/原5槽面板；实际文字测量先留96dp图，不足则完整非时间预测阶段文本局部滚动。独立规格发现最初图被压小P2后已修；质量发现fallback辅区0高P2，追加保48dp辅区viewport，静态复查关闭。未当实屏通过；新增真实Home组件normal/180dp/recovery检查，脚本1.0/1.3两轮且断言实际fontScale，完整阶段编号顺序，库存/用豆/使用/日志不变，selected即使启动失败也finally恢复。代码已编译，尚未native执行。
+
+Extraction1daf622：时间/真实数量两主读数，压力/机器原始温度次级，单图占主要剩余空间；工具局部滚动，flow仅详情，不从raw scale推算出液。原确认方法与start/stop/prepare/cancel门禁保留。参考来源标签只包含实际日期与对齐，陈旧“实线本杯/虚线参考”说明另改成真实灰参考语义。规格审查发现临界高度chrome显隐反馈振荡P2，修复中，未宣称此页完成。
+
+root实际完整命令（沿用SDK35离线aapt2覆盖）：`:mobile:testMockUnitTest :mobile:assembleMock :mobile:assembleMockAndroidTest`，日志`/tmp/task-workbench-build.log`，BUILD SUCCESSFUL in51s/96tasks；独立解析66个JUnit XML，295tests/0fail/0error/1既有skip。此结果覆盖1daf622及当时root测试，但不覆盖后续修复和双杯实现；原生窗口与云端lint仍须重跑。本地lint没有新增通过证据。无用户设备安装、无发版、PR#4仍draft。

@@ -143,7 +143,7 @@ internal object HoyiUi {
         })
         val words = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         row.addView(words, LinearLayout.LayoutParams(0, -2, 1f))
-        label(activity, words, title, 28, true)
+        label(activity, words, title, 24, true)
         subtitle?.let { label(activity, words, it, 13, muted = true).apply {
             setPadding(0, dp(activity, 4), 0, 0)
         } }

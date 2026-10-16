@@ -90,3 +90,17 @@ chart.referenceLabel=if(available) referenceStatus.text.toString() else null
 
 
 7cd5c89/e71cc8b/9914ea3实现及修复完成，独立规格复查、质量复查无剩余具体阻断。根当前统一命令295项JVM0失败1skip+两assemble成功；最后两行GONE测试修复后另编译AndroidTest。当前仍无新图UIgreen和截图证据，保留CI步骤未完成；满配出液上下文尚未新增，图中重量明确为原始“秤读数”。F3仍需落实主读数/释放高度并核实实时杯重上下文，不能以F2缩小全部21页范围。
+
+
+## 真实读图后的视觉收敛任务
+
+56d0684/CI38733280170三窗实际通过并下载截图，见task-first-ui-review.md。当前native Button灰底/3＋1排列/多行提示不够聚焦，不能因几何green停止。
+
+Worker仍只拥有ExtractionOverlayView.kt及task_chart资源。此为已批准设计范围内可逆样式/排布收敛，使用已有真实fixture/文字边界回归，不添加镜像单测。不要同时修改Home/Workspace/Extraction或tests。
+
+- [ ] widget init设置`setBackgroundColor(context.getColor(R.color.mobile_surface))`，让独立native渲染语义背景与实际卡一致，Activity可继续覆盖圆角shape。
+- [ ] 图例Button默认background改为`HoyiUi.shape(context,R.color.mobile_surface,8,R.color.mobile_border)`，去默认elevation/stateListAnimator；选中用accent_soft背景/原颜色+swatch+粗体。只在selected状态变化时换背景/Typeface，不每次采样重建Drawable或控件，14sp/48dp不降。
+- [ ] 窄窗/平板竖窗（windowWidthDp<840）最多两列，按半宽AT_MOST/自然换行测量，不能缩字/省略；四项2＋2，三项2＋1。宽窗仍按真实文字自然排布，长语言容不下可换行。RTL保持，单列长字可自然增高不截断。
+- [ ] 所有legend单位/min–max仍始终在各自控件。初始刻度焦点压力的按钮isSelected=true（即使尚未突出某条线），让用户知道窄轴对应谁；用户点选后参考与轴切同项。
+- [ ] 常态explanation改为一段短语“各项独立量程 · 本杯采样至%1$s s”或“各项独立量程 · 等待本杯采样”，用已有两个资源或新资源8语言基本翻译。点选说明保留在legend读屏描述，不再常驻单独一行；焦点在selected控件，不重复第二行写焦点。真实gap/water reset及reference完整来源/焦点说明仍保留，不造设备原因、不删安全消息（这些是图数据说明，不是控制状态）。
+- [ ] 本小批只修改图例/说明/背景，不改物理投影、x/y/分段、live/reference语义或紧凑提示逻辑；编译前和Home worker/根协调，源码提交范围保持。独立规格/质量审查，实际截图需再看，仍不冒称F3/全21页完成。

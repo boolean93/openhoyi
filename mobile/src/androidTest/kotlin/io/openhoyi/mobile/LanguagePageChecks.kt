@@ -225,24 +225,43 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
 
     private fun checkGeometry(activity: Activity, fixture: String) {
         val root = root(activity)
-        val bar = root.getChildAt(root.childCount - 1) as LinearLayout
-        check(bar.childCount == 4)
-        fullyVisible(bar, fixture)
-        check(bar.bottom <= root.height - root.paddingBottom && bar.top >= root.paddingTop)
+        val frame = descendants(root).filterIsInstance<TaskPageFrame>().single()
+        fullyVisible(frame, fixture)
+        fullyVisible(frame.pageContent, fixture)
+        val expectedMode = if (activity.resources.configuration.screenWidthDp >= 600)
+            TaskNavigationMode.RAIL else TaskNavigationMode.BOTTOM
+        check(frame.mode == expectedMode) { "$fixture wrong navigation mode" }
+        val targets = descendants(frame.navigation).filter { it.tag?.toString()?.startsWith("task-nav:") == true }
         val labels = listOf(R.string.ui_brew, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)
-        for (index in 0 until bar.childCount) {
-            val item = bar.getChildAt(index) as ViewGroup
+        check(targets.take(4).map { it.tag } == TaskNavigationModel.primary.map { "task-nav:${it.name}" })
+        targets.take(4).forEachIndexed { index, item ->
             check(item.isClickable && item.isFocusable && item.width >= HoyiUi.dp(activity, 48) && item.height >= HoyiUi.dp(activity, 48))
+            check(item.isSelected == (TaskNavigationModel.primary[index] == TaskNavigationModel.forPage(activity.javaClass.simpleName)))
             fullyVisible(item, fixture)
             val label = descendants(item).filterIsInstance<TextView>().single()
             check(label.text.toString() == activity.getString(labels[index]))
             LanguageUiLayoutChecks.textFits(label, fixture)
             fullyVisible(label, fixture)
         }
-        for (index in 0 until root.childCount - 1) {
-            val child = root.getChildAt(index)
+        if (frame.toolsInTopBar) {
+            val menu = descendants(frame.pageContent).single { it.tag == "task-tools-menu" && it.isShown }
+            fullyVisible(menu, fixture)
+            check(menu.width >= HoyiUi.dp(activity, 48) && menu.height >= HoyiUi.dp(activity, 48))
+        } else {
+            check(targets.drop(4).map { it.tag } == TaskNavigationModel.tools.map { "task-nav:${it.name}" })
+            targets.drop(4).forEach { fullyVisible(it, fixture) }
+        }
+        // Content and fixed actions now live inside the frame; neither may cross its navigation.
+        val content = frame.pageContent
+        val contentBounds = Rect().also { check(content.getGlobalVisibleRect(it)) }
+        val navigationBounds = Rect().also { check(frame.navigation.getGlobalVisibleRect(it)) }
+        check(!Rect.intersects(contentBounds, navigationBounds)) { "$fixture content overlaps navigation" }
+        for (index in 0 until content.childCount) {
+            val child = content.getChildAt(index)
             if (child.visibility != View.VISIBLE) continue
-            check(child.height > 0 && child.bottom <= bar.top) { "$fixture content/fixed action overlaps navigation or has no height" }
+            check(child.height > 0 && child.top >= 0 && child.bottom <= content.height) {
+                "$fixture content/fixed action overlaps navigation or has no height"
+            }
             if (child is Button) {
                 fullyVisible(child, fixture)
                 LanguageUiLayoutChecks.textFits(child, fixture)
