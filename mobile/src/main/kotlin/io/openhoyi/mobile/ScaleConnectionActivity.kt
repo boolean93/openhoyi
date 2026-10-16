@@ -25,8 +25,10 @@ class ScaleConnectionActivity:ScaleOwnerActivity() {
         savedScrollY=savedInstanceState?.getInt("candidateScrollY") ?: 0
         val body=scaleBody(R.string.scale_connect,R.string.scale_connection_subtitle)
         status=HoyiUi.label(this,body,"",14,muted=true)
-        scan=HoyiUi.button(this,body,getString(R.string.scale_scan),primary=true) {scanCandidates()}
-        HoyiUi.button(this,body,getString(R.string.scale_connection_manager)) {startActivity(Intent(this,HomeActivity::class.java))}
+        val tools=BeanActionRows(this)
+        body.addView(tools,LinearLayout.LayoutParams(-1,-2))
+        scan=HoyiUi.button(this,tools,getString(R.string.scale_scan),primary=true) {scanCandidates()}
+        HoyiUi.button(this,tools,getString(R.string.scale_connection_manager)) {startActivity(Intent(this,HomeActivity::class.java))}
         val devices=android.widget.ScrollView(this).apply {isFillViewport=true}
         candidateScroll=devices
         rows=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL;setPadding(0,HoyiUi.dp(this@ScaleConnectionActivity,8),0,0)}
@@ -76,13 +78,13 @@ class ScaleConnectionActivity:ScaleOwnerActivity() {
             scanPending=false
             if(changesAllowed() && radioUsable())service.scan()
         }
-        status.text=when {
+        status.setIfChanged(when {
             BuildConfig.MOCK_MODE->getString(R.string.scale_mock_notice)
             service==null || !service.running->getString(R.string.scale_owner_failed)
             !changesAllowed()->getString(R.string.scale_active_guard)
             else->getString(R.string.scale_connection_state,DeviceStatusText.label(this,service.snapshot.scaleState))
-        }
-        scan.setText(if(service?.snapshot?.scanning==true)R.string.scale_scanning else R.string.scale_scan)
+        })
+        scan.setIfChanged(getString(if(service?.snapshot?.scanning==true)R.string.scale_scanning else R.string.scale_scan))
         scan.isEnabled=!BuildConfig.MOCK_MODE && service?.snapshot?.scanning!=true && (service==null || changesAllowed())
         val candidates=service?.snapshot?.candidates.orEmpty().filter {it.candidateRole==DeviceRole.BOOKOO}
         val key=candidates.joinToString {"${it.address}:${it.rssi}:${it.scaleProtocolId}"}+":"+changesAllowed()
@@ -91,14 +93,36 @@ class ScaleConnectionActivity:ScaleOwnerActivity() {
         renderedKey=key;rows.removeAllViews()
         if(candidates.isEmpty())HoyiUi.label(this,rows,getString(R.string.scale_scan_empty),14,muted=true)
         else candidates.forEach {candidate->
-            if(candidate.scaleProtocolId==io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
-                HoyiUi.label(this,rows,getString(R.string.scale_read_only_live),14,muted=true)
-            HoyiUi.button(this,rows,getString(R.string.scale_candidate_format,candidate.advertisedName,candidate.address,candidate.rssi)) {
+            val name=candidate.advertisedName
+            val description=buildString {
+                append(name).append('\n')
+                append(getString(R.string.scale_candidate_metadata,candidate.address,candidate.rssi))
+                if(candidate.scaleProtocolId==io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
+                    append('\n').append(getString(R.string.scale_read_only_live))
+            }
+            HoyiUi.button(this,rows,description) {
                 if(BuildConfig.MOCK_MODE || !changesAllowed()) {message(getString(R.string.scale_active_guard));return@button}
                 if(!radioUsable()) {message(getString(R.string.scale_owner_required));return@button}
                 candidate.scaleProtocolId?.let { owner?.connectScale(candidate.address,it) };renderScale()
-            }.isEnabled=!BuildConfig.MOCK_MODE && changesAllowed()
+            }.apply {
+                isEnabled=!BuildConfig.MOCK_MODE && changesAllowed()
+                gravity=android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                textSize=17f
+                typeface=android.graphics.Typeface.create("sans-serif",android.graphics.Typeface.NORMAL)
+                text=android.text.SpannableString(description).apply {
+                    setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD),0,name.length,0)
+                    setSpan(android.text.style.RelativeSizeSpan(14f/17f),name.length,description.length,0)
+                }
+                minHeight=HoyiUi.dp(this@ScaleConnectionActivity,64);minimumHeight=minHeight
+                val inset=HoyiUi.dp(this@ScaleConnectionActivity,12)
+                setPadding(inset,inset,inset,inset)
+                background=android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
+                    HoyiUi.shape(this@ScaleConnectionActivity,R.color.mobile_surface,0,R.color.mobile_border),null)
+                layoutParams=LinearLayout.LayoutParams(-1,-2)
+            }
         }
         candidateScroll.post {if(!isFinishing && !isDestroyed)candidateScroll.scrollTo(0,savedScrollY)}
     }
+    private fun TextView.setIfChanged(value:String) { if(text.toString()!=value) text=value }
 }

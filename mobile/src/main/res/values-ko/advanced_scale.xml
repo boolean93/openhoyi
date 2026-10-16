@@ -56,4 +56,5 @@
     <string name="scale_capability_read_only">읽기 전용 프로토콜 보고</string>
     <string name="scale_memory_failed">저울과 프로토콜을 저장하지 못했습니다. 다음 실행 시 자동 재연결이 불가능할 수 있습니다</string>
     <string name="scale_protocol_unsupported">지원하지 않는 저울 프로토콜</string>
+    <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>
 </resources>

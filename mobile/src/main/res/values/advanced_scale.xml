@@ -56,4 +56,5 @@
     <string name="scale_capability_read_only">只读协议回报</string>
     <string name="scale_memory_failed">未能保存秤和协议；下次启动可能无法自动重连</string>
     <string name="scale_protocol_unsupported">不支持此秤协议</string>
+    <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>
 </resources>

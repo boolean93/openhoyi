@@ -111,3 +111,13 @@ Local `/tmp/task-review-inline-build.log` JVM+bothMockAPKs BUILD SUCCESSFUL in47
 Exact9d457ef PR lifecycle38841222177 failed at ServiceStandaloneTareDispatchChecks before NOT_READY device mutation: expected WRITING/calls1 but logs show immediate UNKNOWN. TraceStore.prepare and durable marker arm can race to create the same unique fixture folder; this candidate is supported by code, not directly proven by the existing log. Synchronously create the owned directory before starting TraceStore, retain all10 dispatch/4 persistence modes and add pre-mutation state/call/marker diagnostics. Production gates/persistence/queue untouched. Same-source push lifecycle38841217380 separately succeeded, consistent with an intermittent fixture issue but not proof of root cause.
 
 Local `/tmp/task-tare-fixture-build.log` JVM plus two APKs BUILD SUCCESSFUL in23s. Native rerun and independent review remain pending; no threshold relaxed.
+
+## 2026-10-16 9d457ef advanced/native visual evidence
+
+Advanced38841222253 succeeded: compact and wideFont each240 fixtures/8languages/2themes/15pages; business job also succeeded. Exact screenshot sources under build/task-first-evidence/ci-9d457ef-advanced and ci-9d457ef-task-frame. Root viewed wideFont/zh-Hans-light-CurveShareActivity.png: stage graph left, actual complete parameters right, main share action distinct. Viewed wideFont/zh-Hans-light-ScaleConnectionActivity.png: empty state honest, but old scanning/manager buttons take two full rows. Viewed task-frame-tablet-user-portrait/ScaleActivity.png: large excess blank reading card, timer/tools locally scroll; **visual polish remains**, despite geometry passing. Same-profile HistoryDetailActivity.png is missing-record state only and cannot prove populated graph acceptance.
+
+## 2026-10-16 scale candidate list
+
+Scan/manager use paired tool row. Candidate remains native Button, now flat/start-aligned with full17sp bold name and14sp scaled address/RSSI/candidate-specific read-only notice. Native ripple/min64dp; no name truncation. Original service, radio checks, guarded callbacks, list order and saved scroll unchanged; status/scan text only update when changed. Existing40 synthetic candidates must remain disabled with same owner/no scan/no connection across recreation/navigation.
+
+Local `/tmp/task-scale-list-build.log` JVM+twoAPK BUILD SUCCESSFUL in45s. This and inline-review9e13664 are newer than9d457ef CI; native screenshots/independent review pending. No hardware install or control.

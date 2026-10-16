@@ -56,4 +56,5 @@
     <string name="scale_capability_read_only">Reported by read-only protocol</string>
     <string name="scale_memory_failed">Scale and protocol could not be saved; automatic reconnect may be unavailable next launch</string>
     <string name="scale_protocol_unsupported">Unsupported scale protocol</string>
+    <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>
 </resources>

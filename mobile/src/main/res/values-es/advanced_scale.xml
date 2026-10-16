@@ -56,4 +56,5 @@
     <string name="scale_capability_read_only">Informado por el protocolo de solo lectura</string>
     <string name="scale_memory_failed">No se pudieron guardar la báscula y el protocolo; podría faltar la reconexión automática al reiniciar</string>
     <string name="scale_protocol_unsupported">Protocolo de báscula no compatible</string>
+    <string name="scale_candidate_metadata">%1$s · %2$d dBm</string>
 </resources>
