@@ -129,6 +129,24 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
         var completed = 0
         var screenshots = 0
         var failure: Throwable? = null
+        val homeLifecycle = test.addMonitor(HomeActivity::class.java.name, null, false)
+        var originalHomeTask = -1
+        onMain { originalHomeTask = home.taskId }
+        fun followHomeRecreation() {
+            if (!home.isDestroyed) return
+            val replacement = homeLifecycle.lastActivity as? HomeActivity ?: return
+            if (replacement === home || replacement.isDestroyed || replacement.taskId != originalHomeTask) return
+            home = replacement
+            test.sendStatus(0, Bundle().apply {
+                putString("stream", "ADVANCED_HOME_RECREATED task=$originalHomeTask; still requiring original service and state\n")
+            })
+        }
+        fun homeReturned(): Boolean {
+            followHomeRecreation()
+            return !home.isDestroyed && home.taskId == originalHomeTask && home.hasWindowFocus() &&
+                homeOwner(home) === service && home.resources.configuration.locales[0] == app.languagePreferences.current.locale &&
+                HoyiUi.dark(home) == appearance.getBoolean("dark", false)
+        }
         fun rebuildHome() {
             val monitor = test.addMonitor(HomeActivity::class.java.name, null, false)
             try {
@@ -200,7 +218,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                             "homeFocus=${home.hasWindowFocus()} homeAttached=${home.window.decorView.isAttachedToWindow} " +
                             "sameService=${homeOwner(home) === service} serviceRunning=${service?.running} " +
                             "childTask=${activity.taskId} homeTask=${home.taskId}"
-                    }) { activity.isDestroyed && home.hasWindowFocus() && homeOwner(home) === service }
+                    }) { activity.isDestroyed && homeReturned() }
                     currentPage = null
                     assertState()
                 }
@@ -212,11 +230,12 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                 try { action() } catch (error: Throwable) { if (failure == null) failure = error else failure!!.addSuppressed(error) }
             }
             cleanup {
-                currentPage?.let { closing -> onMain { closing.finish() }; awaitMain { closing.isDestroyed && home.hasWindowFocus() } }
+                currentPage?.let { closing -> onMain { closing.finish() }; awaitMain { closing.isDestroyed && homeReturned() } }
             }
             cleanup { onMain { check(app.languagePreferences.select(oldLanguage) != AppLanguagePreference.Selection.SAVE_FAILED) } }
             cleanup { onMain { restoreMockPreferences(languagePrefs, oldLanguageStorage); restoreMockPreferences(appearance, oldAppearance) } }
             cleanup { rebuildHome(); assertState() }
+            test.removeMonitor(homeLifecycle)
         }
         failure?.let { throw it }
         return Result(completed, screenshots, directory)
