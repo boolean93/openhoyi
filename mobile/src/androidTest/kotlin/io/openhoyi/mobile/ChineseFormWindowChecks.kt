@@ -74,6 +74,12 @@ internal object ChineseFormWindowChecks {
                 "$name native editor/control clipped: ${view.javaClass.simpleName} ${view.width}x${view.height} visible=$visible"
             }
         }
+        fun revealViewport(field: EditText) {
+            // The API expects content coordinates; a long editor may already have scrollY > 0.
+            val viewport = Rect()
+            field.getDrawingRect(viewport)
+            field.requestRectangleOnScreen(viewport, true)
+        }
         fun tap(field: EditText) {
             val bounds = Rect()
             main { check(field.isEnabled); fullyVisible(field); field.getGlobalVisibleRect(bounds) }
@@ -238,7 +244,7 @@ internal object ChineseFormWindowChecks {
                             val card = cards.getChildAt(position)
                             groupField = descendants(card).filterIsInstance<EditText>().first { it.isShown }
                         }
-                        groupField.requestRectangleOnScreen(Rect(0, 0, groupField.width, groupField.height), true)
+                        revealViewport(groupField)
                     }
                     waitForDraw()
                     main { fullyVisible(groupField) }
@@ -380,8 +386,9 @@ internal object ChineseFormWindowChecks {
                                 main { check(field.text.toString() == longText) }
                             }
                             else if (field.showSoftInputOnFocus) {
-                                main { field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true) }
+                                main { revealViewport(field) }
                                 waitForDraw()
+                                capture("section-$position-inline-ime-viewport")
                                 main {
                                     longEditor(field, longText)
                                     val bounds = Rect(); field.getGlobalVisibleRect(bounds)
@@ -481,7 +488,7 @@ internal object ChineseFormWindowChecks {
                     if (field.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_NUMBER) {
                         editedShort = "18.50"; editStart = 1; editEnd = 3
                     }
-                    field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
+                    revealViewport(field)
                 }
                 waitForDraw()
                 tap(field)
@@ -491,7 +498,7 @@ internal object ChineseFormWindowChecks {
                     main {
                         check(activity.hasWindowFocus() && pageWindowIdOnMain() == pageWindowId)
                         check(field.hasFocus()) { "$name inline field did not retain focus" }
-                        field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
+                        revealViewport(field)
                     }
                     waitForDraw()
                     main {
