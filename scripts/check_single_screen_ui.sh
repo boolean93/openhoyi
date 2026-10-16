@@ -56,7 +56,11 @@ root=Path(sys.argv[1])
 list_result=root/'list-state-result.txt'
 if not list_result.is_file() or 'pages=7 restoreFixtures=14 language=zh-Hans appearance=light noBle=true' not in list_result.read_text():
     raise SystemExit('List restoration evidence missing/incomplete')
-paths=list(root.glob('*.png'))
+restore_names={'inventory-selected-restored.png', 'legacy-curve-selected-restored.png'}
+restored=[root/name for name in sorted(restore_names)]
+if not all(path.is_file() for path in restored):
+    raise SystemExit('Selected inventory/legacy-curve restoration screenshots missing')
+paths=[path for path in root.glob('*.png') if path.name not in restore_names]
 if len(paths)!=336:
     raise SystemExit(f'Incomplete screenshots: {len(paths)}/336')
 states=list((root/'states').glob('*.png'))
@@ -71,7 +75,7 @@ if len(extra)!=2:
 safety=list((root/'chinese-safety-states').glob('*.png'))
 if len(safety)!=6:
     raise SystemExit(f'Incomplete Chinese full warning captures: {len(safety)}/6')
-for path in paths+states+forms+extra+safety:
+for path in paths+states+forms+extra+safety+restored:
     data=path.read_bytes()
     if len(data)<10000 or data[:8]!=b'\x89PNG\r\n\x1a\n':
         raise SystemExit(f'Invalid screenshot: {path}')

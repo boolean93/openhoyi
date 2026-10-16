@@ -8,3 +8,5 @@
 4. 本地完整JVM与两MockAPK构建，精确源码横屏CI与实际图表截图验证。独立审查待执行；没有图像/运行证据不宣称全部完成。
 
 文件：HistoryActivity.kt、HistoryDetailActivity.kt、新HistoryDetailContent.kt、SingleScreenListStateChecks.kt。无协议、库存、历史持久化schema或设备动作改动。
+
+追加CI证据分类修正：922752c用户横屏336场景和14列表恢复原生通过，后置PNG总数为338，新增inventory-selected-restored.png与legacy-curve-selected-restored.png混入原336页面统计。脚本将这两个明确命名恢复证据单独强制存在并检查PNG，其余仍严格336，其他64/44+/2/6门槛不变。实际下载artifact运行精确修改后校验通过。
