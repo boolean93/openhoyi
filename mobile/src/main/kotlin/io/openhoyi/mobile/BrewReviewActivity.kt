@@ -48,11 +48,26 @@ class BrewReviewActivity : ThemedActivity() {
         val weightText = observation.weightHundredthsGram?.let {
             getString(R.string.journal_grams, BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString())
         } ?: "—"
-        HoyiUi.label(this, cupContext, listOf(journalStatus(observation.status),
-            getString(R.string.journal_field_value, getString(R.string.journal_elapsed), elapsed),
-            getString(R.string.journal_field_value, getString(R.string.history_end_scale), weightText)).joinToString(" · "), 14, true).apply {
-            gravity = android.view.Gravity.END
-            layoutParams = LinearLayout.LayoutParams(0, -2, 2f)
+        val outcome = LinearLayout(this).apply {
+            orientation=LinearLayout.HORIZONTAL
+            gravity=android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned=false
+        }
+        cupContext.addView(outcome,LinearLayout.LayoutParams(0,-2,2f))
+        listOf(R.string.journal_elapsed to elapsed, R.string.history_end_scale to weightText).forEach { (label,value) ->
+            val cell=LinearLayout(this).apply {
+                orientation=LinearLayout.VERTICAL
+                setPadding(HoyiUi.dp(this@BrewReviewActivity,8),0,HoyiUi.dp(this@BrewReviewActivity,8),HoyiUi.dp(this@BrewReviewActivity,8))
+            }
+            outcome.addView(cell,LinearLayout.LayoutParams(0,-2,1f))
+            HoyiUi.label(this,cell,value,24,true).apply { typeface=TaskTypography.face(this@BrewReviewActivity,700) }
+            HoyiUi.label(this,cell,getString(label),14,muted=true).apply {
+                setPadding(0,HoyiUi.dp(this@BrewReviewActivity,4),0,0)
+            }
+        }
+        HoyiUi.label(this,outcome,journalStatus(observation.status),14,true).apply {
+            layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+            gravity=android.view.Gravity.END
         }
         if (entry.observation.status == "UNKNOWN") HoyiUi.label(this, body, getString(R.string.history_unknown_warning), 14, true).apply {
             setTextColor(getColor(R.color.mobile_danger))

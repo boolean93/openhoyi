@@ -198,3 +198,7 @@ bf2ed46 task-frame38866479646和single-screen38866479455均completed/success。�
 旧运行态截图中，禁用的预热/取消预热仍占据右侧两枚按钮。本批仅在active+normalPreparation+两按钮禁用+无BREW_WAIT恢复记录时收起整组；非active自动恢复。normalPreparation已有新鲜设置、无控制安全消息、准备IDLE和到温/咖啡馆模式约束，其他等待/失败/未知状态不被本条件隐藏。没有改变按钮原启用判定、点击处理、固定状态及停止。尚待运行态实屏和异常状态回归，不能将代码条件视为原生验收。
 
 本轮再次核实b349502 task-frame38870529947与Capture38870524533、库存正常态single-screen38869788055及萃取Capture38870134243均in_progress，未因等待重新启动任务。
+
+## 复盘结果摘要对照
+
+实读4ecc593用户平板中文浅色正常态BrewReviewActivity/window.png与brew-review-v3：参数/笔记两区和标题同行选择器已生效，但结果顶栏仍一行14sp文本，不符合稿中独立时长/秤读数数值层级。候选保留原elapsedMs/weightHundredthsGram格式与观察状态，改24sp/700双数值、14sp标签及独立状态列，UNKNOWN警告未动。豆款、研磨、三块笔记、保存与恢复未改。没有将此正常空笔记截图视为与稿件相同数据态；候选仍需多语言/大字号/IME和新实屏证明。
