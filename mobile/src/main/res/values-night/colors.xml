@@ -18,4 +18,8 @@
     <color name="chart_coffee">#D4A3F8</color>
     <color name="chart_weight">#FFBA78</color>
     <color name="chart_temperature">#FF8792</color>
+    <color name="stage_one">#7DDCCE</color>
+    <color name="stage_two">#7FA8FF</color>
+    <color name="stage_three">#FFBA78</color>
+    <color name="stage_four">#D4A3F8</color>
 </resources>

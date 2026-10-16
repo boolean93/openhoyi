@@ -45,7 +45,9 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         stageRows.forEachIndexed { index, row ->
             row.tag = "curve-editor-stage-$index"
             stageContent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
-            HoyiUi.label(activity, row, activity.getString(R.string.profiles_stage, index + 1), 16, true)
+            HoyiUi.label(activity, row, activity.getString(R.string.profiles_stage, index + 1), 16, true).apply {
+                setTextColor(CurveStagePalette.color(activity, index))
+            }
         }
     }
 

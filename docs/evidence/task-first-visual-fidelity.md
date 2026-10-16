@@ -361,3 +361,19 @@ fb209f8 advanced38875194305全工作流completed/success，business和pages均�
 ChineseFormWindowChecks 对编辑页按真实字段定位六组，而不是旧跳转Spinner，继续逐个检查可见范围及IME。AdvancedBusinessUiChecks仍完整保存/重开/重建12字段4阶段，额外保存 curve-editor-four-stages.png；脚本强制检查第四张业务截图存在且为1600×1000。未降低任何业务路径计数或可见性要求。
 
 首轮双APK构建41秒通过，新增业务截图后双APK23秒通过。仍需精确最终源码CI与实际截图，尤其四阶段是否能在标准字号同时呈现、冗长字段标签占高、元数据三列对齐、右栏摘要密度、短高度IME。这里是结构修正候选，不是宣告编辑页已与概念稿一致。无实机安装/发送/合并/发布。
+
+## 2026-10-16 研磨字段修正的实际窗口验证
+
+9d5156d advanced run 38876652959 已全部成功（business、pages均completed/success）。本轮下载business产物至 build/task-first-evidence/ci-9d5156d-business，实际查看 review-saved-notes.png，并与e98d7c7同路径截图对照：同为1600×1000、浅色、已填复盘。旧研磨输入框第二行被底边截断；新图第二行字形完整，查看记录按钮相应下移，保存按钮仍在底部可见。随机token不同，不把文本长度差异当像素比较依据；更长的第三行仍需输入框内滚动。TaskReviewSections.kt从9d5156d到70dab05无diff，该项呈现修正仍适用于当前源码。
+
+日志核验：ADVANCED_BUSINESS_UI_FULL_FIELDS_PASSED（豆子3日期、复盘7字段、曲线12字段4阶段，未保存及重开后重建恢复）；17业务路径、3库存事件、3新草稿。另有文档契约11路径/7选择器契约/2分享契约与系统选择器7路径通过，两者externalSend=false、noBle=true。不把测试拦截或模拟设备当外部发送/硬件验收。
+
+本轮只核验business窗口；pages任务成功不等于其全部截图已审阅。用户平板2560×1600与1.3字号、横屏IME仍需各自真实图。4973a6e诊断版single-screen 38875772682：普通横屏/大字号已成功，用户平板任务仍in_progress；没有本次断言失败的诊断，不能宣称旧间歇性warning问题根因已解决。70dab05 advanced38879399864、task-frame push38879389705及f41b781 single-screen38878319787复查仍queued。未重启、取消或放松门禁。
+
+## 2026-10-16 阶段色与参数表联动候选
+
+原CurveStageView所有阶段使用chart_pressure单蓝色，与已认可编辑/导入/分享图的青、蓝、橙、紫阶段身份不符。本次新增独立CurveStagePalette，浅深色各四个语义色；用于目标线、点、数值和低强调背景分区，并同步导入/分享表格首列及编辑页阶段标题。阶段数字和bar读数仍保留，横轴依然是阶段而非时间；不动实时四指标配色及任何采样、数值投影、协议数据。
+
+浅/深主题所有阶段文字对mobile_background/mobile_surface对比度最低4.84；计入12/255透明分区叠色后最低4.55。为文字清晰度，浅色橙色比示意稿更深，不从图片直接采色导致低对比。XML解析与计算通过。LanguageChartChecks增加每个阶段实际列的颜色像素检查，并继续检查LTR/RTL科学上升顺序；原实时/历史单色检查保留。测试已编译，尚未运行，不把静态配色计算当Canvas像素检查通过。
+
+Mock + instrumentation构建 `BUILD SUCCESSFUL in 46s`，日志 `/tmp/task-stage-palette-build.log`。仍需精确源码CI、浅深色/大字体实际截图，字体/间距/区域比例及21+3页总目标仍未完成。没有重新生成概念稿来追认实现差异。

@@ -47,21 +47,22 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
         setPadding(0, HoyiUi.dp(this@sharePreview, 16), 0, 0)
     }
     preview.addView(table, LinearLayout.LayoutParams(-1, -2))
-    fun row(values: List<String>, heading: Boolean) {
+    fun row(values: List<String>, heading: Boolean, stageIndex: Int? = null) {
         val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         table.addView(line, LinearLayout.LayoutParams(-1, -2))
-        values.forEach { value ->
+        values.forEachIndexed { column, value ->
             HoyiUi.label(this, line, value, 14, bold = heading, muted = heading).apply {
                 setPadding(HoyiUi.dp(this@sharePreview, 8), HoyiUi.dp(this@sharePreview, 4),
                     HoyiUi.dp(this@sharePreview, 8), HoyiUi.dp(this@sharePreview, 4))
                 layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+                if (column == 0 && stageIndex != null) setTextColor(CurveStagePalette.color(context, stageIndex))
             }
         }
     }
     row(listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).map(::getString), true)
     doc.stages.forEachIndexed { index, stage ->
         row(listOf(getString(R.string.profiles_stage, index + 1), CurveDraftNumber.format(stage.target, 1),
-            CurveDraftNumber.format(stage.waterTenthsMl, 1)), false)
+            CurveDraftNumber.format(stage.waterTenthsMl, 1)), false, index)
     }
     workspace.onPrimarySpaceAvailable = { width, height ->
         val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)

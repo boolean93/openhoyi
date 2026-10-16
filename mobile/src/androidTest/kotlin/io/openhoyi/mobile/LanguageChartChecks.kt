@@ -24,12 +24,13 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
                 val stages = CurveStageView(context).apply { targets = listOf(20, 40, 60, 80) }
                 verifyIncreasing(native, context.getColor(R.color.chart_pressure), 42f, 18f, 74f, 28f, language)
                 verifyIncreasing(legacy, context.getColor(R.color.chart_pressure), 42f, 18f, 52f, 30f, language)
-                verifyIncreasing(stages, context.getColor(R.color.chart_pressure), 20f, 20f, 18f, 28f, language)
+                verifyIncreasing(stages, context.getColor(R.color.chart_pressure), 20f, 20f, 18f, 28f, language,
+                    listOf(R.color.stage_one, R.color.stage_two, R.color.stage_three, R.color.stage_four).map(context::getColor))
             }
         }
     }
     private fun verifyIncreasing(view: View, color: Int, leftDp: Float, rightDp: Float,
-        topDp: Float, bottomDp: Float, language: AppLanguage) {
+        topDp: Float, bottomDp: Float, language: AppLanguage, stageColors: List<Int> = emptyList()) {
         val density = view.resources.displayMetrics.density
         val width = (600 * density).toInt()
         val height = (340 * density).toInt()
@@ -49,11 +50,20 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
             val right = drawWidth - (if (view is ShotChartView) 60f else rightDp) * density
             val top = ((if (view is ShotChartView) 32f else topDp) * density).toInt() + 1
             val bottom = (drawHeight - (if (view is ShotChartView) 42f else bottomDp) * density).toInt() - 1
+            val seriesColors = if (stageColors.isEmpty()) setOf(color) else stageColors.toSet()
+            if (stageColors.isNotEmpty()) {
+                stageColors.forEachIndexed { index, expected ->
+                    val x = (left + (right - left) * (index + .5f) / stageColors.size).toInt()
+                    check((top..bottom).any { y -> pixels[y * drawWidth + x] == expected }) {
+                        "Stage ${index + 1} color missing from its actual rendered column in ${language.tag}"
+                    }
+                }
+            }
             fun meanY(low: Float, high: Float): Double {
                 var total = 0L
                 var count = 0
                 for (x in (left + (right - left) * low).toInt()..(left + (right - left) * high).toInt())
-                    for (y in top..bottom) if (pixels[y * drawWidth + x] == color) { total += y; count++ }
+                    for (y in top..bottom) if (pixels[y * drawWidth + x] in seriesColors) { total += y; count++ }
                 check(count > 0) { "No rendered series pixels for ${view.javaClass.simpleName} ${language.tag}" }
                 return total.toDouble() / count
             }
