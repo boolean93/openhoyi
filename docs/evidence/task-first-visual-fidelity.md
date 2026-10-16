@@ -637,3 +637,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 仍有差异：认可稿的连接设备摘要、设备型号行与分区分隔未齐；主值只有—，趋势为空，不能据此核对有数据曲线/稳定状态。图像1600×1000，不代替优先用户平板2560×1600专项；字号/间距的完整测量仍未闭环。
 - 源码核实MobileSnapshot含scaleState/scaleObservation/scaleCapabilities/candidates，但无当前连接设备的名称/型号字段。候选advertisedName存在于扫描列表，不能未经身份绑定就拿某个候选名当当前型号；后续设备身份展示需从同一连接所有者提供可信关联，不写死BOOKOO。
 - 最新萃取aaf1c44 capture/run38893146356及e15e00e/run38892839825仍queued；旧fb19415 single/run38889727697仍in_progress。没有取消/重启，也没有借秤页面通过外推萃取页。
+
+### 无秤原始Mock采样支持（2026-10-16，截图未完成）
+
+- 源码检查发现MockDeviceRuntime.sample始终返回scaleState=READY及非空BookooSample，现有capture_mock_ui.sh不能产生真正无重量来源的运行态。单纯隐藏图线不满足extraction-no-scale-v2的数据语义。
+- 新增Mock内部scaleConnected状态，默认true；false时输出DISCONNECTED、weight=null、weightAt=null，机器压力/注水/温度和运行状态不变。没有增加产品设置、广播入口或真实BLE连接操作。
+- 指定MockDeviceRuntimeTest 14项通过（0失败/错误/跳过），新检查涵盖断秤空闲、运行机器三项值、结束仍无重量及恢复采样。Mock/test APK构建48s成功（/tmp/task-no-scale-fixture-build.log），diff/分支规则通过。
+- 这里只完成数据夹具基础，尚未将新状态接入真实开始/停止截图流程；无秤实图、主数量语义及三线实际绘制仍是明确未完成项。不能将本次单测作为视觉或硬件验收。
