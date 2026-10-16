@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_detail_samples_heading">历史采样</string>
+    <string name="legacy_detail_source_heading">数据来源与限制</string>
+</resources>

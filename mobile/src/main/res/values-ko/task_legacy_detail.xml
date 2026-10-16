@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_detail_samples_heading">과거 샘플</string>
+    <string name="legacy_detail_source_heading">데이터 출처 및 제한</string>
+</resources>

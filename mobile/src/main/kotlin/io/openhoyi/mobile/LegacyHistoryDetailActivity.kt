@@ -1,6 +1,5 @@
 package io.openhoyi.mobile
 
-import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowInsets
@@ -61,32 +60,39 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
             shot.profileName.ifBlank { getString(R.string.legacy_history_unnamed) },
             SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(shot.createdAtMs)), shot.durationSec.toString())
         val disclaimer = getString(R.string.legacy_history_chart_disclaimer)
-        val workspace = TaskWorkspaceLayout(this)
+        HoyiUi.label(this, body, summaryText.replace("\n", " · "), 16).apply {
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            tag = "full-text-details"
+            setPadding(0, dp(8), 0, dp(16))
+        }
+        val workspace = TaskWorkspaceLayout(this).apply {
+            fillSecondaryViewport = true
+            secondaryBody.setPadding(dp(16), dp(16), dp(16), dp(16))
+            secondaryBody.background = HoyiUi.shape(this@LegacyHistoryDetailActivity,
+                R.color.mobile_surface, 12, R.color.mobile_border)
+        }
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         workspace.onPrimarySpaceAvailable = { _, budget -> minOf(budget, dp(220)) }
-        text(workspace.secondaryBody, summaryText, 16)
-        text(workspace.secondaryBody, disclaimer, 14)
-        val chart = HoyiUi.card(this, workspace.primaryBody, getString(R.string.curve_view_legacy)).apply {
-            layoutParams = LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) }
-            setPadding(dp(12), dp(8), dp(12), dp(8))
+        HoyiUi.label(this, workspace.secondaryBody, getString(R.string.legacy_detail_source_heading), 20, true).apply {
+            setPadding(0, 0, 0, dp(16))
+        }
+        HoyiUi.label(this, workspace.secondaryBody, disclaimer, 14).apply { setPadding(0, 0, 0, 0) }
+        workspace.secondaryBody.addView(android.view.View(this), LinearLayout.LayoutParams(1, 0, 1f))
+        val chart = HoyiUi.card(this, workspace.primaryBody, getString(R.string.legacy_detail_samples_heading)).apply {
+            layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
+            setPadding(dp(16), dp(16), dp(16), dp(16))
         }
         chart.addView(LegacyShotChartView(this).apply { points = shot.points },
             LinearLayout.LayoutParams(-1, 0, 1f))
         // One explicit full-details entry preserves both texts without duplicate
         // overview buttons taking height from the historical plot.
-        HoyiUi.button(this, body, getString(R.string.extraction_overview)) {
+        HoyiUi.button(this, workspace.secondaryBody, getString(R.string.ui_full_details)) {
             android.app.AlertDialog.Builder(this).setTitle(getString(R.string.legacy_history_detail_title))
                 .setMessage(summaryText + "\n\n" + disclaimer)
                 .setPositiveButton(android.R.string.ok, null).show()
-        }
+        }.asTaskTextAction()
     }
 
-    private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false) {
-        parent.addView(TextView(this).apply {
-            text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
-            if (bold) typeface = TaskTypography.face(context, 700)
-            setPadding(0, dp(6), 0, dp(6))
-        })
-    }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
 }

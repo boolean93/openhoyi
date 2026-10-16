@@ -570,3 +570,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 详情图与legacy-history-detail-v1直接比较：压力/机器水流独立量程，但两条实线完全重合时仅水流可见；缺左右物理刻度与中间时间刻度。候选将水流改8/6dp虚线，图例同线型，左右bar/ml/s和真实刻度、浅网格与中间秒数齐备，测量文字宽度保留轴空间，12sp随系统字体缩放。旧样本/量纲/投影未改。
 - LanguageChartChecks增加同一对角线的两条物理序列，实际Canvas中心区必须同时检出两种系列颜色；保留全部语言/主题与RTL时序断言。新增原生断言尚未运行，不宣称红绿通过；旧实图为问题证据。
 - 最终Mock/test APK构建39s成功（/tmp/task-legacy-chart-final-build.log），diff及分支规则通过。新轴/线型的实际截图、短高和大字号需CI复核，尚未完成旧版详情视觉验收。
+
+### 旧版详情构图与表单大字号复验（2026-10-16）
+
+- 按legacy-history-detail-v1将旧记录摘要移到图表上方（16sp、最多两行，全文在详情保留）；右侧来源/限制独立16dp面板、20sp标题和14sp原完整说明；详情改右栏底部文字操作，取消跨页底部按钮。左图16dp内边距并用“历史采样”标题，不改异步读取、数据含义或缺失记录状态。
+- 八语言资源XML、diff和分支规则通过；Mock/test APK构建43s成功（/tmp/task-legacy-detail-build.log）。本构图仍待实际有数据截图和短高回归，未标视觉完成。
+- f3233d6 single-screen38887181838的大字号job完成success，已下载ci-f3233d6-large-font：result.txt checked=336/pages=21、56表单截图、14列表恢复；中文浅/深色编辑表单completed=true、7截图、6区、inline/IME=true。该版本本轮大字号检查通过，不证明f525db3后的阶段滚动或用户平板四阶段断言；其他job仍运行。
+- cbe8076 capture38889966602已进入Capture tablet UI and simulated shot，截图产物尚未上传；未将运行中视作完成。
