@@ -468,3 +468,9 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 尚未对齐新/已有豆款分段选择、日历选择交互；当前仍原生豆款选择器和文字日期。不可将本轮称为完整视觉验收，也未生成新图覆盖偏差。
 - 最终Mock/test APK编译成功43s（/tmp/task-bean-entry-final-build.log）；diff/branch policy通过。运行证据仍待新CI。
 - 另已下载229f798的large-font产物：result.txt为336窗口/21页、56表单截图；list-state-result.txt为7页14恢复夹具；编辑器浅色表单completed=true、inlineObserved=true、imeObserved=true。这是修改前版本的大字号运行证据，不覆盖本轮入库表单或baf1155新增面板。
+
+### 229f798用户平板失败与四阶段实图（2026-10-16）
+
+- single-screen38881692281结束failure：用户平板335/336；唯一失败为中文浅色BrewReviewActivity短字段编辑后cleanupEditor等待page-focus/IME-hidden超时；14项列表恢复全部成功。不是四阶段字段裁切断言失败。artifact logcat.txt为空；现有失败未记录超时瞬间窗口条件，根因未证实。
+- 新增ChineseFormWindowChecks边界诊断：实际窗口ID/焦点类、所有窗口类型与bounds、IME窗口和insets可见性、hide请求返回值；超时独立截图。等待5秒/两次稳定/原失败断言保持，未重试或取消测试，生产代码未改。test APK编译24s成功（/tmp/task-form-ime-diagnostics-build.log）；diff/branch policy通过。这只是证据补强，不称已修复。
+- 目视ci-229f798-user-failure/.../chinese-form-states/zh-Hans-light-CurveEditorActivity-four-stage-table.png：用户平板2560×1600四行八字段完整显示，上方三字段对齐，阶段/色带对应；结果completed=true、screenshots=8、inlineObserved=true、imeObserved=true。右侧旧双按钮仍需局部滚动；baf1155已改文字操作但尚待其实际截图，不能将旧证据覆盖新面板。

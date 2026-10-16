@@ -171,23 +171,46 @@ internal object ChineseFormWindowChecks {
             } while (SystemClock.elapsedRealtime() < deadline)
             error("$name named native editor not observed: $label pageWindowId=$pageWindowId")
         }
+        var lastHideAccepted: Boolean? = null
+        var boundaryTimeouts = 0
         fun awaitPageReady(label: String? = null, closedWindowId: Int? = null) {
             val deadline = SystemClock.elapsedRealtime() + 5000
             var stable = 0
+            var observation = "not observed"
             do {
                 var pageFocused = false
-                main { pageFocused = activity.hasWindowFocus() && pageWindowIdOnMain() == pageWindowId }
+                var pageState = ""
+                main {
+                    val actualWindowId = pageWindowIdOnMain()
+                    pageFocused = activity.hasWindowFocus() && actualWindowId == pageWindowId
+                    val focus = activity.currentFocus
+                    val insetsIme = if (android.os.Build.VERSION.SDK_INT >= 30)
+                        content.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) else null
+                    pageState = "actualWindowId=$actualWindowId hasWindowFocus=${activity.hasWindowFocus()} " +
+                        "focus=${focus?.javaClass?.simpleName}:${focus?.id} insetsIme=$insetsIme"
+                }
                 val windows = test.uiAutomation.windows
-                val oldEditorGone = try { closedWindowId == null || windows.none { it.id == closedWindowId } }
-                    finally { windows.forEach { it.recycle() } }
+                var windowState = ""
+                val oldEditorGone = try {
+                    windowState = windows.joinToString("; ") { window ->
+                        val bounds = Rect().also { window.getBoundsInScreen(it) }
+                        "id=${window.id} type=${window.type} focused=${window.isFocused} active=${window.isActive} bounds=$bounds"
+                    }
+                    closedWindowId == null || windows.none { it.id == closedWindowId }
+                } finally { windows.forEach { it.recycle() } }
                 val editor = label?.let { observeEditor(test, activity.packageName, it, activity.getString(android.R.string.ok), pageWindowId) }
                 val noEditor = editor == null
                 editor?.let { it.input.recycle(); it.confirm.recycle() }
-                if (pageFocused && oldEditorGone && noEditor && keyboardBounds() == null) stable++ else stable = 0
+                val keyboard = keyboardBounds()
+                observation = "$pageState oldEditorGone=$oldEditorGone noEditor=$noEditor keyboard=$keyboard " +
+                    "hideAccepted=$lastHideAccepted windows=[$windowState]"
+                if (pageFocused && oldEditorGone && noEditor && keyboard == null) stable++ else stable = 0
                 if (stable >= 2) { waitForDraw(); return }
                 Thread.sleep(50)
             } while (SystemClock.elapsedRealtime() < deadline)
-            error("$name editor-close/page-focus/IME-hidden boundary timed out: label=$label closedWindowId=$closedWindowId pageWindowId=$pageWindowId")
+            val screenshot = runCatching { capture("boundary-timeout-${++boundaryTimeouts}") }
+                .exceptionOrNull()?.let { "captureFailure=${it.javaClass.simpleName}:${it.message}" } ?: "captured"
+            error("$name editor-close/page-focus/IME-hidden boundary timed out: label=$label closedWindowId=$closedWindowId pageWindowId=$pageWindowId; $observation; $screenshot")
         }
         fun confirmEditor(editor: EditorObservation, label: String) {
             val windowId = editor.input.windowId
@@ -207,7 +230,7 @@ internal object ChineseFormWindowChecks {
             main {
                 // android.R.id.content itself is not the focusable beanPage root.
                 check(content.getChildAt(0).requestFocus()) { "$name actual page root refused focus" }
-                (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                lastHideAccepted = (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                     .hideSoftInputFromWindow(activity.window.decorView.windowToken, 0)
             }
             awaitPageReady(label)
