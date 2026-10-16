@@ -105,3 +105,9 @@ BrewReview now uses TaskReviewSections: stable bean/dose/free-text grind region 
 Chinese native form checks resolve each actual labeled field, scroll it into view, test long top/end and 16000 native filter via accessibility, edit/caret0/end and clear/refocus preservation; fixed actions/IME assertions retained. Generic short edit uses numeric input for dose. Old modal expectations only apply to non-inline fields, not the new layout. No screenshot/IME success claimed before native execution.
 
 Local `/tmp/task-review-inline-build.log` JVM+bothMockAPKs BUILD SUCCESSFUL in47s; final accessibility-refocus instrumentation compilation `/tmp/task-review-inline-test-build.log` succeeded. Current9d457ef CI does not include this review batch. Independent review/native screenshots remain pending.
+
+## 2026-10-16 tare fixture initialization
+
+Exact9d457ef PR lifecycle38841222177 failed at ServiceStandaloneTareDispatchChecks before NOT_READY device mutation: expected WRITING/calls1 but logs show immediate UNKNOWN. TraceStore.prepare and durable marker arm can race to create the same unique fixture folder; this candidate is supported by code, not directly proven by the existing log. Synchronously create the owned directory before starting TraceStore, retain all10 dispatch/4 persistence modes and add pre-mutation state/call/marker diagnostics. Production gates/persistence/queue untouched. Same-source push lifecycle38841217380 separately succeeded, consistent with an intermittent fixture issue but not proof of root cause.
+
+Local `/tmp/task-tare-fixture-build.log` JVM plus two APKs BUILD SUCCESSFUL in23s. Native rerun and independent review remain pending; no threshold relaxed.
