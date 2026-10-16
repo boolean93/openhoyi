@@ -220,7 +220,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         val service=owner;val snapshot=service?.snapshot;val now=SystemClock.elapsedRealtime()
         val live=snapshot?.let {LiveTelemetry.scale(it.scaleObservation,it.scaleState,now)}
         val digits=if(getSharedPreferences("scale_tool",MODE_PRIVATE).getBoolean("one_decimal",false))1 else 2
-        weight.setIfChanged(live?.let {getString(R.string.scale_weight_format,String.format(Locale.getDefault(),"%.${digits}f",it.hundredthsGram/100.0))}
+        setWeightReading(live?.let {getString(R.string.scale_weight_format,String.format(Locale.getDefault(),"%.${digits}f",it.hundredthsGram/100.0))}
             ?: getString(R.string.scale_unavailable))
         freshness.setIfChanged(getString(when {
             BuildConfig.MOCK_MODE->R.string.scale_mock_notice
@@ -268,5 +268,15 @@ class ScaleActivity:ScaleOwnerActivity() {
                     intArrayOf(android.graphics.Color.TRANSPARENT,getColor(R.color.mobile_accent_soft))),
                 states,HoyiUi.shape(this@ScaleActivity,android.R.color.white,8))
         }
+    private fun setWeightReading(value: String) {
+        if (weight.text.toString() == value && weight.text is android.text.Spanned) return
+        val unit = getString(R.string.scale_weight_format, "").trim()
+        weight.text = android.text.SpannableString(value).apply {
+            if (unit.isNotEmpty() && value.endsWith(unit)) {
+                setSpan(android.text.style.RelativeSizeSpan(0.45f), value.length - unit.length, value.length,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+    }
     private fun TextView.setIfChanged(value:String) { if(text.toString()!=value) text=value }
 }
