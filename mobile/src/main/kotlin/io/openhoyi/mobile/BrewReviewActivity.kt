@@ -32,9 +32,6 @@ class BrewReviewActivity : ThemedActivity() {
         if (entry.observation.status == "UNKNOWN") HoyiUi.label(this, body, getString(R.string.history_unknown_warning), 14, true).apply {
             setTextColor(getColor(R.color.mobile_danger))
         }
-        HoyiUi.button(this, beanActions(body), getString(R.string.journal_detail)) {
-            beanDetails(journalCurve(entry.observation.curveId), journalObservationText(entry.observation))
-        }
         section = savedInstanceState?.getInt("section") ?: 0
         val sections = TaskReviewSections(this, body, listOf(R.string.journal_bean, R.string.journal_grind, R.string.journal_expectation, R.string.journal_taste, R.string.journal_next).map(::getString), section) { section = it }
         form = sections
@@ -65,13 +62,18 @@ class BrewReviewActivity : ThemedActivity() {
         }
         val dose = field("dose", R.string.journal_dose, entry.notes.doseMg?.let(BeanQuantity::formatGrams).orEmpty(), true)
         val grind = field("grind", R.string.journal_grind, entry.notes.grind)
+        HoyiUi.button(this, sections.panels[1], getString(R.string.journal_detail)) {
+            beanDetails(journalCurve(entry.observation.curveId), journalObservationText(entry.observation))
+        }
         val expectation = field("expectation", R.string.journal_expectation, entry.notes.curveExpectation)
         val taste = field("taste", R.string.journal_taste, entry.notes.taste)
         val next = field("next", R.string.journal_next, entry.notes.nextAdjustment)
         sections.fitMultiline(listOf(grind, expectation, taste, next))
         sections.restore(savedInstanceState, fields)
         val error = beanError(body)
-        val save = HoyiUi.button(this, beanActions(body), getString(R.string.journal_save), primary = true) {}
+        val saveDock = TaskActionDock(this, edgeInsetDp = 0)
+        beanActions(body).addView(saveDock, LinearLayout.LayoutParams(-1, -2))
+        val save = HoyiUi.button(this, saveDock, getString(R.string.journal_save), primary = true) {}
         save.setOnClickListener {
             val available = app.journalResult.getOrNull()
             if (available == null) { error.setText(R.string.journal_unavailable); save.isEnabled = false; return@setOnClickListener }
