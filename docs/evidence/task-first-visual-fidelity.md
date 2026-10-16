@@ -124,3 +124,9 @@ CI38860026487 task-frame成功，实读curve-library-font-1.0/normal.png（360×
 ## 390a7ae 复盘正常态与表单结果
 
 工作流38859831914标准横屏job成功，已下载single-screen-tablet-landscape：result.txt checked=336 pages=21 fixtures=336，中文浅色复盘completed=true screenshots=17 sections=5 longStates=8 inlineObserved=true imeObserved=true noSave=true。实读正常态window.png确认本杯参数/我的记录标题、52dp研磨视口、左侧查看记录和右下保存；没有用缺失记录页替代。跳转选择器仍占整行留白，后续候选移至笔记标题右侧，尚未原生验证。用户平板/大字体任务仍在跑，标准横屏成功不覆盖其他窗口。
+
+## d20ee63 首页次级入口实屏
+
+CI38860435640 task-frame成功，已下载并实读用户平板screenshots/HomeActivity.png：四个次级入口已为左对齐强调色文字，白底卡片去除；主选择按钮仍固定右下。实屏是未选曲线/无用豆状态，不能证明就绪态本杯信息与原稿一致，也不能关闭首页验收。
+
+390a7ae标准横屏HistoryActivity正常态截图及typography.json：标题17sp/lineHeight31px占62px，状态14sp/lineHeight25px占51px，均includeFontPadding=true。后续候选保持字号和字段，显式500/400字重并去font padding，普通行透明；双Mock APK40秒成功。候选原生行高/滚动恢复尚待验证，不能把几何通过当视觉完成。

@@ -124,15 +124,23 @@ class HistoryActivity : ThemedActivity() {
                     addView(header)
                     val title = TextView(this@HistoryActivity).apply {
                         textSize = 17f
+                        typeface = TaskTypography.face(this@HistoryActivity, 500)
+                        includeFontPadding = false
                         setTextColor(getColor(R.color.mobile_text))
                         maxLines = 2
                         ellipsize = android.text.TextUtils.TruncateAt.END
                     }
                     header.addView(title, LinearLayout.LayoutParams(-1, -2))
-                    val state = TextView(this@HistoryActivity).apply { textSize = 14f }
+                    val state = TextView(this@HistoryActivity).apply {
+                        textSize = 14f
+                        typeface = TaskTypography.face(this@HistoryActivity, 400)
+                        includeFontPadding = false
+                    }
                     header.addView(state, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
                     val meta = TextView(this@HistoryActivity).apply {
                         textSize = 14f
+                        typeface = TaskTypography.face(this@HistoryActivity, 400)
+                        includeFontPadding = false
                         setTextColor(getColor(R.color.mobile_muted))
                         setPadding(0, dp(8), 0, 0)
                     }
@@ -140,7 +148,7 @@ class HistoryActivity : ThemedActivity() {
                     tag = RowViews(day, title, state, meta)
                 }
                 val entry = requireNotNull(getItem(position))
-                card.setBackgroundColor(getColor(if (selectedIds[showJournal] == entry.id) R.color.mobile_accent_soft else R.color.mobile_surface))
+                card.setBackgroundColor(getColor(if (selectedIds[showJournal] == entry.id) R.color.mobile_accent_soft else android.R.color.transparent))
                 val views = card.tag as RowViews
                 val day = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(entry.startedAtMs))
                 val previousDay = if (position > 0) getItem(position - 1)?.let {
