@@ -437,3 +437,18 @@ f41b781 single-screen38878319787全部成功（用户平板、普通横屏、大
 历史独立详情去掉chartCard8dp四周与额外8dp上边距，保留指标组16dp底间距，嵌入式详情不变；40sp结果读数不缩小。理论上释放外围空间，但真实绘图区增长及视觉比例必须由新截图证明。
 
 ChartLegendChecks仍检查准确可访问名称/范围、物理单位、48dp、文本边界、四线与RTL；240/300dp明确要求可见量程。对未显示范围的图例，新增实际Canvas单位/两个上下限必须存在的断言。TrendChartTextChecks同样不以contentDescription代替可见物理轴，检查真实绘图文本。Mock/test APK42秒构建通过，日志/tmp/task-chart-legend-density-build.log。真实Canvas检查和新窗口尚待CI；229f798 advanced38881692269本轮查询仍queued，无新失败据此宣布修复。
+
+## 2026-10-16 紧凑编辑与流水表实际截图核对
+
+229f798 task-frame push38881685298已success。下载build/task-first-evidence/ci-229f798-task-frame，查看用户平板2560×1600 CurveEditorActivity：名称/温度/液重三个输入上沿已齐平，短标签不再把液重输入挤低；阶段编号、压力、水量以紧凑行排列，预览青蓝阶段身份一致。该截图仅默认2阶段，不能代替新增4阶段完整可见断言。右侧预览/完整说明操作仍在支持区下方，截图中出现按钮顶部，需局部滚动；完整可达要看后续表单测试，不能根据露出边缘就宣称失败或成功。CurveEditorActivity/TaskCurveEditorForm自229f798至当前无差异。
+
+c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progress）。下载build/task-first-evidence/ci-c31bfd1-pages，实际查看中文浅色BeanLedgerActivity普通横屏及1.3字号：五列标题和单条入库值对齐、无裁切，批次上下文与当前/初始250g正确，+250g明确增量。日志两种profile各240 fixtures、8语言×2主题×15页passed；并非所有截图都已人工审阅。图为1600×1000单事件批次，不证明长列表滚动恢复、4096字原因详情、混合消耗/调整或用户2560×1600完整验收。BeanLedgerActivity自c31bfd1至当前无差异。
+
+本轮无新失败（最近failure仍418fec6/693e696/1c256c8/bf2ed46历史运行）。229f798 advanced38881692269仍queued；c31bfd1 single-screen38881146289仍queued。原21+3页目标及剩余图表/长文本/异常状态验收不缩减。
+
+### 批次详情横屏构图（2026-10-16，待新截图）
+
+- 对照bean-batch-v1：旧页面主区仅豆名/余额、右栏日期、底部三按钮，信息分散且留白过大。改为横向库存摘要及三日期，最近三条流水的局部列表，次要文字入口和单个限宽强调按钮。14/16/20/24sp及8/16dp间距使用既有字体体系。
+- 概念稿的流水时间、“本杯使用”没有模型依据，不照搬；呈现真实事件类型、带符号重量和原因，点击可看完整原因及变更后余额。比例无初始量时为—，超过100%保留真实百分比；进度轨道仅限0–100%。调整预览/确认逻辑未改。
+- 新增业务测试确认库存变更后batch-after-adjustment截图；脚本要求五张业务状态PNG。最终Mock/test APK编译成功44s（/tmp/task-batch-final-build.log），shell语法、git diff --check、branch policy通过；尚未执行新版本运行测试，不能宣告与图一致。
+- 229f798 advanced run38881692269已成功；single-screen38881692281仍in_progress。该状态不证明本轮批次页，也不替代编辑页四阶段截图目视对照。

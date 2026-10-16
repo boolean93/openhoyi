@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="batch_remaining_ratio">สัดส่วนคงเหลือ</string>
+    <string name="batch_recent_events">รายการล่าสุด</string>
+    <string name="batch_initial_weight">น้ำหนักเริ่มต้น</string>
+</resources>

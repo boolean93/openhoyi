@@ -110,14 +110,14 @@ python3 - "$output_dir/advanced-page-screenshots/business" <<'PY'
 from pathlib import Path
 import struct, sys
 directory = Path(sys.argv[1])
-for name in ('review-saved-notes', 'import-new', 'import-conflict', 'curve-editor-four-stages'):
+for name in ('review-saved-notes', 'import-new', 'import-conflict', 'curve-editor-four-stages', 'batch-after-adjustment'):
     path = directory / f'{name}.png'
     data = path.read_bytes()
     if len(data) < 10000 or data[:8] != b'\x89PNG\r\n\x1a\n':
         raise SystemExit(f'Invalid business state screenshot: {path}')
     if struct.unpack('>II', data[16:24]) != (1600, 1000):
         raise SystemExit(f'Wrong business state screenshot geometry: {path}')
-print('Business state screenshots validated: 4')
+print('Business state screenshots validated: 5')
 PY
 adb shell am force-stop "$package"
 python3 - "$output_dir/curve-document-contracts.txt" <<'PY'

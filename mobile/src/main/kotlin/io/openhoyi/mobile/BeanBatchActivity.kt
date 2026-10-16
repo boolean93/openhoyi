@@ -44,36 +44,98 @@ class BeanBatchActivity : ThemedActivity() {
         val id = intent.getStringExtra(BATCH_ID)
         val item = inventory.batches().find { it.batch.id == id }
         if (item == null) { HoyiUi.label(this, body, getString(R.string.beans_missing), 17); return }
-        val workspace = TaskWorkspaceLayout(this)
-        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
-        val card = HoyiUi.card(this, workspace.primaryBody)
-        card.layoutParams = LinearLayout.LayoutParams(-1, -2)
-        val metadata = workspace.secondaryBody
-        HoyiUi.label(this, card, item.batch.bean.name, 23, true).apply {
-            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
-            tag = "full-text-details"
+        fun row(parent: LinearLayout) = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+            parent.addView(this, LinearLayout.LayoutParams(-1, -2))
         }
-        HoyiUi.label(this, card, getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg)), 30, true)
-        HoyiUi.label(this, metadata, getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), 15, muted = true)
-        HoyiUi.label(this, metadata, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 14, muted = true)
-        listOf(R.string.beans_purchased to item.batch.purchasedOn,
-            R.string.beans_roasted to item.batch.roastedOn, R.string.beans_opened to item.batch.openedOn)
-            .forEach { (label, date) ->
-                HoyiUi.label(this, metadata, getString(R.string.beans_date_value, getString(label),
-                    date?.toString() ?: getString(R.string.beans_not_set)), 15).apply {
-                    setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 8), 0, 0)
-                }
-            }
-        HoyiUi.button(this, beanActions(body), getString(R.string.ui_full_details)) {
+        fun cell(parent: LinearLayout) = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 8), HoyiUi.dp(this@BeanBatchActivity, 16), HoyiUi.dp(this@BeanBatchActivity, 8))
+            parent.addView(this, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        val context = row(body)
+        HoyiUi.label(this, context, item.batch.bean.name + " · " +
+            getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 16).apply {
+            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        }
+        HoyiUi.button(this, context, getString(R.string.ui_full_details)) {
             val details = listOf(R.string.beans_purchased to item.batch.purchasedOn,
                 R.string.beans_roasted to item.batch.roastedOn, R.string.beans_opened to item.batch.openedOn)
                 .joinToString("\n") { (label, date) -> getString(R.string.beans_date_value, getString(label), date?.toString() ?: getString(R.string.beans_not_set)) }
             beanDetails(getString(R.string.beans_batch_title), item.batch.bean.name + "\n" + details)
+        }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2); asTaskTextAction() }
+        val summary = row(body)
+        val balance = cell(summary)
+        HoyiUi.label(this, balance, getString(R.string.beans_balance_label), 14, muted = true)
+        HoyiUi.label(this, balance, BeanQuantity.formatGrams(item.balanceMg) + " g", 24).apply {
+            typeface = TaskTypography.face(this@BeanBatchActivity, 700)
         }
-        HoyiUi.button(this, beanActions(body), getString(R.string.beans_ledger)) {
+        val initial = cell(summary)
+        HoyiUi.label(this, initial, getString(R.string.batch_initial_weight), 14, muted = true)
+        HoyiUi.label(this, initial, BeanQuantity.formatGrams(item.batch.initialMg) + " g", 24)
+        val ratioCell = cell(summary)
+        HoyiUi.label(this, ratioCell, getString(R.string.batch_remaining_ratio), 14, muted = true)
+        val ratio = if (item.batch.initialMg > 0) item.balanceMg.toDouble() / item.batch.initialMg else null
+        HoyiUi.label(this, ratioCell, ratio?.let { java.text.NumberFormat.getPercentInstance(resources.configuration.locales[0]).format(it) } ?: "—", 24)
+        if (ratio != null) ratioCell.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000; progress = (ratio.coerceIn(0.0, 1.0) * max).toInt()
+            progressTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent))
+            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 8)))
+        val dates = row(body)
+        listOf(R.string.beans_purchased to item.batch.purchasedOn,
+            R.string.beans_roasted to item.batch.roastedOn, R.string.beans_opened to item.batch.openedOn)
+            .forEach { (label, date) ->
+                val dateCell = cell(dates)
+                HoyiUi.label(this, dateCell, getString(label), 14, muted = true)
+                HoyiUi.label(this, dateCell, date?.toString() ?: getString(R.string.beans_not_set), 16)
+            }
+        HoyiUi.label(this, body, getString(R.string.batch_recent_events), 20, true).apply {
+            setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 16), 0, HoyiUi.dp(this@BeanBatchActivity, 8))
+        }
+        fun eventRow(parent: LinearLayout, values: List<String>, heading: Boolean): LinearLayout = row(parent).also { line ->
+            values.forEach { value ->
+                HoyiUi.label(this, cell(line), value, if (heading) 14 else 16, muted = heading).apply {
+                    if (!heading) { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details" }
+                }
+            }
+        }
+        eventRow(body, listOf(getString(R.string.ledger_type), getString(R.string.ledger_change), getString(R.string.beans_reason)), true)
+        val recent = beanList(body)
+        val events = inventory.events().asReversed().filter { it.batchId == item.batch.id }.take(3)
+        if (events.isEmpty()) HoyiUi.label(this, recent, getString(R.string.beans_ledger_empty), 16, muted = true)
+        events.forEach { event ->
+            val kind = getString(when (event.kind) {
+                io.openhoyi.bean.InventoryEventKind.ADD -> R.string.beans_event_add
+                io.openhoyi.bean.InventoryEventKind.CONSUME -> R.string.beans_event_consume
+                io.openhoyi.bean.InventoryEventKind.ADJUST -> R.string.beans_event_adjust
+            })
+            val change = (if (event.deltaMg > 0) "+" else "") + BeanQuantity.formatGrams(event.deltaMg) + " g"
+            val values = listOf(kind, change, event.reason ?: "—")
+            eventRow(recent, values, false).apply {
+                minimumHeight = HoyiUi.dp(this@BeanBatchActivity, 48)
+                isFocusable = true
+                background = android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
+                    android.graphics.drawable.StateListDrawable().apply {
+                        addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(this@BeanBatchActivity,
+                            R.color.mobile_surface, 0, R.color.mobile_accent))
+                        addState(intArrayOf(), HoyiUi.shape(this@BeanBatchActivity, R.color.mobile_surface, 0))
+                    }, null)
+                contentDescription = values.joinToString(" · ")
+                setOnClickListener { beanDetails(getString(R.string.beans_ledger_title), values.joinToString("\n") + "\n" +
+                    getString(R.string.beans_event_balance, BeanQuantity.formatGrams(event.balanceMg))) }
+            }
+        }
+        val footer = row(body)
+        HoyiUi.button(this, footer, getString(R.string.beans_ledger)) {
             startActivity(Intent(this, BeanLedgerActivity::class.java).putExtra(BATCH_ID, item.batch.id))
-        }
-        HoyiUi.button(this, beanActions(body), getString(R.string.beans_adjust)) { draftTarget = null; draftReason = ""; adjustment(inventory, item.batch.id) }
+        }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2); asTaskTextAction() }
+        val dock = TaskActionDock(this, edgeInsetDp = 0)
+        footer.addView(dock, LinearLayout.LayoutParams(0, -2, 1f))
+        HoyiUi.button(this, dock, getString(R.string.beans_adjust), primary = true) { draftTarget = null; draftReason = ""; adjustment(inventory, item.batch.id) }
     }
 
     private fun adjustment(inventory: BeanInventory, batchId: String) {

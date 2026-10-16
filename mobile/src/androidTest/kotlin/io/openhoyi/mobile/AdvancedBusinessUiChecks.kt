@@ -376,6 +376,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             onMain { check(views(preview.window!!.decorView).filterIsInstance<TextView>().any { it.text.toString().contains("100") && it.text.toString().contains("90") }) }
             dialogClick(preview, AlertDialog.BUTTON_POSITIVE, batch.getString(R.string.beans_confirm_adjust))
             check(balance() == 90000L && ownEvents().size == 2 && ownEvents().last().let { it.kind == InventoryEventKind.ADJUST && it.deltaMg == -10000L && it.reason == "UI recount" })
+            captureState(batch, "batch-after-adjustment", listOf(R.string.beans_adjust, R.string.beans_ledger))
             record("adjust-confirm-preview"); close(batch)
             val inventoryPage = start(BeanInventoryActivity::class.java)
             onMain {
