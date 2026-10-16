@@ -29,8 +29,6 @@ class CurveImportPreviewActivity : ThemedActivity() {
             ellipsize = android.text.TextUtils.TruncateAt.END
             tag = "full-text-details"
         }
-        HoyiUi.label(this, preview, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)
-            R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, true)
         val metrics = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, HoyiUi.dp(this@CurveImportPreviewActivity, 16), 0, HoyiUi.dp(this@CurveImportPreviewActivity, 16))
@@ -62,9 +60,6 @@ class CurveImportPreviewActivity : ThemedActivity() {
         val table = if (stageChart != null) stageTable(doc).also {
             preview.addView(it, LinearLayout.LayoutParams(-1, -2))
         } else null
-        HoyiUi.button(this, preview, getString(R.string.ui_full_details)) {
-            beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
-        }
         if (table != null) workspace.onPrimarySpaceAvailable = { width, height ->
             val exactWidth = android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY)
             val unspecified = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
@@ -113,6 +108,24 @@ class CurveImportPreviewActivity : ThemedActivity() {
         }
         HoyiUi.label(this, decisions, getString(R.string.profiles_compatibility), 14, muted = true).apply {
             setPadding(0, HoyiUi.dp(this@CurveImportPreviewActivity, 16), 0, 0)
+        }
+        HoyiUi.label(this, decisions, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)
+            R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, true).apply {
+            setPadding(0, HoyiUi.dp(this@CurveImportPreviewActivity, 16), 0, 0)
+        }
+        HoyiUi.button(this, decisions, getString(R.string.ui_full_details)) {
+            beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
+        }.apply {
+            setTextColor(getColor(R.color.mobile_accent))
+            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            val states = android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(this@CurveImportPreviewActivity,
+                    android.R.color.transparent, 8, R.color.mobile_accent))
+                addState(intArrayOf(), HoyiUi.shape(this@CurveImportPreviewActivity, android.R.color.transparent, 8))
+            }
+            background = android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)), states,
+                HoyiUi.shape(this@CurveImportPreviewActivity, android.R.color.white, 8))
         }
     }
     private fun stageTable(doc: CustomCurveDocument) = LinearLayout(this).apply {

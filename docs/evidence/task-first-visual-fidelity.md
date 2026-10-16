@@ -301,3 +301,17 @@ e98d7c7 advanced38874021113的business子任务已completed/success，pages仍in
 fb209f8完整SHA查询：task-frame38875187723、upgrade38875187771成功；advanced38875194305、task-frame38875194422仍in_progress，single-screen38875194439queued。框架默认无文档态不能证明内嵌表出现，继续等待正常/冲突业务截图。
 
 研磨行高候选将正常预算目标改为max(52dp,2×lineHeight+compoundPaddingTop+compoundPaddingBottom)，预算不足仍沿用原48–52dp回退；仅panels[1]的研磨编辑框受影响，其他笔记及保存恢复不改。双Mock APK40秒成功（/tmp/task-review-grind-height-build.log），diff检查通过。等待同一长研磨fixture截图与IME/字体1.3原生检查，未标记视觉缺陷已闭环。
+
+## 参数表正常态/冲突态实屏证据
+
+fb209f8 advanced38875194305全工作流completed/success，business和pages均通过。下载并实读business/import-conflict.png（四段，标准字号）与wideFont-screenshots/zh-Hans-light-CurveImportPreviewActivity.png（两段，1.3字号）：内嵌三列表实际出现，各段压力/本段水量与图中压力一致，右下保存可见。business-flows确认17路径、完整字段、重复导入/冲突保留/副本；landscape及wideFont各240fixture、8语言×2主题×15页、60截图，preservedState=true。
+
+范围限制：均为1600×1000 CI窗口，不能扩大到用户平板；冲突图仍有系统剪贴板浮层，不能当无遮挡视觉基线。图表绘图区仍明显扁于curve-import-preview-v1，阶段配色与警告视觉分组未对齐；表格出现并不等于整页完成。下一步需同时调摘要/图表/表格的空间，不只继续缩文字或增加最低高度导致表格消失。1.3图只含两段，不证明四段大字号全部可见。
+
+500d5d6 Capture38872022621 attempt2已completed/success，之前SDK镜像解压失败的执行通路恢复；此状态不替代对应截图审读。9d5156d single-screen38876652976、advanced38876652959和65c040a single-screen38876121135查询仍queued。当前工作树基线9d5156d，本轮未新增样式提交。
+
+## 导入图表辅助内容迁移候选
+
+根据fb209f8正常/冲突实屏，把左侧兼容性说明及全宽详情按钮迁到右侧辅助区；详情降为accent文字操作，仍有48dp目标、ripple及键盘焦点边框。左侧标题/指标/图表单位说明/三列表与字体尺寸不变，原短高测量回调自然排除已迁出的控件，不提高隐藏表格阈值。保存/副本/失败恢复和未支持原始流量说明未变。
+
+双Mock APK41秒成功（/tmp/task-import-chart-space-build.log），diff检查通过。预期腾出的空间尚未由精确提交截图测量；仍需普通四段、1.3四段、用户平板和短高证明，不声明已达到认可稿图表比例。
