@@ -7,7 +7,7 @@ import android.view.View
 /** A full-width comparison plot between independently scrollable controls and cup details. */
 internal class TaskComparisonLayout(private val activity: ThemedActivity) : LinearLayout(activity) {
     val toolbar = LinearLayout(activity).apply { orientation = VERTICAL }
-    val details = LinearLayout(activity).apply { orientation = HORIZONTAL; isBaselineAligned = false }
+    val details = LinearLayout(activity).apply { orientation = VERTICAL }
     private val toolbarScroll = ScrollView(activity).apply { tag = "comparison-toolbar"; addView(toolbar) }
     private val detailsScroll = ScrollView(activity).apply { addView(details) }
     private var chart: TwoCupChartView? = null

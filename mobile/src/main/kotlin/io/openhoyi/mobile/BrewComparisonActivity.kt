@@ -140,6 +140,12 @@ class BrewComparisonActivity : ThemedActivity() {
         }
         toolbarBody.removeView(metricSelector)
         comparisonActions.addView(metricSelector, LinearLayout.LayoutParams(dp(220), -2))
+        val summaryTable = ComparisonSummaryTable(this)
+        support.addView(summaryTable, LinearLayout.LayoutParams(-1, -2))
+        val sourceCards = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false
+            support.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+        }
         val sourceSummaries = mutableListOf<TextView>()
         val detailButtons = mutableListOf<Button>()
         val noteButtons = mutableListOf<Button>()
@@ -149,7 +155,7 @@ class BrewComparisonActivity : ThemedActivity() {
                 setPadding(dp(16), dp(16), dp(16), dp(16))
                 background = HoyiUi.shape(this@BrewComparisonActivity, R.color.mobile_surface, 12, R.color.mobile_border)
             }
-            support.addView(cup, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = dp(16) })
+            sourceCards.addView(cup, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = dp(16) })
             sourceSummaries += HoyiUi.label(this, cup, "", 14).apply { tag = "comparison-source-${index + 1}" }
             detailButtons += HoyiUi.button(this, cup, getString(label) + " · " + getString(R.string.journal_detail)) {
                 val entry = journal.find((if (index == 0) firstId else secondId) ?: return@button) ?: return@button
@@ -224,6 +230,7 @@ class BrewComparisonActivity : ThemedActivity() {
                     R.string.journal_same_curve else R.string.journal_different_curve)
             } else chart.comparisonMessage.orEmpty())
             selected.forEachIndexed { index, entry ->
+                summaryTable.update(index, entry)
                 detailButtons[index].isEnabled = entry != null
                 noteButtons[index].isEnabled = entry != null
                 val label = getString(if (index == 0) R.string.journal_first else R.string.journal_second)

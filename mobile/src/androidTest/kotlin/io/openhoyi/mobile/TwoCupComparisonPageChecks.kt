@@ -29,6 +29,11 @@ internal object TwoCupComparisonPageChecks {
         val chart = root.findViewWithTag<TwoCupChartView>("two-cup-chart")
         val selector = root.findViewWithTag<Spinner>("comparison-metric")
         val swap = root.findViewWithTag<View>("comparison-swap")
+        fun summary(column: Int) = (0..2).map {
+            val row = root.findViewWithTag<android.widget.LinearLayout>("comparison-summary-row-$it")
+            (row.getChildAt(column + 1) as android.widget.TextView).text.toString()
+        }
+        var originalSummaries = emptyList<List<String>>()
         var first: String? = null
         var second: String? = null
         var originalMetric = 0
@@ -39,6 +44,7 @@ internal object TwoCupComparisonPageChecks {
             check(first != null && second != null && first != second)
             firstSamples = chart.firstPoints; secondSamples = chart.secondPoints
             check(firstSamples.size >= 2 && secondSamples.size >= 2)
+            originalSummaries = listOf(summary(0), summary(1))
             originalMetric = selector.selectedItemPosition
             if (activity.resources.configuration.let {
                 it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
@@ -72,6 +78,7 @@ internal object TwoCupComparisonPageChecks {
             await { id("firstId") == null && !chart.isLayoutRequested }
             main {
                 check(chart.firstPoints.isEmpty() && chart.secondPoints.isEmpty() && chart.comparisonMessage != null)
+                check(summary(0) == listOf("—", "—", "—")) { "Cleared cup retained stale outcome values" }
                 firstSelector.setSelection(originalFirstPosition)
             }
             test.waitForIdleSync()
@@ -89,6 +96,7 @@ internal object TwoCupComparisonPageChecks {
             await { id("firstId") == second && id("secondId") == first && !chart.isLayoutRequested }
             main {
                 check(chart.firstPoints == secondSamples && chart.secondPoints == firstSamples)
+                check(summary(0) == originalSummaries[1] && summary(1) == originalSummaries[0]) { "Outcome table did not follow cup identities" }
                 check(root.findViewWithTag<Spinner>("comparison-first").selectedItemPosition !=
                     root.findViewWithTag<Spinner>("comparison-second").selectedItemPosition)
             }
