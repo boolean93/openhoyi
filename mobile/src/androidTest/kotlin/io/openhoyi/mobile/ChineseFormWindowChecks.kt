@@ -36,6 +36,8 @@ internal object ChineseFormWindowChecks {
         }
         fun descendants(view: View): List<View> = listOf(view) +
             if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        fun scrollAncestor(view: View) = generateSequence(view.parent) { it.parent }
+            .filterIsInstance<android.widget.ScrollView>().firstOrNull()
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
         lateinit var sections: Spinner
         var originalSection = 0
@@ -97,7 +99,7 @@ internal object ChineseFormWindowChecks {
             fullyVisible(field)
             check(requireNotNull(field.layout).height > field.height - field.compoundPaddingTop - field.compoundPaddingBottom)
             check(field.canScrollVertically(-1) || field.canScrollVertically(1)) { "$name long draft cannot scroll locally" }
-            descendants(content).filterIsInstance<Button>().filter { it.isShown }.forEach {
+            descendants(content).filterIsInstance<Button>().filter { it.isShown && scrollAncestor(it) == null }.forEach {
                 fullyVisible(it)
                 check(it.height >= HoyiUi.dp(activity, 48)) { "$name fixed action too small" }
             }
@@ -466,6 +468,41 @@ internal object ChineseFormWindowChecks {
                             ))
                         }
                     }
+                }
+            }
+            // Local content actions need to be reachable, not pinned over the active editor.
+            // Check their full bounds after a real viewport request, then restore scroll/drafts.
+            if (activity is BrewReviewActivity) {
+                var localActions = emptyList<Button>()
+                var positions = emptyMap<android.widget.ScrollView, Pair<Int, Int>>()
+                var drafts = emptyMap<EditText, Triple<String, Int, Int>>()
+                main {
+                    localActions = descendants(content).filterIsInstance<Button>()
+                        .filter { it.isShown && scrollAncestor(it) != null }
+                    check(localActions.any { it.text.toString() == activity.getString(R.string.journal_detail) })
+                    positions = localActions.mapNotNull(::scrollAncestor).distinct().associateWith { it.scrollX to it.scrollY }
+                    drafts = descendants(content).filterIsInstance<EditText>()
+                        .associateWith { Triple(it.text.toString(), it.selectionStart, it.selectionEnd) }
+                }
+                try {
+                    localActions.forEachIndexed { index, action ->
+                        main { action.requestRectangleOnScreen(Rect(0, 0, action.width, action.height), true) }
+                        waitForDraw()
+                        main {
+                            fullyVisible(action)
+                            check(action.isEnabled && action.isClickable && action.height >= HoyiUi.dp(activity, 48))
+                            check(activity.hasWindowFocus() && pageWindowIdOnMain() == pageWindowId)
+                        }
+                        capture("scroll-action-$index")
+                    }
+                    main { drafts.forEach { (field, saved) ->
+                        check(Triple(field.text.toString(), field.selectionStart, field.selectionEnd) == saved) {
+                            "$name scrolling to a local action changed the draft"
+                        }
+                    } }
+                } finally {
+                    main { positions.forEach { (scroll, position) -> scroll.scrollTo(position.first, position.second) } }
+                    waitForDraw()
                 }
             }
             // Only click the Mock page's observed short EditText; the editor's OK cannot save the page.
