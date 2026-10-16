@@ -1,0 +1,24 @@
+<resources>
+    <string name="task_brew_title">추출 준비</string>
+    <string name="task_brew_machine_readings">머신 측정값</string>
+    <string name="task_brew_preview_note">단계 목표 예시이며 시간 예측이 아닙니다</string>
+    <string name="task_brew_cup_summary">이번 잔</string>
+    <string name="task_brew_no_pressure_preview">검증된 압력 목표가 없습니다. 레시피 이름을 눌러 상세 정보를 확인하세요.</string>
+    <string name="task_brew_live_state">실시간 상태 보기</string>
+    <string name="task_brew_temperature">보정 온도 %1$s °C · 목표 %2$s °C</string>
+    <string name="task_brew_dose_unavailable">원두 기록을 사용할 수 없음</string>
+    <string name="task_brew_dose_missing">이번 잔의 원두를 선택하지 않음</string>
+    <string name="task_brew_dose_association">이전 잔 기록 연결 필요; 열어서 처리</string>
+    <string name="task_brew_dose_previous">이전에 사용한 원두</string>
+    <string name="task_brew_dose_pending">차감 결과 확인 필요</string>
+    <string name="task_brew_dose_conflict">재고 기록 확인 필요</string>
+    <string name="task_brew_dose_confirmed">원두 확인됨</string>
+    <string name="task_brew_dose_selected">원두 확인 대기</string>
+    <string name="task_brew_dose_entry">원두 보기 또는 수정</string>
+    <string name="task_brew_usage_unavailable">사용 기록을 사용할 수 없음</string>
+    <string name="task_brew_usage_empty">사용 기록 없음</string>
+    <string name="task_brew_usage">사용 %1$s회 · 최근 %2$s</string>
+    <string name="task_brew_history_entry">전체 기록 보기</string>
+    <string name="task_brew_curve_unknown">현재 레시피를 사용할 수 없음</string>
+    <string name="task_brew_compact_preview">공간이 부족하여 모든 단계 목표를 텍스트로 표시합니다</string>
+</resources>

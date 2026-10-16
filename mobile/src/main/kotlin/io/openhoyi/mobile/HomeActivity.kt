@@ -7,7 +7,6 @@ import io.openhoyi.session.SettingsWriteTracker
 import io.openhoyi.session.SleepNowTracker
 import io.openhoyi.session.StandaloneTare
 import android.Manifest
-import android.app.Activity
 import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
@@ -75,8 +74,18 @@ class HomeActivity : ThemedActivity() {
     private var candidateKeys = emptyList<String>()
     private lateinit var devicePanel: LinearLayout
     private var deviceDialog: AlertDialog? = null
-    private lateinit var presetHost: LinearLayout
-    private lateinit var presetRail: HorizontalScrollView
+    private lateinit var presetPanel: LinearLayout
+    private var presetDialog: AlertDialog? = null
+    private lateinit var stagePreview: CurveStageView
+    private lateinit var previewNote: TextView
+    private lateinit var previewUnavailable: TextView
+    private lateinit var stageFallback: ScrollView
+    private lateinit var stageFallbackText: TextView
+    private var textStagePreview = false
+    private lateinit var beanSummary: TextView
+    private lateinit var temperatureSummary: TextView
+    private lateinit var usageSummary: TextView
+    private var selectionDetails = ""
     private lateinit var quickPresets: Button
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -124,7 +133,7 @@ class HomeActivity : ThemedActivity() {
         })
         HoyiUi.navigation(this, root, HomeActivity::class.java)
         setContentView(root)
-        val header = HoyiUi.header(this, content, "HOYI",
+        val header = HoyiUi.header(this, content, getString(R.string.task_brew_title),
             if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.ui_brew))
         HoyiUi.button(this, header, getString(R.string.home_device_connection)) {
             showDevicePanel()
@@ -218,7 +227,8 @@ class HomeActivity : ThemedActivity() {
         }
 
         val metrics = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        content.addView(metrics, LinearLayout.LayoutParams(-1, -2))
+        text(deviceCard, getString(R.string.task_brew_machine_readings), 16, true)
+        deviceCard.addView(metrics, LinearLayout.LayoutParams(-1, -2))
         var metricRow: LinearLayout? = null
         var metricIndex = 0
         val metricColumns = if (HoyiUi.wide(this)) 4 else 2
@@ -239,65 +249,90 @@ class HomeActivity : ThemedActivity() {
         steamTemperature = metric(getString(R.string.home_steam_temperature))
         steamPressure = metric(getString(R.string.home_steam_pressure))
 
-        val curveCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = HoyiUi.shape(this@HomeActivity, R.color.mobile_surface, 18, R.color.mobile_border)
-        }
-        // A curve name and an entry action are a summary, not a full-height workspace.
-        // Keep unused space outside the card instead of presenting a large empty panel.
-        content.addView(curveCard, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        selection = text(curveCard, getString(R.string.home_curve_missing), if (HoyiUi.wide(this)) 26 else 21, true).apply {
+        val workspace = TaskWorkspaceLayout(this)
+        content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
+        val primary = workspace.primaryBody
+        val secondary = workspace.secondaryBody
+        selection = text(primary, getString(R.string.home_curve_missing), 24, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+            minimumHeight = dp(48)
+            setOnClickListener {
+                AlertDialog.Builder(this@HomeActivity).setTitle(getString(R.string.home_current_curve))
+                    .setMessage(selectionDetails).setPositiveButton(android.R.string.ok, null).show()
+            }
         }
-        selection.minimumHeight = dp(48)
-        selection.setOnClickListener {
-            AlertDialog.Builder(this).setTitle(getString(R.string.home_current_curve))
-                .setMessage(selection.text).setPositiveButton(android.R.string.ok, null).show()
+        stagePreview = CurveStageView(this).apply { minimumHeight = dp(96); tag = "stage-preview" }
+        primary.addView(stagePreview, LinearLayout.LayoutParams(-1, 0, 1f))
+        previewUnavailable = text(primary, "", 14).apply { visibility = View.GONE }
+        previewNote = text(primary, getString(R.string.task_brew_preview_note), 14)
+        val fallbackBody = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        stageFallbackText = text(fallbackBody, "", 14)
+        stageFallback = ScrollView(this).apply {
+            tag = "stage-fallback"; isFillViewport = false; visibility = View.GONE
+            addView(fallbackBody)
         }
-        brewButton = button(curveCard, getString(R.string.home_curve_select), primary = true) {
+        primary.addView(stageFallback, LinearLayout.LayoutParams(-1, 0, 1f))
+        workspace.onPrimarySpaceAvailable = { width, height ->
+            val lines = if (height < dp(240)) 1 else 2
+            if (selection.maxLines != lines) selection.maxLines = lines
+            val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+            val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            // Measure actual localized text, including font scale and padding. Do not infer its height.
+            selection.measure(exactWidth, naturalHeight)
+            previewNote.measure(exactWidth, naturalHeight)
+            previewUnavailable.measure(exactWidth, naturalHeight)
+            val detailHeight = if (stagePreview.targets.isEmpty()) previewUnavailable.measuredHeight else dp(96)
+            val required = selection.measuredHeight + previewNote.measuredHeight + detailHeight
+            textStagePreview = height < required
+            updateStagePreviewVisibility()
+            // In fallback mode all remaining primary space belongs to the locally scrollable details.
+            if (textStagePreview) height else required
+        }
+        text(secondary, getString(R.string.task_brew_cup_summary), 16, true)
+        beanSummary = text(secondary, "", 16).apply {
+            minimumHeight = dp(48)
+            setOnClickListener { startActivity(Intent(this@HomeActivity, BeanPreparationActivity::class.java)) }
+        }
+        temperatureSummary = text(secondary, "", 14)
+        usageSummary = text(secondary, "", 14).apply {
+            minimumHeight = dp(48)
+            setOnClickListener { startActivity(Intent(this@HomeActivity, HistoryActivity::class.java)) }
+        }
+        browseCurvesButton = button(secondary, getString(R.string.home_curve_browse)) {
+            startActivity(Intent(this, CurveActivity::class.java))
+        }
+        presetPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), 0, dp(16), 0) }
+        presetButtons = (1..5).map { slot ->
+            button(presetPanel, getString(R.string.home_slot, slot.toString())) {
+                presetDialog?.dismiss()
+                startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
+            }
+        }
+        quickPresets = button(secondary, getString(R.string.home_quick_curves)) { showQuickPresets() }
+        button(secondary, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
+        button(secondary, getString(R.string.scale_title)) { startActivity(Intent(this, ScaleActivity::class.java)) }
+        brewButton = button(content, getString(R.string.home_curve_select), primary = true) {
             val library = (application as MobileApplication).curves
             val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
-            startActivity(Intent(this, if (item != null && library.canStart(item))
+            val active = service?.let { ShotGate.active(it.shotState) || it.manualShotActive } == true
+            startActivity(Intent(this, if (active || (item != null && library.canStart(item)))
                 ExtractionActivity::class.java else CurveActivity::class.java))
         }
-        browseCurvesButton = button(deviceCard, getString(R.string.home_curve_browse)) { startActivity(Intent(this, CurveActivity::class.java)) }
-        // Presets are an independently scrollable horizontal rail, not a tall five-row card.
-        val presets = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
-        presetRail = presets
-        presetHost = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val presetRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        presets.addView(presetRow)
-        presetHost.addView(presets, LinearLayout.LayoutParams(-1, -2))
-        content.addView(presetHost, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-        presets.contentDescription = getString(R.string.home_quick_curves) + ". " + getString(R.string.home_quick_curves_hint)
-        presetButtons = (1..5).map { slot ->
-            button(presetRow, getString(R.string.home_slot, slot.toString())) {
-                startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
-            }.apply {
-                layoutParams = LinearLayout.LayoutParams(dp(168), -2).apply { marginEnd = dp(6) }
-                maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
-                setOnLongClickListener {
-                    AlertDialog.Builder(this@HomeActivity).setTitle(text)
-                        .setMessage(getString(R.string.home_quick_curves_hint))
-                        .setPositiveButton(android.R.string.ok, null).show(); true
-                }
-            }
-        }
-        val tools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        content.addView(tools, LinearLayout.LayoutParams(-1, -2))
-        fun tool(label: Int, target: Class<out Activity>) {
-            button(tools, getString(label)) { startActivity(Intent(this, target)) }.apply {
-                layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4); topMargin = dp(6) }
-            }
-        }
-        quickPresets = button(tools, getString(R.string.home_quick_curves)) { showDevicePanel() }.apply {
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4); topMargin = dp(6) }
-            visibility = View.GONE
-        }
-        tool(R.string.dose_title, BeanPreparationActivity::class.java)
-        tool(R.string.scale_title, ScaleActivity::class.java)
         render()
+    }
+    private fun showQuickPresets() {
+        if (presetDialog?.isShowing == true) return
+        (presetPanel.parent as? android.view.ViewGroup)?.removeView(presetPanel)
+        presetDialog = AlertDialog.Builder(this).setTitle(getString(R.string.home_quick_curves))
+            .setMessage(getString(R.string.home_quick_curves_hint))
+            .setView(ScrollView(this).apply { addView(presetPanel) })
+            .setNegativeButton(android.R.string.cancel, null).create().also { dialog ->
+                dialog.setOnDismissListener {
+                    (presetPanel.parent as? android.view.ViewGroup)?.removeView(presetPanel)
+                    presetDialog = null
+                }
+                dialog.show()
+            }
     }
     private fun showDevicePanel() {
         if (deviceDialog?.isShowing == true) return
@@ -321,6 +356,7 @@ class HomeActivity : ThemedActivity() {
         feedbackUi.leave(isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         deviceDialog?.dismiss()
+        presetDialog?.dismiss()
         release(); super.onStop()
     }
     private fun bindExisting() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0) }
@@ -453,15 +489,6 @@ class HomeActivity : ThemedActivity() {
             ?: owner?.manualSafetyMessage ?: owner?.machineWriteSafetyMessage
         safetyWarning.visibility = if (warning == null) View.GONE else View.VISIBLE
         safetyWarning.show(warning.orEmpty())
-        // Full warnings and recovery take priority. The five shortcut buttons stay
-        // available through an explicit entry, instead of compressing the main CTA.
-        val presetParent = if (warning == null) presetHost else devicePanel
-        if (presetRail.parent !== presetParent) {
-            (presetRail.parent as? android.view.ViewGroup)?.removeView(presetRail)
-            presetParent.addView(presetRail, 0, LinearLayout.LayoutParams(-1, -2))
-        }
-        presetHost.visibility = if (warning == null) View.VISIBLE else View.GONE
-        quickPresets.visibility = if (warning == null) View.GONE else View.VISIBLE
         acknowledgeManual.visibility = if (owner?.manualSafetyMessage == null &&
             owner?.machineWriteAcknowledgementAvailable != true) View.GONE else View.VISIBLE
         acknowledgeManual.isEnabled = if (owner?.manualSafetyMessage != null)
@@ -581,15 +608,67 @@ class HomeActivity : ThemedActivity() {
         } ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.deviceFlowHundredths
         scaleWeight.show("${liveScale?.let(::number) ?: "—"} g" +
             "  ·  ${liveDeviceFlow?.let(::number) ?: "—"} g/s")
-        val library = (application as MobileApplication).curves
+        val app = application as MobileApplication
+        val library = app.curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
-        selection.show(selected?.let { getString(R.string.home_selected_curve, it.name, getString(if (!library.canStart(it)) R.string.home_curve_readonly else R.string.home_curve_startable)) } ?: getString(R.string.home_curve_missing))
+        val cupActive = shotActive || owner?.manualShotActive == true
+        val displayed = if (cupActive) owner?.chartCurveId?.let(library::find) else selected
+        val title = displayed?.name ?: getString(if (cupActive && owner?.chartCurveId == "manual") R.string.extraction_manual_label
+            else if (cupActive) R.string.task_brew_curve_unknown else R.string.home_curve_missing)
+        selection.show(title)
+        selectionDetails = title + "\n\n" + (displayed?.let { getString(if (library.canStart(it))
+            R.string.home_curve_startable else R.string.home_curve_readonly) + "\n" + it.details } ?: "") + "\n\n" + getString(R.string.task_brew_preview_note)
+        val targets = displayed?.let(CurveStageParameters::pressureTargets).orEmpty()
+        if (stagePreview.targets != targets) stagePreview.targets = targets
+        val previewDescription = getString(R.string.task_brew_preview_note) + " " +
+            targets.mapIndexed { index, target -> getString(R.string.chart_stage, (index + 1).toString()) +
+                " " + String.format(Locale.ROOT, "%.1f bar", target / 10.0) }.joinToString(", ")
+        if (stagePreview.contentDescription?.toString() != previewDescription)
+            stagePreview.contentDescription = previewDescription
+        previewUnavailable.show(getString(R.string.task_brew_no_pressure_preview))
+        stageFallbackText.show(getString(R.string.task_brew_compact_preview) + "\n" +
+            getString(R.string.task_brew_preview_note) + "\n" +
+            if (targets.isEmpty()) getString(R.string.task_brew_no_pressure_preview) else
+                targets.mapIndexed { index, target -> getString(R.string.chart_stage, (index + 1).toString()) +
+                    " · " + String.format(Locale.ROOT, "%.1f bar", target / 10.0) }.joinToString("\n"))
+        updateStagePreviewVisibility()
         brewButton.show(when {
+            cupActive -> getString(R.string.task_brew_live_state)
             selected == null -> getString(R.string.home_curve_select)
             !library.canStart(selected) -> getString(R.string.home_curve_replace)
             else -> getString(R.string.home_curve_prepare)
         })
-        browseCurvesButton.visibility = if (selected == null) View.GONE else View.VISIBLE
+        browseCurvesButton.visibility = View.VISIBLE
+        val profile = displayed?.let { library.resolve(it.id, s.scaleState == DeviceState.READY) }
+        temperatureSummary.show(getString(R.string.task_brew_temperature,
+            owner?.currentCorrectedBrewTemperature()?.let(::number) ?: "—", profile?.temperatureC?.toString() ?: "—"))
+        val doseResult = app.beanPreparationResult
+        val dose = doseResult.getOrNull()?.current()
+        val matches = dose?.let { value -> app.beanInventoryResult.getOrNull()?.events()?.any {
+            it.eventId == value.eventId && it.batchId == value.batchId &&
+                it.kind == io.openhoyi.bean.InventoryEventKind.CONSUME && it.deltaMg == -value.amountMg
+        } }
+        val doseState = when {
+            doseResult.isFailure -> R.string.task_brew_dose_unavailable
+            dose == null -> R.string.task_brew_dose_missing
+            dose.shotId != null && !dose.associated -> R.string.task_brew_dose_association
+            dose.shotId != null -> R.string.task_brew_dose_previous
+            dose.attempted && !dose.confirmed -> R.string.task_brew_dose_pending
+            dose.confirmed && matches != true -> R.string.task_brew_dose_conflict
+            dose.confirmed -> R.string.task_brew_dose_confirmed
+            else -> R.string.task_brew_dose_selected
+        }
+        beanSummary.show((dose?.let { it.beanName + " · " + BeanQuantity.formatGrams(it.amountMg) + " g\n" } ?: "") +
+            getString(doseState) + "\n" + getString(R.string.task_brew_dose_entry))
+        val stats = displayed?.let { app.curveUsageResult.getOrNull()?.stats(it.id) }
+        usageSummary.show(when {
+            app.curveUsageResult.isFailure -> getString(R.string.task_brew_usage_unavailable)
+            stats == null || (stats.count == 0L && stats.lastUsedAtMs == null) -> getString(R.string.task_brew_usage_empty)
+            else -> getString(R.string.task_brew_usage, stats.count.toString(), stats.lastUsedAtMs?.let {
+                java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT,
+                    app.languagePreferences.current.locale).format(java.util.Date(it))
+            } ?: "—")
+        } + "\n" + getString(R.string.task_brew_history_entry))
         val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
         presetButtons.forEachIndexed { index, button ->
             val slot = index + 1
@@ -627,6 +706,17 @@ class HomeActivity : ThemedActivity() {
         if (dot == null) background = dotShape(colorResource)
         else if (dot.color?.defaultColor != color) dot.setColor(color)
     }
+    private fun updateStagePreviewVisibility() {
+        fun View.visibleWhen(show: Boolean) {
+            val next = if (show) View.VISIBLE else View.GONE
+            if (visibility != next) visibility = next
+        }
+        stagePreview.visibleWhen(!textStagePreview && stagePreview.targets.isNotEmpty())
+        previewUnavailable.visibleWhen(!textStagePreview && stagePreview.targets.isEmpty())
+        previewNote.visibleWhen(!textStagePreview)
+        stageFallback.visibleWhen(textStagePreview)
+    }
+
     private fun statusDot(parent: LinearLayout): View = View(this).apply {
         background = dotShape(R.color.mobile_muted)
         parent.addView(this, LinearLayout.LayoutParams(dp(9), dp(9)).apply { marginEnd = dp(8) })
