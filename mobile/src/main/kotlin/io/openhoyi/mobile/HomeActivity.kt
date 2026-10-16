@@ -285,7 +285,7 @@ class HomeActivity : ThemedActivity() {
             val required = selection.measuredHeight + previewNote.measuredHeight + detailHeight
             textStagePreview = height < required
             updateStagePreviewVisibility()
-            // In fallback mode all remaining primary space belongs to the locally scrollable details.
+            // This budget already excludes the supporting viewport; only stage details scroll here.
             if (textStagePreview) height else required
         }
         text(secondary, getString(R.string.task_brew_cup_summary), 16, true)

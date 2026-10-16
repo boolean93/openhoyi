@@ -17,8 +17,8 @@ internal class TaskWorkspaceLayout(context: Context) : LinearLayout(context) {
         }
     }.apply { isFillViewport = false; addView(secondaryBody) }
     private var paneMode: Boolean? = null
-    // Returns the primary height needed before allocating any supporting space.
-    // The callback may choose a local text fallback when even the whole height is insufficient.
+    // Returns primary height needed within the budget after a reachable supporting viewport.
+    // The callback may choose a local text fallback when that primary budget is insufficient.
     var onPrimarySpaceAvailable: ((width: Int, height: Int) -> Int)? = null
 
     init { tag = "task-workspace"; addView(primaryBody); addView(supportingScroll) }
@@ -32,8 +32,13 @@ internal class TaskWorkspaceLayout(context: Context) : LinearLayout(context) {
             (height / density).toInt()).twoPaneAllowed && width >= dp(624)
         val secondaryWidth = (width * .30f).toInt().coerceIn(dp(280), dp(320))
         val primaryWidth = if (twoPane) width - secondaryWidth - dp(24) else width
-        val primaryRequired = onPrimarySpaceAvailable?.invoke(primaryWidth.coerceAtLeast(0), height) ?: 0
+        // Keep every secondary action reachable even when the stage graph needs a text fallback.
+        // Below 48dp plus the actual title height, both task regions cannot remain fully usable.
+        val supportingMinimum = if (twoPane) 0 else minOf(dp(48), height)
+        val primaryBudget = height - supportingMinimum
+        val primaryRequired = onPrimarySpaceAvailable?.invoke(primaryWidth.coerceAtLeast(0), primaryBudget) ?: 0
         val secondaryHeight = minOf(dp(160), height / 3, (height - primaryRequired).coerceAtLeast(0))
+            .coerceAtLeast(supportingMinimum)
         // Keep the same children, listeners and focus when the available area changes.
         if (paneMode != twoPane || (twoPane && supportingScroll.layoutParams.width != secondaryWidth)) {
             paneMode = twoPane
