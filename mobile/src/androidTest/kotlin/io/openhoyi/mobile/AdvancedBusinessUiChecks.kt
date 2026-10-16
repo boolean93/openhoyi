@@ -335,9 +335,19 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             check(preparation.current() == null && balance() == 90000L && ownEvents().size == 2)
             record("dose-invalid-no-write")
             fill(prep, R.string.dose_amount, "18")
+            onMain {
+                val preview = root(prep).findViewWithTag<TextView>("dose-balance-preview")
+                check(preview.text.toString() == prep.getString(R.string.dose_balance_preview, "90", "72"))
+            }
+            check(balance() == 90000L && ownEvents().size == 2)
             click(prep, R.string.dose_save_selection)
             val selected = requireNotNull(preparation.current())
             check(selected.batchId == batchId && selected.amountMg == 18000L && !selected.confirmed && balance() == 90000L && ownEvents().size == 2)
+            onMain {
+                val preview = root(prep).findViewWithTag<TextView>("dose-balance-preview")
+                check(preview.text.toString() == prep.getString(R.string.dose_balance_preview, "90", "72"))
+                check(root(prep).findViewWithTag<TextView>("dose-balance-receipt") == null)
+            }
             record("dose-select-no-deduction")
             // Hold the real button before it is detached by rendering; repeated dispatch must remain idempotent.
             var confirm: TextView? = null
@@ -347,6 +357,10 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             prep = recreate(prep)
             check(preparation.current()?.eventId == selected.eventId && preparation.current()?.confirmed == true)
             check(balance() == 72000L && ownEvents().count { it.eventId == selected.eventId && it.kind == InventoryEventKind.CONSUME } == 1 && ownEvents().size == 3)
+            onMain {
+                val receipt = root(prep).findViewWithTag<TextView>("dose-balance-receipt")
+                check(receipt.text.toString() == prep.getString(R.string.dose_balance_receipt, "90", "72"))
+            }
             record("dose-confirm-repeat-recreate")
             click(prep, R.string.dose_discard)
             dialogClick(dialog(prep), AlertDialog.BUTTON_POSITIVE, prep.getString(R.string.dose_discard_confirm))

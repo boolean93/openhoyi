@@ -39,4 +39,6 @@
     <string name="dose_association_pending">재고가 차감되었으며 평가 연결은 복구 대기 중입니다. 복구 전에는 새 준비를 만들 수 없고 재고를 다시 차감하지도 않습니다.</string>
     <string name="dose_association_retry">이 잔의 평가 연결 복구(빈 항목만 채우기)</string>
     <string name="dose_association_failed">평가 연결이 아직 복구되지 않았습니다. 원래 준비는 유지됩니다. 가상 기록을 만들거나 재고를 다시 차감하지 않습니다.</string>
+    <string name="dose_balance_preview">예상 재고: %1$s g → %2$s g (아직 차감되지 않음)</string>
+    <string name="dose_balance_receipt">이번 차감 기록: %1$s g → %2$s g</string>
 </resources>

@@ -39,4 +39,6 @@
     <string name="dose_association_pending">Запас списан; связь с отзывом ожидает восстановления. До восстановления нельзя создать новую подготовку; повторного списания не будет.</string>
     <string name="dose_association_retry">Восстановить связь этой экстракции с отзывом (только пустые поля)</string>
     <string name="dose_association_failed">Связь с отзывом ещё не восстановлена. Исходная подготовка сохранена. Вымышленные записи не создаются, запас повторно не списывается.</string>
+    <string name="dose_balance_preview">Ожидаемый остаток: %1$s г → %2$s г (ещё не списано)</string>
+    <string name="dose_balance_receipt">Запись этого списания: %1$s г → %2$s г</string>
 </resources>

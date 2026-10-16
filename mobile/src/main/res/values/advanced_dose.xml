@@ -39,4 +39,6 @@
     <string name="dose_association_pending">已扣库存，复盘关联待恢复。恢复前不能新建准备，也不会再次扣库存。</string>
     <string name="dose_association_retry">恢复这杯复盘关联（只填空项）</string>
     <string name="dose_association_failed">复盘关联尚未恢复，原准备仍保留。不会创建虚构记录或再次扣库存。</string>
+    <string name="dose_balance_preview">预计库存：%1$s g → %2$s g（尚未扣减）</string>
+    <string name="dose_balance_receipt">本次扣减流水：%1$s g → %2$s g</string>
 </resources>
