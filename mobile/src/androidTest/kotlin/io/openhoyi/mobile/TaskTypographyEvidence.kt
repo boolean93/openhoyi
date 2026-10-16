@@ -14,6 +14,20 @@ import java.io.File
 
 /** Records actual native typography/spacing next to screenshots, not an ImageGen match claim. */
 internal object TaskTypographyEvidence {
+    private fun currentShape(drawable: android.graphics.drawable.Drawable?): android.graphics.drawable.GradientDrawable? {
+        if (drawable == null) return null
+        val current = drawable.current
+        if (current !== drawable) return currentShape(current)
+        if (drawable is android.graphics.drawable.GradientDrawable) return drawable
+        if (drawable is android.graphics.drawable.LayerDrawable) {
+            for (index in 0 until drawable.numberOfLayers) {
+                if (drawable.getId(index) == android.R.id.mask) continue
+                currentShape(drawable.getDrawable(index))?.let { return it }
+            }
+        }
+        return null
+    }
+
     fun capture(activity: Activity, directory: File) {
         check(activity.resources.configuration.locales[0].language == "zh")
         val probe = TextView(activity)
@@ -35,13 +49,15 @@ internal object TaskTypographyEvidence {
             if (view.isShown) {
                 val rect = Rect(); view.getGlobalVisibleRect(rect)
                 val margins = view.layoutParams as? ViewGroup.MarginLayoutParams
-                val background = view.background?.current as? android.graphics.drawable.GradientDrawable
+                val background = currentShape(view.background)
                 layout.put(JSONObject().put("path", path).put("class", view.javaClass.simpleName)
                     .put("tag", view.tag?.toString()).put("widthPx", view.width).put("heightPx", view.height)
                     .put("visibleBoundsPx", JSONArray(listOf(rect.left, rect.top, rect.right, rect.bottom)))
                     .put("paddingPx", JSONArray(listOf(view.paddingLeft, view.paddingTop, view.paddingRight, view.paddingBottom)))
                     .put("marginsPx", margins?.let { JSONArray(listOf(it.leftMargin, it.topMargin, it.rightMargin, it.bottomMargin)) })
-                    .put("cornerRadiusPx", background?.cornerRadius).put("clickable", view.isClickable)
+                    .put("cornerRadiusPx", background?.cornerRadius).put("elevationPx", view.elevation)
+                    .put("translationZPx", view.translationZ).put("hasStateListAnimator", view.stateListAnimator != null)
+                    .put("clickable", view.isClickable)
                     .put("enabled", view.isEnabled))
             }
             if (view is TextView && view.isShown) {
