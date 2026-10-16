@@ -40,6 +40,19 @@ internal object TwoCupComparisonPageChecks {
             firstSamples = chart.firstPoints; secondSamples = chart.secondPoints
             check(firstSamples.size >= 2 && secondSamples.size >= 2)
             originalMetric = selector.selectedItemPosition
+            if (activity.resources.configuration.let {
+                it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
+            }) {
+                listOf(selector, swap, root.findViewWithTag<View>("comparison-first"),
+                    root.findViewWithTag<View>("comparison-second")).forEach { control ->
+                    val bounds = android.graphics.Rect()
+                    check(control.isShown && control.getGlobalVisibleRect(bounds) &&
+                        bounds.width() == control.width && bounds.height() == control.height && control.height > 0) {
+                        "Comparison toolbar control clipped: ${control.tag} $bounds / ${control.width}x${control.height}"
+                    }
+                }
+                check(chart.width >= root.width * .8f) { "Comparison plot must span the landscape task area" }
+            }
         }
         try {
             for (metric in ChartMetric.entries) {
