@@ -607,3 +607,11 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 该高级夹具两杯记录没有保存采样，图为0..1s空图，不能证明双轨迹绘制。大字号截图停在支持区下滚位置，摘要只见口感行，不能将其认作全表同时可见，也不能在没有滚动状态证据时直接认作裁切。
 - 复用SingleScreenWindowRun既有非空两杯采样，四指标真实点击且断言通过后，等待绘制并分别保存comparison-metrics/<language-theme-page>/<metric>/window.png、字体JSON及sources.txt；保存前再次检查两杯至少两点及指标正确。原清空/交换/finally恢复全部保留，不新增或伪造采样。
 - test APK构建24s成功（/tmp/task-comparison-metric-evidence-build.log），diff和分支规则通过。新四指标图尚待CI；f525db3普通横屏已success，用户/大字号仍in_progress。
+
+### 四阶段裁切闭环与指标分段实图复核（2026-10-16）
+
+- f525db3 single/run38888405636已核实completed/success，三个横屏profile各checked=336/pages=21/fixtures=336，列表恢复各14；普通/用户平板表单各58张，大字号56张。中文浅色编辑表单分别8/8/7张，completed/inlineObserved/imeObserved均true，noSave=true。
+- 实读ci-f525db3-single用户平板chinese-form-states/zh-Hans-light-CurveEditorActivity-four-stage-table.png：3项元数据及8项阶段输入完整，第四阶段不再裁切；右侧图注、参数摘要、预览/详情及固定保存均可见。该证据关闭f3233d6遗留的第四阶段窗口缺陷，不代表阶段数量下拉框已符合认可稿的分段选择，也不代表所有字体/间距完成。
+- 实读ci-fb19415-pages/landscape-screenshots/zh-Hans-light-BrewComparisonActivity.png：四指标分段按钮、单位及压力选中态实际显示，全宽图与三行双杯摘要存在；第一/第二杯、实虚线图例及未知结果提示保留。该高级夹具没有采样，0..1s空图不能作为双轨迹渲染证据。
+- fb19415 single/run38889727697当前三个job均在实际窗口截图步骤in_progress；ce8c964专项run38893548072仍queued。未取消/重跑。最新萃取/分享/秤/旧版详情改动不能借本次较旧版本通过外推；仍等待对应新图。
+- 本轮只更新证据和24页矩阵，不修改产品代码、不安装或操作设备、不合并/发布。
