@@ -123,13 +123,17 @@ class ScaleActivity:ScaleOwnerActivity() {
             layoutParams=LinearLayout.LayoutParams(-1,-2);gravity=android.view.Gravity.CENTER
             typeface=TaskTypography.face(this@ScaleActivity, 700)
         }
-        tareStatus=HoyiUi.label(this,reading,"",14,muted=true).apply {setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,8))}
         tare=HoyiUi.button(this,primary,getString(R.string.scale_tare),
             primary=!intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
             val service=owner ?: return@button
             if(BuildConfig.MOCK_MODE || !changesAllowed()) {message(getString(R.string.scale_active_guard));return@button}
             service.resetBeanDoseCapture()
             message(service.tareScale() ?: getString(R.string.scale_tare_requested));renderScale()
+        }
+        tareStatus=HoyiUi.label(this,primary,"",14,muted=true).apply {
+            layoutParams=LinearLayout.LayoutParams(-1,-2)
+            gravity=android.view.Gravity.CENTER
+            setPadding(0,HoyiUi.dp(this@ScaleActivity,8),0,HoyiUi.dp(this@ScaleActivity,16))
         }
         trend = ScaleTrendPanel(this, primary, secondary)
         workspace.onPrimarySpaceAvailable = { width, height ->
@@ -146,7 +150,7 @@ class ScaleActivity:ScaleOwnerActivity() {
             tare.measure(android.view.View.MeasureSpec.makeMeasureSpec(buttonWidth, android.view.View.MeasureSpec.EXACTLY),
                 android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED))
             val tareParams=tare.layoutParams as LinearLayout.LayoutParams
-            val required = natural(reading) + tare.measuredHeight + tareParams.topMargin + tareParams.bottomMargin
+            val required = natural(reading) + tare.measuredHeight + tareParams.topMargin + tareParams.bottomMargin + natural(tareStatus)
             required + trend.fit(width, height - required)
         }
         // Only TaskWorkspace secondary content scrolls; weight, tare and capture stay fixed.
@@ -168,7 +172,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         timerToggle=HoyiUi.button(this,timerActions,getString(R.string.scale_timer_start)) {
             if(timer.running)timer.pause(SystemClock.elapsedRealtime())else timer.start(SystemClock.elapsedRealtime());renderScale()
         }.apply {layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6);marginEnd=HoyiUi.dp(this@ScaleActivity,6)}}
-        HoyiUi.button(this,timerActions,getString(R.string.scale_timer_reset)) {timer.reset();renderScale()}.apply {
+        toolLink(timerActions,getString(R.string.scale_timer_reset), centered=true) {timer.reset();renderScale()}.apply {
             layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6)}
         }
         if(intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
@@ -191,10 +195,10 @@ class ScaleActivity:ScaleOwnerActivity() {
         }
         val tools=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
         device.addView(tools)
-        connectionButton=HoyiUi.button(this,tools,getString(R.string.scale_connect)) {startActivity(Intent(this,ScaleConnectionActivity::class.java))}.apply {
+        connectionButton=toolLink(tools,getString(R.string.scale_connect)) {startActivity(Intent(this,ScaleConnectionActivity::class.java))}.apply {
             layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)}
         }
-        HoyiUi.button(this,tools,getString(R.string.scale_settings)) {startActivity(Intent(this,ScaleSettingsActivity::class.java))}.apply {
+        toolLink(tools,getString(R.string.scale_settings)) {startActivity(Intent(this,ScaleSettingsActivity::class.java))}.apply {
             layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6)}
         }
         if(intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
@@ -248,5 +252,21 @@ class ScaleActivity:ScaleOwnerActivity() {
         capture?.isEnabled=stableDose(now)!=null
         connectionButton.isEnabled=service==null || allowed
     }
+    private fun toolLink(parent:LinearLayout, value:String, centered:Boolean=false, action:()->Unit):Button =
+        HoyiUi.button(this,parent,value,action=action).apply {
+            gravity=if(centered)android.view.Gravity.CENTER else android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            setTextColor(android.content.res.ColorStateList(
+                arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
+                intArrayOf(getColor(R.color.mobile_muted),getColor(R.color.mobile_accent))))
+            val states=android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused),
+                    HoyiUi.shape(this@ScaleActivity,android.R.color.transparent,8,R.color.mobile_accent))
+                addState(intArrayOf(),HoyiUi.shape(this@ScaleActivity,android.R.color.transparent,8))
+            }
+            background=android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
+                    intArrayOf(android.graphics.Color.TRANSPARENT,getColor(R.color.mobile_accent_soft))),
+                states,HoyiUi.shape(this@ScaleActivity,android.R.color.white,8))
+        }
     private fun TextView.setIfChanged(value:String) { if(text.toString()!=value) text=value }
 }

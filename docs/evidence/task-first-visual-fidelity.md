@@ -150,3 +150,11 @@ CI38860435640 task-frame成功，已下载并实读用户平板screenshots/HomeA
 ## 电子秤分区与去皮宽度候选
 
 对照ce0a39d用户平板实屏与scale-v2，新增当前重量16sp标题与16dp下间距，去皮改居中且最大240dp（仍按实际宽度测量换行高度）；右侧计时后24dp间隔建立20sp设备标题，电量/状态/连接入口归入该组。没有虚构BOOKOO型号或82%电量。8语言新增标签，真实操作门禁和单BLE owner未改。双Mock APK43秒构建成功，diff检查通过；当前候选还没有原生截图，不声称字体/间距最终一致或短高已验收。上一批4ecc593的single-screen38864418212、task-frame38864418258、lifecycle38864418227查询均in_progress。
+
+## 7285e2f 原生平板复核
+
+task-frame38864826234成功，下载用户平板产物并实读ScaleActivity.png，当前重量、居中有限宽去皮及设备组已在2560×1600实屏出现。home-1.0.txt/1.3.txt均包含SCALE_TREND_PANEL_CHECKS_PASSED fixtures=4 shortEntry=true recovery=true empty=true dialogStatus=true dialogDismiss=true componentOnly=true。实读font1.3趋势正常fixture：负值保留、两段间未连线、g/秒轴与最新读数年龄清晰。这是独立组件，不替代完整ScaleActivity短高窗口证据。4ecc593 single-screen38864418212与lifecycle38864418227均已成功。
+
+7285e2f lifecycle38864826313失败日志是SDK下载Android Emulator时报Error on ZipFile unknown archive，模拟器未启动且检查脚本未执行；未修改业务或放松门禁，仅重跑failed job，查询attempt2已in_progress。7285e2f single-screen38864826144仍in_progress。
+
+实屏仍见去皮结果在左侧远离按钮、次级入口重边框。后续候选将结果置于按钮下方居中并计入自然高度，清零/连接/设置使用文字按钮及原48dp点击区、禁用与焦点反馈。字体/间距整体一致性仍未验收。
