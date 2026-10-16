@@ -58,4 +58,6 @@
     <string name="import_table_stage">阶段</string>
     <string name="import_table_pressure">压力 · bar</string>
     <string name="import_table_water">本段水量 · ml</string>
+    <string name="profiles_share_methods">分享方式</string>
+    <string name="profiles_export_first">成功导出后可分享文件。</string>
 </resources>

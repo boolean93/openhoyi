@@ -58,4 +58,6 @@
     <string name="import_table_stage">Stage</string>
     <string name="import_table_pressure">Pressure · bar</string>
     <string name="import_table_water">Stage water · ml</string>
+    <string name="profiles_share_methods">Sharing options</string>
+    <string name="profiles_export_first">Export successfully before sharing the file.</string>
 </resources>

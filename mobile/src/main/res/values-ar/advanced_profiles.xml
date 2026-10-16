@@ -58,4 +58,6 @@
     <string name="import_table_stage">المرحلة</string>
     <string name="import_table_pressure">الضغط · bar</string>
     <string name="import_table_water">ماء المرحلة · ml</string>
+    <string name="profiles_share_methods">خيارات المشاركة</string>
+    <string name="profiles_export_first">يمكن مشاركة الملف بعد نجاح التصدير.</string>
 </resources>

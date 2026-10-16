@@ -58,4 +58,6 @@
     <string name="import_table_stage">Этап</string>
     <string name="import_table_pressure">Давление · bar</string>
     <string name="import_table_water">Вода этапа · ml</string>
+    <string name="profiles_share_methods">Способы отправки</string>
+    <string name="profiles_export_first">Файл можно отправить после успешного экспорта.</string>
 </resources>

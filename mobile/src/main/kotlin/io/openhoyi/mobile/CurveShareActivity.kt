@@ -24,26 +24,48 @@ class CurveShareActivity : ThemedActivity() {
         if (doc == null) { HoyiUi.label(this, body, getString(R.string.profiles_missing), 17); return }
         document = doc
         exportedUri = savedInstanceState?.getString("exportedUri")?.let(Uri::parse)
-        profileCard(body, doc)
+        val workspace = TaskWorkspaceLayout(this)
+        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply {
+            topMargin = HoyiUi.dp(this@CurveShareActivity, 16)
+        })
+        sharePreview(workspace, doc)
+        val actions = workspace.secondaryBody
+        HoyiUi.label(this, actions, getString(R.string.profiles_share_methods), 20, true).apply {
+            setPadding(0, 0, 0, HoyiUi.dp(this@CurveShareActivity, 16))
+        }
         val json = doc.encode()
-        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_copy)) {
+        HoyiUi.button(this, actions, getString(R.string.profiles_share_text), primary = true) {
+            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, json), getString(R.string.profiles_share_title)))
+        }
+        HoyiUi.button(this, actions, getString(R.string.profiles_copy)) {
             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText(getString(R.string.profiles_json), json))
             Toast.makeText(this, R.string.profiles_copied, Toast.LENGTH_SHORT).show()
         }
-        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_share_text), primary = true) {
-            startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, json), getString(R.string.profiles_share_title)))
+        android.view.View(this).also { divider ->
+            divider.setBackgroundColor(getColor(R.color.mobile_border))
+            actions.addView(divider, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)).apply {
+                topMargin = HoyiUi.dp(this@CurveShareActivity, 16)
+                bottomMargin = HoyiUi.dp(this@CurveShareActivity, 16)
+            })
         }
-        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_export_file)) {
+        HoyiUi.button(this, actions, getString(R.string.profiles_export_file)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json")
                 .putExtra(Intent.EXTRA_TITLE, "openhoyi-${doc.id}.json"), EXPORT)
         }
-        shareFile = HoyiUi.button(this, beanActions(body), getString(R.string.profiles_share_file)) {
+        shareFile = HoyiUi.button(this, actions, getString(R.string.profiles_share_file)) {
             exportedUri?.let { uri ->
                 startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, uri)
                     .apply { clipData = ClipData.newUri(contentResolver, getString(R.string.profiles_json), uri) }
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), getString(R.string.profiles_share_title)))
             }
         }.apply { isEnabled = exportedUri != null }
+        HoyiUi.label(this, actions, getString(R.string.profiles_export_first), 14, muted = true)
+        HoyiUi.label(this, actions, getString(R.string.profiles_text_hint), 14, muted = true).apply {
+            setPadding(0, HoyiUi.dp(this@CurveShareActivity, 24), 0, 0)
+        }
+        HoyiUi.button(this, actions, getString(R.string.ui_full_details)) {
+            beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
+        }
     }
     @Deprecated("Platform activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

@@ -58,4 +58,6 @@
     <string name="import_table_stage">ขั้นตอน</string>
     <string name="import_table_pressure">แรงดัน · bar</string>
     <string name="import_table_water">น้ำในขั้นตอน · ml</string>
+    <string name="profiles_share_methods">วิธีแชร์</string>
+    <string name="profiles_export_first">แชร์ไฟล์ได้หลังจากส่งออกสำเร็จ</string>
 </resources>
