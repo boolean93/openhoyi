@@ -105,10 +105,11 @@ class CurveActivity : ThemedActivity() {
             hint = getString(R.string.curve_search_hint)
             setSingleLine(true)
             textSize = 16f
-            setPadding(dp(16), 0, dp(16), 0)
+            setPadding(dp(16), dp(8), dp(16), dp(8))
+            minimumHeight = dp(48)
             background = HoyiUi.shape(this@CurveActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         }
-        searchTools.addView(search, LinearLayout.LayoutParams(0, dp(48), 1f))
+        searchTools.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
         val customAvailable = (application as MobileApplication).customCurvesResult.isSuccess
         val creation = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         val newCurve = HoyiUi.button(this, creation, getString(R.string.profiles_new)) {

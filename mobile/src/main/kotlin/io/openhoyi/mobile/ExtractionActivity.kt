@@ -134,7 +134,7 @@ class ExtractionActivity : ThemedActivity() {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
         }
         deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 14)
-        val metrics = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val metrics = TaskLiveReadouts(this)
         plotColumn.addView(metrics, LinearLayout.LayoutParams(-1, -2))
         fun reading(label: String, quantity: Boolean = false): TextView {
             val cell = LinearLayout(this).apply {
@@ -142,7 +142,7 @@ class ExtractionActivity : ThemedActivity() {
                 setPadding(dp(TaskVisualTokens.RELATED_GAP_DP), dp(TaskVisualTokens.RELATED_GAP_DP),
                     dp(TaskVisualTokens.RELATED_GAP_DP), dp(TaskVisualTokens.RELATED_GAP_DP))
             }
-            metrics.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
+            metrics.addView(cell)
             val heading = HoyiUi.label(this, cell, label, 14, muted = true)
             if (quantity) quantityLabel = heading
             return HoyiUi.label(this, cell, "—", TaskVisualTokens.LIVE_VALUE_SP, true).apply {
@@ -153,7 +153,7 @@ class ExtractionActivity : ThemedActivity() {
         elapsedValue = reading(getString(R.string.task_extraction_elapsed))
         weightValue = reading(getString(R.string.task_extraction_water), quantity = true)
         val secondaryReadings = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        plotColumn.addView(secondaryReadings, LinearLayout.LayoutParams(-1, -2))
+        metrics.addView(secondaryReadings)
         pressureValue = HoyiUi.label(this, secondaryReadings, "", 14).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
         }
@@ -169,12 +169,11 @@ class ExtractionActivity : ThemedActivity() {
             val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
             val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
             metrics.measure(exactWidth, naturalHeight)
-            secondaryReadings.measure(exactWidth, naturalHeight)
             // Reserve real plot space before allocating the locally scrollable tools.
             // Font scaling grows this budget; no plot/text minimum is lowered.
             val chartHeight = maxOf((dp(240) * resources.configuration.fontScale).toInt(),
                 (height * .55f).toInt())
-            metrics.measuredHeight + secondaryReadings.measuredHeight + chartHeight + dp(8)
+            metrics.measuredHeight + chartHeight + dp(8)
         }
         val toolbar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         sidePanel.addView(toolbar)
