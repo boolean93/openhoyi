@@ -4,101 +4,254 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
+import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.Spinner
+import android.widget.TextView
+import java.util.concurrent.Executors
 
 class BrewComparisonActivity : ThemedActivity() {
-    companion object { const val FIRST_SHOT_ID = "firstShotId"; const val SECOND_SHOT_ID = "secondShotId" }
+    companion object {
+        const val FIRST_SHOT_ID = "firstShotId"
+        const val SECOND_SHOT_ID = "secondShotId"
+        private const val METRIC = "comparisonMetric"
+    }
+    private data class SourceKey(val observation: BrewJournal.Observation)
+    private sealed interface Samples {
+        data object Loading : Samples
+        data class Loaded(val points: List<ShotPoint>) : Samples
+        data object Failed : Samples
+    }
     private var firstId: String? = null
     private var secondId: String? = null
+    private var selectedMetric = ChartMetric.PRESSURE
     private var refresh: () -> Unit = {}
-    private var renderVersion = 0
+    private var destroyed = false
+    private val readers = Executors.newFixedThreadPool(2)
+    private val samples = mutableMapOf<SourceKey, Samples>()
+    private lateinit var chart: TwoCupChartView
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val body = beanPage(getString(R.string.journal_compare_title), getString(R.string.journal_compare_hint))
         val journal = journal(body) ?: return
         val entries = journal.entries()
-        if (entries.size < 2) { HoyiUi.label(this, body, getString(R.string.journal_compare_need_two), 17); return }
-        firstId = savedInstanceState?.getString(FIRST_SHOT_ID) ?: intent.getStringExtra(FIRST_SHOT_ID) ?: entries[0].observation.id
-        secondId = savedInstanceState?.getString(SECOND_SHOT_ID) ?: intent.getStringExtra(SECOND_SHOT_ID) ?: entries[1].observation.id
-        val selectors = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; body.addView(this) }
-        val shared = HoyiUi.label(this, body, "", 14, true)
-        val results = beanWorkspace(body).apply { orientation = if (HoyiUi.wide(this@BrewComparisonActivity)) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
-        fun render() {
-            val version = ++renderVersion
-            results.removeAllViews()
-            beanActions(body).removeAllViews()
-            val first = journal.find(firstId ?: return) ?: return
-            val second = journal.find(secondId ?: return) ?: return
-            if (first.observation.id == second.observation.id) { shared.setText(R.string.journal_choose_different); return }
-            shared.text = getString(when {
-                first.notes.beanId == null || second.notes.beanId == null -> R.string.journal_bean_unknown
-                first.notes.beanId == second.notes.beanId -> R.string.journal_same_bean
-                else -> R.string.journal_different_bean
-            }) + " · " + getString(if (first.observation.curveId == second.observation.curveId) R.string.journal_same_curve else R.string.journal_different_curve)
-            listOf(R.string.journal_first to first, R.string.journal_second to second).forEach { (label, entry) ->
-                val panel = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(HoyiUi.dp(this@BrewComparisonActivity, 6), HoyiUi.dp(this@BrewComparisonActivity, 4), HoyiUi.dp(this@BrewComparisonActivity, 6), HoyiUi.dp(this@BrewComparisonActivity, 4))
-                    background = HoyiUi.shape(this@BrewComparisonActivity, R.color.mobile_surface, 12, R.color.mobile_border)
-                }
-                results.addView(panel, if (HoyiUi.wide(this)) LinearLayout.LayoutParams(0, -1, 1f) else LinearLayout.LayoutParams(-1, 0, 1f))
-                HoyiUi.label(this, panel, getString(label) + " · " + journalStatus(entry.observation.status), 14, true)
-                if (entry.observation.status == "UNKNOWN") HoyiUi.label(this, panel, getString(R.string.history_unknown_warning), 13, true)
-                val chart = ShotChartView(this)
-                panel.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
-                val status = HoyiUi.label(this, panel, getString(R.string.history_loading_samples), 12, muted = true)
-                HoyiUi.button(this, beanActions(body), getString(label) + " · " + getString(R.string.journal_detail)) {
-                    startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.observation.id))
-                }
-                HoyiUi.button(this, beanActions(body), getString(label) + " · " + getString(R.string.journal_notes_title)) {
-                    val notes = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                    journalNotes(notes, entry.notes)
-                    val values = (0 until notes.childCount).map { (notes.getChildAt(it) as android.widget.TextView).text.toString() }
-                    beanDetails(getString(label), journalObservationText(entry.observation) + "\n\n" + values.joinToString("\n"))
-                }
-                Thread({
-                    val loaded = runCatching { (application as MobileApplication).samples.load(entry.observation.id) }
-                    runOnUiThread {
-                        if (isFinishing || isDestroyed || version != renderVersion) return@runOnUiThread
-                        loaded.onSuccess {
-                            chart.points = it
-                            status.text = if (it.isEmpty()) getString(R.string.history_no_samples) else getString(
-                                if (entry.observation.status == "ENDED") R.string.history_samples_complete else R.string.history_samples_partial, it.size.toString())
-                        }.onFailure { status.setText(R.string.history_samples_failed) }
-                    }
-                }, "brew-comparison-reader").start()
-            }
+        firstId = if (savedInstanceState?.containsKey(FIRST_SHOT_ID) == true) savedInstanceState.getString(FIRST_SHOT_ID)
+            else intent.getStringExtra(FIRST_SHOT_ID) ?: entries.getOrNull(0)?.observation?.id
+        secondId = if (savedInstanceState?.containsKey(SECOND_SHOT_ID) == true) savedInstanceState.getString(SECOND_SHOT_ID)
+            else intent.getStringExtra(SECOND_SHOT_ID) ?: entries.getOrNull(1)?.observation?.id
+        selectedMetric = savedInstanceState?.getString(METRIC)?.let { name -> ChartMetric.entries.firstOrNull { it.name == name } }
+            ?: ChartMetric.PRESSURE
+        if (entries.size < 2) {
+            HoyiUi.label(this, body, getString(R.string.journal_compare_need_two), 17)
+            if (listOfNotNull(firstId, secondId).any { journal.find(it) == null })
+                HoyiUi.label(this, body, getString(R.string.task_comparison_missing_selection), 14)
+            return
         }
-        fun selector(label: Int, selected: String?, changed: (String) -> Unit) {
+
+        val workspace = TaskWorkspaceLayout(this)
+        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
+        val primary = workspace.primaryBody
+        val support = workspace.secondaryBody
+        val toolbarBody = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val toolbarScroll = object : ScrollView(this) {
+            var heightLimit = Int.MAX_VALUE
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                super.onMeasure(widthMeasureSpec, View.MeasureSpec.makeMeasureSpec(
+                    minOf(heightLimit, View.MeasureSpec.getSize(heightMeasureSpec)), View.MeasureSpec.AT_MOST))
+            }
+        }.apply { tag = "comparison-toolbar"; addView(toolbarBody) }
+        primary.addView(toolbarScroll, LinearLayout.LayoutParams(-1, -2))
+        val sourceLegend = HoyiUi.label(this, toolbarBody, "", 13, true).apply { tag = "comparison-source-legend" }
+        val warning = HoyiUi.label(this, toolbarBody, "", 13, true).apply { visibility = View.GONE }
+        val metricSelector = Spinner(this).apply {
+            tag = "comparison-metric"
+            minimumHeight = dp(48)
+            adapter = beanChoiceAdapter(ChartMetric.entries.map(::metricName))
+            contentDescription = getString(R.string.task_comparison_metric)
+            toolbarBody.addView(this, LinearLayout.LayoutParams(-1, -2))
+            setSelection(selectedMetric.ordinal)
+        }
+        chart = TwoCupChartView(this).apply { metric = selectedMetric }
+        primary.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
+        workspace.onPrimarySpaceAvailable = { width, height ->
+            val widthSpec = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+            val freeHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            var fixedHeight = 0
+            listOf(sourceLegend, warning, metricSelector).filter { it.visibility != View.GONE }.forEach {
+                it.measure(widthSpec, freeHeight); fixedHeight += it.measuredHeight
+            }
+            val graphMinimum = chart.minimumChartHeight()
+            // A short window scrolls only the toolbar and notice, never the entire comparison.
+            val toolbarBudget = if (height >= graphMinimum + dp(48)) height - graphMinimum else height / 2
+            toolbarScroll.heightLimit = minOf(fixedHeight, toolbarBudget.coerceAtLeast(0))
+            toolbarScroll.heightLimit + graphMinimum
+        }
+        val selectors = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; support.addView(this) }
+        val choiceIds = listOf<String?>(null) + entries.map { it.observation.id }
+        val labels = listOf(getString(R.string.task_comparison_choose_cup)) + entries.map {
+            getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
+        }
+        val shortLabels = listOf(getString(R.string.task_comparison_choose_cup)) + entries.map { journalDate(it.observation.startedAtMs) }
+        fun cupSelector(label: Int, selected: String?, changed: (String) -> Unit): Spinner {
             val cell = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
             selectors.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
             HoyiUi.label(this, cell, getString(label), 13, muted = true)
-            val view = Spinner(this).apply {
-                // The compact selected chip identifies the cup by its timestamp;
-                // the dropdown/accessibility keeps the complete date + curve label.
-                adapter = beanChoiceAdapter(entries.map {
-                    getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
-                }, entries.map { journalDate(it.observation.startedAtMs) })
+            return Spinner(this).apply {
+                tag = if (label == R.string.journal_first) "comparison-first" else "comparison-second"
+                adapter = beanChoiceAdapter(labels, shortLabels)
                 contentDescription = getString(label)
-                minimumHeight = HoyiUi.dp(this@BrewComparisonActivity, 48)
-                cell.addView(this)
+                minimumHeight = dp(48)
+                cell.addView(this, LinearLayout.LayoutParams(-1, -2))
+                setSelection(choiceIds.indexOf(selected).coerceAtLeast(0))
+                onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+                    override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+                    override fun onItemSelected(parent: AdapterView<*>?, item: View?, position: Int, id: Long) {
+                        choiceIds[position]?.let(changed)
+                    }
+                }
             }
-            view.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-                override fun onItemSelected(parent: AdapterView<*>?, item: View?, position: Int, id: Long) { changed(entries[position].observation.id); render() }
-            }
-            view.setSelection(entries.indexOfFirst { it.observation.id == selected }.coerceAtLeast(0))
         }
-        selector(R.string.journal_first, firstId) { firstId = it }
-        selector(R.string.journal_second, secondId) { secondId = it }
+        val firstSelector = cupSelector(R.string.journal_first, firstId) { id ->
+            if (firstId != id) { firstId = id; refresh() }
+        }
+        val secondSelector = cupSelector(R.string.journal_second, secondId) { id ->
+            if (secondId != id) { secondId = id; refresh() }
+        }
+        HoyiUi.button(this, support, getString(R.string.task_comparison_swap)) {
+            val previous = firstId; firstId = secondId; secondId = previous
+            firstSelector.setSelection(choiceIds.indexOf(firstId).coerceAtLeast(0))
+            secondSelector.setSelection(choiceIds.indexOf(secondId).coerceAtLeast(0))
+            refresh()
+        }.tag = "comparison-swap"
+        val shared = HoyiUi.label(this, support, "", 14, true)
+        val sourceSummaries = mutableListOf<TextView>()
+        val detailButtons = mutableListOf<Button>()
+        val noteButtons = mutableListOf<Button>()
+        listOf(R.string.journal_first, R.string.journal_second).forEachIndexed { index, label ->
+            sourceSummaries += HoyiUi.label(this, support, "", 14).apply { tag = "comparison-source-${index + 1}" }
+            detailButtons += HoyiUi.button(this, support, getString(label) + " · " + getString(R.string.journal_detail)) {
+                val entry = journal.find((if (index == 0) firstId else secondId) ?: return@button) ?: return@button
+                startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.observation.id))
+            }
+            noteButtons += HoyiUi.button(this, support, getString(label) + " · " + getString(R.string.journal_notes_title)) {
+                val entry = journal.find((if (index == 0) firstId else secondId) ?: return@button) ?: return@button
+                val notes = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+                journalNotes(notes, entry.notes)
+                val values = (0 until notes.childCount).map { (notes.getChildAt(it) as TextView).text.toString() }
+                beanDetails(getString(label), journalObservationText(entry.observation) + "\n\n" + values.joinToString("\n"))
+            }
+        }
+        metricSelector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            override fun onItemSelected(parent: AdapterView<*>?, item: View?, position: Int, id: Long) {
+                val metric = ChartMetric.entries[position]
+                if (selectedMetric != metric) { selectedMetric = metric; chart.metric = metric; refresh() }
+            }
+        }
+        fun ensureSamples(entry: BrewJournal.Entry?) {
+            entry ?: return
+            val key = SourceKey(entry.observation)
+            if (samples.containsKey(key)) return
+            samples[key] = Samples.Loading
+            readers.execute {
+                val loaded = runCatching {
+                    (application as MobileApplication).samples.load(entry.observation.id).also { ExtractionReference.align(it) }
+                }
+                runOnUiThread {
+                    if (destroyed || isFinishing || isDestroyed) return@runOnUiThread
+                    samples[key] = loaded.fold({ Samples.Loaded(it) }, { Samples.Failed })
+                    // Cache an old selection, but never project it onto a newly selected cup.
+                    val selected = listOfNotNull(firstId?.let(journal::find), secondId?.let(journal::find))
+                    if (selected.any { SourceKey(it.observation) == key }) refresh()
+                }
+            }
+        }
+        fun render() {
+            val first = firstId?.let(journal::find)
+            val second = secondId?.let(journal::find)
+            val same = first != null && second != null && first.observation.id == second.observation.id
+            val valid = first != null && second != null && !same
+            val selected = listOf(first, second)
+            selected.forEach(::ensureSamples)
+            val points = selected.map { entry ->
+                entry?.let { (samples[SourceKey(it.observation)] as? Samples.Loaded)?.points }.orEmpty()
+            }
+            chart.firstPoints = if (valid) points[0] else emptyList()
+            chart.secondPoints = if (valid) points[1] else emptyList()
+            chart.comparisonMessage = when {
+                first == null || second == null -> getString(R.string.task_comparison_missing_selection)
+                same -> getString(R.string.journal_choose_different)
+                else -> null
+            }
+            sourceLegend.setIfChanged(selected.mapIndexed { index, entry ->
+                val source = if (index == 0) "A ━ " + getString(R.string.journal_first)
+                    else "B ┄ " + getString(R.string.journal_second)
+                source + " · " + if (entry == null) getString(R.string.task_comparison_missing_selection) else
+                    journalDate(entry.observation.startedAtMs) + " · " + journalStatus(entry.observation.status)
+            }.joinToString("\n"))
+            val unknown = selected.any { it?.observation?.status == "UNKNOWN" }
+            warning.visibility = if (unknown) View.VISIBLE else View.GONE
+            warning.setIfChanged(if (unknown) getString(R.string.history_unknown_warning) else "")
+            shared.setIfChanged(if (first != null && second != null && !same) {
+                getString(when {
+                    first.notes.beanId == null || second.notes.beanId == null -> R.string.journal_bean_unknown
+                    first.notes.beanId == second.notes.beanId -> R.string.journal_same_bean
+                    else -> R.string.journal_different_bean
+                }) + " · " + getString(if (first.observation.curveId == second.observation.curveId)
+                    R.string.journal_same_curve else R.string.journal_different_curve)
+            } else chart.comparisonMessage.orEmpty())
+            selected.forEachIndexed { index, entry ->
+                detailButtons[index].isEnabled = entry != null
+                noteButtons[index].isEnabled = entry != null
+                val label = getString(if (index == 0) R.string.journal_first else R.string.journal_second)
+                if (entry == null) {
+                    sourceSummaries[index].setIfChanged(label + " · " + getString(R.string.task_comparison_missing_selection))
+                    return@forEachIndexed
+                }
+                val state = samples[SourceKey(entry.observation)]
+                val stateText = when (state) {
+                    is Samples.Loaded -> if (state.points.isEmpty()) getString(R.string.history_no_samples) else getString(
+                        if (entry.observation.status == "ENDED") R.string.history_samples_complete else R.string.history_samples_partial,
+                        state.points.size.toString())
+                    Samples.Failed -> getString(R.string.history_samples_failed)
+                    else -> getString(R.string.history_loading_samples)
+                }
+                val aligned = if (state is Samples.Loaded) ExtractionReference.align(state.points) else null
+                val alignment = when {
+                    aligned == null -> ""
+                    aligned.points.isEmpty() -> getString(R.string.task_comparison_no_aligned_samples)
+                    aligned.observedOrigin -> getString(R.string.task_comparison_observed_origin)
+                    else -> getString(R.string.task_comparison_record_origin)
+                }
+                val weightMissing = if (state is Samples.Loaded && aligned?.points?.none { it.weightHundredthsGram != null } == true)
+                    "\n" + getString(R.string.task_comparison_no_weight, if (index == 0) "A" else "B") else ""
+                val resets = if (aligned != null && aligned.points.zipWithNext().any { (a, b) -> b.waterTenthsMl < a.waterTenthsMl })
+                    "\n" + getString(R.string.task_chart_water_reset) else ""
+                val gaps = if (aligned != null && aligned.points.zipWithNext().any { (a, b) -> b.elapsedMs - a.elapsedMs > 1500 })
+                    "\n" + getString(R.string.task_chart_gap) else ""
+                sourceSummaries[index].setIfChanged(label + " · " + journalDate(entry.observation.startedAtMs) + "\n" +
+                    journalCurve(entry.observation.curveId) + " · " + journalStatus(entry.observation.status) + "\n" +
+                    stateText + "\n" + alignment + weightMissing + resets + gaps)
+            }
+        }
         refresh = ::render
         render()
     }
     override fun onResume() { super.onResume(); refresh() }
-    override fun onDestroy() { renderVersion++; super.onDestroy() }
+    override fun onDestroy() { destroyed = true; readers.shutdownNow(); refresh = {}; super.onDestroy() }
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString(FIRST_SHOT_ID, firstId); outState.putString(SECOND_SHOT_ID, secondId)
+        outState.putString(METRIC, selectedMetric.name)
     }
+    private fun metricName(metric: ChartMetric) = getString(when (metric) {
+        ChartMetric.PRESSURE -> R.string.task_comparison_pressure
+        ChartMetric.WATER -> R.string.task_comparison_water
+        ChartMetric.WEIGHT -> R.string.task_comparison_weight
+        ChartMetric.TEMPERATURE -> R.string.task_comparison_temperature
+    })
+    private fun TextView.setIfChanged(value: String) { if (text.toString() != value) text = value }
+    private fun dp(value: Int) = HoyiUi.dp(this, value)
 }
