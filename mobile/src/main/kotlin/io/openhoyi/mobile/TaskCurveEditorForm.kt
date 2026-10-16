@@ -41,12 +41,27 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         lower.addView(stagePane, LinearLayout.LayoutParams(0, -1, 1.1f))
         lower.addView(previewScroll, LinearLayout.LayoutParams(0, -1, 1f).apply { marginStart = dp(24) })
         stagePane.addView(stageHeader, LinearLayout.LayoutParams(-1, -2))
+        val columns = LinearLayout(activity).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+        stagePane.addView(columns, LinearLayout.LayoutParams(-1, -2))
+        listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).forEachIndexed { index, label ->
+            HoyiUi.label(activity, columns, activity.getString(label), 14, muted = true).apply {
+                layoutParams = if (index == 0) LinearLayout.LayoutParams(dp(64), -2)
+                    else LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) }
+                setPadding(0, 0, 0, dp(8))
+            }
+        }
         stagePane.addView(stages, LinearLayout.LayoutParams(-1, 0, 1f))
         stageRows.forEachIndexed { index, row ->
             row.tag = "curve-editor-stage-$index"
-            stageContent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
+            row.orientation = LinearLayout.HORIZONTAL
+            row.isBaselineAligned = false
+            row.gravity = android.view.Gravity.CENTER_VERTICAL
+            stageContent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
             HoyiUi.label(activity, row, activity.getString(R.string.profiles_stage, index + 1), 16, true).apply {
                 setTextColor(CurveStagePalette.color(activity, index))
+                layoutParams = LinearLayout.LayoutParams(dp(64), -2)
+                minimumHeight = dp(48)
+                gravity = android.view.Gravity.CENTER_VERTICAL
             }
         }
     }

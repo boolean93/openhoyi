@@ -57,10 +57,9 @@ internal object ChineseFormWindowChecks {
                 1 -> R.string.profiles_cup
                 else -> R.string.profiles_pressure
             })
-            val titles = descendants(content).filterIsInstance<TextView>().filter {
-                it.labelFor != View.NO_ID && it.text.toString() == label
-            }
-            return content.findViewById(titles[if (position < 2) 0 else position - 2].labelFor)
+            return descendants(content).filterIsInstance<EditText>().filter {
+                it.contentDescription?.toString() == label
+            }[if (position < 2) 0 else position - 2]
         }
         fun selectSection(position: Int) {
             if (activity is CurveEditorActivity) {
@@ -244,6 +243,24 @@ internal object ChineseFormWindowChecks {
                     requireNotNull(stageSelector).setSelection(3)
                 }
                 waitForDraw()
+            }
+            if (activity is CurveEditorActivity && activity.resources.configuration.let {
+                    it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
+                }) {
+                main {
+                    val inputs = descendants(content).filterIsInstance<EditText>().filter { it.isShown }
+                    check(inputs.size == 11) { "$name missing metadata or four-stage fields" }
+                    inputs.forEach(::fullyVisible)
+                    val topPositions = listOf(R.string.profiles_name, R.string.profiles_temperature, R.string.profiles_cup).map { label ->
+                        val field = inputs.single { it.contentDescription?.toString() == activity.getString(label) }
+                        val location = IntArray(2); field.getLocationOnScreen(location); location[1]
+                    }
+                    check(requireNotNull(topPositions.maxOrNull()) - requireNotNull(topPositions.minOrNull()) <= 1) {
+                        "$name metadata inputs are not aligned: $topPositions"
+                    }
+                    fullyVisible(requireNotNull(stageSelector))
+                }
+                capture("four-stage-table")
             }
             main { sectionCount = if (activity is CurveEditorActivity) 6 else requireNotNull(sections).count }
             for (position in 0 until sectionCount) {

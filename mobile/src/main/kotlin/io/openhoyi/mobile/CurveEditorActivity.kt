@@ -31,12 +31,39 @@ class CurveEditorActivity : ThemedActivity() {
         stageCount = savedInstanceState?.getInt("stageCount") ?: source.stages.size
         val sections = TaskCurveEditorForm(this, body)
         form = sections
-        fun field(parent: LinearLayout, key: String, label: Int, initial: String, numeric: Boolean = true) = beanInput(parent, label, numeric).also {
-            fields[key] = it; it.setText(savedInstanceState?.getString(key) ?: initial)
+        fun field(parent: LinearLayout, key: String, label: Int, initial: String, numeric: Boolean = true,
+            compactLabel: String? = null, tableCell: Boolean = false): EditText {
+            val input = if (tableCell) EditText(this).apply {
+                id = View.generateViewId()
+                textSize = 18f
+                typeface = TaskTypography.face(this@CurveEditorActivity, 400)
+                includeFontPadding = false
+                setTextColor(getColor(R.color.mobile_text))
+                inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                setSingleLine(true)
+                minimumHeight = HoyiUi.dp(this@CurveEditorActivity, 52)
+                setPadding(HoyiUi.dp(this@CurveEditorActivity, 12), HoyiUi.dp(this@CurveEditorActivity, 8),
+                    HoyiUi.dp(this@CurveEditorActivity, 12), HoyiUi.dp(this@CurveEditorActivity, 8))
+                background = HoyiUi.shape(this@CurveEditorActivity, R.color.mobile_surface, 10, R.color.mobile_border)
+                parent.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = HoyiUi.dp(this@CurveEditorActivity, 8) })
+            } else beanInput(parent, label, numeric).also { editor ->
+                if (compactLabel != null) for (index in 0 until parent.childCount) {
+                    val title = parent.getChildAt(index) as? android.widget.TextView ?: continue
+                    if (title.labelFor == editor.id) { title.text = compactLabel; title.textSize = 14f }
+                }
+            }
+            input.contentDescription = getString(label)
+            input.tooltipText = getString(label)
+            fields[key] = input
+            input.setText(savedInstanceState?.getString(key) ?: initial)
+            return input
         }
-        val name = field(sections.metadata[0], "name", R.string.profiles_name, source.name, false)
-        val temperature = field(sections.metadata[1], "temperature", R.string.profiles_temperature, source.temperatureC.toString())
-        val cup = field(sections.metadata[2], "cup", R.string.profiles_cup, CurveDraftNumber.format(source.targetHundredthsGram, 2))
+        val name = field(sections.metadata[0], "name", R.string.profiles_name, source.name, false,
+            compactLabel = getString(R.string.profiles_name))
+        val temperature = field(sections.metadata[1], "temperature", R.string.profiles_temperature, source.temperatureC.toString(),
+            compactLabel = getString(R.string.curve_preview_temperature) + " (°C)")
+        val cup = field(sections.metadata[2], "cup", R.string.profiles_cup, CurveDraftNumber.format(source.targetHundredthsGram, 2),
+            compactLabel = getString(R.string.curve_preview_weight) + " (g)")
         HoyiUi.label(this, sections.stageHeader, getString(R.string.profiles_stage_count), 16, true).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         }
@@ -48,16 +75,9 @@ class CurveEditorActivity : ThemedActivity() {
         }
         (0..3).forEach { index ->
             val stage = source.stages.getOrNull(index) ?: CustomCurveDocument.Stage(60, 100)
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
-            sections.stageRows[index].addView(row)
-            fun stageCell() = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL; tag = "bean-full-field"
-                row.addView(this, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                    if (row.childCount > 0) marginStart = HoyiUi.dp(this@CurveEditorActivity, 16)
-                })
-            }
-            field(stageCell(), "target-$index", R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1))
-            field(stageCell(), "water-$index", R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1))
+            val row = sections.stageRows[index]
+            field(row, "target-$index", R.string.profiles_pressure, CurveDraftNumber.format(stage.target, 1), tableCell = true)
+            field(row, "water-$index", R.string.profiles_water, CurveDraftNumber.format(stage.waterTenthsMl, 1), tableCell = true)
         }
         var previewChanged: () -> Unit = {}
         fun visibility() {
@@ -86,7 +106,7 @@ class CurveEditorActivity : ThemedActivity() {
             runCatching { parsed() }.onSuccess { doc ->
                 preview.targets = doc.stages.map { it.target }
                 preview.contentDescription = profileSummary(doc)
-                previewStatus.text = profileSummary(doc)
+                previewStatus.text = getString(R.string.profiles_summary, doc.temperatureC, CurveDraftNumber.format(doc.targetHundredthsGram, 2), doc.stages.size)
             }.onFailure {
                 preview.targets = emptyList()
                 preview.contentDescription = getString(R.string.profiles_invalid)
@@ -105,6 +125,10 @@ class CurveEditorActivity : ThemedActivity() {
         sections.restore(savedInstanceState, fields)
         HoyiUi.button(this, sections.supportingBody, getString(R.string.profiles_preview)) {
             runCatching { parsed() }.onSuccess { profilePreviewDialog(it); error.text = "" }.onFailure { error.setText(R.string.profiles_invalid) }
+        }
+        HoyiUi.button(this, sections.supportingBody, getString(R.string.ui_full_details)) {
+            beanDetails(getString(R.string.profiles_editor), listOf(R.string.profiles_temperature, R.string.profiles_cup,
+                R.string.profiles_pressure, R.string.profiles_water, R.string.profiles_pressure_execution_limits).joinToString("\n\n") { getString(it) })
         }
         val dock = TaskActionDock(this, edgeInsetDp = 0)
         body.addView(dock, LinearLayout.LayoutParams(-1, -2))

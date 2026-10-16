@@ -130,10 +130,14 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         var shown = false
         var sectionCount = 0
         onMain {
-            val title = views(root).filterIsInstance<TextView>()
-                .filter { it.text.toString() == label && it.labelFor != View.NO_ID }
-                .getOrNull(index) ?: error("Input label not found: $label index=$index")
-            input = root.findViewById(title.labelFor)
+            val accessibleInput = views(root).filterIsInstance<EditText>()
+                .filter { it.contentDescription?.toString() == label }.getOrNull(index)
+            input = accessibleInput ?: run {
+                val title = views(root).filterIsInstance<TextView>()
+                    .filter { it.text.toString() == label && it.labelFor != View.NO_ID }
+                    .getOrNull(index) ?: error("Input label not found: $label index=$index")
+                root.findViewById(title.labelFor)
+            }
             sections = views(root).filterIsInstance<Spinner>().singleOrNull { it.tag == "bean-sections" }
             shown = input.isShown
             sectionCount = sections?.count ?: 0
