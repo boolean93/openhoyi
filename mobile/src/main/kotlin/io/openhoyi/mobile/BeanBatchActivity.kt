@@ -44,15 +44,26 @@ class BeanBatchActivity : ThemedActivity() {
         val id = intent.getStringExtra(BATCH_ID)
         val item = inventory.batches().find { it.batch.id == id }
         if (item == null) { HoyiUi.label(this, body, getString(R.string.beans_missing), 17); return }
-        val card = HoyiUi.card(this, body)
+        val workspace = TaskWorkspaceLayout(this)
+        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
+        val card = HoyiUi.card(this, workspace.primaryBody)
         card.layoutParams = LinearLayout.LayoutParams(-1, -2)
+        val metadata = workspace.secondaryBody
         HoyiUi.label(this, card, item.batch.bean.name, 23, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
             tag = "full-text-details"
         }
         HoyiUi.label(this, card, getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg)), 30, true)
-        HoyiUi.label(this, card, getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), 15, muted = true)
-        HoyiUi.label(this, card, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 13, muted = true)
+        HoyiUi.label(this, metadata, getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), 15, muted = true)
+        HoyiUi.label(this, metadata, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 14, muted = true)
+        listOf(R.string.beans_purchased to item.batch.purchasedOn,
+            R.string.beans_roasted to item.batch.roastedOn, R.string.beans_opened to item.batch.openedOn)
+            .forEach { (label, date) ->
+                HoyiUi.label(this, metadata, getString(R.string.beans_date_value, getString(label),
+                    date?.toString() ?: getString(R.string.beans_not_set)), 15).apply {
+                    setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 8), 0, 0)
+                }
+            }
         HoyiUi.button(this, beanActions(body), getString(R.string.ui_full_details)) {
             val details = listOf(R.string.beans_purchased to item.batch.purchasedOn,
                 R.string.beans_roasted to item.batch.roastedOn, R.string.beans_opened to item.batch.openedOn)

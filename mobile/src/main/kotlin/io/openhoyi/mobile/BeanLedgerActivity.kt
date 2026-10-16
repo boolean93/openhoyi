@@ -3,6 +3,8 @@ package io.openhoyi.mobile
 import io.openhoyi.bean.InventoryEventKind
 import android.os.Bundle
 import android.widget.ScrollView
+import android.widget.LinearLayout
+import android.view.View
 
 class BeanLedgerActivity : ThemedActivity() {
     private var listScroll: ScrollView? = null
@@ -30,11 +32,28 @@ class BeanLedgerActivity : ThemedActivity() {
                 InventoryEventKind.CONSUME -> R.string.beans_event_consume
                 InventoryEventKind.ADJUST -> R.string.beans_event_adjust
             })
-            val card = HoyiUi.card(this, list, getString(R.string.beans_event_title, kind, BeanQuantity.formatGrams(event.deltaMg)))
-            HoyiUi.label(this, card, batches[event.batchId]?.batch?.bean?.name ?: getString(R.string.beans_missing), 17, true)
-            HoyiUi.label(this, card, getString(R.string.beans_event_balance, BeanQuantity.formatGrams(event.balanceMg)), 16)
-            event.reason?.let { HoyiUi.label(this, card, getString(R.string.beans_event_reason, it), 15) }
-            HoyiUi.label(this, card, getString(R.string.beans_batch_id, beanBatchNumber(inventory, event.batchId)), 13, muted = true)
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(HoyiUi.dp(this@BeanLedgerActivity, 12), HoyiUi.dp(this@BeanLedgerActivity, 12),
+                    HoyiUi.dp(this@BeanLedgerActivity, 12), HoyiUi.dp(this@BeanLedgerActivity, 12))
+                setBackgroundColor(getColor(R.color.mobile_surface))
+                list.addView(this, LinearLayout.LayoutParams(-1, -2))
+            }
+            val change = getString(R.string.beans_event_title, kind, BeanQuantity.formatGrams(event.deltaMg))
+            val balance = getString(R.string.beans_event_balance, BeanQuantity.formatGrams(event.balanceMg))
+            HoyiUi.label(this, row, "$change · $balance", 17, true)
+            val bean = batches[event.batchId]?.batch?.bean?.name ?: getString(R.string.beans_missing)
+            val batch = getString(R.string.beans_batch_id, beanBatchNumber(inventory, event.batchId))
+            HoyiUi.label(this, row, "$bean · $batch", 14, muted = true).apply {
+                setPadding(0, HoyiUi.dp(this@BeanLedgerActivity, 6), 0, 0)
+            }
+            event.reason?.let {
+                HoyiUi.label(this, row, getString(R.string.beans_event_reason, it), 15).apply {
+                    setPadding(0, HoyiUi.dp(this@BeanLedgerActivity, 6), 0, 0)
+                }
+            }
+            list.addView(View(this).apply { setBackgroundColor(getColor(R.color.mobile_border)) },
+                LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)))
         }
     }
 }

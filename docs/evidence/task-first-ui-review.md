@@ -67,3 +67,9 @@ Historical ShotChartView migrated to the shared four-metric native renderer, kee
 - Advanced run38838413516 failed only pages job; business job succeeded. Downloaded advanced-mock-pages-pages/wideFont.txt reports BrewComparison selected date2023-11-1422:13:20 ellipsized. compact.txt proves240 fixtures/8languages/2themes passed. No blanket advanced success claim.
 - Fix uses full-width stacked cup selectors below600dp actual selector width; stable widgets, IDs, callbacks remain. Selected date opts into unrestricted line wrapping through beanChoiceAdapter selectedMaxLines, default stays2 for other callers. Full dropdown names unchanged. Original no-ellipsis/geometry/native selection checks remain.
 - Local final date-fix validation `/tmp/task-comparison-date-build.log`: testMockUnitTest + assembleMock + assembleMockAndroidTest BUILD SUCCESSFUL in49s; native rerun still pending.
+
+## 2026-10-16 compact inventory display
+
+BeanLedger replaces repeated padded cards with flat neutral rows: kind/change/after-balance lead, bean/batch metadata follows, full actual adjustment reason wraps when present. Reverse source order, batch filter, list scroll persistence and inventory reads unchanged; no timestamps inferred. BeanBatch render now uses primary balance/name and supporting initial quantity/batch/three actual dates, retaining fixed Full details/Ledger/Adjust actions and unabridged details. adjustment() and all preview/recheck/UUID/commit/recovery code unchanged.
+
+Local `/tmp/task-inventory-layout-build.log` assembleMock + assembleMockAndroidTest succeeded. Read-only layout edit does not add mirror unit tests; existing business invariants and actual populated native page/list restoration checks remain. This change is later than running33ab403 CI and is not claimed covered by it. Native screenshot and independent review remain pending.
