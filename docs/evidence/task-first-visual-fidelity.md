@@ -659,3 +659,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - fb19415 single/run38889727697终态failure，下载用户平板ci-fb19415-user。result=334/336，仅浅/深色BrewComparisonActivity指标按钮裁切：实际高108px但visibleRect高54px。实图同时显示压力双杯实/虚线（样本曲线重合）与两杯摘要，不再只凭高级空图讨论，但尚无四指标逐图。
 - 定位TaskComparisonLayout先为details分配height/3再压缩toolbar，新增分段行后正常用户平板也被裁。候选先保留图表下限和48dp详情，再按自然高度分配toolbar，剩余空间给局部滚动详情；原完整可见/点击尺寸/图表门禁不放宽。新CI待验。
 - 修正源码Mock/test APK构建41s成功（/tmp/task-comparison-toolbar-budget-build.log），diff及分支规则通过；这只证明构建，窗口裁切是否消除仍须新CI实图。没有安装、设备操作、合并或发版。
+
+### 萃取标题及读数层级修正版实图（2026-10-16）
+
+- e15e00e capture/run38892839825 completed/success，产物ci-e15e00e-capture/mock-ui-screenshots。display-profile核实2560×1600/density360/fontScale1.0，浅色启动日志实际记录capture-2 Mock开始且未发送蓝牙命令。
+- 实读extraction-running-light.png并对照extraction-four-series-v3：运行指导与标题同行，不再另占一整行；时间6s/重量4.20g的单位缩小，历史参考/概览变为文字操作，停止保持右下固定。原四指标独立轴、单位、图例及当前无告警文字仍在。数据来自该次Mock，不能把6秒曲线替换成概念稿24.6秒。
+- 仍未对齐：实际绘图区纵向比例偏小，图例到轴之间的解释区及全页下方固定状态/操作区占高；概念稿的设备摘要和参数分区尚不同，实际次要读数偏密。该图早于aaf1c44参数分行，不能评价后续TaskRecipeSummary。没有删除安全文字或放松图表最小尺寸来追稿。
+- aaf1c44 capture/run38893146356再次核实in_progress，正在Capture tablet UI and simulated shot；不重复启动。后续拿该图核对右栏，再结合a7867fd有/无秤字体JSON分析布局预算。当前截图只有有秤，不关闭无秤缺口。
