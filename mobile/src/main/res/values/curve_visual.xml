@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_visual_import_scope">未经确认，不会保存或启动萃取。</string>
+    <string name="curve_visual_library_scope">只保存到曲线库，不会启动萃取。</string>
+    <string name="curve_visual_preview_parameters">阶段预览与完整参数 · %1$d 阶段</string>
+</resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_visual_import_scope">確認するまでは保存も抽出の開始も行いません。</string>
+    <string name="curve_visual_library_scope">曲線ライブラリに保存するだけで、抽出は開始しません。</string>
+    <string name="curve_visual_preview_parameters">段階プレビューと全パラメータ · %1$d 段階</string>
+</resources>

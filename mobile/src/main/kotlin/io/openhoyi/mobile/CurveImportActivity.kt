@@ -18,24 +18,49 @@ class CurveImportActivity : ThemedActivity() {
     private lateinit var error: TextView
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val body = beanPage(getString(R.string.profiles_import), getString(R.string.profiles_import_hint))
+        val style = TaskProductFormStyle(this)
+        val body = style.visual.page(this, getString(R.string.profiles_import), getString(R.string.profiles_import_hint))
         profileStore(body) ?: return
         val workspace = beanWorkspace(body).apply { tag = "task-inline-form" }
-        HoyiUi.label(this, workspace, getString(R.string.profiles_import_intro), 16).apply {
-            setPadding(0, 0, 0, HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.RELATED_GAP_DP))
+        style.visual.add(workspace, style.visual.text(getString(R.string.profiles_import_intro), TaskProductVisualStyle.body))
+        val sources = style.visual.row("product/curve-import/sources").also {
+            workspace.addView(it, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(16) })
         }
-        val sources = BeanActionRows(this).also { workspace.addView(it) }
         val editor = beanWorkspace(workspace).apply { tag = "bean-full-field" }
         text = beanInput(editor, R.string.profiles_json).apply {
             setHint(R.string.profiles_import_placeholder)
-            textSize = 16f
+            style.input(this, "curve-import", "raw")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             setSingleLine(false); minLines = 1
             gravity = android.view.Gravity.TOP
             layoutParams = android.widget.LinearLayout.LayoutParams(-1, 0, 1f)
             setText(savedInstanceState?.getString("text").orEmpty())
         }
-        error = beanError(body)
+        val dataLabel = (0 until editor.childCount).map(editor::getChildAt).filterIsInstance<TextView>().single { it.labelFor == text.id }
+        style.visual.apply(dataLabel, TaskProductVisualStyle.section); dataLabel.setPadding(0, 0, 0, 0)
+        editor.removeView(dataLabel)
+        val format = style.visual.text(getString(R.string.profiles_compatibility), TaskProductVisualStyle.auxiliary,
+            "product/curve-import/format", true)
+        val dataHeader = object : LinearLayout(this) {
+            init { isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL; addView(dataLabel); addView(format) }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                dataLabel.measure(natural, natural); format.measure(natural, natural)
+                val inline = dataLabel.measuredWidth + format.measuredWidth + style.dp(16) <= View.MeasureSpec.getSize(widthMeasureSpec)
+                orientation = if (inline) HORIZONTAL else VERTICAL
+                val direction = this.layoutDirection
+                (dataLabel.layoutParams as LayoutParams).apply { width = if (inline) -2 else -1; weight = 0f }
+                (format.layoutParams as LayoutParams).apply {
+                    width = if (inline) 0 else -1; weight = if (inline) 1f else 0f
+                    marginStart = if (inline) style.dp(16) else 0; marginEnd = 0
+                    topMargin = if (inline) 0 else style.dp(8); resolveLayoutDirection(direction)
+                }
+                format.gravity = if (inline) android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL else android.view.Gravity.START
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }
+        editor.addView(dataHeader, 0, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(16); bottomMargin = style.dp(8) })
+        error = style.error(beanError(body))
         HoyiUi.button(this, sources, getString(R.string.profiles_paste)) {
             // Clipboard is read only after this explicit user action, never on resume/start.
             val value = runCatching {
@@ -44,41 +69,36 @@ class CurveImportActivity : ThemedActivity() {
             }.getOrNull()
             if (value == null || value.toByteArray(Charsets.UTF_8).size > CustomCurveDocument.MAX_BYTES) error.setText(R.string.profiles_import_invalid)
             else { text.setText(value); error.text = "" }
+        }.apply {
+            style.visual.button(this); HomeVisualIcon.buttonIcon(this, "copy"); tag = "product/curve-import/paste"
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = style.dp(8) }
         }
         HoyiUi.button(this, sources, getString(R.string.profiles_open_file)) {
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
                 .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain")), OPEN)
+        }.apply {
+            style.visual.button(this); HomeVisualIcon.buttonIcon(this, "export"); tag = "product/curve-import/open-file"
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = style.dp(8) }
         }
-        val footerRow = object : LinearLayout(this) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val wide = View.MeasureSpec.getSize(widthMeasureSpec) >= HoyiUi.dp(this@CurveImportActivity, 624)
-                orientation = if (wide) HORIZONTAL else VERTICAL
-                (getChildAt(0).layoutParams as LayoutParams).apply {
-                    width = if (wide) 0 else -1
-                    weight = if (wide) 1f else 0f
-                    marginEnd = if (wide) HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.GROUP_GAP_DP) else 0
-                }
-                (getChildAt(1).layoutParams as LayoutParams).width =
-                    if (wide) HoyiUi.dp(this@CurveImportActivity, 320) else -1
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        val actions = style.visual.row("product/curve-import/actions")
+        style.visual.action(actions, getString(R.string.beans_cancel), "product/curve-import/cancel", top = 0) { finish() }
+            .layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(8) }
+        val previewAction = style.visual.action(actions, getString(R.string.profiles_import_preview), "product/curve-import/preview",
+            primary = true, top = 0) { preview(text.text.toString()) }.apply {
+            layoutParams = LinearLayout.LayoutParams(-2, -2)
+            isEnabled = this@CurveImportActivity.text.text.isNotEmpty()
+        }
+        text.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(value: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(value: CharSequence?, start: Int, before: Int, count: Int) {
+                // Only empty input is unavailable. Every nonempty value still uses the original decode on click.
+                previewAction.isEnabled = !value.isNullOrEmpty()
             }
-        }.apply { gravity = android.view.Gravity.CENTER_VERTICAL; isBaselineAligned = false }
-        beanActions(body).addView(footerRow, LinearLayout.LayoutParams(-1, -2))
-        HoyiUi.label(this, footerRow, getString(R.string.profiles_import_hint), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-            setPadding(0, HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.RELATED_GAP_DP), 0,
-                HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.RELATED_GAP_DP))
-        }
-        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
-        footerRow.addView(actions, LinearLayout.LayoutParams(-1, -2))
-        HoyiUi.button(this, actions, getString(R.string.beans_cancel)) { finish() }.apply {
-            asTaskTextAction()
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
-                marginEnd = HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.RELATED_GAP_DP)
-            }
-        }
-        HoyiUi.button(this, actions, getString(R.string.profiles_import_preview), primary = true) {
-            preview(text.text.toString())
-        }.apply { layoutParams = LinearLayout.LayoutParams(0, -2, 2f) }
+            override fun afterTextChanged(value: android.text.Editable?) = Unit
+        })
+        beanActions(body).addView(style.footer(style.visual.text(getString(R.string.curve_visual_import_scope),
+            TaskProductVisualStyle.auxiliary, "product/curve-import/scope", true), actions, "curve-import", topRule = true),
+            LinearLayout.LayoutParams(-1, -2))
         if (savedInstanceState?.containsKey("text") == true) text.post {
             if (isFinishing || isDestroyed) return@post
             if (savedInstanceState.getBoolean("textFocused")) text.requestFocus()
