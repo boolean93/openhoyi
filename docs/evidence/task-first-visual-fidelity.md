@@ -1089,3 +1089,9 @@ run39091312445失败，已下载ci-a0ab801-frame-failure并读取result.txt：TA
 ## 正常导入预览实图入口（2026-10-18，待运行）
 
 TaskFrameChecks的CurveImportPreviewActivity启动参数现携带四阶段测试文档：新UUID、经典浓缩、93°C/36g、3/9/7/5bar、15/25/15/5ml。不保存，前后比较store列表且fixture ID始终不存在；验证四阶段目标和有效保存入口，输出import-preview-fixture.txt。这是正常态，不伪装已有冲突。其他23页及业务无效/冲突夹具保留。MockAndroidTest构建23s成功、diff通过（/tmp/task-import-preview-fixture-build.log）；尚未运行这项新截图，不能声称视觉通过。
+
+## e8a900a实图核对与分享夹具（2026-10-18）
+
+run39091826896成功，下载ci-e8a900a-frame并实读曲线库font1.3 selected-window：两阶段蓝色目标线、固定曲线详情/使用动作均完整；selected-window.txt确认恢复实际尺寸、偏好/使用记录不变。未覆盖四阶段最终验收。机器temperature-bottom.png仍显示第三温度行被底栏截断，而machine-settings-scroll.txt称完整可见；两种证据矛盾，不能关闭机器底部问题。可能是截图提交时序或遮挡检查范围，须追加滚动和可见区域记录区分，尚无产品根因定论。
+
+通用分享截图现使用已有可转换的采集曲线ID，不新建/保存，检查真实名称、复制入口及未导出文件禁用分享，store前后相同，输出share-fixture。其他错误/业务夹具保留；MockAndroidTest构建23s成功（/tmp/task-share-frame-build.log），diff通过，尚未运行该新图。

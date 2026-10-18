@@ -165,7 +165,13 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 val previewStore = if (previewDocument != null) app.customCurvesResult.getOrThrow() else null
                 val beforePreview = previewStore?.list()
                 if (previewDocument != null) check(previewStore!!.find(previewDocument.id) == null)
+                val shareSource = if (page == CurveShareActivity::class.java) app.curves.items.firstOrNull {
+                    it.controlProfile != null && runCatching { CustomCurveDocument.fromLibraryItem(it) }.isSuccess
+                } ?: error("No captured share fixture") else null
+                val shareDocument = shareSource?.let(CustomCurveDocument::fromLibraryItem)
+                val shareBefore = if (shareSource != null) app.customCurvesResult.getOrThrow().list() else null
                 val intent = Intent(test.targetContext, page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                shareSource?.let { intent.putExtra(CurveShareActivity.CURVE_ID, it.id) }
                 previewDocument?.let { intent.putExtra(CurveImportPreviewActivity.DOCUMENT, it.encode()) }
                 val activity = test.startActivitySync(intent)
                 try {
@@ -238,6 +244,17 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                     try {
                         File(directory, "${page.simpleName}.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
+                    if (shareDocument != null) {
+                        test.runOnMainSync {
+                            val labels = descendants(activity.window.decorView).filterIsInstance<android.widget.TextView>()
+                            check(labels.any { it.text.toString() == shareDocument.name }) { "Share fixture missing actual name" }
+                            check(labels.any { it.isShown && it.isClickable && it.text.toString() == activity.getString(R.string.profiles_copy) })
+                            check(!labels.single { it.text.toString() == activity.getString(R.string.profiles_share_file) }.isEnabled)
+                        }
+                        check(app.customCurvesResult.getOrThrow().list() == shareBefore) { "Viewing share changed curves" }
+                        File(directory, "share-fixture.txt").writeText(
+                            "source=${shareSource!!.id} stages=${shareDocument.stages.size} actionsNotInvoked=true storeUnchanged=true noBle=true\n")
+                    }
                     if (previewDocument != null) {
                         test.runOnMainSync {
                             val all = descendants(activity.window.decorView)
