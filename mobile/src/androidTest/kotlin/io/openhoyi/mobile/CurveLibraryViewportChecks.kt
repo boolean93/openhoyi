@@ -83,10 +83,41 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                     }
                     if (chart.visibility == View.VISIBLE) {
                         check(metrics.visibility == View.VISIBLE && metrics.contentDescription.isNotBlank())
+                        check(metrics.childCount == 3) { "$name recipe metrics lost a column" }
                         for (columnIndex in 0 until metrics.childCount) {
                             val column=metrics.getChildAt(columnIndex) as android.view.ViewGroup
-                            for (labelIndex in 0 until column.childCount)
-                                LanguageUiLayoutChecks.textFits(column.getChildAt(labelIndex) as TextView,"$name recipe metric")
+                            check(column.childCount == 2) { "$name recipe metric column lost label/value" }
+                            if (column.getChildAt(1) !is TextView) check(column.getChildAt(0).tag == "product/curve-library/summary/$columnIndex/label")
+                            for (labelIndex in 0 until column.childCount) {
+                                val node=column.getChildAt(labelIndex)
+                                if (node is TextView) {
+                                    LanguageUiLayoutChecks.textFits(node,"$name recipe metric")
+                                } else {
+                                    // Only the explicit M3 number/unit row may replace the legacy value TextView.
+                                    val prefix="product/curve-library/summary/$columnIndex"
+                                    check(node is android.widget.LinearLayout && node.tag == prefix) {
+                                        "$name unexpected recipe metric container ${node.javaClass.name}/${node.tag}"
+                                    }
+                                    check(node.childCount == if (columnIndex < 2) 2 else 1)
+                                    val number=node.getChildAt(0) as TextView
+                                    check(number.tag == "$prefix/number" && number.isShown)
+                                    LanguageUiLayoutChecks.textFits(number,"$name recipe metric number")
+                                    if (columnIndex < 2) {
+                                        val unit=node.getChildAt(1) as TextView
+                                        check(unit.tag == "$prefix/unit")
+                                        if (unit.visibility == View.VISIBLE) {
+                                            check(unit.isShown)
+                                            LanguageUiLayoutChecks.textFits(unit,"$name recipe metric unit")
+                                            val a=IntArray(2); val b=IntArray(2)
+                                            number.getLocationOnScreen(a); unit.getLocationOnScreen(b)
+                                            check(number.baseline >= 0 && unit.baseline >= 0 &&
+                                                a[1]+number.baseline == b[1]+unit.baseline) {
+                                                "$name recipe metric number/unit baseline differs"
+                                            }
+                                        } else check(unit.visibility == View.GONE) { "$name unit state must be visible or explicitly absent" }
+                                    }
+                                }
+                            }
                         }
                         check(chart.height >= HoyiUi.dp(activity, 96) && ability.visibility == View.VISIBLE && ability.parent != null)
                     } else {
