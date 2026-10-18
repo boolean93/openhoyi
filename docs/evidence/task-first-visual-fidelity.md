@@ -1125,3 +1125,9 @@ run39113352006失败于import-stage-table未显示，下载ci-87334eb-frame-fail
 ## 高级页面截图尺寸审计（2026-10-18）
 
 实读831aa1c wideFont中文浅色预览/分享：两阶段表格和主要入口完整。但check_advanced_mock_pages.sh指定1600×1000/density200/font1.3，不等于用户2560×1600/density360；其逻辑画布更宽高，不能据此关闭用户大字缺口。候选将高级pages、business及后续文档/自定义执行统一用户配置，保留480页面夹具及18业务/其他全部门禁，截图严格检查2560×1600，并记录adb实际size/density。未在本地运行adb。bash -n及7段嵌入Python ast.parse通过，diff通过；新目标配置尚未在CI执行，不冒称通过。旧截图证据仍只适用于旧配置。
+
+## 导入页底栏实图复核与平板配置推送（2026-10-18）
+
+实读831aa1c用户平板CurveImportActivity.png并对照curve-import-v2：空输入态底部完整64KiB说明、取消及导入预览已显示，位于系统栏上方；关闭此前6d218a7底栏尚无实际图的证据缺口，仅适用于标准字号浅色空态。输入区没有占位提示，顶部缺引导句且标题/按钮文案、图标、留白仍与稿件不同，不能判整页一致；键盘、有内容及大字仍需独立核对。
+
+0d6fb9c已普通推送至feature/task-first-ui，branch-policy及bash语法检查通过。此前4bd173c的frame run39113783820与advanced run39113788360本次查询仍in_progress，未取消或重启；不能将其后续结果归属新的平板配置。
