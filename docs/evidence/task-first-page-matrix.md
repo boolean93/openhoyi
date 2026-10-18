@@ -16,11 +16,11 @@
 | 页面 | 认可稿/范围 | 框架证据状态与缺口 | 字体测量条目 |
 |---|---|---|---|
 | HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | 未选曲线；最近配方/本杯就绪待同状态图 | 25 |
-| ExtractionActivity | [满配v3](../research/task-first-ui-concepts/extraction-four-series-v3.png)、[无秤v2](../research/task-first-ui-concepts/extraction-no-scale-v2.png) | 784eaaf用户平板有秤/无秤实际启动截图通过；21/0重量样本、四/三指标、参数行/停止完整；绘图区514.148px。正常无告警行收起候选待图，字体/间距/曲线区域仍未最终验收 | 33 |
+| ExtractionActivity | [满配v3](../research/task-first-ui-concepts/extraction-four-series-v3.png)、[无秤v2](../research/task-first-ui-concepts/extraction-no-scale-v2.png) | 784eaaf用户平板有秤/无秤实际启动截图通过；21/0重量样本、四/三指标、参数行/停止完整；绘图区514.148px。1b0deb4无告警行已收起且绘图区增至624.148px，字体/间距/曲线区域仍未最终验收 | 33 |
 | CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 有列表；选中详情与排序后的状态需另图 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 记录不存在 | 8 |
-| BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 35db865用户平板336检查通过；实读压力/水量/温度浅色与重量深色专项图，按钮完整、双轨迹和量纲真实切换；已调整交换位置、图例右对齐/蓝色实虚线/12sp轴标，候选构建通过待新实图；未完成视觉验收 | 9 |
+| BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 35db865用户平板336检查通过；实读压力/水量/温度浅色与重量深色专项图，按钮完整、双轨迹和量纲真实切换；051f16e实图确认交换位置/图例/蓝色/12sp轴标；两杯重合不能证明区分效果，新增不同样本待图；未完成视觉验收 | 9 |
 | BeanInventoryActivity | [库存v2](../research/task-first-ui-concepts/bean-inventory-v2.png) | 库存空态 | 11 |
 | BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 35db865实图三日期日历入口完整；已按入库v2改双模式并保留独立草稿，候选构建通过；ff651be两模式填写实图与身份/草稿恢复路径已读；整体业务因旧17计数失败，已同步18待CI；ff651be用户平板第三日期裁切，已收紧40dp留白待新CI；短高仍待验收 | 20 |
 | BeanBatchActivity | [批次v1](../research/task-first-ui-concepts/bean-batch-v1.png) | abe9614业务图有90g/初始100g、三日期和两条流水；摘要/日期分区修正待新图 | 8 |

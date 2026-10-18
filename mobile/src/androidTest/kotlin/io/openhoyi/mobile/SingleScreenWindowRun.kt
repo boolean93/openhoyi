@@ -51,20 +51,23 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
         val inventory = app.beanInventoryResult.getOrThrow()
         val journal = app.journalResult.getOrThrow()
         val batch = BeanBatch("single-screen-ui-batch", Bean("single-screen-ui-bean", "单屏测试豆"), 250000)
-        val shotIds = listOf("single-screen-ui-shot-1", "single-screen-ui-shot-2")
+        val shotIds = listOf("single-screen-ui-shot-v2-1", "single-screen-ui-shot-v2-2")
         main {
             if (inventory.batches().none { it.batch.id == batch.id }) inventory.addBatch("single-screen-ui-inbound", batch)
             shotIds.forEachIndexed { index, id ->
                 if (journal.find(id) == null) journal.observe(BrewJournal.Observation(id, "capture-1",
-                    1700000000000L + index * 60000, 1700000030000L + index * 60000, 30000,
-                    "ENDED", null, 3600))
+                    1700000000000L + index * 60000, 1700000000000L + index * 60000 + if (index == 0) 30000 else 32000,
+                    if (index == 0) 30000 else 32000, "ENDED", null, if (index == 0) 3600 else 3520))
             }
         }
-        val samples = (0..30).map { second ->
-            ShotPoint(second * 1000L, if (second < 4) second * 20 else 90 - (second - 4),
-                25, second * 30, 9300, second * 120, 120, true)
-        }
-        shotIds.forEach { id ->
+        shotIds.forEachIndexed { index, id ->
+            val samples = (0..if (index == 0) 30 else 32).map { second ->
+                if (index == 0) ShotPoint(second * 1000L,
+                    if (second < 4) second * 20 else 90 - (second - 4), 30, second * 30, 9300, second * 120, 120, true)
+                else ShotPoint(second * 1000L,
+                    if (second < 5) second * 17 else 85 - (second - 5), 28, second * 28,
+                    9200 + minOf(second, 5) * 10, second * 110, 110, true)
+            }
             val existing = app.samples.load(id)
             if (existing.isEmpty()) app.samples.save(id, samples)
             else check(existing == samples) { "Existing named samples differ; not overwritten" }
@@ -189,7 +192,8 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                             check(chart.metric == metric && chart.firstPoints.size >= 2 && chart.secondPoints.size >= 2)
                             TaskTypographyEvidence.capture(comparison, evidence)
                             File(evidence, "sources.txt").writeText(
-                                "metric=$metric firstSamples=${chart.firstPoints.size} secondSamples=${chart.secondPoints.size}\n")
+                                "fixture=distinct-v2 metric=$metric firstSamples=${chart.firstPoints.size} secondSamples=${chart.secondPoints.size} " +
+                                    "firstEndMs=${chart.firstPoints.last().elapsedMs} secondEndMs=${chart.secondPoints.last().elapsedMs}\n")
                         }
                         val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
                         try {

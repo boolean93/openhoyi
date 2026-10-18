@@ -743,3 +743,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 草稿非法/空/超库存时整块隐藏，不以0冒充；待确认仍读余额计算，已确认/关联恢复仍只从匹配eventId/batchId/CONSUME/amount的实际事件还原前后值。组件不读写库存，操作门禁/幂等/原业务断言未改。八语言标签XML已解析。
 - 已有三状态运行截图将覆盖此展示；未取得本候选截图前，不宣称字号、间距和长数值可见性已验收。
 - 最终构建61147 exit0/22s（/tmp/task-dose-balance-final-build.log），Mock/test APK成功；diff/branch-policy通过。无安装、设备写入、合并或发版。
+
+### 萃取空间实测回收与对比分离样本（2026-10-18）
+
+- 1b0deb4/capture39082450018 success，ci-1b0deb4-capture两种运行图与geometry/source已读；正常状态行确实消失，停止126px高仍完整，三/四指标正确。绘图区514.148→624.148px，净增110px；chart内占比58.827%→63.42968%。主读数/工具行向上移动，未知/过期告警由原边界测试覆盖；不把Mock当硬件验收，也不宣称整页完全匹配。
+- 051f16e单屏39082233253用户结果334/336，失败仍仅旧中文BeanEntry第三日期裁切，已由166594d修改待复验；本次实读pressure/window.png确认两杯之间交换动作、右上图例、蓝色和12sp轴标生效。头部占比、摘要粗边和字体细节仍待最终对照。
+- 原两杯fixture完全相同，实虚线重合，不能以该图证明差异可辨。只在instrumentation新增v2命名31/33点两杯，30s/36g与32s/35.2g，四指标均不同；Observation与样本末值/时长一致，旧命名及用户记录不覆盖。增加两投影不同且非空的断言、sources版本/时长记录，不改产品曲线算法。分离样本截图尚待CI。
+- 新测试包89311 exit0/25s（/tmp/task-distinct-comparison-build.log），diff/branch-policy通过；构建不等于分离轨迹已实图可辨。

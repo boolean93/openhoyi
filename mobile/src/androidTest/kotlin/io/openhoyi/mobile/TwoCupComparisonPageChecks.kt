@@ -70,6 +70,9 @@ internal object TwoCupComparisonPageChecks {
                     check(chart.firstPoints == firstSamples && chart.secondPoints == secondSamples)
                     check(metricButton(metric).isSelected && metricButton(metric).height >= HoyiUi.dp(activity, 48))
                     check(chart.focusedSeries?.metric == metric && chart.plotBounds.height() >= HoyiUi.dp(activity, 96))
+                    val series = requireNotNull(chart.focusedSeries)
+                    check(series.current.flatten().isNotEmpty() && series.reference.flatten().isNotEmpty() &&
+                        series.current != series.reference) { "Distinct two-cup fixture collapsed for $metric" }
                 }
                 captureMetric(metric)
             }
