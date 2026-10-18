@@ -21,9 +21,14 @@ class CurveImportActivity : ThemedActivity() {
         val body = beanPage(getString(R.string.profiles_import), getString(R.string.profiles_import_hint))
         profileStore(body) ?: return
         val workspace = beanWorkspace(body).apply { tag = "task-inline-form" }
+        HoyiUi.label(this, workspace, getString(R.string.profiles_import_intro), 16).apply {
+            setPadding(0, 0, 0, HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.RELATED_GAP_DP))
+        }
         val sources = BeanActionRows(this).also { workspace.addView(it) }
         val editor = beanWorkspace(workspace).apply { tag = "bean-full-field" }
         text = beanInput(editor, R.string.profiles_json).apply {
+            setHint(R.string.profiles_import_placeholder)
+            textSize = 16f
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             setSingleLine(false); minLines = 1
             gravity = android.view.Gravity.TOP

@@ -61,4 +61,6 @@
     <string name="profiles_share_methods">Opciones para compartir</string>
     <string name="profiles_export_first">Puedes compartir el archivo después de exportarlo correctamente.</string>
     <string name="profiles_stage_summary">Parámetros de %1$d etapas</string>
+    <string name="profiles_import_intro">Pega los datos de una curva compartida o abre un archivo.</string>
+    <string name="profiles_import_placeholder">Pega aquí los datos de la curva</string>
 </resources>

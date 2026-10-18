@@ -61,4 +61,6 @@
     <string name="profiles_share_methods">共有方法</string>
     <string name="profiles_export_first">書き出しが完了するとファイルを共有できます。</string>
     <string name="profiles_stage_summary">%1$d 段階のパラメータ</string>
+    <string name="profiles_import_intro">共有されたカーブデータを貼り付けるか、ファイルを開いてください。</string>
+    <string name="profiles_import_placeholder">ここにカーブデータを貼り付け</string>
 </resources>

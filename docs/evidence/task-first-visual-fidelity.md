@@ -1131,3 +1131,9 @@ run39113352006失败于import-stage-table未显示，下载ci-87334eb-frame-fail
 实读831aa1c用户平板CurveImportActivity.png并对照curve-import-v2：空输入态底部完整64KiB说明、取消及导入预览已显示，位于系统栏上方；关闭此前6d218a7底栏尚无实际图的证据缺口，仅适用于标准字号浅色空态。输入区没有占位提示，顶部缺引导句且标题/按钮文案、图标、留白仍与稿件不同，不能判整页一致；键盘、有内容及大字仍需独立核对。
 
 0d6fb9c已普通推送至feature/task-first-ui，branch-policy及bash语法检查通过。此前4bd173c的frame run39113783820与advanced run39113788360本次查询仍in_progress，未取消或重启；不能将其后续结果归属新的平板配置。
+
+## 4bd173c四阶段预览实图与空态提示候选（2026-10-18）
+
+frame run39113783820成功，下载ci-4bd173c-frame并实读CurveImportPreviewActivity.png/table-space/typography：用户1138×623dp、font1.0下四阶段3/9/7/5bar及15/25/15/5ml表格全部可见，table1470×356、chart1470×461；右侧保存入口完整。关闭标准浅色正常导入四阶段表隐藏缺口，非冲突/大字整体验收。metricRuns确认93与36数字54px/700=24sp，°C/g31.5px/400=14sp；此前单位层级候选在此页得到实证，不外推其他页。
+
+导入输入页候选增加16sp引导句及8dp间距、真实hint（不填入输入数据）并统一正文16sp，八语言资源齐备；原回调/恢复/固定标签/完整64KiB说明保持。XML解析、diff检查通过；Mock与AndroidTest构建45s成功（/tmp/task-import-empty-state-build.log）。候选尚无新运行截图，输入提示、顶部留白及大字/键盘待CI，不能宣称整页一致。暂本地随下一完整批次推送。

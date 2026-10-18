@@ -61,4 +61,6 @@
     <string name="profiles_share_methods">分享方式</string>
     <string name="profiles_export_first">成功导出后可分享文件。</string>
     <string name="profiles_stage_summary">%1$d 个阶段参数</string>
+    <string name="profiles_import_intro">粘贴别人分享的曲线数据，或打开文件。</string>
+    <string name="profiles_import_placeholder">在此粘贴曲线数据</string>
 </resources>

@@ -61,4 +61,6 @@
     <string name="profiles_share_methods">วิธีแชร์</string>
     <string name="profiles_export_first">แชร์ไฟล์ได้หลังจากส่งออกสำเร็จ</string>
     <string name="profiles_stage_summary">พารามิเตอร์ %1$d ขั้นตอน</string>
+    <string name="profiles_import_intro">วางข้อมูลกราฟที่ได้รับหรือเปิดไฟล์</string>
+    <string name="profiles_import_placeholder">วางข้อมูลกราฟที่นี่</string>
 </resources>

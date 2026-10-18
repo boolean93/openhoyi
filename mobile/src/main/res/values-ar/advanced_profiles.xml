@@ -61,4 +61,6 @@
     <string name="profiles_share_methods">خيارات المشاركة</string>
     <string name="profiles_export_first">يمكن مشاركة الملف بعد نجاح التصدير.</string>
     <string name="profiles_stage_summary">معلمات المراحل: %1$d</string>
+    <string name="profiles_import_intro">ألصق بيانات المنحنى المُشارك أو افتح ملفًا.</string>
+    <string name="profiles_import_placeholder">ألصق بيانات المنحنى هنا</string>
 </resources>

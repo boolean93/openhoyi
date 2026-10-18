@@ -61,4 +61,6 @@
     <string name="profiles_share_methods">Способы отправки</string>
     <string name="profiles_export_first">Файл можно отправить после успешного экспорта.</string>
     <string name="profiles_stage_summary">Параметры этапов: %1$d</string>
+    <string name="profiles_import_intro">Вставьте данные кривой или откройте файл.</string>
+    <string name="profiles_import_placeholder">Вставьте данные кривой здесь</string>
 </resources>
