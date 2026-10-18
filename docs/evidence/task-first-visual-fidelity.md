@@ -1025,3 +1025,10 @@ run39089718635成功，ci-bcda211-frame/task-frame-tablet-user-landscape/tablet-
 
 
 秤设置底部取证补齐：TaskFrameChecks复用实际ScrollView定位完整协议说明，等待两帧后校验可见矩形/textFits并保存ScaleSettingsActivity-protocol-support.png，检查scale_tool偏好前后不变、恢复滚动。原应用设置两状态和24页计数保留。测试包23s构建成功（/tmp/task-scale-settings-scroll-build.log），尚未运行，不能把protocolTextFullyVisible计划输出当已有结果。
+
+
+## 图表异常说明空间差异（2026-10-18）
+
+实读bcda211-frame的chart-components/gaps-and-reference.png：缺失末次重量正确为—，重置/缺口断线及历史参考说明可读，但图表被多行说明挤压。short-height-font-1.3.png明确提示空间不足，属于可滚动头部的首屏，不证明全部图例同屏。候选仅将notes/referenceNotes强制换行改为中点分隔自然换行，原文14sp及plot无障碍描述不减；需要新图对照，不称已修复图高。
+
+自然换行候选Mock/AndroidTest构建通过（/tmp/task-chart-note-flow-build.log）；既有TrendChartTextChecks保留参考说明textFits及图高下限检查，未降低断言。新运行截图尚未取得。

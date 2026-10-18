@@ -225,13 +225,13 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         val referenceNotes = if (reference.isNotEmpty()) listOfNotNull(
             referenceLabel?.takeIf { it.isNotBlank() }, context.getString(R.string.task_chart_reference, metricName(focusMetric)),
         ) else emptyList()
-        val referenceText = referenceNotes.joinToString("\n")
+        val referenceText = referenceNotes.joinToString(" · ")
         if (referenceCaption.text.toString() != referenceText) referenceCaption.text = referenceText
         referenceCaption.visibility = if (referenceNotes.isEmpty()) GONE else VISIBLE
         if (data.waterResetsMs.isNotEmpty() || data.referenceWaterResetsMs.isNotEmpty())
             notes += context.getString(R.string.task_chart_water_reset)
         if (hasGaps()) notes += context.getString(R.string.task_chart_gap)
-        val description = notes.joinToString("\n")
+        val description = notes.joinToString(" · ")
         if (explanation.text.toString() != description) explanation.text = description
         plot.contentDescription = (notes + context.getString(R.string.task_chart_inspect_hint) + context.getString(R.string.task_chart_hint) +
             context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit) +
