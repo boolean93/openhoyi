@@ -736,9 +736,9 @@
           "targetDp": {
             "rect": [
               814,
-              186,
+              184,
               1050,
-              222
+              220
             ],
             "profile": "standard-1138x623-font1.0",
             "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
@@ -2876,6 +2876,7 @@
   "authoringNotes": [
     "Source rectangles are exact integer annotations of semantic regions selected on the source PNG, not a claim of source font metrics or original app dp.",
     "Target standard rectangles are Astra-proposed layout constraints; match requires native sample measurements and review, not merely presence of this JSON.",
-    "Font1.3 and other heights must report actual reflow and independent gates; standard rectangles are not a license to clip growing text."
+    "Font1.3 and other heights must report actual reflow and independent gates; standard rectangles are not a license to clip growing text.",
+    "2026-10-18 design erratum: preparation beanName standard line box corrected from y186..222 to y184..220, centering its36dp line within the48dp bean row y178..226; no negative margins or tolerance, status remains proposed."
   ]
 }
