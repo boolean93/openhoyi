@@ -20,7 +20,7 @@ class CurveImportPreviewActivity : ThemedActivity() {
         if (doc == null) { HoyiUi.label(this, body, getString(R.string.profiles_import_invalid), 17); return }
         val store = profileStore(body) ?: return
         val existing = conflicting ?: store.find(doc.id)?.takeIf { it != doc }
-        val workspace = TaskWorkspaceLayout(this)
+        val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .35f, supportingMaxWidthDp = 400)
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = HoyiUi.dp(this@CurveImportPreviewActivity, 16) })
         val preview = workspace.primaryBody
         val decisions = workspace.secondaryBody
@@ -53,6 +53,9 @@ class CurveImportPreviewActivity : ThemedActivity() {
         }
         var stageChart: CurveStageView? = null
         if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
+            HoyiUi.label(this, preview, getString(R.string.curve_library_stage_heading), TaskVisualTokens.SECTION_SP, true).apply {
+                setPadding(0, 0, 0, HoyiUi.dp(this@CurveImportPreviewActivity, TaskVisualTokens.RELATED_GAP_DP))
+            }
             stageChart = CurveStageView(this).apply { targets = doc.stages.map { it.target } }
             preview.addView(stageChart, LinearLayout.LayoutParams(-1, 0, 1f))
             HoyiUi.label(this, preview, getString(R.string.profiles_stage_caption), 14, muted = true)

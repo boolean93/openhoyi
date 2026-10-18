@@ -1081,3 +1081,7 @@ run39090796831成功，下载ci-4d308a7-frame并实读MachineSettingsActivity.pn
 ## a0ab801设置滚动失败调查（2026-10-18）
 
 run39091312445失败，已下载ci-a0ab801-frame-failure并读取result.txt：TASK_FRAME_CHECKS_FAILED Steam temperature field is clipped after scrolling，发生在MachineSettings页，后续曲线库组件未验证。夹具只request按钮矩形却断言标签/输入也完整，不能由此断言整组不可滚到；原失败在截图之前，缺失败状态图。校正为三个原view在内容坐标系下的并集请求，仍要求三者完整可见、textFits及输入不变；截图移到断言前，失败文本增加view/边界/滚动信息。MockAndroidTest构建23s成功、diff通过（/tmp/task-machine-scroll-group-build.log）。这是测试滚动目标纠正，不是产品问题已消除的证明，仍待新CI确认。与本地机器标签、温度同行、导入footer一起合批推送，不重启旧任务。
+
+## 导入预览信息层级候选（2026-10-18）
+
+实读curve-import-preview-v1、4d308a7通用预览图与63a490c-business/import-conflict.png。通用图没有DOCUMENT参数，只呈现错误态，不可用于正常/冲突态对照。旧冲突实图四阶段完整但支持区窄、缺压力图标题；63a490c至当前本页仅增加冲突警示背景。候选将本页支持区设35%且400dp上限，压力图增加共享20sp阶段压力目标标题/8dp间距，仍由原预算计入固定高度，表格空间不足时保留原隐藏和详情入口。Mock+AndroidTest构建42s成功、diff通过；未运行含数据新图，右侧动作位置/元数据单位/参数表标题等差异仍未关闭。最新e8a900a frame run39091826896实查运行中，advanced run39091826887排队；未重启。
