@@ -1145,3 +1145,11 @@ frame run39113783820成功，下载ci-4bd173c-frame并实读CurveImportPreviewAc
 高级业务四阶段分享夹具候选将原截图移动到表格断言之前，新增screenDp/fontScale/stages/tableShown/tableMeasured/chart记录；原逐行完整可见和文件禁用断言不变，失败不隐藏。用于新平板配置明确诊断，不是四阶段产品已通过的证据。
 
 该取证候选MockAndroidTest构建25s成功（/tmp/task-share-four-stage-evidence-build.log），diff检查通过；与导入空态候选合批推送，等待新实图而非预判四阶段验收。
+
+## 4bd173c业务超时关闭与复盘单位候选（2026-10-18）
+
+advanced run39113788360的business job117635262351成功（pages job查询时仍运行）；下载ci-4bd173c-advanced-business。实读business-flows：18路径全部完成，sameService/preservedMachinePrefs/noBle及持久化/恢复不变量通过，dose-select与confirmed两条已越过原captureHomeDose阻塞；关闭831aa1c首页复用任务超时。文件契约11路径、系统选择器7路径以及自定义曲线导入/选择/确认/运行/结束/历史/使用/复盘链通过，均仅Mock/CI证据，非硬件。
+
+实读review-saved-notes及curve-share-four-stages.png：复盘三组记录/左侧参数/取消与保存完整；四阶段分享2.4/5.7/8.3/6.9bar及12/23/34/45ml表格完整。两图1600×1000/density200，不能关闭用户平板缺口。复盘30s/36g的单位仍与数字同大粗体；候选复用curveMetricText，24sp/700数字与14sp/400本地化单位，单位来自当前语言格式资源而非硬编码，未知值保持—。不改原观察值/笔记/库存/控制。
+
+复盘单位候选Mock及AndroidTest构建43s成功（/tmp/task-review-metric-units-build.log），diff通过；尚未运行新截图/metricRuns，不宣称最终字体一致。暂本地等待下一完整批次推送；页面矩阵已补最近证据并保留未验收边界。

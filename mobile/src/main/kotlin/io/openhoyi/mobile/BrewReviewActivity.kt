@@ -60,7 +60,12 @@ class BrewReviewActivity : ThemedActivity() {
                 setPadding(HoyiUi.dp(this@BrewReviewActivity,8),0,HoyiUi.dp(this@BrewReviewActivity,8),HoyiUi.dp(this@BrewReviewActivity,8))
             }
             outcome.addView(cell,LinearLayout.LayoutParams(0,-2,1f))
-            HoyiUi.label(this,cell,value,24,true).apply { typeface=TaskTypography.face(this@BrewReviewActivity,700) }
+            HoyiUi.label(this,cell,value,TaskVisualTokens.RECIPE_VALUE_SP,true).apply {
+                val unit = getString(if (label == R.string.journal_elapsed)
+                    R.string.journal_seconds else R.string.journal_grams, "").trim()
+                text = curveMetricText(this@BrewReviewActivity, value, unit)
+                typeface = TaskTypography.face(this@BrewReviewActivity, 700)
+            }
             HoyiUi.label(this,cell,getString(label),14,muted=true).apply {
                 setPadding(0,HoyiUi.dp(this@BrewReviewActivity,4),0,0)
             }
