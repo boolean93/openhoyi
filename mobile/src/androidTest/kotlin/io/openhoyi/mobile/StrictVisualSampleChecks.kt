@@ -110,16 +110,30 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun pixelDifferences(first: Bitmap, second: Bitmap, secondRect: Rect): Long {
+    private fun pixelDifferenceEvidence(first: Bitmap, second: Bitmap, secondRect: Rect, screenRect: Rect): JSONObject {
         check(first.width == secondRect.width() && first.height == secondRect.height())
         val a = IntArray(first.width); val b = IntArray(first.width)
         var differences = 0L
+        var left = first.width; var top = first.height; var right = 0; var bottom = 0
+        val samples = JSONArray()
         for (y in 0 until first.height) {
             first.getPixels(a, 0, a.size, 0, y, a.size, 1)
             second.getPixels(b, 0, b.size, secondRect.left, secondRect.top + y, b.size, 1)
-            for (x in a.indices) if (a[x] != b[x]) differences++
+            for (x in a.indices) if (a[x] != b[x]) {
+                differences++
+                left = minOf(left, x); top = minOf(top, y)
+                right = maxOf(right, x + 1); bottom = maxOf(bottom, y + 1)
+                if (samples.length() < 16) samples.put(JSONObject()
+                    .put("surfacePx", JSONArray(listOf(x, y)))
+                    .put("comparisonPx", JSONArray(listOf(secondRect.left + x, secondRect.top + y)))
+                    .put("displayPx", JSONArray(listOf(screenRect.left + x, screenRect.top + y)))
+                    .put("firstArgb", "%08x".format(a[x])).put("secondArgb", "%08x".format(b[x])))
+            }
         }
-        return differences
+        return JSONObject().put("count", differences).put("sampleLimit", 16).put("firstDifferences", samples)
+            .put("differenceBoundsPx", if (differences == 0L) JSONObject.NULL else JSONArray(listOf(left, top, right, bottom)))
+            .put("displayDifferenceBoundsPx", if (differences == 0L) JSONObject.NULL else JSONArray(listOf(
+                screenRect.left + left, screenRect.top + top, screenRect.left + right, screenRect.top + bottom)))
     }
 
     private fun bitmapDescription(bitmap: Bitmap) = JSONObject().put("config", bitmap.config?.name)
@@ -131,8 +145,33 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
      * No sleeps, masks, geometric tolerance, or JSON-as-pixel-proof are used. */
     private fun screenshot(activity: StrictVisualSampleActivity, file: File,
         observe: () -> JSONObject = { JSONObject() }): CapturedFrame {
-        val deadline = SystemClock.elapsedRealtime() + 5000
+        val started = SystemClock.elapsedRealtime()
+        val deadline = started + 5000
         val attempts = JSONArray()
+        val failureArtifacts = JSONArray()
+        // Keep only the last complete rejected candidate. Encode it after failure,
+        // not inside the 5s matching budget; PNG work must not starve a later copy.
+        data class RejectedCapture(val attempt: Int, val before: Bitmap?, val after: Bitmap?, val display: Bitmap?) {
+            fun recycle() { before?.recycle(); after?.recycle(); display?.recycle() }
+        }
+        var retained: RejectedCapture? = null
+        fun retain(attempt: Int, first: WindowCopy?, last: WindowCopy?, display: Bitmap?) {
+            retained?.recycle()
+            retained = RejectedCapture(attempt, first?.bitmap, last?.bitmap, display)
+        }
+        fun persistRejected() {
+            val candidate = retained ?: return
+            fun save(bitmap: Bitmap?, name: String, role: String) {
+                if (bitmap == null) return
+                val output = File(file.parentFile, name)
+                bitmap.output(output)
+                failureArtifacts.put(JSONObject().put("attempt", candidate.attempt).put("role", role)
+                    .put("file", output.name).put("fileSha256", sha(output)).put("bitmap", bitmapDescription(bitmap)))
+            }
+            save(candidate.before, "${file.nameWithoutExtension}-surface-before.png", "Window_PixelCopy_before")
+            save(candidate.after, "${file.nameWithoutExtension}-surface-after.png", "Window_PixelCopy_after")
+            save(candidate.display, file.name, "unmodified_UiAutomation_whole_display")
+        }
         val proofFile = File(file.parentFile, "${file.nameWithoutExtension}-frame-sync.json")
         fun writeProof(accepted: Boolean, error: String? = null): JSONObject {
             val proof = JSONObject().put("protocol", "hardware_commit_then_Window_PixelCopy_display_PixelCopy_exact_ARGB")
@@ -140,6 +179,7 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                 .put("status", if (accepted) "MATCHED_SUBMITTED_FRAME_NOT_VISUAL_ACCEPTANCE" else "FAIL")
                 .put("image", file.name).put("wholeDisplayUiAutomation", true)
                 .put("pixelComparison", "all_app_pixels_no_tolerance_no_mask")
+                .put("elapsedMs", SystemClock.elapsedRealtime() - started).put("failureArtifacts", failureArtifacts)
             if (file.exists()) proof.put("imageSha256", sha(file))
             error?.let { proof.put("failure", it) }
             proofFile.writeText(proof.toString(2))
@@ -149,7 +189,16 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
             while (SystemClock.elapsedRealtime() < deadline) {
                 val attempt = JSONObject()
                 attempts.put(attempt)
-                attempt.put("frame", committedFrame(activity, deadline - SystemClock.elapsedRealtime()))
+                val budget = JSONArray()
+                attempt.put("budget", budget)
+                fun remaining(stage: String): Long {
+                    val now = SystemClock.elapsedRealtime()
+                    val left = deadline - now
+                    budget.put(JSONObject().put("stage", stage).put("elapsedMs", now - started).put("remainingMs", left))
+                    check(left > 0) { "CAPTURE_DEADLINE_EXHAUSTED before $stage; no new request issued" }
+                    return left
+                }
+                attempt.put("frame", committedFrame(activity, remaining("hardware_commit")))
                 lateinit var source: Rect
                 lateinit var screen: Rect
                 lateinit var before: JSONObject
@@ -184,30 +233,35 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                 var last: WindowCopy? = null
                 var display: Bitmap? = null
                 var readable: Bitmap? = null
+                var acceptedAttempt = false
                 try {
-                    first = copyWindow(activity, source, deadline - SystemClock.elapsedRealtime())
-                    attempt.put("pixelCopyBeforeCode", first.resultCode).put("pixelCopyBeforeCallback", first.callbackCompleted)
-                    check(first.callbackCompleted && first.resultCode == PixelCopy.SUCCESS) { "PixelCopy before display failed: ${first.resultCode}" }
+                    first = copyWindow(activity, source, remaining("PixelCopy_before"))
+                    attempt.put("pixelCopyBeforeCode", if (first.callbackCompleted) first.resultCode else JSONObject.NULL)
+                        .put("pixelCopyBeforeCallback", first.callbackCompleted)
+                    check(first.callbackCompleted) { "PIXEL_COPY_CALLBACK_TIMEOUT before display; no Android result received within capture budget" }
+                    check(first.resultCode == PixelCopy.SUCCESS) { "PixelCopy before display failed: ${first.resultCode}" }
                     val surfaceBefore = requireNotNull(first.bitmap)
                     attempt.put("surfaceBefore", bitmapDescription(surfaceBefore)).put("surfaceBeforeArgbSha256", pixelSha(surfaceBefore))
+                    remaining("UiAutomation_display")
                     display = requireNotNull(test.uiAutomation.takeScreenshot())
-                    // Retain this unmodified whole-display candidate even if a later
-                    // surface/geometry comparison rejects it or times out.
-                    display.output(file)
                     attempt.put("wholeDisplay", bitmapDescription(display))
                     readable = requireNotNull(display.copy(Bitmap.Config.ARGB_8888, false))
                     check(screen.left >= 0 && screen.top >= 0 && screen.right <= readable.width && screen.bottom <= readable.height)
                     attempt.put("comparisonBitmap", bitmapDescription(readable)).put("displayAppArgbSha256", pixelSha(readable, screen))
-                    last = copyWindow(activity, source, deadline - SystemClock.elapsedRealtime())
-                    attempt.put("pixelCopyAfterCode", last.resultCode).put("pixelCopyAfterCallback", last.callbackCompleted)
-                    check(last.callbackCompleted && last.resultCode == PixelCopy.SUCCESS) { "PixelCopy after display failed: ${last.resultCode}" }
+                    last = copyWindow(activity, source, remaining("PixelCopy_after"))
+                    attempt.put("pixelCopyAfterCode", if (last.callbackCompleted) last.resultCode else JSONObject.NULL)
+                        .put("pixelCopyAfterCallback", last.callbackCompleted)
+                    check(last.callbackCompleted) { "PIXEL_COPY_CALLBACK_TIMEOUT after display; no Android result received within capture budget" }
+                    check(last.resultCode == PixelCopy.SUCCESS) { "PixelCopy after display failed: ${last.resultCode}" }
                     val surfaceAfter = requireNotNull(last.bitmap)
                     attempt.put("surfaceAfter", bitmapDescription(surfaceAfter)).put("surfaceAfterArgbSha256", pixelSha(surfaceAfter))
                     lateinit var after: JSONObject
                     main { after = geometry() }
                     val geometryStable = before.toString() == after.toString()
-                    val surfaceDifference = pixelDifferences(surfaceBefore, surfaceAfter, Rect(0, 0, surfaceAfter.width, surfaceAfter.height))
-                    val displayDifference = pixelDifferences(surfaceBefore, readable, screen)
+                    val surfaceEvidence = pixelDifferenceEvidence(surfaceBefore, surfaceAfter, Rect(0, 0, surfaceAfter.width, surfaceAfter.height), screen)
+                    val displayEvidence = pixelDifferenceEvidence(surfaceBefore, readable, screen, screen)
+                    val surfaceDifference = surfaceEvidence.getLong("count")
+                    val displayDifference = displayEvidence.getLong("count")
                     val sameColorSpace = surfaceBefore.colorSpace != null && surfaceBefore.colorSpace == surfaceAfter.colorSpace &&
                         surfaceBefore.colorSpace == readable.colorSpace
                     val accepted = geometryStable && sameColorSpace && surfaceDifference == 0L && displayDifference == 0L
@@ -215,19 +269,38 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                         .put("colorSpacesEqual", sameColorSpace)
                         .put("surfaceBeforeAfterPixelDifferences", surfaceDifference)
                         .put("surfaceDisplayPixelDifferences", displayDifference).put("accepted", accepted)
-                    if (accepted) return CapturedFrame(before.getJSONObject("target"), writeProof(true))
+                        .put("surfaceBeforeAfterDifferenceEvidence", surfaceEvidence).put("surfaceDisplayDifferenceEvidence", displayEvidence)
+                    budget.put(JSONObject().put("stage", "comparison_complete").put("elapsedMs", SystemClock.elapsedRealtime() - started)
+                        .put("remainingMs", deadline - SystemClock.elapsedRealtime()))
+                    if (accepted) {
+                        acceptedAttempt = true
+                        display.output(file)
+                        return CapturedFrame(before.getJSONObject("target"), writeProof(true))
+                    }
+                    retain(attempts.length(), first, last, display)
+                    first = null; last = null; display = null
                     // An observed mismatch may only be retried after another actual
                     // committed draw, never after an arbitrary elapsed sleep.
                     writeProof(false)
                 } finally {
+                    // If no complete rejection exists, retain whatever the failed
+                    // first attempt actually captured. Never replace a full pair
+                    // with a later deadline-tail partial request.
+                    if (!acceptedAttempt && retained == null && (first?.bitmap != null || display != null)) {
+                        retain(attempts.length(), first, last, display)
+                        first = null; last = null; display = null
+                    }
                     first?.bitmap?.recycle(); last?.bitmap?.recycle()
                     readable?.recycle(); display?.recycle()
                 }
             }
             error("Specimen display never matched its committed Window surface within 5000ms")
         } catch (failure: Throwable) {
+            try { persistRejected() } catch (diagnosticFailure: Throwable) { failure.addSuppressed(diagnosticFailure) }
             writeProof(false, failure.stackTraceToString())
             throw failure
+        } finally {
+            retained?.recycle()
         }
     }
     private fun Bitmap.output(file: File) {
