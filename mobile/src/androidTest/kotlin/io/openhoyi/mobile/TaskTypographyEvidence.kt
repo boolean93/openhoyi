@@ -32,6 +32,7 @@ internal object TaskTypographyEvidence {
     }
 
     fun capture(activity: Activity, directory: File) {
+        TaskVisualColorEvidenceChecks.verifyOnce(activity)
         check(activity.resources.configuration.locales[0].language == "zh")
         val probe = TextView(activity)
         val sample = "萃取压力温度 0123456789 bar ml g °C"
@@ -61,6 +62,9 @@ internal object TaskTypographyEvidence {
                     .put("cornerRadiusPx", background?.cornerRadius).put("elevationPx", view.elevation)
                     .put("translationZPx", view.translationZ).put("hasStateListAnimator", view.stateListAnimator != null)
                     .put("clickable", view.isClickable)
+                    .put("state", TaskVisualColorEvidence.state(view))
+                    .put("backgroundEvidence", TaskVisualColorEvidence.background(view.background, view.resources))
+                    .put("foregroundEvidence", TaskVisualColorEvidence.background(view.foreground, view.resources))
                     .put("enabled", view.isEnabled))
             }
             if (view is TextView && view.isShown) {
@@ -85,6 +89,11 @@ internal object TaskTypographyEvidence {
                 }
                 items.put(JSONObject().put("path", path).put("class", view.javaClass.simpleName).put("tag", view.tag?.toString())
                     .put("text", view.text.toString().take(160)).put("textSizePx", view.textSize)
+                    .put("colors", TaskVisualColorEvidence.text(view))
+                    .put("baselinePx", view.baseline).put("letterSpacingEm", view.letterSpacing)
+                    .put("textScaleX", view.textScaleX).put("lineSpacingExtraPx", view.lineSpacingExtra)
+                    .put("lineSpacingMultiplier", view.lineSpacingMultiplier)
+                    .put("baselineSemantics", "baseline_relative_to_untransformed_view_top")
                     .put("metricRuns", runs)
                     .put("lineHeightPx", view.lineHeight).put("includeFontPadding", view.includeFontPadding)
                     .put("weight", if (Build.VERSION.SDK_INT >= 28) view.typeface?.weight else null)
@@ -96,6 +105,10 @@ internal object TaskTypographyEvidence {
         visit(activity.window.decorView, "root")
         val metrics = activity.resources.displayMetrics
         File(directory, "${activity.javaClass.simpleName}-typography.json").writeText(JSONObject()
+            .put("visualEvidenceVersion", 1)
+            .put("visualEvidenceScope", "TextView_and_static_drawable_evidence_not_full_visual_acceptance")
+            .put("canvasPaintCoverage", "not_collected")
+            .put("screenCompositeColorCoverage", "requires_corresponding_PNG_review")
             .put("font", "Noto Sans SC 2.004-H2 fixed source; Chinese only")
             .put("density", metrics.density).put("scaledDensity", metrics.scaledDensity)
             .put("fontScale", activity.resources.configuration.fontScale).put("views", items).put("layout", layout).toString(2))
