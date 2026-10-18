@@ -484,15 +484,25 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                             clickVisible(activity)
                             await { (field(activity, "collection") as TaskCollectionLayout).detailRequested }
                             var selectedText = ""
+                            var selectedSummary = ""
+                            fun detailText() = views(field(activity, "detailContent") as View)
+                                .filterIsInstance<android.widget.TextView>().filter { it.isShown }
+                                .joinToString("\n") { it.text.toString() }
                             main {
                                 val detail = field(activity, "detail") as android.widget.TextView
                                 check(detail.isShown && detail.text.isNotBlank())
-                                selectedText = detail.text.toString()
+                                selectedText = detailText()
+                                selectedSummary = field(activity, "detailSummary") as String
+                                check(selectedSummary.isNotBlank())
+                                listOf(R.string.curve_preview_temperature, R.string.legacy_curve_water_label,
+                                    R.string.curve_preview_weight, R.string.curve_preview_stages).forEach {
+                                    check(activity.getString(it) in selectedText)
+                                }
                             }
                             activity = recreate(activity)
                             await {
                                 (field(activity, "collection") as TaskCollectionLayout).detailRequested &&
-                                    (field(activity, "detail") as android.widget.TextView).text.toString() == selectedText
+                                    detailText() == selectedText && field(activity, "detailSummary") == selectedSummary
                             }
                             ready(activity)
                             val detailShot = requireNotNull(test.uiAutomation.takeScreenshot())

@@ -29,6 +29,8 @@ class LegacyCurveActivity : ThemedActivity() {
     private var listState: android.os.Parcelable? = null
     private lateinit var collection: TaskCollectionLayout
     private lateinit var detail: TextView
+    private lateinit var detailContent: LinearLayout
+    private var detailSummary = ""
     private var selectedIndex = -1
     private var selectedFingerprint: String? = null
     private var compact = true
@@ -90,8 +92,15 @@ class LegacyCurveActivity : ThemedActivity() {
         val back = HoyiUi.button(this, collection.detailBody, getString(R.string.curve_back)) { showList() }
         val detailScroll = android.widget.ScrollView(this)
         collection.detailBody.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        detail = label(getString(R.string.legacy_curve_select_hint), 17).apply { tag = "legacy-curve-detail" }
-        detailScroll.addView(detail)
+        detailContent = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(16), dp(16), dp(16))
+            background = HoyiUi.shape(this@LegacyCurveActivity, R.color.mobile_surface, 16, R.color.mobile_border)
+        }
+        detailScroll.addView(detailContent)
+        detail = HoyiUi.label(this, detailContent, getString(R.string.legacy_curve_select_hint), 17).apply {
+            tag = "legacy-curve-detail"
+        }
         collection.onPresentationChanged = { twoPane, detailVisible ->
             compact = !twoPane
             back.visibility = if (compact) View.VISIBLE else View.GONE
@@ -153,18 +162,54 @@ class LegacyCurveActivity : ThemedActivity() {
     private fun showSelected() {
         val data = bundle
         val curve = data?.curves?.getOrNull(selectedIndex)
+        detailContent.removeAllViews()
+        detailContent.addView(detail, LinearLayout.LayoutParams(-1, -2))
         if (curve == null || fingerprint(curve) != selectedFingerprint) {
+            detailSummary = ""
+            detail.textSize = TaskVisualTokens.BODY_SP.toFloat()
             selectedIndex = -1; selectedFingerprint = null
             detail.setText(R.string.legacy_curve_select_hint)
             collection.detailRequested = false
         } else {
             val category = data.categoryLabels[curve.category] ?: curve.category.ifBlank { getString(R.string.legacy_curve_uncategorized) }
-            detail.text = getString(R.string.legacy_curve_detail, curve.name, category, curve.index + 1,
+            detailSummary = getString(R.string.legacy_curve_detail, curve.name, category, curve.index + 1,
                 getString(if (curve.factory) R.string.legacy_curve_factory else R.string.legacy_curve_user),
                 curve.temperatureC?.let { "$it °C" } ?: getString(R.string.settings_unknown),
                 curve.waterMl?.let { "$it ml" } ?: getString(R.string.settings_unknown),
                 curve.weightTenthsGram?.let { String.format(Locale.CHINA, "%.1f g", it / 10.0) } ?: getString(R.string.settings_unknown),
                 curve.segments?.toString() ?: getString(R.string.settings_unknown))
+            detail.text = curve.name
+            detail.textSize = TaskVisualTokens.TITLE_SP.toFloat()
+            detail.typeface = TaskTypography.face(this, 500)
+            HoyiUi.label(this, detailContent, getString(R.string.legacy_curve_metadata, category,
+                getString(if (curve.factory) R.string.legacy_curve_factory else R.string.legacy_curve_user),
+                curve.index + 1), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+                setPadding(0, dp(8), 0, dp(16))
+            }
+            val unknown = getString(R.string.settings_unknown)
+            val values = listOf(
+                R.string.curve_preview_temperature to (curve.temperatureC?.let { "$it °C" } ?: unknown),
+                R.string.legacy_curve_water_label to (curve.waterMl?.let { "$it ml" } ?: unknown),
+                R.string.curve_preview_weight to (curve.weightTenthsGram?.let { String.format(Locale.CHINA, "%.1f g", it / 10.0) } ?: unknown),
+                R.string.curve_preview_stages to (curve.segments?.toString() ?: unknown))
+            values.chunked(2).forEach { pair ->
+                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+                detailContent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+                pair.forEachIndexed { index, (label, value) ->
+                    val cell = HoyiUi.card(this, row).apply {
+                        layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = dp(8) }
+                    }
+                    HoyiUi.label(this, cell, getString(label), TaskVisualTokens.SUPPORTING_SP, muted = true)
+                    HoyiUi.label(this, cell, value, TaskVisualTokens.TITLE_SP, true).apply { setPadding(0, dp(8), 0, 0) }
+                }
+            }
+            HoyiUi.label(this, detailContent, getString(R.string.legacy_curve_subtitle), TaskVisualTokens.BODY_SP).apply {
+                setPadding(0, dp(16), 0, dp(8))
+            }
+            HoyiUi.button(this, detailContent, getString(R.string.ui_full_details)) {
+                android.app.AlertDialog.Builder(this).setTitle(curve.name).setMessage(detailSummary)
+                    .setPositiveButton(android.R.string.ok, null).show()
+            }.asTaskTextAction()
         }
         adapter.notifyDataSetChanged()
     }

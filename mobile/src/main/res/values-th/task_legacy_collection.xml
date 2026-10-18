@@ -1,3 +1,5 @@
 <resources>
     <string name="legacy_curve_select_hint">เลือกเส้นโค้งเพื่อดูพารามิเตอร์</string>
+    <string name="legacy_curve_water_label">ปริมาณน้ำ</string>
+    <string name="legacy_curve_metadata">%1$s · %2$s · ตำแหน่งเดิม %3$d</string>
 </resources>
