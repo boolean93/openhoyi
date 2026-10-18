@@ -8,4 +8,7 @@
     <string name="app_settings_export">ส่งออกบันทึกการวินิจฉัย</string>
     <string name="app_settings_export_hint">ส่งออกหลังเลือกตำแหน่งไฟล์เท่านั้น จะไม่ส่งบันทึกให้อัตโนมัติ</string>
     <string name="app_settings_machine">การตั้งค่าเครื่อง</string>
+    <string name="settings_appearance_language">รูปแบบและภาษา</string>
+    <string name="settings_diagnostics_devices">การวินิจฉัยและอุปกรณ์</string>
+    <string name="settings_enable_feedback">เปิดใช้งานการแจ้งเตือน</string>
 </resources>

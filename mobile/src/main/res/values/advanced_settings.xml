@@ -8,4 +8,7 @@
     <string name="app_settings_export">导出诊断日志</string>
     <string name="app_settings_export_hint">选择文件位置后才导出，不会自动发送日志</string>
     <string name="app_settings_machine">机器设置</string>
+    <string name="settings_appearance_language">外观与语言</string>
+    <string name="settings_diagnostics_devices">诊断与设备</string>
+    <string name="settings_enable_feedback">启用提示</string>
 </resources>

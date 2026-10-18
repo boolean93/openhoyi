@@ -36,7 +36,7 @@
 | LegacyCurveActivity | [旧曲线v1](../research/task-first-ui-concepts/legacy-curve-v1.png) | 051f16e用户平板40条列表实图确认连续列表，但导入工具栏及未选中提示已改待图；选中重建图已读，参数真实；名称/来源与四格参数已分组待新图，完整说明保留，未最终验收 | 13 |
 | LegacyHistoryActivity | [旧记录v1](../research/task-first-ui-concepts/legacy-history-v1.png) | 框架零条；另已读27ae12b的41条记录列表，非空列表成立，构图待对齐 | 13 |
 | LegacyHistoryDetailActivity | [旧详情v1](../research/task-first-ui-concepts/legacy-history-detail-v1.png) | 051f16e用户平板浅深实图确认：bar/ml/s双轴、中间秒刻度、实虚线重叠可辨及右栏详情已生效；24/20/14sp已实测；右栏来源/缺失/限制三组已调整、八语言同步待新图，未最终验收 | 9 |
-| AppSettingsActivity | 设置页：保留配置/安全说明、允许整页滚动；无独立认可概念稿，不能假称已与稿一致 | 外观/语言/偏好首屏；允许整页滚动，底部项另验 | 26 |
+| AppSettingsActivity | [设置v1候选](../research/task-first-ui-concepts/app-settings-v1.png)：保留配置/安全说明、允许整页滚动；候选紧凑分组已实现、构建通过、未运行验收 | 39ac261用户平板外观/语言/偏好首屏已读，底部信息/导出/机器入口未被该截图覆盖；允许整页滚动，底部项另验 | 26 |
 | MachineSettingsActivity | 设置页：保留配置/安全说明、允许整页滚动；无独立认可概念稿，不能假称已与稿一致 | 模拟回读设置；真实写入/回读不在视觉证据范围 | 37 |
 | ScaleSettingsActivity | 设置页：保留配置/安全说明、允许整页滚动；无独立认可概念稿，不能假称已与稿一致 | 未连接能力说明；有能力状态另验 | 14 |
 

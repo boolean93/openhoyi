@@ -8,4 +8,7 @@
     <string name="app_settings_export">Export diagnostic logs</string>
     <string name="app_settings_export_hint">Export happens only after you choose a file location; logs are not sent automatically</string>
     <string name="app_settings_machine">Machine settings</string>
+    <string name="settings_appearance_language">Appearance and language</string>
+    <string name="settings_diagnostics_devices">Diagnostics and devices</string>
+    <string name="settings_enable_feedback">Enable feedback</string>
 </resources>

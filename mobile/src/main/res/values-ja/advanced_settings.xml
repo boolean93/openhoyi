@@ -8,4 +8,7 @@
     <string name="app_settings_export">診断ログをエクスポート</string>
     <string name="app_settings_export_hint">ファイルの保存先を選んでからエクスポートします。ログは自動で送信しません。</string>
     <string name="app_settings_machine">マシン設定</string>
+    <string name="settings_appearance_language">外観と言語</string>
+    <string name="settings_diagnostics_devices">診断とデバイス</string>
+    <string name="settings_enable_feedback">通知を有効にする</string>
 </resources>

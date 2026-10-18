@@ -8,4 +8,7 @@
     <string name="app_settings_export">진단 로그 내보내기</string>
     <string name="app_settings_export_hint">파일 저장 위치를 선택한 후에만 내보내며 로그를 자동으로 보내지 않습니다</string>
     <string name="app_settings_machine">머신 설정</string>
+    <string name="settings_appearance_language">화면 및 언어</string>
+    <string name="settings_diagnostics_devices">진단 및 기기</string>
+    <string name="settings_enable_feedback">알림 사용</string>
 </resources>

@@ -64,7 +64,8 @@ internal class LanguageSelectorUiChecks(private val test: Instrumentation) {
                 onMain {
                     check(app.languagePreferences.current == language && prefs.getString("tag", null) == language.tag)
                     check(current.resources.configuration.locales[0] == language.locale && service.resources.configuration.locales[0] == language.locale)
-                    check(card(current).button.text.toString() == current.getString(R.string.language_current, language.nativeName))
+                    check(card(current).button.text.toString() == language.nativeName)
+                    check(card(current).button.contentDescription.toString() == current.getString(R.string.language_current, language.nativeName))
                     check(service.snapshot.message === message)
                 }
             } finally { test.removeMonitor(monitor) }

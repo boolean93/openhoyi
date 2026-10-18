@@ -8,4 +8,7 @@
     <string name="app_settings_export">Exportar registros de diagnóstico</string>
     <string name="app_settings_export_hint">Solo se exportan tras elegir dónde guardar el archivo; no se envían automáticamente</string>
     <string name="app_settings_machine">Ajustes de la máquina</string>
+    <string name="settings_appearance_language">Apariencia e idioma</string>
+    <string name="settings_diagnostics_devices">Diagnóstico y dispositivos</string>
+    <string name="settings_enable_feedback">Activar avisos</string>
 </resources>

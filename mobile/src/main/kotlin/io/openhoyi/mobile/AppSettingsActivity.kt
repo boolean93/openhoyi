@@ -8,7 +8,8 @@ import android.os.Bundle
 import android.os.IBinder
 import android.view.Gravity
 import android.view.WindowInsets
-import android.widget.CheckBox
+import android.widget.CompoundButton
+import android.widget.Switch
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -18,7 +19,7 @@ class AppSettingsActivity : ThemedActivity() {
     internal lateinit var feedbackCard: BrewFeedbackPreferencesCard
         private set
     private lateinit var languageCard: AppLanguagePreferencesCard
-    internal lateinit var themeCheckBox: CheckBox
+    internal lateinit var themeCheckBox: CompoundButton
         private set
     internal lateinit var themeError: TextView
         private set
@@ -65,11 +66,12 @@ class AppSettingsActivity : ThemedActivity() {
         HoyiUi.navigation(this, root, AppSettingsActivity::class.java)
         setContentView(root)
         HoyiUi.header(this, body, getString(R.string.app_settings_title), getString(R.string.app_settings_subtitle), back = true)
-        val theme = HoyiUi.card(this, body, getString(R.string.app_settings_appearance))
+        val theme = settingsGroup(this, body, getString(R.string.settings_appearance_language))
         val appearance = getSharedPreferences("appearance", MODE_PRIVATE)
-        themeCheckBox = CheckBox(this).apply {
+        themeCheckBox = Switch(this).apply {
             text = getString(R.string.app_settings_dark)
-            textSize = 17f
+            textSize = TaskVisualTokens.BODY_SP.toFloat()
+            typeface = TaskTypography.face(this@AppSettingsActivity, 400)
             setTextColor(getColor(R.color.mobile_text))
             minimumHeight = HoyiUi.dp(this@AppSettingsActivity, 52)
             isChecked = appearance.getBoolean("dark", false)
@@ -91,19 +93,24 @@ class AppSettingsActivity : ThemedActivity() {
                 }
             }
         }
-        languageCard = AppLanguagePreferencesCard(this, body) { service?.refreshNotificationDisplay(); recreate() }
+        settingsDivider(this, theme)
+        languageCard = AppLanguagePreferencesCard(this, theme, embedded = true) { service?.refreshNotificationDisplay(); recreate() }
         feedbackCard = BrewFeedbackPreferencesCard(this, body)
-        val info = HoyiUi.card(this, body, getString(R.string.application_info))
-        HoyiUi.label(this, info, getString(R.string.app_name), 17, true)
+        val info = settingsGroup(this, body, getString(R.string.application_info))
+        HoyiUi.label(this, info, getString(R.string.app_name), TaskVisualTokens.BODY_SP, true)
         HoyiUi.label(this, info, getString(R.string.application_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), 14)
         HoyiUi.label(this, info, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha), 14)
-        HoyiUi.label(this, info, getString(R.string.application_package, BuildConfig.APPLICATION_ID), 13, muted = true).setTextIsSelectable(true)
-        HoyiUi.label(this, body, getString(R.string.app_settings_export_hint), 14, muted = true).setPadding(0, HoyiUi.dp(this, 18), 0, 0)
-        HoyiUi.button(this, body, getString(R.string.app_settings_export)) {
+        HoyiUi.label(this, info, getString(R.string.application_package, BuildConfig.APPLICATION_ID), TaskVisualTokens.SUPPORTING_SP, muted = true).setTextIsSelectable(true)
+        val diagnostics = settingsGroup(this, body, getString(R.string.settings_diagnostics_devices))
+        HoyiUi.label(this, diagnostics, getString(R.string.app_settings_export_hint), TaskVisualTokens.SUPPORTING_SP, muted = true)
+        HoyiUi.button(this, diagnostics, getString(R.string.app_settings_export)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
                 .putExtra(Intent.EXTRA_TITLE, "openhoyi-diagnostics-${System.currentTimeMillis()}.zip"), EXPORT_LOGS)
-        }
-        HoyiUi.button(this, body, getString(R.string.app_settings_machine)) { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+        settingsDivider(this, diagnostics)
+        HoyiUi.button(this, diagnostics, getString(R.string.app_settings_machine)) {
+            startActivity(Intent(this, MachineSettingsActivity::class.java))
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
     }
     override fun onStart() {
         super.onStart()

@@ -16,10 +16,11 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
     val enabledSwitch: Switch
     private val preview: android.widget.Button
     init {
-        val card = HoyiUi.card(activity, parent, activity.getString(R.string.feedback_preferences_title))
+        val card = settingsGroup(activity, parent, activity.getString(R.string.feedback_enabled))
         enabledSwitch = Switch(activity).apply {
-            text = activity.getString(R.string.feedback_enabled)
-            textSize = 17f
+            text = activity.getString(R.string.settings_enable_feedback)
+            textSize = TaskVisualTokens.BODY_SP.toFloat()
+            typeface = TaskTypography.face(activity, 400)
             setTextColor(activity.getColor(R.color.mobile_text))
             minHeight = HoyiUi.dp(activity, 56)
             isChecked = prefs.enabled
@@ -34,13 +35,14 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
             }
         }
         HoyiUi.label(activity, card, activity.getString(R.string.feedback_enabled_description), 14, muted = true)
+        settingsDivider(activity, card)
         preview = HoyiUi.button(activity, card, activity.getString(R.string.feedback_preview)) {
             try {
                 if (audio.playing) audio.stop() else audio.play(BrewFeedbackClips.Level.BRAVO, Random.nextInt(4))
             } catch (_: RuntimeException) { stopAudio() }
             refresh()
-        }
-        HoyiUi.label(activity, card, activity.getString(R.string.feedback_preview_description), 13, muted = true)
+        }.apply { asTaskTextAction(); gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL }
+        HoyiUi.label(activity, card, activity.getString(R.string.feedback_preview_description), TaskVisualTokens.SUPPORTING_SP, muted = true)
     }
     fun refresh() {
         updating = true

@@ -8,4 +8,7 @@
     <string name="app_settings_export">تصدير سجلات التشخيص</string>
     <string name="app_settings_export_hint">يتم التصدير فقط بعد اختيار موقع الملف؛ لا تُرسل السجلات تلقائيًا</string>
     <string name="app_settings_machine">إعدادات الآلة</string>
+    <string name="settings_appearance_language">المظهر واللغة</string>
+    <string name="settings_diagnostics_devices">التشخيص والأجهزة</string>
+    <string name="settings_enable_feedback">تفعيل التنبيهات</string>
 </resources>
