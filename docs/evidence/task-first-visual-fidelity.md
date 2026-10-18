@@ -1017,3 +1017,8 @@ Mock及AndroidTest构建42s成功（/tmp/task-extraction-type-hierarchy-build.lo
 按machine-settings-v1将四块摘要改为逐行标签和值，14/16sp，保留原TextView字段供render更新；自动待机/累计杯数总览移至四行之后。完整回读与应用设置放入同卡片并降为文字按钮，仍保留原展开/跳转回调与触控/焦点反馈。未改设备状态、设置写入或确认。字体/列宽及大字折行须新运行图；分类仍为原选中块而非候选下划线，温度标签仍在输入上方，此差异未关闭。
 
 Mock和AndroidTest构建42s成功（/tmp/task-machine-readback-rows-build.log），diff检查通过。仅本地候选，未新推送，运行视觉未验证。
+
+
+## bcda211秤设置运行核对（2026-10-18）
+
+run39089718635成功，ci-bcda211-frame/task-frame-tablet-user-landscape/tablet-user-landscape内result.txt为pages=24 noBle=true，chart-result为4个组件夹具通过。实读ScaleSettingsActivity.png及其typography.json：未连接态三组已生效，显示精度开关16sp/400，关闭说明14sp/400，分组20sp/500，计时/限制/协议小标题16sp/500；density2.25/fontScale1，标题padding36/18px对应16/8dp。ScaleSettingsActivity从bcda211至当前无源码差异。协议说明在首屏底部，仍需滚动到底的完整文字证据；没有已连接能力/大字/深色全状态证据，不做最终验收。4个图表组件通过不证明48sp实时整页未挤压，Capture39089714128仍运行中。
