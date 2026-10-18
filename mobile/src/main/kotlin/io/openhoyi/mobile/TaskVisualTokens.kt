@@ -6,6 +6,7 @@ internal object TaskVisualTokens {
     const val SUPPORTING_SP = 14
     const val SECTION_SP = 20
     const val TITLE_SP = 24
+    const val RECIPE_VALUE_SP = 24
     const val LIVE_VALUE_SP = 40
     const val LIVE_FOCUS_VALUE_SP = 48
     const val LIVE_UNIT_SP = 22

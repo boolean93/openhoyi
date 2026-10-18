@@ -19,7 +19,7 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity):LinearLa
             HoyiUi.label(activity,column,activity.getString(title),14,muted=true).apply {
                 setPadding(0,0,HoyiUi.dp(activity,8),HoyiUi.dp(activity,4))
             }
-            HoyiUi.label(activity,column,"—",24,true).apply {
+            HoyiUi.label(activity,column,"—",TaskVisualTokens.RECIPE_VALUE_SP,true).apply {
                 typeface=TaskTypography.face(activity,700)
                 gravity=Gravity.START
                 setPadding(0,0,HoyiUi.dp(activity,8),0)
@@ -53,10 +53,7 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity):LinearLa
                 index == 1 && weight != null && weight != 0 -> "g"
                 else -> null
             }
-            view.text = if (unit == null) value else android.text.SpannableString(value).apply {
-                setSpan(android.text.style.RelativeSizeSpan(.6f), length - unit.length, length,
-                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
+            view.text = curveMetricText(activity, value, unit)
         }
         contentDescription=titles.zip(formatted).joinToString("\n") { (title,value) -> "${activity.getString(title)}: $value" }
     }

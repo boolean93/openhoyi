@@ -1107,3 +1107,7 @@ run39092501813成功（同源码另run39092498372亦成功），下载ci-831aa1c
 ## 参数表空间候选与显式门禁（2026-10-18）
 
 831aa1c图证明正常四阶段导入/两阶段分享表格被隐藏。保持图表160dp最小高度和全部字号/行数不变，两页metrics上下空白从16dp收至共享8dp；导入caption复用分享短文案，完整说明仍是其无障碍描述。Mock+AndroidTest构建44s成功，追加验收后AndroidTest构建23s成功（/tmp/task-preview-table-space-final-build.log）、diff通过。TaskFrameChecks现在保存table-space尺寸，在≥1000×600dp、fontScale≤1.1要求表格isShown且完整边界；若仍隐藏将失败，不把详情入口视为一致。该候选未运行，不预判空间已足够；四阶段分享仍由高级业务夹具补验，原目标范围不缩减。
+
+## 配方单位共享层级候选（2026-10-18）
+
+实读831aa1c导入/分享typography：density2.25下93°C/36g及91°C/27g均54px、700且metricRuns为空，单位未分层。新增curveMetricText及RECIPE_VALUE_SP=24，共用于曲线库/导入预览/分享；数字24sp/700，末尾°C或g由RelativeSizeSpan和API26兼容MetricAffectingSpan变为共享14sp/400，原字符串、无重量文案和格式不变。曲线库旧0.6比例14.4sp也统一14sp。Mock+AndroidTest构建44s成功、diff通过（/tmp/task-recipe-metric-typography-build.log），尚待新metricRuns/实图，不宣称最终字体一致。参数表间距批次87334eb已推送，本字体候选暂本地，下一完整批次再推。

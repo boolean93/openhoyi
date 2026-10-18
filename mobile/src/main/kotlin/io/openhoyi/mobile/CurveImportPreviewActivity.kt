@@ -46,7 +46,12 @@ class CurveImportPreviewActivity : ThemedActivity() {
             }
             metrics.addView(column, LinearLayout.LayoutParams(0, -2, 1f))
             HoyiUi.label(this, column, getString(label), 14, muted = true)
-            HoyiUi.label(this, column, value, 24).apply {
+            HoyiUi.label(this, column, value, TaskVisualTokens.RECIPE_VALUE_SP).apply {
+                text = curveMetricText(this@CurveImportPreviewActivity, value, when (label) {
+                    R.string.curve_preview_temperature -> "°C"
+                    R.string.curve_preview_weight -> if (doc.targetHundredthsGram != 0) "g" else null
+                    else -> null
+                })
                 typeface = TaskTypography.face(this@CurveImportPreviewActivity, 700)
                 setPadding(0, HoyiUi.dp(this@CurveImportPreviewActivity, 4), 0, 0)
             }
