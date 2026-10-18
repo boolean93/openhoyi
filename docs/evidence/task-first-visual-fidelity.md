@@ -899,3 +899,11 @@ a5abedf advanced run39084062900：pages job success、business job failure。读
 人工读取两字号compact-readable.png：bar、0/2/4.0s完整，9bar实线与6bar虚线可辨，缺口不被连线掩盖；另读1.3 one-missing-weight.png，只绘制有值源、不伪造另一杯0线，短高提示仍完整。新轴留白的组件运行缺口关闭；此为320×220dp组件，不能证明用户平板整页比例。git diff39ac261..HEAD确认TwoCupChartView与TwoCupChartChecks未再次改动，组件证据适用于当前相同实现。
 
 曲线库直显入口静态核对：directEdit/directShare同步原按钮isEnabled，点击仍转发原编辑/分享页面，宽度不足时原菜单使用未挂载的原动作按钮，未因直显按钮GONE而丢失入口。这是源码核对，不是导航运行证据；本页实际宽/窄新截图与跳转仍待CI。
+
+## 2026-10-18：历史详情主值与全高图实图补证
+
+712913e capture/run39085501557 success，下载ci-712913e-capture。读取history-detail-dark.png并与63a490c同名旧图比较：同为用户平板2560×1600、深色、capture-2 Mock结束记录；新图32.1秒/22.40g、121采样点，旧图32.2秒/22.40g、123点，不能按完全同数据作像素差。单位缩小已可见；新图左侧图表和采样状态延伸到接近页底，旧图在复盘按钮以上留下明显空白。右栏六记录字段之间的分隔线亦已生效。e7929eb主单位层级与af9a6d4全高工作区/分隔线的标准字号深色运行证据补齐，不再仅凭构建。
+
+原始四指标与各自物理量程仍可读，压力没有因概念稿示意而伪造末端归零；Mock记录不证明真实停机。该图右栏全部未填写，没有长豆名/研磨/感受、缺重/未知/大字号覆盖，完整参数入口也未首屏显示，因此不是整页最终验收。git diff712913e..HEAD确认HistoryDetailContent.kt/HistoryDetailActivity.kt未变化；依赖布局后续仍需完整检查，不能跨文件变动推断所有状态不变。
+
+ad41fd5 capture/run39085896653本轮查询仍in_progress，未取消或重启；近期准备页有豆两态仍以对应业务夹具新结果为准。
