@@ -58,6 +58,9 @@ class CurveShareActivity : ThemedActivity() {
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), getString(R.string.profiles_share_title)))
             }
         }.apply { isEnabled = exportedUri != null }
+        listOf("text" to "share", "copy" to "copy", "export" to "export", "file" to "share").forEach { (id, glyph) ->
+            HomeVisualIcon.buttonIcon(actions.findViewWithTag<Button>("product/share/$id"), glyph)
+        }
         style.add(actions, style.text(getString(R.string.profiles_export_first), TaskProductVisualStyle.auxiliary, secondary = true), 8)
         val support = style.column("product/share/support")
         style.add(support, style.text(getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)

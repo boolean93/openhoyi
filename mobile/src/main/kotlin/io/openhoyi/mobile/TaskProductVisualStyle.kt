@@ -140,6 +140,11 @@ internal class TaskProductVisualStyle(val context: Context) {
             }
         }
         styleHeader(header)
+        // Explicit product shell only. HoyiUi.header and its legacy callers are untouched.
+        if (navigation == null) (header.getChildAt(0) as? android.widget.ImageView)?.apply {
+            setImageDrawable(HomeVisualIcon.drawable(activity, "back", accent)); imageTintList = null
+            background = RippleDrawable(ColorStateList.valueOf(selected), null, shape(Color.WHITE))
+        }
         val body = column()
         shell.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         val actions = BeanActionRows(activity)
@@ -161,7 +166,7 @@ internal class TaskProductVisualStyle(val context: Context) {
 /** Home-only compact summary; the library's CurvePreviewMetrics is unchanged. */
 internal class TaskProductRecipeMetrics(private val activity: ThemedActivity, private val style: TaskProductVisualStyle) : LinearLayout(activity) {
     private var rendered: List<String?>? = null
-    private val metricBodies = (0..2).map { style.column("product/home/summary/$it") }
+    private val metricBodies = (0..2).map { style.row("product/home/summary/$it").apply { gravity = Gravity.CENTER_VERTICAL } }
     init {
         orientation = HORIZONTAL; setPadding(0, style.dp(8), 0, style.dp(8))
         metricBodies.forEachIndexed { index, group ->
@@ -206,13 +211,15 @@ internal class TaskProductRecipeMetrics(private val activity: ThemedActivity, pr
         val titles = listOf(R.string.curve_preview_temperature, R.string.curve_preview_weight, R.string.curve_preview_stages)
         metricBodies.forEachIndexed { index, column ->
             column.removeAllViews()
+            column.addView(HomeVisualIcon(activity, listOf("temperature", "coffee", "stages")[index], style.muted),
+                LayoutParams(style.dp(24), style.dp(24)).apply { marginEnd = style.dp(8) })
             val line = style.row("product/home/summary/$index/values").apply { isBaselineAligned = true; gravity = Gravity.BOTTOM }
             line.addView(style.text(activity.getString(titles[index]), TaskProductVisualStyle.auxiliary,
                 "product/home/summary/$index/label", true), LayoutParams(-2, -2).apply { marginEnd = style.dp(8) })
             line.addView(style.text(values[index], TaskProductVisualStyle.compactMetric, "product/home/summary/$index/values/number"))
             units[index]?.let { unit -> line.addView(style.text(unit, TaskProductVisualStyle.auxiliary,
                 "product/home/summary/$index/values/unit", true), LayoutParams(-2, -2).apply { marginStart = style.dp(8) }) }
-            style.add(column, line)
+            column.addView(line, LayoutParams(-2, -2))
         }
         contentDescription = titles.indices.joinToString("\n") { "${activity.getString(titles[it])}: ${values[it]} ${units[it].orEmpty()}" }
     }

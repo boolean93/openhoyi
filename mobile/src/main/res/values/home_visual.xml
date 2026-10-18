@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_visual_details">准备详情</string>
+    <string name="home_visual_show_details">查看准备详情 ›</string>
+    <string name="home_visual_change">更换</string>
+    <string name="home_visual_edit">编辑</string>
+    <string name="home_visual_pressure_mode">压力模式</string>
+    <string name="home_visual_flow_mode">流量模式（原始值）</string>
+    <string name="home_visual_unknown_mode">模式未知</string>
+    <string name="home_visual_stage_mode">%1$s 个阶段 · %2$s</string>
+    <string name="home_visual_stage_count">%1$s 个阶段</string>
+    <string name="home_visual_open_device_status">%1$s状态，打开连接控制</string>
+    <string name="home_visual_more_recipes">更多配方 ›</string>
+    <string name="home_visual_panel_title">准备与设备详情</string>
+    <string name="home_visual_bean_label">咖啡豆</string>
+</resources>

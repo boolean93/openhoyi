@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_visual_details">تفاصيل التحضير</string>
+    <string name="home_visual_show_details">عرض تفاصيل التحضير ›</string>
+    <string name="home_visual_change">تغيير</string>
+    <string name="home_visual_edit">تعديل</string>
+    <string name="home_visual_pressure_mode">وضع الضغط</string>
+    <string name="home_visual_flow_mode">وضع التدفق (خام)</string>
+    <string name="home_visual_unknown_mode">الوضع غير معروف</string>
+    <string name="home_visual_stage_mode">%1$s مراحل · %2$s</string>
+    <string name="home_visual_stage_count">%1$s مراحل</string>
+    <string name="home_visual_open_device_status">حالة %1$s، فتح التحكم بالاتصال</string>
+    <string name="home_visual_more_recipes">المزيد من الوصفات ›</string>
+    <string name="home_visual_panel_title">تفاصيل التحضير والأجهزة</string>
+    <string name="home_visual_bean_label">حبوب القهوة</string>
+</resources>

@@ -46,10 +46,18 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                     ?: HoyiUi.shape(activity, R.color.mobile_accent_soft, 10)
                 setOnClickListener { open(activity, destination) }
             }
-            item.addView(ImageView(activity).apply {
+            val glyph: View = if (productVisualStyle != null) HomeVisualIcon(activity, when (destination) {
+                TaskDestination.BREW -> "coffee"
+                TaskDestination.CURVES -> "curve"
+                TaskDestination.HISTORY -> "history"
+                TaskDestination.BEANS -> "bean"
+                TaskDestination.SCALE -> "scale"
+                TaskDestination.SETTINGS -> "settings"
+            }, tint) else ImageView(activity).apply {
                 setImageResource(icon(destination)); imageTintList = ColorStateList.valueOf(tint)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LayoutParams(HoyiUi.dp(activity, if (styledRail) 24 else 20), HoyiUi.dp(activity, if (styledRail) 24 else 20)))
+            }
+            item.addView(glyph, LayoutParams(HoyiUi.dp(activity, if (styledRail) 24 else 20), HoyiUi.dp(activity, if (styledRail) 24 else 20)))
             item.addView(TextView(activity).apply {
                 text = activity.getString(label(destination)); textSize = 14f; gravity = Gravity.CENTER
                 productVisualStyle?.apply(this, TaskProductVisualStyle.auxiliary)
