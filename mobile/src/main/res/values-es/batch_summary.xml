@@ -4,4 +4,5 @@
     <string name="batch_recent_events">Movimientos recientes</string>
     <string name="batch_initial_weight">Peso inicial</string>
     <string name="batch_information">Información del lote</string>
+    <string name="batch_ledger_retained">Los cambios de cantidad se guardan en el registro.</string>
 </resources>

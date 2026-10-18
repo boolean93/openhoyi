@@ -92,7 +92,20 @@ class BeanBatchActivity : ThemedActivity() {
         val ratioLine = row(ratioCell).apply { gravity = android.view.Gravity.CENTER_VERTICAL }
         if (ratio != null) ratioLine.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000; progress = (ratio.coerceIn(0.0, 1.0) * max).toInt()
-            progressTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent))
+            fun track(color: Int) = android.graphics.drawable.GradientDrawable().apply {
+                setColor(getColor(color))
+                cornerRadius = HoyiUi.dp(this@BeanBatchActivity, 4).toFloat()
+            }
+            progressDrawable = android.graphics.drawable.LayerDrawable(arrayOf(
+                track(R.color.mobile_border),
+                android.graphics.drawable.ScaleDrawable(track(R.color.mobile_accent),
+                    android.view.Gravity.START, 1f, -1f)
+            )).apply {
+                setId(0, android.R.id.background)
+                setId(1, android.R.id.progress)
+            }
+            setPadding(0, 0, 0, 0)
+            minimumHeight = HoyiUi.dp(this@BeanBatchActivity, 8)
             importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
         }, LinearLayout.LayoutParams(0, HoyiUi.dp(this, 8), 1f).apply { marginEnd = HoyiUi.dp(this@BeanBatchActivity, 16) })
         HoyiUi.label(this, ratioLine, ratio?.let { java.text.NumberFormat.getPercentInstance(resources.configuration.locales[0]).format(it) } ?: "—", 24)
@@ -148,9 +161,17 @@ class BeanBatchActivity : ThemedActivity() {
             }
         }
         val footer = row(body)
-        HoyiUi.button(this, footer, getString(R.string.beans_ledger)) {
+        footer.gravity = android.view.Gravity.BOTTOM
+        val ledgerActions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        footer.addView(ledgerActions, LinearLayout.LayoutParams(0, -2, 1f))
+        HoyiUi.button(this, ledgerActions, getString(R.string.beans_ledger)) {
             startActivity(Intent(this, BeanLedgerActivity::class.java).putExtra(BATCH_ID, item.batch.id))
         }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2); asTaskTextAction() }
+        HoyiUi.label(this, ledgerActions, getString(R.string.batch_ledger_retained),
+            TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+            setPadding(0, HoyiUi.dp(this@BeanBatchActivity, TaskVisualTokens.RELATED_GAP_DP),
+                HoyiUi.dp(this@BeanBatchActivity, TaskVisualTokens.GROUP_GAP_DP), 0)
+        }
         val dock = TaskActionDock(this, edgeInsetDp = 0)
         footer.addView(dock, LinearLayout.LayoutParams(0, -2, 1f))
         HoyiUi.button(this, dock, getString(R.string.beans_adjust), primary = true) { draftTarget = null; draftReason = ""; adjustment(inventory, item.batch.id) }

@@ -4,4 +4,5 @@
     <string name="batch_recent_events">最近流水</string>
     <string name="batch_initial_weight">初始重量</string>
     <string name="batch_information">批次信息</string>
+    <string name="batch_ledger_retained">数量变更保留流水。</string>
 </resources>

@@ -4,4 +4,5 @@
     <string name="batch_recent_events">Recent activity</string>
     <string name="batch_initial_weight">Initial weight</string>
     <string name="batch_information">Batch information</string>
+    <string name="batch_ledger_retained">Quantity changes are kept in the ledger.</string>
 </resources>

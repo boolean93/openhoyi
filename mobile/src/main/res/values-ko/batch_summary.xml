@@ -4,4 +4,5 @@
     <string name="batch_recent_events">최근 내역</string>
     <string name="batch_initial_weight">초기 무게</string>
     <string name="batch_information">배치 정보</string>
+    <string name="batch_ledger_retained">수량 변경은 내역에 기록됩니다.</string>
 </resources>

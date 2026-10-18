@@ -4,4 +4,5 @@
     <string name="batch_recent_events">الحركات الأخيرة</string>
     <string name="batch_initial_weight">الوزن الأولي</string>
     <string name="batch_information">معلومات الدفعة</string>
+    <string name="batch_ledger_retained">تُحفظ تغييرات الكمية في السجل.</string>
 </resources>
