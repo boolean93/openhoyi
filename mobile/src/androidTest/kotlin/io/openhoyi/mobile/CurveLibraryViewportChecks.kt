@@ -65,6 +65,8 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                             "$name action extends outside its own row: ${action.top}..${action.bottom}/${row.height}"
                         }
                     }
+                    // Doubled integer centers allow <=1 only for odd/even height rounding
+                    // (<=0.5px center quantization), never clipping; bounds above remain strict.
                     check(kotlin.math.abs((parameter.top + parameter.bottom) - (select.top + select.bottom)) <= 1) {
                         "$name footer bounds are not vertically centered"
                     }

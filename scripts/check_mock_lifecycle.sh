@@ -15,6 +15,7 @@ on_error() {
   adb logcat -d -s AndroidRuntime:E OpenHoyiMobile:I OpenHoyiLanguage:I > "$output_dir/errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb pull "/sdcard/Android/data/$package/files/language-detail-failures" "$output_dir/" || true
+  adb pull "/sdcard/Android/data/$package/files/language-detail-success" "$output_dir/" || true
   adb shell settings put system font_scale 1.0 || true
   adb shell wm size 1600x1000 || true
   exit "$status"
@@ -248,6 +249,19 @@ for profile in landscape wideFont; do
   grep -F "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=5 manualWarnings=3 cancelledStart=true" "$output_dir/language-pages-$profile.txt" >/dev/null
   grep -F "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true" "$output_dir/language-pages-$profile.txt" >/dev/null
+  adb pull "/sdcard/Android/data/$package/files/language-detail-success" "$output_dir/"
+  python3 - "$output_dir/language-detail-success" "$profile" <<'FOOTER_PY'
+from pathlib import Path
+import sys
+directory,profile=Path(sys.argv[1]),sys.argv[2]
+captures=list(directory.glob(f'footer-{profile}_*-window.png'))
+if len(captures) != 32: # 8 languages x 2 themes x longFactory/noPressure, existing landscape profiles only.
+    raise SystemExit(f'{profile} successful real footer windows missing: {len(captures)}/32')
+for capture in captures:
+    geometry=capture.with_suffix('.txt').read_text()
+    if 'actualWindow=true screenshotMethod=UiAutomation.takeScreenshot' not in geometry or 'after-capture' not in geometry:
+        raise SystemExit(f'{capture.name} has no complete real-window geometry')
+FOOTER_PY
 done
 adb shell am force-stop "$package"
 adb shell settings put system font_scale 1.0

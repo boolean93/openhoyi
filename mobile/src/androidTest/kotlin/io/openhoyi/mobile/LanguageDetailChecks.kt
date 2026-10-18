@@ -39,6 +39,59 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
     }
     private fun field(owner: Any, name: String) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }
     private fun invoke(owner: Any, name: String) = owner.javaClass.getDeclaredMethod(name).apply { isAccessible = true }.invoke(owner)
+    private fun successfulFooterGeometry(activity: CurveActivity, fixture: String): String {
+        check(activity.hasWindowFocus()) { "$fixture footer capture is not the foreground window" }
+        val select = field(activity, "select").get(activity) as Button
+        val parameter = field(activity, "parameterShortcut").get(activity) as Button
+        val footer = select.parent as LinearLayout
+        val window = Rect()
+        activity.window.decorView.getWindowVisibleDisplayFrame(window)
+        val actions = listOf(parameter, select).joinToString("\n") { action ->
+            val visible = Rect()
+            val position = IntArray(2)
+            action.getLocationOnScreen(position)
+            val full = Rect(position[0], position[1], position[0] + action.width, position[1] + action.height)
+            check(action.isShown && action.getGlobalVisibleRect(visible) &&
+                visible.width() == action.width && visible.height() == action.height &&
+                action.top >= 0 && action.bottom <= footer.height) {
+                "$fixture successful footer capture is clipped: full=$full visible=$visible"
+            }
+            "text=${action.text} enabled=${action.isEnabled} full=$full visible=$visible " +
+                "size=${action.width}x${action.height} local=${action.left},${action.top}..${action.right},${action.bottom}"
+        }
+        // Doubled integer centers may differ by 1 for odd/even heights: <=0.5px
+        // center quantization only, never a clipping allowance (full size is strict above).
+        check(kotlin.math.abs((parameter.top + parameter.bottom) - (select.top + select.bottom)) <= 1) {
+            "$fixture successful footer capture is not vertically centered: $actions"
+        }
+        return "$fixture actualWindow=true screenshotMethod=UiAutomation.takeScreenshot window=$window " +
+            "row=${footer.width}x${footer.height} font=${activity.resources.configuration.fontScale} " +
+            "density=${activity.resources.configuration.densityDpi} " +
+            "screenDp=${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp}\n$actions\n"
+    }
+    private fun captureSuccessfulFooterWindow(activity: CurveActivity, fixture: String, kind: String) {
+        val drawn = java.util.concurrent.CountDownLatch(1)
+        onMain { activity.window.decorView.postOnAnimation {
+            activity.window.decorView.postOnAnimation { drawn.countDown() }
+        } }
+        check(drawn.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "$fixture footer window did not draw" }
+        // Animation callbacks precede RenderThread submission; let the compositor receive the frame.
+        Thread.sleep(100)
+        test.waitForIdleSync()
+        val directory = File(activity.getExternalFilesDir(null), "language-detail-success").apply { mkdirs() }
+        val name = "footer-${fixture.replace(' ', '_')}-$kind-window"
+        val geometry = File(directory, "$name.txt")
+        onMain { geometry.writeText("before-capture\n" + successfulFooterGeometry(activity, "$fixture detail=$kind")) }
+        // Capture the real full display, not a drawn/remeasured collection bitmap.
+        val screenshot = requireNotNull(test.uiAutomation.takeScreenshot())
+        try {
+            File(directory, "$name.png").outputStream().use {
+                check(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }
+            geometry.appendText("screenshot=${screenshot.width}x${screenshot.height}\n")
+        } finally { screenshot.recycle() }
+        onMain { geometry.appendText("after-capture\n" + successfulFooterGeometry(activity, "$fixture detail=$kind")) }
+    }
     private fun restoreAfter(action: () -> Unit, restore: () -> Unit) {
         var failure: Throwable? = null
         try { action() } catch (error: Throwable) { failure = error }
@@ -137,10 +190,17 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                     }
                     LanguageUiLayoutChecks.textFits(action, "$fixture detail=$kind footer")
                 }
+                // Doubled integer centers differ by <=1 only for odd/even heights:
+                // <=0.5px center quantization, not a clipping tolerance. Full width/height remain exact.
                 check(kotlin.math.abs((parameter.top + parameter.bottom) - (select.top + select.bottom)) <= 1) {
                     "$fixture detail=$kind footer bounds are not vertically centered: $geometry"
                 }
             } }
+            if (kind == "longFactory" || kind == "noPressure") {
+                captureFailure(activity, "$fixture detail=$kind successfulWindow") {
+                    captureSuccessfulFooterWindow(activity, fixture, kind)
+                }
+            }
         }
     }
     fun warnings(home: HomeActivity, fixture: String, checkLayout: (String) -> Unit) {

@@ -237,8 +237,14 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                             )
                             if (activity is CurveImportPreviewActivity) {
                                 check(table.childCount == 5) { "$fixture must exercise all four stages" }
+                                check(table.isShown) { "$fixture four-stage parameter table must never be hidden" }
                             }
                         }
+                    }
+                    if (activity is CurveImportPreviewActivity) {
+                        verifyImportPreviewTable(activity, fixture, directory,
+                            "${language.tag}-${if (dark) "dark" else "light"}-$name",
+                            captureWindow = language == AppLanguage.CHINESE || language == AppLanguage.ARABIC)
                     }
                     assertState()
                     completed++
@@ -270,6 +276,118 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
         }
         failure?.let { throw it }
         return Result(completed, screenshots, directory)
+    }
+
+    /** Read-only reachability: scroll only the preview pane, never invoke save/copy. */
+    private fun verifyImportPreviewTable(activity: CurveImportPreviewActivity, fixture: String,
+        directory: File, name: String, captureWindow: Boolean) {
+        lateinit var table: ViewGroup
+        lateinit var chart: CurveStageView
+        lateinit var scroll: ScrollView
+        lateinit var decisions: View
+        var firstScreenComplete = false
+        var tableFitsViewport = false
+        var decisionBounds = Rect()
+        val evidence = File(directory, "import-preview-reachability").apply { mkdirs() }
+        fun fullBounds(view: View): Rect {
+            val position = IntArray(2)
+            view.getLocationOnScreen(position)
+            return Rect(position[0], position[1], position[0] + view.width, position[1] + view.height)
+        }
+        fun complete(view: View): Boolean {
+            val visible = Rect()
+            return view.isShown && view.getGlobalVisibleRect(visible) &&
+                visible.width() == view.width && visible.height() == view.height
+        }
+        fun geometry(): String {
+            val visible = Rect()
+            table.getGlobalVisibleRect(visible)
+            return "$fixture tableShown=${table.isShown} rows=${table.childCount} " +
+                "tableComplete=${complete(table)} full=${fullBounds(table)} visible=$visible " +
+                "table=${table.width}x${table.height} chart=${chart.width}x${chart.height} " +
+                "scrollY=${scroll.scrollY} viewport=${scroll.width}x${scroll.height} " +
+                "contentHeight=${scroll.getChildAt(0).height} decisions=${fullBounds(decisions)}\n"
+        }
+        fun capture(phase: String) {
+            onMain { File(evidence, "$name-$phase.txt").writeText(geometry()) }
+            if (!captureWindow) return
+            val drawn = java.util.concurrent.CountDownLatch(1)
+            onMain { activity.window.decorView.postOnAnimation {
+                activity.window.decorView.postOnAnimation { drawn.countDown() }
+            } }
+            check(drawn.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "$fixture preview capture did not draw" }
+            Thread.sleep(100) // Allow RenderThread/compositor submission after the layout callbacks.
+            test.waitForIdleSync()
+            val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+            try {
+                File(evidence, "$name-$phase.png").outputStream().use {
+                    check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+            } finally { bitmap.recycle() }
+            onMain { File(evidence, "$name-$phase.txt").appendText("afterCapture actualWindow=true\n" + geometry()) }
+        }
+        onMain {
+            val views = descendants(root(activity))
+            table = views.single { it.tag == "import-stage-table" } as ViewGroup
+            chart = views.filterIsInstance<CurveStageView>().single()
+            scroll = views.single { it.tag == "import-preview-scroll" } as ScrollView
+            decisions = views.single { it.tag == "import-preview-actions" }
+            check(table.isShown && table.childCount == 5) { "$fixture must keep the header and all four stages present" }
+            check(chart.height >= HoyiUi.dp(activity, 160)) { "$fixture chart fell below its unchanged 160dp minimum" }
+            scroll.scrollTo(0, 0)
+            decisionBounds = fullBounds(decisions)
+        }
+        test.waitForIdleSync()
+        capture("before-scroll")
+        onMain {
+            firstScreenComplete = complete(table)
+            tableFitsViewport = table.height <= scroll.height - scroll.paddingTop - scroll.paddingBottom
+            val config = activity.resources.configuration
+            if (config.screenWidthDp >= 1000 && config.screenHeightDp >= 600 && config.fontScale <= 1.1f) {
+                check(firstScreenComplete && complete(chart)) { "$fixture standard user window must show the whole table and chart on the first screen" }
+            }
+            if (!firstScreenComplete) {
+                check(scroll.getChildAt(0).height > scroll.height - scroll.paddingTop - scroll.paddingBottom) {
+                    "$fixture incomplete table without an actual local scroll range"
+                }
+            }
+        }
+        // Visibility of the last row alone is insufficient: independently reach every
+        // measured row with exact full-width/full-height bounds and intact text.
+        for (index in 0 until 5) {
+            onMain {
+                val row = table.getChildAt(index)
+                row.requestRectangleOnScreen(Rect(0, 0, row.width, row.height), true)
+            }
+            test.waitForIdleSync()
+            onMain {
+                val row = table.getChildAt(index)
+                check(complete(row)) { "$fixture table row $index cannot be fully reached: ${fullBounds(row)}" }
+                descendants(row).filterIsInstance<TextView>().forEach {
+                    LanguageUiLayoutChecks.textFits(it, "$fixture reachable table row=$index")
+                    textWidthFits(it, "$fixture reachable table row=$index")
+                }
+                check(fullBounds(decisions) == decisionBounds) { "$fixture preview scroll moved the fixed decision region" }
+            }
+        }
+        onMain {
+            if (tableFitsViewport) {
+                table.requestRectangleOnScreen(Rect(0, 0, table.width, table.height), true)
+            }
+        }
+        test.waitForIdleSync()
+        capture("after-scroll")
+        onMain {
+            check(table.isShown && table.childCount == 5)
+            if (tableFitsViewport) check(complete(table)) { "$fixture whole table fits but is not fully reachable" }
+            check(fullBounds(decisions) == decisionBounds) { "$fixture preview scroll moved the fixed decision region" }
+            File(directory, "$name-geometry.txt").appendText(
+                "reachabilityChecked=true firstScreenComplete=$firstScreenComplete allRowsReachable=true " +
+                    "tableFitsViewport=$tableFitsViewport tableCompleteAfterScroll=${complete(table)} " +
+                    "fixedDecisions=true chartMinimumDp=160\n")
+            scroll.scrollTo(0, 0)
+        }
+        test.waitForIdleSync()
     }
 
     private fun checkPage(activity: Activity, fixture: String) {

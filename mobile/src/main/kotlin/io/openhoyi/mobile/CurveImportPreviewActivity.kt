@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import android.os.Bundle
 import android.widget.LinearLayout
+import android.widget.ScrollView
 
 class CurveImportPreviewActivity : ThemedActivity() {
     companion object { const val DOCUMENT = "curveDocument" }
@@ -22,8 +23,14 @@ class CurveImportPreviewActivity : ThemedActivity() {
         val existing = conflicting ?: store.find(doc.id)?.takeIf { it != doc }
         val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .35f, supportingMaxWidthDp = 400)
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = HoyiUi.dp(this@CurveImportPreviewActivity, 16) })
-        val preview = workspace.primaryBody
-        val decisions = workspace.secondaryBody
+        val preview = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        val previewScroll = ScrollView(this).apply {
+            tag = "import-preview-scroll"
+            isFillViewport = false
+            addView(preview, android.widget.FrameLayout.LayoutParams(-1, -2))
+        }
+        workspace.primaryBody.addView(previewScroll, LinearLayout.LayoutParams(-1, -1))
+        val decisions = workspace.secondaryBody.apply { tag = "import-preview-actions" }
         HoyiUi.label(this, preview, doc.name, 24, true).apply {
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
@@ -62,7 +69,7 @@ class CurveImportPreviewActivity : ThemedActivity() {
                 setPadding(0, 0, 0, HoyiUi.dp(this@CurveImportPreviewActivity, TaskVisualTokens.RELATED_GAP_DP))
             }
             stageChart = CurveStageView(this).apply { targets = doc.stages.map { it.target } }
-            preview.addView(stageChart, LinearLayout.LayoutParams(-1, 0, 1f))
+            preview.addView(stageChart, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 160)))
             HoyiUi.label(this, preview, getString(R.string.task_form_stage_caption), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
                 contentDescription = getString(R.string.profiles_stage_caption)
             }
@@ -83,10 +90,14 @@ class CurveImportPreviewActivity : ThemedActivity() {
                 }
             }
             table.measure(exactWidth, unspecified)
-            val minimumChart = HoyiUi.dp(this, 160)
-            val showTable = height >= fixedHeight + table.measuredHeight + minimumChart
-            table.visibility = if (showTable) android.view.View.VISIBLE else android.view.View.GONE
-            fixedHeight + minimumChart + if (showTable) table.measuredHeight else 0
+            val allocation = CurveImportPreviewLayoutPolicy.allocate(height, fixedHeight,
+                table.measuredHeight, HoyiUi.dp(this, 160))
+            // Reserve the entire real table before expanding the graph. A too-tall
+            // left pane scrolls locally; neither the table nor the minimum graph disappears.
+            val chartParams = requireNotNull(stageChart).layoutParams as LinearLayout.LayoutParams
+            chartParams.height = allocation.chartHeight
+            chartParams.weight = 0f
+            allocation.contentHeight
         }
         val dock = TaskActionDock(this, edgeInsetDp = 0, fullWidthContent = true)
         val error = beanError(body)
