@@ -1057,3 +1057,9 @@ Capture run39089714128成功，下载ci-bcda211-capture。实读active-cup-visua
 ## 机器温度页底部证据补齐（2026-10-18，待运行）
 
 TaskFrameChecks扩展原设置滚动流程至MachineSettingsActivity：滚到蒸汽设置按钮，检查固定标签、输入框和按钮完整可见及文字适配，输出MachineSettingsActivity-temperature-bottom.png；输入值前后相同、未点击控制、最后恢复滚动位置。既有App/Scale检查保留。MockAndroidTest构建24s成功（/tmp/task-machine-settings-scroll-build.log），diff检查通过。尚未执行此新夹具，不能宣称底部已通过或所有机器设置标签页视觉一致。
+
+## 4d308a7设置实图与标签差异（2026-10-18）
+
+run39090796831成功，下载ci-4d308a7-frame并实读MachineSettingsActivity.png与ScaleSettingsActivity-protocol-support.png。机器回读已为四个标签/值行，93°C/120°C/咖啡馆/水箱完整；仍有较大头部及卡片间距，温度第三项不在首屏，不能认定与概念稿一致。秤设置底部协议说明完整可达，scale-settings-scroll.txt states=1 protocolTextFullyVisible=true preferencesUnchanged=true noBle=true；只关闭标准浅色未连接态底部可达性缺口，不覆盖深色/大字/真实能力。
+
+对照machine-settings-v1，机器五个标签移除圆角卡片背景，采用1dp基线/3dp选中线、16sp与400/500字重，保留48dp触摸高度及原滚动/切换，显式selected与可聚焦。Mock及AndroidTest构建40s成功，diff检查通过。新标签尚无运行截图，不能与4d308a7旧图混淆。曲线库/机器底部测试批次已推送至a0ab801；此标签候选暂本地，待下一批推送。

@@ -181,6 +181,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 textSize = TaskVisualTokens.BODY_SP.toFloat()
                 gravity = Gravity.CENTER
                 minHeight = dp(48)
+                isFocusable = true
                 setPadding(dp(16), dp(8), dp(16), dp(8))
                 setOnClickListener { showSettingsSection(index) }
             }
@@ -324,9 +325,20 @@ class MachineSettingsActivity : ThemedActivity() {
             section.visibility = if (selected) View.VISIBLE else View.GONE
             settingTabs[position].apply {
                 setTextColor(getColor(if (selected) R.color.mobile_accent else R.color.mobile_muted))
-                background = HoyiUi.shape(this@MachineSettingsActivity,
-                    if (selected) R.color.mobile_accent_soft else R.color.mobile_surface,
-                    10, R.color.mobile_border)
+                isSelected = selected
+                typeface = TaskTypography.face(context, if (selected) 500 else 400)
+                val baseline = GradientDrawable().apply { setColor(getColor(R.color.mobile_border)) }
+                val indicator = GradientDrawable().apply {
+                    setColor(getColor(if (selected) R.color.mobile_accent else R.color.mobile_border))
+                    cornerRadius = dp(2).toFloat()
+                }
+                background = android.graphics.drawable.LayerDrawable(arrayOf(baseline, indicator)).apply {
+                    setLayerHeight(0, dp(1))
+                    setLayerGravity(0, Gravity.BOTTOM)
+                    setLayerHeight(1, dp(if (selected) 3 else 1))
+                    setLayerGravity(1, Gravity.BOTTOM)
+                    setLayerInset(1, dp(8), 0, dp(8), 0)
+                }
             }
         }
     }
