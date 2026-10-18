@@ -1269,3 +1269,11 @@ CI39116385295成功，artifact已下载ci-d873340-frame。人工读取home-font-
 ## 2026-10-18：准备页整窗取证补齐（待运行）
 
 HomeWorkbenchChecks新增selected-window.png/txt：在真实窗口获得焦点、完成布局且未做360/960dp局部测量之前取图，记录所选曲线、窗口配置和主按钮边界，要求完整可见；不点击主动作。现有脚本按1.0/1.3分别拉取同目录，原局部回退、恢复和数据不变量检查保持。Mock与instrumentation编译通过24s（/tmp/task-home-selected-window-build.log），diff检查通过。此时没有新整窗图，不据此声称准备页最终对齐。
+
+## 2026-10-18：5abe9c2大字号分享与入库实图
+
+advanced run39115860524已结束（总失败；business库存门禁失败，pages成功）。pages artifact下载至ci-5abe9c2-advanced-pages；landscape/wideFont各240夹具、60截图通过，数据不变量保持。人工读取wideFont/zh-Hans-light-CurveShareActivity.png：两阶段表格两行及全部右侧动作完整，右侧兼容说明可读；与db5668d同场景表格隐藏相比，2501683/bdb6d33的空间修正已在这个场景得到实图支持。只关闭两阶段中文浅色1.3字号隐藏缺口，不推导四阶段或全部主题验收。
+
+同批BeanEntryActivity.png的新豆款空态：两种模式、名称/初始重量、购入/烘焙日期可见；开封日期底部在首屏被固定操作区截断，需局部滚动。不是字段丢失，但不能声称所有三日期首屏完整，也不以pages绿色掩盖这一差异。已有豆款模式去重的有内容业务图仍需新批次。
+
+同一曲线库取证run39116731390和库存修正run39116734734 business仍被远端确认运行；没有取消或重启。
