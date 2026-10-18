@@ -587,6 +587,47 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             assertReviewFields(review, expectedNotes)
             check(journal.find(shotId)?.notes == expectedNotes)
             record("journal-edit-reopen-recreate"); close(review)
+            // Own UUID fixture only: filled review plus synthetic telemetry, not hardware evidence.
+            val detailSamples = (0..30).map { second ->
+                ShotPoint(second * 1000L, if (second == 30) 0 else minOf(second * 18, 90),
+                    20, second * 20, 9300, second * 120, brewing = second < 30)
+            }
+            check(app.samples.load(shotId).isEmpty()) { "Do not overwrite existing history samples" }
+            app.samples.save(shotId, detailSamples)
+            val detail = start(HistoryDetailActivity::class.java) { it.putExtra(BrewReviewActivity.SHOT_ID, shotId) }
+            awaitMain {
+                views(root(detail)).filterIsInstance<ShotChartView>().singleOrNull()?.points == detailSamples
+            }
+            val chartBounds = android.graphics.Rect()
+            onMain {
+                val labels = views(root(detail)).filterIsInstance<TextView>()
+                listOf(beanName, grind, expectation, taste, nextAdjustment).forEach { value ->
+                    check(labels.any { it.text.toString() == value }) { "History detail omitted saved review text" }
+                }
+                check(views(root(detail)).filterIsInstance<ShotChartView>().single().getGlobalVisibleRect(chartBounds))
+            }
+            captureState(detail, "history-detail-filled-top-fixture", listOf(R.string.journal_review))
+            onMain {
+                val last = views(root(detail)).filterIsInstance<TextView>().single { it.text.toString() == nextAdjustment }
+                last.requestRectangleOnScreen(android.graphics.Rect(0, 0, last.width, last.height), true)
+            }
+            test.waitForIdleSync()
+            onMain {
+                val last = views(root(detail)).filterIsInstance<TextView>().single { it.text.toString() == nextAdjustment }
+                val visible = android.graphics.Rect()
+                check(last.getGlobalVisibleRect(visible) && visible.height() == last.height) { "Last review field is not fully reachable" }
+                val afterScroll = android.graphics.Rect()
+                check(views(root(detail)).filterIsInstance<ShotChartView>().single().getGlobalVisibleRect(afterScroll) &&
+                    afterScroll == chartBounds) { "Review scrolling moved or resized the history chart" }
+            }
+            captureState(detail, "history-detail-filled-bottom-fixture", listOf(R.string.journal_review))
+            File(requireNotNull(context.getExternalFilesDir(null)), "advanced-page-screenshots/business/history-detail-filled-source.txt")
+                .writeText("synthetic=true shotId=$shotId samples=31 endMs=30000 endWeightHundredths=3600 notesFields=7 noBle=true\n")
+            close(detail)
+            check(journal.find(shotId) == BrewJournal.Entry(observation, expectedNotes) &&
+                app.samples.load(shotId) == detailSamples && preparation.current() == null && balance() == 72000L && ownEvents().size == 3) {
+                "Viewing filled history changed its source, preparation or inventory"
+            }
             var editor = start(CurveEditorActivity::class.java)
             val recipeName = "UI recipe $token"
             fill(editor, R.string.profiles_name, recipeName)

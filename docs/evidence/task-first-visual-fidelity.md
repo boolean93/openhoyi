@@ -907,3 +907,11 @@ a5abedf advanced run39084062900：pages job success、business job failure。读
 原始四指标与各自物理量程仍可读，压力没有因概念稿示意而伪造末端归零；Mock记录不证明真实停机。该图右栏全部未填写，没有长豆名/研磨/感受、缺重/未知/大字号覆盖，完整参数入口也未首屏显示，因此不是整页最终验收。git diff712913e..HEAD确认HistoryDetailContent.kt/HistoryDetailActivity.kt未变化；依赖布局后续仍需完整检查，不能跨文件变动推断所有状态不变。
 
 ad41fd5 capture/run39085896653本轮查询仍in_progress，未取消或重启；近期准备页有豆两态仍以对应业务夹具新结果为准。
+
+## 2026-10-18：填满复盘的历史详情取证夹具
+
+AdvancedBusinessUiChecks原七字段复盘保存后新增只读详情检查。仅本次唯一ui-flow-shot-UUID空样本ID写入31个合成四指标点，30秒/36g与该fixture observation一致；不覆盖任何既有样本。来源说明文件明确synthetic=true/noBle。等待异步读取完全一致样本，核对豆名/研磨/预期/口感/下次调整全文仍在View中，截图顶部后把最后字段完整滚入视口，再截图底部；断言图表可见矩形不变、复盘按钮仍在，journal/样本/准备/库存不被查看改写。原18业务路径计数不变。
+
+此为待运行的覆盖补充，不是已取得的视觉证据，不作为真实机器记录。浅深/大字与其他状态仍按原矩阵保留。
+
+历史详情已填写夹具构建核验：Mock 与 MockAndroidTest 构建成功（26s，`/tmp/task-history-filled-evidence-build.log`），whitespace/branch policy 通过。运行时断言和两张截图仍待 CI；当前远端 592309f 的截图检查仍 queued，本轮仅本地提交，留待后续批次推送，避免继续堆积检查。
