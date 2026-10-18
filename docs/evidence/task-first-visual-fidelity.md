@@ -851,3 +851,11 @@ AdvancedBusinessUiChecks新增在原待确认/确认状态打开准备页的只�
 基于63a490c实际待确认/确认图与bean-preparation-v1稿件，BeanPreparationActivity原两个current分支将主栏换为一张摘要卡，造成与初始批次列表/右侧详情结构不一致。本轮统一showCurrentContext：左侧持续列出真实库存批次及当前余额，选中批次accent_soft，16/12dp条目内边距与8dp间距；右侧放原本杯摘要，再接原余额预览或匹配流水。保存之后列表是不可点击TextView，仍必须走原取消选择/放弃准备/关联恢复，不新增自动扣减或切换。当前批次不在库存时不造条目，原摘要与冲突信息仍保留。
 
 业务夹具补待确认90g与重建后确认72g的只读选中条目断言；既有同event幂等、丢弃不回库等检查不减。首次构建测试辅助函数缺少ThemedActivity接收者失败（/tmp/task-dose-context-build.log），第二次补出夹具batchId的可空类型约束，已限定BeanPreparationActivity接收者并对已创建的batchId requireNotNull后重跑（两次均为测试编译错误，非产品运行故障）。视觉截图待新CI，粉量步进器/操作区比例仍未对齐，不能声明整页完成。
+
+## 2026-10-18：两杯不同数据整页实图与记录入口
+
+4240daa single-screen run39083695169 的 tablet-large-font job success，其余两job在读取时仍in_progress。下载 artifact到build/task-first-evidence/ci-4240daa-largefont：result.txt为336/336、21页、中文表单56、列表恢复14。不能称整个run已通过。
+
+读取中文浅/深压力整页与浅色注水/秤重/温度三页，sources.txt八份均为distinct-v2、31/33采样、30000/32000ms。压力上升段与尾段实虚线可辨，注水和秤重呈不同斜率，温度两线接近但可辨；共用时间轴0/16/32，单位对应bar/ml/g/°C。表格30.0/32.0秒、36.00/35.20g与两源吻合。该证据为1600×1000、1.3字号，非用户平板density360标准字号；图高仍低于认可稿，顶栏/摘要占比待优化。仅关闭“两杯使用同一数据无法判断线型”的旧覆盖缺口。
+
+认可稿表下为左右查看记录入口，实际图入口却在完整来源说明卡之后。本轮将原detailButtons移到summaryTable之后的双列记录操作行（8dp上间距/16dp列间距，第一杯START第二杯END），缺失禁用和当前ID解析不变。来源状态/对齐/缺重/断点及notes全部保留在后续局部滚动区。新的入口布局待CI实图，不能用本轮旧图当验收。

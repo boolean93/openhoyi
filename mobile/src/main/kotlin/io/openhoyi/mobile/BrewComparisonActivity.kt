@@ -153,6 +153,10 @@ class BrewComparisonActivity : ThemedActivity() {
         }
         val summaryTable = ComparisonSummaryTable(this)
         support.addView(summaryTable, LinearLayout.LayoutParams(-1, -2))
+        val recordActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false
+            support.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        }
         val sourceCards = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false
             support.addView(this, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
@@ -168,10 +172,15 @@ class BrewComparisonActivity : ThemedActivity() {
             }
             sourceCards.addView(cup, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = dp(16) })
             sourceSummaries += HoyiUi.label(this, cup, "", 14).apply { tag = "comparison-source-${index + 1}" }
-            detailButtons += HoyiUi.button(this, cup, getString(label) + " · " + getString(R.string.journal_detail)) {
+            detailButtons += HoyiUi.button(this, recordActions, getString(label) + " · " + getString(R.string.journal_detail)) {
                 val entry = journal.find((if (index == 0) firstId else secondId) ?: return@button) ?: return@button
                 startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.observation.id))
-            }.apply { asTaskTextAction() }
+            }.apply {
+                asTaskTextAction()
+                gravity = android.view.Gravity.CENTER_VERTICAL or
+                    if (index == 0) android.view.Gravity.START else android.view.Gravity.END
+                layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = dp(16) }
+            }
             noteButtons += HoyiUi.button(this, cup, getString(label) + " · " + getString(R.string.journal_notes_title)) {
                 val entry = journal.find((if (index == 0) firstId else secondId) ?: return@button) ?: return@button
                 val notes = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
