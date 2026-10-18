@@ -167,13 +167,13 @@ class ExtractionActivity : ThemedActivity() {
         weightValue = reading(getString(R.string.task_extraction_water), quantity = true)
         val secondaryReadings = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         metrics.addView(secondaryReadings)
-        pressureValue = HoyiUi.label(this, secondaryReadings, "", 18, true).apply {
+        pressureValue = HoyiUi.label(this, secondaryReadings, "", TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
         }
-        waterValue = HoyiUi.label(this, secondaryReadings, "", 18, true).apply {
+        waterValue = HoyiUi.label(this, secondaryReadings, "", TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
         }
-        temperatureValue = HoyiUi.label(this, secondaryReadings, "", 18, true).apply {
+        temperatureValue = HoyiUi.label(this, secondaryReadings, "", TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         }
         flowValue = text(details, "", 14)
@@ -541,6 +541,20 @@ class ExtractionActivity : ThemedActivity() {
                 val unitStart = value.lastIndexOf(' ') + 1
                 if (unitStart > 0 && unitStart < value.length) {
                     setSpan(android.text.style.RelativeSizeSpan(0.55f), unitStart, value.length,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        } else if (this === pressureValue || this === waterValue || this === temperatureValue) {
+            text = android.text.SpannableString(value).apply {
+                Regex("[-+]?\\d+(?:\\.\\d+)?|—").find(value)?.let { match ->
+                    val start = match.range.first
+                    val end = match.range.last + 1
+                    setSpan(android.text.style.RelativeSizeSpan(
+                        TaskVisualTokens.TITLE_SP.toFloat() / TaskVisualTokens.SUPPORTING_SP),
+                        start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    setSpan(android.text.style.StyleSpan(Typeface.BOLD), start, end,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.mobile_text)), start, end,
                         android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }

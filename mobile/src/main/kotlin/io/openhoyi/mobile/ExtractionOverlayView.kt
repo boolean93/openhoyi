@@ -172,8 +172,11 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
     }
 
     private fun updateLegendText(metric: ChartMetric, button: Button) {
-        val range = data.series.first { it.metric == metric }.range
-        val name = "${metricName(metric)} · ${metric.unit}"
+        val series = data.series.first { it.metric == metric }
+        val range = series.range
+        val latest = series.current.lastOrNull()?.lastOrNull()
+            ?.takeIf { it.elapsedMs == data.observedThroughMs }
+        val name = "${metricName(metric)} ${latest?.let { format(it.value) } ?: "—"} ${metric.unit}"
         val fullTitle = "$name\n${format(range.low)}–${format(range.high)} ${metric.unit}"
         val visibleTitle = if (showLegendRanges) fullTitle else name
         if (button.text.toString() != visibleTitle) button.text = visibleTitle
@@ -232,6 +235,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit) +
             referenceNotes + data.series.map { series ->
             val latest = series.current.lastOrNull()?.lastOrNull()
+                ?.takeIf { it.elapsedMs == data.observedThroughMs }
             context.getString(R.string.task_chart_latest, metricName(series.metric),
                 latest?.let { format(it.value) } ?: "—", series.metric.unit)
         }).joinToString("; ")

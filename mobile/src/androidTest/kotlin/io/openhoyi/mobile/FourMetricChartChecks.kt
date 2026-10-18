@@ -34,7 +34,7 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                 Triple("machine-only", samples.map { it.copy(weightHundredthsGram = null) }, emptyList()),
                 Triple("four-metrics", samples, emptyList()),
                 Triple("gaps-and-reference", samples.filterIndexed { index, _ -> index !in 12..16 }.mapIndexed { index, point ->
-                    point.copy(weightHundredthsGram = point.weightHundredthsGram.takeUnless { index in 5..7 },
+                    point.copy(weightHundredthsGram = point.weightHundredthsGram.takeUnless { index in 5..7 || point.elapsedMs == samples.last().elapsedMs },
                         waterTenthsMl = if (index > 15) (index - 16) * 15 else point.waterTenthsMl)
                 }, samples.map { it.copy(elapsedMs = it.elapsedMs * 2) })
             )
@@ -57,6 +57,14 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                     for (control in controls) {
                         check(control.isClickable && control.width >= HoyiUi.dp(activity, 48) && control.height >= HoyiUi.dp(activity, 48))
                         check(!control.contentDescription.isNullOrBlank())
+                        val metric = ChartMetric.valueOf(control.tag.toString().substringAfter(':'))
+                        val value = ChartInspection.values(points.last())[metric]
+                        val reading = value?.let { java.util.Locale.ROOT.let { locale ->
+                            String.format(locale, "%.1f", it)
+                        } } ?: "—"
+                        check((control as android.widget.TextView).text.lineSequence().first().endsWith("$reading ${metric.unit}")) {
+                            "$name: legend must show the latest observation, not carry a missing value forward"
+                        }
                         check(control.performClick() && control.isSelected) { "$name: legend cannot focus ${control.tag}" }
                         // Native font weight/selection can request layout; emulate the next real UI frame.
                         probe.measure(View.MeasureSpec.makeMeasureSpec(actual.width, View.MeasureSpec.EXACTLY),

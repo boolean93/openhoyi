@@ -915,3 +915,13 @@ AdvancedBusinessUiChecks原七字段复盘保存后新增只读详情检查。�
 此为待运行的覆盖补充，不是已取得的视觉证据，不作为真实机器记录。浅深/大字与其他状态仍按原矩阵保留。
 
 历史详情已填写夹具构建核验：Mock 与 MockAndroidTest 构建成功（26s，`/tmp/task-history-filled-evidence-build.log`），whitespace/branch policy 通过。运行时断言和两张截图仍待 CI；当前远端 592309f 的截图检查仍 queued，本轮仅本地提交，留待后续批次推送，避免继续堆积检查。
+
+## ad41fd5 实时萃取整页复核（2026-10-18）
+
+- Capture run39085896653 已 success，产物位于 `build/task-first-evidence/ci-ad41fd5-capture/mock-ui-screenshots/`。人工读取 extraction-running-light/dark.png，与 extraction-four-series-v3.png 对照。两张为真实 Mock 启动流程，不是硬件验收。
+- ACTIVE_CUP_VISUAL_PASSED states=2；with-scale/source.txt 明确20 samples/20 weightedSamples、RUNNING。geometry.json 为 density2.25/fontScale1：图表1587×984px，实际绘图区1295.5×624.148px；停止按钮703×126px完整。该测量属于 active-cup-visual 夹具，不混作另一时刻 running PNG 的采样统计。
+- ad41fd5 到当前 HEAD 的 ExtractionActivity/ExtractionOverlayView 无差异。本轮确认四指标同图、右侧本杯信息和固定停止入口成立；不能据此判定整页与稿一致。
+- 明确差距：运行图例仅名称/单位，未呈现规格第5节要求的同源当前值；顶部压力/累计注水/机器温度为三行整句粗体，标签/值/单位的层级弱于认可稿。下一批应一起调整图例当前值和次级读数结构，保持40–48sp主值及统一字体间距tokens，不改采样、单位精度契约或安全门禁。
+- 不能照搬稿中未来时间窗口、曲线形状或设备状态。当前运行图仅6秒左右、所选曲线不使用目标重量，与概念稿24.6秒/36g不是同一业务状态。完整配方、豆款/粉量及大字号长文仍缺整页对应证据。
+
+实时读数候选已实现：图例取投影最新观察时刻的同源值，缺失显示—，无障碍说明同步；顶部次级标签/单位14sp、数字24sp使用现有tokens，原文与精度不变。构建45s通过。四指标夹具增加最新读数及尾部缺重检查，尚未运行。后续验收须确认图例换行、图高、全语言/大字及未知状态；不宣称与稿一致。
