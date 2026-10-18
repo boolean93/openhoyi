@@ -4,7 +4,9 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Rect
+import java.io.File
 import android.os.SystemClock
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
@@ -18,6 +20,21 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
         var failure: Throwable? = null
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
         failure?.let { throw it }
+    }
+    private fun captureFailure(activity: Activity, fixture: String, action: () -> Unit) {
+        try { action() } catch (failure: Throwable) {
+            try {
+                val directory = File(activity.getExternalFilesDir(null), "language-detail-failures").apply { mkdirs() }
+                File(directory, "failure.txt").writeText("$fixture\n${failure.stackTraceToString()}")
+                val screenshot = requireNotNull(test.uiAutomation.takeScreenshot())
+                try {
+                    File(directory, "failure.png").outputStream().use {
+                        check(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
+                    }
+                } finally { screenshot.recycle() }
+            } catch (captureError: Throwable) { failure.addSuppressed(captureError) }
+            throw failure
+        }
     }
     private fun field(owner: Any, name: String) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }
     private fun invoke(owner: Any, name: String) = owner.javaClass.getDeclaredMethod(name).apply { isAccessible = true }.invoke(owner)
@@ -52,7 +69,7 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
             onMain { show.invoke(activity, item) }
             test.waitForIdleSync()
             checkLayout("$fixture detail=$kind")
-            onMain {
+            captureFailure(activity, "$fixture detail=$kind") { onMain {
                 val details = field(activity, "details").get(activity) as TextView
                 val availability = field(activity, "availability").get(activity) as TextView
                 val select = field(activity, "select").get(activity) as Button
@@ -85,10 +102,14 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                 }
                 val visible = Rect()
                 check(select.isShown && select.getGlobalVisibleRect(visible) && visible.width() == select.width && visible.height() == select.height) {
-                    "$fixture detail=$kind action is clipped"
+                    "$fixture detail=$kind action is clipped: shown=${select.isShown} visible=$visible " +
+                        "size=${select.width}x${select.height} measured=${select.measuredWidth}x${select.measuredHeight} " +
+                        "screenDp=${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp} " +
+                        "font=${activity.resources.configuration.fontScale} density=${activity.resources.configuration.densityDpi} " +
+                        "parent=${(select.parent as View).width}x${(select.parent as View).height}"
                 }
                 LanguageUiLayoutChecks.textFits(select, "$fixture detail=$kind")
-            }
+            } }
         }
     }
     fun warnings(home: HomeActivity, fixture: String, checkLayout: (String) -> Unit) {

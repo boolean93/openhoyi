@@ -1245,3 +1245,11 @@ db5668d run39114685638 pages job成功，下载ci-db5668d-advanced-pages；实�
 逐张读取 ci-0649834-advanced-business 的 review-saved-notes.png 与 history-detail-filled-bottom-fixture.png，并对照 brew-review-v3 / history-detail-v2。复盘时长/克重小单位已生效、三段输入和保存/取消可见；该证据为用户配置，不再只是旧density200截图。长豆名、研磨内容仍需局部滚动。详情长笔记可读，图仍固定且四指标同图；压力末点缺失以破折号显示，不能为了概念图而补零。顶栏留白、轴标位置及同状态整页比例仍未最终验收。
 
 库存单行操作区最终源码 Mock + instrumentation 构建通过（43s，/tmp/task-inventory-inline-actions-build.log）；git diff --check 通过。保留本地提交待后续批量推送，不重复启动在途CI。
+
+## 2026-10-18：5abe9c2最新frame实图与生命周期失败
+
+frame CI39115860563成功，已下载ci-5abe9c2-frame，人工读取CurveShareActivity.png：两阶段表格和动作完整，兼容说明及详情位于右侧，8dp垂直内边距修正已反映。不可外推四阶段或1.3字号。
+
+lifecycle CI39115860532失败，完整artifact已下载ci-5abe9c2-lifecycle。直接失败为LanguageDetailChecks中文普通横屏longFactory主按钮裁切，而非仅凭模拟器ColorBuffer日志猜测基础设施故障。现补失败原始截图及按钮/父布局/窗口尺寸，保留原断言；脚本在恢复字号和窗口前收集文件。测试取证失败追加为suppressed，不覆盖业务断言。编译Mock+instrumentation通过24s（/tmp/task-curve-action-failure-build.log），bash -n及diff检查通过。根因和修复仍未验证。
+
+页面矩阵六项已补最新证据，不抹去历史版本区别。d873340 frame39116385295运行、advanced39116385388排队；没有取消或重启。

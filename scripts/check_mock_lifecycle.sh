@@ -14,6 +14,7 @@ on_error() {
   collect || true
   adb logcat -d -s AndroidRuntime:E OpenHoyiMobile:I OpenHoyiLanguage:I > "$output_dir/errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
+  adb pull "/sdcard/Android/data/$package/files/language-detail-failures" "$output_dir/" || true
   adb shell settings put system font_scale 1.0 || true
   adb shell wm size 1600x1000 || true
   exit "$status"
