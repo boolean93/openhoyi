@@ -54,26 +54,42 @@ class BrewComparisonActivity : ThemedActivity() {
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         val toolbarBody = workspace.toolbar
         val support = workspace.details
-        val sourceLegend = HoyiUi.label(this, toolbarBody, "", 14, true).apply { tag = "comparison-source-legend" }
         val warning = HoyiUi.label(this, toolbarBody, "", 14, true).apply { visibility = View.GONE }
         val metricSelector = ComparisonMetricTabs(this, selectedMetric, ::metricName) { metric ->
             selectedMetric = metric; chart.metric = metric; refresh()
         }
         toolbarBody.addView(metricSelector, LinearLayout.LayoutParams(-1, -2))
+        val sourceLegend = HoyiUi.label(this, toolbarBody, "", 14).apply {
+            tag = "comparison-source-legend"
+            gravity = android.view.Gravity.END
+            setTextColor(getColor(R.color.chart_pressure))
+        }
         chart = TwoCupChartView(this).apply { metric = selectedMetric }
         workspace.setChart(chart)
         val selectors = object : LinearLayout(this) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                // A narrow supporting column cannot fit two complete date/time choices side by side.
                 val next = if (View.MeasureSpec.getSize(widthMeasureSpec) >= dp(600)) HORIZONTAL else VERTICAL
-                if (orientation != next) {
-                    orientation = next
-                    for (index in 0 until childCount) getChildAt(index).layoutParams =
-                        if (next == HORIZONTAL) LayoutParams(0, -2, 1f) else LayoutParams(-1, -2)
+                orientation = next
+                for (index in 0 until childCount) {
+                    val child = getChildAt(index)
+                    val action = child.tag == "comparison-swap"
+                    val params = child.layoutParams as LayoutParams
+                    val targetWidth = if (next == HORIZONTAL) { if (action) -2 else 0 } else -1
+                    val targetWeight = if (next == HORIZONTAL && !action) 1f else 0f
+                    if (params.width != targetWidth || params.weight != targetWeight) {
+                        params.width = targetWidth; params.weight = targetWeight
+                    }
+                    params.marginStart = if (next == HORIZONTAL && index > 0) dp(8) else 0
+                    params.marginEnd = if (next == HORIZONTAL && index < childCount - 1) dp(8) else 0
                 }
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
-        }.apply { orientation = LinearLayout.HORIZONTAL; toolbarBody.addView(this, 0) }
+        }.apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
+            toolbarBody.addView(this, 0)
+        }
         val choiceIds = listOf<String?>(null) + entries.map { it.observation.id }
         val labels = listOf(getString(R.string.task_comparison_choose_cup)) + entries.map {
             getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
@@ -119,20 +135,21 @@ class BrewComparisonActivity : ThemedActivity() {
         val displaySecondSelection = cupSelector(R.string.journal_second, secondId) { id ->
             if (secondId != id) { secondId = id; refresh() }
         }
-        val comparisonActions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            isBaselineAligned = false
-            toolbarBody.addView(this, 1)
-        }
-        HoyiUi.button(this, comparisonActions, getString(R.string.task_comparison_swap)) {
+        HoyiUi.button(this, selectors, getString(R.string.task_comparison_swap)) {
             val previous = firstId; firstId = secondId; secondId = previous
             displayFirstSelection(firstId)
             displaySecondSelection(secondId)
             refresh()
-        }.apply { tag = "comparison-swap"; asTaskTextAction(); layoutParams = LinearLayout.LayoutParams(-2, -2) }
-        val shared = HoyiUi.label(this, comparisonActions, "", 14, true).apply {
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            setPadding(dp(16), dp(8), 0, dp(8))
+        }.apply {
+            tag = "comparison-swap"; asTaskTextAction()
+            layoutParams = LinearLayout.LayoutParams(-2, -2)
+            selectors.removeView(this)
+            selectors.addView(this, 1)
+        }
+        val shared = HoyiUi.label(this, toolbarBody, "", 14).apply {
+            setPadding(0, dp(4), 0, dp(4))
+            toolbarBody.removeView(this)
+            toolbarBody.addView(this, 1, LinearLayout.LayoutParams(-1, -2))
         }
         val summaryTable = ComparisonSummaryTable(this)
         support.addView(summaryTable, LinearLayout.LayoutParams(-1, -2))

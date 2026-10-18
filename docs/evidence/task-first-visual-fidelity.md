@@ -704,3 +704,9 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - newNameDraft与rememberedBeanId分离，模式/名字/真实ID随Bundle恢复；异步Spinner回调在新建模式不写身份。原日期/重量/事件ID/库存保存与幂等不改。
 - 业务检查新增新→已有→重建→新→重建→已有，核对只读名称与真实Bean.id，取消后事件和余额不变；两种状态分别截图。表单检查要求两个模式按钮完整且至少48dp，不放松原五字段可见性。
 - Mock/test APK最终构建exit0，22s（/tmp/task-bean-mode-final-build.log）；8语言XML解析、diff、branch-policy通过。新增instrumentation尚未运行，本地未安装；需新CI确认完整字段、大字号/短高与两种模式实图，不宣称与生成稿完全一致。
+
+### 批次实图确认与对比顶部候选（2026-10-18）
+
+- 784eaaf业务run39081551245 success，下载ci-784eaaf-advanced-business。business-flows记录17路径通过、三日期/7备注/12曲线字段/4阶段与三个持久化仓库检查。实读1600×1000 batch-after-adjustment.png：90g主值+小单位、100g初始、90%和同行比例条、批次信息标题/日期/流水分隔均生效，底部操作完整。未以该标准横屏截图替代用户平板大字号验收；时间列数据缺口仍在。
+- 对比页按brew-comparison-v1将交换动作放两杯之间，说明改14sp普通字重/4dp上下间距，图例移到指标之后右对齐。两条曲线统一chart_pressure蓝色，保持实/虚线和孤立点形状；轴标11→12sp。无采样/投影/量程/状态门禁改动。
+- 最终Mock/test APK构建exit0/38s（/tmp/task-comparison-header-final-build.log）；diff和分支规则通过。原四指标全控件可见性、真实杯身份交换、绘图区最小高等断言保留，新增布局未取得CI实图前不关闭整页差异。原capture39081548229、single39081551257仍in_progress，未取消或重启。

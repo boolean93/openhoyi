@@ -80,7 +80,7 @@ internal class TwoCupChartView(context: Context) : FrameLayout(context) {
         init { tag = "comparison-plot" }
         private val labels = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = TaskTypography.face(context)
-            textSize = 11f * resources.displayMetrics.scaledDensity
+            textSize = 12f * resources.displayMetrics.scaledDensity
             color = context.getColor(R.color.chart_label)
         }
         private val grid = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -137,7 +137,7 @@ internal class TwoCupChartView(context: Context) : FrameLayout(context) {
             fun y(value: Float) = box.bottom - box.height() * (value - series.range.low) / (series.range.high - series.range.low)
             canvas.save(); canvas.clipRect(box)
             fun drawSegments(segments: List<List<ChartValue>>, second: Boolean) {
-                stroke.color = context.getColor(if (second) R.color.chart_label else R.color.mobile_accent)
+                stroke.color = context.getColor(R.color.chart_pressure)
                 stroke.pathEffect = if (second) dash else null
                 for (segment in segments) {
                     path.reset()
