@@ -31,7 +31,8 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
             main {
                 check(kotlin.math.abs(activity.resources.configuration.fontScale - expectedFontScale) < .01f)
                 fun field(name: String) = CurveActivity::class.java.getDeclaredField(name).apply { isAccessible = true }.get(activity)
-                val chosen = app.curves.items.first { CurveStageParameters.pressureTargets(it).isNotEmpty() }
+                var chosen = app.curves.items.first { CurveStageParameters.pressureTargets(it).isNotEmpty() }
+                val originalChosen = chosen
                 CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
                     .apply { isAccessible = true }.invoke(activity, chosen)
                 val collection = activity.window.decorView.findViewWithTag<TaskCollectionLayout>("task-collection")
@@ -45,13 +46,12 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 val directory = File(context.getExternalFilesDir(null), "curve-library-checks").apply { mkdirs() }
                 val oldWidth = collection.width
                 val oldHeight = collection.height
-                fun measure(name: String, heightDp: Int) {
-                    val width = HoyiUi.dp(activity, 360)
-                    val height = HoyiUi.dp(activity, heightDp)
+                fun measure(name: String, width: Int, height: Int) {
                     collection.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
                     collection.layout(0, 0, width, height)
-                    check(collection.browserBody.visibility == View.GONE && collection.detailBody.visibility == View.VISIBLE)
+                    check(collection.detailBody.visibility == View.VISIBLE)
+                    if (width == HoyiUi.dp(activity, 360)) check(collection.browserBody.visibility == View.GONE)
                     for (action in listOf(select, parameter)) {
                         check(action.isShown && action.height >= HoyiUi.dp(activity, 48))
                         LanguageUiLayoutChecks.textFits(action, "$name fixed curve action")
@@ -60,7 +60,18 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         check(bounds.left >= 0 && bounds.right <= width && bounds.top >= 0 && bounds.bottom <= height) {
                             "$name fixed curve action clipped: ${action.text} $bounds"
                         }
+                        val row = action.parent as android.widget.LinearLayout
+                        check(action.top >= 0 && action.bottom <= row.height) {
+                            "$name action extends outside its own row: ${action.top}..${action.bottom}/${row.height}"
+                        }
                     }
+                    check(kotlin.math.abs((parameter.top + parameter.bottom) - (select.top + select.bottom)) <= 1) {
+                        "$name footer bounds are not vertically centered"
+                    }
+                    File(directory, "$name-footer.txt").writeText(listOf(parameter, select).joinToString("\n") {
+                        "text=${it.text} size=${it.width}x${it.height} local=${it.left},${it.top}..${it.right},${it.bottom} " +
+                            "parent=${(it.parent as View).width}x${(it.parent as View).height}"
+                    } + "\nfontScale=$expectedFontScale collection=${width}x$height syntheticMeasure=true\n")
                     for (index in 0 until collection.detailBody.childCount) {
                         val child = collection.detailBody.getChildAt(index)
                         if (child.visibility != View.VISIBLE) continue
@@ -78,12 +89,17 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         check(chart.height >= HoyiUi.dp(activity, 96) && ability.visibility == View.VISIBLE && ability.parent != null)
                     } else {
                         check(fallback.visibility == View.VISIBLE && fallback.height > 0)
-                        check(text.text.contains(chosen.name) && text.text.contains(ability.text))
-                        check(text.text.contains(metrics.contentDescription))
-                        check(text.text.contains(activity.getString(R.string.profiles_stage_caption)))
-                        CurveStageParameters.pressureTargets(chosen).forEachIndexed { index, value ->
-                            check(text.text.contains(activity.getString(R.string.reference_stage, (index + 1).toString(),
-                                String.format(Locale.ROOT, "%.1f", value / 10.0))))
+                        val targets = CurveStageParameters.pressureTargets(chosen)
+                        if (targets.isEmpty()) {
+                            check(text.text.contains(activity.getString(R.string.task_curve_library_no_pressure)))
+                        } else {
+                            check(text.text.contains(chosen.name) && text.text.contains(ability.text))
+                            check(text.text.contains(metrics.contentDescription))
+                            check(text.text.contains(activity.getString(R.string.profiles_stage_caption)))
+                            targets.forEachIndexed { index, value ->
+                                check(text.text.contains(activity.getString(R.string.reference_stage, (index + 1).toString(),
+                                    String.format(Locale.ROOT, "%.1f", value / 10.0))))
+                            }
                         }
                         LanguageUiLayoutChecks.textFits(text, name)
                         val maximum = (fallback.getChildAt(0).height - fallback.height).coerceAtLeast(0)
@@ -96,9 +112,22 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                     } finally { bitmap.recycle() }
                 }
                 try {
-                    measure("normal", 640); check(chart.visibility == View.VISIBLE)
-                    measure("short-180dp", 180)
-                    measure("recovered", 640); check(chart.visibility == View.VISIBLE)
+                    val compactWidth = HoyiUi.dp(activity, 360)
+                    measure("normal", compactWidth, HoyiUi.dp(activity, 640)); check(chart.visibility == View.VISIBLE)
+                    measure("short-180dp", compactWidth, HoyiUi.dp(activity, 180))
+                    measure("recovered", compactWidth, HoyiUi.dp(activity, 640)); check(chart.visibility == View.VISIBLE)
+                    for ((kind, item) in listOf(
+                        "noPressure" to app.curves.items.first { it.factoryCurve != null && CurveStageParameters.pressureTargets(it).isEmpty() },
+                        "fourStage" to CurveFooterFixtures.fourStage(app.curves))) {
+                        chosen = item
+                        CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
+                            .apply { isAccessible = true }.invoke(activity, chosen)
+                        // Use this CI profile's actual collection space, including the user tablet profiles.
+                        measure("footer-$kind-actual-space", oldWidth, oldHeight)
+                        check(select.isEnabled == app.curves.canStart(item))
+                    }
+                    CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
+                        .apply { isAccessible = true }.invoke(activity, originalChosen)
                     check(preferences.all == before)
                     check(app.curves.items.associate { it.id to app.curveUsageResult.getOrThrow().stats(it.id) } == usage)
                 } finally {

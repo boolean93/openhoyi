@@ -70,7 +70,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (curveLibraryChecks) {
                 CurveLibraryViewportChecks(this).run(expectedHomeFontScale)
-                report.putString("stream", "CURVE_LIBRARY_VIEWPORT_CHECKS_PASSED fixtures=3 shortHeight=true recovery=true readOnly=true noBle=true fontScale=$expectedHomeFontScale\n")
+                report.putString("stream", "CURVE_LIBRARY_VIEWPORT_CHECKS_PASSED fixtures=5 shortHeight=true recovery=true readOnly=true noBle=true fontScale=$expectedHomeFontScale\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }
@@ -156,7 +156,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 val profile = requireNotNull(pageProfile)
                 LanguagePageChecks(this).run(profile)
                 report.putString("stream", "LANGUAGE_PAGE_LAYOUT_CHECKS_PASSED profile=$profile languages=8 themes=2 pages=6 fixtures=96 settingsSections=5 scroll=true fixedStart=true preservedState=true\n" +
-                    "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=3 manualWarnings=3 cancelledStart=true\n" +
+                    "LANGUAGE_DETAIL_DIALOG_CHECKS_PASSED profile=$profile languages=8 themes=2 curveKinds=5 manualWarnings=3 cancelledStart=true\n" +
                     "LANGUAGE_SELECTOR_UI_CHECKS_PASSED profile=$profile languages=8 themes=2 choices=8 switched=true restored=true unchanged=true saveFailure=true sameService=true\n" +
                     "TREND_CHART_TEXT_CHECKS_PASSED profile=$profile languages=8 themes=2 metrics=4 cases=3 fontScale=true viewport=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)

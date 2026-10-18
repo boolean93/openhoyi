@@ -345,8 +345,11 @@ class CurveActivity : ThemedActivity() {
         val footer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
         }
-        selectionDock.addView(footer, LinearLayout.LayoutParams(-1, -2))
+        // Space belongs to the whole row: CENTER_VERTICAL adds a child's asymmetric
+        // margin after centering, which can place its bounds outside this row.
+        selectionDock.addView(footer, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         secondary.removeView(parameterDetails)
         parameterShortcut = parameterDetails.apply {
             asTaskTextAction()
@@ -361,7 +364,7 @@ class CurveActivity : ThemedActivity() {
             }
         }.apply {
             isEnabled = false; visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         }
         collection.onDetailSpaceAvailable = { width, height -> updatePreviewSpace(width, height) }
         search.addTextChangedListener(object : TextWatcher {

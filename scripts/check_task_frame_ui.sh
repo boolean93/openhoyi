@@ -107,7 +107,7 @@ with output.open('w') as capture:
         '-e','expectedFontScale',sys.argv[2],
         'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
         stdout=capture,stderr=subprocess.STDOUT,timeout=180)
-if result.returncode or 'CURVE_LIBRARY_VIEWPORT_CHECKS_PASSED fixtures=3 shortHeight=true recovery=true readOnly=true noBle=true' not in output.read_text():
+if result.returncode or 'CURVE_LIBRARY_VIEWPORT_CHECKS_PASSED fixtures=5 shortHeight=true recovery=true readOnly=true noBle=true' not in output.read_text():
     print(output.read_text())
     raise SystemExit('Curve library viewport checks failed; evidence retained')
 CURVE_PY

@@ -11,6 +11,7 @@ import android.os.SystemClock
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 
@@ -62,10 +63,14 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
         val factory = library.items.filter { it.factoryCurve != null }
             .maxBy { display.render(it, library.canStart(it)).length }
         val captured = library.items.first { it.controlProfile != null }
+        val noPressure = factory.takeIf { CurveStageParameters.pressureTargets(it).isEmpty() }
+            ?: library.items.first { it.factoryCurve != null && CurveStageParameters.pressureTargets(it).isEmpty() }
+        val fourStage = CurveFooterFixtures.fourStage(library)
         val unavailable = CurveLibraryItem("language-readonly-fixture", "Read-only UI fixture", "其它",
             activity.getString(R.string.curve_unavailable), null)
         val show = CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java).apply { isAccessible = true }
-        for ((kind, item) in listOf("longFactory" to factory, "captured" to captured, "unavailable" to unavailable)) {
+        for ((kind, item) in listOf("longFactory" to factory, "captured" to captured, "unavailable" to unavailable,
+            "noPressure" to noPressure, "fourStage" to fourStage)) {
             onMain { show.invoke(activity, item) }
             test.waitForIdleSync()
             checkLayout("$fixture detail=$kind")
@@ -109,6 +114,32 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                         "parent=${(select.parent as View).width}x${(select.parent as View).height}"
                 }
                 LanguageUiLayoutChecks.textFits(select, "$fixture detail=$kind")
+                val parameter = field(activity, "parameterShortcut").get(activity) as Button
+                val footer = select.parent as LinearLayout
+                val geometry = listOf(parameter, select).joinToString("\n") { action ->
+                    val bounds = Rect()
+                    action.getGlobalVisibleRect(bounds)
+                    "text=${action.text} visible=$bounds size=${action.width}x${action.height} " +
+                        "local=${action.left},${action.top}..${action.right},${action.bottom} " +
+                        "baseline=${action.baseline}"
+                }
+                File(activity.getExternalFilesDir(null), "language-detail-failures").apply { mkdirs() }
+                    .resolve("footer-${fixture.replace(' ', '_')}-$kind.txt").writeText(
+                        "$fixture detail=$kind row=${footer.width}x${footer.height} baselineAligned=${footer.isBaselineAligned} " +
+                            "font=${activity.resources.configuration.fontScale} density=${activity.resources.configuration.densityDpi} " +
+                            "screenDp=${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp}\n$geometry\n")
+                for (action in listOf(parameter, select)) {
+                    val bounds = Rect()
+                    check(action.isShown && action.getGlobalVisibleRect(bounds) &&
+                        bounds.width() == action.width && bounds.height() == action.height &&
+                        action.top >= 0 && action.bottom <= footer.height) {
+                        "$fixture detail=$kind footer action is clipped: $geometry"
+                    }
+                    LanguageUiLayoutChecks.textFits(action, "$fixture detail=$kind footer")
+                }
+                check(kotlin.math.abs((parameter.top + parameter.bottom) - (select.top + select.bottom)) <= 1) {
+                    "$fixture detail=$kind footer bounds are not vertically centered: $geometry"
+                }
             } }
         }
     }
