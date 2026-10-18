@@ -83,6 +83,8 @@ class HomeActivity : ThemedActivity() {
     private lateinit var stageFallbackText: TextView
     private var textStagePreview = false
     private lateinit var beanSummary: TextView
+    private lateinit var doseStateSummary: TextView
+    private lateinit var doseQuantity: TextView
     private lateinit var temperatureSummary: TextView
     private lateinit var usageSummary: TextView
     private lateinit var recentCurves: HomeRecentCurves
@@ -300,6 +302,19 @@ class HomeActivity : ThemedActivity() {
         beanSummary = text(secondary, "", 16).apply {
             minimumHeight = dp(48)
             setOnClickListener { startActivity(Intent(this@HomeActivity, BeanPreparationActivity::class.java)) }
+        }
+        secondary.addView(View(this).apply { setBackgroundColor(getColor(R.color.mobile_border)) },
+            LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(16) })
+        val doseGroup = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, dp(16), 0, dp(16))
+        }
+        secondary.addView(doseGroup, LinearLayout.LayoutParams(-1, -2))
+        doseStateSummary = text(doseGroup, "", TaskVisualTokens.SUPPORTING_SP)
+        doseQuantity = text(doseGroup, "", TaskVisualTokens.LIVE_VALUE_SP, true).apply {
+            tag = "home-dose-quantity"
+            fontFeatureSettings = "tnum"
+            visibility = View.GONE
         }
         temperatureSummary = text(secondary, "", 14)
         usageSummary = text(secondary, "", 14).apply {
@@ -671,8 +686,18 @@ class HomeActivity : ThemedActivity() {
             dose.confirmed -> R.string.task_brew_dose_confirmed
             else -> R.string.task_brew_dose_selected
         }
-        beanSummary.show((dose?.let { it.beanName + " · " + BeanQuantity.formatGrams(it.amountMg) + " g\n" } ?: "") +
-            getString(doseState) + "\n" + getString(R.string.task_brew_dose_entry))
+        beanSummary.show((dose?.let { it.beanName + "\n" } ?: "") + getString(R.string.task_brew_dose_entry))
+        doseStateSummary.show(getString(doseState))
+        doseQuantity.visibility = if (dose == null) View.GONE else View.VISIBLE
+        if (dose != null) {
+            val quantity = BeanQuantity.formatGrams(dose.amountMg) + " g"
+            if (doseQuantity.text.toString() != quantity) {
+                doseQuantity.text = android.text.SpannableString(quantity).apply {
+                    setSpan(android.text.style.RelativeSizeSpan(.55f), length - 1, length,
+                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+            }
+        }
         val stats = displayed?.let { app.curveUsageResult.getOrNull()?.stats(it.id) }
         usageSummary.show(when {
             app.curveUsageResult.isFailure -> getString(R.string.task_brew_usage_unavailable)

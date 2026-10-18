@@ -829,3 +829,13 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 实读1.0与1.3压力图、1.3水量图：同蓝实虚线9/6bar可辨，12sp按系统字号缩放，单位、刻度和断点保留。读源码确认仍通过TextBoundsCanvas精确校验12sp换算、边界、重叠及单位，未降低到只看存在。旧11sp预期误报可关闭。
 - 实读1.3单杯缺重量、双杯缺重量、短高图：单杯仅画实际已有系列，双杯缺数据展示“不生成重量曲线”，短高提示完整；不补0、不跨断点连线。该测试是320dp宽原生组件，不能替代整页不同两杯fixture截图（4240daa single-screen仍queued）。TwoCupChartView/TwoCupChartChecks从e7929eb到712913e无源码差异。
 - 本轮仅收证，未新增产品改动/CI。63a490c advanced39083443733仍in_progress，大号库存数值视觉验收继续等待。
+
+## 2026-10-18：准备页粉量层级与取证状态纠正
+
+复核 ci-63a490c-capture/home-selected-dark.png 与认可的 brew-preparation-v2.png：前者选择 capture-2、未选用豆、无历史，且 CurveStageParameters 按真实协议信息返回空压力目标。因此该截图不能证明满数据阶段图与认可稿一致，也不能把空图区域认定为绘图故障；后续需具备压力目标/本杯用豆的匹配状态截图。
+
+实际存在的排版差异：HomeActivity 将豆名、粉量与状态合在16sp正文，未实现稿件粉量主数值层级。本轮只调整显示：豆名和入口保留，原有 doseState 单独14sp；非空粉量40sp/700，单位22sp，使用实际 amountMg，空值隐藏。粉量组上下16dp并添加1dp语义分隔线。库存事件匹配、待确认/已确认/历史杯/冲突状态、点击行为不变。新截图尚缺，不能宣称完整视觉一致。
+
+同时重新读取 CI：39083443733（63a490c advanced）和39083695169（4240daa single-screen）均 in_progress，未取消或重启。
+
+本轮本地验证：Mock/instrumentation BUILD SUCCESSFUL in 42s（/tmp/task-home-dose-hierarchy-build.log，exit0）；branch policy 与 diff whitespace通过。只证明编译，不证明新布局运行或视觉通过。
