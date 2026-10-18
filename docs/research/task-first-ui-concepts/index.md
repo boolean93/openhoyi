@@ -16,7 +16,7 @@
 | HistoryActivity 本机/长期记录 | [记录v3](history-list-v3.png) | 三来源/未知结果保留，图改四指标；历史重量明确称秤读数 |
 | HistoryDetailActivity 记录详情 | [详情v2](history-detail-v2.png) | 四指标、复盘入口；导航统一为冲煮/曲线/记录/豆子 |
 | BrewComparisonActivity 两杯对比 | [对比v1](brew-comparison-v1.png) | 一次聚焦一个指标，两杯同尺度；四指标可切换，不默认叠八条线 |
-| BeanInventoryActivity 豆子库存 | [库存v2](bean-inventory-v2.png) | 使用本豆款为主动作，新增为工具栏；库存模块仍独立 |
+| BeanInventoryActivity 豆子库存 | [库存v3](bean-inventory-v3.png) | 使用本豆款为主动作；v3去掉不存在的事件时间与净减量“已使用”推断，库存模块仍独立 |
 | BeanEntryActivity 入库 | [入库v2](bean-entry-v2.png) | 三日期等原字段保留；限宽表单，去掉说明墙和错误文案；另补[键盘v2](bean-entry-keyboard-v2.png) |
 | BeanBatchActivity 批次详情 | [批次v2](bean-batch-v2.png) | 余量、调整与流水区分；流水为类型/变更/原因，去掉无数据源的时间戳与本杯归属；不虚增价格/产地字段 |
 | BeanLedgerActivity 库存流水 | [流水v3](bean-ledger-v3.png) | 按已有事件顺序显示类型/变更/余量/批次/真实原因；模型没有时间戳或永久本杯归属，已去掉虚构时间列；正常耗用中性色 |
@@ -66,3 +66,5 @@
 - [流水v3提示词](prompts/bean-ledger-v3.txt)：内置ImageGen修正，不新增模型字段；v2仅作颜色修订历史记录，不作为当前稿。
 
 2026-10-18：批次v2由内置ImageGen编辑v1生成并目视核对，90/100g及90%、三日期、调整-10g/入库+100g和原因列正确；v1含虚构流水时间，不再作为实施依据。图中豆名与盘点原因仍为示例；字体身份/精确sp、dp不能由生成图片证明，仍以规范tokens与运行测量为准。
+
+2026-10-18库存v3：内置ImageGen编辑v2，已目视核对90+160+250=500g、90/100g=90%、真实类型/变更/原因示例及三日期。v2的时间戳与已使用推断不再作为实施依据。图中字体和dp仍以代码tokens/运行测量为准。
