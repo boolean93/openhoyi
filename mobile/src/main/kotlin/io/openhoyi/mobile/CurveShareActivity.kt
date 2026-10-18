@@ -28,12 +28,13 @@ class CurveShareActivity : ThemedActivity() {
             fillSecondaryViewport = true
             listOf(primaryBody, secondaryBody).forEach { pane ->
                 val inset = HoyiUi.dp(this@CurveShareActivity, 16)
-                pane.setPadding(inset, inset, inset, inset)
+                val verticalInset = HoyiUi.dp(this@CurveShareActivity, TaskVisualTokens.RELATED_GAP_DP)
+                pane.setPadding(inset, verticalInset, inset, verticalInset)
                 pane.background = HoyiUi.shape(this@CurveShareActivity, R.color.mobile_surface, 12, R.color.mobile_border)
             }
         }
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply {
-            topMargin = HoyiUi.dp(this@CurveShareActivity, 16)
+            topMargin = HoyiUi.dp(this@CurveShareActivity, TaskVisualTokens.RELATED_GAP_DP)
         })
         sharePreview(workspace, doc)
         val actions = workspace.secondaryBody
