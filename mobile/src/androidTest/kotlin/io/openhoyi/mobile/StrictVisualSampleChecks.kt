@@ -50,6 +50,61 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
         check(frames.await(5, TimeUnit.SECONDS)) { "Specimen stable-frame wait timed out" }
         test.waitForIdleSync()
     }
+    private fun auditTouchTargets(activity: StrictVisualSampleActivity, directory: File): JSONArray {
+        lateinit var measurements: JSONArray
+        var violations = emptyList<String>()
+        main {
+            val all = nodes(activity.sampleRoot)
+            measurements = JSONArray()
+            val issues = mutableListOf<String>()
+            val navigationIds = mutableListOf<String>()
+            val minimum = StrictVisualSampleTokens.dp(activity, 48f)
+            for (view in all) {
+                val registered = activity.actionViews.any { it === view }
+                val id = view.tag?.toString() ?: if (registered) "unlabelled_registered_action" else continue
+                val kind = StrictVisualSampleTouchPolicy.kind(id, registered)
+                if (kind == StrictVisualSampleTouchPolicy.Kind.NAVIGATION) navigationIds.add(id)
+                StrictVisualSampleTouchPolicy.violation(id, registered, view is ViewGroup,
+                    view.width, view.height, minimum)?.let(issues::add)
+                val location = IntArray(2); view.getLocationOnScreen(location)
+                val visibleBounds = Rect()
+                val visible = view.getGlobalVisibleRect(visibleBounds)
+                measurements.put(JSONObject().put("semanticId", id).put("targetKind", kind.name)
+                    .put("registeredActionIdentity", registered).put("container", view is ViewGroup)
+                    .put("touchTarget", kind != StrictVisualSampleTouchPolicy.Kind.NONE)
+                    .put("enabled", view.isEnabled).put("clickable", view.isClickable)
+                    .put("sizePx", JSONArray(listOf(view.width, view.height)))
+                    .put("rectPx", JSONArray(listOf(location[0], location[1], location[0] + view.width, location[1] + view.height)))
+                    .put("visible", visible).put("visibleRectPx", JSONArray(listOf(
+                        visibleBounds.left, visibleBounds.top, visibleBounds.right, visibleBounds.bottom))))
+            }
+            if (navigationIds.size != 6 || navigationIds.toSet().size != 6 ||
+                !navigationIds.containsAll(listOf("sample/nav/selected", "sample/nav/scale", "sample/nav/settings"))) {
+                issues.add("Expected six exact navigation touch containers: $navigationIds")
+            }
+            if (activity.actionViews.any { action -> all.none { it === action } }) {
+                issues.add("Registered specimen action is absent from the rendered tree")
+            }
+            violations = issues.toList()
+            val config = activity.resources.configuration
+            val geometry = JSONObject().put("validationPhase", "before_touch_assertions")
+                .put("fontScale", config.fontScale).put("densityDpi", config.densityDpi)
+                .put("appSizePx", JSONArray(listOf(activity.sampleRoot.width, activity.sampleRoot.height)))
+                .put("minimumTouchPx", minimum).put("nodes", measurements).put("issues", JSONArray(issues))
+            // Persist the observed tree and actual text/Drawable evidence before any
+            // touch-size assertion. A genuine undersized container still fails below.
+            File(directory, "touch-geometry.json").writeText(geometry.toString(2))
+            TaskTypographyEvidence.capture(activity, directory)
+            val measured = JSONObject(File(directory, "StrictVisualSampleActivity-typography.json").readText())
+                .put("validationPhase", "before_touch_assertions_not_complete_visual_validation")
+                .put("touchTargets", measurements).put("touchTargetIssues", JSONArray(issues))
+                .put("gates", JSONObject().put("G1", if (issues.isEmpty()) "BASELINE_PENDING" else "FAIL")
+                    .put("G2", "BASELINE_PENDING").put("G3", "BASELINE_PENDING").put("G4", "BASELINE_PENDING"))
+            File(directory, "visual.json").writeText(measured.toString(2))
+        }
+        check(violations.isEmpty()) { violations.joinToString("; ") }
+        return measurements
+    }
     fun run(arguments: Bundle): Int {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
@@ -85,6 +140,7 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                 val shot = requireNotNull(test.uiAutomation.takeScreenshot())
                 try { File(directory, "window.png").outputStream().use { check(shot.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
                 finally { shot.recycle() }
+                val touchTargets = auditTouchTargets(activity, directory)
                 val anchors = JSONArray()
                 val canvas = JSONArray()
                 val layoutIssues = JSONArray()
@@ -98,9 +154,6 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                     check(activity.palette.dark == (expectedTheme == "dark"))
                     val all = nodes(activity.sampleRoot)
                     check(all.none { it.hasOnClickListeners() }) { "Specimen contains callback-bearing actions" }
-                    for (action in activity.actionViews) check(action.height >= StrictVisualSampleTokens.dp(activity, 48f)) {
-                        "Action specimen below 48dp: ${action.tag}"
-                    }
                     for (view in all) {
                         val tag = view.tag?.toString() ?: continue
                         val location = IntArray(2); view.getLocationOnScreen(location)
@@ -118,8 +171,6 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                             check((0 until view.layout.lineCount).none { view.layout.getEllipsisCount(it) > 0 }) { "Ellipsized specimen text: $tag" }
                             check(view.layout.height <= view.height - view.compoundPaddingTop - view.compoundPaddingBottom) { "Clipped text line box: $tag" }
                         }
-                        if (tag.endsWith("primary") || tag.contains("/actions/") || tag.startsWith("sample/nav/item") || tag == "sample/nav/selected")
-                            check(view.height >= StrictVisualSampleTokens.dp(activity, 48f)) { "Touch specimen below 48dp: $tag" }
                     }
                     activity.charts.forEach { chart ->
                         check(chart.evidence.length() > 0)
@@ -218,11 +269,12 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                     if (commonGeometry == null) commonGeometry = signature else check(commonGeometry == signature) { "Window geometry changed between same-profile specimens" }
                     tokens = StrictVisualSampleTokens.json(activity.palette)
                     roles = activity.requestedRoles()
-                    TaskTypographyEvidence.capture(activity, directory)
                 }
                 val measured = JSONObject(File(directory, "StrictVisualSampleActivity-typography.json").readText())
                 val layoutFailed = (0 until layoutIssues.length()).any { layoutIssues.getJSONObject(it).getString("status") == "FAIL" }
                 measured.put("candidateRoles", roles).put("canvas", canvas)
+                    .put("validationPhase", "complete_normal_capture").put("touchTargets", touchTargets)
+                    .put("touchTargetIssues", JSONArray())
                     .put("layoutIssues", layoutIssues)
                     .put("canvasPaintCoverage", "sample_owned_chart_and_icon_operations_only_not_product_canvas")
                     .put("gates", JSONObject().put("G1", if (layoutFailed) "FAIL" else "BASELINE_PENDING").put("G2", "BASELINE_PENDING").put("G3", "BASELINE_PENDING").put("G4", "BASELINE_PENDING"))
