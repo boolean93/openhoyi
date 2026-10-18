@@ -1265,3 +1265,7 @@ CI39116385295成功，artifact已下载ci-d873340-frame。人工读取home-font-
 针对d873340紧凑1.3字号纵轴重叠，抽出StageAxisTicks。固定五刻度基线运行3项JVM测试，2项失败（/tmp/task-stage-axis-red.log）；改为按绘图区高度与实测字高+4dp选择5/3/2刻度，所有阶段仍用固定0–12bar映射。极小高度连端点都无法分开时不画轴数字，bar和阶段真实目标保留；微型列表图不变。网格同步刻度，避免无解释密集线。
 
 最终3项测试通过（包含多种字高×1–300px高度的非重叠检查），Mock和instrumentation构建通过47s（/tmp/task-stage-axis-green.log）。尚无修正后的CI截图，不能把JVM计算通过等同Canvas最终视觉验收。
+
+## 2026-10-18：准备页整窗取证补齐（待运行）
+
+HomeWorkbenchChecks新增selected-window.png/txt：在真实窗口获得焦点、完成布局且未做360/960dp局部测量之前取图，记录所选曲线、窗口配置和主按钮边界，要求完整可见；不点击主动作。现有脚本按1.0/1.3分别拉取同目录，原局部回退、恢复和数据不变量检查保持。Mock与instrumentation编译通过24s（/tmp/task-home-selected-window-build.log），diff检查通过。此时没有新整窗图，不据此声称准备页最终对齐。

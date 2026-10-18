@@ -52,12 +52,35 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                 var ready = false
                 main {
                     val stage = activity.window.decorView.findViewWithTag<CurveStageView>("stage-preview")
-                    ready = activity.window.decorView.isLaidOut && stage != null &&
+                    ready = activity.hasWindowFocus() && activity.window.decorView.isLaidOut &&
+                        !activity.window.decorView.isLayoutRequested && stage != null &&
                         stage.targets == CurveStageParameters.pressureTargets(chosen)
                 }
                 if (ready) break
                 check(SystemClock.elapsedRealtime() < deadline) { "Home stage targets did not render" }
                 SystemClock.sleep(50)
+            }
+            // Capture the real window before local size probes mutate the workspace bounds.
+            val windowDirectory = File(context.getExternalFilesDir(null), "home-workbench-checks").apply { mkdirs() }
+            val windowImage = requireNotNull(test.uiAutomation.takeScreenshot())
+            try {
+                File(windowDirectory, "selected-window.png").outputStream().use {
+                    check(windowImage.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+            } finally { windowImage.recycle() }
+            main {
+                val action = HomeActivity::class.java.getDeclaredField("brewButton").apply { isAccessible = true }
+                    .get(activity) as TextView
+                val bounds = android.graphics.Rect()
+                val complete = action.isShown && action.getGlobalVisibleRect(bounds) &&
+                    bounds.width() == action.width && bounds.height() == action.height
+                val config = activity.resources.configuration
+                File(windowDirectory, "selected-window.txt").writeText(
+                    "screenDp=${config.screenWidthDp}x${config.screenHeightDp} density=${config.densityDpi} " +
+                        "font=${config.fontScale} curve=${chosen.id} action=${action.text} complete=$complete " +
+                        "bounds=$bounds size=${action.width}x${action.height} noStart=true\n"
+                )
+                check(complete) { "Selected Home action clipped in real window: $bounds ${action.width}x${action.height}" }
             }
             main {
                 val workspace = activity.window.decorView.findViewWithTag<TaskWorkspaceLayout>("task-workspace")
