@@ -1259,3 +1259,9 @@ lifecycle CI39115860532失败，完整artifact已下载ci-5abe9c2-lifecycle。�
 CI39116385295成功，artifact已下载ci-d873340-frame。人工读取home-font-1.0/normal.png、home-font-1.3/normal.png、home-font-1.3/short-180dp.png及home-font-1.3/recent-wide.png。摘要真实呈现91°C/27.00g/2阶段，小单位生效；宽960×720dp组件图中1.3字号图表可读。home-1.0.txt与home-1.3.txt各4夹具通过，短高/恢复/最近选择/只读不变量通过。注意normal是360×640dp局部测量图，不是用户完整窗口；recent-wide同样是workspace局部图，不能代替整页验收。
 
 新增未关闭缺口：1.3字号normal组件图纵轴0/3/6/9/12标签重叠，说明stage.height≥96dp的既有断言不能证明Canvas轴字不重叠。CurveStageView固定5刻度，字号增大和摘要占高后绘图区不足。后续须按实际字高约束刻度密度或上层回退，不缩字、不删数据；当前未修复，不宣称本轮最终视觉通过。短高截图显示回退文本含温度，完整滚动断言仍通过；新增摘要全部字段的回退文本完整性还需针对性核对。
+
+## 2026-10-18：阶段纵轴按字高稀疏刻度（待实图）
+
+针对d873340紧凑1.3字号纵轴重叠，抽出StageAxisTicks。固定五刻度基线运行3项JVM测试，2项失败（/tmp/task-stage-axis-red.log）；改为按绘图区高度与实测字高+4dp选择5/3/2刻度，所有阶段仍用固定0–12bar映射。极小高度连端点都无法分开时不画轴数字，bar和阶段真实目标保留；微型列表图不变。网格同步刻度，避免无解释密集线。
+
+最终3项测试通过（包含多种字高×1–300px高度的非重叠检查），Mock和instrumentation构建通过47s（/tmp/task-stage-axis-green.log）。尚无修正后的CI截图，不能把JVM计算通过等同Canvas最终视觉验收。

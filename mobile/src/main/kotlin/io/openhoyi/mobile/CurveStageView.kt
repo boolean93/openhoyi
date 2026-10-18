@@ -30,6 +30,7 @@ internal class CurveStageView(context: Context) : View(context) {
         val top = paddingTop + if (compact) dp(8f) else labelHeight + dp(16f)
         val bottom = height - paddingBottom - if (compact) dp(8f) else labelHeight + dp(16f)
         if (right <= left || bottom <= top) return
+        val axisTicks = StageAxisTicks.forHeight(bottom - top, labelHeight + dp(4f))
         val values = targets.take(4)
         if (!compact && !pressureColor && values.isNotEmpty() && values.all { it in 0..120 }) {
             paint.style = Paint.Style.FILL
@@ -44,7 +45,7 @@ internal class CurveStageView(context: Context) : View(context) {
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = density
         paint.color = context.getColor(R.color.chart_grid)
-        for (fraction in if (compact) listOf(0f) else listOf(0f, .25f, .5f, .75f, 1f)) {
+        for (fraction in if (compact) listOf(0f) else axisTicks.map { it / 12f }) {
             val y = bottom - (bottom - top) * fraction
             canvas.drawLine(left, y, right, y, paint)
         }
@@ -52,7 +53,7 @@ internal class CurveStageView(context: Context) : View(context) {
             paint.style = Paint.Style.FILL
             paint.color = context.getColor(R.color.mobile_muted)
             paint.textAlign = Paint.Align.RIGHT
-            for (tick in listOf(0, 3, 6, 9, 12)) {
+            for (tick in axisTicks) {
                 val y = bottom - (bottom - top) * tick / 12f
                 canvas.drawText(tick.toString(), left - dp(8f), y - (metrics.ascent + metrics.descent) / 2, paint)
             }
