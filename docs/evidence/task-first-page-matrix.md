@@ -17,7 +17,7 @@
 |---|---|---|---|
 | HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | 未选曲线；最近配方/本杯就绪待同状态图 | 25 |
 | ExtractionActivity | [满配v3](../research/task-first-ui-concepts/extraction-four-series-v3.png)、[无秤v2](../research/task-first-ui-concepts/extraction-no-scale-v2.png) | 784eaaf用户平板有秤/无秤实际启动截图通过；21/0重量样本、四/三指标、参数行/停止完整；绘图区514.148px。1b0deb4无告警行已收起且绘图区增至624.148px，637f83f实图确认图例含实时值、次要读数数值突出；有秤绘图区599.148px、无秤624.148px，停止完整。字体/间距/曲线区域仍未最终验收 | 33 |
-| CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 4240daa用户平板103条列表/两阶段目标实图已核对，排序/滚动恢复有运行证据；3c0019c实图确认34%列表/新建，360dp局部夹具确认24/14sp、小单位及分区；平板整页选中态新增取证待CI，不能以局部图代替；阶段配色/完整参数入口/四阶段同状态未最终验收 | 31 |
+| CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 4240daa用户平板103条列表/两阶段目标实图已核对，排序/滚动恢复有运行证据；3c0019c实图确认34%列表/新建，360dp局部夹具确认24/14sp、小单位及分区；10bf727真实窗口选中态1.0/1.3字号已读，双栏/两阶段/使用按钮完整；大字编辑分享收进曲线操作，四阶段及稿件差异仍待验收；阶段配色/完整参数入口/四阶段同状态未最终验收 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 712913e用户平板深色Mock结束实图确认主数值/小单位、左栏图表延伸页底、右栏分隔线已生效；121采样四指标可读。复盘字段空态，长内容/未知/缺重/大字与完整入口仍未最终验收 | 8 |
 | BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 4240daa大字号336夹具通过；不同31/33点四指标整页已读取，实虚线/单位和30/32秒、36/35.2g吻合；记录入口已前移待新图，用户平板标准字号实图及24/16/14sp已核对；39ac261轴留白两字号10组件夹具已运行通过；整页图高/顶栏比例仍待新图验收 | 9 |

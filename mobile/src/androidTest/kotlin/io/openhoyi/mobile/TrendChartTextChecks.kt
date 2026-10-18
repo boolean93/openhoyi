@@ -59,7 +59,12 @@ internal object TrendChartTextChecks {
                 check(canvas.labels >= 6) { "Four-metric plot has no usable labeled viewport" }
                 controls.filter { !(it as TextView).text.contains('–') }.forEach { control ->
                     val description = control.contentDescription.toString()
-                    val unit = description.substringBefore(';').substringAfterLast(" · ")
+                    val unit = when (control.tag) {
+                        "chart-metric:PRESSURE" -> "bar"
+                        "chart-metric:WATER" -> "ml"
+                        "chart-metric:WEIGHT" -> "g"
+                        else -> "°C"
+                    }
                     val endpoints = description.substringAfter(';').substringBefore(' ').split('–')
                     check(unit in canvas.texts && endpoints.size == 2 && endpoints.all { it in canvas.texts }) {
                         "$fixture missing physical axis behind compact legend: $description"

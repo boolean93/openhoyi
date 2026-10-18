@@ -53,7 +53,13 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                                 "WEIGHT" -> "0.0–50.0 g"
                                 else -> "80.0–100.0 °C"
                             }
-                            val name = "${context.getString(metric.second)} · ${metric.third}"
+                            // Fixture's final sample: 10 bar, 30 ml, 30 g, 92 °C.
+                            val reading = when (metric.first) {
+                                "PRESSURE" -> "10.0"
+                                "WATER", "WEIGHT" -> "30.0"
+                                else -> "92.0"
+                            }
+                            val name = "${context.getString(metric.second)} $reading ${metric.third}"
                             check(label == "$name\n$expectedRange" || label == name) {
                                 "$fixture metric name, physical range or unit changed: $label"
                             }
@@ -79,7 +85,7 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                             check(textCanvas.labels >= 6 && "bar" in textCanvas.texts)
                             controls.filter { !it.text.contains('–') }.forEach { control ->
                                 val description = control.contentDescription.toString()
-                                val unit = description.substringBefore(';').substringAfterLast(" · ")
+                                val unit = expected.single { "chart-metric:${it.first}" == control.tag }.third
                                 val endpoints = description.substringAfter(';').substringBefore(' ').split('–')
                                 check(unit in textCanvas.texts && endpoints.size == 2 && endpoints.all { it in textCanvas.texts }) {
                                     "$fixture compact legend without complete visible axis: $description"

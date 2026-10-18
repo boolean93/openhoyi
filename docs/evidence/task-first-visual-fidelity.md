@@ -1032,3 +1032,10 @@ run39089718635成功，ci-bcda211-frame/task-frame-tablet-user-landscape/tablet-
 实读bcda211-frame的chart-components/gaps-and-reference.png：缺失末次重量正确为—，重置/缺口断线及历史参考说明可读，但图表被多行说明挤压。short-height-font-1.3.png明确提示空间不足，属于可滚动头部的首屏，不证明全部图例同屏。候选仅将notes/referenceNotes强制换行改为中点分隔自然换行，原文14sp及plot无障碍描述不减；需要新图对照，不称已修复图高。
 
 自然换行候选Mock/AndroidTest构建通过（/tmp/task-chart-note-flow-build.log）；既有TrendChartTextChecks保留参考说明textFits及图高下限检查，未降低断言。新运行截图尚未取得。
+
+
+## 生命周期失败定位及曲线整页证据（2026-10-18）
+
+10bf727/run39090130756下载于ci-10bf727-lifecycle。导航/主题重建/前后台边沿与音频五组已通过，language-instrumentation.txt失败在ChartLegendChecks.kt:57：预期旧“压力 · bar”，实际为“压力 10.0 bar\n0.0–12.0 bar”。根因是637f83f实时图例契约变更后旧测试未同步，不是日志ColorBuffer警告。测试改独立固定末采样预期10/30/30/92，保留原量程/触控/绘图/64夹具门禁；两处从文案解析单位改稳定标签对应单位。测试包23s构建成功（/tmp/task-chart-legend-contract-build.log），仍待完整CI证明恢复。
+
+10bf727/run39090134055成功，已实读curve-library-font-1.0与1.3的selected-window.png及1.0元数据：实际2560×1600窗口、恢复合成尺寸后捕获，偏好/使用统计不变。双栏选中采集曲线1，91°C/27.00g/2阶段、9/6.5bar、底部使用完整；标准字号编辑分享直达，大字收入曲线操作。与概念四阶段/单蓝配色及完整参数入口仍有差异，不能最终验收。
