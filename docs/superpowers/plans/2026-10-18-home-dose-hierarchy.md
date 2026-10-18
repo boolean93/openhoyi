@@ -21,3 +21,11 @@
 普通推送当前工作分支，沿用PR；本轮不合并、不发版、不安装、不操作设备。不改协议、签名、versionCode、schema。回退只还原显示代码，保留库存/未知记录。
 
 本地验证：Mock 与 instrumentation 构建 BUILD SUCCESSFUL in 42s，进程退出0；日志 /tmp/task-home-dose-hierarchy-build.log。branch policy / diff whitespace通过，截图验收未完成。
+
+## 同状态截图补充
+
+- [x] AdvancedBusinessUiChecks 在现有18g待确认与扣减确认后，分别打开 HomeActivity 并等待真实同一 service/本地状态渲染，断言真实豆名、18g与对应状态可见；保存 home-dose-selected/confirmed 两张图后关闭临时页面。
+- [x] 前后比较 preparation.current、完整 inventory.events、批次余额，保证只查看准备页不扣减、不改变关联；沿用现有18业务路径，不为截图增加业务计数或重建伪记录。
+- [ ] Mock/instrumentation 重新编译并经 CI 实际执行上述两态；当前capture-2无压力目标的历史截图仍不能代替四阶段满数据准备页。
+
+补充构建验证：Mock/instrumentation BUILD SUCCESSFUL in 23s，进程exit0，/tmp/task-home-dose-evidence-build.log；新两态检查尚未CI运行，不声明通过。

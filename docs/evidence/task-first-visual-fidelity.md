@@ -839,3 +839,9 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 同时重新读取 CI：39083443733（63a490c advanced）和39083695169（4240daa single-screen）均 in_progress，未取消或重启。
 
 本轮本地验证：Mock/instrumentation BUILD SUCCESSFUL in 42s（/tmp/task-home-dose-hierarchy-build.log，exit0）；branch policy 与 diff whitespace通过。只证明编译，不证明新布局运行或视觉通过。
+
+## 2026-10-18：投粉大数值实图与准备页两态覆盖
+
+63a490c advanced run39083443733 已 success，business artifact 下载到 build/task-first-evidence/ci-63a490c-business。business-flows.txt 确认18路径、完整字段/三持久化存储、同service/保留机器偏好/noBle通过。读取 dose-pending-confirmation.png 和 dose-confirmed-receipt.png：1600×1000浅色实际图，大号90g与72g、缩小单位及箭头清晰；待确认说明明确“尚未扣减”，确认后显示本次扣减流水及18g；不能把预览当收据。页面大面积留白、左侧摘要与认可稿持续列表仍不一致，不予整页通过。本次代码早于c4130ee错误清除修复，不能证明该修复回归。
+
+AdvancedBusinessUiChecks新增在原待确认/确认状态打开准备页的只读截图检查；核验真实18g、豆名与状态，开关页面前后核对准备记录、完整库存事件与余额不变。两截图并非四阶段配方满数据验收，不能填补压力图/最近使用的覆盖缺口。

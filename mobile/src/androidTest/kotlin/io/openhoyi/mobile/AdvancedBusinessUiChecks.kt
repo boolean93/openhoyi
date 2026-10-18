@@ -309,6 +309,30 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         }
         fun balance() = inventory.batches().single { it.batch.id == batchId }.balanceMg
         fun ownEvents() = inventory.events().filter { it.batchId == batchId }
+        fun captureHomeDose(name: String, state: Int) {
+            val beforeDose = preparation.current()
+            val beforeEvents = inventory.events()
+            val beforeBalance = balance()
+            val page = start(HomeActivity::class.java)
+            try {
+                awaitMain { owner(page) === service && views(root(page)).filterIsInstance<TextView>().any {
+                    it.isShown && it.text.toString() == page.getString(state)
+                } }
+                onMain {
+                    val quantity = root(page).findViewWithTag<TextView>("home-dose-quantity")
+                    check(quantity.isShown && quantity.text.toString() == "18 g") {
+                        "Home did not display the selected dose"
+                    }
+                    check(views(root(page)).filterIsInstance<TextView>().any {
+                        it.isShown && it.text.toString().contains(beanName)
+                    }) { "Home dose lost its bean identity" }
+                }
+                captureState(page, name, emptyList())
+                check(preparation.current() == beforeDose && inventory.events() == beforeEvents && balance() == beforeBalance) {
+                    "Viewing the home dose changed preparation or inventory"
+                }
+            } finally { close(page) }
+        }
         fun invariants() = onMain {
             check(service!!.running && service!!.snapshot.message === message) { "Local UI changed machine service/event" }
             preserved.forEach { (name, values) -> check(context.getSharedPreferences(name, Context.MODE_PRIVATE).all == values) { "Local UI changed $name" } }
@@ -504,6 +528,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(root(prep).findViewWithTag<TextView>("dose-balance-receipt") == null)
             }
             captureState(prep, "dose-pending-confirmation", listOf(R.string.dose_confirm))
+            captureHomeDose("home-dose-selected", R.string.task_brew_dose_selected)
             record("dose-select-no-deduction")
             // Hold the real button before it is detached by rendering; repeated dispatch must remain idempotent.
             var confirm: TextView? = null
@@ -518,6 +543,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(receipt.text.toString() == prep.getString(R.string.dose_balance_receipt, "90", "72"))
             }
             captureState(prep, "dose-confirmed-receipt", listOf(R.string.dose_discard))
+            captureHomeDose("home-dose-confirmed", R.string.task_brew_dose_confirmed)
             record("dose-confirm-repeat-recreate")
             click(prep, R.string.dose_discard)
             dialogClick(dialog(prep), AlertDialog.BUTTON_POSITIVE, prep.getString(R.string.dose_discard_confirm))
