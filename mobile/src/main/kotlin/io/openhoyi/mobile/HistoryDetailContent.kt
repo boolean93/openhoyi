@@ -59,7 +59,7 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         setTextColor(getColor(R.color.mobile_danger))
     }
     // Only the dedicated page owns this split; collection previews already have a list pane.
-    val workspace = if (standalone) TaskWorkspaceLayout(this).also {
+    val workspace = if (standalone) TaskExtractionWorkspace(this).also {
         body.addView(it, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
     } else null
     val plotBody = workspace?.primaryBody ?: body
@@ -132,6 +132,10 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
                 R.string.journal_next to notes.nextAdjustment
             ).forEachIndexed { index, (label, value) ->
                 val text = value?.takeIf { it.isNotBlank() } ?: getString(R.string.journal_optional)
+                notesBody.addView(android.view.View(this).apply {
+                    setBackgroundColor(getColor(R.color.mobile_border))
+                    importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                }, LinearLayout.LayoutParams(-1, dp(1)))
                 if (index < 3) {
                     val row = LinearLayout(this).apply {
                         orientation = LinearLayout.HORIZONTAL
@@ -157,7 +161,7 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         notesBody.addView(actions)
     } else body.addView(actions)
     val primaryDock = if (standalone && permanent != null) TaskActionDock(this, edgeInsetDp = 0).also {
-        body.addView(it, LinearLayout.LayoutParams(-1, -2))
+        requireNotNull(workspace).setFooter(it)
     } else null
     fun action(title: String, primary: Boolean = false, leading: Boolean = false, click: () -> Unit) {
         val parent = if (primary) primaryDock ?: actions else if (leading) notesBody ?: actions else actions

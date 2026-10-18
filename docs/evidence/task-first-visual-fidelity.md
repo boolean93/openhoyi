@@ -793,3 +793,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 实读同批history-detail-dark.png并对照history-detail-v2：真实Mock结束32.2秒/22.40g、123采样点、四条轨迹、复盘入口均存在；当前空复盘应显示未填写，不能填造示例豆款。数字单位与主值同大、图表明显偏矮、右栏没有分区线，均未最终对齐。
 - 本候选只对独立历史页两个主读数缩小单位至0.55倍，数字保持40sp/700；数字前缀匹配兼容日/韩无空格单位，未知破折号不改变，全文语义不变。图高问题不能由此声称修复，后续核对workspace与独占底部操作区。
 - 最终构建34161 exit0，Mock/test APK BUILD SUCCESSFUL in25s（/tmp/task-history-metric-units-build.log）；diff/branch-policy通过。新增单位实际呈现及八语言/大字号仍待CI，未安装。
+
+### 历史详情释放左图底部空间（2026-10-18）
+
+- 根因在HistoryDetailContent：独立详情使用TaskWorkspaceLayout，primaryDock另挂在body末尾，因此整行高度同时从左图扣除。复用已有TaskExtractionWorkspace并setFooter，将固定复盘按钮留在右栏，笔记仍独立滚动；集合预览不改。未修改共享布局或图表投影。
+- 右侧三个参数行与后三项笔记补1dp边线，文字/字号/原间距/详情入口保留。未知结束提示和所有未填写字段不隐藏。
+- 原SingleScreenPageChecks仍检查固定按钮全可见且>=48dp、图表全可见且绘图区>=96dp；多语言/大字号/短高继续验。需新实际图确认释放高度，未在未截图前宣称图高已验收。
+- 最终构建52934 exit0，Mock/test APK BUILD SUCCESSFUL in24s（/tmp/task-history-workspace-height-build.log），diff/branch-policy通过。无安装或硬件操作，视觉/运行验收等待新CI。
