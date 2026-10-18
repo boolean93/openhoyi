@@ -133,28 +133,30 @@ class MachineSettingsActivity : ThemedActivity() {
         val summaryCard = card(overview, getString(R.string.machine_settings_connection_title))
         connectionState = text(summaryCard, getString(R.string.machine_settings_disconnected), 16)
         val settingsCard = card(overview, getString(R.string.machine_settings_readback_title))
-        settingsOverview = text(settingsCard, getString(R.string.machine_settings_readback_missing), 14)
-        fun settingRow(first: String, second: String): Pair<TextView, TextView> {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            settingsCard.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-            fun tile(label: String): TextView {
-                val box = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(dp(16), dp(16), dp(16), dp(16))
-                    background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_surface, 12)
-                }
-                row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
-                HoyiUi.label(this, box, label, TaskVisualTokens.SUPPORTING_SP, muted = true)
-                return HoyiUi.label(this, box, "—", TaskVisualTokens.TITLE_SP, true).apply { setPadding(0, dp(8), 0, 0) }
+        fun settingRow(label: Int): TextView {
+            if (settingsCard.childCount > 1) settingsDivider(this, settingsCard)
+            val inline = resources.configuration.fontScale <= 1.1f
+            val row = LinearLayout(this).apply {
+                orientation = if (inline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(8), 0, dp(8))
             }
-            return tile(first) to tile(second)
+            settingsCard.addView(row, LinearLayout.LayoutParams(-1, -2))
+            HoyiUi.label(this, row, getString(label), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+                layoutParams = LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1f else 0f)
+                setPadding(0, 0, dp(8), 0)
+            }
+            return HoyiUi.label(this, row, "—", TaskVisualTokens.BODY_SP).apply {
+                layoutParams = LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1f else 0f)
+                gravity = if (inline) Gravity.END else Gravity.START
+            }
         }
-        settingRow(getString(R.string.machine_settings_brew_label), getString(R.string.machine_settings_steam_label)).also {
-            brewTemperatureValue = it.first; steamTemperatureValue = it.second
-        }
-        settingRow(getString(R.string.machine_settings_run_mode_label), getString(R.string.machine_settings_supply_label)).also {
-            runModeValue = it.first; supplyValue = it.second
-        }
+        brewTemperatureValue = settingRow(R.string.machine_settings_brew_label)
+        steamTemperatureValue = settingRow(R.string.machine_settings_steam_label)
+        runModeValue = settingRow(R.string.machine_settings_run_mode_label)
+        supplyValue = settingRow(R.string.machine_settings_supply_label)
+        settingsDivider(this, settingsCard)
+        settingsOverview = text(settingsCard, getString(R.string.machine_settings_readback_missing), TaskVisualTokens.SUPPORTING_SP)
         settings = text(settingsCard, "", 14).apply {
             visibility = if (detailsExpanded) View.VISIBLE else View.GONE
         }
@@ -162,10 +164,10 @@ class MachineSettingsActivity : ThemedActivity() {
             detailsExpanded = !detailsExpanded
             settings.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
             settingsToggle.text = if (detailsExpanded) getString(R.string.machine_settings_readback_collapse) else getString(R.string.machine_settings_readback_expand)
-        }
-        action(overview, getString(R.string.app_settings_title)) {
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+        action(settingsCard, getString(R.string.app_settings_title)) {
             startActivity(Intent(this, AppSettingsActivity::class.java))
-        }
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
         val writeCard = card(controlsPane, getString(R.string.machine_settings_feedback_title))
         writeStatus = text(writeCard, getString(R.string.machine_settings_feedback_initial), 14)
         val tabsScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }

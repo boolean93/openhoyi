@@ -1010,3 +1010,10 @@ Mock及AndroidTest构建42s成功（/tmp/task-extraction-type-hierarchy-build.lo
 实读用户横屏CurveActivity.png：103条连续列表、新建入口与34%列表比例生效，但右侧未选择。curve-library-font-1.0/normal.png为360dp局部Canvas，不是用户平板整页；其两阶段/24sp主值/小单位/分区成立不能证明双栏选中态。1.0和1.3字号各3夹具通过，保留短高和恢复。新增恢复实际布局后两帧的selected-window截图及完整字体报告，偏好/使用统计不变再次断言；原夹具数量和门禁不变。运行待CI。
 
 选中态窗口取证测试包构建23s通过（/tmp/task-curve-window-build.log），脚本已整目录拉取curve-library-checks，新PNG/JSON无需新增上传路径。与df0ca83/9418feb/f59de79整批推送，未操作设备。
+
+
+## 机器回读逐行布局候选（2026-10-18）
+
+按machine-settings-v1将四块摘要改为逐行标签和值，14/16sp，保留原TextView字段供render更新；自动待机/累计杯数总览移至四行之后。完整回读与应用设置放入同卡片并降为文字按钮，仍保留原展开/跳转回调与触控/焦点反馈。未改设备状态、设置写入或确认。字体/列宽及大字折行须新运行图；分类仍为原选中块而非候选下划线，温度标签仍在输入上方，此差异未关闭。
+
+Mock和AndroidTest构建42s成功（/tmp/task-machine-readback-rows-build.log），diff检查通过。仅本地候选，未新推送，运行视觉未验证。
