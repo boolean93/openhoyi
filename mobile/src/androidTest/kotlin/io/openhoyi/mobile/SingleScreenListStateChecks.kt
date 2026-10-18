@@ -426,8 +426,9 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                             var selectedMetadata = emptyList<String>()
                             main {
                                 val scroll = field(activity, "listScroll") as ScrollView
-                                check(views(scroll).filterIsInstance<Button>().first {
-                                    it.isShown && it.getGlobalVisibleRect(Rect())
+                                check(views(scroll).first {
+                                    it.tag?.toString()?.startsWith("inventory-batch-") == true &&
+                                        it.isShown && it.isEnabled && it.isClickable && it.getGlobalVisibleRect(Rect())
                                 }.performClick())
                                 selectedId = field(activity, "selectedBatchId") as String
                                 selectedMetadata = views(activity.findViewById<ViewGroup>(android.R.id.content)
@@ -456,8 +457,11 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                         detailReturn(activity, BeanBatchActivity::class.java) {
                             if (activity is BeanInventoryActivity) main {
                                 val scroll = field(activity, "listScroll") as ScrollView
-                                val button = views(scroll).filterIsInstance<Button>().first { it.isShown && it.getGlobalVisibleRect(android.graphics.Rect()) }
-                                check(button.performClick())
+                                val row = views(scroll).first {
+                                    it.tag?.toString()?.startsWith("inventory-batch-") == true &&
+                                        it.isShown && it.isEnabled && it.isClickable && it.getGlobalVisibleRect(android.graphics.Rect())
+                                }
+                                check(row.performClick())
                                 check(field(activity, "selectedBatchId") != null)
                                 val batchDetails = views(activity.window.decorView).filterIsInstance<Button>().single {
                                     it.isShown && it.text.toString() == activity.getString(R.string.beans_batch_title)

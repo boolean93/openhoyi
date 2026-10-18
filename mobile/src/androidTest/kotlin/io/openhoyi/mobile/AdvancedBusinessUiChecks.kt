@@ -370,9 +370,78 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         var activity = initial
         onMain {
             BeanInventoryActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }.invoke(activity)
-            val batch = root(activity).findViewWithTag<View>("inventory-batch-$batchId")
-            check(batch.isEnabled && batch.performClick())
         }
+        // render() installs a new TaskPageFrame. Its pageContent is added to the
+        // attached hierarchy on the first onMeasure, not synchronously by render.
+        // Wait for actual draw commits and layout/tag readiness, never sleep or
+        // retry a failed business assertion. The original click/assertions follow.
+        val readiness = org.json.JSONArray()
+        val frame = NativeWindowFrameEvidence(test)
+        val started = SystemClock.elapsedRealtime()
+        val deadline = started + 5000
+        fun readinessSnapshot(): org.json.JSONObject {
+            val content = root(activity)
+            val batch = content.findViewWithTag<View>("inventory-batch-$batchId")
+            return org.json.JSONObject().put("atElapsedMs", SystemClock.elapsedRealtime())
+                .put("requestedBatchTag", "inventory-batch-$batchId")
+                .put("rootAttached", content.isAttachedToWindow).put("rootLaidOut", content.isLaidOut)
+                .put("rootLayoutRequested", content.isLayoutRequested).put("hasWindowFocus", activity.hasWindowFocus())
+                .put("batchPresent", batch != null).put("batchAttached", batch?.isAttachedToWindow ?: false)
+                .put("batchLaidOut", batch?.isLaidOut ?: false).put("batchLayoutRequested", batch?.isLayoutRequested ?: true)
+                .put("batchSizePx", batch?.let { org.json.JSONArray(listOf(it.width,it.height)) } ?: org.json.JSONObject.NULL)
+                .put("availableBatchTags", org.json.JSONArray(views(content).mapNotNull { it.tag?.toString() }
+                    .filter { it.startsWith("inventory-batch-") }))
+        }
+        try {
+            while (true) {
+                val remaining = deadline - SystemClock.elapsedRealtime()
+                check(remaining > 0) { "Three-event batch layout/tag did not become ready within 5000ms" }
+                val committed = frame.committedFrame(root(activity), remaining)
+                var ready = false
+                onMain {
+                    val observedAt = SystemClock.elapsedRealtime()
+                    val withinBudget = observedAt <= deadline
+                    val sample = readinessSnapshot().put("committedFrame", committed)
+                        .put("elapsedMs", observedAt - started).put("withinBudget", withinBudget)
+                    readiness.put(sample)
+                    check(withinBudget) { "Three-event batch layout readiness exceeded 5000ms total budget" }
+                    ready = sample.getBoolean("rootAttached") && sample.getBoolean("rootLaidOut") &&
+                        !sample.getBoolean("rootLayoutRequested") && sample.getBoolean("hasWindowFocus") &&
+                        sample.getBoolean("batchPresent") && sample.getBoolean("batchAttached") &&
+                        sample.getBoolean("batchLaidOut") && !sample.getBoolean("batchLayoutRequested") &&
+                        sample.getJSONArray("batchSizePx").let { it.getInt(0)>0 && it.getInt(1)>0 }
+                }
+                if (ready) {
+                    check(SystemClock.elapsedRealtime() <= deadline) { "Three-event batch readiness accepted after deadline" }
+                    break
+                }
+            }
+            onMain {
+                val batch = requireNotNull(root(activity).findViewWithTag<View>("inventory-batch-$batchId"))
+                check(batch.isEnabled && batch.performClick())
+            }
+        } catch (failure: Throwable) {
+            lateinit var before: org.json.JSONObject
+            onMain { before = readinessSnapshot() }
+            File(directory, "inventory-three-event-layout-readiness.json").writeText(org.json.JSONObject()
+                .put("timeoutMs",5000).put("samples",readiness).put("failureSnapshot",before)
+                .put("failure",failure.stackTraceToString()).put("status","FAIL").toString(2))
+            // Preserve the failed fixture before Scope cleanup. This is explicitly
+            // an unsynchronized diagnostic, not an accepted protocol-2 product PNG.
+            try {
+                val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                try { File(directory,"inventory-three-event-layout-failure.png").outputStream().use {
+                    check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it))
+                } } finally { bitmap.recycle() }
+                onMain { File(directory,"inventory-three-event-layout-readiness.json").writeText(org.json.JSONObject()
+                    .put("timeoutMs",5000).put("samples",readiness).put("failureSnapshot",before)
+                    .put("afterDiagnosticPngSnapshot",readinessSnapshot()).put("pngFrameSynchronization","unknown_diagnostic_only")
+                    .put("failure",failure.stackTraceToString()).put("status","FAIL").toString(2)) }
+            } catch (captureFailure: Throwable) { failure.addSuppressed(captureFailure) }
+            throw failure
+        }
+        File(directory,"inventory-three-event-layout-readiness.json").writeText(org.json.JSONObject()
+            .put("timeoutMs",5000).put("samples",readiness).put("status","PASS_LAYOUT_READY_ONLY_NOT_BUSINESS_RESULT").toString(2))
         test.waitForIdleSync()
         val records = org.json.JSONArray()
         expected.asReversed().forEach { event ->
@@ -669,7 +738,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             record("adjust-confirm-preview"); close(batch)
             val inventoryPage = start(BeanInventoryActivity::class.java)
             onMain {
-                val row = root(inventoryPage).findViewWithTag<android.widget.Button>("inventory-batch-$batchId")
+                val row = root(inventoryPage).findViewWithTag<View>("inventory-batch-$batchId")
                 check(row.isShown && row.isEnabled)
                 row.requestRectangleOnScreen(android.graphics.Rect(0, 0, row.width, row.height), true)
                 check(row.performClick())
