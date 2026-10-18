@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.Gravity
+import android.view.View
 import android.view.WindowInsets
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -121,10 +122,27 @@ class BeanInventoryActivity : ThemedActivity() {
         listScroll?.post { restoreListWhenReady() }
         val back = HoyiUi.button(this, panes.detailBody, getString(R.string.beans_back_to_list)) { showList() }
         val metadata = beanList(panes.detailBody).apply { tag = "inventory-batch-metadata" }
+        val actionRegion = object : LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val inline = View.MeasureSpec.getSize(widthMeasureSpec) >= HoyiUi.dp(this@BeanInventoryActivity, 600) &&
+                    resources.configuration.fontScale <= 1.1f
+                orientation = if (inline) HORIZONTAL else VERTICAL
+                (getChildAt(0).layoutParams as LayoutParams).apply {
+                    width = if (inline) 0 else -1
+                    weight = if (inline) 1f else 0f
+                    marginEnd = if (inline) HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP) else 0
+                }
+                (getChildAt(1).layoutParams as LayoutParams).apply {
+                    width = if (inline) HoyiUi.dp(this@BeanInventoryActivity, 280) else -1
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply { gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false }
+        panes.detailBody.addView(actionRegion, LinearLayout.LayoutParams(-1, -2))
         val actions = BeanActionRows(this)
-        panes.detailBody.addView(actions, LinearLayout.LayoutParams(-1, -2))
+        actionRegion.addView(actions, LinearLayout.LayoutParams(-1, -2))
         val primaryDock=TaskActionDock(this,edgeInsetDp=0,wideMinimumDp=360)
-        panes.detailBody.addView(primaryDock,LinearLayout.LayoutParams(-1,-2))
+        actionRegion.addView(primaryDock,LinearLayout.LayoutParams(-1,-2))
         val rowButtons = mutableMapOf<String, android.widget.Button>()
         fun showSelected() {
             val item = batches.single { it.batch.id == selectedBatchId }

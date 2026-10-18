@@ -1237,3 +1237,11 @@ db5668d run39114685638 pages job成功，下载ci-db5668d-advanced-pages；实�
 现接入已有 CurvePreviewMetrics，保持曲线库一致的 24sp/14sp、16dp 间距和真实配方来源。运行中仍取 displayed 执行曲线，不改门禁；无配方隐藏摘要。实际测量纳入高度预算；短高转入已有局部滚动文字回退，三个配方字段与阶段目标保留。
 
 最终 Mock 与 instrumentation 编译通过（42s，/tmp/task-home-recipe-metrics-build.log），diff 检查通过。尚未运行新增布局，没有新截图，准备页仍未最终验收。原右栏工具入口密度、完整就绪态、图表比例和生成稿字体差异仍需继续核对。
+
+## 2026-10-18：用户平板库存首屏门禁实际失败与复盘实图复核
+
+下载 CI 39115243612 / 30bee76 已完成 business artifact（同run pages仍运行，gh --log-failed 暂不可取；没有重启）。1138×618dp/font1.0/density360，inventory-ledger-first-screen.txt：-10g 行完整108px；+100g 行仅14/108px可见，门禁确实失败。截图确认顶部工具合并有效，但详情底部两层操作仍挤占流水视口。对照 bean-inventory-v3 的单行操作区，候选把宽度≥600dp/字号≤1.1的次操作与280dp主操作并排，余下配置保留纵向。所有回调和原门禁保留，不缩字或隐藏第二条流水。修正未运行，不能宣称已关闭裁切。
+
+逐张读取 ci-0649834-advanced-business 的 review-saved-notes.png 与 history-detail-filled-bottom-fixture.png，并对照 brew-review-v3 / history-detail-v2。复盘时长/克重小单位已生效、三段输入和保存/取消可见；该证据为用户配置，不再只是旧density200截图。长豆名、研磨内容仍需局部滚动。详情长笔记可读，图仍固定且四指标同图；压力末点缺失以破折号显示，不能为了概念图而补零。顶栏留白、轴标位置及同状态整页比例仍未最终验收。
+
+库存单行操作区最终源码 Mock + instrumentation 构建通过（43s，/tmp/task-inventory-inline-actions-build.log）；git diff --check 通过。保留本地提交待后续批量推送，不重复启动在途CI。
