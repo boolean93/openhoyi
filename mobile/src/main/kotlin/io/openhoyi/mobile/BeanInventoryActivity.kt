@@ -93,7 +93,9 @@ class BeanInventoryActivity : ThemedActivity() {
             detailRequested = false
         }
         val tools=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL; gravity=Gravity.END; isBaselineAligned=false }
-        body.addView(tools,LinearLayout.LayoutParams(-1,-2))
+        val headerTools = resources.configuration.screenWidthDp >= 1000 && resources.configuration.fontScale <= 1.1f
+        val toolsParent = if (headerTools) (body.tag as BeanPageRegions).header else body
+        toolsParent.addView(tools, LinearLayout.LayoutParams(if (headerTools) -2 else -1, -2))
         inventoryLink(tools,getString(R.string.beans_add)) {
             startActivity(Intent(this,BeanEntryActivity::class.java))
         }.apply {
@@ -130,7 +132,18 @@ class BeanInventoryActivity : ThemedActivity() {
             HoyiUi.label(this, metadata, item.batch.bean.name, 24, true).apply {
                 setPadding(0, HoyiUi.dp(this@BeanInventoryActivity, 8), 0, HoyiUi.dp(this@BeanInventoryActivity, 16))
             }
-            HoyiUi.label(this, metadata, getString(R.string.beans_balance_label), 14, muted = true)
+            val balanceHeading = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                isBaselineAligned = false
+            }
+            metadata.addView(balanceHeading, LinearLayout.LayoutParams(-1, -2))
+            HoyiUi.label(this, balanceHeading, getString(R.string.beans_balance_label), 14, muted = true).apply {
+                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            }
+            HoyiUi.label(this, balanceHeading, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 14, muted = true).apply {
+                gravity = Gravity.END
+                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+            }
             HoyiUi.label(this, metadata, getString(R.string.beans_quantity_g, BeanQuantity.formatGrams(item.balanceMg)), 40, true).apply {
                 typeface = TaskTypography.face(this@BeanInventoryActivity, 700)
                 text = android.text.SpannableString(text).apply {
@@ -142,7 +155,6 @@ class BeanInventoryActivity : ThemedActivity() {
                 setPadding(0, HoyiUi.dp(this@BeanInventoryActivity, 8), 0, HoyiUi.dp(this@BeanInventoryActivity, 16))
                 contentDescription = getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg))
             }
-            HoyiUi.label(this, metadata, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 14, muted = true)
             HoyiUi.label(this, metadata, getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), TaskVisualTokens.BODY_SP)
             beanRemainingRatio(metadata, item.balanceMg, item.batch.initialMg, TaskVisualTokens.BODY_SP)
             fun divider() = metadata.addView(android.view.View(this).apply {
@@ -309,7 +321,7 @@ internal fun ThemedActivity.beanPage(title: String, subtitle: String? = null,
     shell.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
     val actions = BeanActionRows(this)
     shell.addView(actions, LinearLayout.LayoutParams(-1, -2))
-    body.tag = BeanPageRegions(actions)
+    body.tag = BeanPageRegions(actions, header)
     HoyiUi.navigation(this, root, navigation ?: javaClass)
     setContentView(root)
     return body

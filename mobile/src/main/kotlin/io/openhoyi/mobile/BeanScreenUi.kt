@@ -11,7 +11,7 @@ import android.widget.Spinner
 import android.widget.AdapterView
 
 /** Fixed page regions: only collections and dialog text own a scroll range. */
-internal data class BeanPageRegions(val actions: LinearLayout)
+internal data class BeanPageRegions(val actions: LinearLayout, val header: LinearLayout)
 
 internal class BeanActionRows(private val activity: ThemedActivity) : LinearLayout(activity) {
     private var row: LinearLayout? = null
