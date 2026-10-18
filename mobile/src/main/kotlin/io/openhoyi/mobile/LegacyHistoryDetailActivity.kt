@@ -74,10 +74,20 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
         }
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         workspace.onPrimarySpaceAvailable = { _, budget -> minOf(budget, dp(220)) }
-        HoyiUi.label(this, workspace.secondaryBody, getString(R.string.legacy_detail_source_heading), 20, true).apply {
-            setPadding(0, 0, 0, dp(16))
+        fun section(heading: Int, message: Int, separated: Boolean) {
+            if (separated) workspace.secondaryBody.addView(android.view.View(this).apply {
+                setBackgroundColor(getColor(R.color.mobile_border))
+            }, LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(16); bottomMargin = dp(16) })
+            HoyiUi.label(this, workspace.secondaryBody, getString(heading), TaskVisualTokens.SECTION_SP, true).apply {
+                setPadding(0, 0, 0, dp(8))
+            }
+            HoyiUi.label(this, workspace.secondaryBody, getString(message), TaskVisualTokens.SUPPORTING_SP).apply {
+                setPadding(0, 0, 0, 0)
+            }
         }
-        HoyiUi.label(this, workspace.secondaryBody, disclaimer, 14).apply { setPadding(0, 0, 0, 0) }
+        section(R.string.legacy_detail_source_heading, R.string.legacy_detail_source_body, false)
+        section(R.string.legacy_detail_missing_heading, R.string.legacy_detail_missing_body, true)
+        section(R.string.legacy_detail_limits_heading, R.string.legacy_detail_limits_body, true)
         workspace.secondaryBody.addView(android.view.View(this), LinearLayout.LayoutParams(1, 0, 1f))
         val chart = HoyiUi.card(this, workspace.primaryBody, getString(R.string.legacy_detail_samples_heading)).apply {
             layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)

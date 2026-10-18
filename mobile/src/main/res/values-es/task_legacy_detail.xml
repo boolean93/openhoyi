@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="legacy_detail_samples_heading">Muestras históricas</string>
-    <string name="legacy_detail_source_heading">Origen y limitaciones de datos</string>
+    <string name="legacy_detail_source_heading">Origen de datos</string>
+    <string name="legacy_detail_source_body">Registro antiguo importado: presión (bar) y caudal de agua de la máquina (ml/s).</string>
+    <string name="legacy_detail_missing_heading">Datos no disponibles</string>
+    <string name="legacy_detail_missing_body">Temperatura de la máquina: no disponible\nAgua acumulada: no disponible\nPeso nativo de la báscula: no disponible\nConfirmación nativa de fin: no disponible</string>
+    <string name="legacy_detail_limits_heading">Límites de interpretación</string>
+    <string name="legacy_detail_limits_body">Se conservan wFlow/wTrend brutos. El suavizado y la línea base antiguos no equivalen al peso ni al caudal de la báscula nativa. Este registro no demuestra que la máquina se haya detenido.</string>
 </resources>

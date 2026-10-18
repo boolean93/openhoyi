@@ -867,3 +867,9 @@ AdvancedBusinessUiChecks新增在原待确认/确认状态打开准备页的只�
 TwoCupChartChecks新增220dp高下plot>=128dp及原TextBoundsCanvas逐文本边界/重叠检查，末端时间文字必须与projection.timeEndMs精确对应并含s；总10夹具，报告和脚本同步。此为候选改动，运行/截图待CI。
 
 本地构建43s通过（Mock/instrumentation，exit0）；新10夹具仍待运行。重新读取旧4240daa/run39083695169：三个横屏job均success，整体success；此前大字号取证结论不变，用户平板标准字号artifact另行读取。
+
+## 2026-10-18：用户平板对比页取证与旧详情分组
+
+4240daa/run39083695169用户平板artifact已下载ci-4240daa-user，result.txt确认336/336、21页、中文表单58、列表恢复14。读取zh-Hans-light-BrewComparisonActivity.png：2560×1600，typography.json确认density=scaledDensity=2.25、fontScale1；24sp/500标题，14sp/400杯标签，16sp/500交换与指标按钮（16/8dp内边距），14sp/400表格标签、16sp/400数值（8/4dp内边距）。实虚线和30/32秒、36/35.2g对应；标准字号仍有轴内留白和记录入口后置，后续39ac261/597c7d8已分别改动但本图不能证明新代码效果。
+
+旧版详情认可稿要求来源/缺失/限制分组，当前实现仍整段disclaimer。本轮LegacyHistoryDetailActivity改三段20sp标题与14sp正文、8dp标题后间距、16dp分组间距及1dp分隔线；来源只列旧压力与机器水流，缺失四行列温度/累计水量/原生秤重/结束确认，限制保留wFlow/wTrend处理差异与不能证明实际停机。八语言资源同步，完整原disclaimer仍在详情弹窗。仅显示重组，不变采样、库存或设备状态；新图待CI。

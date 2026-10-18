@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="legacy_detail_samples_heading">历史采样</string>
-    <string name="legacy_detail_source_heading">数据来源与限制</string>
+    <string name="legacy_detail_source_heading">数据来源</string>
+    <string name="legacy_detail_source_body">旧版导入记录：压力（bar）与机器水流（ml/s）。</string>
+    <string name="legacy_detail_missing_heading">缺失的数据</string>
+    <string name="legacy_detail_missing_body">机器温度：未提供\n累计注水量：未提供\n原生秤重：未提供\n原生结束确认：未提供</string>
+    <string name="legacy_detail_limits_heading">解释限制</string>
+    <string name="legacy_detail_limits_body">原始 wFlow/wTrend 已保留。旧版计算含平滑和基线处理，不等同原生秤重或秤流速。此记录不能证明机器实际停止。</string>
 </resources>

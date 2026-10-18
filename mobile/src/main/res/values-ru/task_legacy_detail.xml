@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="legacy_detail_samples_heading">Исторические отсчёты</string>
-    <string name="legacy_detail_source_heading">Источник и ограничения данных</string>
+    <string name="legacy_detail_source_heading">Источник данных</string>
+    <string name="legacy_detail_source_body">Импортированная старая запись: давление (bar) и поток воды машины (ml/s).</string>
+    <string name="legacy_detail_missing_heading">Отсутствующие данные</string>
+    <string name="legacy_detail_missing_body">Температура машины: нет данных\nОбщий объём воды: нет данных\nНативный вес: нет данных\nНативное подтверждение завершения: нет данных</string>
+    <string name="legacy_detail_limits_heading">Ограничения интерпретации</string>
+    <string name="legacy_detail_limits_body">Исходные wFlow/wTrend сохранены. Старое сглаживание и обработка базовой линии не равны нативному весу или потоку по весам. Эта запись не доказывает фактическую остановку машины.</string>
 </resources>
