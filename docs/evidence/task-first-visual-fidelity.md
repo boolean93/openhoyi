@@ -1095,3 +1095,5 @@ TaskFrameChecks的CurveImportPreviewActivity启动参数现携带四阶段测试
 run39091826896成功，下载ci-e8a900a-frame并实读曲线库font1.3 selected-window：两阶段蓝色目标线、固定曲线详情/使用动作均完整；selected-window.txt确认恢复实际尺寸、偏好/使用记录不变。未覆盖四阶段最终验收。机器temperature-bottom.png仍显示第三温度行被底栏截断，而machine-settings-scroll.txt称完整可见；两种证据矛盾，不能关闭机器底部问题。可能是截图提交时序或遮挡检查范围，须追加滚动和可见区域记录区分，尚无产品根因定论。
 
 通用分享截图现使用已有可转换的采集曲线ID，不新建/保存，检查真实名称、复制入口及未导出文件禁用分享，store前后相同，输出share-fixture。其他错误/业务夹具保留；MockAndroidTest构建23s成功（/tmp/task-share-frame-build.log），diff通过，尚未运行该新图。
+
+机器截图矛盾诊断候选：截图前后记录scrollY、窗口可见矩形、蒸汽标签/输入/按钮的实际可见边界和尺寸；现有frame同步后再等100ms合成机会并再次同步，不把等待当通过证据；额外要求蒸汽字段位于窗口可见矩形内。原完整可见及输入不变检查保持。MockAndroidTest构建23s成功、diff通过（/tmp/task-settings-capture-geometry-build.log），尚未运行，根因未定。与预览分栏、正常预览/分享有效数据夹具合批推送。

@@ -78,6 +78,25 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                     } else target.requestRectangleOnScreen(Rect(0, 0, target.width, target.height), true)
                 }
                 frame()
+                // Layout callbacks precede compositor submission; retain geometry on both sides of capture.
+                fun recordGeometry(phase: String) = main {
+                    val visibleWindow = Rect()
+                    activity.window.decorView.getWindowVisibleDisplayFrame(visibleWindow)
+                    val lines = descendants(scroll).filterIsInstance<android.widget.TextView>().filter {
+                        it.text.toString() == label || (machineSettings && (it.text.toString() == activity.getString(R.string.machine_settings_steam_input) ||
+                            (it is EditText && it.hint.toString() == activity.getString(R.string.machine_settings_steam_input))))
+                    }.map { view ->
+                        val bounds = Rect()
+                        view.getGlobalVisibleRect(bounds)
+                        "${view.javaClass.simpleName} text=${view.text} visible=$bounds size=${view.width}x${view.height}"
+                    }
+                    File(directory, "${activity.javaClass.simpleName}-$name-geometry.txt").appendText(
+                        "$phase scrollY=${scroll.scrollY} window=$visibleWindow\n${lines.joinToString("\n")}\n")
+                }
+                recordGeometry("before-settle")
+                SystemClock.sleep(100)
+                frame()
+                recordGeometry("before-capture")
                 // Capture before assertions so a clipped target leaves reviewable evidence.
                 val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
                 try {
@@ -85,6 +104,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                         check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
                     }
                 } finally { bitmap.recycle() }
+                recordGeometry("after-capture")
                 main {
                     val labels = descendants(scroll).filterIsInstance<android.widget.TextView>()
                     val required = if (name == "diagnostics") listOf(label, activity.getString(R.string.app_settings_export)) else listOf(label)
@@ -105,6 +125,9 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                             check(view.getGlobalVisibleRect(bounds) && bounds.width() == view.width && bounds.height() == view.height) {
                                 "Steam temperature field is clipped after scrolling: ${view.javaClass.simpleName} text=${view.text} visible=$bounds size=${view.width}x${view.height} scrollY=${scroll.scrollY}"
                             }
+                            val visibleWindow = Rect()
+                            activity.window.decorView.getWindowVisibleDisplayFrame(visibleWindow)
+                            check(visibleWindow.contains(bounds)) { "Steam field overlaps system window: $bounds outside $visibleWindow" }
                             LanguageUiLayoutChecks.textFits(view, "settings/steam-field")
                         }
                         check(labels.filterIsInstance<EditText>().map { it.text.toString() } == inputValues) {
