@@ -1003,3 +1003,10 @@ Mock及AndroidTest构建42s成功（/tmp/task-extraction-type-hierarchy-build.lo
 依据3c0019c应用设置实图与app-settings-v1，将名称/版本/模式/包名分成四行；14sp标签、16sp值，标准宽屏左右列、大字上下列。值仍绑定实际资源/BuildConfig，包名可复制，完整版本及包名描述保留于无障碍信息。八语言新增标签与版本格式；TaskFrameChecks保持实际包名可见/textFits及版本存在检查，未删偏好不变/不导出断言。现有动作图标与总体密度差异仍保留，未运行验收。
 
 本候选Mock和AndroidTest构建45s成功（/tmp/task-app-info-rows-build.log），8份XML解析及diff/分支检查通过。运行截图仍待对应CI。
+
+
+## 曲线库3c0019c证据范围复核（2026-10-18）
+
+实读用户横屏CurveActivity.png：103条连续列表、新建入口与34%列表比例生效，但右侧未选择。curve-library-font-1.0/normal.png为360dp局部Canvas，不是用户平板整页；其两阶段/24sp主值/小单位/分区成立不能证明双栏选中态。1.0和1.3字号各3夹具通过，保留短高和恢复。新增恢复实际布局后两帧的selected-window截图及完整字体报告，偏好/使用统计不变再次断言；原夹具数量和门禁不变。运行待CI。
+
+选中态窗口取证测试包构建23s通过（/tmp/task-curve-window-build.log），脚本已整目录拉取curve-library-checks，新PNG/JSON无需新增上传路径。与df0ca83/9418feb/f59de79整批推送，未操作设备。

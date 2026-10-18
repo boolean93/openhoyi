@@ -98,6 +98,30 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                     collection.layout(0, 0, oldWidth, oldHeight); collection.requestLayout()
                 }
             }
+            test.waitForIdleSync()
+            val frames = java.util.concurrent.CountDownLatch(1)
+            main {
+                activity.window.decorView.postOnAnimation {
+                    activity.window.decorView.postOnAnimation { frames.countDown() }
+                }
+            }
+            check(frames.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Selected curve window did not draw" }
+            val directory = File(context.getExternalFilesDir(null), "curve-library-checks")
+            main {
+                val collection = activity.window.decorView.findViewWithTag<TaskCollectionLayout>("task-collection")
+                check(collection.detailBody.visibility == View.VISIBLE)
+                check(preferences.all == before)
+                check(app.curves.items.associate { it.id to app.curveUsageResult.getOrThrow().stats(it.id) } == usage)
+                TaskTypographyEvidence.capture(activity, directory)
+            }
+            val window = requireNotNull(test.uiAutomation.takeScreenshot())
+            try {
+                File(directory, "selected-window.png").outputStream().use {
+                    check(window.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+            } finally { window.recycle() }
+            File(directory, "selected-window.txt").writeText(
+                "actualWindow=true restoredAfterSyntheticViewport=true fontScale=$expectedFontScale preferencesUnchanged=true usageUnchanged=true noBle=true\n")
         } finally { main { activity.finish() }; test.waitForIdleSync() }
     }
 }
