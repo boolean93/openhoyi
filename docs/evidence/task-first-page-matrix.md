@@ -15,7 +15,7 @@
 
 | 页面 | 认可稿/范围 | 框架证据状态与缺口 | 字体测量条目 |
 |---|---|---|---|
-| HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | **10-18最新：d873340新增配方温度/目标液重/阶段数共享摘要，短高文本回退保留字段；仅构建通过，待新实图。** 未选曲线；最近配方/本杯就绪待同状态图 | 25 |
+| HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | **10-18最新：d873340 frame39116385295通过；实读1.0/1.3组件图，配方摘要已显示、宽屏图可读；360×640dp紧凑1.3图发现纵轴刻度重叠，未修复。局部组件图不是整页验收。** 未选曲线；最近配方/本杯就绪待同状态图 | 25 |
 | ExtractionActivity | [满配v3](../research/task-first-ui-concepts/extraction-four-series-v3.png)、[无秤v2](../research/task-first-ui-concepts/extraction-no-scale-v2.png) | 784eaaf用户平板有秤/无秤实际启动截图通过；21/0重量样本、四/三指标、参数行/停止完整；绘图区514.148px。1b0deb4无告警行已收起且绘图区增至624.148px，637f83f实图确认图例含实时值、次要读数数值突出；有秤绘图区599.148px、无秤624.148px，停止完整。bcda211两态实图确认48sp数字/22sp单位，绘图区565.148px、停止完整；异常/参考/大字与最终视觉仍未验收 | 33 |
 | CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | **10-18最新：5abe9c2 lifecycle/39115860532失败：普通横屏中文长配方主按钮裁切；根因未确认，新增失败现场取证待运行。** 4240daa用户平板103条列表/两阶段目标实图已核对，排序/滚动恢复有运行证据；3c0019c实图确认34%列表/新建，360dp局部夹具确认24/14sp、小单位及分区；10bf727真实窗口选中态1.0/1.3字号已读，双栏/两阶段/使用按钮完整；大字编辑分享收进曲线操作，四阶段及稿件差异仍待验收；阶段配色/完整参数入口/四阶段同状态未最终验收 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |

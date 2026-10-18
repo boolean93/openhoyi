@@ -1253,3 +1253,9 @@ frame CI39115860563成功，已下载ci-5abe9c2-frame，人工读取CurveShareAc
 lifecycle CI39115860532失败，完整artifact已下载ci-5abe9c2-lifecycle。直接失败为LanguageDetailChecks中文普通横屏longFactory主按钮裁切，而非仅凭模拟器ColorBuffer日志猜测基础设施故障。现补失败原始截图及按钮/父布局/窗口尺寸，保留原断言；脚本在恢复字号和窗口前收集文件。测试取证失败追加为suppressed，不覆盖业务断言。编译Mock+instrumentation通过24s（/tmp/task-curve-action-failure-build.log），bash -n及diff检查通过。根因和修复仍未验证。
 
 页面矩阵六项已补最新证据，不抹去历史版本区别。d873340 frame39116385295运行、advanced39116385388排队；没有取消或重启。
+
+## 2026-10-18：d873340准备摘要实际组件图及新视觉缺口
+
+CI39116385295成功，artifact已下载ci-d873340-frame。人工读取home-font-1.0/normal.png、home-font-1.3/normal.png、home-font-1.3/short-180dp.png及home-font-1.3/recent-wide.png。摘要真实呈现91°C/27.00g/2阶段，小单位生效；宽960×720dp组件图中1.3字号图表可读。home-1.0.txt与home-1.3.txt各4夹具通过，短高/恢复/最近选择/只读不变量通过。注意normal是360×640dp局部测量图，不是用户完整窗口；recent-wide同样是workspace局部图，不能代替整页验收。
+
+新增未关闭缺口：1.3字号normal组件图纵轴0/3/6/9/12标签重叠，说明stage.height≥96dp的既有断言不能证明Canvas轴字不重叠。CurveStageView固定5刻度，字号增大和摘要占高后绘图区不足。后续须按实际字高约束刻度密度或上层回退，不缩字、不删数据；当前未修复，不宣称本轮最终视觉通过。短高截图显示回退文本含温度，完整滚动断言仍通过；新增摘要全部字段的回退文本完整性还需针对性核对。
