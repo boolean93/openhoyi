@@ -408,3 +408,11 @@ Astra重新实看三张原PNG；按浅1.0→深1.0→浅1.3→深1.3审完12张 
 全部在稳定IME后单次reveal变为完整可见，且固定按钮完整、窗口focus=true、无pendingLayout：landscape dose57/65→65/65、name58/65→65/65；large-font为60/65→65/65、62/65→65/65；user为102/117→117/117、106/117→117/117，浅深一致。四个相关生产Activity/布局文件从814e521到a2164ad无diff。故**当前没有依据实施生产布局预算修补**，保留52dp、字号、固定保存与原完整可见断言，维持“稳定→单次reveal→稳定→严格验证”。
 
 只关闭本批“该流程后短字段仍裁切”的复现，不宣称原四次失败唯一根因已证：旧60/45px viewport没有重现，旧失败瞬时祖先/IME现场不足；新reveal前也可以稳定部分可见，不能把三次稳定draw当作自动完整可见。该批 `sameCompositorFrameProven=false` 保留，不冒称同合成帧或整页视觉通过。M2的完整设计/业务/其他短高状态验收继续按原计划。
+
+## 11. BeanEntry独立M2待办：标准初态末字段1px预算不足
+
+新run `39140082109` 的single-user为334/336；证据保留于 `build/task-first-evidence/ci-0a7b71a-single-user/tablet-user-landscape/`。中文浅/深BeanEntry均在 `ChineseFormWindowChecks.kt:407` 的初态 `inputs.forEach(::fullyVisible)` 失败，**尚未进入section、short或IME流程**；result为screenshots=0、sections=0、imeObserved=false。因此不存在本次short失败PNG/geometry/stability，不能把它描述为§10.4已关闭的BrewReview/CurveEditor问题复发。
+
+实读顶层初图和 `single-screen-window-checks/visual-baselines/zh-Hans-light-BeanEntryActivity/BeanEntryActivity-typography.json`：最后“开封日期”输入origin `[1118,1142]`、size972×117，完整底应1259，visible底1258、localVisible高116。祖先 `task-form-scroll` 为1458×995、窗口 `[632,263,2090,1258]`，其内容自然高度996；117px末行越过scroll底1px。日历108px触控先通过；不是系统导航直接盖住末行。初图无IME，入口 `awaitPageReady()` 要求IME隐藏；但没有失败瞬时连续稳定draw与scrollY证据，不能把唯一成因夸称已证明。
+
+**登记为M2独立待办，不中断M1，不改TaskFormSections，也不追加当前批次采集探针。** M2实际迁移BeanEntry时，初态先取稳定geometry/祖先/scrollY/IME/focus/pending现场，再严验五字段同时首屏完整及固定footer；不得先reveal绕过标准态门禁，不容差、不缩52dp/字号。若稳定仍为自然内容996>可用995，应在表单自然内容与固定操作预算/整数舍入处修正，并保留保存/取消与原业务，而非将1px隐去。旧失败产物继续保留；M1样张有限冻结不覆盖本生产页失败。
