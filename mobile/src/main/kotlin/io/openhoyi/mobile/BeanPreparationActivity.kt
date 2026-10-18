@@ -56,6 +56,33 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
             addView(content)
         }, LinearLayout.LayoutParams(-1, -1))
         val support = workspace.secondaryBody
+        fun showCurrentContext() {
+            val selected = current ?: return
+            HoyiUi.label(this, content, getString(R.string.dose_batch), TaskVisualTokens.SECTION_SP, true).apply {
+                setPadding(0, 0, 0, HoyiUi.dp(this@BeanPreparationActivity, 16))
+            }
+            inventory.batches().forEach { batch ->
+                HoyiUi.label(this, content, getString(R.string.dose_batch_choice,
+                    batch.batch.bean.name, BeanQuantity.formatGrams(batch.balanceMg),
+                    getString(R.string.beans_batch_id, beanBatchNumber(inventory, batch.batch.id))),
+                    TaskVisualTokens.BODY_SP).apply {
+                    tag = "dose-batch-summary-${batch.batch.id}"
+                    isSelected = batch.batch.id == selected.batchId
+                    gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                    minimumHeight = HoyiUi.dp(this@BeanPreparationActivity, 72)
+                    setPadding(HoyiUi.dp(this@BeanPreparationActivity, 16), HoyiUi.dp(this@BeanPreparationActivity, 12),
+                        HoyiUi.dp(this@BeanPreparationActivity, 16), HoyiUi.dp(this@BeanPreparationActivity, 12))
+                    background = HoyiUi.shape(this@BeanPreparationActivity,
+                        if (isSelected) R.color.mobile_accent_soft else R.color.mobile_surface, 8, R.color.mobile_border)
+                    layoutParams = LinearLayout.LayoutParams(-1, -2).apply {
+                        bottomMargin = HoyiUi.dp(this@BeanPreparationActivity, 8)
+                    }
+                }
+            }
+            val card = HoyiUi.card(this, support).apply { layoutParams = LinearLayout.LayoutParams(-1, -2) }
+            HoyiUi.label(this, card, getString(R.string.dose_summary, selected.beanName,
+                beanBatchNumber(inventory, selected.batchId), BeanQuantity.formatGrams(selected.amountMg)), 20, true)
+        }
         fun showReceipt() {
             val selected = current ?: return
             val event = inventory.events().find { it.eventId == selected.eventId && it.batchId == selected.batchId &&
@@ -65,8 +92,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
                 LinearLayout.LayoutParams(-1, -2))
         }
         if (current != null && current.shotId != null && !current.associated) {
-            val card = HoyiUi.card(this, content).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2) }
-            HoyiUi.label(this, card, getString(R.string.dose_summary, current.beanName, beanBatchNumber(inventory, current.batchId), BeanQuantity.formatGrams(current.amountMg)), 20, true)
+            showCurrentContext()
             val consumed = inventory.events().any { it.eventId == current.eventId && it.kind == InventoryEventKind.CONSUME &&
                 it.batchId == current.batchId && it.deltaMg == -current.amountMg }
             showReceipt()
@@ -87,8 +113,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
             return
         }
         if (current != null && current.shotId == null) {
-            val card = HoyiUi.card(this, content).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2) }
-            HoyiUi.label(this, card, getString(R.string.dose_summary, current.beanName, beanBatchNumber(inventory, current.batchId), BeanQuantity.formatGrams(current.amountMg)), 20, true)
+            showCurrentContext()
             val ledger = inventory.events().find { it.eventId == current.eventId }
             val matches = ledger?.let { it.kind == InventoryEventKind.CONSUME && it.batchId == current.batchId && it.deltaMg == -current.amountMg } == true
             showReceipt()

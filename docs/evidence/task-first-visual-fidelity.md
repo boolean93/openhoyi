@@ -845,3 +845,9 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 63a490c advanced run39083443733 已 success，business artifact 下载到 build/task-first-evidence/ci-63a490c-business。business-flows.txt 确认18路径、完整字段/三持久化存储、同service/保留机器偏好/noBle通过。读取 dose-pending-confirmation.png 和 dose-confirmed-receipt.png：1600×1000浅色实际图，大号90g与72g、缩小单位及箭头清晰；待确认说明明确“尚未扣减”，确认后显示本次扣减流水及18g；不能把预览当收据。页面大面积留白、左侧摘要与认可稿持续列表仍不一致，不予整页通过。本次代码早于c4130ee错误清除修复，不能证明该修复回归。
 
 AdvancedBusinessUiChecks新增在原待确认/确认状态打开准备页的只读截图检查；核验真实18g、豆名与状态，开关页面前后核对准备记录、完整库存事件与余额不变。两截图并非四阶段配方满数据验收，不能填补压力图/最近使用的覆盖缺口。
+
+## 2026-10-18：保存投粉选择后保持批次上下文
+
+基于63a490c实际待确认/确认图与bean-preparation-v1稿件，BeanPreparationActivity原两个current分支将主栏换为一张摘要卡，造成与初始批次列表/右侧详情结构不一致。本轮统一showCurrentContext：左侧持续列出真实库存批次及当前余额，选中批次accent_soft，16/12dp条目内边距与8dp间距；右侧放原本杯摘要，再接原余额预览或匹配流水。保存之后列表是不可点击TextView，仍必须走原取消选择/放弃准备/关联恢复，不新增自动扣减或切换。当前批次不在库存时不造条目，原摘要与冲突信息仍保留。
+
+业务夹具补待确认90g与重建后确认72g的只读选中条目断言；既有同event幂等、丢弃不回库等检查不减。首次构建测试辅助函数缺少ThemedActivity接收者失败（/tmp/task-dose-context-build.log），第二次补出夹具batchId的可空类型约束，已限定BeanPreparationActivity接收者并对已创建的batchId requireNotNull后重跑（两次均为测试编译错误，非产品运行故障）。视觉截图待新CI，粉量步进器/操作区比例仍未对齐，不能声明整页完成。

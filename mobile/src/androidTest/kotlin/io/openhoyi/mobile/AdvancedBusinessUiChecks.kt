@@ -309,6 +309,16 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         }
         fun balance() = inventory.batches().single { it.batch.id == batchId }.balanceMg
         fun ownEvents() = inventory.events().filter { it.batchId == batchId }
+        fun assertLockedBatchContext(page: Activity, expectedBalance: String) = onMain {
+            val row = root(page).findViewWithTag<TextView>("dose-batch-summary-$batchId")
+            check(row != null && row.isSelected && !row.isClickable && !row.isLongClickable) {
+                "Saved preparation lost its read-only selected batch context"
+            }
+            check(row.text.toString() == page.getString(R.string.dose_batch_choice, beanName, expectedBalance,
+                page.getString(R.string.beans_batch_id, (page as BeanPreparationActivity).beanBatchNumber(inventory, requireNotNull(batchId))))) {
+                "Saved preparation batch context showed stale inventory"
+            }
+        }
         fun captureHomeDose(name: String, state: Int) {
             val beforeDose = preparation.current()
             val beforeEvents = inventory.events()
@@ -528,6 +538,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(root(prep).findViewWithTag<TextView>("dose-balance-receipt") == null)
             }
             captureState(prep, "dose-pending-confirmation", listOf(R.string.dose_confirm))
+            assertLockedBatchContext(prep, "90")
             captureHomeDose("home-dose-selected", R.string.task_brew_dose_selected)
             record("dose-select-no-deduction")
             // Hold the real button before it is detached by rendering; repeated dispatch must remain idempotent.
@@ -543,6 +554,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(receipt.text.toString() == prep.getString(R.string.dose_balance_receipt, "90", "72"))
             }
             captureState(prep, "dose-confirmed-receipt", listOf(R.string.dose_discard))
+            assertLockedBatchContext(prep, "72")
             captureHomeDose("home-dose-confirmed", R.string.task_brew_dose_confirmed)
             record("dose-confirm-repeat-recreate")
             click(prep, R.string.dose_discard)
