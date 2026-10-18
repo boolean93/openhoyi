@@ -49,7 +49,7 @@ internal class TwoCupChartChecks(private val test: Instrumentation) {
                         val pixels = Bitmap.createBitmap(plot.width, plot.height, Bitmap.Config.ARGB_8888)
                         try {
                             val canvas = TrendChartTextChecks.TextBoundsCanvas(pixels,
-                                TextView(activity).apply { textSize = 11f }.textSize, "two-cup-$name")
+                                TextView(activity).apply { textSize = 12f }.textSize, "two-cup-$name")
                             plot.draw(canvas)
                             check(canvas.labels >= 6 && chart.metric.unit in canvas.texts && "s" in canvas.texts)
                         } finally { pixels.recycle() }

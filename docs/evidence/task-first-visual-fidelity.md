@@ -750,3 +750,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 051f16e单屏39082233253用户结果334/336，失败仍仅旧中文BeanEntry第三日期裁切，已由166594d修改待复验；本次实读pressure/window.png确认两杯之间交换动作、右上图例、蓝色和12sp轴标生效。头部占比、摘要粗边和字体细节仍待最终对照。
 - 原两杯fixture完全相同，实虚线重合，不能以该图证明差异可辨。只在instrumentation新增v2命名31/33点两杯，30s/36g与32s/35.2g，四指标均不同；Observation与样本末值/时长一致，旧命名及用户记录不覆盖。增加两投影不同且非空的断言、sources版本/时长记录，不改产品曲线算法。分离样本截图尚待CI。
 - 新测试包89311 exit0/25s（/tmp/task-distinct-comparison-build.log），diff/branch-policy通过；构建不等于分离轨迹已实图可辨。
+
+### 业务收尾通过与对比轴检查基线（2026-10-18）
+
+- b6fc53c/run39082670718 success。下载 ci-b6fc53c-business 并读取 business-flows.txt：18 路径、三日期/7备注/12曲线字段/4阶段、三个持久仓库及最终 preservedMachinePrefs/sameService/noBle 均有成功标记；旧计数错误已关闭。该提交早于用豆新布局，不替代新布局实图验收。
+- 166594d/run39083184345 的 task-frame 失败精确为 TwoCupChartChecks 对 bar 文字仍要求 11sp，产品已在051f16e改12sp。仅将独立预期同步12sp，保留字体缩放精确比较及全部边界/重叠/单位/数据检查。产品未改，CI复验仍待完成。
+- 本地测试包构建会话61986 exit0，BUILD SUCCESSFUL in 21s（/tmp/task-comparison-axis-check-build.log）；diff/branch-policy通过。未本地安装，字号1.0/1.3运行断言待CI。
+- 读取1b0deb4实际有秤运行态 ExtractionActivity-typography.json（density/scaledDensity=2.25，fontScale=1）：标题24sp/500，时间与秤读数40sp/700，辅助标签14sp/400，压力及机器温度18sp/500；停止16sp/500、padding16/8/16/8dp。固定中文字体源记录为Noto Sans SC 2.004-H2。符合对应字号层级不等于生成稿字体被精确识别，整页比例与其余页面仍未最终验收。
