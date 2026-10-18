@@ -1115,3 +1115,9 @@ run39092501813成功（同源码另run39092498372亦成功），下载ci-831aa1c
 ## 高级业务超时定位（2026-10-18）
 
 下载831aa1c advanced run39092501613失败产物：business-flows最后dose-invalid-no-write，但已保存dose-pending-confirmation图，logcat随后HomeActivity NEW_TASK result=3，activities topResumed仍BeanPreparation；十分钟外层超时，无新的断言失败。定位captureHomeDose复用任务却startActivitySync等待新实例。候选仅从当前prep无NEW_TASK启动首页、monitor10秒有界等待，检查不是原root，关闭后prep恢复焦点；同service/库存不变及路径计数保留。AndroidTest构建25s通过、diff通过，尚待运行。该run页面矩阵landscape及wideFont各240夹具通过，不能将业务超时混称页面布局全失败，也不能说后续业务已验收。
+
+## 87334eb参数表门禁结果与确认栏候选（2026-10-18）
+
+run39113352006失败于import-stage-table未显示，下载ci-87334eb-frame-failure并实读两页截图/table-space。1138×623dp/font1：导入表1470×356px隐藏、图1470×664px，放入表后图仅308px，小于原360px门限；分享表1328×192px已完整显示、图1328×381px，两阶段表缺口已关闭但不代表四阶段。
+
+按原导入概念稿将原save/copy dock从整页底行移入右侧decisions；只改变父节点/满支持区宽，保存/冲突/只读/错误回调不变。释放左侧整行占用，不减少160dp图阈值、字号或表格行。Mock及AndroidTest构建成功（/tmp/task-import-confirm-pane-build.log）、diff通过，仍需新实际窗口和短高/大字验证，不能预判四阶段表必通过。

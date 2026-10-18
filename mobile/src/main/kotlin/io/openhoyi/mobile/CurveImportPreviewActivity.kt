@@ -88,8 +88,7 @@ class CurveImportPreviewActivity : ThemedActivity() {
             table.visibility = if (showTable) android.view.View.VISIBLE else android.view.View.GONE
             fixedHeight + minimumChart + if (showTable) table.measuredHeight else 0
         }
-        val dock = TaskActionDock(this, edgeInsetDp = 0)
-        body.addView(dock, LinearLayout.LayoutParams(-1, -2))
+        val dock = TaskActionDock(this, edgeInsetDp = 0, fullWidthContent = true)
         val error = beanError(body)
         if (existing != null) {
             HoyiUi.label(this, decisions, getString(R.string.profiles_conflict), TaskVisualTokens.SECTION_SP, true).apply {
@@ -104,6 +103,7 @@ class CurveImportPreviewActivity : ThemedActivity() {
             }
             HoyiUi.button(this, decisions, getString(R.string.profiles_existing)) { profilePreviewDialog(existing) }
             HoyiUi.button(this, decisions, getString(R.string.profiles_keep_existing)) { finish() }
+            decisions.addView(dock, LinearLayout.LayoutParams(-1, -2))
             val copy = HoyiUi.button(this, dock, getString(R.string.profiles_save_copy), primary = true) {}
             copy.setOnClickListener {
                 if (finishedSave) return@setOnClickListener
@@ -112,6 +112,7 @@ class CurveImportPreviewActivity : ThemedActivity() {
                 else { error.setText(R.string.profiles_save_failed); copy.isEnabled = true }
             }
         } else {
+            decisions.addView(dock, LinearLayout.LayoutParams(-1, -2))
             val save = HoyiUi.button(this, dock, getString(R.string.profiles_import_save), primary = true) {}
             save.setOnClickListener {
                 if (finishedSave) return@setOnClickListener
