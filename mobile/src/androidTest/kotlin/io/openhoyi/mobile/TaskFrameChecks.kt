@@ -34,6 +34,8 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             check(drawn.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Settings scroll frame timed out" }
         }
         val scaleSettings = activity is ScaleSettingsActivity
+        val machineSettings = activity is MachineSettingsActivity
+        var inputValues = emptyList<String>()
         val preferenceNames = if (scaleSettings) listOf("scale_tool") else listOf("appearance", "app_language", "brew_feedback")
         fun preferences() = preferenceNames.associateWith {
             activity.getSharedPreferences(it, Activity.MODE_PRIVATE).all.toMap()
@@ -45,8 +47,11 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             val page = descendants(activity.window.decorView).filterIsInstance<TaskPageFrame>().single().pageContent
             scroll = descendants(page).filterIsInstance<android.widget.ScrollView>().single()
             originalY = scroll.scrollY
+            inputValues = descendants(scroll).filterIsInstance<EditText>().map { it.text.toString() }
         }
-        val targets = if (scaleSettings) listOf(
+        val targets = if (machineSettings) listOf(
+            "temperature-bottom" to activity.getString(R.string.machine_settings_steam_set)
+        ) else if (scaleSettings) listOf(
             "protocol-support" to activity.getString(R.string.scale_offline_evidence)
         ) else listOf(
             "app-info" to BuildConfig.APPLICATION_ID,
@@ -70,6 +75,21 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                         }
                         LanguageUiLayoutChecks.textFits(target, "settings/$name")
                     }
+                    if (machineSettings) {
+                        val inputLabel = activity.getString(R.string.machine_settings_steam_input)
+                        val steamViews = labels.filter { it.text.toString() == inputLabel || (it is EditText && it.hint.toString() == inputLabel) }
+                        check(steamViews.size == 2) { "Missing steam temperature label/input" }
+                        steamViews.forEach { view ->
+                            val bounds = Rect()
+                            check(view.getGlobalVisibleRect(bounds) && bounds.width() == view.width && bounds.height() == view.height) {
+                                "Steam temperature field is clipped after scrolling"
+                            }
+                            LanguageUiLayoutChecks.textFits(view, "settings/steam-field")
+                        }
+                        check(labels.filterIsInstance<EditText>().map { it.text.toString() } == inputValues) {
+                            "Reading settings changed input values"
+                        }
+                    }
                     if (name == "app-info") check(labels.any {
                         it.text.toString() == activity.getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
                     }) { "Settings omitted actual build version" }
@@ -82,7 +102,10 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 } finally { bitmap.recycle() }
             }
             check(preferences() == before) { "Reading settings changed saved preferences" }
-            if (scaleSettings) {
+            if (machineSettings) {
+                File(directory, "machine-settings-scroll.txt").writeText(
+                    "states=1 steamFieldFullyVisible=true inputsUnchanged=true controlsNotInvoked=true noBle=true\n")
+            } else if (scaleSettings) {
                 File(directory, "scale-settings-scroll.txt").writeText(
                     "states=1 protocolTextFullyVisible=true preferencesUnchanged=true noBle=true\n")
             } else {
@@ -190,7 +213,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                     try {
                         File(directory, "${page.simpleName}.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
-                    if (activity is AppSettingsActivity || activity is ScaleSettingsActivity) verifySettingsScroll(activity, directory)
+                    if (activity is AppSettingsActivity || activity is ScaleSettingsActivity || activity is MachineSettingsActivity) verifySettingsScroll(activity, directory)
                 } finally {
                     test.runOnMainSync { activity.finish() }
                     test.waitForIdleSync()

@@ -1053,3 +1053,7 @@ Capture run39089714128成功，下载ci-bcda211-capture。实读active-cup-visua
 对照curve-library-v2与10bf727选中窗口，曲线库启用CurveStageView.pressureColor：大图及缩略图统一chart_pressure蓝、取消阶段彩底；编辑/分享等默认阶段模式不变，阶段值和断开的目标线不变。原参数按钮实例移动至固定底栏，与原使用按钮并排，菜单仍引用同按钮；未选中/过滤清除时隐藏。TaskActionDock新增fullWidthContent默认false，仅本页true。原viewport两字号/短高夹具加强两个动作可见、textFits和边界断言，不减少旧检查。新图及四阶段同状态仍待运行，不宣称视觉一致完成。
 
 最终候选Mock及MockAndroidTest构建成功（45s，91 tasks；/tmp/task-curve-library-pressure-style-final-build.log），git diff --check通过。构建只证明编译/打包，不证明新增底栏在短高或大字号下通过运行时断言。4d308a7的task-frame/lifecycle仍在运行，advanced/single-screen仍排队；本批暂存本地，不重启旧CI。
+
+## 机器温度页底部证据补齐（2026-10-18，待运行）
+
+TaskFrameChecks扩展原设置滚动流程至MachineSettingsActivity：滚到蒸汽设置按钮，检查固定标签、输入框和按钮完整可见及文字适配，输出MachineSettingsActivity-temperature-bottom.png；输入值前后相同、未点击控制、最后恢复滚动位置。既有App/Scale检查保留。MockAndroidTest构建24s成功（/tmp/task-machine-settings-scroll-build.log），diff检查通过。尚未执行此新夹具，不能宣称底部已通过或所有机器设置标签页视觉一致。
