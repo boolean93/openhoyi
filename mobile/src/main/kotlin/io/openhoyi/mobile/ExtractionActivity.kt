@@ -444,9 +444,8 @@ class ExtractionActivity : ThemedActivity() {
         alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             SystemClock.elapsedRealtime()))
         val now = SystemClock.elapsedRealtime()
-        val alarmFresh = snapshot.alarmAt?.let { it <= now && now - it <= 1500 } == true
-        alarmStatus.visibility = if (active && compactChrome && snapshot.alarmBits == 0 && alarmFresh)
-            View.GONE else View.VISIBLE
+        alarmStatus.visibility = if (machineAlarms.showExtractionStatus(active, snapshot.alarmBits, snapshot.alarmAt, now))
+            View.VISIBLE else View.GONE
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
         elapsedValue.show(if (frame is ExtractionTelemetry && !frame.brewWait) "${frame.elapsedSeconds} s" else "—")
         pressureValue.show(getString(R.string.task_extraction_pressure, when (frame) {

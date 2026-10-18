@@ -49,6 +49,12 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
             check(label.isShown && label.text.toString() == screen.getString(
                 if (connected) R.string.task_extraction_scale else R.string.task_extraction_water))
             check(stop(screen).isShown && stop(screen).isEnabled)
+            val alarm = ExtractionActivity::class.java.getDeclaredField("alarmStatus").apply { isAccessible = true }
+                .get(screen) as android.widget.TextView
+            check(owner.snapshot.alarmBits == 0 && owner.snapshot.alarmAt?.let {
+                val now = SystemClock.elapsedRealtime()
+                it <= now && now - it <= 1500
+            } == true && !alarm.isShown) { "Fresh all-clear still consumes running plot space" }
             TaskTypographyEvidence.capture(screen, directory)
             fun bounds(view: android.view.View): org.json.JSONObject {
                 val location = IntArray(2)
