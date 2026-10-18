@@ -226,3 +226,19 @@ single另报Review/Editor在短IME态出现27/34px可点击TextView小于48dp。
 ### 本批修正构建证据
 
 测试修正 `2ce9d09`、生产修正 `e77e3fa` 经 Astra 静态终核无阻断。唯一统一构建日志 `/tmp/2026-10-19-m2-visual-fixes-build.log`：`BUILD SUCCESSFUL in 1m 5s`，96 tasks / 12 executed；Mock 与 AndroidTest assemble 完成。四份本轮 JVM XML 合计17 tests（4/3/8/2），0 failure/error/skip。只证明编译与这些测试，不关闭本节已见视觉 FAIL。下一正常批次正式夹具先运行 CurveEditor，完整12配置及首失败终止保持，获取实际四阶段预算后再修其裁切。
+
+### 0647518 正式 Editor 首图与条件式元信息重排
+
+run `39150740279` / head `0647518` / tested merge `640315453618dcb29ba8ec2cbe2fb5af53d0efb9` 失败。M2 正式主图仅 **1/12**，随后原11字段首屏断言失败；未进入 Editor IME/新业务契约及 Bean/Review 主图。原件位于 `build/task-first-evidence/ci-0647518-frame/task-frame-tablet-user-landscape/task-first-evidence/form-visual-migration/raw-device/640315453618dcb29ba8ec2cbe2fb5af53d0efb9/tablet-user-landscape-light-font-1.0/curve-editor/`，Astra已实看 `window.png` 并独立读 `geometry.json`，不是仅引用机械结果。
+
+- 实际app2560×1391px、origin[0,74]、density360/font1.0、无IME；`availablePx=1040`、`metadataNaturalPx=253`、`metadataMinimumPx=189`、`stageNaturalPx=766`、`stageMinimumPx=361`、`previewMinimumPx=741`，`fullNaturalPx=1055`，`compactSingleContentScroll=false`。完整纵排确实多15px，不是像素同步冲突。
+- metadata viewport `[216,245,2524,498]`；stage viewport `[252,570,1360,1249]`。第4行target `[450,1147,896,1264]`、water `[914,1147,1360,1264]` 各高117，只可见到1249（102px）；前三行完整。footer `[216,1285,2524,1429]`、保存 `[2272,1303,2524,1429]` 完整。单次滚动后第4行完整且恢复，不代替标准初态11字段门禁。
+- 测试 owner 对该原件机械核得52hash、14 accepted protocol2/56等价域零差、10单位baseline0、13滚动恢复；这些限定证据不覆盖首屏 FAIL。M1同期12配置回归机械无新失败，不外推M2。另064旧business图中Bean名称/数量已有可见间隔、Review长豆名两行完整；只关闭这两个具体状态的肉眼现象，精确16dp、正式12配置及G2–G4仍待验。
+
+**主任务已批准的最小生产范围：仅 `TaskCurveEditorForm.kt`。** 足高保原稿三张元信息卡的label上/input下；仅 `fullVerticalNaturalPx > actual availablePx` 且三卡各自真实宽度允许时，三卡内部改label左/input右，关联8dp。三卡顺序、卡16dp面内距/卡间16dp/上下区域16dp、14sp标签、16sp输入、原52dp自然下限、单位baseline、阶段4行/图160及固定footer均不削减。
+
+卡内宽度条件以同次真实测量为准：label自然宽 + 8dp + 输入所需净宽 ≤ 卡内宽。名称保留单行横向编辑，最低可用宽取同实际Paint八个中文字advance加真实compound padding；数值取实际输入文本advance加真实compound padding，已有单位reserve只计一次。此为明确设计补充的编辑可用宽，不是从15px倒推阈值；输入/label/单位wrapper父层级永久，resize仅measure/layout，不reparent。条件不满足保原纵排与既有极短内容滚动，不豁免标准11首屏；足高恢复纵排。
+
+本夹具按已测input117px与面内72px，同行metadata预计189px、完整内容约991px，可释放64px而非抠掉15px；该数值只是预算预测，必须下一CI实测。新增账本保留vertical/inline自然高、fullVertical、各卡内宽/label/text advance/compound padding、fits与selected；`shortMinimum`独立测量后force原子树按真实约束再量，避免wrapper缓存错误宽度。LP相对margin明确按实际MetadataCell方向解析，RTL不取LP自身旧方向。
+
+**静态结论：** 上述补丁及方向来源收口已复核，暂无阻断，可统一构建取证；未称运行或视觉通过。下一次仍Editor-first完整12配置，标准11输入全可见且不预滚、真实1.3/短高/IME、非默认焦点/选区/滚动重建、原业务与所有G1–G4门禁保持。未取得真实运行结果前，本页G1 FAIL及其余待验状态不变。

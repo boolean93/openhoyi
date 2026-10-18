@@ -2,7 +2,7 @@
 
 > **For agentic workers:** 使用 `superpowers:executing-plans` 按本计划执行。Astra 负责设计/验收，Sol 负责生产/测试；主任务明确分配文件并统一构建推送。不得自行派生代理、修改其他 owner 文件或取消在途 CI。
 
-**Goal:** 按主任务分段授权迁移 CurveActivity、CurveImportActivity、CurveImportPreviewActivity，保留连续列表、本杯选择和显式导入/冲突流程。2026-10-19 依赖复核后已允许独立 Curve 生产与新 fixture 准备先行；这不代表 M2 完成。
+**Goal:** 按主任务分段授权迁移 CurveActivity、CurveImportActivity、CurveImportPreviewActivity，保留连续列表、本杯选择和显式导入/冲突流程。2026-10-19 依赖复核后，已由独立 Curve 先行扩大至同一 Sol 顺序实施完整三页生产；这不代表 M2 完成。
 
 **Architecture:** 沿用 M1 已限定冻结的原生字体、语义色、80dp rail、局部滚动和真实截图协议；仅三页 opt-in，不新建样张、不改变数据格式或全局默认。真实 Activity/model 决定所有数据、能力、冲突和路由。
 
@@ -13,7 +13,7 @@
 遵守 [task-template](task-template.md) 与 [git-workflow](../git-workflow.md)。
 
 - 来源 `develop` 共同基线 `66ebda95dc7986eec66f9fa0b7e6cbd565c74506`；延续已授权 `feature/task-first-ui`，PR #4 → `develop`。本次源码只读基线 `026f9937f055342ba7256d2f446065b3bbdb0746`，文档 HEAD `8698bfbc928a1fee8bf21ad7881c36734a523cca`；M2 生产/测试正在同树修改，本计划不覆盖或提交其文件。
-- M1 真实三页限定结论见 [M1 §11](2026-10-18-product-visual-migration.md)。2026-10-19 主任务在依赖复核后授权提前启动 `CurveActivity/CurvePreviewMetrics` 与新 `CurveVisualMigrationChecks` 独立 fixture 准备：它们消费 M1 已限定验收的 style/StageView/Frame/Workspace，生产文件不与 M2 交叉。M2 `0647518` 仍在真实 CI/验收，收到新证据立即优先；不得用 M3 推进追认或覆盖 M2 原 SHA 证据。Import/Preview 与共享测试接线仍等主任务另行分配。原24页范围不变，不新增竖屏适配，也不锁方向规避窗口变化。
+- M1 真实三页限定结论见 [M1 §11](2026-10-18-product-visual-migration.md)。2026-10-19 主任务在依赖复核后先授权 `CurveActivity/CurvePreviewMetrics` 与新 `CurveVisualMigrationChecks` 独立准备，随后正式授权同一生产 Sol 顺序实施 `CurveImportActivity/CurveImportPreviewActivity`，完整三页成组验证。仅消费 M1 已限定验收的 style/StageView/Frame/Workspace 与固定 `0647518` 表单 helper，不改共享默认或 `CurveImportPreviewLayoutPolicy`。M2 `0647518` 仍在真实 CI/验收，收到新证据立即优先；不得用 M3 推进追认或覆盖 M2 原 SHA 证据。共享测试/runner/workflow 接线仍由主任务单 owner 串行分配。原24页范围不变，不新增竖屏适配，也不锁方向规避窗口变化。
 - 开始时重新核 HEAD/status、文件 owner 和已完成 M2 接口。普通推送由主任务合批执行；不直推 main/develop、不 force。branch-policy、verify、lifecycle、upgrade 必需检查及评审完成后走 PR。
 - 不改 BLE/命令/算法/精度、导入 schema/MAX_BYTES/UTF-8、执行资格、库存、usage 排序模型、快捷槽位身份、未知记录或持久化格式。用于本杯仅保存原 selected 选择，不启动机器；预览不保存，冲突不覆盖。
 - 不发版、不改包名/签名/versionCode、不安装或操作用户机器/秤。Mock 不证明硬件。回退用追加修正或 revert PR，保留原数据/草稿与未知结果，不清库、不重发。
@@ -79,6 +79,7 @@
 - 左/右约65:35、右最大400dp沿现有生产比例；左右surface、边框/24dp间隔按原稿与冻结palette。右警告只在 `existing != null` 的真实冲突存在时显示，不把同ID且完全相同当冲突。
 - 左名称与真实 controlMode badge；温度/目标量两块16dp内距、标签14/值20/单位14同baseline；阶段数保留为标题辅助信息，不能删现有字段。长名自然两行及完整详情路径，元信息用实际自然预算，不能重演长名称叠加重复间距。
 - 压力图使用真实doc targets及阶段四色，冻结renderer，至少160dp；表header+实际1–4行全部保留。表头/正文14，cell水平8dp，纵向按真实行盒+既有4dp内距，第一列阶段色点+名称，单位在列标题。FlowRaw 不硬画压力图、不换算猜测bar，保留原只读说明与完整原文详情。
+- 2026-10-19 主任务批准的完整自然预算适配：足高保留两metrics卡label上/值下；若全自然内容超实际可用高且两卡自然宽均能容纳，则卡内改label/值/单位同行，卡16dp内距及14/20/14字级不减。阶段数并入既有分区标题，使用一个明确的“阶段预览与完整参数 · N阶段”语义标题，避免再叠第二块占高标题；图与完整表保留8dp间距/表头。图caption全文移至右侧既有说明区，不删、不缩字。静态参考单行名36+8+同行metrics62+8+标题30+图160+8+表150=462dp，加左面32约494；这不是运行证明，长名/各语种/实际Layout须重新量完整自然高，不按静态数裁内容。标准全表首屏门禁不以滚动替代，1.3/短高仍按原可达契约。
 - `CurveImportPreviewLayoutPolicy.allocate()` 继续先保留所有自然高文本/表，最后扩展图；唯一16/8dp组间距不重复。标准原条件下图+四阶段全表默认首屏完整；1.3/短高左内容可局部滚动逐行完整，右动作固定。不预滚动替代首屏、不减图/字/表格内距过关。
 - 冲突卡保留真实警告标题及解释；查看本机版本、保存副本、保留本机三个既有动作完整，副本为主操作，保留为次要。非冲突使用原保存动作。完整详情/兼容与只读原因/“只保存到曲线库，不会启动萃取”均可达；错误不挤掉主操作。
 - 沿 M1 Workspace 的现有显式固定副区 opt-in 能力实现右局部说明+固定操作；不更改其默认。极短横屏可用原局部滚动fallback，但每个操作自然触控高度完整可达，不整页连导航一起滚。保留 `finishedSave`、禁用→失败重新启用、运行时冲突重 render、saveCopy新ID、importDocument重复幂等；不得静默覆盖或自动选中。
@@ -92,15 +93,17 @@
 | 单一生产 Sol | `CurveActivity.kt`、`CurvePreviewMetrics.kt` | Metrics当前仅Curve调用；可显式style参数，默认null保持旧路径。模型/排序/筛选/槽位/选择不改 |
 | 同一生产 Sol | `CurveImportActivity.kt`、`CurveImportPreviewActivity.kt` | 只页面构图/角色/动作展示；保留所有decode/IO/store/幂等。已有 `CurveImportPreviewLayoutPolicy.kt` 默认不改，若实际预算接口必要则同owner连测试一起列diff |
 | 同一生产 Sol，复用不修改 | `TaskProductVisualStyle`、M2已提交但待运行验收的 `TaskProductFormStyle`、`HomeVisualIcon`、`CurveStageView`、`TaskPageFrame/Nav`、`TaskWorkspaceLayout`、`TaskCollectionLayout` | 沿现有显式opt-in；不改共享默认/不回写M1/M2。Import所需 input/label/error/footer 仅消费固定接口，不因使用而称 M2 已验。新图标若现有语义缺失只能新增明确kind，经owner协调；不能临时改全部按钮或renderer |
-| 单一测试 Sol | 新 `CurveVisualMigrationChecks.kt`、新 `scripts/check_curve_visual_migration.sh`；`AdvancedBusinessUiChecks.kt`、`AdvancedPageChecks.kt`、`SingleScreenListStateChecks.kt`、`LanguageDetailChecks.kt` 必要增补；runner/workflow新增入口 | 不修改既有门槛/协议/M1 M2夹具；新scope独立审闭包；现有字段/标签优先保留，确需selector迁移只能精确语义不扩大匹配 |
+| 单一测试 Sol | 新 `CurveVisualMigrationChecks.kt`、新 `scripts/check_curve_visual_migration.sh`、新 `.github/workflows/curve-visual-ui.yml`、`BrewAudioInstrumentation.kt` 新入口；已授权 `CurveLibraryViewportChecks.kt` 精确metrics叶子适配；其它共享 `AdvancedBusinessUiChecks/AdvancedPageChecks/SingleScreenListStateChecks/LanguageDetailChecks` 仅确需时由主任务串行分配 | 不修改既有门槛/协议/M1 M2夹具；新scope独立审闭包；现有字段/标签优先保留，确需selector迁移只能精确语义不扩大匹配；不把M3追加进旧task-frame长顺序job |
 | Astra | 本计划及主任务指定的matrix/review | 设计、静态审、真实 G1–G4，非生产实现 |
 
 - [x] 2026-10-19 主任务确认无强制 M2→Curve 依赖，划出 Curve 两生产文件与新 fixture 独立准备；M2 未结束。启动核实际 HEAD/status，保留 M2 原门禁及证据。
-- [ ] Import/Preview 实施与共享测试接线由主任务另行授权；`AdvancedBusinessUiChecks/AdvancedPageChecks/SingleScreenListStateChecks/LanguageDetailChecks/BrewAudioInstrumentation/workflow` 单 owner 串行修改，不与 M2 补证并写。共享 helper 不因本次提前启动扩改。
+- [x] 同日主任务另授权同一生产 Sol 顺序实施 Import/Preview 两 Activity；固定064 helper只消费、LayoutPolicy暂不改，保留§3原文/IO/幂等/FlowRaw/表格与固定操作契约。尚非实施完成。
+- [x] 主任务批准独立 `curve-visual-ui.yml` 单job45min、完整12配置；测试Sol独占新runner/workflow与BrewAudioInstrumentation接入，旧task-frame四入口及其它required不改。这是接入授权，不是运行完成。
+- [ ] `AdvancedBusinessUiChecks/AdvancedPageChecks/SingleScreenListStateChecks/LanguageDetailChecks/BrewAudioInstrumentation/workflow` 仍由主任务单 owner 串行分配，不与 M2 补证并写。共享 helper 不因提前启动扩改。
 - [ ] 测试先固定真实主fixture与原不变量；生产按 Curve→Import→Preview 成组落实§3，不按每个padding推送。
 - [ ] 静态审一次核：共享default隔离、原本杯/槽位资格、输入原文恢复、冲突幂等、完整表预算/固定操作。源码冻结后统一构建，不与他人构建并行。
 - [ ] `./gradlew :mobile:testMockUnitTest --tests 'io.openhoyi.mobile.CustomCurveTest' --tests 'io.openhoyi.mobile.CurveOrderingTest' --tests 'io.openhoyi.mobile.CurveSearchTest' --tests 'io.openhoyi.mobile.CurveCategoryFilterTest' --tests 'io.openhoyi.mobile.CurveStageParametersTest' --tests 'io.openhoyi.mobile.CurveImportPreviewLayoutPolicyTest' :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain`；期望exit0，额外真实预算函数才补边界JVM，不给每个padding写镜像测试。
-- [ ] 主任务合批普通push，保持single三个横屏profile、advanced/lifecycle全部原入口，并新增本批12真实主图/规定状态；不取消在途CI。
+- [ ] 主任务合批普通push，保持single三个横屏profile、advanced/lifecycle及旧task-frame全部原入口；新独立job执行 `bash scripts/check_curve_visual_migration.sh` 完整12主配置/规定状态，首真实失败终止并保存证据，不取消在途CI。
 - [ ] Astra先浅1.0三页，再深1.0，再两主题1.3/滚达/IME/错误；仅真实差异返修，限定结论更新matrix，不重开样张或外推24页。
 
 ## 5. fixture、业务与原门禁
@@ -114,6 +117,8 @@
 | Preview：与已有合法doc同ID但内容不同的真实冲突；名称“经典浓缩（新版）”、93°C/36g、pressure targets30/90/70/50、水量150/250/150/50 | 原本机doc先合法存入scope，输入doc不先存。四阶段标准全表首屏/大字逐行可达、图>=160、右固定。无冲突保存、完全相同重复、冲突查看/保留/副本、运行时冲突、写失败再启用、FlowRaw只读/非法document。检查store内容/原ID未变/副本新ID，不仅看toast |
 
 新scope按已验10Lazy闭包逐项核定，尤其 `CurveActivity.onCreate` 会初始化history做usage迁移；必须是scoped history及其全部callback，不触原initializer。完整内存模型+owned cache、关闭Activity/对话框/服务→新writer drain→恢复原Lazy/language/failure与明确白名单prefs；原业务盘hash不变。Curve另写 `curves.sort/selected`，快捷测试写 `presets` 对应槽位：只备份/恢复实际触及键的存在性与类型，物理SHA另记，禁止clear整库/删除文件追hash。clipboard测试在明确scope操作内备份恢复；不修改产品自动读取时机。新scope不借用M1/M2私有对象或改其入口。
+
+**CI拓扑（2026-10-19批准）：** 新 `curve-visual-ui.yml` 使用与旧task-frame相同push/PR/dispatch来源、API34/emulator/KVM及同一Mock/AndroidTest构建命令与Gradle缓存，在实际tested SHA独立构建并记录APK hash；不为复用一个APK重构原job。单 `curve-visual` job 外层45min，runner完整执行三页×两主题×两字号，每页/profile新进程，当前Mock/qemu/fresh fail-closed guard保留。内部帧/稳定预算不加长，首FAIL策略不改，always上传独立 `build/task-first-evidence/curve-visual-migration/` 原件/诊断。旧 `task-frame-ui.yml` 已含原24页/样张/M1/M2顺序入口，保持不变；single/advanced/lifecycle与原四required也不减少。PR评审必须核M3新job及实图，不能因其不属于原四required名称而跳过。没有新增流水线成功/时长保证；45min不足时先依据实测定位，不无限加timeout或少测配置。
 
 **保留原门禁，不下调：**
 
@@ -134,4 +139,17 @@
 | G3 | 14/16/20/24角色实际sp→px、实际Layout行盒、数字单位baseline、52dp输入自然下限、图文字不重叠；不以getter lineHeight冒充实际行盒 |
 | G4 | 两主题page/surface/selected/border/primary/secondary/disabled，冲突warning和error状态；resolved配置与原PNG纯色内区独立核，不把drawable色当合成色 |
 
-抗锯齿边缘差异不作为改色理由；真实间距/字号/行盒/背景差异不得归咎抗锯齿。原图未知、深色适配与真实无数据状态按上述边界明确记录。完成后Astra仅给有证据三页/状态限定结论；硬件、其他页面和未测状态继续待验。当前已授权独立首段启动，尚无 M3 构建/运行/视觉验收结论，不授予任何PASS；原文中的执行次序不构成 M2 已完成证据。
+抗锯齿边缘差异不作为改色理由；真实间距/字号/行盒/背景差异不得归咎抗锯齿。原图未知、深色适配与真实无数据状态按上述边界明确记录。完成后Astra仅给有证据三页/状态限定结论；硬件、其他页面和未测状态继续待验。当前已授权完整三页生产与独立12配置取证；以下静态/本地构建记录不授予任何运行或视觉PASS，原文中的执行次序不构成 M2 已完成证据。
+
+
+### 2026-10-19 本批生产终审（静态限定）
+
+Astra已读完整Preview diff及8语种 `curve_visual.xml`，独立解析确认3个key一致、阶段标题各含一个 `%1$d`。Workspace回调为整pane尺寸，Preview只扣一次面内距；两metrics卡先量完整纵排，仅超实际预算且两卡自然宽均足时同行。数字与单位仍独立baseline，图160dp、表格H8/V4与实际1–4阶段、标准图+全表首屏条件均未下降。caption全文移右说明，右局部scroll与固定真实决策dock分开；FlowRaw没有假压力图。`CurveImportPreviewLayoutPolicy`无diff。保存/副本/重复/冲突重新render与失败恢复按钮继续原业务路径。
+
+终审发现并已复核两处定点收口：冲突卡旧bottom16与后续说明top16重复为32，现前者归零，保留唯一16组距；该卡旧16圆角改本批12，原真实warning surface/border不变。Curve/Metrics16列净空、Import自然header及RTL来源、M2条件同行既有收口无新设计变更；本次两处Kotlin类型/receiver修正仅明确EditText来源与Nullable Editable转String，不改布局判定。
+
+主任务报告生产/JVM retry1构建35s成功，9份JVM XML共31 tests，0 failure/error/skip；两处最终Preview样式收口后的Mock/AndroidTest统一构建仍待完成。此记录只准许继续构建/真实取证，不宣称标准预算已容纳或G1–G4通过。测试owner已完成并经Astra复核：标准初态同次采集chart与五行表完整性，右caption逐项可达；whole同时核真实Layout左右界限与垂直行盒，不增加容差；稳定判定仅纳入isShown实际树的pending layout。完整三页scope保留10Lazy合法内存闭包、显式前台clipboard逻辑恢复、UUID provider及本scope导入线程退出/主线程barrier、新writer drain后才恢复原对象；cleanup失败明确overall/isolation FAIL，不以layout PASS掩盖。独立runner的12集合/原协议2/实际profile/hash/fresh fail-closed与首次失败留证已静态复核，暂无剩余静态阻断。新独立CI完整12、首FAIL与原全部回归不变。
+
+### 本批本地构建记录
+
+生产预构建先发现Import按钮receiver及Editor nullable Editable两处类型错误，已最小修正。`/tmp/2026-10-19-m2-editor-m3-production-build-retry1.log` 显示35s成功；九份对应JVM XML共31 tests，0 failure/error/skip。随后Preview唯一间距/12dp圆角和测试最后三项门禁收口，`/tmp/2026-10-19-m2-editor-m3-apks-build.log` 显示Mock与AndroidTest构建成功57s。为核实编译启动附近的测试编辑全部覆盖，冻结后同命令增量确认日志 `/tmp/2026-10-19-m2-editor-m3-frozen-apks-build.log`：5s成功、91 tasks全部up-to-date。仅证明本地编译与这些JVM测试；M2新12配置、M3首次12配置/特殊状态/隔离运行与G1–G4仍待CI，不以构建追认视觉。

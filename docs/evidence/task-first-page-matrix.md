@@ -2,6 +2,8 @@
 
 2026-10-19，最新已验产品证据head `026f993` / frame `39146205031` / tested merge `75e5333f20bb21ec911ec99befb9d979ad483dba`。M1三页已在中文用户横屏、浅深×1.0/1.3主夹具范围获得G1–G4限定验收；**不是24页/全状态最终验收**。其余21页、硬件与未采状态仍待验。详细审查集中于[M1计划§11](../plans/2026-10-18-product-visual-migration.md#11-2026-10-19-026f993-真实-m1-限定验收进入-m2)。 M2三表单已随 `95be8fb` 推送（生产 `5c495e8`、测试 `b77c704`）；本地4 suites/17 tests及Mock/AndroidTest构建通过，frame `39149210695` 已失败，正式 M2 主图 0/12（Bean section 测试定位错误）；已见真实差异按下表记 FAIL，其他门仍 EVIDENCE_PENDING，不以实现/构建追认视觉。
 
+**0647518 本轮追加证据（不关闭未测项）：** frame `39150740279` / tested merge `640315453618dcb29ba8ec2cbe2fb5af53d0efb9` 正式M2主图1/12，仅Editor浅色1.0；原11字段首屏断言失败。实际 available1040 / metadata253 / stage766 / previewMinimum741 / fullNatural1055，第四行两个117px输入各仅102px可见，固定footer完整。主图协议2及隔离通过不抵消G1 FAIL；IME/业务恢复未执行，Bean/Review正式夹具未进。新业务PNG仅观察到入库间隔与复盘长选豆第二行改善，精确间距/全状态仍待验。native `39150740210`、advanced `39150740270` 两job通过；single `39150740256` 标准/大字号通过、用户平板失败。M1本轮12配置机械回归无失败，fresh-process13份实测有效；不外推为M2视觉通过。 编辑页候选修正 `ee7f270` 已单独提交：仅在满字段纵排超高且三卡实际宽度可容纳时，元信息卡内部条件同行；原字体、8/16间距、52dp输入与11字段首屏门禁不变。静态审及生产/AndroidTest构建已通过，9 suites/31 tests通过；尚未取得新运行原图，不关闭上述FAIL。
+
 沿用feature/task-first-ui→develop PR#4及docs/git-workflow.md。本次只同步事实，不操作设备、不合并/发版；检查24页覆盖、状态值、引用及文档差异。后续由主任务合批普通push，可追加revert回退。
 
 ## 统一取证要求
@@ -55,7 +57,7 @@
 |---|---|---|---|---|---|
 | HomeActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
 | ExtractionActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 运行态证据不等于精确四项冻结 |
-| CurveActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | a4786a0真实整窗关闭density200中文浅色1.0/1.3无压力fixture及density360中文浅色1.0两阶段采集曲线的底裁切；用户配置列表返回/重建锚点保持；同稿严格四项另验，不记PASS |
+| CurveActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M3已实施：冻结字体/间距/语义色、真实指标与连续列表；保留原选择/排序/槽位。31 JVM tests及两个APK构建通过，新独立12配置尚未运行。历史footer/list限定证据保留，不追认新视觉。 |
 | HistoryActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 非空同状态及精确基线待补 |
 | HistoryDetailActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 限定四指标实图不覆盖全部状态 |
 | BrewComparisonActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 实图/轴专项不等于精确构图冻结 |
@@ -67,8 +69,8 @@
 | BrewReviewActivity | FAIL | EVIDENCE_PENDING | FAIL | EVIDENCE_PENDING | 95be8fb真实业务图选豆第二行裁切；advanced wideFont ru/light页头曲线/时间ellipsis失败；single短高真实tools菜单触控高度不足48dp。修补待新证据，旧18业务通过不抵消视觉差异 |
 | CurveEditorActivity | FAIL | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | 95be8fb业务图第四阶段输入底部裁切；single短高真实tools菜单触控高度不足48dp。正式M2夹具未运行到此页，single用户配置初态另证117px输入仅102px可见；完整自然高度预算仍缺，下一批优先独立取四阶段证据；不能以滚达替代标准11字段首屏 |
 | CurveShareActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
-| CurveImportActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 合法/非法/IME同状态与基线待补 |
-| CurveImportPreviewActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | a4786a0中文浅色1.3四阶段全表保留并可局部滚达、右栏固定；1.0首屏图表完整；未通过严格四项 |
+| CurveImportActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M3已实施：原生原文输入/显式粘贴与文件读取、固定操作；原decode/UTF8/MAX_BYTES/草稿路径保留。静态与构建通过，真实合法/非法/IME/SAF和四门待独立12配置。 |
+| CurveImportPreviewActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M3已实施：条件metrics同行、共享阶段标题、完整图表及右固定动作；原LayoutPolicy与冲突/副本/幂等语义保留。图160和标准5行完整门禁不减；静态/构建不替代实图。 |
 | ScaleActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 无读数不能替代有效重量/趋势状态 |
 | ScaleConnectionActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 候选/连接/限制/错误状态待补 |
 | LegacyCurveActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 非空只读图仍需同稿精确对照 |
