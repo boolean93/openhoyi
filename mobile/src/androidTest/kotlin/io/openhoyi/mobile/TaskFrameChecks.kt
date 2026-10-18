@@ -61,9 +61,30 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             for ((name, label) in targets) {
                 main {
                     val target = descendants(scroll).filterIsInstance<android.widget.TextView>().single { it.text.toString() == label }
-                    target.requestRectangleOnScreen(Rect(0, 0, target.width, target.height), true)
+                    if (machineSettings) {
+                        val label = activity.getString(R.string.machine_settings_steam_input)
+                        val content = scroll.getChildAt(0) as ViewGroup
+                        val group = descendants(content).filterIsInstance<android.widget.TextView>().filter {
+                            it === target || it.text.toString() == label || (it is EditText && it.hint.toString() == label)
+                        }
+                        check(group.size == 3) { "Missing steam temperature group" }
+                        val requested = Rect()
+                        group.forEach { view ->
+                            val bounds = Rect(0, 0, view.width, view.height)
+                            content.offsetDescendantRectToMyCoords(view, bounds)
+                            requested.union(bounds)
+                        }
+                        content.requestRectangleOnScreen(requested, true)
+                    } else target.requestRectangleOnScreen(Rect(0, 0, target.width, target.height), true)
                 }
                 frame()
+                // Capture before assertions so a clipped target leaves reviewable evidence.
+                val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                try {
+                    File(directory, "${activity.javaClass.simpleName}-$name.png").outputStream().use {
+                        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                    }
+                } finally { bitmap.recycle() }
                 main {
                     val labels = descendants(scroll).filterIsInstance<android.widget.TextView>()
                     val required = if (name == "diagnostics") listOf(label, activity.getString(R.string.app_settings_export)) else listOf(label)
@@ -82,7 +103,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                         steamViews.forEach { view ->
                             val bounds = Rect()
                             check(view.getGlobalVisibleRect(bounds) && bounds.width() == view.width && bounds.height() == view.height) {
-                                "Steam temperature field is clipped after scrolling"
+                                "Steam temperature field is clipped after scrolling: ${view.javaClass.simpleName} text=${view.text} visible=$bounds size=${view.width}x${view.height} scrollY=${scroll.scrollY}"
                             }
                             LanguageUiLayoutChecks.textFits(view, "settings/steam-field")
                         }
@@ -94,12 +115,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                         it.text.toString() == activity.getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
                     }) { "Settings omitted actual build version" }
                 }
-                val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
-                try {
-                    File(directory, "${activity.javaClass.simpleName}-$name.png").outputStream().use {
-                        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
-                    }
-                } finally { bitmap.recycle() }
+
             }
             check(preferences() == before) { "Reading settings changed saved preferences" }
             if (machineSettings) {

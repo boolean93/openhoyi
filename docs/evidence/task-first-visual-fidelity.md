@@ -1077,3 +1077,7 @@ run39090796831成功，下载ci-4d308a7-frame并实读MachineSettingsActivity.pn
 ## 曲线导入底栏候选（2026-10-18）
 
 对照curve-import-v2与4d308a7实际图，底栏改为常驻现有完整导入说明（14sp）＋取消/预览，宽屏320dp动作区右对齐，小窗口上下排；预览、显式剪贴板读取与文件路径不改。首次编译因HoyiUi.dp要求Activity而传Context失败，修正为显式Activity后最终Mock及AndroidTest构建成功（/tmp/task-curve-import-footer-final-build.log）。此候选未运行截图，仍有标题文案/图标/编辑区提示等差异，不能称整页完成。
+
+## a0ab801设置滚动失败调查（2026-10-18）
+
+run39091312445失败，已下载ci-a0ab801-frame-failure并读取result.txt：TASK_FRAME_CHECKS_FAILED Steam temperature field is clipped after scrolling，发生在MachineSettings页，后续曲线库组件未验证。夹具只request按钮矩形却断言标签/输入也完整，不能由此断言整组不可滚到；原失败在截图之前，缺失败状态图。校正为三个原view在内容坐标系下的并集请求，仍要求三者完整可见、textFits及输入不变；截图移到断言前，失败文本增加view/边界/滚动信息。MockAndroidTest构建23s成功、diff通过（/tmp/task-machine-scroll-group-build.log）。这是测试滚动目标纠正，不是产品问题已消除的证明，仍待新CI确认。与本地机器标签、温度同行、导入footer一起合批推送，不重启旧任务。
