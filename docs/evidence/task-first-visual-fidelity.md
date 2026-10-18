@@ -822,3 +822,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 只读提示常显，旧完整参数及协议限制文字通过查看详情弹窗提供；缺失值依然未知。新增两条资源覆盖8语言。
 - 选中重建测试比较全部展示TextView文本并比较原完整detailSummary，同时断言四参数标签存在；原索引/指纹/列表恢复断言不删。新实际选中/大字号图仍待CI，不能以构建通过替代视觉验收。
 - 最终构建56701 exit0，Mock/test APK BUILD SUCCESSFUL in47s（/tmp/task-legacy-detail-grid-build.log），8语言XML解析、diff/branch-policy通过。新回归与实图仍待CI，无安装或设备写入。
+
+### 对比图12sp回归闭环（2026-10-18）
+
+- a5abedf/task-frame39084062951与39084059178均success；后续e7929eb/run39084950175同样success。下载ci-e7929eb-frame，读取two-cup-1.0/1.3：各9fixture/sharedScale=true/recovery=true/noBle=true；chart-result为4个四指标组件fixture；result为24页框架通过。这是组件/框架证据，不是全21页有数据视觉验收。
+- 实读1.0与1.3压力图、1.3水量图：同蓝实虚线9/6bar可辨，12sp按系统字号缩放，单位、刻度和断点保留。读源码确认仍通过TextBoundsCanvas精确校验12sp换算、边界、重叠及单位，未降低到只看存在。旧11sp预期误报可关闭。
+- 实读1.3单杯缺重量、双杯缺重量、短高图：单杯仅画实际已有系列，双杯缺数据展示“不生成重量曲线”，短高提示完整；不补0、不跨断点连线。该测试是320dp宽原生组件，不能替代整页不同两杯fixture截图（4240daa single-screen仍queued）。TwoCupChartView/TwoCupChartChecks从e7929eb到712913e无源码差异。
+- 本轮仅收证，未新增产品改动/CI。63a490c advanced39083443733仍in_progress，大号库存数值视觉验收继续等待。
