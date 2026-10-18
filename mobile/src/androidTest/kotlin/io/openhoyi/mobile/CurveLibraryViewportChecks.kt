@@ -41,6 +41,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 val metrics = field("previewMetrics") as CurvePreviewMetrics
                 val ability = field("availability") as TextView
                 val select = field("select") as Button
+                val parameter = field("parameterShortcut") as Button
                 val directory = File(context.getExternalFilesDir(null), "curve-library-checks").apply { mkdirs() }
                 val oldWidth = collection.width
                 val oldHeight = collection.height
@@ -51,7 +52,15 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
                     collection.layout(0, 0, width, height)
                     check(collection.browserBody.visibility == View.GONE && collection.detailBody.visibility == View.VISIBLE)
-                    check(select.visibility == View.VISIBLE && select.height >= HoyiUi.dp(activity, 48))
+                    for (action in listOf(select, parameter)) {
+                        check(action.isShown && action.height >= HoyiUi.dp(activity, 48))
+                        LanguageUiLayoutChecks.textFits(action, "$name fixed curve action")
+                        val bounds = android.graphics.Rect(0, 0, action.width, action.height)
+                        collection.offsetDescendantRectToMyCoords(action, bounds)
+                        check(bounds.left >= 0 && bounds.right <= width && bounds.top >= 0 && bounds.bottom <= height) {
+                            "$name fixed curve action clipped: ${action.text} $bounds"
+                        }
+                    }
                     for (index in 0 until collection.detailBody.childCount) {
                         val child = collection.detailBody.getChildAt(index)
                         if (child.visibility != View.VISIBLE) continue

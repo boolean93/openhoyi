@@ -19,6 +19,7 @@ class CurveActivity : ThemedActivity() {
     private lateinit var details: TextView
     private lateinit var availability: TextView
     private lateinit var select: Button
+    private lateinit var parameterShortcut: Button
     private lateinit var assignPreset: Button
     private lateinit var editDraft: Button
     private lateinit var shareParameters: Button
@@ -211,6 +212,7 @@ class CurveActivity : ThemedActivity() {
                     setPadding(dp(12), dp(10), dp(12), dp(10))
                     val thumbnail = CurveStageView(this@CurveActivity).apply {
                         compact = true
+                        pressureColor = true
                         background = HoyiUi.shape(this@CurveActivity, R.color.mobile_surface, 8, R.color.mobile_border)
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                     }
@@ -272,7 +274,7 @@ class CurveActivity : ThemedActivity() {
             visibility = View.GONE
             setPadding(0, dp(8), 0, dp(8))
         }
-        stageChart = CurveStageView(this).apply { visibility = View.GONE }
+        stageChart = CurveStageView(this).apply { pressureColor = true; visibility = View.GONE }
         // Kept as a bounded, non-overflowing viewport for existing layout selectors.
         detailScroll = ScrollView(this).apply {
             isFillViewport = true
@@ -338,16 +340,28 @@ class CurveActivity : ThemedActivity() {
             visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(-2, -2)
         }
-        selectionDock = TaskActionDock(this, edgeInsetDp = 0, wideMinimumDp = 400)
+        selectionDock = TaskActionDock(this, edgeInsetDp = 0, fullWidthContent = true)
         detailPane.addView(selectionDock, LinearLayout.LayoutParams(-1, -2))
-        select = HoyiUi.button(this, selectionDock, getString(R.string.curve_use), primary = true) {
+        val footer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        }
+        selectionDock.addView(footer, LinearLayout.LayoutParams(-1, -2))
+        secondary.removeView(parameterDetails)
+        parameterShortcut = parameterDetails.apply {
+            asTaskTextAction()
+            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            visibility = View.GONE
+        }
+        footer.addView(parameterShortcut, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
+        select = HoyiUi.button(this, footer, getString(R.string.curve_use), primary = true) {
             selected?.let { item ->
                 getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
                 finish()
             }
         }.apply {
             isEnabled = false; visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) }
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
         }
         collection.onDetailSpaceAvailable = { width, height -> updatePreviewSpace(width, height) }
         search.addTextChangedListener(object : TextWatcher {
@@ -446,6 +460,7 @@ class CurveActivity : ThemedActivity() {
         detailActions.visibility = View.VISIBLE
         select.isEnabled = canStart
         select.visibility = View.VISIBLE
+        parameterShortcut.visibility = View.VISIBLE
         select.text = if (canStart) getString(R.string.curve_use) else getString(R.string.curve_cannot_start)
         assignPreset.visibility = if (item.factoryCurve != null) View.VISIBLE else View.GONE
         assignPreset.isEnabled = item.factoryCurve != null && canStart
@@ -552,6 +567,7 @@ class CurveActivity : ThemedActivity() {
             availability.visibility = View.GONE
             select.isEnabled = false
             select.visibility = View.GONE
+            parameterShortcut.visibility = View.GONE
             assignPreset.isEnabled = false
             assignPreset.visibility = View.GONE
             editDraft.visibility = View.GONE

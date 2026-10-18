@@ -12,6 +12,10 @@ internal class CurveStageView(context: Context) : View(context) {
         set(value) { field = value; invalidate() }
     var compact: Boolean = false
         set(value) { field = value; invalidate() }
+    var pressureColor: Boolean = false
+        set(value) { field = value; invalidate() }
+    private fun stageColor(index: Int): Int = if (pressureColor)
+        context.getColor(R.color.chart_pressure) else CurveStagePalette.color(context, index)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = TaskTypography.face(context) }
 
     override fun onDraw(canvas: Canvas) {
@@ -27,10 +31,10 @@ internal class CurveStageView(context: Context) : View(context) {
         val bottom = height - paddingBottom - if (compact) dp(8f) else labelHeight + dp(16f)
         if (right <= left || bottom <= top) return
         val values = targets.take(4)
-        if (!compact && values.isNotEmpty() && values.all { it in 0..120 }) {
+        if (!compact && !pressureColor && values.isNotEmpty() && values.all { it in 0..120 }) {
             paint.style = Paint.Style.FILL
             values.indices.forEach { index ->
-                paint.color = CurveStagePalette.color(context, index)
+                paint.color = stageColor(index)
                 paint.alpha = 12
                 canvas.drawRect(left + (right - left) * index / values.size, top,
                     left + (right - left) * (index + 1) / values.size, bottom, paint)
@@ -68,7 +72,7 @@ internal class CurveStageView(context: Context) : View(context) {
         paint.strokeWidth = dp(if (compact) 2f else 3f)
         paint.strokeCap = Paint.Cap.ROUND
         values.forEachIndexed {index,target->
-            paint.color = CurveStagePalette.color(context, index)
+            paint.color = stageColor(index)
             val start=left+(right-left)*(index+.12f)/values.size
             val end=left+(right-left)*(index+.88f)/values.size
             val y=bottom-(bottom-top)*CurveStageParameters.pressureFraction(target)
@@ -77,7 +81,7 @@ internal class CurveStageView(context: Context) : View(context) {
         if (compact) {
             paint.style = Paint.Style.FILL
             values.forEachIndexed { index, target ->
-                paint.color = CurveStagePalette.color(context, index)
+                paint.color = stageColor(index)
                 val x = left + (right - left) * (index + .5f) / values.size
                 val y = bottom - (bottom - top) * CurveStageParameters.pressureFraction(target)
                 canvas.drawCircle(x, y, dp(2.5f), paint)
@@ -88,7 +92,7 @@ internal class CurveStageView(context: Context) : View(context) {
         paint.textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12f, resources.displayMetrics)
         paint.textAlign = Paint.Align.CENTER
         values.forEachIndexed { index, target ->
-            paint.color = CurveStagePalette.color(context, index)
+            paint.color = stageColor(index)
             val x = left + (right - left) * (index + .5f) / values.size
             val y = bottom - (bottom - top) * CurveStageParameters.pressureFraction(target)
             canvas.drawCircle(x, y, dp(4f), paint)

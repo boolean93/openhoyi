@@ -1046,3 +1046,10 @@ run39089718635成功，ci-bcda211-frame/task-frame-tablet-user-landscape/tablet-
 Capture run39089714128成功，下载ci-bcda211-capture。实读active-cup-visual/with-scale和no-scale/window.png及geometry/typography，states=2 actualMockStartStop=true noBle=true。metricRuns显示主数字108px=48sp/700、单位49.5px=22sp/700；次要数字54px=24sp/700，标签及单位31.5px=14sp/400，非伪粗体。两态图表1587×958px，实际绘图区有秤1295.5×565.148px、无秤1359.5×565.148px，停止703×126px完整。对比637f83f，实际图高有秤减少34px/无秤减少59px；说明字号提高及主值高度均占空间，不能隐去这一变化。四/三系列、无秤不显示重量成立。当前较bcda211仅异常说明自然换行改变，尚无新异常/参考整页及大字图；此证据不证明与概念稿全状态一致，也不证明硬件。
 
 10bf727-frame实际应用信息四行图已读：名称HOYI Mock、版本0.1.0(1)、Mock描述和实际包名右对齐完整，原堆叠差异已关闭（标准浅色）。机器温度页固定标签/输入按钮同行已生效，但首屏仅前两输入可见；设置允许滚动仍须底部验证。最新机器回读逐行布局在该版本之后，不能从这张旧图推断已生效。
+
+
+## 曲线库压力语义与参数直达候选（2026-10-18）
+
+对照curve-library-v2与10bf727选中窗口，曲线库启用CurveStageView.pressureColor：大图及缩略图统一chart_pressure蓝、取消阶段彩底；编辑/分享等默认阶段模式不变，阶段值和断开的目标线不变。原参数按钮实例移动至固定底栏，与原使用按钮并排，菜单仍引用同按钮；未选中/过滤清除时隐藏。TaskActionDock新增fullWidthContent默认false，仅本页true。原viewport两字号/短高夹具加强两个动作可见、textFits和边界断言，不减少旧检查。新图及四阶段同状态仍待运行，不宣称视觉一致完成。
+
+最终候选Mock及MockAndroidTest构建成功（45s，91 tasks；/tmp/task-curve-library-pressure-style-final-build.log），git diff --check通过。构建只证明编译/打包，不证明新增底栏在短高或大字号下通过运行时断言。4d308a7的task-frame/lifecycle仍在运行，advanced/single-screen仍排队；本批暂存本地，不重启旧CI。
