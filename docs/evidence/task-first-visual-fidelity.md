@@ -807,3 +807,11 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 截图发现选择态18g合法且预览正确时，底部仍显示前次18.0001的红色错误。TextWatcher只刷新预览导致过期反馈。候选仅在可解析正数且errorResource精确为dose_bad_amount时清除；保存、确认、称豆及恢复错误保留。不新增任何写入。
 - 回归在原流程增加18.0001报错→0仍报错→18无该错误，保留预览、未保存/未扣减和后续重复确认幂等检查。三状态构图仍未完全贴合：保存/确认改为摘要卡，不是概念稿连续列表上下文；仍不能关闭整页。
 - 最终构建5143 exit0，Mock/test APK BUILD SUCCESSFUL in42s（/tmp/task-dose-validation-feedback-build.log）；diff/branch-policy通过。新增反馈断言未在本地设备执行，CI实图回归仍待完成。
+
+### 入库日期裁切与历史加载复验（2026-10-18）
+
+- 166594d/run39083184371三个横屏job均success。下载ci-166594d-tablet-user-landscape与tablet-large-font；各自result.txt均checked=336/pages=21/fixtures=336，14列表恢复fixture；中文表单截图分别58/56，入库浅深结果completed=true/sections=3/imeObserved=true/noSave=true。
+- 实读用户平板中文浅深section-2及大字号浅色section-2：五输入、三日期行和日历入口完整，原第三日期裁切已关闭；用户平板density2.25/fontScale1，大字号JSON确认density1.25/scaledDensity1.625/fontScale1.3。大字号证据不能冒充用户设备相同密度。BeanEntryActivity从166594d至c4130ee无源码差异。
+- 历史加载等待修正这一版已通过原336夹具，不再有此前ar-light-HistoryDetailActivity固定300ms造成的空图失败。后续af9a6d4历史布局不包含在该证据中，仍须单独回归。
+- 新疑点：用户平板深色section-2图中保存按钮文字未显，而同轮zh-Hans-dark-BeanEntryActivity.png和section-0正常。实际字体JSON含保存批次16sp/500、bounds[1550,1285,2090,1411]、padding16/8dp。代码白字状态、几何与其他帧不足以确定单帧缺字原因；不能把该图判为整页视觉通过，也不据此盲目改产品配色。保留为取证/渲染待查项。
+- 本轮仅收证更新，未新增产品变更或CI；63a490c高级页面仍排队，大号库存前后值仍待实际图。

@@ -22,7 +22,7 @@
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 63a490c实际结束图已读：32.2秒/22.40g、123采样点、四指标同图；单位缩小、右栏分区及侧栏固定复盘候选待图；图高释放尚未实测，未最终验收 | 8 |
 | BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 35db865用户平板336检查通过；实读压力/水量/温度浅色与重量深色专项图，按钮完整、双轨迹和量纲真实切换；051f16e实图确认交换位置/图例/蓝色/12sp轴标；两杯重合不能证明区分效果，新增不同样本待图；未完成视觉验收 | 9 |
 | BeanInventoryActivity | [库存v2](../research/task-first-ui-concepts/bean-inventory-v2.png) | 库存空态 | 11 |
-| BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 35db865实图三日期日历入口完整；已按入库v2改双模式并保留独立草稿，候选构建通过；ff651be两模式填写实图与身份/草稿恢复路径已读；b6fc53c业务18路径及收尾不变量已通过；ff651be用户平板第三日期裁切，已收紧40dp留白待新CI；短高仍待验收 | 20 |
+| BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 35db865实图三日期日历入口完整；已按入库v2改双模式并保留独立草稿，候选构建通过；ff651be两模式填写实图与身份/草稿恢复路径已读；b6fc53c业务18路径及收尾不变量已通过；166594d三个横屏job通过，用户平板浅深/1.3字号实图三日期完整，裁切关闭；深色专项单帧保存文字缺失疑点待查，未最终视觉验收 | 20 |
 | BeanBatchActivity | [批次v1](../research/task-first-ui-concepts/bean-batch-v1.png) | abe9614业务图有90g/初始100g、三日期和两条流水；摘要/日期分区修正待新图 | 8 |
 | BeanLedgerActivity | [流水v3](../research/task-first-ui-concepts/bean-ledger-v3.png) | 051f16e用户平板有事件图已读：入库+250g/余额250g、批次与原因五列对齐，最新记录在前；当前图未覆盖扣减/调整/长原因，时间列无数据源，仍未最终验收 | 14 |
 | BeanPreparationActivity | [用豆v1](../research/task-first-ui-concepts/bean-preparation-v1.png) | 8c16949业务18路径通过，三状态实图已读；左右列表/表单成立，后续大号余额尚待图；合法粉量仍留旧错误，候选已修待回归；确认态构图仍未完整对齐 | 10 |
