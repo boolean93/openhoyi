@@ -800,3 +800,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 右侧三个参数行与后三项笔记补1dp边线，文字/字号/原间距/详情入口保留。未知结束提示和所有未填写字段不隐藏。
 - 原SingleScreenPageChecks仍检查固定按钮全可见且>=48dp、图表全可见且绘图区>=96dp；多语言/大字号/短高继续验。需新实际图确认释放高度，未在未截图前宣称图高已验收。
 - 最终构建52934 exit0，Mock/test APK BUILD SUCCESSFUL in24s（/tmp/task-history-workspace-height-build.log），diff/branch-policy通过。无安装或硬件操作，视觉/运行验收等待新CI。
+
+### 用豆三状态实图与过期错误反馈（2026-10-18）
+
+- 8c16949/run39082950054 success；下载ci-8c16949-business并读取18路径/收尾不变量成功标记。实读dose-selected-draft、pending-confirmation、confirmed-receipt（1600×1000）：选择态左列表/右粉量、真实18g/90→72g成立；保存态明确尚未扣减，确认态明确本次流水及已扣18g，取消/放弃/返回完整。该提交早于DoseBalanceView，不能验收后来40sp前后值或用户平板大字号。
+- 截图发现选择态18g合法且预览正确时，底部仍显示前次18.0001的红色错误。TextWatcher只刷新预览导致过期反馈。候选仅在可解析正数且errorResource精确为dose_bad_amount时清除；保存、确认、称豆及恢复错误保留。不新增任何写入。
+- 回归在原流程增加18.0001报错→0仍报错→18无该错误，保留预览、未保存/未扣减和后续重复确认幂等检查。三状态构图仍未完全贴合：保存/确认改为摘要卡，不是概念稿连续列表上下文；仍不能关闭整页。
+- 最终构建5143 exit0，Mock/test APK BUILD SUCCESSFUL in42s（/tmp/task-dose-validation-feedback-build.log）；diff/branch-policy通过。新增反馈断言未在本地设备执行，CI实图回归仍待完成。

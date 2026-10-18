@@ -171,6 +171,10 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         fun updatePreview() {
             val batch = batches.find { it.batch.id == draftBatchId }
             val mg = runCatching { BeanQuantity.parseGrams(amount?.text?.toString().orEmpty()) }.getOrNull()
+            if (mg != null && mg > 0 && errorResource == R.string.dose_bad_amount) {
+                errorResource = null
+                error?.text = ""
+            }
             if (batch != null && mg != null && mg > 0 && mg <= batch.balanceMg)
                 preview.update(batch.balanceMg, batch.balanceMg - mg)
             else preview.update(null, null)

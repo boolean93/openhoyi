@@ -478,7 +478,17 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             click(prep, R.string.dose_save_selection)
             check(preparation.current() == null && balance() == 90000L && ownEvents().size == 2)
             record("dose-invalid-no-write")
+            fun assertDoseError(visible: Boolean) = onMain {
+                val shown = views(root(prep)).filterIsInstance<TextView>().any {
+                    it.isShown && it.text.toString() == prep.getString(R.string.dose_bad_amount)
+                }
+                check(shown == visible) { "Dose validation feedback disagrees with corrected input" }
+            }
+            assertDoseError(true)
+            fill(prep, R.string.dose_amount, "0")
+            assertDoseError(true)
             fill(prep, R.string.dose_amount, "18")
+            assertDoseError(false)
             onMain {
                 val preview = root(prep).findViewWithTag<TextView>("dose-balance-preview")
                 check(preview.text.toString() == prep.getString(R.string.dose_balance_preview, "90", "72"))
