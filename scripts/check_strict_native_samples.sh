@@ -17,12 +17,19 @@ PY
 )
 original_font_scale=$(adb shell settings get system font_scale | tr -d '\r')
 collect() {
-  adb pull "/sdcard/Android/data/$package/files/strict-native-samples/$source_sha" "$output_dir/" || true
+  local exit_status=$1
+  # The successful main pull is finalized on the host below. Never pull raw files
+  # over that tree on exit; failed runs keep a separate unmodified diagnostic copy.
+  if (( exit_status != 0 )); then
+    mkdir -p "$output_dir/raw-device" || true
+    adb pull "/sdcard/Android/data/$package/files/strict-native-samples/$source_sha" "$output_dir/raw-device/" || true
+  fi
   adb logcat -d -s AndroidRuntime:E > "$output_dir/runtime-errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb shell settings put system font_scale "$original_font_scale" || true
+  return "$exit_status"
 }
-trap collect EXIT
+trap 'collect "$?"' EXIT
 adb shell wm size 2560x1600
 adb shell wm density 360
 adb shell settings put system accelerometer_rotation 0
