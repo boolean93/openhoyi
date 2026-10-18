@@ -2,7 +2,7 @@
 
 > **For agentic workers:** 使用 `superpowers:executing-plans` 按本计划执行。Astra 负责设计/验收，Sol 负责生产/测试；主任务明确分配文件并统一构建推送。不得自行派生代理、修改其他 owner 文件或取消在途 CI。
 
-**Goal:** 在 M2 完成限定验收、主任务明确切换后，迁移 CurveActivity、CurveImportActivity、CurveImportPreviewActivity，保留连续列表、本杯选择和显式导入/冲突流程。
+**Goal:** 按主任务分段授权迁移 CurveActivity、CurveImportActivity、CurveImportPreviewActivity，保留连续列表、本杯选择和显式导入/冲突流程。2026-10-19 依赖复核后已允许独立 Curve 生产与新 fixture 准备先行；这不代表 M2 完成。
 
 **Architecture:** 沿用 M1 已限定冻结的原生字体、语义色、80dp rail、局部滚动和真实截图协议；仅三页 opt-in，不新建样张、不改变数据格式或全局默认。真实 Activity/model 决定所有数据、能力、冲突和路由。
 
@@ -13,7 +13,7 @@
 遵守 [task-template](task-template.md) 与 [git-workflow](../git-workflow.md)。
 
 - 来源 `develop` 共同基线 `66ebda95dc7986eec66f9fa0b7e6cbd565c74506`；延续已授权 `feature/task-first-ui`，PR #4 → `develop`。本次源码只读基线 `026f9937f055342ba7256d2f446065b3bbdb0746`，文档 HEAD `8698bfbc928a1fee8bf21ad7881c36734a523cca`；M2 生产/测试正在同树修改，本计划不覆盖或提交其文件。
-- M1 真实三页限定结论见 [M1 §11](2026-10-18-product-visual-migration.md)。M2 仍在实施，**本计划不授权提前实施 M3**；收到 M2 交审优先处理。原24页范围不变，不新增竖屏适配，也不锁方向规避窗口变化。
+- M1 真实三页限定结论见 [M1 §11](2026-10-18-product-visual-migration.md)。2026-10-19 主任务在依赖复核后授权提前启动 `CurveActivity/CurvePreviewMetrics` 与新 `CurveVisualMigrationChecks` 独立 fixture 准备：它们消费 M1 已限定验收的 style/StageView/Frame/Workspace，生产文件不与 M2 交叉。M2 `0647518` 仍在真实 CI/验收，收到新证据立即优先；不得用 M3 推进追认或覆盖 M2 原 SHA 证据。Import/Preview 与共享测试接线仍等主任务另行分配。原24页范围不变，不新增竖屏适配，也不锁方向规避窗口变化。
 - 开始时重新核 HEAD/status、文件 owner 和已完成 M2 接口。普通推送由主任务合批执行；不直推 main/develop、不 force。branch-policy、verify、lifecycle、upgrade 必需检查及评审完成后走 PR。
 - 不改 BLE/命令/算法/精度、导入 schema/MAX_BYTES/UTF-8、执行资格、库存、usage 排序模型、快捷槽位身份、未知记录或持久化格式。用于本杯仅保存原 selected 选择，不启动机器；预览不保存，冲突不覆盖。
 - 不发版、不改包名/签名/versionCode、不安装或操作用户机器/秤。Mock 不证明硬件。回退用追加修正或 revert PR，保留原数据/草稿与未知结果，不清库、不重发。
@@ -91,11 +91,12 @@
 |---|---|---|
 | 单一生产 Sol | `CurveActivity.kt`、`CurvePreviewMetrics.kt` | Metrics当前仅Curve调用；可显式style参数，默认null保持旧路径。模型/排序/筛选/槽位/选择不改 |
 | 同一生产 Sol | `CurveImportActivity.kt`、`CurveImportPreviewActivity.kt` | 只页面构图/角色/动作展示；保留所有decode/IO/store/幂等。已有 `CurveImportPreviewLayoutPolicy.kt` 默认不改，若实际预算接口必要则同owner连测试一起列diff |
-| 同一生产 Sol，复用不修改 | `TaskProductVisualStyle`、M2已验 `TaskProductFormStyle`、`HomeVisualIcon`、`CurveStageView`、`TaskPageFrame/Nav`、`TaskWorkspaceLayout`、`TaskCollectionLayout` | 沿现有显式opt-in；不改共享默认/不回写M1/M2。新图标若现有语义缺失只能新增明确kind，经owner协调；不能临时改全部按钮或renderer |
+| 同一生产 Sol，复用不修改 | `TaskProductVisualStyle`、M2已提交但待运行验收的 `TaskProductFormStyle`、`HomeVisualIcon`、`CurveStageView`、`TaskPageFrame/Nav`、`TaskWorkspaceLayout`、`TaskCollectionLayout` | 沿现有显式opt-in；不改共享默认/不回写M1/M2。Import所需 input/label/error/footer 仅消费固定接口，不因使用而称 M2 已验。新图标若现有语义缺失只能新增明确kind，经owner协调；不能临时改全部按钮或renderer |
 | 单一测试 Sol | 新 `CurveVisualMigrationChecks.kt`、新 `scripts/check_curve_visual_migration.sh`；`AdvancedBusinessUiChecks.kt`、`AdvancedPageChecks.kt`、`SingleScreenListStateChecks.kt`、`LanguageDetailChecks.kt` 必要增补；runner/workflow新增入口 | 不修改既有门槛/协议/M1 M2夹具；新scope独立审闭包；现有字段/标签优先保留，确需selector迁移只能精确语义不扩大匹配 |
 | Astra | 本计划及主任务指定的matrix/review | 设计、静态审、真实 G1–G4，非生产实现 |
 
-- [ ] 主任务确认M2限定结束并划M3 owner；核实际HEAD/status/M2helper接口，保存既有门禁结果。
+- [x] 2026-10-19 主任务确认无强制 M2→Curve 依赖，划出 Curve 两生产文件与新 fixture 独立准备；M2 未结束。启动核实际 HEAD/status，保留 M2 原门禁及证据。
+- [ ] Import/Preview 实施与共享测试接线由主任务另行授权；`AdvancedBusinessUiChecks/AdvancedPageChecks/SingleScreenListStateChecks/LanguageDetailChecks/BrewAudioInstrumentation/workflow` 单 owner 串行修改，不与 M2 补证并写。共享 helper 不因本次提前启动扩改。
 - [ ] 测试先固定真实主fixture与原不变量；生产按 Curve→Import→Preview 成组落实§3，不按每个padding推送。
 - [ ] 静态审一次核：共享default隔离、原本杯/槽位资格、输入原文恢复、冲突幂等、完整表预算/固定操作。源码冻结后统一构建，不与他人构建并行。
 - [ ] `./gradlew :mobile:testMockUnitTest --tests 'io.openhoyi.mobile.CustomCurveTest' --tests 'io.openhoyi.mobile.CurveOrderingTest' --tests 'io.openhoyi.mobile.CurveSearchTest' --tests 'io.openhoyi.mobile.CurveCategoryFilterTest' --tests 'io.openhoyi.mobile.CurveStageParametersTest' --tests 'io.openhoyi.mobile.CurveImportPreviewLayoutPolicyTest' :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain`；期望exit0，额外真实预算函数才补边界JVM，不给每个padding写镜像测试。
@@ -133,4 +134,4 @@
 | G3 | 14/16/20/24角色实际sp→px、实际Layout行盒、数字单位baseline、52dp输入自然下限、图文字不重叠；不以getter lineHeight冒充实际行盒 |
 | G4 | 两主题page/surface/selected/border/primary/secondary/disabled，冲突warning和error状态；resolved配置与原PNG纯色内区独立核，不把drawable色当合成色 |
 
-抗锯齿边缘差异不作为改色理由；真实间距/字号/行盒/背景差异不得归咎抗锯齿。原图未知、深色适配与真实无数据状态按上述边界明确记录。完成后Astra仅给有证据三页/状态限定结论；硬件、其他页面和未测状态继续待验。当前仅规划，M3未实施/构建/运行/验收，不授予任何PASS。
+抗锯齿边缘差异不作为改色理由；真实间距/字号/行盒/背景差异不得归咎抗锯齿。原图未知、深色适配与真实无数据状态按上述边界明确记录。完成后Astra仅给有证据三页/状态限定结论；硬件、其他页面和未测状态继续待验。当前已授权独立首段启动，尚无 M3 构建/运行/视觉验收结论，不授予任何PASS；原文中的执行次序不构成 M2 已完成证据。
