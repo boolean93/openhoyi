@@ -366,3 +366,45 @@ SDK依据（本地API34源码，由Sol核public jar接口，Astra复核相关源
 2. Window映射不能猜测。SDK `android/view/PixelCopy.java` 的`request(Window,…)`/`adjustSourceRectForInsets`会按surfaceInsets原地偏移传入Rect（291–307行）。本轮仅支持可核验的零surface-inset路径：每次新建Rect，记录调用前后且要求无偏移；W位图尺寸须等于实际decor尺寸，WindowMetrics、decor的window/screen原点及scale/rotation检查一致后，才按`root.getLocationInWindow`映射全app。未知映射、非零偏移、尺寸不符、null或不支持API均FAIL并留原图，不反射、不拉伸、不搜索像素偏移来配准。
 3. 新proof须区分`windowLayerMatch`、`displayStable`及协议版本；S与D的跨域差异继续完整记录，但不再要求不等价对象字面相等，不伪称`surfaceDisplayMatch=true`。目标geometry与用于验收的D1必须属于同一accepted组；失败位图/预算诊断保留，异步写入未结束的位图不得提前回收。
 4. 这只是纠正帧同步比较对象，**没有降低视觉验收**。原整屏仍逐项验完整内容、实际可见性、间距、字体、字号/单位/行盒、背景/边框/状态色；system boundary另外记录。分享1.3第四行/privacy仍须看新after-scroll原图，任何域同步PASS不自动变成G1–G4 PASS，不追认旧失败，不外推真实产品或硬件。
+
+## 10. 0a7b71a 封闭验收：有限冻结，进入 M1
+
+### 10.1 证据身份与实看范围
+
+**结论：本轮封闭样张修正通过，可启动 `docs/plans/2026-10-18-product-visual-migration.md` 的 M1。** 这是三个固定夹具的原生设计输入验收，不是三张生产页面、更不是24页或硬件验收通过。保留前文旧 FAIL 与取证冲突，不反写旧产物。
+
+证据根 `E4/`：`build/task-first-evidence/ci-0a7b71a-frame/task-frame-tablet-user-landscape/task-first-evidence/strict-native-samples/908edcd9d83a8ea53123ba772ab7556ab6e2b4ed/`。PR head `0a7b71a`，run `39140082042`，实际测试 merge `908edcd9d83a8ea53123ba772ab7556ab6e2b4ed`；12份 `sourceDirty=false`。APK声明 SHA `27f99d0851ad7f7af0a58da2db1fa8a71b5a02d6aedc39f2fa9f1784f561189d`；本次未从APK二进制独立重算，不将声明当重算。应用区仍为 `[0,74,2560,1465]`、2560×1391px、density360、zh-Hans、API34、无IME。
+
+Astra重新实看三张原PNG；按浅1.0→深1.0→浅1.3→深1.3审完12张 `window.png`，另看两主题1.3分享 `after-scroll-5.png` / `after-scroll-6.png` 与库存 `after-scroll-2.png`，本轮共18张真实样张图。独立重算72项manifest文件hash及原PNG hash，检查432项参考锚点映射无缺失；重算56对display整图中实际应用区像素差均0，并核其protocol2等价域四项比较均0差、focus/layout/budget条件成立。Sol并行机械结果见本run根下 `mechanical-audit.json`，不能替代上述实看。 该audit还保留66次尝试中的10次拒绝（10次Window域不匹配，其中4次display也不稳）；56次最终accepted不等于全部尝试成功，跨域279像素差继续只是诊断。准备recent的12条滚达记录为true，但旧记录没有独立恢复位置字段，不补写不存在的restore实测结论。
+
+### 10.2 剩余缺陷关闭与四项独立结论
+
+| 门禁/封闭项 | 本轮实际证据 | 有限结论 |
+|---|---|---|
+| G1：表格/日期内距 | 四配置共60个分享单元格容器均H18px=8dp；第一列由含色点的stage容器提供padding，不误要求其文字子节点重复padding。库存24个日期标签/值节点start为0/36/36px、end36px；原图对应的列间净空已可见 | 关闭原零内距/日期贴竖线缺陷；这些确定性内距可作为生产输入 |
+| G1：分享1.3真实可达 | 两主题after5确实上移左内容57px，完整显示第四阶段三列，目标框 `[252,1368,1548,1429]`；after6只滚右说明24px，完整显示privacy两行 `[1674,1276,2488,1393]`。实际PNG不再停在初图 | 关闭§7.3截图/几何冲突及本fixture第四行/privacy可达缺口；不声称1.3初屏四行及privacy全部完整 |
+| G1：固定操作与局部列表 | 准备四初图确认说明、状态、主操作完整；标准最近列表保留两整行，大字采用局部滚动。库存标准两流水完整，大字after2两行完整且底部操作仍在 | 既定适配没有回退；不复制样张只读24dp流水为生产48dp交互行 |
+| G1/G3：网格与标签 | 8图分别保留6条原网格，总48条；按实际墨迹外扩2dp并加半stroke guard，独立重算可见补集共68段，与实际Canvas line操作一致。准备1.0为7段，其余每图9段；PNG标签处留空、其余网格存在 | 关闭网格穿字；没有删除整条网格、涂底遮字或缩14sp。坐标轴、目标线/点、阶段底色仍保留 |
+| G2：字体/字重 | 12份候选roles与上一轮相同；580个TextView的weight、角色、字距等记录无回退，实际Layout均存在。Noto Sans SC候选资产SHA保持 `a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da` | 本批中文原生候选字形及层次可选定用于M1；ImageGen字体身份、实际逐glyph字体来源不因此变成已知 |
+| G3：字号/行盒/单位 | 580个TextView的textSizePx、lineHeightPx、lineSpacing、baseline、weight、includeFontPadding等与814e521逐项相同，实际Layout及换行实看无新增异常；28组数字/单位同屏baseline差为0 | 本批角色及实际原生行盒基线有限冻结；不以getter行高冒充Layout行盒，不将1.3按线性乘法重算或削减文字 |
+| G4：背景/描边/选中/禁用/图表 | 12份tokens与上一轮完全相同，文字当前色记录无回退。PNG复采可见page/surface/primary/selected/disabled/border纯色，浅色为 `#F9FAF9/#FFFFFF/#087A78/#E2F0ED/#ECEFF1/#DDE3E7`，深色为 `#11191A/#1B2526/#087A78/#203D3B/#263234/#3B4B4C`；阶段底色与文字层次实看保留 | 本批实际观察状态的语义色与合成结果可选定用于M1；未观察pressed/focused等状态仍需产品取证，不能从静态drawable推全部屏幕合成态 |
+
+分享目标处另做原始RGB差核验：after5第四行框内相对初图，浅/深分别改变7579/7581像素；after6完整privacy框内分别改变29147/29148像素。这些计数只证明真实画面发生变化，完整内容结论来自实图与对应目标行盒共同核验，不以“非零差”替代可读性。after6左栏恢复到初态是预期，并非旧冲突复发；第四行与privacy由各自滚动操作分别可达，不要求两栏同时停在两个after状态。
+
+### 10.3 冻结对象及不能外推的边界
+
+从现在起不再围绕这三张样张重复研究已关闭项。**有限冻结的是M1的原生设计输入**：80dp导航、16dp页边、24dp栏间距、8/16dp组间距、表格H8dp与日期0/16/16dp内距；已记录的字体角色/实际自然行高规则、同baseline单位、两主题语义色板；图表2dp墨迹保护及网格补集；大字局部滚动、固定操作的组织方式。原tokens/anchors保留 `proposed` 历史身份与 `productAcceptance=false`，本节记录其作为M1实现输入的设计选择，不伪称用户批准了不可恢复的ImageGen参数。
+
+与原稿的有理由适配仍显式保留：实际应用区只有618.2222dp高而非原图比例；准备/分享图压缩为已选定的紧凑目标示意和0/6/12刻度，压力值不变；准备标准显示两条最近记录而非原稿三条，余项局部可达；1.3分享表末行/说明、库存流水允许局部滚动。原生图标为候选路径、纯色面为确定性语义色，不能冒称生成稿图标/渐变逐像素还原。深色是既定原生补充，不存在可用于精确逐像素比较的深色ImageGen原稿。上述选择已在锚点/先前封闭规格定义，本节不是用无裁切倒推认可，也不是新增任意容差。
+
+不可恢复的原字体参数、`tnum`激活、实际TextView glyph墨迹/逐glyph字体等继续按明确对象记unknown；本次不把它们填成PASS，也不把它们升级为永不迁移的障碍。系统合成角部仍按§9双域协议处理，原display整图未mask；系统边界差异不用于豁免任何应用内容、字号、配色或布局差异。
+
+**M1启动门已打开，直接按计划顺序分享→准备→库存，三页成组实施与验收，不再新增样张研究。** 保留真实1–4阶段/FlowRaw/SAF写入成功语义；Home保留Extraction/Curve路由、活动杯/停止、粉量attempted/confirmed及事件匹配；Inventory保留三事件、至少48dp详情触控与全部原回调。不得全局换主题波及其余21页，不把演示状态/虚构日期副说明复制为业务实值。M1生产页面仍须独立G1–G4、状态与业务回归；本节不更改24页范围，也不免除最大字号/横屏短高、后续表单IME或硬件验收。
+
+### 10.4 IME短字段的有限独立复核
+
+独立产品证据为run `39138935786`、head `a2164ad0ffaf661feab7d20f2e3499d7bb11eabf`，根 `build/task-first-evidence/ci-a2164ad-single/`。在三个 `single-screen-tablet-{landscape,large-font,user-landscape}` 对应profile的 `single-screen-window-checks/chinese-form-states/` 中，核中文浅/深的BrewReview dose、CurveEditor name共12组 `short-ime-observed-geometry.json`、`short-after-reveal-geometry.json` 与stability；另实看10张相关前后PNG。
+
+全部在稳定IME后单次reveal变为完整可见，且固定按钮完整、窗口focus=true、无pendingLayout：landscape dose57/65→65/65、name58/65→65/65；large-font为60/65→65/65、62/65→65/65；user为102/117→117/117、106/117→117/117，浅深一致。四个相关生产Activity/布局文件从814e521到a2164ad无diff。故**当前没有依据实施生产布局预算修补**，保留52dp、字号、固定保存与原完整可见断言，维持“稳定→单次reveal→稳定→严格验证”。
+
+只关闭本批“该流程后短字段仍裁切”的复现，不宣称原四次失败唯一根因已证：旧60/45px viewport没有重现，旧失败瞬时祖先/IME现场不足；新reveal前也可以稳定部分可见，不能把三次稳定draw当作自动完整可见。该批 `sameCompositorFrameProven=false` 保留，不冒称同合成帧或整页视觉通过。M2的完整设计/业务/其他短高状态验收继续按原计划。
