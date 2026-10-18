@@ -349,3 +349,20 @@ PR head `814e521`，CI `39135733668`，实际 merge `3cdad10657f64b76391e763f5bc
 原始RGB应用区域逐像素对照814e521：准备变化仅屏幕y727..729的顶部网格局部；分享变化为y713..715、804..807网格局部及五行表文字内移；库存变化仅第二/三列日期文字水平位移。其余应用像素相同，未发现背景、阶段底色、单位、固定操作或字体回退。系统栏内容不同，未混入应用比较；没有缩放或模糊图片。
 
 **仍未关闭：** 深色、fontScale1.3、分享大字第四行/privacy滚动像素矛盾，以及三页整体严格视觉验收。该次CI在light1.3准备采集时多次出现稳定279像素差，末尾`-1`是5秒预算耗尽的未完成回调哨兵，不是Android PixelCopy错误码；根因仍待诊断原图。不能用本节三张局部通过代替剩余9张或启动产品视觉通过声明。
+
+## 9. 合成边界诊断与无容差双域取证协议
+
+证据来自 `build/task-first-evidence/ci-a2164ad-frame/task-frame-tablet-user-landscape/task-first-evidence/strict-native-samples/raw-device/1a95859052498942d1b8a36ae1706028ae7d506a/tablet-user-landscape-light-font-1.3/preparation-confirmed-four-stage/`。Astra实看并独立重算`window.png`、`window-surface-before.png`、`window-surface-after.png`，三文件SHA与`window-frame-sync.json`的attempt14记录相符。
+
+- 最终两张Window表面图完全相同；与整屏应用区的279个不同像素，仅位于左下角132px `[0,1446,21,1465]` 和右下角147px `[2539,1442,2560,1465]`。差异沿底边逐行扩宽，display均为`#FFF8F9FC`，surface对应为导航白`#FFFFFFFF`/页底`#FFF9FAF9`。没有文字、图表或按钮位于这些差异像素。
+- 14次完整采集中，跨域差异始终279；其中第3次surface前后另有1053像素变化，其余13次为0。不能把全部尝试写成稳定，也不能把末尾回调超时当成279差异的原因。
+- 原整屏可见底部圆角合成边界，以上证据支持“窗口表面与系统最终合成不是同一像素对象”，不支持“样张字体/背景漂移”。**具体圆角所属surface/任务栏/其他系统层尚未唯一证实。** 清理后的系统dump也不能反推采集当刻的唯一owner。总bbox `[0,1442,2560,1465]` 横跨全宽，绝不能据此排除整条底边。
+
+SDK依据（本地API34源码，由Sol核public jar接口，Astra复核相关源码位置）：`/Users/boolean93/Library/Android/sdk/sources/android-34/android/app/UiAutomation.java` 的 `takeScreenshot(Window)` 在1220行执行`SurfaceControl.Transaction().apply(true)`，再调用`takeSurfaceControlScreenshot`；同目录`UiAutomationConnection.java`的该方法经`ScreenCapture.captureLayers`（255–265行），普通整屏截图则经`captureDisplay`（240行）。`android/view/RoundedCorner.java`第37行明确radius/center仅为近似，`WindowInsets#getRoundedCorner`不能提供精确系统裁切像素。不得用近似圆、猜半径或本次差异集合制造mask。
+
+**批准仅测试层实施无mask双域协议，尚不是新运行通过：**
+
+1. 实际frame commit后采集`S1(PixelCopy) → W1(public Window层) → D1/D2(原整屏) → W2 → S2`，并记录前后焦点、窗口、scroll及目标geometry。采集两端均须`hasWindowFocus=true`且root/decor的`isLayoutRequested=false`，`windowReadyAtBothEnds`与geometry稳定、两域零差及预算同时成立才可accepted，不能只在开始检查焦点。`S1/W1/W2/S2`在已验证坐标映射的全应用区域严格零像素差；`D1/D2`在同一域严格零差。两张原整屏均保存；采用全屏还是由真实Insets确定的全app比较须在proof明确记录，不能选择性剔除内容像素。全屏时钟变化只能有界重试，不加容差。
+2. Window映射不能猜测。SDK `android/view/PixelCopy.java` 的`request(Window,…)`/`adjustSourceRectForInsets`会按surfaceInsets原地偏移传入Rect（291–307行）。本轮仅支持可核验的零surface-inset路径：每次新建Rect，记录调用前后且要求无偏移；W位图尺寸须等于实际decor尺寸，WindowMetrics、decor的window/screen原点及scale/rotation检查一致后，才按`root.getLocationInWindow`映射全app。未知映射、非零偏移、尺寸不符、null或不支持API均FAIL并留原图，不反射、不拉伸、不搜索像素偏移来配准。
+3. 新proof须区分`windowLayerMatch`、`displayStable`及协议版本；S与D的跨域差异继续完整记录，但不再要求不等价对象字面相等，不伪称`surfaceDisplayMatch=true`。目标geometry与用于验收的D1必须属于同一accepted组；失败位图/预算诊断保留，异步写入未结束的位图不得提前回收。
+4. 这只是纠正帧同步比较对象，**没有降低视觉验收**。原整屏仍逐项验完整内容、实际可见性、间距、字体、字号/单位/行盒、背景/边框/状态色；system boundary另外记录。分享1.3第四行/privacy仍须看新after-scroll原图，任何域同步PASS不自动变成G1–G4 PASS，不追认旧失败，不外推真实产品或硬件。
