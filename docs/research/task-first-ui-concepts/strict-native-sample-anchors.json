@@ -54,12 +54,13 @@
       "weight": 700,
       "lineHeightSp": 60,
       "unitSp": 14,
-      "unitWeight": 400
+      "unitWeight": 400,
+      "unitAlignment": "number and unit actual screen baseline equal exactly; not outer-frame vertical center"
     },
     "inline-recipe-summary": {
-      "valueSp": 24,
-      "valueWeight": 700,
-      "valueLineHeightSp": 36,
+      "valueSp": 16,
+      "valueWeight": 500,
+      "valueLineHeightSp": 24,
       "labelAndUnitSp": 14,
       "labelAndUnitWeight": 400,
       "arrangement": "one horizontal row, three groups; no stacked labels"
@@ -70,7 +71,7 @@
       "summarySp": 14,
       "summaryWeight": 400,
       "minHeightDp": 48,
-      "arrangement": "single row, name start and summary end; full content accessible"
+      "arrangement": "name then 16dp gap and supporting fixture description, metrics end aligned; description wraps naturally if width insufficient; minimum48dp, standard two full rows, font1.3 at least one full row; all three fully scroll reachable"
     },
     "table-supporting": {
       "sp": 14,
@@ -94,6 +95,20 @@
       "sp": 14,
       "weight": 500,
       "lineHeightSp": 22
+    },
+    "compactRecipeMetric": {
+      "sp": 16,
+      "weight": 500,
+      "lineHeightSp": 24,
+      "scope": "preparation summary only",
+      "reason": "restore subordinate inline metric hierarchy, not clipping workaround"
+    },
+    "shareMetric": {
+      "sp": 20,
+      "weight": 400,
+      "lineHeightSp": 30,
+      "scope": "share summary value only",
+      "reason": "neutral parameter hierarchy below recipe title, not clipping workaround"
     }
   },
   "sharedNavigation": {
@@ -329,14 +344,11 @@
             "baselineStatus": "not_recoverable_from_generated_raster"
           },
           "targetDp": {
-            "rect": [
-              96,
-              110,
-              630,
-              146
-            ],
+            "rect": null,
             "profile": "standard-1138x623-font1.0",
-            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font",
+            "effectiveRule": "Recipe name alone title24/500/36 wrap_content within original48dp recipe row; supporting14/400 description after16dp; natural wrap if required, never ellipsize.",
+            "revision": "native-review-79868c7-round-2"
           },
           "typographyRole": "title"
         },
@@ -469,13 +481,10 @@
             "annotationKind": "manual_semantic_region_not_font_metrics"
           },
           "targetDp": {
-            "rect": [
-              136,
-              282,
-              774,
-              378
-            ],
-            "profile": "standard-1138x623-font1.0"
+            "rect": null,
+            "profile": "standard-1138x623-font1.0",
+            "effectiveRule": "Metric-defined plot, not a guessed fixed rectangle: plotTop >= titleInkBottom + dp(8) - highestTickInkTopRelativeToTickY, max with original minimum. Reserve bottom stage labels from actual Paint with8dp clearance. Chart>=160dp; all label ink boxes pairwise nonintersecting. Record exact geometry and metrics; do not shrink14sp or add denser ticks.",
+            "revision": "native-review-79868c7-round-2"
           }
         },
         {
@@ -995,12 +1004,14 @@
           "targetDp": {
             "rect": [
               814,
-              436,
+              463,
               1122,
-              480
+              487
             ],
             "profile": "standard-1138x623-font1.0",
-            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font",
+            "effectiveRule": "Fixed dock starts with confirmation natural text height or24dp info icon, whichever larger; below gap8, primary>=56, gap8, details>=48; dock bottom=H-16. Reference rectangle is H623/font1.0 only.",
+            "revision": "native-review-79868c7-round-2"
           },
           "typographyRole": "supporting"
         },
@@ -1113,13 +1124,15 @@
           },
           "targetDp": {
             "rect": [
-              978,
+              814,
               16,
               1122,
-              64
+              80
             ],
             "profile": "standard-1138x623-font1.0",
-            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font",
+            "effectiveRule": "Two150dp cards separated8dp; each min64dp, natural label lines may grow. Container remains this original semantic ID. Header grows if necessary; no clip.",
+            "revision": "native-review-79868c7-round-2"
           },
           "typographyRole": "action",
           "designNote": "Explicit written-spec entry replaces duplicate top status chips in candidate; readiness remains in cup pane"
@@ -1156,6 +1169,10 @@
           "target": "one explicit48dp device connection action at[978,16,1122,64]; readiness stays in right pane; mock status belongs in specimen manifest",
           "reason": "written specification explicitly requires device connection text entry; no duplication of readiness states or false hardware claim",
           "status": "written_requirement_plus_proposed_placement"
+        },
+        {
+          "revision": "native-review-79868c7-round-2",
+          "rule": "confirmation is fixed dock content, never inside upper body ScrollView. Standard1.0 both statuses and confirmation initially complete. Font1.3 confirmation/primary initially complete; body statuses fully scroll reachable. Header min80dp may grow for native device-card text, reducing scrollable body only."
         }
       ],
       "responsiveRules": {
@@ -1322,14 +1339,11 @@
             "baselineStatus": "not_recoverable_from_generated_raster"
           },
           "targetDp": {
-            "rect": [
-              112,
-              80,
-              688,
-              116
-            ],
+            "rect": null,
             "profile": "standard-1138x623-font1.0",
-            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font",
+            "effectiveRule": "Recipe name alone title24/500/36 wrap_content; mode is separate14/400 badge after16dp, selected background/accent text, paddingH8. Preserve identity row min36, natural growth at large font.",
+            "revision": "native-review-79868c7-round-2"
           },
           "typographyRole": "title"
         },
@@ -1454,13 +1468,10 @@
             "annotationKind": "manual_semantic_region_not_font_metrics"
           },
           "targetDp": {
-            "rect": [
-              152,
-              276,
-              672,
-              366
-            ],
-            "profile": "standard-1138x623-font1.0"
+            "rect": null,
+            "profile": "standard-1138x623-font1.0",
+            "effectiveRule": "Metric-defined plot, not a guessed fixed rectangle: plotTop >= titleInkBottom + dp(8) - highestTickInkTopRelativeToTickY, max with original minimum. Reserve bottom stage labels from actual Paint with8dp clearance. Chart>=160dp; all label ink boxes pairwise nonintersecting. Record exact geometry and metrics; do not shrink14sp or add denser ticks.",
+            "revision": "native-review-79868c7-round-2"
           }
         },
         {
@@ -1962,6 +1973,10 @@
           "target": "14sp/22sp supporting table, no vertical padding; all five rows occupy110dp",
           "reason": "read-only numeric table is auxiliary to visual preview; do not impose48dp touch height or shrink14sp text",
           "status": "proposed_role_specific_typography"
+        },
+        {
+          "revision": "native-review-79868c7-round-2",
+          "rule": "Standard1.0 table header+4 rows initially complete. Font1.3 table rows/privacy may be offscreen only with complete per-row scroll evidence and restore. Between cards24dp empty gap, no divider."
         }
       ],
       "responsiveRules": {
@@ -2262,14 +2277,11 @@
             "baselineStatus": "not_recoverable_from_generated_raster"
           },
           "targetDp": {
-            "rect": [
-              520,
-              110,
-              1026,
-              146
-            ],
+            "rect": null,
             "profile": "standard-1138x623-font1.0",
-            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font",
+            "effectiveRule": "Name title24/500/36 wrap_content at detail start; adjacent batch badge after16dp. Do not stretch name box to old right-edge badge position.",
+            "revision": "native-review-79868c7-round-2"
           },
           "typographyRole": "title"
         },
@@ -2287,14 +2299,11 @@
             "baselineStatus": "not_recoverable_from_generated_raster"
           },
           "targetDp": {
-            "rect": [
-              1042,
-              110,
-              1122,
-              148
-            ],
+            "rect": null,
             "profile": "standard-1138x623-font1.0",
-            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font",
+            "effectiveRule": "x=beanName actual rendered logical text end +16dp; y within name row, vertically centered. auxiliary14/400/22, horizontal padding8dp, vertical padding4dp. Natural width/height, no fixed far-right alignment.",
+            "revision": "native-review-79868c7-round-2"
           },
           "typographyRole": "supporting"
         },
@@ -2863,6 +2872,10 @@
           "target": "40sp/60sp main line immediately followed by16sp/24sp initial quantity line, no extra interline gap",
           "reason": "line boxes already include leading; avoid turning one metric cluster into unrelated groups",
           "status": "proposed_explicit_spacing"
+        },
+        {
+          "revision": "native-review-79868c7-round-2",
+          "rule": "For actual app H in618..623dp, body-to-dock gap=4+0.8*(H-618)dp, derive from actual window pixels and convert once with roundToInt. At623 gap8, at618 gap4. Standard1.0 both ledger rows including full native line boxes initially visible; font1.3 individually fully reachable. No further arbitrary gap/padding/font reduction."
         }
       ],
       "responsiveRules": {
@@ -2878,5 +2891,317 @@
     "Target standard rectangles are Astra-proposed layout constraints; match requires native sample measurements and review, not merely presence of this JSON.",
     "Font1.3 and other heights must report actual reflow and independent gates; standard rectangles are not a license to clip growing text.",
     "2026-10-18 design erratum: preparation beanName standard line box corrected from y186..222 to y184..220, centering its36dp line within the48dp bean row y178..226; no negative margins or tolerance, status remains proposed."
+  ],
+  "reviewRevisions": [
+    {
+      "id": "native-review-79868c7-round-2",
+      "status": "proposed",
+      "productAcceptance": false,
+      "evidence": "docs/evidence/2026-10-18-native-specimen-review.md",
+      "reason": "Grouped native review found omitted original hierarchy/details and actual clipping/overlap. Not approval inferred from implementation.",
+      "priorEvidenceAnnotations": "build/task-first-evidence/ci-79868c7-frame/task-frame-tablet-user-landscape/task-first-evidence/strict-native-samples/c9372c3a1cb7a4bb58405e6dc0a5205d835439ad/originals/strict-native-sample-anchors.json",
+      "scope": "Only three isolated Mock specimens; no product/global theme/hardware changes",
+      "changes": [
+        {
+          "semanticId": "sample/preparation/deviceEntry",
+          "previousTargetDp": {
+            "rect": [
+              978,
+              16,
+              1122,
+              64
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          }
+        },
+        {
+          "semanticId": "sample/preparation/confirmation",
+          "previousTargetDp": {
+            "rect": [
+              814,
+              436,
+              1122,
+              480
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          }
+        },
+        {
+          "semanticId": "sample/preparation/stage/plot",
+          "previousTargetDp": {
+            "rect": [
+              136,
+              282,
+              774,
+              378
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "semanticId": "sample/share/stage/plot",
+          "previousTargetDp": {
+            "rect": [
+              152,
+              276,
+              672,
+              366
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "semanticId": "sample/inventory/batchBadge",
+          "previousTargetDp": {
+            "rect": [
+              1042,
+              110,
+              1122,
+              148
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          }
+        },
+        {
+          "semanticId": "sample/share/recipe",
+          "previousTargetDp": {
+            "rect": [
+              112,
+              80,
+              688,
+              116
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          }
+        },
+        {
+          "semanticId": "sample/preparation/recipe",
+          "previousTargetDp": {
+            "rect": [
+              96,
+              110,
+              630,
+              146
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          }
+        },
+        {
+          "semanticId": "sample/inventory/beanName",
+          "previousTargetDp": {
+            "rect": [
+              520,
+              110,
+              1026,
+              146
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          }
+        }
+      ],
+      "additionalDetailAnnotations": [
+        {
+          "page": "preparation-confirmed-four-stage",
+          "detail": "device-machine-ready",
+          "sourcePx": [
+            1044,
+            30,
+            1209,
+            94
+          ],
+          "target": "first150dp header card atx814,y16,min64; coffeeMachine24 +gap8, label14/400 then ready14/500 accent; disabled background"
+        },
+        {
+          "page": "preparation-confirmed-four-stage",
+          "detail": "device-scale-live",
+          "sourcePx": [
+            1226,
+            29,
+            1395,
+            94
+          ],
+          "target": "second150dp card atx972,y16,min64; scale24 +gap8, two14sp lines; disabled background"
+        },
+        {
+          "page": "preparation-confirmed-four-stage",
+          "detail": "demo-identification",
+          "sourcePx": [
+            1418,
+            37,
+            1564,
+            87
+          ],
+          "target": "演示数据 auxiliary14/400 after subtitle rendered end+16dp, same actual baseline; fixture only"
+        },
+        {
+          "page": "preparation-confirmed-four-stage",
+          "detail": "recipe-description",
+          "sourcePx": [
+            332,
+            170,
+            502,
+            193
+          ],
+          "target": "四阶段压力配方 auxiliary14/400 after recipe name+16dp"
+        },
+        {
+          "page": "preparation-confirmed-four-stage",
+          "detail": "summary-icons-label-dividers",
+          "sourcePx": [
+            151,
+            218,
+            788,
+            254
+          ],
+          "target": "groups [96,304],[328,536],[560,790];24dp temperature/coffee/stages icons+8gap; middle label目标液重; separators x316/548 width1 height24 centered; compactRecipeMetric role; units baseline aligned"
+        },
+        {
+          "page": "preparation-confirmed-four-stage",
+          "detail": "ready-dots",
+          "sourcePx": [
+            1195,
+            512,
+            1216,
+            605
+          ],
+          "target": "two12dp accent circles +8gap; not text-color bullet glyph"
+        },
+        {
+          "page": "preparation-confirmed-four-stage",
+          "detail": "confirmation-info-and-play",
+          "sourcePx": [
+            1191,
+            683,
+            1559,
+            858
+          ],
+          "target": "confirmation info24 and primary play24; gap8; natural confirmation line fixed above primary"
+        },
+        {
+          "page": "preparation-confirmed-four-stage",
+          "detail": "recent-descriptions-and-rules",
+          "sourcePx": [
+            151,
+            807,
+            1131,
+            967
+          ],
+          "target": "fixture descriptions 四阶段压力配方 / 柔和风味 · 三阶段 / 低压逐步释放 · 三阶段;14/400 muted; lines1dp drawn inside rows; metric vertical separators replace slash"
+        },
+        {
+          "page": "share-four-stage-not-exported",
+          "detail": "back-arrow",
+          "sourcePx": [
+            151,
+            34,
+            194,
+            74
+          ],
+          "target": "native24dp back arrow centered in existing48dp target, not text chevron"
+        },
+        {
+          "page": "share-four-stage-not-exported",
+          "detail": "mode-badge",
+          "sourcePx": [
+            328,
+            129,
+            445,
+            167
+          ],
+          "target": "压力模式14/400 selected-background badge after recipe name+16dp; horizontal padding8"
+        },
+        {
+          "page": "share-four-stage-not-exported",
+          "detail": "design-chip",
+          "sourcePx": [
+            1415,
+            31,
+            1561,
+            79
+          ],
+          "target": "right header设计示意 auxiliary14/400 noninteractive candidate chip"
+        },
+        {
+          "page": "share-four-stage-not-exported",
+          "detail": "table-header-rules-stage-dots",
+          "sourcePx": [
+            168,
+            761,
+            963,
+            941
+          ],
+          "target": "disabled header fill; border1dp outside/row/column rules inside existing row heights; stage12dp dots+8gap in first column; no fake extra stage data"
+        },
+        {
+          "page": "share-four-stage-not-exported",
+          "detail": "action-icons",
+          "sourcePx": [
+            1035,
+            211,
+            1534,
+            634
+          ],
+          "target": "24dp share/copy/file/share icons with8gap, actual disabled state retained"
+        },
+        {
+          "page": "inventory-three-beans-selected",
+          "detail": "list-icons-chevron-rules",
+          "sourcePx": [
+            122,
+            217,
+            672,
+            503
+          ],
+          "target": "24dp bean+12gap; trailing16dp chevron not separate touch target; name/weight gap>=16; unselected bottom1dp rule inside64dp row"
+        },
+        {
+          "page": "inventory-three-beans-selected",
+          "detail": "adjacent-batch-badge",
+          "sourcePx": [
+            981,
+            162,
+            1075,
+            204
+          ],
+          "target": "auxiliary14/400 after actual name+16dp, paddingH8,V4; not right-aligned"
+        },
+        {
+          "page": "inventory-three-beans-selected",
+          "detail": "dates-and-ledger-rules",
+          "sourcePx": [
+            719,
+            475,
+            1559,
+            800
+          ],
+          "target": "date1dp column rules and ledger header/row bottom rules; no added row height"
+        },
+        {
+          "page": "inventory-three-beans-selected",
+          "detail": "action-icons-and-confirmation",
+          "sourcePx": [
+            719,
+            825,
+            1558,
+            939
+          ],
+          "target": "primary cup24, adjust cube24, details chevron16, info24; gap8; maintain original action outer targets"
+        }
+      ],
+      "annotationSemantics": "New sourcePx rectangles are manually located semantic regions on unchanged PNGs, not exact original widget/font/glyph bounds. Source font/baseline/color remains unknown. Existing108 required semantic IDs retained; detail annotations do not assert runtime node IDs.",
+      "verificationRequirements": [
+        "All numeric/unit screen baselines equal exactly, retaining native text sizes.",
+        "Actual Canvas glyph rectangles pairwise nonintersecting, not merely inside chart.",
+        "Initial and after-scroll PNG plus full View/actual Layout visibility; finally restore scroll.",
+        "Keep every failure artifact; no threshold relaxation or rewriting original images.",
+        "Color interior PNG sampling separate from antialias edges; source values unknown remain proposed."
+      ]
+    }
   ]
 }
