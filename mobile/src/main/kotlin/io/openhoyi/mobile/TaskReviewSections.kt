@@ -9,7 +9,7 @@ import android.widget.ScrollView
 
 /** Stable inline parameter/notes regions; resize never reparents a field or changes a draft. */
 internal class TaskReviewSections(private val activity: ThemedActivity, body: LinearLayout,
-    labels: List<String>, selected: Int, private val changed: (Int) -> Unit) {
+    labels: List<String>, selected: Int, private val style: TaskProductFormStyle, private val changed: (Int) -> Unit) {
     private var selectedIndex = selected.coerceIn(labels.indices)
     private val parameters = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val notes = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -19,13 +19,13 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             super.onSizeChanged(w, h, oldw, oldh)
             post { fitEditors() }
         }
-    }.apply { addView(parameters) }
+    }.apply { tag = "product/form/review/parameter-scroll"; addView(parameters) }
     private val noteScroll = object : ScrollView(activity) {
         override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
             super.onSizeChanged(w, h, oldw, oldh)
             post { fitEditors() }
         }
-    }.apply { addView(notes) }
+    }.apply { tag = "product/form/review/notes-scroll"; addView(notes) }
     private val regions = object : LinearLayout(activity) {
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val width = MeasureSpec.getSize(widthMeasureSpec)
@@ -35,21 +35,20 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             // The IME may reduce height without removing the width needed for two usable panes.
             val split = TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
                 (height / density).toInt(), twoPaneMinimumHeightDp = 0).twoPaneAllowed && width >= dp(624)
-            val nextOrientation = if (split) HORIZONTAL else VERTICAL
+            val nextOrientation = if (split) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
             val parameterWidth = if (split) dp(280) else width
             // A short native input is at least 52dp, before panel padding. Do not allocate
             // a 48dp viewport merely because that is the minimum touch target elsewhere.
-            var parameterMinimum = dp(48)
-            panels.take(2).forEach { panel ->
-                for (index in 0 until panel.childCount) {
-                    val field = panel.getChildAt(index)
-                    if (field is EditText && field.inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE == 0) {
-                        field.measure(MeasureSpec.makeMeasureSpec((parameterWidth - panel.paddingLeft - panel.paddingRight).coerceAtLeast(0), MeasureSpec.EXACTLY),
-                            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-                        parameterMinimum = maxOf(parameterMinimum, field.measuredHeight + panel.paddingTop + panel.paddingBottom)
-                    }
-                }
+            var parameterMinimum = dp(52)
+            fun measureShort(view: View, ancestors: Int = 0) {
+                if (view is EditText && view.inputType and android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE == 0) {
+                    view.measure(MeasureSpec.makeMeasureSpec(parameterWidth.coerceAtLeast(0), MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                    parameterMinimum = maxOf(parameterMinimum, view.measuredHeight + ancestors)
+                } else if (view is ViewGroup) for (index in 0 until view.childCount)
+                    measureShort(view.getChildAt(index), ancestors + view.paddingTop + view.paddingBottom)
             }
+            panels.take(2).forEach { measureShort(it) }
             val parameterHeight = if (split) -1 else minOf(dp(180), height / 3).coerceAtLeast(minOf(parameterMinimum, height))
             if (orientation != nextOrientation || parameterScroll.layoutParams.width != parameterWidth ||
                 parameterScroll.layoutParams.height != parameterHeight) {
@@ -62,11 +61,18 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         }
     }.apply {
         orientation = LinearLayout.HORIZONTAL
-        dividerDrawable = android.graphics.drawable.GradientDrawable().apply {
-            setColor(activity.getColor(R.color.mobile_border))
-            setSize(dp(1), dp(1))
+        foreground = object : android.graphics.drawable.Drawable() {
+            private val paint = android.graphics.Paint().apply { color = this@TaskReviewSections.style.visual.border; strokeWidth = activity.resources.displayMetrics.density }
+            override fun draw(canvas: android.graphics.Canvas) {
+                if (orientation == LinearLayout.HORIZONTAL) {
+                    val x = (parameterScroll.right + noteScroll.left) / 2f
+                    canvas.drawLine(x, 0f, x, bounds.bottom.toFloat(), paint)
+                }
+            }
+            override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+            override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
+            @Deprecated("Drawable opacity") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
         }
-        showDividers = LinearLayout.SHOW_DIVIDER_MIDDLE
         addView(parameterScroll)
         addView(noteScroll)
     }
@@ -91,23 +97,26 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             tag = "bean-full-field"
-            setPadding(dp(8), dp(4), dp(8), dp(8))
-            (if (index < 2) parameters else notes).addView(this, LinearLayout.LayoutParams(-1, -2))
+            setPadding(0, 0, 0, 0)
+            (if (index < 2) parameters else notes).addView(this, LinearLayout.LayoutParams(-1, -2).apply {
+                if (index == 1 || index > 2) topMargin = dp(16)
+            })
         }
     }
     init { host.addView(regions, LinearLayout.LayoutParams(-1, 0, 1f)) }
 
     private fun sectionHeading(parent: LinearLayout, label: Int) =
         HoyiUi.label(activity, parent, activity.getString(label), 20, true).apply {
-            setPadding(dp(8), dp(16), dp(8), dp(16))
+            style.visual.apply(this, TaskProductVisualStyle.section)
+            setPadding(0, 0, 0, 0)
             if (android.os.Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
         }
 
     private fun sectionDivider(parent: LinearLayout) = View(activity).apply {
-        setBackgroundColor(activity.getColor(R.color.mobile_border))
+        setBackgroundColor(style.visual.border)
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
         parent.addView(this, LinearLayout.LayoutParams(-1, dp(1)).apply {
-            marginStart = dp(8); marginEnd = dp(8)
+            topMargin = dp(8); bottomMargin = dp(8)
         })
     }
 
@@ -123,38 +132,34 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
     }
     fun fitMultiline(fields: List<EditText>) { multilineFields = fields; noteScroll.post { fitEditors() } }
     private fun fitEditors() {
-        // Parameter and notes viewports resize independently under the IME.
-        // A collapsed notes viewport must not leave the grind editor at its old 160dp.
+        // Every multiline box keeps its actual two-line font/padding minimum,
+        // even when the surrounding region must scroll under the IME.
+        fun minimum(field: EditText) = style.twoLineMinimum(field)
         multilineFields.filter { it.parent === panels[1] }.forEach { field ->
-            val panel = panels[1]
-            val budget = parameterScroll.height - panel.paddingTop - panel.paddingBottom
-            if (budget > 0) {
-                // The editor requests two lines. A fixed 52dp box clips the second
-                // line with the bundled font, especially at larger font scales.
-                val twoLines = maxOf(dp(52), field.lineHeight * 2 + field.compoundPaddingTop + field.compoundPaddingBottom)
-                val height = if (budget >= twoLines) twoLines else minOf(dp(52), budget).coerceAtLeast(dp(48))
-                if (field.layoutParams.height != height) field.layoutParams =
-                    (field.layoutParams as LinearLayout.LayoutParams).apply { this.height = height; weight = 0f }
-            }
+            val height = minimum(field)
+            if (field.layoutParams.height != height) field.layoutParams = (field.layoutParams as LinearLayout.LayoutParams).apply { this.height = height; weight = 0f }
         }
         if (noteScroll.width <= 0 || noteScroll.height <= 0) return
-        notesHeader.measure(View.MeasureSpec.makeMeasureSpec(noteScroll.width, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-        var noteChrome = notesHeader.measuredHeight + notesDivider.layoutParams.height
+        val exact = View.MeasureSpec.makeMeasureSpec(noteScroll.width, View.MeasureSpec.EXACTLY)
+        val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        notesHeader.measure(exact, free)
+        val dividerParams = notesDivider.layoutParams as LinearLayout.LayoutParams
+        var noteChrome = notesHeader.measuredHeight + dividerParams.height + dividerParams.topMargin + dividerParams.bottomMargin
         panels.drop(2).forEach { panel ->
-            noteChrome += panel.paddingTop + panel.paddingBottom
+            val params = panel.layoutParams as LinearLayout.LayoutParams
+            noteChrome += panel.paddingTop + panel.paddingBottom + params.topMargin + params.bottomMargin
             for (index in 0 until panel.childCount) {
                 val child = panel.getChildAt(index)
-                if (child !is EditText) {
-                    child.measure(View.MeasureSpec.makeMeasureSpec((noteScroll.width - panel.paddingLeft - panel.paddingRight).coerceAtLeast(0), View.MeasureSpec.EXACTLY),
-                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-                    noteChrome += child.measuredHeight
+                if (child !is EditText && child.visibility != View.GONE) {
+                    child.measure(exact, free)
+                    val childParams = child.layoutParams as LinearLayout.LayoutParams
+                    noteChrome += child.measuredHeight + childParams.topMargin + childParams.bottomMargin
                 }
             }
         }
-        val noteHeight = ((noteScroll.height - noteChrome) / 3).coerceIn(dp(48), dp(160))
+        val eachBudget = (noteScroll.height - noteChrome) / 3
         multilineFields.filter { it.parent !== panels[1] }.forEach { field ->
-            val height = noteHeight
+            val height = eachBudget.coerceIn(minimum(field), maxOf(dp(160), minimum(field)))
             if (field.layoutParams.height != height) field.layoutParams = (field.layoutParams as LinearLayout.LayoutParams).apply { this.height = height; weight = 0f }
         }
     }

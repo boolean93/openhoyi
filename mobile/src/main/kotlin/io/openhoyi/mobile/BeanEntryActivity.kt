@@ -36,10 +36,11 @@ class BeanEntryActivity : ThemedActivity() {
         newNameDraft = savedInstanceState?.getString("newNameDraft") ?: savedInstanceState?.getString("name").orEmpty()
         saved = savedInstanceState?.getBoolean("saved") ?: false
         if (saved) { finish(); return }
-        val body = beanPage(getString(R.string.beans_entry_title))
+        val style = TaskProductFormStyle(this)
+        val body = style.visual.page(this, getString(R.string.beans_entry_title))
         val inventory = beanInventory(body) ?: return
         section = savedInstanceState?.getInt("section") ?: 0
-        val sections = TaskFormSections(this, body, listOf(getString(R.string.task_form_bean_identity), getString(R.string.task_form_stock), getString(R.string.task_form_dates)), section) { section = it }
+        val sections = TaskFormSections(this, body, listOf(getString(R.string.task_form_bean_identity), getString(R.string.task_form_stock), getString(R.string.task_form_dates)), section, style) { section = it }
         form = sections
         val card = sections.panels[0]
         val beans = inventory.batches().map { it.batch.bean }.distinctBy { it.id }
@@ -47,21 +48,21 @@ class BeanEntryActivity : ThemedActivity() {
         val modeRow = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
             isBaselineAligned = false
-            background = HoyiUi.shape(this@BeanEntryActivity, R.color.mobile_surface, 8, R.color.mobile_border)
-            card.addView(this, android.widget.LinearLayout.LayoutParams(-1, -2).apply {
+            background = style.visual.shape(style.visual.surface, true, 8)
+            sections.modeHost.addView(this, android.widget.LinearLayout.LayoutParams(-1, -2).apply {
                 bottomMargin = HoyiUi.dp(this@BeanEntryActivity, 8)
             })
         }
         val selector = Spinner(this).apply {
             tag = "bean-existing-choice"
-            adapter = beanChoiceAdapter(beans.map { it.name })
+            adapter = style.choiceAdapter(beans.map { it.name })
             minimumHeight = HoyiUi.dp(this@BeanEntryActivity, 52)
             contentDescription = getString(R.string.beans_identity)
             card.addView(this)
         }
         fun input(key: String, label: Int, numeric: Boolean = false) = beanInput(when (key) { "quantity" -> sections.panels[1]; "purchased", "roasted", "opened" -> sections.panels[2]; else -> card }, label, numeric).also {
             fields[key] = it
-            it.textSize = TaskVisualTokens.BODY_SP.toFloat()
+            style.input(it, "bean-entry", key)
             it.setText(savedInstanceState?.getString(key).orEmpty())
         }
         val name = input("name", R.string.beans_name)
@@ -70,10 +71,10 @@ class BeanEntryActivity : ThemedActivity() {
             val parent = field.parent as android.widget.LinearLayout
             (0 until parent.childCount).map { parent.getChildAt(it) }
                 .filterIsInstance<android.widget.TextView>().single { it.labelFor == field.id }.apply {
-                    textSize = TaskVisualTokens.SUPPORTING_SP.toFloat()
-                    setPadding(0, 0, 0, HoyiUi.dp(this@BeanEntryActivity, TaskVisualTokens.RELATED_GAP_DP))
+                    style.label(this)
                 }
         }
+        style.unit(quantity, "g", "bean-entry", "quantity")
         val purchased = input("purchased", R.string.beans_purchased)
         val roasted = input("roasted", R.string.beans_roasted)
         val opened = input("opened", R.string.beans_opened)
@@ -90,7 +91,7 @@ class BeanEntryActivity : ThemedActivity() {
                 isBaselineAligned = false
                 parent.addView(this, android.widget.LinearLayout.LayoutParams(-1, -2).apply { topMargin = HoyiUi.dp(this@BeanEntryActivity, 8) })
             }
-            label.textSize = 14f
+            style.label(label, belowGap = false)
             label.setPadding(0, 0, HoyiUi.dp(this, 16), 0)
             dateRow.addView(label, android.widget.LinearLayout.LayoutParams(0, -2, 1f))
             val dateInput = android.widget.FrameLayout(this)
@@ -102,16 +103,15 @@ class BeanEntryActivity : ThemedActivity() {
                 contentDescription = label.text
                 tooltipText = label.text
                 setImageResource(R.drawable.form_calendar)
-                imageTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_muted))
+                imageTintList = android.content.res.ColorStateList.valueOf(style.visual.muted)
                 setPadding(HoyiUi.dp(this@BeanEntryActivity, 12), HoyiUi.dp(this@BeanEntryActivity, 12),
                     HoyiUi.dp(this@BeanEntryActivity, 12), HoyiUi.dp(this@BeanEntryActivity, 12))
-                val states = android.graphics.drawable.StateListDrawable().apply {
-                    addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(this@BeanEntryActivity, android.R.color.transparent, 8, R.color.mobile_accent))
-                    addState(intArrayOf(), HoyiUi.shape(this@BeanEntryActivity, android.R.color.transparent, 8))
-                }
                 background = android.graphics.drawable.RippleDrawable(
-                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)), states,
-                    HoyiUi.shape(this@BeanEntryActivity, android.R.color.white, 8))
+                    android.content.res.ColorStateList.valueOf(style.visual.selected),
+                    android.graphics.drawable.StateListDrawable().apply {
+                        addState(intArrayOf(android.R.attr.state_focused), style.visual.shape(android.graphics.Color.TRANSPARENT, true, 8))
+                        addState(intArrayOf(), style.visual.shape(android.graphics.Color.TRANSPARENT, false, 8))
+                    }, style.visual.shape(android.graphics.Color.WHITE, radius = 8))
                 setOnClickListener {
                     val initial = runCatching { LocalDate.parse(field.text.toString().trim()) }.getOrNull() ?: LocalDate.now()
                     dateDialog?.dismiss()
@@ -137,14 +137,7 @@ class BeanEntryActivity : ThemedActivity() {
             name.setText(if (existingMode) bean?.name.orEmpty() else newNameDraft)
             modeButtons.forEach { (existing, button) ->
                 button.isSelected = existing == existingMode
-                button.setTextColor(getColor(if (!button.isEnabled) R.color.mobile_muted else R.color.mobile_text))
-                val fill = if (button.isSelected) R.color.mobile_accent_soft else android.R.color.transparent
-                val states = android.graphics.drawable.StateListDrawable().apply {
-                    addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(this@BeanEntryActivity, fill, 8, R.color.mobile_accent))
-                    addState(intArrayOf(), HoyiUi.shape(this@BeanEntryActivity, fill, 8))
-                }
-                button.background = android.graphics.drawable.RippleDrawable(
-                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)), states, null)
+                style.selected(button, button.isSelected)
             }
         }
         listOf(false to R.string.beans_new_identity, true to R.string.beans_existing_identity).forEach { (existing, label) ->
@@ -157,7 +150,7 @@ class BeanEntryActivity : ThemedActivity() {
             }.apply {
                 tag = if (existing) "bean-mode-existing" else "bean-mode-new"
                 layoutParams = android.widget.LinearLayout.LayoutParams(0, -2, 1f)
-                asTaskTextAction()
+                style.visual.button(this)
                 setPadding(HoyiUi.dp(this@BeanEntryActivity, 8), HoyiUi.dp(this@BeanEntryActivity, 8),
                     HoyiUi.dp(this@BeanEntryActivity, 8), HoyiUi.dp(this@BeanEntryActivity, 8))
                 isEnabled = !existing || beans.isNotEmpty()
@@ -174,50 +167,17 @@ class BeanEntryActivity : ThemedActivity() {
             }
         }
         renderIdentity()
-        sections.panels[2].addView(View(this).apply {
-            setBackgroundColor(getColor(R.color.mobile_border))
-        }, 0, android.widget.LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)))
         sections.restore(savedInstanceState, fields)
         val error = beanError(body)
-        val footerRow = object : android.widget.LinearLayout(this) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val wide = View.MeasureSpec.getSize(widthMeasureSpec) >= HoyiUi.dp(this@BeanEntryActivity, 624)
-                orientation = if (wide) HORIZONTAL else VERTICAL
-                (getChildAt(0).layoutParams as LayoutParams).apply {
-                    width = if (wide) 0 else -1
-                    weight = if (wide) 1f else 0f
-                    marginEnd = if (wide) HoyiUi.dp(this@BeanEntryActivity, TaskVisualTokens.GROUP_GAP_DP) else 0
-                }
-                (getChildAt(1).layoutParams as LayoutParams).width =
-                    if (wide) HoyiUi.dp(this@BeanEntryActivity, 320) else -1
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-            }
-        }.apply {
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            isBaselineAligned = false
-        }
-        sections.actions.addView(footerRow, android.widget.LinearLayout.LayoutParams(-1, -2))
-        HoyiUi.label(this, footerRow, getString(R.string.task_form_new_batch_notice),
-            TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-            layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2)
-            setPadding(0, 0, 0, HoyiUi.dp(this@BeanEntryActivity, TaskVisualTokens.RELATED_GAP_DP))
-        }
-        val dock = TaskActionDock(this, edgeInsetDp = 0)
-        footerRow.addView(dock, android.widget.LinearLayout.LayoutParams(-1, -2))
-        val actionRow = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.HORIZONTAL
-            isBaselineAligned = false
-        }
-        dock.addView(actionRow, android.widget.LinearLayout.LayoutParams(-1, -2))
-        HoyiUi.button(this, actionRow, getString(R.string.beans_cancel)) { finish() }.apply {
-            asTaskTextAction()
-            layoutParams = android.widget.LinearLayout.LayoutParams(0, -2, 1f).apply {
-                marginEnd = HoyiUi.dp(this@BeanEntryActivity, TaskVisualTokens.RELATED_GAP_DP)
-            }
-        }
-        val save = HoyiUi.button(this, actionRow, getString(R.string.beans_save), primary = true) {}.apply {
-            layoutParams = android.widget.LinearLayout.LayoutParams(0, -2, 2f)
-        }
+        style.error(error)
+        val actionRow = style.visual.row()
+        style.visual.action(actionRow, getString(R.string.beans_cancel), "product/form/bean-entry/cancel", top = 0) { finish() }
+            .layoutParams = android.widget.LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(8) }
+        val save = style.visual.action(actionRow, getString(R.string.beans_save), "product/form/bean-entry/save", primary = true, top = 0) {}
+        save.layoutParams = android.widget.LinearLayout.LayoutParams(-2, -2)
+        val notice = style.visual.text(getString(R.string.task_form_new_batch_notice), TaskProductVisualStyle.auxiliary,
+            "product/form/bean-entry/scope", true)
+        sections.actions.addView(style.footer(notice, actionRow, "bean-entry"), android.widget.LinearLayout.LayoutParams(-1, -2))
         save.setOnClickListener {
             if (saved) return@setOnClickListener
             error.text = ""
