@@ -6,6 +6,7 @@ import android.graphics.Rect
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import org.json.JSONObject
 
@@ -17,6 +18,8 @@ internal object TaskTextLayoutEvidenceChecks {
         val empty = TextView(context)
         check(TaskTypographyEvidence.actualTextLayout(empty).getString("status") == "unknown")
         val view = TextView(context).apply {
+            // measure/layout does not create LayoutParams; later setText/checkForRelayout needs them.
+            layoutParams = ViewGroup.LayoutParams(400, 200)
             text = "第一行\n第二行\n第三行"
             setTextSize(TypedValue.COMPLEX_UNIT_PX, 12f)
             setPadding(7, 9, 11, 13)
@@ -56,6 +59,7 @@ internal object TaskTextLayoutEvidenceChecks {
         view.text = ""; view.hint = "hint"
         check(!TaskTypographyEvidence.actualTextLayout(view).getBoolean("displayedLayoutConfirmed"))
         val ellipsized = TextView(context).apply {
+            layoutParams = ViewGroup.LayoutParams(50, 40)
             text = "这是必须保留省略范围的长文本"
             setTextSize(TypedValue.COMPLEX_UNIT_PX, 16f)
             setSingleLine(true); ellipsize = android.text.TextUtils.TruncateAt.END
