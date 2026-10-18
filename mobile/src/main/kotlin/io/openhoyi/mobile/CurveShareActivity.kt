@@ -18,6 +18,8 @@ class CurveShareActivity : ThemedActivity() {
         super.onCreate(savedInstanceState)
         val style = TaskProductVisualStyle(this)
         val body = style.page(this, getString(R.string.profiles_share_title), getString(R.string.profiles_text_hint))
+        // One page-level 8dp gap, not the legacy header's 12dp plus another 8dp.
+        ((body.tag as BeanPageRegions).header.layoutParams as LinearLayout.LayoutParams).bottomMargin = style.dp(8)
         val doc = runCatching {
             savedInstanceState?.getString("document")?.let(CustomCurveDocument::decode)
                 ?: profileDocument(intent.getStringExtra(CURVE_ID))
@@ -32,7 +34,7 @@ class CurveShareActivity : ThemedActivity() {
                 pane.background = style.shape(style.surface, true, 16)
             }
         }
-        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(8) })
+        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         sharePreview(workspace, doc)
         val actions = workspace.secondaryBody.apply { tag = "product/share/actions" }
         style.add(actions, style.text(getString(R.string.profiles_share_methods), TaskProductVisualStyle.section))
