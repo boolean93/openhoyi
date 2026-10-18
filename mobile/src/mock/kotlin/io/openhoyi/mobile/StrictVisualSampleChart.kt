@@ -57,8 +57,11 @@ internal class StrictVisualSampleChart(context: Context,
         val highestTickInkTopRelative = tickBaselineOffset + ink("12").top
         val stageBaseline = height - metrics.bottom
         val stageInkTop = (1..4).minOf { stageBaseline + ink("阶段 $it").top }
-        val plot = RectF(dp(40f), maxOf(dp(32f), titleInkBottom + dp(8f) - highestTickInkTopRelative),
-            width - dp(16f), minOf(height - dp(38f), stageInkTop - dp(8f)))
+        // Round the plot inward to whole physical pixels, leaving the label bands
+        // outward of it. This guarantees the minimum gap rather than tolerating
+        // a Float subtraction that produces slightly less than the required 8dp.
+        val plot = RectF(dp(40f), kotlin.math.ceil(maxOf(dp(32f), titleInkBottom + dp(8f) - highestTickInkTopRelative)),
+            width - dp(16f), kotlin.math.floor(minOf(height - dp(38f), stageInkTop - dp(8f))))
         check(plot.width() > 0 && plot.height() > 0) { "Sample chart has no plot area" }
         evidence.put(JSONObject().put("operation", "plotGeometry").put("projection", "CurveStageParameters.pressureFraction")
             .put("semanticId", "$tag/plot").put("plotBoundsPx", JSONArray(listOf(plot.left, plot.top, plot.right, plot.bottom)))

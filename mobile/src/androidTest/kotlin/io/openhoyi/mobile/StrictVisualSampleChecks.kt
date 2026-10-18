@@ -270,14 +270,20 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                             val contentWidth = view.width - view.compoundPaddingLeft - view.compoundPaddingRight
                             val contentHeight = view.height - view.compoundPaddingTop - view.compoundPaddingBottom
                             val ellipsisCount = (0 until layout.lineCount).sumOf { layout.getEllipsisCount(it) }
-                            val widthMatches = layout.ellipsizedWidth == contentWidth
+                            // TextView can increase a non-ellipsizing BoringLayout's width
+                            // without updating its cached ellipsizedWidth (Android 34).
+                            // Validate the actual layout; the ellipsis width is relevant
+                            // only when the TextView is configured to ellipsize.
+                            val widthMatches = layout.width == contentWidth &&
+                                (view.ellipsize == null || layout.ellipsizedWidth == contentWidth)
                             val complete = widthMatches && ellipsisCount == 0 && layout.height <= contentHeight
-                            // Retain the unchanged hard checks as FAIL records so all profiles
+                            // Retain hard checks as FAIL records so all profiles
                             // and their exact measurements survive instead of aborting at one node.
                             layoutIssues.put(JSONObject().put("semanticId", tag).put("check", "textLayoutIntegrity")
                                 .put("status", if (complete) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
                                 .put("layoutClass", layout.javaClass.name).put("layoutWidthPx", layout.width)
                                 .put("ellipsizedWidthPx", layout.ellipsizedWidth).put("contentWidthPx", contentWidth)
+                                .put("ellipsizeMode", view.ellipsize?.name ?: JSONObject.NULL)
                                 .put("widthMatches", widthMatches).put("ellipsisCount", ellipsisCount)
                                 .put("layoutHeightPx", layout.height).put("contentHeightPx", contentHeight))
                         }
