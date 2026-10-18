@@ -97,7 +97,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
                 label?.measure(free, free)
                 val labelWidth = label?.measuredWidth ?: 0
                 // Name text may scroll horizontally, but never receives a token-sized viewport.
-                val inputText = if (index == 0) "国".repeat(8) else input?.text.orEmpty()
+                val inputText = if (index == 0) "国".repeat(8) else input?.text?.toString().orEmpty()
                 val textWidth = input?.let { kotlin.math.ceil(android.text.Layout.getDesiredWidth(inputText, it.paint).toDouble()).toInt() } ?: 0
                 // unit() has already reserved its real unit + gap in compoundPadding.
                 // Do not count that unit a second time merely because inputHost is a wrapper.
