@@ -140,12 +140,12 @@ class MachineSettingsActivity : ThemedActivity() {
             fun tile(label: String): TextView {
                 val box = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
-                    setPadding(dp(14), dp(12), dp(14), dp(12))
-                    background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_accent_soft, 12)
+                    setPadding(dp(16), dp(16), dp(16), dp(16))
+                    background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_surface, 12)
                 }
                 row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
-                HoyiUi.label(this, box, label, 13, muted = true)
-                return HoyiUi.label(this, box, "—", 21, true).apply { setPadding(0, dp(8), 0, 0) }
+                HoyiUi.label(this, box, label, TaskVisualTokens.SUPPORTING_SP, muted = true)
+                return HoyiUi.label(this, box, "—", TaskVisualTokens.TITLE_SP, true).apply { setPadding(0, dp(8), 0, 0) }
             }
             return tile(first) to tile(second)
         }
@@ -176,7 +176,7 @@ class MachineSettingsActivity : ThemedActivity() {
             val index = settingSections.size
             val tab = TextView(this).apply {
                 text = label
-                textSize = 15f
+                textSize = TaskVisualTokens.BODY_SP.toFloat()
                 gravity = Gravity.CENTER
                 minHeight = dp(48)
                 setPadding(dp(16), dp(8), dp(16), dp(8))
@@ -214,6 +214,7 @@ class MachineSettingsActivity : ThemedActivity() {
             if (c == null || c !in 110..145) steamInput.error = getString(R.string.machine_settings_steam_error)
             else confirm(MachineSettingChange.SteamTemperature(c))
         }
+        compactTemperatureRows(controls, listOf(brewInput, compensationInput, steamInput))
         val functionsCard = card(functionsSection, getString(R.string.machine_settings_functions_title))
         brewHeatingButton = action(functionsCard, getString(R.string.machine_settings_brew_heating_toggle)) {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.BrewHeating(!it.brewHeating)) }
@@ -591,13 +592,40 @@ class MachineSettingsActivity : ThemedActivity() {
         parent.addView(this, LinearLayout.LayoutParams(-1, -2))
     }
     private fun temperatureInput(parent: LinearLayout, hintText: String): EditText = EditText(this).apply {
+        id = View.generateViewId()
+        val fieldId = id
+        HoyiUi.label(this@MachineSettingsActivity, parent, hintText, TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+            labelFor = fieldId
+            setPadding(0, dp(8), 0, dp(8))
+        }
         hint = hintText
+        textSize = TaskVisualTokens.BODY_SP.toFloat()
+        typeface = TaskTypography.face(this@MachineSettingsActivity, 400)
         inputType = InputType.TYPE_CLASS_NUMBER
         minHeight = dp(48)
         setPadding(dp(14), dp(8), dp(14), dp(8))
         background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_surface, 12, R.color.mobile_border)
         parent.addView(this, LinearLayout.LayoutParams(-1, -2))
     }
+    private fun compactTemperatureRows(parent: LinearLayout, inputs: List<EditText>) {
+        val inline = HoyiUi.wide(this) && resources.configuration.fontScale <= 1.1f
+        for (input in inputs) {
+            val inputIndex = parent.indexOfChild(input)
+            val button = parent.getChildAt(inputIndex + 1) as Button
+            parent.removeView(input)
+            parent.removeView(button)
+            val row = LinearLayout(this).apply {
+                orientation = if (inline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            parent.addView(row, inputIndex, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
+            row.addView(input, LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1f else 0f))
+            row.addView(button, LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1.4f else 0f).apply {
+                if (inline) marginStart = dp(8) else topMargin = dp(8)
+            })
+        }
+    }
+
     private fun prefill(input: EditText, readback: Int) {
         val current = input.text.toString()
         val suggestion = ReadbackPrefill.next(current, input.tag as? String, readback, input.hasFocus()) ?: return

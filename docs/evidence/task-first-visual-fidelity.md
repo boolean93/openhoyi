@@ -989,3 +989,10 @@ Mock及AndroidTest构建42s成功（/tmp/task-extraction-type-hierarchy-build.lo
 ## 机器设置独立候选稿（2026-10-18）
 
 核对MachineSettingsActivity温度75–105/补偿0–5/蒸汽110–145校验、五分类及回读展示；实读39ac261-frame/tablet-user-landscape/screenshots/MachineSettingsActivity.png。内置ImageGen参照应用设置风格生成machine-settings-v1并目视核对：三独立设置动作、五分类、模拟无蓝牙说明、回读确认与左右主辅结构完整，设置温差补偿文字略有改写但含义未改变。当前仅候选稿，不替换既有已认可范围，不证明各子分类/状态设计完成。至此24页都有至少一张示意图（21功能页及3设置候选），不等于24页实现或视觉验收完成。
+
+
+## 应用设置滚动实证与机器设置布局候选（2026-10-18）
+
+3c0019c/run39089221205 task-frame用户横屏成功，下载ci-3c0019c-frame。实读AppSettingsActivity.png和AppSettingsActivity-diagnostics.png：四分组落地，首屏前两组、底部应用信息/诊断入口可滚动读取；settings-scroll.txt记录states=2 actualBuildInfo=true exportNotInvoked=true preferencesUnchanged=true noBle=true。应用版本0.1.0(1)、包名和Mock模式真实可见；不表示真实设备验收。与稿仍有信息列改为文本堆叠、动作图标缺失、首屏信息密度与间距差异；未最终验收。此证据只覆盖标准浅色，不能外推大字深色。
+
+机器设置候选：温度三组固定标签及原输入/按钮重排，标准宽屏输入动作同行、大字单列；保留原校验/confirm/prefill/render/控件引用。待机输入同步固定标签；回读摘要改中性底色、14/24sp，分类16sp。Mock与AndroidTest构建43s通过（/tmp/task-machine-settings-layout-build.log）。尚无新运行图；回读仍为两列而不是概念稿逐行、页头和动作层级待后续收口，不能说机器设置对齐完成。
