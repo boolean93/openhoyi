@@ -20,6 +20,100 @@ class BrewReviewActivity : ThemedActivity() {
     private var selectedBeanId: String? = null
     private var section = 0
     private var form: TaskReviewSections? = null
+    val productHeaderLayoutEvidence = org.json.JSONObject()
+
+    /** Permanent children: resize changes measurement/placement, never the input or header tree. */
+    private inner class ReviewHeaderLayout(
+        private val style: TaskProductFormStyle,
+        private val back: View,
+        private val words: LinearLayout,
+        private val outcome: ObservationFlow,
+        private val tools: List<View>
+    ) : android.view.ViewGroup(this@BrewReviewActivity) {
+        private var stacked = false
+        private var firstRowHeight = 0
+        init { addView(back); addView(words); addView(outcome); tools.forEach(::addView) }
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+            val available = MeasureSpec.getSize(widthMeasureSpec)
+            // Preserve the original explicit 48dp return control, not drawable intrinsic size.
+            back.measure(MeasureSpec.makeMeasureSpec(style.dp(48), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(style.dp(48), MeasureSpec.EXACTLY))
+            (listOf(words) + tools).filter { it.visibility != GONE }.forEach { it.measure(natural, natural) }
+            outcome.measure(natural, natural)
+            val wordsNatural = words.measuredWidth
+            val outcomeNatural = outcome.measuredWidth
+            val controlWidth = back.measuredWidth + style.dp(12) + tools.filter { it.visibility != GONE }.sumOf { it.measuredWidth }
+            stacked = controlWidth + wordsNatural + style.dp(16) + outcomeNatural > available
+            val wordsWidth = (available - controlWidth - if (stacked) 0 else outcomeNatural + style.dp(16)).coerceAtLeast(1)
+            words.measure(MeasureSpec.makeMeasureSpec(wordsWidth, MeasureSpec.EXACTLY), natural)
+            outcome.measure(MeasureSpec.makeMeasureSpec(if (stacked) available else outcomeNatural, MeasureSpec.EXACTLY), natural)
+            firstRowHeight = (listOf(back, words) + tools).filter { it.visibility != GONE }.maxOf { it.measuredHeight }
+            if (!stacked) firstRowHeight = maxOf(firstRowHeight, outcome.measuredHeight)
+            val height = firstRowHeight + if (stacked) style.dp(8) + outcome.measuredHeight else 0
+            setMeasuredDimension(resolveSize(available, widthMeasureSpec), resolveSize(height, heightMeasureSpec))
+            productHeaderLayoutEvidence.put("availableWidthPx", available).put("wordsNaturalWidthPx", wordsNatural)
+                .put("outcomeNaturalWidthPx", outcomeNatural).put("controlsWidthPx", controlWidth)
+                .put("stacked", stacked).put("firstRowHeightPx", firstRowHeight).put("headerHeightPx", height)
+                .put("outcomeRows", outcome.rowCount)
+        }
+        override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+            val rtl = layoutDirection == View.LAYOUT_DIRECTION_RTL
+            var start = 0
+            fun place(view: View, y: Int) {
+                if (view.visibility == GONE) return
+                val x = if (rtl) width - start - view.measuredWidth else start
+                view.layout(x, y, x + view.measuredWidth, y + view.measuredHeight)
+                start += view.measuredWidth
+            }
+            place(back, (firstRowHeight - back.measuredHeight) / 2); start += style.dp(12)
+            place(words, (firstRowHeight - words.measuredHeight) / 2)
+            if (!stacked) { start += style.dp(16); place(outcome, (firstRowHeight - outcome.measuredHeight) / 2) }
+            tools.forEach { place(it, (firstRowHeight - it.measuredHeight) / 2) }
+            if (stacked) { start = 0; place(outcome, firstRowHeight + style.dp(8)) }
+        }
+    }
+
+    /** Whole metric/status groups flow at natural width; labels can wrap inside a group. */
+    private inner class ObservationFlow(private val style: TaskProductFormStyle) : LinearLayout(this@BrewReviewActivity) {
+        private val rows = mutableListOf<List<View>>()
+        val rowCount get() = rows.size
+        init { tag = "product/form/review/observation"; isBaselineAligned = false }
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val unlimited = MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED
+            val widthLimit = if (unlimited) Int.MAX_VALUE else MeasureSpec.getSize(widthMeasureSpec)
+            val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+            val visible = (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }
+            rows.clear()
+            var row = mutableListOf<View>(); var used = 0
+            visible.forEach { child ->
+                child.measure(if (unlimited) natural else MeasureSpec.makeMeasureSpec(widthLimit, MeasureSpec.AT_MOST), natural)
+                val gap = if (row.isEmpty()) 0 else style.dp(16)
+                if (row.isNotEmpty() && used + gap + child.measuredWidth > widthLimit) {
+                    rows += row; row = mutableListOf(); used = 0
+                }
+                if (row.isNotEmpty()) used += style.dp(16)
+                row += child; used += child.measuredWidth
+            }
+            if (row.isNotEmpty()) rows += row
+            val width = rows.maxOfOrNull { group -> group.sumOf { it.measuredWidth } + style.dp(16) * (group.size - 1) } ?: 0
+            val height = rows.sumOf { group -> group.maxOf { it.measuredHeight } } + style.dp(8) * (rows.size - 1).coerceAtLeast(0)
+            setMeasuredDimension(resolveSize(width, widthMeasureSpec), resolveSize(height, heightMeasureSpec))
+        }
+        override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+            var y = 0
+            rows.forEach { row ->
+                val rowHeight = row.maxOf { it.measuredHeight }; var start = 0
+                row.forEach { child ->
+                    val x = if (layoutDirection == View.LAYOUT_DIRECTION_RTL) width - start - child.measuredWidth else start
+                    val childTop = y + (rowHeight - child.measuredHeight) / 2
+                    child.layout(x, childTop, x + child.measuredWidth, childTop + child.measuredHeight)
+                    start += child.measuredWidth + style.dp(16)
+                }
+                y += rowHeight + style.dp(8)
+            }
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val style = TaskProductFormStyle(this)
@@ -33,17 +127,14 @@ class BrewReviewActivity : ThemedActivity() {
         val header = (body.tag as BeanPageRegions).header
         val words = header.getChildAt(1) as LinearLayout
         style.visual.add(words, style.visual.text(journalCurve(observation.curveId) + " · " + journalDate(observation.startedAtMs),
-            TaskProductVisualStyle.auxiliary, "full-text-details", true).apply {
-            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
-        }, 8)
-        val outcome = style.visual.row("product/form/review/observation").apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-        header.addView(outcome, 2, LinearLayout.LayoutParams(-2, -2).apply { marginStart = style.dp(16) })
+            TaskProductVisualStyle.auxiliary, "full-text-details", true), 8)
+        val outcome = ObservationFlow(style)
         listOf(Triple(R.string.journal_elapsed, observation.elapsedMs?.let { BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString() },
                 getString(R.string.journal_seconds, "").trim()),
             Triple(R.string.history_end_scale, observation.weightHundredthsGram?.let { BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString() },
                 getString(R.string.journal_grams, "").trim())).forEachIndexed { index, (label, value, unit) ->
             val cell = style.visual.column()
-            outcome.addView(cell, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(16) })
+            outcome.addView(cell, LinearLayout.LayoutParams(-2, -2))
             style.visual.add(cell, style.visual.quantity(value ?: "—", if (value == null) null else unit,
                 TaskProductVisualStyle.shareMetric, "product/form/review/observed-$index"))
             style.visual.add(cell, style.visual.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true))
@@ -52,6 +143,11 @@ class BrewReviewActivity : ThemedActivity() {
             "product/form/review/observed-status").apply {
             setTextColor(if (observation.status == "UNKNOWN") getColor(R.color.mobile_danger) else style.visual.accent)
         })
+        val back = header.getChildAt(0)
+        val tools = (2 until header.childCount).map(header::getChildAt)
+        header.removeAllViews()
+        header.orientation = LinearLayout.VERTICAL
+        header.addView(ReviewHeaderLayout(style, back, words, outcome, tools), LinearLayout.LayoutParams(-1, -2))
         if (observation.status == "UNKNOWN") style.visual.add(body, style.visual.text(getString(R.string.history_unknown_warning),
             TaskProductVisualStyle.auxiliary).apply { setTextColor(getColor(R.color.mobile_danger)) })
         style.visual.divider(body, 0, 8)

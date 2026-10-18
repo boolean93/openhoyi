@@ -37,7 +37,11 @@ internal class TaskFormSections(private val activity: ThemedActivity, body: Line
                     (panel.layoutParams as LayoutParams).apply {
                         width = if (inline) 0 else -1; height = -2; weight = if (inline) (if (index == 0) 3f else 2f) else 0f
                         marginStart = if (inline && index > 0) dp(16) else 0
+                        marginEnd = 0
                         topMargin = if (!inline && index > 0) dp(8) else 0
+                        // In-place measure changes do not call View.setLayoutParams,
+                        // so resolve the physical margins used by LinearLayout now.
+                        resolveLayoutDirection(identity.layoutDirection)
                     }
                 }
                 identity.forceLayout(); content.forceLayout()

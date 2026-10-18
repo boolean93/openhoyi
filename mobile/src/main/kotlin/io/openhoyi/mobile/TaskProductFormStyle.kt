@@ -68,7 +68,11 @@ internal class TaskProductFormStyle(val activity: ThemedActivity) {
             visual.apply(this, TaskProductVisualStyle.body)
             setSingleLine(false); maxLines = if (selected) 2 else Int.MAX_VALUE
             ellipsize = if (selected) android.text.TextUtils.TruncateAt.END else null
-            minimumHeight = dp(52); setPadding(dp(12), dp(8), dp(12), dp(8))
+            minimumHeight = dp(52); minHeight = dp(52)
+            // The framework dropdown template has a fixed preferred-item height.
+            // Spinner measures that LP literally; two natural lines need WRAP_CONTENT.
+            layoutParams = (layoutParams ?: android.view.ViewGroup.LayoutParams(-1, -2)).apply { height = -2 }
+            setPadding(dp(12), dp(8), dp(12), dp(8))
             setBackgroundColor(visual.surface); contentDescription = text
             if (selected) tag = "full-text-details"
         }
