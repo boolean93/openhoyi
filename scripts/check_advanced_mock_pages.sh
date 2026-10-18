@@ -28,7 +28,11 @@ on_error() {
   exit "$status"
 }
 trap on_error ERR
-adb shell wm density 200
+# Primary acceptance matches the user's Xiaomi tablet, not a roomier logical canvas.
+adb shell wm density 360
+adb shell wm size 2560x1600
+adb shell wm density > "$output_dir/device-density.txt"
+adb shell wm size > "$output_dir/device-size.txt"
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 0
 adb install -r "$apk"
@@ -37,10 +41,10 @@ if [ "$suite" != business ]; then
 for profile in landscape wideFont; do
   adb shell am force-stop "$package"
   if [ "$profile" = landscape ]; then
-    adb shell wm size 1600x1000
+    adb shell wm size 2560x1600
     adb shell settings put system font_scale 1.0
   else
-    adb shell wm size 1600x1000
+    adb shell wm size 2560x1600
     adb shell settings put system font_scale 1.3
   fi
   python3 - "$profile" "$output_dir/$profile.txt" <<'PY'
@@ -71,8 +75,8 @@ for path in paths:
     if len(data)<10000 or data[:8]!=b'\x89PNG\r\n\x1a\n':
         raise SystemExit(f'Invalid screenshot: {path}')
     width,height=struct.unpack('>II',data[16:24])
-    if not width or not height:
-        raise SystemExit(f'Empty screenshot geometry: {path}')
+    if (width, height) != (2560, 1600):
+        raise SystemExit(f'Wrong user tablet screenshot geometry: {path}: {width}x{height}')
 print(f'Advanced page screenshots validated: {len(paths)}')
 PY
 done
@@ -84,7 +88,7 @@ if [ "$suite" = pages ]; then
   exit 0
 fi
 adb shell am force-stop "$package"
-adb shell wm size 1600x1000
+adb shell wm size 2560x1600
 adb shell settings put system font_scale 1.0
 python3 - "$output_dir/business-flows.txt" <<'PY'
 from pathlib import Path
@@ -115,7 +119,7 @@ for name in ('review-saved-notes', 'import-new', 'import-conflict', 'curve-edito
     data = path.read_bytes()
     if len(data) < 10000 or data[:8] != b'\x89PNG\r\n\x1a\n':
         raise SystemExit(f'Invalid business state screenshot: {path}')
-    if struct.unpack('>II', data[16:24]) != (1600, 1000):
+    if struct.unpack('>II', data[16:24]) != (2560, 1600):
         raise SystemExit(f'Wrong business state screenshot geometry: {path}')
 print('Business state screenshots validated: 6')
 PY
@@ -158,7 +162,7 @@ if expected not in output.read_text():
 PY
 collect
 adb shell am force-stop "$package"
-adb shell wm size 1600x1000
+adb shell wm size 2560x1600
 
 # Run after non-execution checks so completed CI-owned shot evidence is not their baseline.
 python3 - "$output_dir/custom-curve-execution.txt" <<'CHECK_PY'

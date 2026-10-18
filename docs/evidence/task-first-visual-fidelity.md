@@ -1121,3 +1121,7 @@ run39092501813成功（同源码另run39092498372亦成功），下载ci-831aa1c
 run39113352006失败于import-stage-table未显示，下载ci-87334eb-frame-failure并实读两页截图/table-space。1138×623dp/font1：导入表1470×356px隐藏、图1470×664px，放入表后图仅308px，小于原360px门限；分享表1328×192px已完整显示、图1328×381px，两阶段表缺口已关闭但不代表四阶段。
 
 按原导入概念稿将原save/copy dock从整页底行移入右侧decisions；只改变父节点/满支持区宽，保存/冲突/只读/错误回调不变。释放左侧整行占用，不减少160dp图阈值、字号或表格行。Mock及AndroidTest构建成功（/tmp/task-import-confirm-pane-build.log）、diff通过，仍需新实际窗口和短高/大字验证，不能预判四阶段表必通过。
+
+## 高级页面截图尺寸审计（2026-10-18）
+
+实读831aa1c wideFont中文浅色预览/分享：两阶段表格和主要入口完整。但check_advanced_mock_pages.sh指定1600×1000/density200/font1.3，不等于用户2560×1600/density360；其逻辑画布更宽高，不能据此关闭用户大字缺口。候选将高级pages、business及后续文档/自定义执行统一用户配置，保留480页面夹具及18业务/其他全部门禁，截图严格检查2560×1600，并记录adb实际size/density。未在本地运行adb。bash -n及7段嵌入Python ast.parse通过，diff通过；新目标配置尚未在CI执行，不冒称通过。旧截图证据仍只适用于旧配置。
