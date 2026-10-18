@@ -39,18 +39,14 @@ internal object ChineseFormWindowChecks {
         fun scrollAncestor(view: View) = generateSequence(view.parent) { it.parent }
             .filterIsInstance<android.widget.ScrollView>().firstOrNull()
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
-        var sections: Spinner? = null
-        var originalSection = 0
+        val reviewLabels = listOf(R.string.journal_dose, R.string.journal_grind,
+            R.string.journal_expectation, R.string.journal_taste, R.string.journal_next)
+        val originalSection = 0
         var stageSelector: CurveStageCountTabs? = null
         var originalStages = 0
         var pageWindowId = -1
         var activeEditorLabel: String? = null
         var primaryFailure: Throwable? = null
-        main {
-            sections = descendants(content).filterIsInstance<Spinner>().singleOrNull { it.tag == "bean-sections" }
-            check(activity is CurveEditorActivity || activity is BeanEntryActivity || sections != null)
-            originalSection = sections?.selectedItemPosition ?: 0
-        }
         fun editorField(position: Int): EditText {
             val label = activity.getString(when (position) {
                 0 -> R.string.profiles_name
@@ -70,7 +66,13 @@ internal object ChineseFormWindowChecks {
                 val panel = (form.getChildAt(0) as ViewGroup).getChildAt(position)
                 val field = descendants(panel).filterIsInstance<EditText>().first()
                 field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
-            } else requireNotNull(sections).setSelection(position)
+            } else {
+                val title = descendants(content).filterIsInstance<TextView>().single {
+                    it.labelFor != View.NO_ID && it.text.toString() == activity.getString(reviewLabels[position])
+                }
+                val field = content.findViewById<EditText>(title.labelFor)
+                field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
+            }
         }
         val evidence = File(directory, "chinese-form-states").apply { check(mkdirs() || isDirectory) }
         var allStatesChecked = false
@@ -322,11 +324,11 @@ internal object ChineseFormWindowChecks {
                 }
                 capture("four-stage-table")
             }
-            main { sectionCount = if (activity is CurveEditorActivity) 6 else if (activity is BeanEntryActivity) 3 else requireNotNull(sections).count }
+            main { sectionCount = if (activity is CurveEditorActivity) 6 else if (activity is BeanEntryActivity) 3 else reviewLabels.size }
             for (position in 0 until sectionCount) {
                 main { selectSection(position) }
                 waitForDraw()
-                main { check(activity is CurveEditorActivity || activity is BeanEntryActivity || requireNotNull(sections).selectedItemPosition == position); SingleScreenPageChecks.verify(activity) }
+                main { SingleScreenPageChecks.verify(activity) }
                 if (activity is BeanEntryActivity || activity is CurveEditorActivity || activity is BrewReviewActivity) {
                     lateinit var groupField: EditText
                     main {
@@ -359,7 +361,7 @@ internal object ChineseFormWindowChecks {
                     }
                     main {
                         val title = descendants(content).filterIsInstance<TextView>().single {
-                            it.labelFor != View.NO_ID && it.text.toString() == requireNotNull(sections).selectedItem.toString()
+                            it.labelFor != View.NO_ID && it.text.toString() == activity.getString(reviewLabels[position])
                         }
                         field = content.findViewById(title.labelFor)
                         check(field.inputType and InputType.TYPE_TEXT_FLAG_MULTI_LINE != 0)

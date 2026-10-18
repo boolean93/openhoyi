@@ -604,7 +604,11 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             review = recreate(review)
             assertReviewFields(review, expectedNotes)
             check(journal.find(shotId)?.notes == expectedNotes)
-            record("journal-edit-reopen-recreate"); close(review)
+            click(review, R.string.beans_cancel)
+            awaitMain { review.isDestroyed }
+            opened.remove(review)
+            check(journal.find(shotId)?.notes == expectedNotes) { "Cancelling review changed saved notes" }
+            record("journal-edit-reopen-recreate")
             // Own UUID fixture only: filled review plus synthetic telemetry, not hardware evidence.
             val detailSamples = (0..30).map { second ->
                 ShotPoint(second * 1000L, if (second == 30) 0 else minOf(second * 18, 90),

@@ -102,6 +102,7 @@ class BrewReviewActivity : ThemedActivity() {
         select.setSelection(beans.indexOfFirst { it.id == selectedBeanId }.let { if (it < 0) 0 else it + 1 })
         fun field(key: String, label: Int, initial: String, numeric: Boolean = false) = beanInput(sections.panels[when (key) { "grind" -> 1; "expectation" -> 2; "taste" -> 3; "next" -> 4; else -> 0 }].apply { tag = "bean-full-field" }, label, numeric, emphasizeLabel=true).also {
             fields[key] = it
+            it.textSize = TaskVisualTokens.BODY_SP.toFloat()
             if (!numeric) { it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; it.setSingleLine(false); it.minLines = 2; it.gravity = android.view.Gravity.TOP; it.layoutParams = (it.layoutParams as LinearLayout.LayoutParams).apply { height = HoyiUi.dp(this@BrewReviewActivity, 160); weight = 0f }; it.filters = arrayOf(InputFilter.LengthFilter(16000)) }
             it.setText(savedInstanceState?.getString(key) ?: initial)
             val length = it.text.length
@@ -112,7 +113,7 @@ class BrewReviewActivity : ThemedActivity() {
         val grind = field("grind", R.string.journal_grind, entry.notes.grind)
         HoyiUi.button(this, sections.panels[1], getString(R.string.journal_detail)) {
             beanDetails(journalCurve(entry.observation.curveId), journalObservationText(entry.observation))
-        }
+        }.asTaskTextAction()
         val expectation = field("expectation", R.string.journal_expectation, entry.notes.curveExpectation)
         val taste = field("taste", R.string.journal_taste, entry.notes.taste)
         val next = field("next", R.string.journal_next, entry.notes.nextAdjustment)
@@ -150,7 +151,17 @@ class BrewReviewActivity : ThemedActivity() {
         }
         val saveDock = TaskActionDock(this, edgeInsetDp = 0)
         saveRow.addView(saveDock, LinearLayout.LayoutParams(-1, -2))
-        val save = HoyiUi.button(this, saveDock, getString(R.string.journal_save), primary = true) {}
+        val actionRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+        saveDock.addView(actionRow, LinearLayout.LayoutParams(-1, -2))
+        HoyiUi.button(this, actionRow, getString(R.string.beans_cancel)) { finish() }.apply {
+            asTaskTextAction()
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
+                marginEnd = HoyiUi.dp(this@BrewReviewActivity, TaskVisualTokens.RELATED_GAP_DP)
+            }
+        }
+        val save = HoyiUi.button(this, actionRow, getString(R.string.journal_save), primary = true) {}.apply {
+            layoutParams = LinearLayout.LayoutParams(0, -2, 2f)
+        }
         save.setOnClickListener {
             val available = app.journalResult.getOrNull()
             if (available == null) { error.setText(R.string.journal_unavailable); save.isEnabled = false; return@setOnClickListener }

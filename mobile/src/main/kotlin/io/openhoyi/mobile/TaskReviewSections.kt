@@ -3,15 +3,13 @@ package io.openhoyi.mobile
 import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
-import android.widget.AdapterView
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.Spinner
 
 /** Stable inline parameter/notes regions; resize never reparents a field or changes a draft. */
 internal class TaskReviewSections(private val activity: ThemedActivity, body: LinearLayout,
-    labels: List<String>, selected: Int, changed: (Int) -> Unit) {
+    labels: List<String>, selected: Int, private val changed: (Int) -> Unit) {
     private var selectedIndex = selected.coerceIn(labels.indices)
     private val parameters = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
     private val notes = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -97,23 +95,6 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             (if (index < 2) parameters else notes).addView(this, LinearLayout.LayoutParams(-1, -2))
         }
     }
-    val selector = Spinner(activity).apply {
-        tag = "bean-sections"
-        contentDescription = activity.getString(R.string.task_form_jump)
-        adapter = HoyiUi.spinnerAdapter(activity, labels)
-        minimumHeight = dp(48)
-        notesHeader.addView(this, LinearLayout.LayoutParams(dp(200), -2))
-        setSelection(selectedIndex)
-        onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                val different = selectedIndex != position
-                selectedIndex = position
-                changed(position)
-                if (different) reveal(position)
-            }
-        }
-    }
     init { host.addView(regions, LinearLayout.LayoutParams(-1, 0, 1f)) }
 
     private fun sectionHeading(parent: LinearLayout, label: Int) =
@@ -135,7 +116,11 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         val scroll = if (index < 2) parameterScroll else noteScroll
         panels[index].post { scroll.scrollTo(0, panels[index].top) }
     }
-    fun jumpTo(index: Int) { selector.setSelection(index); reveal(index) }
+    fun jumpTo(index: Int) {
+        selectedIndex = index.coerceIn(panels.indices)
+        changed(selectedIndex)
+        reveal(selectedIndex)
+    }
     fun fitMultiline(fields: List<EditText>) { multilineFields = fields; noteScroll.post { fitEditors() } }
     private fun fitEditors() {
         // Parameter and notes viewports resize independently under the IME.
