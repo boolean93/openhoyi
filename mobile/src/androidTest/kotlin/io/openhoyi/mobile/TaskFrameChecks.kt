@@ -158,7 +158,16 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             }
             for (page in pages) {
                 test.sendStatus(0, Bundle().apply { putString("stream", "TASK_FRAME_START ${page.simpleName}\n") })
-                val activity = test.startActivitySync(Intent(test.targetContext, page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                val previewDocument = if (page == CurveImportPreviewActivity::class.java) CustomCurveDocument(
+                    CustomCurveDocument.newId(), "经典浓缩", 93, 3600, CustomCurveDocument.ControlMode.PRESSURE,
+                    listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 250),
+                        CustomCurveDocument.Stage(70, 150), CustomCurveDocument.Stage(50, 50))) else null
+                val previewStore = if (previewDocument != null) app.customCurvesResult.getOrThrow() else null
+                val beforePreview = previewStore?.list()
+                if (previewDocument != null) check(previewStore!!.find(previewDocument.id) == null)
+                val intent = Intent(test.targetContext, page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                previewDocument?.let { intent.putExtra(CurveImportPreviewActivity.DOCUMENT, it.encode()) }
+                val activity = test.startActivitySync(intent)
                 try {
                     val deadline = SystemClock.elapsedRealtime() + 10000
                     while (true) {
@@ -229,6 +238,20 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                     try {
                         File(directory, "${page.simpleName}.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
+                    if (previewDocument != null) {
+                        test.runOnMainSync {
+                            val all = descendants(activity.window.decorView)
+                            check(all.filterIsInstance<CurveStageView>().single().targets == previewDocument.stages.map { it.target })
+                            check(all.filterIsInstance<android.widget.Button>().any {
+                                it.isShown && it.isEnabled && it.text.toString() == activity.getString(R.string.profiles_import_save)
+                            }) { "Valid import preview did not expose save action" }
+                        }
+                        check(previewStore!!.list() == beforePreview && previewStore.find(previewDocument.id) == null) {
+                            "Viewing import preview changed curve storage"
+                        }
+                        File(directory, "import-preview-fixture.txt").writeText(
+                            "validDocument=true stages=4 conflict=false saveNotInvoked=true storeUnchanged=true noBle=true\n")
+                    }
                     if (activity is AppSettingsActivity || activity is ScaleSettingsActivity || activity is MachineSettingsActivity) verifySettingsScroll(activity, directory)
                 } finally {
                     test.runOnMainSync { activity.finish() }

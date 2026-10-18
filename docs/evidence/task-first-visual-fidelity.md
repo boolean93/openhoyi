@@ -1085,3 +1085,7 @@ run39091312445失败，已下载ci-a0ab801-frame-failure并读取result.txt：TA
 ## 导入预览信息层级候选（2026-10-18）
 
 实读curve-import-preview-v1、4d308a7通用预览图与63a490c-business/import-conflict.png。通用图没有DOCUMENT参数，只呈现错误态，不可用于正常/冲突态对照。旧冲突实图四阶段完整但支持区窄、缺压力图标题；63a490c至当前本页仅增加冲突警示背景。候选将本页支持区设35%且400dp上限，压力图增加共享20sp阶段压力目标标题/8dp间距，仍由原预算计入固定高度，表格空间不足时保留原隐藏和详情入口。Mock+AndroidTest构建42s成功、diff通过；未运行含数据新图，右侧动作位置/元数据单位/参数表标题等差异仍未关闭。最新e8a900a frame run39091826896实查运行中，advanced run39091826887排队；未重启。
+
+## 正常导入预览实图入口（2026-10-18，待运行）
+
+TaskFrameChecks的CurveImportPreviewActivity启动参数现携带四阶段测试文档：新UUID、经典浓缩、93°C/36g、3/9/7/5bar、15/25/15/5ml。不保存，前后比较store列表且fixture ID始终不存在；验证四阶段目标和有效保存入口，输出import-preview-fixture.txt。这是正常态，不伪装已有冲突。其他23页及业务无效/冲突夹具保留。MockAndroidTest构建23s成功、diff通过（/tmp/task-import-preview-fixture-build.log）；尚未运行这项新截图，不能声称视觉通过。
