@@ -1,0 +1,2881 @@
+{
+  "schemaVersion": 1,
+  "baselineId": "strict-visual-draft-2026-10-18",
+  "status": "proposed",
+  "author": "Astra",
+  "specimenOnly": true,
+  "productAcceptance": false,
+  "coordinateContract": {
+    "source": "integer pixel rectangles [left,top,right,bottom), manual semantic annotations on the unchanged source PNG; not recovered original UI measurement",
+    "target": "dp rectangles in app content region, origin excludes system Insets; native font1.0 standard profile only",
+    "standardWindowDp": [
+      1138,
+      623
+    ],
+    "displayPx": [
+      2560,
+      1600
+    ],
+    "densityDpi": 360,
+    "locale": "zh-Hans",
+    "mapping": "semantic reflow; no whole-image non-uniform scale; source text baseline/family/sp is unknown",
+    "rounding": "record each actual Android dp-to-px conversion and remainder distribution; no comparison tolerance",
+    "sourceBaselinePolicy": "null means original typographic baseline cannot be recovered; source rectangles locate raster content, not exact glyph metrics"
+  },
+  "typographyRoles": {
+    "title": {
+      "sp": 24,
+      "weight": 500,
+      "lineHeightSp": 36
+    },
+    "section": {
+      "sp": 20,
+      "weight": 500,
+      "lineHeightSp": 30
+    },
+    "body": {
+      "sp": 16,
+      "weight": 400,
+      "lineHeightSp": 24
+    },
+    "supporting": {
+      "sp": 14,
+      "weight": 400,
+      "lineHeightSp": 22
+    },
+    "action": {
+      "sp": 16,
+      "weight": 500,
+      "lineHeightSp": 24,
+      "minTouchDp": 48
+    },
+    "large-value": {
+      "sp": 40,
+      "weight": 700,
+      "lineHeightSp": 60,
+      "unitSp": 14,
+      "unitWeight": 400
+    },
+    "inline-recipe-summary": {
+      "valueSp": 24,
+      "valueWeight": 700,
+      "valueLineHeightSp": 36,
+      "labelAndUnitSp": 14,
+      "labelAndUnitWeight": 400,
+      "arrangement": "one horizontal row, three groups; no stacked labels"
+    },
+    "recent-row": {
+      "nameSp": 16,
+      "nameWeight": 500,
+      "summarySp": 14,
+      "summaryWeight": 400,
+      "minHeightDp": 48,
+      "arrangement": "single row, name start and summary end; full content accessible"
+    },
+    "table-supporting": {
+      "sp": 14,
+      "weight": 400,
+      "lineHeightSp": 22,
+      "headerWeight": 500,
+      "rowHeightDp": 22,
+      "verticalPaddingDp": 0,
+      "readOnly": true,
+      "note": "Not an interactive row; 48dp target rule does not apply. Native line-box and glyph visibility must be verified."
+    },
+    "table-body": {
+      "sp": 16,
+      "weight": 400,
+      "lineHeightSp": 24,
+      "rowHeightDp": 24,
+      "verticalPaddingDp": 0,
+      "readOnly": true
+    },
+    "supporting-emphasis": {
+      "sp": 14,
+      "weight": 500,
+      "lineHeightSp": 22
+    }
+  },
+  "sharedNavigation": {
+    "targetRailWidthDp": 80,
+    "logoBoxDp": [
+      8,
+      16,
+      72,
+      48
+    ],
+    "primaryRowsDp": [
+      [
+        8,
+        64,
+        72,
+        128
+      ],
+      [
+        8,
+        136,
+        72,
+        200
+      ],
+      [
+        8,
+        208,
+        72,
+        272
+      ],
+      [
+        8,
+        280,
+        72,
+        344
+      ]
+    ],
+    "toolsRowsDp": [
+      [
+        8,
+        479,
+        72,
+        543
+      ],
+      [
+        8,
+        551,
+        72,
+        615
+      ]
+    ],
+    "iconDp": 24,
+    "labelRole": "supporting",
+    "labelAndIconAreOneTarget": true,
+    "sourceApproval": "existing 72-80dp rail range; exact80 chosen by Astra as proposed"
+  },
+  "pages": {
+    "preparation-confirmed-four-stage": {
+      "source": {
+        "path": "docs/research/task-first-ui-concepts/brew-preparation-v2.png",
+        "widthPx": 1586,
+        "heightPx": 992,
+        "sha256": "04c50d474ff5aa3e9e925276929b220c81a332fd661a27149605a06e2b77b42d",
+        "systemBarsInImage": false
+      },
+      "status": "proposed_ready_for_native_specimen",
+      "anchors": [
+        {
+          "id": "sample/nav/rail",
+          "sourcePx": {
+            "rect": [
+              0,
+              0,
+              105,
+              992
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              0,
+              0,
+              80,
+              623
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/page/title",
+          "sourcePx": {
+            "rect": [
+              148,
+              25,
+              330,
+              65
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              16,
+              790,
+              52
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "title"
+        },
+        {
+          "id": "sample/page/subtitle",
+          "sourcePx": {
+            "rect": [
+              149,
+              73,
+              360,
+              95
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              60,
+              790,
+              82
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/page/headerDivider",
+          "sourcePx": {
+            "rect": [
+              124,
+              117,
+              1569,
+              119
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              94,
+              1122,
+              95
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/mainPane",
+          "sourcePx": {
+            "rect": [
+              125,
+              137,
+              1158,
+              979
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              104,
+              790,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/cup",
+          "sourcePx": {
+            "rect": [
+              1189,
+              145,
+              1559,
+              946
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              104,
+              1122,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/paneDivider",
+          "sourcePx": {
+            "rect": [
+              1158,
+              119,
+              1160,
+              981
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              802,
+              110,
+              803,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/recipe",
+          "sourcePx": {
+            "rect": [
+              149,
+              153,
+              549,
+              197
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              110,
+              630,
+              146
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "title"
+        },
+        {
+          "id": "sample/preparation/changeRecipe",
+          "sourcePx": {
+            "rect": [
+              1019,
+              157,
+              1132,
+              190
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              646,
+              104,
+              790,
+              152
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/preparation/summary",
+          "sourcePx": {
+            "rect": [
+              150,
+              221,
+              1130,
+              254
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              160,
+              790,
+              196
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "inline-recipe-summary"
+        },
+        {
+          "id": "sample/preparation/summaryDivider",
+          "sourcePx": {
+            "rect": [
+              150,
+              280,
+              1130,
+              282
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              204,
+              790,
+              205
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/stageTitle",
+          "sourcePx": {
+            "rect": [
+              150,
+              302,
+              255,
+              328
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              212,
+              790,
+              242
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "section"
+        },
+        {
+          "id": "sample/preparation/stage",
+          "sourcePx": {
+            "rect": [
+              150,
+              346,
+              1131,
+              689
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              250,
+              790,
+              416
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/stage/plot",
+          "sourcePx": {
+            "rect": [
+              205,
+              380,
+              1130,
+              656
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              136,
+              282,
+              774,
+              378
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/stageNote",
+          "sourcePx": {
+            "rect": [
+              150,
+              709,
+              661,
+              730
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              424,
+              790,
+              446
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/preparation/recentTitle",
+          "sourcePx": {
+            "rect": [
+              150,
+              774,
+              247,
+              803
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              463,
+              630,
+              493
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "section"
+        },
+        {
+          "id": "sample/preparation/recentMore",
+          "sourcePx": {
+            "rect": [
+              1027,
+              772,
+              1134,
+              801
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              646,
+              454,
+              790,
+              502
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/preparation/recent",
+          "sourcePx": {
+            "rect": [
+              150,
+              809,
+              1130,
+              969
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              510,
+              790,
+              606
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/recent/row1",
+          "sourcePx": {
+            "rect": [
+              150,
+              810,
+              1130,
+              857
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              510,
+              790,
+              558
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "recent-row"
+        },
+        {
+          "id": "sample/preparation/recent/row2",
+          "sourcePx": {
+            "rect": [
+              150,
+              858,
+              1130,
+              908
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              558,
+              790,
+              606
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "recent-row"
+        },
+        {
+          "id": "sample/preparation/recent/row3",
+          "sourcePx": {
+            "rect": [
+              150,
+              909,
+              1130,
+              969
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              606,
+              790,
+              654
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "recent-row"
+        },
+        {
+          "id": "sample/preparation/cupTitle",
+          "sourcePx": {
+            "rect": [
+              1191,
+              150,
+              1312,
+              180
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              110,
+              1122,
+              140
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "section"
+        },
+        {
+          "id": "sample/preparation/cupTitleDivider",
+          "sourcePx": {
+            "rect": [
+              1190,
+              190,
+              1556,
+              192
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              148,
+              1122,
+              149
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/beanLabel",
+          "sourcePx": {
+            "rect": [
+              1191,
+              217,
+              1262,
+              239
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              156,
+              1122,
+              178
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/preparation/beanName",
+          "sourcePx": {
+            "rect": [
+              1191,
+              266,
+              1432,
+              295
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              186,
+              1050,
+              222
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "title"
+        },
+        {
+          "id": "sample/preparation/changeBean",
+          "sourcePx": {
+            "rect": [
+              1510,
+              269,
+              1557,
+              292
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              1058,
+              178,
+              1122,
+              226
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/preparation/beanDivider",
+          "sourcePx": {
+            "rect": [
+              1191,
+              333,
+              1557,
+              335
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              234,
+              1122,
+              235
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/doseLabel",
+          "sourcePx": {
+            "rect": [
+              1191,
+              363,
+              1302,
+              385
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              242,
+              1122,
+              264
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/preparation/doseValue",
+          "sourcePx": {
+            "rect": [
+              1190,
+              399,
+              1353,
+              451
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              272,
+              1034,
+              332
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "large-value"
+        },
+        {
+          "id": "sample/preparation/editDose",
+          "sourcePx": {
+            "rect": [
+              1510,
+              415,
+              1558,
+              439
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              1058,
+              278,
+              1122,
+              326
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/preparation/doseDivider",
+          "sourcePx": {
+            "rect": [
+              1190,
+              482,
+              1557,
+              484
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              340,
+              1122,
+              341
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/machineReady",
+          "sourcePx": {
+            "rect": [
+              1193,
+              510,
+              1363,
+              541
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              348,
+              1122,
+              372
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "body"
+        },
+        {
+          "id": "sample/preparation/machineDivider",
+          "sourcePx": {
+            "rect": [
+              1190,
+              558,
+              1557,
+              560
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              380,
+              1122,
+              381
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/scaleReady",
+          "sourcePx": {
+            "rect": [
+              1193,
+              582,
+              1390,
+              614
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              388,
+              1122,
+              412
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "body"
+        },
+        {
+          "id": "sample/preparation/scaleDivider",
+          "sourcePx": {
+            "rect": [
+              1190,
+              647,
+              1557,
+              649
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              420,
+              1122,
+              421
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/preparation/confirmation",
+          "sourcePx": {
+            "rect": [
+              1190,
+              684,
+              1507,
+              713
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              436,
+              1122,
+              480
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/preparation/primary",
+          "sourcePx": {
+            "rect": [
+              1190,
+              764,
+              1558,
+              858
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              495,
+              1122,
+              551
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/preparation/details",
+          "sourcePx": {
+            "rect": [
+              1295,
+              882,
+              1493,
+              914
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              814,
+              559,
+              1122,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/preparation/recipeRow",
+          "sourcePx": {
+            "rect": [
+              149,
+              153,
+              1132,
+              197
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              104,
+              790,
+              152
+            ],
+            "profile": "standard-1138x623-font1.0"
+          },
+          "designNote": "48dp real row encloses title and change action; no negative margins or out-of-parent hit targets"
+        },
+        {
+          "id": "sample/preparation/recentHeaderRow",
+          "sourcePx": {
+            "rect": [
+              150,
+              772,
+              1134,
+              803
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              454,
+              790,
+              502
+            ],
+            "profile": "standard-1138x623-font1.0"
+          },
+          "designNote": "48dp real row; 30dp section title vertically centered at463..493"
+        },
+        {
+          "id": "sample/preparation/deviceEntry",
+          "sourcePx": {
+            "rect": [
+              1042,
+              28,
+              1562,
+              96
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              978,
+              16,
+              1122,
+              64
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action",
+          "designNote": "Explicit written-spec entry replaces duplicate top status chips in candidate; readiness remains in cup pane"
+        }
+      ],
+      "constraints": {
+        "mainToSupportGapDp": 24,
+        "primaryAndDetailsDockBottomInsetDp": 16,
+        "recentRowCount": 3,
+        "recentInitiallyCompleteRows": 2,
+        "recentScrollViewportDp": 96,
+        "stageTargetsTenthsBar": [
+          20,
+          90,
+          80,
+          60
+        ],
+        "stageColorRole": "pressureBlue",
+        "stageTintBackground": false,
+        "diagramMinTotalHeightDp": 160,
+        "plotRectStatus": "target_envelope; actual axis/label Paint measurements must remain inside stage rect; report discrepancy, do not shrink text"
+      },
+      "adaptations": [
+        {
+          "id": "recent-height-budget",
+          "source": "three complete recent rows in 992px generated canvas without system bars",
+          "target": "two complete48dp rows in96dp local viewport; third reachable by local scroll",
+          "reason": "623dp app height excludes system bars; keep approved typography, touch targets, stage chart and fixed primary action",
+          "status": "proposed_explicit_difference_not_finally_accepted"
+        },
+        {
+          "id": "header-device-entry",
+          "source": "top device chips and design badge",
+          "target": "one explicit48dp device connection action at[978,16,1122,64]; readiness stays in right pane; mock status belongs in specimen manifest",
+          "reason": "written specification explicitly requires device connection text entry; no duplication of readiness states or false hardware claim",
+          "status": "written_requirement_plus_proposed_placement"
+        }
+      ],
+      "responsiveRules": {
+        "height618to623": "delta=height-623; keep header/recipe/summary/stageTitle fixed; stage bottom +=delta (total height161..166 >=160); shift stageNote/recentTitle/recentHeaderRow/recent viewport and rows bydelta; right dock top/bottom +=delta; keep other support content and allow only support-body local scroll",
+        "fontScale1_3": "rectangles are reference, not forced heights; use actual Android text conversion and natural line boxes; primary/details remain fixed at bottom, support body scrolls locally; main recent list remains local scroll; if natural heights cannot retain min160 chart report FAIL with deficit instead of shrinking fonts",
+        "unknownHeight": "record actual window; no scale-to-fit or automatic passing; ask Astra for specific reflow if outside planned618..623 range"
+      }
+    },
+    "share-four-stage-not-exported": {
+      "source": {
+        "path": "docs/research/task-first-ui-concepts/curve-share-v1.png",
+        "widthPx": 1585,
+        "heightPx": 992,
+        "sha256": "65626531d68752343a3bf65b161ecdab6b651b26f9760cbde0752dbcfa917822",
+        "systemBarsInImage": false
+      },
+      "status": "proposed_ready_for_native_specimen",
+      "anchors": [
+        {
+          "id": "sample/nav/rail",
+          "sourcePx": {
+            "rect": [
+              0,
+              0,
+              105,
+              992
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              0,
+              0,
+              80,
+              623
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/page/headerRow",
+          "sourcePx": {
+            "rect": [
+              150,
+              31,
+              373,
+              72
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              8,
+              1122,
+              56
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/page/back",
+          "sourcePx": {
+            "rect": [
+              152,
+              35,
+              190,
+              64
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              8,
+              144,
+              56
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/page/title",
+          "sourcePx": {
+            "rect": [
+              218,
+              31,
+              373,
+              73
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              160,
+              14,
+              1122,
+              50
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "title"
+        },
+        {
+          "id": "sample/share/recipePane",
+          "sourcePx": {
+            "rect": [
+              140,
+              102,
+              990,
+              962
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              64,
+              704,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/share/actionsPane",
+          "sourcePx": {
+            "rect": [
+              1005,
+              102,
+              1560,
+              962
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              728,
+              64,
+              1122,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/share/recipe",
+          "sourcePx": {
+            "rect": [
+              167,
+              132,
+              441,
+              169
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              80,
+              688,
+              116
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "title"
+        },
+        {
+          "id": "sample/share/summary",
+          "sourcePx": {
+            "rect": [
+              167,
+              187,
+              963,
+              281
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              124,
+              688,
+              198
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/share/temperatureCard",
+          "sourcePx": {
+            "rect": [
+              167,
+              187,
+              560,
+              281
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              124,
+              392,
+              198
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/share/targetCard",
+          "sourcePx": {
+            "rect": [
+              576,
+              187,
+              963,
+              281
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              408,
+              124,
+              688,
+              198
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/share/stageTitle",
+          "sourcePx": {
+            "rect": [
+              167,
+              313,
+              329,
+              342
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              206,
+              688,
+              236
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "section"
+        },
+        {
+          "id": "sample/share/stage",
+          "sourcePx": {
+            "rect": [
+              167,
+              359,
+              952,
+              680
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              244,
+              688,
+              404
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/share/stage/plot",
+          "sourcePx": {
+            "rect": [
+              255,
+              365,
+              949,
+              640
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              152,
+              276,
+              672,
+              366
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/share/stageNote",
+          "sourcePx": {
+            "rect": [
+              167,
+              685,
+              492,
+              707
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              412,
+              688,
+              434
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/share/tableCaption",
+          "sourcePx": {
+            "rect": [
+              167,
+              727,
+              327,
+              752
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              442,
+              688,
+              464
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting-emphasis"
+        },
+        {
+          "id": "sample/share/table",
+          "sourcePx": {
+            "rect": [
+              167,
+              761,
+              963,
+              939
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              472,
+              688,
+              582
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "table-supporting"
+        },
+        {
+          "id": "sample/share/table/header",
+          "sourcePx": {
+            "rect": [
+              168,
+              763,
+              961,
+              798
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              472,
+              688,
+              494
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting-emphasis"
+        },
+        {
+          "id": "sample/share/table/row1",
+          "sourcePx": {
+            "rect": [
+              168,
+              798,
+              961,
+              833
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              494,
+              688,
+              516
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "table-supporting"
+        },
+        {
+          "id": "sample/share/table/row2",
+          "sourcePx": {
+            "rect": [
+              168,
+              833,
+              961,
+              868
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              516,
+              688,
+              538
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "table-supporting"
+        },
+        {
+          "id": "sample/share/table/row3",
+          "sourcePx": {
+            "rect": [
+              168,
+              868,
+              961,
+              903
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              538,
+              688,
+              560
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "table-supporting"
+        },
+        {
+          "id": "sample/share/table/row4",
+          "sourcePx": {
+            "rect": [
+              168,
+              903,
+              961,
+              939
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              560,
+              688,
+              582
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "table-supporting"
+        },
+        {
+          "id": "sample/share/actionsTitle",
+          "sourcePx": {
+            "rect": [
+              1037,
+              134,
+              1194,
+              169
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              80,
+              1106,
+              110
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "section"
+        },
+        {
+          "id": "sample/share/primary",
+          "sourcePx": {
+            "rect": [
+              1037,
+              212,
+              1532,
+              291
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              126,
+              1106,
+              182
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/share/secondary",
+          "sourcePx": {
+            "rect": [
+              1037,
+              307,
+              1532,
+              389
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              190,
+              1106,
+              238
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/share/actionsDivider",
+          "sourcePx": {
+            "rect": [
+              1037,
+              436,
+              1531,
+              439
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              254,
+              1106,
+              255
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/share/export",
+          "sourcePx": {
+            "rect": [
+              1176,
+              492,
+              1434,
+              531
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              270,
+              1106,
+              318
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/share/fileShareDisabled",
+          "sourcePx": {
+            "rect": [
+              1037,
+              551,
+              1532,
+              633
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              326,
+              1106,
+              382
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/share/exportHint",
+          "sourcePx": {
+            "rect": [
+              1037,
+              650,
+              1262,
+              674
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              390,
+              1106,
+              412
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/share/compatibility",
+          "sourcePx": {
+            "rect": [
+              328,
+              130,
+              443,
+              166
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              428,
+              1106,
+              472
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/share/details",
+          "sourcePx": {
+            "rect": [
+              830,
+              909,
+              961,
+              934
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              480,
+              1106,
+              528
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/share/privacy",
+          "sourcePx": {
+            "rect": [
+              1056,
+              907,
+              1559,
+              934
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              547,
+              1106,
+              591
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        }
+      ],
+      "constraints": {
+        "mainToSupportGapDp": 24,
+        "panePaddingDp": 16,
+        "nestedSummaryPaddingHorizontalDp": 16,
+        "nestedSummaryPaddingVerticalDp": 8,
+        "nestedSummaryLineSequence": "22dp supporting label +36dp recipe value, no added vertical gap; total74dp including top/bottom8",
+        "diagramMinTotalHeightDp": 160,
+        "stageTargetsTenthsBar": [
+          30,
+          90,
+          70,
+          50
+        ],
+        "waterTenthsMl": [
+          150,
+          250,
+          150,
+          50
+        ],
+        "stageColorRole": "fourStageCategorical",
+        "stageTintPercent": 6,
+        "tableRows": 5,
+        "tableRowHeightDp": 22,
+        "tableColumnFractions": [
+          0.25,
+          0.3,
+          0.45
+        ],
+        "primaryActionBeforeCompatibility": true,
+        "plotRectStatus": "target_envelope; actual Paint metrics and labels must fit full160dp stage rectangle; report any displacement"
+      },
+      "adaptations": [
+        {
+          "id": "compatibility-and-details-after-actions",
+          "source": "pressure badge near recipe and complete-parameters link inside table bottom",
+          "target": "compatibility and complete-details access after export action group in support pane",
+          "reason": "preserve original primary-action prominence and avoid obscuring the four data rows; retain full original semantics",
+          "status": "proposed_explicit_difference_not_finally_accepted"
+        },
+        {
+          "id": "nested-summary-padding",
+          "source": "compact paired parameter surfaces",
+          "target": "8dp vertical/16dp horizontal inside nested metric cards; outer panes retain16dp",
+          "reason": "specific compact summary exception to generic card16dp; keep14/24sp and22/36sp natural lines",
+          "status": "proposed_role_specific_exception"
+        },
+        {
+          "id": "read-only-table-density",
+          "source": "four dense, noninteractive parameter rows",
+          "target": "14sp/22sp supporting table, no vertical padding; all five rows occupy110dp",
+          "reason": "read-only numeric table is auxiliary to visual preview; do not impose48dp touch height or shrink14sp text",
+          "status": "proposed_role_specific_typography"
+        }
+      ],
+      "responsiveRules": {
+        "height618to623": "pane bottom and privacy anchor shift bydelta=height-623; keep left natural content positions; left bottom clearance is20..25dp >=16; do not reduce diagram below160dp",
+        "fontScale1_3": "use actual scaled typography; left recipe+chart+full table remain in one local scrolling pane when needed, table never hidden; right primary/copy/export actions remain reachable and support notes scroll locally; report which regions leave first viewport, do not call standard anchors passed",
+        "unknownHeight": "record actual window and request explicit Astra reflow rather than scale or hide content"
+      }
+    },
+    "inventory-three-beans-selected": {
+      "source": {
+        "path": "docs/research/task-first-ui-concepts/bean-inventory-v3.png",
+        "widthPx": 1586,
+        "heightPx": 992,
+        "sha256": "ef9c190d25df4243685574bf5c8c627cb93bc88bb6786eb24258494893425697",
+        "systemBarsInImage": false
+      },
+      "status": "proposed_ready_for_native_specimen",
+      "anchors": [
+        {
+          "id": "sample/nav/rail",
+          "sourcePx": {
+            "rect": [
+              0,
+              0,
+              105,
+              992
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              0,
+              0,
+              80,
+              623
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/page/title",
+          "sourcePx": {
+            "rect": [
+              149,
+              28,
+              267,
+              67
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              16,
+              790,
+              52
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "title"
+        },
+        {
+          "id": "sample/inventory/headerSummary",
+          "sourcePx": {
+            "rect": [
+              149,
+              80,
+              309,
+              105
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              60,
+              790,
+              82
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/inventory/add",
+          "sourcePx": {
+            "rect": [
+              1379,
+              45,
+              1553,
+              80
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              930,
+              16,
+              1122,
+              64
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/page/headerDivider",
+          "sourcePx": {
+            "rect": [
+              122,
+              125,
+              1560,
+              128
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              94,
+              1122,
+              95
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/list",
+          "sourcePx": {
+            "rect": [
+              122,
+              154,
+              671,
+              981
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              110,
+              496,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/listTitle",
+          "sourcePx": {
+            "rect": [
+              149,
+              162,
+              315,
+              198
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              112,
+              112,
+              480,
+              142
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "section"
+        },
+        {
+          "id": "sample/inventory/selected",
+          "sourcePx": {
+            "rect": [
+              122,
+              217,
+              671,
+              313
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              156,
+              496,
+              220
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/listRow2",
+          "sourcePx": {
+            "rect": [
+              139,
+              313,
+              656,
+              408
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              228,
+              496,
+              292
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/listRow3",
+          "sourcePx": {
+            "rect": [
+              139,
+              408,
+              656,
+              503
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              96,
+              300,
+              496,
+              364
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/paneDivider",
+          "sourcePx": {
+            "rect": [
+              683,
+              127,
+              685,
+              991
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              508,
+              110,
+              509,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/detail",
+          "sourcePx": {
+            "rect": [
+              718,
+              155,
+              1558,
+              944
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              110,
+              1122,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/beanName",
+          "sourcePx": {
+            "rect": [
+              718,
+              161,
+              967,
+              204
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              110,
+              1026,
+              146
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "title"
+        },
+        {
+          "id": "sample/inventory/batchBadge",
+          "sourcePx": {
+            "rect": [
+              983,
+              162,
+              1073,
+              202
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              1042,
+              110,
+              1122,
+              148
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/inventory/weightLabel",
+          "sourcePx": {
+            "rect": [
+              719,
+              236,
+              834,
+              261
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              154,
+              1122,
+              176
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/inventory/weight",
+          "sourcePx": {
+            "rect": [
+              718,
+              271,
+              853,
+              334
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              184,
+              1122,
+              244
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "large-value"
+        },
+        {
+          "id": "sample/inventory/initialWeight",
+          "sourcePx": {
+            "rect": [
+              719,
+              356,
+              828,
+              380
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              244,
+              1122,
+              268
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "body"
+        },
+        {
+          "id": "sample/inventory/progress",
+          "sourcePx": {
+            "rect": [
+              718,
+              399,
+              1492,
+              419
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              276,
+              1054,
+              284
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/progressPercent",
+          "sourcePx": {
+            "rect": [
+              1512,
+              397,
+              1558,
+              422
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              1070,
+              270,
+              1122,
+              292
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/inventory/weightDivider",
+          "sourcePx": {
+            "rect": [
+              719,
+              447,
+              1558,
+              450
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              300,
+              1122,
+              301
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/dates",
+          "sourcePx": {
+            "rect": [
+              719,
+              475,
+              1558,
+              540
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              316,
+              1122,
+              370
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/dateLabels",
+          "sourcePx": {
+            "rect": [
+              719,
+              475,
+              1469,
+              498
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              316,
+              1122,
+              338
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/inventory/dateValues",
+          "sourcePx": {
+            "rect": [
+              719,
+              509,
+              1473,
+              535
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              346,
+              1122,
+              370
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "body"
+        },
+        {
+          "id": "sample/inventory/datesDivider",
+          "sourcePx": {
+            "rect": [
+              719,
+              563,
+              1558,
+              566
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              378,
+              1122,
+              379
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/ledgerHeaderRow",
+          "sourcePx": {
+            "rect": [
+              719,
+              588,
+              1558,
+              620
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              386,
+              1122,
+              434
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/ledgerTitle",
+          "sourcePx": {
+            "rect": [
+              719,
+              590,
+              829,
+              620
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              395,
+              978,
+              425
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "section"
+        },
+        {
+          "id": "sample/inventory/ledgerMore",
+          "sourcePx": {
+            "rect": [
+              1450,
+              591,
+              1558,
+              619
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              986,
+              386,
+              1122,
+              434
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/inventory/ledger",
+          "sourcePx": {
+            "rect": [
+              719,
+              637,
+              1558,
+              800
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              442,
+              1122,
+              512
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/ledgerColumns",
+          "sourcePx": {
+            "rect": [
+              719,
+              651,
+              1252,
+              680
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              442,
+              1122,
+              464
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        },
+        {
+          "id": "sample/inventory/ledgerRow1",
+          "sourcePx": {
+            "rect": [
+              719,
+              692,
+              1558,
+              745
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              464,
+              1122,
+              488
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "table-body"
+        },
+        {
+          "id": "sample/inventory/ledgerRow2",
+          "sourcePx": {
+            "rect": [
+              719,
+              745,
+              1558,
+              800
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              488,
+              1122,
+              512
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "table-body"
+        },
+        {
+          "id": "sample/inventory/actions",
+          "sourcePx": {
+            "rect": [
+              718,
+              825,
+              1558,
+              899
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              521,
+              1122,
+              577
+            ],
+            "profile": "standard-1138x623-font1.0"
+          }
+        },
+        {
+          "id": "sample/inventory/primary",
+          "sourcePx": {
+            "rect": [
+              718,
+              825,
+              1048,
+              898
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              521,
+              736,
+              577
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/inventory/adjust",
+          "sourcePx": {
+            "rect": [
+              1063,
+              825,
+              1319,
+              898
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              744,
+              525,
+              920,
+              573
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/inventory/batchDetails",
+          "sourcePx": {
+            "rect": [
+              1408,
+              849,
+              1559,
+              877
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              928,
+              525,
+              1122,
+              573
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "action"
+        },
+        {
+          "id": "sample/inventory/confirmation",
+          "sourcePx": {
+            "rect": [
+              719,
+              913,
+              1158,
+              940
+            ],
+            "annotationKind": "manual_semantic_region_not_font_metrics",
+            "textBaselinePx": null,
+            "baselineStatus": "not_recoverable_from_generated_raster"
+          },
+          "targetDp": {
+            "rect": [
+              520,
+              585,
+              1122,
+              607
+            ],
+            "profile": "standard-1138x623-font1.0",
+            "baselineRule": "lineTopPx + (lineHeightPx - (fontDescentPx - fontAscentPx))/2 - fontAscentPx; actual Paint metrics, no guessed original font"
+          },
+          "typographyRole": "supporting"
+        }
+      ],
+      "constraints": {
+        "mainToSupportGapDp": 24,
+        "listRowMinHeightDp": 64,
+        "normalListRowFill": "transparent",
+        "selectedListRowFillRole": "selectedBackground",
+        "dateColumns": 3,
+        "dateColumnGapDp": 16,
+        "ledgerColumnFractions": [
+          0.22,
+          0.22,
+          0.56
+        ],
+        "ledgerRowHeightDp": 24,
+        "ledgerRowsReadOnly": true,
+        "primaryDockBottomInsetDp": 16,
+        "primaryAndHintDockHeightDp": 86,
+        "primaryButtonHeightDp": 56,
+        "secondaryActionMinHeightDp": 48,
+        "primaryActionsOrder": [
+          "useBean",
+          "adjustInventory",
+          "batchDetails"
+        ],
+        "totalBeansG": 500,
+        "selectedBalanceG": 90,
+        "selectedInitialG": 100,
+        "selectedRatioPercent": 90
+      },
+      "adaptations": [
+        {
+          "id": "compact-read-only-ledger",
+          "source": "two spacious noninteractive ledger rows",
+          "target": "two16sp/24sp line boxes without vertical padding; header14sp/22sp",
+          "reason": "preserve all rows, dates,40sp primary metric and fixed56dp action plus confirmation within623dp; no control depends on ledger row touch",
+          "status": "proposed_role_specific_density"
+        },
+        {
+          "id": "metric-cluster",
+          "source": "weight and initial amount are one visual group",
+          "target": "40sp/60sp main line immediately followed by16sp/24sp initial quantity line, no extra interline gap",
+          "reason": "line boxes already include leading; avoid turning one metric cluster into unrelated groups",
+          "status": "proposed_explicit_spacing"
+        }
+      ],
+      "responsiveRules": {
+        "height618to623": "delta=height-623; shift fixed actions and confirmation bydelta; initial standard ledger remains through512dp; minimum gap before dock is4dp at618 and9dp at623, a flexible residual not a new group-gap token",
+        "fontScale1_3": "natural typography and row heights; detail above fixed action+hint dock becomes local scroll; all dates and both ledger rows remain reachable; action row may reflow vertically only if natural labels do not fit, reduce body viewport accordingly, never shrink text",
+        "unknownHeight": "record actual window, keep fields and fixed actions, request explicit Astra reflow when outside planned618..623 range"
+      }
+    }
+  },
+  "pendingPages": [],
+  "authoringNotes": [
+    "Source rectangles are exact integer annotations of semantic regions selected on the source PNG, not a claim of source font metrics or original app dp.",
+    "Target standard rectangles are Astra-proposed layout constraints; match requires native sample measurements and review, not merely presence of this JSON.",
+    "Font1.3 and other heights must report actual reflow and independent gates; standard rectangles are not a license to clip growing text."
+  ]
+}
