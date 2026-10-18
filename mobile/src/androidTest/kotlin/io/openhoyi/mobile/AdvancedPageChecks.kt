@@ -106,7 +106,10 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
         val shareSource = app.curves.items.firstOrNull { it.controlProfile != null && runCatching { CustomCurveDocument.fromLibraryItem(it) }.isSuccess }
             ?: error("No valid captured curve for the share fixture")
         val preview = CustomCurveDocument("draft-00000000-0000-0000-0000-000000000099", "UI recipe", 93, 3600,
-            CustomCurveDocument.ControlMode.PRESSURE, listOf(CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 400))).encode()
+            CustomCurveDocument.ControlMode.PRESSURE, listOf(
+                CustomCurveDocument.Stage(30, 150), CustomCurveDocument.Stage(90, 250),
+                CustomCurveDocument.Stage(70, 150), CustomCurveDocument.Stage(50, 50),
+            )).encode()
         fun page(type: Class<out Activity>) = Intent(context, type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val pages = listOf(
             page(BeanInventoryActivity::class.java),
@@ -210,6 +213,32 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                             }
                         } finally { bitmap.recycle() }
                         screenshots++
+                    }
+                    if (activity is CurveImportPreviewActivity || activity is CurveShareActivity) {
+                        onMain {
+                            val views = descendants(root(activity))
+                            val tableTag = if (activity is CurveImportPreviewActivity) "import-stage-table" else "share-stage-table"
+                            val geometry = File(directory, "${language.tag}-${if (dark) "dark" else "light"}-$name-geometry.txt")
+                            val table = views.singleOrNull { it.tag == tableTag } as? ViewGroup
+                            val chart = views.filterIsInstance<CurveStageView>().singleOrNull()
+                            if (table == null || chart == null) {
+                                geometry.writeText("pressurePreview=false tablePresent=${table != null} chartPresent=${chart != null}\n")
+                                check(activity !is CurveImportPreviewActivity) { "$fixture four-stage pressure preview missing" }
+                                return@onMain
+                            }
+                            val bounds = Rect()
+                            val visible = table.getGlobalVisibleRect(bounds)
+                            val complete = table.isShown && visible && bounds.width() == table.width && bounds.height() == table.height
+                            val config = activity.resources.configuration
+                            geometry.writeText(
+                                "screenDp=${config.screenWidthDp}x${config.screenHeightDp} font=${config.fontScale} " +
+                                    "stages=${table.childCount - 1} tableShown=${table.isShown} tableComplete=$complete " +
+                                    "table=${table.measuredWidth}x${table.measuredHeight} chart=${chart.width}x${chart.height}\n"
+                            )
+                            if (activity is CurveImportPreviewActivity) {
+                                check(table.childCount == 5) { "$fixture must exercise all four stages" }
+                            }
+                        }
                     }
                     assertState()
                     completed++

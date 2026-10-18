@@ -1223,3 +1223,9 @@ run39114954498 business失败，下载ci-0649834-advanced-business并实读分�
 db5668d run39114685638 pages job成功，下载ci-db5668d-advanced-pages；实读landscape/wideFont结果各8语言×2主题×15页=240夹具、60截图，合480夹具/120截图；device记录override2560×1600/density360。此次已越过原1280dp配置失败，保留状态/noBle通过；并非24页全部视觉或业务通过（同run业务仍四阶段表失败）。实读wideFont中文浅色CurveImportActivity：新增引导句/输入hint、完整64KiB说明/取消/预览完整，关闭此空态大字号提示未验证项；未覆盖输入/键盘或其他视觉差异。
 
 已有豆款候选仅隐藏重复的固定name标签和只读输入，保留控件/禁用/选中值与独立新名草稿，选择器显示真实身份；切回新模式恢复可见。既有身份断言调整为重复框隐藏且值/禁用/bean.id仍正确；重建/取消/新草稿恢复路径保留。Mock及AndroidTest构建45s成功（/tmp/task-entry-existing-identity-build.log），diff通过。新模式/已有模式三日期和恢复行为需实际CI，不因编译宣称通过。与分享垂直间距候选合批push。
+
+## 2026-10-18：四阶段页面取证覆盖补齐（待运行）
+
+发现 AdvancedPageChecks 的导入预览原先只有两阶段，不能用此前 480 个布局夹具通过证明四阶段大字号内容完整。现改为四阶段 3/9/7/5 bar、15/25/15/5 ml，只通过 Intent 传入，不保存。额外记录导入预览/分享的实际阶段数、表格显示与完整可见状态、图表尺寸；非压力分享明确记录无压力预览，不伪称覆盖。原布局检查和存储不变量保持。
+
+最终源码 Mock 与 instrumentation 构建通过（24s，日志 /tmp/task-four-stage-page-evidence-build.log）；尚无该修改的运行截图。几何记录是诊断证据，不是最终视觉验收；分享仍使用实际捕获曲线，四阶段大字号分享覆盖仍未完成。改动先保留本地提交，后续批量推送，不重启现有 CI。
