@@ -24,7 +24,7 @@ internal class StrictVisualSampleIcon(context: Context, private val kind: String
             canvas.drawLine(x, y, x2, y2, paint); operations.put(JSONObject().put("line24", JSONArray(listOf(x,y,x2,y2))))
         }
         when (kind) {
-            "statusDot" -> { paint.style = Paint.Style.FILL; canvas.drawCircle(12f, 12f, 11f, paint); paint.style = Paint.Style.STROKE }
+            "statusDot" -> { paint.style = Paint.Style.FILL; canvas.drawCircle(12f, 12f, 11f, paint) }
             "temperature" -> { canvas.drawRoundRect(RectF(8f, 2f, 14f, 16f), 3f, 3f, paint); canvas.drawCircle(11f, 18f, 4f, paint); line(11f, 7f, 11f, 18f); line(17f, 6f, 21f, 6f); line(17f, 10f, 20f, 10f) }
             "stages" -> { line(2f, 20f, 8f, 20f); line(8f, 20f, 8f, 14f); line(8f, 14f, 14f, 14f); line(14f, 14f, 14f, 8f); line(14f, 8f, 21f, 8f); line(21f, 8f, 21f, 2f) }
             "coffeeMachine" -> { canvas.drawRoundRect(RectF(3f, 2f, 21f, 22f), 2f, 2f, paint); line(4f, 7f, 20f, 7f); line(8f, 11f, 16f, 11f); line(12f, 11f, 12f, 14f); canvas.drawRect(RectF(8f, 16f, 16f, 20f), paint); canvas.drawCircle(17f, 4.5f, .8f, paint) }
@@ -46,7 +46,11 @@ internal class StrictVisualSampleIcon(context: Context, private val kind: String
         canvas.restore()
         evidence = JSONObject().put("operation","nativeIcon").put("semanticId",tag).put("kind",kind)
             .put("boundsPx",JSONArray(listOf(0,0,width,height))).put("coordinateScaleFrom24",scale)
-            .put("colorArgb",String.format(Locale.ROOT,"#%08X",tint)).put("strokeWidthPx",context.resources.displayMetrics.density)
-            .put("style","STROKE").put("lineOperations24",operations).put("pathSource","StrictVisualSampleIcon.onDraw").put("status","proposed")
+            .put("colorArgb",String.format(Locale.ROOT,"#%08X",paint.color))
+            .put("strokeWidthPx",if (paint.style == Paint.Style.FILL) JSONObject.NULL else paint.strokeWidth * scale)
+            .put("style",paint.style.name).put("lineOperations24",operations).put("pathSource","StrictVisualSampleIcon.onDraw").put("status","proposed")
+        if (kind == "statusDot") evidence.put("circle", JSONObject()
+            .put("centerPx", JSONArray(listOf(12f * scale, 12f * scale)))
+            .put("radiusPx", 11f * scale).put("operation", "fillCircle"))
     }
 }
