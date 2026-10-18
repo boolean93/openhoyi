@@ -262,3 +262,71 @@ stage Paint alpha 实际为 15/255（代码将 255×0.06 截断），不是精�
 | `sample/inventory/adjust` | [744, 525, 920, 573] | [743.556, 520.444, 919.556, 568.444] |
 | `sample/inventory/batchDetails` | [928, 525, 1122, 573] | [927.556, 520.444, 1121.778, 568.444] |
 | `sample/inventory/confirmation` | [520, 585, 1122, 607] | [520, 580.444, 1121.778, 602.222] |
+
+## 7. 814e521 第二轮真实样张审查（保留上轮 FAIL）
+
+### 7.1 证据与结论
+
+本节为 Astra 只读审查结果；**第二轮仍不能标三页严格视觉 PASS**。不修改第 1–6 节对上一轮的事实，不以本轮成功覆盖旧失败。
+
+新证据根 `E2/`：
+
+`build/task-first-evidence/ci-814e521-frame/task-frame-tablet-user-landscape/task-first-evidence/strict-native-samples/3cdad10657f64b76391e763f5bc3838cb49a3577/`
+
+PR head `814e521`，CI `39135733668`，实际 merge `3cdad10657f64b76391e763f5bc3838cb49a3577`。已实看三页×浅/深×1.0/1.3全部12张 `window.png`，再看浅/深1.3分享 `after-scroll-5.png`、`after-scroll-6.png` 和库存 `after-scroll-2.png`，共18张。重新核了72项manifest文件hash、432项anchor引用、28组单位baseline；均相符。12份实际app仍2560×1391px、origin(0,74)，`sourceDirty=false`。本轮host原稿映射和差异表存在，不追认上一轮缺失字段。
+
+### 7.2 可以限定关闭的缺陷
+
+| 项目 | 实际结果 | 关闭边界 |
+|---|---|---|
+| 数字/单位基线 | 28组同屏baseline差均0，PNG不再高悬 | 仅本批7种数值组合×4profile |
+| 轴标题与12刻度互叠 | 8图实际文字盒互不相交；1.3标题到最高刻度净距18.879799px，要求18px | 关闭文字对互叠，**不代表网格与文字不相交** |
+| 准备确认说明裁切 | 1.3两主题说明、主操作完整；两状态也首屏完整 | 这两个字号和固定fixture，不外推短高/IME |
+| 库存标准第二流水差2px | 1.0两主题两流水完整 | 关闭这一标准首屏缺口 |
+| 库存大字流水不可见 | after-scroll-2真实PNG已显示两流水；固定操作保持 | 关闭本fixture局部可达，不声称1.3首屏两行完整 |
+| 原稿层次/细节遗漏 | 摘要层级、模式徽标、设备卡/演示识别、accent状态点、列表副说明、图标和分隔已出现 | 使用已注明的原生候选图标/布局适配，不冒称原图精确路径 |
+
+580个TextView均有actual Layout；实际weight与请求一致，无fakeBold，includeFontPadding=false、letterSpacing=0。580个tnumActivation仍unknown。24个状态点Canvas已正确记录FILL，不再误记STROKE。样张平坦颜色复采：light page/surface/primary/disabled为(249,250,249)/(255,255,255)/(8,122,120)/(236,239,241)，dark为(17,25,26)/(27,37,38)/(8,122,120)/(38,50,52)。字体、颜色事实可以复现，不自动证明与生成稿原始参数相同。
+
+### 7.3 未关闭：分享滚动截图与几何矛盾
+
+这是证据一致性问题，不能用JSON PASS关闭：
+
+- 两主题1.3 `share-four-stage-not-exported/scroll-reachability.json` 声明row4从 `[252,1425,1548,1486]` 移至 `[252,1368,1548,1429]`，after complete=true；但 `after-scroll-5.png` 的第四行仍没有显示。
+- 对initial与after5的RGB内容区 `[252,218,1548,1429]` 做逐像素差，两主题结果均完全相同。区别只在滚动条等区域，左内容没有实际位移。
+- privacy声明从 `[1674,1300,2488,1417]` 移到 `[1674,1276,2488,1393]`；但after6相应内容区 `[1674,1276,2470,1393]` 与initial完全相同，第二行仍未完整显示。
+- 库存after2确实发生像素位移并显示目标，因此不能把所有滚动证据一概否定，也不能把分享矛盾忽略。
+
+必须核实绘制提交与截图时序，保存同状态的geometry/PNG后再验。禁止任意sleep、减少目标行、放宽完整可视断言或仅凭scrollY/矩形宣布成功。当前只认可分享1.0首屏全表；1.3第四阶段/privacy可达性仍 **EVIDENCE_CONFLICT**。
+
+### 7.4 仅剩本范围内的成组视觉修正
+
+**一、分享表格/库存日期列内距（G1）**
+
+新竖线已画出，但内容仍0横向内距：分享表格列线贴“压力/注水量”和数值；库存日期第二/三列的竖线贴“烘焙/开封”首字。浅/深、两个字号都能看见，不是抗锯齿误差。
+
+- 分享所有header/body cell加水平8dp内边距，首列stage点也从8dp内框起。外框、列比例、行高、字号不变；line与文本之间必须有真实净空。
+- 日期第一列保留整体左边界；第二/三列paddingStart16dp，所有列paddingEnd16dp。标题和值使用同一列内容起点，竖线留在列边界。禁止删线或缩字凑空间。
+- 不把此规则推广为全产品表格统一24dp行高；真实可点击流水另受触控规则约束。
+
+**二、图表网格穿标签（G1/G3）**
+
+1.3准备/分享的最高网格横线穿过9.0标签。准备plotTop=117px，`9.0 bar`墨迹y=101.75..136.75；分享plotTop=117px，`9.0`墨迹y=103..136。文字对之间零相交门禁抓不到这一情况。
+
+保留全部刻度、轴、阶段网格、数据位置、14sp字号和既定图高。先计算targetLabel真实墨迹盒；只从**grid绘制区域**排除该盒向外2dp的保护框。阶段底色不擦、不加白块，不删除整条网格；axis/data正常绘制。记录grid原段、实际可见段、保护框；断言实际可见grid段与保护框无交集。2dp是本次明确的设计净空，不是像素比较容差。不得把原始完整理论线改名为“不相交”证据。
+
+本轮没有新增页面、状态或产品改造授权。实现只限隔离样张Activity/Chart；取证时序与相应Checks由独立执行者负责，统一提交/构建取证。root已明确授权在anchors仅追加上述两条动态规则；原108个mandatory节点不变。
+
+### 7.5 可有限固定的原生补充基线与产品边界
+
+建议固定为**下一步原生设计输入**：Noto字体资产身份、已看图的14/16/20/24/40sp角色体系及两个专用摘要角色、真实baseline对齐规则、已复核的语义色板和状态点用色、80dp导航/24dp栏间距/48–56dp触控约束。含义是Astra对可复现原生补充的限定选择，不是用户已逐项批准，更不是识别出了ImageGen原始字体/色值。原稿无法提供的glyph来源/tnum激活等仍unknown。
+
+仍不冻结：分享/日期cell内距、grid-label保护规则的实际结果、分享1.3滚动像素证据、整页G1–G4。原文件与anchors继续proposed，不因建议有限固定就改成整体PASS。
+
+**产品迁移只能页级、逐页保留真实行为，不能复制Mock替代业务：**
+
+- Inventory真实流水有详情回调、48dp触控和最近3事件，不能复制样张24dp只读行/2事件。
+- Home真实主操作经Extraction/Curve路由，不得直接startShot；粉量确认保留attempted/confirmed/event校验。
+- Share保留真实1..4stage、FlowRaw只读、SAF成功后才启用文件分享。
+- 最小候选范围可为HomeActivity/HomeRecentCurves/CurveShareActivity/CurveSharePreview/BeanInventoryActivity；共享CurveStageView/CurvePreviewMetrics只能页级opt-in，不全局换色影响其余21页。
+- 上述只是迁移边界，不是本轮授权立即迁移或产品通过。完成样张封闭项后，真实产品还必须同状态/同视口整页取证，分别验间距、字体、字号行高和颜色；硬件验证独立保留。

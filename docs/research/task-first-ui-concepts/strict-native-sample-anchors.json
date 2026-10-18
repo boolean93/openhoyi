@@ -3202,6 +3202,39 @@
         "Keep every failure artifact; no threshold relaxation or rewriting original images.",
         "Color interior PNG sampling separate from antialias edges; source values unknown remain proposed."
       ]
+    },
+    {
+      "id": "native-review-814e521-spacing-grid",
+      "status": "proposed",
+      "productAcceptance": false,
+      "evidence": "docs/evidence/2026-10-18-native-specimen-review.md#7-814e521-第二轮真实样张审查保留上轮-fail",
+      "testedSourceMerge": "3cdad10657f64b76391e763f5bc3838cb49a3577",
+      "testedHead": "814e521",
+      "mandatorySemanticIdsChanged": false,
+      "scope": "Only three isolated Mock specimens; product migration waits for specimen acceptance",
+      "dynamicRules": [
+        {
+          "id": "cell-content-clearance",
+          "appliesTo": [
+            "sample/share/table",
+            "sample/inventory/dates"
+          ],
+          "rule": "Share table header/body cells: paddingStart=paddingEnd=8dp, including stage-marker content box. Preserve outer width, column proportions, natural row height and font roles. Inventory dates: first column start remains aligned to parent; columns2/3 paddingStart=16dp; all columns paddingEnd=16dp; label and value use same content origin. Vertical rules remain at column boundaries.",
+          "reason": "Real PNGs show table text and date first glyphs touching column rules; this is layout clearance, not anti-alias tolerance.",
+          "verification": "Actual content origins and visible rule bounds must show specified clearance; no font shrink, rule removal or extra row height. All existing first-screen/reachability requirements remain."
+        },
+        {
+          "id": "chart-grid-label-protection",
+          "appliesTo": [
+            "sample/preparation/stage",
+            "sample/share/stage"
+          ],
+          "rule": "Preserve 0/6/12 ticks, axis/data positions, stage grid, stage backgrounds, chart height and14sp labels. Compute actual targetLabel ink rectangles before grid drawing. Exclude only each ink rectangle expanded2dp on all sides from grid drawing. No opaque background mask and no deletion of an entire grid line. Axes and data retain their existing draw operations.",
+          "reason": "At font1.3 top grid y117 crosses9.0 label ink (preparation101.75..136.75, share103..136) although text-text collision checks pass.",
+          "verification": "Record original grid segments, actually visible segments, and2dp protective rectangles. No visible grid segment may intersect a protected rectangle; preserved segments must reconstruct the original grid outside exclusions. Two dp is a design spacing requirement, never comparison tolerance."
+        }
+      ],
+      "evidenceCaveat": "Share font1.3 after-scroll5/6 PNG contents do not move despite JSON complete=true. Reachability stays EVIDENCE_CONFLICT until matching presented-frame pixels/geometry are captured. Other unknown glyph/font-feature facts remain unknown."
     }
   ]
 }
