@@ -2,7 +2,7 @@
 
 > **For agentic workers:** 按 `superpowers:executing-plans` 执行。Astra 设计/验收，Sol 分别负责生产与测试，主任务协调文件、统一构建及推送。不得覆盖其他 owner 文件或取消在途 CI。
 
-**Goal:** 在 M2、M3 按既定顺序完成限定验收并由主任务启动后，迁移 BeanPreparation、BeanBatch、BeanLedger 三个真实页面；保留选择、确认扣减、调整预览和只读流水的原业务边界。
+**Goal:** 按2026-10-19主任务已授予的M4独立全三页生产/测试授权，迁移 BeanPreparation、BeanBatch、BeanLedger 三个真实页面；不以批次编号强制等待M2/M3视觉验收，保留选择、确认扣减、调整预览和只读流水的原业务边界。
 
 **Architecture:** 仅这三页 opt-in 已冻结 M1 原生样式，复用已提交 M2 表单接口；真实 Activity/model/render 与既有隔离 Mock 取证。无新样张、功能、设备入口或全局主题替换。
 
@@ -12,9 +12,10 @@
 
 遵守 [task-template](task-template.md) 与 [git-workflow](../git-workflow.md)。
 
-- 来源 `develop` 共同基线 `66ebda95dc7986eec66f9fa0b7e6cbd565c74506`；继续已授权 `feature/task-first-ui`，PR #4 → `develop`。只读规划 HEAD `95be8fb`，M2 生产 `5c495e8`、测试 `b77c704` 已提交；M2 frame `39149210695` 在途，不把本地构建当视觉通过。本计划不授权提前启动 M3/M4 代码。
-- 启动前重新核 status/HEAD、已验 M2/M3 接口、owner 与原门禁。M2 新证据优先，不因后续规划耽误当前缺陷闭环。固定24页、中文横屏优先；保留横屏短高/大字/IME，不新增竖屏工作、不锁方向。
-- 推送：只提交所属文件 → 相关验证 → 主任务普通推送 → PR 必需 branch-policy/verify/lifecycle/upgrade 及评审。禁止直推 main/develop、force、取消 CI。当前只写计划，不构建、提交、推送或设备操作。
+- **当前状态索引（2026-10-19）：** HEAD `9b51936` 已包含M2候选修复与M3完整生产/独立取证入口，冻结构建与31 tests通过，真实CI/视觉验收仍在途；M2未通过。下述原95规划时点保留历史，不作为当前启动依赖。依赖审计后，主任务已正式授权两Sol分别启动M4完整三页生产与独立12配置测试；独立CI不堆原frame。本授权取代原按M2→M3→M4编号等待的启动条件，§7列实际接口与隔离边界。
+- **历史规划时点（非当前限制）：** 来源 `develop` 共同基线 `66ebda95dc7986eec66f9fa0b7e6cbd565c74506`；继续已授权 `feature/task-first-ui`，PR #4 → `develop`。只读规划 HEAD `95be8fb`，M2 生产 `5c495e8`、测试 `b77c704` 已提交；M2 frame `39149210695` 在途，不把本地构建当视觉通过。当时本计划尚未授权提前启动M3/M4；此限制已被上述2026-10-19正式授权取代，保留本句仅供追溯。
+- 启动前重新核 status/HEAD、冻结但未全验的M2接口、owner 与原门禁；不能把共享helper编译通过写成M4候选状态已验。M2 新证据优先，不因后续规划耽误当前缺陷闭环。固定24页、中文横屏优先；保留横屏短高/大字/IME，不新增竖屏工作、不锁方向。
+- 推送：只提交所属文件 → 相关验证 → 主任务普通推送 → PR 必需 branch-policy/verify/lifecycle/upgrade 及评审。禁止直推 main/develop、force、取消 CI。Astra仅维护计划并做设计/验收；Sol实施、统一构建及提交推送由主任务协调，本计划不单独授权设备操作。
 - 不改 mg 精度、库存/准备 schema、事件 ID、秤稳定策略、BLE/命令/未知结果。既有手工输入与真实捕获边界不变。Mock 不代替秤或机器验收。
 - 不发版，不改包名/签名/versionCode，不安装。回退用追加修正或 revert PR；保留所有原库存、准备意图、日志及未知结果，不清库、不退款、不自动重发。
 
@@ -42,8 +43,8 @@ rail80、页边16、栏间24、组间16、关联8、面内16、圆角12、输入
 
 | Owner | 允许文件 | 不得顺带修改 |
 |---|---|---|
-| 生产 Sol | `mobile/src/main/kotlin/io/openhoyi/mobile/{BeanPreparationActivity,BeanBatchActivity,BeanLedgerActivity,DoseBalanceView}.kt`；确需新文案时独立八语种 `values*/bean_workflow_visual.xml` | M1/M2/M3 已验 Activity、全局资源/主题、共享 bean helpers 默认行为 |
-| 测试 Sol | 新 `mobile/src/androidTest/kotlin/io/openhoyi/mobile/BeanWorkflowVisualMigrationChecks.kt`、新 `scripts/check_bean_workflow_visual_migration.sh`；必要增量 `AdvancedBusinessUiChecks`、`SingleScreenListStateChecks`、`BrewAudioInstrumentation` 与现 task-frame workflow | 原断言/fixture/profile/协议降级；其他 owner 的生产文件 |
+| 生产 Sol | `mobile/src/main/kotlin/io/openhoyi/mobile/{BeanPreparationActivity,BeanBatchActivity,BeanLedgerActivity,DoseBalanceView}.kt`；确需新文案时独立八语种 `values*/bean_workflow_visual.xml` | M1限定已验及M2/M3待验Activity、全局资源/主题、共享 bean helpers 默认行为 |
+| 测试 Sol | 新 `mobile/src/androidTest/kotlin/io/openhoyi/mobile/BeanWorkflowVisualMigrationChecks.kt`、新 `scripts/check_bean_workflow_visual_migration.sh`；必要增量 `AdvancedBusinessUiChecks`、`SingleScreenListStateChecks`、`BrewAudioInstrumentation` 及新独立 `.github/workflows/bean-workflow-visual-ui.yml`；不向现 task-frame workflow追加本批12配置 | 原断言/fixture/profile/协议降级；其他 owner 的生产文件 |
 | Astra | 本计划及明确授权的矩阵/统一验收记录 | 源码、设备、共享 index 未协调提交 |
 
 `DoseBalanceView` 当前仅用豆页调用；若追加 style 参数，默认 null 完整保留旧分支，仅本页传入。共享 `TaskPageFrame`/`TaskWorkspaceLayout` 仅使用既有 opt-in，不能全局改默认；共用 `beanRemainingRatio` 不因本批变色或改高度，必要时在本页画展示层。复用 M2 `TaskProductFormStyle.input/label/unit/footer`，保留原输入对象、inputType/filter/listener/selection；unit 只构造期包裹，不在测量或 IME 切换时 reparent。
@@ -88,7 +89,7 @@ rail80、页边16、栏间24、组间16、关联8、面内16、圆角12、输入
 
 ## 5. 验证、证据与四项门禁
 
-- 本地：生产/测试静态成组审；`./gradlew :bean-core:verify :mobile:testMockDebugUnitTest --tests io.openhoyi.mobile.BeanPreparationTest --tests io.openhoyi.mobile.BeanQuantityTest --tests io.openhoyi.mobile.BeanDoseCapturePolicyTest :mobile:assembleMockDebug :mobile:assembleMockDebugAndroidTest`。仅实际新算法需要针对性测试，不写镜像断言。日志/实际suite数与精确源码SHA另记，不预称成功。
+- 本地：生产/测试静态成组审；`./gradlew :bean-core:verify :mobile:testMockUnitTest --tests io.openhoyi.mobile.BeanPreparationTest --tests io.openhoyi.mobile.BeanQuantityTest --tests io.openhoyi.mobile.BeanDoseCapturePolicyTest :mobile:assembleMock :mobile:assembleMockAndroidTest`。仅实际新算法需要针对性测试，不写镜像断言。日志/实际suite数与精确源码SHA另记，不预称成功。
 - 原 advanced 18业务路径全部保留，特别 adjust-cancel/adjust-confirm-preview、dose-invalid-no-write/select-no-deduction/confirm-repeat-recreate/discard-no-refund；原日期/库存两事件、单屏控制完整、列表14夹具的BeanLedger返回/重建、各语言/字号/生命周期门禁不得替换。只在确实改为容器时按精确tag+真实clickable修 selector，不弱化业务断言。
 - 新入口复用 `NativeWindowFrameEvidence` 已验protocol2，保留原样张/M1/M2/M3入口与失败产物。首图先稳定而非先reveal；初图和局部滚后分别记录实际几何/可达/恢复。IME/对话框按真实边界记录，未证同帧不冒称同步；不得加sleep、mask或容差。
 - G1：同状态同窗口对照原图及上述适配；测页边/组距/列内距、实际自然高度、完整主操作、原72/48/52下限、两事件首屏、流水与状态说明可达、非零滚动恢复。数据/错误/禁用状态不得只靠主图外推。
@@ -101,4 +102,19 @@ rail80、页边16、栏间24、组间16、关联8、面内16、圆角12、输入
 
 已完成：原稿/真实三Activity、DoseBalanceView、ScaleOwner绑定行为、BeanPreparation与Inventory模型、原业务/列表及JVM入口只读核对；所有权与设计适配如上。
 
-未完成：M2在途证据验收、M3实施与验收、M4启动授权/代码/构建/真实12图/特殊状态运行与G1–G4。原稿不存在的时间戳、步进/稳定值不会通过造数据补齐；硬件稳定捕获保持独立设备验收范围。本计划不是实施完成报告。
+已启动：主任务已授权M4三页生产与独立完整12配置测试，两Sol分别执行。
+
+未完成：M2/M3真实证据验收、M4代码/构建/真实12图/特殊状态运行与G1–G4。M3生产与取证入口已实施冻结，不再列作未开工；本页不据此追认M2或M3通过。原稿不存在的时间戳、步进/稳定值不会通过造数据补齐；硬件稳定捕获保持独立设备验收范围。本计划不是实施完成报告。
+
+
+## 7. 9b51936 真实依赖复核与M4正式启动
+
+**结论：不存在必须等M2/M3视觉通过的代码依赖；主任务据此已正式授权M4完整三页生产与独立12配置测试，分别交生产/测试Sol启动。** 现有三Activity与 `DoseBalanceView` 不引用M2三页的布局对象，也不引用M3 Activity/Metrics/导入策略。消费的是已经提交的M1 `TaskProductVisualStyle`、Frame/Workspace显式opt-in，以及M2 `TaskProductFormStyle.input/label/unit/footer`；这些接口已编译，但M2完整运行仍未验，M4必须独立验证实际输入/单位/焦点/固定操作。若共享helper随后需要修复，由主任务单owner串行处理并回归受影响批次，不在M4偷偷复制或修改默认实现。
+
+- **无生产文件交叉：** 本批仅§2列三Activity、DoseBalanceView和独立八语种XML。`TaskCurveEditorForm`、M2三Activity、Curve/Metrics/Import/Preview不在修改范围。DoseBalanceView实际仅用豆页三处使用，style参数必须默认null原路保留。`BeanPreparationActivity`空库“添加豆子”只保留原BeanEntry路由，不迁移或以该入口替代M2验收。
+- **共享测试必须串行：** 新BeanWorkflowVisualMigrationChecks/runner是独立文件；`BrewAudioInstrumentation`与必要的AdvancedBusiness/SingleScreenListStateChecks是交叉接口，主任务指定单owner、前一批冻结后再接入，不改M2/M3入口与断言。现task-frame已连续原24/样张/M1/M2，本批已批准使用独立CI，不向原frame追加12配置；新workflow由测试owner接线并由主任务统一静态审/构建。保留完整12和旧门禁，沿M3的独立运行方式记录实际SHA/APK/fresh-process与失败原件，不靠增大timeout或少测页数。
+- **服务隔离是实际前置，不是批次编号依赖：** BeanPreparation继承ScaleOwnerActivity，onStart以flags0绑定既存服务、每250ms仅刷新capture/guard，onStop移除refresh并解绑。主fixture必须独立Mock进程、无原Activity/无服务、10Lazy整组合法内存安装完后启动；无服务状态真实显示等待与捕获禁用，不启动或暂停服务/handler制造截图。父类owner/bound/visible/refresh与全部Activity/dialog销毁后需核解绑/回调移除，再关闭本scope writers、恢复原对象/白名单偏好与核原盘。Batch/Ledger直接只读库存，调整/确认写入也只作用于合法内存scope。
+- **恢复/关联闭包：** 用豆关联重试调用 `MobileApplication.reconcileJournal()`，所用journal/history/preparation/inventory必须全部是同一scope，不能只替换库存。三主图无需经过Home；若补原业务确需Home路线导致Mock单服务启动，先列该服务实际持有的scoped对象与onDestroy排空证据，再允许该单独测试状态，不套“无服务”结果。未知/未决/拒写场景不自动重发或回滚原文件。
+- **执行优先级：** M2新frame与M3独立12原件到达即优先设计验收；在途源码SHA原件保留，M4推进不能关闭其FAIL。完成M4独立静态部分后仍需合批构建/12真实图及原业务门禁，不能因沿用候选helper而继承PASS。
+
+Gradle入口已据当前 `verify.yml`、module任务与真实测试文件校正为 `testMockUnitTest` / `assembleMock` / `assembleMockAndroidTest`，无MockDebug变体；本次只改计划，没有执行构建、设备或生产修改。
