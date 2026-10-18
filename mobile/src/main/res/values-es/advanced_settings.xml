@@ -11,4 +11,9 @@
     <string name="settings_appearance_language">Apariencia e idioma</string>
     <string name="settings_diagnostics_devices">Diagnóstico y dispositivos</string>
     <string name="settings_enable_feedback">Activar avisos</string>
+    <string name="settings_info_name">Nombre</string>
+    <string name="settings_info_version">Versión</string>
+    <string name="settings_info_mode">Modo</string>
+    <string name="settings_info_package">Paquete</string>
+    <string name="settings_info_version_value">%1$s (%2$d)</string>
 </resources>

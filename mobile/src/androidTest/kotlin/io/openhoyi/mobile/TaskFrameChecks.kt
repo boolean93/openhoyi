@@ -46,7 +46,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             originalY = scroll.scrollY
         }
         val targets = listOf(
-            "app-info" to activity.getString(R.string.application_package, BuildConfig.APPLICATION_ID),
+            "app-info" to BuildConfig.APPLICATION_ID,
             "diagnostics" to activity.getString(R.string.app_settings_machine)
         )
         try {
@@ -68,7 +68,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                         LanguageUiLayoutChecks.textFits(target, "settings/$name")
                     }
                     if (name == "app-info") check(labels.any {
-                        it.text.toString() == activity.getString(R.string.application_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
+                        it.text.toString() == activity.getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
                     }) { "Settings omitted actual build version" }
                 }
                 val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())

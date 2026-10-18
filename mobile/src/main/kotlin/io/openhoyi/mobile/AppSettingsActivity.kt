@@ -97,10 +97,33 @@ class AppSettingsActivity : ThemedActivity() {
         languageCard = AppLanguagePreferencesCard(this, theme, embedded = true) { service?.refreshNotificationDisplay(); recreate() }
         feedbackCard = BrewFeedbackPreferencesCard(this, body)
         val info = settingsGroup(this, body, getString(R.string.application_info))
-        HoyiUi.label(this, info, getString(R.string.app_name), TaskVisualTokens.BODY_SP, true)
-        HoyiUi.label(this, info, getString(R.string.application_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), 14)
-        HoyiUi.label(this, info, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha), 14)
-        HoyiUi.label(this, info, getString(R.string.application_package, BuildConfig.APPLICATION_ID), TaskVisualTokens.SUPPORTING_SP, muted = true).setTextIsSelectable(true)
+        fun infoRow(label: Int, value: String, description: String = value, selectable: Boolean = false) {
+            if (info.childCount > 0) settingsDivider(this, info)
+            val inline = HoyiUi.wide(this) && resources.configuration.fontScale <= 1.1f
+            val row = LinearLayout(this).apply {
+                orientation = if (inline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+            info.addView(row, LinearLayout.LayoutParams(-1, -2))
+            HoyiUi.label(this, row, getString(label), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+                layoutParams = LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1f else 0f)
+                setPadding(0, 0, HoyiUi.dp(this@AppSettingsActivity, 8), 0)
+            }
+            HoyiUi.label(this, row, value, TaskVisualTokens.BODY_SP).apply {
+                layoutParams = LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 2f else 0f)
+                gravity = if (inline) Gravity.END else Gravity.START
+                contentDescription = description
+                if (selectable) setTextIsSelectable(true)
+            }
+        }
+        infoRow(R.string.settings_info_name, getString(R.string.app_name))
+        infoRow(R.string.settings_info_version,
+            getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
+            getString(R.string.application_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
+        infoRow(R.string.settings_info_mode,
+            getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
+        infoRow(R.string.settings_info_package, BuildConfig.APPLICATION_ID,
+            getString(R.string.application_package, BuildConfig.APPLICATION_ID), selectable = true)
         val diagnostics = settingsGroup(this, body, getString(R.string.settings_diagnostics_devices))
         HoyiUi.label(this, diagnostics, getString(R.string.app_settings_export_hint), TaskVisualTokens.SUPPORTING_SP, muted = true)
         HoyiUi.button(this, diagnostics, getString(R.string.app_settings_export)) {

@@ -996,3 +996,10 @@ Mock及AndroidTest构建42s成功（/tmp/task-extraction-type-hierarchy-build.lo
 3c0019c/run39089221205 task-frame用户横屏成功，下载ci-3c0019c-frame。实读AppSettingsActivity.png和AppSettingsActivity-diagnostics.png：四分组落地，首屏前两组、底部应用信息/诊断入口可滚动读取；settings-scroll.txt记录states=2 actualBuildInfo=true exportNotInvoked=true preferencesUnchanged=true noBle=true。应用版本0.1.0(1)、包名和Mock模式真实可见；不表示真实设备验收。与稿仍有信息列改为文本堆叠、动作图标缺失、首屏信息密度与间距差异；未最终验收。此证据只覆盖标准浅色，不能外推大字深色。
 
 机器设置候选：温度三组固定标签及原输入/按钮重排，标准宽屏输入动作同行、大字单列；保留原校验/confirm/prefill/render/控件引用。待机输入同步固定标签；回读摘要改中性底色、14/24sp，分类16sp。Mock与AndroidTest构建43s通过（/tmp/task-machine-settings-layout-build.log）。尚无新运行图；回读仍为两列而不是概念稿逐行、页头和动作层级待后续收口，不能说机器设置对齐完成。
+
+
+## 应用信息四行候选（2026-10-18）
+
+依据3c0019c应用设置实图与app-settings-v1，将名称/版本/模式/包名分成四行；14sp标签、16sp值，标准宽屏左右列、大字上下列。值仍绑定实际资源/BuildConfig，包名可复制，完整版本及包名描述保留于无障碍信息。八语言新增标签与版本格式；TaskFrameChecks保持实际包名可见/textFits及版本存在检查，未删偏好不变/不导出断言。现有动作图标与总体密度差异仍保留，未运行验收。
+
+本候选Mock和AndroidTest构建45s成功（/tmp/task-app-info-rows-build.log），8份XML解析及diff/分支检查通过。运行截图仍待对应CI。
