@@ -13,7 +13,28 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     private val style: TaskProductFormStyle) {
     private fun dp(value: Int) = style.dp(value)
     private fun cell() = style.visual.column("bean-full-field")
-    val metadata = List(3) { cell() }
+    /** Fields keep the same parent. Only label/input measurement changes when all cards fit. */
+    private inner class MetadataCell : LinearLayout(activity) {
+        var inline = false
+            set(value) { if (field != value) { field = value; forceLayout() } }
+        init { orientation = VERTICAL; tag = "bean-full-field"; isBaselineAligned = false }
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            orientation = if (inline) HORIZONTAL else VERTICAL
+            gravity = if (inline) android.view.Gravity.CENTER_VERTICAL else android.view.Gravity.TOP
+            for (index in 0 until childCount) {
+                val child = getChildAt(index)
+                (child.layoutParams as LayoutParams).apply {
+                    width = if (!inline) -1 else if (index == 0) -2 else 0
+                    weight = if (inline && index > 0) 1f else 0f
+                    marginStart = if (inline && index > 0) dp(8) else 0; marginEnd = 0
+                    topMargin = 0; bottomMargin = 0; resolveLayoutDirection(this@MetadataCell.layoutDirection)
+                }
+                if (index == 0) child.setPaddingRelative(child.paddingStart, child.paddingTop, child.paddingEnd, if (inline) 0 else dp(8))
+            }
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        }
+    }
+    val metadata: List<LinearLayout> = List(3) { MetadataCell() }
     val stageRows = List(4) { cell() }
     val stageHeader = style.visual.row()
     val supportingBody = cell()
@@ -52,9 +73,45 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             val width = MeasureSpec.getSize(widthMeasureSpec)
             val height = MeasureSpec.getSize(heightMeasureSpec)
             val free = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-            metadataContent.measure(widthMeasureSpec, free)
-            val metadataNatural = metadataContent.measuredHeight
-            val metadataMinimum = metadata.maxOf { shortMinimum(it) + it.paddingTop + it.paddingBottom }
+            fun forceMetadataLayout(view: View) {
+                if (view is ViewGroup) for (index in 0 until view.childCount) forceMetadataLayout(view.getChildAt(index))
+                view.forceLayout()
+            }
+            fun measureMetadata(inline: Boolean): Int {
+                metadata.forEach { (it as MetadataCell).inline = inline }
+                forceMetadataLayout(metadataContent)
+                metadataContent.measure(widthMeasureSpec, free)
+                return metadataContent.measuredHeight
+            }
+            val metadataVertical = measureMetadata(false)
+            val inlineCards = org.json.JSONArray()
+            val inlineFits = metadata.mapIndexed { index, panel ->
+                val label = panel.getChildAt(0) as? android.widget.TextView
+                val inputHost = if (panel.childCount == 2) panel.getChildAt(1) else null
+                fun field(view: View?): EditText? = when (view) {
+                    is EditText -> view
+                    is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { field(view.getChildAt(it)) }
+                    else -> null
+                }
+                val input = field(inputHost)
+                label?.measure(free, free)
+                val labelWidth = label?.measuredWidth ?: 0
+                // Name text may scroll horizontally, but never receives a token-sized viewport.
+                val inputText = if (index == 0) "国".repeat(8) else input?.text.orEmpty()
+                val textWidth = input?.let { kotlin.math.ceil(android.text.Layout.getDesiredWidth(inputText, it.paint).toDouble()).toInt() } ?: 0
+                // unit() has already reserved its real unit + gap in compoundPadding.
+                // Do not count that unit a second time merely because inputHost is a wrapper.
+                val compoundPadding = input?.let { it.compoundPaddingLeft + it.compoundPaddingRight } ?: 0
+                val inputMinimum = textWidth + compoundPadding
+                val innerWidth = (panel.measuredWidth - panel.paddingLeft - panel.paddingRight).coerceAtLeast(0)
+                val fits = label != null && input != null && labelWidth + dp(8) + inputMinimum <= innerWidth
+                inlineCards.put(JSONObject().put("index", index).put("cardWidthPx", panel.measuredWidth)
+                    .put("innerWidthPx", innerWidth).put("labelNaturalWidthPx", labelWidth)
+                    .put("inputTextAdvancePx", textWidth).put("inputCompoundPaddingPx", compoundPadding)
+                    .put("inputMinimumWidthPx", inputMinimum).put("gapPx", dp(8)).put("fits", fits)
+                    .put("inputWidthBasis", if (index == 0) "same-Paint eight CJK advances plus actual compound padding" else "actual input text advances plus actual compound padding, including unit reserve"))
+                fits
+            }.all { it }
             val stageWidth = ((width - dp(24)).coerceAtLeast(0) * 1.1f / 2.1f).toInt()
             val previewWidth = (width - dp(24) - stageWidth).coerceAtLeast(0)
             val stageInner = (stageWidth - stagePane.paddingLeft - stagePane.paddingRight).coerceAtLeast(0)
@@ -66,6 +123,11 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             val stageNatural = stageContent.measuredHeight + stagePane.paddingTop + stagePane.paddingBottom
             val chart = supportingBody.findViewWithTag<View>("task-form-stage-preview")
             val previewMinimum = fixedHeight(supportingBody, chart, (previewWidth - supportingBody.paddingLeft - supportingBody.paddingRight).coerceAtLeast(0)) + dp(160)
+            val fullVertical = metadataVertical + dp(16) + maxOf(stageNatural, previewMinimum)
+            val metadataInline = if (inlineFits) measureMetadata(true) else null
+            val inlineSelected = fullVertical > height && inlineFits
+            val metadataNatural = measureMetadata(inlineSelected)
+            val metadataMinimum = metadata.maxOf { shortMinimum(it) + it.paddingTop + it.paddingBottom }
             val lowerMinimum = maxOf(stageMinimum, previewMinimum)
             compact = height < metadataMinimum + dp(16) + lowerMinimum
             (metadataScroll.layoutParams as LayoutParams).height = if (compact) -2 else minOf(metadataNatural, height / 3).coerceAtLeast(minOf(metadataMinimum, height))
@@ -74,9 +136,15 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             (previewScroll.layoutParams as LayoutParams).height = if (compact) -2 else -1
             (stages.layoutParams as LayoutParams).apply { this.height = if (compact) -2 else 0; weight = if (compact) 0f else 1f }
             productLayoutEvidence = JSONObject().put("availablePx", height).put("metadataNaturalPx", metadataNatural)
+                .put("metadataVerticalNaturalPx", metadataVertical).put("metadataInlineNaturalPx", metadataInline ?: JSONObject.NULL)
+                .put("fullVerticalNaturalPx", fullVertical).put("metadataInlineFits", inlineFits)
+                .put("metadataInlineSelected", inlineSelected).put("metadataCards", inlineCards)
                 .put("metadataMinimumPx", metadataMinimum).put("stageMinimumPx", stageMinimum).put("previewMinimumPx", previewMinimum)
                 .put("compactSingleContentScroll", compact).put("stageNaturalPx", stageNatural)
                 .put("fullNaturalPx", metadataNatural + dp(16) + maxOf(stageNatural, previewMinimum))
+            // shortMinimum measures the EditText independently; replay the real wrapper/card
+            // constraints even when their incoming MeasureSpecs match the previous pass.
+            forceMetadataLayout(metadataContent)
             column.forceLayout(); metadataScroll.forceLayout(); lower.forceLayout(); stagePane.forceLayout(); previewScroll.forceLayout(); contentScroll.forceLayout()
             super.onMeasure(widthMeasureSpec, heightMeasureSpec)
         }
