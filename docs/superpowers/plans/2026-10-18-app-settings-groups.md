@@ -7,3 +7,7 @@
 八语言资源、Mock/测试包构建，保留语言切换/失败回滚/音频生命周期检查；页面首尾滚动、深浅/大字需后续CI。普通批次push，不安装、不设备写入、不合并/发版，不改版本/签名/schema。回退展示代码即可。
 
 实施候选已完成分组/开关/文字入口；八语言XML与diff/分支检查通过，Mock/MockAndroidTest构建45s成功（`/tmp/task-app-settings-groups-build.log`）。语言选择显示nativeName，无障碍描述保留完整原文；独立失败注入fixture仍保留完整label断言。主题回滚/音频/滚动实测待CI，未验收通过。
+
+补充取证：TaskFrameChecks在原24页检查内新增应用信息/诊断两状态滚动截图，检查真实BuildConfig版本、包名以及导出/机器设置入口完整可达和文字边界；两次绘制帧后截图，恢复原滚动位置；appearance/app_language/brew_feedback前后相等，不点导出/不触发设备动作。待构建和CI。
+
+取证测试最终源码构建23s成功（`/tmp/task-settings-scroll-final-build.log`），已限定TaskPageFrame.pageContent避免选中导航轨的ScrollView。仅编译成功，实际states=2证明须等CI产物。

@@ -19,6 +19,73 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
 
+    private fun verifySettingsScroll(activity: AppSettingsActivity, directory: File) {
+        fun main(action: () -> Unit) {
+            var failure: Throwable? = null
+            test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
+            failure?.let { throw it }
+        }
+        fun frame() {
+            test.waitForIdleSync()
+            val drawn = java.util.concurrent.CountDownLatch(1)
+            main { activity.window.decorView.postOnAnimation {
+                activity.window.decorView.postOnAnimation { drawn.countDown() }
+            } }
+            check(drawn.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Settings scroll frame timed out" }
+        }
+        val preferenceNames = listOf("appearance", "app_language", "brew_feedback")
+        fun preferences() = preferenceNames.associateWith {
+            activity.getSharedPreferences(it, Activity.MODE_PRIVATE).all.toMap()
+        }
+        val before = preferences()
+        lateinit var scroll: android.widget.ScrollView
+        var originalY = 0
+        main {
+            val page = descendants(activity.window.decorView).filterIsInstance<TaskPageFrame>().single().pageContent
+            scroll = descendants(page).filterIsInstance<android.widget.ScrollView>().single()
+            originalY = scroll.scrollY
+        }
+        val targets = listOf(
+            "app-info" to activity.getString(R.string.application_package, BuildConfig.APPLICATION_ID),
+            "diagnostics" to activity.getString(R.string.app_settings_machine)
+        )
+        try {
+            for ((name, label) in targets) {
+                main {
+                    val target = descendants(scroll).filterIsInstance<android.widget.TextView>().single { it.text.toString() == label }
+                    target.requestRectangleOnScreen(Rect(0, 0, target.width, target.height), true)
+                }
+                frame()
+                main {
+                    val labels = descendants(scroll).filterIsInstance<android.widget.TextView>()
+                    val required = if (name == "diagnostics") listOf(label, activity.getString(R.string.app_settings_export)) else listOf(label)
+                    required.forEach { text ->
+                        val target = labels.single { it.text.toString() == text }
+                        val visible = Rect()
+                        check(target.getGlobalVisibleRect(visible) && visible.width() == target.width && visible.height() == target.height) {
+                            "Settings content is not fully reachable: $text"
+                        }
+                        LanguageUiLayoutChecks.textFits(target, "settings/$name")
+                    }
+                    if (name == "app-info") check(labels.any {
+                        it.text.toString() == activity.getString(R.string.application_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
+                    }) { "Settings omitted actual build version" }
+                }
+                val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+                try {
+                    File(directory, "AppSettingsActivity-$name.png").outputStream().use {
+                        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
+                    }
+                } finally { bitmap.recycle() }
+            }
+            check(preferences() == before) { "Reading settings changed saved preferences" }
+            File(directory, "settings-scroll.txt").writeText("states=2 actualBuildInfo=true exportNotInvoked=true preferencesUnchanged=true noBle=true\n")
+        } finally {
+            main { scroll.scrollTo(0, originalY) }
+            frame()
+        }
+    }
+
     fun run() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         val app = test.targetContext.applicationContext as MobileApplication
@@ -115,6 +182,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                     try {
                         File(directory, "${page.simpleName}.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
+                    if (activity is AppSettingsActivity) verifySettingsScroll(activity, directory)
                 } finally {
                     test.runOnMainSync { activity.finish() }
                     test.waitForIdleSync()
