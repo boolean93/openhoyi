@@ -74,15 +74,16 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
     }
     private fun settled(activity: StrictVisualSampleActivity) { committedFrame(activity) }
 
-    private data class WindowCopy(val bitmap: Bitmap?, val resultCode: Int, val callbackCompleted: Boolean)
+    private data class WindowCopy(val bitmap: Bitmap?, val resultCode: Int, val callbackCompleted: Boolean, val sourceRectAfterSdk: Rect)
     private data class CapturedFrame(val target: JSONObject, val proof: JSONObject)
 
     private fun copyWindow(activity: StrictVisualSampleActivity, source: Rect, timeoutMs: Long): WindowCopy {
         val bitmap = Bitmap.createBitmap(source.width(), source.height(), Bitmap.Config.ARGB_8888)
         val copied = CountDownLatch(1)
         val code = AtomicInteger(-1)
+        val requested = Rect(source)
         main {
-            PixelCopy.request(activity.window, source, bitmap, { result ->
+            PixelCopy.request(activity.window, requested, bitmap, { result ->
                 code.set(result)
                 copied.countDown()
             }, Handler(Looper.getMainLooper()))
@@ -90,7 +91,7 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
         val completed = copied.await(timeoutMs.coerceAtLeast(1), TimeUnit.MILLISECONDS)
         // A timed-out asynchronous copy may still own its bitmap. Do not recycle a
         // buffer still being written; the failed request/Activity is discarded.
-        return WindowCopy(if (completed) bitmap else null, code.get(), completed)
+        return WindowCopy(if (completed) bitmap else null, code.get(), completed, Rect(requested))
     }
 
     private fun pixelSha(bitmap: Bitmap, rect: Rect = Rect(0, 0, bitmap.width, bitmap.height)): String {
@@ -140,52 +141,61 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
         .put("colorSpace", bitmap.colorSpace?.name).put("hasAlpha", bitmap.hasAlpha())
         .put("sizePx", JSONArray(listOf(bitmap.width, bitmap.height)))
 
-    /** Whole display PNG is accepted only if it contains the same exact opaque app
-     * pixels as the committed Window surface both before and after the screen copy.
-     * No sleeps, masks, geometric tolerance, or JSON-as-pixel-proof are used. */
+    /** Synchronize equivalent domains, never raw surface == composed display.
+     * API 34 Window capture flushes SurfaceFlinger before captureLayers; bracket
+     * display captures with that bridge and PixelCopy. Original display PNGs are
+     * still the visual evidence, including every system-composited corner. */
     private fun screenshot(activity: StrictVisualSampleActivity, file: File,
         observe: () -> JSONObject = { JSONObject() }): CapturedFrame {
         val started = SystemClock.elapsedRealtime()
         val deadline = started + 5000
         val attempts = JSONArray()
-        val failureArtifacts = JSONArray()
-        // Keep only the last complete rejected candidate. Encode it after failure,
-        // not inside the 5s matching budget; PNG work must not starve a later copy.
-        data class RejectedCapture(val attempt: Int, val before: Bitmap?, val after: Bitmap?, val display: Bitmap?) {
-            fun recycle() { before?.recycle(); after?.recycle(); display?.recycle() }
+        val artifacts = JSONArray()
+        data class Candidate(val attempt: Int, val images: Map<String, Bitmap>) {
+            fun recycle() { images.values.forEach { it.recycle() } }
         }
-        var retained: RejectedCapture? = null
-        fun retain(attempt: Int, first: WindowCopy?, last: WindowCopy?, display: Bitmap?) {
-            retained?.recycle()
-            retained = RejectedCapture(attempt, first?.bitmap, last?.bitmap, display)
+        var retained: Candidate? = null
+        fun imageName(role: String) = when (role) {
+            "display" -> file.name
+            else -> "${file.nameWithoutExtension}-$role.png"
         }
-        fun persistRejected() {
-            val candidate = retained ?: return
-            fun save(bitmap: Bitmap?, name: String, role: String) {
-                if (bitmap == null) return
-                val output = File(file.parentFile, name)
-                bitmap.output(output)
-                failureArtifacts.put(JSONObject().put("attempt", candidate.attempt).put("role", role)
-                    .put("file", output.name).put("fileSha256", sha(output)).put("bitmap", bitmapDescription(bitmap)))
+        fun persist(candidate: Candidate, failure: Boolean) {
+            candidate.images.forEach { (role, bitmap) ->
+                // On success retain both unmodified full displays. All six raw
+                // inputs are retained on failure, outside the matching budget.
+                if (failure || role == "display" || role == "display-after") {
+                    val output = File(file.parentFile, imageName(role))
+                    bitmap.output(output)
+                    artifacts.put(JSONObject().put("attempt", candidate.attempt).put("role", role)
+                        .put("file", output.name).put("fileSha256", sha(output)).put("bitmap", bitmapDescription(bitmap)))
+                }
             }
-            save(candidate.before, "${file.nameWithoutExtension}-surface-before.png", "Window_PixelCopy_before")
-            save(candidate.after, "${file.nameWithoutExtension}-surface-after.png", "Window_PixelCopy_after")
-            save(candidate.display, file.name, "unmodified_UiAutomation_whole_display")
         }
         val proofFile = File(file.parentFile, "${file.nameWithoutExtension}-frame-sync.json")
         fun writeProof(accepted: Boolean, error: String? = null): JSONObject {
-            val proof = JSONObject().put("protocol", "hardware_commit_then_Window_PixelCopy_display_PixelCopy_exact_ARGB")
+            val proof = JSONObject().put("protocolVersion", 2)
+                .put("protocol", "commit_S1_WindowLayer1_Display1_Display2_WindowLayer2_S2")
                 .put("accepted", accepted).put("timeoutMs", 5000).put("attempts", attempts)
-                .put("status", if (accepted) "MATCHED_SUBMITTED_FRAME_NOT_VISUAL_ACCEPTANCE" else "FAIL")
-                .put("image", file.name).put("wholeDisplayUiAutomation", true)
-                .put("pixelComparison", "all_app_pixels_no_tolerance_no_mask")
-                .put("elapsedMs", SystemClock.elapsedRealtime() - started).put("failureArtifacts", failureArtifacts)
+                .put("status", if (accepted) "MATCHED_WINDOW_LAYER_AND_STABLE_COMPOSITE_NOT_VISUAL_ACCEPTANCE" else "FAIL")
+                .put("image", file.name).put("secondDisplayImage", imageName("display-after"))
+                .put("wholeDisplayUiAutomation", true).put("displayComparisonRegion", "entire_measured_app_rect")
+                .put("pixelComparison", "each_equivalent_domain_all_app_pixels_no_tolerance_no_mask")
+                .put("crossDomainComparison", "DIAGNOSTIC_ONLY_PIPELINES_NOT_EQUIVALENT")
+                .put("captureArtifacts", artifacts).put("elapsedMs", SystemClock.elapsedRealtime() - started)
+                .put("acceptedAttempt", if (accepted) attempts.length() else JSONObject.NULL)
+                .put("retainedFailureAttempt", retained?.attempt ?: JSONObject.NULL)
+            if (attempts.length() > 0) {
+                val last = attempts.getJSONObject(attempts.length() - 1)
+                proof.put("windowLayerMatch", last.opt("windowLayerMatch") ?: JSONObject.NULL)
+                    .put("displayStable", last.opt("displayStable") ?: JSONObject.NULL)
+            }
             if (file.exists()) proof.put("imageSha256", sha(file))
             error?.let { proof.put("failure", it) }
             proofFile.writeText(proof.toString(2))
             return proof
         }
         try {
+            check(Build.VERSION.SDK_INT >= 34) { "Window-layer bridge requires public UiAutomation.takeScreenshot(Window), API 34" }
             while (SystemClock.elapsedRealtime() < deadline) {
                 val attempt = JSONObject()
                 attempts.put(attempt)
@@ -202,15 +212,42 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                 lateinit var source: Rect
                 lateinit var screen: Rect
                 lateinit var before: JSONObject
+                fun rect(value: Rect) = JSONArray(listOf(value.left, value.top, value.right, value.bottom))
                 fun geometry(): JSONObject {
                     val root = activity.sampleRoot
                     val windowLocation = IntArray(2); root.getLocationInWindow(windowLocation)
                     val screenLocation = IntArray(2); root.getLocationOnScreen(screenLocation)
                     val decor = activity.window.decorView
-                    return JSONObject().put("appLocationInWindowPx", JSONArray(windowLocation.toList()))
+                    val decorWindow = IntArray(2); decor.getLocationInWindow(decorWindow)
+                    val decorScreen = IntArray(2); decor.getLocationOnScreen(decorScreen)
+                    val metrics = activity.windowManager.currentWindowMetrics
+                    val insets = requireNotNull(root.rootWindowInsets) { "Missing actual root WindowInsets" }
+                    fun corners(value: WindowInsets) = JSONArray((0..3).map { position ->
+                        val corner = value.getRoundedCorner(position)
+                        JSONObject().put("position", position).put("radiusPx", corner?.radius ?: JSONObject.NULL)
+                            .put("centerPx", corner?.center?.let { JSONArray(listOf(it.x, it.y)) } ?: JSONObject.NULL)
+                    })
+                    val display = requireNotNull(activity.display)
+                    val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
+                    return JSONObject().put("frameCallbackSequence", frameSequence)
+                        .put("hasWindowFocus", activity.hasWindowFocus())
+                        .put("rootLayoutRequested", root.isLayoutRequested).put("decorLayoutRequested", decor.isLayoutRequested)
+                        .put("appLocationInWindowPx", JSONArray(windowLocation.toList()))
                         .put("appLocationOnScreenPx", JSONArray(screenLocation.toList()))
                         .put("appSizePx", JSONArray(listOf(root.width, root.height)))
                         .put("windowDecorSizePx", JSONArray(listOf(decor.width, decor.height)))
+                        .put("decorLocationInWindowPx", JSONArray(decorWindow.toList()))
+                        .put("decorLocationOnScreenPx", JSONArray(decorScreen.toList()))
+                        .put("windowMetricsBoundsPx", rect(metrics.bounds))
+                        .put("rootTransform", JSONArray(listOf(root.scaleX, root.scaleY, root.rotation, root.rotationX, root.rotationY)))
+                        .put("decorTransform", JSONArray(listOf(decor.scaleX, decor.scaleY, decor.rotation, decor.rotationX, decor.rotationY)))
+                        .put("rootRoundedCorners", corners(insets)).put("metricsRoundedCorners", corners(metrics.windowInsets))
+                        .put("displayRoundedCorners", JSONArray((0..3).map { position ->
+                            val corner = display.getRoundedCorner(position)
+                            JSONObject().put("position", position).put("radiusPx", corner?.radius ?: JSONObject.NULL)
+                                .put("centerPx", corner?.center?.let { JSONArray(listOf(it.x, it.y)) } ?: JSONObject.NULL)
+                        })).put("roundedCornersAreApproximateNotMasks", true)
+                        .put("systemBarsInsetsPx", JSONArray(listOf(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)))
                         .put("scrolls", JSONArray(nodes(root).filterIsInstance<ScrollView>().map {
                             JSONObject().put("semanticId", it.tag).put("scrollX", it.scrollX).put("scrollY", it.scrollY)
                         })).put("target", observe())
@@ -218,85 +255,134 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                 main {
                     check(activity.hasWindowFocus()) { "Specimen capture lost window focus" }
                     before = geometry()
-                    val windowLocation = before.getJSONArray("appLocationInWindowPx")
-                    val screenLocation = before.getJSONArray("appLocationOnScreenPx")
                     val root = activity.sampleRoot
-                    source = Rect(windowLocation.getInt(0), windowLocation.getInt(1),
-                        windowLocation.getInt(0) + root.width, windowLocation.getInt(1) + root.height)
-                    screen = Rect(screenLocation.getInt(0), screenLocation.getInt(1),
-                        screenLocation.getInt(0) + root.width, screenLocation.getInt(1) + root.height)
-                    attempt.put("windowSourceRectPx", JSONArray(listOf(source.left, source.top, source.right, source.bottom)))
-                        .put("displayAppRectPx", JSONArray(listOf(screen.left, screen.top, screen.right, screen.bottom)))
-                        .put("geometryBefore", before)
+                    val decor = activity.window.decorView
+                    val wl = before.getJSONArray("appLocationInWindowPx")
+                    val sl = before.getJSONArray("appLocationOnScreenPx")
+                    source = Rect(wl.getInt(0), wl.getInt(1), wl.getInt(0) + root.width, wl.getInt(1) + root.height)
+                    screen = Rect(sl.getInt(0), sl.getInt(1), sl.getInt(0) + root.width, sl.getInt(1) + root.height)
+                    attempt.put("windowSourceRectPx", rect(source)).put("displayAppRectPx", rect(screen)).put("geometryBefore", before)
+                    val dw = before.getJSONArray("decorLocationInWindowPx")
+                    val ds = before.getJSONArray("decorLocationOnScreenPx")
+                    val metrics = activity.windowManager.currentWindowMetrics.bounds
+                    check(dw.getInt(0) == 0 && dw.getInt(1) == 0 && metrics.left == ds.getInt(0) && metrics.top == ds.getInt(1) &&
+                        metrics.width() == decor.width && metrics.height() == decor.height &&
+                        screen.left - source.left == ds.getInt(0) && screen.top - source.top == ds.getInt(1)) {
+                        "Unknown Window-layer/decor/metrics origin mapping"
+                    }
+                    check(listOf(root, decor).all { it.scaleX == 1f && it.scaleY == 1f && it.rotation == 0f && it.rotationX == 0f && it.rotationY == 0f }) {
+                        "Scaled or rotated Window-layer mapping is unsupported"
+                    }
+                    check(source.left >= 0 && source.top >= 0 && source.right <= decor.width && source.bottom <= decor.height)
+                    attempt.put("windowLayerMapping", "SDK34_measured_zero_surfaceInsets_unscaled_Window_local")
                 }
-                var first: WindowCopy? = null
-                var last: WindowCopy? = null
-                var display: Bitmap? = null
-                var readable: Bitmap? = null
+                val images = linkedMapOf<String, Bitmap>()
+                var appDisplay: Bitmap? = null
                 var acceptedAttempt = false
                 try {
-                    first = copyWindow(activity, source, remaining("PixelCopy_before"))
-                    attempt.put("pixelCopyBeforeCode", if (first.callbackCompleted) first.resultCode else JSONObject.NULL)
-                        .put("pixelCopyBeforeCallback", first.callbackCompleted)
-                    check(first.callbackCompleted) { "PIXEL_COPY_CALLBACK_TIMEOUT before display; no Android result received within capture budget" }
-                    check(first.resultCode == PixelCopy.SUCCESS) { "PixelCopy before display failed: ${first.resultCode}" }
-                    val surfaceBefore = requireNotNull(first.bitmap)
-                    attempt.put("surfaceBefore", bitmapDescription(surfaceBefore)).put("surfaceBeforeArgbSha256", pixelSha(surfaceBefore))
-                    remaining("UiAutomation_display")
-                    display = requireNotNull(test.uiAutomation.takeScreenshot())
-                    attempt.put("wholeDisplay", bitmapDescription(display))
-                    readable = requireNotNull(display.copy(Bitmap.Config.ARGB_8888, false))
-                    check(screen.left >= 0 && screen.top >= 0 && screen.right <= readable.width && screen.bottom <= readable.height)
-                    attempt.put("comparisonBitmap", bitmapDescription(readable)).put("displayAppArgbSha256", pixelSha(readable, screen))
-                    last = copyWindow(activity, source, remaining("PixelCopy_after"))
-                    attempt.put("pixelCopyAfterCode", if (last.callbackCompleted) last.resultCode else JSONObject.NULL)
-                        .put("pixelCopyAfterCallback", last.callbackCompleted)
-                    check(last.callbackCompleted) { "PIXEL_COPY_CALLBACK_TIMEOUT after display; no Android result received within capture budget" }
-                    check(last.resultCode == PixelCopy.SUCCESS) { "PixelCopy after display failed: ${last.resultCode}" }
-                    val surfaceAfter = requireNotNull(last.bitmap)
-                    attempt.put("surfaceAfter", bitmapDescription(surfaceAfter)).put("surfaceAfterArgbSha256", pixelSha(surfaceAfter))
+                    fun copy(role: String): Bitmap {
+                        val result = copyWindow(activity, source, remaining(role))
+                        result.bitmap?.let { images[role] = it }
+                        attempt.put("${role}Code", if (result.callbackCompleted) result.resultCode else JSONObject.NULL)
+                            .put("${role}Callback", result.callbackCompleted).put("${role}SourceRectAfterSdk", rect(result.sourceRectAfterSdk))
+                        check(result.callbackCompleted) { "PIXEL_COPY_CALLBACK_TIMEOUT $role; no Android result received within capture budget" }
+                        check(result.resultCode == PixelCopy.SUCCESS) { "PixelCopy $role failed: ${result.resultCode}" }
+                        // SDK34 offsets this input Rect by surfaceInsets. A fresh
+                        // Rect prevents accumulated offsets; nonzero offsets FAIL.
+                        check(result.sourceRectAfterSdk == source) { "Nonzero surfaceInsets: Window-layer buffer origin is unsupported" }
+                        val bitmap = requireNotNull(result.bitmap)
+                        attempt.put(role, bitmapDescription(bitmap)).put("${role}AppArgbSha256", pixelSha(bitmap))
+                        return bitmap
+                    }
+                    fun capture(role: String, windowLayer: Boolean): Bitmap {
+                        remaining(role)
+                        val raw = requireNotNull(if (windowLayer) test.uiAutomation.takeScreenshot(activity.window) else test.uiAutomation.takeScreenshot()) {
+                            "UiAutomation $role returned null"
+                        }
+                        images[role] = raw
+                        attempt.put(role, bitmapDescription(raw))
+                        if (windowLayer) {
+                            val size = before.getJSONArray("windowDecorSizePx")
+                            check(raw.width == size.getInt(0) && raw.height == size.getInt(1)) { "Unknown Window-layer bitmap origin/size; no resizing allowed" }
+                        } else {
+                            check(screen.left >= 0 && screen.top >= 0 && screen.right <= raw.width && screen.bottom <= raw.height)
+                        }
+                        return raw
+                    }
+                    fun <T> readable(raw: Bitmap, action: (Bitmap) -> T): T {
+                        val software = requireNotNull(raw.copy(Bitmap.Config.ARGB_8888, false))
+                        try { return action(software) } finally { software.recycle() }
+                    }
+                    val s1 = copy("surface-before")
+                    val w1 = capture("layer-before", true)
+                    var windowColors = s1.colorSpace != null && s1.colorSpace == w1.colorSpace
+                    val w1Difference = readable(w1) { bitmap ->
+                        attempt.put("layer-beforeAppArgbSha256", pixelSha(bitmap, source))
+                        pixelDifferenceEvidence(s1, bitmap, source, screen)
+                    }
+                    val d1 = capture("display", false)
+                    val crossDifference = readable(d1) { bitmap ->
+                        attempt.put("displayAppArgbSha256", pixelSha(bitmap, screen))
+                        appDisplay = Bitmap.createBitmap(bitmap, screen.left, screen.top, screen.width(), screen.height())
+                        pixelDifferenceEvidence(s1, bitmap, screen, screen)
+                    }
+                    val d2 = capture("display-after", false)
+                    val displayColors = d1.colorSpace != null && d1.colorSpace == d2.colorSpace
+                    val displayDifference = readable(d2) { bitmap ->
+                        attempt.put("display-afterAppArgbSha256", pixelSha(bitmap, screen))
+                        pixelDifferenceEvidence(requireNotNull(appDisplay), bitmap, screen, screen)
+                    }
+                    appDisplay?.recycle(); appDisplay = null
+                    val w2 = capture("layer-after", true)
+                    windowColors = windowColors && s1.colorSpace == w2.colorSpace
+                    val w2Difference = readable(w2) { bitmap ->
+                        attempt.put("layer-afterAppArgbSha256", pixelSha(bitmap, source))
+                        pixelDifferenceEvidence(s1, bitmap, source, screen)
+                    }
+                    val s2 = copy("surface-after")
+                    windowColors = windowColors && s1.colorSpace == s2.colorSpace
+                    val surfaceDifference = pixelDifferenceEvidence(s1, s2, Rect(0, 0, s2.width, s2.height), screen)
                     lateinit var after: JSONObject
                     main { after = geometry() }
                     val geometryStable = before.toString() == after.toString()
-                    val surfaceEvidence = pixelDifferenceEvidence(surfaceBefore, surfaceAfter, Rect(0, 0, surfaceAfter.width, surfaceAfter.height), screen)
-                    val displayEvidence = pixelDifferenceEvidence(surfaceBefore, readable, screen, screen)
-                    val surfaceDifference = surfaceEvidence.getLong("count")
-                    val displayDifference = displayEvidence.getLong("count")
-                    val sameColorSpace = surfaceBefore.colorSpace != null && surfaceBefore.colorSpace == surfaceAfter.colorSpace &&
-                        surfaceBefore.colorSpace == readable.colorSpace
-                    val accepted = geometryStable && sameColorSpace && surfaceDifference == 0L && displayDifference == 0L
+                    val windowReady = listOf(before, after).all {
+                        it.getBoolean("hasWindowFocus") && !it.getBoolean("rootLayoutRequested") && !it.getBoolean("decorLayoutRequested")
+                    }
+                    val windowMatch = windowColors && listOf(w1Difference, w2Difference, surfaceDifference).all { it.getLong("count") == 0L }
+                    val displayStable = displayColors && displayDifference.getLong("count") == 0L
+                    val withinBudget = SystemClock.elapsedRealtime() <= deadline
+                    val accepted = windowReady && geometryStable && windowMatch && displayStable && withinBudget
                     attempt.put("geometryAfter", after).put("geometryUnchanged", geometryStable)
-                        .put("colorSpacesEqual", sameColorSpace)
-                        .put("surfaceBeforeAfterPixelDifferences", surfaceDifference)
-                        .put("surfaceDisplayPixelDifferences", displayDifference).put("accepted", accepted)
-                        .put("surfaceBeforeAfterDifferenceEvidence", surfaceEvidence).put("surfaceDisplayDifferenceEvidence", displayEvidence)
+                        .put("windowReadyAtBothEnds", windowReady).put("windowLayerMatch", windowMatch).put("displayStable", displayStable)
+                        .put("windowDomainColorSpacesEqual", windowColors).put("displayDomainColorSpacesEqual", displayColors)
+                        .put("S1_W1", w1Difference).put("S1_W2", w2Difference).put("S1_S2", surfaceDifference)
+                        .put("D1_D2_app", displayDifference).put("S1_D1_diagnosticOnly", crossDifference)
+                        .put("withinMatchingBudget", withinBudget).put("accepted", accepted)
                     budget.put(JSONObject().put("stage", "comparison_complete").put("elapsedMs", SystemClock.elapsedRealtime() - started)
                         .put("remainingMs", deadline - SystemClock.elapsedRealtime()))
                     if (accepted) {
                         acceptedAttempt = true
-                        display.output(file)
+                        persist(Candidate(attempts.length(), images), false)
                         return CapturedFrame(before.getJSONObject("target"), writeProof(true))
                     }
-                    retain(attempts.length(), first, last, display)
-                    first = null; last = null; display = null
-                    // An observed mismatch may only be retried after another actual
-                    // committed draw, never after an arbitrary elapsed sleep.
+                    retained?.recycle()
+                    retained = Candidate(attempts.length(), images.toMap())
+                    images.clear()
                     writeProof(false)
                 } finally {
-                    // If no complete rejection exists, retain whatever the failed
-                    // first attempt actually captured. Never replace a full pair
-                    // with a later deadline-tail partial request.
-                    if (!acceptedAttempt && retained == null && (first?.bitmap != null || display != null)) {
-                        retain(attempts.length(), first, last, display)
-                        first = null; last = null; display = null
+                    // Retain a first partial failure only if no complete candidate
+                    // exists; a deadline-tail partial cannot overwrite a full set.
+                    if (!acceptedAttempt && retained == null && images.isNotEmpty()) {
+                        retained = Candidate(attempts.length(), images.toMap())
+                        images.clear()
                     }
-                    first?.bitmap?.recycle(); last?.bitmap?.recycle()
-                    readable?.recycle(); display?.recycle()
+                    images.values.forEach { it.recycle() }
+                    appDisplay?.recycle()
                 }
             }
-            error("Specimen display never matched its committed Window surface within 5000ms")
+            error("Equivalent Window/display domains did not synchronize within 5000ms")
         } catch (failure: Throwable) {
-            try { persistRejected() } catch (diagnosticFailure: Throwable) { failure.addSuppressed(diagnosticFailure) }
+            try { retained?.let { persist(it, true) } } catch (diagnosticFailure: Throwable) { failure.addSuppressed(diagnosticFailure) }
             writeProof(false, failure.stackTraceToString())
             throw failure
         } finally {
@@ -759,7 +845,7 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                     .put("fixture", activity.fixture.json()).put("profile", profile).put("theme", expectedTheme)
                     .put("window", window).put("api", Build.VERSION.SDK_INT).put("fingerprint", Build.FINGERPRINT)
                     .put("hardware", Build.HARDWARE).put("ciRun", arguments.getString("ciRun"))
-                    .put("ciJob", arguments.getString("ciJob")).put("stableFrame", "hardware_commit_and_exact_Window_surface_display_pixels")
+                    .put("ciJob", arguments.getString("ciJob")).put("stableFrame", "hardware_commit_Window_layer_match_and_independent_display_stability")
                     .put("initialFrameSyncFile", "window-frame-sync.json").put("initialFrameSyncAccepted", initialFrame.proof.getBoolean("accepted"))
                     .put("screenCompositeColorCoverage", "PNG_requires_Astra_review_unknown_not_pass")
                     .put("storageBeforeSha256", sha(JSONObject(baselineStorage).toString().toByteArray()))
