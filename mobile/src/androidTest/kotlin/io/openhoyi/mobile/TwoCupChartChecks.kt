@@ -51,7 +51,8 @@ internal class TwoCupChartChecks(private val test: Instrumentation) {
                             val canvas = TrendChartTextChecks.TextBoundsCanvas(pixels,
                                 TextView(activity).apply { textSize = 12f }.textSize, "two-cup-$name")
                             plot.draw(canvas)
-                            check(canvas.labels >= 6 && chart.metric.unit in canvas.texts && "s" in canvas.texts)
+                            val endLabel = String.format(java.util.Locale.ROOT, "%.1f s", chart.projection.timeEndMs / 1000.0)
+                            check(canvas.labels >= 6 && chart.metric.unit in canvas.texts && endLabel in canvas.texts)
                         } finally { pixels.recycle() }
                     }
                 }
@@ -85,6 +86,11 @@ internal class TwoCupChartChecks(private val test: Instrumentation) {
                 check(chart.findViewWithTag<View>("comparison-plot-notice").visibility == View.VISIBLE)
                 capture("both-missing-weight", false)
                 chart.firstPoints = first; chart.secondPoints = second; chart.metric = ChartMetric.PRESSURE
+                measure(220)
+                check(chart.plotBounds.height() >= HoyiUi.dp(activity, 128)) {
+                    "Comparison axes consumed too much of the compact plot"
+                }
+                capture("compact-readable")
                 measure(80)
                 check(chart.plotBounds.isEmpty && chart.findViewWithTag<View>("comparison-plot-notice").visibility == View.VISIBLE)
                 capture("short-height", false)

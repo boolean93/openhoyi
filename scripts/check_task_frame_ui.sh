@@ -87,7 +87,7 @@ with output.open('w') as capture:
         '-e','expectedFontScale',sys.argv[2],
         'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],
         stdout=capture,stderr=subprocess.STDOUT,timeout=180)
-if result.returncode or 'TWO_CUP_CHART_CHECKS_PASSED fixtures=9 sharedScale=true recovery=true noBle=true' not in output.read_text():
+if result.returncode or 'TWO_CUP_CHART_CHECKS_PASSED fixtures=10 sharedScale=true recovery=true noBle=true' not in output.read_text():
     print(output.read_text())
     raise SystemExit('Two-cup native checks failed; evidence retained')
 TWO_CUP_PY

@@ -76,7 +76,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (twoCupChartChecks) {
                 TwoCupChartChecks(this).run(expectedHomeFontScale)
-                report.putString("stream", "TWO_CUP_CHART_CHECKS_PASSED fixtures=9 sharedScale=true recovery=true noBle=true fontScale=$expectedHomeFontScale\n")
+                report.putString("stream", "TWO_CUP_CHART_CHECKS_PASSED fixtures=10 sharedScale=true recovery=true noBle=true fontScale=$expectedHomeFontScale\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }

@@ -104,8 +104,9 @@ internal class TwoCupChartView(context: Context) : FrameLayout(context) {
             } + metric.unit
             return ticks.maxOf(::extent) + dp(14f)
         }
-        fun axisHeight() = line * 4.5f + dp(20f)
-        fun bounds() = RectF(leftGutter(), line * 2 + dp(8f), width - dp(8f), height - line * 2.5f - dp(12f))
+        // One unit/time-label line plus half of the edge tick label on each side.
+        fun axisHeight() = line * 3f + dp(16f)
+        fun bounds() = RectF(leftGutter(), line * 1.5f + dp(8f), width - dp(8f), height - line * 1.5f - dp(8f))
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val series = focusedSeries ?: return
@@ -124,15 +125,13 @@ internal class TwoCupChartView(context: Context) : FrameLayout(context) {
                 canvas.drawText(value, dp(5f) - minOf(0f, textBounds.left.toFloat()), py - (fm.ascent + fm.descent) / 2, labels)
             }
             val tickY = box.bottom + line / 2 + dp(4f) - fm.ascent
-            val start = "0"; val end = seconds(projection.timeEndMs)
+            val start = "0"; val end = seconds(projection.timeEndMs) + " s"
             labels.textAlign = Paint.Align.LEFT; canvas.drawText(start, box.left, tickY, labels)
             labels.textAlign = Paint.Align.RIGHT; canvas.drawText(end, box.right, tickY, labels)
             val middle = seconds(projection.timeEndMs / 2)
             if (box.width() / 2 - extent(middle) / 2 > maxOf(extent(start), extent(end)) + dp(8f)) {
                 labels.textAlign = Paint.Align.CENTER; canvas.drawText(middle, box.centerX(), tickY, labels)
             }
-            labels.textAlign = Paint.Align.CENTER
-            canvas.drawText("s", box.centerX(), height - dp(2f) - fm.descent, labels)
             fun x(ms: Long) = box.left + box.width() * (ms.toDouble() / projection.timeEndMs).toFloat()
             fun y(value: Float) = box.bottom - box.height() * (value - series.range.low) / (series.range.high - series.range.low)
             canvas.save(); canvas.clipRect(box)
