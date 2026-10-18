@@ -1161,3 +1161,13 @@ advanced run39114111354 pages job117636252509失败，下载ci-0d6fb9c-advanced-
 候选将非compact期望宽度明确改1138，补densityDpi360门禁，异常信息同时输出高度/字号/密度；compact既有360dp分支不改，页面/字号/语言/主题/持久化断言全部保留。业务job同次查询仍运行，不重启。新的配置契约需要后续实际CI证明，不能以编译替代页面通过。
 
 AndroidTest构建23s成功（/tmp/task-advanced-profile-contract-build.log），bash -n及diff通过；与复盘单位候选合批推送。此修正仅恢复正确的测试前置条件，不计入产品视觉问题已解决数。
+
+## 用户平板四阶段分享缺表与支持区重排候选（2026-10-18）
+
+run39114111354 business失败，下载ci-0d6fb9c-advanced-business并实读business-flows：前12路径至curve-editor-save-compatible-no-auto-start完成，随后Four-stage sharing table missing。该版本仍在断言后截图，因此无失败分享图；不以旧两阶段图充当本次失败截图。对照源代码固定空间预算及已验证的旧尺寸四阶段/用户尺寸两阶段，表因固定内容与四行参数的高度预算被隐藏。fef3976已有失败前截图和测量，待运行提供准确尺寸。
+
+候选将兼容说明与原完整详情按钮移入右侧分享支持区；左侧阶段数标题仍16sp，名称24sp单行摘要并保留完整详情访问。不缩小图160dp下限、字体或删表格行，不变更分享/导出回调。仅调整布局，是否足以覆盖用户四阶段及大字必须由新实图证实。
+
+另实读同次用户尺寸review-saved-notes.png：三组有内容记录和固定取消/保存均显示，左侧长豆名/研磨内容局部滚动；顶部单位仍旧版同大，不能验证之后0586c57。此图补充用户平板标准浅色复盘证据，不是长文/IME/大字或整页视觉验收。
+
+分享支持区候选Mock及AndroidTest构建42s成功（/tmp/task-share-support-pane-build.log），diff检查通过；未运行新布局。暂本地保留，下一完整批次推送；四阶段缺表保持未关闭。

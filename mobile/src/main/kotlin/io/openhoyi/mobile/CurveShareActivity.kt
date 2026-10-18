@@ -40,6 +40,11 @@ class CurveShareActivity : ThemedActivity() {
         HoyiUi.label(this, actions, getString(R.string.profiles_share_methods), 20, true).apply {
             setPadding(0, 0, 0, HoyiUi.dp(this@CurveShareActivity, 16))
         }
+        HoyiUi.label(this, actions, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)
+            R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, muted = true)
+        HoyiUi.button(this, actions, getString(R.string.ui_full_details)) {
+            beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
+        }.asTaskTextAction()
         val json = doc.encode()
         HoyiUi.button(this, actions, getString(R.string.profiles_share_text), primary = true) {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, json), getString(R.string.profiles_share_title)))

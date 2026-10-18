@@ -7,12 +7,10 @@ import android.widget.LinearLayout
 internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: CustomCurveDocument) {
     val preview = workspace.primaryBody
     HoyiUi.label(this, preview, doc.name, 24, true).apply {
-        maxLines = 2
+        maxLines = 1
         ellipsize = android.text.TextUtils.TruncateAt.END
         tag = "full-text-details"
     }
-    HoyiUi.label(this, preview, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)
-        R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, muted = true)
     val metrics = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
         setPadding(0, HoyiUi.dp(this@sharePreview, TaskVisualTokens.RELATED_GAP_DP), 0, HoyiUi.dp(this@sharePreview, TaskVisualTokens.RELATED_GAP_DP))
@@ -44,21 +42,8 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
         }
     }
     fun parameterHeading() {
-        val heading = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            isBaselineAligned = false
-            gravity = android.view.Gravity.CENTER_VERTICAL
-        }
-        preview.addView(heading, LinearLayout.LayoutParams(-1, -2))
-        HoyiUi.label(this, heading, getString(R.string.profiles_stage_summary, doc.stages.size), 16, true).apply {
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
+        HoyiUi.label(this, preview, getString(R.string.profiles_stage_summary, doc.stages.size), 16, true).apply {
             setPadding(0, 0, 0, 0)
-        }
-        HoyiUi.button(this, heading, getString(R.string.ui_full_details)) {
-            beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
-        }.apply {
-            asTaskTextAction()
-            layoutParams = LinearLayout.LayoutParams(-2, -2)
         }
     }
     if (doc.controlMode != CustomCurveDocument.ControlMode.PRESSURE) {
