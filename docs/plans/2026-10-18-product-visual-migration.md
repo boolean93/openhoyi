@@ -168,3 +168,143 @@ M1完成后直接按下表原稿逐组迁移与真实取证。当前短高IME诊
 - 三产品页尚未按本计划迁移；五文件之外确需的页级桥接由主任务划定单一所有权。
 - 原表单 short-height/IME 真实失败正在补稳定现场，不能被三页视觉成功覆盖。
 - 其余21页、最大字号/所有状态、硬件/签名/发布均没有因本文获得通过。
+
+## 8. 2026-10-19 Home 首批实图后的封闭修订
+
+### 状态、证据与所有权
+
+前文 §0/§7 是写计划当时的历史状态，不再代表当前进度。样张已由 [审查 §10](../evidence/2026-10-18-native-specimen-review.md) 有限冻结并启动 M1；真实三页未获整体通过。生产首批 `7e3f662`、测试 `9c71043` 后的真实 Home 证据来自 head `0f3b759` / tested merge `e357bdcad6bcd643e59d4bc23b271f36b3116fac`：
+
+`build/task-first-evidence/ci-0f3b759-frame/task-frame-tablet-user-landscape/task-first-evidence/product-visual-migration/raw-device/e357bdcad6bcd643e59d4bc23b271f36b3116fac/tablet-user-landscape-light-font-1.0/home/`。
+
+Astra 已实看 `window.png`，对照 `brew-preparation-v2.png` 与 §10 接受的准备样张；同目录 `HomeActivity-typography.json`、`anchors.json`、`baseline-alignment.json` 用于实测，不以其布局 PASS 替代视觉。该图确认真实单位三组 baseline 差0、压力图可读及部分底色已对齐，但存在下述结构/层次遗漏，Home 仍不可判整页通过。`ce0eebe/cb50af4` 未改 Home，新分享/库存图独立验收。
+
+- Sol 生产所有权：`HomeActivity.kt`、`HomeRecentCurves.kt`；`TaskProductVisualStyle.kt` 仅 Home 的 `TaskProductRecipeMetrics`，必要时新增生产页内图标辅助；不得依赖 Mock 样张类。资源新增语义补全现有语言。
+- 主任务另授权 `TaskNavigationView.kt` **仅现有 product style opt-in** 图形映射：杯/记录/豆/齿轮，替换当前 house/clock/leaf/sliders；24dp 图标、原80dp rail/64dp行/14sp标签/路由不变。null 旧分支及其余21页不改。图形是原生候选路径，不冒称恢复 ImageGen 精确路径。
+- Astra 负责这组设计和代码/实图复核；测试与帧同步仍由原测试所有者维护，本组不放松任何旧门禁。修订集中验证/推送，不逐边距微推送。
+
+### A. 页头：真实状态与连接操作分离
+
+- 保留当前真实页面标题及 Mock 身份说明；subtitle 使用14/400/22与 muted，不改成无条件“配方与粉量已确认”。正式模式不能显示“演示数据”。
+- 右侧改两张150dp、最小64dp高的状态卡，间距8dp；24dp机器/秤原生图标，内距8dp、圆角12dp；标签14/400/22，状态14/500/22。低强调面 light `#ECEFF1` / dark `#263234`。自然文本更高时增高，不压行盒。
+- 卡片触控至少48dp，**只调用原 `showDevicePanel()`**，无扫描/连接/去皮副作用；无障碍说明明确“设备状态，打开连接控制”。原右上单个设备连接按钮由两卡共同披露替代，入口不删除。
+- `render()` 从同一 `s.coffeeState/s.scaleState` 及现有 `coffeeFresh/liveScale` 读取；连接文案沿用 `label(state)`，实时必须由现有新鲜度成立。连接成功不等于可冲煮；没有快照保持未连接/未知，失败/不支持保留原危险语义，不以假“已就绪”复制样张。
+- 页头最小80dp，之后间距8dp与1dp border 横分隔；真实警示产生的自然高度单独预算。状态卡不足宽时自然重排，不能缩字或隐藏连接入口。
+
+### B. 主栏：补齐配方层次，不改实际曲线
+
+- 配方行至少48dp，名称24/500/36；旁隔16dp补真实“阶段数与压力/水量控制模式”辅助说明14/400/22，来自当前展示的 `CurveLibraryItem` draft/factory/captured 参数。缺参明确未知，不写死四段。原更换/浏览动作、选择详情回调保留。
+- 温度/目标/阶段摘要补24dp温度计/杯/阶段图标，图标与字间8dp；保留真实labels、16/500/24数字与14/400/22单位同 baseline、组间竖线，组后补1dp border。无目标和缺失沿原语义，不将0变成假36g。
+- 主副栏仍24dp空隙，中间放1dp border；不挤改已确定栏宽。图仍真实 targets、14sp、0/6/12、至少160dp、2dp墨迹保护及原说明，不恢复五刻度拥挤布局。
+- `onPrimarySpaceAvailable` 将新增行、分隔及 margins 按实际测量计入自然预算；不能只加 View 而沿用旧高度和裁切结果。
+
+### C. 最近使用：补齐真实信息与行分隔
+
+- 标题与“更多配方 ›”同一至少48dp行，更多仍到原 `CurveActivity`；标题边界与各行用1dp border。
+- 保留3条真实排序/选择、原 `canStart` 与活动杯禁用、原 usage count 文案和语义tag。标准仅分配前两条实际自然行高，1.3前一条；所有条目仍局部滚达，不再用剩余空间吃满三行而挤图。
+- 名称按冻结样张实际使用的 **16/500/24**（action角色）；辅助说明、实际count、温度/液重/阶段摘要14/400/22。此处更正初次聊天写的名称400，不能以当前实现倒推认可。
+- 左组为名称、真实控制模式/阶段说明和独立count；右组为紧凑参数，组间16dp。宽不足时次说明自然换行、行至少48dp且不强限高度。保留count独立节点；缺参数用—，0目标仍无目标。不得捏造“柔和风味”等原稿示例，也不因选择/浏览新增使用事件。
+
+### D. 本杯：明确编辑入口及自然预算
+
+- 标题20/500/30，titleRow至少42dp；标题分隔 top2 + 1dp线 + bottom7。增加咖啡豆标签14/400/22；豆名24/500/36与独立至少48dp“更换”同组，沿原 `BeanPreparationActivity` 路由。
+- 粉量标签保留原 `attempted/confirmed/shotId/associated` 和 CONSUME event 匹配判定；标签后间距8dp，大值40/700/60与单位14/400/22同 baseline，右侧至少48dp“编辑”仍到原用豆页面。不得仅由豆名判定确认；真实18不强造18.0。
+- 机器/秤行16/400/24、状态点及完整连接/实时/未知/失败文本保留；正常新鲜状态用冻结 accent，其他状态按真实分类，不重定义就绪条件。
+- bean、dose、machine、scale后分隔均 **Home 页内 top8 + 1dp线 + bottom7**，不沿用通用16/16，也不改通用默认值。dose不再叠加旧上下16dp额外padding。body至dock间距8dp。
+- 以上是自然布局最小值。标准正常fixture核心豆/粉量/两个状态应完整；1.3或真实警示允许body局部滚动并完整可达，不新增“大字所有状态硬塞首屏”要求。
+
+### E. 低频披露与固定操作
+
+- `temperatureSummary`、`usageSummary`及其History回调、quickPresets、额外用豆/秤入口移到现有 `devicePanel` 的“准备详情”分组，保留原对象、更新和回调。面板标题可准确标为准备与设备详情；不重写已有扫描、断连、设置、萃取、去皮等控制逻辑。
+- 右栏innerScroll只放本杯核心数据与两设备状态。固定dock依次为24dp info图标+原确认说明14/400/22、间距8、原主操作至少56dp、间距8、“查看准备详情 ›”至少48dp，详情仍 `showDevicePanel()`。
+- 主操作保留真实“查看萃取准备”等状态与全部路由，不冒充样张直接开始萃取，也不画暗示直接startShot的播放三角；可用查看方向图标。显著安全警告、恢复确认、service status、活动/手动杯和emergencyStop不移到低频披露区。
+- 极短横屏保留已有明确fallback与入口，不以缩字号/减少自然触控高度/隐藏固定操作达标。
+
+### 本批严格验收与退出边界
+
+本批角色沿 §1；正文16/400/24、辅助14/400/22、分区20/500/30、标题24/500/36、大值40/700/60、操作16/500/24，字距0、无伪粗、字体资产身份不变。新增按钮须在创建完成后应用页级style，避免现“设备连接”晚创建导致旧52px行高与 `#1C2631` 字色泄漏。
+
+页/字/线采用已冻结 light/dark：page `#F9FAF9/#11191A`、ink `#101820/#EDF3F2`、muted `#657183/#A9B9B8`、border `#DDE3E7/#3B4B4C`、primary `#087A78`、accent `#087A78/#83D6D0`；状态、选中/禁用与 pressed/focused 仍按真实状态独立采证，未看到的不写通过。
+
+- **G1：**同真实fixture两主题×1.0/1.3四整窗；页头/主副栏/分组分隔、标准最近两条或大字一条、固定确认/主操作/详情完整。主/辅局部滚动后目标完整及恢复；长名/警示/短高按已有门禁，不隐藏安全信息。
+- **G2：**候选字体SHA、weight/style/字距/fakeBold；ImageGen原字体未知身份不改，不能借未知跳过本轮实际字体输入验证。
+- **G3：**实际 Layout 行盒、换行/ellipsis、每个角色sp/px和新增文本；摘要与剂量单位 baseline 差0；图表文字14sp及自然墨迹保护。不靠缩字或限高通过。
+- **G4：**实际ARGB/Drawable/Canvas与整窗纯色内区分别核背景、字色、卡面/描边、选中/状态；控件独立ARGB不是合成像素。保留glyph/tnum无法证明项，不填假PASS。
+- **业务：**原四条主操作路由、最近选择/无新usage事件、用豆编辑、详情内旧操作、服务/警告/停止及剂量关联门禁不降。图标不是独立触控，真实卡/按钮仍至少48dp。
+
+本节只授权这批实现与取证，不代表Home或M1已通过；其他21页与硬件仍未验。等待Sol集中diff审查及同源码实图，不重开样张研究。
+
+## 9. 2026-10-19 Share 长名称自然预算补充
+
+证据为 `build/task-first-evidence/ci-cb50af4-advanced/advanced-mock-pages-business/` 下 `business-flows.txt` 与 `advanced-page-screenshots/business/curve-share-four-stages.png`、`curve-share-four-stages-space.txt`。真实名称 `UI recipe` 加 UUID 自然显示两行；fontScale1.0，表1305×245px、图1305×360px（160dp）。原表格检查逐行包含header：失败 `row 3` 是**第3条阶段数据**，其49px只见44px，并不是第4末行只差5px。其full底1398、viewport可视底1393，第4条还需49px，故完整四行至少短缺 **54px**。PNG与该解释一致，阶段4未出现。
+
+本轮PNG实为2560×1600；x0/20纯色区域的应用边界在y63与1465，应用高1402px，density2.25下约623.11dp。`screenDp=1138x623`是资源配置，不代替实际尺寸；也不能套用旧产品fixture的1391px/618.22dp。下载的windows dump已清理回launcher，不冒充Share失败时刻geometry。
+
+主任务批准的唯一生产范围为 `CurveSharePreview.kt`，由原生产Sol实施：
+
+- 保留 `cb50af4` 的页头单一8dp间距、pane四边16dp、完整两行名称、20sp摘要、14sp表文与图文字、图至少160dp及全部五条表行。
+- 先按实际内宽测量原上下构图的所有自然高度、margins和全表；仅当图取160dp仍超出真实可用高度、且以下两段自然宽度加16dp不大于内宽时，将它们变为**同一个自适应元信息行**。
+- 左边保留原阶段数文案（14/500/22）；右边保留原“阶段目标示意，不是时间预测”说明（14/400/22，muted），两段间距至少16dp，两文本各自保持语义节点。行前、到表之间各8dp，不隐藏、缩字号或省略任何一段。
+- 该语义合并消除一条约49px自然行盒及18px组距，当前fixture预计释放67px，覆盖54px缺口；此数值只解释预算，不硬编码为高度或通过阈值。实测后仍按真实全表首屏断言判断。
+- 短名称且原预算足够时维持原稿上下构图；同排自然宽度不足则保持上下排与左局部滚动，不挤压右栏，不预置scrollY、不把滚动后图冒充初态。大字/其他语言继续既有可达性要求，本标准长名原有全表首屏门禁不降。
+- 原图/字段/导出与SAF状态、字重、颜色、单位baseline、图表targets和grid保护不改。同步记录是否启用同行、原/新自然预算与实际viewport；重验标准短名、该真实长名、两主题1.3及FlowRaw，确认没有新增裁切/ellipsis和语义遗漏。
+
+该修订是有条件的分组重排，不是逐像素削padding。等待集中diff、构建及同源码真实图审；不能由预计67px收益直接判通过。
+
+## 10. `cb50af4` 浅色1.0三真实页有限图审与剩余收口
+
+### 已检查的证据及限定结论
+
+来源：CI `39144065820`，head `cb50af4c6e7357f53c2bca4f7e0c830b70e9779d`，tested merge `c1a0930ef5cecbf7932a95bf24f0dc326f1ce8e7`。共同目录：
+
+`build/task-first-evidence/ci-cb50af4-frame/task-frame-tablet-user-landscape/task-first-evidence/product-visual-migration/raw-device/c1a0930ef5cecbf7932a95bf24f0dc326f1ce8e7/tablet-user-landscape-light-font-1.0/`。
+
+Astra 实看 `home/share/inventory/window.png`，并逐一对照原稿和 §10 已接受的三个原生样张；读取三页 manifest、anchors、实际 typography、baseline。三份manifest共74份命名文件SHA独立重算一致；真实合成整屏2560×1600，应用origin(0,74)、size2560×1391、density360、zh-Hans、font1.0、无IME。仅 **3/12**：后续三事件业务检查在首次layout前查找新节点遇NPE，后9配置没有运行，不能据此完成整矩阵。
+
+| 页 | G1结构/间距 | G2字体候选输入 | G3字号/行盒/单位 | G4区域/文字颜色 |
+|---|---|---|---|---|
+| Home | FAIL：§8遗漏仍在，无新的独立计划 | 同一字体SHA；recent名称400须按已冻结500修正，未知glyph身份不伪证 | 摘要/粉量三对baseline差0；晚创建旧设备按钮行高52px仍偏离action54px | page/nav/selected实像素匹配；Mock副文案/旧设备按钮颜色及新增状态卡按§8修 |
+| Share | 正常短名4行表初态完整，限定关闭旧13px裁切；原长名54px仍FAIL，另有下列图标/badge/返回差异 | 实际44个TextView的角色weight/字距与已选输入相符；不证明ImageGen字体或实际fallback glyph | 20sp摘要=45px、action16sp=36px、aux14sp=31.5px；两组baseline均491px；privacy两行Layout95px，不以getter49px冒充行盒 | 主要面/按钮/禁用色实图匹配；表头应ink却为muted，须修；新图标状态待验 |
+| Inventory | 当前主fixture header/两事件完整；仍缺列表层次/分隔/固定说明。已批准摘要重排及48dp事件保留 | 42个TextView角色weight/字距匹配所用候选输入；列表拆分后重验真实各节点 | 40sp余额=90px、135px请求行高/130px实际Layout、单位31.5px，两者baseline450px；两事件各108px=48dp完整 | page/选中豆款/比例/主按钮/表头背景实像素匹配；缺失分隔/图标/说明不是“颜色已过” |
+
+实际getter/Layout差异保留：标题81/79px、section67/65px、body54/52px、aux49/46px，不能将二者混写。字体资产仍为已选 `a3041811…99af0da`，不是恢复原图字体证明。独立probe/字形墨迹/tnum未证内容继续按原边界记unknown，不新开研究。
+
+独立PNG纯色样本（屏幕坐标，均alpha255）：三页(200,230) `#F9FAF9`、(10,100) `#FFFFFF`；Home(30,250)、Share(30,400)、Inventory(30,750)选中导航均 `#E2F0ED`；Share面(1700,280) `#FFFFFF`、禁用(1800,850)/表头(300,1160) `#ECEFF1`、主按钮(1800,430) `#087A78`；Inventory选中豆款(240,340) `#E2F0ED`、比例(1400,505)/主按钮(1300,1380) `#087A78`、表头(1300,805) `#ECEFF1`。这些只证明已采静态内区，不外推dark/pressed/focused或硬件。
+
+库存主图实际两事件rect为(1193,841)-(2524,949)、(1193,949)-(2524,1057)，各108px；header title/summary均1行、无width0。metadata被fillViewport撑到1040px，不将它冒称UNSPEC自然高度。独立新advanced长名fixture `inventory-ledger-first-screen.txt` 也记录两事件完整：y909–1017、1017–1125。仅关闭这些同状态旧裁切；三事件详情/恢复仍等待测试修正后完整执行。
+
+主任务后续已读 `cb50af4` 终态：single三profile成功，advanced pages成功、business仅上述Share长名54px失败。它们不替代本节逐图结论，也不证明所有状态的视觉一致。BeanEntry M2保留此前初态1px失败定位及初态稳定/五字段/固定footer取证计划；本轮绿不证明旧失败唯一根因已修，也不预设M2必须修改生产布局。先按已规划状态验真实图和稳定几何，有实际缺陷才改。
+
+### Share：同批确定修订
+
+- 文件仍 `CurveShareActivity.kt/CurveSharePreview.kt`，执行 §9。正常短名mode badge紧邻名称、间距16dp；只有自然名+badge+16超内宽时才给名称剩余宽自然两行。压力/FlowRaw值来自doc，不硬编码兼容。
+- 四个真实动作补24dp share/copy/export/share图标、图文间8dp、整体居中；原Button身份、SAF状态和回调可保留，禁用图标同onDisabled，不改变按钮enabled。原生候选路径，不声称ImageGen精确路径。
+- 表头三格改ink，保留14/500/22及H8dp；正文、阶段dot/数据/图表/摘要框不改。
+- 原描边返回按钮外壳改透明底、accent 24dp箭头、至少48dp触控；原back/无障碍行为不变。只作用于product style opt-in，其他页面/null路径不改。保留真实info帮助入口，不能补假“设计示意”。
+
+### Inventory：同批确定修订，不推翻真实交互适配
+
+- 页头短title与真实总量summary自然相邻、gap16，剩余弹性留在整组之后，避免title weight把summary推至右端；宽不足仍原自然上下排，不重现MATCH_PARENT横排bug。补页头1dp横线、主副栏1dp分隔；侧栏标题使用“在库咖啡豆/在库豆子”语义，不重复页面名。
+- 列表：24dp豆图标+12dp间距、真实名16/400/24弹性区、右余额16/400/24、8dp后16dp chevron。每行min64、H16/V8内距、行间8、首行距标题14；非选行底1dp border，选中面保持selected。真实批次N以名称下14/400/22辅助行保留，不能只藏入无障碍；长名自然换行，余额/箭头不相撞。仍原选择、tag、滚动恢复与返回。
+- 可使用真实可点击容器替代整段旧Button，不自绘假文字。测试所有者只对依赖旧Button类名的batch selector改用View，原isShown/isEnabled/完整触控/performClick及业务断言必须保留；生产者不改测试。
+- 详情短名旁badge gap16，长名分配真实剩余宽自然增长。**已批准40sp余额+右侧初始量/标签并排、比例行、48dp真实事件、三真实操作路由全部保留**，不恢复样张24dp只读行。
+- 日期已有0/16/16起点、end16、标签值gap8；补两条1dp竖分隔，只描画不占新增列宽。事件与表头补1dp底线，不增行高。库存不是Share网格表，不强套Share H8：保留当前1:1:2原因列及8dp尾净空，header/正文同列对齐、最多3条及详情回调不变。
+- 固定原三操作补图标：用豆cup24、批次详情details/chevron、批次流水record/chevron，图文gap8，真实文字/顺序/路由保持。不得用cube暗示直接改库存，也不得把批次详情换成样张“调整库存”。其后增加top8、info24+14/400/22 muted的“确认本杯用量后才扣减库存。”固定说明，准确对应既有确认消费语义，不产生新扣减。
+- 不另增重复48dp“查看全部”标题行，现固定“此批次流水”已保留入口；这属于真实事件自然预算适配。新说明应按自然高度计入dock，原两事件首屏、48dp、长名/大字及三事件全可达门禁不降。当前长名两事件末底1125至pane底1393尚有空间，但必须重跑验证，不以静态预算声称通过。
+
+本节与§8/§9合为一次三页收口清单；源数据/实际回调不变，颜色和字体输入不重新选择。等待集中diff审查、构建及四profile真实图，不能以本次浅色1.0部分可用或机械PASS宣布M1/24页完成。
+
+### 本批落盘后的静态复核（构建/新实图之前）
+
+Astra 只读核对了生产及取证diff，结论为**无剩余静态阻断，可统一构建后取证**，不是运行或视觉PASS：
+
+- Home 真状态卡只披露原面板；状态来自原snapshot与新鲜度。原剂量关联分支、四路由、安全警示/停止不改；低频View与回调搬到详情。Recent已从错误的固定三层改为真实TextView自然宽flow，count独立原文/tag保留，正常两行/大字一行预算按自然高度。subtitle明确muted、padding0、title后topMargin8，补回冻结间距。
+- Share自适应元信息在mode变化时仅失效自身测量，使用`resolvedInline`统一measure/layout；宽度检查不再污染前次高度测量。RTL按logical start/end镜像，原baseline不变。图高下限、字角色、五行表和SAF回调没有降低/删除。
+- 图标helper保留真实Button文字/回调/状态，依据实际Layout行边界移动原生start drawable，禁用读取currentTextColor；不是仅以gravity声明图文居中。最终图标位置、墨迹、RTL与多行效果仍须实际PNG，不把该公式当渲染通过。
+- 库存列表/tag/选择/滚动恢复、48dp事件及最多3条、三真实路由、40sp余额/日期角色均保留；规则线仅foreground不占预算。固定说明按自然高度进入dock。当前旧标准及长名两个事件的已采空间支持该预算方向，但新dock、长名及1.3仍须运行原首屏/可达门禁；不能凭预计高度关闭。共享`beanPage`等文件尾部helper已独立字节比对不变。
+- 导航与返回改动仅既有product opt-in；null旧路径保留。新增home/inventory共16份语言XML可解析，同组键一致，不宣称翻译文字的所有窄屏效果已经验过。
+- 三事件测试将render与点击分开，有限等待实际frame commit和真实tag/attached/laidOut/无pending/focus/正尺寸，接受前及退出循环前均严格检查5秒预算；超时仍FAIL且清理前保留明确未同步诊断图。没有重试业务断言。库存selector仅从Button类名改为实际batch-tag可点击View，原业务/恢复/完整性断言保留。
+
+本次只运行了只读检查与`git diff --check`；统一构建由主任务安排。待同源码三页12图及长名/事件业务证据，再独立执行G1–G4；未采主题/字号/状态、硬件与其余21页均不能外推。
+
+后续构建记录：生产分批提交为 `ff5f069`（Home/Share/页级辅助）与 `1d82b2f`（库存），测试为 `c7223e5`。首次构建的Recent Paint接收者遮蔽编译错误已仅以限定外层style引用修正；最终日志 `/tmp/2026-10-19-m1-three-page-closure-build-final.log` 实读为 `BUILD SUCCESSFUL in 1m 2s`，Mock/AndroidTest编译完成。JVM XML独立汇总72 suites、321 tests、0 failures、0 errors、1 skipped（既有skip）。这只证明本轮本地检查/构建结果，新CI整窗、三事件实际执行和视觉验收仍未完成。
