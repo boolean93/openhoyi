@@ -77,6 +77,8 @@ class HomeActivity : ThemedActivity() {
     private lateinit var presetPanel: LinearLayout
     private var presetDialog: AlertDialog? = null
     private lateinit var stagePreview: CurveStageView
+    private var hasRecipeMetrics = false
+    private lateinit var recipeMetrics: CurvePreviewMetrics
     private lateinit var previewNote: TextView
     private lateinit var previewUnavailable: TextView
     private lateinit var stageFallback: ScrollView
@@ -264,6 +266,8 @@ class HomeActivity : ThemedActivity() {
                     .setMessage(selectionDetails).setPositiveButton(android.R.string.ok, null).show()
             }
         }
+        recipeMetrics = CurvePreviewMetrics(this).apply { visibility = View.GONE; tag = "home-recipe-metrics" }
+        primary.addView(recipeMetrics, LinearLayout.LayoutParams(-1, -2))
         stagePreview = CurveStageView(this).apply { minimumHeight = dp(96); tag = "stage-preview" }
         primary.addView(stagePreview, LinearLayout.LayoutParams(-1, 0, 1f))
         previewUnavailable = text(primary, "", 14).apply { visibility = View.GONE }
@@ -291,7 +295,11 @@ class HomeActivity : ThemedActivity() {
             previewNote.measure(exactWidth, naturalHeight)
             previewUnavailable.measure(exactWidth, naturalHeight)
             val detailHeight = if (stagePreview.targets.isEmpty()) previewUnavailable.measuredHeight else dp(96)
-            val required = selection.measuredHeight + previewNote.measuredHeight + detailHeight
+            val metricsHeight = if (hasRecipeMetrics) {
+                recipeMetrics.measure(exactWidth, naturalHeight)
+                recipeMetrics.measuredHeight
+            } else 0
+            val required = selection.measuredHeight + metricsHeight + previewNote.measuredHeight + detailHeight
             val recentHeight = recentCurves.fit(width, height - required)
             textStagePreview = height < required
             updateStagePreviewVisibility()
@@ -644,6 +652,8 @@ class HomeActivity : ThemedActivity() {
         val title = displayed?.name ?: getString(if (cupActive && owner?.chartCurveId == "manual") R.string.extraction_manual_label
             else if (cupActive) R.string.task_brew_curve_unknown else R.string.home_curve_missing)
         selection.show(title)
+        displayed?.let(recipeMetrics::present)
+        hasRecipeMetrics = displayed != null
         selectionDetails = title + "\n\n" + (displayed?.let { getString(if (library.canStart(it))
             R.string.home_curve_startable else R.string.home_curve_readonly) + "\n" + it.details } ?: "") + "\n\n" + getString(R.string.task_brew_preview_note)
         val targets = displayed?.let(CurveStageParameters::pressureTargets).orEmpty()
@@ -656,6 +666,7 @@ class HomeActivity : ThemedActivity() {
         previewUnavailable.show(getString(R.string.task_brew_no_pressure_preview))
         stageFallbackText.show(getString(R.string.task_brew_compact_preview) + "\n" +
             getString(R.string.task_brew_preview_note) + "\n" +
+            (if (hasRecipeMetrics) recipeMetrics.contentDescription.toString() + "\n" else "") +
             if (targets.isEmpty()) getString(R.string.task_brew_no_pressure_preview) else
                 targets.mapIndexed { index, target -> getString(R.string.chart_stage, (index + 1).toString()) +
                     " · " + String.format(Locale.ROOT, "%.1f bar", target / 10.0) }.joinToString("\n"))
@@ -749,6 +760,7 @@ class HomeActivity : ThemedActivity() {
             val next = if (show) View.VISIBLE else View.GONE
             if (visibility != next) visibility = next
         }
+        recipeMetrics.visibleWhen(hasRecipeMetrics && !textStagePreview)
         stagePreview.visibleWhen(!textStagePreview && stagePreview.targets.isNotEmpty())
         previewUnavailable.visibleWhen(!textStagePreview && stagePreview.targets.isEmpty())
         previewNote.visibleWhen(!textStagePreview)

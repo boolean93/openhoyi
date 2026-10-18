@@ -1229,3 +1229,11 @@ db5668d run39114685638 pages job成功，下载ci-db5668d-advanced-pages；实�
 发现 AdvancedPageChecks 的导入预览原先只有两阶段，不能用此前 480 个布局夹具通过证明四阶段大字号内容完整。现改为四阶段 3/9/7/5 bar、15/25/15/5 ml，只通过 Intent 传入，不保存。额外记录导入预览/分享的实际阶段数、表格显示与完整可见状态、图表尺寸；非压力分享明确记录无压力预览，不伪称覆盖。原布局检查和存储不变量保持。
 
 最终源码 Mock 与 instrumentation 构建通过（24s，日志 /tmp/task-four-stage-page-evidence-build.log）；尚无该修改的运行截图。几何记录是诊断证据，不是最终视觉验收；分享仍使用实际捕获曲线，四阶段大字号分享覆盖仍未完成。改动先保留本地提交，后续批量推送，不重启现有 CI。
+
+## 2026-10-18：准备页缺失配方摘要（候选修正）
+
+逐张读取 brew-preparation-v2.png、ci-4bd173c-frame 的真实 HomeActivity 空态整页及 home-font-1.0/recent-wide.png 有选中曲线局部图。局部图不是完整窗口，不将它当整页验收。确认 HomeActivity 在配方名称下直接绘图，缺少认可稿中的目标温度/目标液重/阶段数摘要；真实空态与概念就绪态不同，不据此伪造豆子或就绪状态。
+
+现接入已有 CurvePreviewMetrics，保持曲线库一致的 24sp/14sp、16dp 间距和真实配方来源。运行中仍取 displayed 执行曲线，不改门禁；无配方隐藏摘要。实际测量纳入高度预算；短高转入已有局部滚动文字回退，三个配方字段与阶段目标保留。
+
+最终 Mock 与 instrumentation 编译通过（42s，/tmp/task-home-recipe-metrics-build.log），diff 检查通过。尚未运行新增布局，没有新截图，准备页仍未最终验收。原右栏工具入口密度、完整就绪态、图表比例和生成稿字体差异仍需继续核对。
