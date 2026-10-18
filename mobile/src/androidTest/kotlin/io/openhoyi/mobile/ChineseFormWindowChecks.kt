@@ -18,9 +18,14 @@ import android.view.accessibility.AccessibilityWindowInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
 import java.io.File
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /** Chinese Mock-window evidence only. Never saves a draft or invokes a machine/stock action. */
 internal object ChineseFormWindowChecks {
@@ -142,6 +147,129 @@ internal object ChineseFormWindowChecks {
                 Thread.sleep(50)
             } while (SystemClock.elapsedRealtime() < deadline)
             return null
+        }
+        fun rectJson(rect: Rect) = JSONArray(listOf(rect.left, rect.top, rect.right, rect.bottom))
+        fun inlineGeometryOnMain(field: EditText): JSONObject {
+            fun node(view: View): JSONObject {
+                val origin = IntArray(2); view.getLocationOnScreen(origin)
+                val visible = Rect(); val shown = view.getGlobalVisibleRect(visible)
+                return JSONObject().put("class", view.javaClass.name).put("id", view.id)
+                    .put("tag", view.tag?.let { if (it is CharSequence) it.toString() else it.javaClass.name } ?: JSONObject.NULL)
+                    .put("contentDescription", view.contentDescription?.toString() ?: JSONObject.NULL)
+                    .put("fullRectPx", rectJson(Rect(origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)))
+                    .put("visibleRectPx", rectJson(visible)).put("globalVisible", shown)
+                    .put("sizePx", JSONArray(listOf(view.width, view.height)))
+                    .put("paddingPx", JSONArray(listOf(view.paddingLeft, view.paddingTop, view.paddingRight, view.paddingBottom)))
+                    .put("scrollPx", JSONArray(listOf(view.scrollX, view.scrollY)))
+                    .put("hasFocus", view.hasFocus()).put("isFocused", view.isFocused)
+                    .put("isShown", view.isShown).put("isLayoutRequested", view.isLayoutRequested)
+                    .put("isLaidOut", view.isLaidOut)
+                    .put("clipBoundsPx", view.clipBounds?.let(::rectJson) ?: JSONObject.NULL)
+                    .apply { if (view is ViewGroup) put("clipChildren", view.clipChildren).put("clipToPadding", view.clipToPadding) }
+            }
+            val ancestors = generateSequence(field.parent) { it.parent }.filterIsInstance<View>().toList()
+            val footer = descendants(content).filterIsInstance<LinearLayout>().mapNotNull { (it.tag as? BeanPageRegions)?.actions }.distinct()
+            val visibleWindow = Rect(); activity.window.decorView.getWindowVisibleDisplayFrame(visibleWindow)
+            val value = JSONObject().put("field", node(field)).put("fieldInputType", field.inputType)
+                .put("fieldMinimumHeightPx", field.minimumHeight).put("fieldTextLength", field.length())
+                .put("fieldLabelTexts", JSONArray(descendants(content).filterIsInstance<TextView>().filter { it.labelFor == field.id }.map { it.text.toString() }))
+                .put("fieldSelection", JSONArray(listOf(field.selectionStart, field.selectionEnd)))
+                .put("ancestors", JSONArray(ancestors.map(::node))).put("footer", JSONArray(footer.map(::node)))
+                .put("fixedButtons", JSONArray(descendants(content).filterIsInstance<Button>().filter {
+                    it.isShown && scrollAncestor(it) == null }.map(::node)))
+                .put("visibleWindowRectPx", rectJson(visibleWindow)).put("windowHasFocus", activity.hasWindowFocus())
+                .put("decor", node(activity.window.decorView))
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                val insets = content.rootWindowInsets
+                fun inset(type: Int): Any = insets?.getInsets(type)?.let { JSONArray(listOf(it.left, it.top, it.right, it.bottom)) } ?: JSONObject.NULL
+                value.put("windowBoundsPx", rectJson(activity.windowManager.currentWindowMetrics.bounds))
+                    .put("imeVisible", insets?.isVisible(android.view.WindowInsets.Type.ime()) ?: JSONObject.NULL)
+                    .put("imeInsetsPx", inset(android.view.WindowInsets.Type.ime()))
+                    .put("systemInsetsPx", inset(android.view.WindowInsets.Type.systemBars()))
+            }
+            return value
+        }
+        fun inlineGeometry(field: EditText): JSONObject {
+            lateinit var value: JSONObject
+            main { value = inlineGeometryOnMain(field) }
+            return value.put("keyboardWindowRectPx", keyboardBounds()?.let(::rectJson) ?: JSONObject.NULL)
+        }
+        fun captureInline(field: EditText, suffix: String, assertionGeometry: JSONObject? = null) {
+            val file = File(evidence, "$name-$suffix-geometry.json")
+            val before = inlineGeometry(field)
+            val record = JSONObject().put("phase", suffix).put("sampleUptimeMs", SystemClock.uptimeMillis())
+                .put("geometryBeforeScreenshot", before).put("assertionFailureGeometry", assertionGeometry ?: JSONObject.NULL)
+                .put("png", "$name-$suffix.png").put("sameCompositorFrameProven", false)
+                .put("coordinateSemantics", "screen_px; full_and_ancestor_clipped_rects_separate; no_tolerance")
+            file.writeText(record.toString(2))
+            try { capture(suffix) }
+            finally {
+                val after = inlineGeometry(field)
+                val unchanged = before.toString() == after.toString()
+                record.put("geometryAfterScreenshot", after).put("geometryUnchangedDuringScreenshot", unchanged)
+                    .put("screenshotGeometryStatus", if (unchanged) "geometry_unchanged_not_compositor_sync_proof" else "changed_not_same_frame_evidence")
+                file.writeText(record.toString(2))
+            }
+        }
+        fun awaitStableInlineGeometry(field: EditText, phase: String) {
+            val deadline = SystemClock.uptimeMillis() + 5000
+            val samples = JSONArray()
+            var previous: String? = null
+            var consecutive = 0
+            var stable = false
+            val minimumFrames = 3
+            try {
+                while (SystemClock.uptimeMillis() < deadline && samples.length() < 120) {
+                    val latch = CountDownLatch(1)
+                    var geometry: JSONObject? = null
+                    var frameTime = 0L
+                    var drawFailure: Throwable? = null
+                    lateinit var observer: android.view.ViewTreeObserver
+                    lateinit var listener: android.view.ViewTreeObserver.OnDrawListener
+                    main {
+                        val decor = activity.window.decorView
+                        observer = decor.viewTreeObserver
+                        var observed = false
+                        listener = android.view.ViewTreeObserver.OnDrawListener {
+                            if (!observed) {
+                                observed = true
+                                try { geometry = inlineGeometryOnMain(field); frameTime = SystemClock.uptimeMillis() }
+                                catch (error: Throwable) { drawFailure = error }
+                                finally { latch.countDown() }
+                                decor.post { if (observer.isAlive) observer.removeOnDrawListener(listener) }
+                            }
+                        }
+                        observer.addOnDrawListener(listener)
+                        decor.postOnAnimation { decor.invalidate() }
+                    }
+                    val remaining = (deadline - SystemClock.uptimeMillis()).coerceAtLeast(1)
+                    val drawn = try { latch.await(remaining, TimeUnit.MILLISECONDS) }
+                    finally { main { if (observer.isAlive) observer.removeOnDrawListener(listener) } }
+                    check(drawn) { "$name/$phase did not produce another real draw before the diagnostic deadline" }
+                    drawFailure?.let { throw it }
+                    val observed = requireNotNull(geometry).put("keyboardWindowRectPx", keyboardBounds()?.let(::rectJson) ?: JSONObject.NULL)
+                    val ancestors = observed.getJSONArray("ancestors")
+                    val pending = observed.getJSONObject("field").getBoolean("isLayoutRequested") ||
+                        observed.getJSONObject("decor").getBoolean("isLayoutRequested") ||
+                        (0 until ancestors.length()).any { ancestors.getJSONObject(it).getBoolean("isLayoutRequested") }
+                    val signature = observed.toString()
+                    consecutive = if (!pending && signature == previous) consecutive + 1 else if (!pending) 1 else 0
+                    samples.put(JSONObject().put("drawIndex", samples.length() + 1).put("drawUptimeMs", frameTime)
+                        .put("keyboardWindowObservedUptimeMs", SystemClock.uptimeMillis())
+                        .put("sampling", "View_geometry_inside_OnDraw; accessibility_keyboard_window_immediately_after_draw_callback")
+                        .put("pendingLayout", pending).put("consecutiveUnchangedDraws", consecutive).put("geometry", observed))
+                    previous = signature
+                    if (consecutive >= minimumFrames) { stable = true; break }
+                }
+                check(stable) { "$name/$phase layout and IME geometry did not stabilize on $minimumFrames consecutive real draws" }
+            } finally {
+                File(evidence, "$name-$phase-stability.json").writeText(JSONObject().put("phase", phase)
+                    .put("stable", stable).put("requiredConsecutiveDraws", minimumFrames).put("timeoutMs", 5000)
+                    .put("maximumObservedDraws", 120).put("samples", samples)
+                    .put("imeAnimationCompletion", "not_observed; criterion_is_continuous_actual_layout_insets_and_keyboard_window_geometry")
+                    .put("policy", "real_OnDraw_samples; stable_geometry_only_not_visibility_pass; no_sleep_no_retry_until_fullyVisible")
+                    .toString(2))
+            }
         }
         // Public API only; called from main-thread blocks after attaching this page.
         fun pageWindowIdOnMain(): Int {
@@ -627,17 +755,28 @@ internal object ChineseFormWindowChecks {
                     revealViewport(field)
                 }
                 waitForDraw()
-                tap(field)
-                val keyboard = awaitKeyboard()
-                waitForDraw()
+                var inlineFailure: Throwable? = null
+                var assertionFailureGeometry: JSONObject? = null
+                fun checkedInline(action: () -> Unit) = main {
+                    try { action() } catch (error: Throwable) {
+                        assertionFailureGeometry = inlineGeometryOnMain(field)
+                        throw error
+                    }
+                }
                 try {
-                    main {
+                    captureInline(field, "short-before-tap")
+                    tap(field)
+                    val keyboard = awaitKeyboard()
+                    captureInline(field, if (keyboard == null) "short-ime-not-observed" else "short-ime-observed")
+                    awaitStableInlineGeometry(field, "short-ime-before-reveal")
+                    checkedInline {
                         check(activity.hasWindowFocus() && pageWindowIdOnMain() == pageWindowId)
                         check(field.hasFocus()) { "$name inline field did not retain focus" }
                         revealViewport(field)
                     }
-                    waitForDraw()
-                    main {
+                    awaitStableInlineGeometry(field, "short-after-reveal")
+                    captureInline(field, "short-after-reveal")
+                    checkedInline {
                         fullyVisible(field)
                         val bounds = Rect(); field.getGlobalVisibleRect(bounds)
                         if (keyboard != null) check(!Rect.intersects(bounds, keyboard)) { "$name inline input hidden by IME" }
@@ -647,7 +786,7 @@ internal object ChineseFormWindowChecks {
                         SingleScreenPageChecks.verify(activity)
                     }
                     waitForDraw()
-                    main {
+                    checkedInline {
                         check(field.text.toString() == editedShort && field.selectionStart == editStart && field.selectionEnd == editEnd)
                         // Fixed page actions must remain reachable while the real inline input owns focus.
                         descendants(content).filterIsInstance<Button>().filter { button ->
@@ -665,12 +804,22 @@ internal object ChineseFormWindowChecks {
                     inlineObserved = true
                     imeObserved = imeObserved || keyboard != null
                     if (keyboard == null) gaps += "inline editing observed; IME not observed"
+                } catch (error: Throwable) {
+                    inlineFailure = error
+                    // Keep the actual failed field/draft/IME before any restoration or cleanup.
+                    try { captureInline(field, "short-assertion-failure", assertionFailureGeometry) }
+                    catch (captureError: Throwable) { if (captureError !== error) error.addSuppressed(captureError) }
+                    throw error
                 } finally {
-                    main {
-                        field.setText(original)
-                        field.setSelection(originalStart.coerceAtMost(original.length), originalEnd.coerceAtMost(original.length))
+                    preserveCleanup(inlineFailure) {
+                        attemptCleanups(listOf(
+                            { main {
+                                field.setText(original)
+                                field.setSelection(originalStart.coerceAtMost(original.length), originalEnd.coerceAtMost(original.length))
+                            } },
+                            { cleanupEditor() }
+                        ))
                     }
-                    cleanupEditor()
                 }
             } else if (!HoyiUi.wide(activity) || activity.resources.configuration.screenHeightDp <= 720) {
                 main { selectSection(0) }
