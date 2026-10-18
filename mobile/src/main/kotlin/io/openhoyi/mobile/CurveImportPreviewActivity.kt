@@ -82,8 +82,15 @@ class CurveImportPreviewActivity : ThemedActivity() {
         body.addView(dock, LinearLayout.LayoutParams(-1, -2))
         val error = beanError(body)
         if (existing != null) {
-            HoyiUi.label(this, decisions, getString(R.string.profiles_conflict), 20, true).apply {
-                setPadding(0, 0, 0, HoyiUi.dp(this@CurveImportPreviewActivity, 16))
+            HoyiUi.label(this, decisions, getString(R.string.profiles_conflict), TaskVisualTokens.SECTION_SP, true).apply {
+                tag = "import-conflict-notice"
+                val inset = HoyiUi.dp(this@CurveImportPreviewActivity, TaskVisualTokens.CARD_PADDING_DP)
+                setPadding(inset, inset, inset, inset)
+                background = HoyiUi.shape(this@CurveImportPreviewActivity, R.color.mobile_warning_surface,
+                    TaskVisualTokens.CARD_RADIUS_DP, R.color.mobile_warning_border)
+                layoutParams = LinearLayout.LayoutParams(-1, -2).apply {
+                    bottomMargin = HoyiUi.dp(this@CurveImportPreviewActivity, TaskVisualTokens.GROUP_GAP_DP)
+                }
             }
             HoyiUi.button(this, decisions, getString(R.string.profiles_existing)) { profilePreviewDialog(existing) }
             HoyiUi.button(this, decisions, getString(R.string.profiles_keep_existing)) { finish() }

@@ -22,4 +22,6 @@
     <color name="stage_two">#7FA8FF</color>
     <color name="stage_three">#FFBA78</color>
     <color name="stage_four">#D4A3F8</color>
+    <color name="mobile_warning_surface">#342A1D</color>
+    <color name="mobile_warning_border">#80643D</color>
 </resources>

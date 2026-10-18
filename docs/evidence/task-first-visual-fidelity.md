@@ -757,3 +757,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 166594d/run39083184345 的 task-frame 失败精确为 TwoCupChartChecks 对 bar 文字仍要求 11sp，产品已在051f16e改12sp。仅将独立预期同步12sp，保留字体缩放精确比较及全部边界/重叠/单位/数据检查。产品未改，CI复验仍待完成。
 - 本地测试包构建会话61986 exit0，BUILD SUCCESSFUL in 21s（/tmp/task-comparison-axis-check-build.log）；diff/branch-policy通过。未本地安装，字号1.0/1.3运行断言待CI。
 - 读取1b0deb4实际有秤运行态 ExtractionActivity-typography.json（density/scaledDensity=2.25，fontScale=1）：标题24sp/500，时间与秤读数40sp/700，辅助标签14sp/400，压力及机器温度18sp/500；停止16sp/500、padding16/8/16/8dp。固定中文字体源记录为Noto Sans SC 2.004-H2。符合对应字号层级不等于生成稿字体被精确识别，整页比例与其余页面仍未最终验收。
+
+### 有数据复盘与导入预览逐图审查（2026-10-18）
+
+- 实读 ci-b6fc53c-business 的 review-saved-notes.png，与 brew-review-v3 并排核对。左右参数/记录成立，30s/36g/已观察结束、三段实际保存文字和底部保存均可见。原图使用长UUID测试内容，不应把测试文本当产品默认文案；研磨字段长内容需内部滚动。右上另有分类选择、分区线/底部“仅保存复盘”可见说明不足，不能宣布一致。此图1600×1000，非用户平板最终对照。
+- 同批 import-new.png/import-conflict.png 与 curve-import-preview-v1 对照：四阶段实际2.4/5.7/8.3/6.9bar、94°C/41.7g、四行水量12/23/34/45ml完整；新导入无冲突动作，冲突态查看/保留/另存完整。图表量纲正确，但右侧缺暖色警示区域，左侧缺稿件分区标题/边界，左右宽度和图高仍不同。
+- 本候选仅修冲突文案视觉分组：20sp、16dp内边距及组间距，独立浅深暖色背景/边框。保留原非颜色文字说明和全部保存/身份/无自动启动行为；不因部分差异修正就关闭整页。
+- 候选构建会话14951 exit0，Mock/test APK BUILD SUCCESSFUL in 40s（/tmp/task-import-conflict-emphasis-build.log）；浅深色XML解析、diff/branch-policy通过。未安装，实际警示区/大字号空间仍待CI截图。
