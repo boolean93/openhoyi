@@ -58,19 +58,39 @@ class LegacyCurveActivity : ThemedActivity() {
         }
         setContentView(root)
         HoyiUi.header(this, root, getString(R.string.legacy_curve_title), getString(R.string.legacy_curve_subtitle), back = true)
-        count = label(getString(R.string.legacy_curve_loading_initial), 14)
-        root.addView(count)
-        HoyiUi.button(this, root, getString(R.string.curve_import_legacy)) {
+        val toolbar = object : LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val wide = View.MeasureSpec.getSize(widthMeasureSpec) >= dp(624)
+                orientation = if (wide) HORIZONTAL else VERTICAL
+                (getChildAt(0).layoutParams as LayoutParams).apply {
+                    width = if (wide) 0 else -1
+                    weight = if (wide) 1f else 0f
+                    marginEnd = if (wide) dp(TaskVisualTokens.GROUP_GAP_DP) else 0
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
+        }
+        root.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
+        count = label(getString(R.string.legacy_curve_loading_initial), TaskVisualTokens.SUPPORTING_SP)
+        toolbar.addView(count, LinearLayout.LayoutParams(0, -2, 1f))
+        HoyiUi.button(this, toolbar, getString(R.string.curve_import_legacy)) {
                 @Suppress("DEPRECATION")
                 startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                     .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_CURVES)
+        }.apply {
+            asTaskTextAction()
+            maxWidth = dp(320)
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = android.view.Gravity.END }
         }
         collection = TaskCollectionLayout(this)
         root.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         val back = HoyiUi.button(this, collection.detailBody, getString(R.string.curve_back)) { showList() }
         val detailScroll = android.widget.ScrollView(this)
         collection.detailBody.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        detail = label(getString(R.string.legacy_curve_subtitle), 17).apply { tag = "legacy-curve-detail" }
+        detail = label(getString(R.string.legacy_curve_select_hint), 17).apply { tag = "legacy-curve-detail" }
         detailScroll.addView(detail)
         collection.onPresentationChanged = { twoPane, detailVisible ->
             compact = !twoPane
@@ -135,7 +155,7 @@ class LegacyCurveActivity : ThemedActivity() {
         val curve = data?.curves?.getOrNull(selectedIndex)
         if (curve == null || fingerprint(curve) != selectedFingerprint) {
             selectedIndex = -1; selectedFingerprint = null
-            detail.setText(R.string.legacy_curve_subtitle)
+            detail.setText(R.string.legacy_curve_select_hint)
             collection.detailRequested = false
         } else {
             val category = data.categoryLabels[curve.category] ?: curve.category.ifBlank { getString(R.string.legacy_curve_uncategorized) }
