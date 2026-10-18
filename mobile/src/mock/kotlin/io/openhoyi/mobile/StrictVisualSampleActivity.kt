@@ -390,6 +390,7 @@ class StrictVisualSampleActivity : Activity() {
             values.forEachIndexed { index, value ->
                 val label = text(value, StrictVisualSampleTokens.auxiliary.copy(weight = if (header) 500 else 400), "$id/$index")
                 val cell: View = if (!header && index == 0) withIcon(label, "statusDot", "$id/stage", palette.stageColors[id.takeLast(1).toInt() - 1], 12) else label
+                cell.setPaddingRelative(dp(8), cell.paddingTop, dp(8), cell.paddingBottom)
                 row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
             }
             rules(row, fill = if (header) palette.disabled else Color.TRANSPARENT, bottom = true, columns = 3)
@@ -463,8 +464,12 @@ class StrictVisualSampleActivity : Activity() {
         val labels = row("sample/inventory/dateLabels")
         val values = row("sample/inventory/dateValues")
         for ((index, pair) in listOf("购入日期" to "2026-10-02", "烘焙日期" to "2026-09-28", "开封日期" to "2026-10-03").withIndex()) {
-            labels.addView(text(pair.first, StrictVisualSampleTokens.auxiliary, "sample/inventory/date/$index/label", true), LinearLayout.LayoutParams(0, -2, 1f))
-            values.addView(text(pair.second, StrictVisualSampleTokens.body, "sample/inventory/date/$index/value"), LinearLayout.LayoutParams(0, -2, 1f))
+            labels.addView(text(pair.first, StrictVisualSampleTokens.auxiliary, "sample/inventory/date/$index/label", true).apply {
+                setPaddingRelative(if (index == 0) 0 else dp(16), paddingTop, dp(16), paddingBottom)
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+            values.addView(text(pair.second, StrictVisualSampleTokens.body, "sample/inventory/date/$index/value").apply {
+                setPaddingRelative(if (index == 0) 0 else dp(16), paddingTop, dp(16), paddingBottom)
+            }, LinearLayout.LayoutParams(0, -2, 1f))
         }
         add(dateGroup, labels); add(dateGroup, values, 8)
         rules(dateGroup, columns = 3)
