@@ -1022,3 +1022,6 @@ Mock和AndroidTest构建42s成功（/tmp/task-machine-readback-rows-build.log）
 ## bcda211秤设置运行核对（2026-10-18）
 
 run39089718635成功，ci-bcda211-frame/task-frame-tablet-user-landscape/tablet-user-landscape内result.txt为pages=24 noBle=true，chart-result为4个组件夹具通过。实读ScaleSettingsActivity.png及其typography.json：未连接态三组已生效，显示精度开关16sp/400，关闭说明14sp/400，分组20sp/500，计时/限制/协议小标题16sp/500；density2.25/fontScale1，标题padding36/18px对应16/8dp。ScaleSettingsActivity从bcda211至当前无源码差异。协议说明在首屏底部，仍需滚动到底的完整文字证据；没有已连接能力/大字/深色全状态证据，不做最终验收。4个图表组件通过不证明48sp实时整页未挤压，Capture39089714128仍运行中。
+
+
+秤设置底部取证补齐：TaskFrameChecks复用实际ScrollView定位完整协议说明，等待两帧后校验可见矩形/textFits并保存ScaleSettingsActivity-protocol-support.png，检查scale_tool偏好前后不变、恢复滚动。原应用设置两状态和24页计数保留。测试包23s构建成功（/tmp/task-scale-settings-scroll-build.log），尚未运行，不能把protocolTextFullyVisible计划输出当已有结果。

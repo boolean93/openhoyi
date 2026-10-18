@@ -19,7 +19,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
 
-    private fun verifySettingsScroll(activity: AppSettingsActivity, directory: File) {
+    private fun verifySettingsScroll(activity: Activity, directory: File) {
         fun main(action: () -> Unit) {
             var failure: Throwable? = null
             test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
@@ -33,7 +33,8 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             } }
             check(drawn.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "Settings scroll frame timed out" }
         }
-        val preferenceNames = listOf("appearance", "app_language", "brew_feedback")
+        val scaleSettings = activity is ScaleSettingsActivity
+        val preferenceNames = if (scaleSettings) listOf("scale_tool") else listOf("appearance", "app_language", "brew_feedback")
         fun preferences() = preferenceNames.associateWith {
             activity.getSharedPreferences(it, Activity.MODE_PRIVATE).all.toMap()
         }
@@ -45,7 +46,9 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             scroll = descendants(page).filterIsInstance<android.widget.ScrollView>().single()
             originalY = scroll.scrollY
         }
-        val targets = listOf(
+        val targets = if (scaleSettings) listOf(
+            "protocol-support" to activity.getString(R.string.scale_offline_evidence)
+        ) else listOf(
             "app-info" to BuildConfig.APPLICATION_ID,
             "diagnostics" to activity.getString(R.string.app_settings_machine)
         )
@@ -73,13 +76,18 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 }
                 val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
                 try {
-                    File(directory, "AppSettingsActivity-$name.png").outputStream().use {
+                    File(directory, "${activity.javaClass.simpleName}-$name.png").outputStream().use {
                         check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it))
                     }
                 } finally { bitmap.recycle() }
             }
             check(preferences() == before) { "Reading settings changed saved preferences" }
-            File(directory, "settings-scroll.txt").writeText("states=2 actualBuildInfo=true exportNotInvoked=true preferencesUnchanged=true noBle=true\n")
+            if (scaleSettings) {
+                File(directory, "scale-settings-scroll.txt").writeText(
+                    "states=1 protocolTextFullyVisible=true preferencesUnchanged=true noBle=true\n")
+            } else {
+                File(directory, "settings-scroll.txt").writeText("states=2 actualBuildInfo=true exportNotInvoked=true preferencesUnchanged=true noBle=true\n")
+            }
         } finally {
             main { scroll.scrollTo(0, originalY) }
             frame()
@@ -182,7 +190,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                     try {
                         File(directory, "${page.simpleName}.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
-                    if (activity is AppSettingsActivity) verifySettingsScroll(activity, directory)
+                    if (activity is AppSettingsActivity || activity is ScaleSettingsActivity) verifySettingsScroll(activity, directory)
                 } finally {
                     test.runOnMainSync { activity.finish() }
                     test.waitForIdleSync()
