@@ -972,3 +972,8 @@ AdvancedBusinessUiChecks原七字段复盘保存后新增只读详情检查。�
 实读ci-637f83f-capture/mock-ui-screenshots/extraction-running-light.png及active-cup-visual/no-scale/window.png，并核对两份geometry.json。ACTIVE_CUP_VISUAL_PASSED states=2 actualMockStartStop=true noBle=true。四/三指标图例当前值完整，压力/注水/温度的数值与小单位层级生效；无秤没有重量轨迹。有秤绘图区1295.5×599.148px、无秤1359.5×624.148px，停止按钮均703×126px。与此前有秤624.148px相比图高减少25px，不能沿用旧尺寸。两份萃取源码从637f83f到3c0019c无差异。尚未同状态对照概念稿，也未覆盖大字/长图例，不能作为整页最终验收。
 
 秤设置候选已实现三组、688dp宽屏限宽、16/14sp层级及8/16dp间距；原renderScale和one_decimal持久化路径未改变。八语言新增六个文案，Mock及AndroidTest构建44s成功（/tmp/task-scale-settings-groups-build.log）；没有运行截图或真实能力状态证据。
+
+
+637f83f字体证据复核：现有JSON只记录TextView基字号，不记录RelativeSizeSpan/StyleSpan，不能由14sp基字号推断次要数值也是14sp，也不能证明小单位字号。补充metricRuns按MetricAffectingSpan边界及实际TextPaint计算尺寸/字重；仍需新CI运行。概念稿与实图未同采样，不能比较曲线形状；当前明确视觉差异包含主值强调偏弱、说明行11sp低于辅助14sp基线。后续修正需保留绘图区、停止目标及大字检查。
+
+分段字号取证代码测试包构建23s通过（/tmp/task-typography-span-build.log）；仅证明编译，metricRuns实际输出待CI，不升级页面验收状态。

@@ -5,6 +5,9 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.os.Build
+import android.text.Spanned
+import android.text.TextPaint
+import android.text.style.MetricAffectingSpan
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
@@ -62,8 +65,27 @@ internal object TaskTypographyEvidence {
             }
             if (view is TextView && view.isShown) {
                 val rect = Rect(); view.getGlobalVisibleRect(rect)
+                val runs = JSONArray()
+                val styled = view.text as? Spanned
+                if (styled != null) {
+                    var start = 0
+                    while (start < styled.length) {
+                        val end = styled.nextSpanTransition(start, styled.length, MetricAffectingSpan::class.java)
+                        val paint = TextPaint(view.paint)
+                        val spans = styled.getSpans(start, end, MetricAffectingSpan::class.java)
+                        spans.forEach { it.updateMeasureState(paint) }
+                        runs.put(JSONObject().put("start", start).put("end", end)
+                            .put("text", styled.subSequence(start, end).toString().take(160))
+                            .put("textSizePx", paint.textSize)
+                            .put("weight", if (Build.VERSION.SDK_INT >= 28) paint.typeface?.weight else null)
+                            .put("fakeBold", paint.isFakeBoldText)
+                            .put("spans", JSONArray(spans.map { it.javaClass.simpleName })))
+                        start = end
+                    }
+                }
                 items.put(JSONObject().put("path", path).put("class", view.javaClass.simpleName).put("tag", view.tag?.toString())
                     .put("text", view.text.toString().take(160)).put("textSizePx", view.textSize)
+                    .put("metricRuns", runs)
                     .put("lineHeightPx", view.lineHeight).put("includeFontPadding", view.includeFontPadding)
                     .put("weight", if (Build.VERSION.SDK_INT >= 28) view.typeface?.weight else null)
                     .put("visibleBoundsPx", JSONArray(listOf(rect.left, rect.top, rect.right, rect.bottom)))
