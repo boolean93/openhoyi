@@ -6,11 +6,11 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 
 /** Moves views, never recreates page content or owns machine state. Insets remain on the parent. */
-internal class TaskPageFrame private constructor(private val activity: Activity) : LinearLayout(activity) {
+internal class TaskPageFrame private constructor(private val activity: Activity, private val productVisualStyle: TaskProductVisualStyle? = null) : LinearLayout(activity) {
     val pageContent = LinearLayout(activity).apply { orientation = VERTICAL }
-    val navigation = TaskNavigationView(activity)
+    val navigation = TaskNavigationView(activity, productVisualStyle)
     private val railScroll = ScrollView(activity).apply { isFillViewport = true }
-    private val fallbackTools = TaskNavigationView.createToolsHost(activity).apply { tag = "task-tools-fallback" }
+    private val fallbackTools = TaskNavigationView.createToolsHost(activity).apply { tag = "task-tools-fallback"; productVisualStyle?.styleHeader(this) }
     private var fullRailHeight = -1
     private var measuredFontScale = -1f
     var mode = TaskNavigationMode.BOTTOM
@@ -28,7 +28,7 @@ internal class TaskPageFrame private constructor(private val activity: Activity)
         // Measure actual labels at the rail width; font scaling can require the compact tool menu.
         if (fullRailHeight < 0 || measuredFontScale != resources.configuration.fontScale) {
             navigation.render(TaskNavigationMode.RAIL, true)
-            navigation.measure(MeasureSpec.makeMeasureSpec(HoyiUi.dp(activity, 72), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            navigation.measure(MeasureSpec.makeMeasureSpec(HoyiUi.dp(activity, if (productVisualStyle == null) 72 else 80), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             fullRailHeight = navigation.measuredHeight
             measuredFontScale = resources.configuration.fontScale
         }
@@ -44,7 +44,7 @@ internal class TaskPageFrame private constructor(private val activity: Activity)
             orientation = if (mode == TaskNavigationMode.RAIL) HORIZONTAL else VERTICAL
             if (mode == TaskNavigationMode.RAIL) {
                 railScroll.addView(navigation, android.widget.FrameLayout.LayoutParams(-1, -2))
-                addView(railScroll, LayoutParams(HoyiUi.dp(activity, TaskLayoutPolicy.RAIL_WIDTH_DP), -1))
+                addView(railScroll, LayoutParams(HoyiUi.dp(activity, if (productVisualStyle == null) TaskLayoutPolicy.RAIL_WIDTH_DP else 80), -1))
                 addView(pageContent, LayoutParams(0, -1, 1f))
             } else {
                 addView(pageContent, LayoutParams(-1, 0, 1f))
@@ -75,9 +75,12 @@ internal class TaskPageFrame private constructor(private val activity: Activity)
 
     companion object {
         const val TAG = "task-page-frame"
-        fun install(activity: Activity, parent: LinearLayout): TaskPageFrame {
-            (parent.findViewWithTag<View>(TAG) as? TaskPageFrame)?.let { return it }
-            val frame = TaskPageFrame(activity)
+        fun install(activity: Activity, parent: LinearLayout, productVisualStyle: TaskProductVisualStyle? = null): TaskPageFrame {
+            (parent.findViewWithTag<View>(TAG) as? TaskPageFrame)?.let {
+                check(productVisualStyle == null || it.productVisualStyle === productVisualStyle) { "Page style must be supplied on initial frame installation" }
+                return it
+            }
+            val frame = TaskPageFrame(activity, productVisualStyle)
             while (parent.childCount > 0) {
                 val child = parent.getChildAt(0)
                 val params = child.layoutParams

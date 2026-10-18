@@ -8,6 +8,10 @@ import android.view.View
 
 /** A schematic of stage targets. It deliberately does not claim to be a timed pressure trace. */
 internal class CurveStageView(context: Context) : View(context) {
+    var productVisualStyle: TaskProductVisualStyle? = null
+        set(value) { field = value; productRenderer = value?.let { TaskProductStageRenderer(this, it) }; invalidate() }
+    private var productRenderer: TaskProductStageRenderer? = null
+    val productDrawEvidence: org.json.JSONArray get() = productRenderer?.evidence ?: org.json.JSONArray()
     var targets: List<Int> = emptyList()
         set(value) { field = value; invalidate() }
     var compact: Boolean = false
@@ -20,6 +24,7 @@ internal class CurveStageView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        productRenderer?.let { it.draw(canvas); return }
         val density = resources.displayMetrics.density
         fun dp(value: Float) = value * density
         paint.textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, 12f, resources.displayMetrics)

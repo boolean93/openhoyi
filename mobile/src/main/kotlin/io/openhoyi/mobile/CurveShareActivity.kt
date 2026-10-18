@@ -16,7 +16,8 @@ class CurveShareActivity : ThemedActivity() {
     private lateinit var shareFile: Button
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val body = beanPage(getString(R.string.profiles_share_title), getString(R.string.profiles_text_hint))
+        val style = TaskProductVisualStyle(this)
+        val body = style.page(this, getString(R.string.profiles_share_title), getString(R.string.profiles_text_hint))
         val doc = runCatching {
             savedInstanceState?.getString("document")?.let(CustomCurveDocument::decode)
                 ?: profileDocument(intent.getStringExtra(CURVE_ID))
@@ -24,59 +25,52 @@ class CurveShareActivity : ThemedActivity() {
         if (doc == null) { HoyiUi.label(this, body, getString(R.string.profiles_missing), 17); return }
         document = doc
         exportedUri = savedInstanceState?.getString("exportedUri")?.let(Uri::parse)
-        val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .38f, supportingMaxWidthDp = 440).apply {
+        val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .38f, supportingMaxWidthDp = 440, boundedSecondaryViewport = true).apply {
             fillSecondaryViewport = true
             listOf(primaryBody, secondaryBody).forEach { pane ->
-                val inset = HoyiUi.dp(this@CurveShareActivity, 16)
-                val verticalInset = HoyiUi.dp(this@CurveShareActivity, TaskVisualTokens.RELATED_GAP_DP)
-                pane.setPadding(inset, verticalInset, inset, verticalInset)
-                pane.background = HoyiUi.shape(this@CurveShareActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+                pane.setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16))
+                pane.background = style.shape(style.surface, true, 16)
             }
         }
-        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply {
-            topMargin = HoyiUi.dp(this@CurveShareActivity, TaskVisualTokens.RELATED_GAP_DP)
-        })
+        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(8) })
         sharePreview(workspace, doc)
-        val actions = workspace.secondaryBody
-        HoyiUi.label(this, actions, getString(R.string.profiles_share_methods), 20, true).apply {
-            setPadding(0, 0, 0, HoyiUi.dp(this@CurveShareActivity, 16))
-        }
-        HoyiUi.label(this, actions, getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)
-            R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, muted = true)
-        HoyiUi.button(this, actions, getString(R.string.ui_full_details)) {
-            beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
-        }.asTaskTextAction()
+        val actions = workspace.secondaryBody.apply { tag = "product/share/actions" }
+        style.add(actions, style.text(getString(R.string.profiles_share_methods), TaskProductVisualStyle.section))
         val json = doc.encode()
-        HoyiUi.button(this, actions, getString(R.string.profiles_share_text), primary = true) {
+        style.action(actions, getString(R.string.profiles_share_text), "product/share/text", primary = true, top = 16) {
             startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, json), getString(R.string.profiles_share_title)))
         }
-        HoyiUi.button(this, actions, getString(R.string.profiles_copy)) {
+        style.action(actions, getString(R.string.profiles_copy), "product/share/copy", outline = true) {
             (getSystemService(CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText(getString(R.string.profiles_json), json))
             Toast.makeText(this, R.string.profiles_copied, Toast.LENGTH_SHORT).show()
         }
-        android.view.View(this).also { divider ->
-            divider.setBackgroundColor(getColor(R.color.mobile_border))
-            actions.addView(divider, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)).apply {
-                topMargin = HoyiUi.dp(this@CurveShareActivity, 16)
-                bottomMargin = HoyiUi.dp(this@CurveShareActivity, 16)
-            })
-        }
-        HoyiUi.button(this, actions, getString(R.string.profiles_export_file)) {
+        style.divider(actions)
+        style.action(actions, getString(R.string.profiles_export_file), "product/share/export", top = 0) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/json")
                 .putExtra(Intent.EXTRA_TITLE, "openhoyi-${doc.id}.json"), EXPORT)
-        }.asTaskTextAction()
-        shareFile = HoyiUi.button(this, actions, getString(R.string.profiles_share_file)) {
+        }
+        shareFile = style.action(actions, getString(R.string.profiles_share_file), "product/share/file", primary = true) {
             exportedUri?.let { uri ->
                 startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_STREAM, uri)
                     .apply { clipData = ClipData.newUri(contentResolver, getString(R.string.profiles_json), uri) }
                     .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), getString(R.string.profiles_share_title)))
             }
         }.apply { isEnabled = exportedUri != null }
-        HoyiUi.label(this, actions, getString(R.string.profiles_export_first), 14, muted = true)
-        actions.addView(android.view.View(this), LinearLayout.LayoutParams(1, 0, 1f))
-        HoyiUi.label(this, actions, getString(R.string.profiles_text_hint), 14, muted = true).apply {
-            setPadding(0, HoyiUi.dp(this@CurveShareActivity, 24), 0, 0)
+        style.add(actions, style.text(getString(R.string.profiles_export_first), TaskProductVisualStyle.auxiliary, secondary = true), 8)
+        val support = style.column("product/share/support")
+        style.add(support, style.text(getString(if (CustomPressureCurveAdapter.profile(doc, false) != null)
+            R.string.profiles_pressure_compatible else R.string.profiles_read_only), TaskProductVisualStyle.auxiliary,
+            "product/share/compatibility", true), 16)
+        style.action(support, getString(R.string.ui_full_details), "product/share/details") {
+            beanDetails(doc.name, profileSummary(doc) + "\n\n" + doc.encode())
         }
+        support.addView(android.view.View(this), LinearLayout.LayoutParams(1, 0, 1f))
+        style.add(support, style.text(getString(R.string.profiles_text_hint), TaskProductVisualStyle.auxiliary,
+            "product/share/privacy", true), 16)
+        actions.addView(android.widget.ScrollView(this).apply {
+            tag = "product/share/support-scroll"; isFillViewport = true; addView(support)
+        }, LinearLayout.LayoutParams(-1, 0, 1f))
+
     }
     @Deprecated("Platform activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

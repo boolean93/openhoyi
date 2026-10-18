@@ -7,7 +7,7 @@ import android.view.Gravity
 import android.view.View
 import android.widget.*
 
-internal class TaskNavigationView(private val activity: Activity) : LinearLayout(activity) {
+internal class TaskNavigationView(private val activity: Activity, private val productVisualStyle: TaskProductVisualStyle? = null) : LinearLayout(activity) {
     private var rendered: Pair<TaskNavigationMode, Boolean>? = null
     fun render(mode: TaskNavigationMode, includeTools: Boolean) {
         val next = mode to includeTools
@@ -16,37 +16,49 @@ internal class TaskNavigationView(private val activity: Activity) : LinearLayout
         removeAllViews()
         orientation = if (mode == TaskNavigationMode.RAIL) VERTICAL else HORIZONTAL
         gravity = Gravity.CENTER
-        setBackgroundColor(activity.getColor(R.color.mobile_surface))
+        setBackgroundColor(productVisualStyle?.surface ?: activity.getColor(R.color.mobile_surface))
+        val styledRail = productVisualStyle != null && mode == TaskNavigationMode.RAIL
+        setPadding(if (styledRail) HoyiUi.dp(activity, 8) else 0, if (styledRail) HoyiUi.dp(activity, 16) else 0,
+            if (styledRail) HoyiUi.dp(activity, 8) else 0, if (styledRail) HoyiUi.dp(activity, 8) else 0)
+        if (styledRail) addView(productVisualStyle!!.text("HOYI", TaskProductVisualStyle.action, "product/nav/brand").apply {
+            gravity = Gravity.CENTER; minimumHeight = HoyiUi.dp(activity, 32)
+        }, LayoutParams(-1, -2).apply { bottomMargin = HoyiUi.dp(activity, 16) })
         val items = TaskNavigationModel.primary + if (includeTools) TaskNavigationModel.tools else emptyList()
         items.forEach { destination ->
             if (mode == TaskNavigationMode.RAIL && destination == TaskDestination.SCALE) {
                 addView(View(activity), LayoutParams(-1, 0, 1f))
             }
             val active = TaskNavigationModel.forPage(activity.javaClass.simpleName) == destination
-            val tint = activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
+            val tint = productVisualStyle?.let { if (active) it.accent else it.muted }
+                ?: activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
             val item = LinearLayout(activity).apply {
                 tag = "task-nav:${destination.name}"
                 orientation = VERTICAL
                 gravity = Gravity.CENTER
-                minimumHeight = HoyiUi.dp(activity, 48)
+                minimumHeight = HoyiUi.dp(activity, if (styledRail) 64 else 48)
                 minimumWidth = HoyiUi.dp(activity, 48)
                 setPadding(0, HoyiUi.dp(activity, 4), 0, HoyiUi.dp(activity, 4))
                 contentDescription = activity.getString(label(destination))
                 isSelected = active
                 isClickable = true
                 isFocusable = true
-                if (active) background = HoyiUi.shape(activity, R.color.mobile_accent_soft, 10)
+                if (active) background = productVisualStyle?.shape(productVisualStyle.selected)
+                    ?: HoyiUi.shape(activity, R.color.mobile_accent_soft, 10)
                 setOnClickListener { open(activity, destination) }
             }
             item.addView(ImageView(activity).apply {
                 setImageResource(icon(destination)); imageTintList = ColorStateList.valueOf(tint)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LayoutParams(HoyiUi.dp(activity, 20), HoyiUi.dp(activity, 20)))
+            }, LayoutParams(HoyiUi.dp(activity, if (styledRail) 24 else 20), HoyiUi.dp(activity, if (styledRail) 24 else 20)))
             item.addView(TextView(activity).apply {
                 text = activity.getString(label(destination)); textSize = 14f; gravity = Gravity.CENTER
+                productVisualStyle?.apply(this, TaskProductVisualStyle.auxiliary)
+                gravity = Gravity.CENTER
                 setTextColor(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LayoutParams(-1, -2))
-            addView(item, if (mode == TaskNavigationMode.RAIL) LayoutParams(-1, -2) else LayoutParams(0, -2, 1f))
+            }, LayoutParams(-1, -2).apply { if (styledRail) topMargin = HoyiUi.dp(activity, 8) })
+            addView(item, if (mode == TaskNavigationMode.RAIL) LayoutParams(-1, -2).apply {
+                if (styledRail && destination != items.first() && destination != TaskDestination.SCALE) topMargin = HoyiUi.dp(activity, 8)
+            } else LayoutParams(0, -2, 1f))
         }
     }
     companion object {

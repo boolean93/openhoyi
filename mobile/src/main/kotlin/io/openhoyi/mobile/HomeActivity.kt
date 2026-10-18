@@ -78,7 +78,7 @@ class HomeActivity : ThemedActivity() {
     private var presetDialog: AlertDialog? = null
     private lateinit var stagePreview: CurveStageView
     private var hasRecipeMetrics = false
-    private lateinit var recipeMetrics: CurvePreviewMetrics
+    private lateinit var recipeMetrics: TaskProductRecipeMetrics
     private lateinit var previewNote: TextView
     private lateinit var previewUnavailable: TextView
     private lateinit var stageFallback: ScrollView
@@ -87,6 +87,8 @@ class HomeActivity : ThemedActivity() {
     private lateinit var beanSummary: TextView
     private lateinit var doseStateSummary: TextView
     private lateinit var doseQuantity: TextView
+    private lateinit var doseUnit: TextView
+    private val productStyle by lazy { TaskProductVisualStyle(this) }
     private lateinit var temperatureSummary: TextView
     private lateinit var usageSummary: TextView
     private lateinit var recentCurves: HomeRecentCurves
@@ -109,7 +111,7 @@ class HomeActivity : ThemedActivity() {
         feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.mobile_background))
+            setBackgroundColor(productStyle.page)
         }
         root.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
@@ -121,7 +123,7 @@ class HomeActivity : ThemedActivity() {
             }
             insets
         }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(8)) }
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)) }
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         emergencyStop = Button(this).apply {
             text = getString(R.string.home_stop)
@@ -136,10 +138,11 @@ class HomeActivity : ThemedActivity() {
         root.addView(emergencyStop, LinearLayout.LayoutParams(-1, -2).apply {
             setMargins(dp(24), dp(4), dp(24), dp(12))
         })
-        HoyiUi.navigation(this, root, HomeActivity::class.java)
+        TaskPageFrame.install(this, root, productStyle)
         setContentView(root)
         val header = HoyiUi.header(this, content, getString(R.string.task_brew_title),
             if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.ui_brew))
+        productStyle.styleHeader(header)
         HoyiUi.button(this, header, getString(R.string.home_device_connection)) {
             showDevicePanel()
         }.apply {
@@ -198,13 +201,9 @@ class HomeActivity : ThemedActivity() {
         button(deviceCard, getString(R.string.extraction_title)) {
             startActivity(Intent(this, ExtractionActivity::class.java))
         }
-        status = text(content, getString(R.string.home_not_connected_initial), 13)
-        val deviceRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        content.addView(deviceRow)
+        status = text(content, getString(R.string.home_not_connected_initial), 14).apply { tag = "product/home/service-status" }
         val machineChip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
-        deviceRow.addView(machineChip, LinearLayout.LayoutParams(0, -2, 1f))
-        deviceRow.addView(scaleChip, LinearLayout.LayoutParams(0, -2, 1f))
         coffeeDot = statusDot(machineChip)
         coffee = text(machineChip, getString(R.string.home_coffee_initial), 14, true)
         scaleDot = statusDot(scaleChip)
@@ -254,11 +253,20 @@ class HomeActivity : ThemedActivity() {
         steamTemperature = metric(getString(R.string.home_steam_temperature))
         steamPressure = metric(getString(R.string.home_steam_pressure))
 
-        val workspace = TaskWorkspaceLayout(this)
+        val workspace = TaskWorkspaceLayout(this, boundedSecondaryViewport = true)
         content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
-        val primary = workspace.primaryBody
-        val secondary = workspace.secondaryBody
-        selection = text(primary, getString(R.string.home_curve_missing), 24, true).apply {
+        val primary = workspace.primaryBody.apply { tag = "product/home/main" }
+        val right = workspace.secondaryBody
+        workspace.fillSecondaryViewport = true
+        val secondary = productStyle.column("product/home/cup/body")
+        right.addView(ScrollView(this).apply {
+            tag = "product/home/cup/body-scroll"; isFillViewport = false; addView(secondary)
+        }, LinearLayout.LayoutParams(-1, 0, 1f))
+        val recipeIdentity = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+        primary.addView(recipeIdentity, LinearLayout.LayoutParams(-1, -2))
+        selection = text(recipeIdentity, getString(R.string.home_curve_missing), 24, true).apply {
+            productStyle.apply(this, TaskProductVisualStyle.title)
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
             minimumHeight = dp(48)
             setOnClickListener {
@@ -266,9 +274,16 @@ class HomeActivity : ThemedActivity() {
                     .setMessage(selectionDetails).setPositiveButton(android.R.string.ok, null).show()
             }
         }
-        recipeMetrics = CurvePreviewMetrics(this).apply { visibility = View.GONE; tag = "home-recipe-metrics" }
+        browseCurvesButton = workbenchLink(recipeIdentity, getString(R.string.home_curve_browse)) {
+            startActivity(Intent(this, CurveActivity::class.java))
+        }.apply { layoutParams = LinearLayout.LayoutParams(dp(144), -2).apply { marginStart = dp(16) } }
+        recipeMetrics = TaskProductRecipeMetrics(this, productStyle).apply { visibility = View.GONE; tag = "home-recipe-metrics" }
         primary.addView(recipeMetrics, LinearLayout.LayoutParams(-1, -2))
-        stagePreview = CurveStageView(this).apply { minimumHeight = dp(96); tag = "stage-preview" }
+        val stageHeading = productStyle.text(getString(R.string.curve_library_stage_heading), TaskProductVisualStyle.section, "product/home/stage-title")
+        productStyle.add(primary, stageHeading, 8)
+        stagePreview = CurveStageView(this).apply {
+            minimumHeight = dp(160); tag = "stage-preview"; pressureColor = true; productVisualStyle = this@HomeActivity.productStyle
+        }
         primary.addView(stagePreview, LinearLayout.LayoutParams(-1, 0, 1f))
         previewUnavailable = text(primary, "", 14).apply { visibility = View.GONE }
         previewNote = text(primary, getString(R.string.task_brew_preview_note), 14)
@@ -291,23 +306,25 @@ class HomeActivity : ThemedActivity() {
             val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
             val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
             // Measure actual localized text, including font scale and padding. Do not infer its height.
-            selection.measure(exactWidth, naturalHeight)
+            recipeIdentity.measure(exactWidth, naturalHeight)
+            stageHeading.measure(exactWidth, naturalHeight)
             previewNote.measure(exactWidth, naturalHeight)
             previewUnavailable.measure(exactWidth, naturalHeight)
-            val detailHeight = if (stagePreview.targets.isEmpty()) previewUnavailable.measuredHeight else dp(96)
+            val detailHeight = if (stagePreview.targets.isEmpty()) previewUnavailable.measuredHeight else dp(160)
             val metricsHeight = if (hasRecipeMetrics) {
                 recipeMetrics.measure(exactWidth, naturalHeight)
                 recipeMetrics.measuredHeight
             } else 0
-            val required = selection.measuredHeight + metricsHeight + previewNote.measuredHeight + detailHeight
+            val required = recipeIdentity.measuredHeight + metricsHeight + stageHeading.measuredHeight + dp(8) + previewNote.measuredHeight + detailHeight
             val recentHeight = recentCurves.fit(width, height - required)
             textStagePreview = height < required
             updateStagePreviewVisibility()
             // This budget already excludes the supporting viewport; only stage details scroll here.
             if (textStagePreview) height else required + recentHeight
         }
-        text(secondary, getString(R.string.task_brew_cup_summary), 16, true)
-        beanSummary = text(secondary, "", 16).apply {
+        text(secondary, getString(R.string.task_brew_cup_summary), 20, true)
+        productStyle.divider(secondary, 8, 8)
+        beanSummary = text(secondary, "", 24, true).apply {
             minimumHeight = dp(48)
             setOnClickListener { startActivity(Intent(this@HomeActivity, BeanPreparationActivity::class.java)) }
         }
@@ -319,18 +336,26 @@ class HomeActivity : ThemedActivity() {
         }
         secondary.addView(doseGroup, LinearLayout.LayoutParams(-1, -2))
         doseStateSummary = text(doseGroup, "", TaskVisualTokens.SUPPORTING_SP)
-        doseQuantity = text(doseGroup, "", TaskVisualTokens.LIVE_VALUE_SP, true).apply {
+        val doseValues = productStyle.row("product/home/dose").apply { isBaselineAligned = true; gravity = android.view.Gravity.BOTTOM }
+        doseGroup.addView(doseValues, LinearLayout.LayoutParams(-1, -2))
+        doseQuantity = text(doseValues, "", 40, true).apply {
             tag = "home-dose-quantity"
             fontFeatureSettings = "tnum"
             visibility = View.GONE
         }
+        doseUnit = productStyle.text("g", TaskProductVisualStyle.auxiliary, "product/home/dose/unit", true).apply { visibility = View.GONE }
+        doseValues.addView(doseUnit, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
+        productStyle.divider(secondary)
+        coffee.tag = "product/home/state-machine"; scale.tag = "product/home/state-scale"
+        productStyle.apply(coffee, TaskProductVisualStyle.body); productStyle.apply(scale, TaskProductVisualStyle.body)
+        secondary.addView(machineChip, LinearLayout.LayoutParams(-1, -2))
+        productStyle.divider(secondary)
+        secondary.addView(scaleChip, LinearLayout.LayoutParams(-1, -2))
+        productStyle.divider(secondary)
         temperatureSummary = text(secondary, "", 14)
         usageSummary = text(secondary, "", 14).apply {
             minimumHeight = dp(48)
             setOnClickListener { startActivity(Intent(this@HomeActivity, HistoryActivity::class.java)) }
-        }
-        browseCurvesButton = workbenchLink(secondary, getString(R.string.home_curve_browse)) {
-            startActivity(Intent(this, CurveActivity::class.java))
         }
         presetPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), 0, dp(16), 0) }
         presetButtons = (1..5).map { slot ->
@@ -342,8 +367,10 @@ class HomeActivity : ThemedActivity() {
         quickPresets = workbenchLink(secondary, getString(R.string.home_quick_curves)) { showQuickPresets() }
         workbenchLink(secondary, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
         workbenchLink(secondary, getString(R.string.scale_title)) { startActivity(Intent(this, ScaleActivity::class.java)) }
-        val actionDock = TaskActionDock(this, edgeInsetDp = 0)
-        content.addView(actionDock, LinearLayout.LayoutParams(-1, -2))
+        val actionDock = TaskActionDock(this, edgeInsetDp = 0, fullWidthContent = true).apply { tag = "product/home/dock" }
+        right.addView(actionDock, LinearLayout.LayoutParams(-1, -2))
+        productStyle.add(actionDock, productStyle.text(getString(R.string.home_quick_curves_hint),
+            TaskProductVisualStyle.auxiliary, "product/home/confirmation", true), 8)
         brewButton = button(actionDock, getString(R.string.home_curve_select), primary = true) {
             val library = (application as MobileApplication).curves
             val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
@@ -697,18 +724,11 @@ class HomeActivity : ThemedActivity() {
             dose.confirmed -> R.string.task_brew_dose_confirmed
             else -> R.string.task_brew_dose_selected
         }
-        beanSummary.show((dose?.let { it.beanName + "\n" } ?: "") + getString(R.string.task_brew_dose_entry))
+        beanSummary.show(dose?.beanName ?: getString(R.string.task_brew_dose_entry))
         doseStateSummary.show(getString(doseState))
         doseQuantity.visibility = if (dose == null) View.GONE else View.VISIBLE
-        if (dose != null) {
-            val quantity = BeanQuantity.formatGrams(dose.amountMg) + " g"
-            if (doseQuantity.text.toString() != quantity) {
-                doseQuantity.text = android.text.SpannableString(quantity).apply {
-                    setSpan(android.text.style.RelativeSizeSpan(.55f), length - 1, length,
-                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-            }
-        }
+        doseUnit.visibility = doseQuantity.visibility
+        if (dose != null) doseQuantity.show(BeanQuantity.formatGrams(dose.amountMg))
         val stats = displayed?.let { app.curveUsageResult.getOrNull()?.stats(it.id) }
         usageSummary.show(when {
             app.curveUsageResult.isFailure -> getString(R.string.task_brew_usage_unavailable)
@@ -746,10 +766,10 @@ class HomeActivity : ThemedActivity() {
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun dotShape(color: Int) = GradientDrawable().apply {
         shape = GradientDrawable.OVAL
-        setColor(getColor(color))
+        setColor(when (color) { R.color.mobile_success -> productStyle.accent; R.color.mobile_muted -> productStyle.muted; else -> getColor(color) })
     }
     private fun View.showDot(colorResource: Int) {
-        val color = getColor(colorResource)
+        val color = when (colorResource) { R.color.mobile_success -> productStyle.accent; R.color.mobile_muted -> productStyle.muted; else -> getColor(colorResource) }
         val dot = background as? GradientDrawable
         // Replacing an unchanged background emits native accessibility subtree events.
         if (dot == null) background = dotShape(colorResource)
@@ -775,29 +795,23 @@ class HomeActivity : ThemedActivity() {
         TextView(this).apply {
             text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
             includeFontPadding = false
-            typeface = TaskTypography.face(context, if (bold) 700 else 400)
-            val relatedInset = dp(TaskVisualTokens.RELATED_GAP_DP / 2)
-            setPadding(0, relatedInset, 0, relatedInset)
+            productStyle.apply(this, when {
+                size >= 40 -> TaskProductVisualStyle.largeValue
+                size >= 24 -> TaskProductVisualStyle.title
+                size >= 20 -> TaskProductVisualStyle.section
+                size <= 14 -> TaskProductVisualStyle.auxiliary
+                bold -> TaskProductVisualStyle.action
+                else -> TaskProductVisualStyle.body
+            }, secondary = size <= 14)
+            setPadding(0, 0, 0, 0)
             parent.addView(this)
         }
     private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)
     private fun button(parent: LinearLayout, value: String, primary: Boolean = false, action: () -> Unit) =
-        HoyiUi.button(this, parent, value, primary = primary, action = action)
+        productStyle.button(HoyiUi.button(this, parent, value, primary = primary, action = action), primary)
     private fun workbenchLink(parent: LinearLayout, value: String, action: () -> Unit) =
-        HoyiUi.button(this, parent, value, action = action).apply {
+        productStyle.button(HoyiUi.button(this, parent, value, action = action)).apply {
             gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
-            setTextColor(android.content.res.ColorStateList(
-                arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
-                intArrayOf(getColor(R.color.mobile_muted), getColor(R.color.mobile_accent))))
-            val states = android.graphics.drawable.StateListDrawable().apply {
-                addState(intArrayOf(android.R.attr.state_focused),
-                    HoyiUi.shape(this@HomeActivity, android.R.color.transparent, 8, R.color.mobile_accent))
-                addState(intArrayOf(), HoyiUi.shape(this@HomeActivity, android.R.color.transparent, 8))
-            }
-            background = android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
-                    intArrayOf(android.graphics.Color.TRANSPARENT, getColor(R.color.mobile_accent_soft))),
-                states, HoyiUi.shape(this@HomeActivity, android.R.color.white, 8))
         }
     companion object { private const val PERMISSIONS = 12; private const val ENABLE = 13; private const val EXPORT = 14 }
 }

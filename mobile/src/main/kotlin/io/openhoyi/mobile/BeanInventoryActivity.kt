@@ -15,6 +15,7 @@ import io.openhoyi.bean.BeanInventory
 
 /** Local inventory only. Does not own any machine/scale session. */
 class BeanInventoryActivity : ThemedActivity() {
+    private val productStyle by lazy { TaskProductVisualStyle(this) }
     private var listScroll: ScrollView? = null
     private var savedScrollY = 0
     private var pendingListRestore = false
@@ -73,9 +74,17 @@ class BeanInventoryActivity : ThemedActivity() {
         detailRequested = collection?.detailRequested ?: detailRequested
         collection = null; listScroll = null
         updateBack(false)
-        val body = beanPage(getString(R.string.beans_title), getString(R.string.beans_subtitle), navigation = BeanInventoryActivity::class.java)
+        val body = productStyle.page(this, getString(R.string.beans_title), getString(R.string.beans_subtitle), navigation = BeanInventoryActivity::class.java)
         val inventory = beanInventory(body) ?: return
         val batches = inventory.batches()
+        val header = (body.tag as BeanPageRegions).header
+        (header.getChildAt(0) as? LinearLayout)?.let { titles ->
+            titles.orientation = LinearLayout.HORIZONTAL; titles.gravity = Gravity.CENTER_VERTICAL
+            val count = batches.map { it.batch.bean.id }.distinct().size
+            val total = BeanQuantity.formatGrams(batches.sumOf { it.balanceMg })
+            titles.addView(productStyle.text("$count · $total g", TaskProductVisualStyle.auxiliary,
+                "product/inventory/header-summary", true), LinearLayout.LayoutParams(-2, -2).apply { marginStart = productStyle.dp(16) })
+        }
         if (batches.isEmpty()) {
             val dock=TaskActionDock(this,edgeInsetDp=0)
             beanActions(body).addView(dock,LinearLayout.LayoutParams(-1,-2))
@@ -115,95 +124,89 @@ class BeanInventoryActivity : ThemedActivity() {
         }
         val panes = TaskCollectionLayout(this).also { collection = it }
         body.addView(panes, LinearLayout.LayoutParams(-1, 0, 1f))
+        productStyle.add(panes.browserBody, productStyle.text(getString(R.string.beans_title), TaskProductVisualStyle.section,
+            "product/inventory/list-title"))
         val list = beanList(panes.browserBody)
         listScroll = list.parent as ScrollView
         pendingListRestore = true
         listScroll?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> restoreListWhenReady() }
         listScroll?.post { restoreListWhenReady() }
-        val back = HoyiUi.button(this, panes.detailBody, getString(R.string.beans_back_to_list)) { showList() }
+        val back = productStyle.button(HoyiUi.button(this, panes.detailBody, getString(R.string.beans_back_to_list)) { showList() })
         val metadata = beanList(panes.detailBody).apply { tag = "inventory-batch-metadata" }
         val actionRegion = object : LinearLayout(this) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val inline = View.MeasureSpec.getSize(widthMeasureSpec) >= HoyiUi.dp(this@BeanInventoryActivity, 600) &&
-                    resources.configuration.fontScale <= 1.1f
+                val inline = View.MeasureSpec.getSize(widthMeasureSpec) >= productStyle.dp(480)
                 orientation = if (inline) HORIZONTAL else VERTICAL
-                (getChildAt(0).layoutParams as LayoutParams).apply {
-                    width = if (inline) 0 else -1
-                    weight = if (inline) 1f else 0f
-                    marginEnd = if (inline) HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP) else 0
-                }
-                (getChildAt(1).layoutParams as LayoutParams).apply {
-                    width = if (inline) HoyiUi.dp(this@BeanInventoryActivity, 280) else -1
+                for (index in 0 until childCount) (getChildAt(index).layoutParams as LayoutParams).apply {
+                    width = if (inline) 0 else -1; weight = if (inline) 1f else 0f
+                    marginStart = if (inline && index > 0) productStyle.dp(8) else 0
+                    topMargin = if (!inline && index > 0) productStyle.dp(8) else 0
                 }
                 super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
-        }.apply { gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false }
-        panes.detailBody.addView(actionRegion, LinearLayout.LayoutParams(-1, -2))
-        val actions = BeanActionRows(this)
-        actionRegion.addView(actions, LinearLayout.LayoutParams(-1, -2))
-        val primaryDock=TaskActionDock(this,edgeInsetDp=0,wideMinimumDp=360)
-        actionRegion.addView(primaryDock,LinearLayout.LayoutParams(-1,-2))
+        }.apply { gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false; tag = "product/inventory/dock" }
+        panes.detailBody.addView(actionRegion, LinearLayout.LayoutParams(-1, -2).apply { topMargin = productStyle.dp(8) })
         val rowButtons = mutableMapOf<String, android.widget.Button>()
         fun showSelected() {
             val item = batches.single { it.batch.id == selectedBatchId }
-            metadata.removeAllViews(); actions.removeAllViews(); primaryDock.removeAllViews()
-            HoyiUi.label(this, metadata, item.batch.bean.name, 24, true).apply {
-                setPadding(0, HoyiUi.dp(this@BeanInventoryActivity, 8), 0, HoyiUi.dp(this@BeanInventoryActivity, 16))
-            }
-            val balanceHeading = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                isBaselineAligned = false
-            }
-            metadata.addView(balanceHeading, LinearLayout.LayoutParams(-1, -2))
-            HoyiUi.label(this, balanceHeading, getString(R.string.beans_balance_label), 14, muted = true).apply {
-                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            }
-            HoyiUi.label(this, balanceHeading, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 14, muted = true).apply {
-                gravity = Gravity.END
-                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-            }
-            HoyiUi.label(this, metadata, getString(R.string.beans_quantity_g, BeanQuantity.formatGrams(item.balanceMg)), 40, true).apply {
-                typeface = TaskTypography.face(this@BeanInventoryActivity, 700)
-                text = android.text.SpannableString(text).apply {
-                    Regex("g$").find(toString())?.let { unit ->
-                        setSpan(android.text.style.RelativeSizeSpan(0.55f), unit.range.first, length,
-                            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    }
-                }
-                setPadding(0, HoyiUi.dp(this@BeanInventoryActivity, 8), 0, HoyiUi.dp(this@BeanInventoryActivity, 16))
+            metadata.removeAllViews(); actionRegion.removeAllViews()
+            val name = productStyle.row("product/inventory/name").apply { gravity = Gravity.CENTER_VERTICAL }
+            name.addView(productStyle.text(item.batch.bean.name, TaskProductVisualStyle.title, "product/inventory/bean-name"),
+                LinearLayout.LayoutParams(0, -2, 1f))
+            name.addView(productStyle.text(getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)),
+                TaskProductVisualStyle.auxiliary, "product/inventory/batch-badge", true).apply {
+                setPadding(productStyle.dp(8), productStyle.dp(4), productStyle.dp(8), productStyle.dp(4))
+                background = productStyle.shape(productStyle.disabled)
+            }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = productStyle.dp(16) })
+            productStyle.add(metadata, name)
+            val balance = productStyle.row("product/inventory/balance-summary").apply { gravity = Gravity.CENTER_VERTICAL }
+            val quantity = productStyle.quantity(BeanQuantity.formatGrams(item.balanceMg), "g", TaskProductVisualStyle.largeValue,
+                "product/inventory/balance").apply {
                 contentDescription = getString(R.string.beans_balance, BeanQuantity.formatGrams(item.balanceMg))
             }
-            HoyiUi.label(this, metadata, getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), TaskVisualTokens.BODY_SP)
-            beanRemainingRatio(metadata, item.balanceMg, item.batch.initialMg, TaskVisualTokens.BODY_SP)
-            fun divider() = metadata.addView(android.view.View(this).apply {
-                setBackgroundColor(getColor(R.color.mobile_border))
-            }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)).apply {
-                topMargin = HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.GROUP_GAP_DP)
-                bottomMargin = HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.GROUP_GAP_DP)
-            })
-            divider()
-            val dates = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
-            metadata.addView(dates, LinearLayout.LayoutParams(-1, -2))
-            listOf(R.string.beans_purchased to item.batch.purchasedOn, R.string.beans_roasted to item.batch.roastedOn,
-                R.string.beans_opened to item.batch.openedOn).forEach { (label, date) ->
-                val cell = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(0, 0, HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP), 0)
+            balance.addView(quantity, LinearLayout.LayoutParams(0, -2, 1f))
+            val initial = productStyle.column("product/inventory/initial")
+            productStyle.add(initial, productStyle.text(getString(R.string.beans_balance_label), TaskProductVisualStyle.auxiliary, secondary = true))
+            productStyle.add(initial, productStyle.text(getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), TaskProductVisualStyle.body))
+            balance.addView(initial, LinearLayout.LayoutParams(-2, -2).apply { marginStart = productStyle.dp(16) })
+            productStyle.add(metadata, balance, 8)
+            val ratio = if (item.batch.initialMg > 0) item.balanceMg.toDouble() / item.batch.initialMg else null
+            val progress = productStyle.row("product/inventory/ratio").apply { gravity = Gravity.CENTER_VERTICAL }
+            if (ratio != null) progress.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+                max = 1000; this.progress = (ratio.coerceIn(0.0, 1.0) * max).toInt()
+                fun track(color: Int) = productStyle.shape(color, radius = 12)
+                progressDrawable = android.graphics.drawable.LayerDrawable(arrayOf(track(productStyle.disabled),
+                    android.graphics.drawable.ScaleDrawable(track(productStyle.primary), Gravity.START, 1f, -1f))).apply {
+                    setId(0, android.R.id.background); setId(1, android.R.id.progress)
                 }
+                setPadding(0, 0, 0, 0); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            }, LinearLayout.LayoutParams(0, productStyle.dp(8), 1f).apply { marginEnd = productStyle.dp(16) })
+            progress.addView(productStyle.text(ratio?.let { java.text.NumberFormat.getPercentInstance(resources.configuration.locales[0]).format(it) }
+                ?: "—", TaskProductVisualStyle.auxiliary, "product/inventory/ratio-value", true).apply {
+                contentDescription = getString(R.string.batch_remaining_ratio) + " " + text
+            })
+            productStyle.add(metadata, progress)
+            productStyle.divider(metadata, 8, 8)
+            val dates = productStyle.row("product/inventory/dates")
+            listOf(R.string.beans_purchased to item.batch.purchasedOn, R.string.beans_roasted to item.batch.roastedOn,
+                R.string.beans_opened to item.batch.openedOn).forEachIndexed { index, (label, date) ->
+                val cell = productStyle.column("product/inventory/dates/$index").apply {
+                    setPaddingRelative(if (index == 0) 0 else productStyle.dp(16), 0, productStyle.dp(16), 0)
+                }
+                productStyle.add(cell, productStyle.text(getString(label), TaskProductVisualStyle.auxiliary,
+                    "product/inventory/dates/$index/label", true))
+                productStyle.add(cell, productStyle.text(date?.toString() ?: getString(R.string.beans_not_set), TaskProductVisualStyle.body,
+                    "product/inventory/dates/$index/value"), 8)
                 dates.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
-                HoyiUi.label(this, cell, getString(label), TaskVisualTokens.SUPPORTING_SP, muted = true)
-                HoyiUi.label(this, cell, date?.toString() ?: getString(R.string.beans_not_set), TaskVisualTokens.BODY_SP)
             }
-            divider()
-            HoyiUi.label(this, metadata, getString(R.string.batch_recent_events), TaskVisualTokens.SECTION_SP, true)
-            val ledgerHeadings = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+            productStyle.add(metadata, dates)
+            productStyle.divider(metadata, 8, 8)
+            productStyle.add(metadata, productStyle.text(getString(R.string.batch_recent_events), TaskProductVisualStyle.section))
+            val ledgerHeadings = productStyle.row("product/inventory/events/header").apply { setBackgroundColor(productStyle.disabled) }
             metadata.addView(ledgerHeadings, LinearLayout.LayoutParams(-1, -2))
             listOf(R.string.ledger_type, R.string.ledger_change, R.string.beans_reason).forEachIndexed { index, label ->
-                HoyiUi.label(this, ledgerHeadings, getString(label), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-                    layoutParams = LinearLayout.LayoutParams(0, -2, if (index == 2) 2f else 1f).apply {
-                        marginEnd = HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP)
-                    }
-                }
+                ledgerHeadings.addView(productStyle.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true),
+                    LinearLayout.LayoutParams(0, -2, if (index == 2) 2f else 1f).apply { marginEnd = productStyle.dp(8) })
             }
             val events = inventory.events().asReversed().filter { it.batchId == item.batch.id }.take(3)
             if (events.isEmpty()) HoyiUi.label(this, metadata, getString(R.string.beans_ledger_empty), TaskVisualTokens.BODY_SP, muted = true)
@@ -216,15 +219,13 @@ class BeanInventoryActivity : ThemedActivity() {
                 val delta = (if (event.deltaMg > 0) "+" else "") + BeanQuantity.formatGrams(event.deltaMg) + " g"
                 val reason = event.reason ?: "—"
                 val line = LinearLayout(this).apply {
+                    tag = "product/inventory/events/row-${event.eventId}"
                     orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false
                     minimumHeight = HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.TOUCH_TARGET_DP)
                     gravity = Gravity.CENTER_VERTICAL
-                    setPadding(0, HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP),
-                        0, HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP))
+                    setPadding(0, 0, 0, 0)
                     isFocusable = true
-                    background = android.graphics.drawable.RippleDrawable(
-                        android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
-                        null, HoyiUi.shape(this@BeanInventoryActivity, android.R.color.white, 0))
+                    productStyle.clickable(this)
                     contentDescription = listOf(kind, delta, reason).joinToString(" · ")
                     setOnClickListener { beanDetails(getString(R.string.beans_ledger_title),
                         listOf(kind, delta, reason, getString(R.string.beans_event_balance,
@@ -232,28 +233,30 @@ class BeanInventoryActivity : ThemedActivity() {
                 }
                 metadata.addView(line, LinearLayout.LayoutParams(-1, -2))
                 listOf(kind, delta, reason).forEachIndexed { index, value ->
-                    HoyiUi.label(this, line, value, TaskVisualTokens.BODY_SP).apply {
+                    productStyle.text(value, TaskProductVisualStyle.body,
+                        "product/inventory/events/${event.eventId}/${listOf("type", "change", "reason")[index]}").apply {
+                        line.addView(this)
                         layoutParams = LinearLayout.LayoutParams(0, -2, if (index == 2) 2f else 1f).apply {
                             marginEnd = HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP)
                         }
-                        maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
+                        maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
                     }
                 }
             }
-            inventoryLink(actions, getString(R.string.beans_batch_title)) {
+            productStyle.action(actionRegion, getString(R.string.dose_title), "product/inventory/use", primary = true, top = 0) {
+                startActivity(Intent(this, BeanPreparationActivity::class.java).putExtra(BeanPreparationActivity.EXTRA_BATCH_ID, item.batch.id))
+            }
+            productStyle.action(actionRegion, getString(R.string.beans_batch_title), "product/inventory/batch-details", outline = true, top = 0) {
                 startActivity(Intent(this, BeanBatchActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, item.batch.id))
             }
-            inventoryLink(actions, getString(R.string.beans_batch_ledger)) {
+            productStyle.action(actionRegion, getString(R.string.beans_batch_ledger), "product/inventory/batch-ledger", top = 0) {
                 startActivity(Intent(this, BeanLedgerActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, item.batch.id))
-            }
-            HoyiUi.button(this, primaryDock, getString(R.string.dose_title), primary = true) {
-                startActivity(Intent(this, BeanPreparationActivity::class.java).putExtra(BeanPreparationActivity.EXTRA_BATCH_ID, item.batch.id))
             }
             rowButtons.forEach { (id, button) ->
                 button.isActivated = id == selectedBatchId
                 button.background = android.graphics.drawable.RippleDrawable(
-                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
-                    HoyiUi.shape(this@BeanInventoryActivity, if (id == selectedBatchId) R.color.mobile_accent_soft else android.R.color.transparent, 0), null)
+                    android.content.res.ColorStateList.valueOf(productStyle.selected),
+                    productStyle.shape(if (id == selectedBatchId) productStyle.selected else android.graphics.Color.TRANSPARENT), null)
             }
         }
         batches.forEach { item ->
@@ -264,14 +267,11 @@ class BeanInventoryActivity : ThemedActivity() {
             }.apply {
                 tag = "inventory-batch-${item.batch.id}"
                 gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                textSize = 17f
-                text = android.text.SpannableString(description).apply {
-                    setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD), 0, item.batch.bean.name.length, 0)
-                    setSpan(android.text.style.RelativeSizeSpan(14f / 17f), item.batch.bean.name.length, description.length, 0)
-                }
-                setPadding(HoyiUi.dp(this@BeanInventoryActivity, 12), HoyiUi.dp(this@BeanInventoryActivity, 10),
-                    HoyiUi.dp(this@BeanInventoryActivity, 12), HoyiUi.dp(this@BeanInventoryActivity, 10))
-                minimumHeight = HoyiUi.dp(this@BeanInventoryActivity, 64)
+                productStyle.button(this)
+                productStyle.apply(this, TaskProductVisualStyle.body)
+                gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                setPadding(productStyle.dp(16), productStyle.dp(8), productStyle.dp(16), productStyle.dp(8))
+                minimumHeight = productStyle.dp(64)
                 layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = HoyiUi.dp(this@BeanInventoryActivity, 1) }
             }
         }
@@ -283,20 +283,11 @@ class BeanInventoryActivity : ThemedActivity() {
         showSelected()
         panes.detailRequested = detailRequested
     }
-    private fun inventoryLink(parent:LinearLayout,value:String,action:()->Unit)=
-        HoyiUi.button(this,parent,value,action=action).apply {
-            gravity=Gravity.START or Gravity.CENTER_VERTICAL
-            setTextColor(android.content.res.ColorStateList(
-                arrayOf(intArrayOf(-android.R.attr.state_enabled),intArrayOf()),
-                intArrayOf(getColor(R.color.mobile_muted),getColor(R.color.mobile_accent))))
-            val states=android.graphics.drawable.StateListDrawable().apply {
-                addState(intArrayOf(android.R.attr.state_focused),HoyiUi.shape(this@BeanInventoryActivity,android.R.color.transparent,8,R.color.mobile_accent))
-                addState(intArrayOf(),HoyiUi.shape(this@BeanInventoryActivity,android.R.color.transparent,8))
-            }
-            background=android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
-                states,HoyiUi.shape(this@BeanInventoryActivity,android.R.color.white,8))
+    private fun inventoryLink(parent: LinearLayout, value: String, action: () -> Unit) =
+        productStyle.button(HoyiUi.button(this, parent, value, action = action)).apply {
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
         }
+
 }
 
 /** Fixed header, elastic workspace and fixed actions; never wraps the whole page in a ScrollView. */

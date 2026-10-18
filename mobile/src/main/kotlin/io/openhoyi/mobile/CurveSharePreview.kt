@@ -2,103 +2,103 @@ package io.openhoyi.mobile
 
 import android.view.View
 import android.widget.LinearLayout
+import android.widget.ScrollView
 
 /** Share-only composition; dialogs keep their independent preview layout. */
 internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: CustomCurveDocument) {
-    val preview = workspace.primaryBody
-    HoyiUi.label(this, preview, doc.name, 24, true).apply {
-        maxLines = 1
-        ellipsize = android.text.TextUtils.TruncateAt.END
-        tag = "full-text-details"
-    }
-    val metrics = LinearLayout(this).apply {
-        orientation = LinearLayout.HORIZONTAL
-        setPadding(0, HoyiUi.dp(this@sharePreview, TaskVisualTokens.RELATED_GAP_DP), 0, HoyiUi.dp(this@sharePreview, TaskVisualTokens.RELATED_GAP_DP))
-    }
-    preview.addView(metrics)
+    val style = TaskProductVisualStyle(this)
+    val preview = style.column("product/share/preview-body")
+    workspace.primaryBody.addView(ScrollView(this).apply {
+        tag = "product/share/preview-scroll"; isFillViewport = true; addView(preview)
+    }, LinearLayout.LayoutParams(-1, -1))
+    val identity = style.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+    identity.addView(style.text(doc.name, TaskProductVisualStyle.title, "full-text-details").apply {
+        maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+    }, LinearLayout.LayoutParams(0, -2, 1f))
+    identity.addView(style.text(getString(if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE)
+        R.string.task_chart_pressure else R.string.home_lever_flow), TaskProductVisualStyle.auxiliary,
+        "product/share/mode").apply {
+        setTextColor(style.accent); setPadding(style.dp(8), 0, style.dp(8), 0)
+        background = style.shape(style.selected)
+        contentDescription = doc.controlMode.name
+    }, LinearLayout.LayoutParams(-2, -2).apply { marginStart = style.dp(16) })
+    style.add(preview, identity)
+    val metrics = style.row("product/share/summary")
     listOf(
-        R.string.curve_preview_temperature to "${doc.temperatureC} °C",
-        R.string.curve_preview_weight to if (doc.targetHundredthsGram == 0) getString(R.string.curve_details_no_weight)
-            else "${CurveDraftNumber.format(doc.targetHundredthsGram, 2)} g"
-    ).forEachIndexed { index, (label, value) ->
-        val column = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(HoyiUi.dp(this@sharePreview, 16), HoyiUi.dp(this@sharePreview, 8),
-                HoyiUi.dp(this@sharePreview, 16), HoyiUi.dp(this@sharePreview, 8))
-            background = HoyiUi.shape(this@sharePreview, R.color.mobile_surface, 8, R.color.mobile_border)
+        Triple(R.string.curve_preview_temperature, doc.temperatureC.toString(), "°C"),
+        Triple(R.string.curve_preview_weight, if (doc.targetHundredthsGram == 0) getString(R.string.curve_details_no_weight)
+            else CurveDraftNumber.format(doc.targetHundredthsGram, 2), if (doc.targetHundredthsGram == 0) null else "g")
+    ).forEachIndexed { index, (label, value, unit) ->
+        val card = style.column().apply {
+            setPadding(style.dp(16), style.dp(8), style.dp(16), style.dp(8))
+            minimumHeight = style.dp(74); background = style.shape(style.surface, true)
         }
-        metrics.addView(column, LinearLayout.LayoutParams(0, -2, 1f).apply {
-            if (index > 0) marginStart = HoyiUi.dp(this@sharePreview, 16)
-        })
-        HoyiUi.label(this, column, getString(label), 14, muted = true)
-        HoyiUi.label(this, column, value, TaskVisualTokens.RECIPE_VALUE_SP).apply {
-            text = curveMetricText(this@sharePreview, value, when (label) {
-                R.string.curve_preview_temperature -> "°C"
-                R.string.curve_preview_weight -> if (doc.targetHundredthsGram != 0) "g" else null
-                else -> null
-            })
-            typeface = TaskTypography.face(this@sharePreview, 700)
-            setPadding(0, HoyiUi.dp(this@sharePreview, 4), 0, 0)
-        }
+        style.add(card, style.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true))
+        val metric = style.quantity(value, unit, TaskProductVisualStyle.shareMetric, "product/share/metric-$index")
+        (metric.getChildAt(0).layoutParams as LinearLayout.LayoutParams).apply { width = 0; weight = 1f }
+        style.add(card, metric)
+        metrics.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = style.dp(24) })
     }
-    fun parameterHeading() {
-        HoyiUi.label(this, preview, getString(R.string.profiles_stage_summary, doc.stages.size), 16, true).apply {
-            setPadding(0, 0, 0, 0)
-        }
-    }
-    if (doc.controlMode != CustomCurveDocument.ControlMode.PRESSURE) {
-        HoyiUi.label(this, preview, getString(R.string.profiles_flow_raw), 16, muted = true)
-        parameterHeading()
-        return
-    }
-    HoyiUi.label(this, preview, getString(R.string.profiles_preview), 20, true).apply {
-        setPadding(0, 0, 0, 0)
-    }
-    val chart = CurveStageView(this).apply { targets = doc.stages.map { it.target } }
-    preview.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f))
-    HoyiUi.label(this, preview, getString(R.string.task_form_stage_caption), 14, muted = true)
-    parameterHeading()
-    val table = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL
-        tag = "share-stage-table"
-    }
-    preview.addView(table, LinearLayout.LayoutParams(-1, -2))
+    style.add(preview, metrics, 8)
+    var chart: CurveStageView? = null
+    if (doc.controlMode == CustomCurveDocument.ControlMode.PRESSURE) {
+        style.add(preview, style.text(getString(R.string.profiles_preview), TaskProductVisualStyle.section), 8)
+        chart = CurveStageView(this).apply { targets = doc.stages.map { it.target }; productVisualStyle = style; tag = "product/share/stage" }
+        preview.addView(chart, LinearLayout.LayoutParams(-1, style.dp(160)))
+        style.add(preview, style.text(getString(R.string.task_form_stage_caption), TaskProductVisualStyle.auxiliary, secondary = true), 8)
+    } else style.add(preview, style.text(getString(R.string.profiles_flow_raw), TaskProductVisualStyle.body, secondary = true), 8)
+    style.add(preview, style.text(getString(R.string.profiles_stage_summary, doc.stages.size), TaskProductVisualStyle.auxiliary.copy(weight = 500)), 8)
+    val table = style.column("share-stage-table")
+    style.add(preview, table, 8)
     fun row(values: List<String>, heading: Boolean, stageIndex: Int? = null) {
-        val line = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val line = style.row(if (heading) "product/share/table/header" else "product/share/table/row${requireNotNull(stageIndex) + 1}")
         table.addView(line, LinearLayout.LayoutParams(-1, -2))
         values.forEachIndexed { column, value ->
-            HoyiUi.label(this, line, value, 14, bold = heading, muted = heading).apply {
-                setPadding(HoyiUi.dp(this@sharePreview, 8), HoyiUi.dp(this@sharePreview, 4),
-                    HoyiUi.dp(this@sharePreview, 8), HoyiUi.dp(this@sharePreview, 4))
-                layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-                background = HoyiUi.shape(this@sharePreview,
-                    if (heading) R.color.mobile_background else R.color.mobile_surface, 0, R.color.mobile_border)
-                if (column == 0 && stageIndex != null) setTextColor(CurveStagePalette.color(context, stageIndex))
-            }
+            val label = style.text(value, TaskProductVisualStyle.auxiliary.copy(weight = if (heading) 500 else 400), secondary = heading)
+            val cell: View = if (column == 0 && stageIndex != null) {
+                style.row().apply {
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    addView(View(this@sharePreview).apply {
+                        tag = "product/share/table/row${stageIndex + 1}/dot"
+                        background = android.graphics.drawable.GradientDrawable().apply {
+                            shape = android.graphics.drawable.GradientDrawable.OVAL; setColor(style.stageColors[stageIndex])
+                        }
+                    }, LinearLayout.LayoutParams(style.dp(12), style.dp(12)))
+                    addView(label, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = style.dp(8) })
+                }
+            } else label
+            cell.setPaddingRelative(style.dp(8), 0, style.dp(8), 0)
+            cell.background = style.shape(if (heading) style.disabled else style.surface, true, 0)
+            line.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
         }
     }
-    row(listOf(R.string.import_table_stage, R.string.import_table_pressure, R.string.import_table_water).map(::getString), true)
+    // Raw flow values are kept raw and labelled; they never become pressure targets.
+    row(listOf(getString(R.string.import_table_stage), getString(if (chart != null) R.string.import_table_pressure else R.string.profiles_flow_raw),
+        getString(R.string.import_table_water)), true)
     doc.stages.forEachIndexed { index, stage ->
-        row(listOf(getString(R.string.profiles_stage, index + 1), CurveDraftNumber.format(stage.target, 1),
+        row(listOf(getString(R.string.profiles_stage, index + 1),
+            if (chart != null) CurveDraftNumber.format(stage.target, 1) else stage.target.toString(),
             CurveDraftNumber.format(stage.waterTenthsMl, 1)), false, index)
     }
     workspace.onPrimarySpaceAvailable = { width, height ->
-        val contentWidth = (width - preview.paddingLeft - preview.paddingRight).coerceAtLeast(0)
+        val contentWidth = (width - workspace.primaryBody.paddingLeft - workspace.primaryBody.paddingRight).coerceAtLeast(0)
         val exactWidth = View.MeasureSpec.makeMeasureSpec(contentWidth, View.MeasureSpec.EXACTLY)
         val unspecified = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        var fixedHeight = preview.paddingTop + preview.paddingBottom
+        var fixedHeight = 0
         for (index in 0 until preview.childCount) {
             val child = preview.getChildAt(index)
-            if (child !== chart && child !== table) {
+            if (child !== chart) {
                 child.measure(exactWidth, unspecified)
                 val params = child.layoutParams as LinearLayout.LayoutParams
                 fixedHeight += child.measuredHeight + params.topMargin + params.bottomMargin
             }
         }
-        table.measure(exactWidth, unspecified)
-        val minimumChart = HoyiUi.dp(this, 160)
-        val showTable = height >= fixedHeight + table.measuredHeight + minimumChart
-        table.visibility = if (showTable) View.VISIBLE else View.GONE
-        fixedHeight + minimumChart + if (showTable) table.measuredHeight else 0
+        val available = height - workspace.primaryBody.paddingTop - workspace.primaryBody.paddingBottom
+        chart?.let {
+            val params = it.layoutParams as LinearLayout.LayoutParams
+            params.height = maxOf(style.dp(160), available - fixedHeight)
+            params.weight = 0f
+        }
+        fixedHeight + (chart?.layoutParams?.height ?: 0) + workspace.primaryBody.paddingTop + workspace.primaryBody.paddingBottom
     }
 }
