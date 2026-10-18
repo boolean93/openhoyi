@@ -891,3 +891,11 @@ a5abedf advanced run39084062900：pages job success、business job failure。读
 本页剩余差异：新建隐藏在管理，编辑/分享隐藏在曲线操作，阶段图无标题/参数分隔；阶段分色与共享编辑器语义需核对，不能无证据全局改色。当前批次不单独push，继续以整页为单位整理后再进入新截图验收。
 
 曲线库同批补充：新建已移至页头直接入口；在详情宽度≥600dp×fontScale时直接显示编辑/分享，原菜单保留全部能力入口，直显按钮转发原按钮且同步enabled，不改变只读/拷贝门禁。参数区上下1dp语义线、20sp阶段压力标题已补，八语言资源同步；标题纳入真实高度计算，短高回退仍完整呈现参数和目标文本。此前“入口隐藏/缺分区”是旧图差异，本轮候选已调整，尚待新图证明。阶段共享配色、完整参数入口位置与同状态四阶段截图仍需后续核对。
+
+## 2026-10-18：两杯轴收敛组件运行验收
+
+39ac261 task-frame run39086468910 success，下载build/task-first-evidence/ci-39ac261-frame。two-cup-1.0.txt与two-cup-1.3.txt均明确10夹具通过；源码TwoCupChartChecks实际包含220dp组件plot>=128dp、12sp随字号、TextBoundsCanvas边界/无文字重叠、真实末端秒数+s单位、缺重/恢复/交换等检查。24页面框架与4个四指标组件也通过，但不是24页视觉验收。
+
+人工读取两字号compact-readable.png：bar、0/2/4.0s完整，9bar实线与6bar虚线可辨，缺口不被连线掩盖；另读1.3 one-missing-weight.png，只绘制有值源、不伪造另一杯0线，短高提示仍完整。新轴留白的组件运行缺口关闭；此为320×220dp组件，不能证明用户平板整页比例。git diff39ac261..HEAD确认TwoCupChartView与TwoCupChartChecks未再次改动，组件证据适用于当前相同实现。
+
+曲线库直显入口静态核对：directEdit/directShare同步原按钮isEnabled，点击仍转发原编辑/分享页面，宽度不足时原菜单使用未挂载的原动作按钮，未因直显按钮GONE而丢失入口。这是源码核对，不是导航运行证据；本页实际宽/窄新截图与跳转仍待CI。

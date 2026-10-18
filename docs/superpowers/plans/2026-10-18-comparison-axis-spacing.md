@@ -17,3 +17,5 @@
 预计绘图区增加1.5倍行高+4dp；该值是代码几何差异，不是实测。96dp最低绘图区/短高回退/无重量提示保留，不放松安全或可读性门槛。不合并/发版/安装，不改协议/数据/schema/签名/版本；普通push，追加revert可回退。
 
 本地验证：Mock/instrumentation BUILD SUCCESSFUL in 43s、exit0，/tmp/task-comparison-axis-spacing-build.log；bash -n、branch policy、git diff --check通过。10夹具实际运行待CI。
+
+运行补证：39ac261/run39086468910两字号各10组件夹具通过，实际compact-readable/缺重/短高图已读。轴文字与128dp图高门槛均由运行断言证明。整页截图仍未完成，不能标整页通过；当前HEAD相关组件/检查与此源码一致。

@@ -20,7 +20,7 @@
 | CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 4240daa用户平板103条列表/两阶段目标实图已核对，排序/滚动恢复有运行证据；候选整批调整34%列表、24/14sp层级、小单位、新建/编辑/分享入口及图表分区待新图；阶段配色/完整参数入口/四阶段同状态未最终验收 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 63a490c实际结束图已读：32.2秒/22.40g、123采样点、四指标同图；单位缩小、右栏分区及侧栏固定复盘候选待图；图高释放尚未实测，未最终验收 | 8 |
-| BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 4240daa大字号336夹具通过；不同31/33点四指标整页已读取，实虚线/单位和30/32秒、36/35.2g吻合；记录入口已前移待新图，用户平板标准字号实图及24/16/14sp已核对；图高/顶栏比例和后续轴留白调整仍待验收 | 9 |
+| BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 4240daa大字号336夹具通过；不同31/33点四指标整页已读取，实虚线/单位和30/32秒、36/35.2g吻合；记录入口已前移待新图，用户平板标准字号实图及24/16/14sp已核对；39ac261轴留白两字号10组件夹具已运行通过；整页图高/顶栏比例仍待新图验收 | 9 |
 | BeanInventoryActivity | [库存v2](../research/task-first-ui-concepts/bean-inventory-v2.png) | 库存空态 | 11 |
 | BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 35db865实图三日期日历入口完整；已按入库v2改双模式并保留独立草稿，候选构建通过；ff651be两模式填写实图与身份/草稿恢复路径已读；b6fc53c业务18路径及收尾不变量已通过；166594d三个横屏job通过，用户平板浅深/1.3字号实图三日期完整，裁切关闭；深色专项单帧保存文字缺失疑点待查，未最终视觉验收 | 20 |
 | BeanBatchActivity | [批次v1](../research/task-first-ui-concepts/bean-batch-v1.png) | abe9614业务图有90g/初始100g、三日期和两条流水；摘要/日期分区修正待新图 | 8 |
