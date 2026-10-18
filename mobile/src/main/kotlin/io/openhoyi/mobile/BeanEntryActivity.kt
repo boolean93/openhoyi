@@ -130,6 +130,10 @@ class BeanEntryActivity : ThemedActivity() {
             selectedBeanId = if (existingMode) bean?.id else null
             selector.visibility = if (existingMode) View.VISIBLE else View.GONE
             name.isEnabled = !existingMode
+            name.visibility = if (existingMode) View.GONE else View.VISIBLE
+            val nameParent = name.parent as android.widget.LinearLayout
+            (0 until nameParent.childCount).map { nameParent.getChildAt(it) }
+                .filterIsInstance<android.widget.TextView>().single { it.labelFor == name.id }.visibility = name.visibility
             name.setText(if (existingMode) bean?.name.orEmpty() else newNameDraft)
             modeButtons.forEach { (existing, button) ->
                 button.isSelected = existing == existingMode

@@ -1217,3 +1217,9 @@ run39114954498 business失败，下载ci-0649834-advanced-business并实读分�
 实读bean-entry-new-mode.png：底栏说明/取消/保存同行，三日期含开封行完整，关闭标准浅色新豆款第三日期首屏裁切。另读existing-mode.png：已有选择器与只读名称重复占两块，开封日期仍不在首屏；不能将新豆款结论外推已有豆款，大字/键盘仍待验。后续应处理重复身份展示，不删日期或缩字体。
 
 分享垂直间距候选Mock及AndroidTest构建44s成功（/tmp/task-share-vertical-insets-build.log），diff通过。候选尚未运行，不关闭四阶段缺表；暂本地随下一完整批次推送。
+
+## 用户平板页面矩阵通过与已有豆款候选（2026-10-18）
+
+db5668d run39114685638 pages job成功，下载ci-db5668d-advanced-pages；实读landscape/wideFont结果各8语言×2主题×15页=240夹具、60截图，合480夹具/120截图；device记录override2560×1600/density360。此次已越过原1280dp配置失败，保留状态/noBle通过；并非24页全部视觉或业务通过（同run业务仍四阶段表失败）。实读wideFont中文浅色CurveImportActivity：新增引导句/输入hint、完整64KiB说明/取消/预览完整，关闭此空态大字号提示未验证项；未覆盖输入/键盘或其他视觉差异。
+
+已有豆款候选仅隐藏重复的固定name标签和只读输入，保留控件/禁用/选中值与独立新名草稿，选择器显示真实身份；切回新模式恢复可见。既有身份断言调整为重复框隐藏且值/禁用/bean.id仍正确；重建/取消/新草稿恢复路径保留。Mock及AndroidTest构建45s成功（/tmp/task-entry-existing-identity-build.log），diff通过。新模式/已有模式三日期和恢复行为需实际CI，不因编译宣称通过。与分享垂直间距候选合批push。

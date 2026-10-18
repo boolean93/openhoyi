@@ -452,7 +452,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                         it.text.toString() == modeEntry.getString(R.string.beans_name) && it.labelFor != View.NO_ID
                     }
                     val nameField = root(modeEntry).findViewById<EditText>(nameLabel.labelFor)
-                    check(nameField.isShown && !nameField.isEnabled && nameField.text.toString() == beanName)
+                    check(!nameLabel.isShown && !nameField.isShown && !nameField.isEnabled && nameField.text.toString() == beanName)
                 }
             }
             fill(modeEntry, R.string.beans_initial_input, "250")
