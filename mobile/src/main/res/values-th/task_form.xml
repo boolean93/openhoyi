@@ -8,4 +8,5 @@
     <string name="task_form_bean_identity">ข้อมูลเมล็ดกาแฟ</string>
     <string name="task_form_stock">รับเข้าสต็อก</string>
     <string name="task_form_dates">วันที่ (ไม่บังคับ)</string>
+    <string name="task_form_new_batch_notice">เมื่อบันทึกจะเพิ่มล็อตใหม่ในคลัง</string>
 </resources>

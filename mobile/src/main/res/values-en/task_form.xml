@@ -8,4 +8,5 @@
     <string name="task_form_bean_identity">Coffee bean information</string>
     <string name="task_form_stock">Stock entry</string>
     <string name="task_form_dates">Dates (optional)</string>
+    <string name="task_form_new_batch_notice">Saving adds a new inventory batch.</string>
 </resources>

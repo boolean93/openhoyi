@@ -8,4 +8,5 @@
     <string name="task_form_bean_identity">Информация о кофе</string>
     <string name="task_form_stock">Поступление</string>
     <string name="task_form_dates">Даты (необязательно)</string>
+    <string name="task_form_new_batch_notice">При сохранении добавляется новая партия в запас.</string>
 </resources>

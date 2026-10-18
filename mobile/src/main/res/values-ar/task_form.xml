@@ -8,4 +8,5 @@
     <string name="task_form_bean_identity">معلومات حبوب القهوة</string>
     <string name="task_form_stock">إضافة مخزون</string>
     <string name="task_form_dates">التواريخ (اختياري)</string>
+    <string name="task_form_new_batch_notice">يؤدي الحفظ إلى إضافة دفعة جديدة إلى المخزون.</string>
 </resources>

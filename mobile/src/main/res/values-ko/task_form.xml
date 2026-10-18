@@ -8,4 +8,5 @@
     <string name="task_form_bean_identity">원두 정보</string>
     <string name="task_form_stock">입고</string>
     <string name="task_form_dates">날짜 (선택)</string>
+    <string name="task_form_new_batch_notice">저장하면 새 재고 배치가 추가됩니다.</string>
 </resources>

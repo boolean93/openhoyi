@@ -8,4 +8,5 @@
     <string name="task_form_bean_identity">Información del café</string>
     <string name="task_form_stock">Entrada de existencias</string>
     <string name="task_form_dates">Fechas (opcionales)</string>
+    <string name="task_form_new_batch_notice">Al guardar se añade un nuevo lote al inventario.</string>
 </resources>

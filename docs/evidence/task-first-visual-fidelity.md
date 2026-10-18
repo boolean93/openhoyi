@@ -941,3 +941,11 @@ AdvancedBusinessUiChecks原七字段复盘保存后新增只读详情检查。�
 库存v3由内置ImageGen纠正虚构事件时间和净减少量等于“已使用”的错误；示例三批500g与90/100g90%已核对。代码仍未完成比例条、顶部汇总/工具栏及底部所有稿件布局，不冒称整页对齐。Mock及测试包构建47s成功（/tmp/task-inventory-detail-build.log），运行截图与大字/窄窗、长原因回归待CI。本批不追加推送。
 
 库存同批续：新增共享BeanRemainingRatio（库存16sp/批次24sp比例文案，8dp圆角条），顶部工具取消等分撑宽、改限宽靠右，最近流水补三列标题。AdvancedBusinessUiChecks在已有唯一UUID调整后核对90%、三日期和两事件，保存库存上部/流水截图，检查balance90000/events2/preparationnull，18路径不变。构建48s成功；运行视觉仍未验收。与6a61d4a、8e62d33合并一批推送，不单独触发每项修改。
+
+## 入库深色保存文字疑点纠正（2026-10-18）
+
+重新用view_image读取ci-166594d-tablet-user-landscape/tablet-user-landscape/single-screen-window-checks/chinese-form-states/zh-Hans-dark-BeanEntryActivity-section-2.png及section-0，再读同轮tablet-large-font深色section-2：均明确显示完整“保存批次”。原用户平板section-2 SHA256=fadaee11c6f50f4d8db6d20e3da1085b9cdae2f5bd116a27ff15e46775b653b4。本轮未生成替代截图/未改图片；此前记录的缺字判断错误，撤销该待修疑点，不归因于截图时机或擅称修复渲染bug。BeanEntryActivity从166594d到当前无差异。
+
+字体JSON再次实读：density/scaledDensity2.25，标题24sp/500，身份选择16sp/500，名字与数量标签15sp、输入18sp，日期标题20sp、日期标签14sp，保存16sp/500。与统一辅助14/正文16约束仍有差异；底部取消/新增批次说明、输入清除入口等与入库v2仍未对应。此纠正只关闭错误的缺字疑点，不宣称整页视觉通过。
+
+入库对齐候选：本页五输入统一16sp，名称/数量标签14sp与8dp间距；日期14sp标签/48dp日历目标不变。固定底部增加14sp新增批次说明、文字取消与限宽主保存操作；取消使用原finish语义，不保存。八语言资源已补。已有模式切换/恢复/取消业务路径改点真实取消按钮并保留库存/流水不增断言，两模式截图要求保存/取消可见；路径数仍18。构建47s通过，运行与大字号/IME新截图未通过前不作整页验收。本批本地保存，暂不推送。

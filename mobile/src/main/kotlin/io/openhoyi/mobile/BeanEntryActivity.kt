@@ -61,6 +61,7 @@ class BeanEntryActivity : ThemedActivity() {
         }
         fun input(key: String, label: Int, numeric: Boolean = false) = beanInput(when (key) { "quantity" -> sections.panels[1]; "purchased", "roasted", "opened" -> sections.panels[2]; else -> card }, label, numeric).also {
             fields[key] = it
+            it.textSize = TaskVisualTokens.BODY_SP.toFloat()
             it.setText(savedInstanceState?.getString(key).orEmpty())
         }
         val name = input("name", R.string.beans_name)
@@ -69,7 +70,8 @@ class BeanEntryActivity : ThemedActivity() {
             val parent = field.parent as android.widget.LinearLayout
             (0 until parent.childCount).map { parent.getChildAt(it) }
                 .filterIsInstance<android.widget.TextView>().single { it.labelFor == field.id }.apply {
-                    setPadding(0, 0, 0, HoyiUi.dp(this@BeanEntryActivity, 4))
+                    textSize = TaskVisualTokens.SUPPORTING_SP.toFloat()
+                    setPadding(0, 0, 0, HoyiUi.dp(this@BeanEntryActivity, TaskVisualTokens.RELATED_GAP_DP))
                 }
         }
         val purchased = input("purchased", R.string.beans_purchased)
@@ -173,8 +175,26 @@ class BeanEntryActivity : ThemedActivity() {
         }, 0, android.widget.LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)))
         sections.restore(savedInstanceState, fields)
         val error = beanError(body)
-        val save = HoyiUi.button(this, sections.actions, getString(R.string.beans_save), primary = true) {}.apply {
-            layoutParams = android.widget.LinearLayout.LayoutParams(HoyiUi.dp(this@BeanEntryActivity, 240), -2)
+        HoyiUi.label(this, sections.actions, getString(R.string.task_form_new_batch_notice),
+            TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2)
+            setPadding(0, 0, 0, HoyiUi.dp(this@BeanEntryActivity, TaskVisualTokens.RELATED_GAP_DP))
+        }
+        val dock = TaskActionDock(this, edgeInsetDp = 0)
+        sections.actions.addView(dock, android.widget.LinearLayout.LayoutParams(-1, -2))
+        val actionRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+        }
+        dock.addView(actionRow, android.widget.LinearLayout.LayoutParams(-1, -2))
+        HoyiUi.button(this, actionRow, getString(R.string.beans_cancel)) { finish() }.apply {
+            asTaskTextAction()
+            layoutParams = android.widget.LinearLayout.LayoutParams(0, -2, 1f).apply {
+                marginEnd = HoyiUi.dp(this@BeanEntryActivity, TaskVisualTokens.RELATED_GAP_DP)
+            }
+        }
+        val save = HoyiUi.button(this, actionRow, getString(R.string.beans_save), primary = true) {}.apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(0, -2, 2f)
         }
         save.setOnClickListener {
             if (saved) return@setOnClickListener

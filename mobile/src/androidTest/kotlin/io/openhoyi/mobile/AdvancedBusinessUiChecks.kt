@@ -452,14 +452,14 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             test.waitForIdleSync()
             modeEntry = recreate(modeEntry)
             assertExistingIdentity()
-            captureState(modeEntry, "bean-entry-existing-mode", listOf(R.string.beans_save))
+            captureState(modeEntry, "bean-entry-existing-mode", listOf(R.string.beans_save, R.string.beans_cancel))
             selectIdentityMode(false)
             assertInput(modeEntry, R.string.beans_name, "Unsaved new bean")
-            captureState(modeEntry, "bean-entry-new-mode", listOf(R.string.beans_save))
+            captureState(modeEntry, "bean-entry-new-mode", listOf(R.string.beans_save, R.string.beans_cancel))
             modeEntry = recreate(modeEntry)
             selectIdentityMode(true)
             assertExistingIdentity()
-            onMain { modeEntry.finish() }
+            click(modeEntry, R.string.beans_cancel)
             awaitMain { modeEntry.isDestroyed }
             opened.remove(modeEntry)
             check(balance() == 100000L && ownEvents().size == 1)

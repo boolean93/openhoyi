@@ -8,4 +8,5 @@
     <string name="task_form_bean_identity">豆款信息</string>
     <string name="task_form_stock">入库</string>
     <string name="task_form_dates">日期（选填）</string>
+    <string name="task_form_new_batch_notice">保存后新增一个库存批次。</string>
 </resources>
