@@ -31,7 +31,7 @@ class CurveImportPreviewActivity : ThemedActivity() {
         }
         val metrics = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, HoyiUi.dp(this@CurveImportPreviewActivity, 16), 0, HoyiUi.dp(this@CurveImportPreviewActivity, 16))
+            setPadding(0, HoyiUi.dp(this@CurveImportPreviewActivity, TaskVisualTokens.RELATED_GAP_DP), 0, HoyiUi.dp(this@CurveImportPreviewActivity, TaskVisualTokens.RELATED_GAP_DP))
         }
         preview.addView(metrics)
         listOf(
@@ -58,7 +58,9 @@ class CurveImportPreviewActivity : ThemedActivity() {
             }
             stageChart = CurveStageView(this).apply { targets = doc.stages.map { it.target } }
             preview.addView(stageChart, LinearLayout.LayoutParams(-1, 0, 1f))
-            HoyiUi.label(this, preview, getString(R.string.profiles_stage_caption), 14, muted = true)
+            HoyiUi.label(this, preview, getString(R.string.task_form_stage_caption), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+                contentDescription = getString(R.string.profiles_stage_caption)
+            }
         } else HoyiUi.label(this, preview, getString(R.string.profiles_flow_raw), 15, muted = true)
         val table = if (stageChart != null) stageTable(doc).also {
             preview.addView(it, LinearLayout.LayoutParams(-1, -2))

@@ -1103,3 +1103,7 @@ run39091826896成功，下载ci-e8a900a-frame并实读曲线库font1.3 selected-
 run39092501813成功（同源码另run39092498372亦成功），下载ci-831aa1c-frame。实读MachineSettingsActivity-temperature-bottom.png和geometry：三个阶段before-settle/before-capture/after-capture均scrollY=45，window=(0,63)-(2560,1465)；蒸汽标签458×82边界(1189,1354)-(1647,1436)，输入327×140边界(1665,1325)-(1992,1465)，按钮459×108边界(2010,1341)-(2469,1449)。实图三者完整，输入恰抵安全区底边；产品机器设置代码未变，增加合成等待后图与布局一致，证据支持先前截图提交时序不一致而非本轮产品遮挡修复。仅关闭标准浅色温度组滚动可达性疑点，不证明初始单屏、大字、其他四标签或硬件。
 
 实读正常CurveImportPreviewActivity.png及fixture：93°C/36g、3/9/7/5bar四阶段、35%支持区及20sp标题已显示，保存未调用且store不变；但阶段参数表被高度预算隐藏，缺少概念图完整表格，元数据单位仍与数字同大，不能完成视觉验收。实读CurveShareActivity.png及fixture：capture-1真实2阶段9/6.5bar、91°C/27g；分享方式分组、复制/导出/禁用文件分享与说明完整，动作未调用、store不变；表格同样隐藏，只剩2个阶段参数与详情入口。该来源不是概念图四阶段，不以不同数据推断曲线完全一致。下一轮需检查参数表与图表高度分配，不只看构建/总通过标志。
+
+## 参数表空间候选与显式门禁（2026-10-18）
+
+831aa1c图证明正常四阶段导入/两阶段分享表格被隐藏。保持图表160dp最小高度和全部字号/行数不变，两页metrics上下空白从16dp收至共享8dp；导入caption复用分享短文案，完整说明仍是其无障碍描述。Mock+AndroidTest构建44s成功，追加验收后AndroidTest构建23s成功（/tmp/task-preview-table-space-final-build.log）、diff通过。TaskFrameChecks现在保存table-space尺寸，在≥1000×600dp、fontScale≤1.1要求表格isShown且完整边界；若仍隐藏将失败，不把详情入口视为一致。该候选未运行，不预判空间已足够；四阶段分享仍由高级业务夹具补验，原目标范围不缩减。

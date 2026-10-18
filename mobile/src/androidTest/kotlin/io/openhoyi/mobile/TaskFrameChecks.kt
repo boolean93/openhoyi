@@ -267,6 +267,28 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                     try {
                         File(directory, "${page.simpleName}.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
+                    if (shareDocument != null || previewDocument != null) {
+                        var tableFailure: Throwable? = null
+                        test.runOnMainSync {
+                            try {
+                                val all = descendants(activity.window.decorView)
+                                val tag = if (shareDocument != null) "share-stage-table" else "import-stage-table"
+                                val table = all.single { it.tag == tag }
+                                val chart = all.filterIsInstance<CurveStageView>().single()
+                                val config = activity.resources.configuration
+                                File(directory, "${page.simpleName}-table-space.txt").writeText(
+                                    "screenDp=${config.screenWidthDp}x${config.screenHeightDp} fontScale=${config.fontScale} tableShown=${table.isShown} tableMeasured=${table.measuredWidth}x${table.measuredHeight} chart=${chart.width}x${chart.height}\n")
+                                if (config.screenWidthDp >= 1000 && config.screenHeightDp >= 600 && config.fontScale <= 1.1f) {
+                                    check(table.isShown) { "Tablet preview must show its parameter table: $tag" }
+                                    val visible = Rect()
+                                    check(table.getGlobalVisibleRect(visible) && visible.width() == table.width && visible.height() == table.height) {
+                                        "Tablet parameter table is clipped: $tag $visible size=${table.width}x${table.height}"
+                                    }
+                                }
+                            } catch (failure: Throwable) { tableFailure = failure }
+                        }
+                        tableFailure?.let { throw it }
+                    }
                     if (shareDocument != null) {
                         test.runOnMainSync {
                             val labels = descendants(activity.window.decorView).filterIsInstance<android.widget.TextView>()

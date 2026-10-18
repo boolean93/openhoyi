@@ -15,7 +15,7 @@ internal fun ThemedActivity.sharePreview(workspace: TaskWorkspaceLayout, doc: Cu
         R.string.profiles_pressure_compatible else R.string.profiles_read_only), 14, muted = true)
     val metrics = LinearLayout(this).apply {
         orientation = LinearLayout.HORIZONTAL
-        setPadding(0, HoyiUi.dp(this@sharePreview, 16), 0, HoyiUi.dp(this@sharePreview, 16))
+        setPadding(0, HoyiUi.dp(this@sharePreview, TaskVisualTokens.RELATED_GAP_DP), 0, HoyiUi.dp(this@sharePreview, TaskVisualTokens.RELATED_GAP_DP))
     }
     preview.addView(metrics)
     listOf(
