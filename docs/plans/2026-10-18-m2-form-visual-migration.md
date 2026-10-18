@@ -2,7 +2,7 @@
 
 > **For agentic workers:** 使用 `superpowers:executing-plans` 按本计划执行。Astra 负责设计和验收，Sol 负责实现；主任务分配文件、统一构建与推送。不得自行派生代理或覆盖其他执行者文件。
 
-**Goal:** 在 M1 真实三页完成限定验收后，迁移 BrewReview、CurveEditor、BeanEntry 的真实表单，关闭 BeanEntry 标准初态末字段裁切，保留草稿、IME、固定操作和全部业务。
+**Goal:** 在 M1 真实三页完成限定验收后，迁移 BrewReview、CurveEditor、BeanEntry 的真实表单，复核 BeanEntry 标准初态末字段历史裁切并按真实证据处理，保留草稿、IME、固定操作和全部业务。
 
 **Architecture:** 复用已有限冻结的原生字体、语义色与间距，页面显式 opt-in；三个现有表单布局分别适配真实自然高度，不另建样张或全局换主题。输入、校验、保存与恢复仍由原 Activity/model 负责。
 
@@ -12,8 +12,8 @@
 
 遵循 [task-template](task-template.md) 和 [git-workflow](../git-workflow.md)。
 
-- 来源：`develop` 共同基线 `66ebda95dc7986eec66f9fa0b7e6cbd565c74506`；延续已授权 `feature/task-first-ui` / PR #4 → `develop`，不另建长期分支。只读规划 HEAD `0f3b759bd99c596d95a53fee7bee8554f86de1aa`，工作树原为空。
-- 当前 M1 为生产 `7e3f662`、测试 `9c71043`；CI `39142720200` 在途。**M1 未完成图审，本计划不是 M2 开工指令或 M1 通过记录。** 待 Astra 对 M1 真图给出限定结论、主任务明确切换 M2 后实施。
+- 来源：`develop` 共同基线 `66ebda95dc7986eec66f9fa0b7e6cbd565c74506`；延续已授权 `feature/task-first-ui` / PR #4 → `develop`，不另建长期分支。初稿只读规划 HEAD `0f3b759bd99c596d95a53fee7bee8554f86de1aa`；本次接口复核 HEAD `026f9937f055342ba7256d2f446065b3bbdb0746`，开始时工作树为空。
+- 当前 M1 已追加三页收口：生产 `ff5f069/1d82b2f`、测试 `c7223e5`，合批 HEAD `026f993`；CI `39146205031` 在途。原生样张已限定冻结，不重开样张研究。**M1 未完成图审，本计划不是 M2 开工指令或 M1 通过记录。** 待 Astra 对 M1 真图给出限定结论、主任务明确切换 M2 后实施。
 - 当前只写此文件，不改生产/测试/其他文档，不提交或推送。实施时重新检查状态与远端，由主任务普通推送；branch-policy、verify、lifecycle、upgrade 必需检查通过且问题解决后走 PR，不直接推 main/develop，不 force。
 - 不改 BLE、编码、压力/水量/重量精度、队列、开始/停止、重试、库存幂等、未知记录或持久化格式。保存复盘不改变库存/机器；保存曲线不开始萃取；入库只经原合法 addBatch。
 - 不发版、不改签名/包名/versionCode、不安装用户设备、不操作机器或秤。Mock 只证明对应 UI/业务夹具，不能代替硬件。
@@ -40,6 +40,8 @@
 `39140082109` single-user 334/336；中文浅/深 BeanEntry 在 `ChineseFormWindowChecks` 初态 `inputs.forEach(::fullyVisible)` 失败，尚未进入 section/short/IME。原文件保留在 `build/task-first-evidence/ci-0a7b71a-single-user/tablet-user-landscape/`。
 
 末字段“开封日期” origin `[1118,1142]`、size972×117、应到1259但 visible 到1258，仅116px。`task-form-scroll` 为1458×995，内容自然高996。日历48dp目标先通过，初图无 IME；没有失败瞬时稳定 draw/scrollY，所以“自然预算差1px”是强证据，不是唯一原因已经证明。
+
+后续 `cb50af4` single 三横屏 profile 已全部成功；这不抹去旧失败，也不足以证明其唯一根因。本批不预设必须修改生产高度预算：未复现就保留旧证据并记录本轮实测，不制造红项。
 
 实施先补该**原断言之前**的稳定初态现场，断言失败前保存完整 PNG、每字段/祖先 rect、内容/viewport、scrollY、Insets/IME、focus/pendingLayout。不能先 reveal、改阈值或把5字段改成逐个可达来过原门禁。
 
@@ -69,7 +71,7 @@
 
 ## 3. 页面设计与业务不变量
 
-### M2-A BeanEntry：先关闭已知红项
+### M2-A BeanEntry：先复核历史红项与标准初态
 
 - 居中卡维持现有680dp最大宽作为生产适配输入，不把原图按比例拉伸。模式→身份→重量→日期→固定操作顺序不变；名称/重量标签在输入上方，日期标签与输入同行。组间8/16dp；三日期行之间8dp；标题/分隔不重复叠加默认 label padding。
 - 原 `TaskFormSections` 只被本页调用，可页内传入 style；不修改 `beanInput/beanPage/beanError` 的默认行为。清点每个 panel 的 margin 和 label padding，只保留一次设计间距。卡底说明与取消/保存以自然宽度判断能否同行，不沿用任意宽度阈值造成有空间却多占一行。
@@ -110,6 +112,26 @@
 - [ ] **一次本地构建**：主任务运行 `./gradlew :mobile:testMockUnitTest --tests 'io.openhoyi.mobile.LanguageDraftTest' --tests 'io.openhoyi.mobile.BeanQuantityTest' --tests 'io.openhoyi.mobile.CustomCurveTest' --tests 'io.openhoyi.mobile.BrewJournalHistoryTest' :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain`。新增预算测试另加精确类；期望exit0，编译不算运行通过。
 - [ ] **一批推送取证**：主任务普通推送，同源码真实12主图+规定状态；现有 single-screen 三横屏 profile 与 lifecycle/advanced业务保持。不得取消在途CI或按每个边距微推送。
 - [ ] **Astra实图验收**：先浅1.0三页，再深1.0，最后两主题1.3和IME/错误/恢复；仅有证据的状态闭环，M3不被新样张研究阻塞。
+
+### 4.1 当前接口核对与交付顺序（026f993）
+
+六个 Activity/布局文件与上表一致；`TaskFormSections`、`TaskReviewSections`、`TaskCurveEditorForm` 各仅对应一个页面，`CurveStageCountTabs` 目前仅由 CurveEditor 使用。现有四个 JVM 过滤类均存在；这些不是 Android 实际布局证明。
+
+| 顺序 | owner / 交付 | 当前接口与必须保留的测试 |
+|---|---|---|
+| 0：主任务明确切换后 | 测试 Sol 先固化三页真实 fixture/初态证据；生产 Sol 同步只读预算 | `ChineseFormWindowChecks` 已在 `awaitPageReady()` 后保留 BeanEntry 5 输入首屏断言，但尚无该断言失败当刻的稳定初态全套记录；只补这个缺口。Editor 原 11 输入、三元数据顶边、四个阶段按钮、预览/详情/说明的首屏断言全部保留。已有短字段稳定→单次 reveal 流程不重写 |
+| 1：BeanEntry + 最小页内 form style | 生产 Sol：`TaskProductFormStyle`、`BeanEntryActivity`、`TaskFormSections`；测试 Sol：新 `FormVisualMigrationChecks` 对应入口及既有业务检查 | 沿用 `panels/actions/jumpTo/save/restore`；日期 `bean-date-picker-*`、模式 `bean-mode-*`、所有字段/草稿键不变。先首屏和固定操作预算，再 IME/日期取消/新已有切换/保存幂等。旧失败不复现时不强加预算补丁 |
+| 2：BrewReview | 同一生产 Sol：Activity + `TaskReviewSections`；同一测试 Sol：复盘 fixture/业务/恢复 | `panels/fitMultiline/jumpTo/save/restore` 保留；intent `SHOT_ID` 指向合法 observation。`app.journalResult` 是由 `journalStoreResult` 与 `journalObservationFailure` 组成的 getter，不是可替换 Lazy。隔离 scope 使用现有 store Lazy 与 failure 字段，不反射不存在的 `journalResult$delegate`。Activity 文件尾部共享 `journal*` helpers 不随本页视觉迁移改变 |
+| 3：CurveEditor | 同一生产 Sol：Activity + `TaskCurveEditorForm`，必要时同 owner 负责 `CurveStageCountTabs` opt-in；同一测试 Sol：曲线 fixture/解析/恢复 | 保留 `metadata/stageRows/stageHeader/supportingBody/setStageCount/save/restore`、`CURVE_ID`、`selectedCount` 和 `curve-stage-count-*` Button 标签。保持11个真实 EditText 与 TextWatcher；预览设置 `CurveStageView.productVisualStyle`，targets 仍由 `parsed()` 产生。既有 advanced 的保存/重开/取消及 FlowRaw 只读路径不能被新截图入口替代 |
+| 4：合批收口 | Astra 静态审；主任务统一构建/推送；测试 Sol 运行取证 | 三页同一版本 12 主图 + 原 single/advanced/lifecycle 与规定 IME/草稿状态；不按每个边距分别推送。各步骤不能以编译或业务绿替代 G1–G4 |
+
+**M1 方法复用边界：**
+
+- `TaskProductVisualStyle.page(...)` 初次装配即传入 style，借用已有 80dp Frame/Nav；不能先调用旧 `beanPage()` 装入默认 Frame 后再更换 style。该 page 返回的 `BeanPageRegions` 保留 fixed actions 接口；BeanEntry 的卡内 actions 与 Review/Editor 页级 dock 各按实际布局使用，不盲目重复添加两层 footer。
+- `TaskProductVisualStyle.apply(TextView, Type, secondary)` 会设置 minHeight/gravity；不能无条件套到 EditText 后让其覆盖输入自然52dp、多行 TOP 或编辑语义。页内 form helper 只处理候选字体/色/间距，输入状态仍由原 Activity 负责。`quantity()` 只用于静态数值，不把可编辑数值替换为 TextView。
+- 已有 `HomeVisualIcon.buttonIcon()` 保留真实 Button 文本/回调、24dp装饰图标+8dp间距、RTL和 disabled tint；有适合的真实语义时可直接复用，不把 Home 状态/配方 adapter 带入表单，不新增假状态。该批生产图标的实际渲染仍随 M1 新图验收，不能写成已完成产品图审。
+- `CurveStageView.productVisualStyle` 默认 null 保持旧 renderer；M2 仅 Editor 显式 opt-in。不给 `TaskWorkspaceLayout` 增加表单分支，也不改 M1 `Home/Share/Inventory` 或通用 `beanInput/beanPage/beanError` 的默认样式。
+- 测试复用隔离契约，不直接调用 M1 私有 `Scope` 或改 M1 夹具；新增 scope 的真实依赖闭包、清理顺序与 hash 记录仍须静态审。现有 `AdvancedBusinessUiChecks` 的日历/身份去重、复盘编辑、曲线保存/重开断言继续运行；仅新增缺失状态，不绕过原门禁。
 
 ## 5. 真实 fixture 与验收状态
 

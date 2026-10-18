@@ -8,6 +8,8 @@
 
 **Tech Stack:** Kotlin、Android 原生 View/Canvas、现有 JVM 与 instrumentation 检查、隔离 Mock CI；不新增框架。
 
+> **当前状态索引（2026-10-19，HEAD `026f993`）：** 原生样张已限定冻结，见 [review §10](../evidence/2026-10-18-native-specimen-review.md)；真实 M1 本轮已实施，CI `39146205031` 与新实图验收待完成，不等于产品通过。下方早期 §0/§1 是历史前置记录，不再据此重开样张或重复执行旧启动门；当前修订与验收按本计划 **§8–§10**，保留历史证据。
+
 ## 0. 仓库、状态与范围
 
 按 [task-template](task-template.md) 和 [git-workflow](../git-workflow.md)：
