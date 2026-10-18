@@ -1171,3 +1171,11 @@ run39114111354 business失败，下载ci-0d6fb9c-advanced-business并实读busin
 另实读同次用户尺寸review-saved-notes.png：三组有内容记录和固定取消/保存均显示，左侧长豆名/研磨内容局部滚动；顶部单位仍旧版同大，不能验证之后0586c57。此图补充用户平板标准浅色复盘证据，不是长文/IME/大字或整页视觉验收。
 
 分享支持区候选Mock及AndroidTest构建42s成功（/tmp/task-share-support-pane-build.log），diff检查通过；未运行新布局。暂本地保留，下一完整批次推送；四阶段缺表保持未关闭。
+
+## 用户平板入库底栏与库存首屏复核（2026-10-18）
+
+实读ci-0d6fb9c-advanced-business/bean-entry-new-mode.png对照bean-entry-v2：680dp居中卡片、身份双模式和日期行成立，但新增说明独占一行后，第三日期在首屏被局部滚动区裁切；固定取消/保存完整。候选将≥624dp可用宽度时说明与320dp操作同行，窄宽仍上下，保留控件/字号/身份草稿/保存回调；未预判释放高度是否足以让三个日期同时完整，需新图。
+
+实读inventory-selected-after-adjustment.png对照bean-inventory-v3：90g小单位、100g初始、90%比例及三日期已显示，选豆动作固定；最近流水只有标题露出、内容需滚动，工具区单占一行与两层底部操作占用高度，尚未实现概念稿首屏信息密度。该新证据不能关闭库存整页验收，后续需优化分区空间而非删流水或缩字。
+
+入库同行底栏候选Mock及AndroidTest构建47s成功（/tmp/task-entry-inline-footer-build.log），diff通过。与分享页空间候选合批推送，三日期及分享四阶段保持等待实图验证。

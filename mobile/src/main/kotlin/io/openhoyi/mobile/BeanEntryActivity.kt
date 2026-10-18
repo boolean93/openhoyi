@@ -175,13 +175,31 @@ class BeanEntryActivity : ThemedActivity() {
         }, 0, android.widget.LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)))
         sections.restore(savedInstanceState, fields)
         val error = beanError(body)
-        HoyiUi.label(this, sections.actions, getString(R.string.task_form_new_batch_notice),
+        val footerRow = object : android.widget.LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val wide = View.MeasureSpec.getSize(widthMeasureSpec) >= HoyiUi.dp(this@BeanEntryActivity, 624)
+                orientation = if (wide) HORIZONTAL else VERTICAL
+                (getChildAt(0).layoutParams as LayoutParams).apply {
+                    width = if (wide) 0 else -1
+                    weight = if (wide) 1f else 0f
+                    marginEnd = if (wide) HoyiUi.dp(this@BeanEntryActivity, TaskVisualTokens.GROUP_GAP_DP) else 0
+                }
+                (getChildAt(1).layoutParams as LayoutParams).width =
+                    if (wide) HoyiUi.dp(this@BeanEntryActivity, 320) else -1
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
+        }
+        sections.actions.addView(footerRow, android.widget.LinearLayout.LayoutParams(-1, -2))
+        HoyiUi.label(this, footerRow, getString(R.string.task_form_new_batch_notice),
             TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
             layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2)
             setPadding(0, 0, 0, HoyiUi.dp(this@BeanEntryActivity, TaskVisualTokens.RELATED_GAP_DP))
         }
         val dock = TaskActionDock(this, edgeInsetDp = 0)
-        sections.actions.addView(dock, android.widget.LinearLayout.LayoutParams(-1, -2))
+        footerRow.addView(dock, android.widget.LinearLayout.LayoutParams(-1, -2))
         val actionRow = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.HORIZONTAL
             isBaselineAligned = false
