@@ -713,8 +713,16 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             close(reopenedEditor)
             record("curve-editor-save-compatible-no-auto-start")
             val share = start(CurveShareActivity::class.java) { it.putExtra(CurveShareActivity.CURVE_ID, draft.id) }
+            captureState(share, "curve-share-four-stages", listOf(R.string.profiles_copy, R.string.profiles_share_text))
             onMain {
                 val table = root(share).findViewWithTag<android.widget.LinearLayout>("share-stage-table")
+                val chart = views(root(share)).filterIsInstance<CurveStageView>().single()
+                val config = share.resources.configuration
+                File(requireNotNull(context.getExternalFilesDir(null)),
+                    "advanced-page-screenshots/business/curve-share-four-stages-space.txt").writeText(
+                    "screenDp=${config.screenWidthDp}x${config.screenHeightDp} fontScale=${config.fontScale} " +
+                        "stages=${stages.size} tableShown=${table.isShown} tableMeasured=${table.measuredWidth}x${table.measuredHeight} " +
+                        "chart=${chart.width}x${chart.height}\n")
                 check(table.isShown && table.childCount == stages.size + 1) { "Four-stage sharing table missing" }
                 (0 until table.childCount).forEach { index ->
                     val row = table.getChildAt(index)
@@ -728,7 +736,6 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 }
                 check(!fileAction.isEnabled) { "Unexported file must not be shareable" }
             }
-            captureState(share, "curve-share-four-stages", listOf(R.string.profiles_copy, R.string.profiles_share_text))
             click(share, R.string.profiles_copy)
             var copied = ""
             onMain { copied = clipboard.primaryClip!!.getItemAt(0).coerceToText(share).toString() }

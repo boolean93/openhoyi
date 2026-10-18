@@ -1137,3 +1137,11 @@ run39113352006失败于import-stage-table未显示，下载ci-87334eb-frame-fail
 frame run39113783820成功，下载ci-4bd173c-frame并实读CurveImportPreviewActivity.png/table-space/typography：用户1138×623dp、font1.0下四阶段3/9/7/5bar及15/25/15/5ml表格全部可见，table1470×356、chart1470×461；右侧保存入口完整。关闭标准浅色正常导入四阶段表隐藏缺口，非冲突/大字整体验收。metricRuns确认93与36数字54px/700=24sp，°C/g31.5px/400=14sp；此前单位层级候选在此页得到实证，不外推其他页。
 
 导入输入页候选增加16sp引导句及8dp间距、真实hint（不填入输入数据）并统一正文16sp，八语言资源齐备；原回调/恢复/固定标签/完整64KiB说明保持。XML解析、diff检查通过；Mock与AndroidTest构建45s成功（/tmp/task-import-empty-state-build.log）。候选尚无新运行截图，输入提示、顶部留白及大字/键盘待CI，不能宣称整页一致。暂本地随下一完整批次推送。
+
+## 分享与曲线库字体实证（2026-10-18，4bd173c）
+
+实读ci-4bd173c-frame分享PNG及metricRuns：91°C/27g数字54px/700、单位31.5px/400，标准字号24/14sp已生效；两阶段表1328×192、图1328×381，表格及右侧全部操作完整。来源仍capture-1两阶段，不能替代概念稿四阶段。实读curve-library-font-1.3/selected-window.png：103条列表、选中两阶段蓝色图、底部曲线详情与使用按钮完整；单位span实测34.65px/400、数字59.4px/700，保留字体系统实际缩放，不简单用1.3乘算；四阶段/全状态未最终验收。
+
+高级业务四阶段分享夹具候选将原截图移动到表格断言之前，新增screenDp/fontScale/stages/tableShown/tableMeasured/chart记录；原逐行完整可见和文件禁用断言不变，失败不隐藏。用于新平板配置明确诊断，不是四阶段产品已通过的证据。
+
+该取证候选MockAndroidTest构建25s成功（/tmp/task-share-four-stage-evidence-build.log），diff检查通过；与导入空态候选合批推送，等待新实图而非预判四阶段验收。
