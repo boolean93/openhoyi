@@ -330,3 +330,22 @@ PR head `814e521`，CI `39135733668`，实际 merge `3cdad10657f64b76391e763f5bc
 - Share保留真实1..4stage、FlowRaw只读、SAF成功后才启用文件分享。
 - 最小候选范围可为HomeActivity/HomeRecentCurves/CurveShareActivity/CurveSharePreview/BeanInventoryActivity；共享CurveStageView/CurvePreviewMetrics只能页级opt-in，不全局换色影响其余21页。
 - 上述只是迁移边界，不是本轮授权立即迁移或产品通过。完成样张封闭项后，真实产品还必须同状态/同视口整页取证，分别验间距、字体、字号行高和颜色；硬件验证独立保留。
+
+## 8. f62b983 浅色 1.0 有限实图审查
+
+本节仅关闭三个隔离样张在 **light/fontScale1.0** 的限定缺陷，不改前两轮失败事实，不记整页 G1–G4 PASS。CI `39138001156`，head `f62b983`，实际 merge/source `365f701b4b8b0e87cae0e75ba1a8d9b3d669a663`；证据为失败任务保留的 raw-device 原件：
+
+`build/task-first-evidence/ci-f62b983-frame/task-frame-tablet-user-landscape/task-first-evidence/strict-native-samples/raw-device/365f701b4b8b0e87cae0e75ba1a8d9b3d669a663/tablet-user-landscape-light-font-1.0/`
+
+已实看其中 `preparation-confirmed-four-stage`、`share-four-stage-not-exported`、`inventory-three-beans-selected` 的三张 `window.png`，逐张对照 §7 同 profile 三图及三张原稿；核对各自 `visual.json`、`anchors.json`、`tokens.json`、`manifest.json` 和 `window-frame-sync.json`。三份 PNG hash 与 manifest 相符，sourceDirty=false，实际显示2560×1600/density360、app2560×1391px、origin(0,74)、无IME。此处不声称失败任务的完整host封装或12图已完成。
+
+| 限定项目 | 实图与实测结果 | 本节结论 |
+|---|---|---|
+| 分享表格内距 | 表头及数值cell左右18px=8dp；首阶段容器x252、点x270，首列点也内移18px。四行及表头不再贴竖线，内容完整 | 关闭浅1.0的表格贴线问题 |
+| 库存日期净空 | 标题和值第一列start0，第二/三列start36px=16dp，三列end36px；首字与竖线分开，三日期完整且起点一致 | 关闭浅1.0的日期贴线问题 |
+| 网格保护绘制 | 两图各6条原grid仍保留；准备绘制7段、分享9段。按保护框加半stroke重新计算，各条可见段与应保留补集精确一致；PNG仅在标签附近断开网格，没有整条删除、白块擦底或轴/数据消失 | 通过这两张浅1.0图的保护绘制结果，不外推1.3 |
+| 单位/文字/颜色回归 | 7组数字/单位同屏baseline差均0；三页tokens及candidateRoles与814e521相同，145个TextView的文本、实际px、weight、行高、字距及解析颜色未变 | 原已限定关闭项在这三图未回退，不证明ImageGen原字体身份或全状态G2–G4 |
+
+原始RGB应用区域逐像素对照814e521：准备变化仅屏幕y727..729的顶部网格局部；分享变化为y713..715、804..807网格局部及五行表文字内移；库存变化仅第二/三列日期文字水平位移。其余应用像素相同，未发现背景、阶段底色、单位、固定操作或字体回退。系统栏内容不同，未混入应用比较；没有缩放或模糊图片。
+
+**仍未关闭：** 深色、fontScale1.3、分享大字第四行/privacy滚动像素矛盾，以及三页整体严格视觉验收。该次CI在light1.3准备采集时多次出现稳定279像素差，末尾`-1`是5秒预算耗尽的未完成回调哨兵，不是Android PixelCopy错误码；根因仍待诊断原图。不能用本节三张局部通过代替剩余9张或启动产品视觉通过声明。
