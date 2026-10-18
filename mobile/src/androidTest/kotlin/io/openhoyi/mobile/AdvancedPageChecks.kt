@@ -53,7 +53,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
     fun run(profile: String): Result {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock") { "Only the isolated Mock package is allowed" }
         check(profile in listOf("compact", "landscape", "wideFont"))
-        val expectedWidth = if (profile == "compact") 360 else 1280
+        val expectedWidth = if (profile == "compact") 360 else 1138
         val expectedScale = if (profile == "wideFont") 1.3f else 1f
         val directory = File(requireNotNull(context.getExternalFilesDir(null)), "advanced-page-screenshots/$profile")
         check(directory.isDirectory || directory.mkdirs()) { "Cannot create screenshot directory" }
@@ -185,8 +185,10 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                     }
                     onMain {
                         val config = activity.resources.configuration
-                        check(config.screenWidthDp == expectedWidth && kotlin.math.abs(config.fontScale - expectedScale) < .001f) {
-                            "$fixture wrong window configuration width=${config.screenWidthDp} font=${config.fontScale}"
+                        check(config.screenWidthDp == expectedWidth && kotlin.math.abs(config.fontScale - expectedScale) < .001f &&
+                            (profile == "compact" || config.densityDpi == 360)) {
+                            "$fixture wrong window configuration width=${config.screenWidthDp} height=${config.screenHeightDp} " +
+                                "font=${config.fontScale} density=${config.densityDpi}"
                         }
                         check(config.locales[0] == language.locale && HoyiUi.dark(activity) == dark) { "$fixture locale/theme mismatch" }
                         check(activity.window.decorView.layoutDirection == if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR)

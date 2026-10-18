@@ -1153,3 +1153,11 @@ advanced run39113788360的business job117635262351成功（pages job查询时仍
 实读review-saved-notes及curve-share-four-stages.png：复盘三组记录/左侧参数/取消与保存完整；四阶段分享2.4/5.7/8.3/6.9bar及12/23/34/45ml表格完整。两图1600×1000/density200，不能关闭用户平板缺口。复盘30s/36g的单位仍与数字同大粗体；候选复用curveMetricText，24sp/700数字与14sp/400本地化单位，单位来自当前语言格式资源而非硬编码，未知值保持—。不改原观察值/笔记/库存/控制。
 
 复盘单位候选Mock及AndroidTest构建43s成功（/tmp/task-review-metric-units-build.log），diff通过；尚未运行新截图/metricRuns，不宣称最终字体一致。暂本地等待下一完整批次推送；页面矩阵已补最近证据并保留未验收边界。
+
+## 用户平板首轮配置契约失败（2026-10-18）
+
+advanced run39114111354 pages job117636252509失败，下载ci-0d6fb9c-advanced-pages并实读landscape.txt：首个BeanInventoryActivity前置配置断言要求旧1280dp，实际width1138/font1.0。device-size记录override2560×1600，device-density记录override360；尚无页面布局执行/截图，不把此失败误报为库存裁切。上次0d6fb9c只同步脚本而遗漏AdvancedPageChecks.expectedWidth。
+
+候选将非compact期望宽度明确改1138，补densityDpi360门禁，异常信息同时输出高度/字号/密度；compact既有360dp分支不改，页面/字号/语言/主题/持久化断言全部保留。业务job同次查询仍运行，不重启。新的配置契约需要后续实际CI证明，不能以编译替代页面通过。
+
+AndroidTest构建23s成功（/tmp/task-advanced-profile-contract-build.log），bash -n及diff通过；与复盘单位候选合批推送。此修正仅恢复正确的测试前置条件，不计入产品视觉问题已解决数。
