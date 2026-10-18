@@ -694,3 +694,6 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 实读ci-35db865-user的result.txt：336 fixtures/21 pages，58中文表单截图，14列表恢复fixture。实读pressure/window.png与sources.txt：两杯各31点，四指标按钮完整显示，不再是旧图半高裁切；底部摘要三行可读，图中两条压力线重叠，不能声称有明显数值差异。其他三指标和深色尚待逐图审查。
 - 实读中文four-stage-table.png：1–4阶段分段控件已生效，选中4、四阶段8输入和顶部3字段完整，右侧预览/保存完整。实读BeanEntry-section-2.png：三日期日历入口均完整可见；仍是新豆款下拉而非认可稿双模式切换，不宣称入库页完全一致。
 - capture旧失败位于LanguageActiveCupChecks初次等待machineSettingsFresh。app-logcat记录am instrument杀死预先启动的Home/Mock服务；Extraction只绑定已有服务。现改由visualEvidence测试进程先启动Home并等待服务，再进入Extraction；原8语言路径、超时、数据与停止断言不放松。脚本失败时拉取已有取证输出。运行态修复尚待新CI。
+
+- 补读同批comparison-metrics：浅色water/temperature及深色weight/window.png，单位分别ml/°C/g、选中指标与曲线切换一致，按钮完整。与brew-comparison-v1对照仍有实质差距：顶部选杯卡和说明占高较多，图例不在图表右上，配色非概念稿蓝色，表格边框偏重；不能因裁切修复就关闭整页。全部四指标fixture轨迹重叠，只证明真实双序列渲染，不证明不同曲线的可辨识性。
+- 09946fa与784eaaf已普通推送feature/task-first-ui。截图39081548229、单屏39081551257、业务39081551245等已由GitHub返回in_progress；保留运行，不取消/重启。未安装或操作设备、未合并/发版。

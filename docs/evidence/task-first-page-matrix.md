@@ -20,14 +20,14 @@
 | CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 有列表；选中详情与排序后的状态需另图 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 记录不存在 | 8 |
-| BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 框架不足两杯；edd89da高级图已验证全宽/摘要；fb19415用户平板有采样双轨迹实图，但指标按钮被裁半；高度预算修正待CI，四指标专项图仍缺 | 9 |
+| BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 35db865用户平板336检查通过；实读压力/水量/温度浅色与重量深色专项图，按钮完整、双轨迹和量纲真实切换；顶部选杯过高、图例/颜色/间距仍偏离稿件，未完成视觉验收 | 9 |
 | BeanInventoryActivity | [库存v2](../research/task-first-ui-concepts/bean-inventory-v2.png) | 库存空态 | 11 |
-| BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 新豆款空表单；f3233d6用户平板表单检查通过，模式选择仍有差异；3d235e9日期入口待运行图 | 20 |
+| BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 35db865实图三日期日历入口完整；限宽空表单，模式仍是下拉而非认可稿双模式切换；填写后与已有豆款状态仍待对照 | 20 |
 | BeanBatchActivity | [批次v1](../research/task-first-ui-concepts/bean-batch-v1.png) | abe9614业务图有90g/初始100g、三日期和两条流水；摘要/日期分区修正待新图 | 8 |
 | BeanLedgerActivity | [流水v3](../research/task-first-ui-concepts/bean-ledger-v3.png) | 空流水表头；有事件状态需另图 | 14 |
 | BeanPreparationActivity | [用豆v1](../research/task-first-ui-concepts/bean-preparation-v1.png) | abe9614高级图已有250g批次，但仍下拉+空粉量，缺认可稿左列表/右选择与确认态 | 10 |
 | BrewReviewActivity | [复盘v3](../research/task-first-ui-concepts/brew-review-v3.png) | 记录不存在；不能验证复盘表单 | 9 |
-| CurveEditorActivity | [编辑v1](../research/task-first-ui-concepts/curve-editor-v1.png) | f525db3三横屏窗口检查通过；用户平板四阶段输入及预览动作实图完整，93cc75d已改直接分段选择，等待新图 | 31 |
+| CurveEditorActivity | [编辑v1](../research/task-first-ui-concepts/curve-editor-v1.png) | 35db865用户平板四阶段实图：1–4分段选择生效，11输入/预览/保存完整；字体、间距和预览比例仍需最终对照 | 31 |
 | CurveShareActivity | [分享v1](../research/task-first-ui-concepts/curve-share-v1.png) | 曲线不存在；abe9614业务实图四阶段表格完整，预览/参数标题及底部说明归位；字体/图高仍待对齐 | 9 |
 | CurveImportActivity | [导入v2](../research/task-first-ui-concepts/curve-import-v2.png) | 空JSON输入；合法/非法/键盘另验 | 13 |
 | CurveImportPreviewActivity | [冲突预览v1](../research/task-first-ui-concepts/curve-import-preview-v1.png) | 参数不可读错误态；正常/冲突需业务图 | 9 |
