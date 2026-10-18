@@ -65,4 +65,10 @@
     <string name="scale_device_battery_label">Battery</string>
     <string name="scale_device_status_label">Data status</string>
     <string name="scale_battery_value">%1$d%%</string>
+    <string name="scale_display_precision">Display precision</string>
+    <string name="scale_precision_short">Show 0.1 g</string>
+    <string name="scale_precision_off_hint">When off, show 0.01 g</string>
+    <string name="scale_usage_instructions">Usage notes</string>
+    <string name="scale_operation_limits">Operation limits</string>
+    <string name="scale_protocol_support">Protocol support</string>
 </resources>

@@ -65,4 +65,10 @@
     <string name="scale_device_battery_label">البطارية</string>
     <string name="scale_device_status_label">حالة البيانات</string>
     <string name="scale_battery_value">%1$d%%</string>
+    <string name="scale_display_precision">دقة العرض</string>
+    <string name="scale_precision_short">العرض بدقة 0.1 g</string>
+    <string name="scale_precision_off_hint">عند الإيقاف، العرض بدقة 0.01 g</string>
+    <string name="scale_usage_instructions">إرشادات الاستخدام</string>
+    <string name="scale_operation_limits">قيود التشغيل</string>
+    <string name="scale_protocol_support">دعم البروتوكولات</string>
 </resources>

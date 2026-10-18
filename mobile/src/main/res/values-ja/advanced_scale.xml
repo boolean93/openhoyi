@@ -65,4 +65,10 @@
     <string name="scale_device_battery_label">バッテリー</string>
     <string name="scale_device_status_label">データ状態</string>
     <string name="scale_battery_value">%1$d%%</string>
+    <string name="scale_display_precision">表示精度</string>
+    <string name="scale_precision_short">0.1 g単位で表示</string>
+    <string name="scale_precision_off_hint">オフの場合は0.01 g単位で表示</string>
+    <string name="scale_usage_instructions">使用上の説明</string>
+    <string name="scale_operation_limits">操作の制限</string>
+    <string name="scale_protocol_support">プロトコル対応</string>
 </resources>

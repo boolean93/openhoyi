@@ -65,4 +65,10 @@
     <string name="scale_device_battery_label">电量</string>
     <string name="scale_device_status_label">数据状态</string>
     <string name="scale_battery_value">%1$d%%</string>
+    <string name="scale_display_precision">显示精度</string>
+    <string name="scale_precision_short">显示到 0.1 g</string>
+    <string name="scale_precision_off_hint">关闭时显示到 0.01 g</string>
+    <string name="scale_usage_instructions">使用说明</string>
+    <string name="scale_operation_limits">操作限制</string>
+    <string name="scale_protocol_support">协议支持</string>
 </resources>

@@ -961,3 +961,14 @@ AdvancedBusinessUiChecks原七字段复盘保存后新增只读详情检查。�
 应用设置候选实现：新增TaskSettingsGroup，20sp标题在卡片外/16dp组间距与内边距；外观语言合组，主题使用Switch并保持原写失败回滚逻辑。语言行显示nativeName且完整无障碍描述不变；试听/诊断/机器入口低强调，反馈开关16sp、说明14sp。应用模式/版本/包名仍绑定BuildConfig。原语言/主题回滚测试保留，更新可见文本断言并新增无障碍描述断言。八语言资源及Mock/测试包45s构建通过；截图、滚动到底、深浅/大字和实际回滚/音频未运行验证，不宣称与图完全一致。设计稿中的应用信息列布局和动作图标尚有差异。本批仅本地提交，不追加推送。
 
 设置页完整内容取证：TaskFrameChecks保留24页计数，AppSettings新增应用信息/诊断两个滚动状态PNG和settings-scroll.txt。每次等待两个绘制帧，核对包名及真实版本，底部导出/机器设置完整可见且textFits；检查三类本地偏好前后不变、恢复原滚动。没有点击导出/试听/设备操作。源码审查发现导航轨也有ScrollView，已限定pageContent，最终测试包23s构建成功。运行仍待CI，和90f00fd整批推送。
+
+## 秤工具设置独立稿补齐（2026-10-18）
+
+实读39ac261-frame/tablet-user-landscape/screenshots/ScaleSettingsActivity.png与源码：仅one_decimal本地显示开关；能力由READY、非Mock及实际协议能力决定，无设备时只显示未连接说明。三段计时/活跃萃取/协议证据限制散排。内置ImageGen生成scale-settings-v1，保留完整限制，三组结构与应用设置风格衔接；图上无虚构连接成功/支持能力/去皮计时开关，文本已目视核对。候选未实施，已连接能力和深色/大字仍待验收，不是硬件证据。
+
+
+## 637f83f萃取实图与秤设置候选验证（2026-10-18）
+
+实读ci-637f83f-capture/mock-ui-screenshots/extraction-running-light.png及active-cup-visual/no-scale/window.png，并核对两份geometry.json。ACTIVE_CUP_VISUAL_PASSED states=2 actualMockStartStop=true noBle=true。四/三指标图例当前值完整，压力/注水/温度的数值与小单位层级生效；无秤没有重量轨迹。有秤绘图区1295.5×599.148px、无秤1359.5×624.148px，停止按钮均703×126px。与此前有秤624.148px相比图高减少25px，不能沿用旧尺寸。两份萃取源码从637f83f到3c0019c无差异。尚未同状态对照概念稿，也未覆盖大字/长图例，不能作为整页最终验收。
+
+秤设置候选已实现三组、688dp宽屏限宽、16/14sp层级及8/16dp间距；原renderScale和one_decimal持久化路径未改变。八语言新增六个文案，Mock及AndroidTest构建44s成功（/tmp/task-scale-settings-groups-build.log）；没有运行截图或真实能力状态证据。

@@ -65,4 +65,10 @@
     <string name="scale_device_battery_label">배터리</string>
     <string name="scale_device_status_label">데이터 상태</string>
     <string name="scale_battery_value">%1$d%%</string>
+    <string name="scale_display_precision">표시 정밀도</string>
+    <string name="scale_precision_short">0.1 g 단위로 표시</string>
+    <string name="scale_precision_off_hint">끄면 0.01 g 단위로 표시</string>
+    <string name="scale_usage_instructions">사용 안내</string>
+    <string name="scale_operation_limits">작동 제한</string>
+    <string name="scale_protocol_support">프로토콜 지원</string>
 </resources>

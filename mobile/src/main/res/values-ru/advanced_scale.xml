@@ -65,4 +65,10 @@
     <string name="scale_device_battery_label">Заряд</string>
     <string name="scale_device_status_label">Статус данных</string>
     <string name="scale_battery_value">%1$d%%</string>
+    <string name="scale_display_precision">Точность отображения</string>
+    <string name="scale_precision_short">Отображать до 0.1 g</string>
+    <string name="scale_precision_off_hint">Если выключено — до 0.01 g</string>
+    <string name="scale_usage_instructions">Указания по использованию</string>
+    <string name="scale_operation_limits">Ограничения операций</string>
+    <string name="scale_protocol_support">Поддержка протоколов</string>
 </resources>
