@@ -1039,3 +1039,10 @@ run39089718635成功，ci-bcda211-frame/task-frame-tablet-user-landscape/tablet-
 10bf727/run39090130756下载于ci-10bf727-lifecycle。导航/主题重建/前后台边沿与音频五组已通过，language-instrumentation.txt失败在ChartLegendChecks.kt:57：预期旧“压力 · bar”，实际为“压力 10.0 bar\n0.0–12.0 bar”。根因是637f83f实时图例契约变更后旧测试未同步，不是日志ColorBuffer警告。测试改独立固定末采样预期10/30/30/92，保留原量程/触控/绘图/64夹具门禁；两处从文案解析单位改稳定标签对应单位。测试包23s构建成功（/tmp/task-chart-legend-contract-build.log），仍待完整CI证明恢复。
 
 10bf727/run39090134055成功，已实读curve-library-font-1.0与1.3的selected-window.png及1.0元数据：实际2560×1600窗口、恢复合成尺寸后捕获，偏好/使用统计不变。双栏选中采集曲线1，91°C/27.00g/2阶段、9/6.5bar、底部使用完整；标准字号编辑分享直达，大字收入曲线操作。与概念四阶段/单蓝配色及完整参数入口仍有差异，不能最终验收。
+
+
+## bcda211实时分段字号实证（2026-10-18）
+
+Capture run39089714128成功，下载ci-bcda211-capture。实读active-cup-visual/with-scale和no-scale/window.png及geometry/typography，states=2 actualMockStartStop=true noBle=true。metricRuns显示主数字108px=48sp/700、单位49.5px=22sp/700；次要数字54px=24sp/700，标签及单位31.5px=14sp/400，非伪粗体。两态图表1587×958px，实际绘图区有秤1295.5×565.148px、无秤1359.5×565.148px，停止703×126px完整。对比637f83f，实际图高有秤减少34px/无秤减少59px；说明字号提高及主值高度均占空间，不能隐去这一变化。四/三系列、无秤不显示重量成立。当前较bcda211仅异常说明自然换行改变，尚无新异常/参考整页及大字图；此证据不证明与概念稿全状态一致，也不证明硬件。
+
+10bf727-frame实际应用信息四行图已读：名称HOYI Mock、版本0.1.0(1)、Mock描述和实际包名右对齐完整，原堆叠差异已关闭（标准浅色）。机器温度页固定标签/输入按钮同行已生效，但首屏仅前两输入可见；设置允许滚动仍须底部验证。最新机器回读逐行布局在该版本之后，不能从这张旧图推断已生效。
