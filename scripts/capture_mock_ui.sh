@@ -13,6 +13,8 @@ on_error() {
   adb logcat -d -s AndroidRuntime:E ActivityTaskManager:I ActivityManager:I OpenHoyiMobile:D > \
     "$output_dir/app-logcat.txt" 2>/dev/null || true
   adb shell dumpsys activity activities > "$output_dir/activity.txt" 2>/dev/null || true
+  adb pull /sdcard/Android/data/io.openhoyi.mobile.mock/files/active-cup-visual \
+    "$output_dir/active-cup-visual" >/dev/null 2>&1 || true
   echo '=== Foreground activity ===' >&2
   grep -E 'mResumedActivity|topResumedActivity|mFocusedApp|mCurrentFocus' "$output_dir/activity.txt" | tail -8 >&2 || true
   echo '=== App errors and launch ===' >&2
@@ -221,8 +223,7 @@ capture extraction-ended-light
 # Reuse actual start/recreation/stop checks at this same user-tablet geometry.
 # Separate raw-source scenarios; do not hide weight values to fake no-scale data.
 adb shell am force-stop io.openhoyi.mobile.mock
-# Home owns Mock service startup; Extraction only binds an existing owner.
-adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
+# Instrumentation starts Home inside its own process before binding Extraction.
 python3 - "$output_dir" <<'PYCAPTURE'
 import subprocess
 import sys

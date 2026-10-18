@@ -105,6 +105,16 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
         val oldLanguageStorage = languagePrefs.all.toMap()
         val curves = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val oldCurves = curves.all.toMap()
+        // Starting instrumentation replaces the app process. Bootstrap its owner here,
+        // not in the shell before am instrument (that service has already been killed).
+        val visualHome = if (visualEvidence) test.startActivitySync(Intent(context, HomeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity else null
+        if (visualHome != null) {
+            awaitMain {
+                (HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }
+                    .get(visualHome) as? MobileService)?.machineSettingsFresh == true
+            }
+        }
         var screen = test.startActivitySync(Intent(context, ExtractionActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ExtractionActivity
         test.waitForIdleSync()
@@ -183,6 +193,7 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                 restoreMockPreferences(languagePrefs, oldLanguageStorage)
                 restoreMockPreferences(curves, oldCurves)
                 screen.finish()
+                visualHome?.finish()
             }
             test.waitForIdleSync()
         }

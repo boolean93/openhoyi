@@ -19,3 +19,7 @@
 ## 主图高度测量补充
 
 针对e15e00e实际运行图的主绘图区偏矮，截图前读取实际chart/legend/explanation/plotView/plotBounds/stop的屏幕像素边界，保存geometry.json及density/fontScale。使用已绘制的plotBounds，不以layoutParams估算；要求当前绘图区存在。仅instrumentation增加反射取证，不修改产品布局或放宽最小图高。后续按相同内容区与认可稿比较图高占比，并区分图例、说明、轴边距和外部操作区占高。
+
+## 2026-10-18 取证进程启动修正
+
+35db865 capture/run38897637688日志明确start instr杀死外部Home/Mock服务，随后Extraction仅bind已有服务，导致首个machineSettingsFresh等待超时。将Home启动及同一实例服务就绪等待移入visualEvidence分支，旧语言检查路径不变；finally关闭测试Home。不延长等待，不改产品服务生命周期。脚本失败也保留已生成active-cup-visual产物。语法/构建后由CI复验。
