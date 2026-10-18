@@ -266,9 +266,20 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                                 (location[1] + view.height - rootLocation[1]) / activity.resources.displayMetrics.density)))
                             .put("visibleRectPx", JSONArray(listOf(bounds.left, bounds.top, bounds.right, bounds.bottom))))
                         if (view is TextView && view.layout != null) {
-                            check(view.layout.ellipsizedWidth == view.width - view.compoundPaddingLeft - view.compoundPaddingRight)
-                            check((0 until view.layout.lineCount).none { view.layout.getEllipsisCount(it) > 0 }) { "Ellipsized specimen text: $tag" }
-                            check(view.layout.height <= view.height - view.compoundPaddingTop - view.compoundPaddingBottom) { "Clipped text line box: $tag" }
+                            val layout = view.layout
+                            val contentWidth = view.width - view.compoundPaddingLeft - view.compoundPaddingRight
+                            val contentHeight = view.height - view.compoundPaddingTop - view.compoundPaddingBottom
+                            val ellipsisCount = (0 until layout.lineCount).sumOf { layout.getEllipsisCount(it) }
+                            val widthMatches = layout.ellipsizedWidth == contentWidth
+                            val complete = widthMatches && ellipsisCount == 0 && layout.height <= contentHeight
+                            // Retain the unchanged hard checks as FAIL records so all profiles
+                            // and their exact measurements survive instead of aborting at one node.
+                            layoutIssues.put(JSONObject().put("semanticId", tag).put("check", "textLayoutIntegrity")
+                                .put("status", if (complete) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
+                                .put("layoutClass", layout.javaClass.name).put("layoutWidthPx", layout.width)
+                                .put("ellipsizedWidthPx", layout.ellipsizedWidth).put("contentWidthPx", contentWidth)
+                                .put("widthMatches", widthMatches).put("ellipsisCount", ellipsisCount)
+                                .put("layoutHeightPx", layout.height).put("contentHeightPx", contentHeight))
                         }
                     }
                     activity.charts.forEach { chart ->
