@@ -8,7 +8,7 @@
 
 **Tech Stack:** Kotlin、Android 原生 View/Canvas、现有 JVM 与 instrumentation 检查、隔离 Mock CI；不新增框架。
 
-> **当前状态索引（2026-10-19，HEAD `026f993`）：** 原生样张已限定冻结，见 [review §10](../evidence/2026-10-18-native-specimen-review.md)；真实 M1 本轮已实施，CI `39146205031` 与新实图验收待完成，不等于产品通过。下方早期 §0/§1 是历史前置记录，不再据此重开样张或重复执行旧启动门；当前修订与验收按本计划 **§8–§10**，保留历史证据。
+> **当前状态索引（2026-10-19，HEAD `026f993`）：** 原生样张已限定冻结，见 [review §10](../evidence/2026-10-18-native-specimen-review.md)；真实 M1 在 `026f993` / CI `39146205031` 的三页12配置已获 **§11限定验收**，可进入既定M2；不是24页/全状态/硬件通过。下方早期 §0/§1 是历史前置记录，不再据此重开样张或重复执行旧启动门；当前修订与验收按本计划 **§8–§11**，保留历史证据。
 
 ## 0. 仓库、状态与范围
 
@@ -310,3 +310,47 @@ Astra 只读核对了生产及取证diff，结论为**无剩余静态阻断，�
 本次只运行了只读检查与`git diff --check`；统一构建由主任务安排。待同源码三页12图及长名/事件业务证据，再独立执行G1–G4；未采主题/字号/状态、硬件与其余21页均不能外推。
 
 后续构建记录：生产分批提交为 `ff5f069`（Home/Share/页级辅助）与 `1d82b2f`（库存），测试为 `c7223e5`。首次构建的Recent Paint接收者遮蔽编译错误已仅以限定外层style引用修正；最终日志 `/tmp/2026-10-19-m1-three-page-closure-build-final.log` 实读为 `BUILD SUCCESSFUL in 1m 2s`，Mock/AndroidTest编译完成。JVM XML独立汇总72 suites、321 tests、0 failures、0 errors、1 skipped（既有skip）。这只证明本轮本地检查/构建结果，新CI整窗、三事件实际执行和视觉验收仍未完成。
+
+
+## 11. 2026-10-19 `026f993` 真实 M1 限定验收，进入 M2
+
+**结论：Home / Share / Inventory 在本节真实夹具、中文用户横屏、浅深×1.0/1.3范围内，G1–G4限定通过；本轮无新增必修差异，允许按已提交M2计划启动三个真实表单迁移。** 这是对原稿、已冻结原生输入与§8–§10明确生产适配的联合验收，不是ImageGen逐像素复制、其他21页、全部业务状态或硬件验收。前节旧FAIL是历史证据，不再作为当前相同场景的未关闭项。
+
+### 身份和实际检查范围
+
+- frame run `39146205031`，head `026f9937f055342ba7256d2f446065b3bbdb0746`，tested merge/source `75e5333f20bb21ec911ec99befb9d979ad483dba`，12 manifest均sourceDirty=false、realProductActivity=true、specimenOnly=false；原artifact的ASTRA_PENDING不回写成通过。本节是独立人审记录。
+- 共同目录：`build/task-first-evidence/ci-026f993-frame/task-frame-tablet-user-landscape/task-first-evidence/product-visual-migration/75e5333f20bb21ec911ec99befb9d979ad483dba/`；`tablet-user-landscape-{light,dark}-font-{1.0,1.3}/{home,share,inventory}/window.png`共12张逐张实看。API34、zh-Hans、density360，原PNG2560×1600；实测app origin(0,74)、size2560×1391，无IME。APK SHA `e5975f4854726ce81188995faeef85504666205be8dfb3de366340d2b7844ab2`是manifest声明，不冒充本次独立重算APK。
+- 另实看两主题1.3：Home `after-scroll-2.png`，Share `after-scroll-5.png/after-scroll-6.png`，Inventory `after-scroll-2.png`共8张，联合各页`scroll-reachability.json`、`anchors.json`、实际Typography、`canvas.json`、`baseline-alignment.json`。重新对照原`brew-preparation-v2.png/curve-share-v1.png/bean-inventory-v3.png`；不以代码或机械PASS替代图审。
+- 结合独立business长名证据：`build/task-first-evidence/ci-026f993-advanced/advanced-mock-pages-business/advanced-page-screenshots/business/`中的`curve-share-four-stages.png/-space.txt`与`inventory-selected-after-adjustment.png/inventory-ledger-first-screen.txt`。两PNG均2560×1600，SHA分别`12c446f35473e342d3b360dec9e4582880c11391be6d8d92a14fb6e8285dff52`、`977ec25efdc9577adffc23b04a81c12f254b46db0c9106e83b9fb651e652c886`。
+
+### 逐页四门结论
+
+| 页面 | G1 构图/间距与适配 | G2 字体输入 | G3 字号/行盒/单位 | G4 背景/状态色 |
+|---|---|---|---|---|
+| Home | **限定PASS**：真实两设备卡、Mock识别、横向摘要及分隔、主图/最近、右栏核心与固定操作均落地；1.0两条最近、1.3一条，三条局部可达。1.3卡内状态自然两行，未缩字/省略；右侧秤状态须局部滚动，固定确认/主操作/详情未随内容滚走 | **限定PASS**：选定字体、recent name500、辅助400、设备state500与既定角色一致；原图字体身份仍unknown | **限定PASS**：摘要两组与粉量共3 baseline/配置均差0；图0/6/12、真实2/9/8/6bar与标签带可辨。实际行盒与换行可读，无截断固定文字 | **限定PASS**：浅深页/导航、卡面、主辅字、状态点、主按钮/图蓝符合冻结语义；没有以原图假“就绪”替换真实状态 |
+| Share | **限定PASS**：双面、相邻mode、摘要、图表、操作分组、底说明与图标整体居中；标准短名全表首屏，长名两行+元信息同行恢复全表。1.3表尾/隐私采用原允许局部滚动，不声明默认全表首屏 | **限定PASS**：标题500、20sp数值400、表头500/正文400、操作500；未改变原字体身份未知边界 | **限定PASS**：每配置两组单位baseline0，表格H8与阶段点净空、图14sp标签/grid保护无可见重叠；大字after5/6实像素分别完整显示第4行/隐私 | **限定PASS**：表头ink纠正、面/描边/阶段色、主/描边/文本/禁用动作及其图标一致；没有把disabled当可导出状态 |
+| Inventory | **限定PASS**：header总量相邻、列表图标/批次/余额/箭头、主副分隔、日期分隔和流水底线、固定三真实操作/说明齐；接受已批准大余额与初始量并排的生产适配，真实事件仍48dp而非样张24dp | **限定PASS**：name/balance16/400、batch14/400、主值40/700、action16/500及辅助角色一致 | **限定PASS**：每配置余额单位baseline0；标准两事件首屏、1.3第二事件完整滚达；日期三列净空、长名和固定说明无实际丢字 | **限定PASS**：选中豆款、页底、比例、表头、描边、主辅文字和三动作图标色符合两主题输入；未外推未采焦点/按压 |
+
+### 不与首屏混写的1.3滚动事实
+
+两主题几何一致，后图均实际看见目标，不仅依赖JSON：Home秤状态由初态不完整变为`[1877,949,2367,1015]`完整，确认/按钮/详情固定；Share第4行原`[252,1346,1557,1407]`可视到1393，after5为`[252,1332,1557,1393]`完整；隐私after6为`[1683,1276,2488,1393]`完整。Inventory第二事件原`[1193,1120,2524,1228]`可视到1206，after2为`[1193,1098,2524,1206]`完整。各对应记录scrollRestored=true。`getGlobalVisibleRect=false`时返回内容不是屏幕有效visibleRect，Home初态秤节点失败时的残留局部矩形不当屏幕坐标引用。
+
+标准长名Share business文本只给table1305×245/chart1305×362、tableShown=true；PNG实看表头+4行完整，**限定关闭旧54px缺表**，不虚构逐row rect。Inventory同business两事件`y920..1028/1028..1136`各108px，完整；新增固定说明后的该长名预算闭环。原始两PNG/日志保留，不覆盖旧失败。
+
+### 字体/行盒、颜色与运行证据边界
+
+本批584个TextView（每配置Home53/Share44/Inventory49）均有actual Layout；字距非0、includeFontPadding=true、复制实际Paint的fakeBold=true均为0。两主题一致的实测序列为`sizePx / getter lineHeight / 单行Layout高`：
+
+| 冻结角色 | font1.0 | font1.3 |
+|---|---|---|
+| aux14 | 31.5 / 49 / 46 | 42.3 / 56 / 61 |
+| body/action/compact16 | 36 / 54 / 52 | 45.45 / 59 / 66 |
+| section/shareMetric20 | 45 / 67 / 65 | 53.100002 / 67 / 77 |
+| title24 | 54 / 81 / 79 | 59.399998 / 81 / 86 |
+| large40 | 90 / 135 / 130 | 90 / 135 / 130 |
+
+平台实际非线性sp换算照实记录，不用fontScale乘算，也不把getter行高当Layout。两行aux实际Layout为1.0的95px、1.3的117px；24组实际数字/单位baseline差0。字体SHA仍`a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da`；实际TextView glyph墨迹/原ImageGen字体身份、tnum启用未知保留，ASCII等advance不证明tnum。没有因此重开字体研究。
+
+独立PNG内区采样与实际resolved ARGB分别核：page `F9FAF9/11191A`、nav/surface `FFFFFF/1B2526`、卡面/disabled `ECEFF1/263234`、selected `E2F0ED/203D3B`、primary两主题`087A78`，内区alpha255；ink/muted/accent与既定两主题输入相符。以实际节点rect确认库存selected/action内区，排除字缘抗锯齿像素，不用任意色差容差。图表8图的轴/标签/网格补集与真targets可辨；未改变已冻三刻度/160dp下限。
+
+运行机械报告与人审分开：12主配置、24 baseline0、56目标可达/恢复、12隔离报告、4组SAF与4组三事件业务均通过；protocol2保留同域零差与跨域诊断边界。主任务终态确认single三横屏各336/336、list14/14，库存返回/重建offset用户617/标准399/大字369各自一致；advanced pages两profile各240 fixture、business18路径通过。这些只支撑各自断言，不能外推原图/硬件。可执行M2；错误、警示、其他语言/最大字/极短窗口等未在人审矩阵覆盖的状态及其他21页仍逐项待验，不撤销旧历史证据。

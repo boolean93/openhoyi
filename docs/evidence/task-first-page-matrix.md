@@ -1,6 +1,6 @@
 # 全范围视觉验收状态矩阵
 
-2026-10-19，事实同步时HEAD为`ce0eebe`；各项证据按实际源码版本单独注明。库存页头修正ce0eebe与当前工作树Share间距修正均未有新运行结论，静态审查/构建不计作视觉通过。此表不缩减21功能页＋3设置页；所有行目前均**未完成最终视觉验收**。
+2026-10-19，最新产品证据head `026f993` / frame `39146205031` / tested merge `75e5333f20bb21ec911ec99befb9d979ad483dba`。M1三页已在中文用户横屏、浅深×1.0/1.3主夹具范围获得G1–G4限定验收；**不是24页/全状态最终验收**。其余21页、硬件与未采状态仍待验。详细审查集中于[M1计划§11](../plans/2026-10-18-product-visual-migration.md#11-2026-10-19-026f993-真实-m1-限定验收进入-m2)。
 
 沿用feature/task-first-ui→develop PR#4及docs/git-workflow.md。本次只同步事实，不操作设备、不合并/发版；检查24页覆盖、状态值、引用及文档差异。后续由主任务合批普通push，可追加revert回退。
 
@@ -14,28 +14,28 @@
 ## 最新分层结论（样张、生产实现、运行证据分开）
 
 - **样张封闭，有限冻结已成立**：[review §10](2026-10-18-native-specimen-review.md#10-0a7b71a-封闭验收有限冻结进入-m1) 的 head `0a7b71a` / run `39140082042` / tested merge `908edcd9d83a8ea53123ba772ab7556ab6e2b4ed`，Astra已实看三页12初图及6滚动后图。冻结的是该批实际覆盖的字体角色、间距、浅深语义色、单位baseline、图表标签保护/网格和局部滚动设计输入；原文件保留proposed/productAcceptance=false历史身份。原图字体身份仍未知；未观察的焦点/按压等状态不因此通过。
-- **M1生产三页已实施，未验收**：`7e3f662` 迁移 Home/Share/Inventory，`9c71043` 增加真实Activity隔离取证，随 `0f3b759` 推送。静态审查和构建仅证明可进入CI；不能把已验Mock样张当生产页。frame `39142720200` 实际 tested merge `e357bdcad6bcd643e59d4bc23b271f36b3116fac` 已在Share标准首屏门禁失败，仅完成light1.0 Home/Share两组（2/12），库存尚未进入该产品入口；同run旧24页frame/12样张通过不能替代M1。
-- **M1新红项保留**：advanced `39142720173` 两job失败；库存header摘要横向溢出、原两事件首屏回归见对应行。frame `39142720200` 另有Share第四表行标准首屏缺13px，实图与同步几何一致。库存页头child params修正ce0eebe获静态无阻断；分享仅批准消除页头12dp+workspace8dp的重复间距、归一为冻结8dp。均待新运行，不关闭失败。
-- **M2独立待办**：BeanEntry标准新建初态末字段1px缺口来自 `0a7b71a` / single-user `39140082109`，不是先前BrewReview/CurveEditor的IME失败复发。M2仍待M1完成，不提前实施。
+- **M1真实三页限定通过**：`026f993` / frame `39146205031` 三页12主配置已逐张实看，另查两主题1.3共8张滚动后图及长名business图。标准两最近/两流水/完整四阶段表成立；大字局部滚动与固定dock符合已定适配。G1–G4各自边界见下表及[M1计划§11](../plans/2026-10-18-product-visual-migration.md)。不是Mock样张外推。
+- **旧M1红项在相同限定场景闭环**：库存header横向溢出/两事件预算、Share短名13px与长名54px缺表已由026真实证据关闭；原0f3b759/cb失败详见下方历史快照，保留追溯，不继续标作当前相同场景FAIL。
+- **M2可以启动**：按[三表单计划](../plans/2026-10-18-m2-form-visual-migration.md)先BeanEntry再BrewReview/CurveEditor。BeanEntry旧初态1px证据保留；cb及026 single已绿，不据此证明旧失败唯一根因，也不预设必须改生产预算。先补原五字段断言前的稳定初态证据，不降低门禁。
 
 ## 24页状态
 
 | 页面 | 认可稿/范围 | 框架证据状态与缺口 | 字体测量条目 |
 |---|---|---|---|
-| HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | **当前M1：7e3f662已迁移真实摘要/最近列表/固定操作，9c71043接入真实取证。0f3b759/frame39142720200仅light1.0 Home报告6目标可达/恢复、3组baseline差0、4路由与隔离通过；不是四配置完整图审，G1–G4仍未验收。旧构图差异只有代码候选，不能视为运行关闭。** 历史限定证据：**旧版本10-18：Astra已读0f0beda用户横屏font1.0/1.3真实整窗：capture-1、未选本杯豆子，91°C/27.00g/2阶段摘要及697×126px主操作完整；不是已确认18g或开始萃取状态。紧凑1.3组件改用0/12端点，关闭该两阶段场景刻度重叠，不外推四阶段/任意高度。** G1仍有摘要上下排、最近使用在右侧大按钮、右栏工具密集等已确认构图差异；阶段颜色/背景/顶栏也未对齐，G1–G4未通过。历史d873340/run39116385295组件发现的刻度失败已被上述限定新证据替代，不再写未修复 | 25 |
+| HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | **M1限定PASS（G1–G4）**：026f993真实浅深×1.0/1.3共4主图及局部滚动核对完成。真实状态卡/摘要/分隔/最近/固定操作已对齐已定生产适配；标准2条最近、大字1条，全部3条可达；3组单位baseline/配置为0。两主题1.3秤状态滚后完整，固定确认/按钮/详情不滚走。字体与色值边界见M1计划§11；未测状态/硬件不外推。 | 25 |
 | ExtractionActivity | [满配v3](../research/task-first-ui-concepts/extraction-four-series-v3.png)、[无秤v2](../research/task-first-ui-concepts/extraction-no-scale-v2.png) | 784eaaf用户平板有秤/无秤实际启动截图通过；21/0重量样本、四/三指标、参数行/停止完整；绘图区514.148px。1b0deb4无告警行已收起且绘图区增至624.148px，637f83f实图确认图例含实时值、次要读数数值突出；有秤绘图区599.148px、无秤624.148px，停止完整。bcda211两态实图确认48sp数字/22sp单位，绘图区565.148px、停止完整；异常/参考/大字与最终视觉仍未验收 | 33 |
 | CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | **10-18最新：Astra已读a4786a0关联lifecycle/run39119880608的4张真实成功整窗及前后geometry：中文浅色、density200、1280×703dp、font1.0/1.3，longFactory/noPressure均显示无压力“深烘拿铁”。主按钮469×70px全幅可见，父行947×70px；详情468×60px全幅可见、局部y5..65与主按钮y0..70中心相同。关闭这两个fixture/字号的原3px底裁切。追加用户配置single/run39119880590：Astra已读2560×1600/density360/font1.0中文浅色实际整窗、populated及typography；选中“采集曲线1”（91°C/27g/两阶段），主按钮738×126px、详情738×108px均全幅可见，父行1494×126px，两按钮垂直中心均1375px，关闭该用户配置状态的底裁切。** 不外推未取证状态或严格视觉。single结果336/336，列表专项14夹具；Curve返回/重建保持factory-v3-007、position=2、offset=-142，重建保留query=factory-v3/filter=DARK/sort=MOST_USED，属于限定列表恢复通过，不是硬件动作验收。用户证据位于`build/task-first-evidence/ci-a4786a0-single-user/tablet-user-landscape/single-screen-window-checks/`的`zh-Hans-light-CurveActivity.png`、`states/...-populated.png`、`visual-baselines/zh-Hans-light-CurveActivity/{window.png,CurveActivity-typography.json}`及`list-state-result.txt`。 证据在`build/task-first-evidence/ci-a4786a0-lifecycle/mock-lifecycle/language-detail-success/footer-{landscape,wideFont}_zh-Hans_dark=false_page=CurveActivity-{longFactory,noPressure}-window.{png,txt}`。历史3b5f29f/0f0beda的469×67px失败保留追溯，已由上述限定新证据替代；根因及a7fcc86修正见[footer证据](2026-10-18-curve-footer-clipping.md)。103条列表/恢复、四阶段只读fixture等各有原范围，不冒充可执行选择、稿件或硬件验收；G1–G4仍未通过 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 712913e用户平板深色Mock结束实图确认主数值/小单位、左栏图表延伸页底、右栏分隔线已生效；121采样四指标可读。复盘字段空态，长内容/未知/缺重/大字与完整入口仍未最终验收 | 8 |
 | BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 4240daa大字号336夹具通过；不同31/33点四指标整页已读取，实虚线/单位和30/32秒、36/35.2g吻合；记录入口已前移待新图，用户平板标准字号实图及24/16/14sp已核对；39ac261轴留白两字号10组件夹具已运行通过；整页图高/顶栏比例仍待新图验收 | 9 |
-| BeanInventoryActivity | [库存v3](../research/task-first-ui-concepts/bean-inventory-v3.png) | **当前M1 FAIL：head0f3b759 / advanced39142720173两job失败。pages首例1138×618dp/font1.0/中文浅色header摘要“1 · 250 g”horizontal text overflow，未到该页截图。business长UI beans UUID名两行、页头异常高，-10g行1331×108px仅84px可见，+100g行未完整出现。** Astra实看 `build/task-first-evidence/ci-0f3b759-advanced/advanced-mock-pages-business/advanced-page-screenshots/business/inventory-selected-after-adjustment.png` 及同目录 `inventory-ledger-first-screen.txt`；pages日志 `advanced-mock-pages-pages/landscape.txt`。最小页头修正为title横排0/weight1、summary自然宽+16dp，不足整组纵排；静态无阻断不关闭运行FAIL，详情字号/长名/48dp/两事件门禁保持。旧“两流水关闭”不覆盖此次回归。历史限定证据：**旧版本10-18：Astra已读3b5f29f用户横屏中文浅色font1.0实图及geometry，单行固定操作区已运行，-10g/+100g两条流水均108/108px完整；关闭该标准状态第二行裁切，不外推1.3/最大字。** G1仍缺原稿整体标题摘要及部分图标/分隔组织，G1–G4未通过。历史30bee76第二行14/108px失败与36f3cbc仅构建状态已被该限定新证据替代；4240daa选中250g批次与固定选豆入口只证明其当时状态，不代替全状态验收 | 11 |
+| BeanInventoryActivity | [库存v3](../research/task-first-ui-concepts/bean-inventory-v3.png) | **M1限定PASS（G1–G4）**：026f993真实4主图、1.3滚动后及长名business已验。页头/列表层次/日期分隔/流水/固定三操作说明齐；真实48dp事件与已批准摘要适配保留。标准两事件首屏，1.3第二事件完整滚达；长名business两事件各108px完整。余额单位baseline/配置0，三事件/详情/恢复4组通过，关闭旧header/两事件回归；其余状态与硬件不外推。 | 11 |
 | BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | **当前G1 FAIL/M2待办：0a7b71a / single-user39140082109为334/336，中文浅深新建初态第五EditText仅116/117px；task-form-scroll viewport995px、自然内容996px。失败在五字段首屏断言，尚未进入section/short/IME。** 详见[review §11](2026-10-18-native-specimen-review.md#11-beanentry独立m2待办标准初态末字段1px预算不足)及 `build/task-first-evidence/ci-0a7b71a-single-user/tablet-user-landscape/`。M2未开工；保留五字段首屏/52dp自然高度/固定footer，后续补稳定初态现场，不先reveal或容忍1px；唯一根因仍未证。已有豆款历史通过不覆盖新建失败。历史限定证据：**旧版本10-18：Astra已读3b5f29f用户横屏中文浅色font1.0已有豆款模式：仅选择器显示身份，无重复只读名称框，三日期及取消/保存完整；18路径含模式草稿/重建/取消不变量。关闭该标准状态重复身份与第三日期首屏缺口，不外推新豆款1.3、IME或严格视觉。** 5abe9c2新豆款1.3开封日期需局部滚动的记录保留，不能与已有豆款标准态混为一谈。历史35db865日历入口、ff651be双模式/草稿、b6fc53c业务18路径和166594d当时三日期专项仍仅作用于对应源码/状态；同一深色section-2原图保存文字完整的纠正保留。14/16sp及取消说明有实现，不等于G1–G4验收 | 20 |
 | BeanBatchActivity | [批次v2](../research/task-first-ui-concepts/bean-batch-v2.png) | 63a490c业务实图确认90/100g、90%同行、三日期分区及两条流水；与当前BeanBatchActivity无差异。v2已纠正虚构时间；后续6a61d4a进度条/底部说明待新图。用户平板/大字/长原因及字体间距仍待最终验收 | 8 |
 | BeanLedgerActivity | [流水v3](../research/task-first-ui-concepts/bean-ledger-v3.png) | 051f16e用户平板有事件图已读：入库+250g/余额250g、批次与原因五列对齐，最新记录在前；当前图未覆盖扣减/调整/长原因，时间列无数据源，仍未最终验收 | 14 |
 | BeanPreparationActivity | [用豆v1](../research/task-first-ui-concepts/bean-preparation-v1.png) | 8c16949业务18路径通过，三状态实图已读；左右列表/表单成立，63a490c大号余额90g→72g两态实图已读，预览/流水区分清楚；合法粉量仍留旧错误，候选已修待回归；确认态左侧批次列表/右侧摘要已调整待新图；粉量控件与底部操作区仍未完整对齐 | 10 |
 | BrewReviewActivity | [复盘v3](../research/task-first-ui-concepts/brew-review-v3.png) | **较新限定证据：a2164ad/run39138935786三横屏profile、浅深dose经稳定IME→单次reveal均完整，固定按钮保留；生产布局未改，无依据盲改预算，旧失败唯一原因未证。见review §10.4。M2未开工，严格四门仍待验。** 历史限定证据：**旧版本10-18：0649834用户平板有内容实图已读：时长/克重小单位生效，三段笔记与取消/保存可见；长参数局部滚动，整页字体/比例未最终验收。** 4bd173c业务18路径通过，有内容实图已确认三段记录与取消/保存，仍为旧1600×1000配置；秒/克同大粗体差异本轮修正候选，用户平板和最终视觉待验。 b6fc53c保存后实图：左右参数/记录、三段填写、时长/秤值/结束状态和保存完整；右上分类选择未与认可稿对应，分区线与底部保存范围说明已补，构建通过待新图；候选已移除重复分组选择、统一16sp输入并补取消，五组长文检查保留，待运行；整页比例仍未验收 | 9 |
 | CurveEditorActivity | [编辑v1](../research/task-first-ui-concepts/curve-editor-v1.png) | **较新限定证据：a2164ad/run39138935786三横屏profile、浅深name经稳定IME→单次reveal均完整；不等于全页四门通过或旧失败唯一原因证明。见review §10.4。M2未开工。** 历史限定证据：35db865用户平板四阶段实图：1–4分段选择生效，11输入/预览/保存完整；字体、间距和预览比例仍需最终对照 | 31 |
-| CurveShareActivity | [分享v1](../research/task-first-ui-concepts/curve-share-v1.png) | **当前M1 G1 FAIL：7e3f662已迁移，但0f3b759/frame39142720200 light1.0第四表行首屏仅36/49px，缺13px。** Astra已实看原稿与新window.png：preview viewport1094px、自然内容1107px、chart360px已达160dp下限；row4完整框[252,1357,1557,1406]、visible到1393，三文字Layout46px无ellipsis。after-scroll-5运行记录滚13px全幅、restore=true/protocol2 accepted；是首屏失败，不是时序冲突。证据根 `build/task-first-evidence/ci-0f3b759-frame/task-frame-tablet-user-landscape/task-first-evidence/product-visual-migration/raw-device/e357bdcad6bcd643e59d4bc23b271f36b3116fac/tablet-user-landscape-light-font-1.0/share/`，含window/after-scroll-5/scroll-reachability/anchors。SAF取消/失败/成功/恢复报告通过不抵布局FAIL；其他主题/字号未采。仅批准本页header12dp+workspace8dp叠加归一冻结8dp、回收27px，不缩图/字/表或初始滚动，待新运行。历史限定证据：**旧版本10-18：Astra已读3b5f29f用户横屏中文浅色font1.0四阶段整图及geometry：tableShown=true，表1328×320、图1328×398，四行2.4/5.7/8.3/6.9bar及12/23/34/45ml完整，右侧操作完整。关闭该标准状态四阶段缺表，四阶段1.3/最大字仍待验。** root新读0f0beda advanced/run39117264495 wideFont分享geometry为stages=2、tableShown/tableComplete=true，仅补两阶段结论。G1仍有兼容说明和详情入口占据主操作前方的已确认构图差异，严格字色/构图未通过。历史5abe9c2两阶段普通/1.3完整仍限两阶段；4bd173c的24sp/700数字、14sp/400单位有实测，其1600×1000/density200四阶段图不冒充用户profile；abe9614分区调整保留历史效力，不代替G1–G4 | 9 |
+| CurveShareActivity | [分享v1](../research/task-first-ui-concepts/curve-share-v1.png) | **M1限定PASS（G1–G4）**：026f993真实4主图、两主题1.3 after5/6实图及长名business已验。标准短名与长名五行表首屏完整，关闭旧13px/54px缺表；1.3第4行/隐私经局部滚动完整，不声称全部首屏。两组单位baseline/配置0；图标签/grid、表格H8、mode/动作图标/禁用与两主题颜色符合冻结输入。SAF4组通过；其他状态不外推。 | 9 |
 | CurveImportActivity | [导入v2](../research/task-first-ui-concepts/curve-import-v2.png) | 空JSON输入；合法/非法/键盘另验 | 13 |
 | CurveImportPreviewActivity | [冲突预览v1](../research/task-first-ui-concepts/curve-import-preview-v1.png) | **10-18最新：Astra已读a4786a0关联advanced/run39119880424中文浅色四阶段滚动前后4张真实整窗及geometry，用户窗口1138×618dp。font1.0表1470×356px、图1470×450px，默认首屏图表完整，scrollY=0；font1.3表1470×431px仍显示，图1470×360px（160dp下限），首屏表尾41px在左滚动区外，scrollY=41后全表完整；5行均可达，右操作区滚动前后Rect(1713,263–2533,736)不变。关闭原1.3整表隐藏/不可达缺陷，不声称大字全表默认首屏完整。** 证据在`build/task-first-evidence/ci-a4786a0-advanced-pages/advanced-page-screenshots/{landscape,wideFont}/import-preview-reachability/zh-Hans-light-CurveImportPreviewActivity-{before,after}-scroll.{png,txt}`及同profile顶层geometry。压力3/9/7/5bar、水量15/25/15/5ml各四行可读；1.3滚到底时配方名上缘随左栏滚动移出可见区，不是隐藏数据。0f0beda/run39117264495的tableShown=false失败已被上述限定新证据替代，仍保留追溯；冲突/其他字号、原稿字体/间距/配色及G1–G4未验收 | 9 |
 | ScaleActivity | [电子秤v2](../research/task-first-ui-concepts/scale-v2.png) | 55f3f3f普通/大字号实图已证单位缩小与设备两列；仍无有效重量/趋势，用户平板及设备身份待验 | 25 |
@@ -49,24 +49,24 @@
 
 ## 每页G1–G4当前状态
 
-依据[严格基线](../superpowers/specs/2026-10-18-strict-visual-baseline.md)与[review §10/§11](2026-10-18-native-specimen-review.md)，G1为间距/构图，G2为字体，G3为字号/行盒/单位，G4为背景/状态色。三样张有限冻结已发生，但没有任何**生产页最终四门**获得PASS。`VISUAL_PENDING`表示已有选定原生输入、真实生产页实测/实图尚待核对；`BASELINE_PENDING`表示该页特定基线/状态尚未完成，不能再解释为全局字体色板都未选择。`FAIL`保留已见差异/回归，候选代码不能替代运行关闭。
+依据[严格基线](../superpowers/specs/2026-10-18-strict-visual-baseline.md)与[review §10/§11](2026-10-18-native-specimen-review.md)，G1为间距/构图，G2为字体，G3为字号/行盒/单位，G4为背景/状态色。三样张有限冻结已发生，M1三真实页在本表明确范围获`LIMITED_PASS`；它只覆盖已采状态，不是生产页全状态最终通过。`VISUAL_PENDING`表示已有选定原生输入、真实生产页实测/实图尚待核对；`BASELINE_PENDING`表示该页特定基线/状态尚未完成，不能再解释为全局字体色板都未选择。`FAIL`保留已见差异/回归，候选代码不能替代运行关闭。
 
 | 页面 | G1 | G2 | G3 | G4 | 当前判定边界 |
 |---|---|---|---|---|---|
-| HomeActivity | FAIL | VISUAL_PENDING | VISUAL_PENDING | VISUAL_PENDING | 旧G1构图FAIL保留待新图关闭；7e3f662已迁移，M1真实页未验，样张有限冻结不能外推 |
+| HomeActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
 | ExtractionActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 运行态证据不等于精确四项冻结 |
 | CurveActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | a4786a0真实整窗关闭density200中文浅色1.0/1.3无压力fixture及density360中文浅色1.0两阶段采集曲线的底裁切；用户配置列表返回/重建锚点保持；同稿严格四项另验，不记PASS |
 | HistoryActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 非空同状态及精确基线待补 |
 | HistoryDetailActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 限定四指标实图不覆盖全部状态 |
 | BrewComparisonActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 实图/轴专项不等于精确构图冻结 |
-| BeanInventoryActivity | FAIL | VISUAL_PENDING | FAIL | VISUAL_PENDING | 0f3b759/39142720173新header文本横向溢出、两流水首屏回归；候选页头修正未运行。G3 FAIL指已见文字溢出，不猜测字体身份错误 |
+| BeanInventoryActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
 | BeanEntryActivity | FAIL | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 0a7b71a/39140082109新建初态末字段116/117px；M2独立待办，原五字段首屏不可放宽，已有豆款历史通过不覆盖 |
 | BeanBatchActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 同稿精确对照与长内容待补 |
 | BeanLedgerActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 调整/耗用/长原因状态待补 |
 | BeanPreparationActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 已有业务状态不能替代精确四项 |
 | BrewReviewActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | a2164ad三横屏dose稳定IME+单次reveal限定完整；M2字体/比例/其他状态仍待验 |
 | CurveEditorActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | a2164ad三横屏name稳定IME+单次reveal限定完整；M2四阶段与严格字体/间距仍待验 |
-| CurveShareActivity | FAIL | VISUAL_PENDING | VISUAL_PENDING | VISUAL_PENDING | 0f3b759/frame39142720200 light1.0第四表行首屏36/49px；滚13px可达/SAF通过不抵首屏FAIL。重复页头间距修正待运行；其余主题/字号未采 |
+| CurveShareActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
 | CurveImportActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 合法/非法/IME同状态与基线待补 |
 | CurveImportPreviewActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | a4786a0中文浅色1.3四阶段全表保留并可局部滚达、右栏固定；1.0首屏图表完整；未通过严格四项 |
 | ScaleActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 无读数不能替代有效重量/趋势状态 |
@@ -78,6 +78,16 @@
 | MachineSettingsActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 候选稿与模拟回读不证明真实写入或四项通过 |
 | ScaleSettingsActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 候选稿、未连接/能力状态须分别核对 |
 
+## M1历史快照（不作为026f993当前判定）
+
+以下为旧表原文，仅保留失败和早期限定证据。其中“当前/仍FAIL/未通过”均指旧记录当时；相同已复核场景以本表上方026f993结论为准。
+
+| 页面 | 认可稿/范围 | 历史原文 | 历史字体测量条目 |
+|---|---|---|---|
+| HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | **当前M1：7e3f662已迁移真实摘要/最近列表/固定操作，9c71043接入真实取证。0f3b759/frame39142720200仅light1.0 Home报告6目标可达/恢复、3组baseline差0、4路由与隔离通过；不是四配置完整图审，G1–G4仍未验收。旧构图差异只有代码候选，不能视为运行关闭。** 历史限定证据：**旧版本10-18：Astra已读0f0beda用户横屏font1.0/1.3真实整窗：capture-1、未选本杯豆子，91°C/27.00g/2阶段摘要及697×126px主操作完整；不是已确认18g或开始萃取状态。紧凑1.3组件改用0/12端点，关闭该两阶段场景刻度重叠，不外推四阶段/任意高度。** G1仍有摘要上下排、最近使用在右侧大按钮、右栏工具密集等已确认构图差异；阶段颜色/背景/顶栏也未对齐，G1–G4未通过。历史d873340/run39116385295组件发现的刻度失败已被上述限定新证据替代，不再写未修复 | 25 |
+| BeanInventoryActivity | [库存v3](../research/task-first-ui-concepts/bean-inventory-v3.png) | **当前M1 FAIL：head0f3b759 / advanced39142720173两job失败。pages首例1138×618dp/font1.0/中文浅色header摘要“1 · 250 g”horizontal text overflow，未到该页截图。business长UI beans UUID名两行、页头异常高，-10g行1331×108px仅84px可见，+100g行未完整出现。** Astra实看 `build/task-first-evidence/ci-0f3b759-advanced/advanced-mock-pages-business/advanced-page-screenshots/business/inventory-selected-after-adjustment.png` 及同目录 `inventory-ledger-first-screen.txt`；pages日志 `advanced-mock-pages-pages/landscape.txt`。最小页头修正为title横排0/weight1、summary自然宽+16dp，不足整组纵排；静态无阻断不关闭运行FAIL，详情字号/长名/48dp/两事件门禁保持。旧“两流水关闭”不覆盖此次回归。历史限定证据：**旧版本10-18：Astra已读3b5f29f用户横屏中文浅色font1.0实图及geometry，单行固定操作区已运行，-10g/+100g两条流水均108/108px完整；关闭该标准状态第二行裁切，不外推1.3/最大字。** G1仍缺原稿整体标题摘要及部分图标/分隔组织，G1–G4未通过。历史30bee76第二行14/108px失败与36f3cbc仅构建状态已被该限定新证据替代；4240daa选中250g批次与固定选豆入口只证明其当时状态，不代替全状态验收 | 11 |
+| CurveShareActivity | [分享v1](../research/task-first-ui-concepts/curve-share-v1.png) | **当前M1 G1 FAIL：7e3f662已迁移，但0f3b759/frame39142720200 light1.0第四表行首屏仅36/49px，缺13px。** Astra已实看原稿与新window.png：preview viewport1094px、自然内容1107px、chart360px已达160dp下限；row4完整框[252,1357,1557,1406]、visible到1393，三文字Layout46px无ellipsis。after-scroll-5运行记录滚13px全幅、restore=true/protocol2 accepted；是首屏失败，不是时序冲突。证据根 `build/task-first-evidence/ci-0f3b759-frame/task-frame-tablet-user-landscape/task-first-evidence/product-visual-migration/raw-device/e357bdcad6bcd643e59d4bc23b271f36b3116fac/tablet-user-landscape-light-font-1.0/share/`，含window/after-scroll-5/scroll-reachability/anchors。SAF取消/失败/成功/恢复报告通过不抵布局FAIL；其他主题/字号未采。仅批准本页header12dp+workspace8dp叠加归一冻结8dp、回收27px，不缩图/字/表或初始滚动，待新运行。历史限定证据：**旧版本10-18：Astra已读3b5f29f用户横屏中文浅色font1.0四阶段整图及geometry：tableShown=true，表1328×320、图1328×398，四行2.4/5.7/8.3/6.9bar及12/23/34/45ml完整，右侧操作完整。关闭该标准状态四阶段缺表，四阶段1.3/最大字仍待验。** root新读0f0beda advanced/run39117264495 wideFont分享geometry为stages=2、tableShown/tableComplete=true，仅补两阶段结论。G1仍有兼容说明和详情入口占据主操作前方的已确认构图差异，严格字色/构图未通过。历史5abe9c2两阶段普通/1.3完整仍限两阶段；4bd173c的24sp/700数字、14sp/400单位有实测，其1600×1000/density200四阶段图不冒充用户profile；abe9614分区调整保留历史效力，不代替G1–G4 | 9 |
+
 ## 已获得的其他证据（不能跨版本外推）
 
 - 709a337 advanced/run38886601670：15业务页8语言×2主题、常规/1.3字号各240夹具通过。四阶段分享图已人工核对；分区调整abe9614在其后，须新图。
@@ -87,8 +97,8 @@
 
 ## 下一步优先级
 
-1. **M1封闭当前真实三页**：先修库存页头、Share重复页头间距，保持两事件/标准全表首屏门禁；收齐精确源码的真实Home/Share/Inventory图、几何、字体/颜色及业务报告，Astra成组核G1–G4。标准外层不滚、内部局部可达、固定dock完整与大字分别验；不因CI绿或静态无阻断写PASS。
-2. **M2三个真实表单**：M1完成后处理BrewReview/CurveEditor/BeanEntry。先保留BeanEntry新建初态1px红项和五字段首屏，再核自然52dp/IME/固定操作/草稿恢复；不把Brew/Curve已限定复核的旧IME问题重复盲改。M2计划尚未实施，不新增样张。
+1. **M1限定封闭，不重开样张**：026f993三真实页已按§11验收；后续改动保留现门禁与真实业务，未采错误/警示/语言等状态仍明确待验，不因CI绿扩大结论。
+2. **启动M2三个真实表单**：按已核接口顺序BeanEntry→BrewReview→CurveEditor，先原五字段稳定初态，随后自然52dp/IME/固定操作/草稿恢复。保留BeanEntry旧1px证据但不盲改未复现布局，不重复制造Brew/Curve旧IME红项；不新增样张。
 3. **其余固定24页范围**：沿[真实产品迁移计划](../plans/2026-10-18-product-visual-migration.md)的M3–M8顺序继续曲线/导入、用豆/批次/流水、运行/记录、工具、旧数据、三个设置页。保留中文、最大字号、横屏短高、业务安全与硬件边界；无新增竖屏兼容工作、不锁方向、不取消在途CI、不微推送替代整批验收。
 
 P0取证基础与P1三样张已分别有后续运行/有限冻结记录，不再把d87ef95构建或“三样张待开始”列作当前下一步；旧证据、未知项和原失败仍在review中保留。
