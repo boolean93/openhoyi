@@ -19,7 +19,7 @@
 | ExtractionActivity | [满配v3](../research/task-first-ui-concepts/extraction-four-series-v3.png)、[无秤v2](../research/task-first-ui-concepts/extraction-no-scale-v2.png) | 784eaaf用户平板有秤/无秤实际启动截图通过；21/0重量样本、四/三指标、参数行/停止完整；绘图区514.148px。1b0deb4无告警行已收起且绘图区增至624.148px，字体/间距/曲线区域仍未最终验收 | 33 |
 | CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 有列表；选中详情与排序后的状态需另图 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
-| HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 记录不存在 | 8 |
+| HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 63a490c实际结束图已读：32.2秒/22.40g、123采样点、四指标同图；单位缩小候选待图，图高与右栏分区仍不符，未最终验收 | 8 |
 | BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 35db865用户平板336检查通过；实读压力/水量/温度浅色与重量深色专项图，按钮完整、双轨迹和量纲真实切换；051f16e实图确认交换位置/图例/蓝色/12sp轴标；两杯重合不能证明区分效果，新增不同样本待图；未完成视觉验收 | 9 |
 | BeanInventoryActivity | [库存v2](../research/task-first-ui-concepts/bean-inventory-v2.png) | 库存空态 | 11 |
 | BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 35db865实图三日期日历入口完整；已按入库v2改双模式并保留独立草稿，候选构建通过；ff651be两模式填写实图与身份/草稿恢复路径已读；b6fc53c业务18路径及收尾不变量已通过；ff651be用户平板第三日期裁切，已收紧40dp留白待新CI；短高仍待验收 | 20 |

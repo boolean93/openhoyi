@@ -786,3 +786,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 按legacy-curve-v1把数量与导入放入同行工具栏（>=624dp），导入用次级文本样式、最多320dp宽，原最小点击区保留；窄窗上下排列。只改展示，不动文件选择器/import/指纹/恢复。
 - 未选中详情改八语言“选择一条曲线查看参数”；标题和数量行仍提供只读限制，选中后原完整参数及限制不变。消除一处重复说明，不隐藏能力边界。
 - 构建71660 exit0，Mock/test APK BUILD SUCCESSFUL in50s（/tmp/task-legacy-curve-toolbar-build.log）；八语言XML、diff/branch-policy通过。新工具栏运行和浅深/大字号实图待CI，未安装或操作设备。
+
+### 新运行态证据与历史数字/单位层级（2026-10-18）
+
+- 63a490c/capture39083440522 success，下载ci-63a490c-capture。读取ACTIVE_CUP_VISUAL_PASSED states=2 actualMockStartStop=true noBle=true；实读有秤图（20样本均有重量）、geometry，四指标同图、5s/3.50g、停止126px完整，dataPlot高624.148px与前次一致。本次没有重新证明硬件停止。
+- 实读同批history-detail-dark.png并对照history-detail-v2：真实Mock结束32.2秒/22.40g、123采样点、四条轨迹、复盘入口均存在；当前空复盘应显示未填写，不能填造示例豆款。数字单位与主值同大、图表明显偏矮、右栏没有分区线，均未最终对齐。
+- 本候选只对独立历史页两个主读数缩小单位至0.55倍，数字保持40sp/700；数字前缀匹配兼容日/韩无空格单位，未知破折号不改变，全文语义不变。图高问题不能由此声称修复，后续核对workspace与独占底部操作区。
+- 最终构建34161 exit0，Mock/test APK BUILD SUCCESSFUL in25s（/tmp/task-history-metric-units-build.log）；diff/branch-policy通过。新增单位实际呈现及八语言/大字号仍待CI，未安装。

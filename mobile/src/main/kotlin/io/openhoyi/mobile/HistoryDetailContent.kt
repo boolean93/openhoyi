@@ -80,8 +80,17 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
             }
             metrics.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
             HoyiUi.label(this, cell, getString(label), 14, muted = true)
-            HoyiUi.label(this, cell, value, 40).apply {
+            HoyiUi.label(this, cell, value, TaskVisualTokens.LIVE_VALUE_SP).apply {
                 typeface = TaskTypography.face(this@renderHistoryDetail, 700)
+                // Root-locale values have a stable numeric prefix; Japanese/Korean units
+                // need not have a separating space. Missing values keep their plain dash.
+                val number = Regex("^[+-]?[0-9]+(?:\\.[0-9]+)?\\s*").find(value)
+                if (number != null && number.value.length < value.length) {
+                    text = android.text.SpannableString(value).apply {
+                        setSpan(android.text.style.RelativeSizeSpan(.55f), number.value.length, length,
+                            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                }
                 setPadding(0, dp(8), 0, 0)
             }
         }
