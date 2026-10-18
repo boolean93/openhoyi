@@ -42,13 +42,27 @@ for product_theme in light dark; do
     adb shell settings put system font_scale "$font_scale"
     for product_page in home share inventory; do
       adb shell am force-stop "$package"
-      if adb shell pidof "$package" | tr -d '\r' | rg -q '[0-9]'; then
-        echo 'Fresh-process guard failed; no fixture delegate installed' >&2; exit 1
-      fi
       python3 - "$output_dir/$product_theme-$font_scale-$product_page-result.txt" "$source_sha" "$source_dirty" "$apk_sha" "$product_theme" "$font_scale" "$product_page" <<'RUN_PY'
 from pathlib import Path
-import os, subprocess, sys
+import json, os, subprocess, sys
 result_path, source, dirty, apk, theme, scale, page = sys.argv[1:]
+def fresh_process_absent(probe):
+    # Exact remote marker proves pidof actually ran. Unknown status, output, stderr or transport failure is not absence.
+    return probe.returncode == 0 and probe.stdout.replace('\r\n','\n') == 'FRESH_PIDOF_STATUS=1\nFRESH_PIDOF_OUTPUT=\n' and probe.stderr == ''
+probe = subprocess.run(['adb','shell','sh'], input=r"""
+command -v pidof >/dev/null 2>&1 || exit 70
+fresh_process_pid_output=$(pidof io.openhoyi.mobile.mock 2>&1)
+fresh_process_pid_status=$?
+printf 'FRESH_PIDOF_STATUS=%s\n' "$fresh_process_pid_status"
+printf 'FRESH_PIDOF_OUTPUT=%s\n' "$fresh_process_pid_output"
+""", stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+verified = fresh_process_absent(probe)
+Path(result_path).with_suffix('.fresh-process.json').write_text(json.dumps({
+    'remoteCommand':'pidof io.openhoyi.mobile.mock', 'adbReturnCode':probe.returncode,
+    'stdout':probe.stdout, 'stderr':probe.stderr, 'freshProcessVerified':verified,
+    'policy':'exact_completed_remote_pidof_exit1_empty_output_only; all_unknowns_fail_closed'},indent=2)+'\n')
+if not verified:
+    raise SystemExit('Fresh-process guard failed or unknown; no fixture delegate installed')
 command = ['adb','shell','am','instrument','-w']
 for key,value in {'productVisualMigration':'true','disposableCiEmulator':'true','freshProcessVerified':'true',
     'productPage':page,'sourceSha':source,'headSha':os.environ.get('PRODUCT_PR_HEAD_SHA',source),

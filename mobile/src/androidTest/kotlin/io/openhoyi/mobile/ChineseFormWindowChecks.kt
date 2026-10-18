@@ -68,7 +68,8 @@ internal object ChineseFormWindowChecks {
                 field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
             } else if (activity is BeanEntryActivity) {
                 val label = activity.getString(listOf(R.string.beans_name, R.string.beans_initial_input, R.string.beans_purchased)[position])
-                val field = descendants(content).filterIsInstance<EditText>().single { it.contentDescription?.toString() == label }
+                val title = descendants(content).filterIsInstance<TextView>().single { it.labelFor != View.NO_ID && it.text.toString() == label }
+                val field = content.findViewById<EditText>(title.labelFor)
                 field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
             } else {
                 val title = descendants(content).filterIsInstance<TextView>().single {
@@ -529,9 +530,11 @@ internal object ChineseFormWindowChecks {
                             groupField = editorField(position)
                         } else {
                             val label = activity.getString(listOf(R.string.beans_name, R.string.beans_initial_input, R.string.beans_purchased)[position])
-                            groupField = descendants(content).filterIsInstance<EditText>().single {
-                                it.isShown && it.contentDescription?.toString() == label
+                            val title = descendants(content).filterIsInstance<TextView>().single {
+                                it.labelFor != View.NO_ID && it.text.toString() == label
                             }
+                            groupField = content.findViewById<EditText>(title.labelFor)
+                            check(groupField.isShown)
                         }
                         revealViewport(groupField)
                     }
