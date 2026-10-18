@@ -17,7 +17,7 @@
 |---|---|---|---|
 | HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | 未选曲线；最近配方/本杯就绪待同状态图 | 25 |
 | ExtractionActivity | [满配v3](../research/task-first-ui-concepts/extraction-four-series-v3.png)、[无秤v2](../research/task-first-ui-concepts/extraction-no-scale-v2.png) | 784eaaf用户平板有秤/无秤实际启动截图通过；21/0重量样本、四/三指标、参数行/停止完整；绘图区514.148px。1b0deb4无告警行已收起且绘图区增至624.148px，字体/间距/曲线区域仍未最终验收 | 33 |
-| CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 有列表；选中详情与排序后的状态需另图 | 31 |
+| CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | 4240daa用户平板103条列表/两阶段目标实图已核对，排序/滚动恢复有运行证据；候选整批调整34%列表、24/14sp层级、小单位、新建/编辑/分享入口及图表分区待新图；阶段配色/完整参数入口/四阶段同状态未最终验收 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 63a490c实际结束图已读：32.2秒/22.40g、123采样点、四指标同图；单位缩小、右栏分区及侧栏固定复盘候选待图；图高释放尚未实测，未最终验收 | 8 |
 | BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 4240daa大字号336夹具通过；不同31/33点四指标整页已读取，实虚线/单位和30/32秒、36/35.2g吻合；记录入口已前移待新图，用户平板标准字号实图及24/16/14sp已核对；图高/顶栏比例和后续轴留白调整仍待验收 | 9 |

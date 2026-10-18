@@ -10,6 +10,7 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity):LinearLa
     private val titles=listOf(R.string.curve_preview_temperature,R.string.curve_preview_weight,R.string.curve_preview_stages)
     private val values:List<TextView>
     init {
+        setWillNotDraw(false)
         orientation=HORIZONTAL
         setPadding(0,HoyiUi.dp(activity,16),0,HoyiUi.dp(activity,16))
         values=titles.map { title ->
@@ -25,6 +26,16 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity):LinearLa
             }
         }
     }
+    override fun onDraw(canvas: android.graphics.Canvas) {
+        super.onDraw(canvas)
+        val paint = android.graphics.Paint().apply {
+            color = activity.getColor(R.color.mobile_border)
+            strokeWidth = resources.displayMetrics.density
+        }
+        val inset = paint.strokeWidth / 2
+        canvas.drawLine(0f, inset, width.toFloat(), inset, paint)
+        canvas.drawLine(0f, height - inset, width.toFloat(), height - inset, paint)
+    }
     fun present(item:CurveLibraryItem) {
         val draft=item.customDocument
         val factory=item.factoryCurve
@@ -36,7 +47,17 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity):LinearLa
             weight?.let { if(it==0) activity.getString(R.string.curve_details_no_weight)
                 else String.format(Locale.getDefault(),"%.2f g",it/100.0) } ?: "—",
             stages?.toString() ?: "—")
-        values.zip(formatted).forEach { (view,value) -> view.text=value }
+        values.zip(formatted).forEachIndexed { index, (view,value) ->
+            val unit = when {
+                index == 0 && temperature != null -> "°C"
+                index == 1 && weight != null && weight != 0 -> "g"
+                else -> null
+            }
+            view.text = if (unit == null) value else android.text.SpannableString(value).apply {
+                setSpan(android.text.style.RelativeSizeSpan(.6f), length - unit.length, length,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
         contentDescription=titles.zip(formatted).joinToString("\n") { (title,value) -> "${activity.getString(title)}: $value" }
     }
 }

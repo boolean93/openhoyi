@@ -3,4 +3,5 @@
     <string name="task_curve_library_actions">曲线操作</string>
     <string name="task_curve_library_no_pressure">此来源没有可用压力阶段；请查看原始参数，不绘制压力示意。</string>
     <string name="task_curve_library_short_preview">空间不足，改看压力阶段参数：%1$s。阶段示意，不是时间预测。</string>
+    <string name="curve_library_stage_heading">阶段压力目标</string>
 </resources>

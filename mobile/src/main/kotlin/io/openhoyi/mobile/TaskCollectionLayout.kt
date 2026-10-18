@@ -5,7 +5,7 @@ import android.view.View
 import android.widget.LinearLayout
 
 /** Stable list/detail regions. Measurement never changes selection, search or preferences. */
-internal class TaskCollectionLayout(context: Context) : LinearLayout(context) {
+internal class TaskCollectionLayout(context: Context, private val browserFraction: Float = .4f) : LinearLayout(context) {
     val browserBody = LinearLayout(context).apply { orientation = VERTICAL }
     val detailBody = LinearLayout(context).apply { orientation = VERTICAL }
     private var twoPane: Boolean? = null
@@ -39,7 +39,7 @@ internal class TaskCollectionLayout(context: Context) : LinearLayout(context) {
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
         val split = TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
             (height / density).toInt()).twoPaneAllowed && width >= dp(320 + 280 + 24)
-        val browserWidth = if (split) (width * .4f).toInt().coerceIn(dp(320), width - dp(280 + 24)) else width
+        val browserWidth = if (split) (width * browserFraction).toInt().coerceIn(dp(320), width - dp(280 + 24)) else width
         val changed = twoPane != split
         twoPane = split
         orientation = if (split) HORIZONTAL else VERTICAL

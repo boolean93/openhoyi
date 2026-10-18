@@ -3,4 +3,5 @@
     <string name="task_curve_library_actions">Действия кривой</string>
     <string name="task_curve_library_no_pressure">В этом источнике нет этапов давления. Смотрите исходные параметры без схемы давления.</string>
     <string name="task_curve_library_short_preview">Недостаточно места для графика. Параметры давления: %1$s. Схема этапов, не прогноз времени.</string>
+    <string name="curve_library_stage_heading">Целевое давление по этапам</string>
 </resources>

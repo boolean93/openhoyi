@@ -35,6 +35,9 @@ class CurveActivity : ThemedActivity() {
     private lateinit var detailBack: Button
     private lateinit var detailToolbar: LinearLayout
     private lateinit var detailActions: Button
+    private lateinit var directEdit: Button
+    private lateinit var directShare: Button
+    private lateinit var stageHeading: TextView
     private lateinit var previewFallback: TextView
     private lateinit var previewFallbackScroll: ScrollView
     private lateinit var previewSpacer: Space
@@ -82,8 +85,8 @@ class CurveActivity : ThemedActivity() {
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         HoyiUi.navigation(this, root, CurveActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, body, getString(R.string.curve_title))
-        collection = TaskCollectionLayout(this)
+        val pageHeader = HoyiUi.header(this, body, getString(R.string.curve_title))
+        collection = TaskCollectionLayout(this, browserFraction = .34f)
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f))
         compact = resources.configuration.screenWidthDp < 840
         browserPane = collection.browserBody
@@ -120,9 +123,12 @@ class CurveActivity : ThemedActivity() {
         searchTools.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
         val customAvailable = (application as MobileApplication).customCurvesResult.isSuccess
         val creation = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        val newCurve = HoyiUi.button(this, creation, getString(R.string.profiles_new)) {
+        val newCurve = HoyiUi.button(this, pageHeader, getString(R.string.profiles_new)) {
             startActivity(Intent(this, CurveEditorActivity::class.java))
-        }.apply { isEnabled = customAvailable; layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6); topMargin = dp(6) } }
+        }.apply {
+            isEnabled = customAvailable; asTaskTextAction(); maxWidth = dp(200)
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(16) }
+        }
         val importCurve = HoyiUi.button(this, creation, getString(R.string.profiles_import)) {
             startActivity(Intent(this, CurveImportActivity::class.java))
         }.apply { isEnabled = customAvailable; layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) } }
@@ -251,16 +257,21 @@ class CurveActivity : ThemedActivity() {
         list.setOnItemClickListener { _, _, position, _ -> show(visibleItems[position]) }
 
         // The continuous list and genuinely short preview fallback scroll locally, never the whole page.
-        detailTitle = HoyiUi.label(this, detailToolbar, getString(R.string.curve_detail_initial), 20, true).apply {
+        detailTitle = HoyiUi.label(this, detailToolbar, getString(R.string.curve_detail_initial), TaskVisualTokens.TITLE_SP, true).apply {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) }
             maxLines = 2
             ellipsize = android.text.TextUtils.TruncateAt.END
             tag = "full-text-details"
         }
-        detailCategory = HoyiUi.label(this, detailPane, getString(R.string.curve_detail_hint), 13, muted = true)
-        availability = HoyiUi.label(this, detailPane, "", 13, true).apply { visibility = View.GONE }
+        detailCategory = HoyiUi.label(this, detailPane, getString(R.string.curve_detail_hint), TaskVisualTokens.SUPPORTING_SP, muted = true)
+        availability = HoyiUi.label(this, detailPane, "", TaskVisualTokens.SUPPORTING_SP, true).apply { visibility = View.GONE }
         previewMetrics = CurvePreviewMetrics(this).apply { visibility=View.GONE; tag="curve-preview-metrics" }
         detailPane.addView(previewMetrics,LinearLayout.LayoutParams(-1,-2))
+        stageHeading = HoyiUi.label(this, detailPane, getString(R.string.curve_library_stage_heading),
+            TaskVisualTokens.SECTION_SP, true).apply {
+            visibility = View.GONE
+            setPadding(0, dp(8), 0, dp(8))
+        }
         stageChart = CurveStageView(this).apply { visibility = View.GONE }
         // Kept as a bounded, non-overflowing viewport for existing layout selectors.
         detailScroll = ScrollView(this).apply {
@@ -312,6 +323,14 @@ class CurveActivity : ThemedActivity() {
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
         }
         val parameterDetails = HoyiUi.button(this, secondary, getString(R.string.curve_detail_title)) { showParameterDetails() }
+        directEdit = HoyiUi.button(this, detailToolbar, getString(R.string.profiles_edit)) { editDraft.performClick() }.apply {
+            asTaskTextAction(); visibility = View.GONE; maxWidth = dp(160)
+            layoutParams = LinearLayout.LayoutParams(-2, -2)
+        }
+        directShare = HoyiUi.button(this, detailToolbar, getString(R.string.profiles_share)) { shareParameters.performClick() }.apply {
+            asTaskTextAction(); visibility = View.GONE; maxWidth = dp(160)
+            layoutParams = LinearLayout.LayoutParams(-2, -2)
+        }
         detailActions = HoyiUi.button(this, detailToolbar, getString(R.string.task_curve_library_actions)) {
             showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft, assignPreset))
         }.apply {
@@ -419,6 +438,9 @@ class CurveActivity : ThemedActivity() {
         editDraft.isEnabled = (application as MobileApplication).customCurvesResult.isSuccess && copyable?.controlMode == CustomCurveDocument.ControlMode.PRESSURE
         shareParameters.visibility = View.VISIBLE
         shareParameters.isEnabled = copyable != null
+        directEdit.text = editDraft.text
+        directEdit.isEnabled = editDraft.isEnabled
+        directShare.isEnabled = shareParameters.isEnabled
         availability.setTextColor(getColor(if (canStart) R.color.mobile_accent else R.color.mobile_muted))
         availability.visibility = View.VISIBLE
         detailActions.visibility = View.VISIBLE
@@ -448,6 +470,9 @@ class CurveActivity : ThemedActivity() {
         val item = selected ?: return
         if (!::stageChart.isInitialized) return
         val hasPressure = stageChart.targets.isNotEmpty()
+        val direct = width >= (dp(600) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt()
+        directEdit.visibility = if (direct) View.VISIBLE else View.GONE
+        directShare.visibility = if (direct) View.VISIBLE else View.GONE
         val exactWidth = View.MeasureSpec.makeMeasureSpec(width.coerceAtLeast(0), View.MeasureSpec.EXACTLY)
         val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         fun naturalHeightOf(child: View): Int {
@@ -459,7 +484,7 @@ class CurveActivity : ThemedActivity() {
         // Otherwise hiding metadata would make the next measure flip back into a too-short plot.
         val actionHeight = naturalHeightOf(detailToolbar) + naturalHeightOf(selectionDock)
         val metadataHeight = listOf(detailCategory, availability, previewMetrics).sumOf(::naturalHeightOf) +
-            if (hasPressure) naturalHeightOf(stageCaption) else 0
+            if (hasPressure) naturalHeightOf(stageCaption) + naturalHeightOf(stageHeading) else 0
         val contentMinimum = if (hasPressure) (dp(96) * resources.configuration.fontScale.coerceAtLeast(1f)).toInt() + dp(6)
             else {
                 rawReasonMeasure.measure(exactWidth, naturalHeight)
@@ -470,6 +495,7 @@ class CurveActivity : ThemedActivity() {
             it.visibility = if (shortPreview) View.GONE else View.VISIBLE
         }
         stageCaption.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
+        stageHeading.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
         detailScroll.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
         stageChart.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
         val fallback = shortPreview || !hasPressure
