@@ -5,6 +5,10 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -18,6 +22,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.roundToInt
 
 /** Mock-only native candidate. All action-looking views have zero business callbacks. */
 class StrictVisualSampleActivity : Activity() {
@@ -26,7 +31,7 @@ class StrictVisualSampleActivity : Activity() {
     internal lateinit var sampleRoot: LinearLayout
     internal val charts = mutableListOf<StrictVisualSampleChart>()
     internal val icons = mutableListOf<StrictVisualSampleIcon>()
-    internal val actionViews = mutableListOf<TextView>()
+    internal val actionViews = mutableListOf<View>()
     internal lateinit var themeFontDiagnostics: JSONObject
         private set
     private val requested = linkedMapOf<TextView, StrictVisualSampleTokens.Type>()
@@ -105,6 +110,45 @@ class StrictVisualSampleActivity : Activity() {
             .put("gate", "unchanged_TaskTypographyEvidence_default_TextView_measureText_and_weight_checks")
     }
     private fun row(id: String) = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false; tag = id }
+    private fun baselineRow(id: String) = row(id).apply { isBaselineAligned = true; gravity = Gravity.BOTTOM }
+    private fun icon(kind: String, id: String, color: Int = palette.muted, size: Int = 24) =
+        StrictVisualSampleIcon(this, kind, color).apply { tag = id; icons.add(this); layoutParams = LinearLayout.LayoutParams(dp(size), dp(size)) }
+    private fun withIcon(content: View, kind: String, id: String, color: Int = palette.muted, size: Int = 24): LinearLayout = row(id).apply {
+        gravity = Gravity.CENTER_VERTICAL
+        addView(icon(kind, "$id/icon", color, size))
+        addView(content, LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(8) })
+    }
+    /** Borders are inside existing row bounds: they never consume layout budget. */
+    private fun rules(view: View, fill: Int = Color.TRANSPARENT, bottom: Boolean = false, columns: Int = 0, outline: Boolean = false) {
+        view.background = object : Drawable() {
+            private val ink = Paint().apply { color = palette.border; strokeWidth = dp(1).toFloat() }
+            override fun draw(canvas: Canvas) {
+                canvas.drawRect(bounds, Paint().apply { color = fill })
+                val half = ink.strokeWidth / 2
+                if (bottom) canvas.drawLine(bounds.left.toFloat(), bounds.bottom - half, bounds.right.toFloat(), bounds.bottom - half, ink)
+                if (columns > 1) for (i in 1 until columns) {
+                    val x = bounds.left + bounds.width() * i.toFloat() / columns
+                    canvas.drawLine(x, bounds.top.toFloat(), x, bounds.bottom.toFloat(), ink)
+                }
+                if (outline) { ink.style = Paint.Style.STROKE; canvas.drawRect(bounds.left + half, bounds.top + half, bounds.right - half, bounds.bottom - half, ink); ink.style = Paint.Style.FILL }
+            }
+            override fun setAlpha(alpha: Int) { ink.alpha = alpha }
+            override fun setColorFilter(filter: ColorFilter?) { ink.colorFilter = filter }
+            @Deprecated("Drawable opacity") override fun getOpacity() = PixelFormat.TRANSLUCENT
+        }
+    }
+    private fun nameDescription(name: TextView, description: TextView, id: String): LinearLayout = object : LinearLayout(this) {
+        init { tag = id; isBaselineAligned = true; gravity = Gravity.BOTTOM; addView(name, LinearLayout.LayoutParams(-2, -2)); addView(description, LinearLayout.LayoutParams(-2, -2)) }
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val available = MeasureSpec.getSize(widthMeasureSpec)
+            val needed = name.paint.measureText(name.text.toString()) + description.paint.measureText(description.text.toString()) + dp(16)
+            val stacked = MeasureSpec.getMode(widthMeasureSpec) != MeasureSpec.UNSPECIFIED && needed > available
+            orientation = if (stacked) VERTICAL else HORIZONTAL
+            (name.layoutParams as LinearLayout.LayoutParams).width = if (stacked) -1 else -2
+            (description.layoutParams as LinearLayout.LayoutParams).apply { width = if (stacked) -1 else -2; leftMargin = if (stacked) 0 else dp(16) }
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        }
+    }
     private fun column(id: String) = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = id }
     private fun text(value: CharSequence, role: StrictVisualSampleTokens.Type, id: String, muted: Boolean = false): TextView = TextView(this).apply {
         tag = id; text = value; setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, role.sizeSp.toFloat())
@@ -123,15 +167,29 @@ class StrictVisualSampleActivity : Activity() {
     private fun shape(fill: Int, stroke: Boolean = false, radius: Int = 0) = GradientDrawable().apply {
         setColor(fill); cornerRadius = dp(radius).toFloat(); if (stroke) setStroke(dp(1), palette.border)
     }
-    private fun action(value: String, id: String, primary: Boolean = false, disabled: Boolean = false, outline: Boolean = false): TextView =
-        text(value, StrictVisualSampleTokens.action, id).apply {
-            gravity = Gravity.CENTER; minHeight = dp(if (primary) 56 else 48)
-            setPadding(dp(8), dp(8), dp(8), dp(8)); isEnabled = !disabled
-            setTextColor(when { disabled -> palette.onDisabled; primary -> palette.onPrimary; else -> palette.accent })
-            background = shape(when { disabled -> palette.disabled; primary -> palette.primary; else -> Color.TRANSPARENT }, outline, 12)
-            actionViews.add(this)
-            // Deliberately no onClickListener/onTouchListener; never delegates to a product action.
+    private fun action(value: String, id: String, primary: Boolean = false, disabled: Boolean = false, outline: Boolean = false): LinearLayout {
+        val color = when { disabled -> palette.onDisabled; primary -> palette.onPrimary; else -> palette.accent }
+        val kind = when (id) {
+            "sample/page/back" -> "back"
+            "sample/preparation/primary" -> "play"
+            "sample/share/primary", "sample/share/fileShareDisabled" -> "share"
+            "sample/share/secondary" -> "copy"
+            "sample/share/export" -> "export"
+            "sample/inventory/primary" -> "coffee"
+            "sample/inventory/adjust" -> "cube"
+            "sample/inventory/batchDetails" -> "chevron"
+            else -> null
         }
+        return row(id).apply {
+            gravity = Gravity.CENTER; minimumHeight = dp(if (primary) 56 else 48)
+            setPadding(dp(8), dp(8), dp(8), dp(8)); isEnabled = !disabled
+            background = shape(when { disabled -> palette.disabled; primary -> palette.primary; else -> Color.TRANSPARENT }, outline, 12)
+            if (kind != null) addView(icon(kind, "$id/icon", color, if (kind == "chevron") 16 else 24))
+            if (id != "sample/page/back") addView(text(value, StrictVisualSampleTokens.action, "$id/label").apply { setTextColor(color); isEnabled = !disabled },
+                LinearLayout.LayoutParams(-2, -2).apply { if (kind != null) leftMargin = dp(8) })
+            actionViews.add(this)
+        }
+    }
     private fun divider(parent: LinearLayout, top: Int = 8, bottom: Int = 7, id: String? = null) {
         parent.addView(View(this).apply { tag = id; setBackgroundColor(palette.border) }, LinearLayout.LayoutParams(-1, dp(1)).apply {
             topMargin = dp(top); bottomMargin = dp(bottom)
@@ -170,13 +228,32 @@ class StrictVisualSampleActivity : Activity() {
         if (isShare) head.addView(action("‹", "sample/page/back"), LinearLayout.LayoutParams(dp(48), -1))
         val titles = column("sample/page/titles")
         add(titles, text(fixture.title, StrictVisualSampleTokens.title, "sample/page/title"))
-        if (fixture.id != StrictVisualSampleFixtures.ids[1]) add(titles,
-            text(if (fixture.id == StrictVisualSampleFixtures.ids[0]) "配方与粉量已确认" else "3 款豆 · 500 g",
-                StrictVisualSampleTokens.auxiliary, if (fixture.id == StrictVisualSampleFixtures.ids[2]) "sample/inventory/headerSummary" else "sample/page/subtitle", true), 8)
+        if (!isShare) {
+            val subtitle = baselineRow("sample/page/subtitleRow")
+            subtitle.addView(text(if (fixture.id == StrictVisualSampleFixtures.ids[0]) "配方与粉量已确认" else "3 款豆 · 500 g",
+                StrictVisualSampleTokens.auxiliary, if (fixture.id == StrictVisualSampleFixtures.ids[2]) "sample/inventory/headerSummary" else "sample/page/subtitle", true))
+            if (fixture.id == StrictVisualSampleFixtures.ids[0]) subtitle.addView(text("演示数据", StrictVisualSampleTokens.auxiliary, "sample/preparation/demo", true), LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(16) })
+            add(titles, subtitle, 8)
+        }
         head.addView(titles, if (isShare) LinearLayout.LayoutParams(0, -2, 1f).apply { leftMargin = dp(16) }
             else LinearLayout.LayoutParams(dp(694), -2))
         if (!isShare) head.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        if (fixture.id == StrictVisualSampleFixtures.ids[0]) head.addView(action("连接设备", "sample/preparation/deviceEntry"), LinearLayout.LayoutParams(dp(144), -2))
+        if (fixture.id == StrictVisualSampleFixtures.ids[0]) {
+            val devices = row("sample/preparation/deviceEntry")
+            listOf("咖啡机" to "已就绪", "电子秤" to "实时").forEachIndexed { index, data ->
+                val labels = column("sample/preparation/device/$index/labels")
+                add(labels, text(data.first, StrictVisualSampleTokens.auxiliary, "sample/preparation/device/$index/title", true))
+                add(labels, text(data.second, StrictVisualSampleTokens.auxiliary.copy(weight = 500), "sample/preparation/device/$index/status").apply { setTextColor(palette.accent) })
+                val card = withIcon(labels, if (index == 0) "coffeeMachine" else "scale", "sample/preparation/device/$index").apply {
+                    minimumHeight = dp(64); setPadding(dp(8), dp(8), dp(8), dp(8)); background = shape(palette.disabled, radius = 12)
+                }
+                devices.addView(card, LinearLayout.LayoutParams(dp(150), -2).apply { if (index > 0) leftMargin = dp(8) })
+            }
+            head.addView(devices)
+        }
+        if (isShare) head.addView(text("设计示意", StrictVisualSampleTokens.auxiliary, "sample/share/designChip", true).apply {
+            setPadding(dp(8), dp(4), dp(8), dp(4)); background = shape(palette.disabled, radius = 12)
+        })
         if (fixture.id == StrictVisualSampleFixtures.ids[2]) head.addView(action("＋ 添加咖啡豆", "sample/inventory/add"), LinearLayout.LayoutParams(dp(192), -2))
         val frame = FrameLayout(this).apply { tag = "sample/page/header" }
         frame.addView(head, FrameLayout.LayoutParams(-1, -2))
@@ -188,12 +265,19 @@ class StrictVisualSampleActivity : Activity() {
         charts.add(chart); add(parent, chart, 8, height)
     }
     private fun summary(id: String): View {
-        val result = row(id).apply { gravity = Gravity.CENTER_VERTICAL }
+        val result = row(id).apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(36) }
         for ((index, values) in listOf("93" to "°C", "36" to "g", "4" to "个阶段").withIndex()) {
-            val group = row("$id/$index").apply { gravity = Gravity.CENTER_VERTICAL }
-            group.addView(text(values.first, StrictVisualSampleTokens.recipeValue, "$id/$index/value"))
-            group.addView(text(values.second, StrictVisualSampleTokens.auxiliary, "$id/$index/unit", true), LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8) })
-            result.addView(group, LinearLayout.LayoutParams(0, -2, 1f))
+            if (index > 0) {
+                val separator = FrameLayout(this)
+                separator.addView(View(this).apply { setBackgroundColor(palette.border); tag = "$id/divider$index" }, FrameLayout.LayoutParams(dp(1), dp(24), Gravity.CENTER))
+                result.addView(separator, LinearLayout.LayoutParams(dp(24), dp(36)))
+            }
+            val valuesRow = baselineRow("$id/$index/values")
+            if (index == 1) valuesRow.addView(text("目标液重", StrictVisualSampleTokens.auxiliary, "$id/$index/label", true), LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8) })
+            valuesRow.addView(text(values.first, StrictVisualSampleTokens.compactRecipeMetric, "$id/$index/value"))
+            valuesRow.addView(text(values.second, StrictVisualSampleTokens.auxiliary, "$id/$index/unit", true), LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8) })
+            val group = withIcon(valuesRow, listOf("temperature", "coffee", "stages")[index], "$id/$index")
+            result.addView(group, LinearLayout.LayoutParams(if (index < 2) dp(208) else 0, -2, if (index == 2) 1f else 0f))
         }
         return result
     }
@@ -204,7 +288,8 @@ class StrictVisualSampleActivity : Activity() {
         val right = column("sample/preparation/cup")
         parent.addView(right, LinearLayout.LayoutParams(dp(308), -1))
         val recipe = row("sample/preparation/recipeRow").apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(48) }
-        recipe.addView(text("经典浓缩", StrictVisualSampleTokens.title, "sample/preparation/recipe"), LinearLayout.LayoutParams(0, -2, 1f))
+        recipe.addView(nameDescription(text("经典浓缩", StrictVisualSampleTokens.title, "sample/preparation/recipe"),
+            text("四阶段压力配方", StrictVisualSampleTokens.auxiliary, "sample/preparation/recipeDescription", true), "sample/preparation/recipeIdentity"), LinearLayout.LayoutParams(0, -2, 1f))
         recipe.addView(action("更换曲线 ›", "sample/preparation/changeRecipe"), LinearLayout.LayoutParams(dp(144), -2).apply { leftMargin = dp(16) })
         add(left, recipe)
         add(left, summary("sample/preparation/summary"), 8)
@@ -222,9 +307,16 @@ class StrictVisualSampleActivity : Activity() {
         for (index in 0 until inputs.length()) {
             val data = inputs.getJSONObject(index)
             val line = row("sample/preparation/recent/row${index + 1}").apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(48) }
-            line.addView(text(data.getString("name"), StrictVisualSampleTokens.action, "sample/preparation/recent/row/$index/name"), LinearLayout.LayoutParams(0, -2, 1f))
-            line.addView(text("${data.getInt("temperatureC")}°C  /  ${data.getInt("targetGrams")}g  /  ${data.getInt("stages")}个阶段",
-                StrictVisualSampleTokens.auxiliary, "sample/preparation/recent/row/$index/summary", true))
+            line.addView(nameDescription(text(data.getString("name"), StrictVisualSampleTokens.action, "sample/preparation/recent/row/$index/name"),
+                text(listOf("四阶段压力配方", "柔和风味 · 三阶段", "低压逐步释放 · 三阶段")[index], StrictVisualSampleTokens.auxiliary, "sample/preparation/recent/row/$index/description", true),
+                "sample/preparation/recent/row/$index/identity"), LinearLayout.LayoutParams(0, -2, 1f))
+            val metrics = row("sample/preparation/recent/row/$index/summary").apply { gravity = Gravity.CENTER_VERTICAL }
+            listOf("${data.getInt("temperatureC")}°C", "${data.getInt("targetGrams")}g", "${data.getInt("stages")}个阶段").forEachIndexed { metric, value ->
+                if (metric > 0) metrics.addView(View(this).apply { setBackgroundColor(palette.border) }, LinearLayout.LayoutParams(dp(1), dp(16)).apply { leftMargin = dp(8); rightMargin = dp(8) })
+                metrics.addView(text(value, StrictVisualSampleTokens.auxiliary, "sample/preparation/recent/row/$index/metric$metric", true))
+            }
+            line.addView(metrics, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(16) })
+            rules(line, bottom = true)
             add(recent, line)
         }
         left.addView(scrolling(recent, "sample/preparation/recent"), LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8); bottomMargin = dp(1) })
@@ -240,21 +332,27 @@ class StrictVisualSampleActivity : Activity() {
         add(body, bean); divider(body, id = "sample/preparation/beanDivider")
         add(body, text("已确认粉量", StrictVisualSampleTokens.auxiliary, "sample/preparation/doseLabel", true))
         val dose = row("sample/preparation/cup/dose").apply { gravity = Gravity.CENTER_VERTICAL }
-        val amount = row("sample/preparation/doseValue").apply { gravity = Gravity.CENTER_VERTICAL }
+        val amount = baselineRow("sample/preparation/doseValue")
         amount.addView(text("18.0", StrictVisualSampleTokens.largeValue, "sample/preparation/doseValue/number"))
         amount.addView(text("g", StrictVisualSampleTokens.auxiliary, "sample/preparation/doseValue/unit"), LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8) })
         dose.addView(amount, LinearLayout.LayoutParams(0, -2, 1f))
         dose.addView(action("编辑", "sample/preparation/editDose"), LinearLayout.LayoutParams(dp(64), -2).apply { leftMargin = dp(24) })
         add(body, dose, 8); divider(body, id = "sample/preparation/doseDivider")
-        add(body, text("●  咖啡机已就绪", StrictVisualSampleTokens.body, "sample/preparation/machineReady")); divider(body, id = "sample/preparation/machineDivider")
-        add(body, text("●  电子秤数据实时", StrictVisualSampleTokens.body, "sample/preparation/scaleReady")); divider(body, bottom = 15, id = "sample/preparation/scaleDivider")
-        add(body, text("开始前将再次确认。", StrictVisualSampleTokens.auxiliary, "sample/preparation/confirmation", true).apply { minLines = 2 })
+        add(body, withIcon(text("咖啡机已就绪", StrictVisualSampleTokens.body, "sample/preparation/machineReady/text"), "statusDot", "sample/preparation/machineReady", palette.accent, 12)); divider(body, id = "sample/preparation/machineDivider")
+        add(body, withIcon(text("电子秤数据实时", StrictVisualSampleTokens.body, "sample/preparation/scaleReady/text"), "statusDot", "sample/preparation/scaleReady", palette.accent, 12))
+        divider(body, id = "sample/preparation/scaleDivider")
         right.addView(scrolling(body, "sample/preparation/cup/scroll"), LinearLayout.LayoutParams(-1, 0, 1f))
-        add(right, action("开始萃取", "sample/preparation/primary", primary = true), 8)
-        add(right, action("查看准备详情", "sample/preparation/details"), 8)
+        val dock = column("sample/preparation/dock")
+        add(dock, withIcon(text("开始前将再次确认。", StrictVisualSampleTokens.auxiliary, "sample/preparation/confirmation/text", true), "info", "sample/preparation/confirmation"))
+        add(dock, action("开始萃取", "sample/preparation/primary", primary = true), 8)
+        add(dock, action("查看准备详情", "sample/preparation/details"), 8)
+        add(right, dock, 8)
     }
     private fun paneGap(parent: LinearLayout, id: String) {
         val gap = FrameLayout(this)
+        if (id == "sample/share/paneDivider") {
+            gap.tag = id; parent.addView(gap, LinearLayout.LayoutParams(dp(24), -1)); return
+        }
         gap.addView(View(this).apply { tag = id; setBackgroundColor(palette.border) }, FrameLayout.LayoutParams(dp(1), -1, Gravity.CENTER_HORIZONTAL).apply {
             if (id == "sample/preparation/paneDivider") topMargin = dp(6)
         })
@@ -267,16 +365,19 @@ class StrictVisualSampleActivity : Activity() {
         paneGap(parent, "sample/share/paneDivider")
         val right = column("sample/share/actionsPane").apply { setPadding(dp(16), dp(16), dp(16), dp(16)); background = shape(palette.surface, true, 16) }
         parent.addView(right, LinearLayout.LayoutParams(0, -1, 1f))
-        add(left, text("经典浓缩 · 压力模式", StrictVisualSampleTokens.title, "sample/share/recipe"))
+        val identity = row("sample/share/identity").apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(36) }
+        identity.addView(text("经典浓缩", StrictVisualSampleTokens.title, "sample/share/recipe"))
+        identity.addView(text("压力模式", StrictVisualSampleTokens.auxiliary, "sample/share/modeBadge").apply { setTextColor(palette.accent); setPadding(dp(8), 0, dp(8), 0); background = shape(palette.selected, radius = 12) }, LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(16) })
+        add(left, identity)
         val summaries = row("sample/share/summary")
         for ((index, metric) in listOf("设定温度" to ("93" to "°C"), "目标液重" to ("36.0" to "g")).withIndex()) {
-            val card = column(if (index == 0) "sample/share/temperatureCard" else "sample/share/targetCard").apply { setPadding(dp(16), dp(8), dp(16), dp(8)); background = shape(palette.surface, true, 12) }
+            val card = column(if (index == 0) "sample/share/temperatureCard" else "sample/share/targetCard").apply { minimumHeight = dp(74); gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(8)); background = shape(palette.surface, true, 12) }
             add(card, text(metric.first, StrictVisualSampleTokens.auxiliary, "sample/share/summary/$index/label", true))
-            val values = row("sample/share/summary/$index/values").apply { gravity = Gravity.CENTER_VERTICAL }
-            values.addView(text(metric.second.first, StrictVisualSampleTokens.recipeValue, "sample/share/summary/$index/value"), LinearLayout.LayoutParams(0, -2, 1f))
+            val values = baselineRow("sample/share/summary/$index/values")
+            values.addView(text(metric.second.first, StrictVisualSampleTokens.shareParameterMetric, "sample/share/summary/$index/value"), LinearLayout.LayoutParams(0, -2, 1f))
             values.addView(text(metric.second.second, StrictVisualSampleTokens.auxiliary, "sample/share/summary/$index/unit", true))
             add(card, values)
-            summaries.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) leftMargin = dp(16) })
+            summaries.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) leftMargin = dp(24) })
         }
         add(left, summaries, 8)
         add(left, text("压力阶段预览", StrictVisualSampleTokens.section, "sample/share/stageTitle"), 8)
@@ -286,12 +387,17 @@ class StrictVisualSampleActivity : Activity() {
         val table = column("sample/share/table")
         fun tableRow(values: List<String>, id: String, header: Boolean = false) {
             val row = row(id)
-            values.forEachIndexed { index, value -> row.addView(text(value,
-                StrictVisualSampleTokens.auxiliary.copy(weight = if (header) 500 else 400), "$id/$index"), LinearLayout.LayoutParams(0, -2, 1f)) }
+            values.forEachIndexed { index, value ->
+                val label = text(value, StrictVisualSampleTokens.auxiliary.copy(weight = if (header) 500 else 400), "$id/$index")
+                val cell: View = if (!header && index == 0) withIcon(label, "statusDot", "$id/stage", palette.stageColors[id.takeLast(1).toInt() - 1], 12) else label
+                row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+            }
+            rules(row, fill = if (header) palette.disabled else Color.TRANSPARENT, bottom = true, columns = 3)
             add(table, row)
         }
         tableRow(listOf("阶段", "压力（bar）", "注水量（ml）"), "sample/share/table/header", true)
         fixture.targetsTenthsBar.forEachIndexed { index, value -> tableRow(listOf("阶段 ${index + 1}", "${value / 10.0}", "${fixture.waterMl[index]}.0"), "sample/share/table/row${index + 1}") }
+        rules(table, outline = true)
         add(left, table, 8)
         add(right, text("分享方式", StrictVisualSampleTokens.section, "sample/share/actionsTitle"))
         add(right, action("分享文本", "sample/share/primary", primary = true), 16)
@@ -322,21 +428,24 @@ class StrictVisualSampleActivity : Activity() {
                 minimumHeight = dp(64); gravity = Gravity.CENTER_VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(8))
                 isSelected = index == 0; if (index == 0) background = shape(palette.selected, radius = 12)
             }
+            row.addView(icon("bean", "sample/inventory/row${index + 1}/icon"), LinearLayout.LayoutParams(dp(24), dp(24)).apply { rightMargin = dp(12) })
             row.addView(text(bean.name, StrictVisualSampleTokens.body, "sample/inventory/row${index + 1}/name"), LinearLayout.LayoutParams(0, -2, 1f))
-            row.addView(text("${bean.remainingGrams} g", StrictVisualSampleTokens.body, "sample/inventory/row${index + 1}/weight"))
+            row.addView(text("${bean.remainingGrams} g", StrictVisualSampleTokens.body, "sample/inventory/row${index + 1}/weight"), LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(16) })
+            row.addView(icon("chevron", "sample/inventory/row${index + 1}/chevron", size = 16), LinearLayout.LayoutParams(dp(16), dp(16)).apply { leftMargin = dp(8) })
+            if (index != 0) rules(row, bottom = true)
             add(left, row, if (index == 0) 14 else 8)
         }
         val body = column("sample/inventory/body")
         val name = row("sample/inventory/nameRow").apply { gravity = Gravity.TOP; minimumHeight = dp(38) }
-        name.addView(text("哥伦比亚 水洗", StrictVisualSampleTokens.title, "sample/inventory/beanName"), LinearLayout.LayoutParams(0, -2, 1f))
+        name.addView(text("哥伦比亚 水洗", StrictVisualSampleTokens.title, "sample/inventory/beanName"), LinearLayout.LayoutParams(-2, -2))
         name.addView(text("批次 1", StrictVisualSampleTokens.auxiliary, "sample/inventory/batchBadge", true).apply {
-            gravity = Gravity.CENTER; setPadding(dp(8), dp(8), dp(8), dp(8))
-            minHeight = StrictVisualSampleTokens.sp(this@StrictVisualSampleActivity, 22).toInt() + dp(16)
+            gravity = Gravity.CENTER; setPadding(dp(8), dp(4), dp(8), dp(4))
+            minHeight = StrictVisualSampleTokens.sp(this@StrictVisualSampleActivity, 22).toInt() + dp(8)
             background = shape(palette.disabled, radius = 12)
         }, LinearLayout.LayoutParams(dp(80), -2).apply { leftMargin = dp(16) })
         add(body, name)
         add(body, text("剩余重量", StrictVisualSampleTokens.auxiliary, "sample/inventory/weightLabel", true), 6)
-        val weight = row("sample/inventory/weight").apply { gravity = Gravity.CENTER_VERTICAL }
+        val weight = baselineRow("sample/inventory/weight")
         weight.addView(text("90", StrictVisualSampleTokens.largeValue, "sample/inventory/weight/value"))
         weight.addView(text("g", StrictVisualSampleTokens.auxiliary, "sample/inventory/weight/unit"), LinearLayout.LayoutParams(-2, -2).apply { leftMargin = dp(8) })
         add(body, weight, 8)
@@ -358,6 +467,7 @@ class StrictVisualSampleActivity : Activity() {
             values.addView(text(pair.second, StrictVisualSampleTokens.body, "sample/inventory/date/$index/value"), LinearLayout.LayoutParams(0, -2, 1f))
         }
         add(dateGroup, labels); add(dateGroup, values, 8)
+        rules(dateGroup, columns = 3)
         add(body, dateGroup); divider(body, top = 8, bottom = 7, id = "sample/inventory/datesDivider")
         val ledgerHead = row("sample/inventory/ledgerHeaderRow").apply { gravity = Gravity.CENTER_VERTICAL; minimumHeight = dp(48) }
         ledgerHead.addView(text("最近流水", StrictVisualSampleTokens.section, "sample/inventory/ledgerTitle"), LinearLayout.LayoutParams(0, -2, 1f))
@@ -368,6 +478,7 @@ class StrictVisualSampleActivity : Activity() {
             val row = row(if (index == 0) "sample/inventory/ledgerColumns" else "sample/inventory/ledgerRow$index")
             values.forEachIndexed { column, value -> row.addView(text(value, if (index == 0) StrictVisualSampleTokens.auxiliary else StrictVisualSampleTokens.body,
                 "sample/inventory/ledger/$index/$column", index == 0), LinearLayout.LayoutParams(0, -2, 1f)) }
+            rules(row, fill = if (index == 0) palette.disabled else Color.TRANSPARENT, bottom = true)
             add(ledger, row)
         }
         add(body, ledger, 8)
@@ -378,7 +489,14 @@ class StrictVisualSampleActivity : Activity() {
                 LinearLayout.LayoutParams(0, -2, pair.second.toFloat()).apply { if (index > 0) leftMargin = dp(8) })
         }
         add(right, actions, 8)
-        add(right, text("确认本杯用量后才扣减库存。", StrictVisualSampleTokens.auxiliary, "sample/inventory/confirmation", true), 8)
+        right.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            val density = resources.displayMetrics.density
+            val appHeight = sampleRoot.height.toFloat() / density
+            val gap = ((4f + .8f * (appHeight.coerceIn(618f, 623f) - 618f)) * density).roundToInt()
+            val params = actions.layoutParams as LinearLayout.LayoutParams
+            if (params.topMargin != gap) { params.topMargin = gap; actions.layoutParams = params }
+        }
+        add(right, withIcon(text("确认本杯用量后才扣减库存。", StrictVisualSampleTokens.auxiliary, "sample/inventory/confirmation/text", true), "info", "sample/inventory/confirmation"), 8)
     }
     internal fun requestedRoles() = JSONArray(requested.map { (view, type) -> JSONObject().put("semanticId", view.tag)
         .put("requestedSizeSp", type.sizeSp).put("requestedLineSp", type.lineSp).put("requestedWeight", type.weight)

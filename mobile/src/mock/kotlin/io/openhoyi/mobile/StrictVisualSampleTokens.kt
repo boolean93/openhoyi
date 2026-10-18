@@ -15,6 +15,8 @@ internal object StrictVisualSampleTokens {
     val section = Type(20, 500, 30)
     val title = Type(24, 500, 36)
     val recipeValue = Type(24, 700, 36)
+    val compactRecipeMetric = Type(16, 500, 24)
+    val shareParameterMetric = Type(20, 400, 30)
     val largeValue = Type(40, 700, 60)
     data class Palette(val dark: Boolean) {
         private fun pick(light: String, night: String) = Color.parseColor(if (dark) night else light)
@@ -47,7 +49,8 @@ internal object StrictVisualSampleTokens {
             .put("page", 16).put("rail", 80).put("stroke", 1).put("touchMin", 48).put("primaryMin", 56))
         .put("types", JSONObject().apply {
             for ((name, type) in mapOf("body" to body, "action" to action, "auxiliary" to auxiliary,
-                "section" to section, "title" to title, "recipeValue" to recipeValue, "largeValue" to largeValue))
+                "section" to section, "title" to title, "recipeValue" to recipeValue, "largeValue" to largeValue,
+                "compactRecipeMetric" to compactRecipeMetric, "shareParameterMetric" to shareParameterMetric))
                 put(name, JSONObject().put("sizeSp", type.sizeSp).put("weight", type.weight).put("lineSp", type.lineSp))
         })
 }

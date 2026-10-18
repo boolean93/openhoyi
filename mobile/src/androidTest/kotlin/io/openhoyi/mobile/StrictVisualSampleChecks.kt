@@ -106,6 +106,101 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
         check(violations.isEmpty()) { violations.joinToString("; ") }
         return measurements
     }
+    private fun screenshot(file: File) {
+        val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
+        try { file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
+        finally { bitmap.recycle() }
+    }
+    /** Each observation starts from the original viewport; screenshots are after actual frame commits. */
+    private fun auditReachability(activity: StrictVisualSampleActivity, directory: File, scale: Float): JSONArray {
+        val result = JSONArray()
+        lateinit var targets: List<View>
+        main {
+            val all = nodes(activity.sampleRoot)
+            val ids = when (activity.fixture.id) {
+                StrictVisualSampleFixtures.ids[0] -> listOf("sample/preparation/machineReady", "sample/preparation/scaleReady", "sample/preparation/confirmation")
+                StrictVisualSampleFixtures.ids[1] -> listOf("sample/share/table/header") + (1..4).map { "sample/share/table/row$it" } + "sample/share/privacy"
+                else -> (1..2).map { "sample/inventory/ledgerRow$it" }
+            }
+            targets = ids.map { id -> all.single { it.tag == id } }
+        }
+        fun observation(view: View): JSONObject {
+            val visible = Rect(); val origin = IntArray(2); view.getLocationOnScreen(origin)
+            val shown = view.getGlobalVisibleRect(visible)
+            val complete = shown && visible == Rect(origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)
+            val lines = nodes(view).filterIsInstance<TextView>().map { text ->
+                val box = Rect(); val local = IntArray(2); text.getLocationOnScreen(local)
+                val full = text.getGlobalVisibleRect(box) && box == Rect(local[0], local[1], local[0] + text.width, local[1] + text.height)
+                JSONObject().put("semanticId", text.tag).put("fullViewVisible", full)
+                    .put("lineCount", text.layout?.lineCount ?: 0)
+                    .put("layoutPresent", text.layout != null)
+                    .put("ellipsisCount", text.layout?.let { layout -> (0 until layout.lineCount).sumOf { layout.getEllipsisCount(it) } } ?: JSONObject.NULL)
+                    .put("layoutHeightPx", text.layout?.height ?: JSONObject.NULL)
+                    .put("contentHeightPx", text.height - text.compoundPaddingTop - text.compoundPaddingBottom)
+            }
+            return JSONObject().put("complete", complete).put("sizePx", JSONArray(listOf(view.width, view.height)))
+                .put("rectPx", JSONArray(listOf(origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)))
+                .put("visibleRectPx", JSONArray(listOf(visible.left, visible.top, visible.right, visible.bottom)))
+                .put("textLineBoxes", JSONArray(lines))
+        }
+        fun wholeTarget(observation: JSONObject): Boolean = observation.getBoolean("complete") &&
+            observation.getJSONArray("textLineBoxes").let { lines ->
+                (0 until lines.length()).all { i -> val line = lines.getJSONObject(i)
+                    line.getBoolean("fullViewVisible") && line.getBoolean("layoutPresent") && line.getInt("lineCount") > 0 &&
+                        line.getInt("ellipsisCount") == 0 && line.getInt("layoutHeightPx") <= line.getInt("contentHeightPx") }
+            }
+        targets.forEachIndexed { index, view ->
+            lateinit var scrolls: List<Pair<ScrollView, Pair<Int, Int>>>
+            lateinit var before: JSONObject
+            lateinit var after: JSONObject
+            var restored = false
+            main {
+                scrolls = generateSequence(view.parent) { it.parent }.filterIsInstance<ScrollView>()
+                    .map { it to (it.scrollX to it.scrollY) }.toList()
+                before = observation(view)
+            }
+            val image = "after-scroll-${index + 1}.png"
+            try {
+                main { view.requestRectangleOnScreen(Rect(0, 0, view.width, view.height), true) }
+                settled(activity)
+                main { after = observation(view) }
+                screenshot(File(directory, image))
+            } finally {
+                main { scrolls.forEach { (scroll, position) -> scroll.scrollTo(position.first, position.second) } }
+                settled(activity)
+                main { restored = scrolls.all { (scroll, position) -> scroll.scrollX == position.first && scroll.scrollY == position.second } }
+            }
+            val initialRequired = view.tag == "sample/preparation/confirmation" || scale == 1f &&
+                (activity.fixture.id != StrictVisualSampleFixtures.ids[1] || view.tag != "sample/share/privacy")
+            val complete = wholeTarget(after)
+            val initialComplete = wholeTarget(before)
+            val pass = complete && restored && (!initialRequired || initialComplete)
+            result.put(JSONObject().put("semanticId", view.tag).put("status", if (pass) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
+                .put("initialRequired", initialRequired).put("initialCompleteIncludingText", initialComplete).put("initial", before).put("afterScroll", after)
+                .put("initialPng", "window.png").put("afterScrollPng", image).put("scrollRestored", restored)
+                .put("reason", "whole_target_and_actual_text_line_boxes_must_be_visible; no_ellipsis_or_font_reduction"))
+        }
+        File(directory, "scroll-reachability.json").writeText(result.toString(2))
+        return result
+    }
+    private fun auditBaselines(activity: StrictVisualSampleActivity): JSONArray {
+        val all = nodes(activity.sampleRoot)
+        val pairs = when (activity.fixture.id) {
+            StrictVisualSampleFixtures.ids[0] -> (0..2).map { "sample/preparation/summary/$it/value" to "sample/preparation/summary/$it/unit" } +
+                ("sample/preparation/doseValue/number" to "sample/preparation/doseValue/unit")
+            StrictVisualSampleFixtures.ids[1] -> (0..1).map { "sample/share/summary/$it/value" to "sample/share/summary/$it/unit" }
+            else -> listOf("sample/inventory/weight/value" to "sample/inventory/weight/unit")
+        }
+        return JSONArray(pairs.map { (number, unit) ->
+            fun baseline(id: String): Int { val view = all.single { it.tag == id } as TextView
+                val point = IntArray(2); view.getLocationOnScreen(point); return point[1] + view.baseline }
+            val numberY = baseline(number); val unitY = baseline(unit)
+            JSONObject().put("semanticId", number).put("unitSemanticId", unit)
+                .put("numberBaselineScreenPx", numberY).put("unitBaselineScreenPx", unitY)
+                .put("baselineDeltaPx", unitY - numberY).put("requiredDeltaPx", 0)
+                .put("status", if (numberY == unitY) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
+        })
+    }
     fun run(arguments: Bundle): Int {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
@@ -144,7 +239,8 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                 val touchTargets = auditTouchTargets(activity, directory)
                 val anchors = JSONArray()
                 val canvas = JSONArray()
-                val layoutIssues = JSONArray()
+                val layoutIssues = auditReachability(activity, directory, expectedScale)
+                var baselines = JSONArray()
                 lateinit var window: JSONObject
                 lateinit var tokens: JSONObject
                 lateinit var roles: JSONArray
@@ -154,6 +250,8 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                     check(activity.resources.displayMetrics.densityDpi == 360)
                     check(activity.palette.dark == (expectedTheme == "dark"))
                     val all = nodes(activity.sampleRoot)
+                    baselines = auditBaselines(activity)
+                    for (i in 0 until baselines.length()) layoutIssues.put(baselines.getJSONObject(i))
                     check(all.none { it.hasOnClickListeners() }) { "Specimen contains callback-bearing actions" }
                     for (view in all) {
                         val tag = view.tag?.toString() ?: continue
@@ -175,6 +273,26 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                     }
                     activity.charts.forEach { chart ->
                         check(chart.evidence.length() > 0)
+                        val labels = (0 until chart.evidence.length()).map { chart.evidence.getJSONObject(it) }
+                            .filter { it.getString("operation") == "text" }
+                        val collisions = JSONArray()
+                        labels.forEachIndexed { firstIndex, first -> labels.drop(firstIndex + 1).forEach { second ->
+                            val a = first.getJSONArray("glyphBoundsPx"); val b = second.getJSONArray("glyphBoundsPx")
+                            if (maxOf(a.getDouble(0), b.getDouble(0)) < minOf(a.getDouble(2), b.getDouble(2)) &&
+                                maxOf(a.getDouble(1), b.getDouble(1)) < minOf(a.getDouble(3), b.getDouble(3))) {
+                                collisions.put(JSONObject().put("first", first.getString("text")).put("second", second.getString("text"))
+                                    .put("firstInkRectPx", a).put("secondInkRectPx", b))
+                            }
+                        } }
+                        val bands = (0 until chart.evidence.length()).map { chart.evidence.getJSONObject(it) }
+                            .single { it.getString("operation") == "labelBands" }
+                        val gap = bands.getDouble("requiredGapPx")
+                        val pass = collisions.length() == 0 && chart.height >= bands.getInt("minimumChartHeightPx") &&
+                            bands.getDouble("titleToHighestTickGapPx") >= gap && bands.getDouble("plotToStageInkGapPx") >= gap &&
+                            labels.filter { it.getString("role") == "axisTick" }.map { it.getString("text") }.toSet() == setOf("0", "6", "12")
+                        layoutIssues.put(JSONObject().put("semanticId", chart.tag).put("status", if (pass) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
+                            .put("reason", "actual_Paint_glyph_boxes_nonintersection_and_8dp_label_bands_three_ticks_minimum160dp")
+                            .put("glyphCollisions", collisions).put("labelBands", bands))
                         for (index in 0 until chart.evidence.length()) {
                             val item = chart.evidence.getJSONObject(index)
                             if (item.getString("operation") == "text") {
@@ -273,7 +391,7 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                 }
                 val measured = JSONObject(File(directory, "StrictVisualSampleActivity-typography.json").readText())
                 val layoutFailed = (0 until layoutIssues.length()).any { layoutIssues.getJSONObject(it).getString("status") == "FAIL" }
-                measured.put("candidateRoles", roles).put("canvas", canvas)
+                measured.put("candidateRoles", roles).put("canvas", canvas).put("numericUnitBaselines", baselines)
                     .put("validationPhase", "complete_normal_capture").put("touchTargets", touchTargets)
                     .put("touchTargetIssues", JSONArray())
                     .put("layoutIssues", layoutIssues)
