@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit
 /** Chinese Mock-window evidence only. Never saves a draft or invokes a machine/stock action. */
 internal object ChineseFormWindowChecks {
     fun run(test: Instrumentation, activity: Activity, directory: File, name: String,
-        waitForDraw: () -> Unit): Int {
+        shortFieldKeys: List<String> = emptyList(), waitForDraw: () -> Unit): Int {
         check(BuildConfig.MOCK_MODE && activity.packageName == "io.openhoyi.mobile.mock")
         check((activity.application as MobileApplication).languagePreferences.current == AppLanguage.CHINESE)
         if (activity !is BeanEntryActivity && activity !is CurveEditorActivity && activity !is BrewReviewActivity) return 0
@@ -67,9 +67,8 @@ internal object ChineseFormWindowChecks {
                 val field = editorField(position)
                 field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
             } else if (activity is BeanEntryActivity) {
-                val form = descendants(content).single { it.tag == "task-form-scroll" } as android.widget.ScrollView
-                val panel = (form.getChildAt(0) as ViewGroup).getChildAt(position)
-                val field = descendants(panel).filterIsInstance<EditText>().first()
+                val label = activity.getString(listOf(R.string.beans_name, R.string.beans_initial_input, R.string.beans_purchased)[position])
+                val field = descendants(content).filterIsInstance<EditText>().single { it.contentDescription?.toString() == label }
                 field.requestRectangleOnScreen(Rect(0, 0, field.width, field.height), true)
             } else {
                 val title = descendants(content).filterIsInstance<TextView>().single {
@@ -202,7 +201,14 @@ internal object ChineseFormWindowChecks {
                 .put("png", "$name-$suffix.png").put("sameCompositorFrameProven", false)
                 .put("coordinateSemantics", "screen_px; full_and_ancestor_clipped_rects_separate; no_tolerance")
             file.writeText(record.toString(2))
-            try { capture(suffix) }
+            try {
+                capture(suffix)
+                if (shortFieldKeys.isNotEmpty() && suffix.endsWith("short-after-reveal")) {
+                    val typographyDirectory = File(evidence, "$name-$suffix-typography").apply { check(mkdirs() || isDirectory) }
+                    main { TaskTypographyEvidence.capture(activity, typographyDirectory) }
+                    record.put("focusedTypographyDirectory", typographyDirectory.name)
+                }
+            }
             finally {
                 val after = inlineGeometry(field)
                 val unchanged = before.toString() == after.toString()
@@ -211,7 +217,32 @@ internal object ChineseFormWindowChecks {
                 file.writeText(record.toString(2))
             }
         }
-        fun awaitStableInlineGeometry(field: EditText, phase: String) {
+        fun initialBeanGeometryOnMain(inputs: List<EditText>): JSONObject =
+            inlineGeometryOnMain(inputs.first()).put("initialFields", JSONArray(inputs.map(::inlineGeometryOnMain)))
+                .put("initialStatePolicy", "before_any_test_focus_reveal_or_scroll; original_five_field_gate_unchanged")
+        fun captureInitialBean(inputs: List<EditText>, suffix: String, failure: Throwable? = null, assertionGeometry: JSONObject? = null) {
+            fun geometry(): JSONObject {
+                lateinit var value: JSONObject
+                main { value = initialBeanGeometryOnMain(inputs) }
+                return value.put("keyboardWindowRectPx", keyboardBounds()?.let(::rectJson) ?: JSONObject.NULL)
+            }
+            val before = geometry()
+            val record = JSONObject().put("phase", suffix).put("geometryBeforeScreenshot", before)
+                .put("failure", failure?.stackTraceToString() ?: JSONObject.NULL)
+                .put("assertionFailureGeometry", assertionGeometry ?: JSONObject.NULL)
+                .put("png", "$name-$suffix.png").put("sameCompositorFrameProven", false)
+                .put("coordinateSemantics", "screen_px; each_field_and_all_clip_ancestors; no_visibility_tolerance")
+            val file = File(evidence, "$name-$suffix-geometry.json")
+            file.writeText(record.toString(2))
+            try { capture(suffix) } finally {
+                val after = geometry()
+                val unchanged = before.toString() == after.toString()
+                record.put("geometryAfterScreenshot", after).put("geometryUnchangedDuringScreenshot", unchanged)
+                    .put("screenshotGeometryStatus", if (unchanged) "geometry_unchanged_not_compositor_sync_proof" else "changed_not_same_frame_evidence")
+                file.writeText(record.toString(2))
+            }
+        }
+        fun awaitStableInlineGeometry(field: EditText, phase: String, initialInputs: List<EditText>? = null) {
             val deadline = SystemClock.uptimeMillis() + 5000
             val samples = JSONArray()
             var previous: String? = null
@@ -233,7 +264,7 @@ internal object ChineseFormWindowChecks {
                         listener = android.view.ViewTreeObserver.OnDrawListener {
                             if (!observed) {
                                 observed = true
-                                try { geometry = inlineGeometryOnMain(field); frameTime = SystemClock.uptimeMillis() }
+                                try { geometry = initialInputs?.let(::initialBeanGeometryOnMain) ?: inlineGeometryOnMain(field); frameTime = SystemClock.uptimeMillis() }
                                 catch (error: Throwable) { drawFailure = error }
                                 finally { latch.countDown() }
                                 decor.post { if (observer.isAlive) observer.removeOnDrawListener(listener) }
@@ -249,7 +280,16 @@ internal object ChineseFormWindowChecks {
                     drawFailure?.let { throw it }
                     val observed = requireNotNull(geometry).put("keyboardWindowRectPx", keyboardBounds()?.let(::rectJson) ?: JSONObject.NULL)
                     val ancestors = observed.getJSONArray("ancestors")
-                    val pending = observed.getJSONObject("field").getBoolean("isLayoutRequested") ||
+                    val initialPending = observed.optJSONArray("initialFields")?.let { fields ->
+                        (0 until fields.length()).any { index ->
+                            val item = fields.getJSONObject(index)
+                            item.getJSONObject("field").getBoolean("isLayoutRequested") ||
+                                item.getJSONArray("ancestors").let { parents -> (0 until parents.length()).any {
+                                    parents.getJSONObject(it).getBoolean("isLayoutRequested")
+                                } }
+                        }
+                    } ?: false
+                    val pending = initialPending || observed.getJSONObject("field").getBoolean("isLayoutRequested") ||
                         observed.getJSONObject("decor").getBoolean("isLayoutRequested") ||
                         (0 until ancestors.length()).any { ancestors.getJSONObject(it).getBoolean("isLayoutRequested") }
                     val signature = observed.toString()
@@ -259,7 +299,7 @@ internal object ChineseFormWindowChecks {
                         .put("sampling", "View_geometry_inside_OnDraw; accessibility_keyboard_window_immediately_after_draw_callback")
                         .put("pendingLayout", pending).put("consecutiveUnchangedDraws", consecutive).put("geometry", observed))
                     previous = signature
-                    if (consecutive >= minimumFrames) { stable = true; break }
+                    if (consecutive >= minimumFrames && SystemClock.uptimeMillis() <= deadline) { stable = true; break }
                 }
                 check(stable) { "$name/$phase layout and IME geometry did not stabilize on $minimumFrames consecutive real draws" }
             } finally {
@@ -391,23 +431,43 @@ internal object ChineseFormWindowChecks {
             awaitPageReady()
             if (activity is BeanEntryActivity && activity.resources.configuration.let {
                 it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
-            }) main {
-                val inputs = descendants(content).filterIsInstance<EditText>()
-                check(inputs.size == 5) { "$name missing bean entry fields" }
-                listOf("bean-mode-new", "bean-mode-existing").forEach { tag ->
-                    val mode = content.findViewWithTag<View>(tag)
-                    fullyVisible(mode)
-                    check(mode.width >= HoyiUi.dp(activity, 48) && mode.height >= HoyiUi.dp(activity, 48))
+            }) {
+                lateinit var inputs: List<EditText>
+                main { inputs = descendants(content).filterIsInstance<EditText>() }
+                var assertionFailureGeometry: JSONObject? = null
+                try {
+                    // Observe the untouched initial state; stability does not wait for visibility to pass.
+                    check(inputs.isNotEmpty()) { "$name missing all bean entry fields" }
+                    awaitStableInlineGeometry(inputs.first(), "bean-initial-five-fields", inputs)
+                    captureInitialBean(inputs, "bean-initial-five-fields")
+                    main {
+                        try {
+                            check(inputs.size == 5) { "$name missing bean entry fields" }
+                            listOf("bean-mode-new", "bean-mode-existing").forEach { tag ->
+                                val mode = content.findViewWithTag<View>(tag)
+                                fullyVisible(mode)
+                                check(mode.width >= HoyiUi.dp(activity, 48) && mode.height >= HoyiUi.dp(activity, 48))
+                            }
+                            listOf("purchased", "roasted", "opened").forEach { key ->
+                                val calendar = content.findViewWithTag<View>("bean-date-picker-$key")
+                                fullyVisible(calendar)
+                                check(calendar.width >= HoyiUi.dp(activity, 48) && calendar.height >= HoyiUi.dp(activity, 48))
+                            }
+                            inputs.forEach(::fullyVisible)
+                            descendants(content).filterIsInstance<Button>().single {
+                                it.text.toString() == activity.getString(R.string.beans_save)
+                            }.let(::fullyVisible)
+                        } catch (failure: Throwable) {
+                            assertionFailureGeometry = initialBeanGeometryOnMain(inputs)
+                            throw failure
+                        }
+                    }
+                } catch (failure: Throwable) {
+                    // Before section selection, reveal, text restoration, IME cleanup or Activity teardown.
+                    if (inputs.isNotEmpty()) try { captureInitialBean(inputs, "bean-initial-five-fields-failure", failure, assertionFailureGeometry) }
+                    catch (captureFailure: Throwable) { failure.addSuppressed(captureFailure) }
+                    throw failure
                 }
-                listOf("purchased", "roasted", "opened").forEach { key ->
-                    val calendar = content.findViewWithTag<View>("bean-date-picker-$key")
-                    fullyVisible(calendar)
-                    check(calendar.width >= HoyiUi.dp(activity, 48) && calendar.height >= HoyiUi.dp(activity, 48))
-                }
-                inputs.forEach(::fullyVisible)
-                descendants(content).filterIsInstance<Button>().single {
-                    it.text.toString() == activity.getString(R.string.beans_save)
-                }.let(::fullyVisible)
             }
             if (activity is CurveEditorActivity) {
                 // Expose all four stages by an observed local draft selector; no save action.
@@ -468,10 +528,10 @@ internal object ChineseFormWindowChecks {
                         } else if (activity is CurveEditorActivity) {
                             groupField = editorField(position)
                         } else {
-                            val form = descendants(content).single { it.tag == "task-form-scroll" } as android.widget.ScrollView
-                            val cards = form.getChildAt(0) as ViewGroup
-                            val card = cards.getChildAt(position)
-                            groupField = descendants(card).filterIsInstance<EditText>().first { it.isShown }
+                            val label = activity.getString(listOf(R.string.beans_name, R.string.beans_initial_input, R.string.beans_purchased)[position])
+                            groupField = descendants(content).filterIsInstance<EditText>().single {
+                                it.isShown && it.contentDescription?.toString() == label
+                            }
                         }
                         revealViewport(groupField)
                     }
@@ -735,90 +795,109 @@ internal object ChineseFormWindowChecks {
             // Only click the Mock page's observed short EditText; the editor's OK cannot save the page.
             // A wide but short tablet still loses its form space to the real IME.
             if (activity is BeanEntryActivity || activity is CurveEditorActivity || activity is BrewReviewActivity) {
-                main { selectSection(0) }
-                waitForDraw()
-                lateinit var field: EditText
-                var original = ""
-                var originalStart = 0
-                var originalEnd = 0
-                var editedShort = "中文草稿  未保存"
-                var editStart = 2
-                var editEnd = 4
-                main {
-                    field = descendants(content).filterIsInstance<EditText>().first { it.isShown && it.isEnabled }
-                    original = field.text.toString()
-                    originalStart = field.selectionStart.coerceAtLeast(0)
-                    originalEnd = field.selectionEnd.coerceAtLeast(0)
-                    if (field.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_NUMBER) {
-                        editedShort = "18.50"; editStart = 1; editEnd = 3
-                    }
-                    revealViewport(field)
-                }
-                waitForDraw()
-                var inlineFailure: Throwable? = null
-                var assertionFailureGeometry: JSONObject? = null
-                fun checkedInline(action: () -> Unit) = main {
-                    try { action() } catch (error: Throwable) {
-                        assertionFailureGeometry = inlineGeometryOnMain(field)
-                        throw error
-                    }
-                }
-                try {
-                    captureInline(field, "short-before-tap")
-                    tap(field)
-                    val keyboard = awaitKeyboard()
-                    captureInline(field, if (keyboard == null) "short-ime-not-observed" else "short-ime-observed")
-                    awaitStableInlineGeometry(field, "short-ime-before-reveal")
-                    checkedInline {
-                        check(activity.hasWindowFocus() && pageWindowIdOnMain() == pageWindowId)
-                        check(field.hasFocus()) { "$name inline field did not retain focus" }
+                for (shortKey in if (shortFieldKeys.isEmpty()) listOf<String?>(null) else shortFieldKeys) {
+                    val shortPrefix = shortKey?.let { "$it-" }.orEmpty()
+                    main { selectSection(0) }
+                    waitForDraw()
+                    lateinit var field: EditText
+                    var original = ""
+                    var originalStart = 0
+                    var originalEnd = 0
+                    var editedShort = "中文草稿  未保存"
+                    var editStart = 2
+                    var editEnd = 4
+                    main {
+                        field = if (shortKey == null) descendants(content).filterIsInstance<EditText>().first { it.isShown && it.isEnabled }
+                        else {
+                            @Suppress("UNCHECKED_CAST")
+                            val fields = activity.javaClass.getDeclaredField("fields").apply { isAccessible = true }.get(activity) as Map<String,EditText>
+                            fields.getValue(shortKey).also { check(it.isShown && it.isEnabled) }
+                        }
+                        original = field.text.toString()
+                        originalStart = field.selectionStart.coerceAtLeast(0)
+                        originalEnd = field.selectionEnd.coerceAtLeast(0)
+                        if (field.inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_NUMBER) {
+                            editedShort = "18.50"; editStart = 1; editEnd = 3
+                        }
                         revealViewport(field)
                     }
-                    awaitStableInlineGeometry(field, "short-after-reveal")
-                    captureInline(field, "short-after-reveal")
-                    checkedInline {
-                        fullyVisible(field)
-                        val bounds = Rect(); field.getGlobalVisibleRect(bounds)
-                        if (keyboard != null) check(!Rect.intersects(bounds, keyboard)) { "$name inline input hidden by IME" }
-                        check(field.text.toString() == original) { "$name inline focus changed draft" }
-                        field.setText(editedShort)
-                        field.setSelection(editStart, editEnd)
-                        SingleScreenPageChecks.verify(activity)
-                    }
                     waitForDraw()
-                    checkedInline {
-                        check(field.text.toString() == editedShort && field.selectionStart == editStart && field.selectionEnd == editEnd)
-                        // Fixed page actions must remain reachable while the real inline input owns focus.
-                        descendants(content).filterIsInstance<Button>().filter { button ->
-                            button.isShown && generateSequence(button.parent) { it.parent }.none {
-                                it is android.widget.ScrollView
-                            }
-                        }.forEach { button ->
-                            fullyVisible(button)
-                            val bounds = Rect(); button.getGlobalVisibleRect(bounds)
-                            check(button.height >= HoyiUi.dp(activity, 48))
-                            if (keyboard != null) check(!Rect.intersects(bounds, keyboard)) { "$name fixed action hidden by IME" }
+                    var inlineFailure: Throwable? = null
+                    var assertionFailureGeometry: JSONObject? = null
+                    fun checkedInline(action: () -> Unit) = main {
+                        try { action() } catch (error: Throwable) {
+                            assertionFailureGeometry = inlineGeometryOnMain(field)
+                            throw error
                         }
                     }
-                    capture(if (keyboard == null) "short-inline" else "short-inline-ime")
-                    inlineObserved = true
-                    imeObserved = imeObserved || keyboard != null
-                    if (keyboard == null) gaps += "inline editing observed; IME not observed"
-                } catch (error: Throwable) {
-                    inlineFailure = error
-                    // Keep the actual failed field/draft/IME before any restoration or cleanup.
-                    try { captureInline(field, "short-assertion-failure", assertionFailureGeometry) }
-                    catch (captureError: Throwable) { if (captureError !== error) error.addSuppressed(captureError) }
-                    throw error
-                } finally {
-                    preserveCleanup(inlineFailure) {
-                        attemptCleanups(listOf(
-                            { main {
-                                field.setText(original)
-                                field.setSelection(originalStart.coerceAtMost(original.length), originalEnd.coerceAtMost(original.length))
-                            } },
-                            { cleanupEditor() }
-                        ))
+                    try {
+                        captureInline(field, "${shortPrefix}short-before-tap")
+                        tap(field)
+                        val keyboard = awaitKeyboard()
+                        captureInline(field, if (keyboard == null) "${shortPrefix}short-ime-not-observed" else "${shortPrefix}short-ime-observed")
+                        if (shortFieldKeys.isNotEmpty()) check(keyboard != null) { "$name/$shortKey required real IME was not observed" }
+                        awaitStableInlineGeometry(field, "${shortPrefix}short-ime-before-reveal")
+                        checkedInline {
+                            check(activity.hasWindowFocus() && pageWindowIdOnMain() == pageWindowId)
+                            check(field.hasFocus()) { "$name inline field did not retain focus" }
+                            revealViewport(field)
+                        }
+                        awaitStableInlineGeometry(field, "${shortPrefix}short-after-reveal")
+                        captureInline(field, "${shortPrefix}short-after-reveal")
+                        checkedInline {
+                            fullyVisible(field)
+                            if (shortFieldKeys.isNotEmpty()) {
+                                check(field.height >= HoyiUi.dp(activity, 52)) { "$name/$shortKey short field under 52dp" }
+                                val layout = requireNotNull(field.layout)
+                                check(layout.lineCount > 0 && layout.height <= field.height - field.compoundPaddingTop - field.compoundPaddingBottom)
+                                check((0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 })
+                            }
+                            val bounds = Rect(); field.getGlobalVisibleRect(bounds)
+                            if (keyboard != null) check(!Rect.intersects(bounds, keyboard)) { "$name inline input hidden by IME" }
+                            check(field.text.toString() == original) { "$name inline focus changed draft" }
+                            field.setText(editedShort)
+                            field.setSelection(editStart, editEnd)
+                            SingleScreenPageChecks.verify(activity)
+                        }
+                        waitForDraw()
+                        checkedInline {
+                            check(field.text.toString() == editedShort && field.selectionStart == editStart && field.selectionEnd == editEnd)
+                            // Fixed page actions must remain reachable while the real inline input owns focus.
+                            descendants(content).filterIsInstance<Button>().filter { button ->
+                                button.isShown && generateSequence(button.parent) { it.parent }.none {
+                                    it is android.widget.ScrollView
+                                }
+                            }.forEach { button ->
+                                fullyVisible(button)
+                                val bounds = Rect(); button.getGlobalVisibleRect(bounds)
+                                check(button.height >= HoyiUi.dp(activity, 48))
+                                if (keyboard != null) check(!Rect.intersects(bounds, keyboard)) { "$name fixed action hidden by IME" }
+                            }
+                        }
+                        capture(if (keyboard == null) "${shortPrefix}short-inline" else "${shortPrefix}short-inline-ime")
+                        inlineObserved = true
+                        imeObserved = imeObserved || keyboard != null
+                        if (keyboard == null) gaps += "inline editing observed; IME not observed"
+                    } catch (error: Throwable) {
+                        inlineFailure = error
+                        // Keep the actual failed field/draft/IME before any restoration or cleanup.
+                        try { captureInline(field, "${shortPrefix}short-assertion-failure", assertionFailureGeometry) }
+                        catch (captureError: Throwable) { if (captureError !== error) error.addSuppressed(captureError) }
+                        throw error
+                    } finally {
+                        preserveCleanup(inlineFailure) {
+                            attemptCleanups(listOf(
+                                { main {
+                                    field.setText(original)
+                                    field.setSelection(originalStart.coerceAtMost(original.length), originalEnd.coerceAtMost(original.length))
+                                } },
+                                { cleanupEditor() }
+                            ))
+                        }
+                    }
+                    if (shortFieldKeys.isNotEmpty()) {
+                        awaitStableInlineGeometry(field, "${shortPrefix}short-ime-closed")
+                        captureInline(field, "${shortPrefix}short-ime-closed")
                     }
                 }
             } else if (!HoyiUi.wide(activity) || activity.resources.configuration.screenHeightDp <= 720) {

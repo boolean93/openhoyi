@@ -495,6 +495,258 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         return activity
     }
 
+    /** Real M2 callbacks on the caller's independently isolated stores; never starts a machine/service. */
+    fun verifyM2FormContract(initial: Activity, page: String, directory: File, rejectWrites: (Boolean) -> Unit, unavailable: (Boolean) -> Unit,
+        capture: (Activity,String) -> Unit) {
+        val app=context.applicationContext as MobileApplication
+        val inventory=app.beanInventoryResult.getOrThrow()
+        val journal=app.journalResult.getOrThrow()
+        val custom=app.customCurvesResult.getOrThrow()
+        val usage=app.curveUsageResult.getOrThrow()
+        val inventoryBefore=inventory.events().toList()
+        val batchesBefore=inventory.batches().toList()
+        val journalBefore=journal.entries().toList()
+        val curvesBefore=custom.list().toList()
+        val usageBefore=curvesBefore.associate { it.id to usage.stats(it.id) }
+        val records=org.json.JSONArray()
+        var activity=initial
+        fun record(path: String) {
+            records.put(org.json.JSONObject().put("path",path).put("inventoryEventIds",org.json.JSONArray(inventory.events().map { it.eventId }))
+                .put("journal",org.json.JSONObject(journal.exportJson())).put("curveIds",org.json.JSONArray(custom.list().map { it.id })))
+            File(directory,"form-business.json").writeText(org.json.JSONObject().put("page",page).put("completed",false).put("paths",records).toString(2))
+        }
+        @Suppress("UNCHECKED_CAST")
+        fun fields(owner: Activity=activity) = owner.javaClass.getDeclaredField("fields").apply { isAccessible=true }.get(owner) as Map<String,EditText>
+        fun input(key: String, value: String) = onMain { fields().getValue(key).setText(value); check(fields().getValue(key).text.toString()==value) }
+        fun snapshot(): org.json.JSONObject {
+            lateinit var result: org.json.JSONObject
+            onMain {
+                result=org.json.JSONObject().put("fields",org.json.JSONObject(fields().mapValues { (_,v) ->
+                    org.json.JSONObject().put("value",v.text.toString()).put("selection",org.json.JSONArray(listOf(v.selectionStart,v.selectionEnd)))
+                })).put("focusedFieldKey",fields().entries.firstOrNull { it.value.hasFocus() }?.key ?: org.json.JSONObject.NULL)
+                    .put("imeVisible",root(activity).rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) ?: false)
+                    .put("contentSizePx",org.json.JSONArray(listOf(root(activity).width,root(activity).height)))
+                    .put("scrolls",org.json.JSONArray(views(root(activity)).filterIsInstance<android.widget.ScrollView>().map {
+                    org.json.JSONObject().put("tag",it.tag).put("x",it.scrollX).put("y",it.scrollY)
+                }))
+                val state=activity.javaClass.getDeclaredMethod("onSaveInstanceState",android.os.Bundle::class.java).apply { isAccessible=true }
+                val bundle=android.os.Bundle(); state.invoke(activity,bundle)
+                result.put("savedIdentity",org.json.JSONObject(listOf("draftId","stageCount","selectedBeanId","rememberedBeanId","existingMode","newNameDraft","eventId","batchId","newBeanId")
+                    .filter { bundle.containsKey(it) }.associateWith { bundle.get(it) ?: org.json.JSONObject.NULL }))
+            }
+            return result
+        }
+        fun unchangedExceptNotesOrDraft() {
+            check(inventory.events()==inventoryBefore && inventory.batches()==batchesBefore) { "M2 editing changed inventory" }
+            check(journal.entries().map { it.observation }==journalBefore.map { it.observation }) { "M2 editing changed observations" }
+            check(curvesBefore.associate { it.id to usage.stats(it.id) }==usageBefore) { "M2 editing changed use counts" }
+        }
+        fun stableSnapshot(label: String): org.json.JSONObject {
+            val samples=org.json.JSONArray()
+            val deadline=SystemClock.elapsedRealtime()+5000
+            var previous: String?=null; var unchanged=0
+            try {
+                while(SystemClock.elapsedRealtime()<deadline) {
+                    NativeWindowFrameEvidence(test).committedFrame(root(activity))
+                    val value=snapshot()
+                    var pending=false
+                    onMain { pending=views(root(activity)).any { it.isShown && it.isLayoutRequested } }
+                    val signature=value.toString()
+                    unchanged=if(!pending && signature==previous) unchanged+1 else if(!pending) 1 else 0
+                    val within=SystemClock.elapsedRealtime()<=deadline
+                    samples.put(org.json.JSONObject().put("actualCommittedDrawIndex",samples.length()+1).put("pendingLayout",pending)
+                        .put("consecutiveUnchanged",unchanged).put("withinBudget",within).put("state",value))
+                    previous=signature
+                    if(unchanged>=3 && within) return value
+                }
+                error("M2 $label did not reach three stable actual frames within 5000ms")
+            } finally {
+                File(directory,"$label-stability.json").writeText(org.json.JSONObject().put("samples",samples)
+                    .put("policy","real_committed_frames; state_stability_only_not_expected_state_matching; no_sleep").toString(2))
+            }
+        }
+        fun roundTrip(label: String) {
+            val key=when(page) { "bean-entry" -> "opened"; "review" -> "next"; else -> "target-3" }
+            onMain {
+                val target=fields().getValue(key)
+                check(target.requestFocus())
+                check(target.length()>0)
+                target.setSelection(if(target.length()>3) 1 else 0, minOf(4,target.length()))
+                (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(target,0)
+            }
+            // Wait only for actual IME presence, never for a restore/visibility assertion to become true.
+            val imeDeadline=SystemClock.elapsedRealtime()+5000
+            var ime=false
+            while(SystemClock.elapsedRealtime()<imeDeadline) {
+                NativeWindowFrameEvidence(test).committedFrame(root(activity))
+                onMain { ime=root(activity).rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime())==true }
+                if(ime && SystemClock.elapsedRealtime()<=imeDeadline) break
+            }
+            check(ime && SystemClock.elapsedRealtime()<=imeDeadline) { "M2 $label IME not actually observed" }
+            stableSnapshot("$label-ime-settled")
+            onMain {
+                val target=fields().getValue(key)
+                target.requestRectangleOnScreen(android.graphics.Rect(0,0,target.width,target.height),true)
+                generateSequence(target.parent) { it.parent }.filterIsInstance<android.widget.ScrollView>().forEach { it.scrollTo(it.scrollX,Int.MAX_VALUE) }
+            }
+            val before=stableSnapshot("$label-before-recreate")
+            check(before.getString("focusedFieldKey")==key)
+            check(before.getJSONObject("fields").getJSONObject(key).getJSONArray("selection").getInt(1)>0)
+            check(before.getJSONArray("scrolls").let { values -> (0 until values.length()).any { values.getJSONObject(it).getInt("y")>0 } }) {
+                "M2 $label did not establish a real nonzero scroll fixture; do not claim scroll restoration"
+            }
+            activity=recreate(activity)
+            val after=stableSnapshot("$label-after-recreate")
+            val equal=before.toString()==after.toString()
+            File(directory,"$label-restore.json").writeText(org.json.JSONObject().put("before",before).put("after",after).put("equal",equal)
+                .put("afterObservedBeforeAnyCaptureUnfocus",true).toString(2))
+            check(equal) { "M2 form recreation changed draft/focus/selection/identity/scroll: $label" }
+            unchangedExceptNotesOrDraft(); record(label)
+            capture(activity,"$label-recreated") // Only after the untouched restored state has been asserted.
+        }
+        fun error(label: String, save: Int, expected: Int) {
+            click(activity,save)
+            capture(activity,label)
+            onMain {
+                check(!activity.isFinishing && views(root(activity)).filterIsInstance<TextView>().any { it.isShown && it.text.toString()==activity.getString(expected) }) {
+                    "M2 callback did not show expected error $label"
+                }
+            }
+            unchangedExceptNotesOrDraft()
+            check(journal.entries()==journalBefore && custom.list()==curvesBefore) { "Rejected M2 form wrote a model" }
+            record(label)
+        }
+        try {
+            when(page) {
+                "bean-entry" -> {
+                    fun mode(existing: Boolean) {
+                        onMain { check(root(activity).findViewWithTag<View>(if(existing) "bean-mode-existing" else "bean-mode-new").performClick()) }
+                        NativeWindowFrameEvidence(test).committedFrame(root(activity))
+                    }
+                    mode(true); roundTrip("bean-existing-identity")
+                    mode(false); onMain { check(fields().getValue("name").text.toString()=="哥伦比亚 水洗") }
+                    roundTrip("bean-new-draft")
+                    input("name","哥伦比亚 水洗 ".repeat(30)); capture(activity,"bean-long-name")
+                    input("name","哥伦比亚 水洗")
+                    listOf("purchased","roasted","opened").forEach { key ->
+                        var original=""
+                        onMain { original=fields().getValue(key).text.toString(); check(root(activity).findViewWithTag<View>("bean-date-picker-$key").performClick()) }
+                        val picker=BeanEntryActivity::class.java.getDeclaredField("dateDialog").apply { isAccessible=true }.get(activity) as android.app.DatePickerDialog
+                        onMain { picker.datePicker.updateDate(2026,9,11); picker.getButton(AlertDialog.BUTTON_NEGATIVE).performClick() }
+                        onMain { check(fields().getValue(key).text.toString()==original) }
+                        onMain { check(root(activity).findViewWithTag<View>("bean-date-picker-$key").performClick()) }
+                        val accepted=BeanEntryActivity::class.java.getDeclaredField("dateDialog").apply { isAccessible=true }.get(activity) as android.app.DatePickerDialog
+                        onMain { accepted.datePicker.updateDate(2026,9,11); accepted.getButton(AlertDialog.BUTTON_POSITIVE).performClick() }
+                        onMain { check(fields().getValue(key).text.toString()=="2026-10-11") }
+                        input(key,original); record("calendar-$key-cancel-confirm")
+                    }
+                    input("name",""); error("bean-empty-name",R.string.beans_save,R.string.beans_name_required); input("name","哥伦比亚 水洗")
+                    input("quantity","0"); error("bean-zero",R.string.beans_save,R.string.beans_positive_quantity)
+                    input("quantity","18.0001"); error("bean-invalid-quantity",R.string.beans_save,R.string.beans_bad_quantity); input("quantity","250")
+                    input("opened","2026-02-30"); error("bean-invalid-date",R.string.beans_save,R.string.beans_bad_date); input("opened","2026-10-10")
+                    rejectWrites(true)
+                    try { error("bean-write-failed",R.string.beans_save,R.string.beans_save_failed) } finally { rejectWrites(false) }
+                    // Cancellation after real draft entry writes nothing, then open a new real form and refill.
+                    click(activity,R.string.beans_cancel); awaitMain { activity.isDestroyed }
+                    check(inventory.events()==inventoryBefore && inventory.batches()==batchesBefore); record("bean-cancel-zero-events")
+                    activity=start(BeanEntryActivity::class.java)
+                    onMain { mapOf("name" to "哥伦比亚 水洗","quantity" to "250","purchased" to "2026-10-06","roasted" to "2026-10-04","opened" to "2026-10-10").forEach { (key,value) -> fields().getValue(key).setText(value) } }
+                    roundTrip("bean-pre-save")
+                    onMain {
+                        val save=views(root(activity)).filterIsInstance<Button>().single { it.text.toString()==activity.getString(R.string.beans_save) }
+                        check(save.performClick()); save.performClick() // actual saved guard must prevent duplicate addBatch
+                    }
+                    awaitMain { activity.isDestroyed }
+                    val added=inventory.events().filter { it.eventId !in inventoryBefore.map { e -> e.eventId } }
+                    check(added.size==1 && added.single().kind==InventoryEventKind.ADD && added.single().deltaMg==250000L)
+                    val batch=inventory.batches().single { it.batch.id==added.single().batchId }.batch
+                    check(batch.bean.name=="哥伦比亚 水洗" && batch.initialMg==250000L && batch.purchasedOn==LocalDate.of(2026,10,6) && batch.roastedOn==LocalDate.of(2026,10,4) && batch.openedOn==LocalDate.of(2026,10,10))
+                    check(journal.entries()==journalBefore && custom.list()==curvesBefore); record("bean-save-exactly-one-event-duplicate-click-guard")
+                }
+                "review" -> {
+                    val id=activity.intent.getStringExtra(BrewReviewActivity.SHOT_ID)!!
+                    val before=requireNotNull(journal.find(id))
+                    input("dose","0"); error("review-invalid-dose",R.string.journal_save,R.string.journal_bad_dose); input("dose","18")
+                    rejectWrites(true)
+                    try { input("taste",before.notes.taste+" 再次核对。"); error("review-write-failed",R.string.journal_save,R.string.journal_save_failed) } finally { rejectWrites(false) }
+                    roundTrip("review-filled-draft")
+                    click(activity,R.string.beans_cancel); awaitMain { activity.isDestroyed }
+                    check(journal.entries()==journalBefore); record("review-cancel-unchanged-notes")
+                    activity=start(BrewReviewActivity::class.java) { it.putExtra(BrewReviewActivity.SHOT_ID,id) }
+                    input("taste",before.notes.taste+" 再次核对。")
+                    click(activity,R.string.journal_save); awaitMain { activity.isDestroyed }
+                    check(journal.find(id)==before.copy(notes=before.notes.copy(taste=before.notes.taste+" 再次核对。")))
+                    unchangedExceptNotesOrDraft(); check(custom.list()==curvesBefore); record("review-save-notes-only")
+                    // Missing telemetry and UNKNOWN are legitimate observations, never fabricated ENDED output.
+                    val unknown=before.observation.copy(id="m2-review-unknown",endedAtMs=null,elapsedMs=null,status="UNKNOWN",weightHundredthsGram=null)
+                    journal.observe(unknown)
+                    activity=start(BrewReviewActivity::class.java) { it.putExtra(BrewReviewActivity.SHOT_ID,unknown.id) }
+                    capture(activity,"review-unknown-missing-no-bean")
+                    onMain {
+                        check(views(root(activity)).filterIsInstance<TextView>().any { it.isShown && it.text.toString()==activity.getString(R.string.history_unknown_warning) })
+                        check(views(root(activity)).filterIsInstance<Spinner>().single { it.contentDescription==activity.getString(R.string.journal_bean) }.selectedItemPosition==0)
+                    }
+                    click(activity,R.string.beans_cancel); awaitMain { activity.isDestroyed }
+                    check(journal.find(unknown.id)?.observation==unknown); record("review-unknown-null-telemetry-no-bean")
+                }
+                "curve-editor" -> {
+                    val id=activity.intent.getStringExtra(CurveEditorActivity.CURVE_ID)!!
+                    onMain {
+                        val selector=views(root(activity)).filterIsInstance<CurveStageCountTabs>().single()
+                        listOf(1,4,1,4).forEach { count -> check(selector.findViewWithTag<Button>("curve-stage-count-$count").performClick()) }
+                        check(selector.selectedCount==4)
+                    }
+                    roundTrip("editor-stage-hidden-values")
+                    input("name","经典浓缩 四阶段 ".repeat(8)); capture(activity,"editor-long-name")
+                    input("name","经典浓缩")
+                    input("name",""); error("editor-empty-name",R.string.profiles_save,R.string.profiles_invalid); input("name","经典浓缩")
+                    input("temperature","1000"); error("editor-out-of-range",R.string.profiles_save,R.string.profiles_invalid); input("temperature","93")
+                    input("target-3","")
+                    capture(activity,"editor-invalid-preview")
+                    onMain { check(views(root(activity)).filterIsInstance<CurveStageView>().single().targets.isEmpty()) }
+                    error("editor-invalid-number",R.string.profiles_save,R.string.profiles_invalid); input("target-3","5")
+                    rejectWrites(true)
+                    try { input("name","经典浓缩 调整"); error("editor-write-failed",R.string.profiles_save,R.string.profiles_save_failed) } finally { rejectWrites(false) }
+                    roundTrip("editor-full-draft")
+                    click(activity,R.string.beans_cancel); awaitMain { activity.isDestroyed }
+                    check(custom.list()==curvesBefore); record("editor-cancel-no-write")
+                    activity=start(CurveEditorActivity::class.java) { it.putExtra(CurveEditorActivity.CURVE_ID,id) }
+                    input("name","经典浓缩 调整")
+                    click(activity,R.string.profiles_save); awaitMain { activity.isDestroyed }
+                    check(custom.list().size==curvesBefore.size && custom.find(id)==curvesBefore.single { it.id==id }.copy(name="经典浓缩 调整"))
+                    unchangedExceptNotesOrDraft(); check(journal.entries()==journalBefore); record("editor-save-real-document-no-start")
+                }
+            }
+            // Actual unavailable-store state remains within the same installed scoped closure.
+            val postBusinessEvents=inventory.events().toList()
+            val postBusinessJournal=journal.entries().toList()
+            val postBusinessCurves=custom.list().toList()
+            if(!activity.isDestroyed) close(activity)
+            if(page=="bean-entry") {
+                unavailable(true)
+                activity=start(BeanEntryActivity::class.java)
+                capture(activity,"bean-store-unavailable")
+                onMain { check(views(root(activity)).filterIsInstance<TextView>().any { it.isShown && it.text.toString()==activity.getString(R.string.beans_unavailable) }) }
+            } else {
+                activity=if(page=="review") start(BrewReviewActivity::class.java) { it.putExtra(BrewReviewActivity.SHOT_ID,journalBefore.first().observation.id) }
+                    else start(CurveEditorActivity::class.java) { it.putExtra(CurveEditorActivity.CURVE_ID,curvesBefore.first().id) }
+                unavailable(true)
+                val saveId=if(page=="review") R.string.journal_save else R.string.profiles_save
+                click(activity,saveId)
+                capture(activity,"$page-store-unavailable-disabled")
+                onMain {
+                    val save=views(root(activity)).filterIsInstance<Button>().single { it.text.toString()==activity.getString(saveId) }
+                    check(!save.isEnabled && !activity.isFinishing)
+                    check(views(root(activity)).filterIsInstance<TextView>().any { it.isShown && it.text.toString()==activity.getString(if(page=="review") R.string.journal_unavailable else R.string.profiles_unavailable) })
+                }
+            }
+            check(inventory.events()==postBusinessEvents && journal.entries()==postBusinessJournal && custom.list()==postBusinessCurves)
+            close(activity); unavailable(false); record("scoped-store-unavailable-no-write")
+            File(directory,"form-business.json").writeText(org.json.JSONObject().put("page",page).put("completed",true)
+                .put("paths",records).put("noMachineOrServiceCommands",true).put("source","real_Activity_callbacks_to_scoped_legal_Storage").toString(2))
+        } finally { rejectWrites(false); unavailable(false) }
+    }
+
     fun run(): Result {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication

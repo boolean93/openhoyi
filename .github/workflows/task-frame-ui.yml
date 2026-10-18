@@ -13,7 +13,8 @@ permissions:
 jobs:
   task-frame:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Existing frames/M1 plus 12 real M2 forms and IME/business states; internal evidence budgets stay unchanged.
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -52,6 +53,7 @@ jobs:
             bash scripts/check_task_frame_ui.sh ${{ matrix.profile }}
             bash scripts/check_strict_native_samples.sh
             bash scripts/check_product_visual_migration.sh
+            bash scripts/check_form_visual_migration.sh
       - name: Upload real window evidence
         if: always()
         uses: actions/upload-artifact@v6
@@ -61,5 +63,6 @@ jobs:
             build/task-frame-ui/
             build/task-first-evidence/strict-native-samples/
             build/task-first-evidence/product-visual-migration/
+            build/task-first-evidence/form-visual-migration/
           if-no-files-found: warn
           retention-days: 7

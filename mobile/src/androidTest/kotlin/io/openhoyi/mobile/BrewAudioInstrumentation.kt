@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var formVisualArguments: Bundle? = null
     private var productVisualArguments: Bundle? = null
     private var strictVisualSampleArguments: Bundle? = null
     private var activeCupVisual = false
@@ -39,6 +40,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        formVisualArguments = arguments?.takeIf { it.getString("formVisualMigration") == "true" }?.let { Bundle(it) }
         productVisualArguments = arguments?.takeIf { it.getString("productVisualMigration") == "true" }?.let { Bundle(it) }
         strictVisualSampleArguments = arguments?.takeIf { it.getString("strictVisualSamples") == "true" }?.let { Bundle(it) }
         activeCupVisual = arguments?.getString("activeCupVisual") == "true"
@@ -65,6 +67,12 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            formVisualArguments?.let { arguments ->
+                val count=FormVisualMigrationChecks(this).run(arguments)
+                report.putString("stream", "FORM_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")
+                finish(Activity.RESULT_OK,report)
+                return
+            }
             productVisualArguments?.let { arguments ->
                 val count = ProductVisualMigrationChecks(this).run(arguments)
                 report.putString("stream", "PRODUCT_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")
@@ -319,7 +327,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (productVisualArguments != null) "PRODUCT_VISUAL_MIGRATION_FAILED" else if (curveLibraryChecks) "CURVE_LIBRARY_VIEWPORT_CHECKS_FAILED" else if (twoCupChartChecks) "TWO_CUP_CHART_CHECKS_FAILED" else if (homeWorkbenchChecks) "HOME_WORKBENCH_CHECKS_FAILED" else if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (formVisualArguments != null) "FORM_VISUAL_MIGRATION_FAILED" else if (productVisualArguments != null) "PRODUCT_VISUAL_MIGRATION_FAILED" else if (curveLibraryChecks) "CURVE_LIBRARY_VIEWPORT_CHECKS_FAILED" else if (twoCupChartChecks) "TWO_CUP_CHART_CHECKS_FAILED" else if (homeWorkbenchChecks) "HOME_WORKBENCH_CHECKS_FAILED" else if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }
