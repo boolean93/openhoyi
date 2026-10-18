@@ -32,8 +32,11 @@ class HistoryDetailActivity : ThemedActivity() {
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         HoyiUi.navigation(this, root, HistoryDetailActivity::class.java)
         setContentView(root)
-        HoyiUi.header(this, body, if (BuildConfig.MOCK_MODE) getString(R.string.history_detail_mock_title) else getString(R.string.history_detail_title), back = true)
-        renderHistoryDetail(body, intent.getStringExtra("shotId"), standalone = true)
+        val header = HoyiUi.header(this, body, if (BuildConfig.MOCK_MODE) getString(R.string.history_detail_mock_title) else getString(R.string.history_detail_title), back = true)
+        val comparisonHost = header.takeIf {
+            resources.configuration.screenWidthDp >= 1000 && resources.configuration.fontScale <= 1.1f
+        }
+        renderHistoryDetail(body, intent.getStringExtra("shotId"), standalone = true, comparisonHost = comparisonHost)
     }
     private fun dp(value: Int) = HoyiUi.dp(this, value)
 }

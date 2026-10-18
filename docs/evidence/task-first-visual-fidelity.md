@@ -1195,3 +1195,11 @@ run39114424545 business已失败，下载ci-fef3976-advanced-business并实读cu
 库存原业务只检查-10g/+100g标签存在，再主动滚到末行，不能验证首屏一致。新增两条事件所在行的完整可见边界记录，在标准平板≥1000×600dp/font≤1.1要求首屏完整；先保留原截图再断言，失败也有图/尺寸。其他配置原滚动检查保持，库存不变量及后续路径不删；与b879bc5空间候选一起等待运行。
 
 库存可见性夹具AndroidTest构建25s成功（/tmp/task-inventory-ledger-visibility-build.log），diff通过。与b879bc5合批普通push；本次编译不证明首屏两条流水已通过。
+
+## 用户平板历史详情实图与对比入口（2026-10-18）
+
+实读0d6fb9c history-detail-filled-top-fixture.png及source：synthetic=true、31样本、30000ms、3600百分之一克、7笔记字段、noBle。四指标在同一图，30.0秒/36.00g与来源一致；末样本压力为无有效萃取压力而显示缺口，不能为靠近概念图补线/补零。长豆名/研磨文本令右侧滚动，当前对比入口在右侧最上方，未与history-detail-v2标题栏对应。
+
+候选在独立页标准宽屏≥1000dp/font≤1.1将原对比入口放到实际header，维持原shotId与同一比较Activity，不改集合预览与大字/窄窗口原入口。右侧释放一行；字段/图表/存储不变。新布局需要实图验证，不能宣称长笔记全部首屏或整页已对齐。
+
+历史详情入口候选Mock及AndroidTest构建42s成功（/tmp/task-history-compare-header-build.log），diff通过；未运行新截图，暂本地随下一完整批次推送。

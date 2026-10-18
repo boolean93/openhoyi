@@ -10,7 +10,7 @@ import java.util.Date
 import java.util.Locale
 
 /** Same read-only detail in the collection pane and the dedicated full-screen page. */
-internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: String?, standalone: Boolean = false, openFullPage: (() -> Unit)? = null) {
+internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: String?, standalone: Boolean = false, comparisonHost: LinearLayout? = null, openFullPage: (() -> Unit)? = null) {
     val app = application as MobileApplication
     val permanent = shotId?.let { app.journalResult.getOrNull()?.find(it) }
     val entry = runCatching { app.history.entries.firstOrNull { it.id == shotId } }.getOrNull()
@@ -191,9 +191,16 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         action(getString(R.string.journal_review), primary = true) {
             startActivity(Intent(this, BrewReviewActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.id))
         }
-        action(getString(R.string.journal_compare), leading = standalone) {
+        val compare = {
             startActivity(Intent(this, BrewComparisonActivity::class.java).putExtra(BrewComparisonActivity.FIRST_SHOT_ID, entry.id))
         }
+        if (standalone && comparisonHost != null) {
+            HoyiUi.button(this, comparisonHost, getString(R.string.journal_compare), action = compare).apply {
+                asTaskTextAction()
+                maxWidth = dp(200)
+                layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(16) }
+            }
+        } else action(getString(R.string.journal_compare), leading = standalone, click = compare)
     }
     openFullPage?.let { action(getString(R.string.ui_full_details), click = it) }
     Thread({
