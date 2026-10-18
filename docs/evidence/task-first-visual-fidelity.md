@@ -697,3 +697,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 
 - 补读同批comparison-metrics：浅色water/temperature及深色weight/window.png，单位分别ml/°C/g、选中指标与曲线切换一致，按钮完整。与brew-comparison-v1对照仍有实质差距：顶部选杯卡和说明占高较多，图例不在图表右上，配色非概念稿蓝色，表格边框偏重；不能因裁切修复就关闭整页。全部四指标fixture轨迹重叠，只证明真实双序列渲染，不证明不同曲线的可辨识性。
 - 09946fa与784eaaf已普通推送feature/task-first-ui。截图39081548229、单屏39081551257、业务39081551245等已由GitHub返回in_progress；保留运行，不取消/重启。未安装或操作设备、未合并/发版。
+
+### 入库双模式与独立草稿（2026-10-18）
+
+- 依据bean-entry-v2替换混合下拉：两个等宽16sp模式按钮，已有模式才显示豆款选择，无库存禁用已有选择。选中浅色背景、键盘焦点边框、48dp以上点击区；日期前细分隔。
+- newNameDraft与rememberedBeanId分离，模式/名字/真实ID随Bundle恢复；异步Spinner回调在新建模式不写身份。原日期/重量/事件ID/库存保存与幂等不改。
+- 业务检查新增新→已有→重建→新→重建→已有，核对只读名称与真实Bean.id，取消后事件和余额不变；两种状态分别截图。表单检查要求两个模式按钮完整且至少48dp，不放松原五字段可见性。
+- Mock/test APK最终构建exit0，22s（/tmp/task-bean-mode-final-build.log）；8语言XML解析、diff、branch-policy通过。新增instrumentation尚未运行，本地未安装；需新CI确认完整字段、大字号/短高与两种模式实图，不宣称与生成稿完全一致。

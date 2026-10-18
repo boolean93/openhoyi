@@ -387,6 +387,49 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 savedBatch.purchasedOn == purchased && savedBatch.roastedOn == roasted && savedBatch.openedOn == openedDate) { "Saved bean batch lost a date/field" }
             check(persistedInventory().batches().single { it.batch.id == batchId }.batch == savedBatch) { "Bean batch differs after disk reload" }
             record("entry-save")
+            var modeEntry = start(BeanEntryActivity::class.java)
+            fill(modeEntry, R.string.beans_name, "Unsaved new bean")
+            fun selectIdentityMode(existing: Boolean) {
+                onMain {
+                    check(root(modeEntry).findViewWithTag<View>(if (existing) "bean-mode-existing" else "bean-mode-new").performClick())
+                }
+                test.waitForIdleSync()
+            }
+            fun assertExistingIdentity() {
+                onMain {
+                    val choice = root(modeEntry).findViewWithTag<android.widget.Spinner>("bean-existing-choice")
+                    check(choice.isShown && choice.selectedItem.toString() == beanName)
+                    val selected = BeanEntryActivity::class.java.getDeclaredField("selectedBeanId").apply { isAccessible = true }
+                    check(selected.get(modeEntry) == savedBatch.bean.id)
+                    val nameLabel = views(root(modeEntry)).filterIsInstance<TextView>().single {
+                        it.text.toString() == modeEntry.getString(R.string.beans_name) && it.labelFor != View.NO_ID
+                    }
+                    val nameField = root(modeEntry).findViewById<EditText>(nameLabel.labelFor)
+                    check(nameField.isShown && !nameField.isEnabled && nameField.text.toString() == beanName)
+                }
+            }
+            fill(modeEntry, R.string.beans_initial_input, "250")
+            selectIdentityMode(true)
+            onMain {
+                val choice = root(modeEntry).findViewWithTag<android.widget.Spinner>("bean-existing-choice")
+                val position = (0 until choice.count).single { choice.getItemAtPosition(it).toString() == beanName }
+                choice.setSelection(position)
+            }
+            test.waitForIdleSync()
+            modeEntry = recreate(modeEntry)
+            assertExistingIdentity()
+            captureState(modeEntry, "bean-entry-existing-mode", listOf(R.string.beans_save))
+            selectIdentityMode(false)
+            assertInput(modeEntry, R.string.beans_name, "Unsaved new bean")
+            captureState(modeEntry, "bean-entry-new-mode", listOf(R.string.beans_save))
+            modeEntry = recreate(modeEntry)
+            selectIdentityMode(true)
+            assertExistingIdentity()
+            onMain { modeEntry.finish() }
+            awaitMain { modeEntry.isDestroyed }
+            opened.remove(modeEntry)
+            check(balance() == 100000L && ownEvents().size == 1)
+            record("entry-mode-draft-recreate-cancel")
             val batch = start(BeanBatchActivity::class.java) { it.putExtra(BeanBatchActivity.BATCH_ID, batchId) }
             click(batch, R.string.beans_adjust)
             var form = dialog(batch)

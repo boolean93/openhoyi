@@ -4,7 +4,6 @@ import android.app.DatePickerDialog
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.Spinner
 import io.openhoyi.bean.Bean
@@ -20,6 +19,9 @@ class BeanEntryActivity : ThemedActivity() {
     private var saved = false
     private var section = 0
     private var selectedBeanId: String? = null
+    private var rememberedBeanId: String? = null
+    private var existingMode = false
+    private var newNameDraft = ""
     private var form: TaskFormSections? = null
     private val fields = linkedMapOf<String, EditText>()
 
@@ -29,6 +31,9 @@ class BeanEntryActivity : ThemedActivity() {
         batchId = savedInstanceState?.getString("batchId") ?: batchId
         newBeanId = savedInstanceState?.getString("newBeanId") ?: newBeanId
         selectedBeanId = savedInstanceState?.getString("selectedBeanId")
+        existingMode = savedInstanceState?.getBoolean("existingMode") ?: (selectedBeanId != null)
+        rememberedBeanId = savedInstanceState?.getString("rememberedBeanId") ?: selectedBeanId
+        newNameDraft = savedInstanceState?.getString("newNameDraft") ?: savedInstanceState?.getString("name").orEmpty()
         saved = savedInstanceState?.getBoolean("saved") ?: false
         if (saved) { finish(); return }
         val body = beanPage(getString(R.string.beans_entry_title))
@@ -38,9 +43,18 @@ class BeanEntryActivity : ThemedActivity() {
         form = sections
         val card = sections.panels[0]
         val beans = inventory.batches().map { it.batch.bean }.distinctBy { it.id }
+        if (beans.isEmpty()) existingMode = false
+        val modeRow = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+            isBaselineAligned = false
+            background = HoyiUi.shape(this@BeanEntryActivity, R.color.mobile_surface, 8, R.color.mobile_border)
+            card.addView(this, android.widget.LinearLayout.LayoutParams(-1, -2).apply {
+                bottomMargin = HoyiUi.dp(this@BeanEntryActivity, 16)
+            })
+        }
         val selector = Spinner(this).apply {
-            adapter = beanChoiceAdapter(
-                listOf(getString(R.string.beans_new_identity)) + beans.map { it.name })
+            tag = "bean-existing-choice"
+            adapter = beanChoiceAdapter(beans.map { it.name })
             minimumHeight = HoyiUi.dp(this@BeanEntryActivity, 52)
             contentDescription = getString(R.string.beans_identity)
             card.addView(this)
@@ -107,15 +121,59 @@ class BeanEntryActivity : ThemedActivity() {
             dateInput.addView(calendar, android.widget.FrameLayout.LayoutParams(HoyiUi.dp(this, 48), HoyiUi.dp(this, 48),
                 android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL))
         }
+        val modeButtons = linkedMapOf<Boolean, android.widget.Button>()
+        fun renderIdentity() {
+            val bean = beans.find { it.id == rememberedBeanId } ?: beans.firstOrNull()
+            rememberedBeanId = bean?.id
+            selectedBeanId = if (existingMode) bean?.id else null
+            selector.visibility = if (existingMode) View.VISIBLE else View.GONE
+            name.isEnabled = !existingMode
+            name.setText(if (existingMode) bean?.name.orEmpty() else newNameDraft)
+            modeButtons.forEach { (existing, button) ->
+                button.isSelected = existing == existingMode
+                button.setTextColor(getColor(if (!button.isEnabled) R.color.mobile_muted else R.color.mobile_text))
+                val fill = if (button.isSelected) R.color.mobile_accent_soft else android.R.color.transparent
+                val states = android.graphics.drawable.StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(this@BeanEntryActivity, fill, 8, R.color.mobile_accent))
+                    addState(intArrayOf(), HoyiUi.shape(this@BeanEntryActivity, fill, 8))
+                }
+                button.background = android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)), states, null)
+            }
+        }
+        listOf(false to R.string.beans_new_identity, true to R.string.beans_existing_identity).forEach { (existing, label) ->
+            modeButtons[existing] = HoyiUi.button(this, modeRow, getString(label)) {
+                if (existing != existingMode) {
+                    if (!existingMode) newNameDraft = name.text.toString()
+                    existingMode = existing
+                    renderIdentity()
+                }
+            }.apply {
+                tag = if (existing) "bean-mode-existing" else "bean-mode-new"
+                layoutParams = android.widget.LinearLayout.LayoutParams(0, -2, 1f)
+                asTaskTextAction()
+                setPadding(HoyiUi.dp(this@BeanEntryActivity, 8), HoyiUi.dp(this@BeanEntryActivity, 8),
+                    HoyiUi.dp(this@BeanEntryActivity, 8), HoyiUi.dp(this@BeanEntryActivity, 8))
+                isEnabled = !existing || beans.isNotEmpty()
+            }
+        }
+        val initialChoice = beans.indexOfFirst { it.id == rememberedBeanId }.coerceAtLeast(0)
+        if (beans.isNotEmpty()) selector.setSelection(initialChoice)
         selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                selectedBeanId = beans.getOrNull(position - 1)?.id
-                name.isEnabled = selectedBeanId == null
-                if (position > 0) name.setText(beans[position - 1].name)
+                if (!existingMode) return
+                rememberedBeanId = beans.getOrNull(position)?.id
+                renderIdentity()
             }
         }
-        selector.setSelection(beans.indexOfFirst { it.id == selectedBeanId }.let { if (it < 0) 0 else it + 1 })
+        renderIdentity()
+        sections.panels[2].addView(View(this).apply {
+            setBackgroundColor(getColor(R.color.mobile_border))
+        }, 0, android.widget.LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)).apply {
+            topMargin = HoyiUi.dp(this@BeanEntryActivity, 8)
+            bottomMargin = HoyiUi.dp(this@BeanEntryActivity, 16)
+        })
         sections.restore(savedInstanceState, fields)
         val error = beanError(body)
         val save = HoyiUi.button(this, sections.actions, getString(R.string.beans_save), primary = true) {}.apply {
@@ -155,6 +213,9 @@ class BeanEntryActivity : ThemedActivity() {
         outState.putString("batchId", batchId)
         outState.putString("newBeanId", newBeanId)
         outState.putString("selectedBeanId", selectedBeanId)
+        outState.putString("rememberedBeanId", rememberedBeanId)
+        outState.putBoolean("existingMode", existingMode)
+        outState.putString("newNameDraft", if (existingMode) newNameDraft else fields["name"]?.text?.toString().orEmpty())
         outState.putBoolean("saved", saved)
         outState.putInt("section", section)
         fields.forEach { (key, field) -> outState.putString(key, field.text.toString()) }

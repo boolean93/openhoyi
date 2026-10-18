@@ -58,4 +58,5 @@
     <string name="ledger_change">Cambio</string>
     <string name="ledger_balance">Saldo posterior</string>
     <string name="ledger_order">Orden de registro, más reciente primero</string>
+    <string name="beans_existing_identity">Elegir variedad existente</string>
 </resources>

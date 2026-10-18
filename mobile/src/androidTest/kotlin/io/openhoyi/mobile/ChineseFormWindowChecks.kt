@@ -264,6 +264,11 @@ internal object ChineseFormWindowChecks {
             }) main {
                 val inputs = descendants(content).filterIsInstance<EditText>()
                 check(inputs.size == 5) { "$name missing bean entry fields" }
+                listOf("bean-mode-new", "bean-mode-existing").forEach { tag ->
+                    val mode = content.findViewWithTag<View>(tag)
+                    fullyVisible(mode)
+                    check(mode.width >= HoyiUi.dp(activity, 48) && mode.height >= HoyiUi.dp(activity, 48))
+                }
                 listOf("purchased", "roasted", "opened").forEach { key ->
                     val calendar = content.findViewWithTag<View>("bean-date-picker-$key")
                     fullyVisible(calendar)

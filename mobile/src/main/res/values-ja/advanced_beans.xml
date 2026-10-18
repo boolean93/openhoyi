@@ -58,4 +58,5 @@
     <string name="ledger_change">増減</string>
     <string name="ledger_balance">変更後</string>
     <string name="ledger_order">記録順、新しい順</string>
+    <string name="beans_existing_identity">登録済みの銘柄を選択</string>
 </resources>
