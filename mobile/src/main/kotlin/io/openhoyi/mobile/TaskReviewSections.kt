@@ -64,6 +64,11 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         }
     }.apply {
         orientation = LinearLayout.HORIZONTAL
+        dividerDrawable = android.graphics.drawable.GradientDrawable().apply {
+            setColor(activity.getColor(R.color.mobile_border))
+            setSize(dp(1), dp(1))
+        }
+        showDividers = LinearLayout.SHOW_DIVIDER_MIDDLE
         addView(parameterScroll)
         addView(noteScroll)
     }
@@ -73,6 +78,7 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         body.addView(this, LinearLayout.LayoutParams(-1, 0, 1f))
     }
     private val parameterHeading = sectionHeading(parameters, R.string.journal_parameters)
+    private val parameterDivider = sectionDivider(parameters)
     private val notesHeader = LinearLayout(activity).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = android.view.Gravity.CENTER_VERTICAL
@@ -82,6 +88,7 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
     private val notesHeading = sectionHeading(notesHeader, R.string.journal_notes).apply {
         layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
     }
+    private val notesDivider = sectionDivider(notes)
     val panels = labels.indices.map { index ->
         LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
@@ -115,6 +122,14 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
             if (android.os.Build.VERSION.SDK_INT >= 28) isAccessibilityHeading = true
         }
 
+    private fun sectionDivider(parent: LinearLayout) = View(activity).apply {
+        setBackgroundColor(activity.getColor(R.color.mobile_border))
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        parent.addView(this, LinearLayout.LayoutParams(-1, dp(1)).apply {
+            marginStart = dp(8); marginEnd = dp(8)
+        })
+    }
+
     private fun dp(value: Int) = HoyiUi.dp(activity, value)
     private fun reveal(index: Int) {
         val scroll = if (index < 2) parameterScroll else noteScroll
@@ -140,7 +155,7 @@ internal class TaskReviewSections(private val activity: ThemedActivity, body: Li
         if (noteScroll.width <= 0 || noteScroll.height <= 0) return
         notesHeader.measure(View.MeasureSpec.makeMeasureSpec(noteScroll.width, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
-        var noteChrome = notesHeader.measuredHeight
+        var noteChrome = notesHeader.measuredHeight + notesDivider.layoutParams.height
         panels.drop(2).forEach { panel ->
             noteChrome += panel.paddingTop + panel.paddingBottom
             for (index in 0 until panel.childCount) {

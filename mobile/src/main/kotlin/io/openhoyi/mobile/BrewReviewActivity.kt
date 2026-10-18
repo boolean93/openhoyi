@@ -72,6 +72,10 @@ class BrewReviewActivity : ThemedActivity() {
         if (entry.observation.status == "UNKNOWN") HoyiUi.label(this, body, getString(R.string.history_unknown_warning), 14, true).apply {
             setTextColor(getColor(R.color.mobile_danger))
         }
+        body.addView(View(this).apply {
+            setBackgroundColor(getColor(R.color.mobile_border))
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)))
         section = savedInstanceState?.getInt("section") ?: 0
         val sections = TaskReviewSections(this, body, listOf(R.string.journal_bean, R.string.journal_grind, R.string.journal_expectation, R.string.journal_taste, R.string.journal_next).map(::getString), section) { section = it }
         form = sections
@@ -115,8 +119,37 @@ class BrewReviewActivity : ThemedActivity() {
         sections.fitMultiline(listOf(grind, expectation, taste, next))
         sections.restore(savedInstanceState, fields)
         val error = beanError(body)
+        val footer = beanActions(body)
+        footer.addView(View(this).apply {
+            setBackgroundColor(getColor(R.color.mobile_border))
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)))
+        val saveRow = object : LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val wide = View.MeasureSpec.getSize(widthMeasureSpec) >= HoyiUi.dp(this@BrewReviewActivity, 624)
+                orientation = if (wide) HORIZONTAL else VERTICAL
+                (getChildAt(0).layoutParams as LayoutParams).apply {
+                    width = if (wide) 0 else -1
+                    weight = if (wide) 1f else 0f
+                    marginEnd = if (wide) HoyiUi.dp(this@BrewReviewActivity, TaskVisualTokens.GROUP_GAP_DP) else 0
+                }
+                (getChildAt(1).layoutParams as LayoutParams).apply {
+                    width = if (wide) HoyiUi.dp(this@BrewReviewActivity, 320) else -1
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
+        }
+        footer.addView(saveRow, LinearLayout.LayoutParams(-1, -2))
+        HoyiUi.label(this, saveRow, getString(R.string.journal_subtitle), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+            tag = "review-save-scope"
+            setPadding(0, HoyiUi.dp(this@BrewReviewActivity, TaskVisualTokens.RELATED_GAP_DP), 0,
+                HoyiUi.dp(this@BrewReviewActivity, TaskVisualTokens.RELATED_GAP_DP))
+        }
         val saveDock = TaskActionDock(this, edgeInsetDp = 0)
-        beanActions(body).addView(saveDock, LinearLayout.LayoutParams(-1, -2))
+        saveRow.addView(saveDock, LinearLayout.LayoutParams(-1, -2))
         val save = HoyiUi.button(this, saveDock, getString(R.string.journal_save), primary = true) {}
         save.setOnClickListener {
             val available = app.journalResult.getOrNull()

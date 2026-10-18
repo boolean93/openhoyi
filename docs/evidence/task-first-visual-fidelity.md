@@ -764,3 +764,9 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 同批 import-new.png/import-conflict.png 与 curve-import-preview-v1 对照：四阶段实际2.4/5.7/8.3/6.9bar、94°C/41.7g、四行水量12/23/34/45ml完整；新导入无冲突动作，冲突态查看/保留/另存完整。图表量纲正确，但右侧缺暖色警示区域，左侧缺稿件分区标题/边界，左右宽度和图高仍不同。
 - 本候选仅修冲突文案视觉分组：20sp、16dp内边距及组间距，独立浅深暖色背景/边框。保留原非颜色文字说明和全部保存/身份/无自动启动行为；不因部分差异修正就关闭整页。
 - 候选构建会话14951 exit0，Mock/test APK BUILD SUCCESSFUL in 40s（/tmp/task-import-conflict-emphasis-build.log）；浅深色XML解析、diff/branch-policy通过。未安装，实际警示区/大字号空间仍待CI截图。
+
+### 复盘分区与保存范围可见（2026-10-18）
+
+- 对应brew-review-v3，补上下文底线、两个标题底线与参数/笔记栏间线（1dp语义边框色）；保持原24dp栏间距，已有独立滚动区和输入不重新挂载。笔记高度预算显式加上标题底线高度。
+- 保存区显示现有八语言journal_subtitle，14sp辅助色；>=624dp与右侧320dp保存区同行，其余上下排列。提示不再只在信息弹窗里，用户可直接知道保存不改变机器/库存。保存、草稿、焦点、重建逻辑不变。
+- 最终构建56213 exit0、Mock/test APK BUILD SUCCESSFUL in36s（/tmp/task-review-section-final-build.log），diff/branch-policy通过。既有业务重建/保存/磁盘重开断言保留；新实图和IME/长文本/大字号仍待CI，不以构建替代运行。
