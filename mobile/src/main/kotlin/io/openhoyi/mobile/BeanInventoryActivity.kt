@@ -96,10 +96,20 @@ class BeanInventoryActivity : ThemedActivity() {
         body.addView(tools,LinearLayout.LayoutParams(-1,-2))
         inventoryLink(tools,getString(R.string.beans_add)) {
             startActivity(Intent(this,BeanEntryActivity::class.java))
-        }.layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+        }.apply {
+            maxWidth = HoyiUi.dp(this@BeanInventoryActivity, 200)
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply {
+                marginStart = HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP)
+            }
+        }
         inventoryLink(tools,getString(R.string.beans_ledger)) {
             startActivity(Intent(this,BeanLedgerActivity::class.java))
-        }.layoutParams=LinearLayout.LayoutParams(0,-2,1f)
+        }.apply {
+            maxWidth = HoyiUi.dp(this@BeanInventoryActivity, 200)
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply {
+                marginStart = HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP)
+            }
+        }
         val panes = TaskCollectionLayout(this).also { collection = it }
         body.addView(panes, LinearLayout.LayoutParams(-1, 0, 1f))
         val list = beanList(panes.browserBody)
@@ -134,6 +144,7 @@ class BeanInventoryActivity : ThemedActivity() {
             }
             HoyiUi.label(this, metadata, getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 14, muted = true)
             HoyiUi.label(this, metadata, getString(R.string.beans_initial, BeanQuantity.formatGrams(item.batch.initialMg)), TaskVisualTokens.BODY_SP)
+            beanRemainingRatio(metadata, item.balanceMg, item.batch.initialMg, TaskVisualTokens.BODY_SP)
             fun divider() = metadata.addView(android.view.View(this).apply {
                 setBackgroundColor(getColor(R.color.mobile_border))
             }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)).apply {
@@ -155,6 +166,15 @@ class BeanInventoryActivity : ThemedActivity() {
             }
             divider()
             HoyiUi.label(this, metadata, getString(R.string.batch_recent_events), TaskVisualTokens.SECTION_SP, true)
+            val ledgerHeadings = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+            metadata.addView(ledgerHeadings, LinearLayout.LayoutParams(-1, -2))
+            listOf(R.string.ledger_type, R.string.ledger_change, R.string.beans_reason).forEachIndexed { index, label ->
+                HoyiUi.label(this, ledgerHeadings, getString(label), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+                    layoutParams = LinearLayout.LayoutParams(0, -2, if (index == 2) 2f else 1f).apply {
+                        marginEnd = HoyiUi.dp(this@BeanInventoryActivity, TaskVisualTokens.RELATED_GAP_DP)
+                    }
+                }
+            }
             val events = inventory.events().asReversed().filter { it.batchId == item.batch.id }.take(3)
             if (events.isEmpty()) HoyiUi.label(this, metadata, getString(R.string.beans_ledger_empty), TaskVisualTokens.BODY_SP, muted = true)
             events.forEach { event ->

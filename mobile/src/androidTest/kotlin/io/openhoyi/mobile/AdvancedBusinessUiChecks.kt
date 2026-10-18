@@ -490,6 +490,24 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(row.performClick())
             }
             test.waitForIdleSync()
+            onMain {
+                val metadata = root(inventoryPage).findViewWithTag<android.view.ViewGroup>("inventory-batch-metadata")
+                val labels = views(metadata).filterIsInstance<TextView>().map { it.text.toString() }
+                check(listOf("2026-10-02", "2026-09-28", "2026-10-03", "UI recount", "-10 g", "+100 g", "90%").all { it in labels }) {
+                    "Inventory selected detail omitted dates, ratio or real ledger events"
+                }
+            }
+            captureState(inventoryPage, "inventory-selected-after-adjustment", listOf(R.string.dose_title))
+            onMain {
+                val metadata = root(inventoryPage).findViewWithTag<android.view.ViewGroup>("inventory-batch-metadata")
+                val last = views(metadata).filterIsInstance<TextView>().last()
+                last.requestRectangleOnScreen(android.graphics.Rect(0, 0, last.width, last.height), true)
+            }
+            test.waitForIdleSync()
+            captureState(inventoryPage, "inventory-ledger-after-adjustment", listOf(R.string.dose_title))
+            check(balance() == 90000L && ownEvents().size == 2 && preparation.current() == null) {
+                "Inspecting inventory details changed inventory or preparation"
+            }
             val prepMonitor = test.addMonitor(BeanPreparationActivity::class.java.name, null, false)
             var prep: Activity
             try {

@@ -88,27 +88,7 @@ class BeanBatchActivity : ThemedActivity() {
             (layoutParams as LinearLayout.LayoutParams).weight = 2f
         }
         HoyiUi.label(this, ratioCell, getString(R.string.batch_remaining_ratio), 14, muted = true)
-        val ratio = if (item.batch.initialMg > 0) item.balanceMg.toDouble() / item.batch.initialMg else null
-        val ratioLine = row(ratioCell).apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-        if (ratio != null) ratioLine.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
-            max = 1000; progress = (ratio.coerceIn(0.0, 1.0) * max).toInt()
-            fun track(color: Int) = android.graphics.drawable.GradientDrawable().apply {
-                setColor(getColor(color))
-                cornerRadius = HoyiUi.dp(this@BeanBatchActivity, 4).toFloat()
-            }
-            progressDrawable = android.graphics.drawable.LayerDrawable(arrayOf(
-                track(R.color.mobile_border),
-                android.graphics.drawable.ScaleDrawable(track(R.color.mobile_accent),
-                    android.view.Gravity.START, 1f, -1f)
-            )).apply {
-                setId(0, android.R.id.background)
-                setId(1, android.R.id.progress)
-            }
-            setPadding(0, 0, 0, 0)
-            minimumHeight = HoyiUi.dp(this@BeanBatchActivity, 8)
-            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, LinearLayout.LayoutParams(0, HoyiUi.dp(this, 8), 1f).apply { marginEnd = HoyiUi.dp(this@BeanBatchActivity, 16) })
-        HoyiUi.label(this, ratioLine, ratio?.let { java.text.NumberFormat.getPercentInstance(resources.configuration.locales[0]).format(it) } ?: "—", 24)
+        beanRemainingRatio(ratioCell, item.balanceMg, item.batch.initialMg)
         divider(body)
         HoyiUi.label(this, body, getString(R.string.batch_information), 20, true).apply {
             setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 16), 0, HoyiUi.dp(this@BeanBatchActivity, 8))

@@ -939,3 +939,5 @@ AdvancedBusinessUiChecks原七字段复盘保存后新增只读详情检查。�
 已人工读取4240daa用户平板zh-Hans-light-BeanInventoryActivity.png并与库存v2对照：非空连续批次列表、250g选中详情、底部选豆存在；日期混在文字段、单位与数值同大、无最近流水。候选在原metadata局部滚动区内补40sp余额/22sp单位、三列14/16sp日期、20sp最近流水标题及最多三条真实逆序事件。原因两行截断可点击查看完整原因与变更后余额，保留列表恢复/选择和原固定底部入口。未改库存/关联/扣减逻辑。
 
 库存v3由内置ImageGen纠正虚构事件时间和净减少量等于“已使用”的错误；示例三批500g与90/100g90%已核对。代码仍未完成比例条、顶部汇总/工具栏及底部所有稿件布局，不冒称整页对齐。Mock及测试包构建47s成功（/tmp/task-inventory-detail-build.log），运行截图与大字/窄窗、长原因回归待CI。本批不追加推送。
+
+库存同批续：新增共享BeanRemainingRatio（库存16sp/批次24sp比例文案，8dp圆角条），顶部工具取消等分撑宽、改限宽靠右，最近流水补三列标题。AdvancedBusinessUiChecks在已有唯一UUID调整后核对90%、三日期和两事件，保存库存上部/流水截图，检查balance90000/events2/preparationnull，18路径不变。构建48s成功；运行视觉仍未验收。与6a61d4a、8e62d33合并一批推送，不单独触发每项修改。
