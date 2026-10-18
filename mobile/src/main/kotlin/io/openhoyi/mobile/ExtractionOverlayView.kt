@@ -59,15 +59,17 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         visibility = GONE
     }
     private val explanation = TextView(context).apply {
-        textSize = 11f
+        textSize = TaskVisualTokens.SUPPORTING_SP.toFloat()
         setTextColor(context.getColor(R.color.chart_label))
-        setPadding(dp(6f).toInt(), 0, dp(6f).toInt(), dp(3f).toInt())
+        setPadding(dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt(), 0,
+            dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt(), dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt())
     }
     private val referenceCaption = TextView(context).apply {
         tag = "chart-reference-caption"
-        textSize = 11f
+        textSize = TaskVisualTokens.SUPPORTING_SP.toFloat()
         setTextColor(context.getColor(R.color.chart_label))
-        setPadding(dp(6f).toInt(), 0, dp(6f).toInt(), dp(3f).toInt())
+        setPadding(dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt(), 0,
+            dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt(), dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt())
         visibility = GONE
     }
     private val headerContent = LinearLayout(context).apply {

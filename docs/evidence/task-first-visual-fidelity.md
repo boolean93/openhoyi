@@ -977,3 +977,10 @@ AdvancedBusinessUiChecks原七字段复盘保存后新增只读详情检查。�
 637f83f字体证据复核：现有JSON只记录TextView基字号，不记录RelativeSizeSpan/StyleSpan，不能由14sp基字号推断次要数值也是14sp，也不能证明小单位字号。补充metricRuns按MetricAffectingSpan边界及实际TextPaint计算尺寸/字重；仍需新CI运行。概念稿与实图未同采样，不能比较曲线形状；当前明确视觉差异包含主值强调偏弱、说明行11sp低于辅助14sp基线。后续修正需保留绘图区、停止目标及大字检查。
 
 分段字号取证代码测试包构建23s通过（/tmp/task-typography-span-build.log）；仅证明编译，metricRuns实际输出待CI，不升级页面验收状态。
+
+
+## 萃取主读数与辅助说明候选（2026-10-18）
+
+按已认可40–48sp规格将萃取主读数设48sp，单位保持22sp；其他页面LIVE_VALUE_SP=40不变。图表说明和参考说明统一14sp，横向及底部间距8dp。该共享图表调整也影响历史详情等复用页面，因此需要现有全页/组件CI回归；没有改轴字号、数据或停止行为。当前候选尚无运行图，不能声称图高、参考说明和大字已验收。
+
+Mock及AndroidTest构建42s成功（/tmp/task-extraction-type-hierarchy-build.log），diff和分支策略检查通过；运行视觉待CI。

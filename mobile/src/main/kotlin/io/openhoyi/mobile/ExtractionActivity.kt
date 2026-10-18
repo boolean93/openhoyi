@@ -158,7 +158,7 @@ class ExtractionActivity : ThemedActivity() {
             metrics.addView(cell)
             val heading = HoyiUi.label(this, cell, label, 14, muted = true)
             if (quantity) quantityLabel = heading
-            return HoyiUi.label(this, cell, "—", TaskVisualTokens.LIVE_VALUE_SP, true).apply {
+            return HoyiUi.label(this, cell, "—", TaskVisualTokens.LIVE_FOCUS_VALUE_SP, true).apply {
                 typeface = TaskTypography.face(this@ExtractionActivity, 700)
                 fontFeatureSettings = "tnum"
             }
@@ -540,7 +540,8 @@ class ExtractionActivity : ThemedActivity() {
             text = android.text.SpannableString(value).apply {
                 val unitStart = value.lastIndexOf(' ') + 1
                 if (unitStart > 0 && unitStart < value.length) {
-                    setSpan(android.text.style.RelativeSizeSpan(0.55f), unitStart, value.length,
+                    setSpan(android.text.style.RelativeSizeSpan(
+                        TaskVisualTokens.LIVE_UNIT_SP.toFloat() / TaskVisualTokens.LIVE_FOCUS_VALUE_SP), unitStart, value.length,
                         android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 }
             }
