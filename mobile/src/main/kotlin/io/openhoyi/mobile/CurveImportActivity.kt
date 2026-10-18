@@ -6,6 +6,8 @@ import android.os.Bundle
 import android.text.InputType
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.LinearLayout
+import android.view.View
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
@@ -42,7 +44,36 @@ class CurveImportActivity : ThemedActivity() {
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
                 .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain")), OPEN)
         }
-        HoyiUi.button(this, beanActions(body), getString(R.string.profiles_import_preview), primary = true) { preview(text.text.toString()) }
+        val footerRow = object : LinearLayout(this) {
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val wide = View.MeasureSpec.getSize(widthMeasureSpec) >= HoyiUi.dp(this@CurveImportActivity, 624)
+                orientation = if (wide) HORIZONTAL else VERTICAL
+                (getChildAt(0).layoutParams as LayoutParams).apply {
+                    width = if (wide) 0 else -1
+                    weight = if (wide) 1f else 0f
+                    marginEnd = if (wide) HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.GROUP_GAP_DP) else 0
+                }
+                (getChildAt(1).layoutParams as LayoutParams).width =
+                    if (wide) HoyiUi.dp(this@CurveImportActivity, 320) else -1
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply { gravity = android.view.Gravity.CENTER_VERTICAL; isBaselineAligned = false }
+        beanActions(body).addView(footerRow, LinearLayout.LayoutParams(-1, -2))
+        HoyiUi.label(this, footerRow, getString(R.string.profiles_import_hint), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
+            setPadding(0, HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.RELATED_GAP_DP), 0,
+                HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.RELATED_GAP_DP))
+        }
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+        footerRow.addView(actions, LinearLayout.LayoutParams(-1, -2))
+        HoyiUi.button(this, actions, getString(R.string.beans_cancel)) { finish() }.apply {
+            asTaskTextAction()
+            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
+                marginEnd = HoyiUi.dp(this@CurveImportActivity, TaskVisualTokens.RELATED_GAP_DP)
+            }
+        }
+        HoyiUi.button(this, actions, getString(R.string.profiles_import_preview), primary = true) {
+            preview(text.text.toString())
+        }.apply { layoutParams = LinearLayout.LayoutParams(0, -2, 2f) }
         if (savedInstanceState?.containsKey("text") == true) text.post {
             if (isFinishing || isDestroyed) return@post
             if (savedInstanceState.getBoolean("textFocused")) text.requestFocus()

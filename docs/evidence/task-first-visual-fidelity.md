@@ -1067,3 +1067,13 @@ run39090796831成功，下载ci-4d308a7-frame并实读MachineSettingsActivity.pn
 ## 机器温度三列候选（2026-10-18）
 
 标准宽屏fontScale≤1.1将原固定标签与原输入、原按钮放同一行（1.4:1:1.4），8dp相关间距与16dp组间距取共享tokens，保留labelFor与原回调。大字/窄屏保留原上下排版。Mock及MockAndroidTest构建43s成功（/tmp/task-machine-label-rows-build.log），diff检查通过。尚未推送此候选，a0ab801排队截图不含本改动或42e126a标签样式，不得拿其结果验证本改动。4d308a7 result.txt已实读pages=24 noBle=true，仅是框架检查通过，不是24页视觉验收。
+
+## 4d308a7异常图表与生命周期实证（2026-10-18）
+
+实读ci-4d308a7-frame/chart-components/gaps-and-reference.png并与bcda211同名图比较：说明由强制三行改为自然单行，参考说明保留，绘图区恢复五档刻度（旧图三档），采样缺口/重置仍断开；当前缺失秤读数仍为—而非沿用旧值。短高1.3图仍显示空间不足且只能看到部分图例，不能据此宣称完整图表可见。chart-result.txt四原生组件夹具通过，但不等于实际整页同状态验收。
+
+生命周期run39090796858成功，下载ci-4d308a7-lifecycle并实读language-instrumentation.txt：CHART_LEGEND_CHECKS_PASSED languages=8 themes=2 widths=4 fixtures=64，后续通知、紧凑布局、宽屏/大字布局阶段均执行通过。此前旧图例文案契约失败已在此版本关闭，不推断后续新候选也通过。
+
+## 曲线导入底栏候选（2026-10-18）
+
+对照curve-import-v2与4d308a7实际图，底栏改为常驻现有完整导入说明（14sp）＋取消/预览，宽屏320dp动作区右对齐，小窗口上下排；预览、显式剪贴板读取与文件路径不改。首次编译因HoyiUi.dp要求Activity而传Context失败，修正为显式Activity后最终Mock及AndroidTest构建成功（/tmp/task-curve-import-footer-final-build.log）。此候选未运行截图，仍有标题文案/图标/编辑区提示等差异，不能称整页完成。
