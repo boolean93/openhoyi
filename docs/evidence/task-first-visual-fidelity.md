@@ -984,3 +984,8 @@ AdvancedBusinessUiChecks原七字段复盘保存后新增只读详情检查。�
 按已认可40–48sp规格将萃取主读数设48sp，单位保持22sp；其他页面LIVE_VALUE_SP=40不变。图表说明和参考说明统一14sp，横向及底部间距8dp。该共享图表调整也影响历史详情等复用页面，因此需要现有全页/组件CI回归；没有改轴字号、数据或停止行为。当前候选尚无运行图，不能声称图高、参考说明和大字已验收。
 
 Mock及AndroidTest构建42s成功（/tmp/task-extraction-type-hierarchy-build.log），diff和分支策略检查通过；运行视觉待CI。
+
+
+## 机器设置独立候选稿（2026-10-18）
+
+核对MachineSettingsActivity温度75–105/补偿0–5/蒸汽110–145校验、五分类及回读展示；实读39ac261-frame/tablet-user-landscape/screenshots/MachineSettingsActivity.png。内置ImageGen参照应用设置风格生成machine-settings-v1并目视核对：三独立设置动作、五分类、模拟无蓝牙说明、回读确认与左右主辅结构完整，设置温差补偿文字略有改写但含义未改变。当前仅候选稿，不替换既有已认可范围，不证明各子分类/状态设计完成。至此24页都有至少一张示意图（21功能页及3设置候选），不等于24页实现或视觉验收完成。
