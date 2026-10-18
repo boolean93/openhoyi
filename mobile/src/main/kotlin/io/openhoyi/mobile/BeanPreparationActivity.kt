@@ -8,10 +8,8 @@ import android.text.TextWatcher
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.view.View
-import android.widget.AdapterView
 import android.widget.Button
 import android.widget.EditText
-import android.widget.Spinner
 import android.widget.TextView
 import io.openhoyi.bean.InventoryEventKind
 import java.util.UUID
@@ -50,7 +48,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         val inventory = beanInventory(body) ?: return
         val current = preparation.current()
         error = beanError(body).also { view -> errorResource?.let(view::setText) }
-        val workspace = TaskWorkspaceLayout(this)
+        val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .5f, supportingMaxWidthDp = 680)
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = "task-inline-form" }
         workspace.primaryBody.addView(ScrollView(this).apply {
@@ -157,8 +155,17 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
             HoyiUi.button(this, beanActions(body), getString(R.string.dose_add_beans), primary = true) { startActivity(Intent(this, BeanEntryActivity::class.java)) }
             return
         }
-        val form = HoyiUi.card(this, content).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2) }
-        HoyiUi.label(this, form, getString(R.string.dose_batch), 15, muted = true)
+        HoyiUi.label(this, content, getString(R.string.dose_batch), 20, true).apply {
+            setPadding(0, 0, 0, HoyiUi.dp(this@BeanPreparationActivity, 16))
+        }
+        if (batches.none { it.batch.id == draftBatchId }) draftBatchId = batches.first().batch.id
+        val form = HoyiUi.card(this, support).apply {
+            layoutParams = LinearLayout.LayoutParams(-1, -2)
+            tag = "bean-full-field"
+        }
+        val selectedBean = HoyiUi.label(this, form, "", 20, true).apply {
+            setPadding(0, 0, 0, HoyiUi.dp(this@BeanPreparationActivity, 16))
+        }
         val preview = HoyiUi.label(this, support, "", 18, true).apply { tag = "dose-balance-preview" }
         fun updatePreview() {
             val batch = batches.find { it.batch.id == draftBatchId }
@@ -167,28 +174,48 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
                 getString(R.string.dose_balance_preview, BeanQuantity.formatGrams(batch.balanceMg),
                     BeanQuantity.formatGrams(batch.balanceMg - mg)) else ""
         }
-        form.tag = "bean-full-field"
-        val selector = Spinner(this).apply {
-            adapter = beanChoiceAdapter(batches.map {
-                getString(R.string.dose_batch_choice, it.batch.bean.name, BeanQuantity.formatGrams(it.balanceMg),
-                    getString(R.string.beans_batch_id, beanBatchNumber(inventory, it.batch.id)))
-            }, selectedMaxLines = Int.MAX_VALUE)
-            minimumHeight = HoyiUi.dp(this@BeanPreparationActivity, 52)
-            contentDescription = getString(R.string.dose_batch)
-            form.addView(this)
+        val choices = linkedMapOf<String, Button>()
+        fun updateChoice() {
+            val selected = batches.first { it.batch.id == draftBatchId }
+            selectedBean.text = selected.batch.bean.name + " · " +
+                getString(R.string.beans_batch_id, beanBatchNumber(inventory, selected.batch.id))
+            choices.forEach { (id, button) ->
+                button.isSelected = id == draftBatchId
+                val fill = if (button.isSelected) R.color.mobile_accent_soft else R.color.mobile_surface
+                val states = android.graphics.drawable.StateListDrawable().apply {
+                    addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(this@BeanPreparationActivity, fill, 8, R.color.mobile_accent))
+                    addState(intArrayOf(), HoyiUi.shape(this@BeanPreparationActivity, fill, 8, R.color.mobile_border))
+                }
+                button.background = android.graphics.drawable.RippleDrawable(
+                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)), states, null)
+            }
+            updatePreview()
         }
-        selector.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { draftBatchId = batches[position].batch.id; updatePreview() }
+        batches.forEach { batch ->
+            choices[batch.batch.id] = HoyiUi.button(this, content,
+                getString(R.string.dose_batch_choice, batch.batch.bean.name, BeanQuantity.formatGrams(batch.balanceMg),
+                    getString(R.string.beans_batch_id, beanBatchNumber(inventory, batch.batch.id)))) {
+                draftBatchId = batch.batch.id
+                updateChoice()
+            }.apply {
+                tag = "dose-batch-${batch.batch.id}"
+                asTaskTextAction()
+                gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                setTextColor(getColor(R.color.mobile_text))
+                minHeight = HoyiUi.dp(this@BeanPreparationActivity, 72)
+                minimumHeight = minHeight
+                setPadding(HoyiUi.dp(this@BeanPreparationActivity, 16), HoyiUi.dp(this@BeanPreparationActivity, 12),
+                    HoyiUi.dp(this@BeanPreparationActivity, 16), HoyiUi.dp(this@BeanPreparationActivity, 12))
+                layoutParams = LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = HoyiUi.dp(this@BeanPreparationActivity, 8) }
+            }
         }
-        selector.setSelection(batches.indexOfFirst { it.batch.id == draftBatchId }.coerceAtLeast(0))
         amount = beanInput(form, R.string.dose_amount, true).apply { setText(draftAmount) }
         amount?.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { updatePreview() }
             override fun afterTextChanged(s: Editable?) = Unit
         })
-        updatePreview()
+        updateChoice()
         HoyiUi.label(this, support, getString(R.string.dose_scale_hint), 14, muted = true)
         capture = HoyiUi.button(this, support, getString(R.string.dose_scale)) {
             if (!captureAllowed()) { errorResource = R.string.dose_scale_blocked; error?.setText(R.string.dose_scale_blocked); return@button }
@@ -202,7 +229,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
             val mg = runCatching { BeanQuantity.parseGrams(amount?.text?.toString().orEmpty()).also { require(it > 0) } }.getOrElse {
                 errorResource = R.string.dose_bad_amount; error?.setText(R.string.dose_bad_amount); return@setOnClickListener
             }
-            val batch = batches.getOrNull(selector.selectedItemPosition)?.batch ?: return@setOnClickListener
+            val batch = batches.find { it.batch.id == draftBatchId }?.batch ?: return@setOnClickListener
             rememberDraft()
             select.isEnabled = false
             val result = runCatching { synchronized(preparation) {

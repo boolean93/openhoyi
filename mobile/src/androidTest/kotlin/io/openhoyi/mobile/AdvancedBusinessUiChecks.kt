@@ -469,8 +469,9 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             check(preparation.current() == null && balance() == 90000L && ownEvents().size == 2) { "Inventory navigation consumed or saved a dose" }
             awaitMain { ScaleOwnerActivity::class.java.getDeclaredField("owner").apply { isAccessible = true }.get(prep) === service }
             onMain {
-                val selector = views(root(prep)).filterIsInstance<Spinner>().single()
-                check(selector.selectedItemPosition == inventory.batches().indexOfFirst { it.batch.id == batchId }) { "Inventory entry lost preselected batch" }
+                val choice = root(prep).findViewWithTag<Button>("dose-batch-$batchId")
+                check(choice.isShown && choice.isSelected && choice.isEnabled) { "Inventory entry lost preselected batch" }
+                check(choice.performClick())
             }
             test.waitForIdleSync()
             fill(prep, R.string.dose_amount, "18.0001")
@@ -483,6 +484,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(preview.text.toString() == prep.getString(R.string.dose_balance_preview, "90", "72"))
             }
             check(balance() == 90000L && ownEvents().size == 2)
+            captureState(prep, "dose-selected-draft", listOf(R.string.dose_save_selection))
             click(prep, R.string.dose_save_selection)
             val selected = requireNotNull(preparation.current())
             check(selected.batchId == batchId && selected.amountMg == 18000L && !selected.confirmed && balance() == 90000L && ownEvents().size == 2)
@@ -491,6 +493,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(preview.text.toString() == prep.getString(R.string.dose_balance_preview, "90", "72"))
                 check(root(prep).findViewWithTag<TextView>("dose-balance-receipt") == null)
             }
+            captureState(prep, "dose-pending-confirmation", listOf(R.string.dose_confirm))
             record("dose-select-no-deduction")
             // Hold the real button before it is detached by rendering; repeated dispatch must remain idempotent.
             var confirm: TextView? = null
@@ -504,6 +507,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 val receipt = root(prep).findViewWithTag<TextView>("dose-balance-receipt")
                 check(receipt.text.toString() == prep.getString(R.string.dose_balance_receipt, "90", "72"))
             }
+            captureState(prep, "dose-confirmed-receipt", listOf(R.string.dose_discard))
             record("dose-confirm-repeat-recreate")
             click(prep, R.string.dose_discard)
             dialogClick(dialog(prep), AlertDialog.BUTTON_POSITIVE, prep.getString(R.string.dose_discard_confirm))

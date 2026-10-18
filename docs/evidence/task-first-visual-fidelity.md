@@ -724,3 +724,9 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - ff651be/run39081920735：pages job success，business job failure。下载ci-ff651be-business；business-flows含18条已执行路径，包括entry-mode-draft-recreate-cancel及所有原17路径，异常精确指向691行末尾paths.size==17。不能把整次business宣称成功，末尾恢复不变量仍须重跑确认。
 - 实读bean-entry-new-mode.png与existing-mode.png（1600×1000）：两个模式直接可见、浅色选中态/日期分隔生效；新名称草稿保持Unsaved new bean、重量250；已有模式显示所选实际Bean，原ID/只读名称与新→已有→重建→新草稿恢复断言均在该路径记录之前执行。既有名称在选择器与只读字段重复仍属后续简化空间；不以此标准横屏截图代替用户平板大字号/IME检查。
 - 将Kotlin末尾计数和完整字段标记、shell成功标记统一为18（增加要求，不删断言）。test APK构建exit0/24s，shell语法、diff、branch-policy通过。测试包尚待新CI完成收尾，不绕过失败。
+
+### 用豆批次列表与三状态取证（2026-10-18）
+
+- BeanPreparationActivity新选择态按bean-preparation-v1改近等宽两栏：左侧可滚动真实库存批次按钮，右侧所选豆款/粉量/库存预览/称豆门禁。20sp标题、16sp行、72dp最小行高、8dp行距；选中浅色与键盘焦点样式。选择按真实batchId，点击不保存/扣减；原保存→确认/未知恢复/取消/丢弃/重复确认路径不改。
+- 业务检查从Spinner实现依赖改为真实批次按钮选择；补草稿、待确认、已确认流水截图，不增加路径计数或删余额/事件断言。最终Mock/test APK构建exit0/24s（/tmp/task-dose-list-final-build.log），diff与branch-policy通过；待新CI实图，不宣称完整复刻（粉量步进/大号库存前后值尚未对齐）。
+- 784eaaf单屏run39081551257失败已下载原始结果：335/336，仅ar-light-HistoryDetailActivity报missing populated historical chart。该提交早于本次用豆改动；需独立检查异步加载/实际状态，不当作新用豆故障，也不放松曲线存在断言。其他335检查不能替代全矩阵通过。
