@@ -717,4 +717,4 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 两种状态各21个实际Mock采样：有秤21个重量样本、主读数3.50g；无秤0个重量样本、snapshot重量/时间为空、主读数累计注水3.0ml，图例/纵轴无重量项。四/三指标同图，机器93°C与配方92°C区分，停止完整可用，结束由原测试实际调用，不属于硬件验收。
 - 用户平板2560×1600 density2.25 fontScale1：内容高1402px、chart高874px、真实dataPlot高514.148px，占chart58.827%；图表底部1447px超过停止顶部1321px，固定操作区域不再占左图整行。此比例是测量值，不是视觉一致通过阈值。
 - 实图“当前无告警”仍占主读数上方整行，与认可稿不符。候选扩展原紧凑运行页隐藏条件至全部运行布局：只收起fresh<=1500ms且bits精确0的正常状态；任一非零位、未知、缺失/未来/过期时间或非active仍展示。控制权限/告警描述/未知结果/停止逻辑不变。增加纯判定边界测试及实际运行无告警行收起断言，几何增量待新CI实图。
-- 最终构建会话2716 exit0/46s，MachineAlarmsTest报告8 tests/0 failures/0 errors；Mock与test APK成功，diff/分支检查通过。未本地安装或硬件操作。
+- 最终构建会话2716 exit0/46s，MachineAlarmsTest报告7 tests/0 failures/0 errors；Mock与test APK成功，diff/分支检查通过。未本地安装或硬件操作。
