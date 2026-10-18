@@ -17,7 +17,7 @@
 |---|---|---|---|
 | HomeActivity | [准备v2](../research/task-first-ui-concepts/brew-preparation-v2.png) | **10-18最新：Astra已读0f0beda用户横屏font1.0/1.3真实整窗：capture-1、未选本杯豆子，91°C/27.00g/2阶段摘要及697×126px主操作完整；不是已确认18g或开始萃取状态。紧凑1.3组件改用0/12端点，关闭该两阶段场景刻度重叠，不外推四阶段/任意高度。** G1仍有摘要上下排、最近使用在右侧大按钮、右栏工具密集等已确认构图差异；阶段颜色/背景/顶栏也未对齐，G1–G4未通过。历史d873340/run39116385295组件发现的刻度失败已被上述限定新证据替代，不再写未修复 | 25 |
 | ExtractionActivity | [满配v3](../research/task-first-ui-concepts/extraction-four-series-v3.png)、[无秤v2](../research/task-first-ui-concepts/extraction-no-scale-v2.png) | 784eaaf用户平板有秤/无秤实际启动截图通过；21/0重量样本、四/三指标、参数行/停止完整；绘图区514.148px。1b0deb4无告警行已收起且绘图区增至624.148px，637f83f实图确认图例含实时值、次要读数数值突出；有秤绘图区599.148px、无秤624.148px，停止完整。bcda211两态实图确认48sp数字/22sp单位，绘图区565.148px、停止完整；异常/参考/大字与最终视觉仍未验收 | 33 |
-| CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | **10-18最新：3b5f29f/run39116731390与0f0beda/run39117264517同一无压力longFactory失败：469×70px仅可见469×67px，父行947×77px。已排除baseline猜测；居中公式追加单侧7px上边距恰超父底3px。a7fcc86取消单侧偏移、整行共享8dp，Astra源码复核无阻断、编译通过；未有修复后运行，裁切尚不能关闭。** [footer证据](2026-10-18-curve-footer-clipping.md)新增成功整窗PNG/几何检查仍待合批构建/CI；四阶段只读fixture仅验外框且canStart=false，不冒充可执行选择验收。历史4240daa的103条列表/滚动恢复、3c0019c的34%列表与字体、10bf727两阶段真实窗口保留限定效力，不能覆盖后续longFactory失败或四阶段/阶段配色/稿件差异 | 31 |
+| CurveActivity | [曲线库v2](../research/task-first-ui-concepts/curve-library-v2.png) | **10-18最新：Astra已读a4786a0关联lifecycle/run39119880608的4张真实成功整窗及前后geometry：中文浅色、density200、1280×703dp、font1.0/1.3，longFactory/noPressure均显示无压力“深烘拿铁”。主按钮469×70px全幅可见，父行947×70px；详情468×60px全幅可见、局部y5..65与主按钮y0..70中心相同。关闭这两个fixture/字号的原3px底裁切，不外推density360、其他状态或严格视觉。** 证据在`build/task-first-evidence/ci-a4786a0-lifecycle/mock-lifecycle/language-detail-success/footer-{landscape,wideFont}_zh-Hans_dark=false_page=CurveActivity-{longFactory,noPressure}-window.{png,txt}`。历史3b5f29f/0f0beda的469×67px失败保留追溯，已由上述限定新证据替代；根因及a7fcc86修正见[footer证据](2026-10-18-curve-footer-clipping.md)。103条列表/恢复、四阶段只读fixture等各有原范围，不冒充可执行选择、稿件或硬件验收；G1–G4仍未通过 | 31 |
 | HistoryActivity | [记录v3](../research/task-first-ui-concepts/history-list-v3.png) | 空记录列表 | 17 |
 | HistoryDetailActivity | [详情v2](../research/task-first-ui-concepts/history-detail-v2.png) | 712913e用户平板深色Mock结束实图确认主数值/小单位、左栏图表延伸页底、右栏分隔线已生效；121采样四指标可读。复盘字段空态，长内容/未知/缺重/大字与完整入口仍未最终验收 | 8 |
 | BrewComparisonActivity | [对比v1](../research/task-first-ui-concepts/brew-comparison-v1.png) | 4240daa大字号336夹具通过；不同31/33点四指标整页已读取，实虚线/单位和30/32秒、36/35.2g吻合；记录入口已前移待新图，用户平板标准字号实图及24/16/14sp已核对；39ac261轴留白两字号10组件夹具已运行通过；整页图高/顶栏比例仍待新图验收 | 9 |
@@ -30,7 +30,7 @@
 | CurveEditorActivity | [编辑v1](../research/task-first-ui-concepts/curve-editor-v1.png) | 35db865用户平板四阶段实图：1–4分段选择生效，11输入/预览/保存完整；字体、间距和预览比例仍需最终对照 | 31 |
 | CurveShareActivity | [分享v1](../research/task-first-ui-concepts/curve-share-v1.png) | **10-18最新：Astra已读3b5f29f用户横屏中文浅色font1.0四阶段整图及geometry：tableShown=true，表1328×320、图1328×398，四行2.4/5.7/8.3/6.9bar及12/23/34/45ml完整，右侧操作完整。关闭该标准状态四阶段缺表，四阶段1.3/最大字仍待验。** root新读0f0beda advanced/run39117264495 wideFont分享geometry为stages=2、tableShown/tableComplete=true，仅补两阶段结论。G1仍有兼容说明和详情入口占据主操作前方的已确认构图差异，严格字色/构图未通过。历史5abe9c2两阶段普通/1.3完整仍限两阶段；4bd173c的24sp/700数字、14sp/400单位有实测，其1600×1000/density200四阶段图不冒充用户profile；abe9614分区调整保留历史效力，不代替G1–G4 | 9 |
 | CurveImportActivity | [导入v2](../research/task-first-ui-concepts/curve-import-v2.png) | 空JSON输入；合法/非法/键盘另验 | 13 |
-| CurveImportPreviewActivity | [冲突预览v1](../research/task-first-ui-concepts/curve-import-preview-v1.png) | **10-18最新：0f0beda advanced/run39117264495两job虽green，root已读wideFont中文浅色PNG/geometry：1138×618dp、font1.3、stages=4，tableShown=false、tableComplete=false，表1470×431、图1470×750；整张参数表隐藏，不能称通过。** 原检查仅报告未阻断，Astra已给保留全表/必要时左栏局部滚动的修正方向，产品与真实门禁尚待运行。证据在`build/task-first-evidence/ci-0f0beda-advanced/advanced-mock-pages-pages/advanced-page-screenshots/wideFont/`。历史f43db0d四阶段取证已获得上述运行结果，不再写待完成；4bd173c标准态四阶段表1470×356/图1470×461与24sp/700、14sp/400实测、b6fc53c无冲突/冲突内容，只对各自状态有效，不能关闭1.3全表隐藏或精确构图差异 | 9 |
+| CurveImportPreviewActivity | [冲突预览v1](../research/task-first-ui-concepts/curve-import-preview-v1.png) | **10-18最新：Astra已读a4786a0关联advanced/run39119880424中文浅色四阶段滚动前后4张真实整窗及geometry，用户窗口1138×618dp。font1.0表1470×356px、图1470×450px，默认首屏图表完整，scrollY=0；font1.3表1470×431px仍显示，图1470×360px（160dp下限），首屏表尾41px在左滚动区外，scrollY=41后全表完整；5行均可达，右操作区滚动前后Rect(1713,263–2533,736)不变。关闭原1.3整表隐藏/不可达缺陷，不声称大字全表默认首屏完整。** 证据在`build/task-first-evidence/ci-a4786a0-advanced-pages/advanced-page-screenshots/{landscape,wideFont}/import-preview-reachability/zh-Hans-light-CurveImportPreviewActivity-{before,after}-scroll.{png,txt}`及同profile顶层geometry。压力3/9/7/5bar、水量15/25/15/5ml各四行可读；1.3滚到底时配方名上缘随左栏滚动移出可见区，不是隐藏数据。0f0beda/run39117264495的tableShown=false失败已被上述限定新证据替代，仍保留追溯；冲突/其他字号、原稿字体/间距/配色及G1–G4未验收 | 9 |
 | ScaleActivity | [电子秤v2](../research/task-first-ui-concepts/scale-v2.png) | 55f3f3f普通/大字号实图已证单位缩小与设备两列；仍无有效重量/趋势，用户平板及设备身份待验 | 25 |
 | ScaleConnectionActivity | [连接v1](../research/task-first-ui-concepts/scale-connection-v1.png) | 无候选；候选/连接/实验协议限制需另验 | 13 |
 | LegacyCurveActivity | [旧曲线v1](../research/task-first-ui-concepts/legacy-curve-v1.png) | 051f16e用户平板40条列表实图确认连续列表，但导入工具栏及未选中提示已改待图；选中重建图已读，参数真实；名称/来源与四格参数已分组待新图，完整说明保留，未最终验收 | 13 |
@@ -48,7 +48,7 @@
 |---|---|---|---|---|---|
 | HomeActivity | FAIL | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | Astra§6：摘要/最近使用/右栏构图不同；限定刻度缺口已关闭 |
 | ExtractionActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 运行态证据不等于精确四项冻结 |
-| CurveActivity | FAIL | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | Astra§6：裁切有现场；a7fcc86源码修正待新运行 |
+| CurveActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | a4786a0真实整窗关闭density200中文浅色1.0/1.3的longFactory/noPressure底裁切；density360与同稿严格四项另验，不记PASS |
 | HistoryActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 非空同状态及精确基线待补 |
 | HistoryDetailActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 限定四指标实图不覆盖全部状态 |
 | BrewComparisonActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 实图/轴专项不等于精确构图冻结 |
@@ -61,7 +61,7 @@
 | CurveEditorActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 四阶段完整不等于精确字体/间距验收 |
 | CurveShareActivity | FAIL | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | Astra§6：兼容/详情与主操作顺序有差异；标准四阶段缺表已关闭 |
 | CurveImportActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 合法/非法/IME同状态与基线待补 |
-| CurveImportPreviewActivity | FAIL | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 0f0beda四阶段1.3全表隐藏；Astra已给保留全表的修正方向，未有修复运行 |
+| CurveImportPreviewActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | a4786a0中文浅色1.3四阶段全表保留并可局部滚达、右栏固定；1.0首屏图表完整；未通过严格四项 |
 | ScaleActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 无读数不能替代有效重量/趋势状态 |
 | ScaleConnectionActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 候选/连接/限制/错误状态待补 |
 | LegacyCurveActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 非空只读图仍需同稿精确对照 |
