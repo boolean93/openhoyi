@@ -9,6 +9,10 @@ import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -20,10 +24,12 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.roundToInt
 
 /** Whole native windows only, on the existing disposable CI emulator. No product Activity/services. */
 internal class StrictVisualSampleChecks(private val test: Instrumentation) {
+    private var frameSequence = 0L
     private fun main(action: () -> Unit) {
         var failure: Throwable? = null
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
@@ -43,12 +49,189 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
     private fun services(context: Context): List<String> =
         (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getRunningServices(100)
             .filter { it.service.packageName == context.packageName }.map { it.service.className }.sorted()
-    private fun settled(activity: StrictVisualSampleActivity) {
+    private fun committedFrame(activity: StrictVisualSampleActivity, timeoutMs: Long = 5000): JSONObject {
         test.waitForIdleSync()
         val frames = CountDownLatch(1)
-        main { activity.sampleRoot.postOnAnimation { activity.sampleRoot.postOnAnimation { frames.countDown() } } }
-        check(frames.await(5, TimeUnit.SECONDS)) { "Specimen stable-frame wait timed out" }
-        test.waitForIdleSync()
+        lateinit var commit: JSONObject
+        val callback = Runnable {
+            frameSequence++
+            commit = JSONObject().put("callbackSequence", frameSequence).put("committedAtElapsedNanos", SystemClock.elapsedRealtimeNanos())
+            frames.countDown()
+        }
+        main {
+            val root = activity.sampleRoot
+            check(root.isAttachedToWindow && root.isHardwareAccelerated) { "Specimen requires a hardware-rendered attached root" }
+            root.viewTreeObserver.registerFrameCommitCallback(callback)
+            // Animation callbacks and queue-idle are not render submissions. Force a
+            // real root draw after the scroll mutation, then await its commit callback.
+            root.invalidate()
+        }
+        if (!frames.await(timeoutMs.coerceAtLeast(1), TimeUnit.MILLISECONDS)) {
+            main { activity.sampleRoot.viewTreeObserver.unregisterFrameCommitCallback(callback) }
+            error("Specimen hardware frame was not committed")
+        }
+        return commit
+    }
+    private fun settled(activity: StrictVisualSampleActivity) { committedFrame(activity) }
+
+    private data class WindowCopy(val bitmap: Bitmap?, val resultCode: Int, val callbackCompleted: Boolean)
+    private data class CapturedFrame(val target: JSONObject, val proof: JSONObject)
+
+    private fun copyWindow(activity: StrictVisualSampleActivity, source: Rect, timeoutMs: Long): WindowCopy {
+        val bitmap = Bitmap.createBitmap(source.width(), source.height(), Bitmap.Config.ARGB_8888)
+        val copied = CountDownLatch(1)
+        val code = AtomicInteger(-1)
+        main {
+            PixelCopy.request(activity.window, source, bitmap, { result ->
+                code.set(result)
+                copied.countDown()
+            }, Handler(Looper.getMainLooper()))
+        }
+        val completed = copied.await(timeoutMs.coerceAtLeast(1), TimeUnit.MILLISECONDS)
+        // A timed-out asynchronous copy may still own its bitmap. Do not recycle a
+        // buffer still being written; the failed request/Activity is discarded.
+        return WindowCopy(if (completed) bitmap else null, code.get(), completed)
+    }
+
+    private fun pixelSha(bitmap: Bitmap, rect: Rect = Rect(0, 0, bitmap.width, bitmap.height)): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        val row = IntArray(rect.width())
+        val bytes = ByteArray(rect.width() * 4)
+        for (y in rect.top until rect.bottom) {
+            bitmap.getPixels(row, 0, row.size, rect.left, y, row.size, 1)
+            row.forEachIndexed { index, color ->
+                bytes[index * 4] = (color ushr 24).toByte()
+                bytes[index * 4 + 1] = (color ushr 16).toByte()
+                bytes[index * 4 + 2] = (color ushr 8).toByte()
+                bytes[index * 4 + 3] = color.toByte()
+            }
+            digest.update(bytes)
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private fun pixelDifferences(first: Bitmap, second: Bitmap, secondRect: Rect): Long {
+        check(first.width == secondRect.width() && first.height == secondRect.height())
+        val a = IntArray(first.width); val b = IntArray(first.width)
+        var differences = 0L
+        for (y in 0 until first.height) {
+            first.getPixels(a, 0, a.size, 0, y, a.size, 1)
+            second.getPixels(b, 0, b.size, secondRect.left, secondRect.top + y, b.size, 1)
+            for (x in a.indices) if (a[x] != b[x]) differences++
+        }
+        return differences
+    }
+
+    private fun bitmapDescription(bitmap: Bitmap) = JSONObject().put("config", bitmap.config?.name)
+        .put("colorSpace", bitmap.colorSpace?.name).put("hasAlpha", bitmap.hasAlpha())
+        .put("sizePx", JSONArray(listOf(bitmap.width, bitmap.height)))
+
+    /** Whole display PNG is accepted only if it contains the same exact opaque app
+     * pixels as the committed Window surface both before and after the screen copy.
+     * No sleeps, masks, geometric tolerance, or JSON-as-pixel-proof are used. */
+    private fun screenshot(activity: StrictVisualSampleActivity, file: File,
+        observe: () -> JSONObject = { JSONObject() }): CapturedFrame {
+        val deadline = SystemClock.elapsedRealtime() + 5000
+        val attempts = JSONArray()
+        val proofFile = File(file.parentFile, "${file.nameWithoutExtension}-frame-sync.json")
+        fun writeProof(accepted: Boolean, error: String? = null): JSONObject {
+            val proof = JSONObject().put("protocol", "hardware_commit_then_Window_PixelCopy_display_PixelCopy_exact_ARGB")
+                .put("accepted", accepted).put("timeoutMs", 5000).put("attempts", attempts)
+                .put("status", if (accepted) "MATCHED_SUBMITTED_FRAME_NOT_VISUAL_ACCEPTANCE" else "FAIL")
+                .put("image", file.name).put("wholeDisplayUiAutomation", true)
+                .put("pixelComparison", "all_app_pixels_no_tolerance_no_mask")
+            if (file.exists()) proof.put("imageSha256", sha(file))
+            error?.let { proof.put("failure", it) }
+            proofFile.writeText(proof.toString(2))
+            return proof
+        }
+        try {
+            while (SystemClock.elapsedRealtime() < deadline) {
+                val attempt = JSONObject()
+                attempts.put(attempt)
+                attempt.put("frame", committedFrame(activity, deadline - SystemClock.elapsedRealtime()))
+                lateinit var source: Rect
+                lateinit var screen: Rect
+                lateinit var before: JSONObject
+                fun geometry(): JSONObject {
+                    val root = activity.sampleRoot
+                    val windowLocation = IntArray(2); root.getLocationInWindow(windowLocation)
+                    val screenLocation = IntArray(2); root.getLocationOnScreen(screenLocation)
+                    val decor = activity.window.decorView
+                    return JSONObject().put("appLocationInWindowPx", JSONArray(windowLocation.toList()))
+                        .put("appLocationOnScreenPx", JSONArray(screenLocation.toList()))
+                        .put("appSizePx", JSONArray(listOf(root.width, root.height)))
+                        .put("windowDecorSizePx", JSONArray(listOf(decor.width, decor.height)))
+                        .put("scrolls", JSONArray(nodes(root).filterIsInstance<ScrollView>().map {
+                            JSONObject().put("semanticId", it.tag).put("scrollX", it.scrollX).put("scrollY", it.scrollY)
+                        })).put("target", observe())
+                }
+                main {
+                    check(activity.hasWindowFocus()) { "Specimen capture lost window focus" }
+                    before = geometry()
+                    val windowLocation = before.getJSONArray("appLocationInWindowPx")
+                    val screenLocation = before.getJSONArray("appLocationOnScreenPx")
+                    val root = activity.sampleRoot
+                    source = Rect(windowLocation.getInt(0), windowLocation.getInt(1),
+                        windowLocation.getInt(0) + root.width, windowLocation.getInt(1) + root.height)
+                    screen = Rect(screenLocation.getInt(0), screenLocation.getInt(1),
+                        screenLocation.getInt(0) + root.width, screenLocation.getInt(1) + root.height)
+                    attempt.put("windowSourceRectPx", JSONArray(listOf(source.left, source.top, source.right, source.bottom)))
+                        .put("displayAppRectPx", JSONArray(listOf(screen.left, screen.top, screen.right, screen.bottom)))
+                        .put("geometryBefore", before)
+                }
+                var first: WindowCopy? = null
+                var last: WindowCopy? = null
+                var display: Bitmap? = null
+                var readable: Bitmap? = null
+                try {
+                    first = copyWindow(activity, source, deadline - SystemClock.elapsedRealtime())
+                    attempt.put("pixelCopyBeforeCode", first.resultCode).put("pixelCopyBeforeCallback", first.callbackCompleted)
+                    check(first.callbackCompleted && first.resultCode == PixelCopy.SUCCESS) { "PixelCopy before display failed: ${first.resultCode}" }
+                    val surfaceBefore = requireNotNull(first.bitmap)
+                    attempt.put("surfaceBefore", bitmapDescription(surfaceBefore)).put("surfaceBeforeArgbSha256", pixelSha(surfaceBefore))
+                    display = requireNotNull(test.uiAutomation.takeScreenshot())
+                    // Retain this unmodified whole-display candidate even if a later
+                    // surface/geometry comparison rejects it or times out.
+                    display.output(file)
+                    attempt.put("wholeDisplay", bitmapDescription(display))
+                    readable = requireNotNull(display.copy(Bitmap.Config.ARGB_8888, false))
+                    check(screen.left >= 0 && screen.top >= 0 && screen.right <= readable.width && screen.bottom <= readable.height)
+                    attempt.put("comparisonBitmap", bitmapDescription(readable)).put("displayAppArgbSha256", pixelSha(readable, screen))
+                    last = copyWindow(activity, source, deadline - SystemClock.elapsedRealtime())
+                    attempt.put("pixelCopyAfterCode", last.resultCode).put("pixelCopyAfterCallback", last.callbackCompleted)
+                    check(last.callbackCompleted && last.resultCode == PixelCopy.SUCCESS) { "PixelCopy after display failed: ${last.resultCode}" }
+                    val surfaceAfter = requireNotNull(last.bitmap)
+                    attempt.put("surfaceAfter", bitmapDescription(surfaceAfter)).put("surfaceAfterArgbSha256", pixelSha(surfaceAfter))
+                    lateinit var after: JSONObject
+                    main { after = geometry() }
+                    val geometryStable = before.toString() == after.toString()
+                    val surfaceDifference = pixelDifferences(surfaceBefore, surfaceAfter, Rect(0, 0, surfaceAfter.width, surfaceAfter.height))
+                    val displayDifference = pixelDifferences(surfaceBefore, readable, screen)
+                    val sameColorSpace = surfaceBefore.colorSpace != null && surfaceBefore.colorSpace == surfaceAfter.colorSpace &&
+                        surfaceBefore.colorSpace == readable.colorSpace
+                    val accepted = geometryStable && sameColorSpace && surfaceDifference == 0L && displayDifference == 0L
+                    attempt.put("geometryAfter", after).put("geometryUnchanged", geometryStable)
+                        .put("colorSpacesEqual", sameColorSpace)
+                        .put("surfaceBeforeAfterPixelDifferences", surfaceDifference)
+                        .put("surfaceDisplayPixelDifferences", displayDifference).put("accepted", accepted)
+                    if (accepted) return CapturedFrame(before.getJSONObject("target"), writeProof(true))
+                    // An observed mismatch may only be retried after another actual
+                    // committed draw, never after an arbitrary elapsed sleep.
+                    writeProof(false)
+                } finally {
+                    first?.bitmap?.recycle(); last?.bitmap?.recycle()
+                    readable?.recycle(); display?.recycle()
+                }
+            }
+            error("Specimen display never matched its committed Window surface within 5000ms")
+        } catch (failure: Throwable) {
+            writeProof(false, failure.stackTraceToString())
+            throw failure
+        }
+    }
+    private fun Bitmap.output(file: File) {
+        file.outputStream().use { check(compress(Bitmap.CompressFormat.PNG, 100, it)) }
     }
     private fun auditTouchTargets(activity: StrictVisualSampleActivity, directory: File): JSONArray {
         lateinit var measurements: JSONArray
@@ -106,11 +289,6 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
         check(violations.isEmpty()) { violations.joinToString("; ") }
         return measurements
     }
-    private fun screenshot(file: File) {
-        val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
-        try { file.outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
-        finally { bitmap.recycle() }
-    }
     /** Each observation starts from the original viewport; screenshots are after actual frame commits. */
     private fun auditReachability(activity: StrictVisualSampleActivity, directory: File, scale: Float): JSONArray {
         val result = JSONArray()
@@ -153,6 +331,7 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
             lateinit var scrolls: List<Pair<ScrollView, Pair<Int, Int>>>
             lateinit var before: JSONObject
             lateinit var after: JSONObject
+            lateinit var frameProof: JSONObject
             var restored = false
             main {
                 scrolls = generateSequence(view.parent) { it.parent }.filterIsInstance<ScrollView>()
@@ -162,9 +341,9 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
             val image = "after-scroll-${index + 1}.png"
             try {
                 main { view.requestRectangleOnScreen(Rect(0, 0, view.width, view.height), true) }
-                settled(activity)
-                main { after = observation(view) }
-                screenshot(File(directory, image))
+                val captured = screenshot(activity, File(directory, image)) { observation(view) }
+                after = captured.target
+                frameProof = captured.proof
             } finally {
                 main { scrolls.forEach { (scroll, position) -> scroll.scrollTo(position.first, position.second) } }
                 settled(activity)
@@ -178,6 +357,7 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
             result.put(JSONObject().put("semanticId", view.tag).put("status", if (pass) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
                 .put("initialRequired", initialRequired).put("initialCompleteIncludingText", initialComplete).put("initial", before).put("afterScroll", after)
                 .put("initialPng", "window.png").put("afterScrollPng", image).put("scrollRestored", restored)
+                .put("frameSync", frameProof)
                 .put("reason", "whole_target_and_actual_text_line_boxes_must_be_visible; no_ellipsis_or_font_reduction"))
         }
         File(directory, "scroll-reachability.json").writeText(result.toString(2))
@@ -200,6 +380,86 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                 .put("baselineDeltaPx", unitY - numberY).put("requiredDeltaPx", 0)
                 .put("status", if (numberY == unitY) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
         })
+    }
+    private fun auditVisibleGrid(chart: StrictVisualSampleChart, targets: Int, share: Boolean): JSONObject {
+        val items = (0 until chart.evidence.length()).map { chart.evidence.getJSONObject(it) }
+        val protections = items.filter { it.getString("operation") == "targetLabelProtection" }
+        val plans = items.filter { it.getString("operation") == "gridSegmentPlan" }
+        val lines = items.filter { it.getString("operation") == "line" }
+        val grid = lines.filter { it.getString("role") == "grid" }
+        val labels = items.filter { it.getString("operation") == "text" && it.getString("role") == "targetLabel" }
+        val issues = JSONArray()
+        fun expect(condition: Boolean, detail: String) { if (!condition) issues.put(detail) }
+        fun values(array: JSONArray) = (0 until array.length()).map { array.getDouble(it) }
+        val expectedIndices = (0 until targets).toSet()
+        expect(protections.size == targets && protections.map { it.getInt("targetIndex") }.toSet() == expectedIndices,
+            "Missing or duplicate target-label protections")
+        val padding = 2f * chart.resources.displayMetrics.density
+        for (protection in protections) {
+            val index = protection.getInt("targetIndex")
+            val glyph = values(protection.getJSONArray("glyphBoundsPx"))
+            val box = values(protection.getJSONArray("protectedBoundsPx"))
+            val label = labels.singleOrNull { it.getInt("targetIndex") == index }
+            expect(label != null && values(label.getJSONArray("glyphBoundsPx")) == glyph,
+                "Protection $index differs from its actual target-label Paint glyph box")
+            val expected = listOf((glyph[0].toFloat() - padding).toDouble(), (glyph[1].toFloat() - padding).toDouble(),
+                (glyph[2].toFloat() + padding).toDouble(), (glyph[3].toFloat() + padding).toDouble())
+            expect(protection.getInt("paddingDp") == 2 && protection.getDouble("paddingPx") == padding.toDouble() && box == expected,
+                "Protection $index is not exactly actual glyph ink plus 2dp using the recorded Float conversion")
+        }
+        val expectedGridIds = setOf("horizontal-0", "horizontal-6", "horizontal-12") + (1 until targets).map { "stage-$it" }
+        expect(plans.size == expectedGridIds.size && plans.map { it.getString("gridId") }.toSet() == expectedGridIds,
+            "Missing or duplicate horizontal/stage grid plans")
+        expect(grid.all { it.getString("gridId") in expectedGridIds }, "Drawn grid has no matching plan")
+        val intersections = JSONArray()
+        for (plan in plans) {
+            val id = plan.getString("gridId")
+            val original = values(plan.getJSONArray("originalEndpointsPx"))
+            val visible = plan.getJSONArray("visibleSegmentsPx")
+            val drawn = grid.filter { it.getString("gridId") == id }
+            val width = plan.getDouble("strokeWidthPx")
+            expect(width > 0 && plan.getString("strokeCap") == "BUTT" && plan.getDouble("strokeGuardPx") == width / 2,
+                "$id must record positive stroke, BUTT cap and exact half-stroke guard")
+            expect(visible.length() == drawn.size && (0 until minOf(visible.length(), drawn.size)).all { index ->
+                values(visible.getJSONArray(index)) == values(drawn[index].getJSONArray("endpointsPx")) &&
+                    drawn[index].getJSONObject("paint").getDouble("strokeWidthPx") == width &&
+                    drawn[index].getJSONObject("paint").getString("strokeCap") == "BUTT"
+            }, "$id visible plan does not match every actual drawLine segment")
+            // Only actual visible drawLine segments are checked. The original full
+            // line is retained for audit and must not be mistaken for rendered ink.
+            for (line in drawn) {
+                val segment = values(line.getJSONArray("endpointsPx"))
+                val horizontal = segment[1] == segment[3] && segment[0] < segment[2]
+                val vertical = segment[0] == segment[2] && segment[1] < segment[3]
+                expect(horizontal || vertical, "$id has a non-axis-aligned or empty visible segment")
+                expect(segment[0] >= minOf(original[0], original[2]) && segment[2] <= maxOf(original[0], original[2]) &&
+                    segment[1] >= minOf(original[1], original[3]) && segment[3] <= maxOf(original[1], original[3]),
+                    "$id visible segment extends outside its original grid line")
+                // BUTT caps do not extend along the segment; half-stroke extends
+                // perpendicular to it. No tolerance or theoretical full-line test.
+                val ink = if (horizontal) listOf(segment[0], segment[1] - width / 2, segment[2], segment[3] + width / 2)
+                    else listOf(segment[0] - width / 2, segment[1], segment[2] + width / 2, segment[3])
+                for (protection in protections) {
+                    val box = values(protection.getJSONArray("protectedBoundsPx"))
+                    if (maxOf(ink[0], box[0]) < minOf(ink[2], box[2]) && maxOf(ink[1], box[1]) < minOf(ink[3], box[3])) {
+                        intersections.put(JSONObject().put("gridId", id).put("targetIndex", protection.getInt("targetIndex"))
+                            .put("actualEndpointsPx", line.getJSONArray("endpointsPx")).put("strokeInkBoundsPx", JSONArray(ink))
+                            .put("protectedBoundsPx", protection.getJSONArray("protectedBoundsPx")))
+                    }
+                }
+            }
+        }
+        expect(intersections.length() == 0, "Actual visible grid strokes intersect protected target-label ink")
+        expect(lines.count { it.getString("role") == "axis" } == 2, "Grid exclusion removed an axis")
+        expect(lines.count { it.getString("role") == "data" } == targets && items.count { it.getString("operation") == "targetPoint" } == targets,
+            "Grid exclusion removed target data strokes/points")
+        expect(items.count { it.getString("operation") == "stageBackground" } == if (share) targets else 0,
+            "Grid exclusion changed stage backgrounds")
+        return JSONObject().put("semanticId", chart.tag).put("check", "actualVisibleGridAvoidsTargetInk")
+            .put("status", if (issues.length() == 0) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
+            .put("issues", issues).put("intersections", intersections).put("protectionCount", protections.size)
+            .put("gridPlanCount", plans.size).put("actualVisibleGridSegmentCount", grid.size)
+            .put("originalLinesAuditOnly", true).put("excludedRoles", JSONArray(listOf("grid")))
     }
     fun run(arguments: Bundle): Int {
         val context = test.targetContext
@@ -231,11 +491,9 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                 .putExtra("fixtureId", fixtureId).putExtra("candidateVersion", StrictVisualSampleFixtures.VERSION)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as StrictVisualSampleActivity
             try {
-                settled(activity)
-                // Retain a real whole-window image even if a subsequent measurement assertion fails.
-                val shot = requireNotNull(test.uiAutomation.takeScreenshot())
-                try { File(directory, "window.png").outputStream().use { check(shot.compress(Bitmap.CompressFormat.PNG, 100, it)) } }
-                finally { shot.recycle() }
+                // The original and every scrolled whole-window image use the same
+                // submitted-surface/display contract; all original PNGs are retained.
+                val initialFrame = screenshot(activity, File(directory, "window.png"))
                 val touchTargets = auditTouchTargets(activity, directory)
                 val anchors = JSONArray()
                 val canvas = JSONArray()
@@ -290,6 +548,8 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                     }
                     activity.charts.forEach { chart ->
                         check(chart.evidence.length() > 0)
+                        layoutIssues.put(auditVisibleGrid(chart, activity.fixture.targetsTenthsBar.size,
+                            fixtureId == StrictVisualSampleFixtures.ids[1]))
                         val labels = (0 until chart.evidence.length()).map { chart.evidence.getJSONObject(it) }
                             .filter { it.getString("operation") == "text" }
                         val collisions = JSONArray()
@@ -426,7 +686,8 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                     .put("fixture", activity.fixture.json()).put("profile", profile).put("theme", expectedTheme)
                     .put("window", window).put("api", Build.VERSION.SDK_INT).put("fingerprint", Build.FINGERPRINT)
                     .put("hardware", Build.HARDWARE).put("ciRun", arguments.getString("ciRun"))
-                    .put("ciJob", arguments.getString("ciJob")).put("stableFrame", "idle_and_two_postOnAnimation_callbacks")
+                    .put("ciJob", arguments.getString("ciJob")).put("stableFrame", "hardware_commit_and_exact_Window_surface_display_pixels")
+                    .put("initialFrameSyncFile", "window-frame-sync.json").put("initialFrameSyncAccepted", initialFrame.proof.getBoolean("accepted"))
                     .put("screenCompositeColorCoverage", "PNG_requires_Astra_review_unknown_not_pass")
                     .put("storageBeforeSha256", sha(JSONObject(baselineStorage).toString().toByteArray()))
                     .put("businessCallbacks", false).put("productActivitiesStarted", false).put("servicesStarted", false)
