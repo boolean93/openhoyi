@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="inventory_visual_in_stock">在库咖啡豆</string>
+    <string name="inventory_visual_consumption_hint">确认本杯用量后才扣减库存。</string>
+</resources>

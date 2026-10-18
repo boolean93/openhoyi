@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="inventory_visual_in_stock">보유 원두</string>
+    <string name="inventory_visual_consumption_hint">이 잔의 사용량을 확인한 후에만 재고가 차감됩니다.</string>
+</resources>
