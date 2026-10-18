@@ -41,4 +41,6 @@
     <string name="dose_association_failed">振り返りとの紐付けはまだ復旧していません。元の準備は保持されています。架空の記録を作成したり在庫を再度減らしたりしません。</string>
     <string name="dose_balance_preview">在庫の見込み：%1$s g → %2$s g（未減算）</string>
     <string name="dose_balance_receipt">今回の減算記録：%1$s g → %2$s g</string>
+    <string name="dose_balance_before">消費前の在庫</string>
+    <string name="dose_balance_after">消費後の在庫</string>
 </resources>

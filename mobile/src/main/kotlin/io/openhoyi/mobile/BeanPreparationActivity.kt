@@ -61,8 +61,8 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
             val event = inventory.events().find { it.eventId == selected.eventId && it.batchId == selected.batchId &&
                 it.kind == InventoryEventKind.CONSUME && it.deltaMg == -selected.amountMg } ?: return
             val before = runCatching { Math.subtractExact(event.balanceMg, event.deltaMg) }.getOrNull() ?: return
-            HoyiUi.label(this, support, getString(R.string.dose_balance_receipt,
-                BeanQuantity.formatGrams(before), BeanQuantity.formatGrams(event.balanceMg)), 18, true).tag = "dose-balance-receipt"
+            support.addView(DoseBalanceView(this, receipt = true).apply { update(before, event.balanceMg) },
+                LinearLayout.LayoutParams(-1, -2))
         }
         if (current != null && current.shotId != null && !current.associated) {
             val card = HoyiUi.card(this, content).apply { layoutParams = android.widget.LinearLayout.LayoutParams(-1, -2) }
@@ -94,9 +94,9 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
             showReceipt()
             if (!current.attempted) {
                 inventory.batches().find { it.batch.id == current.batchId }?.let { batch ->
-                    if (current.amountMg <= batch.balanceMg) HoyiUi.label(this, support,
-                        getString(R.string.dose_balance_preview, BeanQuantity.formatGrams(batch.balanceMg),
-                            BeanQuantity.formatGrams(batch.balanceMg - current.amountMg)), 18, true).tag = "dose-balance-preview"
+                    if (current.amountMg <= batch.balanceMg) support.addView(DoseBalanceView(this).apply {
+                        update(batch.balanceMg, batch.balanceMg - current.amountMg)
+                    }, LinearLayout.LayoutParams(-1, -2))
                 }
             }
             if (current.confirmed) {
@@ -166,13 +166,14 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         val selectedBean = HoyiUi.label(this, form, "", 20, true).apply {
             setPadding(0, 0, 0, HoyiUi.dp(this@BeanPreparationActivity, 16))
         }
-        val preview = HoyiUi.label(this, support, "", 18, true).apply { tag = "dose-balance-preview" }
+        val preview = DoseBalanceView(this)
+        support.addView(preview, LinearLayout.LayoutParams(-1, -2))
         fun updatePreview() {
             val batch = batches.find { it.batch.id == draftBatchId }
             val mg = runCatching { BeanQuantity.parseGrams(amount?.text?.toString().orEmpty()) }.getOrNull()
-            preview.text = if (batch != null && mg != null && mg > 0 && mg <= batch.balanceMg)
-                getString(R.string.dose_balance_preview, BeanQuantity.formatGrams(batch.balanceMg),
-                    BeanQuantity.formatGrams(batch.balanceMg - mg)) else ""
+            if (batch != null && mg != null && mg > 0 && mg <= batch.balanceMg)
+                preview.update(batch.balanceMg, batch.balanceMg - mg)
+            else preview.update(null, null)
         }
         val choices = linkedMapOf<String, Button>()
         fun updateChoice() {

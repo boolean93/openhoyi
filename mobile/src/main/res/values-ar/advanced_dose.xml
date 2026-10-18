@@ -41,4 +41,6 @@
     <string name="dose_association_failed">لم يُستعد ربط المراجعة بعد. ما زال التحضير الأصلي محفوظًا. لن تُنشأ سجلات وهمية ولن يُخصم المخزون مجددًا.</string>
     <string name="dose_balance_preview">المخزون المتوقع: %1$s غ → %2$s غ (لم يُخصم بعد)</string>
     <string name="dose_balance_receipt">سجل هذا الخصم: %1$s غ → %2$s غ</string>
+    <string name="dose_balance_before">قبل الخصم</string>
+    <string name="dose_balance_after">بعد الخصم</string>
 </resources>

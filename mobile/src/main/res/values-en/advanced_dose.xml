@@ -41,4 +41,6 @@
     <string name="dose_association_failed">The review link has not been restored. The original preparation is kept. No fictional records will be created and stock will not be deducted again.</string>
     <string name="dose_balance_preview">Expected stock: %1$s g → %2$s g (not deducted yet)</string>
     <string name="dose_balance_receipt">This deduction: %1$s g → %2$s g</string>
+    <string name="dose_balance_before">Before deduction</string>
+    <string name="dose_balance_after">After deduction</string>
 </resources>

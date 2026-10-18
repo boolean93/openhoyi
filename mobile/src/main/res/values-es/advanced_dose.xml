@@ -41,4 +41,6 @@
     <string name="dose_association_failed">El vínculo con la valoración aún no se ha restaurado. Se conserva la preparación original. No se crearán registros ficticios ni se volverán a descontar existencias.</string>
     <string name="dose_balance_preview">Existencias previstas: %1$s g → %2$s g (sin descontar aún)</string>
     <string name="dose_balance_receipt">Registro de este descuento: %1$s g → %2$s g</string>
+    <string name="dose_balance_before">Antes de descontar</string>
+    <string name="dose_balance_after">Después de descontar</string>
 </resources>

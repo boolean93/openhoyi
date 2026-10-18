@@ -736,3 +736,10 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 实读784eaaf失败ar-light-HistoryDetailActivity.png，图表无数据且仍显示读取本地样本；HistoryDetailContent通过后台reader+chart.post赋值，旧测试只固定等300ms。SingleScreenWindowRun现按样本>=2且布局稳定等待（上限10s），超时带点数/页面状态，原图表存在/96dp绘图区断言不变。产品代码无加载策略修改。
 - ff651be/run39081920801用户平板结果334/336，仅中文浅深BeanEntryActivity失败；原始日历108×108只露43px。实图确认第三日期被保存区上方裁掉，属于实际布局问题，不是等待问题。已回收模式底距8dp、分隔边距24dp和名称/数量标签顶部共8dp，合计40dp；字体/字段/48dp日历/保存按钮不变。保留单屏五输入/三日期入口完整检查。
 - 最终构建93646 exit0/45s（/tmp/task-history-wait-entry-spacing-build.log），Mock/test APK成功，diff/branch-policy通过；两个修正都待新CI运行，未宣称裁切或异步取证已实图通过。
+
+### 用豆库存前后值视觉层级（2026-10-18）
+
+- 新DoseBalanceView按bean-preparation-v1将前后值分为两列14sp标签、40sp/700数字、0.55单位，后值accent、中央方向箭头；RTL方向对应左右阅读顺序。下方保留原完整“预计…尚未扣减”或“本次扣减流水”说明及取证tag，区分预览与已持久化流水。
+- 草稿非法/空/超库存时整块隐藏，不以0冒充；待确认仍读余额计算，已确认/关联恢复仍只从匹配eventId/batchId/CONSUME/amount的实际事件还原前后值。组件不读写库存，操作门禁/幂等/原业务断言未改。八语言标签XML已解析。
+- 已有三状态运行截图将覆盖此展示；未取得本候选截图前，不宣称字号、间距和长数值可见性已验收。
+- 最终构建61147 exit0/22s（/tmp/task-dose-balance-final-build.log），Mock/test APK成功；diff/branch-policy通过。无安装、设备写入、合并或发版。

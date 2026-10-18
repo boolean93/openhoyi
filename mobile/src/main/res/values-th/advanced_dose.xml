@@ -41,4 +41,6 @@
     <string name="dose_association_failed">ยังไม่ได้กู้คืนการเชื่อมรีวิว เก็บการเตรียมเดิมไว้ จะไม่สร้างบันทึกที่ไม่ได้เกิดขึ้นจริงหรือหักสต็อกอีก</string>
     <string name="dose_balance_preview">สต็อกที่คาดไว้: %1$s กรัม → %2$s กรัม (ยังไม่หัก)</string>
     <string name="dose_balance_receipt">บันทึกการหักครั้งนี้: %1$s กรัม → %2$s กรัม</string>
+    <string name="dose_balance_before">ก่อนหักสต็อก</string>
+    <string name="dose_balance_after">หลังหักสต็อก</string>
 </resources>

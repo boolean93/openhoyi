@@ -41,4 +41,6 @@
     <string name="dose_association_failed">평가 연결이 아직 복구되지 않았습니다. 원래 준비는 유지됩니다. 가상 기록을 만들거나 재고를 다시 차감하지 않습니다.</string>
     <string name="dose_balance_preview">예상 재고: %1$s g → %2$s g (아직 차감되지 않음)</string>
     <string name="dose_balance_receipt">이번 차감 기록: %1$s g → %2$s g</string>
+    <string name="dose_balance_before">차감 전 재고</string>
+    <string name="dose_balance_after">차감 후 재고</string>
 </resources>
