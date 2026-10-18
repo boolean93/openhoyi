@@ -90,6 +90,7 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
             val geometry = JSONObject().put("validationPhase", "before_touch_assertions")
                 .put("fontScale", config.fontScale).put("densityDpi", config.densityDpi)
                 .put("appSizePx", JSONArray(listOf(activity.sampleRoot.width, activity.sampleRoot.height)))
+                .put("themeFontDiagnostics", activity.themeFontDiagnostics)
                 .put("minimumTouchPx", minimum).put("nodes", measurements).put("issues", JSONArray(issues))
             // Persist the observed tree and actual text/Drawable evidence before any
             // touch-size assertion. A genuine undersized container still fails below.

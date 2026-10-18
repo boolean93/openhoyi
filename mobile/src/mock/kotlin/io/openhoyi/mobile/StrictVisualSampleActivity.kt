@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -26,6 +27,8 @@ class StrictVisualSampleActivity : Activity() {
     internal val charts = mutableListOf<StrictVisualSampleChart>()
     internal val icons = mutableListOf<StrictVisualSampleIcon>()
     internal val actionViews = mutableListOf<TextView>()
+    internal lateinit var themeFontDiagnostics: JSONObject
+        private set
     private val requested = linkedMapOf<TextView, StrictVisualSampleTokens.Type>()
     private fun dp(value: Int) = StrictVisualSampleTokens.dp(this, value.toFloat())
     override fun attachBaseContext(base: Context) {
@@ -33,8 +36,13 @@ class StrictVisualSampleActivity : Activity() {
         super.attachBaseContext(base.createConfigurationContext(config))
     }
     override fun onCreate(state: Bundle?) {
+        val beforeFontFamily = resolvedThemeFontFamily()
+        // Plain Activity does not run ThemedActivity's Chinese font-only overlay.
+        // Keep the specimen isolated from that class's preference/recreation behavior.
+        if (resources.configuration.locales[0].language == "zh") theme.applyStyle(R.style.MobileChineseTypography, true)
         super.onCreate(state)
         check(BuildConfig.MOCK_MODE && packageName == "io.openhoyi.mobile.mock")
+        themeFontDiagnostics = defaultThemeFontDiagnostics(beforeFontFamily)
         fixture = StrictVisualSampleFixtures.get(requireNotNull(intent.getStringExtra("fixtureId")),
             requireNotNull(intent.getStringExtra("candidateVersion")))
         palette = StrictVisualSampleTokens.Palette(resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES)
@@ -61,6 +69,40 @@ class StrictVisualSampleActivity : Activity() {
             val height = (dp(166) + deltaPx).coerceAtLeast(dp(160))
             if (chart.layoutParams.height != height) { chart.layoutParams.height = height; chart.requestLayout() }
         }
+    }
+    private fun resolvedThemeFontFamily(): JSONObject {
+        val value = android.util.TypedValue()
+        val resolved = theme.resolveAttribute(android.R.attr.fontFamily, value, true)
+        return JSONObject().put("resolved", resolved).put("attribute", "android:fontFamily")
+            .put("type", if (resolved) value.type else JSONObject.NULL)
+            .put("resourceId", if (resolved) value.resourceId else JSONObject.NULL)
+            .put("resourceName", if (resolved && value.resourceId != 0) resources.getResourceName(value.resourceId) else JSONObject.NULL)
+            .put("string", if (resolved) value.string?.toString() ?: JSONObject.NULL else JSONObject.NULL)
+    }
+    private fun defaultThemeFontDiagnostics(beforeFontFamily: JSONObject): JSONObject {
+        // Exact same sample and Paint parameters as the unchanged TaskTypographyEvidence gate.
+        val sample = "萃取压力温度 0123456789 bar ml g °C"
+        val probe = TextView(this)
+        val fixed = TaskTypography.face(this)
+        val defaultPaint = Paint().apply { textSize = 40f; typeface = probe.typeface }
+        val fixedPaint = Paint().apply { textSize = 40f; typeface = fixed }
+        val defaultWidth = defaultPaint.measureText(sample)
+        val fixedWidth = fixedPaint.measureText(sample)
+        return JSONObject().put("status", "diagnostics_only_not_acceptance")
+            .put("locale", resources.configuration.locales.toLanguageTags())
+            .put("beforeFontFamily", beforeFontFamily).put("afterFontFamily", resolvedThemeFontFamily())
+            .put("overlay", "MobileChineseTypography; fontFamily_only; before_super_onCreate")
+            .put("expectedFontFamilyResourceId", R.font.task_chinese_family)
+            .put("sample", sample).put("paintTextSizePx", 40f)
+            .put("defaultMeasuredWidthPx", defaultWidth).put("fixedMeasuredWidthPx", fixedWidth)
+            .put("measuredWidthDeltaPx", defaultWidth - fixedWidth)
+            .put("defaultTypefaceStyle", probe.typeface.style).put("fixedTypefaceStyle", fixed.style)
+            .put("defaultTypefaceWeight", if (Build.VERSION.SDK_INT >= 28) probe.typeface.weight else JSONObject.NULL)
+            .put("fixedTypefaceWeight", if (Build.VERSION.SDK_INT >= 28) fixed.weight else JSONObject.NULL)
+            .put("defaultFakeBold", defaultPaint.isFakeBoldText).put("fixedFakeBold", fixedPaint.isFakeBoldText)
+            .put("typefaceEqualsDiagnosticOnly", probe.typeface == fixed)
+            .put("typefaceIdentityDiagnosticOnly", probe.typeface === fixed)
+            .put("gate", "unchanged_TaskTypographyEvidence_default_TextView_measureText_and_weight_checks")
     }
     private fun row(id: String) = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false; tag = id }
     private fun column(id: String) = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; tag = id }
