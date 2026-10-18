@@ -49,7 +49,7 @@ class BeanEntryActivity : ThemedActivity() {
             isBaselineAligned = false
             background = HoyiUi.shape(this@BeanEntryActivity, R.color.mobile_surface, 8, R.color.mobile_border)
             card.addView(this, android.widget.LinearLayout.LayoutParams(-1, -2).apply {
-                bottomMargin = HoyiUi.dp(this@BeanEntryActivity, 16)
+                bottomMargin = HoyiUi.dp(this@BeanEntryActivity, 8)
             })
         }
         val selector = Spinner(this).apply {
@@ -69,7 +69,7 @@ class BeanEntryActivity : ThemedActivity() {
             val parent = field.parent as android.widget.LinearLayout
             (0 until parent.childCount).map { parent.getChildAt(it) }
                 .filterIsInstance<android.widget.TextView>().single { it.labelFor == field.id }.apply {
-                    setPadding(0, HoyiUi.dp(this@BeanEntryActivity, 4), 0, HoyiUi.dp(this@BeanEntryActivity, 4))
+                    setPadding(0, 0, 0, HoyiUi.dp(this@BeanEntryActivity, 4))
                 }
         }
         val purchased = input("purchased", R.string.beans_purchased)
@@ -170,10 +170,7 @@ class BeanEntryActivity : ThemedActivity() {
         renderIdentity()
         sections.panels[2].addView(View(this).apply {
             setBackgroundColor(getColor(R.color.mobile_border))
-        }, 0, android.widget.LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)).apply {
-            topMargin = HoyiUi.dp(this@BeanEntryActivity, 8)
-            bottomMargin = HoyiUi.dp(this@BeanEntryActivity, 16)
-        })
+        }, 0, android.widget.LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)))
         sections.restore(savedInstanceState, fields)
         val error = beanError(body)
         val save = HoyiUi.button(this, sections.actions, getString(R.string.beans_save), primary = true) {}.apply {

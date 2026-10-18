@@ -156,6 +156,25 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                         check(SystemClock.elapsedRealtime() < sampleDeadline) { "$name comparison samples timeout: $detail" }
                         Thread.sleep(25)
                     }
+                } else if (activity is HistoryDetailActivity) {
+                    val sampleDeadline = SystemClock.elapsedRealtime() + 10000
+                    var detail = ""
+                    while (true) {
+                        var loaded = false
+                        main {
+                            fun descendants(view: View): List<View> = listOf(view) +
+                                if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+                            val content = activity.findViewById<ViewGroup>(android.R.id.content)
+                            val views = descendants(content)
+                            val chart = views.filterIsInstance<ShotChartView>().singleOrNull()
+                            loaded = chart != null && chart.points.size >= 2 && !content.isLayoutRequested && !chart.isLayoutRequested
+                            detail = "points=${chart?.points?.size} status=" + views.filterIsInstance<TextView>()
+                                .filter { it.isShown }.joinToString(" | ") { it.text.toString() }
+                        }
+                        if (loaded) break
+                        check(SystemClock.elapsedRealtime() < sampleDeadline) { "$name historical samples timeout: $detail" }
+                        Thread.sleep(25)
+                    }
                 } else Thread.sleep(300)
                 test.waitForIdleSync()
                 main { SingleScreenPageChecks.verify(activity) }

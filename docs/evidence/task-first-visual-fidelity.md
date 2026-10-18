@@ -730,3 +730,9 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - BeanPreparationActivity新选择态按bean-preparation-v1改近等宽两栏：左侧可滚动真实库存批次按钮，右侧所选豆款/粉量/库存预览/称豆门禁。20sp标题、16sp行、72dp最小行高、8dp行距；选中浅色与键盘焦点样式。选择按真实batchId，点击不保存/扣减；原保存→确认/未知恢复/取消/丢弃/重复确认路径不改。
 - 业务检查从Spinner实现依赖改为真实批次按钮选择；补草稿、待确认、已确认流水截图，不增加路径计数或删余额/事件断言。最终Mock/test APK构建exit0/24s（/tmp/task-dose-list-final-build.log），diff与branch-policy通过；待新CI实图，不宣称完整复刻（粉量步进/大号库存前后值尚未对齐）。
 - 784eaaf单屏run39081551257失败已下载原始结果：335/336，仅ar-light-HistoryDetailActivity报missing populated historical chart。该提交早于本次用豆改动；需独立检查异步加载/实际状态，不当作新用豆故障，也不放松曲线存在断言。其他335检查不能替代全矩阵通过。
+
+### 历史异步取证与入库日期裁切修正（2026-10-18）
+
+- 实读784eaaf失败ar-light-HistoryDetailActivity.png，图表无数据且仍显示读取本地样本；HistoryDetailContent通过后台reader+chart.post赋值，旧测试只固定等300ms。SingleScreenWindowRun现按样本>=2且布局稳定等待（上限10s），超时带点数/页面状态，原图表存在/96dp绘图区断言不变。产品代码无加载策略修改。
+- ff651be/run39081920801用户平板结果334/336，仅中文浅深BeanEntryActivity失败；原始日历108×108只露43px。实图确认第三日期被保存区上方裁掉，属于实际布局问题，不是等待问题。已回收模式底距8dp、分隔边距24dp和名称/数量标签顶部共8dp，合计40dp；字体/字段/48dp日历/保存按钮不变。保留单屏五输入/三日期入口完整检查。
+- 最终构建93646 exit0/45s（/tmp/task-history-wait-entry-spacing-build.log），Mock/test APK成功，diff/branch-policy通过；两个修正都待新CI运行，未宣称裁切或异步取证已实图通过。
