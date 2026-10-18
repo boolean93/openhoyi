@@ -3,4 +3,5 @@
     <string name="batch_remaining_ratio">สัดส่วนคงเหลือ</string>
     <string name="batch_recent_events">รายการล่าสุด</string>
     <string name="batch_initial_weight">น้ำหนักเริ่มต้น</string>
+    <string name="batch_information">ข้อมูลล็อต</string>
 </resources>

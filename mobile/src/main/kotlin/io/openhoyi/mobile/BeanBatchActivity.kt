@@ -66,24 +66,40 @@ class BeanBatchActivity : ThemedActivity() {
                 .joinToString("\n") { (label, date) -> getString(R.string.beans_date_value, getString(label), date?.toString() ?: getString(R.string.beans_not_set)) }
             beanDetails(getString(R.string.beans_batch_title), item.batch.bean.name + "\n" + details)
         }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2); asTaskTextAction() }
+        fun divider(parent: LinearLayout) = parent.addView(android.view.View(this).apply {
+            setBackgroundColor(getColor(R.color.mobile_border))
+        }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)))
+        divider(body)
         val summary = row(body)
         val balance = cell(summary)
         HoyiUi.label(this, balance, getString(R.string.beans_balance_label), 14, muted = true)
-        HoyiUi.label(this, balance, BeanQuantity.formatGrams(item.balanceMg) + " g", 24).apply {
+        HoyiUi.label(this, balance, "", 32).apply {
             typeface = TaskTypography.face(this@BeanBatchActivity, 700)
+            val value = BeanQuantity.formatGrams(item.balanceMg) + " g"
+            text = android.text.SpannableString(value).apply {
+                setSpan(android.text.style.RelativeSizeSpan(0.55f), value.length - 1, value.length,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
         }
         val initial = cell(summary)
         HoyiUi.label(this, initial, getString(R.string.batch_initial_weight), 14, muted = true)
         HoyiUi.label(this, initial, BeanQuantity.formatGrams(item.batch.initialMg) + " g", 24)
-        val ratioCell = cell(summary)
+        val ratioCell = cell(summary).apply {
+            (layoutParams as LinearLayout.LayoutParams).weight = 2f
+        }
         HoyiUi.label(this, ratioCell, getString(R.string.batch_remaining_ratio), 14, muted = true)
         val ratio = if (item.batch.initialMg > 0) item.balanceMg.toDouble() / item.batch.initialMg else null
-        HoyiUi.label(this, ratioCell, ratio?.let { java.text.NumberFormat.getPercentInstance(resources.configuration.locales[0]).format(it) } ?: "—", 24)
-        if (ratio != null) ratioCell.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+        val ratioLine = row(ratioCell).apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+        if (ratio != null) ratioLine.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 1000; progress = (ratio.coerceIn(0.0, 1.0) * max).toInt()
             progressTintList = android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent))
             importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO
-        }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 8)))
+        }, LinearLayout.LayoutParams(0, HoyiUi.dp(this, 8), 1f).apply { marginEnd = HoyiUi.dp(this@BeanBatchActivity, 16) })
+        HoyiUi.label(this, ratioLine, ratio?.let { java.text.NumberFormat.getPercentInstance(resources.configuration.locales[0]).format(it) } ?: "—", 24)
+        divider(body)
+        HoyiUi.label(this, body, getString(R.string.batch_information), 20, true).apply {
+            setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 16), 0, HoyiUi.dp(this@BeanBatchActivity, 8))
+        }
         val dates = row(body)
         listOf(R.string.beans_purchased to item.batch.purchasedOn,
             R.string.beans_roasted to item.batch.roastedOn, R.string.beans_opened to item.batch.openedOn)
@@ -92,6 +108,7 @@ class BeanBatchActivity : ThemedActivity() {
                 HoyiUi.label(this, dateCell, getString(label), 14, muted = true)
                 HoyiUi.label(this, dateCell, date?.toString() ?: getString(R.string.beans_not_set), 16)
             }
+        divider(body)
         HoyiUi.label(this, body, getString(R.string.batch_recent_events), 20, true).apply {
             setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 16), 0, HoyiUi.dp(this@BeanBatchActivity, 8))
         }
@@ -114,6 +131,7 @@ class BeanBatchActivity : ThemedActivity() {
             })
             val change = (if (event.deltaMg > 0) "+" else "") + BeanQuantity.formatGrams(event.deltaMg) + " g"
             val values = listOf(kind, change, event.reason ?: "—")
+            divider(recent)
             eventRow(recent, values, false).apply {
                 minimumHeight = HoyiUi.dp(this@BeanBatchActivity, 48)
                 isFocusable = true

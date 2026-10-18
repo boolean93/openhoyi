@@ -3,4 +3,5 @@
     <string name="batch_remaining_ratio">Доля остатка</string>
     <string name="batch_recent_events">Последние операции</string>
     <string name="batch_initial_weight">Начальный вес</string>
+    <string name="batch_information">Информация о партии</string>
 </resources>

@@ -3,4 +3,5 @@
     <string name="batch_remaining_ratio">Remaining proportion</string>
     <string name="batch_recent_events">Recent activity</string>
     <string name="batch_initial_weight">Initial weight</string>
+    <string name="batch_information">Batch information</string>
 </resources>

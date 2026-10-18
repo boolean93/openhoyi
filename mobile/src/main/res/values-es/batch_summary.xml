@@ -3,4 +3,5 @@
     <string name="batch_remaining_ratio">Proporción restante</string>
     <string name="batch_recent_events">Movimientos recientes</string>
     <string name="batch_initial_weight">Peso inicial</string>
+    <string name="batch_information">Información del lote</string>
 </resources>

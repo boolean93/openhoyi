@@ -3,4 +3,5 @@
     <string name="batch_remaining_ratio">남은 비율</string>
     <string name="batch_recent_events">최근 내역</string>
     <string name="batch_initial_weight">초기 무게</string>
+    <string name="batch_information">배치 정보</string>
 </resources>

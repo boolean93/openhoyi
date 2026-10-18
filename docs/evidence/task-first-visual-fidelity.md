@@ -680,3 +680,17 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 准备/通知/告警三行移到workspace之前，全宽固定并保留原未知/过期/可见逻辑，不进入工具滚动区。新增实际运行取证断言：停止完整可见、宽窗图表底部进入停止所在纵向区域；不以隐藏状态说明放大图表。
 - 新布局尚待CI截图、geometry.json及大字号/短高回归；旧aaf1c44图不能覆盖本改动。无安装、设备操作、合并或发版。
 - 最终源码Mock/test APK重新构建40s成功（/tmp/task-extraction-side-dock-final-build.log），diff/分支规则通过。没有把编译作为新增窗口断言通过。
+
+### 批次与用豆非空截图审计（2026-10-16）
+
+- 实读abe9614业务batch-after-adjustment.png：调整后90g、初始100g、90%、三日期及调整-10g/入库+100g真实显示；原业务17路径已验证持久化，不再只以缺失批次框架图判断。对照bean-batch-v1，剩余重量层级弱、比例条与数字分行、缺批次信息标题和分隔。
+- 候选将剩余重量32sp/700、单位0.55，摘要比例1:1:2，进度条/百分比同行；新增20sp批次信息标题及摘要/日期/流水细分隔。原值、日期、调整确认、幂等和详情入口不改。八语言标题XML解析通过。
+- InventoryEvent源码没有时间字段，认可稿流水时间列尚无数据源，保持类型/变化/原因，不用购入日期或当前时间伪造；该缺口仍待后续设计与数据迁移规划，不冒称已完全匹配。
+- 实读abe9614高级BeanPreparationActivity：有250g库存批次但粉量为空，称豆被当前活动/恢复状态门禁阻止，页面为下拉+输入而非认可稿左列表/右选择；不能将此图当成已确认扣减状态。须补选择/确认实图并调整构图，称豆门禁不能为了匹配稿件去掉。
+
+### 用户平板新实图与取证启动修正（2026-10-18）
+
+- 构建会话65749已返回exit 0；/tmp/task-resume-batch-capture-build.log记录Mock与test APK BUILD SUCCESSFUL in 23s。shell语法、diff与branch-policy重新通过。批次新层级仍待CI截图，不以编译替代视觉检查。
+- 实读ci-35db865-user的result.txt：336 fixtures/21 pages，58中文表单截图，14列表恢复fixture。实读pressure/window.png与sources.txt：两杯各31点，四指标按钮完整显示，不再是旧图半高裁切；底部摘要三行可读，图中两条压力线重叠，不能声称有明显数值差异。其他三指标和深色尚待逐图审查。
+- 实读中文four-stage-table.png：1–4阶段分段控件已生效，选中4、四阶段8输入和顶部3字段完整，右侧预览/保存完整。实读BeanEntry-section-2.png：三日期日历入口均完整可见；仍是新豆款下拉而非认可稿双模式切换，不宣称入库页完全一致。
+- capture旧失败位于LanguageActiveCupChecks初次等待machineSettingsFresh。app-logcat记录am instrument杀死预先启动的Home/Mock服务；Extraction只绑定已有服务。现改由visualEvidence测试进程先启动Home并等待服务，再进入Extraction；原8语言路径、超时、数据与停止断言不放松。脚本失败时拉取已有取证输出。运行态修复尚待新CI。

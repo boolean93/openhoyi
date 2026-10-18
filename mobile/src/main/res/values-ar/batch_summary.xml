@@ -3,4 +3,5 @@
     <string name="batch_remaining_ratio">النسبة المتبقية</string>
     <string name="batch_recent_events">الحركات الأخيرة</string>
     <string name="batch_initial_weight">الوزن الأولي</string>
+    <string name="batch_information">معلومات الدفعة</string>
 </resources>

@@ -3,4 +3,5 @@
     <string name="batch_remaining_ratio">残量の割合</string>
     <string name="batch_recent_events">最近の履歴</string>
     <string name="batch_initial_weight">初期重量</string>
+    <string name="batch_information">バッチ情報</string>
 </resources>
