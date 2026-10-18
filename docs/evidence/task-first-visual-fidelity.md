@@ -1111,3 +1111,7 @@ run39092501813成功（同源码另run39092498372亦成功），下载ci-831aa1c
 ## 配方单位共享层级候选（2026-10-18）
 
 实读831aa1c导入/分享typography：density2.25下93°C/36g及91°C/27g均54px、700且metricRuns为空，单位未分层。新增curveMetricText及RECIPE_VALUE_SP=24，共用于曲线库/导入预览/分享；数字24sp/700，末尾°C或g由RelativeSizeSpan和API26兼容MetricAffectingSpan变为共享14sp/400，原字符串、无重量文案和格式不变。曲线库旧0.6比例14.4sp也统一14sp。Mock+AndroidTest构建44s成功、diff通过（/tmp/task-recipe-metric-typography-build.log），尚待新metricRuns/实图，不宣称最终字体一致。参数表间距批次87334eb已推送，本字体候选暂本地，下一完整批次再推。
+
+## 高级业务超时定位（2026-10-18）
+
+下载831aa1c advanced run39092501613失败产物：business-flows最后dose-invalid-no-write，但已保存dose-pending-confirmation图，logcat随后HomeActivity NEW_TASK result=3，activities topResumed仍BeanPreparation；十分钟外层超时，无新的断言失败。定位captureHomeDose复用任务却startActivitySync等待新实例。候选仅从当前prep无NEW_TASK启动首页、monitor10秒有界等待，检查不是原root，关闭后prep恢复焦点；同service/库存不变及路径计数保留。AndroidTest构建25s通过、diff通过，尚待运行。该run页面矩阵landscape及wideFont各240夹具通过，不能将业务超时混称页面布局全失败，也不能说后续业务已验收。

@@ -319,13 +319,23 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 "Saved preparation batch context showed stale inventory"
             }
         }
-        fun captureHomeDose(name: String, state: Int) {
+        fun captureHomeDose(returnTo: Activity, name: String, state: Int) {
             val beforeDose = preparation.current()
             val beforeEvents = inventory.events()
             val beforeBalance = balance()
-            val page = start(HomeActivity::class.java)
+            val monitor = test.addMonitor(HomeActivity::class.java.name, null, false)
+            val page: Activity
             try {
-                awaitMain { owner(page) === service && views(root(page)).filterIsInstance<TextView>().any {
+                // NEW_TASK can reuse the existing root task without creating an Activity;
+                // startActivitySync would then wait indefinitely for an instance that never arrives.
+                onMain { returnTo.startActivity(Intent(returnTo, HomeActivity::class.java)) }
+                page = test.waitForMonitorWithTimeout(monitor, 10000)
+                    ?: error("Home dose capture did not create a page: $name")
+                check(page !== home) { "Home dose capture reused the fixture root" }
+                opened += page
+            } finally { test.removeMonitor(monitor) }
+            try {
+                awaitMain { page.hasWindowFocus() && owner(page) === service && views(root(page)).filterIsInstance<TextView>().any {
                     it.isShown && it.text.toString() == page.getString(state)
                 } }
                 onMain {
@@ -341,7 +351,10 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(preparation.current() == beforeDose && inventory.events() == beforeEvents && balance() == beforeBalance) {
                     "Viewing the home dose changed preparation or inventory"
                 }
-            } finally { close(page) }
+            } finally {
+                close(page)
+                awaitMain { !returnTo.isDestroyed && returnTo.hasWindowFocus() }
+            }
         }
         fun invariants() = onMain {
             check(service!!.running && service!!.snapshot.message === message) { "Local UI changed machine service/event" }
@@ -557,7 +570,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             }
             captureState(prep, "dose-pending-confirmation", listOf(R.string.dose_confirm))
             assertLockedBatchContext(prep, "90")
-            captureHomeDose("home-dose-selected", R.string.task_brew_dose_selected)
+            captureHomeDose(prep, "home-dose-selected", R.string.task_brew_dose_selected)
             record("dose-select-no-deduction")
             // Hold the real button before it is detached by rendering; repeated dispatch must remain idempotent.
             var confirm: TextView? = null
@@ -573,7 +586,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             }
             captureState(prep, "dose-confirmed-receipt", listOf(R.string.dose_discard))
             assertLockedBatchContext(prep, "72")
-            captureHomeDose("home-dose-confirmed", R.string.task_brew_dose_confirmed)
+            captureHomeDose(prep, "home-dose-confirmed", R.string.task_brew_dose_confirmed)
             record("dose-confirm-repeat-recreate")
             click(prep, R.string.dose_discard)
             dialogClick(dialog(prep), AlertDialog.BUTTON_POSITIVE, prep.getString(R.string.dose_discard_confirm))
