@@ -196,3 +196,33 @@ Astra 已只读审本批8个生产 Kotlin、8语种 `form_visual.xml`、6个测�
 **待CI与实图：** BeanEntry原条件五字段/Editor原条件11字段的实际整数预算；两字号真实两行Layout及单位baseline；固定footer与IME/非零滚动重建；错误/不可用/保存取消幂等；同源码12原整屏G1–G4。静态542/472等预算估算不得写为通过或已复现失败，不把内容滚达代替标准首屏。主任务统一构建/提交/push后取证，M3继续仅规划，矩阵M2状态不改PASS。
 
 统一构建随后完成：生产 `5c495e8`、测试 `b77c704`；日志 `/tmp/2026-10-19-m2-form-migration-build.log` 显示 `BUILD SUCCESSFUL in 1m 12s`，Mock/AndroidTest 均构建成功。Astra 独立读取四份对应 JVM XML：LanguageDraft 4、BeanQuantity 3、CustomCurve 8、BrewJournalHistory 2，共4 suites / 17 tests，0 failure / 0 error / 0 skip。仅证明本地编译与这些JVM用例；真实12配置、IME/恢复和G1–G4尚未运行验收。
+
+## 8. 95be8fb 首轮真实图缺陷与局部补丁预审（未闭环）
+
+Astra 已独立实看 advanced business 的 `bean-entry-new-mode.png`、`curve-editor-four-stages.png`、`review-saved-notes.png`，均为2560×1600整屏；目录 `build/task-first-evidence/ci-95be8fb-advanced/advanced-mock-pages-business/advanced-page-screenshots/business/`。旧18条business路径通过不包含新 `verifyM2FormContract`，后者只在frame入口执行；此时尚无完整三页12配置/实际Typography/颜色与几何验收，不写G1–G4通过。
+
+| 实图明确差异 | 源码定位与当前静态判断 | 必须复验 |
+|---|---|---|
+| BeanEntry同行名称/重量两输入描边相接，批准16dp净距未出现（G1） | `TaskFormSections.arrangement` 在测量中原地改相对margin；候选修正每轮明确start/end，再按identity.layoutDirection解析physical margins。已只读核补丁范围：保留3:2与16gap预算、纵排8gap、自然高度及原输入层级，无静态阻断 | 横排真实两panel/输入rect间16dp、实际start/end/left/right与方向；回纵排清零、RTL镜像；原五字段首屏、重建/IME不回退。未把代码修正当运行关闭 |
+| BrewReview选豆长名第二行只露字顶（G1/G3） | `choiceAdapter` 使用系统 `simple_spinner_dropdown_item`，SDK34 XML 的固定 `dropdownListPreferredItemHeight` 被 AbsSpinner/Spinner按LP测量；仅设置maxLines/minimumHeight不能解除固定高。补丁selected/dropdown改LP WRAP_CONTENT，并维持minHeight与minimumHeight52；原16sp/400/24、H12/V8、selected两行/下拉完整、ID及监听不变，静态无阻断 | Spinner及selected child实际高/LP/compound padding、逐行Layout与visible范围、长名下拉与选择恢复；Bean已有豆款也使用此adapter，须同批回归 |
+| CurveEditor第四阶段两输入底边被左局部视口截断（G1） | 当前compact切换用单行最低预算，`fullNaturalPx`仅记账，不保证标准11字段首屏。尚无同次实际完整矩形，不凭图猜缺口px、不先削padding或缩字 | actual window/insets/font/density、available/metadataNatural/stageNatural/fullNatural、header/footer、stagePane/scroll/row4/两输入full与visible/scrollY；标准11首屏不能用切compact后滚达替代。待真实账本给集中适配 |
+
+两补丁目前只构成可进入统一构建的静态修正；待主任务合批构建/推送后同状态实图闭环。Editor源码未因上述初读修改。用户再次强调的间距、字体、字号、背景色继续按§6四门逐项验：已有候选来源不等于本轮实测一致；肉眼未见另外的字色回退也不填PASS，未知保持unknown。
+
+另据主任务报告，advanced pages 常规240夹具通过，wideFont `ru/light/BrewReviewActivity` 在曲线名/时间辅助文本触发 `LanguageUiLayoutChecks:170` ellipsized。该非中文既有回归不得忽略或放松断言；此条为主任务运行报告，尚非Astra独立PNG/几何验收。允许的最小设计方向是**仅Review页内**按实际文案/字体自然宽在同行与自然多行header之间适配：返回/标题/详情保留，曲线名/时间完整，时长/秤值/状态保持完整语义组，16dp组距/8dp行距；不缩字、不隐藏日期或按语言硬编码。可用宽不足时在永久父层级内重排，不动态reparent输入；新增header自然高进入正文预算，footer不滚走。具体布局待生产owner给宽度账本后静态复核，不能据此预称修复。
+
+**frame终态补记：** run `39149210695` / head `95be8fb` / tested merge `36620b349186cb1e87e70c8eee8e589b772d916a` 失败，M2正式主图 **0/12**。原件根为 `build/task-first-evidence/ci-95be8fb-frame/task-frame-tablet-user-landscape/task-first-evidence/form-visual-migration/raw-device/36620b349186cb1e87e70c8eee8e589b772d916a/tablet-user-landscape-light-font-1.0/bean-entry/`。Astra独立读取 `empty-initial/chinese-form-states/empty-BeanEntryActivity-bean-initial-five-fields-{geometry,stability}.json`：连续3次OnDraw稳定，五输入full==visible且各117px；末日期 `[1127,961,2099,1078]` 完整，仅可记录该空初态几何结果，不外推有内容/大字/IME或四门。name右边1515、quantity左边1515，独立实测确认同行净距0px，仍是G1失败。此PNG记录同合成帧未证明，不包装成正式协议2主图。
+
+随后新测试 `selectSection` 误按contentDescription定位（五输入均null，但labelFor→id完整）抛NoSuchElement，属于测试适配错误。只允许按原标签labelFor/id恢复精确定位，全部原可见性/数量/业务断言保留；Editor未启动，**本次没有其自然高度或第四行矩形**，不得用该失败宣判其预算。两runner另发现环境无rg而if内pidof guard未正确执行，须可靠读取退出状态/非空输出并fail-closed；补丁待独立静态审查。旧24页frame/样张/M1入口通过不抵M2缺证。两种测试基础错误都不能记为页面视觉PASS或替代已见business图缺陷。
+
+**最小测试修正静态复核：** `ChineseFormWindowChecks` 两处Bean selector改精确标签文本/labelFor→原EditText id，保留shown/reveal/fullyVisible；两runner移除对rg的依赖，仅adb成功、远端pidof确实完成且返回1/输出空才允许instrument，未知/错误/存在进程均停止，先留 `fresh-process.json`。form页顺序改Editor→Bean→Review，只为优先取得实际Editor预算，仍完整12配置、首错停止及原协议/断言。Astra独立 `bash -n`、嵌入Python解析、抽取实际predicate每runner7个成功/失败样例通过；这些未调用设备，不证明运行成功。
+
+single另报Review/Editor在短IME态出现27/34px可点击TextView小于48dp。源码身份已核为 `TaskNavigationView.createToolsHost` 的 `task-tools-menu`，有真实PopupMenu回调，不能当装饰豁免；原48dp被opt-in `TaskProductVisualStyle.styleHeader` 的aux22sp minHeight覆盖。批准仅该tag在字体应用后保留minHeight/minimumHeight/minWidth至少48dp，真实菜单/字级不改；legacy默认不动，M1 opt-in必须回归。补丁与Review自然flowheader落稳后统一静态审查/构建，实际短IME与非中文页头仍待运行。
+
+**本批生产终核（构建中，未验运行）：** Review永久 `ReviewHeaderLayout/ObservationFlow` 已落盘，返回明确48dp；同父层级内按真实自然宽同行/堆叠、RTL逻辑方向和GONE过滤，指标组16dp/行8dp，曲线名/时间不再两行ellipsis。`TaskPageFrame`按递归 `task-tools-host` tag及滚动祖先找原host，不依赖header直接子索引；构造期一次重组不破坏compactTools引用，resize不重挂。完整header自然高由原shell扣入正文，footer独立；保存监听至EOF已与HEAD逐字比对不变。精确tools target在style.apply之后恢复48dp，未改legacy默认。Astra核当前四生产文件与三测试/runner补丁无剩余静态阻断；主任务唯一统一构建日志 `/tmp/2026-10-19-m2-visual-fixes-build.log`，此处不预写结果。暴露的 `productHeaderLayoutEvidence.headerHeightPx` 是resolve前自然预算，尚未写入Form geometry，不冒称已采实际高度。
+
+**Editor补充原门禁红证据：** Astra已直接读取 `build/task-first-evidence/ci-95be8fb-single/single-screen-tablet-user-landscape/tablet-user-landscape/single-screen-window-checks/chinese-form-states/zh-Hans-light-CurveEditorActivity-result.txt`：标准用户横屏中文浅色在原11字段初态断言（`ChineseFormWindowChecks:489`）失败，EditText446×117px仅visible `[450,1147,896,1249]`（102px），少15px；sections/IME均未进入。该结果进一步确认标准首屏失败，但仍没有完整metadata/stage/fullNatural账本；不由15px倒推削减间距，本批保持Editor源码不动，下一次Editor-first沿原断言取完整预算。
+
+### 本批修正构建证据
+
+测试修正 `2ce9d09`、生产修正 `e77e3fa` 经 Astra 静态终核无阻断。唯一统一构建日志 `/tmp/2026-10-19-m2-visual-fixes-build.log`：`BUILD SUCCESSFUL in 1m 5s`，96 tasks / 12 executed；Mock 与 AndroidTest assemble 完成。四份本轮 JVM XML 合计17 tests（4/3/8/2），0 failure/error/skip。只证明编译与这些测试，不关闭本节已见视觉 FAIL。下一正常批次正式夹具先运行 CurveEditor，完整12配置及首失败终止保持，获取实际四阶段预算后再修其裁切。
