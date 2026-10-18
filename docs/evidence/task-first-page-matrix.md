@@ -24,7 +24,7 @@
 | BeanInventoryActivity | [库存v2](../research/task-first-ui-concepts/bean-inventory-v2.png) | 库存空态 | 11 |
 | BeanEntryActivity | [入库v2](../research/task-first-ui-concepts/bean-entry-v2.png) | 35db865实图三日期日历入口完整；已按入库v2改双模式并保留独立草稿，候选构建通过；ff651be两模式填写实图与身份/草稿恢复路径已读；b6fc53c业务18路径及收尾不变量已通过；ff651be用户平板第三日期裁切，已收紧40dp留白待新CI；短高仍待验收 | 20 |
 | BeanBatchActivity | [批次v1](../research/task-first-ui-concepts/bean-batch-v1.png) | abe9614业务图有90g/初始100g、三日期和两条流水；摘要/日期分区修正待新图 | 8 |
-| BeanLedgerActivity | [流水v3](../research/task-first-ui-concepts/bean-ledger-v3.png) | 空流水表头；有事件状态需另图 | 14 |
+| BeanLedgerActivity | [流水v3](../research/task-first-ui-concepts/bean-ledger-v3.png) | 051f16e用户平板有事件图已读：入库+250g/余额250g、批次与原因五列对齐，最新记录在前；当前图未覆盖扣减/调整/长原因，时间列无数据源，仍未最终验收 | 14 |
 | BeanPreparationActivity | [用豆v1](../research/task-first-ui-concepts/bean-preparation-v1.png) | 8c16949已改左右批次列表/粉量表单，构建通过；草稿/待确认/已确认三状态实图待CI，尚未完整对齐 | 10 |
 | BrewReviewActivity | [复盘v3](../research/task-first-ui-concepts/brew-review-v3.png) | b6fc53c保存后实图：左右参数/记录、三段填写、时长/秤值/结束状态和保存完整；右上分类选择未与认可稿对应，分区线与底部保存范围说明已补，构建通过待新图；右上选择与比例仍未验收 | 9 |
 | CurveEditorActivity | [编辑v1](../research/task-first-ui-concepts/curve-editor-v1.png) | 35db865用户平板四阶段实图：1–4分段选择生效，11输入/预览/保存完整；字体、间距和预览比例仍需最终对照 | 31 |
@@ -33,9 +33,9 @@
 | CurveImportPreviewActivity | [冲突预览v1](../research/task-first-ui-concepts/curve-import-preview-v1.png) | b6fc53c新导入/冲突有数据图已读：四阶段/单位/完整参数可见；冲突缺警示层级，候选补背景/边界/16dp内边距待图；预览分区标题与左右比例仍不一致 | 9 |
 | ScaleActivity | [电子秤v2](../research/task-first-ui-concepts/scale-v2.png) | 55f3f3f普通/大字号实图已证单位缩小与设备两列；仍无有效重量/趋势，用户平板及设备身份待验 | 25 |
 | ScaleConnectionActivity | [连接v1](../research/task-first-ui-concepts/scale-connection-v1.png) | 无候选；候选/连接/实验协议限制需另验 | 13 |
-| LegacyCurveActivity | [旧曲线v1](../research/task-first-ui-concepts/legacy-curve-v1.png) | 未导入空态；另已读27ae12b有40条数据的列表，未选中详情；重复说明与全宽导入按钮待收敛 | 13 |
+| LegacyCurveActivity | [旧曲线v1](../research/task-first-ui-concepts/legacy-curve-v1.png) | 051f16e用户平板40条列表实图确认连续列表，但导入按钮占整行、三处只读说明重复；选中详情仍需对照，未最终验收 | 13 |
 | LegacyHistoryActivity | [旧记录v1](../research/task-first-ui-concepts/legacy-history-v1.png) | 框架零条；另已读27ae12b的41条记录列表，非空列表成立，构图待对齐 | 13 |
-| LegacyHistoryDetailActivity | [旧详情v1](../research/task-first-ui-concepts/legacy-history-detail-v1.png) | 框架不可用；另已读27ae12b有数据双指标图，发现重合遮挡/缺少刻度，修正候选待新图 | 9 |
+| LegacyHistoryDetailActivity | [旧详情v1](../research/task-first-ui-concepts/legacy-history-detail-v1.png) | 051f16e用户平板浅深实图确认：bar/ml/s双轴、中间秒刻度、实虚线重叠可辨及右栏详情已生效；24/20/14sp已实测；右栏仍为说明长段，未按稿件分组，未最终验收 | 9 |
 | AppSettingsActivity | 设置页：保留配置/安全说明、允许整页滚动；无独立认可概念稿，不能假称已与稿一致 | 外观/语言/偏好首屏；允许整页滚动，底部项另验 | 26 |
 | MachineSettingsActivity | 设置页：保留配置/安全说明、允许整页滚动；无独立认可概念稿，不能假称已与稿一致 | 模拟回读设置；真实写入/回读不在视觉证据范围 | 37 |
 | ScaleSettingsActivity | 设置页：保留配置/安全说明、允许整页滚动；无独立认可概念稿，不能假称已与稿一致 | 未连接能力说明；有能力状态另验 | 14 |
