@@ -13,14 +13,14 @@
 遵循 [task-template](task-template.md) 和 [git-workflow](../git-workflow.md)。
 
 - 来源：`develop` 共同基线 `66ebda95dc7986eec66f9fa0b7e6cbd565c74506`；延续已授权 `feature/task-first-ui` / PR #4 → `develop`，不另建长期分支。初稿只读规划 HEAD `0f3b759bd99c596d95a53fee7bee8554f86de1aa`；本次接口复核 HEAD `026f9937f055342ba7256d2f446065b3bbdb0746`，开始时工作树为空。
-- 当前 M1 已追加三页收口：生产 `ff5f069/1d82b2f`、测试 `c7223e5`，合批 HEAD `026f993`；CI `39146205031` 在途。原生样张已限定冻结，不重开样张研究。**M1 未完成图审，本计划不是 M2 开工指令或 M1 通过记录。** 待 Astra 对 M1 真图给出限定结论、主任务明确切换 M2 后实施。
+- 当前状态（2026-10-19）：M1 `026f993` / 实测 merge `75e5333f20bb21ec911ec99befb9d979ad483dba` 已完成真实 12 配置限定 G1–G4 验收，详见 [M1 计划 §11](2026-10-18-product-visual-migration.md)；记录提交 `8698bfb`。主任务已正式启动 M2，生产/测试 Sol 按 §4 所有权并行实施。样张不重开；M1 限定通过不外推 M2、其他页面、未测状态或硬件。
 - 当前只写此文件，不改生产/测试/其他文档，不提交或推送。实施时重新检查状态与远端，由主任务普通推送；branch-policy、verify、lifecycle、upgrade 必需检查通过且问题解决后走 PR，不直接推 main/develop，不 force。
 - 不改 BLE、编码、压力/水量/重量精度、队列、开始/停止、重试、库存幂等、未知记录或持久化格式。保存复盘不改变库存/机器；保存曲线不开始萃取；入库只经原合法 addBatch。
 - 不发版、不改签名/包名/versionCode、不安装用户设备、不操作机器或秤。Mock 只证明对应 UI/业务夹具，不能代替硬件。
 - 回退：按 M2 文件追加修正或 revert PR；M1 样式默认与其他页面保持，原业务记录/草稿格式保留。禁止卸载、清记录、退款式回滚事件或重发未知写入。
 - 范围仍为 24 页中的既定 M2 三页；只验用户横屏与现有横屏短高回归。**不新增竖屏兼容工作，也不通过锁方向规避窗口变化。**
 
-依据：[认可设计](../superpowers/specs/2026-10-15-task-first-ui-design.md)、[严格基线](../superpowers/specs/2026-10-18-strict-visual-baseline.md)、[review §10/§11](../evidence/2026-10-18-native-specimen-review.md)、[24 页矩阵](../evidence/task-first-page-matrix.md)、[M1 迁移计划](2026-10-18-product-visual-migration.md)。矩阵历史局部通过不能覆盖 review §11 的新失败。
+依据：[认可设计](../superpowers/specs/2026-10-15-task-first-ui-design.md)、[严格基线](../superpowers/specs/2026-10-18-strict-visual-baseline.md)、[review §10/§11](../evidence/2026-10-18-native-specimen-review.md)、[24 页矩阵](../evidence/task-first-page-matrix.md)、[M1 迁移计划](2026-10-18-product-visual-migration.md)。历史 BeanEntry 失败仍保留；M1 最新限定结论以 M1 计划 §11 与矩阵当前状态为准，不由历史段落反向覆盖。
 
 ## 1. 已实读原稿、真实页和失败边界
 
@@ -79,6 +79,14 @@
 - font1.3/IME 保留整个五字段集合，局部滚动到当前字段；固定 footer 位于 IME 之上，取消与保存完整。首屏五字段规则仍保留原配置条件，不能强扩到所有大字/IME，也不能缩窄原条件。
 - 保留 `newNameDraft/existingMode/rememberedBeanId/selectedBeanId`、日历初始值/取消、ISO日期解析、数量正数检查、三个ID（event/batch/newBean）和 saved 幂等保护。取消/非法输入零事件，成功 addBatch 恰一次；重建/模式往返不丢两种身份草稿，不重复建豆款。
 
+#### BeanEntry 条件横排与日期间距（2026-10-19 已批准的同页适配）
+
+- 日期标题“日期（选填）”与重量下方分隔都保留。重量→日期标题仅一次8dp边界间距，由 parent margin 或 spacer 单一承担；1dp分隔绘在该间距内，不再增加高度。标题20/500/30，不继承旧 label 的额外上下 padding；标题→首日期8dp、后两日期各8dp，不叠加 date panel 的首行间距。名称/重量标签14/400/22，各自到输入8dp，输入自然高度至少52dp。
+- 模式始终独立占完整一行。默认沿原稿纵排身份→重量→日期；先以实测卡宽计算完整纵排的自然高度（包含卡内距、固定操作自然高度及唯一操作间距），再与真实可用卡高比较。**仅当纵排超高，且身份/重量两列各自的自然宽度均可容纳标签、输入及真实单位/尾部控件时，启用身份/重量同行。** 不按屏宽常量、历史差1px或预测差16dp强行切换。
+- 同行左右顺序为身份、重量；扣除16dp列间隙后的内容宽按 **3:2** 分配。足高继续原稿纵排；窄窗无法满足两列自然宽时保留纵排与局部滚动、固定操作，不缩字、不截断标签/placeholder、不降低52dp。标准配置仍必须满足原五字段首屏门禁，不能因 fallback 改成只测滚达。
+- 构造时固定模式 host、身份 host 与重量 host；后两者置于一个可切方向的布局容器。测量只改变该容器方向/子布局参数，输入 View 对象、父层级、TextWatcher、selection/composing 和恢复键不变，不在分支间 reparent 或重建 EditText。已有豆款模式使用原身份内容切换，不另加一份只读名称。
+- 记录 `verticalNaturalPx`、`availablePx`、`inlineFits`、两列实际宽度及所选分支；这些是预算证据，不是通过标记。原五字段/模式与日历48dp/固定保存、模式往返与重建草稿、IME后单次 reveal 均按 §5 实测。静态542dp与526dp的差额只解释适配动机，不作为运行结果。
+
 ### M2-B BrewReview：左右真实表单，顶栏不再挤掉正文
 
 - 页头合并同一杯次摘要：标题/曲线与时间在左，时长/秤值/真实状态在右；标签14、数值20、单位14同 baseline。保留 UNKNOWN 警示、缺失值“—”，不画假“已结束”或原稿演示徽标。
@@ -93,6 +101,7 @@
 - 右图显式 opt-in 冻结 renderer，使用编辑器 `parsed()` 的真实 targets，阶段四色；沿用已验14sp、0/6/12刻度、2dp标签保护/真实网格补集、图至少160dp。不得把非法输入继续画成上次有效值；保留空目标+错误说明、预览和完整详情入口。
 - 底部补原稿已有的取消入口（仅 finish，等同返回，不写库），与保存并列；保留“仅保存本地，不启动萃取”范围说明。保存仍走当前 parsed.validate→custom store.save，copy-warning/FlowRaw只读/缺失源保持原业务，不扩大 FlowRaw 编辑能力。
 - 保留 draftId、stageCount、全部11输入草稿（含暂隐藏阶段）、焦点/选区、metadata/stage scroll；1→4→1→4不丢值。非法数/空名/不可用/写失败不保存、不启动机器。
+- 极短窗口采用**单一字段内容滚动区 + 区外固定 footer**，不是整页滚动。该内容 host 从构造起永久包含 metadata 与阶段/预览区；正常高度内容 child 按 viewport EXACT，维持原局部滚动；只有实测 metadata 短输入及祖先内距 + 下区最低需求 + 唯一16dp分组间距无法同时容纳时，内容 child 改自然高度，下区最低需求取阶段输入/标题/切换/内距与160dp预览/标题/内距两者较大值。取消/保存始终在 host 外。输入不 reparent；保留原 metadata/stage scroll 恢复键，新增内容 host 的独立 scroll 键。标准11字段首屏门禁不因这个分支豁免，静态预算接近边界不算运行失败或通过。
 
 ## 4. 文件所有权与实施顺序
 
@@ -129,7 +138,7 @@
 
 - `TaskProductVisualStyle.page(...)` 初次装配即传入 style，借用已有 80dp Frame/Nav；不能先调用旧 `beanPage()` 装入默认 Frame 后再更换 style。该 page 返回的 `BeanPageRegions` 保留 fixed actions 接口；BeanEntry 的卡内 actions 与 Review/Editor 页级 dock 各按实际布局使用，不盲目重复添加两层 footer。
 - `TaskProductVisualStyle.apply(TextView, Type, secondary)` 会设置 minHeight/gravity；不能无条件套到 EditText 后让其覆盖输入自然52dp、多行 TOP 或编辑语义。页内 form helper 只处理候选字体/色/间距，输入状态仍由原 Activity 负责。`quantity()` 只用于静态数值，不把可编辑数值替换为 TextView。
-- 已有 `HomeVisualIcon.buttonIcon()` 保留真实 Button 文本/回调、24dp装饰图标+8dp间距、RTL和 disabled tint；有适合的真实语义时可直接复用，不把 Home 状态/配方 adapter 带入表单，不新增假状态。该批生产图标的实际渲染仍随 M1 新图验收，不能写成已完成产品图审。
+- 已有 `HomeVisualIcon.buttonIcon()` 保留真实 Button 文本/回调、24dp装饰图标+8dp间距、RTL和 disabled tint；有适合的真实语义时可直接复用，不把 Home 状态/配方 adapter 带入表单，不新增假状态。M1 已有状态的图标渲染已限定验收；本批表单的新文案、换行、禁用与 RTL 组合仍须自己的实图证据。
 - `CurveStageView.productVisualStyle` 默认 null 保持旧 renderer；M2 仅 Editor 显式 opt-in。不给 `TaskWorkspaceLayout` 增加表单分支，也不改 M1 `Home/Share/Inventory` 或通用 `beanInput/beanPage/beanError` 的默认样式。
 - 测试复用隔离契约，不直接调用 M1 私有 `Scope` 或改 M1 夹具；新增 scope 的真实依赖闭包、清理顺序与 hash 记录仍须静态审。现有 `AdvancedBusinessUiChecks` 的日历/身份去重、复盘编辑、曲线保存/重开断言继续运行；仅新增缺失状态，不绕过原门禁。
 
@@ -140,10 +149,18 @@
 | 页面 | 可复现主输入（用合法内存存储/API，不改TextView伪造） | 同批必要状态 |
 |---|---|---|
 | BeanEntry | 新豆款“哥伦比亚 水洗”、250g；购入2026-10-06、烘焙2026-10-04、开封2026-10-10。另有合法已存豆款供选择；草稿经真实字段操作输入，不先写入目标批次 | 空新建初态五字段；新/已有往返及重建；三日历选择/取消；空名、0/非法数量、非法ISO日期；name/quantity/末日期IME；取消零事件、保存一次、重复/重建不新增 |
-| BrewReview | 合法 journal observation：经典浓缩、elapsedMs=27400、weightHundredthsGram=3620、status=ENDED；豆款哥伦比亚水洗、doseMg=18000、研磨“2.3圈 / 中细磨”；三notes为原稿三句中文 | 未选豆/未知状态/无时长或秤值；长研磨/三段长笔记；dose与三笔记IME、选区/滚动/重建；取消、成功、内存写失败；observation/inventory/usage不变 |
+| BrewReview | 合法 journal observation：经典浓缩、elapsedMs=27400、weightHundredthsGram=3620、status=ENDED；豆款哥伦比亚水洗、doseMg=18000、研磨“2.3圈 / 中细磨”；三notes依次为“后段流速略快，希望更平稳。”、“柑橘酸质，焦糖甜感，尾段略干。”、“研磨调细一点，其他条件不变。”，通过合法 `journal.edit` 写入隔离记录 | 未选豆/未知状态/无时长或秤值；长研磨/三段长笔记；dose与三笔记IME、选区/滚动/重建；取消、成功、内存写失败；observation/inventory/usage不变 |
 | CurveEditor | 合法本地草稿“经典浓缩”、93°C、36g，targets `[30,90,70,50]`、waterTenthsMl `[150,250,150,50]`，stageCount4 | 1–4切换及隐藏值恢复；长名、空名、非法数字/超界、无效预览；name/temperature/cup/末阶段IME；草稿重建/取消/保存；已有FlowRaw只读和复制来源警示仍可达 |
 
 隔离只在 guarded disposable Mock CI：沿 M1 已审的原 Lazy 不求值、合法内存库、owned cache writer、真实 Activity、销毁/解绑/停止服务→drain writer→恢复原引用与白名单逐键prefs→业务盘hash不变。复盘/入库成功只写隔离内存库；失败不回滚真实文件。只读页截图协议不可自动推成带 caret/IME 的同帧证据：有动画/光标导致零差无法成立时保留失败/实际上下文，不 mask、不调大容差；IME稳定几何与合成同帧结论分别记。
+
+### M2 测试隔离闭包（2026-10-19 方案静态批准，运行待证）
+
+每页每 profile 使用独立 guarded Mock 进程。新 `FormVisualMigrationChecks` 独立实现已验契约，不调用/修改 M1 私有 Scope，不改 `NativeWindowFrameEvidence`。真实替换 Lazy 恰为 `feedbackPreferences/logs/curves/samples/history/customCurvesResult/curveUsageResult/beanInventoryResult/beanPreparationResult/journalStoreResult`；保存原 Lazy 身份与 initialized 状态，不求原 value。`legacyHistory/legacyCurves` 仅核身份和 initialized 不变；`journalResult` 不是 delegate。
+
+合法内存库及 history callbacks 全指向本次 scope；trace/samples 仅使用唯一 `form-visual-UUID` owned cache。主线程整组安装、getter 身份核对后才启动 Activity；partial install 也进入清理，installed 标记须先于首个引用替换。测试不启动/绑定服务。结束关闭表单/对话框并确认 Activity destroyed→停止并确认无服务→只 drain 本次 samples writer 与 trace→恢复原 Lazy、language/failure、`appearance.dark`/`curves.selected` 原存在性与类型。不得 clear 全库或删除文件追 hash；原业务盘/其他 prefs/db hash 与 legacy 状态不变，两个白名单 prefs 的物理 SHA 单列。失败停止后续，不回滚原盘；host finally force-stop。
+
+BeanEntry 目标250g保持待填草稿，不预先创建目标批次；已有豆款由合法 addBatch 创建。Review 用合法 ENDED observation 后经 journal.edit 写上述 notes；Editor 用真实 CURVE_ID 加载合法四阶段文档。初态无焦点/无 IME 图沿用原双域协议；IME 图明确记录同步能力边界，不把稳定几何冒称同合成帧。
 
 ### 不可降低的运行门禁
 
@@ -166,4 +183,16 @@
 
 抗锯齿字缘差异与真实字体/布局/配色差异分开；不采用整体截图任意“相似度”阈值，也不非等比拉伸原稿。原图缺失的深色、错误、IME系统样式明确为原生适配输入，不倒推成原图已批准参数。
 
-完成要求：Astra给三页主状态四门独立结论、原BeanEntry初态红项有新真实证据闭环、规定IME/草稿/业务状态通过或逐项明确未覆盖；root更新既有matrix而非抹去历史。M1未完成、本批尚未实施/构建/运行，当前所有M2最终验收均待证；本计划不授予任何页面PASS。
+完成要求：Astra给三页主状态四门独立结论、原BeanEntry初态红项有新真实证据闭环、规定IME/草稿/业务状态通过或逐项明确未覆盖；root更新既有matrix而非抹去历史。M1已限定完成、M2已获授权实施；当前所有M2最终验收均待新构建/运行/实图证据，本计划及静态方案批准不授予M2任何页面PASS。
+
+## 7. 2026-10-19 首批静态终审与构建（运行/视觉未验）
+
+Astra 已只读审本批8个生产 Kotlin、8语种 `form_visual.xml`、6个测试/入口文件，当前无剩余静态阻断，可由主任务统一构建。M1 helpers 与共享默认未改；三个 Activity 从 `save.setOnClickListener` 到文件尾均独立比对与 HEAD 逐字相同。`CurveStageCountTabs` 默认null保留旧分支。
+
+已收口：BeanEntry 固定模式行与输入父层级、实测条件3:2同行及唯一日期间距；Review 初始与重测共用同Paint的两段 StaticLayout 自然盒预算，不再 `getter lineHeight*2`；Editor 单一字段内容滚动/区外固定 footer、完整最低预算、原稿“阶段参数”标题与现有间距内1dp表格分隔。StaticLayout是实际Paint的独立预算，不冒充 TextView 本次实际 Layout；最终行盒仍由运行证据核对。
+
+测试已保留原5/11字段、52dp输入/48dp触控门槛；Bean失败几何在断言同main catch保存，再采原PNG；实际fontScale/uiMode/无IME与非空协议2原件严格核验。恢复测试先建立实际IME、非默认焦点/selection/正scroll，三真实frame仅等稳定，重建后先snapshot严格比对再清焦点截图。10Lazy合法闭包、destroy→drain→restore、逐键typed prefs及原盘hash边界已审，unknown不填PASS。`git diff --check`、脚本 `bash -n`、8语种两资源key解析核验通过；这些不是Android编译或运行证明。
+
+**待CI与实图：** BeanEntry原条件五字段/Editor原条件11字段的实际整数预算；两字号真实两行Layout及单位baseline；固定footer与IME/非零滚动重建；错误/不可用/保存取消幂等；同源码12原整屏G1–G4。静态542/472等预算估算不得写为通过或已复现失败，不把内容滚达代替标准首屏。主任务统一构建/提交/push后取证，M3继续仅规划，矩阵M2状态不改PASS。
+
+统一构建随后完成：生产 `5c495e8`、测试 `b77c704`；日志 `/tmp/2026-10-19-m2-form-migration-build.log` 显示 `BUILD SUCCESSFUL in 1m 12s`，Mock/AndroidTest 均构建成功。Astra 独立读取四份对应 JVM XML：LanguageDraft 4、BeanQuantity 3、CustomCurve 8、BrewJournalHistory 2，共4 suites / 17 tests，0 failure / 0 error / 0 skip。仅证明本地编译与这些JVM用例；真实12配置、IME/恢复和G1–G4尚未运行验收。
