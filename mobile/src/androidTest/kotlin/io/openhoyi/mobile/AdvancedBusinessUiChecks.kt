@@ -261,6 +261,171 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
     }
     private fun owner(home: Activity): MobileService? = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }.get(home) as? MobileService
 
+    /** M1 isolated caller owns every store; provider outputs stay in the signature-guarded test APK.
+     * Cancellation/failure completion are observed, never inferred from a still-disabled button. */
+    fun verifyM1ExportContract(initial: CurveShareActivity, document: CustomCurveDocument, directory: File): CurveShareActivity {
+        check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
+        check(context.checkSelfPermission(CurveFixtureProvider.PERMISSION) == android.content.pm.PackageManager.PERMISSION_GRANTED)
+        check(context.packageManager.checkSignatures(context.packageName, test.context.packageName) == android.content.pm.PackageManager.SIGNATURE_MATCH)
+        val session = UUID.randomUUID().toString()
+        val base = android.net.Uri.parse("content://${CurveFixtureProvider.AUTHORITY}")
+        fun call(method: String, data: android.os.Bundle? = null) = requireNotNull(context.contentResolver.call(base, method, session, data))
+        val report = org.json.JSONArray()
+        var activity = initial
+        fun exported(): android.net.Uri? = CurveShareActivity::class.java.getDeclaredField("exportedUri").apply { isAccessible = true }.get(activity) as? android.net.Uri
+        fun fileAction(): TextView = root(activity).findViewWithTag("product/share/file")
+        fun picker(code: Int, uri: android.net.Uri?) {
+            var observed: Intent? = null; var count = 0
+            val monitor = object : Instrumentation.ActivityMonitor() {
+                override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult {
+                    observed = Intent(intent); count++
+                    return Instrumentation.ActivityResult(code, uri?.let { Intent().setData(it)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) })
+                }
+            }
+            test.addMonitor(monitor)
+            try {
+                click(activity, R.string.profiles_export_file)
+                onMain {
+                    val intent = requireNotNull(observed)
+                    check(count == 1 && intent.action == Intent.ACTION_CREATE_DOCUMENT && intent.type == "application/json")
+                    check(intent.categories == setOf(Intent.CATEGORY_OPENABLE) && intent.component == null && intent.`package` == null)
+                    check(intent.getStringExtra(Intent.EXTRA_TITLE) == "openhoyi-${document.id}.json")
+                }
+            } finally { test.removeMonitor(monitor) }
+        }
+        fun failedExport(uri: android.net.Uri, expected: android.net.Uri?) {
+            val toast = test.uiAutomation.executeAndWaitForEvent({ picker(Activity.RESULT_OK, uri) }, { event ->
+                event.eventType == android.view.accessibility.AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED &&
+                    event.packageName?.toString() == activity.packageName && event.text.any { it.toString() == activity.getString(R.string.profiles_export_failed) }
+            }, 10000)
+            try { check(toast.text.any { it.toString() == activity.getString(R.string.profiles_export_failed) }) }
+            finally { toast.recycle() }
+            test.waitForIdleSync()
+            onMain { check(exported() == expected && fileAction().isEnabled == (expected != null)) }
+            report.put(org.json.JSONObject().put("state", "failure").put("completion", "actual_export_failed_toast")
+                .put("expectedUri", expected ?: org.json.JSONObject.NULL).put("shareEnabled", expected != null))
+        }
+        call("create", android.os.Bundle().apply { putString("document", document.encode()) })
+        try {
+            onMain { check(exported() == null && !fileAction().isEnabled) }
+            picker(Activity.RESULT_CANCELED, null)
+            onMain { check(exported() == null && !fileAction().isEnabled) }
+            check(call("stats").getInt("write:output.json") == 0)
+            report.put(org.json.JSONObject().put("state", "cancel").put("writes", 0).put("shareEnabled", false))
+            // The provider explicitly rejects writing its read-only valid fixture: a real output-stream failure.
+            failedExport(CurveFixtureProvider.uri(session, "valid.json"), null)
+            val output = CurveFixtureProvider.uri(session, "output.json")
+            picker(Activity.RESULT_OK, output)
+            awaitMain { exported() == output && fileAction().isEnabled }
+            val bytes = requireNotNull(context.contentResolver.openInputStream(output)).use { it.readBytes() }
+            check(bytes.contentEquals(document.encode().toByteArray(Charsets.UTF_8)))
+            check(CustomCurveDocument.decode(bytes.toString(Charsets.UTF_8)) == document && call("stats").getInt("write:output.json") == 1)
+            report.put(org.json.JSONObject().put("state", "success").put("exactUtf8", true).put("writes", 1).put("uri", output))
+            activity = recreate(activity) as CurveShareActivity
+            onMain { check(exported() == output && fileAction().isEnabled) }
+            report.put(org.json.JSONObject().put("state", "recreated").put("restoredUri", output).put("shareEnabled", true))
+            picker(Activity.RESULT_CANCELED, null)
+            onMain { check(exported() == output && fileAction().isEnabled) }
+            failedExport(CurveFixtureProvider.uri(session, "valid.json"), output)
+            check(call("stats").getInt("write:output.json") == 1)
+            // Intercept all launches, including a regressed direct send, before external dispatch.
+            var sent: Intent? = null
+            val monitor = object : Instrumentation.ActivityMonitor() {
+                override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult {
+                    sent = Intent(intent); return Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null)
+                }
+            }
+            test.addMonitor(monitor)
+            try {
+                click(activity, R.string.profiles_share_file)
+                onMain {
+                    val chooser = requireNotNull(sent); check(chooser.action == Intent.ACTION_CHOOSER)
+                    @Suppress("DEPRECATION") val intent = requireNotNull(chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT))
+                    @Suppress("DEPRECATION") val stream = intent.getParcelableExtra<android.net.Uri>(Intent.EXTRA_STREAM)
+                    check(intent.action == Intent.ACTION_SEND && intent.type == "application/json" && stream == output)
+                    check(intent.clipData?.itemCount == 1 && intent.clipData?.getItemAt(0)?.uri == output)
+                    check(intent.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0 && intent.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION == 0)
+                    check(chooser.clipData?.getItemAt(0)?.uri == output && chooser.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+                }
+            } finally { test.removeMonitor(monitor) }
+            report.put(org.json.JSONObject().put("state", "share-intercepted").put("readOnlyUriGrant", true).put("externalSend", false))
+            return activity
+        } finally {
+            File(directory, "saf-export-business.json").writeText(report.toString(2))
+            call("cleanup") // Only this provider session; never target-app business files.
+        }
+    }
+
+    /** Separate legal three-event M1 state, after the two-event main image. No refunds or event deletion. */
+    fun verifyM1InventoryThreeEvents(initial: BeanInventoryActivity, inventory: BeanInventory, directory: File): BeanInventoryActivity {
+        val batchId = "m1-three-event-batch"
+        inventory.addBatch("m1-three-add", io.openhoyi.bean.BeanBatch(batchId, io.openhoyi.bean.Bean("m1-three-bean", "三流水核验豆"), 100000))
+        inventory.consume("m1-three-consume", batchId, 18000)
+        inventory.adjust("m1-three-adjust", batchId, 8000, "盘点补差")
+        val before = inventory.events()
+        val expected = before.filter { it.batchId == batchId }
+        check(expected.map { it.kind } == listOf(InventoryEventKind.ADD, InventoryEventKind.CONSUME, InventoryEventKind.ADJUST))
+        check(expected.map { it.deltaMg } == listOf(100000L,-18000L,8000L) && expected.last().balanceMg == 90000L)
+        var activity = initial
+        onMain {
+            BeanInventoryActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }.invoke(activity)
+            val batch = root(activity).findViewWithTag<View>("inventory-batch-$batchId")
+            check(batch.isEnabled && batch.performClick())
+        }
+        test.waitForIdleSync()
+        val records = org.json.JSONArray()
+        expected.asReversed().forEach { event ->
+            lateinit var row: View
+            onMain {
+                row = root(activity).findViewWithTag("product/inventory/events/row-${event.eventId}")
+                check(row.isEnabled && row.isClickable && row.height >= HoyiUi.dp(activity,48))
+                row.requestRectangleOnScreen(android.graphics.Rect(0,0,row.width,row.height),true)
+            }
+            test.waitForIdleSync()
+            onMain {
+                val bounds = android.graphics.Rect()
+                check(row.getGlobalVisibleRect(bounds) && bounds.width()==row.width && bounds.height()==row.height && row.width>0)
+                val cells = listOf("type","change","reason").map { key -> row.findViewWithTag<TextView>("product/inventory/events/${event.eventId}/$key") }
+                check(cells.all { it.isShown && it.text.isNotBlank() })
+                val delta=(if(event.deltaMg>0) "+" else "") + BeanQuantity.formatGrams(event.deltaMg) + " g"
+                check(cells[1].text.toString()==delta && cells[2].text.toString()==(event.reason ?: "—"))
+                cells.forEach { LanguageUiLayoutChecks.textFits(it,"M1-three-event-${event.eventId}") }
+                records.put(org.json.JSONObject().put("eventId",event.eventId).put("kind",event.kind).put("deltaMg",event.deltaMg)
+                    .put("balanceMg",event.balanceMg).put("heightPx",row.height).put("minimumTouchPx",HoyiUi.dp(activity,48))
+                    .put("visibleRectPx",org.json.JSONArray(listOf(bounds.left,bounds.top,bounds.right,bounds.bottom))))
+                check(row.performClick())
+            }
+            test.waitForIdleSync()
+            lateinit var dialogRoot: View
+            awaitMain {
+                val candidates=android.view.inspector.WindowInspector.getGlobalWindowViews().filter { it!==activity.window.decorView && it.hasWindowFocus() }
+                dialogRoot=candidates.singleOrNull() ?: return@awaitMain false
+                views(dialogRoot).filterIsInstance<TextView>().any { it.text.toString().contains(activity.getString(R.string.beans_event_balance,BeanQuantity.formatGrams(event.balanceMg))) }
+            }
+            onMain {
+                val text=views(dialogRoot).filterIsInstance<TextView>().joinToString("\n") { it.text.toString() }
+                check(text.contains(BeanQuantity.formatGrams(event.deltaMg)+" g") && text.contains(event.reason ?: "—"))
+                check(dialogRoot.findViewById<View>(android.R.id.button1).performClick())
+            }
+            test.waitForIdleSync()
+            check(inventory.events()==before && inventory.batches().single { it.batch.id==batchId }.balanceMg==90000L)
+        }
+        var oldScroll=0
+        onMain { oldScroll=(BeanInventoryActivity::class.java.getDeclaredField("listScroll").apply { isAccessible=true }.get(activity) as? android.widget.ScrollView)?.scrollY ?: 0 }
+        activity=recreate(activity) as BeanInventoryActivity
+        awaitMain {
+            val selected=BeanInventoryActivity::class.java.getDeclaredField("selectedBatchId").apply { isAccessible=true }.get(activity)
+            val scroll=BeanInventoryActivity::class.java.getDeclaredField("listScroll").apply { isAccessible=true }.get(activity) as? android.widget.ScrollView
+            selected==batchId && scroll?.scrollY==oldScroll
+        }
+        check(inventory.events()==before && inventory.batches().single { it.batch.id==batchId }.balanceMg==90000L)
+        File(directory,"inventory-three-event-business.json").writeText(org.json.JSONObject().put("fixture","ADD100_CONSUME18_ADJUST8_balance90")
+            .put("events",records).put("allDetailsOpened",true).put("inventoryUnchangedByBrowsing",true)
+            .put("selectedBatchRestored",true).put("listScrollRestoredPx",oldScroll).put("noEventRemovalOrRefund",true).toString(2))
+        return activity
+    }
+
     fun run(): Result {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
@@ -340,8 +505,15 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 } }
                 onMain {
                     val quantity = root(page).findViewWithTag<TextView>("home-dose-quantity")
-                    check(quantity.isShown && quantity.text.toString() == "18 g") {
-                        "Home did not display the selected dose"
+                    val unit = root(page).findViewWithTag<TextView>("product/home/dose/unit")
+                    check(quantity.isShown && quantity.text.toString() == "18" && unit.isShown && unit.text.toString() == "g") {
+                        "Home did not display the selected 18 g dose"
+                    }
+                    val numberOrigin = IntArray(2); quantity.getLocationOnScreen(numberOrigin)
+                    val unitOrigin = IntArray(2); unit.getLocationOnScreen(unitOrigin)
+                    check(quantity.baseline >= 0 && unit.baseline >= 0 &&
+                        numberOrigin[1] + quantity.baseline == unitOrigin[1] + unit.baseline) {
+                        "Home dose number and unit do not share their actual TextView baseline"
                     }
                     check(views(root(page)).filterIsInstance<TextView>().any {
                         it.isShown && it.text.toString().contains(beanName)

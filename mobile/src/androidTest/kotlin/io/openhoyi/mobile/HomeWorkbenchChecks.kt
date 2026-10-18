@@ -140,10 +140,16 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                     val owner = serviceField.get(activity) as? MobileService
                     val state = owner?.shotState
                     expectedRecent.forEachIndexed { index, item ->
-                        val row = workspace.findViewWithTag<TextView>("home-recent-curve-$index")
-                        check(row.isShown && row.isEnabled && row.text.startsWith(item.name))
+                        val row = workspace.findViewWithTag<View>("home-recent-curve-$index")
+                        val name = row.findViewWithTag<TextView>("product/home/recent/$index/name")
+                        val summary = row.findViewWithTag<TextView>("product/home/recent/$index/summary")
+                        check(row.isShown && row.isEnabled && row.isClickable)
+                        check(name.isShown && name.text.toString() == item.name)
+                        check(summary.isShown && summary.text.toString() == activity.getString(
+                            R.string.curve_usage_count, ledger.stats(item.id).count)) { "Recent usage count differs from the real ledger" }
                         check(row.height >= HoyiUi.dp(activity, 48))
-                        LanguageUiLayoutChecks.textFits(row, "recent-wide")
+                        LanguageUiLayoutChecks.textFits(name, "recent-wide-name")
+                        LanguageUiLayoutChecks.textFits(summary, "recent-wide-usage")
                     }
                     check(workspace.findViewWithTag<View>("home-recent-curve-0").performClick())
                     check(preferences.getString("selected", null) == expectedRecent.first().id)
