@@ -83,17 +83,17 @@ tap_nav() {
     BeanInventoryActivity) tap_control '豆子' ;;
     ExtractionActivity)
       tap_control '冲煮'
-      tap_control '设备连接'
+      tap_control '查看准备详情 ›'
       tap_control '实时萃取'
       ;;
     AppSettingsActivity)
       tap_control '冲煮'
-      tap_control '设备连接'
+      tap_control '查看准备详情 ›'
       tap_control '应用设置'
       ;;
     MachineSettingsActivity)
       tap_control '冲煮'
-      tap_control '设备连接'
+      tap_control '查看准备详情 ›'
       tap_control '应用设置'
       tap_control '机器设置'
       ;;
