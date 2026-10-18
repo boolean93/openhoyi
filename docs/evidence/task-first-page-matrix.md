@@ -37,8 +37,8 @@
 | LegacyHistoryActivity | [旧记录v1](../research/task-first-ui-concepts/legacy-history-v1.png) | 框架零条；另已读27ae12b的41条记录列表，非空列表成立，构图待对齐 | 13 |
 | LegacyHistoryDetailActivity | [旧详情v1](../research/task-first-ui-concepts/legacy-history-detail-v1.png) | 051f16e用户平板浅深实图确认：bar/ml/s双轴、中间秒刻度、实虚线重叠可辨及右栏详情已生效；24/20/14sp已实测；右栏来源/缺失/限制三组已调整、八语言同步待新图，未最终验收 | 9 |
 | AppSettingsActivity | [设置v1候选](../research/task-first-ui-concepts/app-settings-v1.png)：保留配置/安全说明、允许整页滚动；候选紧凑分组已实现、构建通过、未运行验收 | 39ac261用户平板外观/语言/偏好首屏已读，3c0019c用户横屏首屏和底部实图已读，版本/包名及导出/机器入口滚动完整、偏好未变；10bf727标准浅色四行信息实图已对齐；动作图标及大字深色仍未对齐 | 26 |
-| MachineSettingsActivity | [机器设置v1候选](../research/task-first-ui-concepts/machine-settings-v1.png)：保留配置/安全说明、允许整页滚动；温度页候选已生成，固定标签/紧凑输入动作与回读中性摘要已实现且构建通过，运行未验收 | 模拟回读设置；真实写入/回读不在视觉证据范围 | 37 |
-| ScaleSettingsActivity | [秤设置v1候选](../research/task-first-ui-concepts/scale-settings-v1.png)：允许整页滚动；bcda211未连接首屏实图确认三组及20/16/14sp、16/8dp；底部完整滚动、深色/大字/能力状态仍待验收 | 39ac261用户平板未连接实图已读；精度/能力/限制缺分组。真实有能力状态另验 | 14 |
+| MachineSettingsActivity | [机器设置v1候选](../research/task-first-ui-concepts/machine-settings-v1.png)：保留配置/安全说明、允许整页滚动；4d308a7实图已确认四个回读标签/值行；温度标签同行和下划线标签候选构建通过、尚无对应实图 | 模拟回读设置；真实写入/回读不在视觉证据范围 | 37 |
+| ScaleSettingsActivity | [秤设置v1候选](../research/task-first-ui-concepts/scale-settings-v1.png)：允许整页滚动；bcda211未连接首屏实图确认三组及20/16/14sp、16/8dp；4d308a7底部协议说明实图与滚动断言通过；深色/大字/能力状态仍待验收 | 4d308a7未连接态精度/能力/说明分组与底部实图已读，偏好未改变。真实有能力状态另验 | 14 |
 
 ## 已获得的其他证据（不能跨版本外推）
 

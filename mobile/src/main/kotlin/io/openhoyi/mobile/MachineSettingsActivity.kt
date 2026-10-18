@@ -626,13 +626,20 @@ class MachineSettingsActivity : ThemedActivity() {
         for (input in inputs) {
             val inputIndex = parent.indexOfChild(input)
             val button = parent.getChildAt(inputIndex + 1) as Button
+            val label = parent.getChildAt(inputIndex - 1) as TextView
+            check(label.labelFor == input.id)
+            if (inline) parent.removeView(label)
             parent.removeView(input)
             parent.removeView(button)
             val row = LinearLayout(this).apply {
                 orientation = if (inline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_VERTICAL
             }
-            parent.addView(row, inputIndex, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
+            parent.addView(row, if (inline) inputIndex - 1 else inputIndex,
+                LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(TaskVisualTokens.GROUP_GAP_DP) })
+            if (inline) row.addView(label, LinearLayout.LayoutParams(0, -2, 1.4f).apply {
+                marginEnd = dp(TaskVisualTokens.RELATED_GAP_DP)
+            })
             row.addView(input, LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1f else 0f))
             row.addView(button, LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1.4f else 0f).apply {
                 if (inline) marginStart = dp(8) else topMargin = dp(8)

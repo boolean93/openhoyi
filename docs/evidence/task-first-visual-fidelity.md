@@ -1063,3 +1063,7 @@ TaskFrameChecks扩展原设置滚动流程至MachineSettingsActivity：滚到蒸
 run39090796831成功，下载ci-4d308a7-frame并实读MachineSettingsActivity.png与ScaleSettingsActivity-protocol-support.png。机器回读已为四个标签/值行，93°C/120°C/咖啡馆/水箱完整；仍有较大头部及卡片间距，温度第三项不在首屏，不能认定与概念稿一致。秤设置底部协议说明完整可达，scale-settings-scroll.txt states=1 protocolTextFullyVisible=true preferencesUnchanged=true noBle=true；只关闭标准浅色未连接态底部可达性缺口，不覆盖深色/大字/真实能力。
 
 对照machine-settings-v1，机器五个标签移除圆角卡片背景，采用1dp基线/3dp选中线、16sp与400/500字重，保留48dp触摸高度及原滚动/切换，显式selected与可聚焦。Mock及AndroidTest构建40s成功，diff检查通过。新标签尚无运行截图，不能与4d308a7旧图混淆。曲线库/机器底部测试批次已推送至a0ab801；此标签候选暂本地，待下一批推送。
+
+## 机器温度三列候选（2026-10-18）
+
+标准宽屏fontScale≤1.1将原固定标签与原输入、原按钮放同一行（1.4:1:1.4），8dp相关间距与16dp组间距取共享tokens，保留labelFor与原回调。大字/窄屏保留原上下排版。Mock及MockAndroidTest构建43s成功（/tmp/task-machine-label-rows-build.log），diff检查通过。尚未推送此候选，a0ab801排队截图不含本改动或42e126a标签样式，不得拿其结果验证本改动。4d308a7 result.txt已实读pages=24 noBle=true，仅是框架检查通过，不是24页视觉验收。
