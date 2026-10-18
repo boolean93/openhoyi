@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var strictVisualSampleArguments: Bundle? = null
     private var activeCupVisual = false
     private var curveLibraryChecks = false
     private var twoCupChartChecks = false
@@ -37,6 +38,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        strictVisualSampleArguments = arguments?.takeIf { it.getString("strictVisualSamples") == "true" }?.let { Bundle(it) }
         activeCupVisual = arguments?.getString("activeCupVisual") == "true"
         curveLibraryChecks = arguments?.getString("curveLibraryChecks") == "true"
         twoCupChartChecks = arguments?.getString("twoCupChartChecks") == "true"
@@ -61,6 +63,12 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            strictVisualSampleArguments?.let { arguments ->
+                val count = StrictVisualSampleChecks(this).run(arguments)
+                report.putString("stream", "STRICT_VISUAL_SAMPLES_CAPTURED fixtures=$count specimenOnly=true productAcceptance=false noBle=true storageUnchanged=true\n")
+                finish(Activity.RESULT_OK, report)
+                return
+            }
             if (activeCupVisual) {
                 check(disposableCiEmulator) { "Active cup captures require a disposable CI emulator" }
                 LanguageActiveCupChecks(this).run(visualEvidence = true)

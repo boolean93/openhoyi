@@ -92,3 +92,11 @@ build/task-first-evidence/strict-native-samples/<source-sha>/<profile>/<fixture>
 Astra只在三样张的G1–G4均有明确结论后决定冻结共享参数。若只通过两页，第三页保持失败，不用平均评分。冻结结果不等于24页产品实现完成；Sol随后另接真实页面迁移任务和业务回归。
 
 回退：移除新增Mock样张入口、Mock文件、测试分支及脚本即可；不影响main产品颜色、布局或存储，不卸载、不清历史、不降级。仍未完成项为候选原生样张、锚点标注、12张CI证据及Astra逐项验收；本计划不宣称这些已存在。
+
+## 2026-10-18 本批实现与验证事实
+
+- Sol 已补齐三种白名单内存 fixture、Mock 专用 Activity/tokens/图表与图标适配器、Mock manifest、instrumentation 入口及 `check_strict_native_samples.sh`，接入既有 task-frame workflow。没有修改 main 产品主题、资源或业务。提交前基线 HEAD 为 `2947e018a45b6e4d41c3b3f585af8b9ff146d9c6`，复用既有工作树。
+- Astra 已完成独立原稿锚点 JSON（三页108项，`pendingPages=[]`），并对本批静态代码及最后两处 recent 门禁复核，允许进入 CI；此结论不是原生样张 G1–G4 视觉通过。
+- 最终 Mock 与 AndroidTest 编译命令：`ANDROID_HOME=/Users/boolean93/Library/Android/sdk ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain -Pandroid.aapt2FromMavenOverride=/Users/boolean93/Library/Android/sdk/build-tools/35.0.0/aapt2`。结果 exit 0，`BUILD SUCCESSFUL in 23s`，`91 actionable tasks: 4 executed, 87 up-to-date`；日志 `/tmp/2026-10-18-strict-native-gates-build.log`。
+- `git diff --check`、脚本 `bash -n`、三段内嵌 Python 的 AST 语法检查通过。本地没有安装、启动模拟器/设备或执行 instrumentation；fixture 运行断言、实际基线/字号/滚动预算和12张整窗图仍待 CI。
+- 取证保留原有 unknown 字段；样张自有 Canvas 记录真实 Paint、坐标和文字 bounds，但不覆盖产品 Canvas。独立 Drawable ARGB 不是最终屏幕合成色，G1–G4 仍未通过。准备 recent 若实测不足完整行或不可逐行滚达，会先保存现场，并保留12配置后使 CI 失败，不缩字、不降低门禁。

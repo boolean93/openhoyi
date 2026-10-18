@@ -46,12 +46,16 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_task_frame_ui.sh ${{ matrix.profile }}
+          script: |
+            bash scripts/check_task_frame_ui.sh ${{ matrix.profile }}
+            bash scripts/check_strict_native_samples.sh
       - name: Upload real window evidence
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: task-frame-${{ matrix.profile }}
-          path: build/task-frame-ui/
+          path: |
+            build/task-frame-ui/
+            build/task-first-evidence/strict-native-samples/
           if-no-files-found: warn
           retention-days: 7
