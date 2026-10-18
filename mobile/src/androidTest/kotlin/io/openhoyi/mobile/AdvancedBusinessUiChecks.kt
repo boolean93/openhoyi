@@ -513,6 +513,25 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             captureState(inventoryPage, "inventory-selected-after-adjustment", listOf(R.string.dose_title))
             onMain {
                 val metadata = root(inventoryPage).findViewWithTag<android.view.ViewGroup>("inventory-batch-metadata")
+                val config = inventoryPage.resources.configuration
+                val geometry = StringBuilder("screenDp=${config.screenWidthDp}x${config.screenHeightDp} fontScale=${config.fontScale}\n")
+                val complete = listOf("-10 g", "+100 g").map { delta ->
+                    val label = views(metadata).filterIsInstance<TextView>().single { it.text.toString() == delta }
+                    val row = label.parent as View
+                    val bounds = android.graphics.Rect()
+                    val visible = row.getGlobalVisibleRect(bounds) && bounds.width() == row.width &&
+                        bounds.height() == row.height && row.height > 0
+                    geometry.append("delta=$delta complete=$visible bounds=$bounds size=${row.width}x${row.height}\n")
+                    visible
+                }
+                File(requireNotNull(context.getExternalFilesDir(null)),
+                    "advanced-page-screenshots/business/inventory-ledger-first-screen.txt").writeText(geometry.toString())
+                if (config.screenWidthDp >= 1000 && config.screenHeightDp >= 600 && config.fontScale <= 1.1f) {
+                    check(complete.all { it }) { "Tablet inventory recent ledger is clipped on first screen: $geometry" }
+                }
+            }
+            onMain {
+                val metadata = root(inventoryPage).findViewWithTag<android.view.ViewGroup>("inventory-batch-metadata")
                 val last = views(metadata).filterIsInstance<TextView>().last()
                 last.requestRectangleOnScreen(android.graphics.Rect(0, 0, last.width, last.height), true)
             }

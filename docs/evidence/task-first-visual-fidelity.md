@@ -1187,3 +1187,11 @@ run39114111354 business失败，下载ci-0d6fb9c-advanced-business并实读busin
 此为布局候选，尚无新实图，不能预判两条流水或三条流水全部首屏显示；也不把局部滚动等同与稿件一致。最新查询fef3976业务和db5668d业务仍运行、db5668d页面排队，未取消或重启。
 
 库存空间候选Mock及AndroidTest构建42s成功（/tmp/task-inventory-space-build.log），diff通过；暂本地等待下一批推送与平板截图，库存最终验收仍未关闭。
+
+## fef3976四阶段分享失败尺寸与库存可见性门禁（2026-10-18）
+
+run39114424545 business已失败，下载ci-fef3976-advanced-business并实读curve-share-four-stages.png及space.txt：screenDp1138×623/font1、stages4、tableShownfalse、table1328×320、chart1328×573。表放入后仅253px，小于360px最低图高，短缺107px。实图完整长标题实际仍一行，故本夹具不能把修复收益归因于标题截行；主要待验证收益是兼容说明/详情按钮移到右侧。2501683在此版本之后，尚无实证，保持未关闭。
+
+库存原业务只检查-10g/+100g标签存在，再主动滚到末行，不能验证首屏一致。新增两条事件所在行的完整可见边界记录，在标准平板≥1000×600dp/font≤1.1要求首屏完整；先保留原截图再断言，失败也有图/尺寸。其他配置原滚动检查保持，库存不变量及后续路径不删；与b879bc5空间候选一起等待运行。
+
+库存可见性夹具AndroidTest构建25s成功（/tmp/task-inventory-ledger-visibility-build.log），diff通过。与b879bc5合批普通push；本次编译不证明首屏两条流水已通过。
