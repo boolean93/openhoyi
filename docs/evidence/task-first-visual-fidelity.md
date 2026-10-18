@@ -718,3 +718,9 @@ c31bfd1 advanced38881146368已有pages产物（本轮查询整个run仍in_progre
 - 用户平板2560×1600 density2.25 fontScale1：内容高1402px、chart高874px、真实dataPlot高514.148px，占chart58.827%；图表底部1447px超过停止顶部1321px，固定操作区域不再占左图整行。此比例是测量值，不是视觉一致通过阈值。
 - 实图“当前无告警”仍占主读数上方整行，与认可稿不符。候选扩展原紧凑运行页隐藏条件至全部运行布局：只收起fresh<=1500ms且bits精确0的正常状态；任一非零位、未知、缺失/未来/过期时间或非active仍展示。控制权限/告警描述/未知结果/停止逻辑不变。增加纯判定边界测试及实际运行无告警行收起断言，几何增量待新CI实图。
 - 最终构建会话2716 exit0/46s，MachineAlarmsTest报告7 tests/0 failures/0 errors；Mock与test APK成功，diff/分支检查通过。未本地安装或硬件操作。
+
+### 入库模式运行证据与测试计数修复（2026-10-18）
+
+- ff651be/run39081920735：pages job success，business job failure。下载ci-ff651be-business；business-flows含18条已执行路径，包括entry-mode-draft-recreate-cancel及所有原17路径，异常精确指向691行末尾paths.size==17。不能把整次business宣称成功，末尾恢复不变量仍须重跑确认。
+- 实读bean-entry-new-mode.png与existing-mode.png（1600×1000）：两个模式直接可见、浅色选中态/日期分隔生效；新名称草稿保持Unsaved new bean、重量250；已有模式显示所选实际Bean，原ID/只读名称与新→已有→重建→新草稿恢复断言均在该路径记录之前执行。既有名称在选择器与只读字段重复仍属后续简化空间；不以此标准横屏截图代替用户平板大字号/IME检查。
+- 将Kotlin末尾计数和完整字段标记、shell成功标记统一为18（增加要求，不删断言）。test APK构建exit0/24s，shell语法、diff、branch-policy通过。测试包尚待新CI完成收尾，不绕过失败。

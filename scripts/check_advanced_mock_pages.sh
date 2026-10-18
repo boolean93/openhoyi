@@ -98,10 +98,10 @@ with output.open('w') as capture:
         raise SystemExit('Advanced Mock business paths timed out; partial output retained')
 if result.returncode:
     raise SystemExit(result.returncode)
-expected='ADVANCED_BUSINESS_UI_CHECKS_PASSED paths=17 inventoryEvents=3 newDrafts=3 language=zh-Hans theme=light sameService=true preservedMachinePrefs=true noBle=true'
+expected='ADVANCED_BUSINESS_UI_CHECKS_PASSED paths=18 inventoryEvents=3 newDrafts=3 language=zh-Hans theme=light sameService=true preservedMachinePrefs=true noBle=true'
 if expected not in output.read_text():
     raise SystemExit(f'Advanced Mock business paths did not confirm completion: {output}')
-full_fields='ADVANCED_BUSINESS_UI_FULL_FIELDS_PASSED beanDates=3 notesFields=7 curveFields=12 stages=4 durableStores=3 unsavedRecreation=true reopenedRecreation=true paths=17'
+full_fields='ADVANCED_BUSINESS_UI_FULL_FIELDS_PASSED beanDates=3 notesFields=7 curveFields=12 stages=4 durableStores=3 unsavedRecreation=true reopenedRecreation=true paths=18'
 if full_fields not in output.read_text():
     raise SystemExit(f'Complete bean/review/four-stage fields did not survive save/reload/recreation: {output}')
 PY

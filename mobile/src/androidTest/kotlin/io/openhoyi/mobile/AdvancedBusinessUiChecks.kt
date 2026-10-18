@@ -688,7 +688,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 }
             }
             record("curve-import-invalid-three"); close(invalidImport)
-            check(preparation.current() == null && ownEvents().size == 3 && ownCurveIds.size == 3 && paths.size == 17)
+            check(preparation.current() == null && ownEvents().size == 3 && ownCurveIds.size == 3 && paths.size == 18)
             ownCurveIds.forEach {
                 val item=requireNotNull(app.curves.find(it))
                 check(app.curves.canStart(item) == (CustomPressureCurveAdapter.profile(requireNotNull(item.customDocument),false)!=null))
@@ -706,7 +706,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         }
         failure?.let { throw it }
         test.sendStatus(0, android.os.Bundle().apply { putString("stream",
-            "ADVANCED_BUSINESS_UI_FULL_FIELDS_PASSED beanDates=3 notesFields=7 curveFields=12 stages=4 durableStores=3 unsavedRecreation=true reopenedRecreation=true paths=17\n") })
+            "ADVANCED_BUSINESS_UI_FULL_FIELDS_PASSED beanDates=3 notesFields=7 curveFields=12 stages=4 durableStores=3 unsavedRecreation=true reopenedRecreation=true paths=18\n") })
         return Result(paths.toList(), ownEvents().size, ownCurveIds.size)
     }
 }
