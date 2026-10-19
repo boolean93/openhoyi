@@ -21,7 +21,32 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
         productDrawEvidence = drawGlyph(context, canvas, width, height, kind, tint, tag)
     }
     companion object {
-        fun buttonIcon(button: android.widget.Button, kind: String) {
+        fun buttonIcon(button: android.widget.Button, kind: String, atEnd: Boolean = false) {
+            if (atEnd) {
+                val gap = (8 * button.resources.displayMetrics.density).toInt()
+                val size = (24 * button.resources.displayMetrics.density).toInt()
+                button.gravity = android.view.Gravity.CENTER
+                button.compoundDrawablePadding = gap
+                button.setCompoundDrawablesRelativeWithIntrinsicBounds(null, null,
+                    drawable(button.context, kind, button.currentTextColor,
+                        currentTint = { button.currentTextColor }, horizontalOffset = {
+                            val textLayout = button.layout
+                            if (textLayout == null || textLayout.lineCount == 0) 0f else {
+                                // Mirror the existing start-placement contract using real Layout edges.
+                                if (button.layoutDirection == View.LAYOUT_DIRECTION_RTL) {
+                                    val textLeft = button.compoundPaddingLeft + (0 until textLayout.lineCount).minOf { textLayout.getLineLeft(it) }
+                                    textLeft - gap - size - button.paddingLeft
+                                } else {
+                                    val textRight = button.compoundPaddingLeft + (0 until textLayout.lineCount).maxOf { textLayout.getLineRight(it) }
+                                    textRight + gap - (button.width - button.paddingRight - size)
+                                }
+                            }
+                        }, mirrorHorizontally = {
+                            (kind == "back" && button.layoutDirection != View.LAYOUT_DIRECTION_RTL) ||
+                                (kind == "chevron" && button.layoutDirection == View.LAYOUT_DIRECTION_RTL)
+                        }), null)
+                return
+            }
             val gap = (8 * button.resources.displayMetrics.density).toInt()
             val size = (24 * button.resources.displayMetrics.density).toInt()
             button.gravity = android.view.Gravity.CENTER
@@ -45,12 +70,13 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
                 }), null, null, null)
         }
         fun drawable(context: Context, kind: String, tint: Int, currentTint: (() -> Int)? = null,
-            horizontalOffset: (() -> Float)? = null): Drawable = object : Drawable() {
+            horizontalOffset: (() -> Float)? = null, mirrorHorizontally: (() -> Boolean)? = null): Drawable = object : Drawable() {
             private val size = (24 * context.resources.displayMetrics.density).toInt()
             override fun getIntrinsicWidth() = size
             override fun getIntrinsicHeight() = size
             override fun draw(canvas: Canvas) {
                 canvas.save(); canvas.translate(bounds.left + (horizontalOffset?.invoke() ?: 0f), bounds.top.toFloat())
+                if (mirrorHorizontally?.invoke() == true) { canvas.translate(bounds.width().toFloat(), 0f); canvas.scale(-1f, 1f) }
                 drawGlyph(context, canvas, bounds.width(), bounds.height(), kind, currentTint?.invoke() ?: tint, null)
                 canvas.restore()
             }
@@ -71,6 +97,10 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
             canvas.drawLine(x, y, x2, y2, paint); operations.put(JSONObject().put("line24", JSONArray(listOf(x,y,x2,y2))))
         }
         when (kind) {
+            "new" -> { canvas.drawCircle(12f,12f,9f,paint); line(7f,12f,17f,12f); line(12f,7f,12f,17f) }
+            "edit" -> { canvas.drawPath(Path().apply { moveTo(4f,16f); lineTo(16f,4f); lineTo(20f,8f); lineTo(8f,20f); lineTo(3f,21f); close() },paint); line(13f,7f,17f,11f) }
+            "more" -> { canvas.drawCircle(5f,12f,1.5f,paint); canvas.drawCircle(12f,12f,1.5f,paint); canvas.drawCircle(19f,12f,1.5f,paint) }
+            "search" -> { canvas.drawCircle(10f,10f,7f,paint); line(15f,15f,22f,22f) }
             "statusDot" -> { paint.style = Paint.Style.FILL; canvas.drawCircle(12f, 12f, 11f, paint) }
             "temperature" -> { canvas.drawRoundRect(RectF(8f, 2f, 14f, 16f), 3f, 3f, paint); canvas.drawCircle(11f, 18f, 4f, paint); line(11f, 7f, 11f, 18f); line(17f, 6f, 21f, 6f); line(17f, 10f, 20f, 10f) }
             "stages" -> { line(2f, 20f, 8f, 20f); line(8f, 20f, 8f, 14f); line(8f, 14f, 14f, 14f); line(14f, 14f, 14f, 8f); line(14f, 8f, 21f, 8f); line(21f, 8f, 21f, 2f) }

@@ -16,12 +16,15 @@ class CurveImportActivity : ThemedActivity() {
     companion object { private const val OPEN = 62 }
     private lateinit var text: EditText
     private lateinit var error: TextView
+    private var formScroll: android.widget.ScrollView? = null
+    val productLayoutEvidence = org.json.JSONObject()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val style = TaskProductFormStyle(this)
         val body = style.visual.page(this, getString(R.string.profiles_import), getString(R.string.profiles_import_hint))
         profileStore(body) ?: return
-        val workspace = beanWorkspace(body).apply { tag = "task-inline-form" }
+        val host = beanWorkspace(body).apply { tag = "task-inline-form" }
+        val workspace = style.visual.column("product/curve-import/content")
         style.visual.add(workspace, style.visual.text(getString(R.string.profiles_import_intro), TaskProductVisualStyle.body))
         val sources = style.visual.row("product/curve-import/sources").also {
             workspace.addView(it, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(16) })
@@ -70,18 +73,18 @@ class CurveImportActivity : ThemedActivity() {
             if (value == null || value.toByteArray(Charsets.UTF_8).size > CustomCurveDocument.MAX_BYTES) error.setText(R.string.profiles_import_invalid)
             else { text.setText(value); error.text = "" }
         }.apply {
-            style.visual.button(this); HomeVisualIcon.buttonIcon(this, "copy"); tag = "product/curve-import/paste"
+            style.visual.button(this, outline = true); HomeVisualIcon.buttonIcon(this, "copy"); tag = "product/curve-import/paste"
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = style.dp(8) }
         }
         HoyiUi.button(this, sources, getString(R.string.profiles_open_file)) {
             startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
                 .putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("application/json", "text/plain")), OPEN)
         }.apply {
-            style.visual.button(this); HomeVisualIcon.buttonIcon(this, "export"); tag = "product/curve-import/open-file"
+            style.visual.button(this, outline = true); HomeVisualIcon.buttonIcon(this, "export"); tag = "product/curve-import/open-file"
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = style.dp(8) }
         }
         val actions = style.visual.row("product/curve-import/actions")
-        style.visual.action(actions, getString(R.string.beans_cancel), "product/curve-import/cancel", top = 0) { finish() }
+        style.visual.action(actions, getString(R.string.beans_cancel), "product/curve-import/cancel", outline = true, top = 0) { finish() }
             .layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(8) }
         val previewAction = style.visual.action(actions, getString(R.string.profiles_import_preview), "product/curve-import/preview",
             primary = true, top = 0) { preview(text.text.toString()) }.apply {
@@ -99,12 +102,82 @@ class CurveImportActivity : ThemedActivity() {
         beanActions(body).addView(style.footer(style.visual.text(getString(R.string.curve_visual_import_scope),
             TaskProductVisualStyle.auxiliary, "product/curve-import/scope", true), actions, "curve-import", topRule = true),
             LinearLayout.LayoutParams(-1, -2))
+        // The same input and chrome stay attached in both height modes. Only this
+        // middle region scrolls; the page header and confirmation footer stay fixed.
+        val middle = object : android.widget.ScrollView(this) {
+            private var naturalContent = false
+            override fun measureChildWithMargins(child: View, parentWidthMeasureSpec: Int, widthUsed: Int,
+                parentHeightMeasureSpec: Int, heightUsed: Int) {
+                if (naturalContent) {
+                    super.measureChildWithMargins(child, parentWidthMeasureSpec, widthUsed, parentHeightMeasureSpec, heightUsed)
+                    return
+                }
+                val params = child.layoutParams as android.view.ViewGroup.MarginLayoutParams
+                val childWidth = getChildMeasureSpec(parentWidthMeasureSpec,
+                    paddingLeft + paddingRight + params.leftMargin + params.rightMargin + widthUsed, params.width)
+                val childHeight = (View.MeasureSpec.getSize(parentHeightMeasureSpec) - paddingTop - paddingBottom -
+                    params.topMargin - params.bottomMargin - heightUsed).coerceAtLeast(0)
+                child.measure(childWidth, View.MeasureSpec.makeMeasureSpec(childHeight, View.MeasureSpec.EXACTLY))
+            }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val width = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+                val available = (View.MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+                val exact = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+                val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                fun chrome(parent: LinearLayout, except: View): Int {
+                    var height = parent.paddingTop + parent.paddingBottom
+                    for (index in 0 until parent.childCount) {
+                        val child = parent.getChildAt(index)
+                        if (child !== except && child.visibility != View.GONE) {
+                            child.forceLayout(); child.measure(exact, free)
+                            val params = child.layoutParams as LinearLayout.LayoutParams
+                            height += child.measuredHeight + params.topMargin + params.bottomMargin
+                        }
+                    }
+                    return height
+                }
+                val outerChrome = chrome(workspace, editor)
+                val editorChrome = chrome(editor, text)
+                val fixedChrome = outerChrome + editorChrome
+                val currentLayout = text.layout
+                val oneLine = if (currentLayout != null && currentLayout.lineCount > 0)
+                    currentLayout.getLineBottom(0) - currentLayout.getLineTop(0)
+                    else text.paint.fontMetricsInt.let { it.descent - it.ascent }
+                val rawMinimum = maxOf(style.dp(52), text.minimumHeight, text.minHeight,
+                    oneLine + text.compoundPaddingTop + text.compoundPaddingBottom)
+                val minimumContent = fixedChrome + rawMinimum
+                naturalContent = minimumContent > available
+                (editor.layoutParams as LinearLayout.LayoutParams).apply {
+                    height = if (naturalContent) editorChrome + rawMinimum else 0
+                    weight = if (naturalContent) 0f else 1f
+                }
+                (text.layoutParams as LinearLayout.LayoutParams).apply {
+                    // Bound the editor, never UNSPEC-measure its 92-line document as the viewport.
+                    height = if (naturalContent) rawMinimum else 0
+                    weight = if (naturalContent) 0f else 1f
+                }
+                text.forceLayout(); editor.forceLayout(); workspace.forceLayout()
+                productLayoutEvidence.put("availableViewportPx", available).put("fixedChromeNaturalPx", fixedChrome)
+                    .put("outerChromeNaturalPx", outerChrome).put("editorChromeNaturalPx", editorChrome)
+                    .put("rawMinimumPx", rawMinimum).put("minimumContentNaturalPx", minimumContent)
+                    .put("naturalContentScroll", naturalContent)
+                    .put("rawViewportRequestedPx", if (naturalContent) rawMinimum else (available - fixedChrome).coerceAtLeast(0))
+                    .put("minimumLineSource", if (currentLayout == null) "same-Paint font metrics before first Layout" else "existing Layout first line")
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply {
+            tag = "product/curve-import/content-scroll"; isFillViewport = false
+            addView(workspace, android.widget.FrameLayout.LayoutParams(-1, -2))
+        }
+        formScroll = middle
+        host.addView(middle, LinearLayout.LayoutParams(-1, -1))
         if (savedInstanceState?.containsKey("text") == true) text.post {
             if (isFinishing || isDestroyed) return@post
             if (savedInstanceState.getBoolean("textFocused")) text.requestFocus()
             text.setSelection(savedInstanceState.getInt("textStart").coerceIn(0, text.length()),
                 savedInstanceState.getInt("textEnd").coerceIn(0, text.length()))
             text.scrollTo(savedInstanceState.getInt("textScrollX"), savedInstanceState.getInt("textScrollY"))
+            formScroll?.scrollTo(0, savedInstanceState.getInt("formScrollY"))
         }
     }
     private fun preview(value: String) {
@@ -149,6 +222,7 @@ class CurveImportActivity : ThemedActivity() {
                 outState.putBoolean("textFocused", text.hasFocus())
                 outState.putInt("textScrollX", text.scrollX)
                 outState.putInt("textScrollY", text.scrollY)
+                outState.putInt("formScrollY", formScroll?.scrollY ?: 0)
             }
         }
     }

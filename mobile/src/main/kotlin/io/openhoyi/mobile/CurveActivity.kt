@@ -147,6 +147,8 @@ class CurveActivity : ThemedActivity() {
             hint = getString(R.string.curve_search_hint)
             setSingleLine(true)
             TaskProductFormStyle(this@CurveActivity).input(this, "curve-library", "search")
+            setCompoundDrawablesRelativeWithIntrinsicBounds(HomeVisualIcon.drawable(this@CurveActivity, "search", productStyle.muted), null, null, null)
+            compoundDrawablePadding = dp(8)
         }
         searchTools.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
         val customAvailable = (application as MobileApplication).customCurvesResult.isSuccess
@@ -154,7 +156,7 @@ class CurveActivity : ThemedActivity() {
         val newCurve = HoyiUi.button(this, pageHeader, getString(R.string.profiles_new)) {
             startActivity(Intent(this, CurveEditorActivity::class.java))
         }.apply {
-            isEnabled = customAvailable; productStyle.button(this); maxWidth = dp(200)
+            isEnabled = customAvailable; productStyle.button(this); HomeVisualIcon.buttonIcon(this, "new"); maxWidth = dp(200)
             tag = "product/curve-library/new"
             layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(16) }
         }
@@ -395,17 +397,17 @@ class CurveActivity : ThemedActivity() {
         }
         val parameterDetails = HoyiUi.button(this, secondary, getString(R.string.curve_detail_title)) { showParameterDetails() }
         directEdit = HoyiUi.button(this, detailToolbar, getString(R.string.profiles_edit)) { editDraft.performClick() }.apply {
-            productStyle.button(this); visibility = View.GONE
+            productStyle.button(this); HomeVisualIcon.buttonIcon(this, "edit"); visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(-2, -2)
         }
         directShare = HoyiUi.button(this, detailToolbar, getString(R.string.profiles_share)) { shareParameters.performClick() }.apply {
-            productStyle.button(this); visibility = View.GONE
+            productStyle.button(this); HomeVisualIcon.buttonIcon(this, "share"); visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(-2, -2)
         }
         detailActions = HoyiUi.button(this, detailToolbar, getString(R.string.task_curve_library_actions)) {
             showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft, assignPreset))
         }.apply {
-            productStyle.button(this)
+            productStyle.button(this); HomeVisualIcon.buttonIcon(this, "more")
             tag = "curve-detail-actions"
             visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(-2, -2)
@@ -424,9 +426,8 @@ class CurveActivity : ThemedActivity() {
         selectionDock.addView(footer, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         secondary.removeView(parameterDetails)
         parameterShortcut = parameterDetails.apply {
-            productStyle.button(this)
+            productStyle.button(this); HomeVisualIcon.buttonIcon(this, "chevron", atEnd = true)
             tag = "product/curve-library/full-parameters"
-            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
             visibility = View.GONE
         }
         footer.addView(parameterShortcut, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
@@ -436,7 +437,7 @@ class CurveActivity : ThemedActivity() {
                 finish()
             }
         }.apply {
-            productStyle.button(this, primary = true)
+            productStyle.button(this, primary = true); HomeVisualIcon.buttonIcon(this, "back", atEnd = true)
             tag = "product/curve-library/use"
             isEnabled = false; visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f)

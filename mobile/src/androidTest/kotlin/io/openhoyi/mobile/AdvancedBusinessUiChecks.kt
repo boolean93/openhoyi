@@ -584,12 +584,37 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             }
             check(ime && SystemClock.elapsedRealtime()<=imeDeadline) { "M2 $label IME not actually observed" }
             stableSnapshot("$label-ime-settled")
+            val scrollFixture=org.json.JSONArray()
+            fun finiteRange(scroll: android.widget.ScrollView): Int {
+                val child=scroll.getChildAt(0) ?: return 0
+                val margins=child.layoutParams as? android.view.ViewGroup.MarginLayoutParams
+                val content=child.height.toLong()+(margins?.topMargin ?: 0).toLong()+(margins?.bottomMargin ?: 0).toLong()
+                val viewport=scroll.height.toLong()-scroll.paddingTop.toLong()-scroll.paddingBottom.toLong()
+                check(viewport>=0L && content>=0L) { "M2 $label invalid measured scroll geometry" }
+                val range=(content-viewport).coerceAtLeast(0L)
+                check(range<=Int.MAX_VALUE.toLong()) { "M2 $label scroll range exceeds Int coordinates: $range" }
+                return range.toInt()
+            }
+            fun assertFiniteScrolls(phase: String) = onMain {
+                views(root(activity)).filterIsInstance<android.widget.ScrollView>().forEach { scroll ->
+                    val range=finiteRange(scroll)
+                    scrollFixture.put(org.json.JSONObject().put("phase",phase).put("tag",scroll.tag)
+                        .put("rangePx",range).put("actualY",scroll.scrollY))
+                    File(directory,"$label-finite-scroll-fixture.json").writeText(org.json.JSONObject()
+                        .put("policy","measured_child_height_plus_margins_minus_padded_viewport; Long_arithmetic; no_sentinel")
+                        .put("samples",scrollFixture).toString(2))
+                    check(scroll.scrollY in 0..range) { "M2 $label $phase scroll outside measured range: ${scroll.tag} y=${scroll.scrollY} range=$range" }
+                }
+            }
             onMain {
                 val target=fields().getValue(key)
                 target.requestRectangleOnScreen(android.graphics.Rect(0,0,target.width,target.height),true)
-                generateSequence(target.parent) { it.parent }.filterIsInstance<android.widget.ScrollView>().forEach { it.scrollTo(it.scrollX,Int.MAX_VALUE) }
+                val scrolls=generateSequence(target.parent) { it.parent }.filterIsInstance<android.widget.ScrollView>().toList()
+                check(scrolls.any { finiteRange(it)>0 }) { "M2 $label has no positive measured scroll range" }
+                scrolls.forEach { it.scrollTo(it.scrollX,finiteRange(it)) }
             }
             val before=stableSnapshot("$label-before-recreate")
+            assertFiniteScrolls("before-recreate")
             check(before.getString("focusedFieldKey")==key)
             check(before.getJSONObject("fields").getJSONObject(key).getJSONArray("selection").getInt(1)>0)
             check(before.getJSONArray("scrolls").let { values -> (0 until values.length()).any { values.getJSONObject(it).getInt("y")>0 } }) {
@@ -597,6 +622,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             }
             activity=recreate(activity)
             val after=stableSnapshot("$label-after-recreate")
+            assertFiniteScrolls("after-recreate")
             val equal=before.toString()==after.toString()
             File(directory,"$label-restore.json").writeText(org.json.JSONObject().put("before",before).put("after",after).put("equal",equal)
                 .put("afterObservedBeforeAnyCaptureUnfocus",true).toString(2))

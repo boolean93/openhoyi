@@ -15,7 +15,15 @@ from pathlib import Path
 print(hashlib.sha256(Path('mobile/build/outputs/apk/mock/mobile-mock.apk').read_bytes()).hexdigest())
 PY
 )
-original_font_scale=$(adb shell settings get system font_scale | tr -d '\r')
+# Snapshot key presence AND value. `settings get` prints null for absence and cannot prove presence.
+python3 - "$output_dir/font-scale-before.json" <<'FONT_BEFORE_PY'
+import json, subprocess, sys
+from pathlib import Path
+result=subprocess.run(['adb','shell','settings','list','system'],capture_output=True,text=True,timeout=10,check=True)
+entries=[line[len('font_scale='):] for line in result.stdout.replace('\r\n','\n').splitlines() if line.startswith('font_scale=')]
+assert len(entries)<=1, 'Ambiguous font_scale snapshot'
+Path(sys.argv[1]).write_text(json.dumps({'present':bool(entries),'value':entries[0] if entries else None},indent=2)+'\n')
+FONT_BEFORE_PY
 collect() {
   local exit_status=$1
   if (( exit_status != 0 )); then
@@ -25,7 +33,34 @@ collect() {
   adb logcat -d -s AndroidRuntime:E > "$output_dir/runtime-errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb shell am force-stop "$package" || true
-  adb shell settings put system font_scale "$original_font_scale" || true
+  # Restore only this key, preserving absence; never put the literal "null" for an absent setting.
+  if ! python3 - "$output_dir/font-scale-before.json" "$output_dir/font-scale-restore.json" "$exit_status" <<'FONT_RESTORE_PY'
+import json, subprocess, sys, traceback
+from pathlib import Path
+before=json.loads(Path(sys.argv[1]).read_text())
+proof={'before':before,'originalExitStatus':int(sys.argv[3])}
+try:
+    command=['adb','shell','settings']+(['put','system','font_scale',before['value']] if before['present'] else ['delete','system','font_scale'])
+    proof['restoreOperation']='put_original_value' if before['present'] else 'delete_originally_absent_key'
+    restored=subprocess.run(command,capture_output=True,text=True,timeout=10,check=True)
+    proof['restoreReturnCode']=restored.returncode
+    result=subprocess.run(['adb','shell','settings','list','system'],capture_output=True,text=True,timeout=10,check=True)
+    entries=[line[len('font_scale='):] for line in result.stdout.replace('\r\n','\n').splitlines() if line.startswith('font_scale=')]
+    assert len(entries)<=1, 'Ambiguous restored font_scale'
+    after={'present':bool(entries),'value':entries[0] if entries else None}
+    proof['after']=after
+    assert after==before, 'font_scale presence/value not restored'
+    proof['status']='PASS_SETTING_RESTORE_ONLY'
+except Exception:
+    proof['status']='FAIL'; proof['failure']=traceback.format_exc()
+    raise
+finally:
+    Path(sys.argv[2]).write_text(json.dumps(proof,indent=2)+'\n')
+FONT_RESTORE_PY
+  then
+    # Cleanup failure can fail a previously successful run, but cannot replace its original nonzero failure.
+    if (( exit_status == 0 )); then exit_status=1; fi
+  fi
   return "$exit_status"
 }
 trap 'collect "$?"' EXIT

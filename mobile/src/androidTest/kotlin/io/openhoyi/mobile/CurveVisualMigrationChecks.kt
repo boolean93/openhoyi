@@ -644,11 +644,19 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             view.scrollTo(0,(layout.height-view.height+view.compoundPaddingTop+view.compoundPaddingBottom).coerceAtLeast(0)) }
         stableWindow(activity,directory,"raw-before-recreate")
         lateinit var before: JSONObject
-        main { before=rawState(activity); check(before.getBoolean("focused") && before.getInt("scrollY")>0)
+        main {
+            before=rawState(activity)
+            // Preserve the actual pre-assertion state in this SAME main turn, even if its establishment failed.
+            File(directory,"raw-ime-geometry.json").writeText(JSONObject().put("geometry",geometry(activity))
+                .put("state",before).put("phase","before_focus_nonzero_scroll_and_footer_assertions")
+                .put("sameCompositorFrameProven",false).toString(2))
+            check(before.getBoolean("focused") && before.getInt("scrollY")>0) {
+                "M3 raw draft state not established: focused=${before.getBoolean("focused")} scrollY=${before.getInt("scrollY")} " +
+                    "inputHeightPx=${input(activity).height}; original focus/nonzero-scroll gate is unchanged"
+            }
             listOf(R.string.beans_cancel,R.string.profiles_import_preview).forEach { id ->
                 val button=action(activity,id); check(whole(observation(button)) && button.height>=HoyiUi.dp(activity,48)) }
-            File(directory,"raw-ime-geometry.json").writeText(JSONObject().put("geometry",geometry(activity))
-                .put("state",before).put("sameCompositorFrameProven",false).toString(2)) }
+        }
         diagnostic(activity,File(directory,"raw-ime"))
         val monitor=test.addMonitor(CurveImportActivity::class.java.name,null,false)
         try { main { activity.recreate() }; activity=test.waitForMonitorWithTimeout(monitor,10000) ?: error("M3 Import recreate missing") }

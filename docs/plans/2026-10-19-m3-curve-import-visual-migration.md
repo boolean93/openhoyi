@@ -153,3 +153,35 @@ Astra已读完整Preview diff及8语种 `curve_visual.xml`，独立解析确认3
 ### 本批本地构建记录
 
 生产预构建先发现Import按钮receiver及Editor nullable Editable两处类型错误，已最小修正。`/tmp/2026-10-19-m2-editor-m3-production-build-retry1.log` 显示35s成功；九份对应JVM XML共31 tests，0 failure/error/skip。随后Preview唯一间距/12dp圆角和测试最后三项门禁收口，`/tmp/2026-10-19-m2-editor-m3-apks-build.log` 显示Mock与AndroidTest构建成功57s。为核实编译启动附近的测试编辑全部覆盖，冻结后同命令增量确认日志 `/tmp/2026-10-19-m2-editor-m3-frozen-apks-build.log`：5s成功、91 tasks全部up-to-date。仅证明本地编译与这些JVM测试；M2新12配置、M3首次12配置/特殊状态/隔离运行与G1–G4仍待CI，不以构建追认视觉。
+
+## 7. 9b51936 首轮真实证据与封闭修正（待复验）
+
+### 7.1 来源与限定结论
+
+Astra已实看 push run `39153376290` 的 Library/Import 浅色1.0主图、Import失败整窗，并对照原稿与明确原生补充。原件根：`build/task-first-evidence/ci-9b51936-curve-push/curve-visual-tablet-user-landscape/raw-device/9b51936fa8ab86a8bc15fc07c0f8c265346b93d2/tablet-user-landscape-light-font-1.0/`。这是push源码，不冒称PR合成merge。仅2/12主配置到达；Preview、深色、1.3均未到达。Library业务/隔离机械结果不能替代四项视觉验收，Import业务未完成。另存PR包 `build/task-first-evidence/ci-9b51936-preserved/curve-pr.zip` 不与push证据混写。
+
+| 门禁 | 本轮实际核验与剩余边界 |
+|---|---|
+| G1 间距/构图 | Library真实连续列表、摘要、大图及固定动作在浅1.0可读；真实104条/使用3次属于业务数据，不能抄原稿示例24次。缺失动作/搜索图标须补。Import正常主图编辑区与固定footer可见，但来源按钮/取消缺原稿outline；IME中编辑区高度0为明确FAIL。未测配置不填通过 |
+| G2 字体/字重 | 两份 `CurveActivity-typography.json` / `CurveImportActivity-typography.json` 分别47/18个TextView；来源标记固定 `Noto Sans SC 2.004-H2`。本轮抽核Import动作500、输入/辅助400，Library指标及标签/单位400，均无includeFontPadding；这是候选原生角色证据，不是ImageGen字体身份识别，也不代表所有节点已逐项通过 |
+| G3 字号/实际行盒 | density2.25/font1.0下Import动作/输入36px，动作实际Layout52px、getter lineHeight54px；辅助31.5px，Layout46px、getter49px。Library指标45px，Layout65px、getter67px；标签/单位31.5px、Layout46px。保留两种测量语义，不把getter等同实际行盒。IME数据标题实际行盒65px但内容高28px、raw内容高−36px，明确FAIL。数字probe/tnum或原字体未知不新增推断 |
+| G4 背景/状态色 | 原PNG独立采样：两页(1900,180)均#F9FAF9、导航(100,800)均#FFFFFF；Import输入内区(1000,800)#FFFFFF，Library同点#F9FAF9。仅证明这些实际纯色内区；不外推全部边框/选中/禁用/深色，也不用drawable配置冒充屏幕合成色。outline缺失必须修正 |
+
+### 7.2 Import IME真实失败与最小适配
+
+`import/raw-before-recreate-window-stability.json` 的3个连续稳定样本均为IME可见、app2560×631；`task-inline-form`为[216,234,2524,514]，sources为[216,324,2524,432]，raw为[216,514,2524,514]、可见矩形空，92行Layout高4966、contentHeight−36。footer[216,514,2524,658]仍完整。`failure-context.png`实际显示编辑器消失、数据标题裁切，不是仅凭测试红推测布局缺陷。原line647在写rawState之前断言focused与scrollY，因此具体哪项触发原异常仍未知；测试只前移原状态落盘，不降低原断言。
+
+批准的页内适配：唯一永久中部ScrollView承载同一intro/sources/dataHeader/raw子树；足高子内容EXACT实际viewport、raw分剩余高度；实际fixedChrome+raw自然最低高度超过中部viewport时，仅中部自然滚动，raw显式有界且至少52dp，不按92行全文UNSPEC撑高。页头/footer保持在外；输入对象不重挂、原文字/selection/internal scroll/inputType/filter/IO不变，新增独立formScrollY保存中部位置。保留16/8间距、冻结字级，原生焦点矩形可滚达，不主动改变IME或预滚主图通过门禁。预算记录实际chrome/viewport/rawMin/分支与首行测量来源。
+
+### 7.3 同批原稿映射收口与公共接口边界
+
+- Import两个来源按钮及取消：现有`outline=true`，冻结1dp border（浅#DDE3E7/深#3B4B4C）、12dp圆角、未按压透明底；enabled文字/既有copy-export图标为accent（浅#087A78/深#83D6D0），disabled沿真实onDisabled/disabled。动作16sp/500/24sp角色、原48dp最低触控不改。
+- Library新建圈内plus、编辑铅笔、分享既有share、更多横向三点：24dp盒/1dp线、logical-start距文字8dp，按真实Layout整体居中。搜索24dp放大镜在原EditText logical-start、muted浅#657183/深#A9B9B8、drawablePadding8；原padding12与52dp下限不减。
+- 完整参数使用既有chevron置logical-end，主操作使用back箭头镜像指向前进置logical-end；各8dp字图间隙。主操作白色，disabled读取真实currentTextColor；RTL位置/方向相应镜像。均为装饰，不新增触控对象、不改原text/tag/回调/业务。
+- 主任务已批准`HomeVisualIcon`仅新增new/edit/more/search四case与默认false的`atEnd`可选参数；旧start路径保持。原生glyph是明确设计补充，不宣称恢复了ImageGen精确矢量路径。不得把该授权扩为全局改色或改其他页面布局。
+
+当前候选静态复核无阻断：Import预算计算覆盖当前实际无额外padding/margin的两层chrome，正常EXACT与短高有界分支不更换输入；footer/原IO保留。图标end分支使用实际Layout文字边界、RTL对称，默认start分支隔离。允许统一构建和下一轮完整取证，不等于G1–G4通过。下一轮必须实看IME输入≥52dp与完整标题/固定动作、原文/焦点/内外scroll恢复，以及outline/图标真实尺寸与位置；完整12配置、Preview全表和原业务门禁仍不可省略。
+
+### 本批统一构建记录
+
+2026-10-19：Astra静态审无阻断、Sol冻结六源码/脚本文件后，统一运行九个相关JVM suite及 `assembleMock` / `assembleMockAndroidTest`。日志 `/tmp/2026-10-19-import-ime-visual-fix-build.log`：BUILD SUCCESSFUL in 1m 5s，96 tasks（12 executed /84 up-to-date）；实际XML合计9 suites/31 tests，failure/error/skipped均0。此记录仅证明构建与相关逻辑测试，Import IME和M2恢复仍待新CI真实窗口复验，未关闭视觉FAIL。
