@@ -221,7 +221,11 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         return total
     }
     fun setStageCount(count: Int) { stageRows.forEachIndexed { index, row -> row.visibility = if (index < count) View.VISIBLE else View.GONE } }
+    val productRestoreEvidence = JSONObject()
     fun save(state: Bundle, fields: Map<String, EditText>) {
+        if (android.os.Build.VERSION.SDK_INT >= 30) host.rootWindowInsets?.let { insets ->
+            state.putBoolean("editor-ime-visible", insets.isVisible(android.view.WindowInsets.Type.ime()))
+        }
         state.putInt("form-scroll", stages.scrollY); state.putInt("metadata-scroll", metadataScroll.scrollY); state.putInt("editor-content-scroll", contentScroll.scrollY)
         fields.entries.firstOrNull { it.value.hasFocus() }?.let { (key, field) ->
             state.putString("form-focus", key); state.putInt("form-start", field.selectionStart); state.putInt("form-end", field.selectionEnd)
@@ -229,11 +233,143 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
     }
     fun restore(state: Bundle?, fields: Map<String, EditText>) {
         if (state == null) return
-        host.post {
-            fields[state.getString("form-focus")]?.takeIf { it.isEnabled && it.isShown }?.let { field ->
-                field.requestFocus(); field.setSelection(state.getInt("form-start").coerceIn(0, field.length()), state.getInt("form-end").coerceIn(0, field.length()))
+        val field = fields[state.getString("form-focus")]
+        val savedIme = if (state.containsKey("editor-ime-visible")) state.getBoolean("editor-ime-visible") else null
+        productRestoreEvidence.put("savedImeVisible", savedIme ?: JSONObject.NULL)
+            .put("focusedFieldKey", state.getString("form-focus") ?: JSONObject.NULL).put("requestedIme", false)
+            .put("status", "WAITING_FOR_NATIVE_WINDOW")
+        val observer = host.viewTreeObserver
+        var pending = true
+        var focusRestored = false
+        var hadWindowFocus = false
+        val activeImeAnimations = mutableSetOf<android.view.WindowInsetsAnimation>()
+        val animationEvents = org.json.JSONArray()
+        productRestoreEvidence.put("imeAnimationEvents", animationEvents)
+        lateinit var drawListener: android.view.ViewTreeObserver.OnPreDrawListener
+        lateinit var focusListener: android.view.ViewTreeObserver.OnGlobalFocusChangeListener
+        lateinit var windowListener: android.view.ViewTreeObserver.OnWindowFocusChangeListener
+        lateinit var attachListener: View.OnAttachStateChangeListener
+        lateinit var lifecycle: android.app.Application.ActivityLifecycleCallbacks
+        fun finish(status: String) {
+            if (!pending) return
+            pending = false
+            productRestoreEvidence.put("status", status).put("activeImeAnimationsAtFinish", activeImeAnimations.size)
+            if (android.os.Build.VERSION.SDK_INT >= 30) host.setWindowInsetsAnimationCallback(null)
+            activeImeAnimations.clear()
+            fun remove(from: android.view.ViewTreeObserver) {
+                if (!from.isAlive) return
+                from.removeOnPreDrawListener(drawListener); from.removeOnGlobalFocusChangeListener(focusListener)
+                from.removeOnWindowFocusChangeListener(windowListener)
             }
-            stages.scrollTo(0, state.getInt("form-scroll")); metadataScroll.scrollTo(0, state.getInt("metadata-scroll")); contentScroll.scrollTo(0, state.getInt("editor-content-scroll"))
+            remove(observer)
+            if (host.viewTreeObserver !== observer) remove(host.viewTreeObserver)
+            host.removeOnAttachStateChangeListener(attachListener)
+            activity.application.unregisterActivityLifecycleCallbacks(lifecycle)
         }
+        focusListener = android.view.ViewTreeObserver.OnGlobalFocusChangeListener { _, next ->
+            if (focusRestored && field != null && next !== field) finish("CANCELLED_FOCUS_CHANGED")
+        }
+        windowListener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { focused ->
+            if (focused) { hadWindowFocus = true; host.invalidate() }
+            else if (hadWindowFocus) finish("CANCELLED_WINDOW_FOCUS_LOST")
+        }
+        attachListener = object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) { view.invalidate() }
+            override fun onViewDetachedFromWindow(view: View) { finish("CANCELLED_DETACHED") }
+        }
+        lifecycle = object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(owner: android.app.Activity, state: Bundle?) = Unit
+            override fun onActivityStarted(owner: android.app.Activity) = Unit
+            override fun onActivityResumed(owner: android.app.Activity) = Unit
+            override fun onActivityPaused(owner: android.app.Activity) = Unit
+            override fun onActivityStopped(owner: android.app.Activity) { if (owner === activity) finish("CANCELLED_STOPPED") }
+            override fun onActivitySaveInstanceState(owner: android.app.Activity, state: Bundle) = Unit
+            override fun onActivityDestroyed(owner: android.app.Activity) { if (owner === activity) finish("CANCELLED_DESTROYED") }
+        }
+        drawListener = android.view.ViewTreeObserver.OnPreDrawListener {
+            if (pending && host.isAttachedToWindow && activity.hasWindowFocus() && host.isLaidOut &&
+                !host.isLayoutRequested && listOf(stages, metadataScroll, contentScroll).none { it.isLayoutRequested }) {
+                hadWindowFocus = true
+                if (!focusRestored) {
+                    if (field != null && field.isEnabled && field.isShown) {
+                        focusRestored = true
+                        if (!field.requestFocus()) finish("CANCELLED_FOCUS_REJECTED")
+                        else {
+                            field.setSelection(state.getInt("form-start").coerceIn(0, field.length()), state.getInt("form-end").coerceIn(0, field.length()))
+                            if (savedIme == true && android.os.Build.VERSION.SDK_INT >= 30) {
+                                val controller = field.windowInsetsController
+                                if (controller == null) finish("UNKNOWN_IME_CONTROLLER")
+                                else {
+                                    productRestoreEvidence.put("requestedIme", true).put("requestCount", 1)
+                                        .put("requestMethod", "WindowInsetsController.show(ime)")
+                                    controller.show(android.view.WindowInsets.Type.ime())
+                                }
+                            }
+                        }
+                    } else if (savedIme == true) finish("CANCELLED_SAVED_FOCUS_UNAVAILABLE")
+                    else focusRestored = true
+                }
+                val observedIme = if (android.os.Build.VERSION.SDK_INT >= 30)
+                    host.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) else null
+                productRestoreEvidence.put("observedImeVisible", observedIme ?: JSONObject.NULL)
+                    .put("activeImeAnimationCount", activeImeAnimations.size)
+                // This page completes restoration at a real pre-draw after any
+                // observed IME animation ends and native layout is ready. Insets
+                // may already describe the end layout while animation is active.
+                // An already-visible IME with no animation can proceed directly.
+                if (pending && activeImeAnimations.isEmpty() && (savedIme != true || observedIme == true) && !host.isLayoutRequested &&
+                    listOf(stages, metadataScroll, contentScroll).none { it.isLayoutRequested }) {
+                    val positions = org.json.JSONArray()
+                    listOf(stages to "form-scroll", metadataScroll to "metadata-scroll", contentScroll to "editor-content-scroll").forEach { (scroll, key) ->
+                        val viewport = (scroll.height.toLong() - scroll.paddingTop - scroll.paddingBottom).coerceAtLeast(0)
+                        val range = ((scroll.getChildAt(0)?.height?.toLong() ?: 0L) - viewport).coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
+                        val saved = state.getInt(key)
+                        val before = scroll.scrollY
+                        scroll.scrollTo(0, saved.coerceIn(0, range))
+                        positions.put(JSONObject().put("tag", scroll.tag).put("savedY", saved).put("beforeY", before)
+                            .put("rangePx", range).put("appliedY", scroll.scrollY))
+                    }
+                    productRestoreEvidence.put("scrolls", positions)
+                    finish(if (savedIme == true) "RESTORED_AFTER_OBSERVED_IME_LAYOUT" else "RESTORED_NATIVE_LAYOUT_WITHOUT_IME_REQUEST")
+                }
+            }
+            true
+        }
+        activity.application.registerActivityLifecycleCallbacks(lifecycle)
+        host.addOnAttachStateChangeListener(attachListener)
+        observer.addOnWindowFocusChangeListener(windowListener)
+        observer.addOnGlobalFocusChangeListener(focusListener)
+        observer.addOnPreDrawListener(drawListener)
+        if (android.os.Build.VERSION.SDK_INT >= 30) host.setWindowInsetsAnimationCallback(
+            object : android.view.WindowInsetsAnimation.Callback(android.view.WindowInsetsAnimation.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
+                private fun ime(animation: android.view.WindowInsetsAnimation) =
+                    animation.typeMask and android.view.WindowInsets.Type.ime() != 0
+                private fun event(phase: String) {
+                    animationEvents.put(JSONObject().put("phase", phase).put("activeImeAnimations", activeImeAnimations.size))
+                }
+                override fun onPrepare(animation: android.view.WindowInsetsAnimation) {
+                    if (pending && ime(animation)) { activeImeAnimations.add(animation); event("prepare") }
+                }
+                override fun onStart(animation: android.view.WindowInsetsAnimation,
+                    bounds: android.view.WindowInsetsAnimation.Bounds): android.view.WindowInsetsAnimation.Bounds {
+                    if (pending && ime(animation)) { activeImeAnimations.add(animation); event("start") }
+                    return bounds
+                }
+                override fun onProgress(insets: android.view.WindowInsets,
+                    runningAnimations: MutableList<android.view.WindowInsetsAnimation>): android.view.WindowInsets {
+                    if (pending) runningAnimations.filter(::ime).forEach { animation ->
+                        if (activeImeAnimations.add(animation)) event("observed_running")
+                    }
+                    return insets
+                }
+                override fun onEnd(animation: android.view.WindowInsetsAnimation) {
+                    if (pending && ime(animation)) {
+                        activeImeAnimations.remove(animation); event("end")
+                        // Invalidate schedules the next real draw; this callback never applies scroll.
+                        host.invalidate()
+                    }
+                }
+            })
+        host.invalidate()
     }
 }
