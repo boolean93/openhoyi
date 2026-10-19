@@ -31,6 +31,8 @@ collect() {
     adb pull "/sdcard/Android/data/$package/files/curve-visual-migration/$source_sha" "$output_dir/raw-device/" || true
   fi
   adb logcat -d -s AndroidRuntime:E > "$output_dir/runtime-errors.txt" || true
+  adb logcat -d -v threadtime -s ImeTracker:I InputMethodManager:D InsetsController:D > "$output_dir/ime-diagnostics.txt" || true
+  adb shell dumpsys input_method > "$output_dir/input-method.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb shell am force-stop "$package" || true
   # Restore only this key, preserving absence; never put the literal "null" for an absent setting.

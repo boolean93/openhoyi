@@ -171,8 +171,25 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     check(original.activeShotRecipe === recipe && recipe?.forTrace(original.chartTraceIdentity) != null)
                     val summary = screen.window.decorView.findViewWithTag<android.widget.TextView>(
                         "recipe-value-${R.string.task_recipe_temperature}")
-                    check(summary.isShown && summary.text.contains("${recipe!!.temperatureC} °C")) {
-                        "${language.tag} active recipe temperature missing after recreation"
+                    val unit = screen.window.decorView.findViewWithTag<android.widget.TextView>(
+                        "product/extraction/recipe/${R.string.task_recipe_temperature}/unit")
+                    check(summary.text.toString() == recipe!!.temperatureC.toString() && unit.text.toString() == "°C") {
+                        "${language.tag} active recipe temperature number/unit missing after recreation"
+                    }
+                    check(summary.parent === unit.parent) { "${language.tag} active recipe temperature number/unit have different parents" }
+                    listOf(summary, unit).forEach { value ->
+                        val visible = android.graphics.Rect()
+                        check(value.isShown && value.width > 0 && value.height > 0 && value.getGlobalVisibleRect(visible) &&
+                            visible.width() == value.width && visible.height() == value.height) {
+                            "${language.tag} active recipe temperature number/unit clipped after recreation"
+                        }
+                        LanguageUiLayoutChecks.textFits(value, "${language.tag} active recipe temperature number/unit")
+                        check(value.baseline >= 0) { "${language.tag} active recipe temperature number/unit missing native baseline" }
+                    }
+                    val numberOrigin = IntArray(2); summary.getLocationOnScreen(numberOrigin)
+                    val unitOrigin = IntArray(2); unit.getLocationOnScreen(unitOrigin)
+                    check(numberOrigin[1] + summary.baseline == unitOrigin[1] + unit.baseline) {
+                        "${language.tag} active recipe temperature number/unit baselines differ"
                     }
                     val action = stop(screen)
                     check(action.text.toString() == screen.getString(R.string.home_stop))

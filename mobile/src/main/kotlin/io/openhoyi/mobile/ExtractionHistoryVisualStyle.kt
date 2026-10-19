@@ -37,8 +37,8 @@ internal class ExtractionHistoryVisualStyle(val context: Context) {
     fun choiceAdapter(activity: ThemedActivity, labels: List<String>) = object : android.widget.ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item, labels) {
         private fun present(view: android.view.View, selected: Boolean) = (view as android.widget.TextView).apply {
             palette.apply(this, TaskProductVisualStyle.body)
-            setSingleLine(false); maxLines = if (selected) 2 else Int.MAX_VALUE
-            ellipsize = if (selected) android.text.TextUtils.TruncateAt.END else null
+            setSingleLine(false); maxLines = Int.MAX_VALUE
+            ellipsize = null
             minHeight = palette.dp(52); minimumHeight = palette.dp(52)
             layoutParams = (layoutParams ?: android.view.ViewGroup.LayoutParams(-1, -2)).apply { height = -2 }
             setPadding(palette.dp(12), palette.dp(8), palette.dp(12), palette.dp(8))
@@ -76,7 +76,9 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     private fun dp(value: Float) = value * context.resources.displayMetrics.density
     private val line get() = labels.fontMetrics.descent - labels.fontMetrics.ascent
     fun minimumAxisHeight() = kotlin.math.ceil(line * 5 + dp(48f)).toInt()
-    fun minimumComparisonHeight() = kotlin.math.ceil(dp(96f) + line * 3 + dp(24f)).toInt()
+    // Non-comparison bounds reserve 1.5 lines + 16dp above and 2.5 lines + 24dp below the real plot.
+    fun minimumEmbeddedHistoryHeight() = kotlin.math.ceil(dp(96f) + line * 4 + dp(40f)).toInt()
+    fun minimumComparisonHeight(plotMinimumDp: Float = 96f) = kotlin.math.ceil(dp(plotMinimumDp) + line * 3 + dp(24f)).toInt()
     private fun number(value: Float) = String.format(Locale.ROOT, "%.1f", value)
     private fun seconds(value: Long) = String.format(Locale.ROOT, "%.1f", value / 1000.0)
     private fun extent(text: String): Float { labels.getTextBounds(text, 0, text.length, ink)
@@ -283,7 +285,8 @@ internal class HistoryVisualFlow(context: Context, private val gap: Int, private
 }
 
 /** Two permanent toolbar groups share one row only when both real natural widths can be honored. */
-internal class HistoryToolbarRow(context: Context, private val gap: Int, private val firstMinimum: () -> Int) : android.view.ViewGroup(context) {
+internal class HistoryToolbarRow(context: Context, private val gap: Int, private val rowGap: Int = gap,
+    private val firstMinimum: () -> Int) : android.view.ViewGroup(context) {
     private var inline = false
     override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -296,7 +299,7 @@ internal class HistoryToolbarRow(context: Context, private val gap: Int, private
         val first = getChildAt(0)
         first.measure(MeasureSpec.makeMeasureSpec(if (inline) available - gap - second.measuredWidth else available, MeasureSpec.EXACTLY), natural)
         setMeasuredDimension(available, resolveSize(if (inline) maxOf(first.measuredHeight, second.measuredHeight)
-            else first.measuredHeight + gap + second.measuredHeight, heightMeasureSpec))
+            else first.measuredHeight + rowGap + second.measuredHeight, heightMeasureSpec))
     }
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         val first = getChildAt(0); val second = getChildAt(1)
@@ -305,6 +308,6 @@ internal class HistoryToolbarRow(context: Context, private val gap: Int, private
             view.layout(left, y, left + view.measuredWidth, y + view.measuredHeight)
         }
         place(first, 0, 0)
-        place(second, if (inline) first.measuredWidth + gap else 0, if (inline) (height - second.measuredHeight) / 2 else first.measuredHeight + gap)
+        place(second, if (inline) first.measuredWidth + gap else 0, if (inline) (height - second.measuredHeight) / 2 else first.measuredHeight + rowGap)
     }
 }

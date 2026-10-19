@@ -138,3 +138,41 @@ M2最新恢复记录的11字段值、selection、focusedFieldKey、draftId、sta
 4. **M4及后续保持全范围**：[M4用豆/批次/流水](../plans/2026-10-19-m4-bean-workflow-visual-migration.md)已完成真实接口/隔离依赖审计，主任务已授权独立三页生产与12配置测试，实施中但未验收；其余固定24页沿迁移计划继续运行/记录、工具、旧数据、三个设置页。保留中文、大字号、横屏短高、业务安全与硬件边界；不新增竖屏、不锁方向、不取消在途CI、不微推送替代整批验收。
 
 P0取证基础与P1三样张已分别有后续运行/有限冻结记录，不再把d87ef95构建或“三样张待开始”列作当前下一步；旧证据、未知项和原失败仍在review中保留。
+
+
+## 2026-10-19：91ab835 CI 补充取证（未通过最终验收）
+
+本节记录已结束运行，不覆盖此前限定结论。源码 `91ab835aaf28d9e133a78efd620d7780ba3e7192`；PR 实际测试合并提交 `a0816c2425823f1ad1da916a191f1d88f9211d99`。
+
+| 检查 | 原始证据与当前结论 |
+| --- | --- |
+| M5 萃取／历史 39193804077 | 四页 × 四配置共 16 组已保存；运行收尾失败：原 `font_scale` 不存在，删除返回 0 后实读为 `1.0`，严格原值恢复不通过。不能记 CI 通过，也不能用截图齐全代替 Astra G1–G4 验收。 |
+| advanced 39193804136 | `wideFont ru dark=false` 的 `BrewComparisonActivity` 日期／曲线名称文字发生 ellipsis，真实布局回归，待 Astra 修正规格。 |
+| single-screen 39193804056 | `HistoryActivity` 列表恢复检查遇到多个匹配节点，13/14 恢复夹具完成；须精确定位节点歧义，不能改成任取第一个来消除失败。 |
+| frame 39193804143 | `editor-stage-hidden-values` 重建状态不相等，仍失败。 |
+| bean 39193804092 | IME 安全区下沿 754px，确认按钮到 763px，真实裁切 9px。自然按钮栏高度候选修复已冻结，尚待构建、运行与 Astra 验收。 |
+| curve 39193804062 | 首个恢复提交帧 IME 可见，后续三帧隐藏。已排除当前已查明的显式 hide 调用；服务端焦点策略仅为候选原因，尚未证实。保留严格恢复断言。 |
+| lifecycle 39193804078 | 旧温度单节点断言与新数字／单位分离结构不符。严格双节点、完整可见、真实文字 Layout、屏幕基线相等的最小测试适配获 Astra 静态认可，待重新运行。 |
+
+新增原始 ZIP 已保留在 `build/task-first-evidence/ci-91ab835-{m5,advanced,single,frame}/original.zip`；各目录 `preservation.json` 记录 SHA-256、字节数、CRC 校验和文件数。原始证据不裁剪、不改色、不缩放；全部 24 页范围不变。后续开发不改变协议、设备控制、发布或硬件验收边界。
+
+
+### 91ab835：Astra 第一阶段实图复核
+
+Astra 已将浅色 1.0 四页与批准概念稿并列检查。当前明确失败：History 内嵌图主绘图区被压成细条，底部时间轴文字被 viewport 截断；列表摘要单位 `g` 单独换行；Comparison 图表占比不符合原稿主次关系，另有俄语大字选择器 ellipsis。尚未完成的深色／1.3／实际 Paint 与背景色审查不记为通过。
+
+Batch 自然按钮栏预留及 LanguageActiveCupChecks 双节点温度断言已获 Astra 静态无阻断；统一 `:mobile:assembleMock :mobile:assembleMockAndroidTest` 构建成功（52 秒，91 tasks，9 executed）。证据保存在 `build/task-first-evidence/ui-batch-followup-build/`；仅证明候选可构建，不证明运行裁切已消除。
+
+
+### 后续候选：History 唯一入口与 Comparison 修正
+
+- History 列表恢复测试改为唯一 `product/history/full-page` 入口，保留原文本、完整可见、可点击与返回锚点检查；新增当前实际列表和长期记录库的唯一 ID 核验，再验证详情 intent 的同一 ID。审查已纠正误查最近记录库的中间版本，不使用该版本作完成证据。最终候选 AndroidTest 构建成功（27 秒），尚未 CI 运行。
+- M2/M3 runner 新增独立 IME 日志及 input_method dump，原错误日志、恢复断言和时间门限不变；shell 语法检查通过。
+- Astra 已给出 Comparison 修正规格：选中杯子全文、按真实文本自然宽度布局，常规 plot 优先 160dp 并另计真实轴标签空间，详情最低 48dp 且内容局部滚达。Sol 已开始实施；当前 91ab835 视觉 FAIL 不变。
+
+
+### 本批冻结与新运行门禁
+
+History／Comparison 七生产文件修正及字体顺序候选已冻结，Astra 最终静态审无剩余明确阻断。Mock 与 AndroidTest 统一构建成功（57 秒，91 tasks，9 executed）；分支策略检查及 8 项策略单测通过。构建日志与源码哈希见 `build/task-first-evidence/m5-layout-repair-build/`。
+
+这些结果尚不关闭 91ab835 实图失败。新 CI 必须复验 History 完整时间轴、1.3 真正 plot、备注滚达及恢复；Comparison 俄语全文、160dp 常规 plot 与详情可达；Batch 原生按钮完整避让 IME；字体原 absent 状态精确恢复。M5 新增 60 特殊状态截图仍需运行及独立 Astra 图审。Comparison 表格整格描边与原稿层次差异仍列待办，24 页完整范围不变。

@@ -32,6 +32,7 @@ collect() {
   fi
   adb logcat -d -s AndroidRuntime:E > "$output_dir/runtime-errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
+  adb shell am get-config > "$output_dir/font-scale-global-config-before-restore.txt" || true
   adb shell am force-stop "$package" || true
   # Restore only this key, preserving absence; never put the literal "null" for an absent setting.
   if ! python3 - "$output_dir/font-scale-before.json" "$output_dir/font-scale-restore.json" "$exit_status" <<'FONT_RESTORE_PY'
@@ -61,6 +62,7 @@ FONT_RESTORE_PY
     # Cleanup failure can fail a previously successful run, but cannot replace its original nonzero failure.
     if (( exit_status == 0 )); then exit_status=1; fi
   fi
+  adb shell am get-config > "$output_dir/font-scale-global-config-after-restore.txt" || true
   return "$exit_status"
 }
 trap 'collect "$?"' EXIT
@@ -73,7 +75,9 @@ adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 for product_theme in light dark; do
   if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
-  for font_scale in 1.0 1.3; do
+  # End with four real 1.0 pages; this removes delete's explicit 1.3 -> default-1.0 transition,
+  # not a persistence-queue ACK. Strict key presence/value restoration below remains mandatory.
+  for font_scale in 1.3 1.0; do
     adb shell settings put system font_scale "$font_scale"
     for extraction_history_page in history history-detail comparison extraction; do
       adb shell am force-stop "$package"
@@ -132,6 +136,9 @@ sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 manifests = sorted(root.glob('*/*/manifest.json'))
 assert len(manifests)==16, f'Expected 16 real Activity configurations, got {len(manifests)}'
 seen=set()
+special_captures=0
+expected_specials={'missing-samples':'m5-history-extra-38','no-notes':'m5-history-extra-6',
+    'unknown-observation':'m5-history-extra-7','sample-gap':'m5-history-extra-8','water-reset':'m5-history-extra-9'}
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
     assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
@@ -162,6 +169,44 @@ for path in manifests:
         assert isolation['noServiceBeforeOriginalDelegateRestore']
         business_name={'history':'history-business.json','history-detail':'detail-business.json','comparison':'comparison-business.json'}[m['page']]
         business=json.loads((folder/business_name).read_text()); assert business['completed']
+        special=json.loads((folder/'special-states/manifest.json').read_text())
+        assert special['sourceSha']==m['sourceSha'] and special['profile']==m['profile'] and special['page']==m['page']
+        assert special['completed'] and special['realProductActivity'] and special['synthetic']
+        assert special['mainConfigurationCountContribution']==0 and special['actualAdditionalActivityCaptures']==5
+        assert special['visualAcceptance']=='ASTRA_PENDING' and set(special['expectedCases'])==set(expected_specials)
+        assert len(special['cases'])==5 and {case['case'] for case in special['cases']}==set(expected_specials)
+        assert m['historySpecialStates']==special
+        for case in special['cases']:
+            assert case['status']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE' and case['visualAcceptance']=='ASTRA_PENDING'
+            assert case['shotId']==expected_specials[case['case']] and case['page']==m['page']
+            assert case['readOnlyModelsUnchanged'] and case['noServiceOrClockOverride']
+            assert case['actualRawSamples']==case['declaredSamples']
+            target=folder/'special-states'/case['case']
+            assert json.loads((target/'case.json').read_text())==case
+            assert struct.unpack('>II',(target/'window.png').read_bytes()[16:24])==(2560,1600)
+            observed=json.loads((target/'geometry.json').read_text())
+            assert observed['densityDpi']==m['window']['densityDpi'] and observed['fontScale']==m['window']['fontScale']
+            assert observed['uiModeNightMeaning']==m['window']['uiModeNightMeaning'] and not observed['imeVisible']
+            assert case['frameSync']['protocolVersion']==2 and case['frameSync']['accepted']
+            segments=case['actualProjectedSegments']; vertices=case['actualCanvasCurrentMetricVertexCounts']
+            assert vertices==[len(segment) for segment in segments] and len(segments)==case['actualCanvasCurrentMetricPathCount']
+            if case['case']=='missing-samples':
+                assert not case['actualRawSamples'] and not segments and not vertices
+                if m['page']!='comparison': assert case['displayedElapsed']=='30.0' and case['displayedWeight']=='36.00' and case['displayedLastSampleWater']=='—'
+            elif case['case']=='unknown-observation':
+                fact=case['observation']; assert fact['status']=='UNKNOWN' and fact['endedAtMs'] is None and fact['elapsedMs'] is None and fact['weightHundredthsGram'] is None
+                assert case['unknownIsNotEnded'] and case['unknownWarning']['complete']
+                if m['page']!='comparison': assert case['displayedElapsed']=='—' and case['displayedWeight']=='—'
+            elif case['case']=='no-notes':
+                if m['page']=='comparison': assert case['blankNotesPlaceholder']=='—' and case['blankTasteDisclosureDisabled']
+                else: assert case['blankNotesPlaceholderCount']>0
+            elif case['case']=='sample-gap':
+                assert len(segments)==2 and segments[0][-1]==3000 and segments[1][0]==8000
+                assert not case['actualWaterResetTimesMs']
+            elif case['case']=='water-reset':
+                assert case['metric']=='WATER' and case['actualWaterResetTimesMs']==[15000]
+                assert len(segments)==2 and segments[0][-1]==14000 and segments[1][0]==15000
+            special_captures+=1
     else:
         # Full M5 may not report success without the reviewed real RUNNING service proof.
         live=json.loads((folder/'extraction-business.json').read_text())
@@ -178,7 +223,9 @@ for path in manifests:
     for chart in m['window']['charts']: assert chart['canvasEvidence'], path
 
 assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in ('extraction','history','history-detail','comparison') for theme in ('light','dark') for scale in ('1.0','1.3')}
+assert special_captures==60, f'Expected 60 separate historical special-state page captures, got {special_captures}'
 (root/'capture-summary.json').write_text(json.dumps({'realConfigurations':16,'sourceSha':root.name,
+    'historicalSpecialStateActivityCaptures':special_captures,'specialStatesCountedAsMainConfigurations':False,
     'visualAcceptance':'ASTRA_PENDING','specimenImagesUsedAsProductEvidence':False},indent=2)+'\n')
-print('EXTRACTION_HISTORY_VISUAL_MIGRATION_RETAINED configurations=16 actualActivities=true visualAcceptance=ASTRA_PENDING')
+print('EXTRACTION_HISTORY_VISUAL_MIGRATION_RETAINED configurations=16 historicalSpecialStateActivities=60 actualActivities=true visualAcceptance=ASTRA_PENDING')
 VERIFY_PY

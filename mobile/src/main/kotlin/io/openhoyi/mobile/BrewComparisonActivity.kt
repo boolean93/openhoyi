@@ -69,7 +69,7 @@ class BrewComparisonActivity : ThemedActivity() {
             gravity = android.view.Gravity.END
             setTextColor(getColor(R.color.chart_pressure))
         }
-        val metricLine = HistoryToolbarRow(this, dp(16)) {
+        val metricLine = HistoryToolbarRow(this, dp(16), dp(8)) {
             (0 until metricSelector.childCount).sumOf { index ->
                 val child = metricSelector.getChildAt(index) as TextView
                 maxOf(dp(48), kotlin.math.ceil(child.paint.measureText(child.text.toString())).toInt() + child.compoundPaddingLeft + child.compoundPaddingRight)
@@ -80,30 +80,13 @@ class BrewComparisonActivity : ThemedActivity() {
         toolbarBody.addView(metricLine, LinearLayout.LayoutParams(-1, -2))
         chart = TwoCupChartView(this, visual).apply { metric = selectedMetric }
         workspace.setChart(chart)
-        val selectors = object : LinearLayout(this) {
-            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val next = if (View.MeasureSpec.getSize(widthMeasureSpec) >= dp(600)) HORIZONTAL else VERTICAL
-                orientation = next
-                for (index in 0 until childCount) {
-                    val child = getChildAt(index)
-                    val action = child.tag == "comparison-swap"
-                    val params = child.layoutParams as LayoutParams
-                    val targetWidth = if (next == HORIZONTAL) { if (action) -2 else 0 } else -1
-                    val targetWeight = if (next == HORIZONTAL && !action) 1f else 0f
-                    if (params.width != targetWidth || params.weight != targetWeight) {
-                        params.width = targetWidth; params.weight = targetWeight
-                    }
-                    params.marginStart = if (next == HORIZONTAL && index > 0) dp(8) else 0
-                    params.marginEnd = if (next == HORIZONTAL && index < childCount - 1) dp(8) else 0
-                }
-                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-            }
-        }.apply {
+        val selectors = ComparisonCupSelectors(this, dp(16), dp(8)).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = android.view.Gravity.CENTER_VERTICAL
             isBaselineAligned = false
             toolbarBody.addView(this, 0)
         }
+        workspace.productLayoutEvidence.put("cupSelectors", selectors.productLayoutEvidence)
         val choiceIds = listOf<String?>(null) + entries.map { it.observation.id }
         val labels = listOf(getString(R.string.task_comparison_choose_cup)) + entries.map {
             getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
@@ -164,7 +147,7 @@ class BrewComparisonActivity : ThemedActivity() {
             toolbarBody.removeView(this)
             toolbarBody.addView(this, 1, LinearLayout.LayoutParams(-1, -2))
         }
-        val selectionLine = HistoryToolbarRow(this, dp(16)) { dp(600) }
+        val selectionLine = HistoryToolbarRow(this, dp(16), dp(8)) { selectors.naturalInlineWidth() }
         toolbarBody.removeView(selectors); toolbarBody.removeView(shared)
         selectionLine.addView(selectors); selectionLine.addView(shared)
         toolbarBody.addView(selectionLine, 0, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
@@ -318,4 +301,68 @@ class BrewComparisonActivity : ThemedActivity() {
     })
     private fun TextView.setIfChanged(value: String) { if (text.toString() != value) text = value }
     private fun dp(value: Int) = HoyiUi.dp(this, value)
+}
+
+/** Permanent A/swap/B nodes. Only actual selected text and native control chrome decide wrapping. */
+private class ComparisonCupSelectors(context: android.content.Context, private val gap: Int, private val rowGap: Int) : LinearLayout(context) {
+    val productLayoutEvidence = org.json.JSONObject()
+    private var naturalWidths = emptyList<Int>()
+    private fun invalidateMeasured(view: View) {
+        view.forceLayout()
+        if (view is android.view.ViewGroup) (0 until view.childCount).forEach { invalidateMeasured(view.getChildAt(it)) }
+    }
+    fun naturalInlineWidth(): Int {
+        val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        naturalWidths = (0 until childCount).map { index ->
+            val child = getChildAt(index)
+            invalidateMeasured(child)
+            child.measure(free, free)
+            var naturalWidth = child.measuredWidth
+            if (child is android.view.ViewGroup && child.tag != "comparison-swap") {
+                val spinner = (0 until child.childCount).map(child::getChildAt).filterIsInstance<Spinner>().single()
+                val selected = spinner.selectedView as? TextView
+                if (selected != null) {
+                    val backgroundPadding = android.graphics.Rect()
+                    spinner.background?.getPadding(backgroundPadding)
+                    val selectedWidth = kotlin.math.ceil(android.text.Layout.getDesiredWidth(selected.text, selected.paint)).toInt() +
+                        selected.compoundPaddingLeft + selected.compoundPaddingRight
+                    val spinnerChrome = maxOf(spinner.paddingLeft, backgroundPadding.left) + maxOf(spinner.paddingRight, backgroundPadding.right)
+                    naturalWidth = maxOf(naturalWidth, child.paddingLeft + child.paddingRight + selectedWidth + spinnerChrome)
+                }
+            }
+            invalidateMeasured(child) // Restore real constraints after the native natural-width probe.
+            naturalWidth
+        }
+        return naturalWidths.sum() + gap * (childCount - 1).coerceAtLeast(0)
+    }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val available = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+        val natural = naturalInlineWidth()
+        val inline = natural <= available
+        orientation = if (inline) HORIZONTAL else VERTICAL
+        val flexibleCount = (0 until childCount).count { getChildAt(it).tag != "comparison-swap" }.coerceAtLeast(1)
+        val surplus = (available - natural).coerceAtLeast(0)
+        var distributed = 0
+        var flexibleIndex = 0
+        for (index in 0 until childCount) {
+            val child = getChildAt(index)
+            val params = child.layoutParams as LayoutParams
+            val flexible = child.tag != "comparison-swap"
+            val extra = if (inline && flexible) {
+                flexibleIndex++
+                (if (flexibleIndex == flexibleCount) surplus - distributed else surplus / flexibleCount).also { distributed += it }
+            } else 0
+            params.width = if (inline) naturalWidths[index] + extra else -1
+            params.weight = 0f
+            params.marginStart = if (inline && index > 0) gap else 0
+            params.marginEnd = 0
+            params.topMargin = if (!inline && index > 0) rowGap else 0
+            params.bottomMargin = 0
+            params.resolveLayoutDirection(this@ComparisonCupSelectors.layoutDirection)
+        }
+        productLayoutEvidence.put("availableWidthPx", available).put("naturalInlineWidthPx", natural)
+            .put("childNaturalWidthsPx", org.json.JSONArray(naturalWidths)).put("inline", inline)
+            .put("groupGapPx", gap).put("rowGapPx", rowGap)
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
 }

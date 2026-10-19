@@ -14,7 +14,8 @@ import java.util.Locale
 class HistoryActivity : ThemedActivity() {
     private val visual by lazy { ExtractionHistoryVisualStyle(this) }
     private val style get() = visual.palette
-    private data class RowViews(val day: TextView, val title: TextView, val status: TextView, val meta: TextView)
+    private data class RowViews(val day: TextView, val title: TextView, val status: TextView,
+        val meta: LinearLayout, val chunks: List<TextView>, val taste: TextView)
     private lateinit var adapter: ArrayAdapter<ShotHistory.Entry>
     private lateinit var historyList: ListView
     private val listStates = mutableMapOf<Boolean, android.os.Parcelable>()
@@ -95,13 +96,21 @@ class HistoryActivity : ThemedActivity() {
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
         }
         if (showJournal) action(getString(R.string.journal_compare)) { startActivity(Intent(this, BrewComparisonActivity::class.java)) }
-        style.button(HoyiUi.button(this, header, getString(R.string.ui_full_details)) {
-            (actions.parent as? android.view.ViewGroup)?.removeView(actions)
-            val dialog = android.app.AlertDialog.Builder(this).setTitle(R.string.ui_full_details)
-                .setView(ScrollView(this).apply { setPadding(dp(16), dp(16), dp(16), dp(16)); addView(actions) })
-                .setPositiveButton(android.R.string.ok, null).create()
-            beanShowDialog(dialog)
-        }).apply { HomeVisualIcon.buttonIcon(this, "more"); layoutParams = LinearLayout.LayoutParams(-2, -2) }
+        val ioMenu = ImageButton(this).apply {
+            tag = "product/history/io-menu"; contentDescription = getString(R.string.task_tools)
+            setImageDrawable(HomeVisualIcon.drawable(this@HistoryActivity, "more", style.accent))
+            setPadding(dp(12), dp(12), dp(12), dp(12)); minimumWidth = dp(48); minimumHeight = dp(48)
+            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(style.selected),
+                null, style.shape(android.graphics.Color.WHITE))
+            setOnClickListener {
+                (actions.parent as? android.view.ViewGroup)?.removeView(actions)
+                val dialog = android.app.AlertDialog.Builder(this@HistoryActivity).setTitle(R.string.task_tools)
+                    .setView(ScrollView(this@HistoryActivity).apply { setPadding(dp(16), dp(16), dp(16), dp(16)); addView(actions) })
+                    .setPositiveButton(android.R.string.ok, null).create()
+                beanShowDialog(dialog)
+            }
+        }
+        header.addView(ioMenu, LinearLayout.LayoutParams(dp(48), dp(48)))
         val list = ListView(this).apply {
             divider = android.graphics.drawable.ColorDrawable(style.border)
             dividerHeight = dp(1)
@@ -140,15 +149,18 @@ class HistoryActivity : ThemedActivity() {
                         includeFontPadding = false
                     }
                     header.addView(state, LinearLayout.LayoutParams(-2, -2))
-                    val meta = TextView(this@HistoryActivity).apply {
-                        textSize = 14f
-                        typeface = TaskTypography.face(this@HistoryActivity, 400)
-                        includeFontPadding = false
-                        setTextColor(getColor(R.color.mobile_muted))
+                    val meta = style.column().apply {
                         setPadding(0, dp(8), 0, 0)
                     }
                     identity.addView(meta)
-                    tag = RowViews(day, title, state, meta)
+                    val flow = HistoryVisualFlow(this@HistoryActivity, dp(8), dp(8))
+                    meta.addView(flow, LinearLayout.LayoutParams(-1, -2))
+                    val chunks = (0..3).map {
+                        style.text("", TaskProductVisualStyle.auxiliary, secondary = true).also { flow.addView(it) }
+                    }
+                    val taste = style.text("", TaskProductVisualStyle.auxiliary, secondary = true)
+                    meta.addView(taste, LinearLayout.LayoutParams(-1, -2))
+                    tag = RowViews(day, title, state, meta, chunks, taste)
                 }
                 val entry = requireNotNull(getItem(position))
                 card.setBackgroundColor(if (selectedIds[showJournal] == entry.id) style.selected else android.graphics.Color.TRANSPARENT)
@@ -156,10 +168,12 @@ class HistoryActivity : ThemedActivity() {
                 style.apply(views.day, TaskProductVisualStyle.auxiliary, true)
                 style.apply(views.title, TaskProductVisualStyle.action)
                 style.apply(views.status, TaskProductVisualStyle.auxiliary)
-                style.apply(views.meta, TaskProductVisualStyle.auxiliary, true)
+                (views.chunks + views.taste).forEach { style.apply(it, TaskProductVisualStyle.auxiliary, true) }
                 views.title.tag = "product/history/list/${entry.id}/name"
                 views.status.tag = "product/history/list/${entry.id}/status"
                 views.meta.tag = "product/history/list/${entry.id}/metadata"
+                views.chunks.forEachIndexed { index, view -> view.tag = "product/history/list/${entry.id}/metadata/$index" }
+                views.taste.tag = "product/history/list/${entry.id}/metadata/taste"
                 val day = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(entry.startedAtMs))
                 val previousDay = if (position > 0) getItem(position - 1)?.let {
                     SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it.startedAtMs))
@@ -171,15 +185,18 @@ class HistoryActivity : ThemedActivity() {
                     else library?.find(entry.curveId)?.name ?: entry.curveId
                 views.status.text = status(entry.status)
                 views.status.setTextColor(if (entry.status == ShotHistory.Status.UNKNOWN) visual.warningInk else style.accent)
-                views.meta.text = buildString {
-                    append(date(entry.startedAtMs))
-                    entry.elapsedMs?.let { append(getString(R.string.history_meta_duration, "%.1f".format(Locale.ROOT, it / 1000.0))) }
-                    entry.weightHundredthsGram?.let { append(getString(R.string.history_meta_scale, "%.2f".format(Locale.ROOT, it / 100.0))) }
-                    entry.slot?.takeIf { it in 1..5 }?.let { append(getString(R.string.extraction_slot_suffix, it.toString())) }
+                val metadata = listOf(date(entry.startedAtMs),
+                    entry.elapsedMs?.let { getString(R.string.history_meta_duration, "%.1f".format(Locale.ROOT, it / 1000.0)) },
+                    entry.weightHundredthsGram?.let { getString(R.string.history_meta_scale, "%.2f".format(Locale.ROOT, it / 100.0)) },
+                    entry.slot?.takeIf { it in 1..5 }?.let { getString(R.string.extraction_slot_suffix, it.toString()) })
+                views.chunks.forEachIndexed { index, view ->
+                    // Whole semantic chunks flow between rows; keep Latin numeric units bound together within a chunk.
+                    view.text = metadata[index]?.replace(' ', '\u00a0').orEmpty()
+                    view.visibility = if (metadata[index] == null) View.GONE else View.VISIBLE
                 }
-                if (showJournal) (application as MobileApplication).journalResult.getOrNull()?.find(entry.id)?.notes?.taste?.takeIf { it.isNotBlank() }?.let {
-                    views.meta.append("\n" + getString(R.string.journal_field_value, getString(R.string.journal_taste), it))
-                }
+                val taste = if (showJournal) (application as MobileApplication).journalResult.getOrNull()?.find(entry.id)?.notes?.taste?.takeIf { it.isNotBlank() } else null
+                views.taste.text = taste?.let { getString(R.string.journal_field_value, getString(R.string.journal_taste), it) }.orEmpty()
+                views.taste.visibility = if (taste == null) View.GONE else View.VISIBLE
                 return card
             }
         }

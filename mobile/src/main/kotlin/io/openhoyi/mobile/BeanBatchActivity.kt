@@ -375,10 +375,27 @@ private class AdjustmentFormViewport(context: android.content.Context, private v
         val decor = requireNotNull(owner.window).decorView
         val tree = decor.viewTreeObserver
         observer = tree
+        val buttonPanelId = resources.getIdentifier("buttonPanel", "id", "android")
+        val buttonPanel = owner.findViewById<android.view.ViewGroup>(buttonPanelId)
+        val originalPanelMinimum = buttonPanel?.minimumHeight ?: 0
+        var barMeasureKey: List<Any?>? = null
         fun rect(view: View?): Any {
             if (view == null) return org.json.JSONObject.NULL
             val location = IntArray(2); view.getLocationOnScreen(location)
             return org.json.JSONArray(listOf(location[0], location[1], location[0] + view.width, location[1] + view.height))
+        }
+        fun padding(view: View) = org.json.JSONArray(listOf(view.paddingLeft, view.paddingTop, view.paddingRight, view.paddingBottom))
+        fun layoutParams(view: View): org.json.JSONObject {
+            val params = view.layoutParams
+            return org.json.JSONObject().put("width", params.width).put("height", params.height).apply {
+                (params as? android.view.ViewGroup.MarginLayoutParams)?.let {
+                    put("marginsPx", org.json.JSONArray(listOf(it.leftMargin, it.topMargin, it.rightMargin, it.bottomMargin)))
+                }
+            }
+        }
+        fun forceSubtree(view: View) {
+            view.forceLayout()
+            if (view is android.view.ViewGroup) (0 until view.childCount).forEach { forceSubtree(view.getChildAt(it)) }
         }
         listener = android.view.ViewTreeObserver.OnPreDrawListener {
             val window = owner.window
@@ -392,6 +409,61 @@ private class AdjustmentFormViewport(context: android.content.Context, private v
                 val title = owner.findViewById<View>(titleId)
                 val negative = owner.getButton(AlertDialog.BUTTON_NEGATIVE)
                 val positive = owner.getButton(AlertDialog.BUTTON_POSITIVE)
+                val bar = buttonPanel?.takeIf { it.childCount == 1 }?.getChildAt(0)
+                val supportedBar = bar?.javaClass?.name == "com.android.internal.widget.ButtonBarLayout" &&
+                    negative?.parent === bar && positive?.parent === bar
+                evidence.put("nativeButtonPanelStructureSupported", supportedBar)
+                buttonPanel?.let { panel ->
+                    evidence.put("nativeButtonPanel", org.json.JSONObject().put("class", panel.javaClass.name)
+                        .put("originalMinimumHeightPx", originalPanelMinimum).put("minimumHeightPx", panel.minimumHeight)
+                        .put("measuredHeightPx", panel.measuredHeight).put("rectScreenPx", rect(panel))
+                        .put("paddingPx", padding(panel)).put("layoutParams", layoutParams(panel)))
+                }
+                bar?.let {
+                    evidence.put("nativeButtonBar", org.json.JSONObject().put("class", it.javaClass.name)
+                        .put("minimumHeightPx", it.minimumHeight).put("measuredHeightPx", it.measuredHeight)
+                        .put("rectScreenPx", rect(it)).put("paddingPx", padding(it)).put("layoutParams", layoutParams(it)))
+                }
+                listOf("negativeButton" to negative, "positiveButton" to positive).forEach { (key, button) ->
+                    button?.let { evidence.put(key, org.json.JSONObject().put("class", it.javaClass.name)
+                        .put("minimumHeightPx", it.minimumHeight).put("measuredHeightPx", it.measuredHeight)
+                        .put("rectScreenPx", rect(it)).put("paddingPx", padding(it)).put("layoutParams", layoutParams(it))) }
+                }
+                if (supportedBar && buttonPanel != null && bar != null && buttonPanel.width > 0) {
+                    val key = listOf(buttonPanel.width, resources.configuration.fontScale,
+                        negative?.text?.toString(), positive?.text?.toString(), negative?.textSize, positive?.textSize,
+                        negative?.typeface, positive?.typeface, negative?.minimumHeight, positive?.minimumHeight)
+                    if (barMeasureKey != key) {
+                        val params = bar.layoutParams
+                        val margins = params as? android.view.ViewGroup.MarginLayoutParams
+                        val horizontal = buttonPanel.paddingLeft + buttonPanel.paddingRight +
+                            (margins?.leftMargin ?: 0) + (margins?.rightMargin ?: 0)
+                        val vertical = buttonPanel.paddingTop + buttonPanel.paddingBottom +
+                            (margins?.topMargin ?: 0) + (margins?.bottomMargin ?: 0)
+                        val barWidthSpec = android.view.ViewGroup.getChildMeasureSpec(
+                            View.MeasureSpec.makeMeasureSpec(buttonPanel.width, View.MeasureSpec.EXACTLY), horizontal, params.width)
+                        // Probe the original native bar, never the outer panel whose minimum we set.
+                        // This preserves native stacking and avoids a previous reserve feeding back into natural height.
+                        forceSubtree(bar)
+                        bar.measure(barWidthSpec, View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                        val naturalBarHeight = bar.measuredHeight
+                        val reserve = maxOf(originalPanelMinimum, naturalBarHeight + vertical)
+                        evidence.put("nativeButtonBarNaturalBudget", org.json.JSONObject()
+                            .put("panelWidthPx", buttonPanel.width).put("barWidthSpecSizePx", View.MeasureSpec.getSize(barWidthSpec))
+                            .put("barWidthSpecMode", View.MeasureSpec.getMode(barWidthSpec)).put("barNaturalHeightPx", naturalBarHeight)
+                            .put("panelPaddingAndChildMarginsHeightPx", vertical).put("reservedPanelMinimumHeightPx", reserve)
+                            .put("source", "native_bar_UNSPEC_height_at_actual_panel_width_plus_panel_padding_and_child_margins"))
+                        buttonPanel.minimumHeight = reserve
+                        barMeasureKey = key
+                        // The probe changed child measurement caches. Remeasure the real constrained ancestry
+                        // before deriving middle chrome or allowing this frame to be presented.
+                        forceSubtree(bar)
+                        var ancestor: View? = buttonPanel
+                        while (ancestor != null) { ancestor.forceLayout(); ancestor = ancestor.parent as? View }
+                        buttonPanel.requestLayout()
+                        return@OnPreDrawListener false
+                    }
+                }
                 val rootScreen = IntArray(2); val rootWindow = IntArray(2)
                 decor.getLocationOnScreen(rootScreen); decor.getLocationInWindow(rootWindow)
                 evidence.put("softInputMode", window.attributes.softInputMode)

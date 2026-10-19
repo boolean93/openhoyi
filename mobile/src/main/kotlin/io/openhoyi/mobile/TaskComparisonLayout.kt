@@ -24,6 +24,10 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
         addView(value, 1, LayoutParams(-1, 0, 1f))
     }
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if (visual != null) {
+            measureProduct(widthMeasureSpec, heightMeasureSpec, visual)
+            return
+        }
         val width = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
         val exactWidth = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY)
@@ -57,5 +61,44 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
         toolbarScroll.layoutParams.height = toolbarBudget
         detailsScroll.layoutParams.height = detailBudget
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+    private fun measureProduct(widthMeasureSpec: Int, heightMeasureSpec: Int, style: ExtractionHistoryVisualStyle) {
+        val width = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+        val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+        val exact = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY)
+        val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+        toolbar.measure(exact, natural); details.measure(exact, natural)
+        val touch = HoyiUi.dp(activity, 48)
+        val renderer = ProductHistoryChartRenderer(activity, style)
+        val preferred = renderer.minimumComparisonHeight(160f)
+        val fallback = renderer.minimumComparisonHeight(96f)
+        val standard = height >= preferred + touch * 2
+        val minimum = if (standard) preferred else fallback
+        val minimumDetails = minOf(details.measuredHeight, touch, (height - minimum).coerceAtLeast(0))
+        val toolbarBudget = minOf(toolbar.measuredHeight, (height - minimum - minimumDetails).coerceAtLeast(0))
+        val detailBudget = minOf(details.measuredHeight, (height - toolbarBudget - minimum).coerceAtLeast(0))
+        productLayoutEvidence.put("availableHeightPx", height).put("toolbarNaturalPx", toolbar.measuredHeight)
+            .put("toolbarBudgetPx", toolbarBudget).put("toolbarLocallyScrollable", toolbar.measuredHeight > toolbarBudget)
+            .put("detailsNaturalPx", details.measuredHeight).put("detailsViewportPx", detailBudget)
+            .put("detailsMinimumPx", touch).put("chartMinimumPx", minimum)
+            .put("preferredChartMinimumPx", preferred).put("fallbackChartMinimumPx", fallback)
+            .put("minimumPlotDp", if (standard) 160 else 96).put("shortHeightFallback", !standard)
+            .put("minimumViewportsSatisfiable", height >= minimum + touch * 2)
+            .put("chartBudgetPx", (height - toolbarBudget - detailBudget).coerceAtLeast(0))
+        fun invalidateMeasured(view: View) {
+            view.forceLayout()
+            if (view is android.view.ViewGroup) (0 until view.childCount).forEach { invalidateMeasured(view.getChildAt(it)) }
+        }
+        invalidateMeasured(toolbarScroll); invalidateMeasured(detailsScroll)
+        toolbarScroll.layoutParams.height = toolbarBudget
+        detailsScroll.layoutParams.height = detailBudget
+        // First protect the plot and real axes, then expose as much of the real details as fits.
+        // Only space beyond the complete controls and details is added to the plot.
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        if (visual != null) productLayoutEvidence.put("chartActualHeightPx", chart?.height ?: 0)
+            .put("toolbarActualHeightPx", toolbarScroll.height).put("detailsActualHeightPx", detailsScroll.height)
     }
 }

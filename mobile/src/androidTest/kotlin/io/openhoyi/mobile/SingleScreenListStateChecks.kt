@@ -235,14 +235,19 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         }
         test.waitForIdleSync()
     }
-    private fun detailReturn(activity: Activity, detailType: Class<out Activity>, action: () -> Unit) {
+    private fun detailReturn(activity: Activity, detailType: Class<out Activity>, expectedShotId: String? = null, action: () -> Unit) {
         val monitor = test.addMonitor(detailType.name, null, false)
         try {
             action()
             val detail = test.waitForMonitorWithTimeout(monitor, 10000) ?: error("No detail page")
             opened += detail
             ready(detail)
-            main { SingleScreenPageChecks.verify(detail); detail.finish() }
+            main {
+                if (expectedShotId != null) check(detail.intent.getStringExtra("shotId") == expectedShotId) {
+                    "History detail opened a different shot"
+                }
+                SingleScreenPageChecks.verify(detail); detail.finish()
+            }
             try {
                 await { detail.isDestroyed && activity.hasWindowFocus() }
             } catch (failure: Throwable) {
@@ -554,10 +559,26 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                                     check(selectedImage.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
                                 }
                             } finally { selectedImage.recycle() }
-                            detailReturn(activity, HistoryDetailActivity::class.java) {
+                            val expectedShotId = selectedTag.toString().removePrefix("history-selection-")
+                            main {
+                                val currentAdapter = list(activity).adapter
+                                check(expectedShotId.isNotBlank() && (0 until currentAdapter.count).count {
+                                    (currentAdapter.getItem(it) as ShotHistory.Entry).id == expectedShotId
+                                } == 1) { "Selected History adapter entry is not unique" }
+                                check((context.applicationContext as MobileApplication).journalResult.getOrThrow().entries().count {
+                                    it.observation.id == expectedShotId
+                                } == 1) { "Selected History entry does not match the journal fixture" }
+                            }
+                            detailReturn(activity, HistoryDetailActivity::class.java, expectedShotId = expectedShotId) {
                                 main {
-                                    val expand = views(activity.window.decorView).filterIsInstance<Button>().single {
-                                        it.isShown && it.text.toString() == activity.getString(R.string.ui_full_details)
+                                    val expand = views(activity.window.decorView).single {
+                                        it.tag == "product/history/full-page"
+                                    } as Button
+                                    check(expand.text.toString() == activity.getString(R.string.ui_full_details))
+                                    val visible = Rect()
+                                    check(expand.isShown && expand.isEnabled && expand.isClickable && expand.width > 0 && expand.height > 0 &&
+                                        expand.getGlobalVisibleRect(visible) && visible.width() == expand.width && visible.height() == expand.height) {
+                                        "History full-page action is not completely visible and actionable"
                                     }
                                     check(expand.performClick())
                                 }

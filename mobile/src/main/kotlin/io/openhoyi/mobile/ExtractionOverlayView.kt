@@ -21,7 +21,8 @@ import java.util.Locale
 import kotlin.math.ceil
 
 /** A display-only, shared-time plot. Each metric retains its own physical range. */
-internal class ExtractionOverlayView(context: Context, private val visual: ExtractionHistoryVisualStyle? = null) : LinearLayout(context) {
+internal class ExtractionOverlayView(context: Context, private val visual: ExtractionHistoryVisualStyle? = null,
+    private val embeddedHistory: Boolean = false) : LinearLayout(context) {
     private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it) }
     internal val visualEvidence get() = productRenderer?.evidence ?: org.json.JSONArray()
     var points: List<ShotPoint> = emptyList()
@@ -190,7 +191,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             ?.takeIf { it.elapsedMs == data.observedThroughMs }
         val name = "${metricName(metric)} ${latest?.let { format(it.value) } ?: "—"} ${metric.unit}"
         val fullTitle = "$name\n${format(range.low)}–${format(range.high)} ${metric.unit}"
-        val visibleTitle = if (showLegendRanges) fullTitle else name
+        val visibleTitle = if (embeddedHistory) "${metricName(metric)} ${metric.unit}" else if (showLegendRanges) fullTitle else name
         if (button.text.toString() != visibleTitle) button.text = visibleTitle
         button.contentDescription = fullTitle.replace('\n', ';') + "; " + context.getString(R.string.task_chart_hint)
     }
@@ -411,7 +412,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val path = Path()
         fun minimumAxisHeight(): Int {
-            productRenderer?.let { return it.minimumAxisHeight() }
+            productRenderer?.let { return if (embeddedHistory) it.minimumEmbeddedHistoryHeight() else it.minimumAxisHeight() }
             val fm = labels.fontMetrics
             // Four lines of axis margins + one tick height and >=8dp tick separation.
             return ceil((fm.descent - fm.ascent) * 5 + dp(32f)).toInt()

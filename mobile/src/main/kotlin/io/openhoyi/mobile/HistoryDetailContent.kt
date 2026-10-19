@@ -329,12 +329,12 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
         }
     }, "history-detail-reader").start()
 }
-/** Embedded collection preview: one bounded content viewport and a permanent two-row footer. */
+/** Embedded collection preview: one permanent chart/notes viewport and fixed actions only. */
 private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entry: ShotHistory.Entry, curve: String,
     permanent: BrewJournal.Entry?, journalFailed: Boolean, openFullPage: (() -> Unit)?, visual: ExtractionHistoryVisualStyle) {
     val style = visual.palette
     val app = application as MobileApplication
-    val chart = ShotChartView(this, visual).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
+    val chart = ShotChartView(this, visual, embeddedHistory = true).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
     val preview = EmbeddedHistoryPreview(this, visual, chart)
     body.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
     val header = style.column("product/history/preview-header")
@@ -376,10 +376,11 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
     val metrics = HistoryVisualFlow(this, style.dp(24), style.dp(8)).apply { tag = "product/history/metrics" }
     style.add(preview.content, metrics, 16)
     fun metric(label: Int, number: String, unit: String?, id: String, prominent: Boolean = true): HistoryQuantity {
-        val cell = style.column("$id/cell")
-        style.add(cell, style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true))
+        val labelView = style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true)
         val quantity = HistoryQuantity(this, visual, id, large = prominent).apply { present(number, unit) }
-        style.add(cell, quantity, 8); metrics.addView(cell)
+        val cell = EmbeddedHistoryMetricCell(this, style.dp(8), labelView, quantity).apply { tag = "$id/cell" }
+        preview.metricCells += cell
+        metrics.addView(cell)
         return quantity
     }
     metric(R.string.history_duration, entry.elapsedMs?.let { "%.1f".format(Locale.ROOT, it / 1000.0) } ?: "—",
@@ -398,8 +399,9 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
     }
     val bean = if (permanent != null) summary(R.string.journal_bean, permanent.notes.beanName) else
         style.text(getString(if (journalFailed) R.string.journal_unavailable else R.string.journal_migrate_hint), TaskProductVisualStyle.auxiliary, secondary = true)
-    style.add(preview.footer, bean)
+    style.add(preview.content, bean, 16)
     val taste = summary(R.string.journal_taste, permanent?.notes?.taste).apply { if (permanent == null) visibility = android.view.View.GONE }
+    style.add(preview.content, taste, 8)
     val actions = style.row("product/history/actions").apply { gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL }
     fun action(text: String, id: String, primary: Boolean, glyph: String, click: () -> Unit) {
         val button = style.button(android.widget.Button(this), primary).apply {
@@ -411,7 +413,7 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         startActivity(Intent(this, BrewReviewActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.id))
     }
     openFullPage?.let { action(getString(R.string.ui_full_details), "product/history/full-page", false, "chevron", it) }
-    preview.footer.addView(EmbeddedHistoryFooterRow(this, style, taste, actions), LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(8) })
+    preview.footer.addView(EmbeddedHistoryActionsRow(this, style, actions), LinearLayout.LayoutParams(-1, -2))
     Thread({
         val points = runCatching { app.samples.load(entry.id) }
         chart.post {
@@ -432,6 +434,7 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
     private val chart: ShotChartView) : LinearLayout(context) {
     private val style = visual.palette
     val content = EmbeddedHistoryContent(context)
+    val metricCells = mutableListOf<EmbeddedHistoryMetricCell>()
     val footer = style.column("product/history/preview-footer").apply { setPadding(0, style.dp(16), 0, 0) }
     val productLayoutEvidence = org.json.JSONObject()
     private val viewport = ScrollView(context).apply { tag = "product/history/preview-scroll"; addView(content) }
@@ -447,25 +450,35 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
         val exact = android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY)
         val natural = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
         footer.measure(exact, natural)
-        var chrome = 0
-        val sections = org.json.JSONArray()
-        for (index in 0 until content.childCount) {
-            val child = content.getChildAt(index); if (child === chart || child.visibility == android.view.View.GONE) continue
-            child.measure(exact, natural)
-            val params = child.layoutParams as LayoutParams
-            val total = child.measuredHeight + params.topMargin + params.bottomMargin
-            chrome += total
-            sections.put(org.json.JSONObject().put("tag", child.tag).put("naturalHeightPx", child.measuredHeight).put("marginsPx", params.topMargin + params.bottomMargin))
+        fun measureChrome(sections: org.json.JSONArray? = null): Int {
+            var total = 0
+            for (index in 0 until content.childCount) {
+                val child = content.getChildAt(index); if (child === chart || child.visibility == android.view.View.GONE) continue
+                child.forceLayout(); child.measure(exact, natural)
+                val params = child.layoutParams as LayoutParams
+                total += child.measuredHeight + params.topMargin + params.bottomMargin
+                sections?.put(org.json.JSONObject().put("tag", child.tag).put("naturalHeightPx", child.measuredHeight)
+                    .put("marginsPx", params.topMargin + params.bottomMargin))
+            }
+            return total
         }
+        metricCells.forEach { it.inline = false }
+        val verticalChrome = measureChrome()
         val overlay = chart.getChildAt(0) as LinearLayout
         val chartHeader = (overlay.getChildAt(0) as ScrollView).getChildAt(0)
         chartHeader.measure(exact, natural)
         val headerHeight = chartHeader.measuredHeight
-        val axisMinimum = paintBudget.minimumAxisHeight()
+        val axisMinimum = paintBudget.minimumEmbeddedHistoryHeight()
         val chartMinimum = maxOf(headerHeight, style.dp(48)) + axisMinimum + overlay.paddingTop + overlay.paddingBottom
         val chartParams = chart.layoutParams as LayoutParams
         val chartMargins = chartParams.topMargin + chartParams.bottomMargin
         val available = (height - footer.measuredHeight).coerceAtLeast(0)
+        val verticalMinimum = verticalChrome + chartMargins + chartMinimum
+        val inlineWidth = metricCells.sumOf { it.inlineNaturalWidth() } + style.dp(24) * (metricCells.size - 1).coerceAtLeast(0)
+        val inlineMetrics = verticalMinimum > available && inlineWidth <= width
+        metricCells.forEach { it.inline = inlineMetrics }
+        val sections = org.json.JSONArray()
+        val chrome = measureChrome(sections)
         val minimumContent = chrome + chartMargins + chartMinimum
         val scrolling = minimumContent > available
         content.resolvedHeightPx = if (scrolling) minimumContent else available
@@ -473,9 +486,12 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
         productLayoutEvidence.put("availableHeightPx", height).put("fixedFooterNaturalPx", footer.measuredHeight)
             .put("fixedFooterBudgetSatisfiable", footer.measuredHeight <= height)
             .put("contentViewportPx", available).put("headerAndMetricsNaturalPx", chrome).put("sections", sections)
+            .put("verticalChromeNaturalPx", verticalChrome).put("verticalMinimumContentPx", verticalMinimum)
+            .put("metricsInlineNaturalWidthPx", inlineWidth).put("metricsInline", inlineMetrics)
             .put("chartNativeHeaderNaturalPx", headerHeight).put("chartActualPaintAxisMinimumPx", axisMinimum)
             .put("chartMinimumPx", chartMinimum).put("chartMarginsPx", chartMargins).put("fullNaturalPx", minimumContent + footer.measuredHeight)
-            .put("localContentScroll", scrolling).put("chartBudgetSource", "native_overlay_header + same_production_renderer_14sp400_Paint_policy")
+            .put("minimumPlotDp", 96).put("localContentScroll", scrolling)
+            .put("chartBudgetSource", "native_overlay_header + real_plot_96dp + renderer_bounds_actual_axis_bands")
         fun remeasure(view: android.view.View) {
             view.forceLayout()
             if (view is android.view.ViewGroup) (0 until view.childCount).forEach { remeasure(view.getChildAt(it)) }
@@ -494,47 +510,75 @@ private class EmbeddedHistoryContent(context: android.content.Context) : LinearL
     }
 }
 
-/** The summary and complete action group wrap as whole native groups when natural width requires it. */
-private class EmbeddedHistoryFooterRow(context: android.content.Context, private val style: TaskProductVisualStyle,
-    private val summary: android.view.View, private val actions: LinearLayout) : android.view.ViewGroup(context) {
-    private var inline = true
+/** Native fixed actions remain complete and wrap only as whole controls. */
+private class EmbeddedHistoryActionsRow(context: android.content.Context, private val style: TaskProductVisualStyle,
+    private val actions: LinearLayout) : android.view.ViewGroup(context) {
     override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
-    init { tag = "product/history/preview-footer-row"; addView(summary); addView(actions) }
+    init { tag = "product/history/preview-footer-row"; addView(actions) }
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val available = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
         val natural = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
         var actionsWidth = 0
         for (index in 0 until actions.childCount) {
-            val child = actions.getChildAt(index); child.measure(natural, natural)
+            val child = actions.getChildAt(index); child.forceLayout(); child.measure(natural, natural)
             actionsWidth += child.measuredWidth + if (index > 0) style.dp(16) else 0
         }
-        val actionsInline = actionsWidth <= available
-        actions.orientation = if (actionsInline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        val inline = actionsWidth <= available
+        actions.orientation = if (inline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
         for (index in 0 until actions.childCount) {
-            val params = actions.getChildAt(index).layoutParams as LinearLayout.LayoutParams
-            params.width = if (actionsInline) -2 else -1
-            params.marginStart = if (actionsInline && index > 0) style.dp(16) else 0
-            params.topMargin = if (!actionsInline && index > 0) style.dp(8) else 0
+            val child = actions.getChildAt(index)
+            val params = child.layoutParams as LinearLayout.LayoutParams
+            params.width = if (inline) -2 else -1
+            params.marginStart = if (inline && index > 0) style.dp(16) else 0
+            params.topMargin = if (!inline && index > 0) style.dp(8) else 0
             params.resolveLayoutDirection(actions.layoutDirection)
+            child.forceLayout()
         }
-        actions.measure(android.view.View.MeasureSpec.makeMeasureSpec(if (actionsInline) actionsWidth else available, android.view.View.MeasureSpec.EXACTLY), natural)
-        if (summary.visibility != GONE) summary.measure(natural, natural)
-        val summaryWidth = if (summary.visibility == GONE) 0 else summary.measuredWidth
-        val gap = if (summary.visibility == GONE) 0 else style.dp(16)
-        inline = summaryWidth + gap + actions.measuredWidth <= available
-        if (summary.visibility != GONE) summary.measure(android.view.View.MeasureSpec.makeMeasureSpec(
-            if (inline) (available - gap - actions.measuredWidth).coerceAtLeast(0) else available, android.view.View.MeasureSpec.EXACTLY), natural)
-        val h = if (inline) maxOf(if (summary.visibility == GONE) 0 else summary.measuredHeight, actions.measuredHeight)
-            else summary.measuredHeight + style.dp(8) + actions.measuredHeight
-        setMeasuredDimension(available, resolveSize(h, heightMeasureSpec))
+        actions.forceLayout()
+        actions.measure(android.view.View.MeasureSpec.makeMeasureSpec(if (inline) actionsWidth else available,
+            android.view.View.MeasureSpec.EXACTLY), natural)
+        setMeasuredDimension(available, resolveSize(actions.measuredHeight, heightMeasureSpec))
+    }
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) 0 else width - actions.measuredWidth
+        actions.layout(left, 0, left + actions.measuredWidth, actions.measuredHeight)
+    }
+}
+
+/** The same permanent label/quantity nodes change arrangement only when the full page needs it. */
+private class EmbeddedHistoryMetricCell(context: android.content.Context, private val gap: Int,
+    private val label: android.widget.TextView, private val quantity: HistoryQuantity) : android.view.ViewGroup(context) {
+    var inline = false
+        set(value) { if (field != value) { field = value; forceLayout() } }
+    private var resolvedInline = false
+    init { addView(label); addView(quantity) }
+    override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
+    fun inlineNaturalWidth(): Int {
+        val free = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        label.forceLayout(); quantity.forceLayout()
+        label.measure(free, free); quantity.measure(free, free)
+        val result = label.measuredWidth + gap + quantity.measuredWidth
+        label.forceLayout(); quantity.forceLayout(); forceLayout()
+        return result
+    }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val available = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
+        val free = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        resolvedInline = inline && inlineNaturalWidth() <= available
+        val bounded = android.view.View.MeasureSpec.makeMeasureSpec(available, android.view.View.MeasureSpec.AT_MOST)
+        label.measure(bounded, free); quantity.measure(bounded, free)
+        val wantedWidth = if (resolvedInline) label.measuredWidth + gap + quantity.measuredWidth else maxOf(label.measuredWidth, quantity.measuredWidth)
+        val wantedHeight = if (resolvedInline) maxOf(label.measuredHeight, quantity.measuredHeight) else label.measuredHeight + gap + quantity.measuredHeight
+        setMeasuredDimension(resolveSize(wantedWidth, widthMeasureSpec), resolveSize(wantedHeight, heightMeasureSpec))
     }
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
         fun place(view: android.view.View, x: Int, y: Int) {
             val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - x - view.measuredWidth else x
             view.layout(left, y, left + view.measuredWidth, y + view.measuredHeight)
         }
-        if (summary.visibility != GONE) place(summary, 0, if (inline) (height - summary.measuredHeight) / 2 else 0)
-        place(actions, width - actions.measuredWidth, if (inline) (height - actions.measuredHeight) / 2 else summary.measuredHeight + style.dp(8))
+        place(label, 0, if (resolvedInline) (height - label.measuredHeight) / 2 else 0)
+        place(quantity, if (resolvedInline) label.measuredWidth + gap else 0,
+            if (resolvedInline) (height - quantity.measuredHeight) / 2 else label.measuredHeight + gap)
     }
 }
 

@@ -220,6 +220,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val secondId="m5-history-b"
         val curveId="factory-v3-002"
         private var nextId="m5-unassigned"
+        val historySpecialIds=linkedMapOf("missing-samples" to "m5-history-extra-38","no-notes" to "m5-history-extra-6",
+            "unknown-observation" to "m5-history-extra-7","sample-gap" to "m5-history-extra-8","water-reset" to "m5-history-extra-9")
+        private val sampleInputs=linkedMapOf<String,List<ShotPoint>>()
+        fun expectedSamples(id: String)=requireNotNull(sampleInputs[id]) { "M5 no declared sample input: $id" }.toList()
         private val sampleFailures=java.util.concurrent.CopyOnWriteArrayList<Throwable>()
         private val comparisonReaders=linkedMapOf<Activity,ExecutorService>()
         private val readerNames=setOf("history-detail-reader")
@@ -274,15 +278,30 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             journal.edit(firstId,notes)
             journal.edit(secondId,notes.copy(taste="焦糖甜感更明显。",nextAdjustment="保持当前参数。"))
             val first=points(27400,604,3620); val second=points(31000,650,3950)
-            samples.save(firstId,first); samples.save(secondId,second)
-            (1..37).forEach { index -> samples.save("m5-history-extra-$index",points(30000,620,3600)) }
-            // extra-38 deliberately has no samples; other extra rows have no notes.
+            sampleInputs[firstId]=first; sampleInputs[secondId]=second
+            (1..37).forEach { index ->
+                val ordinary=points(30000,620,3600)
+                sampleInputs["m5-history-extra-$index"]=when(index) {
+                    8 -> ordinary.filter { it.elapsedMs !in 4000L..7000L } // Real missing observations, not a fabricated connecting path.
+                    9 -> ordinary.map { point -> if(point.elapsedMs>=15000L) point.copy(waterTenthsMl=point.waterTenthsMl-300) else point }
+                    else -> ordinary
+                }
+            }
+            sampleInputs.forEach { (id,input) -> samples.save(id,input) }
+            sampleInputs["m5-history-extra-38"]=emptyList() // Deliberate missing file, never replaced by a fake load result.
+            // Other extra rows retain legitimate blank BrewJournal.Notes().
             // A legal queued writer barrier; do not substitute the repository load result.
             (field(samples,"writer") as ExecutorService).submit {}.get(10,TimeUnit.SECONDS)
             check(sampleFailures.isEmpty() && samples.load(firstId)==first && samples.load(secondId)==second)
+            historySpecialIds.values.forEach { id -> check(samples.load(id)==expectedSamples(id)) }
+            check(!File(ownedDirectory,"samples/samples-m5-history-extra-38.tsv").exists())
             fixture=JSONObject().put("page",page).put("firstId",firstId).put("secondId",secondId).put("curveId",curveId)
                 .put("history",JSONArray(history.entries.map { it.toString() })).put("journal",JSONObject(journal.exportJson()))
                 .put("firstSamples",pointRecords(first)).put("secondSamples",pointRecords(second))
+                .put("historySpecialInputs",JSONArray(historySpecialIds.map { (name,id) ->
+                    JSONObject().put("case",name).put("shotId",id).put("journal",requireNotNull(journal.find(id)).toString())
+                        .put("sampleFileExists",File(ownedDirectory,"samples/samples-$id.tsv").isFile).put("samples",pointRecords(expectedSamples(id)))
+                }))
                 .put("sampleUnits","elapsedMs; pressureTenthsBar; machineFlowTenthsMlPerSecond=100 independent; waterTenthsMl; temperatureHundredthsC; weightHundredthsGram")
                 .put("source","legal_memory_Storage; actual_ShotHistory_begin_observeRunning_transition_and_BrewJournal_edit; repository_save_then_writer_barrier")
                 .put("synthetic",true).put("hardwareMeasurement",false).put("servicePolicy","history_only_no_Home_no_service")
@@ -407,6 +426,13 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     .put("originalRecoveryAndCredentialsUntouched",true).put("activeTraceIdentity",owner.chartTraceIdentity)
                     .put("scaleMeaning","scale_reading_not_tared_cup_mass").put("completed",true).toString(2))
             }
+        }
+        fun closeActivities() {
+            main { tracked.filter { !it.isDestroyed }.forEach { it.finish() } }
+            await("all current scoped pages/dialogs closed before next saved-record case") {
+                tracked.all { it.isDestroyed && it in destroyed } && android.view.inspector.WindowInspector.getGlobalWindowViews().isEmpty()
+            }
+            main { check(services().isEmpty()) { "M5 historical special states may not inherit a service" } }
         }
         fun activeActivity(): Activity? = tracked.lastOrNull { !it.isDestroyed }
         fun cleanup() {
@@ -616,13 +642,13 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private fun action(activity: Activity, label: Int): TextView=nodes(root(activity)).filterIsInstance<TextView>()
         .single { it.isClickable && it.text.toString()==activity.getString(label) }
     private fun list(activity: Activity)=field(activity,"historyList") as ListView
-    private fun selectHistory(activity: Activity, id: String) {
+    private fun selectHistory(activity: Activity, id: String, requireNonemptySamples: Boolean=true) {
         var index=-1
         main { val actual=list(activity); index=(0 until actual.count).single { (actual.getItemAtPosition(it) as ShotHistory.Entry).id==id }
             actual.setSelection(index) }
         await("selected real history row visible") { list(activity).firstVisiblePosition<=index && list(activity).lastVisiblePosition>=index }
         main { val actual=list(activity); check(actual.performItemClick(actual.getChildAt(index-actual.firstVisiblePosition),index,actual.adapter.getItemId(index))) }
-        chartReady(activity)
+        if(requireNonemptySamples) chartReady(activity)
     }
     private data class Anchor(val position: Int,val top: Int,val id: String)
     private fun anchor(activity: Activity): Anchor {
@@ -696,6 +722,151 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         File(folder,"detail-business.json").writeText(JSONObject().put("savedNotesReachable",true)
             .put("notesSource","actual_BrewJournal_Notes").put("noEditOrSaveInvoked",true).put("completed",true).toString(2))
     }
+    private fun chartMetricAction(activity: Activity, metric: ChartMetric) {
+        val label=activity.getString(when(metric) {
+            ChartMetric.PRESSURE->R.string.task_comparison_pressure; ChartMetric.WATER->R.string.task_comparison_water
+            ChartMetric.WEIGHT->R.string.task_comparison_weight; ChartMetric.TEMPERATURE->R.string.task_comparison_temperature })
+        main { check(nodes(root(activity)).filterIsInstance<TextView>().single { it.isClickable && it.text.toString()==label }.performClick()) }
+    }
+    /** Additional real page states, never another contribution to the four-page/16-profile main matrix. */
+    private fun historySpecialStates(scope: Scope, page: String, folder: File, parent: JSONObject): JSONObject {
+        check(page in setOf("history","history-detail","comparison"))
+        scope.closeActivities()
+        val directory=File(folder,"special-states").apply { check(isDirectory || mkdirs()) }
+        val entries=JSONArray()
+        val summary=JSONObject().put("sourceSha",parent.getString("sourceSha")).put("profile",parent.getString("profile"))
+            .put("page",page).put("visualAcceptance","ASTRA_PENDING").put("realProductActivity",true).put("synthetic",true)
+            .put("mainConfigurationCountContribution",0).put("expectedCases",JSONArray(scope.historySpecialIds.keys.toList()))
+            .put("cases",entries).put("completed",false)
+        val journalBefore=scope.journal.exportJson(); val historyBefore=scope.history.entries
+        fun persist() { File(directory,"manifest.json").writeText(summary.toString(2)) }
+        persist()
+        try {
+            for((case,id) in scope.historySpecialIds) {
+                val expected=scope.expectedSamples(id)
+                val source=requireNotNull(scope.journal.find(id))
+                val caseDirectory=File(directory,case).apply { check(isDirectory || mkdirs()) }
+                val proof=JSONObject().put("case",case).put("shotId",id).put("page",page)
+                    .put("observation",JSONObject().put("id",source.observation.id).put("curveId",source.observation.curveId)
+                        .put("status",source.observation.status).put("elapsedMs",source.observation.elapsedMs ?: JSONObject.NULL)
+                        .put("endedAtMs",source.observation.endedAtMs ?: JSONObject.NULL)
+                        .put("weightHundredthsGram",source.observation.weightHundredthsGram ?: JSONObject.NULL))
+                    .put("notes",source.notes.toString()).put("declaredSamples",pointRecords(expected))
+                    .put("status","RUNNING").put("visualAcceptance","ASTRA_PENDING")
+                entries.put(proof); persist()
+                try {
+                    val activity=when(page) {
+                        "history"->start(HistoryActivity::class.java).also { selectHistory(it,id,requireNonemptySamples=false) }
+                        "history-detail"->start(HistoryDetailActivity::class.java) { it.putExtra("shotId",id) }
+                        else->start(BrewComparisonActivity::class.java) {
+                            it.putExtra(BrewComparisonActivity.FIRST_SHOT_ID,id).putExtra(BrewComparisonActivity.SECOND_SHOT_ID,scope.firstId)
+                        }
+                    }
+                    await("saved special-state asynchronous reader finished: $page/$case") {
+                        if(page=="comparison") {
+                            listOf("comparison-source-1","comparison-source-2").all { tag ->
+                                val text=root(activity).findViewWithTag<TextView>(tag)?.text?.toString().orEmpty()
+                                text.isNotEmpty() && !text.contains(activity.getString(R.string.history_loading_samples))
+                            }
+                        } else {
+                            val status=root(activity).findViewWithTag<TextView>("product/history/chart-status")
+                            status!=null && status.text.toString()!=activity.getString(R.string.history_loading_samples)
+                        }
+                    }
+                    val metric=if(case=="water-reset") ChartMetric.WATER else ChartMetric.PRESSURE
+                    if(page=="comparison") chartMetricAction(activity,metric)
+                    // Take original full-window protocol2 evidence before mechanical assertions.
+                    val captured=capture(activity,caseDirectory)
+                    proof.put("frameSync",captured.proof)
+                    main {
+                        check(services().isEmpty() && MobileMonotonicClock.mockOwnerIdentity()==null)
+                        val data: FourMetricChartData
+                        val canvas: JSONArray
+                        val raw: List<ShotPoint>
+                        if(page=="comparison") {
+                            val chart=field(activity,"chart") as TwoCupChartView
+                            check(field(activity,"firstId")==id && field(activity,"secondId")==scope.firstId && chart.metric==metric)
+                            check(chart.secondPoints==scope.expectedSamples(scope.firstId))
+                            data=chart.projection; canvas=chart.visualEvidence; raw=chart.firstPoints
+                            val sourceText=root(activity).findViewWithTag<TextView>("comparison-source-1").text.toString()
+                            val status=activity.getString(if(expected.isEmpty()) R.string.history_no_samples else if(source.observation.status=="ENDED")
+                                R.string.history_samples_complete else R.string.history_samples_partial,expected.size.toString())
+                            check(sourceText.contains(status)) { "M5 comparison must disclose the actual saved sample state: $case" }
+                            if(case=="sample-gap") check(sourceText.contains(activity.getString(R.string.task_chart_gap)))
+                            if(case=="water-reset") check(sourceText.contains(activity.getString(R.string.task_chart_water_reset)))
+                            proof.put("firstSourceDisclosure",sourceText).put("secondShotId",scope.firstId)
+                        } else {
+                            val chart=nodes(root(activity)).filterIsInstance<ShotChartView>().single()
+                            val overlay=nodes(chart).filterIsInstance<ExtractionOverlayView>().single()
+                            data=field(overlay,"data") as FourMetricChartData; canvas=chart.visualEvidence; raw=chart.points
+                            val status=root(activity).findViewWithTag<TextView>("product/history/chart-status").text.toString()
+                            val expectedStatus=if(expected.isEmpty()) activity.getString(R.string.history_no_samples) else activity.getString(
+                                if(source.observation.status=="ENDED") R.string.history_samples_complete else R.string.history_samples_partial,expected.size.toString())
+                            check(status==expectedStatus)
+                            if(page=="history") check((field(activity,"selectedIds") as Map<*,*>)[false]==id)
+                            else check(activity.intent.getStringExtra("shotId")==id)
+                            fun displayed(role: String)=root(activity).findViewWithTag<TextView>("product/history/$role/number").text.toString()
+                            if(case=="unknown-observation") {
+                                check(displayed("elapsed")=="—" && displayed("weight")=="—") { "M5 unknown record facts may not be replaced with chart-end facts" }
+                            }
+                            if(case=="missing-samples") {
+                                check(displayed("elapsed")=="30.0" && displayed("weight")=="36.00" && displayed("sampled-water")=="—")
+                            }
+                            proof.put("sampleStateDisclosure",status).put("displayedElapsed",displayed("elapsed"))
+                                .put("displayedWeight",displayed("weight")).put("displayedLastSampleWater",displayed("sampled-water"))
+                        }
+                        check(raw==expected) { "M5 late reader or substituted samples for $page/$case" }
+                        if(case=="no-notes") {
+                            check(source.notes==BrewJournal.Notes())
+                            if(page=="comparison") {
+                                val row=root(activity).findViewWithTag<ViewGroup>("comparison-summary-row-2")
+                                val taste=row.getChildAt(1) as TextView
+                                check(taste.text.toString()=="—" && !taste.isClickable) { "M5 comparison blank first-cup taste must not carry second-cup notes" }
+                                proof.put("blankNotesPlaceholder",taste.text).put("blankTasteDisclosureDisabled",true)
+                            } else {
+                                val placeholders=nodes(root(activity)).filterIsInstance<TextView>().count { it.text.toString()==activity.getString(R.string.journal_optional) }
+                                check(placeholders>0) { "M5 blank legal notes must not display prior cup notes" }
+                                proof.put("blankNotesPlaceholderCount",placeholders)
+                            }
+                        }
+                        if(case=="unknown-observation") {
+                            check(source.observation.status=="UNKNOWN" && source.observation.elapsedMs==null && source.observation.endedAtMs==null && source.observation.weightHundredthsGram==null)
+                            val warning=requireNotNull(root(activity).findViewWithTag<TextView>(if(page=="comparison") "product/comparison/warning" else "product/history/warning"))
+                            check(warning.text.toString()==activity.getString(R.string.history_unknown_warning) && warning.isShown && whole(observation(warning)))
+                            proof.put("unknownWarning",observation(warning)).put("unknownIsNotEnded",true)
+                        }
+                        val series=requireNotNull(data.series.firstOrNull { it.metric==metric })
+                        when(case) {
+                            "missing-samples"->check(raw.isEmpty() && series.current.isEmpty() && data.observedThroughMs==null)
+                            "sample-gap"->{
+                                check(series.current.size==2 && series.current[0].last().elapsedMs==3000L && series.current[1].first().elapsedMs==8000L)
+                                check(data.waterResetsMs.isEmpty())
+                            }
+                            "water-reset"->{
+                                check(data.waterResetsMs==listOf(15000L) && series.current.size==2 && series.current[0].last().elapsedMs==14000L && series.current[1].first().elapsedMs==15000L)
+                            }
+                        }
+                        val paths=(0 until canvas.length()).map(canvas::getJSONObject).filter {
+                            it.optString("operation")=="path" && it.optString("metric")==metric.name && !it.optBoolean("reference") }
+                        check(paths.size==series.current.size) { "M5 actual Canvas paths must preserve missing/reset/gap segments: $page/$case" }
+                        paths.zip(series.current).forEach { (path,segment) -> check(path.getJSONArray("verticesPx").length()==segment.size) }
+                        proof.put("actualRawSamples",pointRecords(raw)).put("metric",metric.name)
+                            .put("actualProjectedSegments",JSONArray(series.current.map { segment -> JSONArray(segment.map { it.elapsedMs }) }))
+                            .put("actualWaterResetTimesMs",JSONArray(data.waterResetsMs)).put("actualCanvasCurrentMetricPathCount",paths.size)
+                            .put("actualCanvasCurrentMetricVertexCounts",JSONArray(paths.map { it.getJSONArray("verticesPx").length() }))
+                            .put("noServiceOrClockOverride",true)
+                    }
+                    scope.closeActivities()
+                    check(scope.journal.exportJson()==journalBefore && scope.history.entries==historyBefore)
+                    proof.put("readOnlyModelsUnchanged",true).put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
+                } catch(error: Throwable) {
+                    proof.put("status","FAIL").put("failure",error.stackTraceToString()); throw error
+                } finally { File(caseDirectory,"case.json").writeText(proof.toString(2)); persist() }
+            }
+            summary.put("completed",true).put("actualAdditionalActivityCaptures",entries.length()).put("mainConfigurationCountContribution",0)
+            return summary
+        } finally { persist() }
+    }
     fun run(arguments: Bundle): Int {
         check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")
         check(arguments.getString("disposableCiEmulator")=="true" && arguments.getString("freshProcessVerified")=="true")
@@ -764,6 +935,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 else->comparisonBusiness(activity,active,directory)
             }
             manifest.put("layoutStatus","PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE")
+            if(page!="extraction") {
+                manifest.put("historySpecialStates",historySpecialStates(active,page,directory,manifest))
+                    .put("pendingSpecialCases",JSONArray(listOf("STARTING","STOP_REQUESTED","UNKNOWN_live","no_scale","stale_scale","no_service_ready","manual","historical_reference_toggle","journal_unavailable")))
+            }
         } catch(error: Throwable) {
             failure=error; manifest.put("layoutStatus","FAIL").put("failure",error.stackTraceToString())
             scope?.activeActivity()?.let { activity -> try { diagnostic(activity,File(directory,"failure-context")) } catch(secondary: Throwable) { error.addSuppressed(secondary) } }

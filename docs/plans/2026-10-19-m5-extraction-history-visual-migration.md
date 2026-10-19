@@ -175,3 +175,80 @@ scope在service创建前安装clock；通过真实Mock启动/合法观测路径�
 已复核冻结的 `HistoryDetailContent/ComparisonSummaryTable/ComparisonMetricTabs`：embedded永久title/meta/metrics与两行fixed footer已分离；ScrollView子内容以resolved EXACT测量，图预算含同生产14sp/400 Paint轴区及真实native图头，不靠设置LayoutParams假定ScrollView约束。40/20/14角色、16/8间距及真实异步/完整披露/原操作保持。比较单位span在measure/draw两路均使用float sp(14)+400；tabs与taste选中/焦点/禁用/按压palette路径已收口，null旧路径保留。
 
 三项静态阻断已关闭，可进入冻结构建/CI；这不是G1–G4通过。必须实测标准fixture fullNatural与available、初态完整图及固定footer，大字/短高局部滚达/恢复。预算JSON不能代替真实Layout/屏幕证据，16配置尚未验收。
+
+## 10. 91ab835 首轮完整16主图验收：未通过，保留原件
+
+### 10.1 身份、范围与运行边界
+
+CI `39193804077`，head `91ab835aaf28d9e133a78efd620d7780ba3e7192`，真实测试merge/source `a0816c2425823f1ad1da916a191f1d88f9211d99`。原ZIP与保存校验在 `build/task-first-evidence/ci-91ab835-m5/{original.zip,preservation.json}`；以下证据共同根为其 `raw/a0816c2425823f1ad1da916a191f1d88f9211d99/`。每页路径为 `tablet-user-landscape-{light,dark}-font-{1.0,1.3}/{extraction,history,history-detail,comparison}/`。
+
+Astra已逐张实看16张 `window.png`，与§1四张对应认可原稿对照，并读取实际geometry、Typography和Canvas。独立重算16份manifest命名的408个文件hash，未发现不符；PNG均2560×1600，主图app区域2560×1391。另实看浅深1.3的 `history-detail/states/notes-local-scroll-reachable/window.png`，末项“下次调整”实际出现，固定编辑/比较/详情仍可见。未将16张主图外所有状态截图都冒称已视觉验收。
+
+本轮最终CI失败是清理 `font_scale`：原key absent，delete返回0后实际present `1.0`。主16取证成功不等于scope最终恢复成功，不等于设计通过。历史5特殊样本的新测试代码不在该次运行内；STARTING/STOP_REQUESTED/UNKNOWN/stale等未生成实时状态仍pending。其它20页、24页整体、真实设备与协议行为不外推。
+
+### 10.2 四门分开判定
+
+| 页面 | G1 间距/构图 | G2 字体/字重 | G3 字号/行盒/基线 | G4 背景/状态色 |
+|---|---|---|---|---|
+| Extraction | 四主图有效读数、同图与固定停止可见；1.3右栏辅助入口在局部viewport边界，尚不能用主图证明所有入口滚达。无新增明确裁切修复项；不授全页PASS | 已采角色/字重符合候选，限定本轮文本节点；不声称ImageGen字体身份 | 48/22主值单位、20辅助/14说明角色已实测；局部可达与所有状态未完成，不由getter推全页通过 | 纯色区/停止色实屏匹配；警告/按压/禁用等未采状态不授通过 |
+| History | **FAIL**：图被挤成细条，1.0图底裁切，1.3首屏只有图例/轴标题而无plot；列表有单位独立换行；顶部与底部两个“查看详情”不同动作 | 已采40/20/14等字重无配置偏差，不抵消布局失败 | **FAIL（显示结果）**：时间轴被裁；不是靠缩轴字号修。原角色/独立单位继续保留 | 主背景/surface与选中配色可有限核对；不能据此把构图FAIL改PASS |
+| HistoryDetail | 四主图和浅深1.3 notes滚动图未见新增必修裁切；原稿未含的真实曲线期待保留。当前为限定观察，不外推所有记录/状态 | 已采角色/字重符合候选 | 主值/单位、20标题/16正文/14说明实际字号可证；notes末项已实看可达，未把首屏局部滚动边界误判为文本丢失 | 已采背景/曲线候选色未见新增偏差；缺样本/UNKNOWN及交互颜色待特殊状态实图 |
+| Comparison | **FAIL**：图被summary优先预算长期压到约96dp，原稿的大图层级未迁入；ru1.3选杯全文被截断 | 已采角色/400单位span符合候选 | **FAIL（全文）**：原advanced已证selected文字ellipsis；不以contentDescription替代实际显示 | 背景及已采tab状态可核；原稿较轻的表格分隔与当前整格描边仍是构图/层次差异，未宣称精确一致 |
+
+G2/G3实测：16份共714个TextView都有 `actual_layout_api`；0字距、`includeFontPadding=false`，复制当前Paint的fakeBold均false；实际weight仅对应400/500/700角色。714数字probe观察等advance，但714项tnumActivation仍unknown，实际TextView逐glyph墨迹来源也不从probe推定。比较单位span实测14sp/400，density360时31.5px，未再截为31px。
+
+| 角色sp | 1.0 实际px / getter行高 / 单行Layout高 | 1.3 实际px / getter行高 / 单行Layout高 |
+|---|---|---|
+| 14 | 31.5 / 49 / 46 | 42.3 / 56 / 61 |
+| 16 | 36 / 54 / 52 | 45.45 / 59 / 66 |
+| 20 | 45 / 67 / 65 | 53.100002 / 67 / 77 |
+| 22（live单位） | 49.5 / 76 / 71 | 56.25 / 76 / 81 |
+| 24 | 54 / 81 / 79 | 59.399998 / 81 / 86 |
+| 40 | 90 / 135 / 130 | 90 / 135 / 130 |
+| 48（live主值） | 108 / 162 / 156 | 108 / 162 / 156 |
+
+这是Android实际非线性sp换算，不按1.3乘算；getter行高与真实Layout差异已分别保存。字体资产候选SHA沿§1，不声称从生成图精确识别字体。
+
+G4实屏取样不以Drawable配置替代：16主图page纯色点screen `(220,230)` 浅 `#F9FAF9` / 深 `#11191A`；真实chart节点左上内移10px的无文字纯色点浅 `#FFFFFF` / 深 `#1B2526`；4张Extraction停止按钮真实rect内移 `(30,30)` 均 `#B5302D`。这些样本只证明相应纯色区域。抗锯齿边缘不拿来设任意容差，也不由纯色点推断所有文字、边框、ripple和未出现状态均通过。
+
+### 10.3 明确图表几何，不以“存在图控件”代替可读图
+
+以下同主题两份一致，数值为原artifact实际节点/Canvas，不是按截图肉眼估计。`plot`指真实Canvas内框，不是含legend和轴的外框。
+
+| 页面 | 1.0 | 1.3 |
+|---|---|---|
+| Extraction | chart `[216,529,1778,1429]`，plot高455.552px≈202.468dp | chart `[216,561,1778,1429]`，plot高345.998px≈153.777dp |
+| History | chart `[1193,712,2524,1221]`，visible底1195，底部少26px；plot高64.552px≈28.69dp | chart `[1193,736,2524,1464]`，visible底1099；plot高79.998px≈35.555dp，初屏真正plot未出现 |
+| HistoryDetail | chart `[216,573,1778,1362]`，plot高344.552px≈153.134dp | chart `[216,597,1778,1350]`，plot高230.998px≈102.666dp |
+| Comparison | chart `[216,591,2524,998]`，plot高216.164px≈96.073dp | chart `[216,647,2524,1101]`，plot高216.249px≈96.111dp |
+
+History1.3实际header187px、metrics214px、固定footer330px，占去主要内容空间。原 `minimumAxisHeight=5*line+48dp` 包含轴带但没有保证96dp真实plot；“按真实Paint测过”本身不足以证明图层级正确。Comparison `summaryRequired` 优先保完整摘要而长期挤到算法最小plot，96dp算法底线不能替代原稿常规大图。
+
+当前geometry未采embedded/comparison的只读 `productLayoutEvidence`，因此不虚构fullNatural账本。下一次可将现成预算字段只读复制进证据，但实际rect/Canvas和原整屏仍为验收依据，不新造探针替代图审。
+
+### 10.4 交Sol的一次性修正规格
+
+**History，只改embedded与本页列表/菜单，standalone/default保持：**
+
+1. 图预算改为真实plot内框至少96dp加 `bounds()` 同源实际上下轴带；额外常规空间优先给图，不能用5行+48的外框公式当plot下限。16/8组距和14sp轴不降。
+2. 内嵌专用图例按原稿显示真实指标名称、单位、线型/颜色；不重复末值挤成多行。保每个原48dp交互、指标选择与检查，末值仍在真实摘要/已有检查说明中可读；无数据不造值。只加embedded展示选项，Extraction/独立详情及默认旧路不继承修改。
+3. 固定footer只保原复盘56/完整记录48动作。豆款和口感摘要保14label+16value及全文入口，归入永久局部content的图后区；不再把notes与自然换行一并固定占据1.3的330px。原回调/identity不动，不resize reparent。
+4. title/meta24/14不变；metrics40/40/20、单位14、语义组间24不变。只有完整垂直自然预算溢出且三cell实际自然宽可容纳时，label/value改同行8gap；足高保原纵向层级。标准1.0首屏完整图含时间轴，1.3首屏至少出现真正plot而非只有legend；图及notes完整局部滚达并恢复。若仍不容纳，报告真实各块预算，禁止再按差几px削padding/字号或预滚截图。
+5. 顶部IO菜单用既有“更多”语义，原导入导出动作保持；底部完整记录入口不变。列表日期、时长、重量按真实语义chunk自然flow，数字与单位作为同组不拆出单独末行`g`；不改变连续ListView、排序/来源/selected/恢复。
+
+**Comparison，限M5 opt-in：**
+
+1. selected Spinner取消2行END截断；保16/400/24、H12/V8、min52、真实全文与原selectedID/adapter回调。dropdown不降级。权威回归证据为 `ci-91ab835-advanced/raw/wideFont.txt:72`：ru/light/1.3 `2023-11-14 22:13:20 · 采集曲线 1` ellipsized，不能仅改读contentDescription。
+2. 取消仅600dp判横排及shared说明抢余宽的逻辑。以两杯实际选中文字、Paint、padding/arrow及交换自然宽预算；不足时shared完整说明先落下一行，再不足才A/交换/B永久子节点自然纵向flow。16组距/8行距，不缩字、不删日期/来源、resize不重挂节点。
+3. 原稿常规图层级的原生补充目标：标准plot内框160dp，轴区按实际Paint另加；96dp仅保极短fallback，不再以summaryRequired先吞到96。先保此图预算，再将剩余可用空间分给details至其自然高，details至少48dp且表、来源、原详情/notes动作局部可达；toolbar与details都已自然容纳后的余量给图。48dp是短高可达底线，不是标准固定只露表头的高度。若toolbar自然高+160plot+完整轴+48details无法同屏，保原toolbar局部滚动并明确预算，不缩标签、删控件或改变数据范围。
+4. 标准四主图、ru1.3全文、details操作可达都需新证据。原table单位float14/400、H8、48点击、taste全文披露、统一量程/真实reader/默认null路径保持。当前整格描边与原稿水平分隔的层次差异是明确未完成项；本批先闭环真实截断与大图预算，不额外扩业务。即便本批两项布局修正通过，仍不能遗漏或自动关闭该表格层次待办。
+
+本节规格已分阶段发主任务，由同一生产Sol顺序实施，避免共享renderer/style冲突。修正与取证期间91ab原件不变、FAIL不追认。涉及新160dp常规plot目标属于明确原生设计补充，不冒称ImageGen已有精确dp。
+
+### 10.5 同轮测试适配与清理，独立于视觉结论
+
+- `LanguageActiveCupChecks` 的旧单TextView全文温度断言不适用真实number/unit结构。已静审候选：精确真实温度数字与`°C`、同parent、两者完整可见/textFits及screenY+native baseline严格相等；原RUNNING/cupId/recipe身份/停止语义不变。不能仅读contentDescription，也不据该适配宣称其它生命周期已通过。
+- History顶部IO Button与底部完整记录 Button同文案是两个真实不同动作。列表恢复测试仅用精确 `product/history/full-page` 唯一tag+Button+原文案/可用/完整可见，不用first。当前测试选中journal来源，expected ID必须核当前真实adapter及journal observation，不得拿local history替代；进入详情核同shotId，原返回锚点保持。产品菜单文案歧义按10.4另修。
+- font_scale原absent恢复仍严格要求absent，不能等同present1.0。已知系统可在从1.3切回默认1.0时异步持久化；delete返回0只证明该次删除成功。暂无已证公开DisplayThread持久化完成ACK，global值/重复读/AMS或app barrier都不假充它。可先将完整16配置font顺序改1.3→1.0，让最终完整配置在真实1.0下运行，再执行原严格delete/读回；这是减少确定回写触发的候选，不声称排空证明，不加盲sleep/容差、不减16。若仍present必须FAIL保现场，不能反复删除到看似通过。
+
+目前M5整体不通过。可有限保留的证据是已采节点的候选字体/字号配置、指定纯色内区及HistoryDetail末项实际滚达；不能把它们扩成全页G1–G4、完整特殊状态或24页完成。
