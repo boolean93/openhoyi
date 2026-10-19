@@ -13,6 +13,10 @@
 - 字体固定源及Google/Apple应用依据见既有研究与详细审计；固定字体身份不证明ImageGen使用相同字体。
 - 下表初始框架证据来自f525db3/run38888397896；当时24份JSON已逐一解析（density/fontScale核实），但不声称24张PNG均已人工比较。较新限定结论以各行精确源码及[Astra review §10/§11](2026-10-18-native-specimen-review.md)为准；严格基线§6与旧记录保留追溯，不能覆盖新失败。下表“字体测量条目”仍是历史框架快照计数，不是M1新取证总数。
 
+**9b51936 M3首轮push失败证据：** 独立run `39153376290` 已结束FAIL，实际source=head `9b51936fa8ab86a8bc15fc07c0f8c265346b93d2`，不是PR merge。完整小产物位于 `build/task-first-evidence/ci-9b51936-curve-push/curve-visual-tablet-user-landscape/`。主图仅2/12（Library与Import浅色1.0），Preview未进入。Library业务/隔离机械通过不等于G1–G4完整通过。Import的IME稳定现场app2560×631，raw输入框 `[216,514,2524,514]` 高0、可见区空、92行实际Layout高4966/contentHeight−36；JSON标题Layout65px但contentHeight28，截图证实标题裁切/输入消失，G1/G3 FAIL。line647的focus与scroll联合断言为停止位置，原断言前未输出这两个字段，具体子条件仍UNKNOWN，不把真实布局问题改称测试假红。字号恢复另发现缺省font_scale被写成字面null，测试owner修复原存在性恢复；不抵消主要失败。PR `39153382312` 保持独立观察，不取消或以push结果冒充其终态。
+
+**9b51936 PR终态与等待验收：** 本轮PR全部已结束：native39153382347、single39153382406、advanced39153382336、lifecycle39153382344、upgrade39153382315、branch39153382305成功；frame39153382452与curve39153382312失败。frame原日志明确 `M2 form recreation changed draft/focus/selection/identity/scroll: editor-stage-hidden-values`（AdvancedBusinessUiChecks:603/699，FormVisualMigrationChecks:451）；具体差异仍待原件分析，不据single绿关闭M2。用户已选择保留Astra最终验收并等待额度恢复，不换模型代审。生产Import修复未落地；测试owner的断言前状态取证与font_scale存在性恢复两文件已有未提交修改，尚未完成统一验证，不当已修。原CI在途表述只代表此前观察时点，以本段终态为准。
+
 ## 最新分层结论（样张、生产实现、运行证据分开）
 
 - **样张封闭，有限冻结已成立**：[review §10](2026-10-18-native-specimen-review.md#10-0a7b71a-封闭验收有限冻结进入-m1) 的 head `0a7b71a` / run `39140082042` / tested merge `908edcd9d83a8ea53123ba772ab7556ab6e2b4ed`，Astra已实看三页12初图及6滚动后图。冻结的是该批实际覆盖的字体角色、间距、浅深语义色、单位baseline、图表标签保护/网格和局部滚动设计输入；原文件保留proposed/productAcceptance=false历史身份。原图字体身份仍未知；未观察的焦点/按压等状态不因此通过。
@@ -69,7 +73,7 @@
 | BrewReviewActivity | FAIL | EVIDENCE_PENDING | FAIL | EVIDENCE_PENDING | 95be8fb真实业务图选豆第二行裁切；advanced wideFont ru/light页头曲线/时间ellipsis失败；single短高真实tools菜单触控高度不足48dp。064业务图已观察长选豆第二行完整、advanced两job通过；正式12配置和四门仍缺，9b51936新frame待验，旧18业务通过不抵消视觉差异 |
 | CurveEditorActivity | FAIL | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | 95be8fb业务图第四阶段输入底部裁切；single短高真实tools菜单触控高度不足48dp。064正式M2已取得本页浅色1.0主图：fullNatural1055/available1040，第四阶段117px输入仅102px可见（15px）；064 single另一夹具117px仅113px可见（4px），两夹具不可混同。9b51936含条件元信息同行修复，尚待新frame；不能以滚达替代标准11字段首屏 |
 | CurveShareActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
-| CurveImportActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M3已实施：原生原文输入/显式粘贴与文件读取、固定操作；原decode/UTF8/MAX_BYTES/草稿路径保留。静态与构建通过，真实合法/非法/IME/SAF和四门待独立12配置。 |
+| CurveImportActivity | FAIL | EVIDENCE_PENDING | FAIL | EVIDENCE_PENDING | M3已实施：原生原文输入/显式粘贴与文件读取、固定操作；原decode/UTF8/MAX_BYTES/草稿路径保留。静态与构建通过，但9b51936 push run39153376290的IME输入高0/标题裁切已证G1/G3 FAIL；主图2/12后停止，完整合法/非法/IME/SAF和四门仍待修复复验。 |
 | CurveImportPreviewActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M3已实施：条件metrics同行、共享阶段标题、完整图表及右固定动作；原LayoutPolicy与冲突/副本/幂等语义保留。图160和标准5行完整门禁不减；静态/构建不替代实图。 |
 | ScaleActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 无读数不能替代有效重量/趋势状态 |
 | ScaleConnectionActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 候选/连接/限制/错误状态待补 |
