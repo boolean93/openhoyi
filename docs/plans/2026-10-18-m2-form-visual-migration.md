@@ -242,3 +242,15 @@ run `39150740279` / head `0647518` / tested merge `640315453618dcb29ba8ec2cbe2fb
 本夹具按已测input117px与面内72px，同行metadata预计189px、完整内容约991px，可释放64px而非抠掉15px；该数值只是预算预测，必须下一CI实测。新增账本保留vertical/inline自然高、fullVertical、各卡内宽/label/text advance/compound padding、fits与selected；`shortMinimum`独立测量后force原子树按真实约束再量，避免wrapper缓存错误宽度。LP相对margin明确按实际MetadataCell方向解析，RTL不取LP自身旧方向。
 
 **静态结论：** 上述补丁及方向来源收口已复核，暂无阻断，可统一构建取证；未称运行或视觉通过。下一次仍Editor-first完整12配置，标准11输入全可见且不预滚、真实1.3/短高/IME、非默认焦点/选区/滚动重建、原业务与所有G1–G4门禁保持。未取得真实运行结果前，本页G1 FAIL及其余待验状态不变。
+
+### 5550a98 有限滚动恢复原件与 IME 恢复候选终核
+
+run `39185179305` / head `5550a98` / tested merge `082a3f518e1acbfd3348d4df13618020278f18b4` 的 M2 正式主图仍为 **1/12**。Astra独立读取 `ci-5550a98-frame/.../curve-editor/editor-stage-hidden-values-restore.json`、finite-scroll-fixture及前后三帧稳定记录，并实看主图/失败图：四阶段初态完整的限定结论保留；恢复前实际IME可见、内容高680px、外内容range/y均662，恢复后IME不可见、内容高1391px、range/y均0。11字段值、选区、`target-3`焦点、draftId和stageCount一致。此轮已使用合法有限range，不再是旧Int.MAX_VALUE测试输入；range变0后的y0是合法clamp，不能单独称滚动存储丢失。真正未满足的是原IME/viewport恢复契约，不能据字段恢复成功把整页或M2判通过。
+
+主任务批准仅 `TaskCurveEditorForm` 补生产恢复：仅实际可观察时保存IME可见性（unknown不写false）；原字段和selection在真实attached/window-focus/layout条件满足后恢复，saved true才请求一次原生IME。仅本页host监听IME动画事件，结束后的实际PreDraw再按当前原生range恢复三处scroll；saved false/unknown不主动show。焦点转移、窗口失焦、detach、Activity stop/destroy或完成均注销原/当前observer、动画callback及生命周期callback，不覆原页面Insets listener、不sleep、不由测试主动重开IME。只读 `productRestoreEvidence` 记录请求、实际可见性、事件及位置。
+
+SDK34允许在动画结束前先dispatch终态Insets并完成终态layout；等待已观察到的动画结束是本页完成恢复的明确checkpoint，不是声称旧失败唯一由中间动画viewport造成。已证源码缺口是旧实现未保存/恢复IME。Astra已复核候选事件链、取消清理与原预算/字段对象不变，无剩余静态阻断，可合批构建；原精确IME、viewport和有限scroll roundTrip断言不变，真实恢复及完整12配置/G1–G4仍待CI，不能预写修复通过。
+
+### 2026-10-19 本批统一构建
+
+Astra生产与测试静态终审后冻结源码，首次构建发现Batch/Ledger的Paint.style接收者遮蔽，Sol仅限定Activity接收者，颜色与布局不变。重跑日志 `/tmp/2026-10-19-m2-ime-m4-build-retry1.log`：BUILD SUCCESSFUL in 1m 10s，98 tasks（13 executed/85 up-to-date）；`:bean-core:verify`通过，实际XML为11 suites/48 tests，failure/error/skipped均0；Mock及AndroidTest APK均构建成功。仍未运行新M2恢复、M3 IME和M4完整12配置，不关闭视觉FAIL或缺证项。

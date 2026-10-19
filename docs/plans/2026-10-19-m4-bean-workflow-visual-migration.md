@@ -139,3 +139,17 @@ Astra已读四个生产Kotlin完整差异，并重新对照三张既有原稿；
 6. **分隔和动作语义：** Preparation行底border1dp与分组线画在现有8/16dp留白中，不叠新高度。首版通用action对所有primary画coffee、所有secondary画back不符合确认库存语义：只返回用back、添加豆子用bean，保存/确认映射原稿check；其它动作不硬套咖啡/返回图标。主任务已明确授权HomeVisualIcon最小新增check case：24dp坐标路径(5,12)→(10,17)→(20,6)，1dp实线；默认及其它kind/页面调用不变。保存选择/确认用check，关联或扣减重试、放弃/取消选择可保文字，不硬套错误图标；沿既有8gap/currentTextColor/居中helper，不改回调。不能以未知kind画空图或扩全局。
 
 本节是有限设计/实现审查意见，不是运行FAIL证据，也不改变两事件首屏、72/48/52/56下限、三条事件保留、原业务写入/不重扣和完整12配置范围。M2/M3原件到达优先验收；M4半成文件不混入其它批次定点修复的构建或提交。
+
+### 8.3 收口后生产与测试静态终核（未构建、未运行）
+
+Astra已终核当前四个生产文件、`HomeVisualIcon`唯一check case、八语种三key，以及完整五个测试/入口文件。§8.2六项均已落实：Batch初始量24/400/36；永久中部fallback与外置footer；Ledger两语义组自然flow；Preparation真实顺序、状态色与动作映射；分隔不额外占高。DoseBalance默认null旧路、业务确认/未决/关联/调整/只读路径保持。没有剩余明确静态阻断，可由主任务统一冻结构建；Batch标准两事件、字号1.3、短高与长内容仍须真实运行，不因fallback已存在而豁免首屏。
+
+新测试独立三页×两主题×两字号12配置，原稿SHA已与本地三PNG逐一重算一致。初图先保存再reveal，实际Layout横纵边界/ellipsis、单位baseline、固定操作、标准Batch两事件/Ledger三事件首屏与滚后精确恢复保留。合法内存10Lazy闭包先Scope后prepare，原Lazy不求值；无Home/无服务主路径，全部Activity/dialog销毁且每个Preparation实例owner=null、bound/visible=false、250ms refresh已移除后，才drain新writers、恢复原Lazy/逐键偏好并核业务盘hash。关联恢复使用同scope原history/journal/preparation/inventory；未知/拒写不回滚原盘。
+
+完整业务覆盖仍由真实控件触发：选择不扣、稳定eventId确认/拒写/显式重试/不二扣、真实回执/关联、调整双对话框与并发重读、流水真实gesture和返回/重建。旧Advanced两处selector只按当前容器身份迁移并保完整语义/72dp/回调；旧入口不替换。独立45min workflow/fail-closed新进程guard/原protocol2与font_scale存在性恢复已静态核对，只有完整12成功才报告机械完成，视觉仍 `ASTRA_PENDING`。条件轮询用于生命周期/原生状态就绪，不替代可见性断言；IME和对话框诊断明确未证明同合成帧。
+
+本次独立执行仅 `git diff --check`、新runner `bash -n`、三原稿SHA与八XML解析/key集合核对，均通过；未执行Gradle或设备。主任务后续构建与实际证据另记。M2 IME、M3 inline/IME尚待复验，不因M4静态通过而关闭其FAIL；24页与硬件验收均未完成。
+
+### 2026-10-19 本批统一构建
+
+Astra生产与测试静态终审后冻结源码，首次构建发现Batch/Ledger的Paint.style接收者遮蔽，Sol仅限定Activity接收者，颜色与布局不变。重跑日志 `/tmp/2026-10-19-m2-ime-m4-build-retry1.log`：BUILD SUCCESSFUL in 1m 10s，98 tasks（13 executed/85 up-to-date）；`:bean-core:verify`通过，实际XML为11 suites/48 tests，failure/error/skipped均0；Mock及AndroidTest APK均构建成功。仍未运行新M2恢复、M3 IME和M4完整12配置，不关闭视觉FAIL或缺证项。

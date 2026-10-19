@@ -21,6 +21,10 @@
 
 **5550a98 本轮M2恢复实证：** PR frame `39185179305` 已FAIL，实际merge `082a3f518e1acbfd3348d4df13618020278f18b4`，M2仍仅Editor浅1.0主图1/12。修正有限范围夹具后，原restore记录只差IME true→false、窗口高度680→1391、外滚动y662→0；实际range同步662→0，因此0是不同viewport下合法clamp，不能独立称“滚动丢失”。11字段值/selection、focusedFieldKey、draftId、stageCount均一致。已证IME重建未保持，唯一根因仍待审，不放宽精确恢复门禁。原包在 `build/task-first-evidence/ci-5550a98-frame/task-frame-tablet-user-landscape.raw.zip`，928项CRC通过、SHA256与GitHub digest一致；仅提取33份小文件，完整原包保留。M3的5550 inline构造故障与单literal修复见M3计划§8，未进入IME，旧零高度FAIL未关闭。
 
+**5550a98 常规回归终态补记：** PR native39185179371、single39185179274、lifecycle39185179343、upgrade39185179420及branch39185179406均成功。advanced39185179289整体失败，下载business小原件后确认17条路径输出，最后在AdvancedBusinessUiChecks:1338报 `Import raw text must edit inline`；与M3独立检查发现的构造期inline祖先丢失一致，不把前17路径当18业务全部成功。原件保留 `build/task-first-evidence/ci-5550a98-advanced-business/business-flows.txt`。该生产单literal候选已单独提交56a48de，尚未新运行复验；M2真实IME恢复候选另由Sol按Astra约束实施，不改测试主动打开IME。
+
+**M4实现/构建状态：** 三页及独立完整12配置测试入口已实现，Astra静态终审无剩余阻断；与M2 IME恢复候选统一构建成功，库存核心检查及11 suites/48 tests通过。实际运行与G1–G4仍待新CI，不把实现和编译记为视觉通过。
+
 ## 最新分层结论（样张、生产实现、运行证据分开）
 
 - **样张封闭，有限冻结已成立**：[review §10](2026-10-18-native-specimen-review.md#10-0a7b71a-封闭验收有限冻结进入-m1) 的 head `0a7b71a` / run `39140082042` / tested merge `908edcd9d83a8ea53123ba772ab7556ab6e2b4ed`，Astra已实看三页12初图及6滚动后图。冻结的是该批实际覆盖的字体角色、间距、浅深语义色、单位baseline、图表标签保护/网格和局部滚动设计输入；原文件保留proposed/productAcceptance=false历史身份。原图字体身份仍未知；未观察的焦点/按压等状态不因此通过。
