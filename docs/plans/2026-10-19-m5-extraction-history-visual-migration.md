@@ -10,6 +10,8 @@
 
 ## 0. 模板、依赖和当前状态
 
+**当前执行索引（2026-10-19，5ef3b8f）：** 主任务已核实际依赖，同意M5四页展示生产可独立启动，并已明确授权§8.3最小同源时间桥接；原按批次等待及该局部禁改Service表述由此替代，其它服务/协议行为仍禁止修改。当前仅完成本计划与依赖审，四页/16配置范围不减。生产由同一Sol顺序负责§3全部展示文件/图表及三个clock桥接文件，测试Sol负责独立scope/入口；共享文件仍单owner串行。不能拿无服务/非RUNNING图替代Extraction；历史三页测试可先准备。M2/M3/M4新原件优先图审，其未验状态不被本授权覆盖。下列0647518/33b6e85记录保留为最初规划基线。
+
 - 遵守 [task-template](task-template.md) 与 [git-workflow](../git-workflow.md)。来源 `develop` 共同基线 `66ebda95dc7986eec66f9fa0b7e6cbd565c74506`；延续授权 `feature/task-first-ui`，PR #4 → `develop`。本次生产只读基线 `0647518`；记录时 HEAD `33b6e85779f16d215828ba2ac57be057329d146e` 仅另含两旧 UI 入口脚本修正。
 - 当前仅 M5 规划，未授权生产实施。M2 实图/缺陷闭环优先；M3 已获独立部分先行授权，不能按编号误写 M2 已完成。M5 开工由主任务核实际依赖和 owner 后明确分配；不要求为无依赖页面等待编号，但不能并改共享文件。
 - 固定24页，中文、2560×1600/density360 横屏优先；保留横屏短高、1.3大字及已有其它语言回归，不新增竖屏工作、不锁方向。已有非本任务 CI 保留，不纳新竖屏验收。
@@ -59,7 +61,7 @@ ImageGen 字体身份、精确 sp/色值不从图反推；概念数值/端点也
 | 生产 Sol A | `ExtractionActivity.kt`、`TaskLiveReadouts.kt`、`TaskRecipeSummary.kt`、`TaskExtractionWorkspace.kt` | 后三者负责展示/自然预算，不能写 telemetry/model；Workspace 同时供历史详情，改接口必须与 B 协调、默认旧路径保留 |
 | 生产 Sol B（或同一 Sol 顺序） | `HistoryActivity.kt`、`HistoryDetailActivity.kt`、`HistoryDetailContent.kt`、`BrewComparisonActivity.kt`、`TaskComparisonLayout.kt`、`ComparisonMetricTabs.kt`、`ComparisonSummaryTable.kt` | 内嵌/独立详情共用；选择/列表/异步/读写回调保持；默认未 opt-in 调用不变 |
 | 单一图表 owner | `ExtractionOverlayView.kt`、`ShotChartView.kt`、`TwoCupChartView.kt`，必要独立 `ExtractionHistoryVisualStyle.kt` 与八语种 `values*/extraction_history_visual.xml` | 新 style 默认 null，旧 renderer 路径保留，四页明确传入；独立 Paint，不能污染其它图表或修改投影数据。局部新角色/状态色不扩全局 TaskProductVisualStyle |
-| 测试 Sol | 新 `ExtractionHistoryVisualMigrationChecks.kt`、新 `scripts/check_extraction_history_visual_migration.sh`；必要 `FourMetricChartChecks/TwoCupComparisonPageChecks/SingleScreenListStateChecks`；runner 与 task-frame 增量 | 共享测试/runner/workflow 单 owner 串行；保留其它批次/原门禁/原 protocol2。组件图不充整页图 |
+| 测试 Sol | 新 `ExtractionHistoryVisualMigrationChecks.kt`、新 `scripts/check_extraction_history_visual_migration.sh`、独立 `extraction-history-visual-ui.yml`；必要 `FourMetricChartChecks/TwoCupComparisonPageChecks/SingleScreenListStateChecks`、`BrewAudioInstrumentation` 显式入口 | 共享测试/runner/workflow 单 owner 串行；不向旧task-frame追加16配置，保留其它批次/原门禁/原protocol2。组件图不充整页图 |
 | Astra | 本计划及明确授权的统一记录 | 设计、源码静态审、实图 G1–G4；不改产品/设备 |
 
 复用 Frame/Nav/TaskCollectionLayout 的现有接口，不改默认。禁止修改 `MobileService/ShotSeries/ShotSamplesStore/FourMetricChartProjection/ChartInspection/ExtractionReference/LiveTelemetry/StopActionPresentation/ShotGate/BrewJournal/ShotHistory` 业务；`LegacyHistory*` 仅保留原路由，不迁样式/数据。若确实缺公共展示接口，报告具体调用链后由主任务定 owner，不扩大共享默认。
@@ -121,3 +123,33 @@ ImageGen 字体身份、精确 sp/色值不从图反推；概念数值/端点也
 ## 7. 当前完成与未完成
 
 已完成七张原稿、四Activity/详情共享源、readouts/recipe/workspace/comparison/plot与真实数据projection、现有仪表/列表门禁只读核对；本计划是可执行设计输入。M5代码/构建/16主图/live隔离运行/特殊状态/G1–G4均未完成，不授予PASS。原图未知字体不重开研究；缺少服务夹具证据不伪造实时状态。M1限定结论、M2未决缺陷、其它页及硬件边界各自保持，不以本批规划覆盖。
+
+## 8. 5ef3b8f 实际依赖收口与最小运行契约
+
+### 8.1 可独立启动范围
+
+四页展示层、图表opt-in与历史详情共用展示没有引用M2/M3/M4页面的布局对象；生产同一owner可按§3顺序实施，不以编号等待。消费现有Frame/Nav/Workspace与已提交style，默认旧路径保持。测试先实现三历史页的合法10Lazy/owned samples/真实reader闭包和完整16入口骨架；Extraction四配置明确pending，不能把已采12/16报告成完整M5。独立workflow保留原所有CI，不扩旧task-frame链；45min候选上限需按实际完整运行核对，不靠减配置或无限加timeout。
+
+### 8.2 Extraction 实际服务持有与清理顺序
+
+源码已核：`MobileService.onCreate`取得并持有app.logs/history，向同scope feedbackPreferences及原app.visibility注册ownerId观察者；另持有series、MockDeviceRuntime、feedback tracker/delivery。Extraction.onStart以flags0绑定已有service且每250ms render，onStop移除refresh并unbind。服务mockTick/watchShot也每250ms运行，停止/销毁可能追加history/samples，因此原模型绝不能提前恢复。
+
+1. fresh独立Mock进程、无原窗口/服务；安装合法10Lazy整组后才创建唯一Mock service。原history callbacks、logs、samples、usage/journal/preparation/inventory全部指向scope；创建后核service.logs/history身份、mock存在且hub=null，记录ownerId。语言/反馈为scope，不触真实BLE。测试不通过Home绕路启动额外owner。
+2. `shotRecovery`、`machineWriteRecovery`、`coffeeCredentials`不是app那10Lazy；只读其初始化状态并盘点实际调用路径，不能借已有原偏好伪造清洁状态。Mock正常启动/停止分支无需真实写入恢复意图；如果特殊状态测试会求值/写这些独立store，先给合法内存替换闭包再授权，不能清空原恢复记录。业务盘核对扩含真实 `noBackupFilesDir` 中pending恢复文件，不仅files/shared_prefs/databases。
+3. 所有Extraction/详情/对话框destroyed，页面service=null/bound=false/visible=false且refresh退出 → 主线程停止该唯一scope服务并证实onDestroy → service的mockTick/watchShot/leaveForeground/stopAutomaticScale无排队回调，feedbackPreferences与app.visibility对应ownerId已unobserve，hub关闭 → reader退出并main barrier → owned samples writer和trace drain → 撤销测试时钟（若获批）/恢复10Lazy与typed prefs → 原身份/initialized/业务盘核对。任何一环未知或失败停止，不先restore、不回滚原文件。原app.visibility诊断observer保留，不clear整个observer表。
+
+### 8.3 已授权同源单调时钟桥接（尚未实施）
+
+现有`MockDeviceRuntime.sample(now)`虽有参数，但`MobileService.mockTick`每250ms强传`SystemClock.elapsedRealtime()`并按真实atMs追加ShotSeries；Extraction的freshness/告警/启动说明也直接读系统时间。没有现成可注入clock。仅反射snapshot、改startedAt、停handler、延freshness或屏蔽动态图都不能解决为真实主图提供一致输入的问题。
+
+主任务已明确授权仅三生产文件：新`MobileMonotonicClock.kt`、`MobileService.kt`、`ExtractionActivity.kt`。默认每次返回原系统elapsedRealtime；只有BuildConfig.MOCK_MODE且明确独立测试scope才允许一次安装可单调前进的clock，真实构建即使存在override也必须系统值。安装/撤销为单owner、身份可核，拒绝重复owner和时间倒退；失败也沿相同排空顺序清理，不能以恢复默认为由提前撤钟。Service单调时间源与Extraction四处时间读取统一；`MockDeviceRuntime`/`ShotSeries`/`LiveTelemetry`/控制状态机算法不改，不混墙钟与单调时钟。该授权只替代原§3禁止Service修改中的时间来源一项；采样值、协议/命令、状态机、handler频率及其它服务行为仍不许修改。
+
+scope在service创建前安装clock；通过真实Mock启动/合法观测路径，按manifest声明时间序列前进至主fixture。取证时仅逻辑时刻不前进，原250ms handler照常执行，重复时刻由原ShotSeries非递增规则拒绝新增点，freshness与服务/页面使用同一个时刻。显式推进后核stale/新采样/结束等真实结果；不直接写TextView、状态getter或曲线投影，不新增不存在的遥测能力。测试等待/协议2五秒预算必须继续用真实系统时间，不能被fixture clock冻结。该模式不证明真实watchdog延时、物理时序或硬件；原默认真实clock的lifecycle/stop/预热/transport门禁完整保留。其它会用系统时间读该service的页面不纳入固定clock scope；若需要路由必须先审同源缺口。
+
+### 8.4 历史与比较读取排空
+
+- `HistoryDetailContent` 每次渲染创建裸`history-detail-reader`，先加载samples再chart.post；内嵌History切换也会产生旧reader。新scope起始核无该名存活线程，在关闭全部相关Activity/窗口之后join仅该fresh scope的新reader，循环核至无存活reader并作main barrier；不只查当前可见chart。旧post的isFinishing/isDestroyed/attached防护保持，不能把页面销毁等同IO已终止。若测试无法可靠取得owned线程，才提最小只读跟踪接口，不先改读逻辑。
+- `BrewComparisonActivity.readers`为两线程池；onDestroy只有shutdownNow，并不等待任务退出。测试保留每个实际实例的reader引用，destroy后awaitTermination成功再main barrier，之后才drain样本writer与还原app对象。任务内会读取`app.samples`，因此不能先恢复原Lazy再等线程。保留SourceKey与当前选择校验，不将迟到A样本绘成B。
+- 主图/列表/详情/比较不触legacy导入导出。若本批补显式IO业务，则另列`journal-export`及MobileApplication导入/导出线程、owned URI/provider和legacy依赖，排空后再恢复；未隔离时只保留旧原门禁，不冒称新scope已覆盖。样本先经合法owned Repository保存并等待对应writer屏障，文件格式/时间单调/缺失与坏文件照原规则，不替换load返回值。
+
+本节仅完成源码依赖与方案审计，未改生产、未运行设备。四页生产及已授权clock桥接可前进；实现需独立静态审查后才接入真实16配置。G1–G4仍逐页实图判断，不能因隔离/时钟方案获批继承视觉PASS。
