@@ -161,3 +161,13 @@ run `39187428107` / head `5ef3b8f2efba1ce2d2469bc51a6815817ecc938b` / tested mer
 ### 2026-10-19 本批统一构建
 
 Astra生产与测试静态终审后冻结源码，首次构建发现Batch/Ledger的Paint.style接收者遮蔽，Sol仅限定Activity接收者，颜色与布局不变。重跑日志 `/tmp/2026-10-19-m2-ime-m4-build-retry1.log`：BUILD SUCCESSFUL in 1m 10s，98 tasks（13 executed/85 up-to-date）；`:bean-core:verify`通过，实际XML为11 suites/48 tests，failure/error/skipped均0；Mock及AndroidTest APK均构建成功。仍未运行新M2恢复、M3 IME和M4完整12配置，不关闭视觉FAIL或缺证项。
+
+
+## 9. 45fdc9e Batch IME 两类独立问题与候选（2026-10-19）
+
+原件 `build/task-first-evidence/ci-45fdc9e-bean/raw/raw-device/34fe3eafe83253e3986fc6ffd03a454e9c7c44f9/`。Preparation的IME输入与固定操作业务已越过旧失败点；Batch调整dialog原PNG显示目标80及原因完整，而取消/预览被底部IME遮挡。旧取证把dialog screen rect与getGlobalVisibleRect的root-local rect直接比较，使全部文字fullViewVisible误报false；修正坐标后hierarchy完整仍不能证明未被系统IME遮挡。两类问题独立，均不能用另一项修复消除。
+
+- 测试候选：保留raw root-local值与root screen/window origin，转为screen后继续原exact whole/Layout门禁；另同main用owner WindowMetrics.bounds及IME|systemBars insets构造safeScreenRect。真实focused target及两个native按钮须同时whole且完整位于safe内，并要求实际IME可见；原PNG/前后geometry先落盘再assert。45fd回放safe=[0,74,2560,754]，输入在内而两个按钮底845/854仍FAIL。仅本CI停靠IME范围，sameCompositorFrameProven仍false，不泛化浮窗遮挡。
+- 生产候选仅BeanBatch输入dialog：ADJUST_RESIZE，永久中部AdjustmentFormViewport按实际visibleDisplayFrame高度减native decor与中部高度差约束AT_MOST；原native标题/取消/预览在外，body可局部滚动。原target/reason对象、preview/confirm及dismiss草稿逻辑保持，dismiss/detach注销监听，不缩52输入或字体。
+
+两候选静态无新增阻断，可合批构建并复验；尚无新运行/视觉通过，完整12配置与G1–G4继续待验。

@@ -153,3 +153,25 @@ scope在service创建前安装clock；通过真实Mock启动/合法观测路径�
 - 主图/列表/详情/比较不触legacy导入导出。若本批补显式IO业务，则另列`journal-export`及MobileApplication导入/导出线程、owned URI/provider和legacy依赖，排空后再恢复；未隔离时只保留旧原门禁，不冒称新scope已覆盖。样本先经合法owned Repository保存并等待对应writer屏障，文件格式/时间单调/缺失与坏文件照原规则，不替换load返回值。
 
 本节仅完成源码依赖与方案审计，未改生产、未运行设备。四页生产及已授权clock桥接可前进；实现需独立静态审查后才接入真实16配置。G1–G4仍逐页实图判断，不能因隔离/时钟方案获批继承视觉PASS。
+
+
+## 9. 首版静态审查与封闭修正（2026-10-19，尚无16图验收）
+
+当前生产17 Kotlin+8scope XML及独立测试入口已实施；§7及§8.3“未实施”是规划时历史状态，不再作为等待条件。基于45fdc9e的首版构建证据为 `build/task-first-evidence/m5-first-full-build/verification.json`：8 suites/47 tests/0fail/0error/0skip及APK构建成功；这不覆盖随后候选修订，更不证明视觉通过。
+
+首版全组静态审已完成。四页显式opt-in；默认null renderer/helper保持；真实控制、来源、列表身份与reader防迟到语义未见新增阻断。Service37处、Extraction4处单调时间入口同源，real始终SystemClock，Mock单owner/拒倒退，协议2的真实5s计时不变。服务recovery闭包、异步排空及完整4×4=16测试入口静态可执行，运行仍待。G2原稿字体身份/tnum未知仍如实保留。
+
+本批必须先收口三项：
+
+1. **History内嵌预览自然预算。** 旧固定块按名义角色加总约406dp（先前聊天506dp算术错误已纠正），约518dp正常区域只余112dp给图，低于现真实Paint轴区+原图头自然预算。数字仅静态估算，不冒称运行测量。仅embedded分支按原稿语义重排：title24与more48同一永久行；date/status/chartStatus自然flow（16横/8纵），保完整实际加载/失败说明；原metrics label14、8gap、40主值/20水量不变；图后16gap，底部豆款摘要行，再口感摘要左与原review56/full-page48动作组右，宽不足自然换行。保原全文披露/回调，禁止resize reparent。量完整header/metrics/footer及实际图最低高度；标准主fixture不能以compactNotice代替真实图，极短仅内容局部可达、操作固定，不削字号或图预算。
+2. **Comparison单位精度。** 移除 `AbsoluteSizeSpan(sp(14).toInt())` 的整数px截断，现MetricAffectingSpan在measure/draw共同写实际float sp(14)及400typeface；同TextView全文、baseline及selector保持。用户density360下14sp=31.5px不能静默变31px。
+3. **Comparison状态背景。** tabs外框opt-in使用冻结palette、1dp边/12dp圆角；null旧路径不变。SummaryTable不得用最终纯背景循环覆盖taste原Ripple/focus，正常surface+border、focus accent边、ripple selected；按钮选中/按压/焦点与非交互状态保留，不用颜色配置冒充屏幕合成色验收。
+
+上述三项交生产Sol实施，Astra只做复核。其余首版无新增静态阻断；修订后须冻结构建、新16真实PNG/实际Layout与Paint/同域协议及业务回归，再逐页判G1–G4。当前不是M5视觉通过，也不覆盖未生成特殊状态、其它页或硬件。
+
+
+### §9 三项候选收口的静态复核
+
+已复核冻结的 `HistoryDetailContent/ComparisonSummaryTable/ComparisonMetricTabs`：embedded永久title/meta/metrics与两行fixed footer已分离；ScrollView子内容以resolved EXACT测量，图预算含同生产14sp/400 Paint轴区及真实native图头，不靠设置LayoutParams假定ScrollView约束。40/20/14角色、16/8间距及真实异步/完整披露/原操作保持。比较单位span在measure/draw两路均使用float sp(14)+400；tabs与taste选中/焦点/禁用/按压palette路径已收口，null旧路径保留。
+
+三项静态阻断已关闭，可进入冻结构建/CI；这不是G1–G4通过。必须实测标准fixture fullNatural与available、初态完整图及固定footer，大字/短高局部滚达/恢复。预算JSON不能代替真实Layout/屏幕证据，16配置尚未验收。

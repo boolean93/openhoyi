@@ -3,6 +3,7 @@ package io.openhoyi.mobile
 import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -11,6 +12,7 @@ import java.util.UUID
 
 class BeanBatchActivity : ThemedActivity() {
     private val dialogs = mutableListOf<AlertDialog>()
+    val productAdjustmentLayoutEvidence = org.json.JSONObject()
     private var adjustmentOpen = false
     private var draftTarget: String? = null
     private var draftReason = ""
@@ -261,6 +263,7 @@ class BeanBatchActivity : ThemedActivity() {
     private fun adjustment(inventory: BeanInventory, batchId: String) {
         var current = inventory.batches().find { it.batch.id == batchId } ?: return
         adjustmentOpen = true
+        productLayoutEvidence.put("adjustmentDialog", productAdjustmentLayoutEvidence)
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             isFocusableInTouchMode = true; tag = "task-inline-form"
@@ -279,8 +282,9 @@ class BeanBatchActivity : ThemedActivity() {
         formStyle.unit(target, "g", "batch", "target")
         targetField = target; reasonField = reason
         val error = formStyle.error(beanError(form))
+        val viewport = AdjustmentFormViewport(this, productAdjustmentLayoutEvidence).apply { addView(form) }
         val dialog = AlertDialog.Builder(this).setTitle(R.string.beans_adjust)
-            .setView(ScrollView(this).apply { addView(form) })
+            .setView(viewport)
             .setNegativeButton(R.string.beans_cancel, null).setPositiveButton(R.string.beans_preview, null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
@@ -324,12 +328,18 @@ class BeanBatchActivity : ThemedActivity() {
         }
         dialogs += dialog
         dialog.setOnDismissListener {
+            viewport.unbind()
             draftTarget = target.text.toString(); draftReason = reason.text.toString()
             targetField = null; reasonField = null; adjustmentOpen = false
             dialogs.remove(dialog)
         }
+        dialog.window?.let { window ->
+            window.setSoftInputMode((window.attributes.softInputMode and android.view.WindowManager.LayoutParams.SOFT_INPUT_MASK_ADJUST.inv()) or
+                android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        }
         dialog.show()
         styleDialog(dialog)
+        viewport.bind(dialog)
     }
     private fun styleDialog(dialog: AlertDialog) {
         dialog.window?.setBackgroundDrawable(style.shape(style.surface))
@@ -341,4 +351,86 @@ class BeanBatchActivity : ThemedActivity() {
                 outline = which == AlertDialog.BUTTON_NEGATIVE) }
         }
     }
+}
+
+/** Only the adjustment form scrolls. Native dialog title/buttons keep their original ownership. */
+private class AdjustmentFormViewport(context: android.content.Context, private val evidence: org.json.JSONObject) : ScrollView(context) {
+    private var maximumHeightPx: Int? = null
+    private var dialog: AlertDialog? = null
+    private var observer: android.view.ViewTreeObserver? = null
+    private var listener: android.view.ViewTreeObserver.OnPreDrawListener? = null
+    init { tag = "product/batch/adjustment-scroll" }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val cap = maximumHeightPx
+        val suppliedMode = View.MeasureSpec.getMode(heightMeasureSpec)
+        val suppliedSize = View.MeasureSpec.getSize(heightMeasureSpec)
+        val bounded = if (cap == null) heightMeasureSpec else View.MeasureSpec.makeMeasureSpec(
+            if (suppliedMode == View.MeasureSpec.UNSPECIFIED) cap else minOf(cap, suppliedSize), View.MeasureSpec.AT_MOST)
+        super.onMeasure(widthMeasureSpec, bounded)
+    }
+    fun bind(owner: AlertDialog) {
+        check(dialog == null)
+        dialog = owner
+        evidence.put("dialogShowing", true)
+        val decor = requireNotNull(owner.window).decorView
+        val tree = decor.viewTreeObserver
+        observer = tree
+        fun rect(view: View?): Any {
+            if (view == null) return org.json.JSONObject.NULL
+            val location = IntArray(2); view.getLocationOnScreen(location)
+            return org.json.JSONArray(listOf(location[0], location[1], location[0] + view.width, location[1] + view.height))
+        }
+        listener = android.view.ViewTreeObserver.OnPreDrawListener {
+            val window = owner.window
+            if (window == null || !owner.isShowing || !decor.isAttachedToWindow) true
+            else {
+                val visibleFrame = android.graphics.Rect(); decor.getWindowVisibleDisplayFrame(visibleFrame)
+                val actualChrome = (decor.height - height).coerceAtLeast(0)
+                val available = visibleFrame.height().coerceAtLeast(0)
+                val cap = (available - actualChrome).coerceAtLeast(0)
+                val titleId = resources.getIdentifier("alertTitle", "id", "android")
+                val title = owner.findViewById<View>(titleId)
+                val negative = owner.getButton(AlertDialog.BUTTON_NEGATIVE)
+                val positive = owner.getButton(AlertDialog.BUTTON_POSITIVE)
+                val rootScreen = IntArray(2); val rootWindow = IntArray(2)
+                decor.getLocationOnScreen(rootScreen); decor.getLocationInWindow(rootWindow)
+                evidence.put("softInputMode", window.attributes.softInputMode)
+                    .put("availableFrameScreenPx", org.json.JSONArray(listOf(visibleFrame.left, visibleFrame.top, visibleFrame.right, visibleFrame.bottom)))
+                    .put("frameSemantics", "decor.getWindowVisibleDisplayFrame; screen_coordinates")
+                    .put("decorRectScreenPx", rect(decor)).put("titleRectScreenPx", rect(title))
+                    .put("negativeButtonRectScreenPx", rect(negative)).put("positiveButtonRectScreenPx", rect(positive))
+                    .put("bodyViewportRectScreenPx", rect(this)).put("bodyViewportHeightPx", height)
+                    .put("bodyNaturalHeightPx", getChildAt(0)?.measuredHeight ?: 0)
+                    .put("actualNativeChromePx", actualChrome).put("availableHeightPx", available).put("bodyMaximumHeightPx", cap)
+                    .put("rootScreenOriginPx", org.json.JSONArray(rootScreen.toList())).put("rootWindowOriginPx", org.json.JSONArray(rootWindow.toList()))
+                    .put("rootScreenMinusWindowPx", org.json.JSONArray(listOf(rootScreen[0] - rootWindow[0], rootScreen[1] - rootWindow[1])))
+                    .put("minimumEditorPx", (52 * resources.displayMetrics.density).toInt())
+                    .put("minimumEditorBudgetSatisfiable", cap >= (52 * resources.displayMetrics.density).toInt())
+                if (android.os.Build.VERSION.SDK_INT >= 30) {
+                    val insets = decor.rootWindowInsets
+                    evidence.put("imeVisible", insets?.isVisible(android.view.WindowInsets.Type.ime()) ?: org.json.JSONObject.NULL)
+                    insets?.getInsets(android.view.WindowInsets.Type.ime())?.let { ime ->
+                        evidence.put("imeInsetsPx", org.json.JSONArray(listOf(ime.left, ime.top, ime.right, ime.bottom)))
+                    }
+                }
+                if (available > 0 && decor.height > 0 && maximumHeightPx != cap) {
+                    maximumHeightPx = cap
+                    requestLayout()
+                    false // Layout the bounded middle before presenting this frame.
+                } else true
+            }
+        }
+        tree.addOnPreDrawListener(requireNotNull(listener))
+        decor.invalidate()
+    }
+    fun unbind() {
+        val callback = listener
+        if (callback != null) {
+            observer?.takeIf { it.isAlive }?.removeOnPreDrawListener(callback)
+            dialog?.window?.decorView?.viewTreeObserver?.takeIf { it.isAlive && it !== observer }?.removeOnPreDrawListener(callback)
+        }
+        evidence.put("dialogShowing", false)
+        listener = null; observer = null; dialog = null
+    }
+    override fun onDetachedFromWindow() { unbind(); super.onDetachedFromWindow() }
 }

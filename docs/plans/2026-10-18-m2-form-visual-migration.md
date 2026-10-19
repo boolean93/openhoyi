@@ -254,3 +254,10 @@ SDK34允许在动画结束前先dispatch终态Insets并完成终态layout；等�
 ### 2026-10-19 本批统一构建
 
 Astra生产与测试静态终审后冻结源码，首次构建发现Batch/Ledger的Paint.style接收者遮蔽，Sol仅限定Activity接收者，颜色与布局不变。重跑日志 `/tmp/2026-10-19-m2-ime-m4-build-retry1.log`：BUILD SUCCESSFUL in 1m 10s，98 tasks（13 executed/85 up-to-date）；`:bean-core:verify`通过，实际XML为11 suites/48 tests，failure/error/skipped均0；Mock及AndroidTest APK均构建成功。仍未运行新M2恢复、M3 IME和M4完整12配置，不关闭视觉FAIL或缺证项。
+
+
+### 45fdc9e 复验与原生输入连接候选（2026-10-19，待运行）
+
+原件见 `build/task-first-evidence/ci-45fdc9e-frame/raw/task-first-evidence/form-visual-migration/`。Editor 的 `savedIme/requestedIme/observedImeVisible` 均为 true，原恢复链记录 `RESTORED_AFTER_OBSERVED_IME_LAYOUT`、动画事件为空，曾按合法范围应用原滚动；之后业务断言实际 IME=false、窗口恢复1391px高，outer range=0/y=0。字段、selection、focus、draft/stage身份仍相等。因此不能继续假设“请求没发”，也不能把合法clamp单独称作滚动保存丢失；后续hide的唯一来源仍未证明。
+
+候选仅 `TaskCurveEditorForm`：恢复焦点/selection后确认该真实field的 IMM active、window focus与token；仅一次 `showSoftInput(field,0,ResultReceiver)`，主线程收到 SHOWN/UNCHANGED_SHOWN 后的下一真实PreDraw，且实际IME可见、无已观察动画/待layout、仍active，才恢复原三个scroll。拒绝/hidden结果明确记录，不自动重试；失焦、window失焦、detach、stop/destroy取消并注销，取消后的callback不应用状态。静态无新增阻断；原精确roundTrip断言不改，不由测试reopen键盘。候选与旧失败均不授予M2整页通过。

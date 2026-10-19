@@ -34,7 +34,9 @@ class BrewComparisonActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val body = beanPage(getString(R.string.journal_compare_title), getString(R.string.journal_compare_hint))
+        val visual = ExtractionHistoryVisualStyle(this)
+        val style = visual.palette
+        val body = style.page(this, getString(R.string.journal_compare_title), getString(R.string.journal_compare_hint))
         val journal = journal(body) ?: return
         val entries = journal.entries()
         firstId = if (savedInstanceState?.containsKey(FIRST_SHOT_ID) == true) savedInstanceState.getString(FIRST_SHOT_ID)
@@ -50,21 +52,33 @@ class BrewComparisonActivity : ThemedActivity() {
             return
         }
 
-        val workspace = TaskComparisonLayout(this)
+        val workspace = TaskComparisonLayout(this, visual)
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         val toolbarBody = workspace.toolbar
         val support = workspace.details
-        val warning = HoyiUi.label(this, toolbarBody, "", 14, true).apply { visibility = View.GONE }
-        val metricSelector = ComparisonMetricTabs(this, selectedMetric, ::metricName) { metric ->
-            selectedMetric = metric; chart.metric = metric; refresh()
+        val warning = style.text("", TaskProductVisualStyle.auxiliary, "product/comparison/warning").apply {
+            visibility = View.GONE; setTextColor(visual.warningInk)
+            toolbarBody.addView(this)
         }
+        val metricSelector = ComparisonMetricTabs(this, selectedMetric, ::metricName, { metric ->
+            selectedMetric = metric; chart.metric = metric; refresh()
+        }, visual)
         toolbarBody.addView(metricSelector, LinearLayout.LayoutParams(-1, -2))
         val sourceLegend = HoyiUi.label(this, toolbarBody, "", 14).apply {
             tag = "comparison-source-legend"
             gravity = android.view.Gravity.END
             setTextColor(getColor(R.color.chart_pressure))
         }
-        chart = TwoCupChartView(this).apply { metric = selectedMetric }
+        val metricLine = HistoryToolbarRow(this, dp(16)) {
+            (0 until metricSelector.childCount).sumOf { index ->
+                val child = metricSelector.getChildAt(index) as TextView
+                maxOf(dp(48), kotlin.math.ceil(child.paint.measureText(child.text.toString())).toInt() + child.compoundPaddingLeft + child.compoundPaddingRight)
+            }
+        }
+        toolbarBody.removeView(metricSelector); toolbarBody.removeView(sourceLegend)
+        metricLine.addView(metricSelector); metricLine.addView(sourceLegend)
+        toolbarBody.addView(metricLine, LinearLayout.LayoutParams(-1, -2))
+        chart = TwoCupChartView(this, visual).apply { metric = selectedMetric }
         workspace.setChart(chart)
         val selectors = object : LinearLayout(this) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
@@ -94,23 +108,22 @@ class BrewComparisonActivity : ThemedActivity() {
         val labels = listOf(getString(R.string.task_comparison_choose_cup)) + entries.map {
             getString(R.string.journal_selector_title, journalDate(it.observation.startedAtMs), journalCurve(it.observation.curveId))
         }
-        val shortLabels = listOf(getString(R.string.task_comparison_choose_cup)) + entries.map { journalDate(it.observation.startedAtMs) }
         fun cupSelector(label: Int, selected: String?, changed: (String?) -> Unit): (String?) -> Unit {
             val cell = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(dp(8), dp(8), dp(8), dp(8))
-                background = HoyiUi.shape(this@BrewComparisonActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+                background = style.shape(style.surface, true)
             }
             selectors.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
-            HoyiUi.label(this, cell, getString(label), 14, muted = true)
+            style.add(cell, style.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true))
             // Track the displayed position separately from identity: an absent ID initially
             // shares the placeholder position, but must survive its automatic initial callback.
             var displayedPosition = choiceIds.indexOf(selected).coerceAtLeast(0)
             val spinner = Spinner(this).apply {
                 tag = if (label == R.string.journal_first) "comparison-first" else "comparison-second"
-                adapter = beanChoiceAdapter(labels, shortLabels, selectedMaxLines = Int.MAX_VALUE)
+                adapter = visual.choiceAdapter(this@BrewComparisonActivity, labels)
                 contentDescription = getString(label)
-                minimumHeight = dp(48)
+                minimumHeight = dp(52)
                 cell.addView(this, LinearLayout.LayoutParams(-1, -2))
                 setSelection(displayedPosition)
                 onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -141,7 +154,7 @@ class BrewComparisonActivity : ThemedActivity() {
             displaySecondSelection(secondId)
             refresh()
         }.apply {
-            tag = "comparison-swap"; asTaskTextAction()
+            tag = "comparison-swap"; style.button(this)
             layoutParams = LinearLayout.LayoutParams(-2, -2)
             selectors.removeView(this)
             selectors.addView(this, 1)
@@ -151,7 +164,11 @@ class BrewComparisonActivity : ThemedActivity() {
             toolbarBody.removeView(this)
             toolbarBody.addView(this, 1, LinearLayout.LayoutParams(-1, -2))
         }
-        val summaryTable = ComparisonSummaryTable(this)
+        val selectionLine = HistoryToolbarRow(this, dp(16)) { dp(600) }
+        toolbarBody.removeView(selectors); toolbarBody.removeView(shared)
+        selectionLine.addView(selectors); selectionLine.addView(shared)
+        toolbarBody.addView(selectionLine, 0, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(16) })
+        val summaryTable = ComparisonSummaryTable(this, visual)
         support.addView(summaryTable, LinearLayout.LayoutParams(-1, -2))
         val recordActions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false
@@ -168,7 +185,7 @@ class BrewComparisonActivity : ThemedActivity() {
             val cup = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setPadding(dp(16), dp(16), dp(16), dp(16))
-                background = HoyiUi.shape(this@BrewComparisonActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+                background = style.shape(style.surface, true)
             }
             sourceCards.addView(cup, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = dp(16) })
             sourceSummaries += HoyiUi.label(this, cup, "", 14).apply { tag = "comparison-source-${index + 1}" }
@@ -176,7 +193,8 @@ class BrewComparisonActivity : ThemedActivity() {
                 val entry = journal.find((if (index == 0) firstId else secondId) ?: return@button) ?: return@button
                 startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.observation.id))
             }.apply {
-                asTaskTextAction()
+                style.button(this)
+                HomeVisualIcon.buttonIcon(this, "chevron", atEnd = true)
                 gravity = android.view.Gravity.CENTER_VERTICAL or
                     if (index == 0) android.view.Gravity.START else android.view.Gravity.END
                 layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = dp(16) }
@@ -187,8 +205,12 @@ class BrewComparisonActivity : ThemedActivity() {
                 journalNotes(notes, entry.notes)
                 val values = (0 until notes.childCount).map { (notes.getChildAt(it) as TextView).text.toString() }
                 beanDetails(getString(label), journalObservationText(entry.observation) + "\n\n" + values.joinToString("\n"))
-            }.apply { asTaskTextAction() }
+            }.apply { style.button(this); HomeVisualIcon.buttonIcon(this, "info") }
         }
+        style.apply(shared, TaskProductVisualStyle.auxiliary, true)
+        style.apply(sourceLegend, TaskProductVisualStyle.auxiliary)
+        sourceLegend.setTextColor(visual.metric(selectedMetric))
+        sourceSummaries.forEach { style.apply(it, TaskProductVisualStyle.auxiliary, true) }
         fun ensureSamples(entry: BrewJournal.Entry?) {
             entry ?: return
             val key = SourceKey(entry.observation)
@@ -224,6 +246,7 @@ class BrewComparisonActivity : ThemedActivity() {
                 same -> getString(R.string.journal_choose_different)
                 else -> null
             }
+            sourceLegend.setTextColor(visual.metric(selectedMetric))
             sourceLegend.setIfChanged("A ━ " + getString(R.string.journal_first) + "    B ┄ " + getString(R.string.journal_second))
             sourceLegend.contentDescription = selected.mapIndexed { index, entry ->
                 val source = if (index == 0) "A ━ " + getString(R.string.journal_first)

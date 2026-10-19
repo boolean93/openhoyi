@@ -26,6 +26,9 @@ import java.util.Locale
 
 /** A screen never owns BLE. Start requires an explicit confirmation; Stop is one tap. */
 class ExtractionActivity : ThemedActivity() {
+    private val visual by lazy { ExtractionHistoryVisualStyle(this) }
+    private val style get() = visual.palette
+    private val readoutGroups = mutableMapOf<TextView, HistoryQuantity>()
     internal lateinit var feedbackUi: BrewFeedbackDialog
         private set
     private val machineAlarms by lazy { MachineAlarms(this) }
@@ -92,7 +95,7 @@ class ExtractionActivity : ThemedActivity() {
         feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.mobile_background))
+            setBackgroundColor(style.page)
             setOnApplyWindowInsetsListener { view, insets ->
                 if (Build.VERSION.SDK_INT >= 30) {
                     val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
@@ -106,12 +109,14 @@ class ExtractionActivity : ThemedActivity() {
         }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(6), dp(12), dp(4))
+            setPadding(dp(16), dp(16), dp(16), dp(16))
         }
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
         pageHeader = HoyiUi.header(this, content, getString(R.string.extraction_title),
             if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else null)
+        style.styleHeader(pageHeader)
+        (pageHeader.layoutParams as LinearLayout.LayoutParams).bottomMargin = dp(8)
         // Secondary prose remains available in a details dialog, not in the plot's height budget.
         val details = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         overviewHeading = HoyiUi.label(this, details, getString(R.string.extraction_overview), 17, true)
@@ -134,53 +139,51 @@ class ExtractionActivity : ThemedActivity() {
                 marginStart = dp(16)
             })
         }
-        val workspace = TaskExtractionWorkspace(this)
-        content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4) })
+        val workspace = TaskExtractionWorkspace(this, visual)
+        content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 0 })
         val plotColumn = workspace.primaryBody
         val sidePanel = workspace.secondaryBody.apply {
-            setPadding(dp(4), dp(4), dp(4), dp(4))
+            setPadding(dp(16), dp(16), dp(16), dp(16))
         }
-        HoyiUi.label(this, sidePanel, getString(R.string.task_extraction_supporting), 16, true)
+        style.add(sidePanel, style.text(getString(R.string.task_extraction_supporting), TaskProductVisualStyle.auxiliary, secondary = true))
         curveSummary = text(sidePanel, getString(R.string.extraction_curve_initial), 16, true).apply {
             maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
+            style.apply(this, TaskProductVisualStyle.title); setPadding(0, dp(16), 0, dp(16))
         }
-        recipeSummary = TaskRecipeSummary(this)
+        recipeSummary = TaskRecipeSummary(this, visual)
         sidePanel.addView(recipeSummary, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(8) })
         deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 14)
-        val metrics = TaskLiveReadouts(this)
+        val metrics = TaskLiveReadouts(this, visual)
         plotColumn.addView(metrics, LinearLayout.LayoutParams(-1, -2))
         fun reading(label: String, quantity: Boolean = false): TextView {
-            val cell = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(dp(TaskVisualTokens.RELATED_GAP_DP), dp(TaskVisualTokens.RELATED_GAP_DP),
-                    dp(TaskVisualTokens.RELATED_GAP_DP), dp(TaskVisualTokens.RELATED_GAP_DP))
-            }
+            val cell = style.column("product/extraction/" + if (quantity) "quantity-cell" else "elapsed-cell")
             metrics.addView(cell)
-            val heading = HoyiUi.label(this, cell, label, 14, muted = true)
+            val heading = style.text(label, TaskProductVisualStyle.auxiliary, secondary = true)
+            style.add(cell, heading)
             if (quantity) quantityLabel = heading
-            return HoyiUi.label(this, cell, "—", TaskVisualTokens.LIVE_FOCUS_VALUE_SP, true).apply {
-                typeface = TaskTypography.face(this@ExtractionActivity, 700)
-                fontFeatureSettings = "tnum"
-            }
+            val group = HistoryQuantity(this, visual, if (quantity) "product/extraction/quantity" else "product/extraction/elapsed", focus = true)
+            style.add(cell, group, 8)
+            return group.number.also { readoutGroups[it] = group }
         }
         elapsedValue = reading(getString(R.string.task_extraction_elapsed))
         weightValue = reading(getString(R.string.task_extraction_water), quantity = true)
-        val secondaryReadings = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val secondaryReadings = style.row("product/extraction/readouts-support")
         metrics.addView(secondaryReadings)
-        pressureValue = HoyiUi.label(this, secondaryReadings, "", TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
+        fun supportReading(label: Int, id: String): TextView {
+            val row = style.row("$id/cell").apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+            secondaryReadings.addView(row, LinearLayout.LayoutParams(-2, -2))
+            row.addView(style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true),
+                LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
+            val group = HistoryQuantity(this, visual, id, large = false)
+            row.addView(group)
+            return group.number.also { readoutGroups[it] = group }
         }
-        waterValue = HoyiUi.label(this, secondaryReadings, "", TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }
-        }
-        temperatureValue = HoyiUi.label(this, secondaryReadings, "", TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        }
+        pressureValue = supportReading(R.string.task_chart_pressure, "product/extraction/pressure")
+        waterValue = supportReading(R.string.task_chart_water, "product/extraction/water")
+        temperatureValue = supportReading(R.string.task_chart_temperature, "product/extraction/temperature")
         flowValue = text(details, "", 14)
-        chart = ExtractionOverlayView(this).apply {
-            background = HoyiUi.shape(this@ExtractionActivity, R.color.mobile_surface, 10)
-        }
-        plotColumn.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(4); bottomMargin = dp(4) })
+        chart = ExtractionOverlayView(this, visual).apply { tag = "product/extraction/chart"; background = style.shape(style.surface) }
+        plotColumn.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16); bottomMargin = 0 })
         workspace.onPrimarySpaceAvailable = { width, height ->
             val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
             val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
@@ -189,17 +192,16 @@ class ExtractionActivity : ThemedActivity() {
             // Font scaling grows this budget; no plot/text minimum is lowered.
             val chartHeight = maxOf((dp(240) * resources.configuration.fontScale).toInt(),
                 (height * .55f).toInt())
-            metrics.measuredHeight + chartHeight + dp(8)
+            metrics.measuredHeight + chartHeight + dp(16)
         }
         val toolbar = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         sidePanel.addView(toolbar)
         fun compact(parent: LinearLayout, title: String, action: () -> Unit): Button =
             HoyiUi.button(this, parent, title, action = action).apply {
-                textSize = 14f
-                setPadding(dp(6), dp(4), dp(6), dp(4))
+                style.button(this)
                 minHeight = dp(48); minimumHeight = dp(48)
                 layoutParams = if (parent.orientation == LinearLayout.VERTICAL)
-                    LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) }
+                    LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) }
                 else LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) }
             }
         chooseCurve = compact(toolbar, getString(R.string.extraction_choose_curve)) { startActivity(Intent(this, CurveActivity::class.java)) }
@@ -211,7 +213,7 @@ class ExtractionActivity : ThemedActivity() {
         sidePanel.addView(referenceTools, LinearLayout.LayoutParams(-1, -2))
         preparationTools = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         sidePanel.addView(preparationTools, LinearLayout.LayoutParams(-1, -2))
-        referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }.apply { asTaskTextAction() }
+        referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }
         val detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
             val info = listOf(curveSummary, deviceSummary, shotSummary, live, flowValue, weightTarget, traceCurve, stageTargets, referenceStatus)
                 .map { it.text.toString() }.filter { it.isNotBlank() }.joinToString("\n\n") +
@@ -219,7 +221,7 @@ class ExtractionActivity : ThemedActivity() {
             AlertDialog.Builder(this).setTitle(getString(R.string.extraction_overview)).setMessage(info)
                 .setPositiveButton(android.R.string.ok, null).show()
         }
-        detailsButton.asTaskTextAction()
+        style.button(detailsButton)
         curveSummary.setOnLongClickListener { detailsButton.performClick(); true }
         prepare = compact(preparationTools, getString(R.string.extraction_prepare_button)) { confirmPrepare() }
         cancelPrepare = compact(preparationTools, getString(R.string.extraction_cancel_prepare)) { service?.cancelBrewPreparation()?.let(::toast); render() }
@@ -248,7 +250,18 @@ class ExtractionActivity : ThemedActivity() {
             visibility = View.GONE
         }
         (stop.layoutParams as LinearLayout.LayoutParams).setMargins(0, 0, 0, 0)
-        HoyiUi.navigation(this, root, ExtractionActivity::class.java)
+        listOf(deviceSummary, preparationSummary, referenceStatus, shotSummary, live, traceCurve, stageTargets, weightTarget).forEach {
+            style.apply(it, TaskProductVisualStyle.auxiliary, true)
+        }
+        listOf(readiness, preparationStatus, notificationStatus, alarmStatus).forEach {
+            style.apply(it, TaskProductVisualStyle.auxiliary)
+            it.setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        style.button(start, primary = true); start.tag = "product/extraction/start"
+        visual.stopButton(stop); stop.tag = "product/extraction/stop"
+        actionDock.tag = "product/extraction/actions"; actionDock.setPadding(dp(16), dp(8), dp(16), 0)
+        TaskPageFrame.install(this, root, style)
+        window.statusBarColor = style.page; window.navigationBarColor = style.surface
         render()
     }
     override fun onStart() {
@@ -289,7 +302,7 @@ class ExtractionActivity : ThemedActivity() {
         val library = (application as MobileApplication).curves
         val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
         val blocked = owner.tareStartBlock ?: shotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
-            owner.snapshot.weightAt, SystemClock.elapsedRealtime(), owner.shotState,
+            owner.snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), owner.shotState,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) { toast(blocked); render(); return }
         requireNotNull(profile)
@@ -351,7 +364,7 @@ class ExtractionActivity : ThemedActivity() {
         val blocked = if (owner?.manualShotActive == true) getString(R.string.extraction_manual_block)
             else if (item != null && profile == null) getString(R.string.extraction_invalid_curve_block)
             else owner?.tareStartBlock ?: shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
-                snapshot.weightAt, SystemClock.elapsedRealtime(), state,
+                snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), state,
                 validated = profile?.let(library::validated) == true)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
             getString(R.string.extraction_disconnect_advice_suffix) else
@@ -407,6 +420,11 @@ class ExtractionActivity : ThemedActivity() {
         chooseCurve.visibility = if (presetSlot == 7 && (item == null || profile == null || !library.canStart(item)) &&
             !ShotGate.active(state) && owner?.manualShotActive != true) View.VISIBLE else View.GONE
         chooseCurve.show(if (item == null) getString(R.string.extraction_choose_curve) else getString(R.string.home_curve_replace))
+        readiness.setTextColor(if (state == ExtractionState.OUTCOME_UNKNOWN) visual.warningInk
+            else if (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)) visual.stop else style.ink)
+        readiness.background = if (state == ExtractionState.OUTCOME_UNKNOWN) android.graphics.drawable.GradientDrawable().apply {
+            setColor(visual.warningSurface); setStroke(dp(1), visual.warningBorder); cornerRadius = dp(12).toFloat()
+        } else null
         val coffeeMissing = snapshot.coffeeState != DeviceState.READY
         val requiredScaleMissing = profile?.targetHundredthsGram?.let { it > 0 } == true &&
             snapshot.scaleState != DeviceState.READY
@@ -442,8 +460,8 @@ class ExtractionActivity : ThemedActivity() {
             getString(R.string.extraction_notification_warning))
         notificationStatus.visibility = if (notificationStatus.text.isEmpty()) View.GONE else View.VISIBLE
         alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
-            SystemClock.elapsedRealtime()))
-        val now = SystemClock.elapsedRealtime()
+            MobileMonotonicClock.elapsedRealtime()))
+        val now = MobileMonotonicClock.elapsedRealtime()
         alarmStatus.visibility = if (machineAlarms.showExtractionStatus(active, snapshot.alarmBits, snapshot.alarmAt, now))
             View.VISIBLE else View.GONE
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
@@ -462,7 +480,7 @@ class ExtractionActivity : ThemedActivity() {
         val waterText = "${water?.let { String.format(Locale.ROOT, "%.1f", it / 10.0) } ?: "—"} ml"
         weightValue.show(if (scaleQuantity) "${scale?.let(::number) ?: "—"} g" else waterText)
         waterValue.show(getString(R.string.task_extraction_water) + " " + waterText)
-        waterValue.visibility = if (scaleQuantity) View.VISIBLE else View.GONE
+        (waterValue.parent.parent as View).visibility = if (scaleQuantity) View.VISIBLE else View.GONE
         val cupFlow = if (scale != null && frame is ExtractionTelemetry && !frame.brewWait)
             CupFlowProjection.values(owner?.chartPoints.orEmpty()).lastOrNull() else null
         flowValue.show(getString(R.string.task_extraction_flow,
@@ -535,31 +553,21 @@ class ExtractionActivity : ThemedActivity() {
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
     }
     private fun TextView.show(value: String) {
-        if (text.toString() == value) return
-        if (this === elapsedValue || this === weightValue) {
-            text = android.text.SpannableString(value).apply {
-                val unitStart = value.lastIndexOf(' ') + 1
-                if (unitStart > 0 && unitStart < value.length) {
-                    setSpan(android.text.style.RelativeSizeSpan(
-                        TaskVisualTokens.LIVE_UNIT_SP.toFloat() / TaskVisualTokens.LIVE_FOCUS_VALUE_SP), unitStart, value.length,
-                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
+        val group = readoutGroups[this]
+        if (group != null) {
+            // Source formatting and eligibility are still the original render() result.
+            val match = Regex("[+-]?[0-9]+(?:\\.[0-9]+)?|—").find(value)
+            val number = match?.value ?: "—"
+            val suffix = when (this) {
+                elapsedValue -> if (match == null || value == "—") null else "s"
+                weightValue -> if (value.endsWith(" g")) "g" else if (value.endsWith(" ml")) "ml" else null
+                pressureValue -> "bar"
+                waterValue -> "ml"
+                temperatureValue -> "°C"
+                else -> null
             }
-        } else if (this === pressureValue || this === waterValue || this === temperatureValue) {
-            text = android.text.SpannableString(value).apply {
-                Regex("[-+]?\\d+(?:\\.\\d+)?|—").find(value)?.let { match ->
-                    val start = match.range.first
-                    val end = match.range.last + 1
-                    setSpan(android.text.style.RelativeSizeSpan(
-                        TaskVisualTokens.TITLE_SP.toFloat() / TaskVisualTokens.SUPPORTING_SP),
-                        start, end, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    setSpan(android.text.style.StyleSpan(Typeface.BOLD), start, end,
-                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                    setSpan(android.text.style.ForegroundColorSpan(getColor(R.color.mobile_text)), start, end,
-                        android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                }
-            }
-        } else text = value
+            group.present(number, suffix); contentDescription = value
+        } else if (text.toString() != value) text = value
     }
     private fun chooseReference() {
         val curveId=referenceCurveId ?: return

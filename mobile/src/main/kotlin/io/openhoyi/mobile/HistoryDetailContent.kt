@@ -10,7 +10,8 @@ import java.util.Date
 import java.util.Locale
 
 /** Same read-only detail in the collection pane and the dedicated full-screen page. */
-internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: String?, standalone: Boolean = false, comparisonHost: LinearLayout? = null, openFullPage: (() -> Unit)? = null) {
+internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: String?, standalone: Boolean = false, comparisonHost: LinearLayout? = null, openFullPage: (() -> Unit)? = null, visual: ExtractionHistoryVisualStyle? = null) {
+    if (visual != null) { renderProductHistoryDetail(body, shotId, standalone, comparisonHost, openFullPage, visual); return }
     val app = application as MobileApplication
     val permanent = shotId?.let { app.journalResult.getOrNull()?.find(it) }
     val entry = runCatching { app.history.entries.firstOrNull { it.id == shotId } }.getOrNull()
@@ -217,6 +218,326 @@ internal fun ThemedActivity.renderHistoryDetail(body: LinearLayout, shotId: Stri
         }
     }, "history-detail-reader").start()
 }
+/** M5-only composition; models, source resolution and sample reader semantics remain identical. */
+private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId: String?, standalone: Boolean,
+    comparisonHost: LinearLayout?, openFullPage: (() -> Unit)?, visual: ExtractionHistoryVisualStyle) {
+    val style = visual.palette
+    val app = application as MobileApplication
+    val permanent = shotId?.let { app.journalResult.getOrNull()?.find(it) }
+    val entry = runCatching { app.history.entries.firstOrNull { it.id == shotId } }.getOrNull()
+        ?: permanent?.observation?.historySummary()
+    if (entry == null) { style.add(body, style.text(getString(R.string.history_missing))); return }
+    val curve = if (entry.curveId == "manual") getString(R.string.extraction_manual_label) else
+        runCatching { app.curves.find(entry.curveId)?.name }.getOrNull() ?: entry.curveId
+    if (!standalone) {
+        renderEmbeddedHistoryPreview(body, entry, curve, permanent, app.journalResult.isFailure, openFullPage, visual)
+        return
+    }
+    val identity = HistoryVisualFlow(this, style.dp(16), style.dp(8)).apply { tag = "product/history/identity-meta" }
+    if (standalone) identity.addView(style.text(curve, TaskProductVisualStyle.body, "product/history/identity"))
+    identity.addView(style.text(date(entry.startedAtMs), TaskProductVisualStyle.auxiliary, "product/history/date", true))
+    identity.addView(style.text(status(entry.status), TaskProductVisualStyle.auxiliary, "product/history/status").apply {
+        setTextColor(if (entry.status == ShotHistory.Status.UNKNOWN) visual.warningInk else style.accent)
+        background = style.shape(if (entry.status == ShotHistory.Status.UNKNOWN) visual.warningSurface else style.selected)
+        setPadding(style.dp(8), 0, style.dp(8), 0)
+    })
+    style.add(body, identity, if (standalone) 0 else 8)
+    if (entry.status == ShotHistory.Status.UNKNOWN) style.add(body, style.text(getString(R.string.history_unknown_warning),
+        TaskProductVisualStyle.auxiliary, "product/history/warning").apply { setTextColor(visual.warningInk) }, 8)
+    val workspace = if (standalone) TaskExtractionWorkspace(this, visual).also {
+        body.addView(it, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(16) })
+    } else null
+    val plot = workspace?.primaryBody ?: body
+    val metrics = HistoryVisualFlow(this, style.dp(24), style.dp(8)).apply { tag = "product/history/metrics" }
+    style.add(plot, metrics, if (standalone) 0 else 16)
+    fun metric(label: Int, value: String, unit: String?, id: String, prominent: Boolean = true): HistoryQuantity {
+        val column = style.column("$id/cell")
+        style.add(column, style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true))
+        val quantity = HistoryQuantity(this, visual, id, large = prominent).apply { present(value, unit) }
+        style.add(column, quantity, 8); metrics.addView(column); return quantity
+    }
+    metric(R.string.history_duration, entry.elapsedMs?.let { "%.1f".format(Locale.ROOT, it / 1000.0) } ?: "—",
+        if (entry.elapsedMs != null) "s" else null, "product/history/elapsed")
+    metric(R.string.history_end_scale, entry.weightHundredthsGram?.let { "%.2f".format(Locale.ROOT, it / 100.0) } ?: "—",
+        if (entry.weightHundredthsGram != null) "g" else null, "product/history/weight")
+    // This is a sample observation, not an inferred final outcome or stored new field.
+    val sampledWater = metric(R.string.m5_last_sample_water, "—", null, "product/history/sampled-water", false)
+    val chart = ShotChartView(this, visual).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
+    plot.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(16) })
+    val chartStatus = style.text(getString(R.string.history_loading_samples), TaskProductVisualStyle.auxiliary, "product/history/chart-status", true)
+    style.add(plot, chartStatus, 8)
+    val notesBody = workspace?.secondaryBody ?: style.column("product/history/notes").also { style.add(body, it, 16) }
+    if (standalone) style.add(notesBody, style.text(getString(R.string.journal_notes_title), TaskProductVisualStyle.section), 0)
+    fun note(label: Int, value: String?, block: Boolean) {
+        style.divider(notesBody, if (block) 16 else 8, 8)
+        val actual = value?.takeIf { it.isNotBlank() } ?: getString(R.string.journal_optional)
+        if (block) {
+            style.add(notesBody, style.text(getString(label), TaskProductVisualStyle.section))
+            style.add(notesBody, style.text(actual, TaskProductVisualStyle.body, "product/history/note/$label"), 8)
+        } else {
+            val row = style.row("product/history/note/$label/row")
+            row.addView(style.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true), LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(16) })
+            row.addView(style.text(actual, TaskProductVisualStyle.body, "product/history/note/$label").apply {
+                if (!standalone) { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"; contentDescription = actual }
+            }, LinearLayout.LayoutParams(0, -2, 1f).apply { gravity = android.view.Gravity.END })
+            style.add(notesBody, row)
+        }
+    }
+    if (permanent != null) {
+        val n = permanent.notes
+        note(R.string.journal_bean, n.beanName, false)
+        if (standalone) {
+            note(R.string.journal_dose, n.doseMg?.let { getString(R.string.journal_grams, BeanQuantity.formatGrams(it)) }, false)
+            note(R.string.journal_grind, n.grind, false)
+            note(R.string.journal_expectation, n.curveExpectation, true)
+            note(R.string.journal_taste, n.taste, true); note(R.string.journal_next, n.nextAdjustment, true)
+        } else note(R.string.journal_taste, n.taste, false)
+    } else style.add(notesBody, style.text(getString(if (app.journalResult.isFailure) R.string.journal_unavailable else R.string.journal_migrate_hint), TaskProductVisualStyle.auxiliary), 8)
+    val actions = style.column("product/history/actions").apply { if (!standalone) orientation = LinearLayout.HORIZONTAL }
+    if (workspace != null) workspace.setFooter(actions) else style.add(body, actions, 8)
+    fun action(title: String, id: String, primary: Boolean = false, glyph: String? = null, click: () -> Unit) {
+        style.action(actions, title, id, primary = primary, top = 8, onClick = click).apply {
+            if (!standalone) layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = style.dp(8) }
+            glyph?.let { HomeVisualIcon.buttonIcon(this, it) }
+        }
+    }
+    if (permanent != null) {
+        action(getString(R.string.journal_review), "product/history/review", true, "edit") {
+            startActivity(Intent(this, BrewReviewActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.id))
+        }
+        val compare = { startActivity(Intent(this, BrewComparisonActivity::class.java).putExtra(BrewComparisonActivity.FIRST_SHOT_ID, entry.id)) }
+        if (standalone && comparisonHost != null) style.button(HoyiUi.button(this, comparisonHost, getString(R.string.journal_compare), action = compare)).apply {
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = style.dp(16) }
+        } else if (standalone) action(getString(R.string.journal_compare), "product/history/compare", click = compare)
+    }
+    if (standalone) action(getString(R.string.history_outcome_title) + " / " + getString(R.string.journal_notes_title), "product/history/details", glyph = "chevron") {
+        showDetails(entry, curve, permanent, app.journalResult.isFailure, chart.points)
+    }
+    openFullPage?.let { action(getString(R.string.ui_full_details), "product/history/full-page", glyph = "chevron", click = it) }
+    Thread({
+        val points = runCatching { app.samples.load(entry.id) }
+        chart.post {
+            if (isFinishing || isDestroyed || !chart.isAttachedToWindow) return@post
+            points.onSuccess {
+                chart.points = it
+                sampledWater.present(it.lastOrNull()?.waterTenthsMl?.let { water -> "%.1f".format(Locale.ROOT, water / 10.0) } ?: "—",
+                    if (it.isNotEmpty()) "ml" else null)
+                sampledWater.contentDescription = getString(R.string.m5_last_sample_water) + ": " + sampledWater.contentDescription
+                chartStatus.text = if (it.isEmpty()) getString(R.string.history_no_samples) else
+                    getString(if (entry.status == ShotHistory.Status.ENDED) R.string.history_samples_complete else R.string.history_samples_partial, it.size.toString())
+            }.onFailure { chartStatus.text = getString(R.string.history_samples_failed) }
+        }
+    }, "history-detail-reader").start()
+}
+/** Embedded collection preview: one bounded content viewport and a permanent two-row footer. */
+private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entry: ShotHistory.Entry, curve: String,
+    permanent: BrewJournal.Entry?, journalFailed: Boolean, openFullPage: (() -> Unit)?, visual: ExtractionHistoryVisualStyle) {
+    val style = visual.palette
+    val app = application as MobileApplication
+    val chart = ShotChartView(this, visual).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
+    val preview = EmbeddedHistoryPreview(this, visual, chart)
+    body.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
+    val header = style.column("product/history/preview-header")
+    style.add(preview.content, header)
+    val title = style.row("product/history/title-row").apply { gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = style.dp(48) }
+    title.addView(style.text(curve, TaskProductVisualStyle.title, "product/history/identity"), LinearLayout.LayoutParams(0, -2, 1f))
+    val more = android.widget.ImageButton(this).apply {
+        tag = "product/history/more"; contentDescription = getString(R.string.ui_full_details)
+        setImageDrawable(HomeVisualIcon.drawable(this@renderEmbeddedHistoryPreview, "more", style.accent))
+        setPadding(style.dp(12), style.dp(12), style.dp(12), style.dp(12))
+        minimumHeight = style.dp(48); minimumWidth = style.dp(48)
+        background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(style.selected), null, style.shape(android.graphics.Color.WHITE))
+        setOnClickListener {
+            android.widget.PopupMenu(this@renderEmbeddedHistoryPreview, this).apply {
+                menu.add(getString(R.string.history_outcome_title) + " / " + getString(R.string.journal_notes_title)).setOnMenuItemClickListener {
+                    showDetails(entry, curve, permanent, journalFailed, chart.points); true
+                }
+                if (permanent != null) menu.add(getString(R.string.journal_compare)).setOnMenuItemClickListener {
+                    startActivity(Intent(this@renderEmbeddedHistoryPreview, BrewComparisonActivity::class.java).putExtra(BrewComparisonActivity.FIRST_SHOT_ID, entry.id)); true
+                }
+                show()
+            }
+        }
+    }
+    title.addView(more, LinearLayout.LayoutParams(style.dp(48), style.dp(48)).apply { marginStart = style.dp(16) })
+    style.add(header, title)
+    val meta = HistoryVisualFlow(this, style.dp(16), style.dp(8)).apply { tag = "product/history/identity-meta" }
+    meta.addView(style.text(date(entry.startedAtMs), TaskProductVisualStyle.auxiliary, "product/history/date", true))
+    meta.addView(style.text(status(entry.status), TaskProductVisualStyle.auxiliary, "product/history/status").apply {
+        setTextColor(if (entry.status == ShotHistory.Status.UNKNOWN) visual.warningInk else style.accent)
+        background = style.shape(if (entry.status == ShotHistory.Status.UNKNOWN) visual.warningSurface else style.selected)
+        setPadding(style.dp(8), 0, style.dp(8), 0)
+    })
+    val chartStatus = style.text(getString(R.string.history_loading_samples), TaskProductVisualStyle.auxiliary, "product/history/chart-status", true)
+    meta.addView(chartStatus)
+    style.add(header, meta, 8)
+    if (entry.status == ShotHistory.Status.UNKNOWN) style.add(header, style.text(getString(R.string.history_unknown_warning),
+        TaskProductVisualStyle.auxiliary, "product/history/warning").apply { setTextColor(visual.warningInk) }, 8)
+    val metrics = HistoryVisualFlow(this, style.dp(24), style.dp(8)).apply { tag = "product/history/metrics" }
+    style.add(preview.content, metrics, 16)
+    fun metric(label: Int, number: String, unit: String?, id: String, prominent: Boolean = true): HistoryQuantity {
+        val cell = style.column("$id/cell")
+        style.add(cell, style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true))
+        val quantity = HistoryQuantity(this, visual, id, large = prominent).apply { present(number, unit) }
+        style.add(cell, quantity, 8); metrics.addView(cell)
+        return quantity
+    }
+    metric(R.string.history_duration, entry.elapsedMs?.let { "%.1f".format(Locale.ROOT, it / 1000.0) } ?: "—",
+        if (entry.elapsedMs != null) "s" else null, "product/history/elapsed")
+    metric(R.string.history_end_scale, entry.weightHundredthsGram?.let { "%.2f".format(Locale.ROOT, it / 100.0) } ?: "—",
+        if (entry.weightHundredthsGram != null) "g" else null, "product/history/weight")
+    val sampledWater = metric(R.string.m5_last_sample_water, "—", null, "product/history/sampled-water", false)
+    preview.content.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(16) })
+    fun summary(label: Int, value: String?): LinearLayout = style.row("product/history/note/$label/row").apply {
+        gravity = android.view.Gravity.CENTER_VERTICAL
+        addView(style.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true), LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(16) })
+        val actual = value?.takeIf { it.isNotBlank() } ?: getString(R.string.journal_optional)
+        addView(style.text(actual, TaskProductVisualStyle.body, "full-text-details").apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END; contentDescription = actual
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+    }
+    val bean = if (permanent != null) summary(R.string.journal_bean, permanent.notes.beanName) else
+        style.text(getString(if (journalFailed) R.string.journal_unavailable else R.string.journal_migrate_hint), TaskProductVisualStyle.auxiliary, secondary = true)
+    style.add(preview.footer, bean)
+    val taste = summary(R.string.journal_taste, permanent?.notes?.taste).apply { if (permanent == null) visibility = android.view.View.GONE }
+    val actions = style.row("product/history/actions").apply { gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL }
+    fun action(text: String, id: String, primary: Boolean, glyph: String, click: () -> Unit) {
+        val button = style.button(android.widget.Button(this), primary).apply {
+            this.text = text; tag = id; setOnClickListener { click() }; HomeVisualIcon.buttonIcon(this, glyph)
+        }
+        actions.addView(button, LinearLayout.LayoutParams(-2, -2).apply { if (actions.childCount > 0) marginStart = style.dp(16) })
+    }
+    if (permanent != null) action(getString(R.string.journal_review), "product/history/review", true, "edit") {
+        startActivity(Intent(this, BrewReviewActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, entry.id))
+    }
+    openFullPage?.let { action(getString(R.string.ui_full_details), "product/history/full-page", false, "chevron", it) }
+    preview.footer.addView(EmbeddedHistoryFooterRow(this, style, taste, actions), LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(8) })
+    Thread({
+        val points = runCatching { app.samples.load(entry.id) }
+        chart.post {
+            if (isFinishing || isDestroyed || !chart.isAttachedToWindow) return@post
+            points.onSuccess {
+                chart.points = it
+                sampledWater.present(it.lastOrNull()?.waterTenthsMl?.let { water -> "%.1f".format(Locale.ROOT, water / 10.0) } ?: "—", if (it.isNotEmpty()) "ml" else null)
+                sampledWater.contentDescription = getString(R.string.m5_last_sample_water) + ": " + sampledWater.contentDescription
+                chartStatus.text = if (it.isEmpty()) getString(R.string.history_no_samples) else
+                    getString(if (entry.status == ShotHistory.Status.ENDED) R.string.history_samples_complete else R.string.history_samples_partial, it.size.toString())
+            }.onFailure { chartStatus.text = getString(R.string.history_samples_failed) }
+        }
+    }, "history-detail-reader").start()
+}
+
+/** Permanent layout: resize changes only native measure inputs, never a source or parent. */
+private class EmbeddedHistoryPreview(context: android.content.Context, visual: ExtractionHistoryVisualStyle,
+    private val chart: ShotChartView) : LinearLayout(context) {
+    private val style = visual.palette
+    val content = EmbeddedHistoryContent(context)
+    val footer = style.column("product/history/preview-footer").apply { setPadding(0, style.dp(16), 0, 0) }
+    val productLayoutEvidence = org.json.JSONObject()
+    private val viewport = ScrollView(context).apply { tag = "product/history/preview-scroll"; addView(content) }
+    // Exactly the production renderer's actual 14sp/400 Paint policy, not a fixed dp guess.
+    private val paintBudget = ProductHistoryChartRenderer(context, visual)
+    init {
+        orientation = VERTICAL; tag = "product/history/preview"
+        addView(viewport, LayoutParams(-1, 0, 1f)); addView(footer, LayoutParams(-1, -2))
+    }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = (android.view.View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+        val height = (android.view.View.MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+        val exact = android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY)
+        val natural = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        footer.measure(exact, natural)
+        var chrome = 0
+        val sections = org.json.JSONArray()
+        for (index in 0 until content.childCount) {
+            val child = content.getChildAt(index); if (child === chart || child.visibility == android.view.View.GONE) continue
+            child.measure(exact, natural)
+            val params = child.layoutParams as LayoutParams
+            val total = child.measuredHeight + params.topMargin + params.bottomMargin
+            chrome += total
+            sections.put(org.json.JSONObject().put("tag", child.tag).put("naturalHeightPx", child.measuredHeight).put("marginsPx", params.topMargin + params.bottomMargin))
+        }
+        val overlay = chart.getChildAt(0) as LinearLayout
+        val chartHeader = (overlay.getChildAt(0) as ScrollView).getChildAt(0)
+        chartHeader.measure(exact, natural)
+        val headerHeight = chartHeader.measuredHeight
+        val axisMinimum = paintBudget.minimumAxisHeight()
+        val chartMinimum = maxOf(headerHeight, style.dp(48)) + axisMinimum + overlay.paddingTop + overlay.paddingBottom
+        val chartParams = chart.layoutParams as LayoutParams
+        val chartMargins = chartParams.topMargin + chartParams.bottomMargin
+        val available = (height - footer.measuredHeight).coerceAtLeast(0)
+        val minimumContent = chrome + chartMargins + chartMinimum
+        val scrolling = minimumContent > available
+        content.resolvedHeightPx = if (scrolling) minimumContent else available
+        chartParams.height = if (scrolling) chartMinimum else 0; chartParams.weight = if (scrolling) 0f else 1f
+        productLayoutEvidence.put("availableHeightPx", height).put("fixedFooterNaturalPx", footer.measuredHeight)
+            .put("fixedFooterBudgetSatisfiable", footer.measuredHeight <= height)
+            .put("contentViewportPx", available).put("headerAndMetricsNaturalPx", chrome).put("sections", sections)
+            .put("chartNativeHeaderNaturalPx", headerHeight).put("chartActualPaintAxisMinimumPx", axisMinimum)
+            .put("chartMinimumPx", chartMinimum).put("chartMarginsPx", chartMargins).put("fullNaturalPx", minimumContent + footer.measuredHeight)
+            .put("localContentScroll", scrolling).put("chartBudgetSource", "native_overlay_header + same_production_renderer_14sp400_Paint_policy")
+        fun remeasure(view: android.view.View) {
+            view.forceLayout()
+            if (view is android.view.ViewGroup) (0 until view.childCount).forEach { remeasure(view.getChildAt(it)) }
+        }
+        remeasure(content); remeasure(footer)
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+}
+
+/** ScrollView measures its child UNSPECIFIED; this permanent host supplies the resolved real content box. */
+private class EmbeddedHistoryContent(context: android.content.Context) : LinearLayout(context) {
+    var resolvedHeightPx = 0
+    init { orientation = VERTICAL; tag = "product/history/preview-content" }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        super.onMeasure(widthMeasureSpec, android.view.View.MeasureSpec.makeMeasureSpec(resolvedHeightPx, android.view.View.MeasureSpec.EXACTLY))
+    }
+}
+
+/** The summary and complete action group wrap as whole native groups when natural width requires it. */
+private class EmbeddedHistoryFooterRow(context: android.content.Context, private val style: TaskProductVisualStyle,
+    private val summary: android.view.View, private val actions: LinearLayout) : android.view.ViewGroup(context) {
+    private var inline = true
+    override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
+    init { tag = "product/history/preview-footer-row"; addView(summary); addView(actions) }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val available = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
+        val natural = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        var actionsWidth = 0
+        for (index in 0 until actions.childCount) {
+            val child = actions.getChildAt(index); child.measure(natural, natural)
+            actionsWidth += child.measuredWidth + if (index > 0) style.dp(16) else 0
+        }
+        val actionsInline = actionsWidth <= available
+        actions.orientation = if (actionsInline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        for (index in 0 until actions.childCount) {
+            val params = actions.getChildAt(index).layoutParams as LinearLayout.LayoutParams
+            params.width = if (actionsInline) -2 else -1
+            params.marginStart = if (actionsInline && index > 0) style.dp(16) else 0
+            params.topMargin = if (!actionsInline && index > 0) style.dp(8) else 0
+            params.resolveLayoutDirection(actions.layoutDirection)
+        }
+        actions.measure(android.view.View.MeasureSpec.makeMeasureSpec(if (actionsInline) actionsWidth else available, android.view.View.MeasureSpec.EXACTLY), natural)
+        if (summary.visibility != GONE) summary.measure(natural, natural)
+        val summaryWidth = if (summary.visibility == GONE) 0 else summary.measuredWidth
+        val gap = if (summary.visibility == GONE) 0 else style.dp(16)
+        inline = summaryWidth + gap + actions.measuredWidth <= available
+        if (summary.visibility != GONE) summary.measure(android.view.View.MeasureSpec.makeMeasureSpec(
+            if (inline) (available - gap - actions.measuredWidth).coerceAtLeast(0) else available, android.view.View.MeasureSpec.EXACTLY), natural)
+        val h = if (inline) maxOf(if (summary.visibility == GONE) 0 else summary.measuredHeight, actions.measuredHeight)
+            else summary.measuredHeight + style.dp(8) + actions.measuredHeight
+        setMeasuredDimension(available, resolveSize(h, heightMeasureSpec))
+    }
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        fun place(view: android.view.View, x: Int, y: Int) {
+            val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - x - view.measuredWidth else x
+            view.layout(left, y, left + view.measuredWidth, y + view.measuredHeight)
+        }
+        if (summary.visibility != GONE) place(summary, 0, if (inline) (height - summary.measuredHeight) / 2 else 0)
+        place(actions, width - actions.measuredWidth, if (inline) (height - actions.measuredHeight) / 2 else summary.measuredHeight + style.dp(8))
+    }
+}
+
 /** Long source metadata and all journal fields are available without shrinking the chart. */
 private fun ThemedActivity.showDetails(entry: ShotHistory.Entry, curve: String, permanent: BrewJournal.Entry?, journalFailed: Boolean, points: List<ShotPoint>) {
     val content = LinearLayout(this).apply {

@@ -206,3 +206,10 @@ run `39187428152` / head `5ef3b8f2efba1ce2d2469bc51a6815817ecc938b` / tested mer
 封闭修正只在CurveImportActivity：保存可观测IME可见性（unknown不填false），取代旧text.post恢复；原字段focus/selection恢复后，saved true才请求一次IME，实际窗口焦点/布局及已观察到的IME动画就绪后，再按真实Layout-content范围恢复raw X/Y与永久middle Y。原文本/输入/SAF/decode/52下限、固定footer和原测试不变。失焦/转焦点/detach/stop/destroy取消并清监听；不由测试reopen、不抽共享恢复框架或修改M2。候选未运行，不提前关闭本轮FAIL，也不把浅1.0的描边/图标可见状态外推12图G1–G4。
 
 候选静态终核：Astra已读本页事件链、真实saved/observed IME、一次show、原/current observer与生命周期清理、raw Layout/content范围和middle范围，未发现剩余静态阻断。没有修改测试/M2/共享恢复helper；需下一CI原精确恢复断言证实，不将静态结论写为已修复。当前工作树另有M5未提交时钟/样式，若主任务运行全树构建须标明该dirty范围；本批提交与CI应仅包含获准修复，不能冒称本地构建对应干净修复提交。
+
+
+## 10. 45fdc9e Import 恢复诊断与候选（2026-10-19）
+
+原件 `build/task-first-evidence/ci-45fdc9e-curve/raw/raw-device/34fe3eafe83253e3986fc6ffd03a454e9c7c44f9/`，head为45fdc9e，不能与PR merge混用。Import原恢复诊断已证saved/requested/observed IME=true且曾应用saved scroll；最终实际IME=false，raw的4885→4281分别是两种viewport下的合法最大滚动，文字/selection/focus保留。此轮仍未完成Import业务/Preview及完整12图，不把请求日志等同最终OS状态。
+
+本页候选独立事件链改为真实输入连接active后一次IMM showSoftInput(0)+主线程ResultReceiver；成功结果之后下一PreDraw+实际IME/无动画/无pending才恢复raw与middle scroll。false/unknown不主动show；拒绝不重复请求，取消后结果不生效；decode/SAF/MAX_BYTES与原精确测试保持。静态无新增阻断，后续hide唯一原因仍未证，需新原件复验，G1–G4未外推。

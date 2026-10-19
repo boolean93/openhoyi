@@ -73,15 +73,31 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
     private fun services(): List<String> = (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
         .getRunningServices(100).filter { it.service.packageName == context.packageName }.map { it.service.className }
     private fun rect(value: Rect) = JSONArray(listOf(value.left, value.top, value.right, value.bottom))
+    private fun visibility(view: View): JSONObject {
+        val origin=IntArray(2); view.getLocationOnScreen(origin)
+        val rootOrigin=IntArray(2); view.rootView.getLocationOnScreen(rootOrigin)
+        val rootWindowOrigin=IntArray(2); view.rootView.getLocationInWindow(rootWindowOrigin)
+        val full=Rect(origin[0],origin[1],origin[0]+view.width,origin[1]+view.height)
+        // getGlobalVisibleRect is root-local, whereas getLocationOnScreen is screen-relative.
+        // Retain the raw API result; compare only after translating into the same screen domain.
+        val rawVisible=Rect(); val shown=view.getGlobalVisibleRect(rawVisible)
+        val screenVisible=Rect(rawVisible).apply { if(shown) offset(rootOrigin[0],rootOrigin[1]) }
+        return JSONObject().put("rectPx",rect(full)).put("visibleRectPx",rect(screenVisible))
+            .put("rectCoordinateSpace","screen").put("rawGlobalVisibleRectRootPx",rect(rawVisible))
+            .put("rawGlobalVisibleRectDefined",shown).put("rootOriginOnScreenPx",JSONArray(rootOrigin.toList()))
+            .put("rootOriginInWindowPx",JSONArray(rootWindowOrigin.toList()))
+            .put("visibleRectConversion","raw_getGlobalVisibleRect_plus_rootView_getLocationOnScreen_when_defined")
+            .put("visibilitySemantics","exact_hierarchy_clip_only; not_system_window_or_IME_occlusion_proof")
+            .put("globalVisible",shown)
+            .put("complete",shown && view.width>0 && view.height>0 && screenVisible==full)
+    }
     private fun observation(view: View): JSONObject {
-        val origin = IntArray(2); view.getLocationOnScreen(origin)
-        val full = Rect(origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)
-        val visible = Rect(); val shown = view.getGlobalVisibleRect(visible)
+        val visible=visibility(view)
         val texts = nodes(view).filterIsInstance<TextView>().map { text ->
-            val box = Rect(); val point = IntArray(2); text.getLocationOnScreen(point)
-            val whole = text.getGlobalVisibleRect(box) && box == Rect(point[0], point[1], point[0] + text.width, point[1] + text.height)
+            val textVisibility=visibility(text)
             val layout = text.layout
-            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", whole)
+            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", textVisibility.getBoolean("complete"))
+                .put("visibility",textVisibility)
                 .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
                 .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
                 .put("layoutHeightPx", layout?.height ?: JSONObject.NULL)
@@ -91,9 +107,7 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
                     JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
                 }) } ?: JSONObject.NULL)
         }
-        return JSONObject().put("semanticId", view.tag).put("rectPx", rect(full)).put("visibleRectPx", rect(visible))
-            .put("complete", shown && view.width > 0 && view.height > 0 && visible == full)
-            .put("textLineBoxes", JSONArray(texts))
+        return visible.put("semanticId",view.tag).put("textLineBoxes",JSONArray(texts))
     }
     private fun whole(value: JSONObject): Boolean = value.getBoolean("complete") && value.getJSONArray("textLineBoxes").let { lines ->
         (0 until lines.length()).all { index -> val line = lines.getJSONObject(index)
@@ -405,6 +419,54 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
             check(button.isEnabled && button.text.toString()==activity.getString(label)); check(button.performClick()) }
         test.waitForIdleSync()
     }
+    /** This CI fixture uses a bottom-docked IME; not a general floating-window occlusion model. */
+    private fun dialogImeAvoidance(activity: Activity, window: View): JSONObject {
+        val ownerDecor=activity.window.decorView
+        val ownerInsets=requireNotNull(ownerDecor.rootWindowInsets)
+        val dialogInsets=requireNotNull(window.rootWindowInsets)
+        val bounds=Rect(activity.windowManager.currentWindowMetrics.bounds)
+        val ime=ownerInsets.getInsets(WindowInsets.Type.ime())
+        val bars=ownerInsets.getInsets(WindowInsets.Type.systemBars())
+        val avoided=ownerInsets.getInsets(WindowInsets.Type.ime() or WindowInsets.Type.systemBars())
+        val safe=Rect(bounds.left+avoided.left,bounds.top+avoided.top,bounds.right-avoided.right,bounds.bottom-avoided.bottom)
+        val ownerVisibleFrame=Rect(); ownerDecor.getWindowVisibleDisplayFrame(ownerVisibleFrame)
+        val dialogVisibleFrame=Rect(); window.getWindowVisibleDisplayFrame(dialogVisibleFrame)
+        val focused=window.findFocus()
+        val targets=listOf("focused-input" to focused,
+            "native-negative" to dialog(activity).getButton(AlertDialog.BUTTON_NEGATIVE),
+            "native-positive" to dialog(activity).getButton(AlertDialog.BUTTON_POSITIVE))
+        val targetEvidence=JSONArray(targets.map { (role,view) ->
+            val result=JSONObject().put("role",role).put("present",view!=null)
+            if(view!=null) {
+                val observed=observation(view); val full=observed.getJSONArray("rectPx")
+                val screen=Rect(full.getInt(0),full.getInt(1),full.getInt(2),full.getInt(3))
+                result.put("observation",observed).put("whole",whole(observed))
+                    .put("fullScreenRectInsideSafe",safe.contains(screen))
+            } else result.put("whole",false).put("fullScreenRectInsideSafe",false)
+            result
+        })
+        return JSONObject().put("scope","this_CI_bottom_docked_IME_only_not_arbitrary_floating_occlusion")
+            .put("coordinateSpace","screen").put("ownerWindowMetricsBoundsPx",rect(bounds))
+            .put("ownerImeInsetsPx",JSONArray(listOf(ime.left,ime.top,ime.right,ime.bottom)))
+            .put("ownerSystemBarsInsetsPx",JSONArray(listOf(bars.left,bars.top,bars.right,bars.bottom)))
+            .put("ownerImeOrSystemBarsInsetsPx",JSONArray(listOf(avoided.left,avoided.top,avoided.right,avoided.bottom)))
+            .put("safeScreenRectPx",rect(safe)).put("safeScreenRectNonempty",!safe.isEmpty)
+            .put("ownerVisibleDisplayFrameScreenPx",rect(ownerVisibleFrame)).put("dialogVisibleDisplayFrameScreenPx",rect(dialogVisibleFrame))
+            .put("ownerImeVisible",ownerInsets.isVisible(WindowInsets.Type.ime())).put("dialogImeVisible",dialogInsets.isVisible(WindowInsets.Type.ime()))
+            .put("focusedInputIsActualTarget",focused is EditText && focused===field(activity,"targetField"))
+            .put("targets",targetEvidence).put("sameCompositorFrameProven",false)
+    }
+    private fun requireDialogImeAvoidance(value: JSONObject) {
+        check(value.getBoolean("ownerImeVisible") && value.getBoolean("dialogImeVisible") && value.getBoolean("safeScreenRectNonempty") &&
+            value.getBoolean("focusedInputIsActualTarget")) { "M4 actual focused input/docked IME safe-domain observation missing" }
+        val targets=value.getJSONArray("targets")
+        check(targets.length()==3)
+        (0 until targets.length()).forEach { index -> val target=targets.getJSONObject(index)
+            check(target.getBoolean("present") && target.getBoolean("whole") && target.getBoolean("fullScreenRectInsideSafe")) {
+                "M4 ${target.getString("role")} not completely inside actual docked-IME safe screen rect; saved geometry remains diagnostic only"
+            }
+        }
+    }
     private fun dialogSnapshot(activity: Activity, directory: File, phase: String) {
         val folder=File(directory,"states/$phase").apply { check(isDirectory || mkdirs()) }
         lateinit var before: JSONObject
@@ -417,14 +479,36 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
                     .put("actualLayout",TaskTypographyEvidence.actualTextLayout(view))
                     .put("colors",TaskVisualColorEvidence.text(view)).put("numericAdvanceProbe",TaskTypographyEvidence.numericAdvanceProbe(view.paint))
             }
-            before=JSONObject().put("activity",geometry(activity)).put("dialog",observation(window)).put("dialogTypography",JSONArray(text))
+            val observed=observation(window)
+            before=JSONObject().put("activity",geometry(activity)).put("dialog",observed).put("dialogTypography",JSONArray(text))
+            if(phase=="adjustment-input-IME") {
+                before.put("imeAvoidance",dialogImeAvoidance(activity,window))
+                // Exercise the actual floating native window, not a zero-origin Activity or fabricated Rect.
+                val origin=observed.getJSONArray("rootOriginOnScreenPx")
+                check(origin.getInt(0)!=0 || origin.getInt(1)!=0) { "M4 floating-dialog coordinate regression requires an actual nonzero root origin" }
+                check(observed.getBoolean("rawGlobalVisibleRectDefined")) { "M4 floating-dialog root visibility API result undefined" }
+                check(observed.getJSONArray("rawGlobalVisibleRectRootPx").toString()!=observed.getJSONArray("visibleRectPx").toString())
+                before.put("nonzeroWindowOriginRegression",JSONObject().put("actualNativeDialog",true)
+                    .put("rootOriginOnScreenPx",origin).put("nonzeroOriginExercised",true)
+                    .put("rawRootAndScreenDomainsDiffer",true).put("comparison","exact_full_Rect_in_screen_domain_no_tolerance")
+                    .put("occlusionAcceptance","not_proven_by_hierarchy_API; original_unmasked_IME_screenshot_still_requires_review"))
+            }
         }
         val bitmap=requireNotNull(test.uiAutomation.takeScreenshot())
         try { File(folder,"window.png").outputStream().use { check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)) } }
         finally { bitmap.recycle() }
-        main { File(folder,"geometry.json").writeText(JSONObject().put("before",before)
-            .put("after",JSONObject().put("activity",geometry(activity)).put("dialog",observation(requireNotNull(dialog(activity).window).decorView)))
-            .put("sameCompositorFrameProven",false).put("protocol","unsynchronized_native_dialog_diagnostic_not_main_protocol2").toString(2)) }
+        main {
+            val window=requireNotNull(dialog(activity).window).decorView
+            val after=JSONObject().put("activity",geometry(activity)).put("dialog",observation(window))
+            if(phase=="adjustment-input-IME") after.put("imeAvoidance",dialogImeAvoidance(activity,window))
+            File(folder,"geometry.json").writeText(JSONObject().put("before",before).put("after",after)
+                .put("sameCompositorFrameProven",false).put("protocol","unsynchronized_native_dialog_diagnostic_not_main_protocol2").toString(2))
+            // Persist both raw observations before either new IME gate or the caller's original Layout/size assertions.
+            if(phase=="adjustment-input-IME") {
+                requireDialogImeAvoidance(before.getJSONObject("imeAvoidance"))
+                requireDialogImeAvoidance(after.getJSONObject("imeAvoidance"))
+            }
+        }
     }
     private fun baselines(activity: Activity): JSONArray {
         val result=JSONArray()

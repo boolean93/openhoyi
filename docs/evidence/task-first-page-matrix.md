@@ -2,6 +2,16 @@
 
 ## 当前状态（优先于下方历史观察时点）
 
+**最新合批冻结验证：** M5三项静态阻断已由同Astra复核关闭；M2/M3 IME候选、Batch限高及独立safeRect门禁一并静态允许复验。最新构建成功（57s，98 tasks），bean-core verify通过；18 suites/93 tests，0失败/错误/跳过，Mock与AndroidTest APK生成。源码hash/XML/日志保存在 `build/task-first-evidence/m5-ime-final-build/`。旧45fd运行FAIL仍未关闭；完整24页及M5真实16配置、特殊状态/G1–G4待新CI，不以静态/编译替代。
+
+**M5首版构建（未验收）：** 四页生产17 Kotlin/8语种资源与完整16配置测试已落地，基线45fdc9e的工作树首次构建成功（1m10s，96 tasks），8 suites/47相关unit tests，0失败/错误/跳过；Mock/AndroidTest APK已生成。实际源码hash、XML、日志保存在 `build/task-first-evidence/m5-first-full-build/`。Astra已完成完整live scope/runner静态审，无新增阻断；生产全组审核曾因模型capacity中断，现同Astra已完成首版规格与质量审；除下列三项封闭修正外无新增静态阻断。三项仍待落地复核，不授予运行/视觉通过。16实际配置与特殊状态/G1–G4均未通过，不以构建替代。M2/M3/M4按最新45fd实证继续修。Astra续审发现M5三个静态阻断：内嵌HistoryDetailContent竖向自然内容挤占图表、ComparisonSummaryTable单位sp浮点被AbsoluteSizeSpan整数截断、ComparisonMetricTabs仍有旧背景/描边。首版构建成功不关闭这些问题；后续修正需重新验证。
+
+
+**45fdc9e最新实证补记：** head `45fdc9e1606ba17ead131e891f31dc30b2deef46` / PR tested merge `34fe3eafe83253e3986fc6ffd03a454e9c7c44f9`。frame39190681951、curve39190681860、bean39190681932失败；native39190681888、upgrade39190681813、branch39190681925成功，advanced39190682024、lifecycle39190681940及single39190681909（三横屏配置）最终均成功。三原ZIP均保存并核GitHub SHA256/CRC，见 `build/task-first-evidence/ci-45fdc9e-{frame,curve,bean}/preservation.json`。
+
+M2/M3新诊断均为savedImeVisible/requestedIme/observedImeVisible=true、requestCount=1、status=RESTORED_AFTER_OBSERVED_IME_LAYOUT、imeAnimationEvents为空，且曾应用原scroll（Editor662、Import4885）；断言时真实IME=false/窗口高1391，scroll分别0/4281。不是未保存或未发请求，最终IME保持仍FAIL，后续关闭原因未定，不把页内self-report当OS最终成功。M4本轮Preparation浅1.0业务已通过真实IME输入及固定动作场景，不外推四配置/G1–G4。流程进入Batch后失败：root实看adjustment-input-IME/window.png，两个输入完整，底部取消/预览操作被键盘遮挡；原“focused input clipped”断言与画面不符。dialog的screen rect `[576,74,1984,863]` 和root-local visible rect `[0,0,1408,789]` 疑似混用，全部文字fullViewVisible=false；测试坐标问题与真实footer遮挡需分别修复，不因其中一项修复宣称全部通过。
+
+
 2026-10-19：最近已推送 head `5ef3b8f2efba1ce2d2469bc51a6815817ecc938b`，PR tested merge `f15b6d66579445f1bba7e328ebbc39679b3a1356`。native39187428091、single39187428132、advanced39187428111、lifecycle39187428154、upgrade39187428126、branch39187428120均成功；frame39187428163、curve39187428152、bean39187428107均失败。普通回归通过不替代四项视觉验收。M1仅原三页限定通过；M2/M3/M4分别只取得1/12、2/12、1/12主图，其余配置未完成。
 
 M2最新恢复记录的11字段值、selection、focusedFieldKey、draftId、stageCount一致；IME true→false、窗口680→1391、合法scroll range/y 662→0。原包69份M2 JSON没有产品恢复诊断，尚不能确定请求未发出、取消或时序根因。M2生产不猜修，只补断言前独立诊断，原比较对象、精确断言、稳定协议和IME操作不变。

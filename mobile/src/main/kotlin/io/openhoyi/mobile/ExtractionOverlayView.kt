@@ -21,7 +21,9 @@ import java.util.Locale
 import kotlin.math.ceil
 
 /** A display-only, shared-time plot. Each metric retains its own physical range. */
-internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
+internal class ExtractionOverlayView(context: Context, private val visual: ExtractionHistoryVisualStyle? = null) : LinearLayout(context) {
+    private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it) }
+    internal val visualEvidence get() = productRenderer?.evidence ?: org.json.JSONArray()
     var points: List<ShotPoint> = emptyList()
         set(value) { field = value; rebuildProjection() }
     var reference: List<ShotPoint> = emptyList()
@@ -87,9 +89,12 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
 
     init {
         orientation = VERTICAL
-        setBackgroundColor(context.getColor(R.color.mobile_surface))
+        setBackgroundColor(visual?.palette?.surface ?: context.getColor(R.color.mobile_surface))
         addView(header, LayoutParams(-1, -2))
         addView(plot, LayoutParams(-1, 0, 1f))
+        visual?.palette?.let { style ->
+            listOf(compactNotice, explanation, referenceCaption).forEach { style.apply(it, TaskProductVisualStyle.auxiliary, true) }
+        }
         rebuildProjection()
     }
 
@@ -152,6 +157,11 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
                 }.also { legend.addView(it) }
             }
             // Stable instances preserve accessibility focus while samples arrive.
+            visual?.palette?.let { style ->
+                style.apply(button, TaskProductVisualStyle.auxiliary)
+                button.minHeight = style.dp(48); button.minimumHeight = style.dp(48)
+                button.setTextColor(metricColor(metric))
+            }
             updateLegendText(metric, button)
         }
         // Weight may appear after the temperature button was created.
@@ -206,7 +216,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             val focused = focusMetric == metric
             if (button.isSelected != focused) {
                 button.isSelected = focused
-                button.typeface = TaskTypography.face(context, if (focused) 700 else 400)
+                button.typeface = TaskTypography.face(context, if (visual != null) 400 else if (focused) 700 else 400)
             }
         }
     }
@@ -308,7 +318,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         ChartMetric.WEIGHT -> R.string.task_chart_weight
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
     })
-    private fun metricColor(metric: ChartMetric) = context.getColor(when (metric) {
+    private fun metricColor(metric: ChartMetric) = visual?.metric(metric) ?: context.getColor(when (metric) {
         ChartMetric.PRESSURE -> R.color.chart_pressure
         ChartMetric.WATER -> R.color.task_chart_water
         ChartMetric.WEIGHT -> R.color.task_chart_weight
@@ -401,6 +411,7 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val path = Path()
         fun minimumAxisHeight(): Int {
+            productRenderer?.let { return it.minimumAxisHeight() }
             val fm = labels.fontMetrics
             // Four lines of axis margins + one tick height and >=8dp tick separation.
             return ceil((fm.descent - fm.ascent) * 5 + dp(32f)).toInt()
@@ -410,12 +421,17 @@ internal class ExtractionOverlayView(context: Context) : LinearLayout(context) {
             series.metric to (strings.maxOf { labels.measureText(it) } + dp(8f))
         }
         fun showsAllAxes(availableWidth: Int): Boolean {
+            productRenderer?.let { return it.allAxes(availableWidth, data) }
             val gutters = axisColumns().values.sum() + dp(10f)
             return TaskLayoutPolicy.chartAxes((availableWidth / resources.displayMetrics.density).toInt(),
                 ceil(gutters / resources.displayMetrics.density).toInt()) == TaskChartAxisMode.ALL_SCALES
         }
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
+            productRenderer?.let {
+                plotBounds.set(it.draw(canvas, width, height, data, focusMetric, selected, false, inspectedTime))
+                return
+            }
             val fm = labels.fontMetrics
             val lineHeight = fm.descent - fm.ascent
             val columns = axisColumns()

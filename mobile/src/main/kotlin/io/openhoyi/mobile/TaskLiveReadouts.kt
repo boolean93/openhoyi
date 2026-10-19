@@ -6,8 +6,8 @@ import android.view.ViewGroup
 import android.widget.LinearLayout
 
 /** Two prominent values and supporting readings share a row when the actual text fits. */
-internal class TaskLiveReadouts(context: Context) : ViewGroup(context) {
-    private val gap get() = (TaskVisualTokens.RELATED_GAP_DP * resources.displayMetrics.density).toInt()
+internal class TaskLiveReadouts(context: Context, private val visual: ExtractionHistoryVisualStyle? = null) : ViewGroup(context) {
+    private val gap get() = ((if (visual != null) 16 else TaskVisualTokens.RELATED_GAP_DP) * resources.displayMetrics.density).toInt()
     private var inline = false
     private var firstRowHeight = 0
 
@@ -39,7 +39,7 @@ internal class TaskLiveReadouts(context: Context) : ViewGroup(context) {
         for (index in 0..1) getChildAt(index).measure(MeasureSpec.makeMeasureSpec(primaryWidth, MeasureSpec.EXACTLY), natural)
         support.measure(MeasureSpec.makeMeasureSpec(if (inline) supportingWidth else available, MeasureSpec.EXACTLY), natural)
         firstRowHeight = maxOf(getChildAt(0).measuredHeight, getChildAt(1).measuredHeight)
-        val height = if (inline) maxOf(firstRowHeight, support.measuredHeight) else firstRowHeight + support.measuredHeight
+        val height = if (inline) maxOf(firstRowHeight, support.measuredHeight) else firstRowHeight + support.measuredHeight + if (visual != null) gap else 0
         setMeasuredDimension(available, resolveSize(height, heightMeasureSpec))
     }
 
@@ -52,6 +52,6 @@ internal class TaskLiveReadouts(context: Context) : ViewGroup(context) {
         place(getChildAt(1), getChildAt(0).measuredWidth + gap, 0)
         val support = getChildAt(2)
         place(support, if (inline) width - support.measuredWidth else 0,
-            if (inline) (measuredHeight - support.measuredHeight) / 2 else firstRowHeight)
+            if (inline) (measuredHeight - support.measuredHeight) / 2 else firstRowHeight + if (visual != null) gap else 0)
     }
 }

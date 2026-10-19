@@ -12,6 +12,8 @@ import java.util.Locale
 
 /** Native extraction outcomes with separate legacy import actions. */
 class HistoryActivity : ThemedActivity() {
+    private val visual by lazy { ExtractionHistoryVisualStyle(this) }
+    private val style get() = visual.palette
     private data class RowViews(val day: TextView, val title: TextView, val status: TextView, val meta: TextView)
     private lateinit var adapter: ArrayAdapter<ShotHistory.Entry>
     private lateinit var historyList: ListView
@@ -53,42 +55,33 @@ class HistoryActivity : ThemedActivity() {
     private fun buildScreen() {
         updateBack(false)
         journalActions.clear()
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.mobile_background))
-            setOnApplyWindowInsetsListener { view, insets ->
-                val area = if (Build.VERSION.SDK_INT >= 30) {
-                    val x = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                    intArrayOf(x.left, x.top, x.right, x.bottom)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
-                        insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
-                }
-                view.setPadding(area[0], area[1], area[2], area[3]); insets
-            }
-        }
-        val body = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(12), dp(8), dp(12), dp(8))
-        }
-        root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
-        HoyiUi.navigation(this, root, HistoryActivity::class.java)
-        setContentView(root)
-        HoyiUi.header(this, body, getString(R.string.home_history))
-        count = HoyiUi.label(this, body, "", 14, muted = true)
+        val body = style.page(this, getString(R.string.home_history), navigation = HistoryActivity::class.java)
+        val header = (body.tag as BeanPageRegions).header
+        count = style.text("", TaskProductVisualStyle.auxiliary, "product/history/count", true).also { style.add(body, it, 8) }
         val sourcesIndex = body.childCount
         HoyiUi.tabs(this, body, listOf(getString(R.string.history_local_tab), getString(R.string.journal_tab), getString(R.string.history_legacy_tab)), selected = if (showJournal) 1 else 0) {
             if (it == 2) startActivity(Intent(this, LegacyHistoryActivity::class.java))
             else { rememberList(); showJournal = it == 1; restoreDetail = false; buildScreen(); render() }
         }
         val sources = body.getChildAt(sourcesIndex)
+        fun styleSources(view: View) {
+            if (view is Button) style.button(view)
+            else if (view is TextView) {
+                style.apply(view, TaskProductVisualStyle.auxiliary)
+                view.gravity = android.view.Gravity.CENTER
+                view.minHeight = dp(48); view.minimumHeight = dp(48)
+                view.setTextColor(if (view.isSelected) style.accent else style.muted)
+                view.background = style.shape(if (view.isSelected) style.selected else style.surface)
+            }
+            if (view is android.view.ViewGroup) (0 until view.childCount).forEach { styleSources(view.getChildAt(it)) }
+        }
+        styleSources(sources)
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        body.addView(actions)
+        actions.orientation = LinearLayout.VERTICAL
         fun action(title: String, click: () -> Unit) {
             val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-            actions.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
-            HoyiUi.button(this, box, title, action = click).also { if (showJournal) journalActions += it }
+            actions.addView(box, LinearLayout.LayoutParams(-1, -2))
+            style.button(HoyiUi.button(this, box, title, action = click)).also { if (showJournal) journalActions += it }
         }
         action(getString(if (showJournal) R.string.journal_export else R.string.history_export)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT)
@@ -102,8 +95,15 @@ class HistoryActivity : ThemedActivity() {
                 .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_LEGACY)
         }
         if (showJournal) action(getString(R.string.journal_compare)) { startActivity(Intent(this, BrewComparisonActivity::class.java)) }
+        style.button(HoyiUi.button(this, header, getString(R.string.ui_full_details)) {
+            (actions.parent as? android.view.ViewGroup)?.removeView(actions)
+            val dialog = android.app.AlertDialog.Builder(this).setTitle(R.string.ui_full_details)
+                .setView(ScrollView(this).apply { setPadding(dp(16), dp(16), dp(16), dp(16)); addView(actions) })
+                .setPositiveButton(android.R.string.ok, null).create()
+            beanShowDialog(dialog)
+        }).apply { HomeVisualIcon.buttonIcon(this, "more"); layoutParams = LinearLayout.LayoutParams(-2, -2) }
         val list = ListView(this).apply {
-            divider = android.graphics.drawable.ColorDrawable(getColor(R.color.mobile_border))
+            divider = android.graphics.drawable.ColorDrawable(style.border)
             dividerHeight = dp(1)
         }
         adapter = object : ArrayAdapter<ShotHistory.Entry>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
@@ -111,14 +111,15 @@ class HistoryActivity : ThemedActivity() {
                 val card = convertView as? LinearLayout ?: LinearLayout(this@HistoryActivity).apply {
                     orientation = LinearLayout.VERTICAL
                     minimumHeight = dp(64)
-                    setPadding(dp(12), dp(10), dp(12), dp(10))
-                    background = HoyiUi.shape(this@HistoryActivity, R.color.mobile_surface, 0)
+                    setPadding(dp(16), dp(8), dp(16), dp(8))
+                    background = style.shape(style.surface, radius = 0)
                     val day = HoyiUi.label(this@HistoryActivity, this, "", 14, true).apply {
                         setTextColor(getColor(R.color.mobile_accent))
-                        setPadding(0, dp(6), 0, dp(10))
+                        setPadding(0, 0, 0, dp(8))
                     }
                     val header = LinearLayout(this@HistoryActivity).apply {
-                        orientation = LinearLayout.VERTICAL
+                        orientation = LinearLayout.HORIZONTAL
+                        isBaselineAligned = false
                         gravity = android.view.Gravity.CENTER_VERTICAL
                     }
                     addView(header)
@@ -130,13 +131,15 @@ class HistoryActivity : ThemedActivity() {
                         maxLines = 2
                         ellipsize = android.text.TextUtils.TruncateAt.END
                     }
-                    header.addView(title, LinearLayout.LayoutParams(-1, -2))
+                    val identity = style.column()
+                    header.addView(identity, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(16) })
+                    identity.addView(title, LinearLayout.LayoutParams(-1, -2))
                     val state = TextView(this@HistoryActivity).apply {
                         textSize = 14f
                         typeface = TaskTypography.face(this@HistoryActivity, 400)
                         includeFontPadding = false
                     }
-                    header.addView(state, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(4) })
+                    header.addView(state, LinearLayout.LayoutParams(-2, -2))
                     val meta = TextView(this@HistoryActivity).apply {
                         textSize = 14f
                         typeface = TaskTypography.face(this@HistoryActivity, 400)
@@ -144,12 +147,19 @@ class HistoryActivity : ThemedActivity() {
                         setTextColor(getColor(R.color.mobile_muted))
                         setPadding(0, dp(8), 0, 0)
                     }
-                    addView(meta)
+                    identity.addView(meta)
                     tag = RowViews(day, title, state, meta)
                 }
                 val entry = requireNotNull(getItem(position))
-                card.setBackgroundColor(getColor(if (selectedIds[showJournal] == entry.id) R.color.mobile_accent_soft else android.R.color.transparent))
+                card.setBackgroundColor(if (selectedIds[showJournal] == entry.id) style.selected else android.graphics.Color.TRANSPARENT)
                 val views = card.tag as RowViews
+                style.apply(views.day, TaskProductVisualStyle.auxiliary, true)
+                style.apply(views.title, TaskProductVisualStyle.action)
+                style.apply(views.status, TaskProductVisualStyle.auxiliary)
+                style.apply(views.meta, TaskProductVisualStyle.auxiliary, true)
+                views.title.tag = "product/history/list/${entry.id}/name"
+                views.status.tag = "product/history/list/${entry.id}/status"
+                views.meta.tag = "product/history/list/${entry.id}/metadata"
                 val day = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(entry.startedAtMs))
                 val previousDay = if (position > 0) getItem(position - 1)?.let {
                     SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(it.startedAtMs))
@@ -160,8 +170,7 @@ class HistoryActivity : ThemedActivity() {
                 views.title.text = if (entry.curveId == "manual") getString(R.string.extraction_manual_label)
                     else library?.find(entry.curveId)?.name ?: entry.curveId
                 views.status.text = status(entry.status)
-                views.status.setTextColor(getColor(if (entry.status == ShotHistory.Status.UNKNOWN)
-                    R.color.mobile_danger else R.color.mobile_accent))
+                views.status.setTextColor(if (entry.status == ShotHistory.Status.UNKNOWN) visual.warningInk else style.accent)
                 views.meta.text = buildString {
                     append(date(entry.startedAtMs))
                     entry.elapsedMs?.let { append(getString(R.string.history_meta_duration, "%.1f".format(Locale.ROOT, it / 1000.0))) }
@@ -177,13 +186,13 @@ class HistoryActivity : ThemedActivity() {
         historyList = list
         list.adapter = adapter
         collection = TaskCollectionLayout(this)
-        body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(12) })
+        body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
         // Source controls belong to the record browser, not above the selected chart.
-        listOf(sources, count, actions).forEach { control ->
+        listOf(sources, count).forEach { control ->
             body.removeView(control)
             collection.browserBody.addView(control, LinearLayout.LayoutParams(-1, -2))
         }
-        val back = HoyiUi.button(this, collection.detailBody, getString(R.string.history_back_to_list)) { showList() }
+        val back = style.button(HoyiUi.button(this, collection.detailBody, getString(R.string.history_back_to_list)) { showList() })
         collection.onPresentationChanged = { split, visible ->
             compact = !split
             back.visibility = if (compact) View.VISIBLE else View.GONE
@@ -298,9 +307,9 @@ class HistoryActivity : ThemedActivity() {
             return
         }
         detailContent.tag = "history-selection-${selected.id}"
-        renderHistoryDetail(detailContent, selected.id) {
+        renderHistoryDetail(detailContent, selected.id, openFullPage = {
             startActivity(Intent(this, HistoryDetailActivity::class.java).putExtra("shotId", selected.id))
-        }
+        }, visual = visual)
     }
     private fun rememberList() {
         if (::historyList.isInitialized && historyList.isShown && !historyList.isLayoutRequested && historyList.childCount > 0)

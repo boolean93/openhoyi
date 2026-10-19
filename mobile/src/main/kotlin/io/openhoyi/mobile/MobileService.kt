@@ -119,7 +119,7 @@ class MobileService : Service() {
     val shotRecoveryClearBlock: String? get() = shotRecoveryClearResource?.let { getString(it) }
     private val shotRecoveryClearResource: Int? get() = shotRecoveryClearGate.resource(shotRecovery,
         hub?.coffeeAddress, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-        SystemClock.elapsedRealtime(), shotState, manualShotActive)
+        MobileMonotonicClock.elapsedRealtime(), shotState, manualShotActive)
     val machineWriteAcknowledgementAvailable: Boolean get() {
         val kind = machineWriteRecovery.kind
         val brewWait = kind == MachineWriteRecoveryState.Kind.BREW_WAIT
@@ -168,7 +168,7 @@ class MobileService : Service() {
     val brewWaitCancelBlock: String? get() = brewWaitCancelBlockMessage?.render { id, args -> getString(id, *args) }
     private val brewWaitCancelBlockMessage: ResourceMessage? get() = if (mock != null) null else
         brewWaitCancelGate.blockMessage(snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-            SystemClock.elapsedRealtime(), shotState, shotRecovery.pending)
+            MobileMonotonicClock.elapsedRealtime(), shotState, shotRecovery.pending)
     private var sleepSampleSerial = 0L
     private val sleepNowUnresolved: Boolean get() = sleepNow.state == SleepNowTracker.State.UNKNOWN
     private val sleepNowUnresolvedMessage: String get() = getString(R.string.machine_recovery_sleep_unresolved)
@@ -210,7 +210,7 @@ class MobileService : Service() {
     private data class PendingCoffeeCredential(val address: String, val password: String, val remembered: Boolean)
     private var pendingCoffeeCredential: PendingCoffeeCredential? = null
     private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime { getString(it) } else null
-    private fun refreshMock(runtime: MockDeviceRuntime, now: Long = SystemClock.elapsedRealtime()) {
+    private fun refreshMock(runtime: MockDeviceRuntime, now: Long = MobileMonotonicClock.elapsedRealtime()) {
         val previous = snapshot
         snapshot = runtime.sample(now).copy(candidates = previous.candidates,
             scanning = previous.scanning, message = previous.message)
@@ -219,7 +219,7 @@ class MobileService : Service() {
         override fun run() {
             val runtime = mock ?: return
             if (!running) return
-            val now = SystemClock.elapsedRealtime()
+            val now = MobileMonotonicClock.elapsedRealtime()
             refreshMock(runtime, now)
             (snapshot.coffee as? IdleTelemetry)?.let { idle ->
                 val currentSettings = snapshot.settings
@@ -281,10 +281,10 @@ class MobileService : Service() {
         snapshot.settings?.let { CoffeeFirmware(it.firmwareMajor,it.firmwareMinor,it.firmwarePatch) }
         else hub?.coffeeFirmware
     val machineSettingsFresh: Boolean get() = snapshot.settings != null &&
-        SettingsFreshness.isFresh(snapshot.settingsAt, SystemClock.elapsedRealtime())
+        SettingsFreshness.isFresh(snapshot.settingsAt, MobileMonotonicClock.elapsedRealtime())
     val sleepScheduleFresh: Boolean get() = SleepScheduleFreshness.isFresh(
         snapshot.sleepFirst, snapshot.sleepFirstAt, snapshot.sleepSecond, snapshot.sleepSecondAt,
-        SystemClock.elapsedRealtime())
+        MobileMonotonicClock.elapsedRealtime())
     val shotState: ExtractionState get() = mock?.shotState ?: hub?.extraction?.state ?: ExtractionState.IDLE
     var activeShotTargetHundredthsGram: Int? = null; private set
     val stopReason: String? get() = hub?.extraction?.stopReason?.name
@@ -309,7 +309,7 @@ class MobileService : Service() {
             if (current != lastShotState) {
                 val previous = lastShotState
                 lastShotState = current
-                val now = SystemClock.elapsedRealtime()
+                val now = MobileMonotonicClock.elapsedRealtime()
                 val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
                     snapshot.scaleState == DeviceState.READY &&
                         TelemetryFreshness.isFresh(snapshot.weightAt, now)
@@ -367,15 +367,15 @@ class MobileService : Service() {
             LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now), now)
     }
     private fun onScaleObservation(observation: ScaleObservation) {
-        scaleTrend.observe(observation, snapshot.scaleState, SystemClock.elapsedRealtime())
+        scaleTrend.observe(observation, snapshot.scaleState, MobileMonotonicClock.elapsedRealtime())
         snapshot = snapshot.copy(scaleObservation = observation, scaleCapabilities = observation.capabilities)
         // Consume every notification, not just the last frame at the UI refresh.
-        beanDoseCaptureAt(SystemClock.elapsedRealtime())
+        beanDoseCaptureAt(MobileMonotonicClock.elapsedRealtime())
     }
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
             scaleConnectionEpoch++; beanDoseCapture.reset()
-            scaleTrend.observe(null, state, SystemClock.elapsedRealtime())
+            scaleTrend.observe(null, state, MobileMonotonicClock.elapsedRealtime())
         }
         snapshot = if (role == DeviceRole.COFFEE) {
             if (state != DeviceState.READY) {
@@ -435,15 +435,15 @@ class MobileService : Service() {
                         OrdinaryWriteReadback.Event.CLEAR_FAILED -> event(ResourceMessage(R.string.service_write_setting_clear_failed), "settings.recovery_clear_failed")
                     }
                 }) refreshSafetyNotification()
-                snapshot.copy(settings = frame, settingsAt = SystemClock.elapsedRealtime())
+                snapshot.copy(settings = frame, settingsAt = MobileMonotonicClock.elapsedRealtime())
             }
             is SleepPart -> {
                 if (frame.firstDaySundayIndex == 0) {
                     firstSleepSerial++
-                    snapshot = snapshot.copy(sleepFirst = frame, sleepFirstAt = SystemClock.elapsedRealtime(), sleepSecondAt = null)
+                    snapshot = snapshot.copy(sleepFirst = frame, sleepFirstAt = MobileMonotonicClock.elapsedRealtime(), sleepSecondAt = null)
                 } else {
                     secondSleepSerial++
-                    snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = SystemClock.elapsedRealtime())
+                    snapshot = snapshot.copy(sleepSecond = frame, sleepSecondAt = MobileMonotonicClock.elapsedRealtime())
                 }
                 if (OrdinaryWriteReadback.schedule(scheduleWrite,machineWriteRecovery,sleepScheduleFresh,
                         firstSleepSerial,secondSleepSerial,snapshot.sleepFirst,snapshot.sleepSecond,{ machineWriteRecovery.clear(scheduleRecoveryOwner) }) { feedback ->
@@ -469,15 +469,15 @@ class MobileService : Service() {
                         BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
                             currentSettings.brewCompensationTenthsC)))
                     event(ResourceMessage(R.string.service_event_preheat_ready), "brew_wait.ready")
-                val observedAt = SystemClock.elapsedRealtime()
+                val observedAt = MobileMonotonicClock.elapsedRealtime()
                 snapshot.copy(coffee = frame, coffeeAt = observedAt,
                     alarmBits = frame.alarmBits, alarmAt = observedAt)
             }
             is io.openhoyi.protocol.ExtractionTelemetry ->
-                snapshot.copy(coffee = frame, coffeeAt = SystemClock.elapsedRealtime())
+                snapshot.copy(coffee = frame, coffeeAt = MobileMonotonicClock.elapsedRealtime())
             else -> snapshot
         }
-        val observedAt = snapshot.coffeeAt ?: SystemClock.elapsedRealtime()
+        val observedAt = snapshot.coffeeAt ?: MobileMonotonicClock.elapsedRealtime()
         val appShotInProgress = shotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED) ||
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
         val passiveEvent = if (snapshot.coffeeState == DeviceState.READY)
@@ -553,7 +553,7 @@ class MobileService : Service() {
         }
         if (mock != null) {
             running = true
-            snapshot = mock.sample(SystemClock.elapsedRealtime())
+            snapshot = mock.sample(MobileMonotonicClock.elapsedRealtime())
             handler.post(mockTick)
             event(ResourceMessage(R.string.service_event_mock_started), "mock.started")
             return START_NOT_STICKY
@@ -578,7 +578,7 @@ class MobileService : Service() {
                 onCoffee = ::onCoffeeFrame,
                 onWeight = {
                     observeTare()
-                    val receivedAt = SystemClock.elapsedRealtime()
+                    val receivedAt = MobileMonotonicClock.elapsedRealtime()
                     if (ScaleReadingPolicy.isFresh(it.weightHundredthsGram, receivedAt, receivedAt))
                         snapshot = snapshot.copy(weight = it, weightAt = receivedAt)
                 },
@@ -790,7 +790,7 @@ class MobileService : Service() {
             return getString(R.string.service_write_sleep_waiting)
         if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
-        val now = SystemClock.elapsedRealtime()
+        val now = MobileMonotonicClock.elapsedRealtime()
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, now))
             return getString(R.string.service_write_idle_stale)
@@ -867,7 +867,7 @@ class MobileService : Service() {
         if (brewPreparation.active || ShotGate.active(shotState)) return getString(R.string.service_write_preheat_or_shot_block)
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
-        val now = SystemClock.elapsedRealtime()
+        val now = MobileMonotonicClock.elapsedRealtime()
         if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, now) || idle.sleepStateRaw != 0)
             return getString(R.string.service_write_awake_idle_needed)
         val settingsCount = snapshot.settings?.cupCount ?: return getString(R.string.service_write_cups_missing)
@@ -940,7 +940,7 @@ class MobileService : Service() {
             return getString(R.string.service_write_sleep_waiting)
         if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
-        val now = SystemClock.elapsedRealtime()
+        val now = MobileMonotonicClock.elapsedRealtime()
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         if (!TelemetryFreshness.isFresh(snapshot.coffeeAt, now) || idle.sleepStateRaw != 0)
             return getString(R.string.service_write_awake_idle_needed)
@@ -1019,7 +1019,7 @@ class MobileService : Service() {
             return getString(R.string.service_write_setting_waiting)
         if (brewPreparation.active) return getString(R.string.service_write_preheat_block)
         if (snapshot.coffeeState != DeviceState.READY) return getString(R.string.start_block_coffee_not_ready)
-        val now = SystemClock.elapsedRealtime()
+        val now = MobileMonotonicClock.elapsedRealtime()
         val idle = snapshot.coffee as? IdleTelemetry ?: return getString(R.string.service_write_idle_waiting)
         val observedAt = snapshot.coffeeAt ?: return getString(R.string.service_write_idle_waiting)
         if (!TelemetryFreshness.isFresh(observedAt, now)) return getString(R.string.service_write_idle_stale)
@@ -1077,7 +1077,7 @@ class MobileService : Service() {
     fun currentCorrectedBrewTemperature(): Int? {
         val frame = snapshot.coffee as? IdleTelemetry ?: return null
         val settings = snapshot.settings ?: return null
-        val now = SystemClock.elapsedRealtime()
+        val now = MobileMonotonicClock.elapsedRealtime()
         if (snapshot.coffeeState != DeviceState.READY || !machineSettingsFresh ||
             !TelemetryFreshness.isFresh(snapshot.coffeeAt, now)) return null
         return BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
@@ -1093,9 +1093,9 @@ class MobileService : Service() {
             if (profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_mock_scale_changed)
             val library = (application as MobileApplication).curves
             shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-                snapshot.scaleState, snapshot.weightAt, SystemClock.elapsedRealtime(), shotState,
+                snapshot.scaleState, snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), shotState,
                 validated = library.validated(profile))?.let { return it }
-            val now = SystemClock.elapsedRealtime()
+            val now = MobileMonotonicClock.elapsedRealtime()
             val result = mock.beginPreheat(profile.temperatureC, now)
             if (result != null) return result
             val token = brewPreparation.begin(profile.id, profile.temperatureC)
@@ -1124,7 +1124,7 @@ class MobileService : Service() {
         if (profile != null && profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_scale_changed)
         val library = (application as MobileApplication).curves
         val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
-            snapshot.scaleState, snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
+            snapshot.scaleState, snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) return blocked
         requireNotNull(profile)
@@ -1181,7 +1181,7 @@ class MobileService : Service() {
     private fun cancelBrewPreparationMessage(): ResourceMessage? {
         if (mock != null) {
             if (!brewPreparation.active) return ResourceMessage(R.string.service_shot_cancel_mock_none)
-            val now = SystemClock.elapsedRealtime()
+            val now = MobileMonotonicClock.elapsedRealtime()
             val result = mock.cancelPreheatMessage(now)
             if (result != null) return result
             val token = brewPreparation.beginCancel() ?: return ResourceMessage(R.string.service_shot_cancel_mock_pending)
@@ -1237,7 +1237,7 @@ class MobileService : Service() {
             if (profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_mock_scale_changed)
             if (ShotGate.active(shotState)) return getString(R.string.service_shot_mock_running)
             studioStartBlock(profile)?.let { return it }
-            val now = SystemClock.elapsedRealtime()
+            val now = MobileMonotonicClock.elapsedRealtime()
             if (brewPreparation.active) {
                 mock.cancelPreheat(now)
                 brewPreparation.consumed()
@@ -1245,7 +1245,7 @@ class MobileService : Service() {
             val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
             mock.start(now, slot)
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
-            series.begin(shotId, SystemClock.elapsedRealtime(), profile.id)
+            series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
             activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile)
             beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
             event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
@@ -1274,7 +1274,7 @@ class MobileService : Service() {
             return getString(R.string.service_shot_scale_connection_changed)
         }
         val blocked = shotGate.startBlockMessage(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
-            snapshot.weightAt, SystemClock.elapsedRealtime(), current.extraction.state,
+            snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true)
         if (blocked != null) {
             event(ResourceMessage(R.string.service_shot_start_blocked, blocked), "shot.rejected")
@@ -1324,7 +1324,7 @@ class MobileService : Service() {
         if (brewPreparation.active) brewPreparation.consumed()
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
-        series.begin(shotId, SystemClock.elapsedRealtime(), profile.id)
+        series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
         activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile)
         beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
@@ -1424,7 +1424,7 @@ class MobileService : Service() {
                 ?: snapshot.weight?.deviceFlowHundredths?.takeIf { snapshot.scaleState == DeviceState.READY })
         saveSeriesCheckpoint(atMs)
     }
-    private fun saveSeriesCheckpoint(atElapsedMs: Long = SystemClock.elapsedRealtime(), force: Boolean = false) {
+    private fun saveSeriesCheckpoint(atElapsedMs: Long = MobileMonotonicClock.elapsedRealtime(), force: Boolean = false) {
         series.checkpoint(atElapsedMs, force)?.let { (id, points) ->
             runCatching { (application as MobileApplication).samples.save(id, points) }
                 .onFailure { event(ResourceMessage(R.string.service_event_sample_save_failed), "shot.samples_error") }
@@ -1519,7 +1519,7 @@ class MobileService : Service() {
                 event(ResourceMessage(R.string.recovery_event_brew_wait_recovery_shot_active), "brew_wait.recovery_shot_active")
                 return
             }
-            val now = SystemClock.elapsedRealtime()
+            val now = MobileMonotonicClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val state = brewPreparation.state
             val evidence = MachineWriteRecoveryState.BrewWaitEvidence(hub?.coffeeAddress,
@@ -1534,7 +1534,7 @@ class MobileService : Service() {
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.CUP_RESET) {
-            val now = SystemClock.elapsedRealtime()
+            val now = MobileMonotonicClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.CupResetEvidence(hub?.coffeeAddress,
                 snapshot.settings?.cupCount, cupSettingsSerial, idle?.cupCount, cupIdleSerial,
@@ -1546,7 +1546,7 @@ class MobileService : Service() {
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SETTING) {
-            val now = SystemClock.elapsedRealtime()
+            val now = MobileMonotonicClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.SettingEvidence(hub?.coffeeAddress,
                 snapshot.settings != null, settingsSampleSerial,
@@ -1561,7 +1561,7 @@ class MobileService : Service() {
         }
         if (manualSafetyResource == null &&
             machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_SCHEDULE) {
-            val now = SystemClock.elapsedRealtime()
+            val now = MobileMonotonicClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.ScheduleEvidence(hub?.coffeeAddress,
                 sleepScheduleFresh,
@@ -1575,7 +1575,7 @@ class MobileService : Service() {
             return
         }
         if (manualSafetyResource == null && machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.SLEEP_NOW) {
-            val now = SystemClock.elapsedRealtime()
+            val now = MobileMonotonicClock.elapsedRealtime()
             val idle = snapshot.coffee as? IdleTelemetry
             val evidence = MachineWriteRecoveryState.SleepEvidence(hub?.coffeeAddress,
                 idle?.sleepStateRaw, sleepSampleSerial, snapshot.coffeeAt, now,

@@ -15,7 +15,9 @@ import java.util.Locale
 import kotlin.math.ceil
 
 /** Two saved cups, one focused physical scale. Neither source predicts the other. */
-internal class TwoCupChartView(context: Context) : FrameLayout(context) {
+internal class TwoCupChartView(context: Context, private val visual: ExtractionHistoryVisualStyle? = null) : FrameLayout(context) {
+    private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it) }
+    internal val visualEvidence get() = productRenderer?.evidence ?: org.json.JSONArray()
     var firstPoints: List<ShotPoint> = emptyList()
         set(value) { if (field != value) { field = value.toList(); project() } }
     var secondPoints: List<ShotPoint> = emptyList()
@@ -44,6 +46,7 @@ internal class TwoCupChartView(context: Context) : FrameLayout(context) {
         tag = "two-cup-chart"
         setBackgroundColor(context.getColor(R.color.mobile_surface))
         addView(plot, LayoutParams(-1, -1)); addView(notice, LayoutParams(-1, -1))
+        visual?.palette?.let { it.apply(noticeText, TaskProductVisualStyle.auxiliary, true); setBackgroundColor(it.surface) }
         refreshPresentation()
     }
     private fun project() {
@@ -60,7 +63,7 @@ internal class TwoCupChartView(context: Context) : FrameLayout(context) {
         ).joinToString("; ")
         requestLayout(); plot.invalidate()
     }
-    fun minimumChartHeight(): Int = ceil(dp(96f) + plot.axisHeight()).toInt()
+    fun minimumChartHeight(): Int = productRenderer?.minimumComparisonHeight() ?: ceil(dp(96f) + plot.axisHeight()).toInt()
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = MeasureSpec.getSize(widthMeasureSpec)
         val height = MeasureSpec.getSize(heightMeasureSpec)
@@ -98,6 +101,7 @@ internal class TwoCupChartView(context: Context) : FrameLayout(context) {
             return maxOf(labels.measureText(text), textBounds.right.toFloat()) - minOf(0f, textBounds.left.toFloat())
         }
         fun leftGutter(): Float {
+            productRenderer?.let { return it.bounds(width, height, projection, metric, true).left }
             val range = focusedSeries?.range
             val ticks = if (range == null) listOf(metric.unit) else (0..4).map {
                 number(range.low + (range.high - range.low) * it / 4)
@@ -106,9 +110,10 @@ internal class TwoCupChartView(context: Context) : FrameLayout(context) {
         }
         // One unit/time-label line plus half of the edge tick label on each side.
         fun axisHeight() = line * 3f + dp(16f)
-        fun bounds() = RectF(leftGutter(), line * 1.5f + dp(8f), width - dp(8f), height - line * 1.5f - dp(8f))
+        fun bounds() = productRenderer?.bounds(width, height, projection, metric, true) ?: RectF(leftGutter(), line * 1.5f + dp(8f), width - dp(8f), height - line * 1.5f - dp(8f))
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
+            productRenderer?.let { it.draw(canvas, width, height, projection, metric, metric, true); return }
             val series = focusedSeries ?: return
             val box = bounds()
             if (box.height() < dp(96f) || box.width() < dp(96f)) return

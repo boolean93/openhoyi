@@ -242,6 +242,22 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         var pending = true
         var focusRestored = false
         var hadWindowFocus = false
+        val inputMethod = activity.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        var showRequested = false
+        var resultCode: Int? = null
+        var preDrawSequence = 0L
+        var resultPreDrawSequence = -1L
+        val sessionEvents = org.json.JSONArray()
+        productRestoreEvidence.put("imeSessionEvents", sessionEvents)
+        fun sessionEvent(phase: String, active: Boolean? = null) {
+            sessionEvents.put(JSONObject().put("phase", phase).put("preDrawSequence", preDrawSequence)
+                .put("fieldHasFocus", field?.hasFocus() ?: false).put("windowHasFocus", activity.hasWindowFocus())
+                .put("fieldAttached", field?.isAttachedToWindow ?: false)
+                .put("fieldWindowTokenIdentity", field?.windowToken?.let { System.identityHashCode(it) } ?: JSONObject.NULL)
+                .put("inputMethodActive", active ?: JSONObject.NULL)
+                .put("imeVisible", if (android.os.Build.VERSION.SDK_INT >= 30) host.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) ?: JSONObject.NULL else JSONObject.NULL)
+                .put("hostHeightPx", host.height).put("hostLayoutRequested", host.isLayoutRequested))
+        }
         val activeImeAnimations = mutableSetOf<android.view.WindowInsetsAnimation>()
         val animationEvents = org.json.JSONArray()
         productRestoreEvidence.put("imeAnimationEvents", animationEvents)
@@ -252,6 +268,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         lateinit var lifecycle: android.app.Application.ActivityLifecycleCallbacks
         fun finish(status: String) {
             if (!pending) return
+            sessionEvent(status)
             pending = false
             productRestoreEvidence.put("status", status).put("activeImeAnimationsAtFinish", activeImeAnimations.size)
             if (android.os.Build.VERSION.SDK_INT >= 30) host.setWindowInsetsAnimationCallback(null)
@@ -270,6 +287,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             if (focusRestored && field != null && next !== field) finish("CANCELLED_FOCUS_CHANGED")
         }
         windowListener = android.view.ViewTreeObserver.OnWindowFocusChangeListener { focused ->
+            sessionEvent(if (focused) "window_focus_gained" else "window_focus_lost")
             if (focused) { hadWindowFocus = true; host.invalidate() }
             else if (hadWindowFocus) finish("CANCELLED_WINDOW_FOCUS_LOST")
         }
@@ -287,6 +305,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
             override fun onActivityDestroyed(owner: android.app.Activity) { if (owner === activity) finish("CANCELLED_DESTROYED") }
         }
         drawListener = android.view.ViewTreeObserver.OnPreDrawListener {
+            preDrawSequence++
             if (pending && host.isAttachedToWindow && activity.hasWindowFocus() && host.isLaidOut &&
                 !host.isLayoutRequested && listOf(stages, metadataScroll, contentScroll).none { it.isLayoutRequested }) {
                 hadWindowFocus = true
@@ -296,29 +315,46 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
                         if (!field.requestFocus()) finish("CANCELLED_FOCUS_REJECTED")
                         else {
                             field.setSelection(state.getInt("form-start").coerceIn(0, field.length()), state.getInt("form-end").coerceIn(0, field.length()))
-                            if (savedIme == true && android.os.Build.VERSION.SDK_INT >= 30) {
-                                val controller = field.windowInsetsController
-                                if (controller == null) finish("UNKNOWN_IME_CONTROLLER")
-                                else {
-                                    productRestoreEvidence.put("requestedIme", true).put("requestCount", 1)
-                                        .put("requestMethod", "WindowInsetsController.show(ime)")
-                                    controller.show(android.view.WindowInsets.Type.ime())
-                                }
-                            }
                         }
                     } else if (savedIme == true) finish("CANCELLED_SAVED_FOCUS_UNAVAILABLE")
                     else focusRestored = true
+                }
+                if (pending && savedIme == true && field != null && focusRestored && !showRequested) {
+                    val active = inputMethod.isActive(field)
+                    productRestoreEvidence.put("inputMethodActiveBeforeRequest", active)
+                    if (active && field.hasFocus() && field.hasWindowFocus() && field.windowToken != null) {
+                        showRequested = true
+                        productRestoreEvidence.put("requestedIme", true).put("requestCount", 1)
+                            .put("requestMethod", "InputMethodManager.showSoftInput(field,0,ResultReceiver)")
+                        sessionEvent("show_request", true)
+                        val receiver = object : android.os.ResultReceiver(android.os.Handler(android.os.Looper.getMainLooper())) {
+                            override fun onReceiveResult(code: Int, data: android.os.Bundle?) {
+                                if (!pending) return
+                                resultCode = code; resultPreDrawSequence = preDrawSequence
+                                productRestoreEvidence.put("imeResultCode", code).put("imeResultAtPreDrawSequence", resultPreDrawSequence)
+                                sessionEvent("show_result")
+                                if (code != android.view.inputmethod.InputMethodManager.RESULT_SHOWN &&
+                                    code != android.view.inputmethod.InputMethodManager.RESULT_UNCHANGED_SHOWN) finish("IME_SHOW_RESULT_NOT_SHOWN")
+                                else host.invalidate()
+                            }
+                        }
+                        val accepted = inputMethod.showSoftInput(field, 0, receiver)
+                        productRestoreEvidence.put("showSoftInputReturned", accepted)
+                        if (!accepted) finish("IME_SHOW_REQUEST_REJECTED")
+                    }
                 }
                 val observedIme = if (android.os.Build.VERSION.SDK_INT >= 30)
                     host.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) else null
                 productRestoreEvidence.put("observedImeVisible", observedIme ?: JSONObject.NULL)
                     .put("activeImeAnimationCount", activeImeAnimations.size)
-                // This page completes restoration at a real pre-draw after any
-                // observed IME animation ends and native layout is ready. Insets
-                // may already describe the end layout while animation is active.
-                // An already-visible IME with no animation can proceed directly.
-                if (pending && activeImeAnimations.isEmpty() && (savedIme != true || observedIme == true) && !host.isLayoutRequested &&
+                // An inherited visible inset is not confirmation for this new editor.
+                // Wait for its active native input connection, one processed show request,
+                // then a later real draw after any observed animation and pending layout.
+                if (pending && activeImeAnimations.isEmpty() && (savedIme != true || (resultCode in setOf(android.view.inputmethod.InputMethodManager.RESULT_SHOWN,
+                        android.view.inputmethod.InputMethodManager.RESULT_UNCHANGED_SHOWN) && preDrawSequence > resultPreDrawSequence &&
+                        observedIme == true && field != null && inputMethod.isActive(field))) && !host.isLayoutRequested &&
                     listOf(stages, metadataScroll, contentScroll).none { it.isLayoutRequested }) {
+                    sessionEvent(if (savedIme == true) "apply_scroll_after_native_result" else "apply_scroll_without_ime_request", if (field != null) inputMethod.isActive(field) else null)
                     val positions = org.json.JSONArray()
                     listOf(stages to "form-scroll", metadataScroll to "metadata-scroll", contentScroll to "editor-content-scroll").forEach { (scroll, key) ->
                         val viewport = (scroll.height.toLong() - scroll.paddingTop - scroll.paddingBottom).coerceAtLeast(0)
@@ -330,7 +366,7 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
                             .put("rangePx", range).put("appliedY", scroll.scrollY))
                     }
                     productRestoreEvidence.put("scrolls", positions)
-                    finish(if (savedIme == true) "RESTORED_AFTER_OBSERVED_IME_LAYOUT" else "RESTORED_NATIVE_LAYOUT_WITHOUT_IME_REQUEST")
+                    finish(if (savedIme == true) "RESTORED_AFTER_NATIVE_IME_RESULT_AND_LAYOUT" else "RESTORED_NATIVE_LAYOUT_WITHOUT_IME_REQUEST")
                 }
             }
             true

@@ -6,10 +6,10 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 
 /** The fixed shot action belongs to the supporting column, not the chart's height budget. */
-internal class TaskExtractionWorkspace(context: Context) : LinearLayout(context) {
+internal class TaskExtractionWorkspace(context: Context, private val visual: ExtractionHistoryVisualStyle? = null) : LinearLayout(context) {
     val primaryBody = LinearLayout(context).apply { orientation = VERTICAL }
     val secondaryBody = LinearLayout(context).apply { orientation = VERTICAL }
-    private val tools = ScrollView(context).apply { addView(secondaryBody) }
+    private val tools = ScrollView(context).apply { tag = if (visual != null) "product/extraction/support-scroll" else null; addView(secondaryBody) }
     private val supporting = LinearLayout(context).apply {
         orientation = VERTICAL
         addView(tools, LayoutParams(-1, 0, 1f))
@@ -19,6 +19,7 @@ internal class TaskExtractionWorkspace(context: Context) : LinearLayout(context)
 
     init {
         tag = "task-workspace"
+        if (visual != null) { primaryBody.tag = "product/extraction/main"; secondaryBody.tag = "product/extraction/support" }
         addView(primaryBody)
         addView(supporting)
     }
