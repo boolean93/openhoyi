@@ -24,7 +24,9 @@ class CurveImportActivity : ThemedActivity() {
         val body = style.visual.page(this, getString(R.string.profiles_import), getString(R.string.profiles_import_hint))
         profileStore(body) ?: return
         val host = beanWorkspace(body).apply { tag = "task-inline-form" }
-        val workspace = style.visual.column("product/curve-import/content")
+        // beanInput inspects its attached ancestor chain synchronously, before
+        // middle is attached to host below. Keep the inline contract here too.
+        val workspace = style.visual.column("task-inline-form")
         style.visual.add(workspace, style.visual.text(getString(R.string.profiles_import_intro), TaskProductVisualStyle.body))
         val sources = style.visual.row("product/curve-import/sources").also {
             workspace.addView(it, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(16) })
