@@ -672,16 +672,37 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 val button=action(activity,id); check(whole(observation(button)) && button.height>=HoyiUi.dp(activity,48)) }
         }
         diagnostic(activity,File(directory,"raw-ime"))
-        val monitor=test.addMonitor(CurveImportActivity::class.java.name,null,false)
-        try { main { activity.recreate() }; activity=test.waitForMonitorWithTimeout(monitor,10000) ?: error("M3 Import recreate missing") }
-        finally { test.removeMonitor(monitor) }
-        await("Import restored ready") { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
-        stableWindow(activity,directory,"raw-after-recreate")
-        main { val after=rawState(activity)
-            File(directory,"raw-restoration.json").writeText(JSONObject().put("before",before).put("after",after)
-                .put("afterGeometryBeforeAssertion",geometry(activity)).toString(2))
-            check(after.toString()==before.toString()) { "M3 raw text/focus/selection/scroll changed before screenshot side effects" } }
-        check(invariant(scope)==frozen); record("raw-exact-text-selection-focus-nonzero-scroll-recreate")
+        val nativeTrace=ImeRecreationTrace(test,directory)
+        var restorationFailure:Throwable?=null
+        try {
+            nativeTrace.start()
+            val monitor=test.addMonitor(CurveImportActivity::class.java.name,null,false)
+            try {
+                nativeTrace.mark("recreate_call_before")
+                main { activity.recreate() }; activity=test.waitForMonitorWithTimeout(monitor,10000) ?: error("M3 Import recreate missing")
+                nativeTrace.mark("replacement_returned")
+            }
+            finally { test.removeMonitor(monitor) }
+            await("Import restored ready") { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
+            stableWindow(activity,directory,"raw-after-recreate")
+            nativeTrace.mark("after_comparison_before")
+            main { val after=rawState(activity)
+                File(directory,"raw-restoration.json").writeText(JSONObject().put("before",before).put("after",after)
+                    .put("afterGeometryBeforeAssertion",geometry(activity)).toString(2))
+                check(after.toString()==before.toString()) { "M3 raw text/focus/selection/scroll changed before screenshot side effects" } }
+            check(invariant(scope)==frozen); record("raw-exact-text-selection-focus-nonzero-scroll-recreate")
+        } catch(error:Throwable) {
+            restorationFailure=error
+            // Preserve the original failure window before stopping tracing or changing focus/IME.
+            try {diagnostic(activity,File(directory,"raw-recreate-failure"))}catch(secondary:Throwable) {error.addSuppressed(secondary)}
+            throw error
+        } finally {
+            try {nativeTrace.finish()}catch(secondary:Throwable) {
+                val primary=restorationFailure
+                if(primary!=null)primary.addSuppressed(secondary)
+                else File(directory,"ime-trace-finalization-error.txt").writeText(secondary.stackTraceToString())
+            }
+        }
         unfocus(activity); captureState(activity,directory,"raw-restored")
         for((index,invalid) in listOf("{bad",scope.document.encode().replace("\"schema\":1","\"schema\":99"),
             scope.document.copy(temperatureC=200).toJson().toString()).withIndex()) {

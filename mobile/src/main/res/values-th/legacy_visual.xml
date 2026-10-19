@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_visual_readonly">ข้อมูลเก่า · อ่านอย่างเดียว</string>
+    <string name="legacy_visual_pressure">แรงดัน (bar)</string>
+    <string name="legacy_visual_flow">การไหลของเครื่อง (ml/s)</string>
+    <string name="legacy_visual_notice">ตัวอย่างเก่าอ่านได้อย่างเดียว ไม่มีอุณหภูมิ ปริมาณน้ำสะสม น้ำหนักเครื่องชั่ง หรือการยืนยันหยุดแบบเนทีฟ</string>
+</resources>

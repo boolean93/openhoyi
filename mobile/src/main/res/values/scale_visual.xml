@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="m6_nearby_scales">附近的电子秤</string>
+  <string name="m6_scale_candidate_count">发现 %1$d 个候选</string>
+  <string name="m6_app_timer">App计时器</string>
+</resources>

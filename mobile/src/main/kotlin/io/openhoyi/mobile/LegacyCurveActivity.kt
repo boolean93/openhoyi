@@ -2,11 +2,9 @@ package io.openhoyi.mobile
 
 import android.app.Activity
 import android.content.Intent
-import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.view.WindowInsets
 import android.widget.ArrayAdapter
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -17,6 +15,8 @@ import java.util.Locale
 
 /** Imported rows are browse-only and never feed the machine-control curve library. */
 class LegacyCurveActivity : ThemedActivity() {
+    private val visual by lazy { LegacyVisualStyle(this) }
+    private val style get() = visual.palette
     private data class RowViews(val title: TextView, val subtitle: TextView)
     private lateinit var count: TextView
     private lateinit var adapter: ArrayAdapter<String>
@@ -42,27 +42,22 @@ class LegacyCurveActivity : ThemedActivity() {
         listState = savedInstanceState?.getParcelable("listState")
         selectedIndex = savedInstanceState?.getInt("selectedIndex", -1) ?: -1
         selectedFingerprint = savedInstanceState?.getString("selectedFingerprint")
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.mobile_background))
-            setOnApplyWindowInsetsListener { view, insets ->
-                val bars = if (Build.VERSION.SDK_INT >= 30) {
-                    val area = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                    intArrayOf(area.left, area.top, area.right, area.bottom)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
-                        insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
-                }
-                view.setPadding(dp(16) + bars[0], dp(8) + bars[1], dp(16) + bars[2], dp(8) + bars[3])
-                insets
-            }
-        }
-        setContentView(root)
-        HoyiUi.header(this, root, getString(R.string.legacy_curve_title), getString(R.string.legacy_curve_subtitle), back = true)
+        val root = style.page(this, getString(R.string.legacy_curve_title))
+        val header = (root.tag as BeanPageRegions).header
+        val headerWords = header.getChildAt(1) as LinearLayout
+        val headingText = headerWords.getChildAt(0)
+        headerWords.removeView(headingText)
+        headerWords.addView(LegacyNaturalFlow(this, dp(16), dp(8)).apply {
+            addView(headingText); addView(visual.readonly())
+        })
         val toolbar = object : LinearLayout(this) {
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                val wide = View.MeasureSpec.getSize(widthMeasureSpec) >= dp(624)
+                val available = View.MeasureSpec.getSize(widthMeasureSpec)
+                getChildAt(0).measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                getChildAt(1).measure(View.MeasureSpec.makeMeasureSpec(available, View.MeasureSpec.AT_MOST),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                val wide = getChildAt(0).measuredWidth + getChildAt(1).measuredWidth + dp(16) <= available
                 orientation = if (wide) HORIZONTAL else VERTICAL
                 (getChildAt(0).layoutParams as LayoutParams).apply {
                     width = if (wide) 0 else -1
@@ -76,29 +71,28 @@ class LegacyCurveActivity : ThemedActivity() {
             isBaselineAligned = false
         }
         root.addView(toolbar, LinearLayout.LayoutParams(-1, -2))
-        count = label(getString(R.string.legacy_curve_loading_initial), TaskVisualTokens.SUPPORTING_SP)
+        count = style.text(getString(R.string.legacy_curve_loading_initial), TaskProductVisualStyle.auxiliary, "legacy/curve/count", true)
         toolbar.addView(count, LinearLayout.LayoutParams(0, -2, 1f))
         HoyiUi.button(this, toolbar, getString(R.string.curve_import_legacy)) {
                 @Suppress("DEPRECATION")
                 startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT)
                     .addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), IMPORT_CURVES)
         }.apply {
-            asTaskTextAction()
-            maxWidth = dp(320)
+            style.button(this, outline = true)
             layoutParams = LinearLayout.LayoutParams(-2, -2).apply { gravity = android.view.Gravity.END }
         }
-        collection = TaskCollectionLayout(this)
+        collection = TaskCollectionLayout(this, .34f)
         root.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
-        val back = HoyiUi.button(this, collection.detailBody, getString(R.string.curve_back)) { showList() }
+        val back = style.button(HoyiUi.button(this, collection.detailBody, getString(R.string.curve_back)) { showList() })
         val detailScroll = android.widget.ScrollView(this)
         collection.detailBody.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f))
         detailContent = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
-            background = HoyiUi.shape(this@LegacyCurveActivity, R.color.mobile_surface, 16, R.color.mobile_border)
+            background = style.shape(style.surface, outline = true, radius = 16)
         }
         detailScroll.addView(detailContent)
-        detail = HoyiUi.label(this, detailContent, getString(R.string.legacy_curve_select_hint), 17).apply {
+        detail = style.text(getString(R.string.legacy_curve_select_hint), TaskProductVisualStyle.body).apply {
             tag = "legacy-curve-detail"
         }
         collection.onPresentationChanged = { twoPane, detailVisible ->
@@ -107,28 +101,39 @@ class LegacyCurveActivity : ThemedActivity() {
             updateBack(compact && detailVisible)
         }
         collection.detailRequested = savedInstanceState?.getBoolean("detailRequested") == true
+        collection.browserBody.background = style.shape(style.surface, outline = true, radius = 16)
         val content = FrameLayout(this)
         collection.browserBody.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
-        list = ListView(this).apply { divider = android.graphics.drawable.ColorDrawable(getColor(R.color.mobile_border)); dividerHeight = dp(1) }
+        list = ListView(this).apply { divider = android.graphics.drawable.ColorDrawable(style.border); dividerHeight = dp(1) }
         adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
                 val card = convertView as? LinearLayout ?: LinearLayout(this@LegacyCurveActivity).apply {
-                    orientation = LinearLayout.VERTICAL
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = android.view.Gravity.CENTER_VERTICAL
+                    isBaselineAligned = false
                     minimumHeight = dp(64)
-                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    setPadding(dp(16), dp(8), dp(16), dp(8))
                     background = HoyiUi.shape(this@LegacyCurveActivity, R.color.mobile_surface, 0)
-                    val title = HoyiUi.label(this@LegacyCurveActivity, this, "", 17, true)
-                    val subtitle = HoyiUi.label(this@LegacyCurveActivity, this, "", 14, muted = true)
-                    subtitle.setPadding(0, dp(7), 0, 0)
+                    addView(HomeVisualIcon(this@LegacyCurveActivity, "curve", style.accent),
+                        LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginEnd = dp(16) })
+                    val words = style.column()
+                    addView(words, LinearLayout.LayoutParams(0, -2, 1f))
+                    val title = style.text("", TaskProductVisualStyle.compactMetric).also { words.addView(it) }
+                    val subtitle = style.text("", TaskProductVisualStyle.auxiliary, secondary = true).also { words.addView(it) }
+                    addView(HomeVisualIcon(this@LegacyCurveActivity, "chevron", style.muted),
+                        LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginStart = dp(8) })
+                    subtitle.setPadding(0, dp(8), 0, 0)
                     tag = RowViews(title, subtitle)
                 }
                 val curve = bundle?.curves?.getOrNull(position)
-                card.setBackgroundColor(getColor(if (position == selectedIndex) R.color.mobile_accent_soft else R.color.mobile_surface))
+                card.setBackgroundColor(if (position == selectedIndex) style.selected else style.surface)
                 card.isActivated = position == selectedIndex
                 val views = card.tag as RowViews
                 views.title.text = curve?.name ?: getItem(position)
                 val category = curve?.let { bundle?.categoryLabels?.get(it.category) ?: it.category.ifBlank { getString(R.string.legacy_curve_uncategorized) } }
-                views.subtitle.text = if (curve?.factory == true) getString(R.string.legacy_curve_factory_row, category ?: getString(R.string.legacy_curve_uncategorized)) else getString(R.string.legacy_curve_user_row, category ?: getString(R.string.legacy_curve_uncategorized))
+                views.subtitle.text = curve?.let { getString(R.string.legacy_curve_metadata,
+                    category ?: getString(R.string.legacy_curve_uncategorized),
+                    getString(if (it.factory) R.string.legacy_curve_factory else R.string.legacy_curve_user), it.index + 1) }.orEmpty()
                 return card
             }
         }
@@ -140,11 +145,9 @@ class LegacyCurveActivity : ThemedActivity() {
             visibility = View.GONE
         }
         content.addView(emptyState, FrameLayout.LayoutParams(-1, -1))
-        val emptyCard = HoyiUi.card(this, emptyState)
-        emptyTitle = HoyiUi.label(this, emptyCard, getString(R.string.legacy_curve_empty_title), 19, true)
-        emptyMessage = HoyiUi.label(this, emptyCard, getString(R.string.legacy_curve_empty_message), 15, muted = true)
-        emptyMessage.setPadding(0, dp(10), 0, 0)
-        HoyiUi.navigation(this, root, CurveActivity::class.java)
+        val emptyCard = visual.panel(style.column()).also { emptyState.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+        emptyTitle = style.text(getString(R.string.legacy_curve_empty_title), TaskProductVisualStyle.section).also { style.add(emptyCard, it) }
+        emptyMessage = style.text(getString(R.string.legacy_curve_empty_message), TaskProductVisualStyle.auxiliary, secondary = true).also { style.add(emptyCard, it, 8) }
         list.setOnItemClickListener { _, _, position, _ ->
             val curve = bundle?.curves?.getOrNull(position) ?: return@setOnItemClickListener
             rememberList()
@@ -166,7 +169,7 @@ class LegacyCurveActivity : ThemedActivity() {
         detailContent.addView(detail, LinearLayout.LayoutParams(-1, -2))
         if (curve == null || fingerprint(curve) != selectedFingerprint) {
             detailSummary = ""
-            detail.textSize = TaskVisualTokens.BODY_SP.toFloat()
+            style.apply(detail, TaskProductVisualStyle.body)
             selectedIndex = -1; selectedFingerprint = null
             detail.setText(R.string.legacy_curve_select_hint)
             collection.detailRequested = false
@@ -179,37 +182,33 @@ class LegacyCurveActivity : ThemedActivity() {
                 curve.weightTenthsGram?.let { String.format(Locale.CHINA, "%.1f g", it / 10.0) } ?: getString(R.string.settings_unknown),
                 curve.segments?.toString() ?: getString(R.string.settings_unknown))
             detail.text = curve.name
-            detail.textSize = TaskVisualTokens.TITLE_SP.toFloat()
-            detail.typeface = TaskTypography.face(this, 500)
-            HoyiUi.label(this, detailContent, getString(R.string.legacy_curve_metadata, category,
+            style.apply(detail, TaskProductVisualStyle.title)
+            style.add(detailContent, style.text(getString(R.string.legacy_curve_metadata, category,
                 getString(if (curve.factory) R.string.legacy_curve_factory else R.string.legacy_curve_user),
-                curve.index + 1), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-                setPadding(0, dp(8), 0, dp(16))
-            }
-            val unknown = getString(R.string.settings_unknown)
+                curve.index + 1), TaskProductVisualStyle.auxiliary, "legacy/curve/metadata", true), 8)
+            style.divider(detailContent)
+            data class Metric(val label: Int, val value: String?, val unit: String?)
             val values = listOf(
-                R.string.curve_preview_temperature to (curve.temperatureC?.let { "$it °C" } ?: unknown),
-                R.string.legacy_curve_water_label to (curve.waterMl?.let { "$it ml" } ?: unknown),
-                R.string.curve_preview_weight to (curve.weightTenthsGram?.let { String.format(Locale.CHINA, "%.1f g", it / 10.0) } ?: unknown),
-                R.string.curve_preview_stages to (curve.segments?.toString() ?: unknown))
-            values.chunked(2).forEach { pair ->
-                val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
-                detailContent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
-                pair.forEachIndexed { index, (label, value) ->
-                    val cell = HoyiUi.card(this, row).apply {
-                        layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = dp(8) }
-                    }
-                    HoyiUi.label(this, cell, getString(label), TaskVisualTokens.SUPPORTING_SP, muted = true)
-                    HoyiUi.label(this, cell, value, TaskVisualTokens.TITLE_SP, true).apply { setPadding(0, dp(8), 0, 0) }
+                Metric(R.string.curve_preview_temperature, curve.temperatureC?.toString(), "°C"),
+                Metric(R.string.legacy_curve_water_label, curve.waterMl?.toString(), "ml"),
+                Metric(R.string.curve_preview_weight, curve.weightTenthsGram?.let { String.format(Locale.CHINA, "%.1f", it / 10.0) }, "g"),
+                Metric(R.string.curve_preview_stages, curve.segments?.toString(), null))
+            values.chunked(2).forEachIndexed { rowIndex, pair ->
+                val row = style.row()
+                detailContent.addView(row, LinearLayout.LayoutParams(-1, -2).apply { if (rowIndex > 0) topMargin = dp(16) })
+                pair.forEachIndexed { index, metric ->
+                    val cell = visual.panel(style.column())
+                    row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply { if (index > 0) marginStart = dp(16) })
+                    style.add(cell, style.text(getString(metric.label), TaskProductVisualStyle.auxiliary, secondary = true))
+                    style.add(cell, style.quantity(metric.value ?: getString(R.string.settings_unknown),
+                        metric.unit.takeIf { metric.value != null }, visual.metric, "legacy/curve/metric/${rowIndex * 2 + index}"), 8)
                 }
             }
-            HoyiUi.label(this, detailContent, getString(R.string.legacy_curve_subtitle), TaskVisualTokens.BODY_SP).apply {
-                setPadding(0, dp(16), 0, dp(8))
-            }
+            style.add(detailContent, visual.warning(getString(R.string.legacy_curve_subtitle), "legacy/curve/notice"), 16)
             HoyiUi.button(this, detailContent, getString(R.string.ui_full_details)) {
                 android.app.AlertDialog.Builder(this).setTitle(curve.name).setMessage(detailSummary)
                     .setPositiveButton(android.R.string.ok, null).show()
-            }.asTaskTextAction()
+            }.also { style.button(it) }
         }
         adapter.notifyDataSetChanged()
     }
@@ -297,6 +296,9 @@ class LegacyCurveActivity : ThemedActivity() {
                         ?: curve.category.ifBlank { getString(R.string.legacy_curve_uncategorized) }
                     getString(R.string.legacy_curve_adapter_row, (curve.index + 1).toString(), curve.name, category)
                 } ?: emptyList())
+                if (selectedIndex < 0) bundle?.curves?.firstOrNull()?.let {
+                    selectedIndex = 0; selectedFingerprint = fingerprint(it)
+                }
                 showSelected()
                 emptyTitle.text = if (result.isFailure) getString(R.string.legacy_curve_failed) else getString(R.string.legacy_curve_empty_title)
                 emptyMessage.text = if (result.isFailure) getString(R.string.legacy_curve_failed_message)
@@ -311,11 +313,6 @@ class LegacyCurveActivity : ThemedActivity() {
         }, "legacy-curve-list").start()
     }
 
-    private fun label(value: String, size: Int, bold: Boolean = false) = TextView(this).apply {
-        text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
-        setPadding(0, dp(5), 0, dp(5))
-        if (bold) typeface = TaskTypography.face(context, 700)
-    }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private companion object { const val IMPORT_CURVES = 43 }
 }

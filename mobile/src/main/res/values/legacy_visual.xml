@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_visual_readonly">旧版只读</string>
+    <string name="legacy_visual_pressure">压力（bar）</string>
+    <string name="legacy_visual_flow">机器水流（ml/s）</string>
+    <string name="legacy_visual_notice">旧版采样仅供查看，不提供原生温度、累计注水量、秤重或结束确认。</string>
+</resources>

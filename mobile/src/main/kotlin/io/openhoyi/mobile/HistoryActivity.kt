@@ -35,7 +35,8 @@ class HistoryActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        showJournal = savedInstanceState?.getBoolean("showJournal") ?: false
+        showJournal = savedInstanceState?.getBoolean("showJournal")
+            ?: (intent.getStringExtra(EXTRA_HISTORY_SOURCE) == SOURCE_JOURNAL)
         savedInstanceState?.getParcelable<android.os.Parcelable>("localList")?.let { listStates[false] = it }
         savedInstanceState?.getParcelable<android.os.Parcelable>("journalList")?.let { listStates[true] = it }
         savedInstanceState?.getString("localSelection")?.let { selectedIds[false] = it }
@@ -362,5 +363,11 @@ class HistoryActivity : ThemedActivity() {
     }
     private fun date(epochMs: Long) = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(epochMs))
     private fun dp(value: Int) = HoyiUi.dp(this, value)
-    private companion object { const val EXPORT_HISTORY = 41; const val IMPORT_LEGACY = 42; const val EXPORT_JOURNAL = 43 }
+    companion object {
+        const val EXTRA_HISTORY_SOURCE = "historySource"
+        const val SOURCE_JOURNAL = "journal"
+        private const val EXPORT_HISTORY = 41
+        private const val IMPORT_LEGACY = 42
+        private const val EXPORT_JOURNAL = 43
+    }
 }

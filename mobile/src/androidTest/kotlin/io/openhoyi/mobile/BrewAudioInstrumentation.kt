@@ -18,6 +18,8 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var legacyVisualArguments: Bundle? = null
+    private var scaleVisualArguments: Bundle? = null
     private var extractionHistoryVisualArguments: Bundle? = null
     private var beanWorkflowVisualArguments: Bundle? = null
     private var curveVisualArguments: Bundle? = null
@@ -43,6 +45,8 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        legacyVisualArguments = arguments?.takeIf { it.getString("legacyVisualMigration") == "true" }?.let { Bundle(it) }
+        scaleVisualArguments = arguments?.takeIf { it.getString("scaleVisualMigration") == "true" }?.let { Bundle(it) }
         extractionHistoryVisualArguments = arguments?.takeIf { it.getString("extractionHistoryVisualMigration") == "true" }?.let { Bundle(it) }
         beanWorkflowVisualArguments = arguments?.takeIf { it.getString("beanWorkflowVisualMigration") == "true" }?.let { Bundle(it) }
         curveVisualArguments = arguments?.takeIf { it.getString("curveVisualMigration") == "true" }?.let { Bundle(it) }
@@ -73,6 +77,18 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            legacyVisualArguments?.let { arguments ->
+                val count=LegacyVisualMigrationChecks(this).run(arguments)
+                report.putString("stream", "LEGACY_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")
+                finish(Activity.RESULT_OK,report)
+                return
+            }
+            scaleVisualArguments?.let { arguments ->
+                val count=ScaleVisualMigrationChecks(this).run(arguments)
+                report.putString("stream", "SCALE_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")
+                finish(Activity.RESULT_OK,report)
+                return
+            }
             extractionHistoryVisualArguments?.let { arguments ->
                 val count=ExtractionHistoryVisualMigrationChecks(this).run(arguments)
                 report.putString("stream", "EXTRACTION_HISTORY_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")

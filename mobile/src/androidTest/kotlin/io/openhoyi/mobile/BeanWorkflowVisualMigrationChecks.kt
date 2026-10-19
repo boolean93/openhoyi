@@ -384,14 +384,63 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
     private fun close(activity: Activity) {
         main { activity.finish() }; await("${activity.javaClass.simpleName} destroyed") { activity.isDestroyed }
     }
-    private fun recreate(activity: Activity): Activity {
+    private fun recreate(activity: Activity, expectedAdjustmentDialog: Boolean = false, directory: File? = null): Activity {
         val monitor=test.addMonitor(activity.javaClass.name,null,false)
+        val samples=JSONArray()
+        var replacement: Activity?=null
+        var accepted=false
         return try {
             main { activity.recreate() }
-            val replacement=test.waitForMonitorWithTimeout(monitor,10000) ?: error("M4 recreation missing")
-            await("recreated real page ready") { replacement.hasWindowFocus() && root(replacement).isLaidOut && !root(replacement).isLayoutRequested }
-            replacement
-        } finally { test.removeMonitor(monitor) }
+            val page=test.waitForMonitorWithTimeout(monitor,10000) ?: error("M4 recreation missing")
+            replacement=page
+            val deadline=SystemClock.elapsedRealtime()+10000
+            await("recreated real page or its original adjustment window ready") {
+                val ownerDecor=page.window.decorView
+                fun laidOut(view: View)=view.isAttachedToWindow && view.isLaidOut && view.width>0 && view.height>0 && !view.isLayoutRequested
+                fun windowProof(view: View)=JSONObject().put("identity",System.identityHashCode(view))
+                    .put("hasWindowFocus",view.hasWindowFocus()).put("attached",view.isAttachedToWindow)
+                    .put("laidOut",view.isLaidOut).put("layoutRequested",view.isLayoutRequested)
+                    .put("windowTokenIdentity",view.windowToken?.let(System::identityHashCode) ?: JSONObject.NULL)
+                    .put("geometry",visibility(view))
+                val proof=JSONObject().put("owner",windowProof(ownerDecor)).put("ownerContent",windowProof(root(page)))
+                    .put("expectedAdjustmentDialog",expectedAdjustmentDialog)
+                var ready=laidOut(ownerDecor) && laidOut(root(page))
+                if(expectedAdjustmentDialog) {
+                    check(page is BeanBatchActivity)
+                    val showing=(field(page,"dialogs") as List<*>).filterIsInstance<AlertDialog>().filter { it.isShowing }
+                    proof.put("showingDialogCount",showing.size)
+                    val adjustment=showing.singleOrNull()
+                    val dialogDecor=adjustment?.window?.decorView
+                    val target=field(page,"targetField") as? EditText
+                    val reason=field(page,"reasonField") as? EditText
+                    val ownedNodes=dialogDecor?.let(::nodes).orEmpty()
+                    val ownsFields=target!=null && reason!=null && ownedNodes.any { it===target } && ownedNodes.any { it===reason }
+                    proof.put("dialog",dialogDecor?.let(::windowProof) ?: JSONObject.NULL)
+                        .put("dialogOwnsOriginalFields",ownsFields)
+                        .put("targetFieldIdentity",target?.let(System::identityHashCode) ?: JSONObject.NULL)
+                        .put("reasonFieldIdentity",reason?.let(System::identityHashCode) ?: JSONObject.NULL)
+                        .put("targetField",target?.let(::observation) ?: JSONObject.NULL)
+                        .put("reasonField",reason?.let(::observation) ?: JSONObject.NULL)
+                    ready=ready && dialogDecor!=null && laidOut(dialogDecor) && dialogDecor.hasWindowFocus() && ownsFields
+                } else ready=ready && page.hasWindowFocus()
+                val within=SystemClock.elapsedRealtime()<=deadline
+                samples.put(proof.put("ready",ready).put("withinBudget",within))
+                ready && within
+            }
+            check(SystemClock.elapsedRealtime()<=deadline) { "M4 recreated window readiness accepted after deadline" }
+            accepted=true
+            page
+        } catch(failure: Throwable) {
+            if(directory!=null && replacement!=null) runCatching {
+                diagnostic(requireNotNull(replacement),File(directory,"recreate-adjustment-failure"))
+            }.exceptionOrNull()?.let(failure::addSuppressed)
+            throw failure
+        } finally {
+            try {
+                if(directory!=null) File(directory,"recreate-adjustment-window-readiness.json").writeText(JSONObject()
+                    .put("accepted",accepted).put("expectedAdjustmentDialog",expectedAdjustmentDialog).put("samples",samples).toString(2))
+            } finally { test.removeMonitor(monitor) }
+        }
     }
     private fun unfocus(activity: Activity) {
         main { root(activity).isFocusableInTouchMode=true; check(root(activity).requestFocus())
@@ -710,8 +759,7 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
                 check(whole(observation(button)) && button.height>=HoyiUi.dp(page,48)) { "M4 native dialog action clipped with IME" }
             }
         }
-        page=recreate(page)
-        await("original adjustment reopened after recreation") { (field(page,"dialogs") as List<*>).filterIsInstance<AlertDialog>().any { it.isShowing } }
+        page=recreate(page,expectedAdjustmentDialog=true,directory=directory)
         main { check((field(page,"targetField") as EditText).text.toString()=="80" && (field(page,"reasonField") as EditText).text.toString()=="复核盘点") }
         check(scope.inventory.events()==before); record("adjustment-target-reason-drafts-recreate-no-write")
         dialogClick(page,AlertDialog.BUTTON_NEGATIVE,R.string.beans_cancel)

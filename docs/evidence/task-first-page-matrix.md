@@ -176,3 +176,41 @@ Batch 自然按钮栏预留及 LanguageActiveCupChecks 双节点温度断言已�
 History／Comparison 七生产文件修正及字体顺序候选已冻结，Astra 最终静态审无剩余明确阻断。Mock 与 AndroidTest 统一构建成功（57 秒，91 tasks，9 executed）；分支策略检查及 8 项策略单测通过。构建日志与源码哈希见 `build/task-first-evidence/m5-layout-repair-build/`。
 
 这些结果尚不关闭 91ab835 实图失败。新 CI 必须复验 History 完整时间轴、1.3 真正 plot、备注滚达及恢复；Comparison 俄语全文、160dp 常规 plot 与详情可达；Batch 原生按钮完整避让 IME；字体原 absent 状态精确恢复。M5 新增 60 特殊状态截图仍需运行及独立 Astra 图审。Comparison 表格整格描边与原稿层次差异仍列待办，24 页完整范围不变。
+
+
+## eb77b2f 返回结果（未查询的 CI 不推定状态）
+
+- native `39196410481`：`TaskComparisonLayout` helper 内调用 `super.onMeasure` 触发 WrongCall。最小候选已把调用移回 override，Astra 静态核各分支仅一次、无递归、无 suppress；本地 lint 被代理拒绝及直连 TLS 握手失败阻断，不能记通过，待新 CI。
+- bean `39196410461`：已越过原按钮 IME 检查，在调整窗重建就绪等待失败。Astra 实读新图确认原窗及草稿恢复；测试错误要求 modal 持焦时 owner Activity 同时持焦。待精确调整窗身份、真实 decor 焦点和布局就绪修正，不放宽普通页面或 IME 安全区要求。
+- curve `39196410563`：恢复仍失败。新 IME 日志显示 recreate 附近客户端隐藏请求及后续 Insets 隐藏；不能沿用仅服务端无 editor 的单一假设，也不能据 reason 直接断定产品显式 hide。继续按调用链查证，不增加 show 重试或延长等待。
+
+两个失败原包保存于 `build/task-first-evidence/ci-eb77b2f-{bean,curve}/`，均有原 ZIP、CRC/SHA 校验与未改原始文件。未获得全批成功或视觉验收。
+
+
+### eb77b2f 对比页后续归因
+
+advanced `39196410528` 俄语大字详情按钮裁切：测试已要求整个控件滚入后仍仅见108px，而按钮自然148px。Astra确认滚动viewport最低预算小于真实控件，不能用“可滚动”豁免。修正须按实际可点击后代最大自然高度及scroll padding预留，仍保真实plot目标与原完整控件断言。失败俄语截图未产出（检查先抛错），不冒称已目视该失败截图；原日志与同批中文大字结构图分别保留。
+
+
+## M6 电子秤两页：生产候选与验证边界
+
+ScaleActivity／ScaleConnectionActivity及显式nullable趋势样式已形成生产首版；旧ScaleOwner默认路径、Mock归零/采集禁用及真实控制边界仍需后续集成复核。八语言新增资源均解析成功，三键集合一致。
+
+只读输入桥接已完成真实红绿：`MockScaleVisualInputTest`先8/8因未实现失败，再8/8通过（0 failure/error/skip）。证据分别位于 `build/task-first-evidence/m6-input-red/` 与 `m6-input-green/`。这些纯helper测试不证明Service实际通知/清理，也不证明页面外观；真实Service scope和两页8主配置检查已形成候选，入口、runner与独立workflow已加入；尚未编译或运行，特殊趋势窗口严格同帧证据仍待补齐。
+
+Astra发现的主重量数字/单位外框居中问题已改为CENTER_HORIZONTAL|TOP，保持64/22角色及8dp间距；静态阻断已关闭，实际屏幕baseline仍待新图精确测量。生产首版构建两次自动审批超时，命令均未执行，日志不存在；等待用户明确重试授权，不得写作构建失败或成功。范围仍为24页。M7三页生产候选已冻结，测试取证正在实施；M8三页已有规划，尚未开发。
+
+
+### 最新取证与 M7 候选状态
+
+- M5 `39196410451` 已只读查询确认 `completed/success`，萃取、历史、详情、对比页检查及证据上传步骤均成功；该结果仅为 CI 机械检查，不关闭 Astra G1–G4。artifact `12162740736`（83,753,980 bytes）的远端摘要为 `2ef8e6c65224b19869e1f107d763d24f3c8b49afe62e5da2625b0dfdbfd2474a`。原包下载因自动审批服务容量不足未执行，本地 SHA/CRC/截图内容尚未核验；状态见 `build/task-first-evidence/ci-eb77b2f-m5/retrieval-status.json`。
+- M7 LegacyCurve／LegacyHistory／LegacyHistoryDetail 生产候选及最小 History 初始来源导航已冻结。根任务逐项复核 15 文件 SHA 与候选清单一致；记录保存在 `build/task-first-evidence/m7-production-freeze/source-freeze.json`。这不是编译、业务或视觉验收；三页×四配置共 12 主图及异常、导入、恢复状态仍待执行。
+- M6 runner 的 Bash 与五段内嵌 Python、M6/M7 合计 16 份 XML 仅通过语法检查，见 `build/task-first-evidence/m6-m7-offline-syntax/result.json`。不据此声称 Kotlin 可编译。
+- 用户明确保留 Astra 最终验收并等待额度恢复。Sol 继续执行，所有待验收项保持原范围，不以 CI 成功或静态检查替代设计稿对照。
+
+
+### 本地构建授权恢复后的实际结果
+
+用户明确允许重试后，本批首次构建实际执行并发现 Kotlin 编译错误（列表适配器 receiver、Paint.style 同名遮蔽及两处括号）；对应 owner 已精确修正。第二次 `:mobile:testMockUnitTest --tests io.openhoyi.mobile.MockScaleVisualInputTest :mobile:assembleMock` 成功，38 秒，8 tests / 0 failures / 0 errors / 0 skipped。随后 `:mobile:assembleMockAndroidTest` 成功，34 秒，含 M3 tracing、M6/M7 新 scope 与原测试精确适配。日志、XML 和候选源码哈希位于 `build/task-first-evidence/m6-m7-approved-build/`。分支策略及 8 项策略单测通过。
+
+以上只证明候选构建及指定 helper 单测通过，未运行新 instrumentation，不关闭任何 G1–G4 或硬件验收。M6 8 主配置、M7 12 主配置及原有回归须由新 CI 实际取证；短窗／趋势 dialog 严格窗口映射仍待 Astra 审查，M8 后续独立开发。

@@ -252,3 +252,14 @@ History1.3实际header187px、metrics214px、固定footer330px，占去主要内
 - font_scale原absent恢复仍严格要求absent，不能等同present1.0。已知系统可在从1.3切回默认1.0时异步持久化；delete返回0只证明该次删除成功。暂无已证公开DisplayThread持久化完成ACK，global值/重复读/AMS或app barrier都不假充它。可先将完整16配置font顺序改1.3→1.0，让最终完整配置在真实1.0下运行，再执行原严格delete/读回；这是减少确定回写触发的候选，不声称排空证明，不加盲sleep/容差、不减16。若仍present必须FAIL保现场，不能反复删除到看似通过。
 
 目前M5整体不通过。可有限保留的证据是已采节点的候选字体/字号配置、指定纯色内区及HistoryDetail末项实际滚达；不能把它们扩成全页G1–G4、完整特殊状态或24页完成。
+
+### 10.6 本轮七生产文件与字体顺序候选的冻结静态复核
+
+已核 `BrewComparisonActivity/TaskComparisonLayout/ExtractionHistoryVisualStyle/HistoryActivity/HistoryDetailContent/ShotChartView/ExtractionOverlayView` 及M5 runner，剩余明确静态阻断为0，可构建/进入新CI，不授运行或视觉PASS。
+
+- `embeddedHistory=false` 为默认，唯一显式true在内嵌History；名称/单位图例与 `96dp+4×实际line+40dp` 轴区预算只在该分支使用，完整描述/原交互保留，Extraction与独立详情不继承。notes在同一永久content图后，固定footer仅原动作。metrics条件同时要求完整vertical溢出与三组真实自然宽+24gap可容纳，不降40/20/14。
+- Comparison已修正最初候选把details固定压成48dp的问题：先保160plot+实际轴，剩余尽量容纳真实details，完整toolbar/details后的多余空间给图；96仅短高。selected全文和实际native chrome自然宽flow保留，16/8与RTL不变。`onLayout` 中把旧draw的plotBounds误称本次actual的字段已删除；真实plot继续从已绘Canvas取证。
+- History列表真实语义chunk与数量单位不分离，来源/连续列表保持。顶部48dp省略号图标实际复用 `task_tools`（中文“工具”）作可访问名称与IO弹窗标题，表达原稿更多/工具集合语义，不再误称单记录详情；底部完整记录回调不变。
+- M5顺序1.3→1.0及get-config只作候选与诊断；16主配置、60独立special、原精确presence/value恢复均保留，不伪称持久化ACK。
+
+后续必须以新原件复验History标准完整时间轴/1.3真实plot与notes可达、Comparison ru全文/常规plot与详情操作可达、精确恢复及font缺省恢复。表格整格描边层次待办仍开放；91ab失败原件与本节候选状态分开保存。

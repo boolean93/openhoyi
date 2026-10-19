@@ -213,3 +213,41 @@ run `39187428152` / head `5ef3b8f2efba1ce2d2469bc51a6815817ecc938b` / tested mer
 原件 `build/task-first-evidence/ci-45fdc9e-curve/raw/raw-device/34fe3eafe83253e3986fc6ffd03a454e9c7c44f9/`，head为45fdc9e，不能与PR merge混用。Import原恢复诊断已证saved/requested/observed IME=true且曾应用saved scroll；最终实际IME=false，raw的4885→4281分别是两种viewport下的合法最大滚动，文字/selection/focus保留。此轮仍未完成Import业务/Preview及完整12图，不把请求日志等同最终OS状态。
 
 本页候选独立事件链改为真实输入连接active后一次IMM showSoftInput(0)+主线程ResultReceiver；成功结果之后下一PreDraw+实际IME/无动画/无pending才恢复raw与middle scroll。false/unknown不主动show；拒绝不重复请求，取消后结果不生效；decode/SAF/MAX_BYTES与原精确测试保持。静态无新增阻断，后续hide唯一原因仍未证，需新原件复验，G1–G4未外推。
+
+## 11. eb77b2f IME hide 调查：仅原生 tracing，生产恢复策略不变
+
+### 11.1 已证与尚未证
+
+原件 `build/task-first-evidence/ci-eb77b2f-curve/raw/`，run39196410563，tested merge `6ee51623e7f32f6df425e0d84313d1bc5e7f6bed`。ImeTracker显示03:53:31.673客户端HIDE_SOFT_INPUT；恢复show32.366；32.603/33.318客户端HIDE_SOFT_INPUT_BY_INSETS_API；旧hide在32.607 onHidden，新show32.844被PHASE_CLIENT_ANIMATION_CANCEL。请求确实已发，不能再写“show没发”，也不能只凭BY_INSETS_API断言产品调用hide。
+
+本地SDK34源码核：ActivityThread.handleDestroyActivity preserveWindow分支保留ViewRoot、clearContentView；IMM.DelegateImpl.onViewDetachedFromWindow清next-served，checkFocusInternalLocked在next=null时closeCurrentInput；后者发HIDE_SOFT_INPUT。ImeInsetsSourceConsumer.onAnimationStateChanged在hide结束/取消及本地未请求show时可notifyHidden，进IMM.notifyImeHidden产生BY_INSETS_API。这个框架路径与日志吻合，但尚无同轮served/next/window/Insets状态证明唯一因果。setWindowInsetsAnimationCallback本身仅赋listener，不直接hide。当前一次show/ResultReceiver/一帧IMEtrue不代表旧hide队列已排空；不再加show重试或固定延时。
+
+### 11.2 官方命令、输出和权限依据
+
+- [AOSP Winscope：Android14及以下](https://source.android.com/docs/core/graphics/winscope/capture/adb#capture-traces-in-android-14-and-lower)规定debug构建（userdebug/eng），先adb root；IME start/stop，输出在`/data/misc/wmtrace/`。这是文档核查，**本轮没有在线设备，未运行help/root/tracing**。
+- [AOSP Android14 IMMS](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android14-security-release/services/core/java/com/android/server/inputmethod/InputMethodManagerService.java)的onShellCommand只接受root/shell；ShellCommandImpl提供`cmd input_method tracing start|stop`和help。直接Binder startImeTrace需CONTROL_UI_TRACING，不给产品申请此权限、不反射hidden API。网页实际可读的是android14-security-release，不冒称已抓取r1页面或与CI系统二进制逐字相同。
+- 本地官方SDK源 `~/Library/Android/sdk/sources/android-34/com/android/internal/inputmethod/ImeTracingServerImpl.java`：user build拒绝；start重置三个4MiB buffer，stop写文件。文件名为`ime_trace_clients.winscope`、`ime_trace_service.winscope`、`ime_trace_managerservice.winscope`。写盘IOException会被记录而非必然返回非0，故shell exit0不能当采集成功。每文件header有magic与real-to-elapsed offset，entries使用真实elapsed纳秒。`ImeTracing.java`的isAvailable与isEnabled是两个条件，不能只检查命令字符串存在。
+
+### 11.3 最小文件与执行范围
+
+仅测试owner实施，生产文件/Instrumentation入口/M6 owner不改：
+
+1. 新独立`mobile/src/androidTest/kotlin/io/openhoyi/mobile/ImeRecreationTrace.kt`，负责shell探测、一次owned start/stop、事件marker/结果JSON；无show/hide/focus/scroll/Insets修改，无反射served内部字段。
+2. `CurveVisualMigrationChecks.kt`只在既有Import raw重建这一段调用helper：原before snapshot与raw-ime现场之后、activity.recreate之前start；原monitor、ready、三帧stableWindow、after snapshot与精确比较原文保留；用外层finally stop，位于后续unfocus/capture和scope销毁之前。原失败必须先保存原diagnostic，然后finally停止；stop异常作为suppressed/独立诊断，不覆盖原断言。没有扩大到整个12配置，也不重新运行失败夹具。
+3. `scripts/check_curve_visual_migration.sh`只加一次前置能力probe与退出收集；复杂host校验可放新`scripts/collect_ime_recreation_trace.py`，避免扩公共Instrumentation。每个profile/fixture输出独立目录，host在下一次start可能覆盖固定系统文件前拉取本次三文件。首FAIL仍停，不为trace跳过Import失败或Preview。
+
+### 11.4 CI精确操作契约
+
+- 沿现GITHUB_ACTIONS/ro.kernel.qemu=1、Mock包/fresh进程守卫，额外记录SDK34/build fingerprint/ro.build.type；仅当前独占可丢弃模拟器。启动instrument之前执行`adb root`、有界wait-for-device、`adb shell id -u`核root并保存输出；root失败或user构建标`DIAGNOSTIC_UNAVAILABLE`。不能对用户设备尝试提权/采集，不能为此换系统镜像后声称同轮复现。
+- CI先实际运行`adb shell cmd input_method help`，保存stdout/stderr/rc，要求tracing start/stop命令存在；同时读取三个固定文件的存在性/size/mtime/SHA作为before，不删除已有文件。helper还通过UiAutomation shell通道核实际shell UID及相同help能力（adbd root不会自动使应用UID变root）。不把普通app Runtime.exec当shell授权。
+- start/stop通过`UiAutomation.executeShellCommand`在instrumentation工作线程执行固定shell命令并带显式退出码marker，stderr另存或明确合流；不在主线程阻塞。命令有独立有界I/O预算、关闭PFD/worker，不能以无穷read卡测试。只接受实际start成功输出及rc作为owned-start；已在trace/无输出/unknown不冒认所有权，不停止他人的trace。当前独占CI如开始结果不确定则诊断FAIL并结束该诊断scope，不能假报cleanup完成。
+- helper在start成功后记真实`SystemClock.elapsedRealtimeNanos`/walltime/fixture/head/merge，recreate调用前、replacement返回、after比较前、finally-stop分别记marker。命令prep耗时单列；不插入原ready/三帧/协议2的计时区间，不暂停或延长任何原5s/10s门禁，不改变原比较对象。tracing本身有观察开销，结果不能冒充未instrumented性能证明。
+- finally仅owned-start执行一次`cmd input_method tracing stop`，保存全部输出/rc；不使用save-for-bugreport循环（会reset buffer），不反复start/stop直到出现期望。若应用崩溃没跑finally，host EXIT只凭owned-start标记补一次stop并记录fallback，原退出码优先；之后收logcat/输入法dumpsys/三原文件，再force-stop原包。host收集不得先force-stop丢失现场。
+- host `adb pull`精确三个文件，记录before/after stat、实际SHA/size/原command日志；解码须有正确magic和非空entry，时间范围覆盖本scope的recreate与失败阶段、client含本Mock包。旧文件/空header/只有manager无client均`PARTIAL/UNAVAILABLE`，不能当完整因果证据。原二进制保留，派生解码另存；无chmod、无删除共享trace目录。固定路径的跨profile覆盖靠逐次host归档避免。
+- 诊断状态和业务状态分开：原业务失败永远FAIL；若业务成功而trace不支持，标业务原结果+诊断UNAVAILABLE，不能宣称根因已证；本次专门取证运行要求完整trace，收集不完整使诊断job失败。主12计数、原G1–G4、font_scale精确恢复和双域协议均不减。
+
+### 11.5 读证目标与后续修复边界
+
+用trace的真实elapsed与文件offset、ImeTracker token串联：旧editor detach→served/next状态→close/hide、preserved ViewRoot/window token、新editor inputConnection与windowFocus、Insets requested visibility/control、旧hide结束与新show取消。只解释实际proto存在的字段；missing字段仍unknown，不以日志先后自动认定线程因果。必要时先解码现有trace再决定下一步，不加无目标生产日志。
+
+目标是判定是否旧连接hide在新show之后回传、或另有真实focus/visibility请求；确定后才提出单次、生命周期明确的生产恢复修正。当前不改IMM为另一API试运气，不循环show、不由测试reopen、不清真实IME状态、不用浮动IME/屏幕mask绕过原恢复断言。本节仅取证规格，尚未实施或运行。

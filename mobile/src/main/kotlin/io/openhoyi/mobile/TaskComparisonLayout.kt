@@ -26,6 +26,7 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         if (visual != null) {
             measureProduct(widthMeasureSpec, heightMeasureSpec, visual)
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             return
         }
         val width = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
@@ -72,18 +73,40 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
         val renderer = ProductHistoryChartRenderer(activity, style)
         val preferred = renderer.minimumComparisonHeight(160f)
         val fallback = renderer.minimumComparisonHeight(96f)
-        val standard = height >= preferred + touch * 2
+        fun controlMinimum(body: View, scroll: ScrollView): Pair<Int, org.json.JSONArray> {
+            var maximum=touch
+            val sources=org.json.JSONArray()
+            fun visit(view: View, visible: Boolean) {
+                val shown=visible && view.visibility==View.VISIBLE
+                if(!shown)return
+                if(view.isClickable) {
+                    maximum=maxOf(maximum,view.measuredHeight)
+                    sources.put(org.json.JSONObject().put("tag",view.tag?.toString() ?: org.json.JSONObject.NULL)
+                        .put("class",view.javaClass.name).put("isShown",view.isShown).put("naturalHeightPx",view.measuredHeight)
+                        .put("text",(view as? android.widget.TextView)?.text?.toString()?.take(96) ?: org.json.JSONObject.NULL))
+                }
+                if(view is android.view.ViewGroup)(0 until view.childCount).forEach {visit(view.getChildAt(it),shown)}
+            }
+            visit(body,true)
+            return maximum+scroll.paddingTop+scroll.paddingBottom to sources
+        }
+        val (toolbarMinimum,toolbarSources)=controlMinimum(toolbar,toolbarScroll)
+        val (detailsMinimum,detailsSources)=controlMinimum(details,detailsScroll)
+        val standard = height >= preferred + toolbarMinimum + detailsMinimum
         val minimum = if (standard) preferred else fallback
-        val minimumDetails = minOf(details.measuredHeight, touch, (height - minimum).coerceAtLeast(0))
-        val toolbarBudget = minOf(toolbar.measuredHeight, (height - minimum - minimumDetails).coerceAtLeast(0))
+        val toolbarBudget = minOf(toolbar.measuredHeight, (height - minimum - detailsMinimum).coerceAtLeast(0))
         val detailBudget = minOf(details.measuredHeight, (height - toolbarBudget - minimum).coerceAtLeast(0))
         productLayoutEvidence.put("availableHeightPx", height).put("toolbarNaturalPx", toolbar.measuredHeight)
             .put("toolbarBudgetPx", toolbarBudget).put("toolbarLocallyScrollable", toolbar.measuredHeight > toolbarBudget)
             .put("detailsNaturalPx", details.measuredHeight).put("detailsViewportPx", detailBudget)
-            .put("detailsMinimumPx", touch).put("chartMinimumPx", minimum)
+            .put("detailsMinimumPx", detailsMinimum).put("toolbarMinimumPx",toolbarMinimum)
+            .put("detailsMinimumSources",detailsSources).put("toolbarMinimumSources",toolbarSources)
+            .put("minimumSource","visible_tree_clickable_actual_natural_height_plus_scroll_padding; at_least_48dp")
+            .put("detailsMinimumSatisfiable",detailBudget>=detailsMinimum).put("toolbarMinimumSatisfiable",toolbarBudget>=toolbarMinimum)
+            .put("chartMinimumPx", minimum)
             .put("preferredChartMinimumPx", preferred).put("fallbackChartMinimumPx", fallback)
             .put("minimumPlotDp", if (standard) 160 else 96).put("shortHeightFallback", !standard)
-            .put("minimumViewportsSatisfiable", height >= minimum + touch * 2)
+            .put("minimumViewportsSatisfiable", height >= minimum + toolbarMinimum + detailsMinimum)
             .put("chartBudgetPx", (height - toolbarBudget - detailBudget).coerceAtLeast(0))
         fun invalidateMeasured(view: View) {
             view.forceLayout()
@@ -94,7 +117,6 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
         detailsScroll.layoutParams.height = detailBudget
         // First protect the plot and real axes, then expose as much of the real details as fits.
         // Only space beyond the complete controls and details is added to the plot.
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)

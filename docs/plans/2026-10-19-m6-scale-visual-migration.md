@@ -10,6 +10,8 @@
 
 ## 0. 当前状态、模板与启动条件
 
+> **当前执行索引（2026-10-19，eb77b2f 工作树候选）：** 主任务已分配同一生产 Sol，§5 桥接及两页展示首版已落盘；测试 Sol 正准备独立完整 8 配置，尚未冻结终审。以下早期“待分配/未实施”表述保留规划时点，不再阻止已授权实施。Service 实际集成、8 张主图和全部 G1–G4 仍未验收，不由 helper 单元测试或静态审查替代。
+
 - 只读基线 `91ab835aaf28d9e133a78efd620d7780ba3e7192`；已核工作树clean。来源develop共同基线 `66ebda95dc7986eec66f9fa0b7e6cbd565c74506`，延续已授权 `feature/task-first-ui` → develop PR#4，遵守 [task-template](task-template.md) / [git-workflow](../git-workflow.md)。本文件只完成规划，未实施或运行M6。
 - 主任务同意两页展示可独立推进，不以M2–M5编号等待；**主任务已审准§5最小只读输入桥接：MobileService私有Mock输入（必要独立MockScaleVisualInput）+ScaleActivity四处同源elapsed；待主任务明确单owner执行，不改MockRuntime算法/控制策略**。M2/M3 IME、M4 dialog、M5全图在途结论均不被本计划覆盖，新失败原件优先审。
 - 24页范围内本批仅第17/18两页；ScaleSettings留后续，不借共享父类迁样式。中文、2560×1600/density360横屏，浅深色/1.0/1.3及横屏短高；不新增竖屏工作或锁方向，已有非本任务回归保留。
@@ -173,3 +175,15 @@ clock先装，测试BIND_AUTO_CREATE创建唯一Mock服务；onCreate后核mock/
 ## 8. 本计划的完成边界
 
 已实读两张原稿、两Activity/父类、trend模型/Panel/View、Service接线、MockRuntime、时钟、能力类型和相关原测试。展示可独立实施，但Service输入桥接仍待主任务按§5明确分配；没有执行生产/测试修改、构建、设备或推送。8主图、所有新桥接运行和M6 G1–G4均未通过。原M1限定冻结继续有效，M2–M5在途结果独立，不按批次编号或Mock模型存在性推断完成。
+
+
+## 9. M6 首版静态审查记录（非运行/视觉通过）
+
+审查基于 `eb77b2f` 上未提交候选：本页 7 Kotlin、8 语种 scope 资源与桥接 unit；不包含尚未冻结的 `ScaleVisualMigrationChecks`。没有操作设备、构建或修改生产文件。
+
+- **默认隔离/真实语义：** ScaleOwner 的 visual 默认 null，ScaleSettings 不 opt-in；Panel/View 原 null 路径保留。Mock bridge 双层约束 Mock/main/同 clock owner/hub-null；显式 offer 才进入原通知入口，read/tick 不造点或刷新 timestamp。新增通知 serial 仅 Mock 且已安装 scope 时计数，不进入 snapshot/控制；必须由真实 Service scope 验证 invalid/tick/read 的 delta=0、每个非 null offer 的 delta=1，helper tests 不能代替。
+- **已收口的静态基线问题：** 主值/单位 quantity 不再用禁用 LinearLayout baseline 对齐的 CENTER_VERTICAL，现为 CENTER_HORIZONTAL|TOP 且 baselineAligned=true。64/700/96 与 22/400/34、8dp 间距不变；最终屏幕 baseline 差仍须实测为 0。
+- **上述三项已静态收口：** Connection 空候选节点现使用冻结 auxiliary14/400/22 与 muted palette，原文/状态不变；趋势 grid/data/fill 现记录真实 Paint colorArgb，endpointCircle 记录实际中心/半径/颜色/style，绘制路径未改；窄横屏 stacked 最低 support 预算现取实际宽度下 VISIBLE 祖先树可点击节点最大 measuredHeight 加 scroll padding（至少48dp），保留实际测量前全子树 forceLayout，并记录 minimumSources、两区独立及 combinedMinimumSatisfiable。宽双栏分配、字体、图最小预算和默认 helper 未改变；总预算无解仍如实记录，不减门槛。仅本轮三处复核无新增静态阻断，可进入统一构建；不是局部可达性或屏幕视觉已通过。
+- **待真实验收：** 标准主 fixture 非空 inline 趋势、1.3必要详情与关闭恢复、64/22真实非线性字号/Layout/baseline、完整文字/禁用色/浅深纯色内区/12%实际alpha、局部操作完整滚达、同源时钟下 stale/gap/证据变化与 owner/drain 清理。配置色不是屏幕合成色；原稿字体精确身份与不可达硬件状态仍保留明确 unknown/pending。
+
+本次同时只读复核了其它 owner 的 Batch 重建 readiness 与 Comparison 高按钮预算：前者只在明确原调整窗口重开时核该唯一 dialog 持焦与原字段身份，不放宽默认 Activity ready；后者以真实可点击自然高替代固定48dp最低 viewport，WrongCall 改为在 override 直接调用一次 super.onMeasure。均为静态无新增阻断，实际重建及俄语大字148px操作仍待各自 CI，不计入 M6 八图验收。

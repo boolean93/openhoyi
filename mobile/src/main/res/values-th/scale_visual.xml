@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="m6_nearby_scales">เครื่องชั่งใกล้เคียง</string>
+  <string name="m6_scale_candidate_count">พบอุปกรณ์ที่เป็นไปได้ %1$d เครื่อง</string>
+  <string name="m6_app_timer">ตัวจับเวลาของแอป</string>
+</resources>

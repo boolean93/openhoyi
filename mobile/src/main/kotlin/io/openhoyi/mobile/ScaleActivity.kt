@@ -8,7 +8,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
-import android.os.SystemClock
 import android.view.WindowInsets
 import android.widget.Button
 import android.widget.LinearLayout
@@ -44,7 +43,8 @@ abstract class ScaleOwnerActivity: ThemedActivity() {
     protected abstract fun renderScale()
     protected fun changesAllowed():Boolean = owner?.let { !it.manualShotActive && DeviceConnectionGate.mayChangeScale(it.shotState) } == true
     protected fun message(value:String) {Toast.makeText(this,value,Toast.LENGTH_SHORT).show()}
-    protected fun scaleBody(title:Int,subtitle:Int,scrollable:Boolean=false):LinearLayout {
+    protected fun scaleBody(title:Int,subtitle:Int,scrollable:Boolean=false,visual:ScaleVisualStyle?=null):LinearLayout {
+        if (visual != null) return visual.page(this, title, subtitle)
         val root=LinearLayout(this).apply {
             orientation=LinearLayout.VERTICAL;setBackgroundColor(getColor(R.color.mobile_background))
             setOnApplyWindowInsetsListener {view,insets->
@@ -77,6 +77,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         const val EXTRA_BEAN_DOSE_HUNDREDTHS_GRAM="io.openhoyi.mobile.bean_dose_hundredths_gram"
     }
     private lateinit var weight:TextView
+    private lateinit var weightUnit:TextView
     private lateinit var freshness:TextView
     private lateinit var battery:TextView
     private lateinit var deviceStatus:TextView
@@ -89,6 +90,7 @@ class ScaleActivity:ScaleOwnerActivity() {
     private var capture:Button?=null
     private var timer=LocalScaleTimer()
     private lateinit var trend: ScaleTrendPanel
+    val productLayoutEvidence = org.json.JSONObject()
     private fun stableDose(now:Long):Int? {
         return owner?.beanDoseCaptureAt(now)
     }
@@ -97,133 +99,119 @@ class ScaleActivity:ScaleOwnerActivity() {
         super.onCreate(savedInstanceState)
         timer=LocalScaleTimer(LocalScaleTimer.State(savedInstanceState?.getLong("scale.timer.accumulated") ?: 0,
             savedInstanceState?.takeIf {it.containsKey("scale.timer.origin")}?.getLong("scale.timer.origin")))
-        val body=scaleBody(R.string.scale_title,R.string.scale_subtitle)
-        val info=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
-        body.addView(info)
-        freshness=HoyiUi.label(this,info,"",14,muted=true).apply {layoutParams=LinearLayout.LayoutParams(0,-2,1f)}
-        guard=HoyiUi.label(this,body,"",14,muted=true)
-        val workspace=TaskWorkspaceLayout(this)
+        val visual = ScaleVisualStyle(this)
+        val style = visual.palette
+        val body=scaleBody(R.string.scale_title,R.string.scale_subtitle,visual=visual)
+        guard=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/guard",true).also { style.add(body,it) }
+        val workspace=ScaleVisualWorkspace(this,visual)
+        productLayoutEvidence.put("workspace",workspace.productLayoutEvidence)
         body.addView(workspace,LinearLayout.LayoutParams(-1,0,1f))
-        val primary=workspace.primaryBody
-        val secondary=workspace.secondaryBody
-        val reading=LinearLayout(this).apply {
-            orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER
-            minimumHeight=HoyiUi.dp(this@ScaleActivity,128)
-            background=HoyiUi.shape(this@ScaleActivity,android.R.color.transparent,0)
-            setPadding(HoyiUi.dp(this@ScaleActivity,12),0,HoyiUi.dp(this@ScaleActivity,12),0)
-        }
-        primary.addView(reading,LinearLayout.LayoutParams(-1,0,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)})
-        HoyiUi.label(this,reading,getString(R.string.scale_current_weight),16,muted=true).apply {
+        val primary=workspace.primary
+        val secondary=workspace.secondary
+        val reading=style.column("product/scale/reading").apply {gravity=android.view.Gravity.CENTER}
+        primary.addView(reading,LinearLayout.LayoutParams(-1,0,1f))
+        style.add(reading,style.text(getString(R.string.scale_current_weight),TaskProductVisualStyle.auxiliary,secondary=true).apply {
             gravity=android.view.Gravity.CENTER
-            layoutParams=LinearLayout.LayoutParams(-1,-2)
-            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,16))
-        }
-        weight=HoyiUi.label(this,reading,getString(R.string.scale_unavailable),if(HoyiUi.wide(this))64 else 48,true).apply {
-            // Natural height preserves system font scaling and long/negative readings.
-            layoutParams=LinearLayout.LayoutParams(-1,-2);gravity=android.view.Gravity.CENTER
-            typeface=TaskTypography.face(this@ScaleActivity, 700)
-        }
+        })
+        val quantity=style.row("product/scale/quantity").apply {isBaselineAligned=true;gravity=android.view.Gravity.CENTER_HORIZONTAL or android.view.Gravity.TOP}
+        style.add(reading,quantity,8)
+        weight=style.text(getString(R.string.scale_unavailable),if(resources.configuration.screenWidthDp>=840)visual.largeReading else visual.narrowReading,
+            "product/scale/weight/number")
+        quantity.addView(weight,LinearLayout.LayoutParams(-2,-2))
+        weightUnit=style.text("",visual.unit,"product/scale/weight/unit",true)
+        quantity.addView(weightUnit,LinearLayout.LayoutParams(-2,-2).apply {marginStart=style.dp(8)})
+        freshness=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/freshness",true).apply {gravity=android.view.Gravity.CENTER}
+        style.add(reading,freshness,8)
         tare=HoyiUi.button(this,primary,getString(R.string.scale_tare),
             primary=!intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
             val service=owner ?: return@button
             if(BuildConfig.MOCK_MODE || !changesAllowed()) {message(getString(R.string.scale_active_guard));return@button}
             service.resetBeanDoseCapture()
             message(service.tareScale() ?: getString(R.string.scale_tare_requested));renderScale()
+        }.apply {
+            style.button(this,primary=!intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false))
+            tag="product/scale/tare"
+            layoutParams=LinearLayout.LayoutParams(-2,-2).apply {gravity=android.view.Gravity.CENTER_HORIZONTAL;topMargin=style.dp(8)}
         }
-        tareStatus=HoyiUi.label(this,primary,"",14,muted=true).apply {
-            layoutParams=LinearLayout.LayoutParams(-1,-2)
-            gravity=android.view.Gravity.CENTER
-            setPadding(0,HoyiUi.dp(this@ScaleActivity,8),0,HoyiUi.dp(this@ScaleActivity,16))
-        }
-        trend = ScaleTrendPanel(this, primary, secondary)
-        workspace.onPrimarySpaceAvailable = { width, height ->
-            fun natural(view: android.view.View): Int {
-                view.measure(android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY),
-                    android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED))
-                val params = view.layoutParams as LinearLayout.LayoutParams
-                return view.measuredHeight + params.topMargin + params.bottomMargin
+        tareStatus=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/tare-status",true).apply {gravity=android.view.Gravity.CENTER}
+        style.add(primary,tareStatus,8)
+        trend=ScaleTrendPanel(this,primary,secondary,visual)
+        workspace.onPrimarySpaceAvailable={width,height->
+            fun natural(view:android.view.View):Int {
+                view.measure(android.view.View.MeasureSpec.makeMeasureSpec(width,android.view.View.MeasureSpec.EXACTLY),
+                    android.view.View.MeasureSpec.makeMeasureSpec(0,android.view.View.MeasureSpec.UNSPECIFIED))
+                val params=view.layoutParams as LinearLayout.LayoutParams
+                return view.measuredHeight+params.topMargin+params.bottomMargin
             }
-            val buttonWidth = minOf(width, HoyiUi.dp(this,240)).coerceAtLeast(0)
-            (tare.layoutParams as LinearLayout.LayoutParams).apply {
-                this.width=buttonWidth; gravity=android.view.Gravity.CENTER_HORIZONTAL
-            }
-            tare.measure(android.view.View.MeasureSpec.makeMeasureSpec(buttonWidth, android.view.View.MeasureSpec.EXACTLY),
-                android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED))
-            val tareParams=tare.layoutParams as LinearLayout.LayoutParams
-            val required = natural(reading) + tare.measuredHeight + tareParams.topMargin + tareParams.bottomMargin + natural(tareStatus)
-            required + trend.fit(width, height - required)
+            val buttonWidth=minOf(width,style.dp(240)).coerceAtLeast(0)
+            (tare.layoutParams as LinearLayout.LayoutParams).width=buttonWidth
+            tare.measure(android.view.View.MeasureSpec.makeMeasureSpec(buttonWidth,android.view.View.MeasureSpec.EXACTLY),
+                android.view.View.MeasureSpec.makeMeasureSpec(0,android.view.View.MeasureSpec.UNSPECIFIED))
+            val params=tare.layoutParams as LinearLayout.LayoutParams
+            val readingHeight=natural(reading)
+            val tareHeight=tare.measuredHeight+params.topMargin+params.bottomMargin
+            val explanationHeight=natural(tareStatus)
+            val required=readingHeight+tareHeight+explanationHeight
+            val trendHeight=trend.fit(width,height-required)
+            productLayoutEvidence.put("readingNaturalPx",readingHeight).put("tareNaturalPx",tareHeight)
+                .put("tareExplanationNaturalPx",explanationHeight).put("trendNaturalPx",trendHeight)
+                .put("trendInline",trendHeight>0).put("trendBudget",trend.productLayoutEvidence)
+            required+trendHeight
         }
-        // Only TaskWorkspace secondary content scrolls; weight, tare and capture stay fixed.
-        val timerCard=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
-        secondary.addView(timerCard)
-        val timerHeading=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
-        timerCard.addView(timerHeading,LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)})
-        HoyiUi.label(this,timerHeading,getString(R.string.scale_timer_title),20,true).apply {
-            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,16))
-        }
-        timerValue=HoyiUi.label(this,timerHeading,"",40,true).apply {
-            typeface=TaskTypography.face(this@ScaleActivity,700)
-            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,8))
-        }
-        // The timer is explicitly local, not an unconfirmed scale command.
-        HoyiUi.label(this,timerCard,getString(R.string.scale_timer_help),14,muted=true)
-        val timerActions=LinearLayout(this).apply {orientation=LinearLayout.HORIZONTAL}
-        timerCard.addView(timerActions)
+        val timerCard=style.column("product/scale/timer")
+        style.add(secondary,timerCard)
+        style.add(timerCard,style.text(getString(R.string.scale_timer_title),TaskProductVisualStyle.section))
+        timerValue=style.text("",TaskProductVisualStyle.largeValue,"product/scale/timer/value")
+        style.add(timerCard,timerValue,16)
+        style.add(timerCard,style.text(getString(R.string.m6_app_timer),TaskProductVisualStyle.auxiliary,secondary=true),8)
+        style.add(timerCard,style.text(getString(R.string.scale_timer_help),TaskProductVisualStyle.auxiliary,secondary=true),8)
+        val timerActions=style.row("product/scale/timer/actions")
+        style.add(timerCard,timerActions,16)
         timerToggle=HoyiUi.button(this,timerActions,getString(R.string.scale_timer_start)) {
-            if(timer.running)timer.pause(SystemClock.elapsedRealtime())else timer.start(SystemClock.elapsedRealtime());renderScale()
-        }.apply {layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6);marginEnd=HoyiUi.dp(this@ScaleActivity,6)}}
-        toolLink(timerActions,getString(R.string.scale_timer_reset), centered=true) {timer.reset();renderScale()}.apply {
-            layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6)}
+            if(timer.running)timer.pause(MobileMonotonicClock.elapsedRealtime())else timer.start(MobileMonotonicClock.elapsedRealtime());renderScale()
+        }.apply {style.button(this,outline=true);tag="product/scale/timer/toggle";layoutParams=LinearLayout.LayoutParams(0,-2,1f).apply {marginEnd=style.dp(16)}}
+        toolLink(timerActions,getString(R.string.scale_timer_reset),centered=true) {timer.reset();renderScale()}.apply {
+            style.button(this);tag="product/scale/timer/reset";layoutParams=LinearLayout.LayoutParams(0,-2,1f)
         }
-        if(intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
-            // Full dose provenance remains available in the local scroll region.
-            HoyiUi.label(this,secondary,getString(R.string.scale_dose_help),14,muted=true)
-        }
-        val device=LinearLayout(this).apply {
-            orientation=LinearLayout.VERTICAL
-            setPadding(0,HoyiUi.dp(this@ScaleActivity,24),0,0)
-        }
-        secondary.addView(device,LinearLayout.LayoutParams(-1,-2))
-        HoyiUi.label(this,device,getString(R.string.scale_device_section),20,true).apply {
-            setPadding(0,0,0,HoyiUi.dp(this@ScaleActivity,16))
-        }
-        fun deviceRow(label: Int): TextView {
-            device.addView(android.view.View(this).apply { setBackgroundColor(getColor(R.color.mobile_border)) },
-                LinearLayout.LayoutParams(-1, HoyiUi.dp(this,1)))
-            val row=LinearLayout(this).apply {
-                orientation=LinearLayout.HORIZONTAL
-                isBaselineAligned=false
-                gravity=android.view.Gravity.CENTER_VERTICAL
-                minimumHeight=HoyiUi.dp(this@ScaleActivity,48)
-                setPadding(0,HoyiUi.dp(this@ScaleActivity,8),0,HoyiUi.dp(this@ScaleActivity,8))
-            }
-            device.addView(row,LinearLayout.LayoutParams(-1,-2))
-            HoyiUi.label(this,row,getString(label),14,muted=true).apply {
-                layoutParams=LinearLayout.LayoutParams(0,-2,0.35f)
-                setPadding(0,0,HoyiUi.dp(this@ScaleActivity,8),0)
-            }
-            return HoyiUi.label(this,row,"",16).apply {
-                layoutParams=LinearLayout.LayoutParams(0,-2,0.65f)
+        if(intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false))
+            style.add(secondary,style.text(getString(R.string.scale_dose_help),TaskProductVisualStyle.auxiliary,secondary=true),16)
+        val device=style.column("product/scale/device")
+        style.add(secondary,device,24)
+        style.add(device,style.text(getString(R.string.scale_device_section),TaskProductVisualStyle.section))
+        var firstDeviceRow=true
+        fun deviceRow(label:Int,id:String):TextView {
+            device.addView(android.view.View(this).apply {setBackgroundColor(style.border)},
+                LinearLayout.LayoutParams(-1,style.dp(1)).apply {topMargin=if(firstDeviceRow)style.dp(16) else 0})
+            firstDeviceRow=false
+            val row=style.row().apply {gravity=android.view.Gravity.CENTER_VERTICAL;setPadding(0,style.dp(8),0,style.dp(8));minimumHeight=style.dp(48)}
+            style.add(device,row)
+            row.addView(style.text(getString(label),TaskProductVisualStyle.auxiliary,secondary=true),LinearLayout.LayoutParams(0,-2,.35f).apply {marginEnd=style.dp(8)})
+            return style.text("",TaskProductVisualStyle.body,id).apply {
                 gravity=android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
-                setPadding(0,0,0,0)
+                row.addView(this,LinearLayout.LayoutParams(0,-2,.65f))
             }
         }
-        battery=deviceRow(R.string.scale_device_battery_label)
-        deviceStatus=deviceRow(R.string.scale_device_status_label)
-        val tools=LinearLayout(this).apply {orientation=LinearLayout.VERTICAL}
-        device.addView(tools)
-        connectionButton=toolLink(tools,getString(R.string.scale_connect)) {startActivity(Intent(this,ScaleConnectionActivity::class.java))}.apply {
-            layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,8)}
+        battery=deviceRow(R.string.scale_device_battery_label,"product/scale/battery")
+        deviceStatus=deviceRow(R.string.scale_device_status_label,"product/scale/device-status")
+        connectionButton=toolLink(device,getString(R.string.scale_connect)) {startActivity(Intent(this,ScaleConnectionActivity::class.java))}.apply {
+            style.button(this);HomeVisualIcon.buttonIcon(this,"chevron",atEnd=true);tag="product/scale/connect"
+            layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=style.dp(16)}
         }
-        toolLink(tools,getString(R.string.scale_settings)) {startActivity(Intent(this,ScaleSettingsActivity::class.java))}.apply {
-            layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=HoyiUi.dp(this@ScaleActivity,6)}
+        toolLink(device,getString(R.string.scale_settings)) {startActivity(Intent(this,ScaleSettingsActivity::class.java))}.apply {
+            style.button(this);HomeVisualIcon.buttonIcon(this,"chevron",atEnd=true);tag="product/scale/settings"
+            layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=style.dp(8)}
+        }
+        // Construction only: keep the timer first; short-height trend details follow the routine tools.
+        secondary.findViewWithTag<android.view.View>("scale-trend-fallback")?.let { fallback ->
+            secondary.removeView(fallback)
+            secondary.addView(fallback,LinearLayout.LayoutParams(-1,-2).apply {topMargin=style.dp(16)})
         }
         if(intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
             capture=HoyiUi.button(this,body,getString(R.string.scale_dose_capture),primary=true) {
-                val stable=stableDose(SystemClock.elapsedRealtime())
+                val stable=stableDose(MobileMonotonicClock.elapsedRealtime())
                 if(stable==null) {message(getString(R.string.scale_dose_not_ready));return@button}
                 setResult(RESULT_OK,Intent().putExtra(EXTRA_BEAN_DOSE_HUNDREDTHS_GRAM,stable));finish()
-            }
+            }.apply {style.button(this,primary=true);tag="product/scale/capture";layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=style.dp(8)}}
         }
         renderScale()
     }
@@ -234,13 +222,12 @@ class ScaleActivity:ScaleOwnerActivity() {
     }
     override fun renderScale() {
         if(!::weight.isInitialized)return
-        val service=owner;val snapshot=service?.snapshot;val now=SystemClock.elapsedRealtime()
+        val service=owner;val snapshot=service?.snapshot;val now=MobileMonotonicClock.elapsedRealtime()
         val live=snapshot?.let {LiveTelemetry.scale(it.scaleObservation,it.scaleState,now)}
         val digits=if(getSharedPreferences("scale_tool",MODE_PRIVATE).getBoolean("one_decimal",false))1 else 2
         setWeightReading(live?.let {getString(R.string.scale_weight_format,String.format(Locale.getDefault(),"%.${digits}f",it.hundredthsGram/100.0))}
             ?: getString(R.string.scale_unavailable))
         freshness.setIfChanged(getString(when {
-            BuildConfig.MOCK_MODE->R.string.scale_mock_notice
             snapshot?.scaleState!=DeviceState.READY->R.string.scale_disconnected
             live==null->R.string.scale_stale
             live.evidence==ScaleEvidence.OFFLINE_CANDIDATE->R.string.scale_offline_evidence
@@ -286,14 +273,11 @@ class ScaleActivity:ScaleOwnerActivity() {
                 states,HoyiUi.shape(this@ScaleActivity,android.R.color.white,8))
         }
     private fun setWeightReading(value: String) {
-        if (weight.text.toString() == value && weight.text is android.text.Spanned) return
-        val unit = getString(R.string.scale_weight_format, "").trim()
-        weight.text = android.text.SpannableString(value).apply {
-            if (unit.isNotEmpty() && value.endsWith(unit)) {
-                setSpan(android.text.style.RelativeSizeSpan(0.45f), value.length - unit.length, value.length,
-                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
-        }
+        val unit=getString(R.string.scale_weight_format,"").trim()
+        val hasUnit=unit.isNotEmpty() && value.endsWith(unit)
+        weight.setIfChanged(if(hasUnit)value.removeSuffix(unit).trimEnd() else value)
+        weightUnit.setIfChanged(if(hasUnit)unit else "")
+        weightUnit.visibility=if(hasUnit)android.view.View.VISIBLE else android.view.View.GONE
     }
     private fun TextView.setIfChanged(value:String) { if(text.toString()!=value) text=value }
 }

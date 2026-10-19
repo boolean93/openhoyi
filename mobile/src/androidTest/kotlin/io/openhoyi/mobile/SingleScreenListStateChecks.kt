@@ -235,7 +235,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         }
         test.waitForIdleSync()
     }
-    private fun detailReturn(activity: Activity, detailType: Class<out Activity>, expectedShotId: String? = null, action: () -> Unit) {
+    private fun detailReturn(activity: Activity, detailType: Class<out Activity>, expectedShotId: String? = null, expectedLegacyId: String? = null, action: () -> Unit) {
         val monitor = test.addMonitor(detailType.name, null, false)
         try {
             action()
@@ -245,6 +245,9 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             main {
                 if (expectedShotId != null) check(detail.intent.getStringExtra("shotId") == expectedShotId) {
                     "History detail opened a different shot"
+                }
+                if (expectedLegacyId != null) check(detail.intent.getStringExtra("legacyId") == expectedLegacyId) {
+                    "Legacy history detail opened a different legacyId"
                 }
                 SingleScreenPageChecks.verify(detail); detail.finish()
             }
@@ -341,7 +344,8 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         }
         try {
             main { snapshotField.set(service, service.snapshot.copy(candidates = fixtures)); render(activity) }
-            await { (field(activity, "rows") as ViewGroup).childCount == fixtures.size }
+            await { val rows=field(activity, "rows") as ViewGroup
+                (0 until rows.childCount).count { rows.getChildAt(it).tag?.toString()?.startsWith("product/scale-connection/candidate/")==true } == fixtures.size }
             main { disabledCandidates(activity) }
             val saved = swipeScroll(activity, localScroll(activity))
             activity = recreate(activity)
@@ -589,7 +593,36 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                                 }?.let { check(it.performClick()) }
                             }
                             ready(activity)
-                        } else detailReturn(activity, LegacyHistoryDetailActivity::class.java) { clickVisible(activity) }
+                        } else {
+                            check(activity is LegacyHistoryActivity)
+                            var expectedLegacyId = ""
+                            var compact = true
+                            main {
+                                @Suppress("UNCHECKED_CAST")
+                                val rows = field(activity, "rows") as List<LegacyShot>
+                                expectedLegacyId = rows[list(activity).firstVisiblePosition].id
+                                compact = field(activity, "compact") as Boolean
+                                check(expectedLegacyId.isNotBlank())
+                            }
+                            detailReturn(activity, LegacyHistoryDetailActivity::class.java, expectedLegacyId = expectedLegacyId) {
+                                clickVisible(activity)
+                                if (!compact) {
+                                    await { field(activity, "selectedId") == expectedLegacyId }
+                                    main {
+                                        val expand = views(activity.window.decorView).single {
+                                            it.tag == "legacy/history/selected/open"
+                                        } as Button
+                                        check(expand.text.toString() == activity.getString(R.string.ui_full_details))
+                                        val visible = Rect()
+                                        check(expand.isShown && expand.isEnabled && expand.isClickable && expand.width > 0 && expand.height >= HoyiUi.dp(activity, 48) &&
+                                            expand.getGlobalVisibleRect(visible) && visible.width() == expand.width && visible.height() == expand.height) {
+                                            "Legacy history full-page action is not completely visible and actionable"
+                                        }
+                                        check(expand.performClick())
+                                    }
+                                }
+                            }
+                        }
                         restored(activity, saved, "detail-return")
                         evidence += "${type.simpleName} detail-return position=${saved.position} offset=${saved.offset} gesture=swipe"
                     }

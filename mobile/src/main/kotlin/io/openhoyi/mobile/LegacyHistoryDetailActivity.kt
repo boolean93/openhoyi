@@ -1,45 +1,19 @@
 package io.openhoyi.mobile
 
-import android.os.Build
 import android.os.Bundle
-import android.view.WindowInsets
 import android.widget.LinearLayout
-import android.widget.TextView
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import android.widget.ScrollView
 
 class LegacyHistoryDetailActivity : ThemedActivity() {
+    private val visual by lazy { LegacyVisualStyle(this) }
+    private val style get() = visual.palette
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.mobile_background))
-            setOnApplyWindowInsetsListener { view, insets ->
-                val bars = if (Build.VERSION.SDK_INT >= 30) {
-                    val area = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                    intArrayOf(area.left, area.top, area.right, area.bottom)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
-                        insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
-                }
-                view.setPadding(bars[0], bars[1], bars[2], bars[3]); insets
-            }
-        }
-        val body = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(8))
-        }
-        root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
-        HoyiUi.navigation(this, root, LegacyHistoryDetailActivity::class.java)
-        setContentView(root)
-        HoyiUi.header(this, body, getString(R.string.legacy_history_detail_title), getString(R.string.legacy_history_readonly), back = true)
+        val body = style.page(this, getString(R.string.legacy_history_detail_title))
         val id = intent.getStringExtra("legacyId")
-        val status = TextView(this).apply {
-            text = getString(R.string.legacy_history_detail_loading); textSize = 16f; setTextColor(getColor(R.color.mobile_text))
-            body.addView(this)
-        }
+        val status = style.text(getString(R.string.legacy_history_detail_loading), TaskProductVisualStyle.body,
+            "legacy/detail/status").also { style.add(body, it, 8) }
         Thread({
             val result = runCatching { (application as MobileApplication).legacyHistory.list().firstOrNull { it.id == id } }
             runOnUiThread {
@@ -56,53 +30,47 @@ class LegacyHistoryDetailActivity : ThemedActivity() {
     }
 
     private fun showShot(body: LinearLayout, shot: LegacyShot) {
-        val summaryText = getString(R.string.legacy_history_summary,
-            shot.profileName.ifBlank { getString(R.string.legacy_history_unnamed) },
-            SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(shot.createdAtMs)), shot.durationSec.toString())
-        val disclaimer = getString(R.string.legacy_history_chart_disclaimer)
-        HoyiUi.label(this, body, summaryText.replace("\n", " · "), 16).apply {
-            maxLines = 2
-            ellipsize = android.text.TextUtils.TruncateAt.END
-            tag = "full-text-details"
-            setPadding(0, dp(8), 0, dp(16))
+        val name = shot.profileName.ifBlank { getString(R.string.legacy_history_unnamed) }
+        val heading = LegacyNaturalFlow(this, dp(16), dp(8)).apply {
+            addView(style.text(name, TaskProductVisualStyle.title, "legacy/detail/name"))
+            addView(style.text(legacyMetadata(this@LegacyHistoryDetailActivity, shot), TaskProductVisualStyle.auxiliary,
+                "legacy/detail/metadata", true))
+            addView(visual.readonly())
         }
-        val workspace = TaskWorkspaceLayout(this).apply {
+        style.add(body, heading, 8)
+        val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .34f,
+            supportingMaxWidthDp = 400, boundedSecondaryViewport = true).apply {
             fillSecondaryViewport = true
-            secondaryBody.setPadding(dp(16), dp(16), dp(16), dp(16))
-            secondaryBody.background = HoyiUi.shape(this@LegacyHistoryDetailActivity,
-                R.color.mobile_surface, 12, R.color.mobile_border)
+            visual.panel(primaryBody); visual.panel(secondaryBody)
         }
-        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
-        workspace.onPrimarySpaceAvailable = { _, budget -> minOf(budget, dp(220)) }
+        body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
+        style.add(workspace.primaryBody, style.text(getString(R.string.legacy_detail_samples_heading),
+            TaskProductVisualStyle.section, "legacy/detail/samples/title"))
+        val chart = LegacyShotChartView(this).apply { visualStyle = visual; points = shot.points; tag = "legacy/detail/chart" }
+        workspace.primaryBody.addView(LegacyChartViewport(this, chart), LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
+        workspace.onPrimarySpaceAvailable = { width, budget -> minOf(budget,
+            chart.minimumVisualHeight((width - dp(32)).coerceAtLeast(0)) + dp(48) + style.sp(30).toInt()) }
+        // A permanent supporting subtree: only prose scrolls in a split pane, the real action stays fixed.
+        val prose = style.column("legacy/detail/prose")
+        val scroll = ScrollView(this).apply { addView(prose) }
+        workspace.secondaryBody.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
         fun section(heading: Int, message: Int, separated: Boolean) {
-            if (separated) workspace.secondaryBody.addView(android.view.View(this).apply {
-                setBackgroundColor(getColor(R.color.mobile_border))
-            }, LinearLayout.LayoutParams(-1, dp(1)).apply { topMargin = dp(16); bottomMargin = dp(16) })
-            HoyiUi.label(this, workspace.secondaryBody, getString(heading), TaskVisualTokens.SECTION_SP, true).apply {
-                setPadding(0, 0, 0, dp(8))
-            }
-            HoyiUi.label(this, workspace.secondaryBody, getString(message), TaskVisualTokens.SUPPORTING_SP).apply {
-                setPadding(0, 0, 0, 0)
-            }
+            if (separated) style.divider(prose)
+            style.add(prose, style.text(getString(heading), TaskProductVisualStyle.section))
+            style.add(prose, style.text(getString(message), TaskProductVisualStyle.auxiliary), 8)
         }
         section(R.string.legacy_detail_source_heading, R.string.legacy_detail_source_body, false)
         section(R.string.legacy_detail_missing_heading, R.string.legacy_detail_missing_body, true)
         section(R.string.legacy_detail_limits_heading, R.string.legacy_detail_limits_body, true)
-        workspace.secondaryBody.addView(android.view.View(this), LinearLayout.LayoutParams(1, 0, 1f))
-        val chart = HoyiUi.card(this, workspace.primaryBody, getString(R.string.legacy_detail_samples_heading)).apply {
-            layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+        style.action(workspace.secondaryBody, getString(R.string.ui_full_details), "legacy/detail/full-notice", outline = true, top = 16) {
+            val summary = getString(R.string.legacy_history_summary, name,
+                java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.CHINA).format(java.util.Date(shot.createdAtMs)),
+                shot.durationSec.toString())
+            val dialog = android.app.AlertDialog.Builder(this).setTitle(getString(R.string.legacy_history_detail_title))
+                .setMessage(summary + "\n\n" + getString(R.string.legacy_history_chart_disclaimer))
+                .setPositiveButton(android.R.string.ok, null).create()
+            beanShowDialog(dialog)
         }
-        chart.addView(LegacyShotChartView(this).apply { points = shot.points },
-            LinearLayout.LayoutParams(-1, 0, 1f))
-        // One explicit full-details entry preserves both texts without duplicate
-        // overview buttons taking height from the historical plot.
-        HoyiUi.button(this, workspace.secondaryBody, getString(R.string.ui_full_details)) {
-            android.app.AlertDialog.Builder(this).setTitle(getString(R.string.legacy_history_detail_title))
-                .setMessage(summaryText + "\n\n" + disclaimer)
-                .setPositiveButton(android.R.string.ok, null).show()
-        }.asTaskTextAction()
     }
-
-    private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
+    private fun dp(value: Int) = style.dp(value)
 }

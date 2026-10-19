@@ -1,10 +1,8 @@
 package io.openhoyi.mobile
 
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.view.WindowInsets
 import android.widget.ArrayAdapter
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -16,7 +14,13 @@ import java.util.Locale
 
 /** Imported UniApp records have their own list and never join Alpha control/history state. */
 class LegacyHistoryActivity : ThemedActivity() {
-    private data class RowViews(val title: TextView, val subtitle: TextView)
+    private val visual by lazy { LegacyVisualStyle(this) }
+    private val style get() = visual.palette
+    private data class RowViews(val day: TextView, val title: TextView, val subtitle: TextView)
+    private lateinit var collection: TaskCollectionLayout
+    private lateinit var preview: LegacyHistoryContent
+    private var selectedId: String? = null
+    private var compact = true
     private var rows = emptyList<LegacyShot>()
     private lateinit var adapter: ArrayAdapter<String>
     private lateinit var count: TextView
@@ -31,57 +35,71 @@ class LegacyHistoryActivity : ThemedActivity() {
         super.onCreate(savedInstanceState)
         @Suppress("DEPRECATION")
         listState = savedInstanceState?.getParcelable("listState")
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.mobile_background))
-            setOnApplyWindowInsetsListener { view, insets ->
-                val bars = if (Build.VERSION.SDK_INT >= 30) {
-                    val area = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                    intArrayOf(area.left, area.top, area.right, area.bottom)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
-                        insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
-                }
-                view.setPadding(dp(16) + bars[0], dp(8) + bars[1], dp(16) + bars[2], dp(8) + bars[3])
-                insets
+        selectedId = savedInstanceState?.getString("selectedId")
+        val root = style.page(this, getString(R.string.legacy_history_title))
+        count = style.text("", TaskProductVisualStyle.auxiliary, "legacy/history/count", true)
+        style.add(root, count, 8)
+        val tabsIndex = root.childCount
+        HoyiUi.tabs(this, root, listOf(getString(R.string.journal_tab), getString(R.string.history_local_tab),
+            getString(R.string.history_legacy_tab)), selected = 2) {
+            if (it != 2) {
+                rememberList()
+                startActivity(Intent(this, HistoryActivity::class.java).apply {
+                    if (it == 0) putExtra(HistoryActivity.EXTRA_HISTORY_SOURCE, HistoryActivity.SOURCE_JOURNAL)
+                })
             }
         }
-        setContentView(root)
-        HoyiUi.header(this, root, getString(R.string.legacy_history_title), getString(R.string.legacy_history_subtitle), back = true)
-        count = TextView(this).apply { textSize = 15f; setTextColor(getColor(R.color.mobile_text)) }
-        root.addView(count)
-        HoyiUi.tabs(this, root, listOf(getString(R.string.history_local_tab), getString(R.string.history_legacy_tab)), selected = 1) {
-            if (it == 0) finish()
-        }
+        visual.styleTabs(root.getChildAt(tabsIndex))
+        collection = TaskCollectionLayout(this, .34f)
+        root.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
+        preview = LegacyHistoryContent(this, visual) { openDetails(it) }
+        collection.detailBody.addView(preview, LinearLayout.LayoutParams(-1, -1))
+        collection.onPresentationChanged = { twoPane, _ -> compact = !twoPane }
+        collection.browserBody.background = style.shape(style.surface, outline = true, radius = 16)
         adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, mutableListOf()) {
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
                 val card = convertView as? LinearLayout ?: LinearLayout(this@LegacyHistoryActivity).apply {
                     orientation = LinearLayout.VERTICAL
                     minimumHeight = dp(64)
-                    setPadding(dp(12), dp(10), dp(12), dp(10))
+                    setPadding(dp(16), dp(8), dp(16), dp(8))
                     background = HoyiUi.shape(this@LegacyHistoryActivity, R.color.mobile_surface, 0)
-                    val title = HoyiUi.label(this@LegacyHistoryActivity, this, "", 17, true)
-                    val subtitle = HoyiUi.label(this@LegacyHistoryActivity, this, "", 14, muted = true)
-                    subtitle.setPadding(0, dp(7), 0, 0)
-                    tag = RowViews(title, subtitle)
+                    val day = style.text("", TaskProductVisualStyle.auxiliary, "legacy/history/row/day", true).also { addView(it) }
+                    val heading = style.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+                    addView(heading, LinearLayout.LayoutParams(-1, -2))
+                    val title = style.text("", TaskProductVisualStyle.compactMetric, "legacy/history/row/title").also {
+                        heading.addView(it, LinearLayout.LayoutParams(0, -2, 1f))
+                    }
+                    heading.addView(HomeVisualIcon(this@LegacyHistoryActivity, "chevron", style.muted),
+                        LinearLayout.LayoutParams(dp(24), dp(24)).apply { marginStart = dp(8) })
+                    val subtitle = style.text("", TaskProductVisualStyle.auxiliary, "legacy/history/row/metadata", true).also { addView(it) }
+                    subtitle.setPadding(0, dp(8), 0, 0)
+                    tag = RowViews(day, title, subtitle)
                 }
                 val item = rows[position]
+                card.setBackgroundColor(if (item.id == selectedId) style.selected else style.surface)
+                card.isActivated = item.id == selectedId
                 val views = card.tag as RowViews
+                val day = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date(item.createdAtMs))
+                val previousDay = rows.getOrNull(position - 1)?.let { SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date(it.createdAtMs)) }
+                views.day.visibility = if (day == previousDay) View.GONE else View.VISIBLE
+                views.day.text = day
+                views.day.setPadding(0, 0, 0, dp(8))
                 views.title.text = item.profileName.ifBlank { getString(R.string.legacy_history_unnamed) }
-                views.subtitle.text = getString(R.string.legacy_history_row, SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).format(Date(item.createdAtMs)), item.durationSec.toString())
+                views.subtitle.text = getString(R.string.legacy_history_row, SimpleDateFormat("HH:mm:ss", Locale.CHINA).format(Date(item.createdAtMs)), item.durationSec.toString())
                 return card
             }
         }
         val content = FrameLayout(this)
-        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
+        collection.browserBody.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         list = ListView(this).apply {
             adapter = this@LegacyHistoryActivity.adapter
-            divider = android.graphics.drawable.ColorDrawable(getColor(R.color.mobile_border))
+            divider = android.graphics.drawable.ColorDrawable(style.border)
             dividerHeight = dp(1)
             setOnItemClickListener { _, _, position, _ ->
-                startActivity(Intent(this@LegacyHistoryActivity, LegacyHistoryDetailActivity::class.java)
-                    .putExtra("legacyId", rows[position].id))
+                rememberList()
+                selectedId = rows[position].id
+                preview.present(rows[position]); this@LegacyHistoryActivity.adapter.notifyDataSetChanged()
+                if (compact) openDetails(rows[position])
             }
         }
         content.addView(list, FrameLayout.LayoutParams(-1, -1))
@@ -91,15 +109,9 @@ class LegacyHistoryActivity : ThemedActivity() {
             visibility = View.GONE
         }
         content.addView(emptyState, FrameLayout.LayoutParams(-1, -1))
-        val emptyCard = HoyiUi.card(this, emptyState)
-        if (HoyiUi.wide(this)) (emptyCard.layoutParams as LinearLayout.LayoutParams).apply {
-            width = dp(520)
-            gravity = android.view.Gravity.CENTER_HORIZONTAL
-        }.also { emptyCard.layoutParams = it }
-        emptyTitle = HoyiUi.label(this, emptyCard, getString(R.string.legacy_history_empty_title), 19, true)
-        emptyMessage = HoyiUi.label(this, emptyCard, getString(R.string.legacy_history_empty_message), 15, muted = true)
-        emptyMessage.setPadding(0, dp(10), 0, 0)
-        HoyiUi.navigation(this, root, HistoryActivity::class.java)
+        val emptyCard = visual.panel(style.column()).also { emptyState.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+        emptyTitle = style.text(getString(R.string.legacy_history_empty_title), TaskProductVisualStyle.section).also { style.add(emptyCard, it) }
+        emptyMessage = style.text(getString(R.string.legacy_history_empty_message), TaskProductVisualStyle.auxiliary, secondary = true).also { style.add(emptyCard, it, 8) }
     }
 
     override fun onStart() {
@@ -118,6 +130,10 @@ class LegacyHistoryActivity : ThemedActivity() {
                     { getString(R.string.legacy_history_read_error, it.message ?: it.javaClass.simpleName) })
                 adapter.clear()
                 adapter.addAll(rows.map { it.id })
+                val selected = rows.firstOrNull { it.id == selectedId } ?: rows.firstOrNull()
+                selectedId = selected?.id
+                preview.present(selected, if (result.isFailure) getString(R.string.legacy_history_failed_message) else null)
+                adapter.notifyDataSetChanged()
                 emptyTitle.text = if (result.isFailure) getString(R.string.legacy_history_failed) else getString(R.string.legacy_history_empty_title)
                 emptyMessage.text = if (result.isFailure) getString(R.string.legacy_history_failed_message)
                     else getString(R.string.legacy_history_empty_message)
@@ -141,7 +157,13 @@ class LegacyHistoryActivity : ThemedActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         rememberList()
         outState.putParcelable("listState", listState)
+        outState.putString("selectedId", selectedId)
         super.onSaveInstanceState(outState)
+    }
+
+    private fun openDetails(shot: LegacyShot) {
+        rememberList()
+        startActivity(Intent(this, LegacyHistoryDetailActivity::class.java).putExtra("legacyId", shot.id))
     }
 
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()

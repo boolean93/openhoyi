@@ -210,10 +210,44 @@ class MobileService : Service() {
     private data class PendingCoffeeCredential(val address: String, val password: String, val remembered: Boolean)
     private var pendingCoffeeCredential: PendingCoffeeCredential? = null
     private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime { getString(it) } else null
+    private val mockScaleVisualInput = MockScaleVisualInput(BuildConfig.MOCK_MODE,
+        { Looper.myLooper() === Looper.getMainLooper() }, MobileMonotonicClock::ownsMockClock,
+        { hub == null }, MobileMonotonicClock::elapsedRealtime,
+        { onDeviceState(DeviceRole.BOOKOO, it) }, ::onScaleObservation,
+        { scaleTrend.clear(); beanDoseCapture.reset() })
+    private fun requireScaleVisualAccess(owner: Any) {
+        check(BuildConfig.MOCK_MODE && mock != null) { "Scale visual input is Mock-only" }
+        check(Looper.myLooper() === Looper.getMainLooper()) { "Scale visual input requires main thread" }
+        check(MobileMonotonicClock.ownsMockClock(owner)) { "Scale visual input clock owner mismatch" }
+        check(hub == null) { "Scale visual input cannot coexist with a device hub" }
+    }
+    internal fun installScaleVisualInput(owner: Any) {
+        requireScaleVisualAccess(owner)
+        mockScaleVisualInput.install(owner)
+        applyScaleVisualInput()
+    }
+    internal fun offerScaleVisualInput(owner: Any, state: DeviceState, observation: ScaleObservation?) {
+        requireScaleVisualAccess(owner)
+        mockScaleVisualInput.offer(owner, state, observation)
+        applyScaleVisualInput()
+    }
+    internal fun clearScaleVisualInput(owner: Any) {
+        requireScaleVisualAccess(owner)
+        mockScaleVisualInput.clear(owner)
+        snapshot = snapshot.copy(scaleState = DeviceState.DISCONNECTED, scaleObservation = null,
+            scaleCapabilities = null, weight = null, weightAt = null)
+    }
+    private fun applyScaleVisualInput() {
+        mockScaleVisualInput.current()?.let { input ->
+            snapshot = snapshot.copy(scaleState = input.state, scaleObservation = input.observation,
+                scaleCapabilities = input.observation?.capabilities, weight = null, weightAt = null)
+        }
+    }
     private fun refreshMock(runtime: MockDeviceRuntime, now: Long = MobileMonotonicClock.elapsedRealtime()) {
         val previous = snapshot
         snapshot = runtime.sample(now).copy(candidates = previous.candidates,
             scanning = previous.scanning, message = previous.message)
+        applyScaleVisualInput() // No observation notification, timestamp refresh or trend insertion on ticks.
     }
     private val mockTick = object : Runnable {
         override fun run() {
@@ -353,6 +387,7 @@ class MobileService : Service() {
 
     /** Invalidates UI stability even if a disconnect/reconnect occurs between page refreshes. */
     private val scaleTrend = ScaleTrendWindow()
+    private var mockScaleVisualObservationSerial = 0L
     internal fun scaleTrendAt(now: Long): List<ScaleTrendWindow.Point> = scaleTrend.points(now)
     private var scaleConnectionEpoch = 0L
     private val beanDoseCapture = BeanDoseCapturePolicy()
@@ -367,6 +402,7 @@ class MobileService : Service() {
             LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now), now)
     }
     private fun onScaleObservation(observation: ScaleObservation) {
+        if (BuildConfig.MOCK_MODE && mockScaleVisualInput.isInstalled) mockScaleVisualObservationSerial++
         scaleTrend.observe(observation, snapshot.scaleState, MobileMonotonicClock.elapsedRealtime())
         snapshot = snapshot.copy(scaleObservation = observation, scaleCapabilities = observation.capabilities)
         // Consume every notification, not just the last frame at the UI refresh.

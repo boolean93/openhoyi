@@ -30,6 +30,19 @@ collect() {
     mkdir -p "$output_dir/raw-device" || true
     adb pull "/sdcard/Android/data/$package/files/curve-visual-migration/$source_sha" "$output_dir/raw-device/" || true
   fi
+  # Only a persisted, acknowledged owner may receive one crash fallback stop.
+  # Collector failure can fail success, never replace the original business failure.
+  if [[ -f "$output_dir/ime-active-profile.json" ]]; then
+    if ! python3 - "$output_dir" <<'IME_EXIT_PY'
+import json,subprocess,sys
+from pathlib import Path
+root=Path(sys.argv[1]);active=json.loads((root/'ime-active-profile.json').read_text())
+result=subprocess.run(['python3','scripts/collect_ime_recreation_trace.py','after','--directory',active['directory'],
+    '--device-directory',active['deviceDirectory'],'--probe-directory',str(root/'ime-native-capability')],timeout=120)
+raise SystemExit(result.returncode)
+IME_EXIT_PY
+    then if (( exit_status == 0 )); then exit_status=1; fi; fi
+  fi
   adb logcat -d -s AndroidRuntime:E > "$output_dir/runtime-errors.txt" || true
   adb logcat -d -v threadtime -s ImeTracker:I InputMethodManager:D InsetsController:D > "$output_dir/ime-diagnostics.txt" || true
   adb shell dumpsys input_method > "$output_dir/input-method.txt" || true
@@ -65,7 +78,9 @@ FONT_RESTORE_PY
   fi
   return "$exit_status"
 }
-trap 'collect "$?"' EXIT
+trap 'original_exit=$?; trap - EXIT; if collect "$original_exit"; then exit 0; else exit "$?"; fi' EXIT
+# Actual capability probe only on this guarded CI emulator. No support is assumed from an SDK/source lookup.
+python3 scripts/collect_ime_recreation_trace.py probe --directory "$output_dir/ime-native-capability"
 adb shell wm size 2560x1600
 adb shell wm density 360
 adb shell settings put system accelerometer_rotation 0
@@ -107,12 +122,38 @@ for key,value in {'curveVisualMigration':'true','disposableCiEmulator':'true','f
     'ciRun':os.environ['GITHUB_RUN_ID'],'ciJob':os.environ['GITHUB_JOB']}.items():
     command += ['-e',key,value]
 command += ['io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation']
-with Path(result_path).open('w') as capture:
-    result = subprocess.run(command, stdout=capture, stderr=subprocess.STDOUT, timeout=600)
-text = Path(result_path).read_text()
-if result.returncode or 'CURVE_VISUAL_MIGRATION_CAPTURED fixtures=1 realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true' not in text:
-    print(text)
-    raise SystemExit('Real product capture failed; partial evidence retained, no automatic reset/retry')
+native_args=None
+if page=='import':
+    root=Path(result_path).parent
+    native_dir=root/'ime-native-traces'/f'{theme}-{scale}-import'
+    device=f'/sdcard/Android/data/io.openhoyi.mobile.mock/files/curve-visual-migration/{source}/tablet-user-landscape-{theme}-font-{scale}/import/ime-recreation-native'
+    native_args=['python3','scripts/collect_ime_recreation_trace.py','after','--directory',str(native_dir),
+        '--device-directory',device,'--probe-directory',str(root/'ime-native-capability')]
+    before=subprocess.run(['python3','scripts/collect_ime_recreation_trace.py','before','--directory',str(native_dir)],timeout=90)
+    if before.returncode: raise SystemExit('Native trace before-file observation failed; no trace started')
+    (native_dir/'fixture-context.json').write_text(json.dumps({'sourceSha':source,'headSha':os.environ.get('PRODUCT_PR_HEAD_SHA',source),
+        'sourceDirty':dirty,'apkSha256':apk,'profile':f'tablet-user-landscape-{theme}-font-{scale}','fixture':'Import.raw.recreate',
+        'ciRun':os.environ['GITHUB_RUN_ID'],'ciJob':os.environ['GITHUB_JOB']},indent=2)+'\n')
+    (root/'ime-active-profile.json').write_text(json.dumps({'directory':str(native_dir),'deviceDirectory':device},indent=2)+'\n')
+trace_return_code=0
+try:
+    with Path(result_path).open('w') as capture:
+        result = subprocess.run(command, stdout=capture, stderr=subprocess.STDOUT, timeout=600)
+    text = Path(result_path).read_text()
+    if result.returncode or 'CURVE_VISUAL_MIGRATION_CAPTURED fixtures=1 realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true' not in text:
+        print(text)
+        raise SystemExit('Real product capture failed; partial evidence retained, no automatic reset/retry')
+finally:
+    if native_args is not None:
+        try:
+            traced=subprocess.run(native_args,timeout=120)
+            trace_return_code=traced.returncode
+        except Exception as diagnostic_error:
+            trace_return_code=1
+            Path(result_path).with_suffix('.ime-collector-error.json').write_text(json.dumps({'diagnosticError':repr(diagnostic_error),
+                'originalBusinessFailureMustKeepPrecedence':True},indent=2)+'\n')
+if trace_return_code:
+    raise SystemExit('Original business fixture completed but native trace diagnostic is partial/unavailable; original assertions unchanged')
 RUN_PY
     done
   done
