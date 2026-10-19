@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bean_workflow_selection">今回の選択</string>
+    <string name="bean_workflow_preview">確認後の在庫変化</string>
+    <string name="bean_workflow_receipt">今回の在庫消費記録</string>
+</resources>

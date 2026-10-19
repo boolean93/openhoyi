@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bean_workflow_selection">本杯选择</string>
+    <string name="bean_workflow_preview">库存变化（确认后）</string>
+    <string name="bean_workflow_receipt">本次扣减流水</string>
+</resources>

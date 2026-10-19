@@ -97,6 +97,7 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
             canvas.drawLine(x, y, x2, y2, paint); operations.put(JSONObject().put("line24", JSONArray(listOf(x,y,x2,y2))))
         }
         when (kind) {
+            "check" -> { line(5f,12f,10f,17f); line(10f,17f,20f,6f) }
             "new" -> { canvas.drawCircle(12f,12f,9f,paint); line(7f,12f,17f,12f); line(12f,7f,12f,17f) }
             "edit" -> { canvas.drawPath(Path().apply { moveTo(4f,16f); lineTo(16f,4f); lineTo(20f,8f); lineTo(8f,20f); lineTo(3f,21f); close() },paint); line(13f,7f,17f,11f) }
             "more" -> { canvas.drawCircle(5f,12f,1.5f,paint); canvas.drawCircle(12f,12f,1.5f,paint); canvas.drawCircle(19f,12f,1.5f,paint) }

@@ -38,84 +38,137 @@ class BeanBatchActivity : ThemedActivity() {
             if (inventory != null && id != null) adjustment(inventory, id)
         }
     }
+    private val style by lazy { TaskProductVisualStyle(this) }
+    val productLayoutEvidence = org.json.JSONObject()
     private fun render() {
-        val body = beanPage(getString(R.string.beans_batch_title))
+        val formStyle = TaskProductFormStyle(this)
+        val body = style.page(this, getString(R.string.beans_batch_title))
         val inventory = beanInventory(body) ?: return
         val id = intent.getStringExtra(BATCH_ID)
         val item = inventory.batches().find { it.batch.id == id }
-        if (item == null) { HoyiUi.label(this, body, getString(R.string.beans_missing), 17); return }
-        fun row(parent: LinearLayout) = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            isBaselineAligned = false
-            parent.addView(this, LinearLayout.LayoutParams(-1, -2))
+        if (item == null) { style.add(body, style.text(getString(R.string.beans_missing))); return }
+        val free = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        fun pair(first: android.view.View, second: android.view.View, key: String, expandFirst: Boolean) = object : LinearLayout(this) {
+            init { tag = "product/batch/$key"; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL
+                addView(first); addView(second) }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                first.measure(free, free); second.measure(free, free)
+                val naturalWidth = first.measuredWidth + second.measuredWidth + style.dp(16)
+                val available = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
+                val inline = naturalWidth <= available
+                orientation = if (inline) HORIZONTAL else VERTICAL
+                (first.layoutParams as LayoutParams).apply {
+                    width = if (!inline) -1 else if (expandFirst) 0 else -2
+                    height = -2; weight = if (inline && expandFirst) 1f else 0f
+                }
+                val direction = this.layoutDirection
+                (second.layoutParams as LayoutParams).apply {
+                    width = if (!inline) -1 else if (expandFirst) -2 else 0
+                    height = -2; weight = if (inline && !expandFirst) 1f else 0f
+                    marginStart = if (inline) style.dp(16) else 0; marginEnd = 0
+                    topMargin = if (inline) 0 else style.dp(8); resolveLayoutDirection(direction)
+                }
+                productLayoutEvidence.put(key, org.json.JSONObject().put("naturalWidthPx", naturalWidth).put("availableWidthPx", available).put("inline", inline))
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
         }
-        fun cell(parent: LinearLayout) = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 8), HoyiUi.dp(this@BeanBatchActivity, 16), HoyiUi.dp(this@BeanBatchActivity, 8))
-            parent.addView(this, LinearLayout.LayoutParams(0, -2, 1f))
+        fun rules(columns: Boolean = false) = object : android.graphics.drawable.Drawable() {
+            private val paint = android.graphics.Paint().apply { color = this@BeanBatchActivity.style.border; strokeWidth = resources.displayMetrics.density }
+            override fun draw(canvas: android.graphics.Canvas) {
+                val y = bounds.bottom - paint.strokeWidth / 2f
+                if (!columns) canvas.drawLine(0f, y, bounds.right.toFloat(), y, paint)
+                else {
+                    val parent = callback as? LinearLayout ?: return
+                    for (index in 1 until parent.childCount) {
+                        val child = parent.getChildAt(index)
+                        val x = if (parent.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL) child.right else child.left
+                        canvas.drawLine(x.toFloat(), 0f, x.toFloat(), bounds.bottom.toFloat(), paint)
+                    }
+                }
+            }
+            override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+            override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
+            @Deprecated("Drawable opacity") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
         }
-        val context = row(body)
-        HoyiUi.label(this, context, item.batch.bean.name + " · " +
-            getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)), 16).apply {
-            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details"
-            layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        }
-        HoyiUi.button(this, context, getString(R.string.ui_full_details)) {
+        val header = (body.tag as BeanPageRegions).header.apply { isBaselineAligned = false }
+        val words = (0 until header.childCount).map(header::getChildAt).filterIsInstance<LinearLayout>().first()
+        val pageTitle = words.getChildAt(0) as android.widget.TextView
+        words.removeView(pageTitle)
+        val identity = style.text(item.batch.bean.name + " · " + getString(R.string.beans_batch_id, beanBatchNumber(inventory, item.batch.id)),
+            TaskProductVisualStyle.body, "product/batch/identity")
+        words.addView(pair(pageTitle, identity, "identity-layout", false), LinearLayout.LayoutParams(-1, -2))
+        style.action(header, getString(R.string.ui_full_details), "product/batch/details", top = 0) {
             val details = listOf(R.string.beans_purchased to item.batch.purchasedOn,
                 R.string.beans_roasted to item.batch.roastedOn, R.string.beans_opened to item.batch.openedOn)
                 .joinToString("\n") { (label, date) -> getString(R.string.beans_date_value, getString(label), date?.toString() ?: getString(R.string.beans_not_set)) }
             beanDetails(getString(R.string.beans_batch_title), item.batch.bean.name + "\n" + details)
-        }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2); asTaskTextAction() }
-        fun divider(parent: LinearLayout) = parent.addView(android.view.View(this).apply {
-            setBackgroundColor(getColor(R.color.mobile_border))
-        }, LinearLayout.LayoutParams(-1, HoyiUi.dp(this, 1)))
-        divider(body)
-        val summary = row(body)
-        val balance = cell(summary)
-        HoyiUi.label(this, balance, getString(R.string.beans_balance_label), 14, muted = true)
-        HoyiUi.label(this, balance, "", 32).apply {
-            typeface = TaskTypography.face(this@BeanBatchActivity, 700)
-            val value = BeanQuantity.formatGrams(item.balanceMg) + " g"
-            text = android.text.SpannableString(value).apply {
-                setSpan(android.text.style.RelativeSizeSpan(0.55f), value.length - 1, value.length,
-                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = style.dp(16) }
+            HomeVisualIcon.buttonIcon(this, "chevron", atEnd = true) }
+        val summary = style.row("product/batch/summary").apply { foreground = rules(true) }
+        class MetricCell(label: String, val value: android.view.View, val index: Int) : LinearLayout(this@BeanBatchActivity) {
+            var inline = false
+            val caption = style.text(label, TaskProductVisualStyle.auxiliary, secondary = true)
+            init { isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL
+                setPaddingRelative(if (index == 0) 0 else style.dp(16), 0, if (index == 2) 0 else style.dp(16), 0)
+                addView(caption); addView(value) }
+            fun fits(width: Int): Boolean {
+                caption.measure(free, free); value.measure(free, free)
+                return caption.measuredWidth + style.dp(8) + value.measuredWidth + paddingLeft + paddingRight <= width
+            }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                orientation = if (inline) HORIZONTAL else VERTICAL
+                (caption.layoutParams as LayoutParams).apply { width = -2; height = -2; weight = 0f }
+                val direction = this.layoutDirection
+                (value.layoutParams as LayoutParams).apply { width = if (inline) 0 else -1; height = -2; weight = if (inline) 1f else 0f
+                    marginStart = if (inline) style.dp(8) else 0; marginEnd = 0
+                    topMargin = if (inline) 0 else style.dp(8); resolveLayoutDirection(direction) }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
             }
         }
-        val initial = cell(summary)
-        HoyiUi.label(this, initial, getString(R.string.batch_initial_weight), 14, muted = true)
-        HoyiUi.label(this, initial, BeanQuantity.formatGrams(item.batch.initialMg) + " g", 24)
-        val ratioCell = cell(summary).apply {
-            (layoutParams as LinearLayout.LayoutParams).weight = 2f
+        val ratio = if (item.batch.initialMg > 0) item.balanceMg.toDouble() / item.batch.initialMg else null
+        val ratioLine = style.row("product/batch/ratio").apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+        if (ratio != null) ratioLine.addView(android.widget.ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+            max = 1000; progress = (ratio.coerceIn(0.0, 1.0) * max).toInt()
+            progressTintList = android.content.res.ColorStateList.valueOf(style.accent)
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(style.disabled)
+            importantForAccessibility = android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO; setPadding(0, 0, 0, 0)
+        }, LinearLayout.LayoutParams(0, style.dp(8), 1f).apply { marginEnd = style.dp(16) })
+        ratioLine.addView(style.text(ratio?.let { java.text.NumberFormat.getPercentInstance(resources.configuration.locales[0]).format(it) } ?: "—",
+            TaskProductVisualStyle.body, "product/batch/ratio/value"), LinearLayout.LayoutParams(-2, -2))
+        val metrics = listOf(
+            MetricCell(getString(R.string.beans_balance_label), style.quantity(BeanQuantity.formatGrams(item.balanceMg), "g", TaskProductVisualStyle.largeValue, "product/batch/balance"), 0),
+            MetricCell(getString(R.string.batch_initial_weight), style.quantity(BeanQuantity.formatGrams(item.batch.initialMg), "g", TaskProductVisualStyle.title.copy(weight = 400), "product/batch/initial"), 1),
+            MetricCell(getString(R.string.batch_remaining_ratio), ratioLine, 2))
+        metrics.forEachIndexed { index, cell -> summary.addView(cell, LinearLayout.LayoutParams(0, -2, if (index == 2) 2f else 1f)) }
+        val dates = style.row("product/batch/dates").apply { foreground = rules(true) }
+        listOf(R.string.beans_purchased to item.batch.purchasedOn, R.string.beans_roasted to item.batch.roastedOn,
+            R.string.beans_opened to item.batch.openedOn).forEachIndexed { index, (label, date) ->
+            val cell = style.column().apply { setPaddingRelative(if (index == 0) 0 else style.dp(16), 0, style.dp(16), 0) }
+            dates.addView(cell, LinearLayout.LayoutParams(0, -2, 1f))
+            style.add(cell, style.text(getString(label), TaskProductVisualStyle.auxiliary, "product/batch/date/$index/label", true))
+            style.add(cell, style.text(date?.toString() ?: getString(R.string.beans_not_set), TaskProductVisualStyle.body, "product/batch/date/$index/value"), 8)
         }
-        HoyiUi.label(this, ratioCell, getString(R.string.batch_remaining_ratio), 14, muted = true)
-        beanRemainingRatio(ratioCell, item.balanceMg, item.batch.initialMg)
-        divider(body)
-        HoyiUi.label(this, body, getString(R.string.batch_information), 20, true).apply {
-            setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 16), 0, HoyiUi.dp(this@BeanBatchActivity, 8))
+        val dateRegion = pair(style.text(getString(R.string.batch_information), TaskProductVisualStyle.section), dates, "date-layout", false)
+        val ledgerButton = style.button(android.widget.Button(this)).apply {
+            text = getString(R.string.beans_ledger); tag = "product/batch/ledger"
+            HomeVisualIcon.buttonIcon(this, "chevron", atEnd = true)
+            setOnClickListener { startActivity(Intent(this@BeanBatchActivity, BeanLedgerActivity::class.java).putExtra(BATCH_ID, item.batch.id)) }
         }
-        val dates = row(body)
-        listOf(R.string.beans_purchased to item.batch.purchasedOn,
-            R.string.beans_roasted to item.batch.roastedOn, R.string.beans_opened to item.batch.openedOn)
-            .forEach { (label, date) ->
-                val dateCell = cell(dates)
-                HoyiUi.label(this, dateCell, getString(label), 14, muted = true)
-                HoyiUi.label(this, dateCell, date?.toString() ?: getString(R.string.beans_not_set), 16)
-            }
-        divider(body)
-        HoyiUi.label(this, body, getString(R.string.batch_recent_events), 20, true).apply {
-            setPadding(0, HoyiUi.dp(this@BeanBatchActivity, 16), 0, HoyiUi.dp(this@BeanBatchActivity, 8))
+        val recentHeading = pair(style.text(getString(R.string.batch_recent_events), TaskProductVisualStyle.section), ledgerButton, "recent-heading", true)
+        fun eventRow(values: List<String>, heading: Boolean, key: String): LinearLayout = style.row(key).apply {
+            setPadding(0, style.dp(8), 0, style.dp(8)); foreground = rules()
+            if (heading) setBackgroundColor(style.disabled) else minimumHeight = style.dp(48)
+            values.forEachIndexed { index, value -> addView(style.text(value,
+                if (heading) TaskProductVisualStyle.auxiliary.copy(weight = 500) else TaskProductVisualStyle.body, secondary = heading).apply {
+                setPaddingRelative(style.dp(8), 0, style.dp(8), 0)
+                if (!heading) { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details" }
+            }, LinearLayout.LayoutParams(0, -2, if (index == 2) 2f else 1f)) }
         }
-        fun eventRow(parent: LinearLayout, values: List<String>, heading: Boolean): LinearLayout = row(parent).also { line ->
-            values.forEach { value ->
-                HoyiUi.label(this, cell(line), value, if (heading) 14 else 16, muted = heading).apply {
-                    if (!heading) { maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END; tag = "full-text-details" }
-                }
-            }
-        }
-        eventRow(body, listOf(getString(R.string.ledger_type), getString(R.string.ledger_change), getString(R.string.beans_reason)), true)
-        val recent = beanList(body)
+        val tableHeading = eventRow(listOf(getString(R.string.ledger_type), getString(R.string.ledger_change), getString(R.string.beans_reason)), true, "product/batch/events/header")
+        val recent = style.column("product/batch/events")
+        val recentScroll = ScrollView(this).apply { tag = "product/batch/events-scroll"; addView(recent) }
         val events = inventory.events().asReversed().filter { it.batchId == item.batch.id }.take(3)
-        if (events.isEmpty()) HoyiUi.label(this, recent, getString(R.string.beans_ledger_empty), 16, muted = true)
+        if (events.isEmpty()) style.add(recent, style.text(getString(R.string.beans_ledger_empty), TaskProductVisualStyle.body, secondary = true), 8)
         events.forEach { event ->
             val kind = getString(when (event.kind) {
                 io.openhoyi.bean.InventoryEventKind.ADD -> R.string.beans_event_add
@@ -124,37 +177,85 @@ class BeanBatchActivity : ThemedActivity() {
             })
             val change = (if (event.deltaMg > 0) "+" else "") + BeanQuantity.formatGrams(event.deltaMg) + " g"
             val values = listOf(kind, change, event.reason ?: "—")
-            divider(recent)
-            eventRow(recent, values, false).apply {
-                minimumHeight = HoyiUi.dp(this@BeanBatchActivity, 48)
-                isFocusable = true
-                background = android.graphics.drawable.RippleDrawable(
-                    android.content.res.ColorStateList.valueOf(getColor(R.color.mobile_accent_soft)),
+            recent.addView(eventRow(values, false, "product/batch/events/row/${event.eventId}").apply {
+                isFocusable = true; minimumHeight = style.dp(48)
+                background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(style.selected),
                     android.graphics.drawable.StateListDrawable().apply {
-                        addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(this@BeanBatchActivity,
-                            R.color.mobile_surface, 0, R.color.mobile_accent))
-                        addState(intArrayOf(), HoyiUi.shape(this@BeanBatchActivity, R.color.mobile_surface, 0))
+                        addState(intArrayOf(android.R.attr.state_focused), style.shape(style.surface, true, 0))
+                        addState(intArrayOf(), style.shape(style.surface, radius = 0))
                     }, null)
                 contentDescription = values.joinToString(" · ")
                 setOnClickListener { beanDetails(getString(R.string.beans_ledger_title), values.joinToString("\n") + "\n" +
                     getString(R.string.beans_event_balance, BeanQuantity.formatGrams(event.balanceMg))) }
+            }, LinearLayout.LayoutParams(-1, -2))
+        }
+        var contentViewport = 0
+        var naturalContent = false
+        val content = object : LinearLayout(this) {
+            init { orientation = VERTICAL; tag = "product/batch/content"
+                addView(summary, LayoutParams(-1, -2)); addView(dateRegion, LayoutParams(-1, -2).apply { topMargin = style.dp(16) })
+                addView(recentHeading, LayoutParams(-1, -2).apply { topMargin = style.dp(16) })
+                addView(tableHeading, LayoutParams(-1, -2).apply { topMargin = style.dp(8) })
+                addView(recentScroll, LayoutParams(-1, 0, 1f)) }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val width = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
+                val height = contentViewport
+                fun force(view: android.view.View) { if (view is android.view.ViewGroup) for (i in 0 until view.childCount) force(view.getChildAt(i)); view.forceLayout() }
+                fun natural(view: android.view.View): Int { force(view); view.measure(widthMeasureSpec, free)
+                    val lp = view.layoutParams as LayoutParams; return view.measuredHeight + lp.topMargin + lp.bottomMargin }
+                metrics.forEach { it.inline = false }
+                val verticalSummary = natural(summary)
+                val other = natural(dateRegion) + natural(recentHeading) + natural(tableHeading)
+                val eventHeights = (0 until recent.childCount).map { index ->
+                    val row = recent.getChildAt(index); row.measure(widthMeasureSpec, free); row.measuredHeight
+                }
+                val firstTwo = eventHeights.take(2).sum()
+                val fits = metrics.mapIndexed { index, cell -> cell.fits(width * (if (index == 2) 2 else 1) / 4) }
+                val inline = verticalSummary + other + firstTwo > height && fits.all { it }
+                metrics.forEach { it.inline = inline }; val resolvedSummary = natural(summary)
+                val minimum = resolvedSummary + other + (eventHeights.firstOrNull() ?: 0)
+                naturalContent = minimum > height
+                (recentScroll.layoutParams as LayoutParams).apply {
+                    this.height = if (naturalContent) eventHeights.sum() else 0
+                    weight = if (naturalContent) 0f else 1f
+                }
+                recentScroll.forceLayout()
+                productLayoutEvidence.put("availableContentPx", height).put("summaryVerticalNaturalPx", verticalSummary)
+                    .put("summaryResolvedNaturalPx", resolvedSummary).put("otherNaturalPx", other).put("firstTwoEventsNaturalPx", firstTwo)
+                    .put("verticalWithTwoEventsPx", verticalSummary + other + firstTwo).put("summaryInlineFits", org.json.JSONArray(fits)).put("summaryInline", inline)
+                    .put("resolvedWithTwoEventsPx", resolvedSummary + other + firstTwo).put("resolvedChromePx", resolvedSummary + other)
+                    .put("minimumContentNaturalPx", minimum).put("fullContentNaturalPx", resolvedSummary + other + eventHeights.sum())
+                    .put("naturalContentScroll", naturalContent)
+                super.onMeasure(widthMeasureSpec, if (naturalContent) free else android.view.View.MeasureSpec.makeMeasureSpec(height, android.view.View.MeasureSpec.EXACTLY))
             }
         }
-        val footer = row(body)
-        footer.gravity = android.view.Gravity.BOTTOM
-        val ledgerActions = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        footer.addView(ledgerActions, LinearLayout.LayoutParams(0, -2, 1f))
-        HoyiUi.button(this, ledgerActions, getString(R.string.beans_ledger)) {
-            startActivity(Intent(this, BeanLedgerActivity::class.java).putExtra(BATCH_ID, item.batch.id))
-        }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2); asTaskTextAction() }
-        HoyiUi.label(this, ledgerActions, getString(R.string.batch_ledger_retained),
-            TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-            setPadding(0, HoyiUi.dp(this@BeanBatchActivity, TaskVisualTokens.RELATED_GAP_DP),
-                HoyiUi.dp(this@BeanBatchActivity, TaskVisualTokens.GROUP_GAP_DP), 0)
+        val middle = object : ScrollView(this) {
+            override fun measureChildWithMargins(child: android.view.View, parentWidthMeasureSpec: Int, widthUsed: Int,
+                parentHeightMeasureSpec: Int, heightUsed: Int) {
+                val params = child.layoutParams as android.view.ViewGroup.MarginLayoutParams
+                val width = getChildMeasureSpec(parentWidthMeasureSpec, paddingLeft + paddingRight + params.leftMargin + params.rightMargin + widthUsed, params.width)
+                child.measure(width, if (naturalContent) free else android.view.View.MeasureSpec.makeMeasureSpec(contentViewport, android.view.View.MeasureSpec.EXACTLY))
+            }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                contentViewport = (android.view.View.MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+                content.forceLayout(); content.measure(widthMeasureSpec, free)
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }.apply { tag = "product/batch/content-scroll"; isFillViewport = false; addView(content) }
+        body.addView(middle, LinearLayout.LayoutParams(-1, 0, 1f))
+        val actions = style.row()
+        style.action(actions, getString(R.string.beans_adjust), "product/batch/adjust", primary = true, top = 0) {
+            draftTarget = null; draftReason = ""; adjustment(inventory, item.batch.id)
+        }.apply { layoutParams = LinearLayout.LayoutParams(-2, -2); HomeVisualIcon.buttonIcon(this, "edit") }
+        val notice = style.text(getString(R.string.batch_ledger_retained), TaskProductVisualStyle.auxiliary, "product/batch/notice", true).apply {
+            setCompoundDrawablesRelativeWithIntrinsicBounds(HomeVisualIcon.drawable(this@BeanBatchActivity, "info", style.muted), null, null, null)
+            compoundDrawablePadding = style.dp(8)
         }
-        val dock = TaskActionDock(this, edgeInsetDp = 0)
-        footer.addView(dock, LinearLayout.LayoutParams(0, -2, 1f))
-        HoyiUi.button(this, dock, getString(R.string.beans_adjust), primary = true) { draftTarget = null; draftReason = ""; adjustment(inventory, item.batch.id) }
+        body.addView(formStyle.footer(notice, actions, "batch", topRule = true), LinearLayout.LayoutParams(-1, -2))
+        body.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            productLayoutEvidence.put("headerActualHeightPx", header.height).put("footerActualHeightPx", body.getChildAt(body.childCount - 1).height)
+                .put("eventsViewportActualPx", recentScroll.height).put("eventsContentActualPx", recent.height)
+        }
     }
 
     private fun adjustment(inventory: BeanInventory, batchId: String) {
@@ -162,14 +263,22 @@ class BeanBatchActivity : ThemedActivity() {
         adjustmentOpen = true
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            isFocusableInTouchMode = true
-            setPadding(HoyiUi.dp(this@BeanBatchActivity, 20), HoyiUi.dp(this@BeanBatchActivity, 8), HoyiUi.dp(this@BeanBatchActivity, 20), HoyiUi.dp(this@BeanBatchActivity, 20))
+            isFocusableInTouchMode = true; tag = "task-inline-form"
+            setPadding(style.dp(16), style.dp(8), style.dp(16), style.dp(16))
         }
-        HoyiUi.label(this, form, getString(R.string.beans_adjust_hint), 15, muted = true)
-        val target = beanInput(form, R.string.beans_target, true).apply { setText(draftTarget ?: BeanQuantity.formatGrams(current.balanceMg)) }
-        val reason = beanInput(form, R.string.beans_reason).apply { setText(draftReason) }
+        style.add(form, style.text(getString(R.string.beans_adjust_hint), TaskProductVisualStyle.auxiliary, secondary = true))
+        val fields = style.column("bean-full-field").also { style.add(form, it, 16) }
+        val target = beanInput(fields, R.string.beans_target, true).apply { setText(draftTarget ?: BeanQuantity.formatGrams(current.balanceMg)) }
+        val reason = beanInput(fields, R.string.beans_reason).apply { setText(draftReason) }
+        val formStyle = TaskProductFormStyle(this)
+        listOf(target to "target", reason to "reason").forEach { (field, key) ->
+            formStyle.input(field, "batch", key)
+            (0 until fields.childCount).map(fields::getChildAt).filterIsInstance<android.widget.TextView>().single { it.labelFor == field.id }
+                .let { label -> formStyle.label(label); if (key == "reason") (label.layoutParams as LinearLayout.LayoutParams).topMargin = style.dp(16) }
+        }
+        formStyle.unit(target, "g", "batch", "target")
         targetField = target; reasonField = reason
-        val error = beanError(form)
+        val error = formStyle.error(beanError(form))
         val dialog = AlertDialog.Builder(this).setTitle(R.string.beans_adjust)
             .setView(ScrollView(this).apply { addView(form) })
             .setNegativeButton(R.string.beans_cancel, null).setPositiveButton(R.string.beans_preview, null).create()
@@ -210,6 +319,7 @@ class BeanBatchActivity : ThemedActivity() {
                     }
                 }
                 preview.show()
+                styleDialog(preview)
             }
         }
         dialogs += dialog
@@ -219,5 +329,16 @@ class BeanBatchActivity : ThemedActivity() {
             dialogs.remove(dialog)
         }
         dialog.show()
+        styleDialog(dialog)
+    }
+    private fun styleDialog(dialog: AlertDialog) {
+        dialog.window?.setBackgroundDrawable(style.shape(style.surface))
+        val titleId = resources.getIdentifier("alertTitle", "id", "android")
+        dialog.findViewById<android.widget.TextView>(titleId)?.let { style.apply(it, TaskProductVisualStyle.section) }
+        dialog.findViewById<android.widget.TextView>(android.R.id.message)?.let { style.apply(it, TaskProductVisualStyle.body) }
+        listOf(AlertDialog.BUTTON_NEGATIVE, AlertDialog.BUTTON_POSITIVE).forEach { which ->
+            dialog.getButton(which)?.let { style.button(it, primary = which == AlertDialog.BUTTON_POSITIVE,
+                outline = which == AlertDialog.BUTTON_NEGATIVE) }
+        }
     }
 }
