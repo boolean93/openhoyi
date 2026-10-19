@@ -118,3 +118,24 @@ rail80、页边16、栏间24、组间16、关联8、面内16、圆角12、输入
 - **执行优先级：** M2新frame与M3独立12原件到达即优先设计验收；在途源码SHA原件保留，M4推进不能关闭其FAIL。完成M4独立静态部分后仍需合批构建/12真实图及原业务门禁，不能因沿用候选helper而继承PASS。
 
 Gradle入口已据当前 `verify.yml`、module任务与真实测试文件校正为 `testMockUnitTest` / `assembleMock` / `assembleMockAndroidTest`，无MockDebug变体；本次只改计划，没有执行构建、设备或生产修改。
+
+## 8. 首版成组静态审查与封闭收口（2026-10-19，未构建/未图审）
+
+Astra已读四个生产Kotlin完整差异，并重新对照三张既有原稿；八语种 `bean_workflow_visual.xml` 独立解析通过，均为selection/preview/receipt三key，未添加不存在的稳定读数/时间戳。首版保留Preparation原确认/关联/放弃路径与ScaleOwner绑定，Batch调整预览/确认与Ledger原只读详情；DoseBalance默认null旧分支隔离。以上仅静态核验，当前不得写M4通过；新12配置与原全部门禁未运行。主任务已批准以下一次性收口，由生产Sol实施，Astra不改源码。
+
+### 8.1 已批准的自然预算重排
+
+- Preparation完整粉量label与原输入/独立单位构造期保持固定子树。先量完整label及输入自然最低宽，足宽同行、8dp相隔，不足纵排；52dp输入下限、原值/监听/selection不变。这对应原稿粉量同行，不是缩字号换空间。
+- Batch页header保留24/500标题、真实name·batch16/400、原完整详情48dp入口；实宽足时标题/身份同行16gap，不足身份副行。日期区heading20/500与三日期足宽同行、16gap；不够宽恢复标题上方，日期标签和值原角色与16列净空保留。完整流水48入口合入recent标题行logical-end，16gap。固定footer完整说明与主56动作自然足宽同行，不足换行；唯一top8留白内画分隔，不再独立叠大高度。
+- Batch summary优先原label在上/值在下；仅完整纵排自然高无法保两条真实48dp事件且三cell均自然宽足时，label/value改同行8gap。每项实际自然高/宽、选择分支和viewport都记录，不能拿静态526dp等预算数字当首屏通过。
+
+### 8.2 首版必须修正后才可终审
+
+1. **Batch初始量角色：** 首版借用shareMetric20/400未经设计批准。恢复页内24sp/400/36sp角色、独立g14；余额40/700/60不变。原稿初始量明显高于辅助指标，且本批约定保原角色，不能为了fit降至20。这个明确原生角色不声称识别了ImageGen字体数值。
+2. **Batch短高可达：** 首版仅recent列表滚动，summary/date/标题/表头自然高可能把weight事件viewport挤为0。采用构造期一次安装的永久中部ScrollView：足高child EXACT实际viewport保原局部事件scroll；实际resolved chrome加至少一条真实48dp事件自然高仍超过viewport时，仅中部自然高、最多3条事件按自然高，固定footer在外。原标准两事件首屏门禁不豁免，第三条仍保留可达；记录完整两事件预算、最小可达预算与实际分支，不预滚截图通过。
+3. **Ledger摘要横向完整：** 首版四个WRAP节点永久横排比旧可换行TextView缺少不足宽路径。改为两个永久“label+number+unit”组，真实自然总宽足时同行16gap，不足纵排8gap；数字/单位不拆、不缩字，原值和返回批次路由保持。
+4. **Preparation顺序：** 原稿为选中身份→粉量→秤捕获/状态→库存预测。首版将捕获放在预测之后，须移回粉量之后；真实hint/guard全部保留，preview前16组距，固定保存/确认动作仍在外。缺秤只显示真实等待/不可捕获，不照概念稿填“稳定18g”。
+5. **G4状态色：** DoseBalance after数字与g共同accent；批次选择bean图标selected用accent、未选用ink，实际selected背景继续原状态。Ledger仅ADD的类型/变化使用accent，正常CONSUME正文ink、ADJUST不按正负猜危险色。Batch/Ledger表头aux14/500 muted，正文16不变。配置ARGB仍须下一轮原屏纯色区独立核验。
+6. **分隔和动作语义：** Preparation行底border1dp与分组线画在现有8/16dp留白中，不叠新高度。首版通用action对所有primary画coffee、所有secondary画back不符合确认库存语义：只返回用back、添加豆子用bean，保存/确认映射原稿check；其它动作不硬套咖啡/返回图标。主任务已明确授权HomeVisualIcon最小新增check case：24dp坐标路径(5,12)→(10,17)→(20,6)，1dp实线；默认及其它kind/页面调用不变。保存选择/确认用check，关联或扣减重试、放弃/取消选择可保文字，不硬套错误图标；沿既有8gap/currentTextColor/居中helper，不改回调。不能以未知kind画空图或扩全局。
+
+本节是有限设计/实现审查意见，不是运行FAIL证据，也不改变两事件首屏、72/48/52/56下限、三条事件保留、原业务写入/不重扣和完整12配置范围。M2/M3原件到达优先验收；M4半成文件不混入其它批次定点修复的构建或提交。

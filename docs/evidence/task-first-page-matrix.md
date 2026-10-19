@@ -19,6 +19,8 @@
 
 **9b51936 Editor初态限定复验（Astra实看）：** PR frame原包实际merge `d0c281e351817e9e3ebc43300569f3e971e2f9b2`，关联head9b51936。浅色font1.0主图第4阶段完整：metadata189px（旧253），inlineSelected=true，fullNatural991/available1040；target3 `[450,1083,896,1200]` 与water3 `[914,1083,1360,1200]` 均117px且full=visible。限定关闭064相同正式主夹具的15px首屏缺口；不外推其他主题/字号，不关闭后续恢复失败，也不记M2完整G1–G4通过。
 
+**5550a98 本轮M2恢复实证：** PR frame `39185179305` 已FAIL，实际merge `082a3f518e1acbfd3348d4df13618020278f18b4`，M2仍仅Editor浅1.0主图1/12。修正有限范围夹具后，原restore记录只差IME true→false、窗口高度680→1391、外滚动y662→0；实际range同步662→0，因此0是不同viewport下合法clamp，不能独立称“滚动丢失”。11字段值/selection、focusedFieldKey、draftId、stageCount均一致。已证IME重建未保持，唯一根因仍待审，不放宽精确恢复门禁。原包在 `build/task-first-evidence/ci-5550a98-frame/task-frame-tablet-user-landscape.raw.zip`，928项CRC通过、SHA256与GitHub digest一致；仅提取33份小文件，完整原包保留。M3的5550 inline构造故障与单literal修复见M3计划§8，未进入IME，旧零高度FAIL未关闭。
+
 ## 最新分层结论（样张、生产实现、运行证据分开）
 
 - **样张封闭，有限冻结已成立**：[review §10](2026-10-18-native-specimen-review.md#10-0a7b71a-封闭验收有限冻结进入-m1) 的 head `0a7b71a` / run `39140082042` / tested merge `908edcd9d83a8ea53123ba772ab7556ab6e2b4ed`，Astra已实看三页12初图及6滚动后图。冻结的是该批实际覆盖的字体角色、间距、浅深语义色、单位baseline、图表标签保护/网格和局部滚动设计输入；原文件保留proposed/productAcceptance=false历史身份。原图字体身份仍未知；未观察的焦点/按压等状态不因此通过。
