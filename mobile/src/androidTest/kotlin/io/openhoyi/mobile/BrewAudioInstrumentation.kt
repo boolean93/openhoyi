@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var beanWorkflowVisualArguments: Bundle? = null
     private var curveVisualArguments: Bundle? = null
     private var formVisualArguments: Bundle? = null
     private var productVisualArguments: Bundle? = null
@@ -41,6 +42,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        beanWorkflowVisualArguments = arguments?.takeIf { it.getString("beanWorkflowVisualMigration") == "true" }?.let { Bundle(it) }
         curveVisualArguments = arguments?.takeIf { it.getString("curveVisualMigration") == "true" }?.let { Bundle(it) }
         formVisualArguments = arguments?.takeIf { it.getString("formVisualMigration") == "true" }?.let { Bundle(it) }
         productVisualArguments = arguments?.takeIf { it.getString("productVisualMigration") == "true" }?.let { Bundle(it) }
@@ -69,6 +71,12 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            beanWorkflowVisualArguments?.let { arguments ->
+                val count=BeanWorkflowVisualMigrationChecks(this).run(arguments)
+                report.putString("stream", "BEAN_WORKFLOW_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")
+                finish(Activity.RESULT_OK,report)
+                return
+            }
             curveVisualArguments?.let { arguments ->
                 val count=CurveVisualMigrationChecks(this).run(arguments)
                 report.putString("stream", "CURVE_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")

@@ -822,13 +822,19 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         fun balance() = inventory.batches().single { it.batch.id == batchId }.balanceMg
         fun ownEvents() = inventory.events().filter { it.batchId == batchId }
         fun assertLockedBatchContext(page: Activity, expectedBalance: String) = onMain {
-            val row = root(page).findViewWithTag<TextView>("dose-batch-summary-$batchId")
-            check(row != null && row.isSelected && !row.isClickable && !row.isLongClickable) {
+            val row = root(page).findViewWithTag<View>("dose-batch-summary-$batchId")
+            check(row != null && row.isSelected && !row.isClickable && !row.isLongClickable && row.height >= HoyiUi.dp(page,72)) {
                 "Saved preparation lost its read-only selected batch context"
             }
-            check(row.text.toString() == page.getString(R.string.dose_batch_choice, beanName, expectedBalance,
-                page.getString(R.string.beans_batch_id, (page as BeanPreparationActivity).beanBatchNumber(inventory, requireNotNull(batchId))))) {
+            val batchLabel=page.getString(R.string.beans_batch_id, (page as BeanPreparationActivity).beanBatchNumber(inventory, requireNotNull(batchId)))
+            check(row.contentDescription.toString() == page.getString(R.string.dose_batch_choice, beanName, expectedBalance,batchLabel)) {
                 "Saved preparation batch context showed stale inventory"
+            }
+            check(row.findViewWithTag<TextView>("product/preparation/choice/$batchId/name").text.toString()==beanName &&
+                row.findViewWithTag<TextView>("product/preparation/choice/$batchId/batch").text.toString()==batchLabel &&
+                row.findViewWithTag<TextView>("product/preparation/choice/$batchId/balance/number").text.toString()==expectedBalance &&
+                row.findViewWithTag<TextView>("product/preparation/choice/$batchId/balance/unit").text.toString()=="g") {
+                "Saved preparation actual name/batch/number/unit differs from the authoritative context"
             }
         }
         fun captureHomeDose(returnTo: Activity, name: String, state: Int) {
@@ -1072,8 +1078,10 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             check(preparation.current() == null && balance() == 90000L && ownEvents().size == 2) { "Inventory navigation consumed or saved a dose" }
             awaitMain { ScaleOwnerActivity::class.java.getDeclaredField("owner").apply { isAccessible = true }.get(prep) === service }
             onMain {
-                val choice = root(prep).findViewWithTag<Button>("dose-batch-$batchId")
-                check(choice.isShown && choice.isSelected && choice.isEnabled) { "Inventory entry lost preselected batch" }
+                val choice = root(prep).findViewWithTag<View>("dose-batch-$batchId")
+                check(choice.isShown && choice.isSelected && choice.isEnabled && choice.isClickable && choice.height >= HoyiUi.dp(prep,72)) { "Inventory entry lost preselected batch" }
+                check(choice.contentDescription.toString()==prep.getString(R.string.dose_batch_choice,beanName,BeanQuantity.formatGrams(balance()),
+                    prep.getString(R.string.beans_batch_id,(prep as BeanPreparationActivity).beanBatchNumber(inventory,requireNotNull(batchId)))))
                 check(choice.performClick())
             }
             test.waitForIdleSync()
