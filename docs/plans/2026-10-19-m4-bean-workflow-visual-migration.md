@@ -150,6 +150,14 @@ Astra已终核当前四个生产文件、`HomeVisualIcon`唯一check case、八�
 
 本次独立执行仅 `git diff --check`、新runner `bash -n`、三原稿SHA与八XML解析/key集合核对，均通过；未执行Gradle或设备。主任务后续构建与实际证据另记。M2 IME、M3 inline/IME尚待复验，不因M4静态通过而关闭其FAIL；24页与硬件验收均未完成。
 
+### 8.4 5ef3b8f 首轮用豆 IME 实际失败与局部修正规格
+
+run `39187428107` / head `5ef3b8f2efba1ce2d2469bc51a6815817ecc938b` / tested merge `f15b6d66579445f1bba7e328ebbc39679b3a1356`：主图 **1/12**，在Preparation实际IME固定操作门禁失败，Batch/Ledger未进入。原件在 `build/task-first-evidence/ci-5ef3b8f-bean/bean-workflow-visual-tablet-user-landscape/raw-device/f15b6d66579445f1bba7e328ebbc39679b3a1356/tablet-user-landscape-light-font-1.0/preparation/`。Astra实看states/preparation-amount-IME/window.png并独立读mechanical-failure-audit：root `[0,63,2560,754]`、IMEtrue；输入 `[721,601,2488,718]` 高117完整，但support-pane至1751、actions `[252,1463,2488,1715]` 完全位于app底之外。getGlobalVisibleRect=false后的残留rect不当可见像素。三帧稳定/前后几何相同仍只诊断，sameCompositorFrameProven=false；scope隔离PASS不抵G1 FAIL。
+
+源码原因明确：workspace余高484px约215dp触通用360dp阈值变stacked，取消secondary bound；secondaryBody被UNSPEC测至1406px，内部weight scroll失去受限高度，所谓固定actions跟整个右pane滚出窗口。不是52输入或字号太大，不靠删说明/削padding修复。
+
+本批限BeanPreparationActivity私有width-first workspace，不改共享TaskWorkspace默认。两个pane与原输入固定父层级，宽度足够原左右最低宽及24gap时保双栏，不因IME余高低于360自动退整块support滚动；右pane始终EXACT实际可用高，内部supportScroll weight1和自然actions固定，无外层secondary ScrollView。常态50%/max680、16面距/24gap保留。实测本例右最低预算为72px面内距+252px actions+18px关联间距+117px输入=459px，小于484；无需缩字/降52/56/48。窄宽才stack，给support至少实际actions+8gap+padding+编辑自然下限，余量给左局部列表，所有pane继续有界。若实际连最低预算也无法容纳，记录不可满足账本交审，不能隐藏动作或写PASS；不扩大新页面/功能。修后仍须原输入+两个固定操作IME断言及全部12配置，无测试放宽。
+
 ### 2026-10-19 本批统一构建
 
 Astra生产与测试静态终审后冻结源码，首次构建发现Batch/Ledger的Paint.style接收者遮蔽，Sol仅限定Activity接收者，颜色与布局不变。重跑日志 `/tmp/2026-10-19-m2-ime-m4-build-retry1.log`：BUILD SUCCESSFUL in 1m 10s，98 tasks（13 executed/85 up-to-date）；`:bean-core:verify`通过，实际XML为11 suites/48 tests，failure/error/skipped均0；Mock及AndroidTest APK均构建成功。仍未运行新M2恢复、M3 IME和M4完整12配置，不关闭视觉FAIL或缺证项。

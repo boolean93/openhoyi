@@ -1,5 +1,14 @@
 # 全范围视觉验收状态矩阵
 
+## 当前状态（优先于下方历史观察时点）
+
+2026-10-19：最近已推送 head `5ef3b8f2efba1ce2d2469bc51a6815817ecc938b`，PR tested merge `f15b6d66579445f1bba7e328ebbc39679b3a1356`。native39187428091、single39187428132、advanced39187428111、lifecycle39187428154、upgrade39187428126、branch39187428120均成功；frame39187428163、curve39187428152、bean39187428107均失败。普通回归通过不替代四项视觉验收。M1仅原三页限定通过；M2/M3/M4分别只取得1/12、2/12、1/12主图，其余配置未完成。
+
+M2最新恢复记录的11字段值、selection、focusedFieldKey、draftId、stageCount一致；IME true→false、窗口680→1391、合法scroll range/y 662→0。原包69份M2 JSON没有产品恢复诊断，尚不能确定请求未发出、取消或时序根因。M2生产不猜修，只补断言前独立诊断，原比较对象、精确断言、稳定协议和IME操作不变。
+
+本批修复冻结为Import页内真实IME/滚动恢复、Preparation宽优先受限双栏及测量缓存祖先链修正，加三份测试诊断。Astra已静态复核无阻断；最终验收仍由Astra完成，不替换模型。隔离基线 `a42f931183e6776819e37c7d4d2dd836ceebca46`，仅应用上述五文件，排除未完成M5。隔离构建成功（1m28s，98 tasks），bean-core verify及11 suites/48 tests通过，0失败/错误/跳过；Mock和AndroidTest APK均已构建。patch SHA256 `8ccaeb8ca91aa99a11a304bdc1422c113324a41a1957ce191dda1e7ce7040989`，日志/XML/patch留存 `build/task-first-evidence/isolated-ime-repair-a42f931/`。新CI仍待运行，不预先标记运行修复成功。
+
+
 2026-10-19，最新已验产品证据head `026f993` / frame `39146205031` / tested merge `75e5333f20bb21ec911ec99befb9d979ad483dba`。M1三页已在中文用户横屏、浅深×1.0/1.3主夹具范围获得G1–G4限定验收；**不是24页/全状态最终验收**。其余21页、硬件与未采状态仍待验。详细审查集中于[M1计划§11](../plans/2026-10-18-product-visual-migration.md#11-2026-10-19-026f993-真实-m1-限定验收进入-m2)。 M2最新历史正式证据为 `0647518` 的1/12主图与Editor首屏FAIL（详见下一段）；`9b51936` 已推送候选修复及M3实现，PR frame `39153382452`、curve-visual `39153382312` 正在运行，尚无新视觉验收结论。95be8fb的0/12保留为历史，不再作为最新进度。
 
 **0647518 本轮追加证据（不关闭未测项）：** frame `39150740279` / tested merge `640315453618dcb29ba8ec2cbe2fb5af53d0efb9` 正式M2主图1/12，仅Editor浅色1.0；原11字段首屏断言失败。实际 available1040 / metadata253 / stage766 / previewMinimum741 / fullNatural1055，第四行两个117px输入各仅102px可见，固定footer完整。主图协议2及隔离通过不抵消G1 FAIL；IME/业务恢复未执行，Bean/Review正式夹具未进。新业务PNG仅观察到入库间隔与复盘长选豆第二行改善，精确间距/全状态仍待验。native `39150740210`、advanced `39150740270` 两job通过；single `39150740256` 标准/大字号通过、用户平板失败。M1本轮12配置机械回归无失败，fresh-process13份实测有效；不外推为M2视觉通过。 编辑页候选修正 `ee7f270` 已单独提交：仅在满字段纵排超高且三卡实际宽度可容纳时，元信息卡内部条件同行；原字体、8/16间距、52dp输入与11字段首屏门禁不变。静态审及生产/AndroidTest构建已通过，9 suites/31 tests通过；尚未取得新运行原图，不关闭上述FAIL。
@@ -24,6 +33,8 @@
 **5550a98 常规回归终态补记：** PR native39185179371、single39185179274、lifecycle39185179343、upgrade39185179420及branch39185179406均成功。advanced39185179289整体失败，下载business小原件后确认17条路径输出，最后在AdvancedBusinessUiChecks:1338报 `Import raw text must edit inline`；与M3独立检查发现的构造期inline祖先丢失一致，不把前17路径当18业务全部成功。原件保留 `build/task-first-evidence/ci-5550a98-advanced-business/business-flows.txt`。该生产单literal候选已单独提交56a48de，尚未新运行复验；M2真实IME恢复候选另由Sol按Astra约束实施，不改测试主动打开IME。
 
 **M4实现/构建状态：** 三页及独立完整12配置测试入口已实现，Astra静态终审无剩余阻断；与M2 IME恢复候选统一构建成功，库存核心检查及11 suites/48 tests通过。实际运行与G1–G4仍待新CI，不把实现和编译记为视觉通过。
+
+**5ef3b8f 首轮新增实证：** curve39187428152与bean39187428107均FAIL，实际merge/source `f15b6d66579445f1bba7e328ebbc39679b3a1356`。M3仅2/12，Import文本/selection/focus均保留，raw scroll4885→4281分别等当时合法最大值（4966−81与4966−685）；IME true→false导致viewport改变，不能独立称丢scroll，旧focus构造失败已越过、完整恢复仍失败。M4仅Preparation浅1.0主图1/12；IME时root `[0,63,2560,754]`，support-pane `[216,345,2524,1751]`被裁，actions `[252,1463,2488,1715]`越窗底，两操作不可见；金额输入117px完整，不能代替固定操作门禁，G1 FAIL。两scope隔离PASS不抵消业务/视觉失败。原ZIP/CRC/SHA与派生报告保存在 `build/task-first-evidence/ci-5ef3b8f-{curve,bean}/`，frame39187428163当次观察仍在运行。
 
 ## 最新分层结论（样张、生产实现、运行证据分开）
 
@@ -77,7 +88,7 @@
 | BeanEntryActivity | FAIL | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | 95be8fb失败现场三次draw稳定，五字段均117px完整；名称右1515=重量左1515，规定16dp间距实测0px。随后section定位错误阻断，主图0/12。064业务图观察间隔改善，但未完成正式精确16dp和全配置复验；9b51936候选待新frame，历史末字段失败保留 |
 | BeanBatchActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M4已实现24sp初始量、真实两事件预算/短高永久中部滚动及固定footer；调整模型不变。 5ef3b8f已推送；48项测试及APK构建通过，独立12配置CI39187428107运行中，未作视觉通过。 |
 | BeanLedgerActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M4已实现真实五列/摘要自然换行与类型色；原排序、详情和恢复保持。 5ef3b8f已推送；48项测试及APK构建通过，独立12配置CI39187428107运行中，未作视觉通过。 |
-| BeanPreparationActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M4已实现批次列表、输入/捕获/预测顺序、状态色及固定操作；原扣减与恢复边界保持。 5ef3b8f已推送；48项测试及APK构建通过，独立12配置CI39187428107运行中，未作视觉通过。 |
+| BeanPreparationActivity | FAIL | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M4已实现批次列表、输入/捕获/预测顺序、状态色及固定操作；原扣减与恢复边界保持。 5ef3b8f已推送；48项测试及APK构建通过，独立12配置CI39187428107运行中，未作视觉通过。 |
 | BrewReviewActivity | FAIL | EVIDENCE_PENDING | FAIL | EVIDENCE_PENDING | 95be8fb真实业务图选豆第二行裁切；advanced wideFont ru/light页头曲线/时间ellipsis失败；single短高真实tools菜单触控高度不足48dp。064业务图已观察长选豆第二行完整、advanced两job通过；正式12配置和四门仍缺，9b51936新frame待验，旧18业务通过不抵消视觉差异 |
 | CurveEditorActivity | FAIL | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | 95be8fb业务图第四阶段输入底部裁切；single短高真实tools菜单触控高度不足48dp。064正式M2已取得本页浅色1.0主图：fullNatural1055/available1040，第四阶段117px输入仅102px可见（15px）；064 single另一夹具117px仅113px可见（4px），两夹具不可混同。9b51936同正式浅1.0主图经Astra实看确认991/1040且两输入117px完整，限定关闭该15px初态缺口；其余配置与后续恢复失败未关闭，不能以滚达替代标准11字段首屏 |
 | CurveShareActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |

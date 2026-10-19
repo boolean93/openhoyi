@@ -624,7 +624,24 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             val after=stableSnapshot("$label-after-recreate")
             assertFiniteScrolls("after-recreate")
             val equal=before.toString()==after.toString()
+            lateinit var restoreDiagnostic: org.json.JSONObject
+            onMain {
+                val form=activity.javaClass.getDeclaredField("form").apply { isAccessible=true }.get(activity)
+                val evidence=if(form is TaskCurveEditorForm) org.json.JSONObject(form.productRestoreEvidence.toString())
+                    else org.json.JSONObject().put("status","unknown").put("reason","form_has_no_productRestoreEvidence_interface")
+                restoreDiagnostic=org.json.JSONObject().put("productRestoreEvidence",evidence)
+                    .put("semantics","page_self_report_not_OS_confirmation; diagnostic_not_in_compared_before_after_objects")
+                    .put("actualState",org.json.JSONObject()
+                        .put("imeVisible",root(activity).rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) ?: org.json.JSONObject.NULL)
+                        .put("hasWindowFocus",activity.hasWindowFocus())
+                        .put("focusedFieldKey",fields().entries.firstOrNull { it.value.hasFocus() }?.key ?: org.json.JSONObject.NULL)
+                        .put("contentSizePx",org.json.JSONArray(listOf(root(activity).width,root(activity).height)))
+                        .put("scrolls",org.json.JSONArray(views(root(activity)).filterIsInstance<android.widget.ScrollView>().map {
+                            org.json.JSONObject().put("tag",it.tag).put("x",it.scrollX).put("y",it.scrollY)
+                        })))
+            }
             File(directory,"$label-restore.json").writeText(org.json.JSONObject().put("before",before).put("after",after).put("equal",equal)
+                .put("restoreDiagnosticBeforeAssertion",restoreDiagnostic)
                 .put("afterObservedBeforeAnyCaptureUnfocus",true).toString(2))
             check(equal) { "M2 form recreation changed draft/focus/selection/identity/scroll: $label" }
             unchangedExceptNotesOrDraft(); record(label)

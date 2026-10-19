@@ -51,8 +51,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         val inventory = beanInventory(body) ?: return
         val current = preparation.current()
         error = formStyle.error(beanError(body)).also { view -> errorResource?.let(view::setText) }
-        val workspace = TaskWorkspaceLayout(this, supportingWidthFraction = .5f, supportingMaxWidthDp = 680,
-            boundedSecondaryViewport = true)
+        val workspace = PreparationWorkspace(this, style, productLayoutEvidence)
         body.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f))
         workspace.primaryBody.setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16))
         workspace.secondaryBody.setPadding(style.dp(16), style.dp(16), style.dp(16), style.dp(16))
@@ -111,7 +110,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         workspace.secondaryBody.addView(ScrollView(this).apply {
             tag = "product/preparation/support-scroll"; addView(support)
         }, LinearLayout.LayoutParams(-1, 0, 1f))
-        val actions = style.column("product/preparation/actions")
+        val actions = style.column("product/preparation/actions").also { workspace.actions = it }
         workspace.secondaryBody.addView(actions, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(8) })
         fun action(value: String, primary: Boolean = false, onClick: () -> Unit): Button =
             HoyiUi.button(this, actions, value, primary = primary, action = onClick).apply {
@@ -314,6 +313,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         amount = beanInput(form, R.string.dose_amount, true).apply {
             formStyle.input(this, "preparation", "amount"); setText(draftAmount)
         }
+        workspace.editor = amount
         val doseLabel = (0 until form.childCount).map(form::getChildAt).filterIsInstance<TextView>().first { it.labelFor == amount?.id }
         formStyle.label(doseLabel, belowGap = false)
         formStyle.unit(requireNotNull(amount), "g", "preparation", "amount")
@@ -403,5 +403,59 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
         rememberDraft()
         outState.putInt("errorResource", errorResource ?: 0)
         outState.putString("nextEventId", nextEventId); outState.putString("draftBatchId", draftBatchId); outState.putString("draftAmount", draftAmount)
+    }
+}
+
+/** Width, not IME height, decides whether this form has room for its two permanent panes. */
+private class PreparationWorkspace(context: android.content.Context, private val style: TaskProductVisualStyle,
+    private val evidence: org.json.JSONObject) : LinearLayout(context) {
+    val primaryBody = style.column()
+    val secondaryBody = style.column()
+    var editor: EditText? = null
+    var actions: View? = null
+    init { isBaselineAligned = false; tag = "task-workspace"; addView(primaryBody); addView(secondaryBody) }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+        val height = (View.MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+        val free = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        val split = width >= style.dp(320 + 280 + 24)
+        val secondaryWidth = if (split) minOf((width * .5f).toInt().coerceIn(style.dp(280), style.dp(680)), width - style.dp(320 + 24)) else width
+        val innerWidth = (secondaryWidth - secondaryBody.paddingLeft - secondaryBody.paddingRight).coerceAtLeast(0)
+        val exact = View.MeasureSpec.makeMeasureSpec(innerWidth, View.MeasureSpec.EXACTLY)
+        actions?.measure(exact, free)
+        val actionParams = actions?.layoutParams as? LayoutParams
+        val actionHeight = actions?.measuredHeight ?: 0
+        val actionMargins = (actionParams?.topMargin ?: 0) + (actionParams?.bottomMargin ?: 0)
+        val editorMinimum = editor?.let { field ->
+            field.measure(exact, free)
+            maxOf(style.dp(52), field.measuredHeight, field.minimumHeight, field.minHeight)
+        } ?: 0
+        val panePadding = secondaryBody.paddingTop + secondaryBody.paddingBottom
+        val minimumSecondary = panePadding + actionHeight + actionMargins + maxOf(editorMinimum, style.dp(48))
+        val stackedGap = if (split) 0 else style.dp(24)
+        val secondaryHeight = if (split) height else minOf(minimumSecondary, (height - stackedGap).coerceAtLeast(0))
+        val primaryHeight = (height - secondaryHeight - stackedGap).coerceAtLeast(0)
+        orientation = if (split) HORIZONTAL else VERTICAL
+        primaryBody.layoutParams = if (split) LayoutParams(0, -1, 1f) else LayoutParams(-1, primaryHeight)
+        secondaryBody.layoutParams = if (split) LayoutParams(secondaryWidth, -1).apply { marginStart = style.dp(24) }
+            else LayoutParams(-1, secondaryHeight).apply { topMargin = stackedGap }
+        // The budget probe measured the real editor with a different width spec.
+        // Invalidate every cached ancestor up to this bounded pane, including the
+        // unit wrapper/dose row/local ScrollView, before the actual layout pass.
+        var measured: View? = editor
+        while (measured != null) {
+            measured.forceLayout()
+            if (measured === secondaryBody) break
+            measured = measured.parent as? View
+        }
+        // These are direct pane children, never descendants of an UNSPEC supporting ScrollView.
+        primaryBody.forceLayout(); secondaryBody.forceLayout()
+        evidence.put("workspaceAvailableWidthPx", width).put("workspaceAvailableHeightPx", height)
+            .put("workspaceWidthFirstSplit", split).put("secondaryWidthPx", secondaryWidth).put("secondaryHeightPx", secondaryHeight)
+            .put("secondaryPaddingPx", panePadding).put("actionsNaturalHeightPx", actionHeight).put("actionsMarginsPx", actionMargins)
+            .put("editorNaturalMinimumPx", editorMinimum).put("minimumSecondaryHeightPx", minimumSecondary)
+            .put("secondaryBudgetSatisfiable", secondaryHeight >= minimumSecondary)
+            .put("supportViewportBudgetPx", (secondaryHeight - panePadding - actionHeight - actionMargins).coerceAtLeast(0))
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 }

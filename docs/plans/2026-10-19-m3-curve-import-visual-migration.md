@@ -197,3 +197,12 @@ Astra实看 `library/window.png` 与 `import/failure-context.png`，并核Import
 已独立追溯源码：`beanInput` 构造时同步调用 `beanCompactEditor`，后者只沿当时已挂接的祖先寻找 `task-inline-form`。新中部结构此刻只有field→editor→workspace，尚未挂middle/host；workspace原tag为product/content，遂落入原modal分支，post将宽横屏字段的touch focus及softInput关闭。候选只把workspace自身tag改为已有 `task-inline-form` 并说明构造时序，让真实祖先契约及时生效；不改共享helper、测试断言、焦点属性，不跳过真实inline编辑。Astra静态无阻断。此单literal变更未在混有M4半成文件的工作树独立构建，不虚称新本地build；待CI完整编译并继续真实IME/恢复复验。
 
 同artifact `font-scale-before.json` / `font-scale-restore.json` 独立核实：原key不存在，退出时执行delete，返回码0，readback仍不存在，`PASS_SETTING_RESTORE_ONLY`；原测试退出码1保留。这仅证明系统设置存在性恢复，不是字体视觉通过，不覆盖其他设备或失败分支。M4未提交实施与本次Import定点修复应按owner隔离，不将半成代码作为本批验证产物。
+## 9. 5ef3b8f Import 有限滚动与 IME 恢复复验（2026-10-19）
+
+run `39187428152` / head `5ef3b8f2efba1ce2d2469bc51a6815817ecc938b` / tested merge `f15b6d66579445f1bba7e328ebbc39679b3a1356`：正式主图仍 **2/12**，Preview未进入。原件根为 `build/task-first-evidence/ci-5ef3b8f-curve/curve-visual-tablet-user-landscape/raw-device/f15b6d66579445f1bba7e328ebbc39679b3a1356/tablet-user-landscape-light-font-1.0/import/`；Astra独立实看failure-context.png、读取该批mechanical-failure-audit及恢复记录。
+
+本轮requestFocus成功并真实进入IME；raw输入高117px且full==visible，旧高0及构造期inline缺口在这个限定状态不再出现。重建前IMEtrue、app680px、raw117px、Layout4966/content81，scrollY4885恰为合法最大值；重建后IMEfalse、app1391px、raw721px、Layout4966/content685，scrollY4281也恰为合法最大值。文本/选区/焦点一致，604px差来自当前viewport变化后的合法clamp，不单独指认为scroll存储丢失。前后各3帧稳定不等于IME恢复成功，原精确rawState断言FAIL保留；两scope隔离PASS不抵页面未验。
+
+封闭修正只在CurveImportActivity：保存可观测IME可见性（unknown不填false），取代旧text.post恢复；原字段focus/selection恢复后，saved true才请求一次IME，实际窗口焦点/布局及已观察到的IME动画就绪后，再按真实Layout-content范围恢复raw X/Y与永久middle Y。原文本/输入/SAF/decode/52下限、固定footer和原测试不变。失焦/转焦点/detach/stop/destroy取消并清监听；不由测试reopen、不抽共享恢复框架或修改M2。候选未运行，不提前关闭本轮FAIL，也不把浅1.0的描边/图标可见状态外推12图G1–G4。
+
+候选静态终核：Astra已读本页事件链、真实saved/observed IME、一次show、原/current observer与生命周期清理、raw Layout/content范围和middle范围，未发现剩余静态阻断。没有修改测试/M2/共享恢复helper；需下一CI原精确恢复断言证实，不将静态结论写为已修复。当前工作树另有M5未提交时钟/样式，若主任务运行全树构建须标明该dirty范围；本批提交与CI应仅包含获准修复，不能冒称本地构建对应干净修复提交。

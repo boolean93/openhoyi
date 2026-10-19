@@ -411,7 +411,21 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             is CurveImportPreviewActivity -> JSONObject(activity.productLayoutEvidence.toString())
             else -> JSONObject().put("status","unknown").put("reason","Activity_has_no_existing_natural_budget_interface; actual_View_geometry_recorded")
         }
+        val restoreEvidence=when(activity) {
+            is CurveImportActivity -> JSONObject(activity.productRestoreEvidence.toString())
+            else -> JSONObject().put("status","unknown").put("reason","Activity_has_no_productRestoreEvidence_interface")
+        }
+        val actualRestoreState=JSONObject().put("imeVisible",insets.isVisible(WindowInsets.Type.ime()))
+            .put("hasWindowFocus",activity.hasWindowFocus()).put("focusedViewTag",activity.currentFocus?.tag ?: JSONObject.NULL)
+            .put("focusedViewClass",activity.currentFocus?.javaClass?.name ?: JSONObject.NULL)
+            .put("appSizePx",JSONArray(listOf(content.width,content.height)))
+            .put("scrolls",JSONArray(nodes(content).filter { it is ScrollView || it is EditText }.map { view ->
+                JSONObject().put("semanticId",view.tag ?: JSONObject.NULL).put("x",view.scrollX).put("y",view.scrollY)
+            }))
         return JSONObject().put("naturalBudgetActualPx",budget)
+            .put("productRestoreEvidence",restoreEvidence)
+            .put("productRestoreEvidenceSemantics","deep_copy_of_page_self_report; not_OS_confirmation; actualRestoreState_is_separate_current_View_and_WindowInsets_observation")
+            .put("actualRestoreState",actualRestoreState)
             .put("resourcesDisplayMetricsPx",JSONArray(listOf(activity.resources.displayMetrics.widthPixels,activity.resources.displayMetrics.heightPixels)))
             .put("windowMetricsBoundsPx",rect(activity.windowManager.currentWindowMetrics.bounds))
             .put("windowMetricsSemantics","Android_window_metrics_not_physical_panel; original_PNG_header_recorded_separately")
@@ -664,7 +678,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         await("Import restored ready") { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
         stableWindow(activity,directory,"raw-after-recreate")
         main { val after=rawState(activity)
-            File(directory,"raw-restoration.json").writeText(JSONObject().put("before",before).put("after",after).toString(2))
+            File(directory,"raw-restoration.json").writeText(JSONObject().put("before",before).put("after",after)
+                .put("afterGeometryBeforeAssertion",geometry(activity)).toString(2))
             check(after.toString()==before.toString()) { "M3 raw text/focus/selection/scroll changed before screenshot side effects" } }
         check(invariant(scope)==frozen); record("raw-exact-text-selection-focus-nonzero-scroll-recreate")
         unfocus(activity); captureState(activity,directory,"raw-restored")

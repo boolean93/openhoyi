@@ -136,7 +136,21 @@ internal class FormVisualMigrationChecks(private val test: Instrumentation) {
             is TaskReviewSections -> JSONObject((field(form,"style") as TaskProductFormStyle).multilineMeasurements.toString())
             else -> JSONObject().put("status","unknown").put("reason","form_not_constructed_in_unavailable_state")
         }
-        return JSONObject().put("formNaturalBudgetActualPx",naturalBudget).put("resourcesDisplayMetricsPx", JSONArray(listOf(metrics.widthPixels, metrics.heightPixels)))
+        val restoreEvidence=when(form) {
+            is TaskCurveEditorForm -> JSONObject(form.productRestoreEvidence.toString())
+            else -> JSONObject().put("status","unknown").put("reason","form_has_no_productRestoreEvidence_interface")
+        }
+        val actualRestoreState=JSONObject().put("imeVisible",insets.isVisible(WindowInsets.Type.ime()))
+            .put("hasWindowFocus",activity.hasWindowFocus()).put("focusedViewTag",activity.currentFocus?.tag ?: JSONObject.NULL)
+            .put("focusedViewClass",activity.currentFocus?.javaClass?.name ?: JSONObject.NULL)
+            .put("appSizePx",JSONArray(listOf(content.width,content.height)))
+            .put("scrolls",JSONArray(nodes(content).filterIsInstance<android.widget.ScrollView>().map { scroll ->
+                JSONObject().put("semanticId",scroll.tag ?: JSONObject.NULL).put("x",scroll.scrollX).put("y",scroll.scrollY)
+            }))
+        return JSONObject().put("formNaturalBudgetActualPx",naturalBudget)
+            .put("productRestoreEvidence",restoreEvidence)
+            .put("productRestoreEvidenceSemantics","deep_copy_of_page_self_report; not_OS_confirmation; actualRestoreState_is_separate_current_View_and_WindowInsets_observation")
+            .put("actualRestoreState",actualRestoreState).put("resourcesDisplayMetricsPx", JSONArray(listOf(metrics.widthPixels, metrics.heightPixels)))
             .put("windowMetricsBoundsPx",rect(activity.windowManager.currentWindowMetrics.bounds))
             .put("maximumWindowMetricsBoundsPx",rect(activity.windowManager.maximumWindowMetrics.bounds))
             .put("windowMetricsSemantics","Android_window_metrics_not_physical_panel_dimensions; whole_display_PNG_size_recorded_separately")
