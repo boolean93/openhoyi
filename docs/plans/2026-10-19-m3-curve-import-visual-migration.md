@@ -185,3 +185,15 @@ Astra已实看 push run `39153376290` 的 Library/Import 浅色1.0主图、Impor
 ### 本批统一构建记录
 
 2026-10-19：Astra静态审无阻断、Sol冻结六源码/脚本文件后，统一运行九个相关JVM suite及 `assembleMock` / `assembleMockAndroidTest`。日志 `/tmp/2026-10-19-import-ime-visual-fix-build.log`：BUILD SUCCESSFUL in 1m 5s，96 tasks（12 executed /84 up-to-date）；实际XML合计9 suites/31 tests，failure/error/skipped均0。此记录仅证明构建与相关逻辑测试，Import IME和M2恢复仍待新CI真实窗口复验，未关闭视觉FAIL。
+
+## 8. 5550a98 PR复验：浅1.0装饰收口，inline构造缺陷阻断（仍2/12）
+
+来源为PR run `39185179245`，head `5550a98`、实际tested merge `082a3f518e1acbfd3348d4df13618020278f18b4`。原件根 `build/task-first-evidence/ci-5550a98-curve/curve-visual-tablet-user-landscape/raw-device/082a3f518e1acbfd3348d4df13618020278f18b4/tablet-user-landscape-light-font-1.0/`，不是上一push的9b51936原件。
+
+Astra实看 `library/window.png` 与 `import/failure-context.png`，并核Import失败前后geometry。Library已显示新建/编辑/分享/更多/搜索及底部end方向图标，图文组在此浅1.0状态居中可读；Import两个来源及取消已显示outline，未见本轮装饰引入的肉眼裁切或背景回退。这只是已采状态的明确改进，不把图标出现等同全部尺寸/字体/状态色通过；完整G1–G4仍待各配置证据。Library业务/隔离机械PASS不抵代视觉判定。
+
+首失败是 `importBusiness` 的 `requestFocus()` 返回false，发生在show IME、内部滚动、recreate之前。此刻app2560×1402、IME=false；raw前后矩形均[216,553,2524,1285]，732px高、完整可见。它不是旧IME高度0复现，也没有到达那个条件，因此§7.2的IME FAIL仍未复验，不能关闭。Preview与其余10个主配置未到达，完整业务/恢复未通过。
+
+已独立追溯源码：`beanInput` 构造时同步调用 `beanCompactEditor`，后者只沿当时已挂接的祖先寻找 `task-inline-form`。新中部结构此刻只有field→editor→workspace，尚未挂middle/host；workspace原tag为product/content，遂落入原modal分支，post将宽横屏字段的touch focus及softInput关闭。候选只把workspace自身tag改为已有 `task-inline-form` 并说明构造时序，让真实祖先契约及时生效；不改共享helper、测试断言、焦点属性，不跳过真实inline编辑。Astra静态无阻断。此单literal变更未在混有M4半成文件的工作树独立构建，不虚称新本地build；待CI完整编译并继续真实IME/恢复复验。
+
+同artifact `font-scale-before.json` / `font-scale-restore.json` 独立核实：原key不存在，退出时执行delete，返回码0，readback仍不存在，`PASS_SETTING_RESTORE_ONLY`；原测试退出码1保留。这仅证明系统设置存在性恢复，不是字体视觉通过，不覆盖其他设备或失败分支。M4未提交实施与本次Import定点修复应按owner隔离，不将半成代码作为本批验证产物。
