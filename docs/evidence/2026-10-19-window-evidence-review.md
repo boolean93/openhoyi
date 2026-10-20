@@ -34,3 +34,11 @@ M6/M7 可见性以 `getGlobalVisibleRect(Rect,Point)` 的 Point 而非被裁切�
 runner 现在逐一要求主图、短窗、modal、滚后等预期 proof 存在，不再只遍历已有文件；负例只接受实际 wrong-owner/unfocused-owner 的拒绝原因，并要求独立正例。两份原 display 的 SHA 必核。
 
 结论：**本批静态协议实现无新增阻塞，可进入编译与真实取证，不是视觉通过。** 仍待正常/短窗 Activity 和 modal 正例、327px 实测换算、两真实负例；未知层尺寸和 nonzero surfaceInsets 原生负例仍 PENDING。短 Activity 仍可能因真实 metrics 不一致失败，不得自动 fallback 或清 pending。
+
+## 2026-10-20 非支持 Window origin 的独立诊断范围
+
+根与Sol原件核得scale dialog decor1408×1048、screen[576,240,1984,1288]，SDK PixelCopy把请求Rect原地由[0,0,1408,1048]偏至[72,72,1480,1120]；legacy短Activity decor2560×630、screen y485而hostmetrics仍2560×1600。前者surfaceInsets/SDK源Rect映射拒绝、后者metrics等式拒绝，均未证明像素一致，不能硬套72或放宽原协议。
+
+允许仅helper与新WindowOriginDiagnostic两个测试文件，在上述两个结构化unsupported reason点标记；原FAIL proof持久化后，只对原同identity/attached root与Window执行一次独立DIAGNOSTIC_NOT_ACCEPTANCE。不触发像素差、超时、失焦、wrong-root负例或泛异常。独立诊断真实5s单独记时，不延长原验收5s、不改accepted、不覆盖原异常/requiredproof。失效仅记录不可用，不切换窗口重试。
+
+只读采集完整Window/decor/root/token/display、四边surfaceInsets、metrics、原请求Rect和SDK后Rect、PixelCopy/window-layer/display原始尺寸与PNG。Layer完整不裁不缩；display与screen app矩形仅对照，不试多偏移找最小差。未知layer原点继续FAIL。本批仅获得真实mapping证据，支持与否须后续独立审查，不自动认证。

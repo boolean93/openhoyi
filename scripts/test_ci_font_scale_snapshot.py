@@ -24,6 +24,18 @@ class Contracts(unittest.TestCase):
             with self.assertRaises(ProbeError):
                 snapshot_names(response(text))
 
+    def test_actual_emulator_empty_snapshot_list_is_exact(self):
+        actual = 'There is no snapshot available.\nOK\n'
+        self.assertEqual(snapshot_names(response(actual)), [])
+        for result in (response(actual, code=1), response(actual, stderr='warning'), response(actual, stderr=' \n'),
+                       response(actual.replace('OK', 'FAIL')),
+                       response('cannot list\n' + actual),
+                       response('There is no snapshot available.\nunknown row\nOK\n'),
+                       response('There is no snapshot available.\n1 own 20M 2026-10-19 10:00:00 00:00:02.000\nOK\n')):
+            with self.subTest(result=result):
+                with self.assertRaises(ProbeError):
+                    snapshot_names(result)
+
     def test_presence_is_not_default_equivalence(self):
         config = '  mGlobalConfiguration: {1.0 310mcc en_US}\n'
         self.assertNotEqual(parse_state('', config), parse_state('font_scale=1.0\n', config))

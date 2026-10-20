@@ -47,3 +47,15 @@ M3 help受限语义：官方 Android14 IMMS onCommand default→handleDefaultCom
 最小修改仍仅 `ImeRecreationTrace.kt` 与 `collect_ime_recreation_trace.py`；不改生产IME行为。统一编译运行期间先不修改，待root释放。
 
 M3 收口复核：已实际阅读最新两文件，Android start/stop与host fallback均唯一完整ACK；host fallback已走同allowlist shell_command；两端混合foreign/current marker拒绝。原scope、意图先落盘与只一次stop保留。本轮静态阻断关闭，可编译并运行真实CI探针；25项本机host离线结果不替代Android Rwe、proto或IME行为验收。
+
+## 2026-10-20 M3 原生 trace 离线分析封闭任务
+
+本次实际读取 `ci-bcc64c1-curve/raw/ime-native-traces/light-1.0-import` 三原件并重算SHA，与stopped-device records一致：clients107858字节/42事件，service10167字节/14事件，manager2365字节/5事件。三个envelope共享realToElapsedOffsetNanos=1792495943001068967；实际测试merge8e8f8877aa5dc07b6e0e1c9ee6603cbde07ef249，run39414723962。Rwe probe/start/stop收到完整ACK，非旧空输出。
+
+完整性仍有边界：collection-complete实际PARTIAL_OR_UNAVAILABLE，客户端min44.942367724/max46.046876631秒未包住recreate44.916661341/比较46.405935354两端。事件驱动trace没有端点事件不自动证明截断，但也不能直接把collector改PASS；三文件存在、SHA正确只证明原件可分析，不证明每时刻状态都被采到。
+
+已独立读envelope排序：manager hide44.935470505→service hide44.936293876；manager startInput45.244204594→show45.246424124→service show45.247343845；client hide45.276536059；client notifyHidden45.386272340→manager hide45.386429857；client showInsets45.501294770、service hide45.503313206、client hideInsets45.505835865；client notifyHidden45.920581995→manager hide45.920710919。仅证明真实show/hide交错，不证明应用主动hide或具体根因。
+
+交Sol只读任务：从官方Android14 tag解析不可变commit，取inputmethod trace及递归import proto，保存URL/ref/SHA并与SDK34 dumpDebug字段链核对；不得以strings/猜field编号当正式解码，也不把参考源当CI二进制认证。完整解析三文件全部entry与unknown fields；用同设备elapsedRealtimeNanos排序，offset仅wall换算，不混host/mock clock。对齐trace-state marker和产品事件前先核clock/单位。提取schema实际存在的旧新window/root/inputConnection/editor package/fieldID/servedView、焦点、requested/current visibility、control target、animation、show/hide flags/reason；缺失值保unknown，不把proto absent当false。
+
+沿每个where对应SDK/AOSP调用位置核dump发生在动作前还是后。尤其核第二次hide请求主体、旧新token关联、show回调与隐藏通知关系；跨进程先后不是因果证明。输出三decoded JSON、统一timeline JSON/MD、schema来源与完整性限制到build evidence。结论分observed/source-inferred/unknown；未判明请求主体前不改生产，不盲加show重试、不放宽scroll恢复断言。若字段不足，提出下一次最小诊断采集，不伪造本次结论。

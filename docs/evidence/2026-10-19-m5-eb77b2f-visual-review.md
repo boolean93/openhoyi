@@ -93,3 +93,25 @@ Comparison 四主图的主绘图区已恢复主次关系，1.3 摘要区初始�
 剩余封闭项仅Comparison目标inventory：动态controls>=7/details非空和实际目标数不足以防止漏目标。要求7个既有tag各唯一：comparison-first/second/swap，comparison-metric-PRESSURE/WATER/WEIGHT/TEMPERATURE；source-legend与source-1/2各唯一；UNKNOWN实际scope须有warning。表头+3原label行、A/B taste、A/B detail与notes4按钮分别有稳定semantic key，按钮按现有本地化文本与所属details树核身份，不新增生产tag。runner按固定集合+条件warning精确比对，不只count。已交root协调原owner收口。
 
 M5 exact inventory复核收口：最新候选20固定key，原journal selected statuses决定UNKNOWN第21目标；7tag各唯一、4原动作本地化文本/parent归属、所有View distinct，runner按固定集合与长度双重精确检查。最后静态阻断关闭，可编译/实际CI；原76图失败不据此关闭。
+
+## 2026-10-20 bcc64c1 实际 PR 样本增量验收
+
+再次从本包 History manifest 核对：run39414724042，head `bcc64c1a10c1bff6cd08d4e786b0807f27fe8a4d`，实际 tested merge `8e8f8877aa5dc07b6e0e1c9ee6603cbde07ef249`。原件位于 `build/task-first-evidence/ci-bcc64c1-m5/raw/raw-device/8e8f8877aa5dc07b6e0e1c9ee6603cbde07ef249/tablet-user-landscape-light-font-1.3/history/`。根已核 ZIP SHA e5e0c546411dbf986616226b68d4a7de333cc2e404806a580d85fe63e515a893 与 85 条 CRC；完整性不等于视觉通过。
+
+### 失败根因及最小修正规格
+
+`requireEmbeddedHistoryInitial:673` 的 `legendActions.length()==4` 是测试错误，不是该样本布局/坐标失败。实际 missing-samples 图仅压力、水、温度三个图例，均高108px且完整可见；原始采样数0，实际空网格 plot 及初始可见 plot 均96.44374dp。`FourMetricChartProjection.build` 对 current/reference 都无 weight segment 的情况明确不生成 WEIGHT；不能用 observation 的结束秤读数虚构采样图例。
+
+仅改 `ExtractionHistoryVisualMigrationChecks.kt` 与 M5 runner：从独立声明的当前/参考夹具样本推导精确有序 metric tag 集合，恒有 PRESSURE/WATER/TEMPERATURE；任一样本 weightHundredthsGram 非 null 才在 WATER 后包含 WEIGHT。实测 actions semanticId 必须与集合逐项相同、无重复、无缺失、多余，仍逐项核48dp、完整screen与Layout。不得改成数量>=3或笼统 emptyExpected→3，也不得以实际 projection/按钮自身作为期望oracle。主态四项仍必须精确匹配。runner 当前218及主态276应同步使用对应独立夹具的精确契约。
+
+空样本可以仍绘制真实空网格，所以 actualPlotHeightDp 非 null 合法；emptyExpected 的 actualSampleCount==0/无数据 path 必须独立于 plot-null 分支核验。保留有实际plot时96dp与1.0整轴要求；不造plot、不增加WEIGHT、不修改生产。已批准16主+60特殊、协议2/真实5s/零差/滚达恢复不变。
+
+### 实际 PNG 与 G1–G4 限定结论
+
+本次亲看主态、missing-samples，以及 chart/explanation/note-0/note-1/restored 五张原始 PNG。浅色1.3主态真实29样本、plot96.44374dp，固定动作完整。chart滚至129时整个图及时间轴完整；说明滚至226完整；豆款与口感分别328/412完整可读，restored回0且永久说明identity、journal与精确scroll恢复均有JSON证据。初始轴在局部scroll下方不违反已批准1.3规则；不以此外推1.0整图。
+
+此一浅色1.3 History主态：G1/G3 在已采初态及上述四目标/恢复范围 LIMITED_PASS；G2/G4 原有角色、字体大小层次、数字单位、系列与主辅颜色在本次PNG未见回归，仅限所见样本。missing-samples初态三图例/空网格/“尚无萃取采样”语义正确，G1初态未见失败；因673提前终止，其后说明/notes滚达未执行，G3全链仍 PENDING。未采其他profile、Comparison与独立详情新修复，不能关闭原标准1.0截轴、整格边框或UNKNOWN 67.55dp旧失败。
+
+本run整体 FAIL。font_scale 原presence/value未恢复是独立清理失败，不能归入图例断言或由本次修正关闭。全24页仍未通过。
+
+bcc图例窄修最新两文件diff已复核：独立声明current/reference，实际chart.points/overlay.reference全等，有序semanticId精确匹配，runner同契约；原missing-samples后续raw空/segments空/vertices空检查继续保留。静态无剩余阻断；实际CI仍待，不据构建成功关闭视觉/清理缺口。

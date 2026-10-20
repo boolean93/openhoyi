@@ -26,13 +26,18 @@ def console_ok(result):
 
 
 def snapshot_names(result):
-    require(result.returncode == 0 and not result.stderr.strip(), 'snapshot list command failed')
+    require(result.returncode == 0 and result.stderr == '', 'snapshot list command failed')
     lines = result.stdout.strip().splitlines()
     require(lines and lines[-1] == 'OK', 'snapshot list missing terminal OK')
+    payload = [line.strip() for line in lines[:-1] if line.strip()]
+    header = 'List of snapshots present on all disks:'
+    empty_rows = ('No snapshots available', 'There is no snapshot available.')
+    if any(line in empty_rows for line in payload):
+        require(payload[-1] in empty_rows and payload[:-1] in ([], [header]), 'mixed snapshot empty/list response')
+        return []
     names = []
-    for line in lines[:-1]:
-        line = line.strip()
-        if not line or line in ('List of snapshots present on all disks:', 'No snapshots available'):
+    for line in payload:
+        if line == header:
             continue
         if re.fullmatch(r'ID\s+TAG\s+VM SIZE\s+DATE\s+VM CLOCK(?:\s+ICOUNT)?', line):
             continue

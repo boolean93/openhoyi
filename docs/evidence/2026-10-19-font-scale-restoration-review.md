@@ -23,3 +23,11 @@
 已读最新版probe/test/workflow：官方processes冒号配置解析、transport与ro.serialno分开、save/list/pull三前提、load前后完整identity、host fsync intent/ACK分开、未知save或pull失败零load零delete、递归SHA、present基线只CAPABILITY_PASS_ABSENCE_NOT_PROVED均收口。9项离线测试覆盖解析与cleanup契约，不证明Android snapshot能力。静态无新阻断，可运行独立guarded CI能力探针；不接原runner、不关闭font_scale严格恢复FAIL。
 
 触发补充：允许独立probe workflow新增pull_request目标develop，随下一正常PR合批触发，不为探针微推；保workflow_dispatch、只读contents、唯一run/attempt/job AVD、独立guard、25min和always artifact。不依赖或修改原视觉runner，不改变验收契约。
+
+## bcc64c1 后空列表真实输出适配窄审
+
+读取 `ci-bcc64c1-snapshot/raw/013.command.json` 及原始stdout/stderr/exit：命令emu avd snapshot list，stdout字节为 `There is no snapshot available.\nOK\n`，stderr空字节，exit0。新增空列表分支匹配该真实语句，要求terminal OK，且空结果不能与未知行、错误或实际snapshot行混合；未修改save/load/隔离/恢复语义。它只修探针前置解析，不证明save/load或font恢复能力。
+
+窄审发现继承guard仍用 `not result.stderr.strip()`，实构造空白stderr ` \n` 也通过，与本轮精确空stderr契约不一致。最小收口只将snapshot_names guard改为 `result.stderr == ''`，补空白stderr负例；其余原流程不扩改。已报root，当前等待此单点收口。
+
+空stderr单点已收口：已复核snapshot_names要求rc0且stderr严格空字符串，新增空白stderr负例；本审查实际运行10项离线单测全部通过。当前两文件diff仅真实空列表语句适配与该严格守卫/负例，符合原探针边界，静态无剩余阻断。probe SHA256 `e99d77296a7ec3fccab9f8340e76bdc639ea3c59979c0c2311a060a1164f5d58`；test SHA256 `ceda4fa6ec9d5de50f5ddc138b9ce1b9390838917b04417787b295af6ef6bc90`。仅解析/离线契约通过，save/load和font_scale恢复能力仍未验证。

@@ -299,6 +299,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             fixture=JSONObject().put("page",page).put("firstId",firstId).put("secondId",secondId).put("curveId",curveId)
                 .put("history",JSONArray(history.entries.map { it.toString() })).put("journal",JSONObject(journal.exportJson()))
                 .put("firstSamples",pointRecords(first)).put("secondSamples",pointRecords(second))
+                .put("historyReferenceSamples",pointRecords(emptyList()))
                 .put("historySpecialInputs",JSONArray(historySpecialIds.map { (name,id) ->
                     JSONObject().put("case",name).put("shotId",id).put("journal",requireNotNull(journal.find(id)).toString())
                         .put("sampleFileExists",File(ownedDirectory,"samples/samples-$id.tsv").isFile).put("samples",pointRecords(expectedSamples(id)))
@@ -657,9 +658,13 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("actualPlotHeightDp",plotBox?.let {it.height()/activity.resources.displayMetrics.density} ?: JSONObject.NULL)
             .put("initialVisiblePlotHeightDp",visiblePlot?.let {it.height()/activity.resources.displayMetrics.density} ?: JSONObject.NULL)
     }
-    private fun requireEmbeddedHistoryInitial(activity: Activity, folder: File, evidence:JSONObject, emptyExpected:Boolean=false) {
+    private fun requireEmbeddedHistoryInitial(activity: Activity, folder: File, evidence:JSONObject,
+        declaredCurrent:List<ShotPoint>,declaredReference:List<ShotPoint>,emptyExpected:Boolean=false) {
         val density=activity.resources.displayMetrics.density
         File(folder,"history-initial-chart.json").writeText(evidence.toString(2))
+        val chart=nodes(root(activity)).filterIsInstance<ShotChartView>().single()
+        val overlay=nodes(chart).filterIsInstance<ExtractionOverlayView>().single()
+        check(chart.points==declaredCurrent && overlay.reference==declaredReference)
         check(evidence.getBoolean("samePermanentProducerView") && evidence.getBoolean("externalSiblingAfterChart") &&
             evidence.getBoolean("sameProjectionSamplingDescription"))
         if(evidence.isNull("actualPlotHeightDp")) {
@@ -670,7 +675,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val budget=evidence.getJSONObject("budget")
         check(budget.getInt("chartLegendNaturalPx")>0 && budget.getInt("externalExplanationNaturalPx")>0 &&
             budget.getString("explanationPlacement")=="same_permanent_producer_view_after_complete_chart_before_notes")
-        val actions=evidence.getJSONArray("legendActions");check(actions.length()==4)
+        val hasWeight=(declaredCurrent+declaredReference).any {it.weightHundredthsGram!=null}
+        val expectedLegend=listOf("chart-metric:PRESSURE","chart-metric:WATER")+
+            (if(hasWeight)listOf("chart-metric:WEIGHT") else emptyList())+"chart-metric:TEMPERATURE"
+        val actions=evidence.getJSONArray("legendActions")
+        check((0 until actions.length()).map {actions.getJSONObject(it).getJSONObject("observation").getString("semanticId")}==expectedLegend)
         for(index in 0 until actions.length()) {
             val value=actions.getJSONObject(index)
             check(value.getInt("heightPx")>=(48*density).toInt())
@@ -1073,6 +1082,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         .put("endedAtMs",source.observation.endedAtMs ?: JSONObject.NULL)
                         .put("weightHundredthsGram",source.observation.weightHundredthsGram ?: JSONObject.NULL))
                     .put("notes",source.notes.toString()).put("declaredSamples",pointRecords(expected))
+                    .put("declaredReferenceSamples",pointRecords(emptyList()))
                     .put("status","RUNNING").put("visualAcceptance","ASTRA_PENDING")
                 entries.put(proof); persist()
                 try {
@@ -1100,7 +1110,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     val captured=capture(activity,caseDirectory)
                     proof.put("frameSync",captured.proof)
                     main {
-                        if(page=="history")requireEmbeddedHistoryInitial(activity,caseDirectory,captured.target.getJSONObject("embeddedHistoryPreview"),expected.isEmpty())
+                        if(page=="history")requireEmbeddedHistoryInitial(activity,caseDirectory,captured.target.getJSONObject("embeddedHistoryPreview"),expected,emptyList(),expected.isEmpty())
                         if(page=="history-detail")requireStandaloneHistoryPlot(activity,caseDirectory,captured.target.getJSONObject("standaloneHistoryPlot"),expected.isEmpty())
                     }
                     main {
@@ -1251,7 +1261,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             check(font==TaskProductVisualStyle.FONT_SHA); manifest.put("fontSha256",font)
             main {
                 val window=captured.target; manifest.put("window",window)
-                if(page=="history")requireEmbeddedHistoryInitial(activity,directory,window.getJSONObject("embeddedHistoryPreview"))
+                if(page=="history")requireEmbeddedHistoryInitial(activity,directory,window.getJSONObject("embeddedHistoryPreview"),active.expectedSamples(active.firstId),emptyList())
                 if(page=="history-detail")requireStandaloneHistoryPlot(activity,directory,window.getJSONObject("standaloneHistoryPlot"),false)
                 val charts=window.getJSONArray("charts")
                 check(charts.length()>0 && (0 until charts.length()).all { charts.getJSONObject(it).getJSONArray("canvasEvidence").length()>0 }) {

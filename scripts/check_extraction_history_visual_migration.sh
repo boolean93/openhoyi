@@ -201,7 +201,11 @@ def require_reach(folder,page,expected_warning=False):
         phases=[f'comparison-target-{index}-reachable' for index in range(len(expected))]+['comparison-scrolls-restored']
     for phase in phases:require_proof(folder/'states'/phase/'window-frame-sync.json')
 
-def require_history_special(folder,window,empty_expected):
+def expected_history_legend(current,reference):
+    has_weight=any(point['weightHundredthsGram'] is not None for point in current+reference)
+    return ['chart-metric:PRESSURE','chart-metric:WATER']+(['chart-metric:WEIGHT'] if has_weight else [])+['chart-metric:TEMPERATURE']
+
+def require_history_special(folder,window,empty_expected,current,reference):
     evidence=window['embeddedHistoryPreview']
     assert json.loads((folder/'history-initial-chart.json').read_text())==evidence
     assert evidence['samePermanentProducerView'] and evidence['externalSiblingAfterChart'] and evidence['sameProjectionSamplingDescription']
@@ -215,7 +219,7 @@ def require_history_special(folder,window,empty_expected):
         if window['fontScale']==1.0:
             assert evidence['chart']['complete'] and evidence['axisInk']
             assert all(x['completeInVisiblePlotView'] for x in evidence['axisInk'])
-    assert len(evidence['legendActions'])==4
+    assert [action['observation']['semanticId'] for action in evidence['legendActions']]==expected_history_legend(current,reference)
     assert all(x['screenVisibility']['complete'] and x['heightPx']>=108 for x in evidence['legendActions'])
 
 def require_standalone(folder,window,empty_expected):
@@ -261,6 +265,7 @@ for path in manifests:
     assert isolation['allActivitiesDestroyed'] and isolation['historyDetailReadersTerminated'] and isolation['comparisonReaderPoolsTerminated']
     assert isolation['mainQueueBarrierAfterReaders'] and isolation['scopedWritersTerminated']
     assert (folder/'geometry.json').is_file() and (folder/'fixture.json').is_file()
+    fixture=json.loads((folder/'fixture.json').read_text())
     if m['page']=='history':
         preview=m['window']['embeddedHistoryPreview']
         assert preview['budgetSource']=='deep_copy_existing_EmbeddedHistoryPreview.productLayoutEvidence'
@@ -273,7 +278,8 @@ for path in manifests:
         assert budget['minimumPlotDp']==96 and budget['chartLegendNaturalPx']>0 and budget['externalExplanationNaturalPx']>0
         assert budget['explanationPlacement']=='same_permanent_producer_view_after_complete_chart_before_notes'
         assert preview['actualPlotHeightDp']>=96 and preview['initialVisiblePlotHeightDp']>=96
-        assert len(preview['legendActions'])==4
+        assert fixture['historyReferenceSamples']==[] and any(point['weightHundredthsGram'] is not None for point in fixture['firstSamples'])
+        assert [action['observation']['semanticId'] for action in preview['legendActions']]==expected_history_legend(fixture['firstSamples'],fixture['historyReferenceSamples'])
         assert all(action['screenVisibility']['complete'] and action['heightPx']>=108 for action in preview['legendActions'])
         assert json.loads((folder/'history-initial-chart.json').read_text())==preview
         assert json.loads((folder/'geometry.json').read_text())['embeddedHistoryPreview']==preview
@@ -316,7 +322,10 @@ for path in manifests:
             require_proof(target/'window-frame-sync.json')
             require_reach(target,m['page'],expected_warning=case['observation']['status']=='UNKNOWN')
             if m['page']=='history-detail':require_standalone(target,observed,case['case']=='missing-samples')
-            if m['page']=='history':require_history_special(target,observed,case['case']=='missing-samples')
+            if m['page']=='history':
+                assert case['declaredReferenceSamples']==[]
+                if case['case']=='missing-samples':assert case['declaredSamples']==[]
+                require_history_special(target,observed,case['case']=='missing-samples',case['declaredSamples'],case['declaredReferenceSamples'])
             assert case['frameSync']['protocolVersion']==2 and case['frameSync']['accepted']
             segments=case['actualProjectedSegments']; vertices=case['actualCanvasCurrentMetricVertexCounts']
             assert vertices==[len(segment) for segment in segments] and len(segments)==case['actualCanvasCurrentMetricPathCount']

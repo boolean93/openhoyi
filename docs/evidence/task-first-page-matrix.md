@@ -2,9 +2,17 @@
 
 ## 当前状态（优先于下方历史观察时点）
 
-最新远端 head `49a1b46`，PR 实测 merge `46e2dbc79ca0732290db92b5c78ad097c82c86cb`。M5 CI `39204483061` 成功且16主manifest/840引用文件核验完整；M2/M3/M4/M6/M7及single对应失败仍保留，候选修复不能代替运行关闭。
+最新远端 head `bcc64c1a10c1bff6cd08d4e786b0807f27fe8a4d`，本轮 PR 实测 merge `8e8f8877aa5dc07b6e0e1c9ee6603cbde07ef249`（M5/M8 原始产物确认）。2026-10-20 本轮 native 与 branch-policy 已通过，其余检查仍在运行或失败，不能沿用旧批次成功。原 `49a1b46` / merge `46e2dbc79ca0732290db92b5c78ad097c82c86cb` 的 M5 CI `39204483061` 成功和16主manifest/840引用文件仅为历史证据。
 
-当前未提交候选包含M8三页、M5/M6布局修正和测试取证收口。Mock最新布局构建成功30秒；M5/M8统一AndroidTest第二次成功32秒，首次两处类型失败日志保留。M8 requiredproof/滚动恢复/dialog自身字体及按钮角色报告已补齐，Astra最终静态无剩余阻断；最后AndroidTest构建成功30秒，实际12图及特殊态仍待新CI。独立snapshot探针9项离线测试与Astra静态审通过，尚无Android恢复证明。
+本轮已提交 M8 三页、M5/M6 布局修正和测试取证收口；真实 CI 仍有阻断。M8 `39414724094` 首个 AppSettings 1.3 截图同步失败，已定位 S1 初始滚动条渐隐、其余 W1/D1/D2/W2/S2 同像素，原5秒零差门禁继续保留；拟用私有 scrollbar state 的方案因 maxTargetSdk=R 被撤回，不进入本批，渐隐问题未关闭。M5 `39414724042` 第673行失败经 Astra 对照实图确认是缺采样态合法三图例却被固定要求四项；真实浅色1.3 History 主态、图表/说明/两项notes可达与恢复仅此样本限定通过，未外推未执行态。字体设置恢复是独立失败。原始 ZIP 远端 SHA 与 CRC 已校验，分别保存在 `build/task-first-evidence/ci-bcc64c1-settings/` 与 `ci-bcc64c1-m5/`。
+
+其余新失败：scale `39414724076` 非零 surfaceInsets 不受采集器支持；legacy `39414724165` Window-layer/decor/metrics 映射未知；curve `39414723962` 重建前后 scrollY 4885→4281、IME未恢复，文本/selection/focus未变。本轮已真正取得原生 IME trace，尚待因果分析，不先猜改生产。三组原始产物已分别保存并校验 SHA/CRC 于 `ci-bcc64c1-scale/curve/legacy`。升级回归 `39414724019` 已通过，不代替视觉或硬件验收。
+
+独立 snapshot 探针 `39414724127` 在解析真实空列表响应时失败，尚未保存/加载/修改字体，不能据此判断恢复能力。后续未提交窄修仅适配精确响应并收紧空 stderr，10项离线测试及 Astra 静态复核通过；恢复能力仍待新 CI。TaskFrame 本轮“Missing steam temperature group”已定位为旧文案选择器不适配新 label；候选仅改测试定位，保留滚动、完整可见及输入不变门禁；本地 AndroidTest 构建已通过29秒，Astra 静态审查无阻断，仍待新 CI 复验。
+
+single `39414724030` 三配置（含用户2560×1600）及 advanced `39414723959` 已通过。Astra 已核两个1600×1000配置的八张旧版历史/详情中文浅深原图及同run checkout SHA，旧chart结构适配、首屏96dp交集断言与列表返回恢复限定闭合；single包缺独立Canvas数值与M7 protocol2逐目标proof，不能替代完整M7或G1–G4。用户2560×1600四张中文浅深旧版历史/详情原图也已由 Astra 核验，无新确认偏差；同样仅限旧结构及已有列表恢复边界。
+
+本轮 PR 已全部结束：6项成功、8项失败。M4 bean `39414724217` 的12主配置均完成机械布局/隔离检查，原始777条ZIP CRC及736个manifest引用SHA均核验；最终失败是 `font_scale` 原key缺失但恢复后被系统补写1.0，`originalExitStatus=0`。保留cleanup失败，同时允许对已完整产出的真实图进行独立G1–G4验收；尚未把这3页标为视觉通过。
 
 完整24页未最终验收。M1三页保持既有限定通过；M5已采G2/G4限定通过、明确G1/G3失败或证据缺口见下表及新review。其余页面不由构建/CI绿色推定视觉通过。当前全部工作仅本地/CI，不安装、不合并、不发版。
 

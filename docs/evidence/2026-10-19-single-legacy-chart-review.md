@@ -9,3 +9,25 @@ verify可增加默认null expectedLegacyShot，但LegacyDetail分支requireNotNu
 ## 候选三文件静态复核
 
 已读SingleScreenPageChecks/ListStateChecks/WindowRun最新diff：仅LegacyDetail显式访问唯一LegacyChartViewport.chart，不改变全局visit停ScrollView；原fixture LegacyShot由ListState当前选中原row或WindowRun导入后保留legacyBefore传入，id和points精确相等，不从chart反推预期。保同root/token/display/祖先identity与实测坐标映射，核实际Canvas plot及viewport可见交集96dp，而非长chart整框首屏完整。其余原返回身份/视口检查保留。ChineseForm现有调用未出现LegacyDetail路径。静态无新阻断，可重跑三个profile；不以编译成功关闭旧失败。
+
+## 2026-10-20 bcc64c1 两个1600×1000 profile 限定实际验收
+
+实际包：`build/task-first-evidence/ci-bcc64c1-single/single-screen-tablet-landscape/raw` 与 `single-screen-tablet-large-font/raw`。artifact元数据指向run39414724030/head bcc64c1a10c1bff6cd08d4e786b0807f27fe8a4d；根核ZIP SHA分别98df540d172ce7604256d7311bfcf788414278ef219387971e4ec3859d8ab507、9472b6375f902ade32a26d6cf822bbb2959aab014081f0f686bd6a6f76ab3c94，CRC分别646/638。该包未带tested-merge manifest，已向根索取同run checkout resolved SHA，不从另一CI run推定。
+
+本次亲看两个profile×浅深×History/Detail共8张中文原PNG。density1.25、fontScale分别1.0/1.3；History列表/选中预览及Detail双系列真实可见，图例、坐标轴、时间轴在这8张初屏均完整。Detail来源/四项缺失数据/解释限制全文初屏可见，固定动作未被挤出；未发现新的已确认UI偏差。large-font History警示曾因浅图缩览怀疑尾部省略，配套实际Layout核31 UTF16、ellipsisCount=0、文字713px≤内容724px，深色PNG全文可见，故不立此FAIL。
+
+`instrumentation.txt` 有两profile各16语言主题组合 LegacyDetail PAGE_OK，`result.txt` 均checked336/legacyDetailFixture=true。对应冻结检查实际走唯一viewport/chart身份与独立fixture points全等、Canvas plotBounds及screen可见交集≥96dp，不再被ScrollView通用遍历截断。PNG亦可直接看到真实plot远大于120px(96dp)，不是仅大外框。配套layout记录Detail viewport/chart同为894×603（1.0）或894×584（1.3），首屏全可见；注意这些是View外框，不代替Canvas数值。原件没有单独落盘plotBounds精确值，不能捏造新的dp测量结果。
+
+列表恢复原记录：1.0 LegacyHistory recreate/detail-return均position3/offset−83；1.3均position3/offset−18，gesture=swipe/journal=false。因此旧Single LegacyDetail结构漏查导致的失败，在这两个profile已获得实际执行+PNG的限定闭合；列表返回恢复亦有原记录。
+
+这不是M7完整协议2/真实5s/零差取证或右侧各目标滚达恢复的替代品：single包无该组逐目标proof，也未落独立Canvas完整参数。这里只对两profile已采初屏与Single既有门禁作LIMITED_PASS，不称G1–G4全通过，不外推2560×1600用户平板、短窗、特殊态或全24页。
+
+同run源码身份补齐：亲核 `ci-bcc64c1-single/job-118600839146.log` 与 `job-118600839517.log` 各131–134行，checkout后git log实际均8e8f8877aa5dc07b6e0e1c9ee6603cbde07ef249；均记Merge bcc64c1 into 8e12fe159db6bbd5aa168ea938645b091f4d1300。上述tested-merge待证项据此关闭，不再依赖跨run推定。
+
+## 用户2560×1600配置增量
+
+追加原包 `ci-bcc64c1-single/single-screen-tablet-user-landscape/raw`，artifact12262052466；根已核SHA629cec9abea6ca994a84a96e644965582be1666b3912f289f662b68a60b58928与646CRC。亲核同run job118600839661 checkout日志133–134行，testedmerge仍8e8f8877aa5dc07b6e0e1c9ee6603cbde07ef249。
+
+本次亲看中文浅深History/Detail四张原2560×1600 PNG，density2.25/fontScale1.0。两系列真实plot、完整轴/时间标、图例、历史只读警示、Detail数据来源/缺失数据/解释限制及固定动作均可见；未发现本四张已确认新偏差。Detail实际viewport/chart同为1398×874，screen[252,519,1650,1393]全可见（仍是外框，不伪称Canvas精确数值）。原Single运行checked336/legacyDetailFixture=true，实际执行独立points身份+Canvas与可视交集96dp断言；列表recreate/detail-return均position3/offset−17、gesture=swipe。
+
+因此三个profile的旧Single结构漏查修复与既有列表恢复门禁均获得限定实际闭合；用户配置不再是未跑。但该包同样不替代M7 protocol2逐目标滚达/短窗/特殊态，不构成G1–G4或全24页验收。其他M8设置图未在本轮专项审查，不能据single成功补成通过。

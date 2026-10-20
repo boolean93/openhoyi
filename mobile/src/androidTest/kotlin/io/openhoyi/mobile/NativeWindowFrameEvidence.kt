@@ -162,6 +162,7 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
         var targetDecor: View? = null
         var targetToken: android.os.IBinder? = null
         var targetDisplayId: Int? = null
+        var mappingDiagnosticReason: String? = null
         fun imageName(role: String) = when (role) {
             "display" -> file.name
             else -> "${file.nameWithoutExtension}-$role.png"
@@ -332,9 +333,16 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                     val ds = before.getJSONArray("decorLocationOnScreenPx")
                     if (activity != null) {
                         val metrics = activity.windowManager.currentWindowMetrics.bounds
-                        check(dw.getInt(0) == 0 && dw.getInt(1) == 0 && metrics.left == ds.getInt(0) && metrics.top == ds.getInt(1) &&
+                        val mapped = dw.getInt(0) == 0 && dw.getInt(1) == 0 && metrics.left == ds.getInt(0) && metrics.top == ds.getInt(1) &&
                             metrics.width() == decor.width && metrics.height() == decor.height &&
-                            screen.left - source.left == ds.getInt(0) && screen.top - source.top == ds.getInt(1)) {
+                            screen.left - source.left == ds.getInt(0) && screen.top - source.top == ds.getInt(1)
+                        if (!mapped && dw.getInt(0) == 0 && dw.getInt(1) == 0 &&
+                            screen.left - source.left == ds.getInt(0) && screen.top - source.top == ds.getInt(1) &&
+                            (metrics.left != ds.getInt(0) || metrics.top != ds.getInt(1) ||
+                                metrics.width() != decor.width || metrics.height() != decor.height)) {
+                            mappingDiagnosticReason = "ACTIVITY_DECOR_DIFFERS_FROM_HOST_METRICS"
+                        }
+                        check(mapped) {
                             "Unknown Window-layer/decor/metrics origin mapping"
                         }
                     } else {
@@ -361,6 +369,9 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                         check(result.resultCode == PixelCopy.SUCCESS) { "PixelCopy $role failed: ${result.resultCode}" }
                         // SDK34 offsets this input Rect by surfaceInsets. A fresh
                         // Rect prevents accumulated offsets; nonzero offsets FAIL.
+                        if (activity == null && result.sourceRectAfterSdk != source) {
+                            mappingDiagnosticReason = "EXPLICIT_WINDOW_PIXELCOPY_SOURCE_RECT_OFFSET"
+                        }
                         check(result.sourceRectAfterSdk == source) { "Nonzero surfaceInsets: Window-layer buffer origin is unsupported" }
                         val bitmap = requireNotNull(result.bitmap)
                         attempt.put(role, bitmapDescription(bitmap)).put("${role}AppArgbSha256", pixelSha(bitmap))
@@ -459,6 +470,17 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
         } catch (failure: Throwable) {
             try { retained?.let { persist(it, true) } } catch (diagnosticFailure: Throwable) { failure.addSuppressed(diagnosticFailure) }
             writeProof(false, failure.stackTraceToString())
+            mappingDiagnosticReason?.let { reason ->
+                // Separate clock and files. This does not change the original proof or result.
+                try {
+                    WindowOriginDiagnostic(test).capture(window, root, requireNotNull(file.parentFile), reason,
+                        source = attempts.optJSONObject(attempts.length() - 1)?.optJSONArray("windowSourceRectPx"),
+                        screen = attempts.optJSONObject(attempts.length() - 1)?.optJSONArray("displayAppRectPx"),
+                        expectedDecor = targetDecor, expectedToken = targetToken, expectedDisplayId = targetDisplayId)
+                } catch (_: Throwable) {
+                    // The diagnostic records its own error and must never replace the original failure.
+                }
+            }
             throw failure
         } finally {
             retained?.recycle()

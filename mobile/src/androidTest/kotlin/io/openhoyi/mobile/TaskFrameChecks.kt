@@ -49,6 +49,20 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             originalY = scroll.scrollY
             inputValues = descendants(scroll).filterIsInstance<EditText>().map { it.text.toString() }
         }
+        fun steamGroup(): List<android.widget.TextView> {
+            val row = descendants(scroll).single { it.tag == "product/settings/machine/steam/row" }
+            check(row.isShown) { "Steam temperature section is not visible" }
+            val views = descendants(row)
+            val input = views.filterIsInstance<EditText>().single {
+                it.hint.toString() == activity.getString(R.string.machine_settings_steam_input)
+            }
+            val label = views.filterIsInstance<android.widget.TextView>().single { it.labelFor == input.id }
+            val action = views.filterIsInstance<android.widget.TextView>().single {
+                it.tag == "product/settings/machine/steam/action" &&
+                    it.text.toString() == activity.getString(R.string.machine_settings_steam_set)
+            }
+            return listOf(label, input, action)
+        }
         val targets = if (machineSettings) listOf(
             "temperature-bottom" to activity.getString(R.string.machine_settings_steam_set)
         ) else if (scaleSettings) listOf(
@@ -62,12 +76,9 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 main {
                     val target = descendants(scroll).filterIsInstance<android.widget.TextView>().single { it.text.toString() == label }
                     if (machineSettings) {
-                        val label = activity.getString(R.string.machine_settings_steam_input)
                         val content = scroll.getChildAt(0) as ViewGroup
-                        val group = descendants(content).filterIsInstance<android.widget.TextView>().filter {
-                            it === target || it.text.toString() == label || (it is EditText && it.hint.toString() == label)
-                        }
-                        check(group.size == 3) { "Missing steam temperature group" }
+                        val group = steamGroup()
+                        check(group.last() === target) { "Missing steam temperature group" }
                         val requested = Rect()
                         group.forEach { view ->
                             val bounds = Rect(0, 0, view.width, view.height)
@@ -82,10 +93,9 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 fun recordGeometry(phase: String) = main {
                     val visibleWindow = Rect()
                     activity.window.decorView.getWindowVisibleDisplayFrame(visibleWindow)
-                    val lines = descendants(scroll).filterIsInstance<android.widget.TextView>().filter {
-                        it.text.toString() == label || (machineSettings && (it.text.toString() == activity.getString(R.string.machine_settings_steam_input) ||
-                            (it is EditText && it.hint.toString() == activity.getString(R.string.machine_settings_steam_input))))
-                    }.map { view ->
+                    val lines = (if (machineSettings) steamGroup() else descendants(scroll).filterIsInstance<android.widget.TextView>().filter {
+                        it.text.toString() == label
+                    }).map { view ->
                         val bounds = Rect()
                         view.getGlobalVisibleRect(bounds)
                         "${view.javaClass.simpleName} text=${view.text} visible=$bounds size=${view.width}x${view.height}"
@@ -117,8 +127,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                         LanguageUiLayoutChecks.textFits(target, "settings/$name")
                     }
                     if (machineSettings) {
-                        val inputLabel = activity.getString(R.string.machine_settings_steam_input)
-                        val steamViews = labels.filter { it.text.toString() == inputLabel || (it is EditText && it.hint.toString() == inputLabel) }
+                        val steamViews = steamGroup().take(2)
                         check(steamViews.size == 2) { "Missing steam temperature label/input" }
                         steamViews.forEach { view ->
                             val bounds = Rect()

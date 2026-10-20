@@ -54,3 +54,17 @@ App 640dp 中心整页滚动四组，Scale 688dp 三组，Machine 40:60 自然�
 - check_settings_visual_migration.sh：`6cef960c600b40b67127cdabba3744eaf55ee6e273f31d11675e74d561619ad9`
 
 此结论不是运行或视觉PASS。12主图及既定特殊态仍需新CI原件与Astra图审；原font_scale恢复、硬件及其它页失败各自保留。
+
+## 2026-10-20 首轮 scrollbar 渐隐采集修正规格
+
+根与实现owner从 bcc64c1 Settings 实际包报告：S1右缘9×723灰条，后五缓冲完全一致，仅S1差6507px；本节据其原件定位报告定最小采集方案，不冒充本审查者已完成12图验收。
+
+核本机官方SDK34 `View.java:21249–21268`：ScrollabilityCache OFF=0/ON=1/FADING=2；onDrawScrollBars 的 FREEZE_END 将state置OFF，但该调用仍继续本帧绘制，所以只看OFF尚不足以保证最后灰条已提交消失。
+
+仅同一 NativeWindowFrameEvidence 协议 started+5000 总deadline内，在S1前增加只读真实绘制稳定前置条件：遍历目标同root显示的开启scrollbar且fading=true的View，读取mScrollCache.state。ON/FADING继续等待实际帧，OFF后须再完成一次真实hardware commit，复读OFF及scroll/geometry未变才开始原S1…S2。无cache明确记录；非fading静态滚动条不要求OFF。反射不可用/未知state/跨root/超时直接FAIL，不能假定已稳定。记录View身份/tag、fade/state、scroll与实际elapsed；所有等待计入原5s，不重置、不另设隐藏等待预算。后续原四零差域及两display hash仍全部保留，不能把上述条件代替像素验证。不得隐藏滚动条、改动画时长、固定sleep或mask右缘。实际访问能力及新CI仍待验证，不宣称本规格已解决。
+
+TaskFrameChecks本次窄diff已读：定位真实steam row内唯一input及labelFor关联label、原action tag/本地化文本，并复核全局target相同对象，保留原滚达/文本/输入恢复检查。与生产compactTemperatureRows保留原labelFor/input对象吻合；静态无新阻断，编译结果由根留证，实际frame CI仍待。
+
+### scrollbar 前置门规格撤回（同日新证据优先）
+
+SDK34 ScrollabilityCache.state 标注 @UnsupportedAppUsage(maxTargetSdk=R)，项目target35。此前依赖该字段的mandatory OFF门不再批准：不得把高风险不可访问反射设成所有页面的验收前置，不绕hidden API。本批删除settleFadingScrollbars调用及其受限state依赖，恢复原S1前hardware commit、原总5s与四零差协议；两种mapping失败后的独立只读WindowOriginDiagnostic可保留。Settings原渐隐失败仍未关闭。后续仅独立调查公开fade duration/delay、真实帧与各阶段耗时，或优化比较成本争取原预算重试；不把定时等待当稳定证明、不隐藏bar、不增加预算。
