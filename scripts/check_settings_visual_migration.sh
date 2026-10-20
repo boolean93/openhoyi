@@ -26,8 +26,19 @@ entries=[line[len('font_scale='):] for line in result.stdout.replace('\r\n','\n'
 assert len(entries)<=1, 'Ambiguous font_scale snapshot'
 Path(sys.argv[1]).write_text(json.dumps({'present':bool(entries),'value':entries[0] if entries else None},indent=2)+'\n')
 FONT_BEFORE_PY
+matrix_initialized=false
 collect() {
   local exit_status=$1
+  if (( exit_status != 0 )) && [[ "$matrix_initialized" == true ]]; then
+    python3 scripts/settings_matrix_isolation.py abort --output "$output_dir" --exit-status "$exit_status" || true
+    # A later set -e failure must not replace the first already-recorded business failure.
+    local selected_exit
+    if selected_exit=$(python3 scripts/settings_matrix_isolation.py select-exit --output "$output_dir" --fallback "$exit_status"); then
+      if [[ "$selected_exit" =~ ^([1-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])$ ]]; then
+        exit_status=$selected_exit
+      fi
+    fi
+  fi
   if (( exit_status != 0 )); then
     mkdir -p "$output_dir/raw-device" || true
     adb pull "/sdcard/Android/data/$package/files/settings-visual-migration/$source_sha" "$output_dir/raw-device/" || true
@@ -77,6 +88,9 @@ adb shell settings put system user_rotation 0
 # APKs were built by the workflow. Installation is confined to this guarded emulator.
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+matrix_gate=scripts/settings_matrix_isolation.py
+python3 "$matrix_gate" init --output "$output_dir" --source "$source_sha" --apk "$apk_sha"
+matrix_initialized=true
 for product_theme in light dark; do
   if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
   # End with three real 1.0 pages; this removes delete's explicit 1.3 -> default-1.0 transition,
@@ -84,8 +98,12 @@ for product_theme in light dark; do
   for font_scale in 1.3 1.0; do
     adb shell settings put system font_scale "$font_scale"
     for settings_page in app machine scale-settings; do
+      result_file="$output_dir/$product_theme-$font_scale-$settings_page-result.txt"
+      if ! python3 "$matrix_gate" before --output "$output_dir" --page "$settings_page" --theme "$product_theme" --scale "$font_scale"; then
+        break 3
+      fi
       adb shell am force-stop "$package"
-      python3 - "$output_dir/$product_theme-$font_scale-$settings_page-result.txt" "$source_sha" "$source_dirty" "$apk_sha" "$product_theme" "$font_scale" "$settings_page" <<'RUN_PY'
+      if python3 - "$result_file" "$source_sha" "$source_dirty" "$apk_sha" "$product_theme" "$font_scale" "$settings_page" <<'RUN_PY'
 from pathlib import Path
 import json, os, subprocess, sys
 result_path, source, dirty, apk, theme, scale, page = sys.argv[1:]
@@ -123,20 +141,33 @@ command += ['io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrument
 with Path(result_path).open('w') as capture:
     result = subprocess.run(command, stdout=capture, stderr=subprocess.STDOUT, timeout=600)
 text = Path(result_path).read_text()
-if result.returncode or 'SETTINGS_VISUAL_MIGRATION_CAPTURED fixtures=1 realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true' not in text:
+marker = 'SETTINGS_VISUAL_MIGRATION_CAPTURED fixtures=1 realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true' in text
+Path(result_path).with_suffix('.run.json').write_text(json.dumps({
+    'adbReturnCode':result.returncode, 'successMarker':marker,
+    'instrumentationStdoutStderr':str(Path(result_path))},indent=2)+'\n')
+if result.returncode or not marker:
     print(text)
     raise SystemExit('Real product capture failed; partial evidence retained, no automatic reset/retry')
 RUN_PY
+      then cell_exit=0; else cell_exit=$?; fi
+      if ! python3 "$matrix_gate" after --output "$output_dir" --page "$settings_page" --theme "$product_theme" --scale "$font_scale" --result "$result_file" --exit-status "$cell_exit"; then
+        # Unknown isolation/ownership/evidence: preserve the original failure and do not launch another cell.
+        break 3
+      fi
     done
   done
 done
-adb pull "/sdcard/Android/data/$package/files/settings-visual-migration/$source_sha" "$output_dir/"
-python3 - "$output_dir/$source_sha" <<'VERIFY_PY'
+if python3 - "$output_dir/$source_sha" "$output_dir/matrix-ledger.json" <<'VERIFY_PY'
 from pathlib import Path
 import hashlib,json,struct,sys
-root=Path(sys.argv[1]); sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
+root=Path(sys.argv[1]); ledger=json.loads(Path(sys.argv[2]).read_text()); sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
 manifests=sorted(root.glob('*/*/manifest.json'))
-assert len(manifests)==12, f'Expected 12 real M8 configurations, got {len(manifests)}'
+assert len(ledger['cells'])==12
+assert len(manifests)==12 or ledger['unsafeStop'] is not None, f'Expected 12 real M8 configurations, got {len(manifests)}'
+assert all(cell['status'] in ('PASS_CAPTURED_PENDING_FULL_VERIFY','FAILED_ISOLATED_CONTINUED',
+    'FAILED_UNSAFE_STOP','NOT_RUN_UNSAFE_PREDECESSOR') for cell in ledger['cells'])
+success={(cell['page'],cell['profile']) for cell in ledger['cells'] if cell['status']=='PASS_CAPTURED_PENDING_FULL_VERIFY'}
+assert len({(cell['page'],cell['profile']) for cell in ledger['cells']})==12
 seen=set(); pending=[]; protocol_count=0
 references={
 'app':'f2022d5eb60b798a722d30f01933028a63f14a342958400c74fcdc25a7c1a899',
@@ -278,70 +309,88 @@ def require_reach(folder,page,domain):
     assert report['restoreProof']=='restored/window-frame-sync.json'
     require_state(folder/'restored','ACTIVITY')
 
+verification_errors=[]
+verification_results=[]
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
-    assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
-    assert m['visualAcceptance']=='ASTRA_PENDING'
-    assert m['layoutStatus']==m['overallStatus']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE'
-    assert m['isolationStatus']=='PASS_ISOLATION_ONLY'
-    assert m['referenceDesignPngSha256']==references[m['page']]
-    key=(m['page'],m['profile']);assert key not in seen;seen.add(key)
-    assert m['fontSha256']=='a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da'
-    assert tuple(m['wholeWindowPngSizePx'])==struct.unpack('>II',(folder/'window.png').read_bytes()[16:24])==(2560,1600)
-    assert m['window']['densityDpi']==360 and m['window']['locale'].startswith('zh') and not m['window']['imeVisible']
-    assert m['window']['uiModeNightMeaning']==m['profile'].split('-font-')[0].rsplit('-',1)[-1]
-    assert struct.pack('>f',m['window']['fontScale'])==struct.pack('>f',float(m['profile'].rsplit('-font-',1)[-1]))
-    for name,value in m['fileSha256'].items():assert sha(folder/name)==value,(path,name)
-    proofs=list(folder.rglob('*-frame-sync.json'));assert proofs
-    for proof in proofs:
-        require_protocol(proof); protocol_count+=1
-    require_protocol(folder/'window-frame-sync.json','ACTIVITY')
-    isolation=json.loads((folder/'fixture-isolation.json').read_text())
-    for name in ('businessDiskByteUnchanged','typedPreferencesRestored','originalLazyIdentityAndInitializedRestored',
-                 'allActivitiesDestroyed','noServiceBeforeOriginalDelegateRestore','scopedWritersTerminated',
-                 'allOwnedCallbacksDrained','feedbackPreviewStoppedAndUnobserved','providerSessionRemoved',
-                 'mockClockOwnerAbsentBeforeAndAfter'):
-        assert isolation[name] is True,(path,name)
-    assert isolation['mainQueueBarrierAfterWriters'] and isolation['providerLifecycle'] is not None
-    trace_status=isolation['scopedTraceStatusAfterTermination'].split()
-    assert trace_status[0]=='closed' and 'dropped=0' in trace_status
-    assert 'errors='+str(isolation['expectedActualExportFailures']) in trace_status
-    assert isolation['expectedActualExportFailures']==(1 if m['page']=='app' else 0)
-    assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['clipboard']=='NOT_READ_OR_WRITTEN'
-    fixture=json.loads((folder/'fixture.json').read_text())
-    assert fixture['synthetic'] and not fixture['hardwareMeasurement'] and fixture['clock']=='DEFAULT_SYSTEM_MONOTONIC'
-    assert fixture['noDeviceControl'] and fixture['noMockReadOnlyScaleInput']
-    if m['page']=='machine':
-        assert fixture['realMockService'] and fixture['realSettingsReadback']
-        for name in ('actualServiceDestroyed','serviceRecoveryLazyIdentityRestored','serviceHandlersDrained','serviceHubClosed',
-                     'serviceVisibilityObserverRemoved','serviceFeedbackObserverRemoved'):
+    if (m['page'],m['profile']) not in success:
+        continue # Preserve failed-cell original manifest/partial evidence; no false mechanical PASS.
+    cell_key={'page':m['page'],'profile':m['profile']}
+    try:
+        assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
+        assert m['visualAcceptance']=='ASTRA_PENDING'
+        assert m['layoutStatus']==m['overallStatus']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE'
+        assert m['isolationStatus']=='PASS_ISOLATION_ONLY'
+        assert m['referenceDesignPngSha256']==references[m['page']]
+        key=(m['page'],m['profile']);assert key not in seen;seen.add(key)
+        assert m['fontSha256']=='a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da'
+        assert tuple(m['wholeWindowPngSizePx'])==struct.unpack('>II',(folder/'window.png').read_bytes()[16:24])==(2560,1600)
+        assert m['window']['densityDpi']==360 and m['window']['locale'].startswith('zh') and not m['window']['imeVisible']
+        assert m['window']['uiModeNightMeaning']==m['profile'].split('-font-')[0].rsplit('-',1)[-1]
+        assert struct.pack('>f',m['window']['fontScale'])==struct.pack('>f',float(m['profile'].rsplit('-font-',1)[-1]))
+        for name,value in m['fileSha256'].items():assert sha(folder/name)==value,(path,name)
+        proofs=list(folder.rglob('*-frame-sync.json'));assert proofs
+        for proof in proofs:
+            require_protocol(proof); protocol_count+=1
+        require_protocol(folder/'window-frame-sync.json','ACTIVITY')
+        isolation=json.loads((folder/'fixture-isolation.json').read_text())
+        for name in ('businessDiskByteUnchanged','typedPreferencesRestored','originalLazyIdentityAndInitializedRestored',
+                     'allActivitiesDestroyed','noServiceBeforeOriginalDelegateRestore','scopedWritersTerminated',
+                     'allOwnedCallbacksDrained','feedbackPreviewStoppedAndUnobserved','providerSessionRemoved',
+                     'mockClockOwnerAbsentBeforeAndAfter'):
             assert isolation[name] is True,(path,name)
-    else: assert not fixture['realMockService']
-    assert (folder/'baseline-alignment.json').is_file() and (folder/'geometry.json').is_file()
-    special=json.loads((folder/'special-states/manifest.json').read_text())
-    assert special['completed'] and special['mainConfigurationCountContribution']==0 and special['visualAcceptance']=='ASTRA_PENDING'
-    assert len(special['cases'])==len(required[m['page']]) and {case['case'] for case in special['cases']}==required[m['page']],path
-    for name,kind in state_kinds[m['page']].items():require_state(folder/'special-states'/name,kind)
-    require_reach(folder/'main-reachability',m['page'],'main')
-    if m['page']=='machine':
-        for index in range(5):require_reach(folder/'special-states'/('section-'+str(index))/'reachable','machine','section-'+str(index))
-    if m['page']=='scale-settings':require_reach(folder/'special-states/all-instructions','scale-settings','all-instructions')
-    if m['page']=='app':
-        for tag in ('zh-Hans','en','ru','th','ar','ja','ko','es'):
-            require_reach(folder/'special-states'/('language-'+tag)/'current-reachable','app','language-current')
-        saf=json.loads((folder/'special-states/saf-business.json').read_text())
-        assert saf['providerSessionRemoved'] and saf['providerSession']
-        entries={item['case']:item for item in saf['cases']}
-        assert len(saf['cases'])==3 and set(entries)=={'saf-cancel','saf-failure','saf-owned-success'}
-        assert entries['saf-cancel']['writes']==0 and entries['saf-cancel']['originalCallback']
-        assert entries['saf-failure']['actualFailedToast'] and entries['saf-failure']['outputWrites']==0
-        assert entries['saf-owned-success']['actualSuccessToast'] and entries['saf-owned-success']['outputWrites']==1 and 'metadata.json' in entries['saf-owned-success']['zipEntries']
-        owned=[item for item in isolation['providerLifecycle'] if item['session']==saf['providerSession']]
-        assert [item['operation'] for item in owned]==['created_owned_provider','owned_provider_cleanup_returned']
-    pending.extend(case['acceptanceStatus'] for case in special['cases'] if case.get('acceptanceStatus','').startswith('PENDING'))
-assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in ('app','machine','scale-settings') for theme in ('light','dark') for scale in ('1.0','1.3')}
+        assert isolation['mainQueueBarrierAfterWriters'] and isolation['providerLifecycle'] is not None
+        trace_status=isolation['scopedTraceStatusAfterTermination'].split()
+        assert trace_status[0]=='closed' and 'dropped=0' in trace_status
+        assert 'errors='+str(isolation['expectedActualExportFailures']) in trace_status
+        assert isolation['expectedActualExportFailures']==(1 if m['page']=='app' else 0)
+        assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['clipboard']=='NOT_READ_OR_WRITTEN'
+        fixture=json.loads((folder/'fixture.json').read_text())
+        assert fixture['synthetic'] and not fixture['hardwareMeasurement'] and fixture['clock']=='DEFAULT_SYSTEM_MONOTONIC'
+        assert fixture['noDeviceControl'] and fixture['noMockReadOnlyScaleInput']
+        if m['page']=='machine':
+            assert fixture['realMockService'] and fixture['realSettingsReadback']
+            for name in ('actualServiceDestroyed','serviceRecoveryLazyIdentityRestored','serviceHandlersDrained','serviceHubClosed',
+                         'serviceVisibilityObserverRemoved','serviceFeedbackObserverRemoved'):
+                assert isolation[name] is True,(path,name)
+        else: assert not fixture['realMockService']
+        assert (folder/'baseline-alignment.json').is_file() and (folder/'geometry.json').is_file()
+        special=json.loads((folder/'special-states/manifest.json').read_text())
+        assert special['completed'] and special['mainConfigurationCountContribution']==0 and special['visualAcceptance']=='ASTRA_PENDING'
+        assert len(special['cases'])==len(required[m['page']]) and {case['case'] for case in special['cases']}==required[m['page']],path
+        for name,kind in state_kinds[m['page']].items():require_state(folder/'special-states'/name,kind)
+        require_reach(folder/'main-reachability',m['page'],'main')
+        if m['page']=='machine':
+            for index in range(5):require_reach(folder/'special-states'/('section-'+str(index))/'reachable','machine','section-'+str(index))
+        if m['page']=='scale-settings':require_reach(folder/'special-states/all-instructions','scale-settings','all-instructions')
+        if m['page']=='app':
+            for tag in ('zh-Hans','en','ru','th','ar','ja','ko','es'):
+                require_reach(folder/'special-states'/('language-'+tag)/'current-reachable','app','language-current')
+            saf=json.loads((folder/'special-states/saf-business.json').read_text())
+            assert saf['providerSessionRemoved'] and saf['providerSession']
+            entries={item['case']:item for item in saf['cases']}
+            assert len(saf['cases'])==3 and set(entries)=={'saf-cancel','saf-failure','saf-owned-success'}
+            assert entries['saf-cancel']['writes']==0 and entries['saf-cancel']['originalCallback']
+            assert entries['saf-failure']['actualFailedToast'] and entries['saf-failure']['outputWrites']==0
+            assert entries['saf-owned-success']['actualSuccessToast'] and entries['saf-owned-success']['outputWrites']==1 and 'metadata.json' in entries['saf-owned-success']['zipEntries']
+            owned=[item for item in isolation['providerLifecycle'] if item['session']==saf['providerSession']]
+            assert [item['operation'] for item in owned]==['created_owned_provider','owned_provider_cleanup_returned']
+        pending.extend(case['acceptanceStatus'] for case in special['cases'] if case.get('acceptanceStatus','').startswith('PENDING'))
+    except Exception as exc:
+        verification_errors.append({"cell":str(path),"error":str(exc)})
+        verification_results.append({**cell_key,'status':'FAIL_ORIGINAL_FULL_VERIFY','error':str(exc)})
+    else:
+        verification_results.append({**cell_key,'status':'PASS_ORIGINAL_FULL_VERIFY'})
+(root.parent/'matrix-verification.json').write_text(json.dumps({'results':verification_results,
+    'errors':verification_errors},indent=2)+'\n')
+assert seen==success and not verification_errors, verification_errors
+if len(success)!=12 or len(manifests)!=12 or ledger['unsafeStop'] is not None:
+    print(f'SETTINGS_VISUAL_MIGRATION_PARTIAL successes={len(success)} failed={12-len(success)}; original failures retained')
+    raise SystemExit(1)
 (root/'capture-summary.json').write_text(json.dumps({'realConfigurations':12,'sourceSha':root.name,'visualAcceptance':'ASTRA_PENDING',
 'protocol2AcceptedProofCount':protocol_count,'specialStatesCountedAsMainConfigurations':False,'pendingStrictSpecialEvidence':pending,
 'allVisualItemsClosed':False},indent=2)+'\n')
 print('SETTINGS_VISUAL_MIGRATION_RETAINED configurations=12 actualActivities=true visualAcceptance=ASTRA_PENDING')
 VERIFY_PY
+then verify_exit=0; else verify_exit=$?; fi
+python3 "$matrix_gate" finalize --output "$output_dir" --verify-exit "$verify_exit"

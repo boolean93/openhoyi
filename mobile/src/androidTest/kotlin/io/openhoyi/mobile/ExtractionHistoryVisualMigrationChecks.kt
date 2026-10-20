@@ -13,7 +13,12 @@ import android.os.IBinder
 import io.openhoyi.session.ShotRecoveryState
 import io.openhoyi.session.MachineWriteRecoveryState
 import io.openhoyi.session.DeviceState
+import io.openhoyi.session.OperationResult
 import io.openhoyi.protocol.ExtractionTelemetry
+import io.openhoyi.protocol.ByteFrame
+import io.openhoyi.protocol.ScaleObservation
+import io.openhoyi.protocol.ScaleCapabilities
+import io.openhoyi.protocol.ScaleEvidence
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
@@ -49,6 +54,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private val context get() = test.targetContext
     private val app get() = context.applicationContext as MobileApplication
     private val frames = NativeWindowFrameEvidence(test)
+    private val extractionPendingSpecialCases=listOf("STARTING","STOP_REQUESTED","UNKNOWN_live","no_scale",
+        "stale_scale","no_service_ready","manual","historical_reference_toggle","missing_samples",
+        "water_reset","sample_gap","journal_unavailable")
+    private val historyPendingSpecialCases=listOf("STARTING","STOP_REQUESTED","UNKNOWN_live","no_scale",
+        "stale_scale","no_service_ready","manual","historical_reference_toggle","journal_unavailable")
     private fun main(action: () -> Unit) {
         var failure: Throwable? = null
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
@@ -145,6 +155,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         private var service: MobileService?=null
         private var serviceBound=false
         private var serviceStarted=false
+        private var scenarioInstalled=false
+        private var scaleInputInstalled=false
         private var serviceCallbackFailure: Throwable?=null
         private val recoveryNames=listOf("shotRecovery","machineWriteRecovery","coffeeCredentials","coffeeCredentialRetries")
         private val serviceOriginalLazy=linkedMapOf<String,Lazy<*>>()
@@ -353,7 +365,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
             check(field(owner,"logs")===logs && field(owner,"history")===history && field(owner,"hub")==null && field(owner,"mock")!=null)
         }
-        fun beginExtraction() {
+        private fun beginService() {
             check(page=="extraction" && installed && clockInstalled)
             main {
                 serviceBound=context.bindService(Intent(context,MobileService::class.java),serviceConnection,Context.BIND_AUTO_CREATE)
@@ -373,6 +385,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 owner.running && owner.snapshot.coffeeAt==initialMonotonicMs && owner.snapshot.weightAt==initialMonotonicMs &&
                     owner.snapshot.coffeeState==DeviceState.READY && owner.snapshot.scaleState==DeviceState.READY
             }
+            main { verifyServiceLazyIsolation(owner) }
+        }
+        fun beginExtraction() {
+            beginService()
+            val owner=requireNotNull(service)
             main {
                 verifyServiceLazyIsolation(owner)
                 val profile=requireNotNull(curves.resolve(curveId,true,7))
@@ -404,6 +421,89 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     .put("scaleObservation",owner.snapshot.weight.toString()).put("scaleSemantics","scale_reading_no_tare_context_no_effective_cup_claim")
                     .put("serviceOwnerId",serviceOwnerId).put("recoveryOriginalUninitialized",true)
             }
+        }
+        fun beginScenarioService(case: String): MobileService {
+            check(case in extractionPendingSpecialCases && case!="no_service_ready")
+            beginService()
+            val owner=requireNotNull(service)
+            if(case=="no_scale") {
+                main { (field(owner,"mock") as MockDeviceRuntime).scaleConnected=false }
+                await("original Mock scale-disconnected observation") { owner.snapshot.scaleState==DeviceState.DISCONNECTED }
+            }
+            main {
+                owner.installMockExtractionScenario(clockOwner)
+                scenarioInstalled=true
+                nextId="m5-extraction-$case"
+                check(owner.shotState==ExtractionState.IDLE && owner.mockExtractionOfferedFrameSerial==0L)
+            }
+            return owner
+        }
+        fun beginUnreadyService(): MobileService {
+            check(page=="extraction" && installed && clockInstalled)
+            main { serviceBound=context.bindService(Intent(context,MobileService::class.java),serviceConnection,Context.BIND_AUTO_CREATE);check(serviceBound) }
+            await("unstarted unique Mock Service callback") { serviceCallbackFailure?.let {throw it};service!=null }
+            return requireNotNull(service).also { owner -> main {
+                check(!owner.running && owner.shotState==ExtractionState.IDLE && owner.snapshot.coffeeState==DeviceState.DISCONNECTED)
+            } }
+        }
+        fun scenarioOwner()=clockOwner
+        fun now()=MobileMonotonicClock.elapsedRealtime()
+        fun installStaleScaleInput(owner: MobileService) {
+            main {
+                check(scenarioInstalled && !scaleInputInstalled && owner===service)
+                owner.installScaleVisualInput(clockOwner)
+                scaleInputInstalled=true
+                val sample=ScaleObservation(1800,initialMonotonicMs,
+                    ScaleCapabilities(tare=false,validatedWeightControl=false),ScaleEvidence.LIVE_READ_ONLY,
+                    raw=ByteFrame(byteArrayOf()))
+                owner.offerScaleVisualInput(clockOwner,DeviceState.READY,sample)
+                check(owner.snapshot.scaleObservation?.receivedAtMs==initialMonotonicMs)
+            }
+        }
+        fun advanceTo(elapsed: Long) {
+            main {
+                val target=initialMonotonicMs+elapsed
+                check(target>MobileMonotonicClock.elapsedRealtime())
+                MobileMonotonicClock.advanceForMock(clockOwner,target)
+                logicalInputTimes.add(target)
+            }
+        }
+        fun startScenarioShot(owner: MobileService, case: String): String {
+            var id=""
+            main {
+                check(scenarioInstalled && owner===service && owner.shotState==ExtractionState.IDLE)
+                val profile=requireNotNull(curves.resolve(curveId,owner.snapshot.scaleState==DeviceState.READY,7))
+                check(curves.validated(profile) && profile.targetHundredthsGram==0)
+                check(owner.startShot(curveId,profile.scaleMode,7)==null)
+                id=requireNotNull(owner.chartTraceIdentity)
+                check(id=="m5-extraction-$case" && owner.shotState==ExtractionState.STARTING)
+                check(owner.chartPoints.isEmpty() && owner.mockExtractionPendingStartId!=null)
+            }
+            return id
+        }
+        fun completeScenarioStart(owner: MobileService) {
+            main {
+                val request=requireNotNull(owner.mockExtractionPendingStartId)
+                owner.completeMockExtractionStart(clockOwner,request,OperationResult.Success())
+                check(owner.shotState==ExtractionState.RUNNING && owner.mockExtractionPendingStartId==null)
+            }
+        }
+        fun offerScenarioFrame(owner: MobileService, elapsed: Long, water: Int, slot: Int=8): JSONObject {
+            lateinit var record: JSONObject
+            main {
+                val before=owner.chartPoints.size;val serial=owner.mockExtractionOfferedFrameSerial
+                val target=initialMonotonicMs+elapsed
+                check(target>MobileMonotonicClock.elapsedRealtime())
+                MobileMonotonicClock.advanceForMock(clockOwner,target)
+                logicalInputTimes.add(target)
+                val frame=ExtractionTelemetry(slot,(elapsed/1000).toInt(),90,water,9300,100,64,0,ByteFrame(byteArrayOf()))
+                owner.offerMockExtractionFrame(clockOwner,frame)
+                check(owner.mockExtractionOfferedFrameSerial==serial+1)
+                record=JSONObject().put("serial",serial+1).put("ownedMonotonicMs",MobileMonotonicClock.elapsedRealtime())
+                    .put("elapsedMs",elapsed).put("waterTenthsMl",water).put("pointsBefore",before)
+                    .put("pointsAfter",owner.chartPoints.size).put("actualNewPoints",owner.chartPoints.size-before)
+            }
+            return record
         }
         fun verifyExtraction(activity: Activity, captureStartedAtRealMs: Long,captureFinishedAtRealMs: Long) {
             main {
@@ -473,6 +573,14 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             check((field(app.visibility,"observers") as Map<*,*>)==originalVisibilityObservers) { "M5 original visibility observers changed" }
                             service?.let { owner ->
                                 verifyServiceLazyIsolation(owner)
+                                if(scenarioInstalled) {
+                                    owner.clearMockExtractionScenario(clockOwner)
+                                    scenarioInstalled=false
+                                }
+                                if(scaleInputInstalled) {
+                                    owner.clearScaleVisualInput(clockOwner)
+                                    scaleInputInstalled=false
+                                }
                                 proof.put("serviceOwnerId",serviceOwnerId).put("serviceOwnerCallbacksRemoved",true)
                                     .put("serviceHubClosed",field(owner,"hub")==null).put("serviceHandlersDrained",true)
                             }
@@ -965,6 +1073,305 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("shotId",id).put("exactScrollRestored",true).put("shotIdUnchanged",true).put("journalUnchanged",true)
             .put("fixedEditComplete",true).put("notesSource","actual_BrewJournal_Notes").put("noEditOrSaveInvoked",true).put("completed",true).toString(2))
     }
+    private fun extractionReachability(activity: Activity, folder: File) {
+        val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
+        val savedX=scroll.scrollX;val savedY=scroll.scrollY
+        check(savedX==0 && savedY==0) { "M5 fresh RUNNING support viewport must retain its initial scroll" }
+        val owner=requireNotNull(field(activity,"service") as? MobileService)
+        val trace=owner.chartTraceIdentity;val curve=owner.chartCurveId
+        val shot=owner.shotState;val points=owner.chartPoints.toList()
+        val reference=field(activity,"referenceId");val referenceCurve=field(activity,"referenceCurveId")
+        val chart=field(activity,"chart") as ExtractionOverlayView
+        val chartReference=chart.reference.toList()
+        val stop=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/stop"))
+        val fixedRect=observation(stop).getJSONArray("rectPx").toString()
+        val tools=listOf("reference-choice" to R.string.reference_choose,
+            "overview" to R.string.extraction_overview).map { (name,label) ->
+            name to nodes(scroll).filterIsInstance<Button>().single {it.text.toString()==activity.getString(label)}
+        }
+        check(tools[0].second !== tools[1].second && tools[0].second.parent===tools[1].second.parent)
+        check(tools.all { (_,view) -> view.isShown && view.isAttachedToWindow && view.isClickable })
+        val mode=nodes(root(activity)).filterIsInstance<TextView>().single {
+            it.text.toString()==activity.getString(R.string.extraction_mock_subtitle) && it.isShown
+        }
+        check(mode !in nodes(scroll) && whole(screenObservation(mode))) {
+            "M5 current RUNNING mode subtitle is not complete in its actual header location"
+        }
+        val initial=JSONArray(tools.map { (name,view) ->
+            JSONObject().put("semanticKey",name).put("layout",screenObservation(view))
+        })
+        val reached=JSONArray()
+        fun unchanged() {
+            check(owner.shotState==shot && owner.chartTraceIdentity==trace && owner.chartCurveId==curve && owner.chartPoints==points)
+            check(field(activity,"service")===owner && field(activity,"referenceId")==reference &&
+                field(activity,"referenceCurveId")==referenceCurve && chart.reference==chartReference)
+            check(stop.isShown && stop.isEnabled && whole(screenObservation(stop)) &&
+                observation(stop).getJSONArray("rectPx").toString()==fixedRect)
+            check(whole(screenObservation(mode)))
+        }
+        main { unchanged() }
+        try {
+            tools.forEach { (name,view) ->
+                main { view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true) }
+                frames.committedFrame(root(activity))
+                capture(activity,File(folder,"states/extraction-$name-reachable"))
+                main {
+                    check(whole(screenObservation(view))) { "M5 RUNNING tool not fully reachable: $name" }
+                    unchanged()
+                    reached.put(JSONObject().put("semanticKey",name).put("layout",screenObservation(view))
+                        .put("scrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY))))
+                }
+            }
+        } finally {
+            main { scroll.scrollTo(savedX,savedY) }
+            frames.committedFrame(root(activity))
+            main { check(scroll.scrollX==savedX && scroll.scrollY==savedY);unchanged() }
+        }
+        capture(activity,File(folder,"states/extraction-tools-restored"))
+        main { check(scroll.scrollX==savedX && scroll.scrollY==savedY);unchanged() }
+        File(folder,"extraction-reachability.json").writeText(JSONObject()
+            .put("targetKeys",JSONArray(tools.map {it.first})).put("initialTargets",initial).put("reached",reached)
+            .put("initialScrollPx",JSONArray(listOf(savedX,savedY)))
+            .put("restoredScrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
+            .put("exactScrollRestored",true).put("traceIdentity",trace)
+            .put("referenceId",reference ?: JSONObject.NULL).put("referenceCurveId",referenceCurve ?: JSONObject.NULL)
+            .put("shotState",shot.name).put("fixedStopRectPx",JSONObject().put("rect",fixedRect))
+            .put("modeSubtitle",screenObservation(mode)).put("modeLocation","header_outside_support_scroll_in_current_version")
+            .put("noToolClicks",true).put("modelAndSelectionUnchanged",true).put("completed",true).toString(2))
+    }
+    private fun extractionSpecialStates(folder: File, theme: String, source: String, profile: String): JSONObject {
+        val base=File(folder,"special-states").apply {check(isDirectory || mkdirs())}
+        val cases=JSONArray()
+        val summary=JSONObject().put("sourceSha",source).put("profile",profile).put("page","extraction")
+            .put("synthetic",true).put("hardwareMeasurement",false).put("realProductActivity",true)
+            .put("visualAcceptance","ASTRA_PENDING")
+            .put("expectedCases",JSONArray(extractionPendingSpecialCases)).put("cases",cases)
+            .put("mainConfigurationCountContribution",0)
+        fun persist() { File(base,"manifest.json").writeText(summary.toString(2)) }
+        try {
+            extractionPendingSpecialCases.forEach { case ->
+                val caseFolder=File(base,case).apply {check(isDirectory || mkdirs())}
+                val scope=Scope(caseFolder,"extraction")
+                val proof=JSONObject().put("case",case).put("sourceSha",source).put("profile",profile)
+                    .put("synthetic",true).put("hardwareMeasurement",false).put("realProductActivity",true)
+                    .put("visualAcceptance","ASTRA_PENDING")
+                cases.put(proof)
+                var failure: Throwable?=null
+                try {
+                    scope.prepare();scope.install(theme=="dark")
+                    val inputs=JSONArray()
+                    val operationInputs=JSONArray()
+                    val owner=if(case=="no_service_ready") scope.beginUnreadyService() else scope.beginScenarioService(case)
+                    val requested=case in setOf("STARTING","STOP_REQUESTED","UNKNOWN_live","no_scale","stale_scale",
+                        "historical_reference_toggle","missing_samples","water_reset","sample_gap","journal_unavailable")
+                    val shotId=if(requested) scope.startScenarioShot(owner,case) else null
+                    if(requested) operationInputs.put(JSONObject().put("ordinal",operationInputs.length()+1)
+                        .put("kind","start_requested").put("requestId",requireNotNull(owner.mockExtractionPendingStartId))
+                        .put("synthetic",true))
+                    if(requested && case!="STARTING") {
+                        val request=requireNotNull(owner.mockExtractionPendingStartId)
+                        scope.completeScenarioStart(owner)
+                        operationInputs.put(JSONObject().put("ordinal",operationInputs.length()+1)
+                            .put("kind","start_completed").put("requestId",request)
+                            .put("result","synthetic_Success").put("synthetic",true))
+                    }
+                    when(case) {
+                        "STOP_REQUESTED"->{
+                            inputs.put(scope.offerScenarioFrame(owner,1000,6))
+                            main {owner.stopShot();check(owner.shotState==ExtractionState.STOP_REQUESTED && owner.mockExtractionPendingStopId!=null)}
+                            operationInputs.put(JSONObject().put("ordinal",operationInputs.length()+1)
+                                .put("kind","manual_stop_requested").put("requestId",requireNotNull(owner.mockExtractionPendingStopId))
+                                .put("completion","not_offered").put("synthetic",true))
+                        }
+                        "UNKNOWN_live"->{
+                            inputs.put(scope.offerScenarioFrame(owner,1000,6))
+                            main {owner.offerMockExtractionCoffeeState(scope.scenarioOwner(),DeviceState.DISCONNECTED)
+                                check(owner.shotState==ExtractionState.OUTCOME_UNKNOWN && owner.snapshot.coffeeState==DeviceState.DISCONNECTED)}
+                            operationInputs.put(JSONObject().put("ordinal",operationInputs.length()+1)
+                                .put("kind","coffee_ready_changed").put("state","DISCONNECTED").put("synthetic",true))
+                        }
+                        "no_scale"->{
+                            inputs.put(scope.offerScenarioFrame(owner,1000,6))
+                            check(owner.snapshot.scaleState==DeviceState.DISCONNECTED && owner.chartPoints.all {it.weightHundredthsGram==null})
+                        }
+                        "stale_scale"->{
+                            scope.installStaleScaleInput(owner)
+                            inputs.put(scope.offerScenarioFrame(owner,6000,36))
+                            check(owner.snapshot.scaleObservation?.receivedAtMs==1000000L &&
+                                owner.chartPoints.lastOrNull()?.weightHundredthsGram==null)
+                        }
+                        "manual"->{
+                            inputs.put(scope.offerScenarioFrame(owner,1000,6,6))
+                            inputs.put(scope.offerScenarioFrame(owner,2000,12,6))
+                            check(owner.manualShotActive && owner.shotState==ExtractionState.IDLE &&
+                                owner.chartCurveId=="manual" && owner.chartPoints.size==2)
+                        }
+                        "historical_reference_toggle"->{inputs.put(scope.offerScenarioFrame(owner,1000,6))}
+                        "water_reset"->{
+                            inputs.put(scope.offerScenarioFrame(owner,1000,10))
+                            inputs.put(scope.offerScenarioFrame(owner,2000,20))
+                            inputs.put(scope.offerScenarioFrame(owner,3000,5))
+                            val projected=FourMetricChartProjection.build(owner.chartPoints,emptyList())
+                            check(projected.waterResetsMs==listOf(3000L))
+                            check(projected.series.single {it.metric==ChartMetric.WATER}.current.size==2)
+                        }
+                        "sample_gap"->{
+                            listOf(1000L,2000L,3000L,8000L).forEach {elapsed ->
+                                inputs.put(scope.offerScenarioFrame(owner,elapsed,(elapsed/1000*6).toInt()))
+                            }
+                            val projected=FourMetricChartProjection.build(owner.chartPoints,emptyList())
+                            check(projected.series.single {it.metric==ChartMetric.WATER}.current.size==2)
+                        }
+                        "journal_unavailable"->{
+                            main {write(app,"journalObservationFailure",IllegalStateException("isolated synthetic journal observation unavailable"))
+                                check(app.journalResult.isFailure)}
+                            inputs.put(scope.offerScenarioFrame(owner,1000,6))
+                        }
+                        "missing_samples"->{check(owner.chartPoints.isEmpty() && owner.shotState==ExtractionState.RUNNING)}
+                        "STARTING","no_service_ready"->Unit
+                    }
+                    File(caseFolder,"fixture.json").writeText(scope.fixture.put("case",case)
+                        .put("synthetic",true).put("hardwareMeasurement",false)
+                        .put("offeredMachineFrames",inputs).put("operationInputs",operationInputs).toString(2))
+                    val activity=start(ExtractionActivity::class.java)
+                    await("actual Extraction special state $case bound and rendered") {
+                        field(activity,"service")===owner && field(activity,"bound")==true &&
+                            (field(activity,"chart") as ExtractionOverlayView).traceIdentity==owner.chartTraceIdentity
+                    }
+                    val frame=capture(activity,caseFolder)
+                    main {
+                        val chart=field(activity,"chart") as ExtractionOverlayView
+                        check(field(activity,"service")===owner && chart.traceIdentity==owner.chartTraceIdentity)
+                        check(chart.points==ExtractionReference.align(owner.chartPoints).points)
+                        val expected=when(case) {
+                            "STARTING"->ExtractionState.STARTING
+                            "STOP_REQUESTED"->ExtractionState.STOP_REQUESTED
+                            "UNKNOWN_live"->ExtractionState.OUTCOME_UNKNOWN
+                            "no_service_ready","manual"->ExtractionState.IDLE
+                            else->ExtractionState.RUNNING
+                        }
+                        check(owner.shotState==expected) {"M5 actual model state mismatch: $case"}
+                        if(case=="no_service_ready") check(!owner.running && owner.snapshot.coffeeState!=DeviceState.READY)
+                        if(case=="manual")check(owner.manualShotActive && shotId==null)
+                        if(case=="missing_samples")check(chart.points.isEmpty() &&
+                            (0 until chart.visualEvidence.length()).none { chart.visualEvidence.getJSONObject(it).optString("operation")=="path" })
+                        if(case=="journal_unavailable")check(app.journalResult.isFailure && chart.reference.isEmpty())
+                        val projected=FourMetricChartProjection.build(owner.chartPoints,chart.reference)
+                        val water=projected.series.singleOrNull {it.metric==ChartMetric.WATER}
+                        val stop=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/stop"))
+                        if(stop.isShown)check(whole(screenObservation(stop)))
+                        proof.put("actualState",owner.shotState.name).put("actualRunningService",owner.running)
+                            .put("actualManualShotActive",owner.manualShotActive).put("actualTraceIdentity",owner.chartTraceIdentity ?: JSONObject.NULL)
+                            .put("actualCurveId",owner.chartCurveId ?: JSONObject.NULL).put("actualSampleCount",owner.chartPoints.size)
+                            .put("actualOfferedFrameSerial",owner.mockExtractionOfferedFrameSerial)
+                            .put("actualWaterResetsMs",JSONArray(projected.waterResetsMs))
+                            .put("actualWaterSegments",JSONArray(water?.current?.map {segment ->
+                                JSONArray(segment.map {it.elapsedMs}) } ?: emptyList<JSONArray>()))
+                            .put("actualScaleState",owner.snapshot.scaleState.name).put("actualCoffeeState",owner.snapshot.coffeeState.name)
+                            .put("stop",screenObservation(stop)).put("frameSync",frame.proof)
+                    }
+                    if(case=="historical_reference_toggle")extractionReferenceToggle(activity,scope,caseFolder,proof)
+                    if(case=="journal_unavailable")extractionJournalUnavailable(activity,caseFolder,proof)
+                    proof.put("offeredMachineFrames",inputs).put("operationInputs",operationInputs)
+                        .put("shotId",shotId ?: JSONObject.NULL)
+                        .put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
+                } catch(error: Throwable) {
+                    failure=error;proof.put("status","FAIL").put("failure",error.stackTraceToString())
+                } finally {
+                    try { scope.cleanup() } catch(error: Throwable) {
+                        if(failure==null)failure=error else failure!!.addSuppressed(error)
+                        proof.put("status","FAIL").put("cleanupFailure",error.stackTraceToString())
+                    }
+                    File(caseFolder,"case.json").writeText(proof.toString(2));persist()
+                }
+                failure?.let {throw it}
+            }
+            summary.put("completed",true).put("actualAdditionalActivityCaptures",cases.length())
+            return summary
+        } finally {persist()}
+    }
+    private fun extractionReferenceToggle(activity: Activity, scope: Scope, folder: File, proof: JSONObject) {
+        val owner=requireNotNull(field(activity,"service") as? MobileService)
+        val button=field(activity,"referenceChoice") as Button
+        val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
+        val beforeScroll=scroll.scrollX to scroll.scrollY
+        val beforeJournal=scope.journal.exportJson()
+        val trace=owner.chartTraceIdentity;val points=owner.chartPoints.toList()
+        val stop=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/stop"))
+        val stopRect=observation(stop).getJSONArray("rectPx").toString()
+        val eligible=scope.journal.entries().filter {it.observation.curveId==scope.curveId && it.observation.status=="ENDED"}.take(20)
+        val chosenIndex=eligible.indexOfFirst {scope.expectedSamples(it.observation.id).isNotEmpty()}
+        check(chosenIndex>=0)
+        val selected=eligible[chosenIndex].observation.id
+        fun select(index: Int) {
+            main {button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
+            frames.committedFrame(root(activity))
+            main {check(whole(screenObservation(button)) && button.isEnabled);check(button.performClick())}
+            test.waitForIdleSync()
+            main {
+                val dialog=android.view.inspector.WindowInspector.getGlobalWindowViews().single {it !== activity.window.decorView}
+                val list=nodes(dialog).filterIsInstance<ListView>().single()
+                check(list.count==eligible.size+1 && index in 0 until list.count)
+                check(list.performItemClick(requireNotNull(list.getChildAt(index)),index,list.adapter.getItemId(index)))
+            }
+            test.waitForIdleSync()
+        }
+        try {
+            select(chosenIndex+1)
+            await("real saved historical reference selected") {
+                field(activity,"referenceId")==selected && (field(activity,"chart") as ExtractionOverlayView).reference.isNotEmpty()
+            }
+            val on=capture(activity,File(folder,"states/extraction-reference-on"))
+            main {
+                val chart=field(activity,"chart") as ExtractionOverlayView
+                check(chart.reference==ExtractionReference.align(scope.expectedSamples(selected)).points &&
+                    owner.chartTraceIdentity==trace && owner.chartPoints==points)
+                proof.put("selectedReferenceId",selected).put("referenceOnCount",chart.reference.size)
+                    .put("referenceOnFrameSync",on.proof)
+            }
+            select(0)
+            await("real saved historical reference switched off") {
+                field(activity,"referenceId")==null && (field(activity,"chart") as ExtractionOverlayView).reference.isEmpty()
+            }
+            val off=capture(activity,File(folder,"states/extraction-reference-off"))
+            proof.put("referenceOffFrameSync",off.proof)
+        } finally {
+            main {scroll.scrollTo(beforeScroll.first,beforeScroll.second)}
+            frames.committedFrame(root(activity))
+        }
+        capture(activity,File(folder,"states/extraction-reference-restored"))
+        main {
+            check(scroll.scrollX==beforeScroll.first && scroll.scrollY==beforeScroll.second)
+            check(owner.chartTraceIdentity==trace && owner.chartPoints==points && field(activity,"referenceId")==null)
+            check((field(activity,"chart") as ExtractionOverlayView).reference.isEmpty())
+            check(stop.isShown && observation(stop).getJSONArray("rectPx").toString()==stopRect)
+        }
+        check(scope.journal.exportJson()==beforeJournal)
+        proof.put("referenceToggleActualSavedJournal",true).put("selectionAndScrollRestored",true)
+            .put("currentCupAndJournalUnchanged",true)
+    }
+    private fun extractionJournalUnavailable(activity: Activity, folder: File, proof: JSONObject) {
+        val button=field(activity,"referenceChoice") as Button
+        check(app.journalResult.isFailure)
+        main {check(button.isEnabled);button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
+        frames.committedFrame(root(activity))
+        main {check(whole(screenObservation(button)));check(button.performClick())}
+        test.waitForIdleSync()
+        main {
+            val dialog=android.view.inspector.WindowInspector.getGlobalWindowViews().single {it !== activity.window.decorView}
+            val list=nodes(dialog).filterIsInstance<ListView>().single()
+            check(list.count==1 && list.adapter.getItem(0).toString()==activity.getString(R.string.reference_off))
+            check(list.performItemClick(requireNotNull(list.getChildAt(0)),0,list.adapter.getItemId(0)))
+        }
+        test.waitForIdleSync()
+        val frame=capture(activity,File(folder,"states/extraction-journal-unavailable-choice"))
+        main {
+            check(app.journalResult.isFailure && field(activity,"referenceId")==null &&
+                (field(activity,"chart") as ExtractionOverlayView).reference.isEmpty())
+        }
+        proof.put("actualJournalResultFailed",true).put("chooserOnlyOffNoFakeRecord",true)
+            .put("journalUnavailableChoiceFrameSync",frame.proof)
+    }
     private fun comparisonReachability(activity:Activity,scope:Scope,folder:File) {
         val toolbar=requireNotNull(root(activity).findViewWithTag<ScrollView>("comparison-toolbar"))
         val details=requireNotNull(root(activity).findViewWithTag<ScrollView>("comparison-details-scroll"))
@@ -1167,7 +1574,9 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         if(case=="unknown-observation") {
                             check(source.observation.status=="UNKNOWN" && source.observation.elapsedMs==null && source.observation.endedAtMs==null && source.observation.weightHundredthsGram==null)
                             val warning=requireNotNull(root(activity).findViewWithTag<TextView>(if(page=="comparison") "product/comparison/warning" else "product/history/warning"))
-                            check(warning.text.toString()==activity.getString(R.string.history_unknown_warning) && warning.isShown && whole(observation(warning)))
+                            check(warning.text.toString()==activity.getString(R.string.history_unknown_warning) && warning.isShown &&
+                                warning.isAttachedToWindow && warning.rootView===root(activity).rootView &&
+                                (page=="comparison" || whole(observation(warning))))
                             proof.put("unknownWarning",observation(warning)).put("unknownIsNotEnded",true)
                         }
                         val series=requireNotNull(data.series.firstOrNull { it.metric==metric })
@@ -1229,7 +1638,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("referenceDesignPngSha256",reference).put("referenceIdentitySource","host_hash_of_committed_original_design_not_APK_asset")
             .put("profile",profile).put("page",page).put("realProductActivity",true).put("specimenOnly",false).put("visualAcceptance","ASTRA_PENDING")
             .put("pid",android.os.Process.myPid()).put("scopePolicy","M5_10Lazy_owned_samples_and_readers; no_Home_no_legacy_IO")
-            .put("pendingSpecialCases",JSONArray(listOf("STARTING","STOP_REQUESTED","UNKNOWN_live","no_scale","stale_scale","no_service_ready","manual","historical_reference_toggle","missing_samples","water_reset","sample_gap","journal_unavailable")))
+            .put("pendingSpecialCases",JSONArray(extractionPendingSpecialCases))
         var scope: Scope?=null; var failure: Throwable?=null
         try {
             val active=Scope(directory,page); scope=active; active.prepare(); active.install(theme=="dark")
@@ -1271,21 +1680,30 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     window.getInt("densityDpi")==360 && window.getString("locale").startsWith("zh") && !window.getBoolean("imeVisible"))
             }
             when(page) {
-                "extraction"->active.verifyExtraction(activity,captureStartedAtRealMs,captureFinishedAtRealMs)
+                "extraction"->{active.verifyExtraction(activity,captureStartedAtRealMs,captureFinishedAtRealMs);extractionReachability(activity,directory)}
                 "history"->{historyPreviewReachability(activity,active,directory);savedHistoryBusiness(activity,active,directory)}
                 "history-detail"->detailReachability(activity,active,directory)
                 else->{comparisonReachability(activity,active,directory);comparisonBusiness(activity,active,directory)}
             }
             manifest.put("layoutStatus","PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE")
-            if(page!="extraction") {
+            if(page=="extraction") {
+                // Each special state owns a fresh scoped Service and Activity. The
+                // reviewed RUNNING main case is fully cleaned before the first one.
+                active.cleanup();scope=null
+                manifest.put("isolationStatus","PASS_ISOLATION_ONLY")
+                manifest.put("extractionSpecialStates",extractionSpecialStates(directory,theme,source,profile))
+                    .put("completedSpecialCases",JSONArray(extractionPendingSpecialCases))
+                    .put("pendingSpecialCases",JSONArray())
+            } else {
                 manifest.put("historySpecialStates",historySpecialStates(active,page,directory,manifest))
-                    .put("pendingSpecialCases",JSONArray(listOf("STARTING","STOP_REQUESTED","UNKNOWN_live","no_scale","stale_scale","no_service_ready","manual","historical_reference_toggle","journal_unavailable")))
+                    .put("pendingSpecialCases",JSONArray(historyPendingSpecialCases))
             }
         } catch(error: Throwable) {
             failure=error; manifest.put("layoutStatus","FAIL").put("failure",error.stackTraceToString())
             scope?.activeActivity()?.let { activity -> try { diagnostic(activity,File(directory,"failure-context")) } catch(secondary: Throwable) { error.addSuppressed(secondary) } }
         } finally {
-            try { scope?.cleanup(); manifest.put("isolationStatus",if(scope!=null) "PASS_ISOLATION_ONLY" else "NOT_INSTALLED") }
+            try { if(scope!=null) {scope.cleanup();manifest.put("isolationStatus","PASS_ISOLATION_ONLY")}
+                else if(!manifest.has("isolationStatus"))manifest.put("isolationStatus","NOT_INSTALLED") }
             catch(error: Throwable) { manifest.put("isolationStatus","FAIL").put("cleanupFailure",error.stackTraceToString())
                 if(failure==null) failure=error else failure!!.addSuppressed(error) }
             manifest.put("overallStatus",if(failure==null) "PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")

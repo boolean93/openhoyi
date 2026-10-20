@@ -63,6 +63,7 @@ internal class LegacyChartViewport(context: Context, val chart: LegacyShotChartV
         val desired = maxOf(minimum, available)
         if (chart.layoutParams.height != desired) chart.layoutParams = chart.layoutParams.apply { height = desired }
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        chart.recordViewportMeasurement(widthMeasureSpec, heightMeasureSpec, measuredHeight)
     }
 }
 

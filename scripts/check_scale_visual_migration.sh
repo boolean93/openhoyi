@@ -9,6 +9,9 @@ source_dirty=false
 [[ -z "$(git status --porcelain)" ]] || source_dirty=true
 output_dir="$PWD/build/task-first-evidence/scale-visual-migration"
 mkdir -p "$output_dir"
+if [[ -n "${SCALE_SNAPSHOT_SCOPE_FILE:-}" ]]; then
+  python3 scripts/ci_font_scale_snapshot_scope.py verify --owner "$SCALE_SNAPSHOT_SCOPE_FILE"
+fi
 apk_sha=$(python3 - <<'PY'
 import hashlib
 from pathlib import Path
@@ -35,7 +38,23 @@ collect() {
   adb shell dumpsys input_method > "$output_dir/input-method.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb shell am get-config > "$output_dir/font-scale-global-config-before-restore.txt" || true
-  adb shell am force-stop "$package" || true
+  if [[ -z "${SCALE_SNAPSHOT_SCOPE_FILE:-}" ]]; then
+    adb shell am force-stop "$package" || true
+  fi
+  if [[ -n "${SCALE_SNAPSHOT_SCOPE_FILE:-}" ]]; then
+    if ! python3 - "$output_dir/font-scale-before.json" "$output_dir/font-scale-restore.json" "$exit_status" <<'SNAPSHOT_PENDING_PY'
+import json,sys
+from pathlib import Path
+before=json.loads(Path(sys.argv[1]).read_text())
+Path(sys.argv[2]).write_text(json.dumps({'before':before,'originalExitStatus':int(sys.argv[3]),
+    'status':'PENDING_SNAPSHOT_RESTORE','restoreOperation':'owned_full_avd_snapshot_in_host_wrapper'},indent=2)+'\n')
+SNAPSHOT_PENDING_PY
+    then
+      echo 'Snapshot pending proof write failed' >&2
+      if (( exit_status == 0 )); then exit_status=1; fi
+    fi
+    return "$exit_status"
+  fi
   # Restore only this key, preserving absence; never put the literal "null" for an absent setting.
   if ! python3 - "$output_dir/font-scale-before.json" "$output_dir/font-scale-restore.json" "$exit_status" <<'FONT_RESTORE_PY'
 import json, subprocess, sys, traceback

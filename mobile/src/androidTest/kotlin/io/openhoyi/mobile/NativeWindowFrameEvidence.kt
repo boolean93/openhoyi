@@ -561,7 +561,6 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                     retained?.recycle()
                     retained = Candidate(attempts.length(), images.toMap())
                     images.clear()
-                    writeProof(false)
                 } finally {
                     // Retain a first partial failure only if no complete candidate
                     // exists; a deadline-tail partial cannot overwrite a full set.
@@ -576,7 +575,8 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
             error("Equivalent Window/display domains did not synchronize within 5000ms")
         } catch (failure: Throwable) {
             try { retained?.let { persist(it, true) } } catch (diagnosticFailure: Throwable) { failure.addSuppressed(diagnosticFailure) }
-            writeProof(false, failure.stackTraceToString())
+            try { writeProof(false, failure.stackTraceToString()) }
+            catch (proofFailure: Throwable) { failure.addSuppressed(proofFailure) }
             mappingDiagnosticReason?.let { reason ->
                 // Separate clock and files. This does not change the original proof or result.
                 try {

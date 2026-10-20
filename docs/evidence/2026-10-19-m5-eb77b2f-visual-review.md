@@ -150,3 +150,65 @@ G1：上述UNKNOWN真实plot下限和missing-samples全目标滚达/恢复通过
 G2：沿用固定字体资产与角色来源；本次未取得新的glyph fallback/原稿字体身份认证，unknown保持。G3：两个指定状态的product TextView实际letterSpacing0/textScaleX1/fontPadding=false；missing的elapsed/weight数值单位baseline同为671px，UNKNOWN sampled-water数值单位同为488px。所看原图轴字、单位、说明和滚达notes未见被切/错位。G4：原图保白色图面、ink/muted层级、UNKNOWN褐色说明、原四指标辨色；实际配置ink #101820/muted #657183/accent #087A78/warning #795119。此为浅色指定状态，不外推深色或所有动画合成像素。
 
 独立详情其余已采主态及4特殊态的plot几何均137.77707dp，作为机械证据记录，不凭数字代签其所有文字视觉。UNKNOWN预算账本仍有 `primaryBudgetSatisfiable=false`（chartNativeHeaderNaturalPx434、chartMinimum986），与实际完整102.66596dp不是同一个测量量；本次以原Canvas/屏幕交集验收真实plot，保留该账本不一致待单独静态核实，不能删字段或由false反推图形不足。全M5、Comparison裁切、标准1.0截轴及未采配置结论不变。
+
+## 2026-10-20 Extraction 剩余 G1 实图审查与库存纠正
+
+本次逐张查看 eb77 四张 Extraction 原 `window.png`（浅/深×1.0/1.3），对照批准 `extraction-four-series-v3.png` 及 M5 §4A；实际 merge `6ee51623e7f32f6df425e0d84313d1bc5e7f6bed`。原件在 `build/task-first-evidence/ci-eb77b2f-m5/raw/<merge>/<profile>/extraction/`。复读各 manifest、geometry、Canvas 及 extraction-business，未重新采图。
+
+**纠正库存：16主+60特殊不等于 Extraction 有特殊图。60特殊属于其余三页；Extraction 四目录各只有主 window.png 和 display 伴图。** 新一些的49a包四 manifest 也各列同样12项 pending。此前全范围缺口表把Extraction特殊态写成“已有图待审”不准确，应以下表替代；不能靠重读现包完成未采状态。
+
+| 配置 | 本次 G1 结论 | 实际图与测量 |
+|---|---|---|
+| light/1.0 | RUNNING主态限定接受 | 左上时间/秤读数主值，压力/注水/温度次级；主图在下、右侧本杯与工具、红色停止固定。四轴/图例/时间标题完整，无图例抢主读数。右侧配方、状态、两工具及模式说明均完整可见 |
+| dark/1.0 | 同范围限定接受 | 与浅色同构，图轴/文字没有因暗面消失；右侧层次与停止固定完整，不由单色值替代此次实看 |
+| light/1.3 | 核心主读数、图、固定停止限定接受；工具滚达仍缺证 | 四图例与四物理量轴、时间轴全在图内；右栏配方自然换行，设备状态完整。两辅助工具只露顶部，位于合法support-scroll内，但无滚后/恢复原件，不能签全页可达 |
+| dark/1.3 | 同浅1.3限定结论 | 同样两工具初屏部分可见，不新判生产裁切FAIL，也不能假定能滚达；停止完整，不被右栏内容挤走 |
+
+四图 density=2.25，主区 x216..1778、右区 x1832..2524，列距54px=24dp；右宽692px≈307.56dp，符合280–320dp及约30%预算。读数组间36px=16dp，label→quantity及number→unit为18px=8dp；读数底到chart顶36px=16dp。停止rect均 `[1868,1303,2488,1429]`，高126px=56dp，完整在app内。图rect标准 `[216,529,1778,1429]`，大字 `[216,561,1778,1429]`；既有同源Canvas真实plot高分别202.468dp/153.777dp，非拿外框冒充图。原图时间刻度及“时间·s”均完整。
+
+原稿演示的24.6、28.4、目标36g不作为生产数据要求：本scope真实RUNNING、activeTraceIdentity=m5-live-shot、末采24600ms，原模型时间显示24s，未tare故明确“秤读数16.80g”，目标按水量模式明确不使用重量结束。实际四线截至采样端，没有照抄原稿未来线/假杯重。批准的实时状态/本杯快照优先规则保留。这里没有看到采样缺口，不能以连续线正确证明gap分支。
+
+G2–G4沿用本文件已完成的四主态角色/基线/颜色限定接受；此次原图未见新字形/行盒/色彩偏差，不再重复全量审计。**新增关闭的只是四主态上述核心G1；Extraction全状态仍未完成。**
+
+### 未采项归属及最小补齐计划
+
+这不是新增产品范围。M5 §4A/§5/§6已要求真实控制状态、无秤/stale、参考及缺失采样语义；manifest逐项列出未实现或未采分支。不能把pending永久当免责，也不能拿History的同名状态图代替实时页。
+
+| 原manifest pending | 需补的原要求证据 |
+|---|---|
+| STARTING | 真实模型启动中状态/允许操作/状态说明，不能直接造RUNNING代图 |
+| STOP_REQUESTED | 原停止请求中状态、停止操作呈现及未收到结束确认的语义；对应批准停止中稿，不伪造ENDED |
+| UNKNOWN_live | 原未知观察、最后有效读数/时间与警示，不冒充实时或已结束；对应未知稿 |
+| no_scale | 原允许的非重量启动模式，注水成为另一主值、三指标图、无秤限制；不绕重量门禁，对照无秤v2 |
+| stale_scale | 原freshness真实失效后的说明/旧读数呈现与动作限制，不冻结旧有效值当实时 |
+| no_service_ready | 无服务/未准备就绪的原状态和操作，不临时制造Service充就绪 |
+| manual | 原合法手动模式的来源、读数、固定操作，不改变控制语义 |
+| historical_reference_toggle | 真实已存参考身份、开/关对应图及恢复，不由配方生成参考线 |
+| missing_samples | 原空样本说明与不造值、不造线 |
+| water_reset | 原注水重置断线，不桥接；状态/本杯/停止仍完整 |
+| sample_gap | 原缺口断线，不补零、不跨缺口连线 |
+| journal_unavailable | 原记录不可用提示/入口禁用或降级语义，不以假记录填补 |
+
+执行最小范围先限现有M5测试 `ExtractionHistoryVisualMigrationChecks.kt` 与对应runner，生产保持不动。沿已批准唯一真实Mock Service/同源单调钟/原模型输入和隔离清理路径，列出每状态的**真实模型进入条件及合法fixture**后逐项实现，不能仅反射UI文本/强置View状态。某状态现有Mock不能合法达到时，报告具体模型前置条件给Astra裁定，不伪造硬件ACK，也不删状态。沿既定四主配置组织既有特殊态，manifest/runner按固定预期集合核全，不只核计数；所有新增原件沿同一原5s/四零差协议及真实geometry/Canvas/typography，标Mock能力边界。静态方案批准后由owner实现，不在本审查改代码。
+
+另为RUNNING右栏增加最小滚达：按原对象精确定位“选择历史参考”“萃取概览”和其后模式说明；分别滚到完整screen rect、Layout全行盒零省略，保存滚后原PNG；finally恢复同support-scroll原坐标及本杯traceIdentity/参考选择/原模型状态，保存恢复图，核固定停止rect未变。只滚动不点击副作用操作；不能靠调整初始scroll把不完整主态藏掉。1.0完整初态也记录同一目标集合，1.3必须有实际滚后和恢复证据。完成后Astra按图签可达，不以report accepted代签。
+
+## 2026-10-20 dc5875c Comparison 来源修复与UNKNOWN前置断言
+
+原件 `build/task-first-evidence/ci-dc5875c-m5/raw/raw-device/84aaa3efd951e4f6229fc9d235e257e61f0f257c/tablet-user-landscape-light-font-1.3/comparison/`。本轮只有light/1.3，不是新1.0。Astra实看主window、target-8/9-reachable、unknown-observation/window原PNG，并读精确目标/恢复及UNKNOWN geometry。
+
+来源修复：两来源滚后真实rect分别 `[252,1144,1316,1429]`、`[1424,1144,2488,1429]`，自然高285与details viewport285相符，完整五行至“时刻”均在原图内；旧131px窗口裁切此配置已关闭。20目标集合、两个scroll均[0,0]精确恢复、ids/metric/journal不变报告成立。主图摘要已呈水平分隔而无旧整格竖框，所看字体/主辅色未见新回归。只签该修复样本，不将整页manifest FAIL改PASS，不扩其他配置/状态。
+
+新失败归属Comparison UNKNOWN（不是History）：实际warning正确全文“结果未确认，请以咖啡机实际状态为准。”，Layout一行61px、零省略，rect `[216,592,2524,653]`；toolbar viewport `[216,245,2524,546]` 高301，body延至761。警示处于初始可滚区域下方，当前初图确实看不到。dc测试1170在调用既有完整reachability之前强求whole，无法进入第21个warning滚达证明。这里不是错坐标推定，也不能把初态不见改写成已见；已批准Comparison大字toolbar局部滚达允许这种初态，需实际滚后证明方可关闭。
+
+最小适配限M5测试+runner：仅Comparison UNKNOWN初态保正确文字、isShown、同根/实际warning对象、真实UNKNOWN/非ENDED数值语义，先保原初图；把whole放到既有21目标精确inventory里的warning滚达执行，要求完整rect/全部行盒/零省略、正式原PNG、finally两scroll精确恢复与IDs/metric/journal不变。runner显式要求该条件warning目标及其accepted证明，不按数量替代。History/独立Detail的原初态whole不变，不删全局whole/48/plot门禁，不改产品。warning本轮没有滚后图，继续EVIDENCE_PENDING；适配静态完成也不能先签通过。
+
+## 2026-10-20 Extraction 原12态补齐：B静态终审
+
+静态无剩余阻断；不是12态运行或视觉通过。核完整五文件差异及原ExtractionController、onCoffeeFrame/passiveShot、Service清理路径。scenario只允许Mock/main/同clock owner/hub缺席安装；未安装时原Mock分支不变，真实hub分支未改。原start准备/资格校验保留，复用原controller归约，不写UI/state；synthetic completion不作硬件ACK。manual由两帧进入原passive observer，app controller仍IDLE；tick不产生样本。12态各有独立Scope，先关闭Activity、销毁Service并排空回调再clear scenario/scale输入、恢复delegate与clock；失败不续下一scope。
+
+补齐operationInputs后，fixture/case有序记录start请求ID、同ID synthetic_Success、STOP未完成的独立请求ID、UNKNOWN的DISCONNECTED输入；manual/no_service无app start。runner精确核12集合×4配置、原16主+60历史特殊态保留，额外48张Extraction状态图仍须真实协议/原件。参考选择实际Dialog/ListView、短暂STARTING、无样本Canvas与所有状态布局仍待CI，不以5个unit或编译代验。
+
+冻结SHA256：MockExtractionScenario `ce632475ae1079337fed9ac316368839a951390c73df7fe2004a03be2b11e6c0`；MobileService `651cdeeb62cd3be808ad35e93db37443c433e081322085b60af41bc0cbcef73d`；M5测试 `ca4c1d0a9e95542bb7233a9b636209ac9ba1bc0fbf6f420773bca3dbad2641d0`；runner `38f7a3e7ff4b73ab8f4ee11f6ae4c14ed5c1a52d2087b94e4dcbc42db5d6b6aa`；unit `b530ab76322cc2d58ad1f0aad10fa37f581c28c5dd72b8f7dc33f726d87bfb60`。最终operationInputs增量后构建由root统一核。
+
+RUNNING滚达规格纠正：当前实际模式说明在header，非support-scroll内；精确两个滚动目标为reference-choice/overview。核header实际模式全文完整，不虚构第三个滚动目标。已核两目标原对象、每目标protocol2/完整行盒、恢复图、停止rect与本杯/参考身份保持的静态闭环。Comparison UNKNOWN窄适配也已核：仅其初态whole延后至原21目标，其他页whole未改；实际滚后图仍待。

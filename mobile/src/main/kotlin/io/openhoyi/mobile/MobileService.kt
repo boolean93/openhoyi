@@ -210,6 +210,34 @@ class MobileService : Service() {
     private data class PendingCoffeeCredential(val address: String, val password: String, val remembered: Boolean)
     private var pendingCoffeeCredential: PendingCoffeeCredential? = null
     private val mock = if (BuildConfig.MOCK_MODE) MockDeviceRuntime { getString(it) } else null
+    private val mockExtractionScenario = MockExtractionScenario(BuildConfig.MOCK_MODE,
+        { Looper.myLooper() === Looper.getMainLooper() }, MobileMonotonicClock::ownsMockClock,
+        { hub == null }, MobileMonotonicClock::elapsedRealtime, ::onCoffeeFrame,
+        { onDeviceState(DeviceRole.COFFEE, it) })
+    private var mockExtractionOwner: Any? = null
+    internal fun installMockExtractionScenario(owner: Any) {
+        check(mock != null && running && snapshot.coffeeState == DeviceState.READY &&
+            shotState == ExtractionState.IDLE && chartTraceIdentity == null)
+        mockExtractionScenario.install(owner)
+        mockExtractionOwner = owner
+    }
+    internal fun clearMockExtractionScenario(owner: Any) {
+        check(mockExtractionOwner === owner)
+        mockExtractionScenario.clear(owner)
+        mockExtractionOwner = null
+    }
+    internal val mockExtractionOfferedFrameSerial get() = mockExtractionScenario.offeredFrameSerial
+    internal val mockExtractionPendingStartId get() = mockExtractionScenario.pendingStartId
+    internal val mockExtractionPendingStopId get() = mockExtractionScenario.pendingStopId
+    internal fun completeMockExtractionStart(owner: Any, id: Long, result: OperationResult) =
+        mockExtractionScenario.completeStart(owner, id, result)
+    internal fun completeMockExtractionStop(owner: Any, id: Long, result: OperationResult) =
+        mockExtractionScenario.completeStop(owner, id, result)
+    internal fun offerMockExtractionCoffeeState(owner: Any, state: DeviceState) =
+        mockExtractionScenario.coffeeState(owner, state)
+    internal fun offerMockExtractionFrame(owner: Any, frame: HoyiMessage) =
+        mockExtractionScenario.offerCoffeeFrame(owner, frame)
+    internal fun tickMockExtraction(owner: Any) = mockExtractionScenario.tick(owner)
     private val mockScaleVisualInput = MockScaleVisualInput(BuildConfig.MOCK_MODE,
         { Looper.myLooper() === Looper.getMainLooper() }, MobileMonotonicClock::ownsMockClock,
         { hub == null }, MobileMonotonicClock::elapsedRealtime,
@@ -253,6 +281,13 @@ class MobileService : Service() {
         override fun run() {
             val runtime = mock ?: return
             if (!running) return
+            mockExtractionOwner?.let { owner ->
+                // No offered telemetry means no new sample, even while the UI and
+                // original controller watchdog continue to receive clock ticks.
+                mockExtractionScenario.tick(owner)
+                handler.postDelayed(this, 250)
+                return
+            }
             val now = MobileMonotonicClock.elapsedRealtime()
             refreshMock(runtime, now)
             (snapshot.coffee as? IdleTelemetry)?.let { idle ->
@@ -319,10 +354,13 @@ class MobileService : Service() {
     val sleepScheduleFresh: Boolean get() = SleepScheduleFreshness.isFresh(
         snapshot.sleepFirst, snapshot.sleepFirstAt, snapshot.sleepSecond, snapshot.sleepSecondAt,
         MobileMonotonicClock.elapsedRealtime())
-    val shotState: ExtractionState get() = mock?.shotState ?: hub?.extraction?.state ?: ExtractionState.IDLE
+    val shotState: ExtractionState get() = if (mockExtractionOwner != null) mockExtractionScenario.state
+        else mock?.shotState ?: hub?.extraction?.state ?: ExtractionState.IDLE
     var activeShotTargetHundredthsGram: Int? = null; private set
-    val stopReason: String? get() = hub?.extraction?.stopReason?.name
-    val scalePreflight: Boolean get() = hub?.extraction?.preparingScale == true
+    val stopReason: String? get() = if (mockExtractionOwner != null) mockExtractionScenario.stopReason
+        else hub?.extraction?.stopReason?.name
+    val scalePreflight: Boolean get() = if (mockExtractionOwner != null) mockExtractionScenario.preparingScale
+        else hub?.extraction?.preparingScale == true
     val tareStartBlock: String? get() = when(tareState) {
         StandaloneTare.State.WRITING, StandaloneTare.State.WAITING_ZERO -> getString(R.string.service_tare_start_wait)
         StandaloneTare.State.UNKNOWN -> getString(R.string.service_tare_start_unknown)
@@ -1279,12 +1317,22 @@ class MobileService : Service() {
                 brewPreparation.consumed()
             }
             val shotId = beginPreparedShot(profile.id, slot) ?: return getString(R.string.dose_start_unavailable)
-            mock.start(now, slot)
+            val scenarioOwner = mockExtractionOwner
+            if (scenarioOwner == null) mock.start(now, slot)
+            else if (!mockExtractionScenario.start(scenarioOwner, profile.parameters,
+                    profile.targetHundredthsGram, profile.compensationHundredthsGram) {
+                    selectedCurve(profileId, slot) == profile && snapshot.coffeeState == DeviceState.READY &&
+                        mockExtractionOwner === scenarioOwner
+                }) {
+                runCatching { history?.transition(ExtractionState.IDLE, null, null) }
+                return getString(R.string.service_shot_session_rejected)
+            }
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
             series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
             activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile)
             beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
-            event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
+            if (scenarioOwner == null) event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
+            else event(ResourceMessage(R.string.service_shot_requested, profile.name), "mock.synthetic_shot_requested")
             return null
         }
         if (manualShotActive) return getString(R.string.service_shot_manual_block)
@@ -1391,8 +1439,10 @@ class MobileService : Service() {
     fun stopShot() {
         if (mock != null) {
             if (ShotGate.active(shotState)) {
-                mock.stop()
-                event(ResourceMessage(R.string.service_shot_mock_stopped), "mock.shot_stopped")
+                val scenarioOwner = mockExtractionOwner
+                if (scenarioOwner == null) mock.stop() else mockExtractionScenario.stop(scenarioOwner)
+                if (scenarioOwner == null) event(ResourceMessage(R.string.service_shot_mock_stopped), "mock.shot_stopped")
+                else event(ResourceMessage(R.string.service_shot_stop_requested), "mock.synthetic_stop_requested")
             }
             return
         }

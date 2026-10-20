@@ -137,6 +137,10 @@ manifests = sorted(root.glob('*/*/manifest.json'))
 assert len(manifests)==16, f'Expected 16 real Activity configurations, got {len(manifests)}'
 seen=set()
 special_captures=0
+extraction_special_captures=0
+extraction_special_names=['STARTING','STOP_REQUESTED','UNKNOWN_live','no_scale','stale_scale',
+    'no_service_ready','manual','historical_reference_toggle','missing_samples',
+    'water_reset','sample_gap','journal_unavailable']
 expected_specials={'missing-samples':'m5-history-extra-38','no-notes':'m5-history-extra-6',
     'unknown-observation':'m5-history-extra-7','sample-gap':'m5-history-extra-8','water-reset':'m5-history-extra-9'}
 def require_proof(path):
@@ -197,6 +201,13 @@ def require_reach(folder,page,expected_warning=False):
         assert all(x['visibility']['complete'] for x in reach['targets'])
         for target in reach['targets']:
             if not target['tasteEllipsisRetainsFullDialogSemantics']:require_text_layout(target['layout'],skip_taste=True)
+        if expected_warning:
+            warning=[(index,target) for index,target in enumerate(reach['targets'])
+                     if target['semanticKey']=='comparison-unknown-warning']
+            assert len(warning)==1 and len(expected)==21
+            index,target=warning[0]
+            require_text_layout(target['layout'])
+            require_proof(folder/'states'/f'comparison-target-{index}-reachable'/'window-frame-sync.json')
         assert reach['tasteBusinessDialogNotInvoked']
         phases=[f'comparison-target-{index}-reachable' for index in range(len(expected))]+['comparison-scrolls-restored']
     for phase in phases:require_proof(folder/'states'/phase/'window-frame-sync.json')
@@ -356,15 +367,101 @@ for path in manifests:
         assert isolation['serviceHubClosed'] and isolation['extractionActivityUnboundAndRefreshRemoved']
         assert isolation['originalVisibilityObserversPreserved'] and isolation['serviceOriginalLazyIdentityAndInitializedRestored']
         assert isolation['mockClockRemovedAfterAllOwnersDrained']
+        reach=json.loads((folder/'extraction-reachability.json').read_text())
+        assert reach['completed'] and reach['targetKeys']==['reference-choice','overview']
+        assert [target['semanticKey'] for target in reach['initialTargets']]==reach['targetKeys']
+        assert [target['semanticKey'] for target in reach['reached']]==reach['targetKeys']
+        assert reach['initialScrollPx']==reach['restoredScrollPx']==[0,0] and reach['exactScrollRestored']
+        assert reach['traceIdentity']=='m5-live-shot' and reach['shotState']=='RUNNING'
+        assert reach['noToolClicks'] and reach['modelAndSelectionUnchanged']
+        assert reach['modeLocation']=='header_outside_support_scroll_in_current_version'
+        assert reach['modeSubtitle']['complete']
+        for target in reach['reached']:
+            assert target['layout']['complete'] and target['layout']['textLineBoxes']
+            assert all(line['fullViewVisible'] and line['layoutPresent'] and line['lineCount']>0 and line['ellipsisCount']==0 and
+                line['layoutHeightPx']<=line['contentHeightPx'] for line in target['layout']['textLineBoxes'])
+        for phase in ('reference-choice-reachable','overview-reachable','tools-restored'):
+            require_proof(folder/'states'/f'extraction-{phase}'/'window-frame-sync.json')
+        special=json.loads((folder/'special-states/manifest.json').read_text())
+        assert m['extractionSpecialStates']==special and special['completed']
+        assert special['sourceSha']==m['sourceSha'] and special['profile']==m['profile'] and special['page']=='extraction'
+        assert special['synthetic'] and special['hardwareMeasurement'] is False and special['realProductActivity'] and special['visualAcceptance']=='ASTRA_PENDING'
+        assert special['expectedCases']==extraction_special_names and special['mainConfigurationCountContribution']==0
+        assert special['actualAdditionalActivityCaptures']==len(special['cases'])==12
+        assert [case['case'] for case in special['cases']]==extraction_special_names
+        assert m['completedSpecialCases']==extraction_special_names and m['pendingSpecialCases']==[]
+        states={'STARTING':'STARTING','STOP_REQUESTED':'STOP_REQUESTED','UNKNOWN_live':'OUTCOME_UNKNOWN',
+            'no_service_ready':'IDLE','manual':'IDLE'}
+        for case in special['cases']:
+            name=case['case'];target=folder/'special-states'/name
+            assert case['status']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE'
+            assert case['synthetic'] and case['hardwareMeasurement'] is False and case['realProductActivity'] and case['visualAcceptance']=='ASTRA_PENDING'
+            assert case['actualState']==states.get(name,'RUNNING')
+            assert case['actualManualShotActive']==(name=='manual')
+            assert case['actualRunningService']==(name!='no_service_ready')
+            assert case['actualOfferedFrameSerial']==len(case['offeredMachineFrames'])
+            assert case['actualSampleCount']==case['actualOfferedFrameSerial']
+            assert case['actualTraceIdentity']==(None if name=='no_service_ready' else f'm5-extraction-{name}')
+            assert case['actualCurveId']==('manual' if name=='manual' else None if name=='no_service_ready' else 'factory-v3-002')
+            assert case['shotId']==(None if name in ('manual','no_service_ready') else f'm5-extraction-{name}')
+            assert case['frameSync']['protocolVersion']==2 and case['frameSync']['accepted']
+            assert json.loads((target/'case.json').read_text())==case
+            fixture=json.loads((target/'fixture.json').read_text())
+            assert fixture['case']==name and fixture['synthetic'] and fixture['hardwareMeasurement'] is False
+            assert fixture['offeredMachineFrames']==case['offeredMachineFrames']
+            assert fixture['operationInputs']==case['operationInputs']
+            operations=case['operationInputs']
+            expected_operations=[] if name in ('manual','no_service_ready') else ['start_requested']
+            if name not in ('manual','no_service_ready','STARTING'):expected_operations.append('start_completed')
+            if name=='STOP_REQUESTED':expected_operations.append('manual_stop_requested')
+            if name=='UNKNOWN_live':expected_operations.append('coffee_ready_changed')
+            assert [item['kind'] for item in operations]==expected_operations
+            assert [item['ordinal'] for item in operations]==list(range(1,len(operations)+1))
+            assert all(item['synthetic'] for item in operations)
+            if operations:
+                request=operations[0]['requestId']
+                assert isinstance(request,int) and request>0
+                if len(operations)>1 and operations[1]['kind']=='start_completed':
+                    assert operations[1]['requestId']==request and operations[1]['result']=='synthetic_Success'
+            if name=='STARTING':assert case['actualState']=='STARTING' and len(operations)==1
+            if name=='STOP_REQUESTED':
+                assert operations[-1]['completion']=='not_offered' and operations[-1]['requestId']>operations[0]['requestId']
+            if name=='UNKNOWN_live':assert operations[-1]['state']=='DISCONNECTED'
+            own=json.loads((target/'fixture-isolation.json').read_text())
+            assert own['status']=='PASS_ISOLATION_ONLY' and own['businessDiskByteUnchanged'] and own['allActivitiesDestroyed']
+            assert own['scopedServiceDestroyed'] and own['mockClockRemovedAfterAllOwnersDrained']
+            assert len(case['offeredMachineFrames'])==len({x['serial'] for x in case['offeredMachineFrames']})
+            assert [x['serial'] for x in case['offeredMachineFrames']]==list(range(1,len(case['offeredMachineFrames'])+1))
+            assert all(x['actualNewPoints']==x['pointsAfter']-x['pointsBefore'] for x in case['offeredMachineFrames'])
+            require_proof(target/'window-frame-sync.json')
+            assert tuple(struct.unpack('>II',(target/'window.png').read_bytes()[16:24]))==(2560,1600)
+            if name=='missing_samples':assert case['actualSampleCount']==0 and not case['actualWaterSegments']
+            if name=='water_reset':assert case['actualWaterResetsMs']==[3000] and len(case['actualWaterSegments'])==2
+            if name=='sample_gap':assert len(case['actualWaterSegments'])==2 and not case['actualWaterResetsMs']
+            if name=='no_scale':assert case['actualScaleState']=='DISCONNECTED'
+            if name=='UNKNOWN_live':assert case['actualCoffeeState']=='DISCONNECTED' and case['actualSampleCount']>0
+            if name=='historical_reference_toggle':
+                assert case['referenceToggleActualSavedJournal'] and case['selectionAndScrollRestored'] and case['currentCupAndJournalUnchanged']
+                assert case['referenceOnCount']>0
+                for phase in ('on','off','restored'):
+                    require_proof(target/'states'/f'extraction-reference-{phase}'/'window-frame-sync.json')
+            if name=='journal_unavailable':
+                assert case['actualJournalResultFailed'] and case['chooserOnlyOffNoFakeRecord']
+                require_proof(target/'states/extraction-journal-unavailable-choice/window-frame-sync.json')
+            extraction_special_captures+=1
     assert 'noBackupFilesDir' in isolation and isolation['noBackupFilesDir'] in isolation['businessDiskRoots']
     assert (folder/'baseline-alignment.json').is_file()
-    assert m['pendingSpecialCases']  # Explicit outstanding states are not silently relabelled as complete.
+    history_pending=['STARTING','STOP_REQUESTED','UNKNOWN_live','no_scale','stale_scale',
+        'no_service_ready','manual','historical_reference_toggle','journal_unavailable']
+    assert m['pendingSpecialCases']==([] if m['page']=='extraction' else history_pending)
     for chart in m['window']['charts']: assert chart['canvasEvidence'], path
 
 assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in ('extraction','history','history-detail','comparison') for theme in ('light','dark') for scale in ('1.0','1.3')}
 assert special_captures==60, f'Expected 60 separate historical special-state page captures, got {special_captures}'
+assert extraction_special_captures==48, f'Expected 48 separate Extraction special-state captures, got {extraction_special_captures}'
 (root/'capture-summary.json').write_text(json.dumps({'realConfigurations':16,'sourceSha':root.name,
     'historicalSpecialStateActivityCaptures':special_captures,'specialStatesCountedAsMainConfigurations':False,
+    'extractionSpecialStateActivityCaptures':extraction_special_captures,
     'visualAcceptance':'ASTRA_PENDING','specimenImagesUsedAsProductEvidence':False},indent=2)+'\n')
 print('EXTRACTION_HISTORY_VISUAL_MIGRATION_RETAINED configurations=16 historicalSpecialStateActivities=60 actualActivities=true visualAcceptance=ASTRA_PENDING')
 VERIFY_PY

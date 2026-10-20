@@ -2,7 +2,15 @@
 
 ## 当前状态（优先于下方历史观察时点）
 
-最新远端 head `a47c87090240d5b682501d84759d48f0bcf36736`；下述已审 bcc64c1 批次 PR 实测 merge `8e8f8877aa5dc07b6e0e1c9ee6603cbde07ef249`（M5/M8 原始产物确认）。2026-10-20 本轮 native 与 branch-policy 已通过，其余检查仍在运行或失败，不能沿用旧批次成功。原 `49a1b46` / merge `46e2dbc79ca0732290db92b5c78ad097c82c86cb` 的 M5 CI `39204483061` 成功和16主manifest/840引用文件仅为历史证据。
+最新已推送 head `dc5875cc924b2fbf7359b876b29e4e38f30ee1ec`，PR4仍为draft、目标develop；工作树提交后干净。新PR检查已启动：frame39422164343、curve39422164404、bean39422164468、scale39422164339、legacy39422164336、settings39422164407、M539422164438、snapshot39422164320；完整句柄在 `build/task-first-evidence/ci-dc5875c/run-handles.json`。本批全部终态：PR 7 success/7 failure，push 4 success/8 failure；PR branch-policy、snapshot、upgrade、lifecycle、single、native、advanced通过，curve、scale、settings、bean、legacy、M5、frame失败，本head仅取得下述M4说明与Comparison浅色1.3限定验收，不借用其他配置结果。
+
+本提交包含：Comparison按来源全文/摘要独立行自然高保详情viewport；M4两已有特殊态全文滚达/恢复补证；M8两真实Switch单次点击测试修正；Scale/Legacy显式窗口映射及诊断计时；M2/M3独立IME因果证据、生命周期超时条件快照；snapshot实际列表解析。全部经Astra静态审查，最终AndroidTest编译30秒成功；8分支策略、11snapshot、9window契约测试通过，5runner/8段Python语法通过。编译/契约通过不代表UI或硬件通过。
+
+本轮已查看的上一版本a47原图仅取得有限增量：浅色1.3 UNKNOWN详情真实plot102.66596dp，旧67.55dp不足已修；missing-samples三图例、空采样、四目标滚达及恢复已验。Comparison裁切有修正但待新图；标准1.0截轴本轮未采，仍待验。完整24页G1–G4未完成，未安装、合并、发版。以下摘要保留历史来源，不视为当前运行状态。
+
+### 已审历史批次摘要
+
+上一轮远端 head `a47c87090240d5b682501d84759d48f0bcf36736`；下述已审 bcc64c1 批次 PR 实测 merge `8e8f8877aa5dc07b6e0e1c9ee6603cbde07ef249`（M5/M8 原始产物确认）。2026-10-20 本轮 native 与 branch-policy 已通过，其余检查仍在运行或失败，不能沿用旧批次成功。原 `49a1b46` / merge `46e2dbc79ca0732290db92b5c78ad097c82c86cb` 的 M5 CI `39204483061` 成功和16主manifest/840引用文件仅为历史证据。
 
 本轮已提交 M8 三页、M5/M6 布局修正和测试取证收口；真实 CI 仍有阻断。M8 `39414724094` 首个 AppSettings 1.3 截图同步失败，已定位 S1 初始滚动条渐隐、其余 W1/D1/D2/W2/S2 同像素，原5秒零差门禁继续保留；拟用私有 scrollbar state 的方案因 maxTargetSdk=R 被撤回，不进入本批，渐隐问题未关闭。M5 `39414724042` 第673行失败经 Astra 对照实图确认是缺采样态合法三图例却被固定要求四项；真实浅色1.3 History 主态、图表/说明/两项notes可达与恢复仅此样本限定通过，未外推未执行态。字体设置恢复是独立失败。原始 ZIP 远端 SHA 与 CRC 已校验，分别保存在 `build/task-first-evidence/ci-bcc64c1-settings/` 与 `ci-bcc64c1-m5/`。
 
@@ -111,12 +119,12 @@ M2最新恢复记录的11字段值、selection、focusedFieldKey、draftId、sta
 | CurveActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M3已实施：冻结字体/间距/语义色、真实指标与连续列表；保留原选择/排序/槽位。31 JVM tests及两个APK构建通过，新独立12配置CI39153382312运行中，尚无结果。历史footer/list限定证据保留，不追认新视觉。 |
 | HistoryActivity | FAIL | LIMITED_PASS | FAIL | LIMITED_PASS | eb77标准1.0真实时间轴裁39px；1.3右侧图/说明/notes滚达证据缺口。候选已修并补检查，待新CI；G2/G4仅已采范围 |
 | HistoryDetailActivity | FAIL | LIMITED_PASS | EVIDENCE_PENDING | LIMITED_PASS | eb77 UNKNOWN/1.3实际plot67.55dp；notes完整滚达未证。条件同行候选构建成功不关闭失败；G2/G4仅已采范围 |
-| BrewComparisonActivity | FAIL | LIMITED_PASS | EVIDENCE_PENDING | LIMITED_PASS | eb77整格边框与稿不符，summary/toolbar完整滚达缺证。水平线候选与20+条件warning测试静态通过，待新CI |
+| BrewComparisonActivity | LIMITED_PASS | LIMITED_PASS | EVIDENCE_PENDING | LIMITED_PASS | dc5875c浅色1.3两来源各285px全文滚达、20目标/双scroll恢复、水平分隔已实图接受，关闭该配置旧131px视口裁切。UNKNOWN warning在合法toolbar滚动区下方，初态whole前置断言冲突；需在既有21目标中严格滚达/原图/恢复，当前缺证。其余配置不外推。 |
 | BeanInventoryActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
 | BeanEntryActivity | FAIL | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | 95be8fb失败现场三次draw稳定，五字段均117px完整；名称右1515=重量左1515，规定16dp间距实测0px。随后section定位错误阻断，主图0/12。064业务图观察间隔改善，但未完成正式精确16dp和全配置复验；9b51936候选待新frame，历史末字段失败保留 |
 | BeanBatchActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | bcc64c1 / tested merge8e8f 的四主态及已列特殊态由Astra实图限定接受：90g/100g/90%与日期/流水完整，主态5目标全滚达/恢复；原生长理由焦点流程完成但无独立全文PNG。字体资产/角色证据有，原稿字体及逐glyph fallback未知；不扩全状态或硬件，见M4 review。 |
 | BeanLedgerActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | bcc64c1四主态与已列特殊态限定接受：214/250摘要、五列三事件和类型色正确，主态3目标全可达/恢复，baseline零差；两行省略+原生全文详情语义保留。逐glyph字体不可观察项及CI字号清理FAIL保留，见M4 review。 |
-| BeanPreparationActivity | LIMITED_PASS | LIMITED_PASS | EVIDENCE_PENDING | LIMITED_PASS | bcc64c1四主态构图、数值/单位、颜色限定接受，主态7目标可达/恢复；旧IME固定操作出屏FAIL本轮已核改善，不覆盖所有IME协议。confirmed与post-consume-failed库存说明仍需原状态全文滚达/恢复证据（1.0缺4px、1.3缺74px），合法局部滚动不判生产裁切；补证候选在做，见M4 review。 |
+| BeanPreparationActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | bcc主态限定接受沿用；dc5875c两原说明状态浅深×1.0/1.3共16张visible/restored原图已由Astra逐张核，8份报告/16正式proof成立，全文/精确恢复/库存与journal不变，关闭旧两说明缺口。只限已列主/特殊状态；原生dialog全文字形和未采IME协议不外推，见M4 review。 |
 | BrewReviewActivity | FAIL | EVIDENCE_PENDING | FAIL | EVIDENCE_PENDING | 95be8fb真实业务图选豆第二行裁切；advanced wideFont ru/light页头曲线/时间ellipsis失败；single短高真实tools菜单触控高度不足48dp。064业务图已观察长选豆第二行完整、advanced两job通过；正式12配置和四门仍缺，9b51936新frame待验，旧18业务通过不抵消视觉差异 |
 | CurveEditorActivity | FAIL | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | 95be8fb业务图第四阶段输入底部裁切；single短高真实tools菜单触控高度不足48dp。064正式M2已取得本页浅色1.0主图：fullNatural1055/available1040，第四阶段117px输入仅102px可见（15px）；064 single另一夹具117px仅113px可见（4px），两夹具不可混同。9b51936同正式浅1.0主图经Astra实看确认991/1040且两输入117px完整，限定关闭该15px初态缺口；其余配置与后续恢复失败未关闭，不能以滚达替代标准11字段首屏 |
 | CurveShareActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
@@ -311,3 +319,50 @@ Astra 对本包实际 light/1.3 原图增量复核：独立 UNKNOWN HistoryDetai
 ### 最终合批静态收口
 
 M2 五文件最终 Astra 静态无阻断；最终 AndroidTest 编译成功30秒，记录 `m2-causal/build.log` 与 `source-sha256.txt`。只给编辑页 light/1.0 首次重建增加独立原生trace与关联证据，M3默认保持；原恢复逻辑/等值断言/等待/show次数/PARTIAL判定不变。两窄收口为capture取消焦点调用边界标记、诊断写盘异常不覆盖原业务异常，未改变产品恢复结果。M2原FAIL与M3原PARTIAL保留，实际新运行待CI。
+
+
+### dc5875c 首批原件
+
+Scale39422164339 在浅色1.3初态即5秒同步FAIL，尚未运行到新dialog映射，不把该结果记作映射失败。artifact12265131111 SHA `aaab06e5b8a10324459f08d0edc1c1aa1a9300175b19ca87db88528fb6ab5519`，24条CRC通过，实际merge `84aaa3efd951e4f6229fc9d235e257e61f0f257c`；新计时原件由Sol只读分析。
+
+独立snapshot39422164320已PASS：artifact12265061384 SHA `bcf78c70bcfcfc2a6c3993a6d6eaf3e04a955ed598da631741ad1b2780c2b9be`，187条CRC和result引用186原件SHA已逐一核对。before.settings确无font_scale，mutated为1.3，load后restored.settings再次无该键且framework配置1.0；save/load/delete各一次ACK、host先留模拟业务失败证据。只证明指定disposable emulator快照恢复能力，现视觉runner尚未接入，不关闭旧清理FAIL，也不追认UI通过。
+
+完整24页缺口及实际字体验收终点已由Astra整理在 `2026-10-20-full-scope-acceptance-gaps.md`；下一步优先完成已有Extraction原图的设计对照，不只增加诊断材料。
+
+
+Scale新timings只读定位：首轮S1独有右缘9×823瞬态差异，形态与scrollbar渐隐一致；第二轮四同域零差，但comparison完成5659ms超原5秒659ms。首轮JSON比较1134ms/哈希714ms/中间proof序列化846ms，不能以持久化后总时长冒称采集预算扩大。报告 `ci-dc5875c-scale/analysis-window-frame.md`；无代码改动。
+
+M3新关联证据保全及分析见 `ci-dc5875c-curve/m3-causal-diagnosis.md`。原断言仅scroll4885→4281，文本/选区/焦点一致；native确认新field上的hide但无可靠caller栈/request链接，不能证明发起方或-604因果。显式fixture unfocus尚未执行，collector仍PARTIAL；不根据相关性猜改生产。
+
+Extraction覆盖纠正：Astra实际重看eb77四张主态发现本页只有四主图与display伴图，60特殊图属于其余三页，不能用于宣称Extraction特殊态已采。原manifest的STARTING/STOP_REQUESTED/UNKNOWN/no_scale/stale/sample_gap等12项仍pending，另1.3右栏两工具完整滚达缺证。正对原M5计划核遗漏，完整24范围不缩水。
+
+
+### dc5875c 后续已保存证据
+
+M4 bean原业务exit0，12主manifest/960引用文件SHA逐一匹配；两既有特殊说明状态各4profile均有visible/restored原图，共16图，待Astra限定验收。仍因字体key absent未恢复整run FAIL，不覆盖清理失败。M5 6manifest（3主+3special）/1180引用SHA匹配，仅light1.3；History/Detail机械通过，Comparison已越过旧来源裁切处，但UNKNOWN warning的全文/可见断言失败，新图待审，不宣称原布局已关闭。Legacy 3manifest/86引用SHA匹配；Curve/light1.3短窗正式proof已产，History/light1.3真实plot84.11058dp低于当前160门禁，待实际设计原因核查。全部tested merge为84aaa3efd951e4f6229fc9d235e257e61f0f257c。
+
+Settings39422164407初态即同步超时，未到Switch；artifact12264527887 SHA f04df8c3e9567c1943771cf99900cb8df46405454270355550d0fdba76704cc7/23CRC通过。首轮geometry JSON比较1415.8ms、中间proof序列化976.7ms，第2轮display请求前5017ms已越原deadline而拒发。与Scale共同提示可无损减少中间序列化，但尚未实施，不放宽5秒门禁。
+
+
+本地磁盘ENOSPC导致dc frame解压中断，原ZIP已核远端SHA/全CRC、未损坏，部分raw不作为证据。保留全部原ZIP，逐文件SHA核完全一致后仅移除18历史重复raw，回收1,773,912,479 bytes；还原清单在 `build/task-first-evidence/raw-eviction-summary.json` 和各包 `raw-eviction-record.json`。当前dc/a47/bcc/eb77/M1审查原件未清理。引用历史raw时先按原ZIP恢复，不误判原证据丢失。
+
+
+dc5875c整批26运行已从GitHub确认终态，最终句柄/结论保存 `ci-dc5875c/final-all-status.json`。未取消/重启。M2 frame artifact12264853174 ZIP SHA697df968a12604b5f71db5fcad0cfd102c0f9217ae0e32e47d092253cf136119、1082CRC，ENOSPC后已从保留ZIP安全恢复完整raw；新因果sidecar确认同decor/token、新field13→27，显示结果与应用滚动阶段IME状态曾改变，最终原断言仍FAIL，未据此推定hide调用方。
+
+
+### dc后续候选（尚未新CI）
+
+Window A只删除重试中间proof序列化、保留终态一次完整写盘与原异常优先级，Astra静态通过，compileMockAndroidTestKotlin成功；5秒/所有像素及geometry比较未改。Legacy opt-in自然测量两文件静态通过（52156035/cb1172fd），默认null路径不变，同Paint自然160且EXACT/AT_MOST真实约束保留；旧84.11dp失败仍需新原图关闭，未据静态升格。
+
+Scale专用snapshot host事务四文件静态收口，root独立运行13事务契约+11探针测试均通过；其中disk-full报错为测试主动注入分支，不是新磁盘耗尽。实际Scale集成尚未运行，不追认旧清理FAIL。原矩阵失败隔离方案首批仅M8，见 `2026-10-20-existing-matrix-failure-isolation.md`；只在全部既定隔离证据通过后继续原下一格，整体失败码保持，未知清理即停，尚在实施。
+
+
+### 本地合批终审补记（2026-10-20，尚待新 CI）
+
+Astra 已完成 Extraction B 五文件静态终审：12 态通过原 reducer/typed events 进入，operation request/completion 因果证据已补，默认 Mock/真实 hub 路径不变。最终 M5 测试 SHA `ca4c1d0a9e95542bb7233a9b636209ac9ba1bc0fbf6f420773bca3dbad2641d0`、runner `38f7a3e7ff4b73ab8f4ee11f6ae4c14ed5c1a52d2087b94e4dcbc42db5d6b6aa`。统一 `assembleMockAndroidTest` 与场景单测成功（34s，5 tests/0 failures/errors/skips），原日志 `build/task-first-evidence/extraction-final-build.log`。这些结论不替代 12 态实际截图、参考 Dialog 或 Window 协议验收。
+
+Curve Library 浅色1.0主态/非首选择/恢复，以及 Legacy Curve 浅色1.3主态/恢复/缺参数/空态/读取失败，已由 Astra 实看原图限定接受。Legacy 长名和短窗下方全文滚达仍缺图；导入 Toast 覆盖处不签无遮挡。详见 `2026-10-20-library-legacy-curve-visual-review.md`，不外推四配置或 Import/History。
+
+M2 dc 原 ZIP 与恢复轨迹复查见 `ci-dc5875c-frame/diagnosis.md`：仅 IME true→false、content 680→1391、scroll 662→0；字段、selection、focus、draftId 相同。trace collector 仍 PARTIAL，hide 来源 unknown，不根据与 M3 的相似症状猜改生产逻辑。
+
+M8 固定矩阵失败隔离三文件已获 Astra 最终静态通过，11 项离线测试通过；EXIT 优先保留账本合法首失败码（7→后续9仍为7），账本不可读则保留当前失败。原12格、全部成功格完整门禁、未知隔离即停均保留。实际安全续格仍待下一轮 CI，不覆盖 dc 的失败。

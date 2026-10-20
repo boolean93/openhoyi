@@ -31,3 +31,17 @@ verify可增加默认null expectedLegacyShot，但LegacyDetail分支requireNotNu
 本次亲看中文浅深History/Detail四张原2560×1600 PNG，density2.25/fontScale1.0。两系列真实plot、完整轴/时间标、图例、历史只读警示、Detail数据来源/缺失数据/解释限制及固定动作均可见；未发现本四张已确认新偏差。Detail实际viewport/chart同为1398×874，screen[252,519,1650,1393]全可见（仍是外框，不伪称Canvas精确数值）。原Single运行checked336/legacyDetailFixture=true，实际执行独立points身份+Canvas与可视交集96dp断言；列表recreate/detail-return均position3/offset−17、gesture=swipe。
 
 因此三个profile的旧Single结构漏查修复与既有列表恢复门禁均获得限定实际闭合；用户配置不再是未跑。但该包同样不替代M7 protocol2逐目标滚达/短窗/特殊态，不构成G1–G4或全24页验收。其他M8设置图未在本轮专项审查，不能据single成功补成通过。
+
+## 2026-10-20 dc5875c 正式LegacyHistory真plot不足
+
+原件 `build/task-first-evidence/ci-dc5875c-legacy/raw/raw-device/84aaa3efd951e4f6229fc9d235e257e61f0f257c/tablet-user-landscape-light-font-1.3/history/`。Astra已实看原window.png，图真实扁矮；geometry chart完整rect `[1090,732,2488,1204]` 高472px，同源Canvas轴/图例占282.7512px，plot `[108,176.5008,1303.5,365.7496]` 高189.2488px=84.11058dp。不是visible坐标转换误差，连既准短高96也不足，更不满足当前正式160断言；G1 FAIL保留。原PNG还有前一导入失败Toast盖住底部部分说明，不据此签全文可见，不猜产品说明本身坏。
+
+只读根因：LegacyChartViewport.onMeasure虽然将child layoutParams.height设置为max(同Paint最低轴带+160dp,available)，LegacyShotChartView却未override onMeasure。SDK34 ScrollView.java measureChildWithMargins给child高度UNSPECIFIED；普通View默认测量不把layoutParams数值当自然高度，fillViewport再填到viewport高，因此最终472而不是应有ceil(282.7512+360)=643。此为测量契约缺口，不应降低测试160或字体14。
+
+最小修正规格交生产owner：仅LegacyChartViewport/LegacyShotChartView的opt-in测量契约，使同一永久chart实际自然高至少同源minimumVisualHeight(actual width,160)，ScrollView的UNSPECIFIED测量必须实际返回该自然高，EXACT/AT_MOST约束行为明确；默认visualStyle=null旧renderer路径保持，不在onDraw改尺寸，不通过硬编码643/84修单夹具。优先在visual opt-in chart onMeasure落实自然高，viewport保局部滚动；不更改数据/轴/图例/字体/列表/选中/固定动作。记录实际measure mode、width、同Paint最小高、resolved chart高及viewport高，验实图Canvas≥160；短窗仍按既准可见96与滚达完整图/轴、恢复判定，不能用chart自然高替代可见交集。不要求全chart同时进小viewport，也不能放宽原可达门禁。此修改共用独立Detail，需要同批验证其默认及图/说明滚达无回归。尚未实施或新运行，本节不关闭原FAIL。
+
+### Legacy自然测量候选静态复核
+
+两文件diff已核：LegacyShotChartView SHA `5215603577d40d29af193b7a958a608b031be0ec7ffd1e0cd415dfbd8a282fc5`；LegacyHistoryContent SHA `cb1172fdd7706d703537ec17f6f170237a98a44c131b69e536556afa6284e4c0`。visualRenderer非空时按resolved width调用同renderer minimumHeight(width,160)，UNSPECIFIED返回真实自然高；AT_MOST遵守上限、EXACTLY遵守指定尺寸，不伪报约束下始终足160。默认null直接super，旧绘制路径不变。viewport测量/滚动未改，仅追加实际measurement到原Canvas evidence；原160/短窗96/可见交集与滚达门禁未松。
+
+静态无剩余阻断，待编译和实际图。Detail共用opt-in测量，需其原图/轴滚达与恢复回归；不能从这份代码推定短窗可见96或Detail已通过。原dc 84.11058dp FAIL须由新Canvas及原PNG关闭。

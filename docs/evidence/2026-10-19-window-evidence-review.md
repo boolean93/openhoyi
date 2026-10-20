@@ -67,3 +67,7 @@ runner 现在逐一要求主图、短窗、modal、滚后等预期 proof 存在�
 已审最终 NativeWindowFrameEvidence.kt SHA256 `efe2a0653e24d8cde2e9cac71f768783a0562fcf874d1a33268391db011318f0`，及 M6/M7 调用、两 runner、window_mapping_contract.py（`c8c01a7f0ad4899dc9192a1a9c497071c6d600b1a24b9e55a684bf103b653527`）。实测平移、对称扩展、两次一致、边界和身份链均依上述限定；默认 Activity 不 fallback。仅原两 trend modal 与已声明短窗 opt-in，负例仍原 strict Window 入口。translated 成功保留完整 W1/W2 原层 PNG，Scale runner（`dc888125180bd261b23ec0ebf1f2c9dc20ddcc5d804ac3fc50c2c65318fbce71`）要求四原件角色及逐 SHA/层尺寸。
 
 纳秒计时仅在匹配过程内存记录既有阶段，终态 finally 写独立 diagnostic sidecar；不参与 accepted，不覆盖失败，不添加等待。原真实5秒、六次采集顺序、四正式零差和跨域仅诊断保持。独立执行9项映射契约测试全过、三个runner bash-n与diff-check通过。静态无剩余阻断；这些离线结果不证明新的真实 Window capture 已通过，需新CI原件验收。
+
+## 2026-10-20 终态proof窄优化静态接受
+
+NativeWindowFrameEvidence.kt SHA256 `2990931eed9ef3143fb6b801e89621c60ee879c285f44233298928ea98f2cca4` 实际diff仅删除重试间writeProof(false)，并在终态失败writeProof异常时addSuppressed后保留原采集异常。全部attempt字段、geometry全比较、原5s匹配、四像素域、retained完整图优先与回收不变。符合本次无损优化计划，静态无剩余阻断；owner报告compileMockAndroidTestKotlin成功。下一实际CI才判断是否减少真实超时，不宣称同步失败已解决。

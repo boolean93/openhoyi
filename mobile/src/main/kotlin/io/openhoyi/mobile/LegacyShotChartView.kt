@@ -14,8 +14,39 @@ class LegacyShotChartView(context: Context) : View(context) {
     private var visualRenderer: LegacyChartRenderer? = null
     internal var visualEvidence = org.json.JSONObject()
         private set
+    private var measurementEvidence = org.json.JSONObject()
     internal fun minimumVisualHeight(width: Int, plotDp: Int = 160): Int =
         visualRenderer?.minimumHeight(width, plotDp) ?: 0
+    internal fun recordViewportMeasurement(widthSpec: Int, heightSpec: Int, viewportHeight: Int) {
+        if (visualRenderer == null) return
+        measurementEvidence.put("viewport", org.json.JSONObject()
+            .put("widthMeasureMode", measureMode(widthSpec))
+            .put("heightMeasureMode", measureMode(heightSpec))
+            .put("resolvedViewportHeightPx", viewportHeight)
+            .put("resolvedChartHeightPx", measuredHeight)
+            .put("samePaintMinimumHeightPx", minimumVisualHeight(measuredWidth, 160)))
+    }
+    private fun measureMode(spec: Int) = when (MeasureSpec.getMode(spec)) {
+        MeasureSpec.EXACTLY -> "EXACTLY"
+        MeasureSpec.AT_MOST -> "AT_MOST"
+        else -> "UNSPECIFIED"
+    }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val renderer = visualRenderer ?: return super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+        val resolvedWidth = View.getDefaultSize(suggestedMinimumWidth, widthMeasureSpec)
+        val minimumHeight = renderer.minimumHeight(resolvedWidth, 160)
+        val desiredHeight = max(suggestedMinimumHeight, minimumHeight)
+        val resolvedHeight = resolveSizeAndState(desiredHeight, heightMeasureSpec, 0)
+        setMeasuredDimension(resolvedWidth, resolvedHeight)
+        measurementEvidence = org.json.JSONObject()
+            .put("widthMeasureMode", measureMode(widthMeasureSpec))
+            .put("heightMeasureMode", measureMode(heightMeasureSpec))
+            .put("actualWidthPx", resolvedWidth)
+            .put("samePaintMinimumHeightPx", minimumHeight)
+            .put("requestedPlotHeightDp", 160)
+            .put("desiredNaturalHeightPx", desiredHeight)
+            .put("resolvedChartHeightPx", measuredHeight)
+    }
     var points: List<LegacyPoint> = emptyList()
         set(value) { field = value; invalidate() }
     private val axis = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -36,7 +67,10 @@ class LegacyShotChartView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        visualRenderer?.let { visualEvidence = it.draw(canvas, width, height, points); return }
+        visualRenderer?.let {
+            visualEvidence = it.draw(canvas, width, height, points).put("measurement", measurementEvidence)
+            return
+        }
         canvas.drawColor(context.getColor(R.color.mobile_surface))
         if (points.isEmpty()) { canvas.drawText(context.getString(R.string.chart_legacy_empty), dp(16f), height / 2f, label); return }
         val maxTime = max(1.0, points.last().seconds)

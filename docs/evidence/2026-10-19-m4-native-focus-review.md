@@ -42,3 +42,11 @@
 ### 两原状态补证实现静态收口
 
 已复核 BeanWorkflowVisualMigrationChecks.kt（SHA256 `731db33a73eeb6136e5f4039487f6864827af2ff6bba91a065802752f2bbeeb1`）与 bean runner：限定原 confirmed / post-consume 两状态，原图先保存；真实 support-scroll 内按既有完整字符串唯一定位，whole 检查 Layout 全行盒/零省略；finally 精确恢复原 scroll 与 target observation，校验同 intent 对象/eventId、全批次余额、事件及 journal 不变、固定按钮矩形不变。runner 明确要求两状态 visible/restored PNG、geometry、protocol 2 和报告。静态无新增阻断；实际补证尚未运行，不关闭上文视觉缺口。
+
+## 2026-10-20 dc5875c 两说明缺口实际关闭
+
+实际merge `84aaa3efd951e4f6229fc9d235e257e61f0f257c`，原件 `build/task-first-evidence/ci-dc5875c-bean/raw/<merge>/<profile>/preparation/states/`。Astra逐张看 confirmed-ledger-matched-receipt 与 post-consume-intent-write-failed，各浅/深×1.0/1.3的 description-visible、description-restored 共16张原PNG；另读8份support-description-reachability与16份accepted protocol2证明。未重复原12主态全审。
+
+两说明全文在滚后均完整：确认态“不自动回库、更正须库存页调整流水”；未完成态“核对同一事件、不重复扣减、勿另建记录重扣”。自然两行未见裁字/省略，字形/主辅层次及浅深色保留。固定放弃/返回及原有重试动作矩形不移动；滚动仅影响右侧内容，不挤掉左批次。恢复图回到原0位，因此说明再次局部隐藏属于精确恢复，不是新失败。8报告wholeAfter、scrollRestoredExactly、targetObservationRestoredExactly、businessUnchangedAfter/Restored和fixedActionsUnmoved均true，原intent/eventId、余额196000/178000及journal不变。
+
+结论：此前唯一明确的Preparation两状态说明全文滚达/恢复缺口，在这四配置G1/G3实际关闭；所看新增文字G2/G4未见回归。沿用原三页12主态及已列特殊态限定接受。原生dialog未采全文字形、硬件及font_scale清理边界不因此取消，不授全24页通过。
