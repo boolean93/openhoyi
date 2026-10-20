@@ -575,11 +575,35 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         gesture(list(page))
         val moved=stableList(page,directory,"list-after-gesture")
         check(moved.getInt("first")>before.getInt("first") && moved.getInt("count")==41)
+        var selectedRowProof:JSONObject?=null
         main {
             val target=list(page).firstVisiblePosition+1
-            val child=requireNotNull(list(page).getChildAt(1)); check(whole(observation(child)))
+            val child=requireNotNull(list(page).getChildAt(1))
+            if(page is LegacyHistoryActivity) {
+                @Suppress("UNCHECKED_CAST") val rows=field(page,"rows") as List<LegacyShot>
+                val day=nodes(child).filterIsInstance<TextView>().single {it.tag=="legacy/history/row/day"}
+                val title=nodes(child).filterIsInstance<TextView>().single {it.tag=="legacy/history/row/title"}
+                val metadata=nodes(child).filterIsInstance<TextView>().single {it.tag=="legacy/history/row/metadata"}
+                check(field(requireNotNull(child.tag),"day")===day && field(requireNotNull(child.tag),"title")===title &&
+                    field(requireNotNull(child.tag),"subtitle")===metadata)
+                check(nodes(child).filterIsInstance<TextView>().toSet()==setOf(day,title,metadata) && day.parent===child)
+                val format=java.text.SimpleDateFormat("yyyy-MM-dd",java.util.Locale.CHINA)
+                val date=format.format(java.util.Date(rows[target].createdAtMs))
+                val previous=rows.getOrNull(target-1)?.let {format.format(java.util.Date(it.createdAtMs))}
+                val sameDay=date==previous
+                check(day.text.toString()==date && day.visibility==(if(sameDay) View.GONE else View.VISIBLE))
+                val card=visibility(child);val titleProof=observation(title);val metadataProof=observation(metadata)
+                check(card.getBoolean("complete") && whole(titleProof) && whole(metadataProof))
+                if(!sameDay)check(whole(observation(day)))
+                selectedRowProof=JSONObject().put("adapterIndex",target).put("firstVisiblePosition",list(page).firstVisiblePosition)
+                    .put("selectedChildIndex",1).put("expectedDay",date).put("previousDay",previous ?: JSONObject.NULL)
+                    .put("sameDay",sameDay).put("actualDayVisibility",if(day.visibility==View.GONE) "GONE" else "VISIBLE")
+                    .put("day",observation(day)).put("card",card).put("title",titleProof).put("metadata",metadataProof)
+                    .put("onlyExpectedGoneDayExcludedFromTextWhole",true)
+            } else check(whole(observation(child)))
             check(list(page).performItemClick(child,target,list(page).adapter.getItemId(target)))
         }
+        selectedRowProof?.let {File(directory,"selected-history-row-visibility.json").writeText(it.toString(2))}
         stableWindow(page,directory,"selected-after-real-row-click")
         val selected=stableList(page,directory,"selected-list")
         if(page is LegacyHistoryActivity) {
@@ -734,9 +758,230 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             .put("fullOriginalDisclaimerReachable",true).put("dialogScreenshotStatus","UNSYNCHRONIZED_DIAGNOSTIC_NOT_MAIN")
             .put("stopConfirmationNotInferred",true).toString(2))
     }
-    private fun shortWindow(activity: Activity, directory: File): JSONObject {
+    private fun curveDisclosure(activity: LegacyCurveActivity, scope: Scope, directory: File, short: Boolean): JSONObject {
+        val collection=field(activity,"collection") as TaskCollectionLayout
+        val content=field(activity,"detailContent") as ViewGroup
+        val scroll=requireNotNull(content.parent as? ScrollView)
+        check(scroll.parent===collection.detailBody && scroll.childCount==1 && scroll.getChildAt(0)===content)
+        val list=list(activity)
+        val selected=field(activity,"selectedIndex") as Int
+        val fingerprint=field(activity,"selectedFingerprint") as String
+        val archive=sha(scope.curveFile)
+        val native=nativeInvariant(scope)
+        val window=android.view.WindowManager.LayoutParams().apply {copyFrom(activity.window.attributes)}
+        val initialRequested=collection.detailRequested
+        val initialFirst=list.firstVisiblePosition
+        val initialOffset=list.getChildAt(0)?.top ?: 0
+        val initialScroll=JSONArray(listOf(scroll.scrollX,scroll.scrollY))
+        val initialImport=if(list.isShown) observation(action(activity,R.string.curve_import_legacy)) else JSONObject.NULL
+        val report=JSONObject().put("case",if(short) "short-window" else "long-name-category")
+            .put("evidenceSummaryVersion",2).put("referenceBase","disclosure_root")
+            .put("selectedIndex",selected).put("selectedFingerprint",fingerprint)
+            .put("archiveSha256",archive).put("originalDetailRequested",initialRequested)
+            .put("originalWindow",JSONObject().put("width",window.width).put("height",window.height)
+                .put("x",window.x).put("y",window.y).put("gravity",window.gravity))
+            .put("originalList",JSONObject().put("first",initialFirst).put("offset",initialOffset))
+            .put("originalDetailScrollPx",initialScroll).put("targets",JSONArray())
+        var failure:Throwable?=null
+        fun textLinesVisible(text:TextView):List<Pair<Int,JSONArray>> {
+            val layout=requireNotNull(text.layout)
+            val origin=IntArray(2);text.getLocationOnScreen(origin)
+            val clip=visibility(scroll).getJSONArray("visibleRectPx")
+            val left=clip.getInt(0);val top=clip.getInt(1);val right=clip.getInt(2);val bottom=clip.getInt(3)
+            val width=text.width-text.compoundPaddingLeft-text.compoundPaddingRight
+            val layoutX=origin[0]+text.compoundPaddingLeft-text.scrollX
+            val layoutY=origin[1]+text.baseline-layout.getLineBaseline(0)-text.scrollY
+            return (0 until layout.lineCount).mapNotNull {line ->
+                val lineTop=layoutY+layout.getLineTop(line)
+                val lineBottom=layoutY+layout.getLineBottom(line)
+                val lineLeft=layoutX+layout.getLineLeft(line)
+                val lineRight=layoutX+layout.getLineRight(line)
+                check(layout.getEllipsisCount(line)==0 && layout.getLineLeft(line)>=0 && layout.getLineRight(line)<=width)
+                if(lineTop>=top && lineBottom<=bottom && lineLeft>=left && lineRight<=right)
+                    line to JSONArray(listOf(lineLeft,lineTop,lineRight,lineBottom)) else null
+            }
+        }
+        fun disclosureTarget(text:TextView):JSONObject {
+            val lines=textLinesVisible(text)
+            return JSONObject().put("viewIdentity",System.identityHashCode(text)).put("tag",text.tag ?: JSONObject.NULL)
+                .put("text",text.text).put("lineCount",requireNotNull(text.layout).lineCount)
+                .put("visibleLines",JSONArray(lines.map {it.first}))
+                .put("lineScreenRects",JSONArray(lines.map {JSONObject().put("line",it.first).put("rectPx",it.second)}))
+                .put("viewportScreenRectPx",visibility(scroll).getJSONArray("visibleRectPx"))
+                .put("scrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
+                .put("whole",whole(observation(text)))
+        }
+        fun capture(phase:String, text:TextView?=null):Pair<JSONObject,JSONObject> {
+            val folder=File(directory,"states/$phase").apply {check(isDirectory || mkdirs())}
+            stableWindow(activity,folder,"before-capture")
+            fun observed()=geometry(activity).apply {if(text!=null)put("disclosureTarget",disclosureTarget(text))}
+            val result=if(short) frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {observed()}
+                else frames.screenshot(activity,root(activity),File(folder,"window.png")) {observed()}
+            check(result.proof.getInt("protocolVersion")==2 && result.proof.getBoolean("accepted"))
+            File(folder,"geometry.json").writeText(result.target.toString(2))
+            main {TaskTypographyEvidence.capture(activity,folder)}
+            fun ref(name:String)=JSONObject().put("path","states/$phase/$name")
+                .put("sha256",sha(File(folder,name)))
+            val refs=JSONObject().put("geometryRef",ref("geometry.json"))
+                .put("frameSyncRef",ref("window-frame-sync.json"))
+            return refs to result.target
+        }
+        fun fixed():JSONObject {
+            val header=(nodes(root(activity)).single {it.tag is BeanPageRegions}.tag as BeanPageRegions).header
+            val pageBack=header.getChildAt(0)
+            check(pageBack.isShown && pageBack.isClickable && pageBack.width>=HoyiUi.dp(activity,48) &&
+                pageBack.height>=HoyiUi.dp(activity,48) && whole(observation(pageBack)))
+            val value=JSONObject().put("pageBack",observation(pageBack))
+            val import=nodes(root(activity)).filterIsInstance<TextView>().single {it.isClickable &&
+                it.text==activity.getString(R.string.curve_import_legacy)}
+            if(import.isShown) check(import.width>=HoyiUi.dp(activity,48) && import.height>=HoyiUi.dp(activity,48) &&
+                whole(observation(import)))
+            return value.put("import",if(import.isShown) observation(import) else JSONObject.NULL)
+        }
+        try {
+            if(!collection.detailBody.isShown) {
+                // Compact mode can only enter through the real selected list row.
+                main {
+                    check(list.isShown && selected in 0 until list.count)
+                    list.setSelectionFromTop(selected,initialOffset)
+                }
+                frames.committedFrame(root(activity))
+                main {
+                    val child=requireNotNull(list.getChildAt(selected-list.firstVisiblePosition))
+                    val visible=visibility(child)
+                    val clipped=visible.getJSONArray("visibleRectPx")
+                    check(visible.getBoolean("screenMappingVerified") && clipped.getInt(3)-clipped.getInt(1)>=HoyiUi.dp(activity,48))
+                    if(child.height<=list.height) check(whole(observation(child)))
+                    check(list.performItemClick(child,selected,list.adapter.getItemId(selected)))
+                }
+                frames.committedFrame(root(activity))
+                check(collection.detailRequested && collection.detailBody.isShown)
+            }
+            check(field(activity,"selectedIndex")==selected && field(activity,"selectedFingerprint")==fingerprint)
+            report.put("fixedAtDetail",fixed())
+            val title=nodes(content).filterIsInstance<TextView>().single {it.tag=="legacy-curve-detail"}
+            val metadata=nodes(content).filterIsInstance<TextView>().single {it.tag=="legacy/curve/metadata"}
+            val notice=nodes(content).filterIsInstance<TextView>().single {it.tag=="legacy/curve/notice"}
+            val targets=linkedMapOf("title" to title,"metadata" to metadata)
+            for(index in 0..3) {
+                val quantity=nodes(content).single {it.tag=="legacy/curve/metric/$index"} as ViewGroup
+                val cell=quantity.parent as ViewGroup
+                val label=nodes(cell).filterIsInstance<TextView>().single {it.tag!="legacy/curve/metric/$index/number" &&
+                    it.tag!="legacy/curve/metric/$index/unit"}
+                check(label.text==activity.getString(listOf(R.string.curve_preview_temperature,R.string.legacy_curve_water_label,
+                    R.string.curve_preview_weight,R.string.curve_preview_stages)[index]))
+                check(cell.parent is ViewGroup && (cell.parent as ViewGroup).parent===content)
+                val number=nodes(quantity).filterIsInstance<TextView>().single {it.tag=="legacy/curve/metric/$index/number"}
+                targets["metric-$index-label"]=label;targets["metric-$index-number"]=number
+                nodes(quantity).filterIsInstance<TextView>().singleOrNull {it.tag=="legacy/curve/metric/$index/unit"}?.let {
+                    targets["metric-$index-unit"]=it
+                }
+            }
+            targets["notice"]=notice;targets["full-details"]=action(activity,R.string.ui_full_details)
+            check(targets.size>=12 && title.text.isNotBlank() && metadata.text.isNotBlank() && notice.text.isNotBlank())
+            val seen=report.getJSONArray("targets")
+            for((key,target) in targets) {
+                check(target.isDescendantOf(content) && target.isShown && target.isAttachedToWindow && target.rootView===root(activity).rootView)
+                val text=target as TextView
+                val layout=requireNotNull(text.layout)
+                check(layout.lineCount>0)
+                val covered=linkedSetOf<Int>();val stages=JSONArray()
+                if(text.height<=scroll.height) {
+                    main {text.requestRectangleOnScreen(Rect(0,0,text.width,text.height),true)}
+                    frames.committedFrame(root(activity))
+                    main {check(whole(observation(text))) {"M7 $key fits detail viewport but is not whole"}}
+                }
+                while(covered.size<layout.lineCount) {
+                    val next=(0 until layout.lineCount).first {it !in covered}
+                    main {val localY=text.baseline-layout.getLineBaseline(0)-text.scrollY
+                        text.requestRectangleOnScreen(Rect(0,localY+layout.getLineTop(next),
+                            text.width,localY+layout.getLineBottom(next)),true)}
+                    frames.committedFrame(root(activity))
+                    val phase="curve-${if(short) "short" else "long"}-$key-lines-${stages.length()}"
+                    val (refs,acceptedGeometry)=capture(phase,text)
+                    val accepted=acceptedGeometry.getJSONObject("disclosureTarget")
+                    val indices=accepted.getJSONArray("visibleLines").let {lines -> (0 until lines.length()).map(lines::getInt)}
+                    check(next in indices && indices.any {it !in covered}) {"M7 $key Layout line $next cannot enter real detail viewport"}
+                    covered.addAll(indices)
+                    stages.put(JSONObject().put("phase",phase).put("visibleLines",JSONArray(indices))
+                        .put("lineScreenRects",accepted.getJSONArray("lineScreenRects"))
+                        .put("viewportScreenRectPx",accepted.getJSONArray("viewportScreenRectPx"))
+                        .put("scrollPx",accepted.getJSONArray("scrollPx"))
+                        .put("whole",accepted.getBoolean("whole")).put("geometryRef",refs.getJSONObject("geometryRef"))
+                        .put("frameSyncRef",refs.getJSONObject("frameSyncRef")))
+                }
+                val fits=text.height<=scroll.height
+                if(fits) check(stages.length()>0 && (0 until stages.length()).any {stages.getJSONObject(it).getBoolean("whole")})
+                if(key=="full-details") check(text.isClickable && text.isEnabled && text.height>=HoyiUi.dp(activity,48))
+                seen.put(JSONObject().put("semanticKey",key).put("tag",text.tag ?: JSONObject.NULL)
+                    .put("text",text.text).put("lineCount",layout.lineCount).put("coveredLines",JSONArray(covered.sorted()))
+                    .put("fitsViewport",fits).put("wholeWhenFits",if(fits) true else JSONObject.NULL).put("stages",stages))
+                check(field(activity,"selectedIndex")==selected && field(activity,"selectedFingerprint")==fingerprint)
+            }
+            val back=nodes(collection.detailBody).filterIsInstance<TextView>().singleOrNull {it.isClickable && it.text==activity.getString(R.string.curve_back)}
+            if(back!=null && back.isShown) check(whole(observation(back)) && back.height>=HoyiUi.dp(activity,48))
+            report.put("detailBack",back?.let(::observation) ?: JSONObject.NULL)
+                .put("fullTargetSet",JSONArray(targets.keys.toList())).put("allLayoutLinesCovered",true)
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            var cleanupFailure:Throwable?=null
+            try {
+                main {
+                    scroll.scrollTo(initialScroll.getInt(0),initialScroll.getInt(1))
+                    if(collection.detailRequested!=initialRequested) {
+                        val back=nodes(collection.detailBody).filterIsInstance<TextView>().single {it.isClickable && it.text==activity.getString(R.string.curve_back)}
+                        check(back.isShown && whole(observation(back)) && back.performClick())
+                    }
+                    list.setSelectionFromTop(initialFirst,initialOffset)
+                }
+                frames.committedFrame(root(activity))
+                val restore=capture(if(short) "curve-short-detail-restored" else "curve-long-detail-restored").first
+                main {
+                    check(collection.detailRequested==initialRequested && scroll.scrollX==initialScroll.getInt(0) && scroll.scrollY==initialScroll.getInt(1))
+                    check(list.firstVisiblePosition==initialFirst && (list.getChildAt(0)?.top ?: 0)==initialOffset)
+                    check(field(activity,"selectedIndex")==selected && field(activity,"selectedFingerprint")==fingerprint)
+                    check(activity.window.attributes.width==window.width && activity.window.attributes.height==window.height &&
+                        activity.window.attributes.x==window.x && activity.window.attributes.y==window.y &&
+                        activity.window.attributes.gravity==window.gravity)
+                    if(initialImport!==JSONObject.NULL) check(observation(action(activity,R.string.curve_import_legacy)).getJSONArray("rectPx").toString()==
+                        (initialImport as JSONObject).getJSONArray("rectPx").toString())
+                }
+                check(sha(scope.curveFile)==archive && nativeInvariant(scope)==native)
+                report.put("restored",true).put("restoreRefs",restore).put("fixedAfterRestore",fixed())
+                    .put("nativeInvariantUnchanged",true)
+            } catch(restoreError:Throwable) {cleanupFailure=restoreError;if(failure!=null)failure.addSuppressed(restoreError)}
+            try {File(directory,"curve-disclosure.json").writeText(report.toString(2))}
+            catch(writeError:Throwable) {
+                if(failure!=null) failure.addSuppressed(writeError)
+                else if(cleanupFailure!=null) cleanupFailure.addSuppressed(writeError)
+                else cleanupFailure=writeError
+            }
+            if(failure==null)cleanupFailure?.let {throw it}
+        }
+        return report
+    }
+
+    private fun View.isDescendantOf(ancestor:View):Boolean {
+        var current:View?=this
+        while(current!=null) {if(current===ancestor)return true;current=current.parent as? View}
+        return false
+    }
+    private fun disclosureRef(specialRoot:File, disclosureFolder:File):JSONObject {
+        val file=File(disclosureFolder,"curve-disclosure.json")
+        check(file.isFile && file.length()>0)
+        val path=file.relativeTo(specialRoot).invariantSeparatorsPath
+        check(path.split('/').none {it.isEmpty() || it=="." || it==".."})
+        return JSONObject().put("path",path).put("sha256",sha(file))
+    }
+    private fun shortWindow(activity: Activity, directory: File, scope: Scope): JSONObject {
         val old=android.view.WindowManager.LayoutParams().apply { copyFrom(activity.window.attributes) }
         val ids=nodes(root(activity)).filter { it is LegacyShotChartView || it is ListView }.map(System::identityHashCode)
+        val curveSelected=if(activity is LegacyCurveActivity) field(activity,"selectedIndex") else null
+        val curveFingerprint=if(activity is LegacyCurveActivity) field(activity,"selectedFingerprint") else null
+        val curveArchive=if(activity is LegacyCurveActivity) sha(scope.curveFile) else null
+        val curveNative=if(activity is LegacyCurveActivity) nativeInvariant(scope) else null
+        val originalImport=if(activity is LegacyCurveActivity) observation(action(activity,R.string.curve_import_legacy)).getJSONArray("rectPx").toString() else null
+        var failure:Throwable?=null
         try {
             main { activity.window.setLayout(-1,HoyiUi.dp(activity,280)) }
             stableWindow(activity,directory,"short-window")
@@ -754,11 +999,30 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                     check(nodes(content).filterIsInstance<LegacyShotChartView>().single().visualEvidence.getDouble("plotHeightDp")>=96.0)
                 }
             }
+            val disclosure=if(activity is LegacyCurveActivity) {
+                curveDisclosure(activity,scope,folder,true)
+                disclosureRef(directory,folder)
+            } else JSONObject.NULL
             return JSONObject().put("case","short-window").put("realWindowResize",true).put("permanentListAndChartIdentity",true)
                 .put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL").put("frameSync",captured.proof).put("componentOnly",false)
-        } finally {
-            main { activity.window.attributes=old }
-            stableWindow(activity,directory,"short-window-restored")
+                .put("curveDisclosureRef",disclosure)
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            try {
+                main { activity.window.attributes=old }
+                stableWindow(activity,directory,"short-window-restored")
+                if(activity is LegacyCurveActivity) {
+                    captureState(activity,directory,"short-window-restored")
+                    main {
+                        check(field(activity,"selectedIndex")==curveSelected && field(activity,"selectedFingerprint")==curveFingerprint)
+                        check(observation(action(activity,R.string.curve_import_legacy)).getJSONArray("rectPx").toString()==originalImport)
+                        check(nodes(root(activity)).filter {it is ListView}.map(System::identityHashCode)==ids)
+                        check(activity.window.attributes.width==old.width && activity.window.attributes.height==old.height &&
+                            activity.window.attributes.gravity==old.gravity && activity.window.attributes.x==old.x && activity.window.attributes.y==old.y)
+                    }
+                    check(sha(scope.curveFile)==curveArchive && nativeInvariant(scope)==curveNative)
+                }
+            } catch(restoreError:Throwable) {if(failure==null)throw restoreError else failure.addSuppressed(restoreError)}
         }
     }
     private fun specials(scope: Scope, page: String, directory: File): JSONObject {
@@ -772,8 +1036,11 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             cases.put(JSONObject().put("case","missing-parameters").put("noInventedZeroOrStage",true)); close(activity)
             scope.legacyCurves.import(scope.curveArchive(long=true).inputStream())
             activity=start(LegacyCurveActivity::class.java); captureState(activity,directory,"long-name-category")
-            cases.put(JSONObject().put("case","long-name-category").put("actualLegalArchive",true))
-            cases.put(shortWindow(activity,directory)); close(activity)
+            val longFolder=File(directory,"long-name-category").apply {check(isDirectory || mkdirs())}
+            curveDisclosure(activity as LegacyCurveActivity,scope,longFolder,false)
+            cases.put(JSONObject().put("case","long-name-category").put("actualLegalArchive",true)
+                .put("curveDisclosureRef",disclosureRef(directory,longFolder)))
+            cases.put(shortWindow(activity,directory,scope)); close(activity)
             check(scope.curveFile.delete())
             activity=start(LegacyCurveActivity::class.java); captureState(activity,directory,"not-imported")
             main { check((field(activity,"emptyState") as View).isShown && (field(activity,"adapter") as android.widget.ArrayAdapter<*>).count==0) }
@@ -799,7 +1066,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 if(page=="detail") scope.mainId else null)
             captureState(activity,directory,"long-name-source")
             cases.put(JSONObject().put("case","long-name-source").put("originalSnapshotRetained",scope.legacyHistory.list().single().snapshotJson==scope.mainShot.snapshotJson))
-            cases.put(shortWindow(activity,directory)); close(activity)
+            cases.put(shortWindow(activity,directory,scope)); close(activity)
             check(scope.historyFile.delete()); scope.legacyHistory.import(LegacyHistoryCodec.encode(emptyList()).byteInputStream())
             activity=start(if(page=="history") LegacyHistoryActivity::class.java else LegacyHistoryDetailActivity::class.java,
                 if(page=="detail") scope.mainId else null)

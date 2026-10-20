@@ -45,3 +45,15 @@ verify可增加默认null expectedLegacyShot，但LegacyDetail分支requireNotNu
 两文件diff已核：LegacyShotChartView SHA `5215603577d40d29af193b7a958a608b031be0ec7ffd1e0cd415dfbd8a282fc5`；LegacyHistoryContent SHA `cb1172fdd7706d703537ec17f6f170237a98a44c131b69e536556afa6284e4c0`。visualRenderer非空时按resolved width调用同renderer minimumHeight(width,160)，UNSPECIFIED返回真实自然高；AT_MOST遵守上限、EXACTLY遵守指定尺寸，不伪报约束下始终足160。默认null直接super，旧绘制路径不变。viewport测量/滚动未改，仅追加实际measurement到原Canvas evidence；原160/短窗96/可见交集与滚达门禁未松。
 
 静态无剩余阻断，待编译和实际图。Detail共用opt-in测量，需其原图/轴滚达与恢复回归；不能从这份代码推定短窗可见96或Detail已通过。原dc 84.11058dp FAIL须由新Canvas及原PNG关闭。
+
+## 2026-10-20 708新原图：History自然plot修复与独立GONE断言
+
+原件`build/task-first-evidence/ci-7082e04-legacy/raw/raw-device/847a2befd04f0384edc133958a95d5cc4fab91ee/tablet-user-landscape-light-font-1.3/history/`，实际merge847a2be，非push SHA。Astra已看主window与failure-context/window原PNG，读主geometry/实际Canvas并对照adapter/listBusiness源码；不重复root的91引用hash核验。
+
+旧自然plot84.11058dp问题在该新浅1.3样本**已修复**：实际chart643px高，same-Paint plot `[108,176.5008,1303.5,536.74963]`，实际160.1106dp，轴带282.7512px，非用View总高冒充plot。原图可见曲线不再压扁；压力蓝`#FF176BD1`与机器水流teal`#FF007E89`、虚实线语义不变；图字42.3px/weight400/fakeBold=false、字体SHA仍冻结a304…af0da，legend与单位不挤撞。真实表头/来源/列表层级与24dp双栏分隔保持。
+
+但不能签整图完成：chart screen `[1090,721,2488,1364]`，viewport仅至1204，初态可见plot高约136.22dp；底部0刻度/时间轴在局部scroll下方。1.3可滚初态并非因此直接产品FAIL，但本run在列表业务先失败，尚无该轴滚达终态。主图及failure图又有上一旧曲线导入失败Toast覆盖底说明，保留原图，不把层级complete当无遮挡。故只关闭“自然plot不足160”独立缺陷，不关闭底轴/说明完整可达、后续业务或整个G1–G4。
+
+新line580失败不是child1本身裁切：手势后first2/offset−104，child1“旧版萃取03”真实卡y563..746完整，title y581..647、metadata647..726一行零省略；同日day由真实adapter规则设GONE，零宽高且layout=null。observation无条件遍历该GONE TextView，whole因此false。
+
+最小批准限现Legacy测试+runner：仅该History row依据实际item/前项createdAtMs和产品日期格式核sameDay与原day对象visibility=GONE后，排除这个预期隐藏day的文字检查；仍核卡自身完整screen rect、title/metadata各自whole/全部行盒/零ellipsis。非同日day必须可见且whole，其余未知隐藏不泛滤；不改全局whole/observation，不换child1挑行策略，不改产品。记录期望day规则与可见文字原几何，runner精确消费。原FAIL保持，待新实际运行。

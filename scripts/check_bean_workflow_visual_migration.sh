@@ -126,11 +126,100 @@ adb pull "/sdcard/Android/data/$package/files/bean-workflow-visual-migration/$so
 python3 - "$output_dir/$source_sha" <<'VERIFY_PY'
 from pathlib import Path
 import hashlib, json, struct, sys
+sys.path.insert(0,str(Path('scripts').resolve()))
+from window_mapping_contract import validate, TRANSLATED_WINDOW
 root = Path(sys.argv[1])
 sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 manifests = sorted(root.glob('*/*/manifest.json'))
 assert len(manifests)==12, f'Expected 12 real Activity configurations, got {len(manifests)}'
 seen=set()
+def require_details(folder, case_name, expected_event=None):
+    base=folder/'states'/case_name
+    report=json.loads((base/'details-disclosure.json').read_text())
+    assert report['case']==case_name and report['status']=='PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE'
+    assert report['originalWindowCallbackAndOwnerVerified'] is True
+    assert report['eventId'] and f"eventId={report['eventId']}" in report['originalEvent']
+    assert report['eventOrder'].count(report['eventId'])==1
+    if expected_event is not None: assert report['eventId']==expected_event
+    assert report['expectedMessage'] and report['title'] and report['lineCount']>0
+    assert report['initialScroll']==report['restoredScroll'] and report['initialPageScroll']==report['restoredPageScroll']
+    assert report['restoredImage']==f'states/{case_name}/restored/window.png'
+    assert report['coveredLines']==list(range(report['lineCount']))
+    steps=report['steps']
+    assert len(steps)>=2 and steps[0]['name']=='initial' and steps[-1]['name']=='restored'
+    assert len({step['name'] for step in steps})==len(steps)
+    covered=set(); initial_ranges=None
+    for step in steps:
+        name=step['name']; state=base/name
+        assert step['image']==f'states/{case_name}/{name}/window.png'
+        assert step['geometry']==f'states/{case_name}/{name}/geometry.json'
+        assert step['proof']==f'states/{case_name}/{name}/window-frame-sync.json'
+        assert (state/'window.png').is_file() and (state/'geometry.json').is_file()
+        assert sha(state/'window.png')==step['imageSha256'] and sha(state/'geometry.json')==step['geometrySha256']
+        assert sha(state/'window-frame-sync.json')==step['proofSha256']
+        proof=json.loads((state/'window-frame-sync.json').read_text())
+        assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000
+        assert proof['pixelComparison']=='each_equivalent_domain_all_app_pixels_no_tolerance_no_mask'
+        assert proof['crossDomainComparison']=='DIAGNOSTIC_ONLY_PIPELINES_NOT_EQUIVALENT'
+        assert proof['displayId']==0 and proof['windowIdentity'] and proof['decorIdentity'] and proof['windowTokenIdentity']
+        assert proof['captureWindowKind']=='EXPLICIT_WINDOW' and proof['mappingMode']==TRANSLATED_WINDOW
+        assert proof['windowIdentity']==report['windowIdentity'] and proof['decorIdentity']==report['decorIdentity']
+        assert proof['windowTokenIdentity']==report['windowTokenIdentity']
+        accepted=proof['attempts'][proof['acceptedAttempt']-1]
+        assert accepted['accepted'] and accepted['withinMatchingBudget'] and accepted['geometryUnchanged']
+        assert accepted['geometryBefore']==accepted['geometryAfter'] and accepted['windowReadyAtBothEnds']
+        assert accepted['windowDomainColorSpacesEqual'] and accepted['displayDomainColorSpacesEqual']
+        assert accepted['windowLayerMatch'] and accepted['displayStable']
+        for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'): assert accepted[key]['count']==0,(state,key)
+        validate(proof,accepted,TRANSLATED_WINDOW)
+        artifacts=proof['captureArtifacts']
+        names={'display':'window.png','display-after':'window-display-after.png',
+            'layer-before':'window-layer-before.png','layer-after':'window-layer-after.png'}
+        assert {item['role'] for item in artifacts}==set(names)
+        for item in artifacts:
+            image=state/names[item['role']]
+            assert item['file']==names[item['role']] and image.is_file() and sha(image)==item['fileSha256']
+            size=struct.unpack('>II',image.read_bytes()[16:24])
+            assert list(size)==item['bitmap']['sizePx']
+            if item['role'] in ('layer-before','layer-after'):
+                assert list(size)==accepted[item['role']]['sizePx']
+        geometry=json.loads((state/'geometry.json').read_text())
+        assert geometry==accepted['geometryBefore']['target'],(state,'geometry not from accepted same-sample target')
+        for key in ('windowIdentity','decorIdentity','windowTokenIdentity','ownerActivityIdentity','messageIdentity'):
+            assert geometry[key]==report[key],(state,key)
+        assert geometry['message']['textLineBoxes'] and geometry['message']['textLineBoxes'][0]['text']==report['expectedMessage']
+        assert geometry['lineGeometrySemantics']=='actual_Layout_line_boxes_screen_origin_from_TextView_baseline_includes_vertical_gravity_and_self_scroll_not_glyph_ink'
+        assert len(geometry['layoutOriginScreenPx'])==2 and len(geometry['messageSelfScroll'])==2
+        assert geometry['layoutWidthPx']==geometry['contentWidthPx']>0
+        assert geometry['title']['complete'] and geometry['positive']['complete']
+        for role in ('title','positive'):
+            assert geometry[role]['textLineBoxes'] and all(text['fullViewVisible'] and text['layoutPresent'] and
+                text['lineCount']>0 and text['ellipsisCount']==0 for text in geometry[role]['textLineBoxes'])
+        message_line=geometry['message']['textLineBoxes'][0]
+        assert message_line['layoutPresent'] and message_line['lineCount']==report['lineCount'] and message_line['ellipsisCount']==0
+        if geometry['messageFitsViewport']:
+            assert geometry['message']['complete'] and message_line['fullViewVisible']
+        assert geometry['scrollY']==step['scrollY'] and geometry['lineCount']==report['lineCount']
+        safe=geometry['safeRectScreenPx']; positive=geometry['positive']['rectPx']
+        assert safe[0]<=positive[0]<positive[2]<=safe[2] and safe[1]<=positive[1]<positive[3]<=safe[3]
+        lines=geometry['lines']; assert len(lines)==report['lineCount']
+        assert [line['index'] for line in lines]==list(range(report['lineCount']))
+        ranges=[(line['start'],line['end'],line['text']) for line in lines]
+        if initial_ranges is None: initial_ranges=ranges
+        else: assert ranges==initial_ranges,(state,'Layout line boundaries changed')
+        actual={line['index'] for line in lines if line['fullyVisible']}
+        assert actual==set(step['coveredLines']) and all(line['ellipsisCount']==0 for line in lines)
+        for line in lines:
+            if line['fullyVisible']:
+                line_rect=line['screenRectPx']; viewport=geometry['scrollVisibleRectScreenPx']
+                assert viewport[0]<=line_rect[0]<line_rect[2]<=viewport[2]
+                assert viewport[1]<=line_rect[1]<line_rect[3]<=viewport[3]
+        covered.update(actual)
+    assert covered==set(range(report['lineCount']))
+    assert initial_ranges[0][0]==0 and initial_ranges[-1][1]==len(report['expectedMessage'])
+    assert all(initial_ranges[index][1]==initial_ranges[index+1][0] for index in range(len(initial_ranges)-1))
+    assert ''.join(item[2] for item in initial_ranges)==report['expectedMessage']
+    return report
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
     assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
@@ -181,6 +270,14 @@ for path in manifests:
                 assert (evidence/'window.png').is_file() and (evidence/'geometry.json').is_file(), evidence
                 proof=json.loads((evidence/'window-frame-sync.json').read_text())
                 assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000, evidence
+    elif m['page']=='batch':
+        report=require_details(folder,'batch-long-reason-details','m4-long-reason-adjust')
+        assert report['expectedMessage'].count('盘点修正：保留完整的库存核对说明。')==30
+        cases={case['case']:case for case in business['cases']}
+        assert 'long-reason-original-detail-disclosure-no-data-truncation' in cases
+        assert any(f"eventId={report['eventId']}" in event for event in cases['long-reason-original-detail-disclosure-no-data-truncation']['events'])
+    elif m['page']=='ledger':
+        require_details(folder,'ledger-selected-event-details')
 
 assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in ('preparation','batch','ledger') for theme in ('light','dark') for scale in ('1.0','1.3')}
 (root/'capture-summary.json').write_text(json.dumps({'realConfigurations':12,'sourceSha':root.name,

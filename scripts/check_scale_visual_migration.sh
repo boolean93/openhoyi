@@ -193,6 +193,23 @@ def require_rejected_protocol(path, reason):
     assert proof['captureArtifacts']==[] and all('surface-beforeCode' not in a for a in proof['attempts'])
     return proof
 
+def referenced_file(page, ref, expected):
+    assert set(ref)=={'path','sha256'} and isinstance(ref['path'],str)
+    assert ref['path']==expected and not ref['path'].startswith('/') and all(part not in ('','.','..') for part in ref['path'].split('/'))
+    target=page.joinpath(*ref['path'].split('/'))
+    assert target.is_file() and not any(part.is_symlink() for part in (target,*target.parents) if part==page or page in part.parents)
+    assert target.resolve().is_relative_to(page.resolve()) and sha(target)==ref['sha256']
+    return target
+
+def capture_ref_pair(page, case, directory, kind):
+    assert set(case)>= {'geometryRef','frameSyncRef'} and not any(k in case for k in ('geometry','observed','actualWindowGeometry','frameSync'))
+    geometry=referenced_file(page,case['geometryRef'],f'{directory}/geometry.json')
+    proof=referenced_file(page,case['frameSyncRef'],f'{directory}/window-frame-sync.json')
+    observed=json.loads(geometry.read_text());assert isinstance(observed,dict) and observed
+    accepted=require_protocol(proof,kind)
+    assert observed==accepted['attempts'][accepted['acceptedAttempt']-1]['geometryBefore']['target']
+    return observed
+
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
     assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
@@ -237,6 +254,7 @@ for path in manifests:
     assert guards['positiveMockMainClockOwnerHubNull'] and guards['duplicateNotificationDelta']==2 and guards['duplicateTrendPointDelta']==0
     assert len(guards['cases'])==16 and all(case['notificationDelta']==0 for case in guards['cases'])
     special=json.loads((folder/'special-states/manifest.json').read_text())
+    assert special['evidenceSummaryVersion']==2 and special['referenceBase']=='page_root'
     assert special['completed'] and special['mainConfigurationCountContribution']==0 and special['visualAcceptance']=='ASTRA_PENDING'
     fixture=json.loads((folder/'fixture.json').read_text())
     assert fixture['defaultUninstalledRuntimeObserved'] and fixture['synthetic'] and not fixture['hardwareMeasurement']
@@ -246,9 +264,9 @@ for path in manifests:
         assert fixture['actualPausedTimerMs']==24600 and fixture['actualNotifyDelta']==11 and fixture['tickNotifyDelta']==0
         required={'one-decimal','paused-recreated','stale-1501','expired-10001','ready-null','disconnected','negative-offline',
             'gap-and-evidence-change','battery-capability-82','battery-unavailable','weight-capability-false','mock-capture-disabled','short-height','short-height-trend-detail','no-service'}
-        assert {case['case'] for case in special['cases']}==required
-        for state in required:
-            require_protocol(folder/'special-states'/state/'window-frame-sync.json',
+        assert len(special['cases'])==15 and {case['case'] for case in special['cases']}==required
+        for case in special['cases']:
+            state=case['case'];capture_ref_pair(folder,case,f'special-states/{state}',
                 'EXPLICIT_WINDOW' if state=='short-height-trend-detail' else 'ACTIVITY')
         inline=m['window']['productLayoutEvidence']['trendInline']
         trend=require_protocol(folder/'trend-main-data/window-frame-sync.json','ACTIVITY' if inline else 'EXPLICIT_WINDOW')
@@ -262,17 +280,27 @@ for path in manifests:
         assert target['observationScope']=='only_explicit_target_window_decor_subtree' and len(target['charts'])==1
         returned=json.loads((folder/'special-states/short-height-trend-detail/dialog-return-state.json').read_text())
         assert returned['exactBufferTimerAndScrollRestored'] and returned['activityFocusRestored'] and returned['before']==returned['after']
-        for i in range(1,7):require_protocol(folder/f'after-scroll-{i}/window-frame-sync.json','ACTIVITY')
+        reach=json.loads((folder/'scroll-reachability.json').read_text())
+        assert reach['evidenceSummaryVersion']==2 and reach['referenceBase']=='page_root' and reach['completed']
+        tags=['product/scale/timer/toggle','product/scale/timer/reset','product/scale/battery',
+            'product/scale/device-status','product/scale/connect','product/scale/settings']
+        assert len(reach['targets'])==6 and [case['tag'] for case in reach['targets']]==tags
+        for i,case in enumerate(reach['targets'],1):
+            assert case['case']==f'after-scroll-{i}'
+            capture_ref_pair(folder,case,f'after-scroll-{i}','ACTIVITY')
+        assert isinstance(reach['restoredY'],int) and reach['restoredY']>=0
         for case in special['cases']:
             if case['case'] in ('short-height','short-height-trend-detail'):
-                assert case['acceptanceStatus']=='PASS_PROTOCOL2_ONLY_NOT_VISUAL' and case['frameSync']['accepted']
+                assert case['acceptanceStatus']=='PASS_PROTOCOL2_ONLY_NOT_VISUAL'
         assert special['pendingStrictEvidence']==[]
         pending.extend(case['acceptanceStatus'] for case in special['cases'] if case.get('acceptanceStatus','').startswith('PENDING'))
     else:
         assert fixture['candidateCount']==3 and special['fortyCandidateGestureScrollY']>0 and special['exactRecreateAndReturnScroll'] and special['noScanNoConnect']
-        assert {case['case'] for case in special['cases']}=={'main-three-rows-reachable','empty','long-name','forty-recreated','forty-navigation-return'}
-        for state in ('main-three-rows-reachable','empty','long-name','forty-gesture','forty-recreated','forty-navigation-return'):
-            require_protocol(folder/'special-states'/state/'window-frame-sync.json','ACTIVITY')
+        required={'main-three-rows-reachable','empty','long-name','forty-recreated','forty-navigation-return'}
+        assert len(special['cases'])==5 and {case['case'] for case in special['cases']}==required
+        for case in special['cases']:
+            capture_ref_pair(folder,case,f"special-states/{case['case']}",'ACTIVITY')
+        capture_ref_pair(folder,special['preRecreateRefs'],'special-states/forty-gesture','ACTIVITY')
     assert (folder/'baseline-alignment.json').is_file() and (folder/'geometry.json').is_file()
 assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in ('scale','connection') for theme in ('light','dark') for scale in ('1.0','1.3')}
 (root/'capture-summary.json').write_text(json.dumps({'realConfigurations':8,'sourceSha':root.name,'visualAcceptance':'ASTRA_PENDING',

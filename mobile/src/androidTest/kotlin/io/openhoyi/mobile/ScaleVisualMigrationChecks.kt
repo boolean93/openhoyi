@@ -612,6 +612,18 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             captured.proof.getString("mappingMode")=="MEASURED_WINDOW_BUFFER_TRANSLATION")
         return captured
     }
+    /** References only completed independent capture files; the summary never owns a geometry/proof tree. */
+    private fun captureRefs(pageRoot:File, captureFolder:File):JSONObject {
+        fun reference(name:String):JSONObject {
+            val file=File(captureFolder,name)
+            check(file.isFile && file.length()>0) {"M6 missing completed capture file: $file"}
+            val path=file.relativeTo(pageRoot).invariantSeparatorsPath
+            check(path.split('/').none {it.isEmpty() || it==".." || it=="."} && !path.startsWith('/'))
+            return JSONObject().put("path",path).put("sha256",sha(file))
+        }
+        return JSONObject().put("geometryRef",reference("geometry.json"))
+            .put("frameSyncRef",reference("window-frame-sync.json"))
+    }
     private fun trendReturnState(activity:Activity):JSONObject {
         val panel=requireNotNull(field(activity,"trend"))
         return JSONObject().put("buffer",field(panel,"values").toString()).put("bufferNow",field(panel,"now"))
@@ -739,18 +751,36 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         var saved=0;main {saved=scroll.scrollY}
         val targets=listOf("product/scale/timer/toggle","product/scale/timer/reset","product/scale/battery","product/scale/device-status","product/scale/connect","product/scale/settings")
         val results=JSONArray()
+        val report=File(folder,"scroll-reachability.json")
+        fun persist(completed:Boolean) {report.writeText(JSONObject().put("evidenceSummaryVersion",2)
+            .put("referenceBase","page_root").put("completed",completed).put("targets",results)
+            .put("restoredY",if(completed) saved else JSONObject.NULL).toString(2))}
         try {
             targets.forEachIndexed {index,tag->val view=tagged(activity,tag);reveal(activity,view)
-                val captured=capture(activity,File(folder,"after-scroll-${index+1}"))
-                results.put(JSONObject().put("tag",tag).put("observed",captured.target).put("frameSync",captured.proof))
+                val captureFolder=File(folder,"after-scroll-${index+1}")
+                capture(activity,captureFolder)
+                val refs=captureRefs(folder,captureFolder)
+                results.put(JSONObject().put("tag",tag).put("case","after-scroll-${index+1}")
+                    .put("geometryRef",refs.getJSONObject("geometryRef"))
+                    .put("frameSyncRef",refs.getJSONObject("frameSyncRef")))
+                persist(false)
             }
         } finally {main {scroll.scrollTo(0,saved)};frames.committedFrame(root(activity));main {check(scroll.scrollY==saved)}}
-        File(folder,"scroll-reachability.json").writeText(JSONObject().put("targets",results).put("restoredY",saved).toString(2))
+        persist(true)
     }
     private fun scaleSpecials(scope:Scope,initial:Activity,folder:File) {
         var activity=initial;val proofs=JSONArray()
-        fun state(name:String,assertion:()->Unit) {render(activity);val observed=capture(activity,File(folder,name));main(assertion)
-            proofs.put(JSONObject().put("case",name).put("geometry",observed.target).put("frameSync",observed.proof))}
+        val pageRoot=requireNotNull(folder.parentFile)
+        val summary=File(folder,"manifest.json")
+        fun persist(completed:Boolean) {summary.writeText(JSONObject().put("evidenceSummaryVersion",2)
+            .put("referenceBase","page_root").put("cases",proofs).put("mainConfigurationCountContribution",0)
+            .put("noControlOrInventoryWrite",true).put("pendingStrictEvidence",JSONArray())
+            .put("hardwareTareStatePages","PENDING_NO_LEGAL_MOCK_UI_WRITING_WAITING_ZERO_CONFIRMED_FAILED_UNKNOWN; original StandaloneTare unit coverage unchanged")
+            .put("visualAcceptance","ASTRA_PENDING").put("completed",completed).toString(2))}
+        fun state(name:String,assertion:()->Unit) {render(activity);val captureFolder=File(folder,name);capture(activity,captureFolder);main(assertion)
+            val refs=captureRefs(pageRoot,captureFolder)
+            proofs.put(JSONObject().put("case",name).put("geometryRef",refs.getJSONObject("geometryRef"))
+                .put("frameSyncRef",refs.getJSONObject("frameSyncRef")));persist(false)}
         main {check(context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).edit().putBoolean("one_decimal",true).commit())}
         state("one-decimal") {check((field(activity,"weight") as TextView).text.toString()=="18.0")}
         main {check(context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).edit().putBoolean("one_decimal",false).commit())}
@@ -793,10 +823,13 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         await("actual short window laid out") {root(activity).height<=HoyiUi.dp(activity,420) && !root(activity).isLayoutRequested}
         render(activity)
         // Explicitly declared short Activity, never a fallback from the default gate.
-        val shortCapture=capture(activity,File(folder,"short-height"),measuredShort=true)
+        val shortFolder=File(folder,"short-height")
+        capture(activity,shortFolder,measuredShort=true)
         main {check((activity as ScaleActivity).productLayoutEvidence.getBoolean("trendInline").not())}
+        val shortRefs=captureRefs(pageRoot,shortFolder)
         proofs.put(JSONObject().put("case","short-height").put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL")
-            .put("actualWindowGeometry",shortCapture.target).put("frameSync",shortCapture.proof))
+            .put("geometryRef",shortRefs.getJSONObject("geometryRef"))
+            .put("frameSyncRef",shortRefs.getJSONObject("frameSyncRef")));persist(false)
         reveal(activity,tagged(activity,"scale-trend-fallback"))
         lateinit var beforeDetail:JSONObject;main {beforeDetail=trendReturnState(activity)}
         click(activity,"scale-trend-fallback")
@@ -807,10 +840,12 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         }
         val dialog=field(field(activity,"trend")!!,"dialog") as AlertDialog
         targetWindowNegatives(activity,requireNotNull(dialog.window),File(folder,"short-height-trend-detail/window-negative-cases"))
-        val detail=captureTargetWindow(requireNotNull(dialog.window),File(folder,"short-height-trend-detail"))
-        check(detail.target.getJSONArray("charts").length()>0)
+        val detailFolder=File(folder,"short-height-trend-detail")
+        check(captureTargetWindow(requireNotNull(dialog.window),detailFolder).target.getJSONArray("charts").length()>0)
+        val detailRefs=captureRefs(pageRoot,detailFolder)
         proofs.put(JSONObject().put("case","short-height-trend-detail").put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL")
-            .put("actualWindowGeometry",detail.target).put("frameSync",detail.proof))
+            .put("geometryRef",detailRefs.getJSONObject("geometryRef"))
+            .put("frameSyncRef",detailRefs.getJSONObject("frameSyncRef")));persist(false)
         main {dialog.dismiss()}
         await("actual short Activity focus/layout restored after trend detail") {activity.hasWindowFocus() && !root(activity).isLayoutRequested}
         main {val after=trendReturnState(activity);check(after.toString()==beforeDetail.toString())
@@ -818,10 +853,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                 .put("exactBufferTimerAndScrollRestored",true).put("activityFocusRestored",activity.hasWindowFocus()).toString(2))}
         scope.stopForNoServiceState();activity=start(ScaleActivity::class.java);render(activity)
         state("no-service") {check(services().isEmpty() && (field(activity,"weight") as TextView).text.toString()=="—" && !(field(activity,"tare") as Button).isEnabled)}
-        File(folder,"manifest.json").writeText(JSONObject().put("cases",proofs).put("mainConfigurationCountContribution",0)
-            .put("noControlOrInventoryWrite",true).put("pendingStrictEvidence",JSONArray())
-            .put("hardwareTareStatePages","PENDING_NO_LEGAL_MOCK_UI_WRITING_WAITING_ZERO_CONFIRMED_FAILED_UNKNOWN; original StandaloneTare unit coverage unchanged")
-            .put("visualAcceptance","ASTRA_PENDING").put("completed",true).toString(2))
+        persist(true)
     }
     private fun candidates(count:Int,longName:Boolean=false)= (1..count).map {index->io.openhoyi.bluetooth.DiscoveredDevice(
         "02:00:00:00:60:${index.toString(16).padStart(2,'0')}",
@@ -853,7 +885,20 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
     }
     private fun connectionSpecials(scope:Scope,initial:Activity,folder:File) {
         var activity=initial;val proofs=JSONArray()
-        fun state(name:String) {val image=capture(activity,File(folder,name));proofs.put(JSONObject().put("case",name).put("geometry",image.target).put("frameSync",image.proof))}
+        val pageRoot=requireNotNull(folder.parentFile)
+        val summary=File(folder,"manifest.json")
+        var saved=0
+        var preRecreateRefs:JSONObject?=null
+        fun persist(completed:Boolean) {summary.writeText(JSONObject().put("evidenceSummaryVersion",2)
+            .put("referenceBase","page_root").put("cases",proofs).put("mainConfigurationCountContribution",0)
+            .put("fortyCandidateGestureScrollY",if(completed) saved else JSONObject.NULL)
+            .put("preRecreateRefs",preRecreateRefs ?: JSONObject.NULL)
+            .put("exactRecreateAndReturnScroll",completed).put("noScanNoConnect",true)
+            .put("completed",completed).put("visualAcceptance","ASTRA_PENDING").toString(2))}
+        fun state(name:String) {val captureFolder=File(folder,name);capture(activity,captureFolder)
+            val refs=captureRefs(pageRoot,captureFolder)
+            proofs.put(JSONObject().put("case",name).put("geometryRef",refs.getJSONObject("geometryRef"))
+                .put("frameSyncRef",refs.getJSONObject("frameSyncRef")));persist(false)}
         val original=candidates(3)
         for(candidate in original) {
             val tag="product/scale-connection/candidate/${candidate.address}"
@@ -871,9 +916,10 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         main {check(scroll.canScrollVertically(1))};swipe(scroll)
         // Compare only after a real frame with the gesture no longer moving; never wait for a restored expected value.
         frames.committedFrame(root(activity))
-        var saved=0
         main {check(scroll.scrollY>0);saved=scroll.scrollY}
-        val before=capture(activity,File(folder,"forty-gesture"))
+        val beforeFolder=File(folder,"forty-gesture")
+        capture(activity,beforeFolder)
+        preRecreateRefs=captureRefs(pageRoot,beforeFolder);persist(false)
         main {check(scroll.scrollY==saved)}
         activity=recreate(activity);render(activity);frames.committedFrame(root(activity))
         scroll=field(activity,"candidateScroll") as ScrollView
@@ -890,10 +936,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             frames.committedFrame(root(activity));main {check(scroll.scrollY==saved)}
         } finally {test.removeMonitor(monitor);settings?.let {if(!it.isDestroyed)main {it.finish()}}}
         state("forty-navigation-return")
-        File(folder,"manifest.json").writeText(JSONObject().put("cases",proofs).put("mainConfigurationCountContribution",0)
-            .put("fortyCandidateGestureScrollY",saved).put("preRecreateFrame",before.proof)
-            .put("exactRecreateAndReturnScroll",true).put("noScanNoConnect",true).put("completed",true)
-            .put("visualAcceptance","ASTRA_PENDING").toString(2))
+        persist(true)
     }
     fun run(arguments:Bundle):Int {
         check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")

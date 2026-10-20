@@ -163,13 +163,24 @@ def require_protocol(path, kind=None):
     assert attempt['windowDomainColorSpacesEqual'] and attempt['displayDomainColorSpacesEqual']
     assert attempt['windowLayerMatch'] and attempt['displayStable']
     for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'):assert attempt[key]['count']==0,(path,key)
-    expected=SHORT_ACTIVITY if path.parent.name=='short-window' else DEFAULT_ACTIVITY
+    relative=path.relative_to(root).parts
+    expected=SHORT_ACTIVITY if relative[2:4]==('special-states','short-window') else DEFAULT_ACTIVITY
     validate(proof,attempt,expected)
     artifacts=proof['captureArtifacts']
     assert {item['role'] for item in artifacts}=={'display','display-after'}
     for item in artifacts:
         image=path.parent/item['file'];assert image.is_file() and sha(image)==item['fileSha256']
     return proof
+
+def referenced_file(base, ref, expected):
+    assert set(ref)=={'path','sha256'} and ref['path']==expected
+    assert isinstance(ref['path'],str) and not ref['path'].startswith('/')
+    assert all(part not in ('','.','..') for part in ref['path'].split('/'))
+    target=base.joinpath(*ref['path'].split('/'))
+    assert target.is_file() and target.resolve().is_relative_to(base.resolve())
+    assert not any(part.is_symlink() for part in (target,*target.parents) if part==base or base in part.parents)
+    assert sha(target)==ref['sha256']
+    return target
 
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
@@ -224,11 +235,73 @@ for path in manifests:
     require_protocol(folder/'special-states/short-window/window-frame-sync.json','ACTIVITY')
     short=next(case for case in special['cases'] if case['case']=='short-window')
     assert short['acceptanceStatus']=='PASS_PROTOCOL2_ONLY_NOT_VISUAL' and short['frameSync']['accepted']
+    if m['page']=='curve':
+        expected_targets=['title','metadata']
+        for index in range(4):
+            expected_targets += [f'metric-{index}-label',f'metric-{index}-number']
+            if index<3:expected_targets.append(f'metric-{index}-unit')
+        expected_targets += ['notice','full-details']
+        long=next(case for case in special['cases'] if case['case']=='long-name-category')
+        for label,case,base in (
+            ('long-name-category',long,folder/'special-states/long-name-category'),
+            ('short-window',short,folder/'special-states/short-window')):
+            ref=case['curveDisclosureRef']
+            source=referenced_file(folder/'special-states',ref,f'{label}/curve-disclosure.json')
+            disclosure=json.loads(source.read_text())
+            assert disclosure['evidenceSummaryVersion']==2 and disclosure['referenceBase']=='disclosure_root'
+            assert disclosure['case']==label and disclosure['archiveSha256'] and disclosure['selectedFingerprint']
+            assert disclosure['selectedIndex']>=0 and disclosure['restored'] and disclosure['nativeInvariantUnchanged']
+            assert disclosure['originalWindow']['width'] and disclosure['originalWindow']['height']
+            assert disclosure['fixedAtDetail']['pageBack']['complete'] and disclosure['fixedAfterRestore']['pageBack']['complete']
+            assert disclosure['fixedAfterRestore']['import']['complete']
+            assert disclosure['allLayoutLinesCovered'] and disclosure['fullTargetSet']==expected_targets
+            assert [target['semanticKey'] for target in disclosure['targets']]==expected_targets
+            restore='curve-short-detail-restored' if label=='short-window' else 'curve-long-detail-restored'
+            restored=disclosure['restoreRefs']
+            assert set(restored)=={'geometryRef','frameSyncRef'}
+            restored_geometry=json.loads(referenced_file(base,restored['geometryRef'],f'states/{restore}/geometry.json').read_text())
+            restored_proof=require_protocol(referenced_file(base,restored['frameSyncRef'],f'states/{restore}/window-frame-sync.json'),'ACTIVITY')
+            assert restored_geometry==restored_proof['attempts'][restored_proof['acceptedAttempt']-1]['geometryBefore']['target']
+            for target in disclosure['targets']:
+                count=target['lineCount']
+                assert count>0 and target['coveredLines']==list(range(count)) and target['stages']
+                assert target['text'] and (not target['fitsViewport'] or target['wholeWhenFits'])
+                seen_lines=set()
+                for stage in target['stages']:
+                    assert stage['visibleLines'] and set(stage['visibleLines'])=={line['line'] for line in stage['lineScreenRects']}
+                    assert stage['phase'].startswith(f"curve-{'short' if label=='short-window' else 'long'}-{target['semanticKey']}-lines-")
+                    seen_lines.update(stage['visibleLines'])
+                    clip=stage['viewportScreenRectPx']
+                    assert len(clip)==4 and clip[2]>clip[0] and clip[3]>clip[1]
+                    for line in stage['lineScreenRects']:
+                        rect=line['rectPx'];assert len(rect)==4 and clip[0]<=rect[0]<=rect[2]<=clip[2] and clip[1]<=rect[1]<rect[3]<=clip[3]
+                    if target['fitsViewport']:assert stage['whole']
+                    geometry=json.loads(referenced_file(base,stage['geometryRef'],f"states/{stage['phase']}/geometry.json").read_text())
+                    proof=require_protocol(referenced_file(base,stage['frameSyncRef'],f"states/{stage['phase']}/window-frame-sync.json"),'ACTIVITY')
+                    accepted=proof['attempts'][proof['acceptedAttempt']-1]['geometryBefore']['target']
+                    assert geometry==accepted and geometry['disclosureTarget']['visibleLines']==stage['visibleLines']
+                    observed=geometry['disclosureTarget']
+                    for key in ('lineScreenRects','viewportScreenRectPx','scrollPx','whole'):
+                        assert observed[key]==stage[key]
+                assert seen_lines==set(range(count))
+        require_protocol(folder/'special-states/states/short-window-restored/window-frame-sync.json','ACTIVITY')
     pending.extend(case['acceptanceStatus'] for case in special['cases'] if case.get('acceptanceStatus','').startswith('PENDING'))
     if m['page'] in ('curve','history'):
         business=json.loads((folder/'continuous-list-business.json').read_text())
         assert business['count']==41 and business['realTouchGesture'] and business['exactOffsetAndSelectionRestored'] and business['nativeModelsUnchanged']
     if m['page']=='history':
+        row=json.loads((folder/'selected-history-row-visibility.json').read_text())
+        assert row['selectedChildIndex']==1 and row['adapterIndex']==row['firstVisiblePosition']+1
+        assert row['sameDay']==(row['expectedDay']==row['previousDay'])
+        assert row['actualDayVisibility']==('GONE' if row['sameDay'] else 'VISIBLE')
+        assert row['onlyExpectedGoneDayExcludedFromTextWhole'] and row['card']['complete']
+        for key in ('title','metadata'):
+            observed=row[key];assert observed['complete']
+            assert all(line['fullViewVisible'] and line['layoutPresent'] and line['lineCount']>0 and
+                line['ellipsisCount']==0 and line['layoutHeightPx']<=line['contentHeightPx'] for line in observed['textLineBoxes'])
+        if row['sameDay']:
+            assert not row['day']['complete'] and row['day']['textLineBoxes'][0]['layoutPresent'] is False
+        else:assert row['day']['complete'] and all(line['fullViewVisible'] for line in row['day']['textLineBoxes'])
         routes=json.loads((folder/'special-states/sources-business.json').read_text())
         assert len(routes)==2 and {route['journal'] for route in routes}=={True,False}
         assert all(route['realRouteAndRecreate'] and route['exactReturnState'] and route['nativeModelsUnchanged'] for route in routes)

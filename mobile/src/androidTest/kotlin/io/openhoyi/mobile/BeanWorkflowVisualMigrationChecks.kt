@@ -6,6 +6,7 @@ import android.app.ActivityManager
 import android.app.Application
 import android.app.Instrumentation
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Rect
 import android.os.Build
@@ -820,6 +821,176 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         main { check(requireNotNull(detailsRoot(activity).findViewById<View>(android.R.id.button1)).performClick()) }
         await("native details returned") { activity.hasWindowFocus() }
     }
+    /** Read-only SDK34 ownership discovery, scoped to the original focused beanDetails dialog. */
+    private fun focusedDetailsDialog(activity: Activity): AlertDialog? {
+        val candidates=android.view.inspector.WindowInspector.getGlobalWindowViews().filter {
+            it!==activity.window.decorView && it.isAttachedToWindow && it.isLaidOut && it.hasWindowFocus()
+        }
+        check(candidates.size<=1) { "M4 ambiguous focused details Window" }
+        val decor=candidates.singleOrNull() ?: return null
+        val window=decor.javaClass.getDeclaredField("mWindow").apply { isAccessible=true }.get(decor) as android.view.Window
+        check(window.decorView===decor)
+        val result=window.callback as AlertDialog
+        var owner:Context=result.context
+        while(owner is ContextWrapper && owner!==activity) owner=owner.baseContext
+        check(result.window===window && result.isShowing && (result.ownerActivity===activity || owner===activity)) {
+            "M4 focused details Window is not owned by current Activity"
+        }
+        return result
+    }
+    private fun detailDisclosure(activity: Activity, scope: Scope, directory: File, caseName: String,
+        eventId: String, expectedMessage: String, pageScroll: ScrollView) {
+        var found:AlertDialog?=null
+        await("unique focused original details Window") {
+            found=focusedDetailsDialog(activity)
+            found?.window?.decorView?.let { !it.isLayoutRequested }==true
+        }
+        val owner=requireNotNull(found); val window=requireNotNull(owner.window); val decor=window.decorView
+        lateinit var title:TextView; lateinit var message:TextView; lateinit var scroll:ScrollView; lateinit var positive:Button
+        var originalX=0; var originalY=0; var pageX=0; var pageY=0
+        val eventsBefore=scope.inventory.events(); val report=JSONObject().put("case",caseName).put("eventId",eventId)
+        val steps=JSONArray(); val covered=linkedSetOf<Int>(); var primary:Throwable?=null
+        val folder=File(directory,"states/$caseName").apply { check(isDirectory || mkdirs()) }
+        fun bounds(array:JSONArray)=Rect(array.getInt(0),array.getInt(1),array.getInt(2),array.getInt(3))
+        fun state():JSONObject {
+            check(focusedDetailsDialog(activity)===owner && window.decorView===decor && decor.hasWindowFocus())
+            val layout=requireNotNull(message.layout); check(message.text.toString()==expectedMessage && layout.lineCount>0)
+            val visible=bounds(visibility(scroll).getJSONArray("visibleRectPx"))
+            val location=IntArray(2); message.getLocationOnScreen(location)
+            val contentWidth=message.width-message.compoundPaddingLeft-message.compoundPaddingRight
+            check(contentWidth>0 && layout.width==contentWidth) { "M4 message Layout horizontal gravity origin unknown" }
+            val layoutOriginX=location[0]+message.compoundPaddingLeft-message.scrollX
+            val layoutOriginY=location[1]+message.baseline-layout.getLineBaseline(0)-message.scrollY
+            val lines=JSONArray()
+            for(index in 0 until layout.lineCount) {
+                val left=layoutOriginX+layout.getLineLeft(index)
+                val right=layoutOriginX+layout.getLineRight(index)
+                val top=layoutOriginY+layout.getLineTop(index)
+                val bottom=layoutOriginY+layout.getLineBottom(index)
+                val line=Rect(kotlin.math.floor(left).toInt(),top,kotlin.math.ceil(right).toInt(),bottom)
+                val readable=layout.getEllipsisCount(index)==0 && line.width()>0 && line.height()>0 && visible.contains(line)
+                lines.put(JSONObject().put("index",index).put("start",layout.getLineStart(index)).put("end",layout.getLineEnd(index))
+                    .put("text",expectedMessage.substring(layout.getLineStart(index),layout.getLineEnd(index)))
+                    .put("screenRectPx",rect(line)).put("fullyVisible",readable).put("ellipsisCount",layout.getEllipsisCount(index)))
+            }
+            val safe=Rect(); decor.getWindowVisibleDisplayFrame(safe)
+            val titleProof=observation(title); val messageProof=observation(message); val buttonProof=observation(positive)
+            val messageFitsViewport=message.height<=visible.height()
+            check(!messageFitsViewport || whole(messageProof)) { "M4 viewport-fit details message is not wholly readable" }
+            val buttonBounds=bounds(buttonProof.getJSONArray("rectPx"))
+            check(whole(titleProof) && whole(buttonProof) && positive.width>=HoyiUi.dp(activity,48) &&
+                positive.height>=HoyiUi.dp(activity,48) && safe.contains(buttonBounds)) {
+                "M4 details title/positive control not fully readable in native Window safe rect"
+            }
+            return JSONObject().put("windowIdentity",System.identityHashCode(window)).put("decorIdentity",System.identityHashCode(decor))
+                .put("windowTokenIdentity",System.identityHashCode(requireNotNull(decor.windowToken)))
+                .put("ownerActivityIdentity",System.identityHashCode(activity)).put("messageIdentity",System.identityHashCode(message))
+                .put("title",titleProof).put("message",messageProof).put("positive",buttonProof)
+                .put("messageFitsViewport",messageFitsViewport)
+                .put("safeRectScreenPx",rect(safe)).put("scrollVisibleRectScreenPx",rect(visible))
+                .put("scrollX",scroll.scrollX).put("scrollY",scroll.scrollY).put("pageScrollX",pageScroll.scrollX)
+                .put("pageScrollY",pageScroll.scrollY).put("lineCount",layout.lineCount).put("lines",lines)
+                .put("layoutOriginScreenPx",JSONArray(listOf(layoutOriginX,layoutOriginY)))
+                .put("messageGravity",message.gravity).put("messageTextAlignment",message.textAlignment)
+                .put("layoutWidthPx",layout.width).put("contentWidthPx",contentWidth)
+                .put("messageSelfScroll",JSONArray(listOf(message.scrollX,message.scrollY)))
+                .put("lineGeometrySemantics","actual_Layout_line_boxes_screen_origin_from_TextView_baseline_includes_vertical_gravity_and_self_scroll_not_glyph_ink")
+        }
+        fun capture(name:String):JSONObject {
+            val step=File(folder,name).apply { check(isDirectory || mkdirs()) }
+            val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(step,"window.png")) { state() }
+            val evidence=frame.target
+            File(step,"geometry.json").writeText(evidence.toString(2))
+            check(frame.proof.getInt("protocolVersion")==2 && frame.proof.getBoolean("accepted"))
+            val lines=evidence.getJSONArray("lines")
+            for(index in 0 until lines.length()) if(lines.getJSONObject(index).getBoolean("fullyVisible")) covered.add(index)
+            steps.put(JSONObject().put("name",name).put("image","states/$caseName/$name/window.png")
+                .put("geometry","states/$caseName/$name/geometry.json")
+                .put("proof","states/$caseName/$name/window-frame-sync.json")
+                .put("imageSha256",sha(File(step,"window.png")))
+                .put("geometrySha256",sha(File(step,"geometry.json")))
+                .put("proofSha256",sha(File(step,"window-frame-sync.json")))
+                .put("scrollY",evidence.getInt("scrollY"))
+                .put("coveredLines",JSONArray((0 until lines.length()).filter { lines.getJSONObject(it).getBoolean("fullyVisible") })))
+            return evidence
+        }
+        try {
+            main {
+                check(scope.inventory.events()==eventsBefore && eventsBefore.any { it.eventId==eventId })
+                positive=requireNotNull(owner.getButton(AlertDialog.BUTTON_POSITIVE))
+                check(positive.text.toString()==activity.getString(android.R.string.ok))
+                title=nodes(decor).filterIsInstance<TextView>().single { it.text.toString()==activity.getString(R.string.beans_ledger_title) }
+                message=nodes(decor).filterIsInstance<TextView>().single { it.text.toString()==expectedMessage }
+                scroll=nodes(decor).filterIsInstance<ScrollView>().single { nodes(it).any { node -> node===message } }
+                originalX=scroll.scrollX; originalY=scroll.scrollY; pageX=pageScroll.scrollX; pageY=pageScroll.scrollY
+                check(message.isAttachedToWindow && message.isLaidOut && scroll.isLaidOut && positive.isLaidOut)
+                report.put("expectedMessage",expectedMessage).put("title",title.text.toString())
+                    .put("originalWindowCallbackAndOwnerVerified",true)
+                    .put("originalEvent",eventsBefore.single { it.eventId==eventId }.toString())
+                    .put("eventOrder",JSONArray(eventsBefore.map { it.eventId }))
+                    .put("pageViewport",visibility(pageScroll))
+                    .put("windowIdentity",System.identityHashCode(window)).put("decorIdentity",System.identityHashCode(decor))
+                    .put("windowTokenIdentity",System.identityHashCode(requireNotNull(decor.windowToken)))
+                    .put("ownerActivityIdentity",System.identityHashCode(activity)).put("messageIdentity",System.identityHashCode(message))
+                    .put("initialScroll",JSONArray(listOf(originalX,originalY)))
+                    .put("initialPageScroll",JSONArray(listOf(pageX,pageY)))
+            }
+            val initial=capture("initial"); val lineCount=initial.getInt("lineCount")
+            val initialLines=initial.getJSONArray("lines")
+            for(index in 0 until lineCount) {
+                if(index in covered) continue
+                main {
+                    val layout=requireNotNull(message.layout)
+                    check(layout.lineCount==lineCount)
+                    val layoutOriginLocalY=message.baseline-layout.getLineBaseline(0)
+                    message.requestRectangleOnScreen(Rect(0,layoutOriginLocalY+layout.getLineTop(index),
+                        message.width,layoutOriginLocalY+layout.getLineBottom(index)),true)
+                }
+                frames.committedFrame(decor)
+                val observed=capture("line-$index")
+                val lines=observed.getJSONArray("lines")
+                check(lines.length()==lineCount && (0 until lineCount).all { row ->
+                    val previous=initialLines.getJSONObject(row); val current=lines.getJSONObject(row)
+                    current.getInt("start")==previous.getInt("start") && current.getInt("end")==previous.getInt("end") &&
+                        current.getInt("ellipsisCount")==0
+                } && index in covered) { "M4 native details line $index cannot be read in actual scroll viewport" }
+            }
+            check(covered==(0 until lineCount).toSet()) { "M4 native details Layout lines not fully covered" }
+            report.put("lineCount",lineCount).put("coveredLines",JSONArray(covered.sorted()))
+                .put("steps",steps).put("status","PENDING_RESTORE")
+        } catch(failure:Throwable) { primary=failure; report.put("status","FAIL").put("failure",failure.stackTraceToString()); throw failure }
+        finally {
+            var restoreThrown:Throwable?=null
+            try {
+                main { scroll.scrollTo(originalX,originalY) }
+                frames.committedFrame(decor)
+                val restored=capture("restored")
+                check(restored.getInt("scrollX")==originalX && restored.getInt("scrollY")==originalY &&
+                    restored.getInt("pageScrollX")==pageX && restored.getInt("pageScrollY")==pageY &&
+                    scope.inventory.events()==eventsBefore && focusedDetailsDialog(activity)===owner) {
+                    "M4 original details scroll/page/event state did not restore"
+                }
+                report.put("restoredScroll",JSONArray(listOf(restored.getInt("scrollX"),restored.getInt("scrollY"))))
+                    .put("restoredPageScroll",JSONArray(listOf(restored.getInt("pageScrollX"),restored.getInt("pageScrollY"))))
+                    .put("restoredImage","states/$caseName/restored/window.png")
+                if(primary==null) report.put("status","PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE")
+            } catch(restoreFailure:Throwable) {
+                report.put("status","FAIL").put("restoreFailure",restoreFailure.stackTraceToString())
+                if(primary!=null) primary?.addSuppressed(restoreFailure) else restoreThrown=restoreFailure
+            } finally {
+                report.put("steps",steps)
+                try { File(folder,"details-disclosure.json").writeText(report.toString(2)) }
+                catch(writeFailure:Throwable) {
+                    when {
+                        primary!=null -> primary?.addSuppressed(writeFailure)
+                        restoreThrown!=null -> restoreThrown?.addSuppressed(writeFailure)
+                        else -> restoreThrown=writeFailure
+                    }
+                }
+            }
+            restoreThrown?.let { throw it }
+        }
+    }
     private fun batchBusiness(initial: Activity, scope: Scope, directory: File) {
         var page=initial; val frozen=otherModels(scope); val cases=JSONArray()
         fun record(name: String) {
@@ -909,6 +1080,13 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
             check(actual===expectedDetailsDecor && actual.isAttachedToWindow && actual.isLaidOut && actual.hasWindowFocus())
             check(nodes(actual).filterIsInstance<TextView>().any { it.text.toString().contains(longReason) })
         }
+        val longEvent=scope.inventory.events().single { it.eventId=="m4-long-reason-adjust" }
+        val longKind=page.getString(R.string.beans_event_adjust)
+        val longChange="+${BeanQuantity.formatGrams(longEvent.deltaMg)} g"
+        val longMessage=listOf(longKind,longChange,requireNotNull(longEvent.reason)).joinToString("\n")+"\n"+
+            page.getString(R.string.beans_event_balance,BeanQuantity.formatGrams(longEvent.balanceMg))
+        detailDisclosure(page,scope,directory,"batch-long-reason-details",longEvent.eventId,longMessage,
+            requireNotNull(root(page).findViewWithTag<ScrollView>("product/batch/events-scroll")))
         dismissDetails(page); record("long-reason-original-detail-disclosure-no-data-truncation")
         val ledgerMonitor=test.addMonitor(BeanLedgerActivity::class.java.name,null,false)
         val ledger: Activity
@@ -948,9 +1126,23 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         val beforeY=scroll().scrollY; check(beforeY>0) { "M4 actual ledger gesture did not establish nonzero viewport" }
         val expected=scope.inventory.events().filter { it.batchId==scope.batchId }.asReversed().map { it.eventId }
         fun ids()=nodes(scroll()).mapNotNull { it.tag?.toString()?.takeIf { it.startsWith("product/ledger/row/") }?.removePrefix("product/ledger/row/") }
+        var selectedEventId=""
         main { check(ids()==expected)
             val row=nodes(scroll()).first { it.tag?.toString()?.startsWith("product/ledger/row/")==true && whole(observation(it)) }
+            selectedEventId=row.tag.toString().removePrefix("product/ledger/row/")
             check(row.height>=HoyiUi.dp(page,48) && row.performClick()) }
+        val selected=scope.inventory.events().single { it.eventId==selectedEventId }
+        val selectedKind=page.getString(when(selected.kind) {
+            io.openhoyi.bean.InventoryEventKind.ADD -> R.string.beans_event_add
+            io.openhoyi.bean.InventoryEventKind.CONSUME -> R.string.beans_event_consume
+            io.openhoyi.bean.InventoryEventKind.ADJUST -> R.string.beans_event_adjust
+        })
+        val bean=scope.inventory.batches().single { it.batch.id==selected.batchId }.batch.bean.name
+        val batchLabel=page.getString(R.string.beans_batch_id,(page as BeanLedgerActivity).beanBatchNumber(scope.inventory,selected.batchId))
+        val selectedMessage=page.getString(R.string.beans_event_title,selectedKind,BeanQuantity.formatGrams(selected.deltaMg))+"\n"+
+            page.getString(R.string.beans_event_balance,BeanQuantity.formatGrams(selected.balanceMg))+"\n"+
+            "$bean · $batchLabel\n"+page.getString(R.string.beans_event_reason,selected.reason ?: "—")
+        detailDisclosure(page,scope,directory,"ledger-selected-event-details",selectedEventId,selectedMessage,scroll())
         dismissDetails(page); stableWindow(page,directory,"ledger-after-detail-return")
         check(scroll().scrollY==beforeY); record("ledger-detail-return-keeps-exact-nonzero-scroll-and-order")
         page=recreate(page); stableWindow(page,directory,"ledger-after-recreate")

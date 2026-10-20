@@ -366,3 +366,20 @@ Curve Library 浅色1.0主态/非首选择/恢复，以及 Legacy Curve 浅色1.
 M2 dc 原 ZIP 与恢复轨迹复查见 `ci-dc5875c-frame/diagnosis.md`：仅 IME true→false、content 680→1391、scroll 662→0；字段、selection、focus、draftId 相同。trace collector 仍 PARTIAL，hide 来源 unknown，不根据与 M3 的相似症状猜改生产逻辑。
 
 M8 固定矩阵失败隔离三文件已获 Astra 最终静态通过，11 项离线测试通过；EXIT 优先保留账本合法首失败码（7→后续9仍为7），账本不可读则保留当前失败。原12格、全部成功格完整门禁、未知隔离即停均保留。实际安全续格仍待下一轮 CI，不覆盖 dc 的失败。
+
+
+### 7082e04 首批实测（其余 CI 仍在运行）
+
+PR 实际 tested merge `847a2befd04f0384edc133958a95d5cc4fab91ee`。Legacy 39427133626 原ZIP SHA `371f28e253b7d05a56bdd3c77dc7de12bc951d39c1a249dd2e49d4a326c16952`、105 CRC、91引用SHA通过；History 已越过旧图表高度断言，转为固定 childIndex1 的 whole 检查失败，待原图与真实行几何定位，不据机械越过宣称视觉关闭。Curve 39427133562 ZIP SHA `dc8da293dd15faadad37df19d373b923f402433c6b6b574c30fe57e91fa56225`、73 CRC、51引用SHA通过；Import 原重建恢复断言仍 FAIL。
+
+Scale push 39427126224（源码head非PRmerge）ZIP SHA `65469c972d17a51af293f1665adf565db2ab05482f907983f3f58bbf07791389`、176 CRC通过。已越过旧同步timeout，后在 supportReachability 报告 pretty JSON 序列化分配75MB发生 OOM；仍FAIL，不降低像素/时限门禁。专用snapshot事务已实际保存、加载、只删除自己snapshot各一次ACK，原业务exit1保留，原font_scale key absent恢复absent，report PASS_EXACT；全deviceGenerated inventory与host原件SHA复核一致。此结论只限该disposable emulator运行，非其他runner清理或硬件认证。
+
+独立snapshot probe 39427133504 本轮FAIL：save/load ACK后ADB超时，restorationVerified=false，未重复load或删除未知snapshot；原ZIP SHA c90a05521f009b9f4dbf2dbfd308feac096c5ebb5e03af73a70fa740cf483038 与所有报告raw引用SHA已核。不能用Scale专用scope该次成功覆盖此独立探针失败，也不因单次超时重启任务。
+
+708 M5 push39427126216 原ZIP SHA29fd7d9fbc61bfa155ef7e9bf629d59a66b945cae1692d36db3d376659d6b86b，全CRC/1716 entries完整解压；Comparison UNKNOWN及原特殊态已越过机械检查，待Astra新原图审。Extraction STARTING已采；STOP_REQUESTED原真实状态与图协议accepted，但scope.cleanup的sampleFailures非空导致FAIL，之后原态未执行，不跳过隔离门禁。
+
+708 M8 PR39427133528原ZIP SHA a6965c68af816562508bf0b33338e460451d990ae45c2736b3c3d58178b1c6bc CRC通过；因磁盘空间限制，仅抽出882份小于2MB的JSON/text，**不是完整原图解压**。matrix-ledger显示原12格各独立pid执行、均FAILED_ISOLATED_CONTINUED、unsafeStop=null、首码1保留。App/Machine仍同步超时，ScaleSettings另有断言失败，待准确原因与真实图；不能把12格执行等于通过。
+
+空间维护：dc旧M5与frame解压镜像每文件SHA、完整inventory与保留ZIP核相等后，释放606,857,308 bytes；原ZIP、诊断、验证报告及raw-eviction-record保留，需要旧raw时按同ZIP还原。新708正在审查原件未清理。
+
+708后续三组补证/修正（Legacy详情、M4原生详情、Scale汇总去重）已获Astra最终静态通过。统一assembleMockAndroidTest成功37s；日志visual-disclosure-unified-build.log SHA9fe9edf18a38243209bb5df3bdea1db3ae8abef5833d44ff3805c116c719cda7。真实滚达/自然窗口映射/Scale OOM后续状态仍须新CI，未用构建宣称视觉关闭。
