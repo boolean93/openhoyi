@@ -12,9 +12,11 @@ import json
 import os
 from pathlib import Path
 import re
+import selectors
 import struct
 import subprocess
 import time
+import uuid
 
 FILES = {
     'ime_trace_clients.winscope': b'IMCTRACE',
@@ -46,6 +48,108 @@ def ok(value):
     return value.get('completed') and value.get('returnCode') == 0
 
 
+# Fixed diagnostic commands only. This wrapper is not an arbitrary shell interface.
+SHELL_COMMANDS = {
+    'transport-probe': "(printf 'IME_TRANSPORT_STDOUT\\n'; printf 'IME_TRANSPORT_STDERR\\n' >&2; exit 7)",
+    'uid': 'id -u',
+    'build': 'getprop ro.build.type',
+    'help': 'cmd input_method help',
+    'stop': 'cmd input_method tracing stop',
+}
+HELP_SOURCE = {
+    'imms': 'https://android.googlesource.com/platform/frameworks/base/+/refs/heads/android14-security-release/services/core/java/com/android/server/inputmethod/InputMethodManagerService.java',
+    'sdk34': 'com/android/modules/utils/BasicShellCommandHandler.java:300-306; android/os/ShellCommand.java:85-92',
+    'meaning': 'help delegates to onHelp then -1 (shell 255); source contract, not CI binary identity proof',
+}
+
+
+def shell_command(name, timeout=15):
+    body = SHELL_COMMANDS[name]
+    nonce = str(uuid.uuid4())
+    marker = 'IME_TRACE_RC_' + nonce + '='
+    script = (body + "\ncommand_status=$?\nprintf '\\n" + marker + "%s\\n' \"$command_status\"\nexit 0\n").encode()
+    began = time.monotonic_ns(); deadline = time.monotonic() + timeout
+    report = {'name': name, 'commandNonce': nonce, 'transport': 'fixed_shell_stdin_separate_streams',
+              'completed': False, 'completedWithExitMarker': False, 'timeoutSeconds': timeout}
+    output = {'stdout': bytearray(), 'stderr': bytearray()}
+    process = None; selector = selectors.DefaultSelector(); sent = 0
+    try:
+        process = subprocess.Popen(['adb', 'shell', '-T', '/system/bin/sh'], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        for stream, kind, event in ((process.stdin, 'stdin', selectors.EVENT_WRITE),
+                                    (process.stdout, 'stdout', selectors.EVENT_READ),
+                                    (process.stderr, 'stderr', selectors.EVENT_READ)):
+            os.set_blocking(stream.fileno(), False); selector.register(stream, event, kind)
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0: raise TimeoutError('single total shell deadline exhausted')
+            for key, _ in selector.select(remaining):
+                stream, kind = key.fileobj, key.data
+                if kind == 'stdin':
+                    sent += os.write(stream.fileno(), script[sent:sent+4096])
+                    if sent == len(script):
+                        selector.unregister(stream); stream.close(); report['stdinWrittenAndClosed'] = True
+                else:
+                    chunk = os.read(stream.fileno(), 4096)
+                    if not chunk:
+                        selector.unregister(stream); stream.close(); report[kind+'Eof'] = True
+                    else:
+                        output[kind].extend(chunk)
+                        if sum(map(len, output.values())) > 131072:
+                            raise ValueError('aggregate diagnostic output exceeds 131072 bytes')
+        remaining = deadline - time.monotonic()
+        if remaining <= 0: raise TimeoutError('total deadline before process reap')
+        report['returnCode'] = process.wait(timeout=remaining)
+        raw = output['stdout'].decode('utf-8', errors='strict')
+        codes = [line[len(marker):] for line in raw.replace('\r\n', '\n').splitlines() if line.startswith(marker)]
+        all_markers = [line for line in raw.splitlines() if line.strip().startswith('IME_TRACE_RC_')]
+        terminal = re.compile(r'\r?\n' + re.escape(marker) + r'[0-9]{1,3}\r?\n\Z')
+        valid = len(all_markers) == len(codes) == 1 and re.fullmatch(r'[0-9]{1,3}', codes[0]) and int(codes[0]) <= 255 and terminal.search(raw)
+        report.update(completed=True, completedWithExitMarker=bool(valid),
+                      targetExitCode=int(codes[0]) if valid else None,
+                      stdout=terminal.sub('', raw), stderr=output['stderr'].decode('utf-8', errors='strict'))
+    except (OSError, ValueError, TimeoutError, subprocess.TimeoutExpired) as error:
+        report['error'] = repr(error)
+    finally:
+        selector.close()
+        if process is not None:
+            for stream in (process.stdin, process.stdout, process.stderr):
+                if stream is not None: stream.close()
+            if process.poll() is None:
+                process.kill()
+                try: process.wait(timeout=max(0.001, deadline-time.monotonic()))
+                except subprocess.TimeoutExpired: pass
+            report['processReaped'] = process.poll() is not None
+        else: report['processReaped'] = False
+        report.update(rawStdout=output['stdout'].decode('utf-8', errors='replace'),
+                      rawStderr=output['stderr'].decode('utf-8', errors='replace'),
+                      stdoutBytes=len(output['stdout']), stderrBytes=len(output['stderr']), stdinBytes=sent,
+                      withinTotalBudget=time.monotonic() <= deadline, elapsedNs=time.monotonic_ns()-began)
+    return report
+
+
+def shell_complete(value):
+    return (value.get('completed') and value.get('returnCode') == 0 and value.get('completedWithExitMarker')
+            and value.get('stdinWrittenAndClosed') and value.get('stdoutEof') and value.get('stderrEof')
+            and value.get('processReaped') and value.get('withinTotalBudget'))
+
+
+def shell_ok(value):
+    return shell_complete(value) and value.get('targetExitCode') == 0 and value.get('stderr') == ''
+
+
+def unique_ack(value, expected):
+    return shell_ok(value) and [line.strip() for line in value.get('stdout', '').splitlines() if line.strip()] == [expected]
+
+
+def help_ok(value):
+    lines = {' '.join(line.split()) for line in value.get('stdout', '').splitlines()}
+    required = {'InputMethodManagerService commands:', 'tracing <command>', 'start: Start tracing.',
+                'stop : Stop tracing.', 'help : Show help.'}
+    return (shell_complete(value) and value.get('targetExitCode') in (0, 255)
+            and value.get('stderr') == '' and required <= lines)
+
+
 def ci_guard():
     if os.environ.get('GITHUB_ACTIONS') != 'true':
         raise RuntimeError('Native IME tracing is confined to this guarded disposable GitHub CI emulator')
@@ -68,17 +172,26 @@ def probe(directory):
     report = {'status': 'DIAGNOSTIC_UNAVAILABLE', 'qemu': ci_guard(), 'filesBefore': None}
     report['sdk'] = call(['adb', 'shell', 'getprop', 'ro.build.version.sdk'])
     report['fingerprint'] = call(['adb', 'shell', 'getprop', 'ro.build.fingerprint'])
-    report['buildType'] = call(['adb', 'shell', 'getprop', 'ro.build.type'])
-    debug = ok(report['buildType']) and report['buildType']['stdout'].strip() in ('userdebug', 'eng')
+    report['transportProbe'] = shell_command('transport-probe')
+    transport = report['transportProbe']
+    transport_ok = (shell_complete(transport) and transport.get('targetExitCode') == 7
+                    and transport.get('stdout') == 'IME_TRANSPORT_STDOUT\n'
+                    and transport.get('stderr') == 'IME_TRANSPORT_STDERR\n')
+    if not transport_ok:
+        report['reason'] = 'two_stream_exit7_transport_probe_failed'
+        save(directory / 'capability-probe.json', report)
+        return 0
+    report['buildType'] = shell_command('build')
+    debug = shell_ok(report['buildType']) and report['buildType']['stdout'].strip() in ('userdebug', 'eng')
     if debug:
         report['adbRoot'] = call(['adb', 'root'])
         report['waitForDevice'] = call(['adb', 'wait-for-device'])
-        report['rootUid'] = call(['adb', 'shell', 'id', '-u'])
-    report['help'] = call(['adb', 'shell', 'cmd', 'input_method', 'help'])
-    help_text = report['help'].get('stdout', '') + report['help'].get('stderr', '')
-    capable = (debug and ok(report.get('rootUid', {})) and report['rootUid']['stdout'].strip() == '0'
+        report['rootUid'] = shell_command('uid')
+    report['help'] = shell_command('help')
+    report['helpReturnContractSource'] = HELP_SOURCE
+    capable = (debug and shell_ok(report.get('rootUid', {})) and report['rootUid']['stdout'].strip() == '0'
                and ok(report['sdk']) and report['sdk']['stdout'].strip() == '34'
-               and ok(report['help']) and all(word in help_text for word in ('tracing', 'start', 'stop')))
+               and help_ok(report['help']))
     if capable:
         report['status'] = 'CAPABLE_NOT_STARTED'
         report['filesBefore'] = stat_files()
@@ -169,9 +282,9 @@ def after(directory, device_directory, probe_directory):
             fallback = directory / 'fallback-stop.json'
             if fallback.exists(): raise ValueError('Owned fallback already attempted; no repeated stop')
             save(fallback, {'traceOwnerToken': owner['traceOwnerToken'], 'attempted': True, 'status': 'IN_PROGRESS'})
-            stop = call(['adb', 'shell', 'cmd', 'input_method', 'tracing', 'stop'])
+            stop = shell_command('stop')
             report['fallbackStopAttempted'] = True
-            ack = ok(stop) and 'Stopping tracing and writing traces in /data/misc/wmtrace/:' in stop.get('stdout', '')
+            ack = unique_ack(stop, 'Stopping tracing and writing traces in /data/misc/wmtrace/: ime_trace_clients.winscope, ime_trace_service.winscope, ime_trace_managerservice.winscope')
             save(fallback, {'traceOwnerToken': owner['traceOwnerToken'], 'attempted': True, 'command': stop, 'acknowledged': ack})
             if not ack: raise ValueError('Owned fallback stop result unknown; no second stop')
         elif owner.get('ownedStart') is not True or owner.get('stopAcknowledged') is not True:

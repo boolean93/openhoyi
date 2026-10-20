@@ -806,7 +806,18 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         val row=requireNotNull(root(page).findViewWithTag<View>("product/batch/events/row/m4-long-reason-adjust"))
         main { check(row.height>=HoyiUi.dp(page,48)); row.requestRectangleOnScreen(Rect(0,0,row.width,row.height),true) }
         frames.committedFrame(root(page)); main { check(row.performClick()) }
-        main { check(nodes(detailsRoot(page)).filterIsInstance<TextView>().any { it.text.toString().contains(longReason) }) }
+        lateinit var expectedDetailsDecor:View
+        await("long-reason native details window ready") {
+            val candidates=android.view.inspector.WindowInspector.getGlobalWindowViews().filter {
+                it!==page.window.decorView && it.isAttachedToWindow && it.isLaidOut && it.hasWindowFocus()
+            }
+            if(candidates.isEmpty()) false else { expectedDetailsDecor=candidates.single();true }
+        }
+        main {
+            val actual=detailsRoot(page)
+            check(actual===expectedDetailsDecor && actual.isAttachedToWindow && actual.isLaidOut && actual.hasWindowFocus())
+            check(nodes(actual).filterIsInstance<TextView>().any { it.text.toString().contains(longReason) })
+        }
         dismissDetails(page); record("long-reason-original-detail-disclosure-no-data-truncation")
         val ledgerMonitor=test.addMonitor(BeanLedgerActivity::class.java.name,null,false)
         val ledger: Activity

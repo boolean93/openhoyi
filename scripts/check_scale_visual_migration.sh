@@ -135,6 +135,60 @@ root=Path(sys.argv[1]); sha=lambda path:hashlib.sha256(path.read_bytes()).hexdig
 manifests=sorted(root.glob('*/*/manifest.json'))
 assert len(manifests)==8, f'Expected 8 real M6 configurations, got {len(manifests)}'
 seen=set(); pending=[]
+def require_protocol(path, kind=None):
+    assert path.is_file(), ('Missing expected protocol2 proof',str(path))
+    proof=json.loads(path.read_text())
+    assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000 and proof['attempts'],path
+    assert proof['pixelComparison']=='each_equivalent_domain_all_app_pixels_no_tolerance_no_mask'
+    assert proof['crossDomainComparison']=='DIAGNOSTIC_ONLY_PIPELINES_NOT_EQUIVALENT'
+    assert proof['displayId']==0 and proof['windowIdentity'] and proof['decorIdentity'] and proof['windowTokenIdentity']
+    if kind is not None: assert proof['captureWindowKind']==kind,(path,proof['captureWindowKind'],kind)
+    attempt=proof['attempts'][proof['acceptedAttempt']-1]
+    assert attempt['accepted'] and attempt['withinMatchingBudget'] and attempt['geometryUnchanged'] and attempt['windowReadyAtBothEnds']
+    assert attempt['windowDomainColorSpacesEqual'] and attempt['displayDomainColorSpacesEqual']
+    assert attempt['windowLayerMatch'] and attempt['displayStable']
+    for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'):assert attempt[key]['count']==0,(path,key)
+    source=attempt['windowSourceRectPx']; screen=attempt['displayAppRectPx']
+    assert attempt['surface-beforeSourceRectAfterSdk']==source==attempt['surface-afterSourceRectAfterSdk'],path
+    for geometry in (attempt['geometryBefore'],attempt['geometryAfter']):
+        assert geometry['hasWindowFocus'] and not geometry['rootLayoutRequested'] and not geometry['decorLayoutRequested']
+        decor=geometry['windowDecorSizePx']; ds=geometry['decorLocationOnScreenPx']
+        assert geometry['decorLocationInWindowPx']==[0,0]
+        assert screen[0]-source[0]==ds[0] and screen[1]-source[1]==ds[1]
+        assert 0<=source[0]<source[2]<=decor[0] and 0<=source[1]<source[3]<=decor[1]
+        assert attempt['layer-before']['sizePx']==decor==attempt['layer-after']['sizePx']
+        if proof['captureWindowKind']=='EXPLICIT_WINDOW':
+            assert proof['mappingMode']=='EXPLICIT_WINDOW_MEASURED_DECOR'
+            assert geometry['windowIdentity']==proof['windowIdentity'] and geometry['decorIdentity']==proof['decorIdentity']
+            assert geometry['rootIdentity']==proof['rootIdentity'] and geometry['rootViewIdentity']==proof['decorIdentity']
+            assert geometry['rootTokenIdentity']==geometry['decorTokenIdentity']==proof['windowTokenIdentity']
+            assert geometry['displayId']==proof['displayId']==0
+            assert geometry['metricsRole']=='diagnostic_host_container_not_assumed_dialog_bounds'
+            chain=geometry['targetAncestorChain'];assert chain and chain[0]['identity']==proof['rootIdentity'] and chain[-1]['identity']==proof['decorIdentity']
+            for node in chain:
+                assert node['attached'] and node['hardwareAccelerated'] and node['laidOut'] and node['hasWindowFocus'] and not node['layoutRequested']
+                assert node['tokenIdentity']==proof['windowTokenIdentity'] and node['displayId']==0
+                assert node['matrixIdentity'] and node['transform']==[1,1,0,0,0,0,0,0]
+        else:
+            assert proof['mappingMode']=='ACTIVITY_STRICT_METRICS_DECOR'
+            assert geometry['windowMetricsBoundsPx']==[ds[0],ds[1],ds[0]+decor[0],ds[1]+decor[1]]
+    artifacts=proof['captureArtifacts']
+    assert {item['role'] for item in artifacts}=={'display','display-after'}
+    for item in artifacts:
+        image=path.parent/item['file'];assert image.is_file() and sha(image)==item['fileSha256']
+    return proof
+
+def require_rejected_protocol(path, reason):
+    assert path.is_file(),('Missing expected real Window negative proof',str(path))
+    proof=json.loads(path.read_text())
+    assert proof['protocolVersion']==2 and not proof['accepted'] and proof['timeoutMs']==5000
+    assert proof['captureWindowKind']=='EXPLICIT_WINDOW' and proof['mappingMode']=='EXPLICIT_WINDOW_MEASURED_DECOR'
+    assert reason in proof['failure'] and proof['attempts']
+    assert proof['windowIdentity'] and proof['decorIdentity'] and proof['windowTokenIdentity']
+    # These two cases are rejected before any pixel acquisition. They cannot stand in for a positive capture.
+    assert proof['captureArtifacts']==[] and all('surface-beforeCode' not in a for a in proof['attempts'])
+    return proof
+
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
     assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
@@ -148,8 +202,26 @@ for path in manifests:
     assert struct.pack('>f',m['window']['fontScale'])==struct.pack('>f',float(m['profile'].rsplit('-font-',1)[-1]))
     assert m['initialFrameSync']['protocolVersion']==2 and m['initialFrameSync']['accepted']
     for name,value in m['fileSha256'].items(): assert sha(folder/name)==value,(path,name)
+    require_protocol(folder/'window-frame-sync.json','ACTIVITY')
+    negative_folders=[]
+    if m['page']=='scale':
+        negative_folders.append(folder/'special-states/short-height-trend-detail/window-negative-cases')
+        if not m['window']['productLayoutEvidence']['trendInline']:
+            negative_folders.append(folder/'trend-main-data/window-negative-cases')
+    rejected={}
+    for negative in negative_folders:
+        negative_manifest=json.loads((negative/'manifest.json').read_text())
+        assert negative_manifest['mainConfigurationCountContribution']==0 and negative_manifest['positiveWindowCaptureStillRequired']
+        assert not negative_manifest['bitmapOrSurfaceInsetsInjection']
+        assert {case['case'] for case in negative_manifest['cases']}=={'wrong-window-root','unfocused-owner'}
+        for name,reason in {'wrong-window-root':'Wrong Window/root/token/display owner',
+            'unfocused-owner':'not a ready focused attached surface'}.items():
+            rejected[negative/name/'window-frame-sync.json']=reason
+            require_rejected_protocol(negative/name/'window-frame-sync.json',reason)
+    assert set(folder.rglob('window-negative-cases/*/window-frame-sync.json'))==set(rejected)
     for proof in folder.rglob('*-frame-sync.json'):
-        value=json.loads(proof.read_text());assert value['protocolVersion']==2 and value['accepted'],proof
+        if proof in rejected:require_rejected_protocol(proof,rejected[proof])
+        else:require_protocol(proof)
     isolation=json.loads((folder/'fixture-isolation.json').read_text())
     for key in ('businessDiskByteUnchanged','typedPreferencesRestored','originalLazyIdentityAndInitializedRestored','legacyUnchanged',
         'allActivitiesDestroyed','noServiceBeforeOriginalDelegateRestore','scopedWritersTerminated','serviceOwnerCallbacksRemoved',
@@ -171,10 +243,32 @@ for path in manifests:
         required={'one-decimal','paused-recreated','stale-1501','expired-10001','ready-null','disconnected','negative-offline',
             'gap-and-evidence-change','battery-capability-82','battery-unavailable','weight-capability-false','mock-capture-disabled','short-height','short-height-trend-detail','no-service'}
         assert {case['case'] for case in special['cases']}==required
+        for state in required:
+            require_protocol(folder/'special-states'/state/'window-frame-sync.json',
+                'EXPLICIT_WINDOW' if state=='short-height-trend-detail' else 'ACTIVITY')
+        inline=m['window']['productLayoutEvidence']['trendInline']
+        trend=require_protocol(folder/'trend-main-data/window-frame-sync.json','ACTIVITY' if inline else 'EXPLICIT_WINDOW')
+        if float(m['profile'].rsplit('-font-',1)[-1])==1.0:assert inline
+        if not inline:
+            target=json.loads((folder/'trend-main-data/geometry.json').read_text())
+            assert target['observationScope']=='only_explicit_target_window_decor_subtree' and len(target['charts'])==1
+            returned=json.loads((folder/'trend-main-data/dialog-return-state.json').read_text())
+            assert returned['exactBufferTimerAndScrollRestored'] and returned['activityFocusRestored'] and returned['before']==returned['after']
+        target=json.loads((folder/'special-states/short-height-trend-detail/geometry.json').read_text())
+        assert target['observationScope']=='only_explicit_target_window_decor_subtree' and len(target['charts'])==1
+        returned=json.loads((folder/'special-states/short-height-trend-detail/dialog-return-state.json').read_text())
+        assert returned['exactBufferTimerAndScrollRestored'] and returned['activityFocusRestored'] and returned['before']==returned['after']
+        for i in range(1,7):require_protocol(folder/f'after-scroll-{i}/window-frame-sync.json','ACTIVITY')
+        for case in special['cases']:
+            if case['case'] in ('short-height','short-height-trend-detail'):
+                assert case['acceptanceStatus']=='PASS_PROTOCOL2_ONLY_NOT_VISUAL' and case['frameSync']['accepted']
+        assert special['pendingStrictEvidence']==[]
         pending.extend(case['acceptanceStatus'] for case in special['cases'] if case.get('acceptanceStatus','').startswith('PENDING'))
     else:
         assert fixture['candidateCount']==3 and special['fortyCandidateGestureScrollY']>0 and special['exactRecreateAndReturnScroll'] and special['noScanNoConnect']
         assert {case['case'] for case in special['cases']}=={'main-three-rows-reachable','empty','long-name','forty-recreated','forty-navigation-return'}
+        for state in ('main-three-rows-reachable','empty','long-name','forty-gesture','forty-recreated','forty-navigation-return'):
+            require_protocol(folder/'special-states'/state/'window-frame-sync.json','ACTIVITY')
     assert (folder/'baseline-alignment.json').is_file() and (folder/'geometry.json').is_file()
 assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in ('scale','connection') for theme in ('light','dark') for scale in ('1.0','1.3')}
 (root/'capture-summary.json').write_text(json.dumps({'realConfigurations':8,'sourceSha':root.name,'visualAcceptance':'ASTRA_PENDING',

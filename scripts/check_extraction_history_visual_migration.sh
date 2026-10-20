@@ -139,6 +139,103 @@ seen=set()
 special_captures=0
 expected_specials={'missing-samples':'m5-history-extra-38','no-notes':'m5-history-extra-6',
     'unknown-observation':'m5-history-extra-7','sample-gap':'m5-history-extra-8','water-reset':'m5-history-extra-9'}
+def require_proof(path):
+    assert path.is_file(),('Missing expected protocol2 proof',str(path))
+    proof=json.loads(path.read_text())
+    assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000,path
+    assert proof['windowLayerMatch'] and proof['displayStable'],path
+    attempt=proof['attempts'][proof['acceptedAttempt']-1]
+    assert attempt['accepted'] and attempt['withinMatchingBudget'] and attempt['geometryUnchanged'] and attempt['windowReadyAtBothEnds'],path
+    assert attempt['windowDomainColorSpacesEqual'] and attempt['displayDomainColorSpacesEqual'],path
+    completed=[x for x in attempt['budget'] if x['stage']=='comparison_complete']
+    assert len(completed)==1 and completed[0]['elapsedMs']<=5000 and completed[0]['remainingMs']>=0,path
+    for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'):
+        assert attempt[key]['count']==0,(path,key)
+    return proof
+
+def require_text_layout(layout,skip_taste=False):
+    assert layout['complete']
+    for text in layout['textLineBoxes']:
+        if skip_taste and text.get('semanticId')=='full-text-details':continue
+        assert text['fullViewVisible'] and text['layoutPresent'] and text['lineCount']>0
+        assert text['ellipsisCount']==0 and text['layoutHeightPx']<=text['contentHeightPx']
+        assert all(x['leftPx']>=0 and x['rightPx']<=text['contentWidthPx'] for x in text['horizontalLayoutLines'])
+
+def require_reach(folder,page,expected_warning=False):
+    if page=='history':
+        reach=json.loads((folder/'history-preview-reachability.json').read_text())
+        assert reach['completed'] and reach['initialScrollY']==reach['restoredScrollY']==0
+        assert reach['exactScrollRestored'] and reach['permanentExplanationIdentityPreserved'] and reach['readOnlyJournalUnchanged']
+        assert [x['target'] for x in reach['targets']]==['chart','explanation','note-0','note-1']
+        assert all(x['visibility']['complete'] for x in reach['targets'])
+        phases=[f'history-preview-{x}' for x in ('chart-reachable','explanation-reachable','note-0-reachable','note-1-reachable','restored')]
+    elif page=='history-detail':
+        reach=json.loads((folder/'detail-business.json').read_text())
+        assert reach['completed'] and reach['savedNotesReachable'] and reach['exactScrollRestored']
+        assert reach['initialScrollPx']==reach['restoredScrollPx'] and reach['shotIdUnchanged'] and reach['journalUnchanged'] and reach['fixedEditComplete']
+        assert len(reach['targets'])==6 and len({x['target'] for x in reach['targets']})==6
+        for target in reach['targets']:require_text_layout(target['layout'])
+        assert all(x['visibility']['complete'] for x in reach['targets'])
+        phases=[f'detail-note-{index}-reachable' for index in range(6)]+['detail-notes-restored']
+    else:
+        reach=json.loads((folder/'comparison-reachability.json').read_text())
+        assert reach['completed'] and reach['exactScrollRestored'] and reach['idsAndMetricUnchanged'] and reach['journalUnchanged']
+        assert reach['initialScrollPx']==reach['restoredScrollPx'] and len(reach['initialScrollPx'])==2
+        assert reach['summaryRowCount']==4 and reach['tasteTargetCount']==2 and reach['toolbarControlCount']==7
+        expected={'comparison-first','comparison-second','comparison-swap',
+            'comparison-metric-PRESSURE','comparison-metric-WATER','comparison-metric-WEIGHT','comparison-metric-TEMPERATURE',
+            'comparison-source-legend','comparison-source-1','comparison-source-2',
+            'summary-header','summary-duration','summary-end-scale','summary-taste','taste-A','taste-B',
+            'detail-A','notes-A','detail-B','notes-B'}
+        # The unknown state requirement comes from the declared source fixture, never inferred from collected target count.
+        assert reach['expectedUnknownWarning']==expected_warning==('UNKNOWN' in reach['selectedSourceStatuses'])
+        if expected_warning:expected.add('comparison-unknown-warning')
+        assert reach['originalFourActionIdentitiesAndOwnershipVerified']
+        actual=[target['semanticKey'] for target in reach['targets']]
+        assert set(actual)==expected and len(actual)==len(expected)==reach['expectedTargetCount']
+        assert set(reach['requiredSemanticKeys'])==expected and len(reach['requiredSemanticKeys'])==len(expected)
+        assert all(x['visibility']['complete'] for x in reach['targets'])
+        for target in reach['targets']:
+            if not target['tasteEllipsisRetainsFullDialogSemantics']:require_text_layout(target['layout'],skip_taste=True)
+        assert reach['tasteBusinessDialogNotInvoked']
+        phases=[f'comparison-target-{index}-reachable' for index in range(len(expected))]+['comparison-scrolls-restored']
+    for phase in phases:require_proof(folder/'states'/phase/'window-frame-sync.json')
+
+def require_history_special(folder,window,empty_expected):
+    evidence=window['embeddedHistoryPreview']
+    assert json.loads((folder/'history-initial-chart.json').read_text())==evidence
+    assert evidence['samePermanentProducerView'] and evidence['externalSiblingAfterChart'] and evidence['sameProjectionSamplingDescription']
+    budget=evidence['budget'];assert budget['minimumPlotDp']==96
+    assert budget['explanationPlacement']=='same_permanent_producer_view_after_complete_chart_before_notes'
+    if evidence['actualPlotHeightDp'] is None:
+        assert empty_expected and evidence['actualSampleCount']==0
+        assert not any(x.get('operation')=='path' for x in evidence['actualCanvas'])
+    else:
+        assert evidence['actualPlotHeightDp']>=96 and evidence['initialVisiblePlotHeightDp']>=96
+        if window['fontScale']==1.0:
+            assert evidence['chart']['complete'] and evidence['axisInk']
+            assert all(x['completeInVisiblePlotView'] for x in evidence['axisInk'])
+    assert len(evidence['legendActions'])==4
+    assert all(x['screenVisibility']['complete'] and x['heightPx']>=108 for x in evidence['legendActions'])
+
+def require_standalone(folder,window,empty_expected):
+    evidence=window['standaloneHistoryPlot']
+    assert json.loads((folder/'standalone-history-plot.json').read_text())==evidence
+    assert evidence['budgetSource']=='deep_copy_existing_StandaloneHistoryPlot.productLayoutEvidence'
+    budget=evidence['budget']
+    assert budget['minimumPlotDp']==96
+    for key in ('availableHeightPx','availableWidthPx','verticalChromeNaturalPx','resolvedChromeNaturalPx',
+                'metricsInlineNaturalWidthPx','chartNativeHeaderNaturalPx','chartActualPaintAxisMinimumPx','chartMinimumPx','primaryBudgetSatisfiable'):
+        assert key in budget,(folder,key)
+    assert evidence['emptySamples']==empty_expected
+    if evidence['plotPresent']:
+        assert evidence['actualPlotHeightDp']>=96 and evidence['visiblePlotHeightDp']>=96
+        assert evidence['plotView']['screenMappingVerified']
+        assert evidence['plotBoundsScreenPx'] and evidence['visiblePlotBoundsScreenPx']
+    else:
+        assert empty_expected and evidence['actualSampleCount']==0
+        assert not any(x.get('operation')=='path' for x in evidence['actualCanvas'])
+
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
     assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
@@ -152,20 +249,49 @@ for path in manifests:
     assert struct.pack('>f',m['window']['fontScale'])==struct.pack('>f',float(m['profile'].rsplit('-font-',1)[-1]))  # exact Float32, no tolerance
     assert m['window']['imeVisible'] is False
     assert m['initialFrameSync']['protocolVersion']==2 and m['initialFrameSync']['accepted']
-    assert (folder/'window-frame-sync.json').is_file()
+    require_proof(folder/'window-frame-sync.json')
     for name,value in m['fileSha256'].items(): assert sha(folder/name)==value, (path,name)
     isolation=json.loads((folder/'fixture-isolation.json').read_text())
     assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['businessDiskByteUnchanged'] and isolation['typedPreferencesRestored']
     proof_files=list(folder.rglob('*-frame-sync.json'))
     assert proof_files, path
     for proof_file in proof_files:
-        proof=json.loads(proof_file.read_text())
-        assert proof['protocolVersion']==2 and proof['accepted'], proof_file
+        require_proof(proof_file)
     assert isolation['originalLazyIdentityAndInitializedRestored'] and isolation['legacyUnchanged']
     assert isolation['allActivitiesDestroyed'] and isolation['historyDetailReadersTerminated'] and isolation['comparisonReaderPoolsTerminated']
     assert isolation['mainQueueBarrierAfterReaders'] and isolation['scopedWritersTerminated']
     assert (folder/'geometry.json').is_file() and (folder/'fixture.json').is_file()
+    if m['page']=='history':
+        preview=m['window']['embeddedHistoryPreview']
+        assert preview['budgetSource']=='deep_copy_existing_EmbeddedHistoryPreview.productLayoutEvidence'
+        assert preview['samePermanentProducerView'] and preview['externalSiblingAfterChart'] and preview['sameProjectionSamplingDescription']
+        budget=preview['budget']
+        for name in ('availableHeightPx','fixedFooterNaturalPx','contentViewportPx','headerAndMetricsNaturalPx',
+            'chartNativeHeaderNaturalPx','chartActualPaintAxisMinimumPx','chartMinimumPx','chartMarginsPx','fullNaturalPx',
+            'chartLegendNaturalPx','externalExplanationNaturalPx','externalExplanationTopMarginPx','chartOverlayPaddingPx'):
+            assert name in budget,(path,name)
+        assert budget['minimumPlotDp']==96 and budget['chartLegendNaturalPx']>0 and budget['externalExplanationNaturalPx']>0
+        assert budget['explanationPlacement']=='same_permanent_producer_view_after_complete_chart_before_notes'
+        assert preview['actualPlotHeightDp']>=96 and preview['initialVisiblePlotHeightDp']>=96
+        assert len(preview['legendActions'])==4
+        assert all(action['screenVisibility']['complete'] and action['heightPx']>=108 for action in preview['legendActions'])
+        assert json.loads((folder/'history-initial-chart.json').read_text())==preview
+        assert json.loads((folder/'geometry.json').read_text())['embeddedHistoryPreview']==preview
+        if m['window']['fontScale']==1.0:
+            assert preview['chart']['complete'] and preview['axisInk']
+            assert all(ink['completeInVisiblePlotView'] for ink in preview['axisInk'])
+        reach=json.loads((folder/'history-preview-reachability.json').read_text())
+        assert reach['completed'] and reach['initialScrollY']==reach['restoredScrollY']==0
+        assert reach['exactScrollRestored'] and reach['permanentExplanationIdentityPreserved'] and reach['readOnlyJournalUnchanged']
+        assert [target['target'] for target in reach['targets']]==['chart','explanation','note-0','note-1']
+        assert all(target['visibility']['complete'] for target in reach['targets'])
+        for phase in ('chart-reachable','explanation-reachable','note-0-reachable','note-1-reachable','restored'):
+            expected=folder/'states'/f'history-preview-{phase}'/'window-frame-sync.json'
+            assert expected.is_file(),('Missing expected History reach/restore proof',str(expected))
+            proof=json.loads(expected.read_text());assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000
     if m['page']!='extraction':
+        require_reach(folder,m['page'])
+        if m['page']=='history-detail':require_standalone(folder,m['window'],False)
         assert isolation['noServiceBeforeOriginalDelegateRestore']
         business_name={'history':'history-business.json','history-detail':'detail-business.json','comparison':'comparison-business.json'}[m['page']]
         business=json.loads((folder/business_name).read_text()); assert business['completed']
@@ -187,6 +313,10 @@ for path in manifests:
             observed=json.loads((target/'geometry.json').read_text())
             assert observed['densityDpi']==m['window']['densityDpi'] and observed['fontScale']==m['window']['fontScale']
             assert observed['uiModeNightMeaning']==m['window']['uiModeNightMeaning'] and not observed['imeVisible']
+            require_proof(target/'window-frame-sync.json')
+            require_reach(target,m['page'],expected_warning=case['observation']['status']=='UNKNOWN')
+            if m['page']=='history-detail':require_standalone(target,observed,case['case']=='missing-samples')
+            if m['page']=='history':require_history_special(target,observed,case['case']=='missing-samples')
             assert case['frameSync']['protocolVersion']==2 and case['frameSync']['accepted']
             segments=case['actualProjectedSegments']; vertices=case['actualCanvasCurrentMetricVertexCounts']
             assert vertices==[len(segment) for segment in segments] and len(segments)==case['actualCanvasCurrentMetricPathCount']

@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** Built-in Android instrumentation, no external test framework. Mock only, no BLE. */
 class BrewAudioInstrumentation : Instrumentation() {
+    private var settingsVisualArguments: Bundle? = null
     private var legacyVisualArguments: Bundle? = null
     private var scaleVisualArguments: Bundle? = null
     private var extractionHistoryVisualArguments: Bundle? = null
@@ -45,6 +46,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var languageChecks = false
     private var upgradeChecks: String? = null
     override fun onCreate(arguments: Bundle?) {
+        settingsVisualArguments = arguments?.takeIf { it.getString("settingsVisualMigration") == "true" }?.let { Bundle(it) }
         legacyVisualArguments = arguments?.takeIf { it.getString("legacyVisualMigration") == "true" }?.let { Bundle(it) }
         scaleVisualArguments = arguments?.takeIf { it.getString("scaleVisualMigration") == "true" }?.let { Bundle(it) }
         extractionHistoryVisualArguments = arguments?.takeIf { it.getString("extractionHistoryVisualMigration") == "true" }?.let { Bundle(it) }
@@ -77,6 +79,12 @@ class BrewAudioInstrumentation : Instrumentation() {
         val report = Bundle()
         try {
             check(BuildConfig.MOCK_MODE && targetContext.packageName == "io.openhoyi.mobile.mock")
+            settingsVisualArguments?.let { arguments ->
+                val count=SettingsVisualMigrationChecks(this).run(arguments)
+                report.putString("stream", "SETTINGS_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")
+                finish(Activity.RESULT_OK,report)
+                return
+            }
             legacyVisualArguments?.let { arguments ->
                 val count=LegacyVisualMigrationChecks(this).run(arguments)
                 report.putString("stream", "LEGACY_VISUAL_MIGRATION_CAPTURED fixtures=$count realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true\n")

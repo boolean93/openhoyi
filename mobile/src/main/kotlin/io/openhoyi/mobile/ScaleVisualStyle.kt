@@ -30,6 +30,59 @@ class ScaleVisualStyle internal constructor(context: Context) {
     }
 }
 
+/** Same reading objects and baseline group; only an overflowing natural budget requests inline. */
+internal class ScaleReadingLayout(context:Context,private val style:TaskProductVisualStyle,
+    private val label:View,private val quantity:View,private val freshness:View):ViewGroup(context) {
+    val productLayoutEvidence=JSONObject()
+    private var requested=false
+    private var inline=false
+    private var contentHeight=0
+    init {tag="product/scale/reading";addView(label);addView(quantity);addView(freshness)}
+    override fun generateDefaultLayoutParams()=LayoutParams(-2,-2)
+    private fun force(view:View) {
+        view.forceLayout();if(view is ViewGroup)(0 until view.childCount).forEach {force(view.getChildAt(it))}
+    }
+    fun requestInline(value:Boolean) {if(requested!=value) {requested=value;force(this)}}
+    override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
+        val width=MeasureSpec.getSize(widthMeasureSpec)
+        val available=(width-paddingLeft-paddingRight).coerceAtLeast(0)
+        val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
+        force(label);force(quantity);label.measure(free,free);quantity.measure(free,free)
+        val labelWidth=label.measuredWidth;val quantityWidth=quantity.measuredWidth
+        val gap=style.dp(8)
+        val fits=labelWidth.toLong()+gap+quantityWidth<=available.toLong()
+        inline=requested && fits
+        force(label);force(quantity);force(freshness)
+        label.measure(MeasureSpec.makeMeasureSpec(if(inline)labelWidth else available,MeasureSpec.EXACTLY),free)
+        quantity.measure(MeasureSpec.makeMeasureSpec(if(inline)quantityWidth else available,MeasureSpec.EXACTLY),free)
+        freshness.measure(MeasureSpec.makeMeasureSpec(available,MeasureSpec.EXACTLY),free)
+        val rowHeight=if(inline)maxOf(label.measuredHeight,quantity.measuredHeight) else label.measuredHeight+gap+quantity.measuredHeight
+        contentHeight=rowHeight+gap+freshness.measuredHeight
+        productLayoutEvidence.put("availableWidthPx",available).put("labelNaturalWidthPx",labelWidth)
+            .put("quantityNaturalWidthPx",quantityWidth).put("inlineRequested",requested).put("inlineWidthFits",fits)
+            .put("inlineSelected",inline).put("freshnessNaturalHeightPx",freshness.measuredHeight)
+            .put("naturalHeightPx",contentHeight+paddingTop+paddingBottom)
+        setMeasuredDimension(resolveSize(width,widthMeasureSpec),resolveSize(contentHeight+paddingTop+paddingBottom,heightMeasureSpec))
+    }
+    override fun onLayout(changed:Boolean,l:Int,t:Int,r:Int,b:Int) {
+        val gap=style.dp(8)
+        val top=paddingTop+((height-paddingTop-paddingBottom-contentHeight)/2).coerceAtLeast(0)
+        val rowHeight=if(inline)maxOf(label.measuredHeight,quantity.measuredHeight) else label.measuredHeight+gap+quantity.measuredHeight
+        fun place(view:View,start:Int,y:Int) {
+            val x=if(layoutDirection==LAYOUT_DIRECTION_RTL)width-paddingRight-start-view.measuredWidth else paddingLeft+start
+            view.layout(x,y,x+view.measuredWidth,y+view.measuredHeight)
+        }
+        val groupWidth=label.measuredWidth+gap+quantity.measuredWidth
+        val start=if(inline)((width-paddingLeft-paddingRight-groupWidth)/2).coerceAtLeast(0) else 0
+        place(label,start,top+if(inline)(rowHeight-label.measuredHeight)/2 else 0)
+        place(quantity,if(inline)start+label.measuredWidth+gap else 0,
+            top+if(inline)(rowHeight-quantity.measuredHeight)/2 else label.measuredHeight+gap)
+        place(freshness,0,top+rowHeight+gap)
+        productLayoutEvidence.put("actualHeightPx",height).put("contentHeightPx",contentHeight)
+            .put("heightSatisfiable",contentHeight<=height-paddingTop-paddingBottom)
+    }
+}
+
 /** Width-first permanent panes. Only the support content scrolls; the scale's controls do not. */
 internal class ScaleVisualWorkspace(context: Context, private val style: ScaleVisualStyle) : ViewGroup(context) {
     val primary = style.palette.column("product/scale/primary")

@@ -67,6 +67,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         setPadding(dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt(), 0,
             dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt(), dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt())
     }
+    /** Only embedded History owns this same live TextView outside the plot header; no copied projection. */
+    internal val embeddedExplanationView: TextView?
+        get() = explanation.takeIf { visual != null && embeddedHistory }
     private val referenceCaption = TextView(context).apply {
         tag = "chart-reference-caption"
         textSize = TaskVisualTokens.SUPPORTING_SP.toFloat()
@@ -79,7 +82,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         orientation = VERTICAL
         addView(compactNotice, LayoutParams(-1, -2))
         addView(legend, LayoutParams(-1, -2))
-        addView(explanation, LayoutParams(-1, -2))
+        if (visual == null || !embeddedHistory) addView(explanation, LayoutParams(-1, -2))
         addView(referenceCaption, LayoutParams(-1, -2))
     }
     private val header = ScrollView(context).apply {
@@ -95,6 +98,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         addView(plot, LayoutParams(-1, 0, 1f))
         visual?.palette?.let { style ->
             listOf(compactNotice, explanation, referenceCaption).forEach { style.apply(it, TaskProductVisualStyle.auxiliary, true) }
+        }
+        if (visual != null && embeddedHistory) {
+            explanation.tag = "product/history/chart-explanation"
+            legend.tag = "product/history/chart-legend"
         }
         rebuildProjection()
     }

@@ -10,6 +10,7 @@ class ShotChartView(context: Context) : FrameLayout(context) {
     }
     private var chart = ExtractionOverlayView(context)
     internal val visualEvidence get() = chart.visualEvidence
+    internal val embeddedExplanationView get() = chart.embeddedExplanationView
     private var revision = 0L
 
     var points: List<ShotPoint> = emptyList()

@@ -235,7 +235,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         }
         test.waitForIdleSync()
     }
-    private fun detailReturn(activity: Activity, detailType: Class<out Activity>, expectedShotId: String? = null, expectedLegacyId: String? = null, action: () -> Unit) {
+    private fun detailReturn(activity: Activity, detailType: Class<out Activity>, expectedShotId: String? = null, expectedLegacyId: String? = null, expectedLegacyShot: LegacyShot? = null, action: () -> Unit) {
         val monitor = test.addMonitor(detailType.name, null, false)
         try {
             action()
@@ -249,7 +249,9 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                 if (expectedLegacyId != null) check(detail.intent.getStringExtra("legacyId") == expectedLegacyId) {
                     "Legacy history detail opened a different legacyId"
                 }
-                SingleScreenPageChecks.verify(detail); detail.finish()
+                if(expectedLegacyShot!=null)check(detail.intent.getStringExtra("legacyId")==expectedLegacyShot.id &&
+                    expectedLegacyId==expectedLegacyShot.id) {"Legacy fixture identity does not match selected original shot"}
+                SingleScreenPageChecks.verify(detail, expectedLegacyShot = expectedLegacyShot); detail.finish()
             }
             try {
                 await { detail.isDestroyed && activity.hasWindowFocus() }
@@ -596,15 +598,17 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                         } else {
                             check(activity is LegacyHistoryActivity)
                             var expectedLegacyId = ""
+                            lateinit var expectedLegacyShot:LegacyShot
                             var compact = true
                             main {
                                 @Suppress("UNCHECKED_CAST")
                                 val rows = field(activity, "rows") as List<LegacyShot>
-                                expectedLegacyId = rows[list(activity).firstVisiblePosition].id
+                                expectedLegacyShot = rows[list(activity).firstVisiblePosition]
+                                expectedLegacyId = expectedLegacyShot.id
                                 compact = field(activity, "compact") as Boolean
                                 check(expectedLegacyId.isNotBlank())
                             }
-                            detailReturn(activity, LegacyHistoryDetailActivity::class.java, expectedLegacyId = expectedLegacyId) {
+                            detailReturn(activity, LegacyHistoryDetailActivity::class.java, expectedLegacyId = expectedLegacyId, expectedLegacyShot = expectedLegacyShot) {
                                 clickVisible(activity)
                                 if (!compact) {
                                     await { field(activity, "selectedId") == expectedLegacyId }

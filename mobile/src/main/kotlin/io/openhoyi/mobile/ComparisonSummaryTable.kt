@@ -15,6 +15,13 @@ internal class ComparisonSummaryTable(private val activity: ThemedActivity, priv
         orientation = VERTICAL
         tag = "comparison-summary-table"
         fun row() = LinearLayout(activity).apply {
+            visual?.palette?.let { style ->
+                if (this@ComparisonSummaryTable.childCount > 0) {
+                    this@ComparisonSummaryTable.addView(android.view.View(activity).apply {
+                        setBackgroundColor(style.border)
+                    }, LayoutParams(-1, dp(1)))
+                }
+            }
             orientation = HORIZONTAL; isBaselineAligned = false
             this@ComparisonSummaryTable.addView(this, LayoutParams(-1, -2))
         }
@@ -55,10 +62,18 @@ internal class ComparisonSummaryTable(private val activity: ThemedActivity, priv
         }
         visual?.palette?.let { style ->
             for (i in 0 until childCount) {
-                val line = getChildAt(i) as LinearLayout
+                val line = getChildAt(i) as? LinearLayout ?: continue
                 for (j in 0 until line.childCount) {
                     val cell = line.getChildAt(j)
-                    if (cell.tag != "full-text-details") cell.background = style.shape(style.surface, true, 0)
+                    cell.background = if (cell.tag != "full-text-details") style.shape(style.surface, false, 0) else
+                        android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(style.selected),
+                            android.graphics.drawable.StateListDrawable().apply {
+                                addState(intArrayOf(-android.R.attr.state_enabled), style.shape(style.surface, false, 0))
+                                addState(intArrayOf(android.R.attr.state_focused), android.graphics.drawable.GradientDrawable().apply {
+                                    setColor(style.surface); setStroke(dp(1), style.accent)
+                                })
+                                addState(intArrayOf(), style.shape(style.surface, false, 0))
+                            }, null)
                 }
             }
         }
@@ -95,14 +110,14 @@ internal class ComparisonSummaryTable(private val activity: ThemedActivity, priv
             isFocusable = isClickable
             tooltipText = contents[2]
             visual?.palette?.let { style ->
-                background = if (!isClickable || !isEnabled) style.shape(style.surface, true, 0) else
+                background = if (!isClickable || !isEnabled) style.shape(style.surface, false, 0) else
                     android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(style.selected),
                         android.graphics.drawable.StateListDrawable().apply {
-                            addState(intArrayOf(-android.R.attr.state_enabled), style.shape(style.surface, true, 0))
+                            addState(intArrayOf(-android.R.attr.state_enabled), style.shape(style.surface, false, 0))
                             addState(intArrayOf(android.R.attr.state_focused), android.graphics.drawable.GradientDrawable().apply {
                                 setColor(style.surface); setStroke(dp(1), style.accent)
                             })
-                            addState(intArrayOf(), style.shape(style.surface, true, 0))
+                            addState(intArrayOf(), style.shape(style.surface, false, 0))
                         }, null)
             }
         }

@@ -40,33 +40,10 @@ class AppSettingsActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.mobile_background))
-            setOnApplyWindowInsetsListener { view, insets ->
-                val area = if (Build.VERSION.SDK_INT >= 30) {
-                    val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                    intArrayOf(bars.left, bars.top, bars.right, bars.bottom)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
-                }
-                view.setPadding(area[0], area[1], area[2], area[3]); insets
-            }
-        }
-        val scroll = ScrollView(this).apply { isFillViewport = true }
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        val container = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL }
-        scroll.addView(container)
-        val body = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(HoyiUi.dp(this@AppSettingsActivity, 20), HoyiUi.dp(this@AppSettingsActivity, 20), HoyiUi.dp(this@AppSettingsActivity, 20), HoyiUi.dp(this@AppSettingsActivity, 28))
-        }
-        container.addView(body, LinearLayout.LayoutParams(if (HoyiUi.wide(this)) HoyiUi.dp(this, 640) else -1, -2))
-        HoyiUi.navigation(this, root, AppSettingsActivity::class.java)
-        setContentView(root)
-        HoyiUi.header(this, body, getString(R.string.app_settings_title), getString(R.string.app_settings_subtitle), back = true)
-        val theme = settingsGroup(this, body, getString(R.string.settings_appearance_language))
+        val visual=SettingsVisualStyle(this)
+        val style=visual.palette
+        val body=visual.page(this,R.string.app_settings_title,R.string.app_settings_subtitle,640,"app")
+        val theme = settingsGroup(this, body, getString(R.string.settings_appearance_language), visual)
         val appearance = getSharedPreferences("appearance", MODE_PRIVATE)
         themeCheckBox = Switch(this).apply {
             text = getString(R.string.app_settings_dark)
@@ -77,7 +54,13 @@ class AppSettingsActivity : ThemedActivity() {
             isChecked = appearance.getBoolean("dark", false)
             theme.addView(this, LinearLayout.LayoutParams(-1, -2))
         }
-        themeError = beanError(theme)
+        visual.switch(themeCheckBox as Switch,52);themeCheckBox.tag="product/settings/app/theme/toggle"
+        val themeHint=style.text(getString(R.string.app_settings_subtitle),TaskProductVisualStyle.auxiliary,secondary=true)
+        style.add(theme,themeHint,8)
+        themeError = beanError(theme).also {error->
+            style.apply(error,TaskProductVisualStyle.auxiliary)
+            error.setTextColor(getColor(R.color.mobile_danger));error.setPadding(0,style.dp(8),0,0);error.tag="product/settings/app/theme/error"
+        }
         themeCheckBox.setOnCheckedChangeListener { _, dark ->
             if (!updatingTheme) {
                 val previous = appearance.getBoolean("dark", false)
@@ -93,28 +76,19 @@ class AppSettingsActivity : ThemedActivity() {
                 }
             }
         }
-        settingsDivider(this, theme)
-        languageCard = AppLanguagePreferencesCard(this, theme, embedded = true) { service?.refreshNotificationDisplay(); recreate() }
-        feedbackCard = BrewFeedbackPreferencesCard(this, body)
-        val info = settingsGroup(this, body, getString(R.string.application_info))
+        settingsDivider(this, theme, visual)
+        languageCard = AppLanguagePreferencesCard(this, theme, embedded = true, visual = visual) { service?.refreshNotificationDisplay(); recreate() }
+        feedbackCard = BrewFeedbackPreferencesCard(this, body, visual)
+        val info = settingsGroup(this, body, getString(R.string.application_info), visual)
         fun infoRow(label: Int, value: String, description: String = value, selectable: Boolean = false) {
-            if (info.childCount > 0) settingsDivider(this, info)
-            val inline = HoyiUi.wide(this) && resources.configuration.fontScale <= 1.1f
-            val row = LinearLayout(this).apply {
-                orientation = if (inline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_VERTICAL
+            if (info.childCount > 0) settingsDivider(this, info, visual)
+            val key=when(label) {R.string.settings_info_name->"name";R.string.settings_info_version->"version";R.string.settings_info_mode->"mode";else->"package"}
+            val name=style.text(getString(label),TaskProductVisualStyle.auxiliary,"product/settings/app/info/$key/label",true)
+            val content=style.text(value,TaskProductVisualStyle.body,"product/settings/app/info/$key/value").apply {
+                contentDescription=description
+                if(selectable) {setTextIsSelectable(true);minimumHeight=style.dp(48);minHeight=style.dp(48)}
             }
-            info.addView(row, LinearLayout.LayoutParams(-1, -2))
-            HoyiUi.label(this, row, getString(label), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-                layoutParams = LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1f else 0f)
-                setPadding(0, 0, HoyiUi.dp(this@AppSettingsActivity, 8), 0)
-            }
-            HoyiUi.label(this, row, value, TaskVisualTokens.BODY_SP).apply {
-                layoutParams = LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 2f else 0f)
-                gravity = if (inline) Gravity.END else Gravity.START
-                contentDescription = description
-                if (selectable) setTextIsSelectable(true)
-            }
+            style.add(info,visual.pair(name,content,"product/settings/app/info/$key",false))
         }
         infoRow(R.string.settings_info_name, getString(R.string.app_name))
         infoRow(R.string.settings_info_version,
@@ -124,16 +98,20 @@ class AppSettingsActivity : ThemedActivity() {
             getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
         infoRow(R.string.settings_info_package, BuildConfig.APPLICATION_ID,
             getString(R.string.application_package, BuildConfig.APPLICATION_ID), selectable = true)
-        val diagnostics = settingsGroup(this, body, getString(R.string.settings_diagnostics_devices))
-        HoyiUi.label(this, diagnostics, getString(R.string.app_settings_export_hint), TaskVisualTokens.SUPPORTING_SP, muted = true)
+        val diagnostics = settingsGroup(this, body, getString(R.string.settings_diagnostics_devices), visual)
+        style.add(diagnostics,style.text(getString(R.string.app_settings_export_hint),TaskProductVisualStyle.auxiliary,secondary=true))
         HoyiUi.button(this, diagnostics, getString(R.string.app_settings_export)) {
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
                 .putExtra(Intent.EXTRA_TITLE, "openhoyi-diagnostics-${System.currentTimeMillis()}.zip"), EXPORT_LOGS)
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
-        settingsDivider(this, diagnostics)
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            visual.action(this,icon="export",atEnd=true);tag="product/settings/app/export"
+        }
+        settingsDivider(this, diagnostics, visual)
         HoyiUi.button(this, diagnostics, getString(R.string.app_settings_machine)) {
             startActivity(Intent(this, MachineSettingsActivity::class.java))
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            visual.action(this,icon="chevron",atEnd=true);tag="product/settings/app/machine"
+        }
     }
     override fun onStart() {
         super.onStart()

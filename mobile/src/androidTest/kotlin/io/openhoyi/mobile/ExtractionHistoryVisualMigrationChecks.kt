@@ -25,6 +25,7 @@ import android.view.WindowInsets
 import android.widget.ScrollView
 import android.widget.EditText
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.Spinner
 import android.widget.TextView
@@ -567,12 +568,222 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             } finally { File(directory,"fixture-isolation.json").writeText(proof.toString(2)) }
         }
     }
+    /** Keep raw hierarchy coordinates; derive a screen rect from measured origins, not clipped edges. */
+    private fun historyVisibility(view: View): JSONObject {
+        val ownerRoot=view.rootView
+        val origin=IntArray(2);view.getLocationOnScreen(origin)
+        val rootScreen=IntArray(2);ownerRoot.getLocationOnScreen(rootScreen)
+        val rootWindow=IntArray(2);ownerRoot.getLocationInWindow(rootWindow)
+        val raw=Rect();val targetGlobalOffset=android.graphics.Point()
+        val shown=view.getGlobalVisibleRect(raw,targetGlobalOffset)
+        val rootRaw=Rect();val rootGlobalOffset=android.graphics.Point()
+        val rootShown=ownerRoot.getGlobalVisibleRect(rootRaw,rootGlobalOffset)
+        // getGlobalVisibleRect's Point includes the view's own scroll; undo it to obtain its origin.
+        val dx=rootScreen[0]-rootGlobalOffset.x-ownerRoot.scrollX
+        val dy=rootScreen[1]-rootGlobalOffset.y-ownerRoot.scrollY
+        val derived=Rect(raw).apply {if(shown && rootShown)offset(dx,dy)}
+        val full=Rect(origin[0],origin[1],origin[0]+view.width,origin[1]+view.height)
+        val mappedOrigin=intArrayOf(targetGlobalOffset.x+view.scrollX+dx,targetGlobalOffset.y+view.scrollY+dy)
+        var identity=true;var current:View?=view
+        while(current!=null) {
+            val target=current
+            identity=identity && target.matrix.isIdentity && target.scaleX==1f && target.scaleY==1f &&
+                target.rotation==0f && target.rotationX==0f && target.rotationY==0f &&
+                target.translationX==0f && target.translationY==0f && target.translationZ==0f
+            if(target===ownerRoot)break
+            current=target.parent as? View
+        }
+        val sameRoot=current===ownerRoot && view.isAttachedToWindow && ownerRoot.isAttachedToWindow &&
+            view.windowToken!=null && view.windowToken===ownerRoot.windowToken && view.display!=null &&
+            view.display?.displayId==ownerRoot.display?.displayId
+        val mapping=shown && rootShown && sameRoot && identity && mappedOrigin.contentEquals(origin)
+        return JSONObject().put("rectPx",rect(full)).put("visibleRectPx",rect(derived)).put("rectCoordinateSpace","screen")
+            .put("rawGlobalVisibleRectRootPx",rect(raw)).put("rawRootGlobalVisibleRect",rect(rootRaw))
+            .put("rawGlobalVisibleRectDefined",shown).put("rootGlobalVisibleRectDefined",rootShown)
+            .put("targetGlobalOffsetPointPx",JSONArray(listOf(targetGlobalOffset.x,targetGlobalOffset.y)))
+            .put("rootGlobalOffsetPointPx",JSONArray(listOf(rootGlobalOffset.x,rootGlobalOffset.y)))
+            .put("rootOriginOnScreenPx",JSONArray(rootScreen.toList())).put("rootOriginInWindowPx",JSONArray(rootWindow.toList()))
+            .put("rootScrollPx",JSONArray(listOf(ownerRoot.scrollX,ownerRoot.scrollY)))
+            .put("targetScrollPx",JSONArray(listOf(view.scrollX,view.scrollY)))
+            .put("derivedScreenOffsetPx",JSONArray(listOf(dx,dy))).put("mappedScreenOriginPx",JSONArray(mappedOrigin.toList()))
+            .put("rootIdentity",System.identityHashCode(ownerRoot)).put("attachedToSameRootWindow",sameRoot)
+            .put("rootAttached",ownerRoot.isAttachedToWindow).put("targetAttached",view.isAttachedToWindow)
+            .put("rootDisplayId",ownerRoot.display?.displayId ?: JSONObject.NULL).put("targetDisplayId",view.display?.displayId ?: JSONObject.NULL)
+            .put("identityTransformChain",identity).put("screenMappingVerified",mapping)
+            .put("visibleRectConversion","raw_global_rect_plus_measured_root_screen_minus_root_global_Point_origin; own_scroll_explicitly_removed")
+            .put("visibilitySemantics","exact_hierarchy_clip_only; not_system_window_or_IME_occlusion_proof")
+            .put("globalVisible",shown).put("complete",mapping && view.width>0 && view.height>0 && derived==full)
+    }
+    /** Embedded History only: copy the existing producer budget and actual Canvas geometry, not estimates. */
+    private fun embeddedHistoryEvidence(activity: Activity): JSONObject? {
+        val preview=root(activity).findViewWithTag<View>("product/history/preview") ?: return null
+        val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
+        val plot=requireNotNull(chart.findViewWithTag<View>("chart-plot"))
+        val explanation=requireNotNull(chart.embeddedExplanationView)
+        val producer=chart.getChildAt(0) as ExtractionOverlayView
+        val content=chart.parent as ViewGroup
+        val budget=JSONObject((field(preview,"productLayoutEvidence") as JSONObject).toString())
+        val plotOrigin=IntArray(2);plot.getLocationOnScreen(plotOrigin)
+        val visible=historyVisibility(plot).getJSONArray("visibleRectPx")
+        val viewport=android.graphics.RectF(visible.getDouble(0).toFloat(),visible.getDouble(1).toFloat(),visible.getDouble(2).toFloat(),visible.getDouble(3).toFloat())
+        val operations=(0 until chart.visualEvidence.length()).map {chart.visualEvidence.getJSONObject(it)}
+        val drawing=operations.singleOrNull {it.optString("operation")=="plot"}
+        val plotBox=drawing?.getJSONArray("boundsPx")?.let {box -> android.graphics.RectF(
+            box.getDouble(0).toFloat()+plotOrigin[0],box.getDouble(1).toFloat()+plotOrigin[1],
+            box.getDouble(2).toFloat()+plotOrigin[0],box.getDouble(3).toFloat()+plotOrigin[1])}
+        val visiblePlot=plotBox?.let {box -> android.graphics.RectF(box).apply {if(!intersect(viewport))setEmpty()} }
+        val inks=operations.filter {it.optString("operation")=="text" &&
+            it.optString("role") in setOf("axis-unit","axis-tick","time-tick","time-unit")}.map {operation ->
+            val raw=operation.getJSONArray("glyphBoundsPx")
+            val ink=android.graphics.RectF(raw.getDouble(0).toFloat()+plotOrigin[0],raw.getDouble(1).toFloat()+plotOrigin[1],
+                raw.getDouble(2).toFloat()+plotOrigin[0],raw.getDouble(3).toFloat()+plotOrigin[1])
+            JSONObject().put("role",operation.getString("role")).put("text",operation.getString("text"))
+                .put("glyphScreenBoundsPx",JSONArray(listOf(ink.left,ink.top,ink.right,ink.bottom)))
+                .put("completeInVisiblePlotView",ink.left>=viewport.left && ink.top>=viewport.top && ink.right<=viewport.right && ink.bottom<=viewport.bottom)
+        }
+        val projected=field(producer,"data") as FourMetricChartData
+        val sampling=projected.observedThroughMs?.let {activity.getString(R.string.task_chart_summary_observed,
+            String.format(java.util.Locale.ROOT,"%.1f",it/1000.0))} ?: activity.getString(R.string.task_chart_summary_waiting)
+        val legend=requireNotNull(chart.findViewWithTag<View>("product/history/chart-legend"))
+        return JSONObject().put("budget",budget).put("budgetSource","deep_copy_existing_EmbeddedHistoryPreview.productLayoutEvidence")
+            .put("chart",historyVisibility(chart)).put("plotView",historyVisibility(plot)).put("explanation",observation(explanation))
+            .put("explanationScreenVisibility",historyVisibility(explanation)).put("explanationText",explanation.text.toString())
+            .put("samePermanentProducerView",producer.embeddedExplanationView===explanation)
+            .put("externalSiblingAfterChart",explanation.parent===content && content.indexOfChild(explanation)==content.indexOfChild(chart)+1)
+            .put("sameProjectionSamplingDescription",explanation.text.toString().contains(sampling))
+            .put("legend",historyVisibility(legend)).put("legendActions",JSONArray(nodes(legend).filterIsInstance<Button>().filter {it.isShown}.map {
+                JSONObject().put("observation",observation(it)).put("screenVisibility",historyVisibility(it)).put("heightPx",it.height)
+            })).put("axisInk",JSONArray(inks)).put("actualCanvas",JSONArray(chart.visualEvidence.toString())).put("actualSampleCount",chart.points.size)
+            .put("actualPlotHeightDp",plotBox?.let {it.height()/activity.resources.displayMetrics.density} ?: JSONObject.NULL)
+            .put("initialVisiblePlotHeightDp",visiblePlot?.let {it.height()/activity.resources.displayMetrics.density} ?: JSONObject.NULL)
+    }
+    private fun requireEmbeddedHistoryInitial(activity: Activity, folder: File, evidence:JSONObject, emptyExpected:Boolean=false) {
+        val density=activity.resources.displayMetrics.density
+        File(folder,"history-initial-chart.json").writeText(evidence.toString(2))
+        check(evidence.getBoolean("samePermanentProducerView") && evidence.getBoolean("externalSiblingAfterChart") &&
+            evidence.getBoolean("sameProjectionSamplingDescription"))
+        if(evidence.isNull("actualPlotHeightDp")) {
+            check(emptyExpected && evidence.getInt("actualSampleCount")==0) {"M5 nonempty History has no Canvas plot"}
+            check((0 until evidence.getJSONArray("actualCanvas").length()).none {evidence.getJSONArray("actualCanvas").getJSONObject(it).optString("operation")=="path"})
+        }
+        else check(evidence.getDouble("actualPlotHeightDp")>=96.0 && evidence.getDouble("initialVisiblePlotHeightDp")>=96.0)
+        val budget=evidence.getJSONObject("budget")
+        check(budget.getInt("chartLegendNaturalPx")>0 && budget.getInt("externalExplanationNaturalPx")>0 &&
+            budget.getString("explanationPlacement")=="same_permanent_producer_view_after_complete_chart_before_notes")
+        val actions=evidence.getJSONArray("legendActions");check(actions.length()==4)
+        for(index in 0 until actions.length()) {
+            val value=actions.getJSONObject(index)
+            check(value.getInt("heightPx")>=(48*density).toInt())
+            check(value.getJSONObject("screenVisibility").getBoolean("complete") && whole(value.getJSONObject("observation")))
+        }
+        if(activity.resources.configuration.fontScale==1f && !evidence.isNull("actualPlotHeightDp")) {
+            check(evidence.getJSONObject("chart").getBoolean("complete")) {"M5 standard History initial chart/time axis is not wholly visible; no pre-scroll accepted"}
+            val inks=evidence.getJSONArray("axisInk");check(inks.length()>0)
+            for(index in 0 until inks.length())check(inks.getJSONObject(index).getBoolean("completeInVisiblePlotView")) {
+                "M5 standard History initial actual axis glyph is clipped"}
+        }
+    }
+    private fun historyPreviewReachability(activity: Activity, scope:Scope, folder:File, emptyExpected:Boolean=false) {
+        val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/history/preview-scroll"))
+        val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
+        val explanation=requireNotNull(chart.embeddedExplanationView)
+        val saved=scroll.scrollY;check(saved==0) {"M5 fresh initial History preview must not start pre-scrolled"}
+        val nativeBefore=scope.journal.exportJson();val reached=JSONArray()
+        fun fixedActions() {
+            listOf("product/history/review" to 56,"product/history/full-page" to 48).forEach {(tag,minimum) ->
+                val action=requireNotNull(root(activity).findViewWithTag<Button>(tag))
+                check(action.height>=HoyiUi.dp(activity,minimum) && historyVisibility(action).getBoolean("complete") && whole(observation(action)))
+            }
+        }
+        fun reach(view:View, name:String) {
+            main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
+            frames.committedFrame(root(activity))
+            capture(activity,File(folder,"states/history-preview-$name-reachable"))
+            main {
+                check(historyVisibility(view).getBoolean("complete"));fixedActions()
+                if(view is TextView)check(whole(observation(view))) {"M5 full explanation/note text cannot be reached"}
+                if(view===chart) {
+                    val evidence=requireNotNull(embeddedHistoryEvidence(activity));val inks=evidence.getJSONArray("axisInk")
+                    if(evidence.isNull("actualPlotHeightDp"))check(emptyExpected && chart.points.isEmpty())
+                    else {
+                        check(evidence.getDouble("actualPlotHeightDp")>=96.0 && inks.length()>0)
+                        for(index in 0 until inks.length())check(inks.getJSONObject(index).getBoolean("completeInVisiblePlotView"))
+                    }
+                }
+                reached.put(JSONObject().put("target",name).put("visibility",historyVisibility(view)).put("scrollY",scroll.scrollY))
+            }
+        }
+        try {
+            reach(chart,"chart")
+            reach(explanation,"explanation")
+            val notes=nodes(root(activity)).filterIsInstance<TextView>().filter {it.tag=="full-text-details" && it.isShown}
+            check(notes.size==2)
+            notes.forEachIndexed {index,note ->reach(note,"note-$index")}
+        } finally {
+            main {scroll.scrollTo(0,saved)};frames.committedFrame(root(activity))
+            main {check(scroll.scrollY==saved);fixedActions();check(chart.embeddedExplanationView===explanation)}
+        }
+        check(scope.journal.exportJson()==nativeBefore)
+        capture(activity,File(folder,"states/history-preview-restored"))
+        File(folder,"history-preview-reachability.json").writeText(JSONObject().put("targets",reached).put("initialScrollY",saved)
+            .put("restoredScrollY",scroll.scrollY).put("exactScrollRestored",true).put("permanentExplanationIdentityPreserved",true)
+            .put("readOnlyJournalUnchanged",true).put("completed",true).toString(2))
+    }
+    private fun screenObservation(view:View):JSONObject {
+        val result=observation(view).put("complete",historyVisibility(view).getBoolean("complete"))
+        val texts=nodes(view).filterIsInstance<TextView>()
+        val lines=result.getJSONArray("textLineBoxes")
+        check(texts.size==lines.length())
+        texts.forEachIndexed {index,text -> lines.getJSONObject(index).put("fullViewVisible",historyVisibility(text).getBoolean("complete")) }
+        return result
+    }
+    private fun standaloneHistoryEvidence(activity:Activity):JSONObject? {
+        val budgetView=root(activity).findViewWithTag<View>("product/history/standalone-plot-budget") ?: return null
+        val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
+        val plot=requireNotNull(chart.findViewWithTag<View>("chart-plot"))
+        val visibility=historyVisibility(plot)
+        val clipped=visibility.getJSONArray("visibleRectPx")
+        val clip=android.graphics.RectF(clipped.getDouble(0).toFloat(),clipped.getDouble(1).toFloat(),clipped.getDouble(2).toFloat(),clipped.getDouble(3).toFloat())
+        val origin=IntArray(2);plot.getLocationOnScreen(origin)
+        val operations=(0 until chart.visualEvidence.length()).map {chart.visualEvidence.getJSONObject(it)}
+        val drawing=operations.singleOrNull {it.optString("operation")=="plot"}
+        val bounds=drawing?.getJSONArray("boundsPx")?.let {b -> android.graphics.RectF(
+            b.getDouble(0).toFloat()+origin[0],b.getDouble(1).toFloat()+origin[1],
+            b.getDouble(2).toFloat()+origin[0],b.getDouble(3).toFloat()+origin[1]) }
+        val visible=bounds?.let {android.graphics.RectF(it).apply {if(!intersect(clip))setEmpty()} }
+        return JSONObject().put("budget",JSONObject((field(budgetView,"productLayoutEvidence") as JSONObject).toString()))
+            .put("budgetSource","deep_copy_existing_StandaloneHistoryPlot.productLayoutEvidence")
+            .put("plotView",visibility).put("actualCanvas",JSONArray(chart.visualEvidence.toString()))
+            .put("emptySamples",chart.points.isEmpty()).put("actualSampleCount",chart.points.size)
+            .put("plotPresent",bounds!=null).put("actualPlotHeightDp",bounds?.height()?.div(activity.resources.displayMetrics.density) ?: JSONObject.NULL)
+            .put("visiblePlotHeightDp",visible?.height()?.div(activity.resources.displayMetrics.density) ?: JSONObject.NULL)
+            .put("plotBoundsScreenPx",bounds?.let {JSONArray(listOf(it.left,it.top,it.right,it.bottom))} ?: JSONObject.NULL)
+            .put("visiblePlotBoundsScreenPx",visible?.let {JSONArray(listOf(it.left,it.top,it.right,it.bottom))} ?: JSONObject.NULL)
+    }
+    private fun requireStandaloneHistoryPlot(activity:Activity,folder:File,evidence:JSONObject,emptyExpected:Boolean) {
+        File(folder,"standalone-history-plot.json").writeText(evidence.toString(2))
+        check(evidence.getBoolean("emptySamples")==emptyExpected)
+        check(evidence.getJSONObject("budget").getInt("minimumPlotDp")==96)
+        if(!evidence.getBoolean("plotPresent")) {
+            check(emptyExpected && evidence.getInt("actualSampleCount")==0) {"M5 nonempty Detail has no actual Canvas plot"}
+            check((0 until evidence.getJSONArray("actualCanvas").length()).none {
+                evidence.getJSONArray("actualCanvas").getJSONObject(it).optString("operation")=="path" })
+        } else {
+            check(evidence.getJSONObject("plotView").getBoolean("screenMappingVerified"))
+            check(evidence.getDouble("actualPlotHeightDp")>=96.0 && evidence.getDouble("visiblePlotHeightDp")>=96.0) {
+                "M5 Detail real Canvas plot / visible intersection <96dp: $evidence"}
+        }
+    }
     private fun geometry(activity: Activity): JSONObject {
         val content=root(activity); val origin=IntArray(2); content.getLocationOnScreen(origin)
         val insets=requireNotNull(content.rootWindowInsets); val bars=insets.getInsets(WindowInsets.Type.systemBars())
         val config=activity.resources.configuration
         val charts=nodes(content).filter { it is ShotChartView || it is TwoCupChartView || it is ExtractionOverlayView }
-        return JSONObject().put("windowMetricsBoundsPx",rect(activity.windowManager.currentWindowMetrics.bounds))
+        return JSONObject().apply { if(activity is HistoryActivity) {
+            put("embeddedHistoryPreview",embeddedHistoryEvidence(activity) ?: JSONObject.NULL)
+        }
+            if(activity is HistoryDetailActivity)put("standaloneHistoryPlot",standaloneHistoryEvidence(activity) ?: JSONObject.NULL)
+        }.put("windowMetricsBoundsPx",rect(activity.windowManager.currentWindowMetrics.bounds))
             .put("appOriginPx",JSONArray(origin.toList())).put("appSizePx",JSONArray(listOf(content.width,content.height)))
             .put("systemInsetsPx",JSONArray(listOf(bars.left,bars.top,bars.right,bars.bottom)))
             .put("imeVisible",insets.isVisible(WindowInsets.Type.ime())).put("densityDpi",config.densityDpi)
@@ -710,17 +921,127 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         File(folder,"comparison-business.json").writeText(JSONObject().put("cases",cases).put("swapRecreateIdsAndMetric",true)
             .put("placeholderClearsIdentityAndProjection",true).put("journalUnchanged",true).put("completed",true).toString(2))
     }
-    private fun detailReachability(activity: Activity, folder: File) {
-        val targets=nodes(root(activity)).filterIsInstance<TextView>().filter { it.text.toString().contains("研磨调细一点") }
-        check(targets.isNotEmpty()) { "M5 true saved next-adjustment note missing" }
-        targets.forEach { view ->
-            main { view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true) }
-            frames.committedFrame(root(activity))
-            main { check(whole(observation(view))) { "M5 complete saved note not reachable at actual fontScale" } }
+    private fun detailReachability(activity: Activity, scope:Scope, folder: File) {
+        val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
+        val savedX=scroll.scrollX;val savedY=scroll.scrollY
+        val id=activity.intent.getStringExtra("shotId");val journal=scope.journal.exportJson()
+        val records=JSONArray()
+        val targets=nodes(root(activity)).filterIsInstance<TextView>().filter {
+            val tag=it.tag as? String ?: ""
+            tag.startsWith("product/history/note/") && !tag.endsWith("/row") && it.isShown }
+        check(targets.size==6) {"M5 actual saved note value targets missing: ${targets.map {it.tag}}"}
+        fun fixedEdit() {
+            val edit=requireNotNull(root(activity).findViewWithTag<Button>("product/history/review"))
+            check(historyVisibility(edit).getBoolean("complete") && whole(screenObservation(edit)))
         }
-        capture(activity,File(folder,"states/notes-local-scroll-reachable"))
-        File(folder,"detail-business.json").writeText(JSONObject().put("savedNotesReachable",true)
-            .put("notesSource","actual_BrewJournal_Notes").put("noEditOrSaveInvoked",true).put("completed",true).toString(2))
+        try {
+            targets.forEachIndexed {index,view ->
+                main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
+                frames.committedFrame(root(activity))
+                capture(activity,File(folder,"states/detail-note-$index-reachable"))
+                main {
+                    check(whole(screenObservation(view))) {"M5 complete saved note not reachable: ${view.tag}"}
+                    fixedEdit();records.put(JSONObject().put("target",view.tag).put("visibility",historyVisibility(view))
+                        .put("layout",screenObservation(view)).put("scrollX",scroll.scrollX).put("scrollY",scroll.scrollY))
+                }
+            }
+        } finally {
+            main {scroll.scrollTo(savedX,savedY)};frames.committedFrame(root(activity))
+            main {check(scroll.scrollX==savedX && scroll.scrollY==savedY);check(activity.intent.getStringExtra("shotId")==id);fixedEdit()}
+        }
+        capture(activity,File(folder,"states/detail-notes-restored"))
+        check(scope.journal.exportJson()==journal)
+        File(folder,"detail-business.json").writeText(JSONObject().put("targets",records).put("savedNotesReachable",true)
+            .put("initialScrollPx",JSONArray(listOf(savedX,savedY))).put("restoredScrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
+            .put("shotId",id).put("exactScrollRestored",true).put("shotIdUnchanged",true).put("journalUnchanged",true)
+            .put("fixedEditComplete",true).put("notesSource","actual_BrewJournal_Notes").put("noEditOrSaveInvoked",true).put("completed",true).toString(2))
+    }
+    private fun comparisonReachability(activity:Activity,scope:Scope,folder:File) {
+        val toolbar=requireNotNull(root(activity).findViewWithTag<ScrollView>("comparison-toolbar"))
+        val details=requireNotNull(root(activity).findViewWithTag<ScrollView>("comparison-details-scroll"))
+        val scrolls=listOf(toolbar,details)
+        val saved=scrolls.map {it.scrollX to it.scrollY}
+        val first=field(activity,"firstId");val second=field(activity,"secondId");val metric=field(activity,"selectedMetric")
+        val journal=scope.journal.exportJson();val records=JSONArray()
+        fun tagged(owner:View,tag:String):View = nodes(owner).filter {it.tag==tag}.single().also {
+            check(it.isShown && it.isAttachedToWindow) {"M5 required comparison target missing/hidden: $tag"}
+        }
+        val targets=linkedMapOf<String,View>()
+        val controlTags=listOf("comparison-first","comparison-second","comparison-swap") +
+            listOf("PRESSURE","WATER","WEIGHT","TEMPERATURE").map {"comparison-metric-$it"}
+        controlTags.forEach {targets[it]=tagged(toolbar,it)}
+        targets["comparison-source-legend"]=tagged(toolbar,"comparison-source-legend")
+        val selectedStatuses=listOf(first,second).filterIsInstance<String>().map {requireNotNull(scope.journal.find(it)).observation.status}
+        val expectedWarning=selectedStatuses.any {it=="UNKNOWN"}
+        val warning=nodes(toolbar).filter {it.tag=="product/comparison/warning"}.single()
+        check(warning.isShown==expectedWarning && warning.visibility==if(expectedWarning)View.VISIBLE else View.GONE)
+        if(expectedWarning)targets["comparison-unknown-warning"]=warning
+        val sourceViews=listOf("comparison-source-1","comparison-source-2").map {tag ->tagged(details,tag).also {targets[tag]=it}}
+        val summary=tagged(details,"comparison-summary-table") as ViewGroup
+        val rows=(0 until summary.childCount).map(summary::getChildAt).filterIsInstance<LinearLayout>()
+        check(rows.size==4 && rows.all {it.childCount==3})
+        check((rows[0].getChildAt(0) as TextView).text.isEmpty())
+        targets["summary-header"]=rows[0]
+        listOf("duration" to R.string.history_duration,"end-scale" to R.string.history_end_scale,"taste" to R.string.journal_taste)
+            .forEachIndexed {index,(key,label) ->
+                val row=rows[index+1]
+                check(row.tag=="comparison-summary-row-$index" && (row.getChildAt(0) as TextView).text.toString()==activity.getString(label))
+                targets["summary-$key"]=row
+            }
+        val tastes=listOf(rows[3].getChildAt(1),rows[3].getChildAt(2))
+        check(tastes.all {it is TextView && it.tag=="full-text-details"})
+        targets["taste-A"]=tastes[0];targets["taste-B"]=tastes[1]
+        val detailButtons=mutableListOf<Button>()
+        val noteButtons=mutableListOf<Button>()
+        listOf("A" to R.string.journal_first,"B" to R.string.journal_second).forEachIndexed {index,(key,label) ->
+            fun originalButton(action:Int):Button=nodes(details).filterIsInstance<Button>().single {
+                it.text.toString()==activity.getString(label)+" · "+activity.getString(action)
+            }.also {check(it.isShown && it.isAttachedToWindow && it.isClickable)}
+            val detail=originalButton(R.string.journal_detail)
+            val notes=originalButton(R.string.journal_notes_title)
+            check(notes.parent===sourceViews[index].parent) {"M5 notes action lost its original source card ownership"}
+            detailButtons+=detail;noteButtons+=notes
+            targets["detail-$key"]=detail;targets["notes-$key"]=notes
+        }
+        check(detailButtons[0].parent===detailButtons[1].parent)
+        check(targets.values.distinct().size==targets.size && targets.size==if(expectedWarning)21 else 20)
+        try {
+            targets.entries.forEachIndexed {index,(semanticKey,view) ->
+                main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
+                frames.committedFrame(root(activity))
+                capture(activity,File(folder,"states/comparison-target-$index-reachable"))
+                main {
+                    val observed=screenObservation(view)
+                    // Taste cells intentionally ellipsize and retain their original full-text dialog/tooltip semantics.
+                    val isTaste=view.tag=="full-text-details"
+                    check(historyVisibility(view).getBoolean("complete")) {"M5 comparison target clipped: ${view.tag}"}
+                    if(!isTaste) {
+                        val textTargets=nodes(view).filterIsInstance<TextView>().filter {it.isShown && it.tag!="full-text-details"}
+                        textTargets.forEach {check(whole(screenObservation(it))) {"M5 comparison target text clipped: ${it.tag}"}}
+                    }
+                    if(view is TextView && isTaste)check(view.tooltipText?.toString()==view.text.toString())
+                    records.put(JSONObject().put("index",index).put("semanticKey",semanticKey).put("target",view.tag ?: view.javaClass.simpleName)
+                        .put("tasteEllipsisRetainsFullDialogSemantics",isTaste).put("visibility",historyVisibility(view)).put("layout",observed))
+                }
+            }
+        } finally {
+            main {scrolls.forEachIndexed {index,scroll ->scroll.scrollTo(saved[index].first,saved[index].second)}}
+            frames.committedFrame(root(activity))
+            main {
+                check(scrolls.map {it.scrollX to it.scrollY}==saved)
+                check(field(activity,"firstId")==first && field(activity,"secondId")==second && field(activity,"selectedMetric")==metric)
+            }
+        }
+        capture(activity,File(folder,"states/comparison-scrolls-restored"))
+        check(scope.journal.exportJson()==journal)
+        File(folder,"comparison-reachability.json").writeText(JSONObject().put("targets",records).put("expectedTargetCount",targets.size)
+            .put("initialScrollPx",JSONArray(saved.map {JSONArray(listOf(it.first,it.second))}))
+            .put("restoredScrollPx",JSONArray(scrolls.map {JSONArray(listOf(it.scrollX,it.scrollY))}))
+            .put("exactScrollRestored",true).put("idsAndMetricUnchanged",true).put("journalUnchanged",true)
+            .put("summaryRowCount",rows.size).put("tasteTargetCount",tastes.size).put("toolbarControlCount",controlTags.size)
+            .put("selectedSourceStatuses",JSONArray(selectedStatuses)).put("expectedUnknownWarning",expectedWarning).put("requiredSemanticKeys",JSONArray(targets.keys.toList()))
+            .put("originalFourActionIdentitiesAndOwnershipVerified",detailButtons.size==2 && noteButtons.size==2)
+            .put("tasteBusinessDialogNotInvoked",true).put("completed",true).toString(2))
     }
     private fun chartMetricAction(activity: Activity, metric: ChartMetric) {
         val label=activity.getString(when(metric) {
@@ -778,6 +1099,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     // Take original full-window protocol2 evidence before mechanical assertions.
                     val captured=capture(activity,caseDirectory)
                     proof.put("frameSync",captured.proof)
+                    main {
+                        if(page=="history")requireEmbeddedHistoryInitial(activity,caseDirectory,captured.target.getJSONObject("embeddedHistoryPreview"),expected.isEmpty())
+                        if(page=="history-detail")requireStandaloneHistoryPlot(activity,caseDirectory,captured.target.getJSONObject("standaloneHistoryPlot"),expected.isEmpty())
+                    }
                     main {
                         check(services().isEmpty() && MobileMonotonicClock.mockOwnerIdentity()==null)
                         val data: FourMetricChartData
@@ -856,6 +1181,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             .put("actualCanvasCurrentMetricVertexCounts",JSONArray(paths.map { it.getJSONArray("verticesPx").length() }))
                             .put("noServiceOrClockOverride",true)
                     }
+                    when(page) {
+                        "history"->historyPreviewReachability(activity,scope,caseDirectory,expected.isEmpty())
+                        "history-detail"->detailReachability(activity,scope,caseDirectory)
+                        else->comparisonReachability(activity,scope,caseDirectory)
+                    }
                     scope.closeActivities()
                     check(scope.journal.exportJson()==journalBefore && scope.history.entries==historyBefore)
                     proof.put("readOnlyModelsUnchanged",true).put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
@@ -920,7 +1250,9 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
             check(font==TaskProductVisualStyle.FONT_SHA); manifest.put("fontSha256",font)
             main {
-                val window=geometry(activity); manifest.put("window",window)
+                val window=captured.target; manifest.put("window",window)
+                if(page=="history")requireEmbeddedHistoryInitial(activity,directory,window.getJSONObject("embeddedHistoryPreview"))
+                if(page=="history-detail")requireStandaloneHistoryPlot(activity,directory,window.getJSONObject("standaloneHistoryPlot"),false)
                 val charts=window.getJSONArray("charts")
                 check(charts.length()>0 && (0 until charts.length()).all { charts.getJSONObject(it).getJSONArray("canvasEvidence").length()>0 }) {
                     "M5 main page must retain a real readable actual-draw chart, not a short-height placeholder"
@@ -930,9 +1262,9 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
             when(page) {
                 "extraction"->active.verifyExtraction(activity,captureStartedAtRealMs,captureFinishedAtRealMs)
-                "history"->savedHistoryBusiness(activity,active,directory)
-                "history-detail"->detailReachability(activity,directory)
-                else->comparisonBusiness(activity,active,directory)
+                "history"->{historyPreviewReachability(activity,active,directory);savedHistoryBusiness(activity,active,directory)}
+                "history-detail"->detailReachability(activity,active,directory)
+                else->{comparisonReachability(activity,active,directory);comparisonBusiness(activity,active,directory)}
             }
             manifest.put("layoutStatus","PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE")
             if(page!="extraction") {

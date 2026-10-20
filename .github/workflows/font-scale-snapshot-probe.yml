@@ -1,0 +1,39 @@
+name: Disposable font-scale snapshot capability probe
+on:
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      CI_DISPOSABLE_AVD: font-scale-probe-${{ github.run_id }}-${{ github.run_attempt }}-probe
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline parser and cleanup contracts
+        run: python3 -m unittest discover -s scripts -p test_ci_font_scale_snapshot.py
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Disposable emulator only; no production runners
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          avd-name: ${{ env.CI_DISPOSABLE_AVD }}
+          force-avd-creation: true
+          emulator-port: 5554
+          disable-animations: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+          script: python3 scripts/probe_ci_font_scale_snapshot.py --serial emulator-5554 --output build/font-scale-snapshot-probe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: font-scale-snapshot-probe-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/font-scale-snapshot-probe
+          if-no-files-found: warn

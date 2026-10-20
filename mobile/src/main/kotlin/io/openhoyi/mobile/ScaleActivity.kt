@@ -108,20 +108,18 @@ class ScaleActivity:ScaleOwnerActivity() {
         body.addView(workspace,LinearLayout.LayoutParams(-1,0,1f))
         val primary=workspace.primary
         val secondary=workspace.secondary
-        val reading=style.column("product/scale/reading").apply {gravity=android.view.Gravity.CENTER}
-        primary.addView(reading,LinearLayout.LayoutParams(-1,0,1f))
-        style.add(reading,style.text(getString(R.string.scale_current_weight),TaskProductVisualStyle.auxiliary,secondary=true).apply {
+        val readingLabel=style.text(getString(R.string.scale_current_weight),TaskProductVisualStyle.auxiliary,secondary=true).apply {
             gravity=android.view.Gravity.CENTER
-        })
+        }
         val quantity=style.row("product/scale/quantity").apply {isBaselineAligned=true;gravity=android.view.Gravity.CENTER_HORIZONTAL or android.view.Gravity.TOP}
-        style.add(reading,quantity,8)
         weight=style.text(getString(R.string.scale_unavailable),if(resources.configuration.screenWidthDp>=840)visual.largeReading else visual.narrowReading,
             "product/scale/weight/number")
         quantity.addView(weight,LinearLayout.LayoutParams(-2,-2))
         weightUnit=style.text("",visual.unit,"product/scale/weight/unit",true)
         quantity.addView(weightUnit,LinearLayout.LayoutParams(-2,-2).apply {marginStart=style.dp(8)})
         freshness=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/freshness",true).apply {gravity=android.view.Gravity.CENTER}
-        style.add(reading,freshness,8)
+        val reading=ScaleReadingLayout(this,style,readingLabel,quantity,freshness)
+        primary.addView(reading,LinearLayout.LayoutParams(-1,0,1f))
         tare=HoyiUi.button(this,primary,getString(R.string.scale_tare),
             primary=!intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE,false)) {
             val service=owner ?: return@button
@@ -148,12 +146,17 @@ class ScaleActivity:ScaleOwnerActivity() {
             tare.measure(android.view.View.MeasureSpec.makeMeasureSpec(buttonWidth,android.view.View.MeasureSpec.EXACTLY),
                 android.view.View.MeasureSpec.makeMeasureSpec(0,android.view.View.MeasureSpec.UNSPECIFIED))
             val params=tare.layoutParams as LinearLayout.LayoutParams
-            val readingHeight=natural(reading)
+            reading.requestInline(false)
+            val verticalReadingHeight=natural(reading)
             val tareHeight=tare.measuredHeight+params.topMargin+params.bottomMargin
             val explanationHeight=natural(tareStatus)
+            reading.requestInline(verticalReadingHeight+tareHeight+explanationHeight>height)
+            val readingHeight=natural(reading)
             val required=readingHeight+tareHeight+explanationHeight
             val trendHeight=trend.fit(width,height-required)
             productLayoutEvidence.put("readingNaturalPx",readingHeight).put("tareNaturalPx",tareHeight)
+                .put("readingVerticalNaturalPx",verticalReadingHeight).put("readingLayout",reading.productLayoutEvidence)
+                .put("readingAndControlsBudgetSatisfiable",required<=height)
                 .put("tareExplanationNaturalPx",explanationHeight).put("trendNaturalPx",trendHeight)
                 .put("trendInline",trendHeight>0).put("trendBudget",trend.productLayoutEvidence)
             required+trendHeight

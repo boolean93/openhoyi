@@ -38,6 +38,10 @@ import java.util.Locale
 
 /** Only known setting commands are exposed; applied state requires a subsequent 0x83 readback. */
 class MachineSettingsActivity : ThemedActivity() {
+    private val visual by lazy {SettingsVisualStyle(this)}
+    val productLayoutEvidence get()=visual.evidence
+    private lateinit var brewTemperatureUnit:TextView
+    private lateinit var steamTemperatureUnit:TextView
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     private data class ScheduleCard(val heading: TextView, val period: TextView)
     private var service: MobileService? = null
@@ -91,71 +95,43 @@ class MachineSettingsActivity : ThemedActivity() {
         super.onCreate(savedInstanceState)
         detailsExpanded = savedInstanceState?.getBoolean("settingsExpanded") ?: false
         selectedSettingsSection = savedInstanceState?.getInt("settingsSection") ?: 0
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.mobile_background))
-            setOnApplyWindowInsetsListener { view, insets ->
-                val area = if (Build.VERSION.SDK_INT >= 30) {
-                    val x = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                    intArrayOf(x.left, x.top, x.right, x.bottom)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intArrayOf(insets.systemWindowInsetLeft, insets.systemWindowInsetTop,
-                        insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
-                }
-                view.setPadding(area[0], area[1], area[2], area[3])
-                insets
-            }
-        }
-        val scroll = ScrollView(this)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
-        HoyiUi.navigation(this, root, MachineSettingsActivity::class.java)
-        val body = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(20), dp(24), dp(28))
-        }
-        scroll.addView(body)
-        setContentView(root)
-        HoyiUi.header(this, body, getString(R.string.machine_settings_title), getString(R.string.machine_settings_subtitle))
+        val style=visual.palette
+        val body=visual.page(this,R.string.machine_settings_title,R.string.machine_settings_subtitle,pageId="machine")
         text(body, if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_mock_disclaimer)
-            else getString(R.string.machine_settings_real_disclaimer), 14)
+            else getString(R.string.machine_settings_real_disclaimer), 14).apply {
+            val warning=ExtractionHistoryVisualStyle(this@MachineSettingsActivity)
+            setTextColor(warning.warningInk);setPadding(dp(16),dp(16),dp(16),dp(16))
+            background=style.shape(warning.warningSurface,true)
+            (layoutParams as LinearLayout.LayoutParams).topMargin=dp(16)
+        }
         val overview = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val controlsPane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        if (HoyiUi.wide(this)) {
-            val columns = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            body.addView(columns)
-            columns.addView(overview, LinearLayout.LayoutParams(0, -2, .8f))
-            columns.addView(controlsPane, LinearLayout.LayoutParams(0, -2, 1.2f).apply { marginStart = dp(16) })
-        } else {
-            body.addView(overview)
-            body.addView(controlsPane)
-        }
+        val columnsEvidence=org.json.JSONObject();productLayoutEvidence.put("columns",columnsEvidence)
+        body.addView(SettingsColumns(this,style,overview,controlsPane,columnsEvidence),LinearLayout.LayoutParams(-1,-2))
         val summaryCard = card(overview, getString(R.string.machine_settings_connection_title))
-        connectionState = text(summaryCard, getString(R.string.machine_settings_disconnected), 16)
+        connectionState = text(summaryCard, getString(R.string.machine_settings_disconnected), 16).apply {tag="product/settings/machine/connection"}
         val settingsCard = card(overview, getString(R.string.machine_settings_readback_title))
         fun settingRow(label: Int): TextView {
-            if (settingsCard.childCount > 1) settingsDivider(this, settingsCard)
-            val inline = resources.configuration.fontScale <= 1.1f
-            val row = LinearLayout(this).apply {
-                orientation = if (inline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_VERTICAL
-                setPadding(0, dp(8), 0, dp(8))
+            settingsDivider(this, settingsCard, visual)
+            val key=when(label) {R.string.machine_settings_brew_label->"brew";R.string.machine_settings_steam_label->"steam";R.string.machine_settings_run_mode_label->"run-mode";else->"supply"}
+            val name=style.text(getString(label),TaskProductVisualStyle.auxiliary,"product/settings/machine/readback/$key/label",true)
+            val value=style.text("—",TaskProductVisualStyle.body,"product/settings/machine/readback/$key/number")
+            val quantity=style.row().apply {isBaselineAligned=true;gravity=Gravity.TOP or Gravity.END}
+            quantity.addView(value,LinearLayout.LayoutParams(-2,-2))
+            if(label in listOf(R.string.machine_settings_brew_label,R.string.machine_settings_steam_label)) {
+                val unit=style.text("°C",TaskProductVisualStyle.auxiliary,"product/settings/machine/readback/$key/unit",true)
+                quantity.addView(unit,LinearLayout.LayoutParams(-2,-2).apply {marginStart=dp(8)})
+                unit.visibility=View.GONE
+                if(label==R.string.machine_settings_brew_label)brewTemperatureUnit=unit else steamTemperatureUnit=unit
             }
-            settingsCard.addView(row, LinearLayout.LayoutParams(-1, -2))
-            HoyiUi.label(this, row, getString(label), TaskVisualTokens.SUPPORTING_SP, muted = true).apply {
-                layoutParams = LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1f else 0f)
-                setPadding(0, 0, dp(8), 0)
-            }
-            return HoyiUi.label(this, row, "—", TaskVisualTokens.BODY_SP).apply {
-                layoutParams = LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1f else 0f)
-                gravity = if (inline) Gravity.END else Gravity.START
-            }
+            style.add(settingsCard,visual.pair(name,quantity,"product/settings/machine/readback/$key/row"))
+            return value
         }
         brewTemperatureValue = settingRow(R.string.machine_settings_brew_label)
         steamTemperatureValue = settingRow(R.string.machine_settings_steam_label)
         runModeValue = settingRow(R.string.machine_settings_run_mode_label)
         supplyValue = settingRow(R.string.machine_settings_supply_label)
-        settingsDivider(this, settingsCard)
+        settingsDivider(this, settingsCard, visual)
         settingsOverview = text(settingsCard, getString(R.string.machine_settings_readback_missing), TaskVisualTokens.SUPPORTING_SP)
         settings = text(settingsCard, "", 14).apply {
             visibility = if (detailsExpanded) View.VISIBLE else View.GONE
@@ -164,21 +140,25 @@ class MachineSettingsActivity : ThemedActivity() {
             detailsExpanded = !detailsExpanded
             settings.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
             settingsToggle.text = if (detailsExpanded) getString(R.string.machine_settings_readback_collapse) else getString(R.string.machine_settings_readback_expand)
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            visual.action(this,icon="chevron",atEnd=true)
+        }
         action(settingsCard, getString(R.string.app_settings_title)) {
             startActivity(Intent(this, AppSettingsActivity::class.java))
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
+        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            visual.action(this,icon="chevron",atEnd=true)
+        }
         val writeCard = card(controlsPane, getString(R.string.machine_settings_feedback_title))
-        writeStatus = text(writeCard, getString(R.string.machine_settings_feedback_initial), 14)
+        writeStatus = text(writeCard, getString(R.string.machine_settings_feedback_initial), 16).apply {tag="product/settings/machine/write-status"}
         val tabsScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
-        controlsPane.addView(tabsScroll, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(14) })
+        controlsPane.addView(tabsScroll, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
         val tabs = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         tabsScroll.addView(tabs)
         fun section(label: String): LinearLayout {
             val index = settingSections.size
             val tab = TextView(this).apply {
                 text = label
-                textSize = TaskVisualTokens.BODY_SP.toFloat()
+                style.apply(this,TaskProductVisualStyle.action)
                 gravity = Gravity.CENTER
                 minHeight = dp(48)
                 isFocusable = true
@@ -217,7 +197,10 @@ class MachineSettingsActivity : ThemedActivity() {
             if (c == null || c !in 110..145) steamInput.error = getString(R.string.machine_settings_steam_error)
             else confirm(MachineSettingChange.SteamTemperature(c))
         }
-        compactTemperatureRows(controls, listOf(brewInput, compensationInput, steamInput))
+        compactTemperatureRows(controls, listOf(brewInput, compensationInput, steamInput),listOf("brew","compensation","steam"),
+            listOf(R.string.m8_brew_label,R.string.m8_compensation_label,R.string.m8_steam_label),
+            listOf(R.string.m8_brew_range,R.string.m8_compensation_range,R.string.m8_steam_range))
+        visual.palette.add(controls,visual.palette.text(getString(R.string.machine_settings_readback_warning),TaskProductVisualStyle.auxiliary,secondary=true),16)
         val functionsCard = card(functionsSection, getString(R.string.machine_settings_functions_title))
         brewHeatingButton = action(functionsCard, getString(R.string.machine_settings_brew_heating_toggle)) {
             service?.snapshot?.settings?.let { confirm(MachineSettingChange.BrewHeating(!it.brewHeating)) }
@@ -248,6 +231,8 @@ class MachineSettingsActivity : ThemedActivity() {
                 else confirm(MachineSettingChange.StandbyTemperature(c, minutes))
             }
         }
+        compactTemperatureRows(standbyCard,listOf(standbyTemperatureInput),listOf("standby"),
+            listOf(R.string.m8_standby_label),listOf(R.string.m8_standby_range))
         val sleepCard = card(sleepSection, getString(R.string.machine_settings_schedule_title))
         schedule = text(sleepCard, getString(R.string.machine_settings_schedule_missing), 16)
         scheduleWriteStatus = text(sleepCard, getString(R.string.machine_settings_schedule_initial), 14)
@@ -266,17 +251,15 @@ class MachineSettingsActivity : ThemedActivity() {
             days.forEach { day ->
                 val cell = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
-                    setPadding(dp(14), dp(10), dp(14), dp(10))
-                    background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_accent_soft, 12)
+                    setPadding(dp(16), dp(8), dp(16), dp(8))
+                    background = style.shape(style.selected)
                 }
                 row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply {
                     topMargin = dp(8)
                     if (day != days.last()) marginEnd = dp(8)
                 })
-                val heading = HoyiUi.label(this, cell, "", 15, true)
-                val period = HoyiUi.label(this, cell, "", 13, muted = true).apply {
-                    setPadding(0, dp(6), 0, 0)
-                }
+                val heading = style.text("",TaskProductVisualStyle.action).also {style.add(cell,it)}
+                val period = style.text("",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(cell,it,8)}
                 scheduleCards += ScheduleCard(heading, period)
             }
             if (days.size < scheduleColumns) row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
@@ -324,12 +307,13 @@ class MachineSettingsActivity : ThemedActivity() {
             val selected = position == selectedSettingsSection
             section.visibility = if (selected) View.VISIBLE else View.GONE
             settingTabs[position].apply {
-                setTextColor(getColor(if (selected) R.color.mobile_accent else R.color.mobile_muted))
+                visual.palette.apply(this,if(selected)TaskProductVisualStyle.action else TaskProductVisualStyle.body,!selected)
+                setTextColor(if(selected)visual.palette.accent else visual.palette.muted)
                 isSelected = selected
                 typeface = TaskTypography.face(context, if (selected) 500 else 400)
-                val baseline = GradientDrawable().apply { setColor(getColor(R.color.mobile_border)) }
+                val baseline = GradientDrawable().apply { setColor(visual.palette.border) }
                 val indicator = GradientDrawable().apply {
-                    setColor(getColor(if (selected) R.color.mobile_accent else R.color.mobile_border))
+                    setColor(if(selected)visual.palette.accent else visual.palette.border)
                     cornerRadius = dp(2).toFloat()
                 }
                 background = android.graphics.drawable.LayerDrawable(arrayOf(baseline, indicator)).apply {
@@ -363,8 +347,10 @@ class MachineSettingsActivity : ThemedActivity() {
                 if (reported.standbyMinutes == 0) getString(R.string.machine_settings_standby_never)
                     else getString(R.string.machine_settings_minutes, reported.standbyMinutes.toString()),
                 reported.cupCount.toString()))
-        brewTemperatureValue.update(reported?.let { "${it.brewTemperatureC} °C" } ?: "—")
-        steamTemperatureValue.update(reported?.let { "${it.steamTemperatureC} °C" } ?: "—")
+        brewTemperatureValue.update(reported?.let { it.brewTemperatureC.toString() } ?: "—")
+        steamTemperatureValue.update(reported?.let { it.steamTemperatureC.toString() } ?: "—")
+        brewTemperatureUnit.visibility=if(reported==null)View.GONE else View.VISIBLE
+        steamTemperatureUnit.visibility=if(reported==null)View.GONE else View.VISIBLE
         runModeValue.update(reported?.let { if (it.flags and 0x04 != 0) getString(R.string.setting_run_studio) else getString(R.string.setting_run_cafe) } ?: "—")
         supplyValue.update(reported?.let { if (it.flags and 0x02 != 0) getString(R.string.setting_water_piped) else getString(R.string.setting_water_tank) } ?: "—")
         if (ready && reported != null) {
@@ -389,8 +375,7 @@ class MachineSettingsActivity : ThemedActivity() {
         settingsPresentation.scheduleDaySummaries(snapshot.sleepFirst, snapshot.sleepSecond)
             .forEachIndexed { index, day ->
                 scheduleCards[index].heading.update("${day.name} · ${day.state}")
-                scheduleCards[index].heading.setTextColor(getColor(if (day.enabled == true)
-                    R.color.mobile_accent else R.color.mobile_text))
+                scheduleCards[index].heading.setTextColor(if(day.enabled==true)visual.palette.accent else visual.palette.ink)
                 scheduleCards[index].period.update(day.period)
             }
         scheduleWriteStatus.update(getString(R.string.machine_settings_schedule_status_prefix) + when (owner?.scheduleWriteState) {
@@ -474,7 +459,7 @@ class MachineSettingsActivity : ThemedActivity() {
         if (BuildConfig.MOCK_MODE) {
             AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_mock_confirm_title))
                 .setMessage(getString(R.string.machine_settings_mock_confirm_message, settingsPresentation.change(change)))
-                .setPositiveButton(getString(R.string.machine_settings_done), null).show()
+                .setPositiveButton(getString(R.string.machine_settings_done), null).show().also { visual.dialog(it) }
             return
         }
         AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_confirm_title))
@@ -492,7 +477,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 }
                 render()
             }
-            .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
+            .setNegativeButton(getString(R.string.machine_settings_cancel), null).show().also { visual.dialog(it) }
     }
     private fun confirmCupReset() {
         if (BuildConfig.MOCK_MODE) {
@@ -505,9 +490,11 @@ class MachineSettingsActivity : ThemedActivity() {
             inputType = InputType.TYPE_CLASS_NUMBER
             setPadding(dp(20), dp(8), dp(20), dp(8))
         }
+        visual.input(input)
+        val viewport=SettingsDialogViewport(this).apply {addView(input)}
         val dialog = AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_cup_check_title))
             .setMessage(getString(R.string.machine_settings_cup_check_message))
-            .setView(input).setPositiveButton(getString(R.string.machine_settings_next), null).setNegativeButton(getString(R.string.machine_settings_cancel), null).create()
+            .setView(viewport).setPositiveButton(getString(R.string.machine_settings_next), null).setNegativeButton(getString(R.string.machine_settings_cancel), null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 if (input.text.toString().toIntOrNull() != expected) {
@@ -522,10 +509,11 @@ class MachineSettingsActivity : ThemedActivity() {
                             Toast.makeText(this, it, Toast.LENGTH_LONG).show()
                         }
                         render()
-                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
+                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show().also { visual.dialog(it) }
             }
         }
         dialog.show()
+        visual.dialog(dialog,viewport)
     }
     private fun chooseStandbyDelay() {
         val values = listOf(15, 30, 60, 120, 0)
@@ -537,7 +525,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 else if (temperature !in 0..100) Toast.makeText(this,
                     getString(R.string.machine_settings_standby_temperature_invalid), Toast.LENGTH_LONG).show()
                 else confirm(MachineSettingChange.StandbyDelay(values[index], temperature))
-            }.show()
+            }.show().also { visual.dialog(it) }
     }
     private fun editScheduleDay(index: Int, name: String) {
         val baseline = service?.snapshot?.let {
@@ -546,17 +534,22 @@ class MachineSettingsActivity : ThemedActivity() {
         val previous = baseline.days[index]
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(8), dp(20), dp(4))
+            setPadding(dp(16), dp(16), dp(16), dp(16))
         }
-        val enabled = CheckBox(this).apply { text = getString(R.string.machine_settings_day_enabled); isChecked = previous.enabled; form.addView(this) }
+        val enabled = CheckBox(this).apply {
+            text = getString(R.string.machine_settings_day_enabled); isChecked = previous.enabled
+            visual.palette.apply(this,TaskProductVisualStyle.body);minimumHeight=dp(48);minHeight=dp(48)
+            form.addView(this)
+        }
         val sleepHour = numberInput(form, getString(R.string.machine_settings_sleep_hour), previous.time.sleepHour)
         val sleepMinute = numberInput(form, getString(R.string.machine_settings_sleep_minute), previous.time.sleepMinute)
         val wakeHour = numberInput(form, getString(R.string.machine_settings_wake_hour), previous.time.wakeHour)
         val wakeMinute = numberInput(form, getString(R.string.machine_settings_wake_minute), previous.time.wakeMinute)
+        val viewport=SettingsDialogViewport(this).apply {tag="product/settings/machine/schedule/dialog-scroll";addView(form)}
         val dialog = AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_day_title, name))
             .setMessage(if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_schedule_mock_message)
                 else getString(R.string.machine_settings_schedule_real_message))
-            .setView(form).setPositiveButton(getString(R.string.machine_settings_schedule_check), null).setNegativeButton(getString(R.string.machine_settings_cancel), null).create()
+            .setView(viewport).setPositiveButton(getString(R.string.machine_settings_schedule_check), null).setNegativeButton(getString(R.string.machine_settings_cancel), null).create()
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val sh = sleepHour.text.toString().toIntOrNull()
@@ -578,7 +571,7 @@ class MachineSettingsActivity : ThemedActivity() {
                             getString(R.string.machine_settings_schedule_preview_mock),
                             name, getString(if (enabled.isChecked) R.string.machine_settings_preview_enabled
                                 else R.string.setting_off), sh, sm, wh, wm))
-                        .setPositiveButton(getString(R.string.machine_settings_done), null).show()
+                        .setPositiveButton(getString(R.string.machine_settings_done), null).show().also { visual.dialog(it) }
                     return@setOnClickListener
                 }
                 AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_confirm_title))
@@ -591,19 +584,24 @@ class MachineSettingsActivity : ThemedActivity() {
                             Toast.makeText(this, it, Toast.LENGTH_LONG).show()
                         }
                         render()
-                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
+                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show().also { visual.dialog(it) }
             }
         }
         dialog.show()
+        visual.dialog(dialog,viewport)
     }
     private fun numberInput(parent: LinearLayout, label: String, value: Int): EditText = EditText(this).apply {
+        id=View.generateViewId()
+        visual.palette.text(label,TaskProductVisualStyle.body).also {it.labelFor=id;visual.palette.add(parent,it,16)}
+        contentDescription=label
         hint = label
         inputType = InputType.TYPE_CLASS_NUMBER
         setText(String.format(Locale.getDefault(), "%d", value))
         minHeight = dp(48)
         setPadding(dp(14), dp(8), dp(14), dp(8))
         background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_surface, 12, R.color.mobile_border)
-        parent.addView(this, LinearLayout.LayoutParams(-1, -2))
+        visual.input(this)
+        parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply {topMargin=dp(8)})
     }
     private fun temperatureInput(parent: LinearLayout, hintText: String): EditText = EditText(this).apply {
         id = View.generateViewId()
@@ -612,38 +610,37 @@ class MachineSettingsActivity : ThemedActivity() {
             labelFor = fieldId
             setPadding(0, dp(8), 0, dp(8))
         }
-        hint = hintText
+        hint = hintText;contentDescription=hintText
         textSize = TaskVisualTokens.BODY_SP.toFloat()
         typeface = TaskTypography.face(this@MachineSettingsActivity, 400)
         inputType = InputType.TYPE_CLASS_NUMBER
         minHeight = dp(48)
         setPadding(dp(14), dp(8), dp(14), dp(8))
         background = HoyiUi.shape(this@MachineSettingsActivity, R.color.mobile_surface, 12, R.color.mobile_border)
+        visual.input(this)
         parent.addView(this, LinearLayout.LayoutParams(-1, -2))
     }
-    private fun compactTemperatureRows(parent: LinearLayout, inputs: List<EditText>) {
-        val inline = HoyiUi.wide(this) && resources.configuration.fontScale <= 1.1f
-        for (input in inputs) {
-            val inputIndex = parent.indexOfChild(input)
-            val button = parent.getChildAt(inputIndex + 1) as Button
-            val label = parent.getChildAt(inputIndex - 1) as TextView
-            check(label.labelFor == input.id)
-            if (inline) parent.removeView(label)
-            parent.removeView(input)
-            parent.removeView(button)
-            val row = LinearLayout(this).apply {
-                orientation = if (inline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_VERTICAL
-            }
-            parent.addView(row, if (inline) inputIndex - 1 else inputIndex,
-                LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(TaskVisualTokens.GROUP_GAP_DP) })
-            if (inline) row.addView(label, LinearLayout.LayoutParams(0, -2, 1.4f).apply {
-                marginEnd = dp(TaskVisualTokens.RELATED_GAP_DP)
-            })
-            row.addView(input, LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1f else 0f))
-            row.addView(button, LinearLayout.LayoutParams(if (inline) 0 else -1, -2, if (inline) 1.4f else 0f).apply {
-                if (inline) marginStart = dp(8) else topMargin = dp(8)
-            })
+    private fun compactTemperatureRows(parent:LinearLayout,inputs:List<EditText>,keys:List<String>,labels:List<Int>,ranges:List<Int>) {
+        inputs.forEachIndexed {index,input->
+            val inputIndex=parent.indexOfChild(input)
+            val button=parent.getChildAt(inputIndex+1) as Button
+            val label=parent.getChildAt(inputIndex-1) as TextView
+            check(label.labelFor==input.id)
+            parent.removeView(label);parent.removeView(input);parent.removeView(button)
+            label.text=getString(labels[index]);label.setPadding(0,0,0,0)
+            visual.palette.apply(label,TaskProductVisualStyle.body)
+            val words=visual.palette.column()
+            visual.palette.add(words,label)
+            visual.palette.add(words,visual.palette.text(getString(ranges[index]),TaskProductVisualStyle.auxiliary,secondary=true),8)
+            val quantity=visual.palette.row("product/settings/machine/${keys[index]}/quantity").apply {isBaselineAligned=true;gravity=Gravity.TOP}
+            quantity.addView(input,LinearLayout.LayoutParams(dp(96),-2))
+            quantity.addView(visual.palette.text("°C",TaskProductVisualStyle.auxiliary,"product/settings/machine/${keys[index]}/unit",true),
+                LinearLayout.LayoutParams(-2,-2).apply {marginStart=dp(8)})
+            button.tag="product/settings/machine/${keys[index]}/action"
+            val rowEvidence=org.json.JSONObject();productLayoutEvidence.put(keys[index],rowEvidence)
+            val row=SettingsTemperatureRow(this,visual.palette,words,quantity,input,button,rowEvidence)
+                .apply {tag="product/settings/machine/${keys[index]}/row"}
+            parent.addView(row,inputIndex-1,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
         }
     }
 
@@ -654,16 +651,11 @@ class MachineSettingsActivity : ThemedActivity() {
         input.tag = suggestion
     }
     private fun action(parent: LinearLayout, title: String, onClick: () -> Unit): Button =
-        HoyiUi.button(this, parent, title, action = onClick)
+        HoyiUi.button(this, parent, title, action = onClick).also {visual.action(it,outline=true)}
     private fun TextView.update(value: String) { if (text.toString() != value) text = value }
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
-    private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView = TextView(this).apply {
-        text = value
-        textSize = size.toFloat()
-        setTextColor(getColor(R.color.mobile_text))
-        setPadding(0, dp(6), 0, dp(6))
-        if (bold) typeface = TaskTypography.face(context, 700)
-        parent.addView(this)
-    }
-    private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)
+    private fun text(parent:LinearLayout,value:String,size:Int,bold:Boolean=false):TextView =
+        visual.palette.text(value,if(bold)TaskProductVisualStyle.section else if(size<=14)TaskProductVisualStyle.auxiliary else TaskProductVisualStyle.body,
+            secondary=size<=14).also {visual.palette.add(parent,it,8)}
+    private fun card(parent:LinearLayout,title:String)=visual.card(parent,title)
 }

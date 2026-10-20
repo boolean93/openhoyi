@@ -148,6 +148,49 @@ required={
 'history-merge-new-id','history-conflicting-id','history-duplicate-id-in-file','long-name-source','short-window',
 'empty-or-unavailable','bad-file-read-failure','missing-legacy-id'},
 'detail':{'long-name-source','short-window','empty-or-unavailable','bad-file-read-failure','missing-legacy-id'}}
+def require_protocol(path, kind=None):
+    assert path.is_file(), ('Missing expected protocol2 proof',str(path))
+    proof=json.loads(path.read_text())
+    assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000 and proof['attempts'],path
+    assert proof['pixelComparison']=='each_equivalent_domain_all_app_pixels_no_tolerance_no_mask'
+    assert proof['crossDomainComparison']=='DIAGNOSTIC_ONLY_PIPELINES_NOT_EQUIVALENT'
+    assert proof['displayId']==0 and proof['windowIdentity'] and proof['decorIdentity'] and proof['windowTokenIdentity']
+    if kind is not None: assert proof['captureWindowKind']==kind,(path,proof['captureWindowKind'],kind)
+    attempt=proof['attempts'][proof['acceptedAttempt']-1]
+    assert attempt['accepted'] and attempt['withinMatchingBudget'] and attempt['geometryUnchanged'] and attempt['windowReadyAtBothEnds']
+    assert attempt['windowDomainColorSpacesEqual'] and attempt['displayDomainColorSpacesEqual']
+    assert attempt['windowLayerMatch'] and attempt['displayStable']
+    for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'):assert attempt[key]['count']==0,(path,key)
+    source=attempt['windowSourceRectPx']; screen=attempt['displayAppRectPx']
+    assert attempt['surface-beforeSourceRectAfterSdk']==source==attempt['surface-afterSourceRectAfterSdk'],path
+    for geometry in (attempt['geometryBefore'],attempt['geometryAfter']):
+        assert geometry['hasWindowFocus'] and not geometry['rootLayoutRequested'] and not geometry['decorLayoutRequested']
+        decor=geometry['windowDecorSizePx']; ds=geometry['decorLocationOnScreenPx']
+        assert geometry['decorLocationInWindowPx']==[0,0]
+        assert screen[0]-source[0]==ds[0] and screen[1]-source[1]==ds[1]
+        assert 0<=source[0]<source[2]<=decor[0] and 0<=source[1]<source[3]<=decor[1]
+        assert attempt['layer-before']['sizePx']==decor==attempt['layer-after']['sizePx']
+        if proof['captureWindowKind']=='EXPLICIT_WINDOW':
+            assert proof['mappingMode']=='EXPLICIT_WINDOW_MEASURED_DECOR'
+            assert geometry['windowIdentity']==proof['windowIdentity'] and geometry['decorIdentity']==proof['decorIdentity']
+            assert geometry['rootIdentity']==proof['rootIdentity'] and geometry['rootViewIdentity']==proof['decorIdentity']
+            assert geometry['rootTokenIdentity']==geometry['decorTokenIdentity']==proof['windowTokenIdentity']
+            assert geometry['displayId']==proof['displayId']==0
+            assert geometry['metricsRole']=='diagnostic_host_container_not_assumed_dialog_bounds'
+            chain=geometry['targetAncestorChain'];assert chain and chain[0]['identity']==proof['rootIdentity'] and chain[-1]['identity']==proof['decorIdentity']
+            for node in chain:
+                assert node['attached'] and node['hardwareAccelerated'] and node['laidOut'] and node['hasWindowFocus'] and not node['layoutRequested']
+                assert node['tokenIdentity']==proof['windowTokenIdentity'] and node['displayId']==0
+                assert node['matrixIdentity'] and node['transform']==[1,1,0,0,0,0,0,0]
+        else:
+            assert proof['mappingMode']=='ACTIVITY_STRICT_METRICS_DECOR'
+            assert geometry['windowMetricsBoundsPx']==[ds[0],ds[1],ds[0]+decor[0],ds[1]+decor[1]]
+    artifacts=proof['captureArtifacts']
+    assert {item['role'] for item in artifacts}=={'display','display-after'}
+    for item in artifacts:
+        image=path.parent/item['file'];assert image.is_file() and sha(image)==item['fileSha256']
+    return proof
+
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
     assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
@@ -165,8 +208,7 @@ for path in manifests:
     for name,value in m['fileSha256'].items():assert sha(folder/name)==value,(path,name)
     proofs=list(folder.rglob('*-frame-sync.json'));assert proofs
     for proof in proofs:
-        value=json.loads(proof.read_text())
-        assert value['protocolVersion']==2 and value['accepted'] and value['timeoutMs']==5000 and value['attempts'],proof
+        require_protocol(proof)
         protocol_count+=1
     isolation=json.loads((folder/'fixture-isolation.json').read_text())
     for name in ('businessDiskByteUnchanged','typedPreferencesRestored','originalLazyIdentityAndInitializedRestored','legacyUnchanged',
@@ -176,6 +218,15 @@ for path in manifests:
     status=isolation['scopedTraceStatusAfterTermination'].split()
     assert status[0]=='closed' and 'dropped=0' in status and 'errors=0' in status and not any(t.startswith('lastError=') for t in status)
     assert all(not thread['alive'] for thread in isolation['ownedReaderThreads'])
+    drains=json.loads((folder/'reader-drains.json').read_text());assert drains
+    for drain in drains:
+        assert drain['status']=='PASS_DRAIN_ONLY' and drain['timeoutMs']==10000 and drain['completionElapsedMs']<=10000
+        assert drain['finalNoLiveReaderGuard'] and drain['rounds']
+        last=drain['rounds'][-1]
+        assert last['afterConfirmationBarrier']==[] and last['confirmedUiSettled']
+        for round in drain['rounds']:
+            assert {'beforeJoin','afterMainBarrier','newThreadIds','uiSettled','remainingMs'}<=set(round)
+            assert all({'id','name','state','alive'}<=set(thread) for thread in round['beforeJoin']+round['afterMainBarrier'])
     fixture=json.loads((folder/'fixture.json').read_text())
     assert fixture['synthetic'] and not fixture['hardwareMeasurement'] and fixture['noServiceNoMockClock']
     assert len(fixture['historyArchive']['items'])==41 and len(fixture['curveArchive']['items'])==41
@@ -189,6 +240,10 @@ for path in manifests:
     special=json.loads((folder/'special-states/manifest.json').read_text())
     assert special['completed'] and special['mainConfigurationCountContribution']==0 and special['visualAcceptance']=='ASTRA_PENDING'
     assert {case['case'] for case in special['cases']}==required[m['page']],path
+    require_protocol(folder/'window-frame-sync.json','ACTIVITY')
+    require_protocol(folder/'special-states/short-window/window-frame-sync.json','ACTIVITY')
+    short=next(case for case in special['cases'] if case['case']=='short-window')
+    assert short['acceptanceStatus']=='PASS_PROTOCOL2_ONLY_NOT_VISUAL' and short['frameSync']['accepted']
     pending.extend(case['acceptanceStatus'] for case in special['cases'] if case.get('acceptanceStatus','').startswith('PENDING'))
     if m['page'] in ('curve','history'):
         business=json.loads((folder/'continuous-list-business.json').read_text())

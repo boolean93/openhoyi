@@ -15,6 +15,7 @@ import android.os.SystemClock
 import android.view.PixelCopy
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.view.WindowInsets
 import android.widget.TextView
 import android.widget.ScrollView
@@ -69,13 +70,13 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
     private data class WindowCopy(val bitmap: Bitmap?, val resultCode: Int, val callbackCompleted: Boolean, val sourceRectAfterSdk: Rect)
     data class CapturedFrame(val target: JSONObject, val proof: JSONObject)
 
-    private fun copyWindow(activity: android.app.Activity, source: Rect, timeoutMs: Long): WindowCopy {
+    private fun copyWindow(window: Window, source: Rect, timeoutMs: Long): WindowCopy {
         val bitmap = Bitmap.createBitmap(source.width(), source.height(), Bitmap.Config.ARGB_8888)
         val copied = CountDownLatch(1)
         val code = AtomicInteger(-1)
         val requested = Rect(source)
         main {
-            PixelCopy.request(activity.window, requested, bitmap, { result ->
+            PixelCopy.request(window, requested, bitmap, { result ->
                 code.set(result)
                 copied.countDown()
             }, Handler(Looper.getMainLooper()))
@@ -138,7 +139,17 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
      * display captures with that bridge and PixelCopy. Original display PNGs are
      * still the visual evidence, including every system-composited corner. */
     fun screenshot(activity: android.app.Activity, root: View, file: File,
-        observe: () -> JSONObject = { JSONObject() }): CapturedFrame {
+        observe: () -> JSONObject = { JSONObject() }): CapturedFrame =
+        screenshotWindow(activity.window, root, file, observe, activity)
+
+    /** Explicit target only. A modal does not borrow its owner's focus or screen origin. */
+    fun screenshot(window: Window, root: View, file: File,
+        observe: () -> JSONObject = { JSONObject() }): CapturedFrame =
+        screenshotWindow(window, root, file, observe, null)
+
+    /** Both public entries share this exact protocol, deadline, comparisons and failure retention. */
+    private fun screenshotWindow(window: Window, root: View, file: File, observe: () -> JSONObject,
+        activity: android.app.Activity?): CapturedFrame {
         val started = SystemClock.elapsedRealtime()
         val deadline = started + 5000
         val attempts = JSONArray()
@@ -147,6 +158,10 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
             fun recycle() { images.values.forEach { it.recycle() } }
         }
         var retained: Candidate? = null
+        val mappingMode = if (activity == null) "EXPLICIT_WINDOW_MEASURED_DECOR" else "ACTIVITY_STRICT_METRICS_DECOR"
+        var targetDecor: View? = null
+        var targetToken: android.os.IBinder? = null
+        var targetDisplayId: Int? = null
         fun imageName(role: String) = when (role) {
             "display" -> file.name
             else -> "${file.nameWithoutExtension}-$role.png"
@@ -168,6 +183,12 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
             val proof = JSONObject().put("protocolVersion", 2)
                 .put("protocol", "commit_S1_WindowLayer1_Display1_Display2_WindowLayer2_S2")
                 .put("accepted", accepted).put("timeoutMs", 5000).put("attempts", attempts)
+                .put("captureWindowKind", if (activity == null) "EXPLICIT_WINDOW" else "ACTIVITY")
+                .put("windowIdentity", System.identityHashCode(window)).put("rootIdentity", System.identityHashCode(root))
+                .put("decorIdentity", targetDecor?.let(System::identityHashCode) ?: JSONObject.NULL)
+                .put("windowTokenIdentity", targetToken?.let(System::identityHashCode) ?: JSONObject.NULL)
+                .put("displayId", targetDisplayId ?: JSONObject.NULL).put("mappingMode", mappingMode)
+                .put("acceptedTargetScope", "only_measured_root_screen_rect; owner_background_not_certified")
                 .put("status", if (accepted) "MATCHED_WINDOW_LAYER_AND_STABLE_COMPOSITE_NOT_VISUAL_ACCEPTANCE" else "FAIL")
                 .put("image", file.name).put("secondDisplayImage", imageName("display-after"))
                 .put("wholeDisplayUiAutomation", true).put("displayComparisonRegion", "entire_measured_app_rect")
@@ -200,6 +221,25 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                     check(left > 0) { "CAPTURE_DEADLINE_EXHAUSTED before $stage; no new request issued" }
                     return left
                 }
+                fun validateExplicitWindow() {
+                        val decor=window.decorView
+                        if(targetDecor==null) {targetDecor=decor;targetToken=decor.windowToken;targetDisplayId=decor.display?.displayId}
+                        check(targetDecor===decor && targetToken!=null && decor.windowToken===targetToken) { "Explicit Window decor/token identity changed" }
+                        check(root.rootView===decor && root.windowToken===targetToken && root.display?.displayId==targetDisplayId &&
+                            decor.display?.displayId==targetDisplayId && targetDisplayId==android.view.Display.DEFAULT_DISPLAY) { "Wrong Window/root/token/display owner" }
+                        var current:View?=root
+                        while(current!=null) {
+                            val view=current
+                            check(view.isAttachedToWindow && view.isHardwareAccelerated && view.isLaidOut && view.width>0 && view.height>0 &&
+                                view.hasWindowFocus() && !view.isLayoutRequested && view.windowToken===targetToken) { "Explicit Window target/ancestor is not a ready focused attached surface" }
+                            check(view.matrix.isIdentity && view.scaleX==1f && view.scaleY==1f && view.rotation==0f && view.rotationX==0f && view.rotationY==0f &&
+                                view.translationX==0f && view.translationY==0f && view.translationZ==0f) { "Explicit Window ancestor transform is unsupported" }
+                            if(view===decor)break
+                            current=view.parent as? View
+                        }
+                        check(current===decor) { "Explicit Window root ancestor chain did not reach target decor" }
+                }
+                if(activity==null) main {validateExplicitWindow()}
                 attempt.put("frame", committedFrame(root, remaining("hardware_commit")))
                 lateinit var source: Rect
                 lateinit var screen: Rect
@@ -208,20 +248,20 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                 fun geometry(): JSONObject {
                             val windowLocation = IntArray(2); root.getLocationInWindow(windowLocation)
                     val screenLocation = IntArray(2); root.getLocationOnScreen(screenLocation)
-                    val decor = activity.window.decorView
+                    val decor = window.decorView
                     val decorWindow = IntArray(2); decor.getLocationInWindow(decorWindow)
                     val decorScreen = IntArray(2); decor.getLocationOnScreen(decorScreen)
-                    val metrics = activity.windowManager.currentWindowMetrics
+                    val metrics = if (activity == null) requireNotNull(window.windowManager).currentWindowMetrics else activity.windowManager.currentWindowMetrics
                     val insets = requireNotNull(root.rootWindowInsets) { "Missing actual root WindowInsets" }
                     fun corners(value: WindowInsets) = JSONArray((0..3).map { position ->
                         val corner = value.getRoundedCorner(position)
                         JSONObject().put("position", position).put("radiusPx", corner?.radius ?: JSONObject.NULL)
                             .put("centerPx", corner?.center?.let { JSONArray(listOf(it.x, it.y)) } ?: JSONObject.NULL)
                     })
-                    val display = requireNotNull(activity.display)
+                    val display = requireNotNull(if (activity == null) root.display else activity.display)
                     val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
                     return JSONObject().put("frameCallbackSequence", frameSequence)
-                        .put("hasWindowFocus", activity.hasWindowFocus())
+                        .put("hasWindowFocus", if (activity == null) decor.hasWindowFocus() else activity.hasWindowFocus())
                         .put("rootLayoutRequested", root.isLayoutRequested).put("decorLayoutRequested", decor.isLayoutRequested)
                         .put("appLocationInWindowPx", JSONArray(windowLocation.toList()))
                         .put("appLocationOnScreenPx", JSONArray(screenLocation.toList()))
@@ -238,15 +278,51 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                             JSONObject().put("position", position).put("radiusPx", corner?.radius ?: JSONObject.NULL)
                                 .put("centerPx", corner?.center?.let { JSONArray(listOf(it.x, it.y)) } ?: JSONObject.NULL)
                         })).put("roundedCornersAreApproximateNotMasks", true)
+                        .apply { if (activity == null) {
+                            val attributes=window.attributes
+                            val displaySize=android.graphics.Point().also(display::getRealSize)
+                            put("windowIdentity",System.identityHashCode(window)).put("rootIdentity",System.identityHashCode(root))
+                                .put("decorIdentity",System.identityHashCode(decor)).put("rootViewIdentity",System.identityHashCode(root.rootView))
+                                .put("rootTokenIdentity",root.windowToken?.let(System::identityHashCode) ?: JSONObject.NULL)
+                                .put("decorTokenIdentity",decor.windowToken?.let(System::identityHashCode) ?: JSONObject.NULL)
+                                .put("displayId",display.displayId).put("displaySizePx",JSONArray(listOf(displaySize.x,displaySize.y)))
+                                .put("mappingMode",mappingMode).put("metricsRole","diagnostic_host_container_not_assumed_dialog_bounds")
+                                .put("windowAttributes",JSONObject().put("type",attributes.type).put("flags",attributes.flags)
+                                    .put("format",attributes.format).put("width",attributes.width).put("height",attributes.height)
+                                    .put("x",attributes.x).put("y",attributes.y).put("gravity",attributes.gravity)
+                                    .put("alpha",attributes.alpha).put("dimAmount",attributes.dimAmount).put("softInputMode",attributes.softInputMode)
+                                    .put("tokenIdentity",attributes.token?.let(System::identityHashCode) ?: JSONObject.NULL))
+                                .put("actualWindowInsets",JSONObject().put("imeVisible",insets.isVisible(WindowInsets.Type.ime()))
+                                    .put("imeInsetsPx",insets.getInsets(WindowInsets.Type.ime()).let { JSONArray(listOf(it.left,it.top,it.right,it.bottom)) })
+                                    .put("systemBarsVisible",insets.isVisible(WindowInsets.Type.systemBars()))
+                                    .put("displayCutoutInsetsPx",insets.getInsets(WindowInsets.Type.displayCutout()).let { JSONArray(listOf(it.left,it.top,it.right,it.bottom)) }))
+                            val ancestors=JSONArray(); var current:View?=root
+                            while(current!=null) {
+                                val view=current
+                                ancestors.put(JSONObject().put("identity",System.identityHashCode(view)).put("class",view.javaClass.name)
+                                    .put("attached",view.isAttachedToWindow).put("hardwareAccelerated",view.isHardwareAccelerated)
+                                    .put("laidOut",view.isLaidOut).put("layoutRequested",view.isLayoutRequested).put("hasWindowFocus",view.hasWindowFocus())
+                                    .put("tokenIdentity",view.windowToken?.let(System::identityHashCode) ?: JSONObject.NULL)
+                                    .put("displayId",view.display?.displayId ?: JSONObject.NULL)
+                                    .put("matrixIdentity",view.matrix.isIdentity)
+                                    .put("transform",JSONArray(listOf(view.scaleX,view.scaleY,view.rotation,view.rotationX,view.rotationY,
+                                        view.translationX,view.translationY,view.translationZ))))
+                                if(view===decor)break
+                                current=view.parent as? View
+                            }
+                            put("targetAncestorChain",ancestors)
+                        } }
                         .put("systemBarsInsetsPx", JSONArray(listOf(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)))
                         .put("scrolls", JSONArray(nodes(root).filterIsInstance<ScrollView>().map {
                             JSONObject().put("semanticId", it.tag).put("scrollX", it.scrollX).put("scrollY", it.scrollY)
                         })).put("target", observe())
                 }
                 main {
-                    check(activity.hasWindowFocus()) { "Specimen capture lost window focus" }
+                    if(targetDecor==null) { targetDecor=window.decorView; targetToken=window.decorView.windowToken; targetDisplayId=window.decorView.display?.displayId }
+                    if (activity != null) check(activity.hasWindowFocus()) { "Specimen capture lost window focus" }
+                    if(activity==null) validateExplicitWindow()
                     before = geometry()
-                            val decor = activity.window.decorView
+                            val decor = window.decorView
                     val wl = before.getJSONArray("appLocationInWindowPx")
                     val sl = before.getJSONArray("appLocationOnScreenPx")
                     source = Rect(wl.getInt(0), wl.getInt(1), wl.getInt(0) + root.width, wl.getInt(1) + root.height)
@@ -254,24 +330,30 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                     attempt.put("windowSourceRectPx", rect(source)).put("displayAppRectPx", rect(screen)).put("geometryBefore", before)
                     val dw = before.getJSONArray("decorLocationInWindowPx")
                     val ds = before.getJSONArray("decorLocationOnScreenPx")
-                    val metrics = activity.windowManager.currentWindowMetrics.bounds
-                    check(dw.getInt(0) == 0 && dw.getInt(1) == 0 && metrics.left == ds.getInt(0) && metrics.top == ds.getInt(1) &&
-                        metrics.width() == decor.width && metrics.height() == decor.height &&
-                        screen.left - source.left == ds.getInt(0) && screen.top - source.top == ds.getInt(1)) {
-                        "Unknown Window-layer/decor/metrics origin mapping"
+                    if (activity != null) {
+                        val metrics = activity.windowManager.currentWindowMetrics.bounds
+                        check(dw.getInt(0) == 0 && dw.getInt(1) == 0 && metrics.left == ds.getInt(0) && metrics.top == ds.getInt(1) &&
+                            metrics.width() == decor.width && metrics.height() == decor.height &&
+                            screen.left - source.left == ds.getInt(0) && screen.top - source.top == ds.getInt(1)) {
+                            "Unknown Window-layer/decor/metrics origin mapping"
+                        }
+                    } else {
+                        check(dw.getInt(0)==0 && dw.getInt(1)==0 && screen.left-source.left==ds.getInt(0) &&
+                            screen.top-source.top==ds.getInt(1)) { "Unknown explicit Window-layer/decor origin mapping" }
                     }
                     check(listOf(root, decor).all { it.scaleX == 1f && it.scaleY == 1f && it.rotation == 0f && it.rotationX == 0f && it.rotationY == 0f }) {
                         "Scaled or rotated Window-layer mapping is unsupported"
                     }
                     check(source.left >= 0 && source.top >= 0 && source.right <= decor.width && source.bottom <= decor.height)
                     attempt.put("windowLayerMapping", "SDK34_measured_zero_surfaceInsets_unscaled_Window_local")
+                    if(activity==null) attempt.put("explicitWindowMappingMode",mappingMode)
                 }
                 val images = linkedMapOf<String, Bitmap>()
                 var appDisplay: Bitmap? = null
                 var acceptedAttempt = false
                 try {
                     fun copy(role: String): Bitmap {
-                        val result = copyWindow(activity, source, remaining(role))
+                        val result = copyWindow(window, source, remaining(role))
                         result.bitmap?.let { images[role] = it }
                         attempt.put("${role}Code", if (result.callbackCompleted) result.resultCode else JSONObject.NULL)
                             .put("${role}Callback", result.callbackCompleted).put("${role}SourceRectAfterSdk", rect(result.sourceRectAfterSdk))
@@ -286,7 +368,7 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                     }
                     fun capture(role: String, windowLayer: Boolean): Bitmap {
                         remaining(role)
-                        val raw = requireNotNull(if (windowLayer) test.uiAutomation.takeScreenshot(activity.window) else test.uiAutomation.takeScreenshot()) {
+                        val raw = requireNotNull(if (windowLayer) test.uiAutomation.takeScreenshot(window) else test.uiAutomation.takeScreenshot()) {
                             "UiAutomation $role returned null"
                         }
                         images[role] = raw
@@ -333,7 +415,10 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                     windowColors = windowColors && s1.colorSpace == s2.colorSpace
                     val surfaceDifference = pixelDifferenceEvidence(s1, s2, Rect(0, 0, s2.width, s2.height), screen)
                     lateinit var after: JSONObject
-                    main { after = geometry() }
+                    main {
+                        after = geometry()
+                        if(activity==null) validateExplicitWindow()
+                    }
                     val geometryStable = before.toString() == after.toString()
                     val windowReady = listOf(before, after).all {
                         it.getBoolean("hasWindowFocus") && !it.getBoolean("rootLayoutRequested") && !it.getBoolean("decorLayoutRequested")

@@ -80,6 +80,9 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
         val legacyId = "single-screen-legacy-shot"
         app.legacyHistory.import(java.io.ByteArrayInputStream("""{"version":1,"items":[{"id":"$legacyId","createdAt":1700000000000,"durationSec":30,"chartSlot":6,"profileName":"Single screen fixture","points":{"t":[0,1,2],"press":[0,2,4],"flow":[0,1,2],"wFlow":[0,1,2],"wTrend":[0,1,3]}}]}""".toByteArray()))
         val legacyBefore = app.legacyHistory.list()
+        // Resolve only the pre-recorded immutable fixture facts; never re-read storage on the UI thread.
+        fun expectedLegacyFixture(activity:Activity):LegacyShot? = if(activity is LegacyHistoryDetailActivity)
+            legacyBefore.single {it.id==activity.intent.getStringExtra("legacyId")} else null
         // Legacy imports remain read-only and separate from executable profiles.
         // Seed only an absent store; never replace existing imported records.
         val legacyCurvesBefore = requireNotNull(app.legacyCurves.load())
@@ -180,7 +183,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                     }
                 } else Thread.sleep(300)
                 test.waitForIdleSync()
-                main { SingleScreenPageChecks.verify(activity) }
+                main { SingleScreenPageChecks.verify(activity, expectedLegacyShot = expectedLegacyFixture(activity)) }
                 if (language == AppLanguage.CHINESE && activity is BrewComparisonActivity) {
                     val comparison = activity
                     TwoCupComparisonPageChecks.run(test, comparison) { metric ->
@@ -202,7 +205,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                             }
                         } finally { bitmap.recycle() }
                     }
-                    main { SingleScreenPageChecks.verify(activity) }
+                    main { SingleScreenPageChecks.verify(activity, expectedLegacyShot = expectedLegacyFixture(activity)) }
                 }
                 // Verify the actual populated states too, not just empty previews.
                 if (activity is CurveActivity || activity is HistoryActivity) {
@@ -225,7 +228,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                     }
                     awaitDraw(activity)
                     main {
-                        SingleScreenPageChecks.verify(activity)
+                        SingleScreenPageChecks.verify(activity, expectedLegacyShot = expectedLegacyFixture(activity))
                         if (activity is CurveActivity) {
                             val chart = CurveActivity::class.java.getDeclaredField("stageChart").apply { isAccessible = true }.get(activity) as CurveStageView
                             check(chart.isShown && chart.targets.isNotEmpty()) { "Selected curve has no preview" }
@@ -273,7 +276,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                     var warningIndex = 0
                     LanguageDetailChecks(test).warnings(home, name) {
                         awaitDraw(home)
-                        main { SingleScreenPageChecks.verify(home) }
+                        main { SingleScreenPageChecks.verify(home, expectedLegacyShot = expectedLegacyFixture(home)) }
                         val bitmap = requireNotNull(test.uiAutomation.takeScreenshot())
                         try {
                             File(safetyDirectory, "$name-warning-${warningIndex++}.png").outputStream().use {
@@ -310,7 +313,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                 test.waitForIdleSync()
                 awaitDraw(capturePage)
                 main {
-                    SingleScreenPageChecks.verify(capturePage)
+                    SingleScreenPageChecks.verify(capturePage, expectedLegacyShot = expectedLegacyFixture(capturePage))
                     val capture = ScaleActivity::class.java.getDeclaredField("capture")
                         .apply { isAccessible = true }.get(capturePage) as android.widget.Button
                     check(capture.isShown && !capture.isEnabled) { "Mock must not accept real bean weight" }

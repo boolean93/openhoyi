@@ -40,15 +40,51 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
     private val readerNames=setOf("legacy-curve-list","legacy-curve-import","legacy-history-list","legacy-history-detail","legacy-history-import")
     private val ownedReaders=linkedSetOf<Thread>()
     private fun observeReaders() { ownedReaders.addAll(Thread.getAllStackTraces().keys.filter { it.isAlive && it.name in readerNames }) }
-    private fun drainReaders() {
-        observeReaders()
-        val deadline=SystemClock.elapsedRealtime()+10000
-        ownedReaders.forEach { thread -> if(thread.isAlive) {
-            val remaining=deadline-SystemClock.elapsedRealtime(); check(remaining>0)
-            thread.join(remaining); check(!thread.isAlive && SystemClock.elapsedRealtime()<=deadline)
-        } }
-        main { }
-        check(Thread.getAllStackTraces().keys.none { it.isAlive && it.name in readerNames })
+    private val readerDrainProofs=JSONArray()
+    private fun drainReaders(label:String="scope-cleanup", settled:()->Boolean={true}) {
+        val started=SystemClock.elapsedRealtime();val deadline=started+10000
+        val rounds=JSONArray();val proof=JSONObject().put("label",label).put("timeoutMs",10000).put("rounds",rounds)
+        fun snapshot(threads:Collection<Thread>)=JSONArray(threads.map { thread -> JSONObject().put("id",thread.id)
+            .put("name",thread.name).put("state",thread.state.name).put("alive",thread.isAlive) })
+        fun live()=Thread.getAllStackTraces().keys.filter {it.isAlive && it.name in readerNames}
+        var drained=false
+        try {
+            while(!drained && SystemClock.elapsedRealtime()<deadline) {
+                observeReaders()
+                val known=ownedReaders.toList();val priorIds=known.map {it.id}.toSet()
+                val round=JSONObject().put("beforeJoin",snapshot(known)).put("elapsedBeforeJoinMs",SystemClock.elapsedRealtime()-started)
+                rounds.put(round)
+                known.filter {it.isAlive}.forEach {thread ->
+                    val remaining=deadline-SystemClock.elapsedRealtime();check(remaining>0) {"M7 reader drain total budget exhausted: $label"}
+                    thread.join(remaining)
+                    check(!thread.isAlive && SystemClock.elapsedRealtime()<=deadline) {"M7 owned reader did not terminate within the original total budget: ${thread.name}/${thread.id}"}
+                }
+                var uiSettled=false
+                // An import's main callback can start refresh's successor reader. Re-observe after this barrier.
+                main {uiSettled=settled()}
+                observeReaders()
+                val after=live()
+                round.put("afterMainBarrier",snapshot(after)).put("newThreadIds",JSONArray(ownedReaders.filter {it.id !in priorIds}.map {it.id}))
+                    .put("uiSettled",uiSettled).put("remainingMs",deadline-SystemClock.elapsedRealtime())
+                if(after.isEmpty() && uiSettled) {
+                    // Drain a completion posted by a reader that exited between the first barrier and observation.
+                    main {uiSettled=settled()}
+                    observeReaders()
+                    val confirmed=live()
+                    round.put("afterConfirmationBarrier",snapshot(confirmed)).put("confirmedUiSettled",uiSettled)
+                    drained=confirmed.isEmpty() && uiSettled
+                }
+            }
+            check(drained && SystemClock.elapsedRealtime()<=deadline) {"M7 reader/main-callback lifecycle did not settle in original 10s: $label"}
+            check(Thread.getAllStackTraces().keys.none { it.isAlive && it.name in readerNames })
+            val completed=SystemClock.elapsedRealtime();check(completed<=deadline) {"M7 final reader guard exceeded original total budget"}
+            proof.put("status","PASS_DRAIN_ONLY").put("finalNoLiveReaderGuard",true).put("completionElapsedMs",completed-started)
+        } catch(error:Throwable) {
+            proof.put("status","FAIL").put("failure",error.stackTraceToString()).put("readersAtFailure",snapshot(live()))
+            throw error
+        } finally {
+            proof.put("elapsedMs",SystemClock.elapsedRealtime()-started);readerDrainProofs.put(proof)
+        }
     }
     private fun await(description: String, condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 10000
@@ -82,23 +118,51 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
     private fun services(): List<String> = (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
         .getRunningServices(100).filter { it.service.packageName == context.packageName }.map { it.service.className }
     private fun rect(value: Rect) = JSONArray(listOf(value.left, value.top, value.right, value.bottom))
+    /** Keep raw hierarchy coordinates; derive a screen rect from measured origins, not clipped edges. */
     private fun visibility(view: View): JSONObject {
-        val origin=IntArray(2); view.getLocationOnScreen(origin)
-        val rootOrigin=IntArray(2); view.rootView.getLocationOnScreen(rootOrigin)
-        val rootWindowOrigin=IntArray(2); view.rootView.getLocationInWindow(rootWindowOrigin)
+        val ownerRoot=view.rootView
+        val origin=IntArray(2);view.getLocationOnScreen(origin)
+        val rootScreen=IntArray(2);ownerRoot.getLocationOnScreen(rootScreen)
+        val rootWindow=IntArray(2);ownerRoot.getLocationInWindow(rootWindow)
+        val raw=Rect();val targetGlobalOffset=android.graphics.Point()
+        val shown=view.getGlobalVisibleRect(raw,targetGlobalOffset)
+        val rootRaw=Rect();val rootGlobalOffset=android.graphics.Point()
+        val rootShown=ownerRoot.getGlobalVisibleRect(rootRaw,rootGlobalOffset)
+        // getGlobalVisibleRect's Point includes the view's own scroll; undo it to obtain its origin.
+        val dx=rootScreen[0]-rootGlobalOffset.x-ownerRoot.scrollX
+        val dy=rootScreen[1]-rootGlobalOffset.y-ownerRoot.scrollY
+        val derived=Rect(raw).apply {if(shown && rootShown)offset(dx,dy)}
         val full=Rect(origin[0],origin[1],origin[0]+view.width,origin[1]+view.height)
-        // getGlobalVisibleRect is root-local, whereas getLocationOnScreen is screen-relative.
-        // Retain the raw API result; compare only after translating into the same screen domain.
-        val rawVisible=Rect(); val shown=view.getGlobalVisibleRect(rawVisible)
-        val screenVisible=Rect(rawVisible).apply { if(shown) offset(rootOrigin[0],rootOrigin[1]) }
-        return JSONObject().put("rectPx",rect(full)).put("visibleRectPx",rect(screenVisible))
-            .put("rectCoordinateSpace","screen").put("rawGlobalVisibleRectRootPx",rect(rawVisible))
-            .put("rawGlobalVisibleRectDefined",shown).put("rootOriginOnScreenPx",JSONArray(rootOrigin.toList()))
-            .put("rootOriginInWindowPx",JSONArray(rootWindowOrigin.toList()))
-            .put("visibleRectConversion","raw_getGlobalVisibleRect_plus_rootView_getLocationOnScreen_when_defined")
+        val mappedOrigin=intArrayOf(targetGlobalOffset.x+view.scrollX+dx,targetGlobalOffset.y+view.scrollY+dy)
+        var identity=true;var current:View?=view
+        while(current!=null) {
+            val target=current
+            identity=identity && target.matrix.isIdentity && target.scaleX==1f && target.scaleY==1f &&
+                target.rotation==0f && target.rotationX==0f && target.rotationY==0f &&
+                target.translationX==0f && target.translationY==0f && target.translationZ==0f
+            if(target===ownerRoot)break
+            current=target.parent as? View
+        }
+        val sameRoot=current===ownerRoot && view.isAttachedToWindow && ownerRoot.isAttachedToWindow &&
+            view.windowToken!=null && view.windowToken===ownerRoot.windowToken && view.display!=null &&
+            view.display?.displayId==ownerRoot.display?.displayId
+        val mapping=shown && rootShown && sameRoot && identity && mappedOrigin.contentEquals(origin)
+        return JSONObject().put("rectPx",rect(full)).put("visibleRectPx",rect(derived)).put("rectCoordinateSpace","screen")
+            .put("rawGlobalVisibleRectRootPx",rect(raw)).put("rawRootGlobalVisibleRect",rect(rootRaw))
+            .put("rawGlobalVisibleRectDefined",shown).put("rootGlobalVisibleRectDefined",rootShown)
+            .put("targetGlobalOffsetPointPx",JSONArray(listOf(targetGlobalOffset.x,targetGlobalOffset.y)))
+            .put("rootGlobalOffsetPointPx",JSONArray(listOf(rootGlobalOffset.x,rootGlobalOffset.y)))
+            .put("rootOriginOnScreenPx",JSONArray(rootScreen.toList())).put("rootOriginInWindowPx",JSONArray(rootWindow.toList()))
+            .put("rootScrollPx",JSONArray(listOf(ownerRoot.scrollX,ownerRoot.scrollY)))
+            .put("targetScrollPx",JSONArray(listOf(view.scrollX,view.scrollY)))
+            .put("derivedScreenOffsetPx",JSONArray(listOf(dx,dy))).put("mappedScreenOriginPx",JSONArray(mappedOrigin.toList()))
+            .put("rootIdentity",System.identityHashCode(ownerRoot)).put("attachedToSameRootWindow",sameRoot)
+            .put("rootAttached",ownerRoot.isAttachedToWindow).put("targetAttached",view.isAttachedToWindow)
+            .put("rootDisplayId",ownerRoot.display?.displayId ?: JSONObject.NULL).put("targetDisplayId",view.display?.displayId ?: JSONObject.NULL)
+            .put("identityTransformChain",identity).put("screenMappingVerified",mapping)
+            .put("visibleRectConversion","raw_global_rect_plus_measured_root_screen_minus_root_global_Point_origin; own_scroll_explicitly_removed")
             .put("visibilitySemantics","exact_hierarchy_clip_only; not_system_window_or_IME_occlusion_proof")
-            .put("globalVisible",shown)
-            .put("complete",shown && view.width>0 && view.height>0 && screenVisible==full)
+            .put("globalVisible",shown).put("complete",mapping && view.width>0 && view.height>0 && derived==full)
     }
     private fun observation(view: View): JSONObject {
         val visible=visibility(view)
@@ -557,7 +621,14 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             method.invoke(activity,request,result,uri?.let { Intent().setData(it) })
             observeReaders()
         }
-        drainReaders()
+        drainReaders("activity-result-${activity.javaClass.simpleName}-$request-$result") {
+            if(activity is LegacyCurveActivity) {
+                val status=(field(activity,"count") as TextView).text.toString()
+                val pending=setOf(R.string.legacy_curve_loading_initial,R.string.legacy_curve_loading,R.string.legacy_curve_checking).map {activity.getString(it)}
+                status !in pending && ((field(activity,"list") as View).visibility==View.VISIBLE ||
+                    (field(activity,"emptyState") as View).visibility==View.VISIBLE)
+            } else true
+        }
     }
     private fun sourcesBusiness(scope: Scope, directory: File) {
         var legacy=start(LegacyHistoryActivity::class.java)
@@ -669,7 +740,12 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         try {
             main { activity.window.setLayout(-1,HoyiUi.dp(activity,280)) }
             stableWindow(activity,directory,"short-window")
-            diagnostic(activity,File(directory,"short-window-diagnostic"))
+            val folder=File(directory,"short-window").apply {check(isDirectory || mkdirs())}
+            // This is still an Activity target: preserve its original strict metrics/decor gate.
+            // No automatic retry through the explicit-Window mode on a mapping failure.
+            val captured=frames.screenshot(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
+            check(captured.proof.getBoolean("accepted") && captured.proof.getInt("protocolVersion")==2)
+            File(folder,"geometry.json").writeText(captured.target.toString(2))
             main {
                 check(nodes(root(activity)).filter { it is LegacyShotChartView || it is ListView }.map(System::identityHashCode)==ids)
                 val content=root(activity)
@@ -680,7 +756,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 }
             }
             return JSONObject().put("case","short-window").put("realWindowResize",true).put("permanentListAndChartIdentity",true)
-                .put("acceptanceStatus","PENDING_SHORT_WINDOW_PROTOCOL2_MAPPING").put("componentOnly",false)
+                .put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL").put("frameSync",captured.proof).put("componentOnly",false)
         } finally {
             main { activity.window.attributes=old }
             stableWindow(activity,directory,"short-window-restored")
@@ -822,6 +898,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             try { scope?.cleanup();manifest.put("isolationStatus",if(scope==null) "NOT_INSTALLED" else "PASS_ISOLATION_ONLY") }
             catch(error: Throwable) { manifest.put("isolationStatus","FAIL").put("cleanupFailure",error.stackTraceToString())
                 if(failure==null) failure=error else failure!!.addSuppressed(error) }
+            try {File(directory,"reader-drains.json").writeText(readerDrainProofs.toString(2))}
+            catch(error:Throwable) {if(failure==null)failure=error else failure!!.addSuppressed(error)}
             manifest.put("overallStatus",if(failure==null) "PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
             failure?.let { manifest.put("failure",it.stackTraceToString()) }
             manifest.put("fileSha256",JSONObject(directory.walkTopDown().filter { it.isFile && it!=File(directory,"manifest.json") }

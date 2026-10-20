@@ -2,6 +2,14 @@
 
 ## 当前状态（优先于下方历史观察时点）
 
+最新远端 head `49a1b46`，PR 实测 merge `46e2dbc79ca0732290db92b5c78ad097c82c86cb`。M5 CI `39204483061` 成功且16主manifest/840引用文件核验完整；M2/M3/M4/M6/M7及single对应失败仍保留，候选修复不能代替运行关闭。
+
+当前未提交候选包含M8三页、M5/M6布局修正和测试取证收口。Mock最新布局构建成功30秒；M5/M8统一AndroidTest第二次成功32秒，首次两处类型失败日志保留。M8 requiredproof/滚动恢复/dialog自身字体及按钮角色报告已补齐，Astra最终静态无剩余阻断；最后AndroidTest构建成功30秒，实际12图及特殊态仍待新CI。独立snapshot探针9项离线测试与Astra静态审通过，尚无Android恢复证明。
+
+完整24页未最终验收。M1三页保持既有限定通过；M5已采G2/G4限定通过、明确G1/G3失败或证据缺口见下表及新review。其余页面不由构建/CI绿色推定视觉通过。当前全部工作仅本地/CI，不安装、不合并、不发版。
+
+## 历史观察记录（按下方源码与时间点理解）
+
 **最新合批冻结验证：** M5三项静态阻断已由同Astra复核关闭；M2/M3 IME候选、Batch限高及独立safeRect门禁一并静态允许复验。最新构建成功（57s，98 tasks），bean-core verify通过；18 suites/93 tests，0失败/错误/跳过，Mock与AndroidTest APK生成。源码hash/XML/日志保存在 `build/task-first-evidence/m5-ime-final-build/`。旧45fd运行FAIL仍未关闭；完整24页及M5真实16配置、特殊状态/G1–G4待新CI，不以静态/编译替代。
 
 **M5首版构建（未验收）：** 四页生产17 Kotlin/8语种资源与完整16配置测试已落地，基线45fdc9e的工作树首次构建成功（1m10s，96 tasks），8 suites/47相关unit tests，0失败/错误/跳过；Mock/AndroidTest APK已生成。实际源码hash、XML、日志保存在 `build/task-first-evidence/m5-first-full-build/`。Astra已完成完整live scope/runner静态审，无新增阻断；生产全组审核曾因模型capacity中断，现同Astra已完成首版规格与质量审；除下列三项封闭修正外无新增静态阻断。三项仍待落地复核，不授予运行/视觉通过。16实际配置与特殊状态/G1–G4均未通过，不以构建替代。M2/M3/M4按最新45fd实证继续修。Astra续审发现M5三个静态阻断：内嵌HistoryDetailContent竖向自然内容挤占图表、ComparisonSummaryTable单位sp浮点被AbsoluteSizeSpan整数截断、ComparisonMetricTabs仍有旧背景/描边。首版构建成功不关闭这些问题；后续修正需重新验证。
@@ -89,11 +97,11 @@ M2最新恢复记录的11字段值、selection、focusedFieldKey、draftId、sta
 | 页面 | G1 | G2 | G3 | G4 | 当前判定边界 |
 |---|---|---|---|---|---|
 | HomeActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
-| ExtractionActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 运行态证据不等于精确四项冻结 |
+| ExtractionActivity | EVIDENCE_PENDING | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | eb77四主态已采字体/字号baseline/颜色限定通过；全业务状态与G1完整验收仍未关闭，见M5逐门review |
 | CurveActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M3已实施：冻结字体/间距/语义色、真实指标与连续列表；保留原选择/排序/槽位。31 JVM tests及两个APK构建通过，新独立12配置CI39153382312运行中，尚无结果。历史footer/list限定证据保留，不追认新视觉。 |
-| HistoryActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 非空同状态及精确基线待补 |
-| HistoryDetailActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 限定四指标实图不覆盖全部状态 |
-| BrewComparisonActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 实图/轴专项不等于精确构图冻结 |
+| HistoryActivity | FAIL | LIMITED_PASS | FAIL | LIMITED_PASS | eb77标准1.0真实时间轴裁39px；1.3右侧图/说明/notes滚达证据缺口。候选已修并补检查，待新CI；G2/G4仅已采范围 |
+| HistoryDetailActivity | FAIL | LIMITED_PASS | EVIDENCE_PENDING | LIMITED_PASS | eb77 UNKNOWN/1.3实际plot67.55dp；notes完整滚达未证。条件同行候选构建成功不关闭失败；G2/G4仅已采范围 |
+| BrewComparisonActivity | FAIL | LIMITED_PASS | EVIDENCE_PENDING | LIMITED_PASS | eb77整格边框与稿不符，summary/toolbar完整滚达缺证。水平线候选与20+条件warning测试静态通过，待新CI |
 | BeanInventoryActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
 | BeanEntryActivity | FAIL | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | 95be8fb失败现场三次draw稳定，五字段均117px完整；名称右1515=重量左1515，规定16dp间距实测0px。随后section定位错误阻断，主图0/12。064业务图观察间隔改善，但未完成正式精确16dp和全配置复验；9b51936候选待新frame，历史末字段失败保留 |
 | BeanBatchActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M4已实现24sp初始量、真实两事件预算/短高永久中部滚动及固定footer；调整模型不变。 5ef3b8f已推送；48项测试及APK构建通过，独立12配置CI39187428107运行中，未作视觉通过。 |
@@ -104,14 +112,15 @@ M2最新恢复记录的11字段值、selection、focusedFieldKey、draftId、sta
 | CurveShareActivity | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | LIMITED_PASS | 026f993真实4配置及本页已采滚动/业务状态；按M1计划§11限定，不外推其他状态/页面/硬件 |
 | CurveImportActivity | FAIL | EVIDENCE_PENDING | FAIL | EVIDENCE_PENDING | M3已实施：原生原文输入/显式粘贴与文件读取、固定操作；原decode/UTF8/MAX_BYTES/草稿路径保留。静态与构建通过，但9b51936 push run39153376290的IME输入高0/标题裁切已证G1/G3 FAIL；主图2/12后停止，完整合法/非法/IME/SAF和四门仍待修复复验。 |
 | CurveImportPreviewActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M3已实施：条件metrics同行、共享阶段标题、完整图表及右固定动作；原LayoutPolicy与冲突/副本/幂等语义保留。图160和标准5行完整门禁不减；静态/构建不替代实图。 |
-| ScaleActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 无读数不能替代有效重量/趋势状态 |
-| ScaleConnectionActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 候选/连接/限制/错误状态待补 |
-| LegacyCurveActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 非空只读图仍需同稿精确对照 |
-| LegacyHistoryActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 非空列表证据不等于精确构图冻结 |
-| LegacyHistoryDetailActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 双轴/来源实图不覆盖全部必验状态 |
-| AppSettingsActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 设置稿仍为候选，完整滚动/状态待精确验收 |
-| MachineSettingsActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 候选稿与模拟回读不证明真实写入或四项通过 |
-| ScaleSettingsActivity | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | BASELINE_PENDING | 候选稿、未连接/能力状态须分别核对 |
+| ScaleActivity | FAIL | EVIDENCE_PENDING | FAIL | EVIDENCE_PENDING | 49a1短高freshness真实裁51px；坐标比较错误与真实裁切分别修正，尚待新图关闭 |
+| ScaleConnectionActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M6已实施；原49a1测试在Scale中途失败，不推定本页完整状态已验收 |
+| LegacyCurveActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M7已实施；49a1 reader清理等待失败，测试修正静态/编译完成，待新运行 |
+| LegacyHistoryActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M7已实施；完整12主配置与状态图待新CI，不复用旧非空列表为新验收 |
+| LegacyHistoryDetailActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M7已实施；single已精确适配真实fixture/viewport，原三profile失败尚待新CI关闭 |
+| AppSettingsActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M8生产已实现并构建；12主配置测试已接入，requiredproof收口中，未实际取图 |
+| MachineSettingsActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M8永久40:60/五section与原控制边界保留；实际Mock Service测试已接入但未运行，不证明设备写入 |
+| ScaleSettingsActivity | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | EVIDENCE_PENDING | M8分组/全文滚动已实现；偏好与实际页面返回测试已接入，真实能力状态仍独立待验 |
+
 
 ## M1历史快照（不作为026f993当前判定）
 
@@ -214,3 +223,50 @@ Astra发现的主重量数字/单位外框居中问题已改为CENTER_HORIZONTAL
 用户明确允许重试后，本批首次构建实际执行并发现 Kotlin 编译错误（列表适配器 receiver、Paint.style 同名遮蔽及两处括号）；对应 owner 已精确修正。第二次 `:mobile:testMockUnitTest --tests io.openhoyi.mobile.MockScaleVisualInputTest :mobile:assembleMock` 成功，38 秒，8 tests / 0 failures / 0 errors / 0 skipped。随后 `:mobile:assembleMockAndroidTest` 成功，34 秒，含 M3 tracing、M6/M7 新 scope 与原测试精确适配。日志、XML 和候选源码哈希位于 `build/task-first-evidence/m6-m7-approved-build/`。分支策略及 8 项策略单测通过。
 
 以上只证明候选构建及指定 helper 单测通过，未运行新 instrumentation，不关闭任何 G1–G4 或硬件验收。M6 8 主配置、M7 12 主配置及原有回归须由新 CI 实际取证；短窗／趋势 dialog 严格窗口映射仍待 Astra 审查，M8 后续独立开发。
+
+
+### eb77b2f 原件补齐与新一批运行
+
+- M5 artifact 12162740736 已补下载，原 ZIP SHA 与远端一致，895 条目 CRC 通过；16 主 manifest 中 840 个文件哈希逐项匹配。实际 tested source 为 `6ee51623e7f32f6df425e0d84313d1bc5e7f6bed`，head 为 eb77b2f。Astra 已恢复实图审查；这些完整性结果不是视觉通过。
+- Astra 首项新图结论：History 四配置图表 `complete=false`。浅色1.0 chart底部1306而visible至1267，裁39px；1.3底部1475而visible至1267，裁208px。标准1.0时间轴仍遮挡，G1/G3继续FAIL；1.3按M5§10.4允许首屏仅真实plot、图/notes完整局部滚达，因此缺208px本身不判FAIL，须核后续滚达证据。此处纠正首轮观察过度外推。列表单位换行有改善，不复用旧91ab失败作为此次证据。精确修正规格待Astra完成。
+- 旧 lifecycle 39196410585 与 single-screen 39196410497 已核实success。旧 frame 39196410409仍FAIL，artifact12161953409原ZIP SHA/930条目CRC验证通过。原restore JSON显示字段、selection、draftId保持，而IME true→false、content高680→1391、content-scroll662→0；页面自报frame7恢复不等于最终系统状态，不认定原因、不放宽原断言。
+- 新候选49a1b46已推送；12项PR CI运行句柄保存在 `build/task-first-evidence/ci-49a1b46/run-handles.json`。当前除branch policy成功，其他仍运行或排队；不取消、不重跑，不将旧结果外推新候选。M8三个设置页由Sol继续开发。
+
+
+### 49a1b46 已返回的门禁
+
+原生必需CI `39204483104` 已成功；原始日志确认 `:mobile:lintDebug` 实际执行并成功，关闭先前 TaskComparisonLayout WrongCall 的编译/lint阻断，不代表视觉通过。日志见 `build/task-first-evidence/ci-49a1b46/native-success.log`。
+
+M6 `39204483033` 与 M3 `39204483014` 已失败并保存原ZIP及SHA/CRC。M6趋势入口误报为根坐标与screen坐标混比较，另有短窗freshness真实裁51px，分别修复；M3原业务恢复仍失败，追踪因UiAutomation命令传输未正确执行而无proto，不据缺记录推断产品根因。精确规格见 `2026-10-19-m6-short-window-and-ime-trace-review.md`，均待修复后实际复验。
+
+
+### 49a1b46 M5 终态与下一批本地验证
+
+M5 `39204483061` 已 completed/success；artifact `12166285439` 原 ZIP 83,523,168 bytes、SHA `083c7a1d46cfd9f3c70ce347307d89f1e5bb5899dddd608ea3ed2173908bc992` 与远端匹配，895 条目 CRC 通过，未改原图已解压至 `build/task-first-evidence/ci-49a1b46-m5/raw/`；16 主 manifest 的 840 个文件哈希也已逐项匹配，source 均为实际 merge `46e2dbc79ca0732290db92b5c78ad097c82c86cb`。CI 通过不关闭设计验收。Astra 已逐张查看 eb77b2f 的 16 主图和 60 特殊图，G1–G4 审计仍进行；新增独立 HistoryDetail UNKNOWN/1.3 实际 plot 约 67.55dp 的预算问题，不能以 chart View 外框高代替绘图区高，也不能由仅嵌入路径的候选修正推定关闭。
+
+下一批冻结修复的 `:mobile:assembleMockAndroidTest` 实际成功，31 秒（74 tasks / 4 executed）；包含 Single 精确 fixture/chart viewport 适配、M4 原生详情焦点等待、History 实际 plot/滚达检查以及窗口证据修正。日志和已跟踪文件源码哈希保存于 `build/task-first-evidence/frozen-repairs-androidtest/`。尚未运行 instrumentation；M3 start/stop 确认仍需按 Astra 新审查收紧，M8 12 配置测试尚未完成，不计视觉通过。
+
+
+### M5 逐门审计和最新布局候选
+
+Astra 已完成 eb77b2f 的 76 份 typography、3502 条 TextView、516 条主态 Canvas text、44 组实际数值/单位 baseline 及44个单位 span 的审计；G2/G4 仅在列明已采状态为 LIMITED_PASS。完整页状态不据此外推。具体四页 G1–G4 和缺失的右侧滚达证据见 `2026-10-19-m5-eb77b2f-visual-review.md`。
+
+Comparison 常态整格边框已在 visual 路径改为水平分隔，保留首次及后续 taste focus/ripple；独立 HistoryDetail 新增按真实自然预算条件同行的永久布局，不降低字号或96dp真实plot门槛。两文件已通过 Astra 静态审查与 `:mobile:assembleMock`（30秒，62 tasks / 4 executed），日志及两文件哈希位于 `build/task-first-evidence/comparison-detail-build/`。尚无新真实截图，旧布局 FAIL 保留。Sol 正补两文件范围内 M5 主/特殊态的真实plot、notes、toolbar/summary逐目标滚达和精确恢复证据，保留16主+60特殊。
+
+字体原 absent 恢复问题继续独立 FAIL：官方 Android14 源码观察链可解释delete在global仍1.3时触发1.0持久写回，但未追踪CI实际writer；`am get-config`文本不含fontScale，不能作恢复ACK。源码和局限见 `build/task-first-evidence/font-scale-source/`。当前仅调查受guard的可丢弃CI emulator snapshot隔离能力，未改runner，不声称已修复。
+
+
+### M5/M8 测试包统一编译与剩余取证收口
+
+完整 M8 首版接入12主配置后，首次 AndroidTest 编译实际失败18秒，仅两处Context传入要求Activity的接口。原owner已用真实dialog owner精确修正；第二次 `:mobile:assembleMockAndroidTest` 实际成功32秒（74 tasks / 4 executed），包含M5固定20目标+条件UNKNOWN警示、M3收紧ACK及M8首版。两次原日志与源码哈希位于 `build/task-first-evidence/m8-m5-androidtest/`，失败未覆盖。
+
+Astra已复核M5最后精确集合，静态阻断关闭。M8隔离与业务范围符合已批准计划，但requiredproof、每目标滚达恢复、dialog自身字体报告仍按审查完整清单收口；不能将上述编译成功记作测试运行或最终取证版本通过。
+
+独立snapshot能力探针新增3文件，9项离线契约测试实际通过（含未知save/list/pull零load、恢复失败保留snapshot、真实源码配置格式解析）；Astra修正版静态通过。探针尚无Android实测，保持font_scale严格恢复未通过。仅独立disposable CI，随下一合批PR检查，不接现有视觉runner。
+
+
+### 2026-10-20 合批前最终检查
+
+M8最后safe-controls隐藏按钮接口问题已按四dialog真实按钮roles收口；原whole/safeRect/48/52门禁保持。Astra核当前Kotlin SHA `7a677a0b60def82c9737063a98fc715035e1a0021b55ac8d2fb18d1c41373b39` 与runner SHA `6cef960c600b40b67127cdabba3744eaf55ee6e273f31d11675e74d561619ad9`，完整本批清单静态无剩余阻断。最终 `:mobile:assembleMockAndroidTest` 实际成功30秒；日志/哈希见 `build/task-first-evidence/m8-final-contract-build/`。四runner Bash与20段内嵌Python语法通过；8项分支策略单测通过。
+
+仅具备进入新CI条件，不授M8实际12图、M5/M6旧FAIL关闭或全24页视觉通过。独立snapshot probe随PR触发，仍不接现视觉runner；原font_scale恢复失败保持严格判定。

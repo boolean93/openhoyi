@@ -13,7 +13,7 @@ import android.widget.TextView
 /** Actual attached-window geometry, not a detached component or a synthetic height budget. */
 internal object SingleScreenPageChecks {
     /** Call on the UI thread after layout. This never clicks or changes device state. */
-    fun verify(activity: Activity) {
+    fun verify(activity: Activity, expectedLegacyShot: LegacyShot? = null) {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
         if (activity is ExtractionActivity) TrendChartTextChecks.run(activity, "single-screen overlay")
         val fixture = activity.javaClass.simpleName + " " + activity.resources.configuration
@@ -70,8 +70,55 @@ internal object SingleScreenPageChecks {
             check(chart.firstPoints.size >= 2 && chart.secondPoints.size >= 2) { "$fixture two real comparison sources not populated" }
             check(chart.plotBounds.height() >= HoyiUi.dp(activity, 96)) { "$fixture comparison lost its usable shared plot" }
         }
-        if (activity is LegacyHistoryDetailActivity) check(views.any { it is LegacyShotChartView }) {
-            "$fixture populated legacy chart not inspected"
+        if (activity is LegacyHistoryDetailActivity) {
+            val expected=requireNotNull(expectedLegacyShot) { "$fixture exact LegacyShot fixture must be supplied by its caller" }
+            check(activity.intent.getStringExtra("legacyId")==expected.id) { "$fixture legacyId does not match original fixture" }
+            // Generic visit intentionally stops at ScrollView. Inspect only this explicit local viewport,
+            // not every scrolling subtree, and do not add its long chart to the global visibleFully list.
+            val viewport=views.filterIsInstance<LegacyChartViewport>().single()
+            val chart=viewport.chart
+            check(viewport.childCount==1 && viewport.getChildAt(0)===chart && chart.parent===viewport)
+            check(viewport.isAttachedToWindow && chart.isAttachedToWindow && viewport.isShown && chart.isShown &&
+                chart.rootView===viewport.rootView && viewport.rootView===content.rootView &&
+                chart.windowToken!=null && chart.windowToken===viewport.windowToken && chart.display?.displayId==viewport.display?.displayId)
+            check(chart.points.size>=2 && chart.points==expected.points) { "$fixture legacy chart differs from the supplied original samples" }
+            visibleFully(viewport)
+            val root=viewport.rootView
+            check(root.isAttachedToWindow && viewport.windowToken===root.windowToken && root.display!=null &&
+                viewport.display?.displayId==root.display?.displayId && chart.display!=null)
+            var ancestor:View?=chart
+            while(ancestor!=null) {
+                val target=ancestor
+                check(target.matrix.isIdentity && target.scaleX==1f && target.scaleY==1f && target.rotation==0f &&
+                    target.rotationX==0f && target.rotationY==0f && target.translationX==0f && target.translationY==0f)
+                if(target===root)break
+                ancestor=target.parent as? View
+            }
+            check(ancestor===root)
+            val rootScreen=IntArray(2);root.getLocationOnScreen(rootScreen)
+            val rootRaw=Rect();val rootGlobalOffset=android.graphics.Point()
+            check(root.getGlobalVisibleRect(rootRaw,rootGlobalOffset))
+            val raw=Rect();val viewportOffset=android.graphics.Point()
+            check(viewport.getGlobalVisibleRect(raw,viewportOffset))
+            val dx=rootScreen[0]-rootGlobalOffset.x-root.scrollX
+            val dy=rootScreen[1]-rootGlobalOffset.y-root.scrollY
+            val visibleScreen=Rect(raw).apply {offset(dx,dy)}
+            val viewportScreen=IntArray(2);viewport.getLocationOnScreen(viewportScreen)
+            check(viewportOffset.x+viewport.scrollX+dx==viewportScreen[0] && viewportOffset.y+viewport.scrollY+dy==viewportScreen[1])
+            check(visibleScreen==Rect(viewportScreen[0],viewportScreen[1],viewportScreen[0]+viewport.width,viewportScreen[1]+viewport.height))
+            val chartScreen=IntArray(2);chart.getLocationOnScreen(chartScreen)
+            val bounds=chart.visualEvidence.getJSONArray("plotBoundsPx")
+            check(bounds.length()==4)
+            val localPlot=android.graphics.RectF(bounds.getDouble(0).toFloat(),bounds.getDouble(1).toFloat(),
+                bounds.getDouble(2).toFloat(),bounds.getDouble(3).toFloat())
+            val minimum=96*activity.resources.displayMetrics.density
+            check(localPlot.height()>=minimum && localPlot.width()>=minimum && localPlot.left>=0 && localPlot.top>=0 &&
+                localPlot.right<=chart.width && localPlot.bottom<=chart.height) { "$fixture actual legacy plot has no usable 96dp extent: $localPlot" }
+            val screenPlot=android.graphics.RectF(localPlot).apply {offset(chartScreen[0].toFloat(),chartScreen[1].toFloat())}
+            val visiblePlot=android.graphics.RectF(screenPlot)
+            check(visiblePlot.intersect(android.graphics.RectF(visibleScreen)) && visiblePlot.height()>=minimum && visiblePlot.width()>=minimum) {
+                "$fixture initial legacy plot is not visible for 96dp: screenPlot=$screenPlot viewportScreen=$visibleScreen rawGlobal=$raw rootGlobalPoint=$rootGlobalOffset rootScreen=${rootScreen.toList()}"
+            }
         }
         if (activity is LegacyCurveActivity) check(views.filterIsInstance<ListView>().single().count > 0) {
             "$fixture imported read-only curves not displayed"

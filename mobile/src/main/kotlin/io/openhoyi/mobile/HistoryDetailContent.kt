@@ -247,14 +247,17 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
     val workspace = if (standalone) TaskExtractionWorkspace(this, visual).also {
         body.addView(it, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(16) })
     } else null
-    val plot = workspace?.primaryBody ?: body
+    val plot = StandaloneHistoryPlot(this, visual).also {
+        (workspace?.primaryBody ?: body).addView(it, LinearLayout.LayoutParams(-1, -1))
+    }
     val metrics = HistoryVisualFlow(this, style.dp(24), style.dp(8)).apply { tag = "product/history/metrics" }
     style.add(plot, metrics, if (standalone) 0 else 16)
     fun metric(label: Int, value: String, unit: String?, id: String, prominent: Boolean = true): HistoryQuantity {
-        val column = style.column("$id/cell")
-        style.add(column, style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true))
+        val labelView = style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true)
         val quantity = HistoryQuantity(this, visual, id, large = prominent).apply { present(value, unit) }
-        style.add(column, quantity, 8); metrics.addView(column); return quantity
+        val cell = EmbeddedHistoryMetricCell(this, style.dp(8), labelView, quantity).apply { tag = "$id/cell" }
+        plot.metricCells += cell
+        metrics.addView(cell); return quantity
     }
     metric(R.string.history_duration, entry.elapsedMs?.let { "%.1f".format(Locale.ROOT, it / 1000.0) } ?: "—",
         if (entry.elapsedMs != null) "s" else null, "product/history/elapsed")
@@ -263,6 +266,7 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
     // This is a sample observation, not an inferred final outcome or stored new field.
     val sampledWater = metric(R.string.m5_last_sample_water, "—", null, "product/history/sampled-water", false)
     val chart = ShotChartView(this, visual).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
+    plot.chart = chart
     plot.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(16) })
     val chartStatus = style.text(getString(R.string.history_loading_samples), TaskProductVisualStyle.auxiliary, "product/history/chart-status", true)
     style.add(plot, chartStatus, 8)
@@ -389,6 +393,9 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         if (entry.weightHundredthsGram != null) "g" else null, "product/history/weight")
     val sampledWater = metric(R.string.m5_last_sample_water, "—", null, "product/history/sampled-water", false)
     preview.content.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(16) })
+    // The actual chart producer retains this permanent view and updates its text from the same projection.
+    // Only embedded History places it after the complete chart, before its notes; resize never reparents it.
+    style.add(preview.content, requireNotNull(chart.embeddedExplanationView), 8)
     fun summary(label: Int, value: String?): LinearLayout = style.row("product/history/note/$label/row").apply {
         gravity = android.view.Gravity.CENTER_VERTICAL
         addView(style.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true), LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(16) })
@@ -427,6 +434,61 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
             }.onFailure { chartStatus.text = getString(R.string.history_samples_failed) }
         }
     }, "history-detail-reader").start()
+}
+
+/** Standalone History alone recovers metric whitespace when the real 96dp plot budget requires it. */
+private class StandaloneHistoryPlot(context: android.content.Context, visual: ExtractionHistoryVisualStyle) : LinearLayout(context) {
+    private val style = visual.palette
+    private val renderer = ProductHistoryChartRenderer(context, visual)
+    val metricCells = mutableListOf<EmbeddedHistoryMetricCell>()
+    lateinit var chart: ShotChartView
+    val productLayoutEvidence = org.json.JSONObject()
+    init { orientation = VERTICAL; tag = "product/history/standalone-plot-budget" }
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = (android.view.View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+        val height = (android.view.View.MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+        val exact = android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY)
+        val natural = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        fun chrome(): Int {
+            var result = 0
+            for (index in 0 until childCount) {
+                val child = getChildAt(index)
+                if (child === chart || child.visibility == android.view.View.GONE) continue
+                child.forceLayout(); child.measure(exact, natural)
+                val params = child.layoutParams as LayoutParams
+                result += child.measuredHeight + params.topMargin + params.bottomMargin
+            }
+            return result
+        }
+        metricCells.forEach { it.inline = false }
+        val verticalChrome = chrome()
+        val overlay = chart.getChildAt(0) as LinearLayout
+        val header = (overlay.getChildAt(0) as ScrollView).getChildAt(0)
+        header.forceLayout(); header.measure(exact, natural)
+        val headerHeight = header.measuredHeight
+        val axesAndPlot = renderer.minimumEmbeddedHistoryHeight()
+        val chartMinimum = maxOf(headerHeight, style.dp(48)) + axesAndPlot + overlay.paddingTop + overlay.paddingBottom
+        val params = chart.layoutParams as LayoutParams
+        val chartMargins = params.topMargin + params.bottomMargin
+        val inlineWidth = metricCells.sumOf { it.inlineNaturalWidth() } + style.dp(24) * (metricCells.size - 1).coerceAtLeast(0)
+        val inline = verticalChrome + chartMargins + chartMinimum > height && inlineWidth <= width
+        metricCells.forEach { it.inline = inline }
+        val resolvedChrome = chrome()
+        productLayoutEvidence.put("availableHeightPx", height).put("availableWidthPx", width)
+            .put("verticalChromeNaturalPx", verticalChrome).put("resolvedChromeNaturalPx", resolvedChrome)
+            .put("metricsInlineNaturalWidthPx", inlineWidth).put("metricsInline", inline)
+            .put("chartNativeHeaderNaturalPx", headerHeight).put("chartActualPaintAxisMinimumPx", axesAndPlot)
+            .put("chartOverlayPaddingPx", overlay.paddingTop + overlay.paddingBottom).put("chartMarginsPx", chartMargins)
+            .put("chartMinimumPx", chartMinimum).put("minimumPlotDp", 96)
+            .put("primaryBudgetSatisfiable", resolvedChrome + chartMargins + chartMinimum <= height)
+            .put("chartBudgetSource", "native_overlay_header + real_plot_96dp + renderer_bounds_actual_axis_bands")
+        fun invalidateMeasure(view: android.view.View) {
+            view.forceLayout()
+            if (view is android.view.ViewGroup) (0 until view.childCount).forEach { invalidateMeasure(view.getChildAt(it)) }
+        }
+        for (index in 0 until childCount) invalidateMeasure(getChildAt(index))
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
 }
 
 /** Permanent layout: resize changes only native measure inputs, never a source or parent. */
@@ -489,6 +551,11 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
             .put("verticalChromeNaturalPx", verticalChrome).put("verticalMinimumContentPx", verticalMinimum)
             .put("metricsInlineNaturalWidthPx", inlineWidth).put("metricsInline", inlineMetrics)
             .put("chartNativeHeaderNaturalPx", headerHeight).put("chartActualPaintAxisMinimumPx", axisMinimum)
+            .put("chartLegendNaturalPx", chart.findViewWithTag<android.view.View>("product/history/chart-legend").measuredHeight)
+            .put("externalExplanationNaturalPx", requireNotNull(chart.embeddedExplanationView).measuredHeight)
+            .put("externalExplanationTopMarginPx", (requireNotNull(chart.embeddedExplanationView).layoutParams as LayoutParams).topMargin)
+            .put("explanationPlacement", "same_permanent_producer_view_after_complete_chart_before_notes")
+            .put("chartOverlayPaddingPx", overlay.paddingTop + overlay.paddingBottom)
             .put("chartMinimumPx", chartMinimum).put("chartMarginsPx", chartMargins).put("fullNaturalPx", minimumContent + footer.measuredHeight)
             .put("minimumPlotDp", 96).put("localContentScroll", scrolling)
             .put("chartBudgetSource", "native_overlay_header + real_plot_96dp + renderer_bounds_actual_axis_bands")

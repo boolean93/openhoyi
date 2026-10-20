@@ -17,12 +17,12 @@ internal class ImeRecreationTrace(private val test:Instrumentation,private val f
     private val token=UUID.randomUUID().toString()
     private val events=JSONArray()
     private val commands=JSONArray()
-    private val proof=JSONObject().put("schemaVersion",1).put("traceOwnerToken",token)
+    private val proof=JSONObject().put("schemaVersion",2).put("traceOwnerToken",token)
         .put("package",test.targetContext.packageName).put("fixture","Import.raw.recreate")
-        .put("sourceSha",fixture.parentFile.parentFile.name).put("profile",fixture.parentFile.name)
+        .put("sourceSha",requireNotNull(requireNotNull(fixture.parentFile).parentFile).name).put("profile",requireNotNull(fixture.parentFile).name)
         .put("productionImePolicyChanged",false).put("originalBusinessAssertionsChanged",false)
         .put("clock","real_SystemClock_elapsedRealtimeNanos; never MobileMonotonicClock")
-        .put("shellOutputPolicy","stdout_and_stderr_explicitly_merged; rc_marker_required")
+        .put("shellOutputPolicy","Rwe_fixed_shell_stdin; separate_bounded_stdout_stderr; per_command_nonce_rc; one_real_deadline")
         .put("events",events).put("commands",commands).put("ownedStart",false).put("stopAttempted",false)
         .put("status","NOT_STARTED")
     private var owned=false
@@ -41,65 +41,115 @@ internal class ImeRecreationTrace(private val test:Instrumentation,private val f
     }
     private fun command(name:String,body:String):JSONObject {
         check(Looper.myLooper()!==Looper.getMainLooper()) {"Native trace shell I/O must not block the UI thread"}
-        val started=SystemClock.elapsedRealtime();val marker="IME_TRACE_RC_$token="
-        val executor=Executors.newSingleThreadExecutor {task->Thread(task,"ime-recreation-shell-$name")}
-        val descriptor=java.util.concurrent.atomic.AtomicReference<ParcelFileDescriptor?>()
-        val cancelled=java.util.concurrent.atomic.AtomicBoolean(false)
+        val started=SystemClock.elapsedRealtime()
+        val deadline=started+10000L
+        val nonce=UUID.randomUUID().toString()
+        val marker="IME_TRACE_RC_$nonce="
         val result=JSONObject().put("name",name).put("command",body).put("timeoutMs",10000)
+            .put("commandNonce",nonce).put("process","/system/bin/sh").put("transport","executeShellCommandRwe_stdin_UTF8")
         commands.put(result)
-        try {
-            val future=executor.submit<String> {
-                val escaped=body.replace("'","'\\''")
-                val wrapped="sh -c '$escaped; command_status=\$?; printf \"\\n$marker%s\\n\" \"\$command_status\"' 2>&1"
-                val opened=test.uiAutomation.executeShellCommand(wrapped)
-                descriptor.set(opened)
-                // An interrupted Binder call may return its PFD after the owner timed out.
-                // Whichever side wins the race closes it; no late result may start another read.
-                if(cancelled.get()) {opened.close();error("Native trace command returned after cancellation")}
-                ParcelFileDescriptor.AutoCloseInputStream(opened).use {input->
-                    val bytes=java.io.ByteArrayOutputStream();val buffer=ByteArray(4096)
-                    while(true) {val count=input.read(buffer);if(count<0)break
-                        check(bytes.size()+count<=131072) {"Native trace command output exceeded diagnostic limit"};bytes.write(buffer,0,count)}
-                    bytes.toString(Charsets.UTF_8.name())
+        persist() // Persist the per-command intent/nonce before any potentially side-effecting command.
+        val executor=Executors.newFixedThreadPool(4) {task->Thread(task,"ime-recreation-shell-$name")}
+        val descriptors=java.util.concurrent.atomic.AtomicReference<Array<ParcelFileDescriptor>?>()
+        val cancelled=java.util.concurrent.atomic.AtomicBoolean(false)
+        val aggregate=java.util.concurrent.atomic.AtomicInteger(0)
+        val stdout=java.io.ByteArrayOutputStream()
+        val stderr=java.io.ByteArrayOutputStream()
+        val tasks=mutableListOf<java.util.concurrent.Future<*>>()
+        fun closeAll(opened:Array<ParcelFileDescriptor>?) {opened?.forEach {runCatching {it.close()}}}
+        fun remaining():Long=(deadline-SystemClock.elapsedRealtime()).also {check(it>0) {"Native trace total deadline exhausted"}}
+        fun read(fd:ParcelFileDescriptor,sink:java.io.ByteArrayOutputStream) {
+            ParcelFileDescriptor.AutoCloseInputStream(fd).use {input->
+                val buffer=ByteArray(4096)
+                while(true) {
+                    val count=input.read(buffer);if(count<0)break
+                    check(aggregate.addAndGet(count)<=131072) {"Native trace aggregate output exceeded diagnostic limit"}
+                    synchronized(sink) {sink.write(buffer,0,count)}
                 }
             }
-            val output=future.get(10000,TimeUnit.MILLISECONDS)
-            val lines=output.replace("\r\n","\n").lines()
-            val code=lines.filter {it.startsWith(marker)}.singleOrNull()?.removePrefix(marker)?.toIntOrNull()
-            result.put("output",output).put("exitCode",code ?: JSONObject.NULL)
-                .put("completedWithExitMarker",code!=null)
-        } catch(error:Throwable) {result.put("completedWithExitMarker",false).put("failure",error.stackTraceToString())}
-        finally {
-            cancelled.set(true)
-            runCatching {descriptor.get()?.close()}
+        }
+        try {
+            val opening=executor.submit<Array<ParcelFileDescriptor>> {
+                val opened=test.uiAutomation.executeShellCommandRwe("/system/bin/sh")
+                descriptors.set(opened)
+                // Binder can return after cancellation: the late owner must close all three FDs.
+                if(cancelled.get()) {closeAll(opened);error("Native trace Rwe returned after cancellation")}
+                check(opened.size==3) {"Unexpected Rwe descriptor count"}
+                opened
+            }
+            tasks.add(opening)
+            val opened=opening.get(remaining(),TimeUnit.MILLISECONDS)
+            val out=executor.submit {read(opened[0],stdout)}
+            val err=executor.submit {read(opened[2],stderr)}
+            val script=body+"\ncommand_status=\$?\nprintf '\n"+marker+"%s\n' \"\$command_status\"\nexit 0\n"
+            val writer=executor.submit {
+                ParcelFileDescriptor.AutoCloseOutputStream(opened[1]).use {output->
+                    output.write(script.toByteArray(Charsets.UTF_8));output.flush()
+                }
+            }
+            tasks.addAll(listOf(out,err,writer))
+            writer.get(remaining(),TimeUnit.MILLISECONDS);result.put("stdinWrittenAndClosed",true)
+            out.get(remaining(),TimeUnit.MILLISECONDS);result.put("stdoutEof",true)
+            err.get(remaining(),TimeUnit.MILLISECONDS);result.put("stderrEof",true)
+            val output=synchronized(stdout) {stdout.toString(Charsets.UTF_8.name())}
+            val markers=output.replace("\r\n","\n").lines().filter {it.startsWith(marker)}
+            val allMarkers=output.lineSequence().filter {it.trim().startsWith("IME_TRACE_RC_")}.count()
+            val code=markers.singleOrNull()?.removePrefix(marker)?.takeIf {it.matches(Regex("[0-9]{1,3}"))}?.toIntOrNull()?.takeIf {it in 0..255}
+            val terminal=Regex("\\r?\\n"+Regex.escape(marker)+"[0-9]{1,3}\\r?\\n\\z")
+            result.put("exitCode",code ?: JSONObject.NULL).put("completedWithExitMarker",code!=null && allMarkers==1 && terminal.containsMatchIn(output))
+            result.put("output",output.replace(terminal,""))
+        } catch(error:Throwable) {
+            result.put("completedWithExitMarker",false).put("failure",error.stackTraceToString())
+        } finally {
+            cancelled.set(true);closeAll(descriptors.get())
+            tasks.forEach {if(!it.isDone)it.cancel(true)}
             executor.shutdownNow()
-            val terminated=executor.awaitTermination(2,TimeUnit.SECONDS)
+            val wait=(deadline-SystemClock.elapsedRealtime()).coerceAtLeast(0)
+            val terminated=executor.awaitTermination(wait,TimeUnit.MILLISECONDS)
+            result.put("stdout",synchronized(stdout) {stdout.toString(Charsets.UTF_8.name())})
+                .put("stderr",synchronized(stderr) {stderr.toString(Charsets.UTF_8.name())})
+                .put("stdoutBytes",synchronized(stdout) {stdout.size()}).put("stderrBytes",synchronized(stderr) {stderr.size()})
+                .put("aggregateReadBytes",aggregate.get()).put("workerTerminated",terminated)
+                .put("withinTotalBudget",SystemClock.elapsedRealtime()<=deadline).put("elapsedMs",SystemClock.elapsedRealtime()-started)
             if(!terminated)result.put("lifecycleStatus","DIAGNOSTIC_FAIL_WORKER_NOT_TERMINATED; not_cleaned")
-            result.put("workerTerminated",terminated)
-                .put("elapsedMs",SystemClock.elapsedRealtime()-started)
             persist()
         }
         return result
     }
-    private fun success(value:JSONObject)=value.optBoolean("completedWithExitMarker") && value.optInt("exitCode",-1)==0 && value.optBoolean("workerTerminated")
+    private fun transportComplete(value:JSONObject)=value.optBoolean("completedWithExitMarker") &&
+        value.optBoolean("stdinWrittenAndClosed") && value.optBoolean("stdoutEof") && value.optBoolean("stderrEof") &&
+        value.optBoolean("workerTerminated") && value.optBoolean("withinTotalBudget")
+    private fun success(value:JSONObject)=transportComplete(value) && value.optInt("exitCode",-1)==0 && value.optString("stderr").isEmpty()
+    private fun uniqueAcknowledgement(value:JSONObject,expected:String)=success(value) &&
+        value.optString("output").lineSequence().map {it.trim()}.filter {it.isNotEmpty()}.toList()==listOf(expected)
+    private fun helpSuccess(value:JSONObject):Boolean {
+        val lines=value.optString("output").lineSequence().map {it.trim().replace(Regex(" +")," ")}.toSet()
+        return transportComplete(value) && value.optInt("exitCode",-1) in setOf(0,255) && value.optString("stderr").isEmpty() &&
+            lines.containsAll(setOf("InputMethodManagerService commands:","tracing <command>","start: Start tracing.","stop : Stop tracing.","help : Show help."))
+    }
     fun start() {
         try {
             mark("diagnostic_preparation_begin")
+            val probe=command("transport-probe","(printf 'IME_TRANSPORT_STDOUT\\n'; printf 'IME_TRANSPORT_STDERR\\n' >&2; exit 7)")
+            if(!transportComplete(probe) || probe.optInt("exitCode",-1)!=7 ||
+                probe.optString("output")!="IME_TRANSPORT_STDOUT\n" || probe.optString("stderr")!="IME_TRANSPORT_STDERR\n") {
+                proof.put("status","DIAGNOSTIC_UNAVAILABLE").put("reason","Rwe_two_stream_exit7_transport_probe_failed");return
+            }
             val uid=command("shell-uid","id -u")
             val text=uid.optString("output").lineSequence().map {it.trim()}.filter {it.isNotEmpty() && !it.startsWith("IME_TRACE_RC_")}.toList()
             val build=command("build-type","getprop ro.build.type")
             val type=build.optString("output").lineSequence().map {it.trim()}.firstOrNull {it in setOf("user","userdebug","eng")}
             val help=command("input-method-help","cmd input_method help")
-            val helpText=help.optString("output")
             if(!success(uid) || text.size!=1 || text[0] !in setOf("0","2000") || !success(build) || type !in setOf("userdebug","eng") ||
-                !success(help) || !helpText.contains("tracing") || !helpText.contains("start") || !helpText.contains("stop")) {
+                !helpSuccess(help)) {
                 proof.put("status","DIAGNOSTIC_UNAVAILABLE").put("reason","actual_shell_uid_build_or_tracing_help_not_supported_or_unknown")
                 return
             }
+            proof.put("startIntent",true).put("startIntentElapsedNs",SystemClock.elapsedRealtimeNanos());persist()
             val start=command("start","cmd input_method tracing start")
             // Android14 writes this acknowledgement only on a new start. rc0/empty or already-started is NOT ownership.
             val expected="Starting tracing in /data/misc/wmtrace/: ime_trace_clients.winscope, ime_trace_service.winscope, ime_trace_managerservice.winscope"
-            if(success(start) && start.optString("output").lineSequence().any {it.trim()==expected}) {
+            if(uniqueAcknowledgement(start,expected)) {
                 owned=true;proof.put("ownedStart",true).put("status","OWNED_STARTED")
                 mark("owned_start_acknowledged")
             } else proof.put("status","DIAGNOSTIC_FAIL_UNKNOWN_START_OWNERSHIP").put("reason","no_exact_success_ack; no_stop_of_unknown_trace")
@@ -113,7 +163,7 @@ internal class ImeRecreationTrace(private val test:Instrumentation,private val f
                 stopAttempted=true;proof.put("stopAttempted",true);persist()
                 val stop=command("stop","cmd input_method tracing stop")
                 val expected="Stopping tracing and writing traces in /data/misc/wmtrace/: ime_trace_clients.winscope, ime_trace_service.winscope, ime_trace_managerservice.winscope"
-                proof.put("stopAcknowledged",success(stop) && stop.optString("output").lineSequence().any {it.trim()==expected})
+                proof.put("stopAcknowledged",uniqueAcknowledgement(stop,expected))
                 proof.put("status",if(proof.getBoolean("stopAcknowledged"))"OWNED_STOP_ACK_FILES_NOT_YET_VERIFIED" else "DIAGNOSTIC_FAIL_STOP_UNKNOWN")
             }
             mark("finally_stop_finished")

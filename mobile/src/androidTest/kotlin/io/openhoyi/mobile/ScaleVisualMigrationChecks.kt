@@ -76,15 +76,58 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
     private fun services(): List<String> = (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
         .getRunningServices(100).filter { it.service.packageName == context.packageName }.map { it.service.className }
     private fun rect(value: Rect) = JSONArray(listOf(value.left, value.top, value.right, value.bottom))
+    /** Keep raw hierarchy coordinates; derive a screen rect from measured origins, not clipped edges. */
+    private fun visibility(view: View): JSONObject {
+        val ownerRoot=view.rootView
+        val origin=IntArray(2);view.getLocationOnScreen(origin)
+        val rootScreen=IntArray(2);ownerRoot.getLocationOnScreen(rootScreen)
+        val rootWindow=IntArray(2);ownerRoot.getLocationInWindow(rootWindow)
+        val raw=Rect();val targetGlobalOffset=android.graphics.Point()
+        val shown=view.getGlobalVisibleRect(raw,targetGlobalOffset)
+        val rootRaw=Rect();val rootGlobalOffset=android.graphics.Point()
+        val rootShown=ownerRoot.getGlobalVisibleRect(rootRaw,rootGlobalOffset)
+        // getGlobalVisibleRect's Point includes the view's own scroll; undo it to obtain its origin.
+        val dx=rootScreen[0]-rootGlobalOffset.x-ownerRoot.scrollX
+        val dy=rootScreen[1]-rootGlobalOffset.y-ownerRoot.scrollY
+        val derived=Rect(raw).apply {if(shown && rootShown)offset(dx,dy)}
+        val full=Rect(origin[0],origin[1],origin[0]+view.width,origin[1]+view.height)
+        val mappedOrigin=intArrayOf(targetGlobalOffset.x+view.scrollX+dx,targetGlobalOffset.y+view.scrollY+dy)
+        var identity=true;var current:View?=view
+        while(current!=null) {
+            val target=current
+            identity=identity && target.matrix.isIdentity && target.scaleX==1f && target.scaleY==1f &&
+                target.rotation==0f && target.rotationX==0f && target.rotationY==0f &&
+                target.translationX==0f && target.translationY==0f && target.translationZ==0f
+            if(target===ownerRoot)break
+            current=target.parent as? View
+        }
+        val sameRoot=current===ownerRoot && view.isAttachedToWindow && ownerRoot.isAttachedToWindow &&
+            view.windowToken!=null && view.windowToken===ownerRoot.windowToken && view.display!=null &&
+            view.display?.displayId==ownerRoot.display?.displayId
+        val mapping=shown && rootShown && sameRoot && identity && mappedOrigin.contentEquals(origin)
+        return JSONObject().put("rectPx",rect(full)).put("visibleRectPx",rect(derived)).put("rectCoordinateSpace","screen")
+            .put("rawGlobalVisibleRectRootPx",rect(raw)).put("rawRootGlobalVisibleRect",rect(rootRaw))
+            .put("rawGlobalVisibleRectDefined",shown).put("rootGlobalVisibleRectDefined",rootShown)
+            .put("targetGlobalOffsetPointPx",JSONArray(listOf(targetGlobalOffset.x,targetGlobalOffset.y)))
+            .put("rootGlobalOffsetPointPx",JSONArray(listOf(rootGlobalOffset.x,rootGlobalOffset.y)))
+            .put("rootOriginOnScreenPx",JSONArray(rootScreen.toList())).put("rootOriginInWindowPx",JSONArray(rootWindow.toList()))
+            .put("rootScrollPx",JSONArray(listOf(ownerRoot.scrollX,ownerRoot.scrollY)))
+            .put("targetScrollPx",JSONArray(listOf(view.scrollX,view.scrollY)))
+            .put("derivedScreenOffsetPx",JSONArray(listOf(dx,dy))).put("mappedScreenOriginPx",JSONArray(mappedOrigin.toList()))
+            .put("rootIdentity",System.identityHashCode(ownerRoot)).put("attachedToSameRootWindow",sameRoot)
+            .put("rootAttached",ownerRoot.isAttachedToWindow).put("targetAttached",view.isAttachedToWindow)
+            .put("rootDisplayId",ownerRoot.display?.displayId ?: JSONObject.NULL).put("targetDisplayId",view.display?.displayId ?: JSONObject.NULL)
+            .put("identityTransformChain",identity).put("screenMappingVerified",mapping)
+            .put("visibleRectConversion","raw_global_rect_plus_measured_root_screen_minus_root_global_Point_origin; own_scroll_explicitly_removed")
+            .put("visibilitySemantics","exact_hierarchy_clip_only; not_system_window_or_IME_occlusion_proof")
+            .put("globalVisible",shown).put("complete",mapping && view.width>0 && view.height>0 && derived==full)
+    }
     private fun observation(view: View): JSONObject {
-        val origin = IntArray(2); view.getLocationOnScreen(origin)
-        val full = Rect(origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)
-        val visible = Rect(); val shown = view.getGlobalVisibleRect(visible)
+        val visible=visibility(view)
         val texts = nodes(view).filterIsInstance<TextView>().map { text ->
-            val box = Rect(); val point = IntArray(2); text.getLocationOnScreen(point)
-            val whole = text.getGlobalVisibleRect(box) && box == Rect(point[0], point[1], point[0] + text.width, point[1] + text.height)
+            val textVisibility=visibility(text)
             val layout = text.layout
-            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", whole)
+            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", textVisibility.getBoolean("complete")).put("visibility",textVisibility)
                 .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
                 .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
                 .put("layoutHeightPx", layout?.height ?: JSONObject.NULL)
@@ -94,9 +137,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                     JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
                 }) } ?: JSONObject.NULL)
         }
-        return JSONObject().put("semanticId", view.tag).put("rectPx", rect(full)).put("visibleRectPx", rect(visible))
-            .put("complete", shown && view.width > 0 && view.height > 0 && visible == full)
-            .put("textLineBoxes", JSONArray(texts))
+        return visible.put("semanticId",view.tag).put("textLineBoxes",JSONArray(texts))
     }
     private fun whole(value: JSONObject): Boolean = value.getBoolean("complete") && value.getJSONArray("textLineBoxes").let { lines ->
         (0 until lines.length()).all { index -> val line = lines.getJSONObject(index)
@@ -515,6 +556,69 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         check(captured.proof.getInt("protocolVersion")==2 && captured.proof.getBoolean("accepted"))
         return captured
     }
+    /** Observe only the explicitly captured window, never another global chart or the owner background. */
+    private fun targetWindowGeometry(window: android.view.Window, target: View): JSONObject {
+        val origin=IntArray(2);target.getLocationOnScreen(origin)
+        val windowOrigin=IntArray(2);target.getLocationInWindow(windowOrigin)
+        val config=target.resources.configuration
+        return JSONObject().put("windowIdentity",System.identityHashCode(window))
+            .put("decorIdentity",System.identityHashCode(window.decorView)).put("targetIdentity",System.identityHashCode(target))
+            .put("targetScreenOriginPx",JSONArray(origin.toList())).put("targetWindowOriginPx",JSONArray(windowOrigin.toList()))
+            .put("targetSizePx",JSONArray(listOf(target.width,target.height))).put("hasWindowFocus",target.hasWindowFocus())
+            .put("densityDpi",config.densityDpi).put("fontScale",config.fontScale).put("locale",config.locales.toLanguageTags())
+            .put("observationScope","only_explicit_target_window_decor_subtree")
+            .put("nodes",JSONArray(nodes(target).filter {it.tag is String || it is TextView}.map(::observation)))
+            .put("charts",JSONArray(nodes(target).filterIsInstance<ScaleTrendView>().filter {it.isShown}.map {
+                JSONObject().put("rect",observation(it)).put("canvasEvidence",JSONArray(it.visualEvidence.toString())) }))
+            .put("textLayout",JSONArray(nodes(target).filterIsInstance<TextView>().map { text ->
+                JSONObject().put("actualView",observation(text)).put("textSizePx",text.textSize).put("baselinePx",text.baseline)
+                    .put("includeFontPadding",text.includeFontPadding).put("letterSpacing",text.letterSpacing)
+                    .put("fakeBold",text.paint.isFakeBoldText).put("colorArgb",text.currentTextColor)
+                    .put("typefaceWeight",if(Build.VERSION.SDK_INT>=28)text.typeface?.weight ?: JSONObject.NULL else JSONObject.NULL)
+            }))
+    }
+    /** Real rejected targets in the same modal scope; these are not main captures or positive evidence. */
+    private fun targetWindowNegatives(activity:Activity, targetWindow:android.view.Window, folder:File) {
+        check(folder.isDirectory || folder.mkdirs())
+        val targetDecor=targetWindow.decorView;val identity=System.identityHashCode(targetDecor)
+        main {check(targetDecor.hasWindowFocus() && !activity.hasWindowFocus())}
+        val cases=JSONArray()
+        fun rejected(name:String, window:android.view.Window, target:View, reason:String) {
+            val path=File(folder,name).apply {check(isDirectory || mkdirs())}
+            val result=runCatching {frames.screenshot(window,target,File(path,"window.png")) {
+                error("Negative Window ownership/focus must be rejected before observing target contents")
+            }}
+            check(result.isFailure) {"M6 invalid Window target unexpectedly accepted: $name"}
+            val proof=JSONObject(File(path,"window-frame-sync.json").readText())
+            check(proof.getInt("protocolVersion")==2 && !proof.getBoolean("accepted") && proof.getInt("timeoutMs")==5000 &&
+                proof.getString("failure").contains(reason)) {"M6 negative did not fail for its real Window constraint: $name"}
+            main {check(System.identityHashCode(targetWindow.decorView)==identity && targetDecor.hasWindowFocus() && !activity.hasWindowFocus())}
+            cases.put(JSONObject().put("case",name).put("rejectedFor",reason).put("proof",proof)
+                .put("realWindowTarget",true).put("targetModalFocusPreserved",true))
+        }
+        rejected("wrong-window-root",targetWindow,root(activity),"Wrong Window/root/token/display owner")
+        rejected("unfocused-owner",activity.window,root(activity),"not a ready focused attached surface")
+        File(folder,"manifest.json").writeText(JSONObject().put("cases",cases).put("mainConfigurationCountContribution",0)
+            .put("positiveWindowCaptureStillRequired",true).put("bitmapOrSurfaceInsetsInjection",false)
+            .put("unknownLayerSizeAndNonzeroSurfaceInsetsNegative","PENDING_NO_LEGAL_REAL_FIXTURE; never synthetic native evidence").toString(2))
+    }
+    private fun captureTargetWindow(window: android.view.Window, folder:File):NativeWindowFrameEvidence.CapturedFrame {
+        check(folder.isDirectory || folder.mkdirs())
+        val target=window.decorView
+        val captured=frames.screenshot(window,target,File(folder,"window.png")) {targetWindowGeometry(window,target)}
+        File(folder,"geometry.json").writeText(captured.target.toString(2))
+        check(captured.proof.getInt("protocolVersion")==2 && captured.proof.getBoolean("accepted") &&
+            captured.proof.getString("mappingMode")=="EXPLICIT_WINDOW_MEASURED_DECOR")
+        return captured
+    }
+    private fun trendReturnState(activity:Activity):JSONObject {
+        val panel=requireNotNull(field(activity,"trend"))
+        return JSONObject().put("buffer",field(panel,"values").toString()).put("bufferNow",field(panel,"now"))
+            .put("timer",(field(activity,"timer") as LocalScaleTimer).snapshot().toString())
+            .put("scrolls",JSONArray(nodes(root(activity)).filterIsInstance<ScrollView>().map {
+                JSONObject().put("identity",System.identityHashCode(it)).put("x",it.scrollX).put("y",it.scrollY)
+            }))
+    }
     private fun diagnostic(activity:Activity,folder:File) {
         check(folder.isDirectory || folder.mkdirs())
         val image=requireNotNull(test.uiAutomation.takeScreenshot())
@@ -593,21 +697,22 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         var inline=false
         main {inline=(field(activity,"productLayoutEvidence") as JSONObject).getBoolean("trendInline")}
         if(requireInline)check(inline) {"M6 standard main fixture must have a real inline trend"}
+        var retainedState:JSONObject?=null
         if(!inline) {
+            reveal(activity,tagged(activity,"scale-trend-fallback"))
+            main {retainedState=trendReturnState(activity)}
             click(activity,"scale-trend-fallback")
             await("same-buffer actual detail window") {
                 val dialog=field(field(activity,"trend")!!,"dialog") as? AlertDialog
-                dialog?.isShowing==true && dialog.window?.decorView?.isLaidOut==true
+                val decor=dialog?.window?.decorView
+                dialog?.isShowing==true && decor?.isLaidOut==true && decor.hasWindowFocus() && !decor.isLayoutRequested
             }
         }
         val evidence=if(inline)capture(activity,folder).target.getJSONArray("charts") else {
             val dialog=field(field(activity,"trend")!!,"dialog") as AlertDialog
-            frames.committedFrame(requireNotNull(dialog.window).decorView)
-            diagnostic(activity,folder)
-            val target=JSONObject(File(folder,"geometry.json").readText())
-            target.put("acceptanceStatus","PENDING_WINDOW_PROTOCOL2_OVERLOAD; raw_display_and_actual_dialog_draw_only")
-            File(folder,"geometry.json").writeText(target.toString(2))
-            target.getJSONArray("charts")
+            targetWindowNegatives(activity,requireNotNull(dialog.window),File(folder,"window-negative-cases"))
+            val target=captureTargetWindow(requireNotNull(dialog.window),folder)
+            target.target.getJSONArray("charts")
         }
         check(evidence.length()>0)
         var plotted=false
@@ -623,6 +728,9 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         if(!inline) {
             main {(field(field(activity,"trend")!!,"dialog") as AlertDialog).dismiss()}
             await("actual Activity focus/layout restored after trend detail") {activity.hasWindowFocus() && !root(activity).isLayoutRequested}
+            main {val after=trendReturnState(activity);check(after.toString()==requireNotNull(retainedState).toString())
+                File(folder,"dialog-return-state.json").writeText(JSONObject().put("before",retainedState).put("after",after)
+                    .put("exactBufferTimerAndScrollRestored",true).put("activityFocusRestored",activity.hasWindowFocus()).toString(2))}
         }
     }
     private fun supportReachability(activity:Activity,folder:File) {
@@ -683,24 +791,35 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         main {activity.window.setLayout(-1,HoyiUi.dp(activity,420))}
         await("actual short window laid out") {root(activity).height<=HoyiUi.dp(activity,420) && !root(activity).isLayoutRequested}
         render(activity)
-        diagnostic(activity,File(folder,"short-height"))
+        // Deliberately retain the original Activity mapping mode for this resized Activity.
+        // A metrics/decor mismatch fails with its actual geometry; no implicit Window-mode fallback.
+        val shortCapture=capture(activity,File(folder,"short-height"))
         main {check((activity as ScaleActivity).productLayoutEvidence.getBoolean("trendInline").not())}
-        proofs.put(JSONObject().put("case","short-height").put("acceptanceStatus","PENDING_SHORT_WINDOW_PROTOCOL2_MAPPING")
-            .put("actualWindowGeometry",JSONObject(File(folder,"short-height/geometry.json").readText())))
+        proofs.put(JSONObject().put("case","short-height").put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL")
+            .put("actualWindowGeometry",shortCapture.target).put("frameSync",shortCapture.proof))
+        reveal(activity,tagged(activity,"scale-trend-fallback"))
+        lateinit var beforeDetail:JSONObject;main {beforeDetail=trendReturnState(activity)}
         click(activity,"scale-trend-fallback")
-        await("short-height real same-buffer detail") {(field(field(activity,"trend")!!,"dialog") as? AlertDialog)?.isShowing==true}
-        frames.committedFrame(requireNotNull((field(field(activity,"trend")!!,"dialog") as AlertDialog).window).decorView)
-        diagnostic(activity,File(folder,"short-height-trend-detail"))
-        val detail=JSONObject(File(folder,"short-height-trend-detail/geometry.json").readText())
-        check(detail.getJSONArray("charts").length()>0)
-        proofs.put(JSONObject().put("case","short-height-trend-detail").put("acceptanceStatus","PENDING_WINDOW_PROTOCOL2_OVERLOAD")
-            .put("actualWindowGeometry",detail))
-        main {(field(field(activity,"trend")!!,"dialog") as AlertDialog).dismiss()}
+        await("short-height real same-buffer detail") {
+            val owner=field(field(activity,"trend")!!,"dialog") as? AlertDialog
+            val decor=owner?.window?.decorView
+            owner?.isShowing==true && decor?.isLaidOut==true && decor.hasWindowFocus() && !decor.isLayoutRequested
+        }
+        val dialog=field(field(activity,"trend")!!,"dialog") as AlertDialog
+        targetWindowNegatives(activity,requireNotNull(dialog.window),File(folder,"short-height-trend-detail/window-negative-cases"))
+        val detail=captureTargetWindow(requireNotNull(dialog.window),File(folder,"short-height-trend-detail"))
+        check(detail.target.getJSONArray("charts").length()>0)
+        proofs.put(JSONObject().put("case","short-height-trend-detail").put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL")
+            .put("actualWindowGeometry",detail.target).put("frameSync",detail.proof))
+        main {dialog.dismiss()}
         await("actual short Activity focus/layout restored after trend detail") {activity.hasWindowFocus() && !root(activity).isLayoutRequested}
+        main {val after=trendReturnState(activity);check(after.toString()==beforeDetail.toString())
+            File(folder,"short-height-trend-detail/dialog-return-state.json").writeText(JSONObject().put("before",beforeDetail).put("after",after)
+                .put("exactBufferTimerAndScrollRestored",true).put("activityFocusRestored",activity.hasWindowFocus()).toString(2))}
         scope.stopForNoServiceState();activity=start(ScaleActivity::class.java);render(activity)
         state("no-service") {check(services().isEmpty() && (field(activity,"weight") as TextView).text.toString()=="—" && !(field(activity,"tare") as Button).isEnabled)}
         File(folder,"manifest.json").writeText(JSONObject().put("cases",proofs).put("mainConfigurationCountContribution",0)
-            .put("noControlOrInventoryWrite",true).put("pendingStrictEvidence",JSONArray(listOf("trend_dialog_Window_protocol2","short_Window_protocol2")))
+            .put("noControlOrInventoryWrite",true).put("pendingStrictEvidence",JSONArray())
             .put("hardwareTareStatePages","PENDING_NO_LEGAL_MOCK_UI_WRITING_WAITING_ZERO_CONFIRMED_FAILED_UNKNOWN; original StandaloneTare unit coverage unchanged")
             .put("visualAcceptance","ASTRA_PENDING").put("completed",true).toString(2))
     }
