@@ -59,3 +59,37 @@ M3 收口复核：已实际阅读最新两文件，Android start/stop与host fal
 交Sol只读任务：从官方Android14 tag解析不可变commit，取inputmethod trace及递归import proto，保存URL/ref/SHA并与SDK34 dumpDebug字段链核对；不得以strings/猜field编号当正式解码，也不把参考源当CI二进制认证。完整解析三文件全部entry与unknown fields；用同设备elapsedRealtimeNanos排序，offset仅wall换算，不混host/mock clock。对齐trace-state marker和产品事件前先核clock/单位。提取schema实际存在的旧新window/root/inputConnection/editor package/fieldID/servedView、焦点、requested/current visibility、control target、animation、show/hide flags/reason；缺失值保unknown，不把proto absent当false。
 
 沿每个where对应SDK/AOSP调用位置核dump发生在动作前还是后。尤其核第二次hide请求主体、旧新token关联、show回调与隐藏通知关系；跨进程先后不是因果证明。输出三decoded JSON、统一timeline JSON/MD、schema来源与完整性限制到build evidence。结论分observed/source-inferred/unknown；未判明请求主体前不改生产，不盲加show重试、不放宽scroll恢复断言。若字段不足，提出下一次最小诊断采集，不伪造本次结论。
+
+## 2026-10-20 M2 editor-stage-hidden-values：独立下一诊断
+
+依据 `build/task-first-evidence/ci-a47c870-frame/m2-offline-diagnosis.md` 及其指定原件，run39417690223/source12de379c8bc98ed1d309d04c8e73edf09b3cae87：11字段、selection、focus、draftId相同；IME true→false、content高680→1391、scroll662/range662→0/range0。原严格相等断言仍FAIL。结果码2及单次show返回true不证明最终IME可见；合法range0不证明存储/clamp缺陷。与M3外观相似不构成同源证据，不改产品恢复策略。
+
+批准复用已静态冻结的 M3 因果工具，但为**独立 M2 单次重建 scope**，不扩大矩阵：
+
+1. 最小业务源文件 `TaskCurveEditorForm.kt`：只给现有恢复 evidence 的 show_request、show_result、动画、scroll-apply 事件追加真实 elapsedRealtimeNanos/pid/tid、Activity/field/decor进程内身份、field id/token identity与原toString（null明确）。现有 guard、单次show、ResultReceiver控制流、监听顺序不变；不增加requestFocus/hide/show重试/等待，不为诊断读取改变UI。不得重构恢复逻辑或移植M3产品策略。
+2. 最小测试文件 `AdvancedBusinessUiChecks.kt`：只在现有 editor-stage-hidden-values fixture 包围其一次重建，复用 ImeRecreationTrace 的已审观察接口。原setup show/recreate前后/原before-after断言/实际cleanup或unfocus执行点，使用M2独有callerSite。UI线程分别冻结旧、新实际field/decor/token引用，输出===比较；null记unknown，不等待token来满足诊断。产品事件在UI线程深拷贝；原有限scroll fixture、三帧采样及严格字符串等值断言不得改变。
+3. trace放该fixture独立子目录，检查没有其他owned session再启动；只由本scope stop一次，finally移除观察器，先保存原失败后保留诊断异常，不覆盖原断言。复用helper已有write失败隔离/ownership/PARTIAL语义，不另开系统全局debug、不hook隐藏API。原runner若已整目录保存无需改；仅确有缺口时追加既有失败artifact拉取路径，不改通过条件。
+4. M2 sidecar明确引用本次原始native三件/时间基准，不能引用M3 request-tag当本次关系。window token/app identity/IME token/request tag分列；同进程===可证明对象关系，跨进程只保原值，近邻仅temporal_candidate。旧新窗口可能保留，不能要求token必变。
+5. 若现有helper接口可直接复用，不修改 ImeRecreationTrace；若需扩展先报精确接口差异，避免破坏已冻结M3消费者。仅编译验证，后续由根安排原M2 CI；不单独设备运行。
+
+收口判定：若直接证明show关联旧/失效field或测试cleanup发生于断言前，只针对被证明路径另定修复。若show对象确为新field且cleanup未执行，则排除这两方向，继续明确framework请求归属unknown；不得因M3类似而加重试或延长等待。新增sidecar不升级collector PARTIAL，也不使M2恢复FAIL变PASS。
+
+### M2 独立因果诊断五文件静态终审
+
+Astra 已核原 finite scroll、三帧采样、before/after 严格相等、show 单次 guard、ResultReceiver/scroll 应用条件未改；未新增恢复重试、hide、requestFocus 或成功等待。M2仅 light1.0/curve-editor/editor-stage-hidden-values 原场景创建独立trace，产品现有事件补真时钟与身份；旧新field/decor/token用引用===，主线程深拷产品事件，finally移除观察器再finish，原业务失败优先。
+
+ImeRecreationTrace 的 M3 默认 fixture/capture caller/prior引用及mark/observe默认保持；M2 prior=null并注明无同scope原native trace。collector仅追加精确M2路径allowlist，原M3路径及ownership/nonce/stop/fallback/PARTIAL保持。runner在原单scenario前后及失败finally获取native三件，没有另起scenario或sidecar-only降级。
+
+终审两处窄收口已核：成功等值断言后的原capture调用前后补marker，用于标识测试副作用调用边界（**不是**内部hide精确执行时刻）；collector异常诊断文件写入另行保护，不能因次要落盘错误覆盖原业务失败。循环后的capture仍只发生于原断言之后，原失败时不会为取图先unfocus。
+
+最终审查SHA256：
+
+| 文件 | SHA256 |
+|---|---|
+| TaskCurveEditorForm.kt | c1591707fb8eb7d02709a48264273aa57e2ea282f11f5d47b164c19ace7c49df |
+| AdvancedBusinessUiChecks.kt | e4e6498c48a3d476e7abfefd5fece9461fa69daadc5f4217d79d20793e1aacc4 |
+| ImeRecreationTrace.kt | 09d753285e4a4d825cd13211ca157321dd21b665e34531e500855ca1b83b2a47 |
+| check_form_visual_migration.sh | b7f022a46ea03f153df3f6456f79a80175c0ceec9f3754199732893195a255e9 |
+| collect_ime_recreation_trace.py | fac2cc0ec54595f34ccb58feed2369f2768e658d78a09faa2fcbf2c4aa0fd829 |
+
+静态无剩余阻断。已读前一冻结稿 assembleMockAndroidTest 31s成功日志；两窄收口后最终编译由根/owner协调，不能以旧日志冒称新hash已编译。本审查 bash-n/py_compile/diff-check通过。新CI尚未取得因果记录，M2原恢复FAIL与M3原PARTIAL均不升级。

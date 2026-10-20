@@ -31,6 +31,23 @@ import kotlin.math.roundToInt
 /** Protocol 2 extracted verbatim from the accepted specimen capture; only Activity/root are generalized.
  * It captures real windows, not a specimen renderer. No protocol/budget/cancellation relaxation. */
 internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
+    private enum class OriginMode { DEFAULT, MEASURED_WINDOW_BUFFER_TRANSLATION, MEASURED_SHORT_ACTIVITY_WINDOW }
+    private object Timing {
+        const val GEOMETRY_BEFORE=0; const val GEOMETRY_AFTER=1
+        const val PIXEL_COPY_S1=2; const val WINDOW_LAYER_W1=3; const val DISPLAY_D1=4
+        const val DISPLAY_D2=5; const val WINDOW_LAYER_W2=6; const val PIXEL_COPY_S2=7
+        const val RAW_COPY_W1=8; const val RAW_COPY_D1=9; const val RAW_COPY_D2=10; const val RAW_COPY_W2=11
+        const val SHA_S1=12; const val SHA_W1=13; const val SHA_D1=14; const val SHA_D2=15
+        const val SHA_W2=16; const val SHA_S2=17
+        const val DIFF_S1_W1=18; const val DIFF_S1_D1=19; const val DIFF_D1_D2=20
+        const val DIFF_S1_W2=21; const val DIFF_S1_S2=22
+        const val APP_DISPLAY_CROP=23; const val GEOMETRY_JSON_COMPARE=24
+        val names=arrayOf("geometry_before", "geometry_after", "pixel_copy_S1", "window_layer_W1", "display_D1",
+            "display_D2", "window_layer_W2", "pixel_copy_S2", "raw_copy_W1", "raw_copy_D1", "raw_copy_D2",
+            "raw_copy_W2", "pixel_sha_S1", "pixel_sha_W1", "pixel_sha_D1", "pixel_sha_D2", "pixel_sha_W2",
+            "pixel_sha_S2", "pixel_diff_S1_W1", "pixel_diff_S1_D1_diagnostic", "pixel_diff_D1_D2",
+            "pixel_diff_S1_W2", "pixel_diff_S1_S2", "app_display_crop", "geometry_json_string_comparison")
+    }
     private var frameSequence = 0L
     private fun main(action: () -> Unit) {
         var failure: Throwable? = null
@@ -140,25 +157,47 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
      * still the visual evidence, including every system-composited corner. */
     fun screenshot(activity: android.app.Activity, root: View, file: File,
         observe: () -> JSONObject = { JSONObject() }): CapturedFrame =
-        screenshotWindow(activity.window, root, file, observe, activity)
+        screenshotWindow(activity.window, root, file, observe, activity, OriginMode.DEFAULT)
+
+    fun screenshotMeasuredShortActivity(activity: android.app.Activity, root: View, file: File,
+        observe: () -> JSONObject): CapturedFrame =
+        screenshotWindow(activity.window, root, file, observe, activity, OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW)
 
     /** Explicit target only. A modal does not borrow its owner's focus or screen origin. */
     fun screenshot(window: Window, root: View, file: File,
         observe: () -> JSONObject = { JSONObject() }): CapturedFrame =
-        screenshotWindow(window, root, file, observe, null)
+        screenshotWindow(window, root, file, observe, null, OriginMode.DEFAULT)
+
+    fun screenshotMeasuredWindowBufferTranslation(window: Window, root: View, file: File,
+        observe: () -> JSONObject): CapturedFrame =
+        screenshotWindow(window, root, file, observe, null, OriginMode.MEASURED_WINDOW_BUFFER_TRANSLATION)
 
     /** Both public entries share this exact protocol, deadline, comparisons and failure retention. */
     private fun screenshotWindow(window: Window, root: View, file: File, observe: () -> JSONObject,
-        activity: android.app.Activity?): CapturedFrame {
+        activity: android.app.Activity?, originMode: OriginMode): CapturedFrame {
+        check((originMode != OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW || activity != null) &&
+            (originMode != OriginMode.MEASURED_WINDOW_BUFFER_TRANSLATION || activity == null))
         val started = SystemClock.elapsedRealtime()
         val deadline = started + 5000
         val attempts = JSONArray()
         val artifacts = JSONArray()
+        val captureTimings = mutableListOf<LongArray>()
+        val proofTimings = mutableListOf<LongArray>()
+        var currentTiming: LongArray? = null
+        fun <T> timed(slot: Int, action: () -> T): T {
+            val timing = currentTiming
+            if (timing == null) return action()
+            timing[slot * 2] = SystemClock.elapsedRealtimeNanos()
+            try { return action() } finally { timing[slot * 2 + 1] = SystemClock.elapsedRealtimeNanos() }
+        }
         data class Candidate(val attempt: Int, val images: Map<String, Bitmap>) {
             fun recycle() { images.values.forEach { it.recycle() } }
         }
         var retained: Candidate? = null
-        val mappingMode = if (activity == null) "EXPLICIT_WINDOW_MEASURED_DECOR" else "ACTIVITY_STRICT_METRICS_DECOR"
+        val mappingMode = when (originMode) {
+            OriginMode.DEFAULT -> if (activity == null) "EXPLICIT_WINDOW_MEASURED_DECOR" else "ACTIVITY_STRICT_METRICS_DECOR"
+            else -> originMode.name
+        }
         var targetDecor: View? = null
         var targetToken: android.os.IBinder? = null
         var targetDisplayId: Int? = null
@@ -171,7 +210,8 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
             candidate.images.forEach { (role, bitmap) ->
                 // On success retain both unmodified full displays. All six raw
                 // inputs are retained on failure, outside the matching budget.
-                if (failure || role == "display" || role == "display-after") {
+                if (failure || role == "display" || role == "display-after" ||
+                    (originMode == OriginMode.MEASURED_WINDOW_BUFFER_TRANSLATION && role in setOf("layer-before", "layer-after"))) {
                     val output = File(file.parentFile, imageName(role))
                     bitmap.output(output)
                     artifacts.put(JSONObject().put("attempt", candidate.attempt).put("role", role)
@@ -180,7 +220,11 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
             }
         }
         val proofFile = File(file.parentFile, "${file.nameWithoutExtension}-frame-sync.json")
+        val timingFile = File(file.parentFile, "${file.nameWithoutExtension}-frame-timings-diagnostic.json")
         fun writeProof(accepted: Boolean, error: String? = null): JSONObject {
+            val proofTiming = LongArray(6)
+            proofTimings.add(proofTiming)
+            proofTiming[0] = SystemClock.elapsedRealtimeNanos()
             val proof = JSONObject().put("protocolVersion", 2)
                 .put("protocol", "commit_S1_WindowLayer1_Display1_Display2_WindowLayer2_S2")
                 .put("accepted", accepted).put("timeoutMs", 5000).put("attempts", attempts)
@@ -196,6 +240,7 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                 .put("pixelComparison", "each_equivalent_domain_all_app_pixels_no_tolerance_no_mask")
                 .put("crossDomainComparison", "DIAGNOSTIC_ONLY_PIPELINES_NOT_EQUIVALENT")
                 .put("captureArtifacts", artifacts).put("elapsedMs", SystemClock.elapsedRealtime() - started)
+                .put("timingDiagnosticFile", timingFile.name)
                 .put("acceptedAttempt", if (accepted) attempts.length() else JSONObject.NULL)
                 .put("retainedFailureAttempt", retained?.attempt ?: JSONObject.NULL)
             if (attempts.length() > 0) {
@@ -205,7 +250,12 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
             }
             if (file.exists()) proof.put("imageSha256", sha(file))
             error?.let { proof.put("failure", it) }
-            proofFile.writeText(proof.toString(2))
+            proofTiming[1] = SystemClock.elapsedRealtimeNanos()
+            proofTiming[2] = SystemClock.elapsedRealtimeNanos()
+            val serialized = proof.toString(2)
+            proofTiming[3] = SystemClock.elapsedRealtimeNanos()
+            proofTiming[4] = SystemClock.elapsedRealtimeNanos()
+            try { proofFile.writeText(serialized) } finally { proofTiming[5] = SystemClock.elapsedRealtimeNanos() }
             return proof
         }
         try {
@@ -213,6 +263,9 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
             while (SystemClock.elapsedRealtime() < deadline) {
                 val attempt = JSONObject()
                 attempts.put(attempt)
+                currentTiming = LongArray(Timing.names.size * 2).also { captureTimings.add(it) }
+                var measuredTranslation: android.graphics.Point? = null
+                var measuredLayerSize: android.graphics.Point? = null
                 val budget = JSONArray()
                 attempt.put("budget", budget)
                 fun remaining(stage: String): Long {
@@ -240,7 +293,7 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                         }
                         check(current===decor) { "Explicit Window root ancestor chain did not reach target decor" }
                 }
-                if(activity==null) main {validateExplicitWindow()}
+                if(activity==null || originMode==OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW) main {validateExplicitWindow()}
                 attempt.put("frame", committedFrame(root, remaining("hardware_commit")))
                 lateinit var source: Rect
                 lateinit var screen: Rect
@@ -279,7 +332,7 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                             JSONObject().put("position", position).put("radiusPx", corner?.radius ?: JSONObject.NULL)
                                 .put("centerPx", corner?.center?.let { JSONArray(listOf(it.x, it.y)) } ?: JSONObject.NULL)
                         })).put("roundedCornersAreApproximateNotMasks", true)
-                        .apply { if (activity == null) {
+                        .apply { if (activity == null || originMode == OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW) {
                             val attributes=window.attributes
                             val displaySize=android.graphics.Point().also(display::getRealSize)
                             put("windowIdentity",System.identityHashCode(window)).put("rootIdentity",System.identityHashCode(root))
@@ -321,8 +374,8 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                 main {
                     if(targetDecor==null) { targetDecor=window.decorView; targetToken=window.decorView.windowToken; targetDisplayId=window.decorView.display?.displayId }
                     if (activity != null) check(activity.hasWindowFocus()) { "Specimen capture lost window focus" }
-                    if(activity==null) validateExplicitWindow()
-                    before = geometry()
+                    if(activity==null || originMode==OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW) validateExplicitWindow()
+                    before = timed(Timing.GEOMETRY_BEFORE) { geometry() }
                             val decor = window.decorView
                     val wl = before.getJSONArray("appLocationInWindowPx")
                     val sl = before.getJSONArray("appLocationOnScreenPx")
@@ -333,13 +386,18 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                     val ds = before.getJSONArray("decorLocationOnScreenPx")
                     if (activity != null) {
                         val metrics = activity.windowManager.currentWindowMetrics.bounds
-                        val mapped = dw.getInt(0) == 0 && dw.getInt(1) == 0 && metrics.left == ds.getInt(0) && metrics.top == ds.getInt(1) &&
-                            metrics.width() == decor.width && metrics.height() == decor.height &&
+                        val common = dw.getInt(0) == 0 && dw.getInt(1) == 0 &&
                             screen.left - source.left == ds.getInt(0) && screen.top - source.top == ds.getInt(1)
+                        val mapped = if (originMode == OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW) {
+                            val displaySize = android.graphics.Point().also(requireNotNull(root.display)::getRealSize)
+                            val decorRect = Rect(ds.getInt(0), ds.getInt(1), ds.getInt(0) + decor.width, ds.getInt(1) + decor.height)
+                            common && metrics.contains(decorRect) && Rect(0, 0, displaySize.x, displaySize.y).contains(decorRect)
+                        } else common && metrics.left == ds.getInt(0) && metrics.top == ds.getInt(1) &&
+                            metrics.width() == decor.width && metrics.height() == decor.height
                         if (!mapped && dw.getInt(0) == 0 && dw.getInt(1) == 0 &&
                             screen.left - source.left == ds.getInt(0) && screen.top - source.top == ds.getInt(1) &&
                             (metrics.left != ds.getInt(0) || metrics.top != ds.getInt(1) ||
-                                metrics.width() != decor.width || metrics.height() != decor.height)) {
+                                metrics.width() != decor.width || metrics.height() != decor.height) && originMode == OriginMode.DEFAULT) {
                             mappingDiagnosticReason = "ACTIVITY_DECOR_DIFFERS_FROM_HOST_METRICS"
                         }
                         check(mapped) {
@@ -353,7 +411,11 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                         "Scaled or rotated Window-layer mapping is unsupported"
                     }
                     check(source.left >= 0 && source.top >= 0 && source.right <= decor.width && source.bottom <= decor.height)
-                    attempt.put("windowLayerMapping", "SDK34_measured_zero_surfaceInsets_unscaled_Window_local")
+                    attempt.put("windowLayerMapping", when(originMode) {
+                        OriginMode.DEFAULT -> "SDK34_measured_zero_surfaceInsets_unscaled_Window_local"
+                        OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW -> "measured_short_decor_within_host_metrics_and_display"
+                        OriginMode.MEASURED_WINDOW_BUFFER_TRANSLATION -> "SDK34_measured_source_translation_symmetric_layer_extension"
+                    })
                     if(activity==null) attempt.put("explicitWindowMappingMode",mappingMode)
                 }
                 val images = linkedMapOf<String, Bitmap>()
@@ -361,76 +423,121 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                 var acceptedAttempt = false
                 try {
                     fun copy(role: String): Bitmap {
-                        val result = copyWindow(window, source, remaining(role))
+                        val timeout = remaining(role)
+                        val result = timed(if (role == "surface-before") Timing.PIXEL_COPY_S1 else Timing.PIXEL_COPY_S2) {
+                            copyWindow(window, source, timeout)
+                        }
                         result.bitmap?.let { images[role] = it }
                         attempt.put("${role}Code", if (result.callbackCompleted) result.resultCode else JSONObject.NULL)
                             .put("${role}Callback", result.callbackCompleted).put("${role}SourceRectAfterSdk", rect(result.sourceRectAfterSdk))
                         check(result.callbackCompleted) { "PIXEL_COPY_CALLBACK_TIMEOUT $role; no Android result received within capture budget" }
                         check(result.resultCode == PixelCopy.SUCCESS) { "PixelCopy $role failed: ${result.resultCode}" }
                         // SDK34 offsets this input Rect by surfaceInsets. A fresh
-                        // Rect prevents accumulated offsets; nonzero offsets FAIL.
-                        if (activity == null && result.sourceRectAfterSdk != source) {
-                            mappingDiagnosticReason = "EXPLICIT_WINDOW_PIXELCOPY_SOURCE_RECT_OFFSET"
+                        // Rect prevents accumulated offsets. Only the explicit opt-in
+                        // mode accepts a measured nonnegative translation.
+                        if (originMode == OriginMode.MEASURED_WINDOW_BUFFER_TRANSLATION) {
+                            val actual = result.sourceRectAfterSdk
+                            val dx = actual.left - source.left; val dy = actual.top - source.top
+                            check(dx >= 0 && dy >= 0 && actual.right == source.right + dx && actual.bottom == source.bottom + dy) {
+                                "Unsupported SDK source Rect translation"
+                            }
+                            val first = measuredTranslation
+                            if (first == null) measuredTranslation = android.graphics.Point(dx, dy)
+                            else check(first.x == dx && first.y == dy) { "S1/S2 SDK source translation changed" }
+                            attempt.put("measuredSourceTranslationPx", JSONArray(listOf(dx,dy)))
+                                .put("windowLayerRoiPx", rect(actual))
+                        } else {
+                            if (activity == null && result.sourceRectAfterSdk != source) {
+                                mappingDiagnosticReason = "EXPLICIT_WINDOW_PIXELCOPY_SOURCE_RECT_OFFSET"
+                            }
+                            check(result.sourceRectAfterSdk == source) { "Nonzero surfaceInsets: Window-layer buffer origin is unsupported" }
                         }
-                        check(result.sourceRectAfterSdk == source) { "Nonzero surfaceInsets: Window-layer buffer origin is unsupported" }
                         val bitmap = requireNotNull(result.bitmap)
-                        attempt.put(role, bitmapDescription(bitmap)).put("${role}AppArgbSha256", pixelSha(bitmap))
+                        attempt.put(role, bitmapDescription(bitmap)).put("${role}AppArgbSha256",
+                            timed(if (role == "surface-before") Timing.SHA_S1 else Timing.SHA_S2) { pixelSha(bitmap) })
                         return bitmap
                     }
                     fun capture(role: String, windowLayer: Boolean): Bitmap {
                         remaining(role)
-                        val raw = requireNotNull(if (windowLayer) test.uiAutomation.takeScreenshot(window) else test.uiAutomation.takeScreenshot()) {
+                        val slot = when (role) {
+                            "layer-before" -> Timing.WINDOW_LAYER_W1
+                            "display" -> Timing.DISPLAY_D1
+                            "display-after" -> Timing.DISPLAY_D2
+                            else -> Timing.WINDOW_LAYER_W2
+                        }
+                        val raw = requireNotNull(timed(slot) {
+                            if (windowLayer) test.uiAutomation.takeScreenshot(window) else test.uiAutomation.takeScreenshot()
+                        }) {
                             "UiAutomation $role returned null"
                         }
                         images[role] = raw
                         attempt.put(role, bitmapDescription(raw))
                         if (windowLayer) {
                             val size = before.getJSONArray("windowDecorSizePx")
-                            check(raw.width == size.getInt(0) && raw.height == size.getInt(1)) { "Unknown Window-layer bitmap origin/size; no resizing allowed" }
+                            if (originMode == OriginMode.MEASURED_WINDOW_BUFFER_TRANSLATION) {
+                                val shift = requireNotNull(measuredTranslation)
+                                val prior = measuredLayerSize
+                                check(raw.width == size.getInt(0) + 2 * shift.x && raw.height == size.getInt(1) + 2 * shift.y &&
+                                    source.left + shift.x >= 0 && source.top + shift.y >= 0 &&
+                                    source.right + shift.x <= raw.width && source.bottom + shift.y <= raw.height &&
+                                    (prior == null || (prior.x == raw.width && prior.y == raw.height))) {
+                                    "Unknown or asymmetric Window-layer buffer extension"
+                                }
+                                measuredLayerSize = android.graphics.Point(raw.width, raw.height)
+                                attempt.put("measuredWindowLayerSizePx", JSONArray(listOf(raw.width,raw.height)))
+                                    .put("surfaceInsetsMeasurement", "UNKNOWN_NOT_READ; layer extension inferred only from actual SDK source translation")
+                            } else check(raw.width == size.getInt(0) && raw.height == size.getInt(1)) {
+                                "Unknown Window-layer bitmap origin/size; no resizing allowed"
+                            }
                         } else {
                             check(screen.left >= 0 && screen.top >= 0 && screen.right <= raw.width && screen.bottom <= raw.height)
                         }
                         return raw
                     }
-                    fun <T> readable(raw: Bitmap, action: (Bitmap) -> T): T {
-                        val software = requireNotNull(raw.copy(Bitmap.Config.ARGB_8888, false))
+                    fun <T> readable(raw: Bitmap, copySlot: Int, action: (Bitmap) -> T): T {
+                        val software = requireNotNull(timed(copySlot) { raw.copy(Bitmap.Config.ARGB_8888, false) })
                         try { return action(software) } finally { software.recycle() }
                     }
                     val s1 = copy("surface-before")
                     val w1 = capture("layer-before", true)
+                    fun layerRoi(): Rect = Rect(source).also { measuredTranslation?.let { shift -> it.offset(shift.x, shift.y) } }
                     var windowColors = s1.colorSpace != null && s1.colorSpace == w1.colorSpace
-                    val w1Difference = readable(w1) { bitmap ->
-                        attempt.put("layer-beforeAppArgbSha256", pixelSha(bitmap, source))
-                        pixelDifferenceEvidence(s1, bitmap, source, screen)
+                    val w1Difference = readable(w1, Timing.RAW_COPY_W1) { bitmap ->
+                        attempt.put("layer-beforeAppArgbSha256", timed(Timing.SHA_W1) { pixelSha(bitmap, layerRoi()) })
+                        timed(Timing.DIFF_S1_W1) { pixelDifferenceEvidence(s1, bitmap, layerRoi(), screen) }
                     }
                     val d1 = capture("display", false)
-                    val crossDifference = readable(d1) { bitmap ->
-                        attempt.put("displayAppArgbSha256", pixelSha(bitmap, screen))
-                        appDisplay = Bitmap.createBitmap(bitmap, screen.left, screen.top, screen.width(), screen.height())
-                        pixelDifferenceEvidence(s1, bitmap, screen, screen)
+                    val crossDifference = readable(d1, Timing.RAW_COPY_D1) { bitmap ->
+                        attempt.put("displayAppArgbSha256", timed(Timing.SHA_D1) { pixelSha(bitmap, screen) })
+                        appDisplay = timed(Timing.APP_DISPLAY_CROP) {
+                            Bitmap.createBitmap(bitmap, screen.left, screen.top, screen.width(), screen.height())
+                        }
+                        timed(Timing.DIFF_S1_D1) { pixelDifferenceEvidence(s1, bitmap, screen, screen) }
                     }
                     val d2 = capture("display-after", false)
                     val displayColors = d1.colorSpace != null && d1.colorSpace == d2.colorSpace
-                    val displayDifference = readable(d2) { bitmap ->
-                        attempt.put("display-afterAppArgbSha256", pixelSha(bitmap, screen))
-                        pixelDifferenceEvidence(requireNotNull(appDisplay), bitmap, screen, screen)
+                    val displayDifference = readable(d2, Timing.RAW_COPY_D2) { bitmap ->
+                        attempt.put("display-afterAppArgbSha256", timed(Timing.SHA_D2) { pixelSha(bitmap, screen) })
+                        timed(Timing.DIFF_D1_D2) { pixelDifferenceEvidence(requireNotNull(appDisplay), bitmap, screen, screen) }
                     }
                     appDisplay?.recycle(); appDisplay = null
                     val w2 = capture("layer-after", true)
                     windowColors = windowColors && s1.colorSpace == w2.colorSpace
-                    val w2Difference = readable(w2) { bitmap ->
-                        attempt.put("layer-afterAppArgbSha256", pixelSha(bitmap, source))
-                        pixelDifferenceEvidence(s1, bitmap, source, screen)
+                    val w2Difference = readable(w2, Timing.RAW_COPY_W2) { bitmap ->
+                        attempt.put("layer-afterAppArgbSha256", timed(Timing.SHA_W2) { pixelSha(bitmap, layerRoi()) })
+                        timed(Timing.DIFF_S1_W2) { pixelDifferenceEvidence(s1, bitmap, layerRoi(), screen) }
                     }
                     val s2 = copy("surface-after")
                     windowColors = windowColors && s1.colorSpace == s2.colorSpace
-                    val surfaceDifference = pixelDifferenceEvidence(s1, s2, Rect(0, 0, s2.width, s2.height), screen)
+                    val surfaceDifference = timed(Timing.DIFF_S1_S2) {
+                        pixelDifferenceEvidence(s1, s2, Rect(0, 0, s2.width, s2.height), screen)
+                    }
                     lateinit var after: JSONObject
                     main {
-                        after = geometry()
-                        if(activity==null) validateExplicitWindow()
+                        after = timed(Timing.GEOMETRY_AFTER) { geometry() }
+                        if(activity==null || originMode==OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW) validateExplicitWindow()
                     }
-                    val geometryStable = before.toString() == after.toString()
+                    val geometryStable = timed(Timing.GEOMETRY_JSON_COMPARE) { before.toString() == after.toString() }
                     val windowReady = listOf(before, after).all {
                         it.getBoolean("hasWindowFocus") && !it.getBoolean("rootLayoutRequested") && !it.getBoolean("decorLayoutRequested")
                     }
@@ -484,6 +591,30 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
             throw failure
         } finally {
             retained?.recycle()
+            // Terminal diagnostic only: never feeds acceptance or rewrites its proof.
+            try {
+                val attemptRows = JSONArray()
+                captureTimings.forEachIndexed { index, times ->
+                    val stages = JSONObject()
+                    Timing.names.forEachIndexed { slot, name ->
+                        val first = times[slot * 2]; val last = times[slot * 2 + 1]
+                        stages.put(name, if (first > 0L && last >= first) last - first else JSONObject.NULL)
+                    }
+                    attemptRows.put(JSONObject().put("attempt", index + 1).put("stageDurationNanos", stages))
+                }
+                val proofRows = JSONArray()
+                proofTimings.forEachIndexed { index, times ->
+                    proofRows.put(JSONObject().put("writeOrdinal", index + 1)
+                        .put("proofBuildNanos", if (times[1] >= times[0] && times[0] > 0L) times[1] - times[0] else JSONObject.NULL)
+                        .put("proofSerializationNanos", if (times[3] >= times[2] && times[2] > 0L) times[3] - times[2] else JSONObject.NULL)
+                        .put("proofFileWriteNanos", if (times[5] >= times[4] && times[4] > 0L) times[5] - times[4] else JSONObject.NULL))
+                }
+                timingFile.writeText(JSONObject().put("scope", "DIAGNOSTIC_ONLY_NOT_ACCEPTANCE")
+                    .put("clock", "SystemClock.elapsedRealtimeNanos")
+                    .put("attempts", attemptRows).put("proofWrites", proofRows).toString(2))
+            } catch (_: Throwable) {
+                // Timing diagnostics cannot replace the original accepted/failed result.
+            }
         }
     }
     private fun Bitmap.output(file: File) {

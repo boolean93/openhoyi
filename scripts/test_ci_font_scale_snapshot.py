@@ -24,6 +24,28 @@ class Contracts(unittest.TestCase):
             with self.assertRaises(ProbeError):
                 snapshot_names(response(text))
 
+    def test_actual_snapshot_list_dash_dash_id_requires_exact_ack(self):
+        table = ('List of snapshots present on all disks:\n'
+                 'ID        TAG                 VM SIZE                DATE       VM CLOCK\n'
+                 '--        font_probe_39417689944_1_probe    67M 2026-10-20 11:50:27   00:00:28.221\n'
+                 'OK\n')
+        self.assertEqual(snapshot_names(response(table)), ['font_probe_39417689944_1_probe'])
+        invalid = (
+            response(table, code=1), response(table, stderr='warning'), response(table, stderr='\n'),
+            response(table.replace('OK\n', 'FAIL\n')),
+            response(table.replace('font_probe_39417689944_1_probe', 'font_probe_39417689944_1_probe extra')),
+            response(table.replace('--        ', '---       ')),
+            response(table.replace('--        ', '-         ')),
+            response(table.replace('67M', 'unknown')),
+            response(table.replace('OK\n', '-- other 2M 2026-10-20 11:50:27 00:00:28.221\nOK\n')
+                     .replace('other 2M', 'other BAD')),
+            response(table.replace('OK\n', '1 other 2M 2026-10-20 11:50:27 00:00:28.221\nOK\n')),
+        )
+        for result in invalid:
+            with self.subTest(result=result):
+                with self.assertRaises(ProbeError):
+                    snapshot_names(result)
+
     def test_actual_emulator_empty_snapshot_list_is_exact(self):
         actual = 'There is no snapshot available.\nOK\n'
         self.assertEqual(snapshot_names(response(actual)), [])

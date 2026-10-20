@@ -8,6 +8,7 @@ import android.content.Intent
 import android.graphics.Rect
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.text.Editable
 import android.text.TextWatcher
@@ -17,7 +18,12 @@ import android.view.ViewGroup
 import android.view.accessibility.AccessibilityEvent
 import android.widget.TextView
 import org.json.JSONObject
+import org.json.JSONArray
+import java.io.File
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
 /** Isolated, Mock-package-only observation. Pausing one Activity redraw is a diagnostic probe,
@@ -33,6 +39,31 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
     private data class TextChange(val window:String,val atMs:Long,val node:String,val before:String,val after:String)
     private data class OwnerState(val identity:Int,val running:Boolean,val coffeeAt:Long?,val weightAt:Long?)
     private data class Window(val name:String,val fromMs:Long,val toMs:Long,val before:OwnerState,val after:OwnerState)
+    private data class ReadyObservation(val atMs:Long,val homeIdentity:Int?,val lifecyclePhase:String,
+        val destroyed:Boolean?,val focus:Boolean?,val decorAttached:Boolean?,val decorLaidOut:Boolean?,
+        val decorLayoutRequested:Boolean?,val decorWidth:Int?,val decorHeight:Int?,val tokenIdentity:Int?,
+        val ownerPresent:Boolean?,val ownerIdentity:Int?,val ownerRunning:Boolean?) {
+        fun unmet():List<String> = buildList {
+            if(homeIdentity==null)add("currentHomeAbsent")
+            if(destroyed!=false)add("homeDestroyedOrUnknown")
+            if(focus!=true)add("homeFocusMissing")
+            if(decorAttached!=true)add("decorDetachedOrUnknown")
+            if(decorLaidOut!=true)add("decorNotLaidOut")
+            if(decorLayoutRequested==true)add("decorLayoutRequested")
+            if((decorWidth ?: 0)<=0 || (decorHeight ?: 0)<=0)add("decorEmptyOrUnknown")
+            if(tokenIdentity==null)add("windowTokenMissing")
+            if(ownerPresent!=true)add("ownerAbsent")
+            if(ownerRunning!=true)add("ownerNotRunning")
+        }
+        fun json()=JSONObject().put("atElapsedMs",atMs).put("currentHomeIdentity",homeIdentity ?: JSONObject.NULL)
+            .put("lifecyclePhase",lifecyclePhase).put("destroyed",destroyed ?: JSONObject.NULL)
+            .put("focus",focus ?: JSONObject.NULL).put("decorAttached",decorAttached ?: JSONObject.NULL)
+            .put("decorLaidOut",decorLaidOut ?: JSONObject.NULL).put("decorLayoutRequested",decorLayoutRequested ?: JSONObject.NULL)
+            .put("decorSizePx",if(decorWidth!=null && decorHeight!=null)JSONArray(listOf(decorWidth,decorHeight)) else JSONObject.NULL)
+            .put("windowTokenIdentity",tokenIdentity ?: JSONObject.NULL).put("ownerPresent",ownerPresent ?: JSONObject.NULL)
+            .put("ownerIdentity",ownerIdentity ?: JSONObject.NULL).put("ownerRunning",ownerRunning ?: JSONObject.NULL)
+            .put("unmet",JSONArray(unmet()))
+    }
     private fun stream(text:String) = test.sendStatus(0,Bundle().apply {putString("stream",text+"\n")})
     private fun quote(value:String?)=JSONObject.quote(value.orEmpty())
     private fun onMain(action:()->Unit) {
@@ -139,21 +170,25 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
         val monitor=test.addMonitor(HomeActivity::class.java.name,null,false)
         val app=context.applicationContext as Application
         val currentHome=AtomicReference<HomeActivity?>(null)
+        val currentPhase=AtomicReference("not_created")
+        val readyLast=AtomicReference<ReadyObservation?>(null)
+        val readyChanges=ConcurrentLinkedQueue<ReadyObservation>()
         val callbacks=object:Application.ActivityLifecycleCallbacks {
             private fun track(activity:Activity,phase:String) {
                 if(activity is HomeActivity) {
                     currentHome.set(activity)
+                    currentPhase.set(phase)
                     stream("IDLE_DIAGNOSTIC_HOME phase=$phase identity=${System.identityHashCode(activity)}")
                 }
             }
             override fun onActivityCreated(activity:Activity,state:Bundle?)=track(activity,"created")
             override fun onActivityStarted(activity:Activity)=track(activity,"started")
             override fun onActivityResumed(activity:Activity)=track(activity,"resumed")
-            override fun onActivityPaused(activity:Activity) {}
-            override fun onActivityStopped(activity:Activity) {}
+            override fun onActivityPaused(activity:Activity) {if(activity is HomeActivity && currentHome.get()===activity)currentPhase.set("paused")}
+            override fun onActivityStopped(activity:Activity) {if(activity is HomeActivity && currentHome.get()===activity)currentPhase.set("stopped")}
             override fun onActivitySaveInstanceState(activity:Activity,state:Bundle) {}
             override fun onActivityDestroyed(activity:Activity) {
-                if(activity is HomeActivity) currentHome.compareAndSet(activity,null)
+                if(activity is HomeActivity && currentHome.compareAndSet(activity,null))currentPhase.set("destroyed")
             }
         }
         var callbacksRegistered=false
@@ -185,17 +220,71 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
             home=test.waitForMonitorWithTimeout(monitor,10_000) as? HomeActivity
                 ?: error("Home startup not observed")
             val readyDeadline=SystemClock.elapsedRealtime()+10_000
-            fun ready():Boolean {
-                // ActivityMonitor does not reliably report configuration relaunches.
-                // Application callbacks observe each framework-created replacement.
-                val current=currentHome.get() ?: return false
-                home=current
-                return !current.isDestroyed && current.hasWindowFocus() &&
-                    current.window.decorView.isLaidOut && owner(current)?.running==true
+            fun observeReady():Boolean {
+                // Only read actual Activity/View/owner state on the main thread.
+                val current=currentHome.get()
+                val decor=current?.window?.decorView
+                val service=current?.let(::owner)
+                val observation=ReadyObservation(SystemClock.elapsedRealtime(),current?.let(System::identityHashCode),
+                    currentPhase.get(),current?.isDestroyed,current?.hasWindowFocus(),decor?.isAttachedToWindow,
+                    decor?.isLaidOut,decor?.isLayoutRequested,decor?.width,decor?.height,
+                    decor?.windowToken?.let(System::identityHashCode),current?.let {service!=null},
+                    service?.let(System::identityHashCode),service?.running)
+                val prior=readyLast.getAndSet(observation)
+                if(prior?.copy(atMs=0)!=observation.copy(atMs=0))readyChanges.add(observation)
+                if(current!=null)home=current
+                return current!=null && !current.isDestroyed && current.hasWindowFocus() &&
+                    decor?.isLaidOut==true && service?.running==true
             }
-            awaitMain(readyDeadline,::ready)
-            SystemClock.sleep(1_000) // Discard launch events; both measured windows remain exactly 2s.
-            awaitMain(readyDeadline,::ready)
+            var mainAckMissing=false
+            fun awaitReady() {
+                while(true) {
+                    val left=readyDeadline-SystemClock.elapsedRealtime()
+                    check(left>0) {"Home/service startup timed out (no accessibility idle wait)"}
+                    val latch=CountDownLatch(1)
+                    val cancelled=AtomicBoolean(false)
+                    var ready=false;var failure:Throwable?=null
+                    Handler(Looper.getMainLooper()).post {
+                        if(!cancelled.get())try {ready=observeReady()} catch(error:Throwable) {failure=error}
+                        latch.countDown()
+                    }
+                    if(!latch.await(left,TimeUnit.MILLISECONDS)) {
+                        cancelled.set(true);mainAckMissing=true
+                        error("Home/service startup timed out (no accessibility idle wait)")
+                    }
+                    failure?.let {throw it}
+                    if(ready)return
+                    check(SystemClock.elapsedRealtime()<readyDeadline) {"Home/service startup timed out (no accessibility idle wait)"}
+                    SystemClock.sleep(25)
+                }
+            }
+            fun recordReadyTimeout(failure:Throwable) {
+                val last=readyLast.get()
+                val status=if(last==null)"UNAVAILABLE_NO_MAIN_ACK" else if(mainAckMissing)"STALE_LAST_MAIN_ACK" else "LAST_MAIN_ACK"
+                val diagnostic=JSONObject().put("status","DIAGNOSTIC_NOT_ACCEPTANCE")
+                    .put("reason","HOME_READY_TIMEOUT").put("mainState",status)
+                    .put("readyDeadlineElapsedMs",readyDeadline).put("recordedAtElapsedMs",SystemClock.elapsedRealtime())
+                    .put("lastObservationElapsedMs",last?.atMs ?: JSONObject.NULL)
+                    .put("lastMainAck",last?.json() ?: JSONObject.NULL)
+                    .put("unmet",JSONArray(last?.unmet() ?: listOf("mainObservationUnavailable")))
+                    .put("changes",JSONArray(readyChanges.map {it.json()}))
+                    .put("failure",failure.toString())
+                try {
+                    val folder=File(requireNotNull(context.getExternalFilesDir(null)),"idle-accessibility-diagnostic")
+                    check(folder.isDirectory || folder.mkdirs())
+                    File(folder,"ready-timeout.json").writeText(diagnostic.toString(2))
+                } catch(writeFailure:Throwable) {
+                    try {stream("IDLE_DIAGNOSTIC_READY_TIMEOUT_WRITE_FAILED ${writeFailure.javaClass.simpleName}")} catch(_:Throwable) {}
+                }
+            }
+            try {
+                awaitReady()
+                SystemClock.sleep(1_000) // Discard launch events; both measured windows remain exactly 2s.
+                awaitReady()
+            } catch(failure:Throwable) {
+                if(failure.message?.startsWith("Home/service startup timed out")==true)recordReadyTimeout(failure)
+                throw failure
+            }
             val screen=requireNotNull(home)
             watch(screen);dumpNodes(screen,"baseline-start")
             windows+=sample(screen,"baseline")

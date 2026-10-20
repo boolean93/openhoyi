@@ -134,6 +134,8 @@ adb pull "/sdcard/Android/data/$package/files/legacy-visual-migration/$source_sh
 python3 - "$output_dir/$source_sha" <<'VERIFY_PY'
 from pathlib import Path
 import hashlib,json,struct,sys
+sys.path.insert(0,str(Path('scripts').resolve()))
+from window_mapping_contract import validate, DEFAULT_ACTIVITY, DEFAULT_WINDOW, TRANSLATED_WINDOW, SHORT_ACTIVITY
 root=Path(sys.argv[1]); sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
 manifests=sorted(root.glob('*/*/manifest.json'))
 assert len(manifests)==12, f'Expected 12 real M7 configurations, got {len(manifests)}'
@@ -161,30 +163,8 @@ def require_protocol(path, kind=None):
     assert attempt['windowDomainColorSpacesEqual'] and attempt['displayDomainColorSpacesEqual']
     assert attempt['windowLayerMatch'] and attempt['displayStable']
     for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'):assert attempt[key]['count']==0,(path,key)
-    source=attempt['windowSourceRectPx']; screen=attempt['displayAppRectPx']
-    assert attempt['surface-beforeSourceRectAfterSdk']==source==attempt['surface-afterSourceRectAfterSdk'],path
-    for geometry in (attempt['geometryBefore'],attempt['geometryAfter']):
-        assert geometry['hasWindowFocus'] and not geometry['rootLayoutRequested'] and not geometry['decorLayoutRequested']
-        decor=geometry['windowDecorSizePx']; ds=geometry['decorLocationOnScreenPx']
-        assert geometry['decorLocationInWindowPx']==[0,0]
-        assert screen[0]-source[0]==ds[0] and screen[1]-source[1]==ds[1]
-        assert 0<=source[0]<source[2]<=decor[0] and 0<=source[1]<source[3]<=decor[1]
-        assert attempt['layer-before']['sizePx']==decor==attempt['layer-after']['sizePx']
-        if proof['captureWindowKind']=='EXPLICIT_WINDOW':
-            assert proof['mappingMode']=='EXPLICIT_WINDOW_MEASURED_DECOR'
-            assert geometry['windowIdentity']==proof['windowIdentity'] and geometry['decorIdentity']==proof['decorIdentity']
-            assert geometry['rootIdentity']==proof['rootIdentity'] and geometry['rootViewIdentity']==proof['decorIdentity']
-            assert geometry['rootTokenIdentity']==geometry['decorTokenIdentity']==proof['windowTokenIdentity']
-            assert geometry['displayId']==proof['displayId']==0
-            assert geometry['metricsRole']=='diagnostic_host_container_not_assumed_dialog_bounds'
-            chain=geometry['targetAncestorChain'];assert chain and chain[0]['identity']==proof['rootIdentity'] and chain[-1]['identity']==proof['decorIdentity']
-            for node in chain:
-                assert node['attached'] and node['hardwareAccelerated'] and node['laidOut'] and node['hasWindowFocus'] and not node['layoutRequested']
-                assert node['tokenIdentity']==proof['windowTokenIdentity'] and node['displayId']==0
-                assert node['matrixIdentity'] and node['transform']==[1,1,0,0,0,0,0,0]
-        else:
-            assert proof['mappingMode']=='ACTIVITY_STRICT_METRICS_DECOR'
-            assert geometry['windowMetricsBoundsPx']==[ds[0],ds[1],ds[0]+decor[0],ds[1]+decor[1]]
+    expected=SHORT_ACTIVITY if path.parent.name=='short-window' else DEFAULT_ACTIVITY
+    validate(proof,attempt,expected)
     artifacts=proof['captureArtifacts']
     assert {item['role'] for item in artifacts}=={'display','display-after'}
     for item in artifacts:

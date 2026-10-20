@@ -31,3 +31,11 @@
 窄审发现继承guard仍用 `not result.stderr.strip()`，实构造空白stderr ` \n` 也通过，与本轮精确空stderr契约不一致。最小收口只将snapshot_names guard改为 `result.stderr == ''`，补空白stderr负例；其余原流程不扩改。已报root，当前等待此单点收口。
 
 空stderr单点已收口：已复核snapshot_names要求rc0且stderr严格空字符串，新增空白stderr负例；本审查实际运行10项离线单测全部通过。当前两文件diff仅真实空列表语句适配与该严格守卫/负例，符合原探针边界，静态无剩余阻断。probe SHA256 `e99d77296a7ec3fccab9f8340e76bdc639ea3c59979c0c2311a060a1164f5d58`；test SHA256 `ceda4fa6ec9d5de50f5ddc138b9ce1b9390838917b04417787b295af6ef6bc90`。仅解析/离线契约通过，save/load和font_scale恢复能力仍未验证。
+
+## 2026-10-20 a47c870 后真实 `--` ID 格式窄审
+
+Astra 已读 `build/task-first-evidence/ci-a47c870-snapshot/raw/015.command.json`、stdout、stderr 和 exit。实际命令为 `emu avd snapshot list`；列表行是 `--        font_probe_39417689944_1_probe    67M 2026-10-20 11:50:27   00:00:28.221`，末尾 `OK`、stderr 为 0 字节、exit 为 0。
+
+本次 diff 仅将表格 ID 从数字扩为数字或实际观察到的 `--`，TAG 仍精确解析；未知 ID、异常行、数字/`--` 混表、重复名称、非零 rc、任意非空 stderr 及缺失末尾 OK 仍拒绝。save/list/pull 授权链、单次 load、身份与精确恢复检查均未改变。独立运行 `python3 -m unittest discover -s scripts -p test_ci_font_scale_snapshot.py`：11 项全部通过；`git diff --check` 通过。静态无剩余阻断。
+
+本次实际核对 SHA256：probe `4aa03c06f0b37f3330f0955e25ad6076ec565afc2bf7a42e27e120ac6fd4a3b9`；test `9ffe2ed6d3b8aa22c61afb4ddb1ab7cf12d3558b0dd10ca01fb43a8b5d65884f`。这是原始响应解析的适配与离线契约验收，不追认该失败运行的 saveVerified/loadAcknowledged，也不证明 font_scale 恢复能力；原严格恢复 FAIL 保留。

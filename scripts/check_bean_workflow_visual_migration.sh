@@ -161,6 +161,26 @@ for path in manifests:
         owners=isolation['preparationScaleOwnerCleanup']; assert owners
         for owner in owners:
             assert owner['destroyed'] and owner['ownerNull'] and not owner['bound'] and not owner['visible'] and not owner['refresh250msScheduled']
+        for phase in ('confirmed-ledger-matched-receipt','post-consume-intent-write-failed'):
+            state=folder/'states'/phase
+            assert (state/'window.png').is_file() and (state/'geometry.json').is_file(), state
+            original=json.loads((state/'window-frame-sync.json').read_text())
+            assert original['protocolVersion']==2 and original['accepted'], state
+            reach=json.loads((state/'support-description-reachability.json').read_text())
+            assert reach['phase']==phase and reach['status']=='PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE', state
+            assert reach['initialStateImage']==f'states/{phase}/window.png', state
+            assert reach['wholeAfter'] and reach['scrollRestoredExactly'] and reach['targetObservationRestoredExactly'], state
+            assert reach['fixedActionsUnmovedAfter'] and reach['fixedActionsUnmovedRestored'], state
+            assert reach['businessUnchangedAfter'] and reach['businessUnchangedRestored'], state
+            assert reach['after']['textLineBoxes'] and all(line['text']==reach['targetText'] and line['fullViewVisible']
+                and line['layoutPresent'] and line['lineCount']>0 and line['ellipsisCount']==0
+                for line in reach['after']['textLineBoxes']), state
+            for step,image_key in (('description-visible','visibleImage'),('description-restored','restoredImage')):
+                evidence=state/step
+                assert reach[image_key]==f'states/{phase}/{step}/window.png', evidence
+                assert (evidence/'window.png').is_file() and (evidence/'geometry.json').is_file(), evidence
+                proof=json.loads((evidence/'window-frame-sync.json').read_text())
+                assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000, evidence
 
 assert seen=={(page,f'tablet-user-landscape-{theme}-font-{scale}') for page in ('preparation','batch','ledger') for theme in ('light','dark') for scale in ('1.0','1.3')}
 (root/'capture-summary.json').write_text(json.dumps({'realConfigurations':12,'sourceSha':root.name,

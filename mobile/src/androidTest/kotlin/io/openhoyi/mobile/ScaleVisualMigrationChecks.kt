@@ -535,9 +535,10 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         val view=tagged(activity,tag);reveal(activity,view)
         main {check(view.isShown && view.isEnabled && view.isClickable && view.height>=HoyiUi.dp(activity,48));check(view.performClick())}
     }
-    private fun capture(activity:Activity,folder:File):NativeWindowFrameEvidence.CapturedFrame {
+    private fun capture(activity:Activity,folder:File, measuredShort:Boolean=false):NativeWindowFrameEvidence.CapturedFrame {
         check(folder.isDirectory || folder.mkdirs())
-        val captured=frames.screenshot(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
+        val captured=if (measuredShort) frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
+            else frames.screenshot(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
         File(folder,"geometry.json").writeText(captured.target.toString(2))
         main {
             TaskTypographyEvidence.capture(activity,folder)
@@ -605,10 +606,10 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
     private fun captureTargetWindow(window: android.view.Window, folder:File):NativeWindowFrameEvidence.CapturedFrame {
         check(folder.isDirectory || folder.mkdirs())
         val target=window.decorView
-        val captured=frames.screenshot(window,target,File(folder,"window.png")) {targetWindowGeometry(window,target)}
+        val captured=frames.screenshotMeasuredWindowBufferTranslation(window,target,File(folder,"window.png")) {targetWindowGeometry(window,target)}
         File(folder,"geometry.json").writeText(captured.target.toString(2))
         check(captured.proof.getInt("protocolVersion")==2 && captured.proof.getBoolean("accepted") &&
-            captured.proof.getString("mappingMode")=="EXPLICIT_WINDOW_MEASURED_DECOR")
+            captured.proof.getString("mappingMode")=="MEASURED_WINDOW_BUFFER_TRANSLATION")
         return captured
     }
     private fun trendReturnState(activity:Activity):JSONObject {
@@ -791,9 +792,8 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         main {activity.window.setLayout(-1,HoyiUi.dp(activity,420))}
         await("actual short window laid out") {root(activity).height<=HoyiUi.dp(activity,420) && !root(activity).isLayoutRequested}
         render(activity)
-        // Deliberately retain the original Activity mapping mode for this resized Activity.
-        // A metrics/decor mismatch fails with its actual geometry; no implicit Window-mode fallback.
-        val shortCapture=capture(activity,File(folder,"short-height"))
+        // Explicitly declared short Activity, never a fallback from the default gate.
+        val shortCapture=capture(activity,File(folder,"short-height"),measuredShort=true)
         main {check((activity as ScaleActivity).productLayoutEvidence.getBoolean("trendInline").not())}
         proofs.put(JSONObject().put("case","short-height").put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL")
             .put("actualWindowGeometry",shortCapture.target).put("frameSync",shortCapture.proof))

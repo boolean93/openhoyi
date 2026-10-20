@@ -3,6 +3,8 @@ package io.openhoyi.mobile
 import android.content.ClipboardManager
 import android.content.Intent
 import android.os.Bundle
+import android.os.Process
+import android.os.SystemClock
 import android.text.InputType
 import android.widget.EditText
 import android.widget.TextView
@@ -244,8 +246,21 @@ class CurveImportActivity : ThemedActivity() {
         var resultPreDrawSequence = -1L
         val sessionEvents = org.json.JSONArray()
         productRestoreEvidence.put("imeSessionEvents", sessionEvents)
-        fun sessionEvent(phase: String, active: Boolean? = null) {
-            sessionEvents.put(org.json.JSONObject().put("phase", phase).put("preDrawSequence", preDrawSequence)
+        fun identity(value: Any?) = value?.let { System.identityHashCode(it) } ?: org.json.JSONObject.NULL
+        fun tokenText(value: Any?) = value?.toString() ?: org.json.JSONObject.NULL
+        fun causalIdentity(): org.json.JSONObject {
+            val token = field?.windowToken
+            return org.json.JSONObject().put("elapsedRealtimeNanos", SystemClock.elapsedRealtimeNanos())
+                .put("pid", Process.myPid()).put("tid", Process.myTid())
+                .put("activityIdentity", identity(this@CurveImportActivity))
+                .put("fieldIdentity", identity(field)).put("decorIdentity", identity(window.decorView))
+                .put("fieldId", field?.id ?: org.json.JSONObject.NULL)
+                .put("windowTokenIdentity", identity(token)).put("windowTokenText", tokenText(token))
+        }
+        fun sessionEvent(phase: String, active: Boolean? = null, result: Int? = null) {
+            sessionEvents.put(causalIdentity().put("phase", phase).put("preDrawSequence", preDrawSequence)
+                .put("callerSite", "CurveImportActivity.restoreRawState")
+                .put("resultCode", result ?: org.json.JSONObject.NULL)
                 .put("fieldHasFocus", field?.hasFocus() ?: false).put("windowHasFocus", this@CurveImportActivity.hasWindowFocus())
                 .put("fieldAttached", field?.isAttachedToWindow ?: false)
                 .put("fieldWindowTokenIdentity", field?.windowToken?.let { System.identityHashCode(it) } ?: org.json.JSONObject.NULL)
@@ -287,7 +302,7 @@ class CurveImportActivity : ThemedActivity() {
             else if (hadWindowFocus) finish("CANCELLED_WINDOW_FOCUS_LOST")
         }
         attachListener = object : View.OnAttachStateChangeListener {
-            override fun onViewAttachedToWindow(view: View) { view.invalidate() }
+            override fun onViewAttachedToWindow(view: View) { sessionEvent("host_attached"); view.invalidate() }
             override fun onViewDetachedFromWindow(view: View) { finish("CANCELLED_DETACHED") }
         }
         lifecycle = object : android.app.Application.ActivityLifecycleCallbacks {
@@ -328,16 +343,18 @@ class CurveImportActivity : ThemedActivity() {
                         sessionEvent("show_request", true)
                         val receiver = object : android.os.ResultReceiver(android.os.Handler(android.os.Looper.getMainLooper())) {
                             override fun onReceiveResult(code: Int, data: android.os.Bundle?) {
+                                sessionEvent("show_result_observed", result = code)
                                 if (!pending) return
                                 resultCode = code; resultPreDrawSequence = preDrawSequence
                                 productRestoreEvidence.put("imeResultCode", code).put("imeResultAtPreDrawSequence", resultPreDrawSequence)
-                                sessionEvent("show_result")
+                                sessionEvent("show_result", result = code)
                                 if (code != android.view.inputmethod.InputMethodManager.RESULT_SHOWN &&
                                     code != android.view.inputmethod.InputMethodManager.RESULT_UNCHANGED_SHOWN) finish("IME_SHOW_RESULT_NOT_SHOWN")
                                 else host.invalidate()
                             }
                         }
                         val accepted = inputMethod.showSoftInput(field, 0, receiver)
+                        sessionEvent("show_returned")
                         productRestoreEvidence.put("showSoftInputReturned", accepted)
                         if (!accepted) finish("IME_SHOW_REQUEST_REJECTED")
                     }
@@ -388,7 +405,8 @@ class CurveImportActivity : ThemedActivity() {
                 private fun ime(animation: android.view.WindowInsetsAnimation) =
                     animation.typeMask and android.view.WindowInsets.Type.ime() != 0
                 private fun event(phase: String) {
-                    animationEvents.put(org.json.JSONObject().put("phase", phase).put("activeImeAnimations", activeImeAnimations.size))
+                    animationEvents.put(causalIdentity().put("phase", phase).put("callerSite", "CurveImportActivity.restoreRawState")
+                        .put("activeImeAnimations", activeImeAnimations.size))
                 }
                 override fun onPrepare(animation: android.view.WindowInsetsAnimation) {
                     if (pending && ime(animation)) { activeImeAnimations.add(animation); event("prepare") }

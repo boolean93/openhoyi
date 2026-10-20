@@ -1,6 +1,8 @@
 package io.openhoyi.mobile
 
 import android.os.Bundle
+import android.os.Process
+import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -249,8 +251,19 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
         var resultPreDrawSequence = -1L
         val sessionEvents = org.json.JSONArray()
         productRestoreEvidence.put("imeSessionEvents", sessionEvents)
-        fun sessionEvent(phase: String, active: Boolean? = null) {
-            sessionEvents.put(JSONObject().put("phase", phase).put("preDrawSequence", preDrawSequence)
+        fun identity(value: Any?) = value?.let(System::identityHashCode) ?: JSONObject.NULL
+        fun causalIdentity(): JSONObject {
+            val token = field?.windowToken
+            return JSONObject().put("elapsedRealtimeNanos", SystemClock.elapsedRealtimeNanos())
+                .put("pid", Process.myPid()).put("tid", Process.myTid())
+                .put("activityIdentity", identity(activity)).put("fieldIdentity", identity(field))
+                .put("decorIdentity", identity(activity.window.decorView)).put("fieldId", field?.id ?: JSONObject.NULL)
+                .put("windowTokenIdentity", identity(token)).put("windowTokenText", token?.toString() ?: JSONObject.NULL)
+        }
+        fun sessionEvent(phase: String, active: Boolean? = null, result: Int? = null) {
+            sessionEvents.put(causalIdentity().put("phase", phase).put("preDrawSequence", preDrawSequence)
+                .put("callerSite", "TaskCurveEditorForm.restore")
+                .put("resultCode", result ?: JSONObject.NULL)
                 .put("fieldHasFocus", field?.hasFocus() ?: false).put("windowHasFocus", activity.hasWindowFocus())
                 .put("fieldAttached", field?.isAttachedToWindow ?: false)
                 .put("fieldWindowTokenIdentity", field?.windowToken?.let { System.identityHashCode(it) } ?: JSONObject.NULL)
@@ -329,16 +342,18 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
                         sessionEvent("show_request", true)
                         val receiver = object : android.os.ResultReceiver(android.os.Handler(android.os.Looper.getMainLooper())) {
                             override fun onReceiveResult(code: Int, data: android.os.Bundle?) {
+                                sessionEvent("show_result_observed", result = code)
                                 if (!pending) return
                                 resultCode = code; resultPreDrawSequence = preDrawSequence
                                 productRestoreEvidence.put("imeResultCode", code).put("imeResultAtPreDrawSequence", resultPreDrawSequence)
-                                sessionEvent("show_result")
+                                sessionEvent("show_result", result = code)
                                 if (code != android.view.inputmethod.InputMethodManager.RESULT_SHOWN &&
                                     code != android.view.inputmethod.InputMethodManager.RESULT_UNCHANGED_SHOWN) finish("IME_SHOW_RESULT_NOT_SHOWN")
                                 else host.invalidate()
                             }
                         }
                         val accepted = inputMethod.showSoftInput(field, 0, receiver)
+                        sessionEvent("show_returned")
                         productRestoreEvidence.put("showSoftInputReturned", accepted)
                         if (!accepted) finish("IME_SHOW_REQUEST_REJECTED")
                     }
@@ -381,7 +396,8 @@ internal class TaskCurveEditorForm(private val activity: ThemedActivity, body: L
                 private fun ime(animation: android.view.WindowInsetsAnimation) =
                     animation.typeMask and android.view.WindowInsets.Type.ime() != 0
                 private fun event(phase: String) {
-                    animationEvents.put(JSONObject().put("phase", phase).put("activeImeAnimations", activeImeAnimations.size))
+                    animationEvents.put(causalIdentity().put("phase", phase).put("callerSite", "TaskCurveEditorForm.restore")
+                        .put("activeImeAnimations", activeImeAnimations.size))
                 }
                 override fun onPrepare(animation: android.view.WindowInsetsAnimation) {
                     if (pending && ime(animation)) { activeImeAnimations.add(animation); event("prepare") }

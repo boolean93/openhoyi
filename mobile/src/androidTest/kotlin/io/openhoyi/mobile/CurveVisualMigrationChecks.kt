@@ -617,11 +617,13 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val view=action(activity,id); check(view.isEnabled && view.isShown)
         check(view.performClick())
     }; test.waitForIdleSync() }
-    private fun unfocus(activity: Activity) {
+    private fun unfocus(activity: Activity, causalTrace:ImeRecreationTrace?=null) {
         main {
+            causalTrace?.observe("fixture_unfocus_before",activity,root(activity),"CurveVisualMigrationChecks.importBusiness.unfocus","content")
             root(activity).isFocusableInTouchMode=true; check(root(activity).requestFocus())
             (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager)
                 .hideSoftInputFromWindow(root(activity).windowToken,0)
+            causalTrace?.observe("fixture_unfocus_hide_returned",activity,root(activity),"CurveVisualMigrationChecks.importBusiness.unfocus","content")
         }
         await("unfocused real window without IME") { !requireNotNull(root(activity).rootWindowInsets).isVisible(WindowInsets.Type.ime()) }
     }
@@ -642,6 +644,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
     }
     private fun importBusiness(initial: Activity, scope: Scope, directory: File) {
         var activity=initial; val frozen=invariant(scope); val cases=JSONArray()
+        val nativeTrace=ImeRecreationTrace(test,directory)
         fun record(name: String) {
             cases.put(JSONObject().put("case",name).put("modelsUnchanged",invariant(scope)==frozen))
             File(directory,"curve-business.json").writeText(JSONObject().put("cases",cases).put("completed",false).toString(2))
@@ -652,7 +655,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val raw="  {未完成的原文\n  保留空格与换行}\n"+(1..90).joinToString("\n") { "  未完成行 $it  " }
         main { input(activity).setText(raw); check(input(activity).requestFocus())
             input(activity).setSelection(raw.length-15,raw.length-7)
-            (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(input(activity),0) }
+            nativeTrace.observe("fixture_setup_show_before",activity,input(activity),"CurveVisualMigrationChecks.importBusiness.setupShow")
+            (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(input(activity),0)
+            nativeTrace.observe("fixture_setup_show_returned",activity,input(activity),"CurveVisualMigrationChecks.importBusiness.setupShow") }
         await("Import actual IME") { requireNotNull(root(activity).rootWindowInsets).isVisible(WindowInsets.Type.ime()) }
         main { val view=input(activity); val layout=requireNotNull(view.layout)
             view.scrollTo(0,(layout.height-view.height+view.compoundPaddingTop+view.compoundPaddingBottom).coerceAtLeast(0)) }
@@ -672,21 +677,49 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 val button=action(activity,id); check(whole(observation(button)) && button.height>=HoyiUi.dp(activity,48)) }
         }
         diagnostic(activity,File(directory,"raw-ime"))
-        val nativeTrace=ImeRecreationTrace(test,directory)
         var restorationFailure:Throwable?=null
+        var oldSnapshot:ImeRecreationTrace.Snapshot?=null
+        var newSnapshot:ImeRecreationTrace.Snapshot?=null
+        val observedRoots=mutableListOf<Pair<View,View.OnAttachStateChangeListener>>()
+        fun observeRoot(owner:Activity) {
+            val view=owner.window.decorView
+            if(observedRoots.any { (observed,_) -> observed===view }) return
+            val listener=object:View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(attached:View) { nativeTrace.observe("decor_attached",owner,attached,viewRole="decor") }
+                override fun onViewDetachedFromWindow(detached:View) { nativeTrace.observe("decor_detached",owner,detached,viewRole="decor") }
+            }
+            view.addOnAttachStateChangeListener(listener)
+            observedRoots.add(view to listener)
+        }
+        val lifecycle=object:Application.ActivityLifecycleCallbacks {
+            override fun onActivityCreated(owner:Activity,state:Bundle?) { if(owner is CurveImportActivity) nativeTrace.observe("activity_created",owner) }
+            override fun onActivityPostCreated(owner:Activity,state:Bundle?) { if(owner is CurveImportActivity) {
+                nativeTrace.observe("activity_post_created",owner); observeRoot(owner) } }
+            override fun onActivityStarted(owner:Activity) { if(owner is CurveImportActivity) nativeTrace.observe("activity_started",owner) }
+            override fun onActivityResumed(owner:Activity) { if(owner is CurveImportActivity) nativeTrace.observe("activity_resumed",owner) }
+            override fun onActivityPaused(owner:Activity) { if(owner is CurveImportActivity) nativeTrace.observe("activity_paused",owner) }
+            override fun onActivityStopped(owner:Activity) { if(owner is CurveImportActivity) nativeTrace.observe("activity_stopped",owner) }
+            override fun onActivitySaveInstanceState(owner:Activity,state:Bundle) { if(owner is CurveImportActivity) nativeTrace.observe("activity_save_state",owner) }
+            override fun onActivityDestroyed(owner:Activity) { if(owner is CurveImportActivity) nativeTrace.observe("activity_destroyed",owner) }
+        }
         try {
             nativeTrace.start()
+            main { oldSnapshot=nativeTrace.capture("old_before_recreate",activity,input(activity),activity.window.decorView)
+                observeRoot(activity); app.registerActivityLifecycleCallbacks(lifecycle) }
             val monitor=test.addMonitor(CurveImportActivity::class.java.name,null,false)
             try {
-                nativeTrace.mark("recreate_call_before")
+                nativeTrace.mark("recreate_call_before","CurveVisualMigrationChecks.importBusiness.activity.recreate")
                 main { activity.recreate() }; activity=test.waitForMonitorWithTimeout(monitor,10000) ?: error("M3 Import recreate missing")
-                nativeTrace.mark("replacement_returned")
+                nativeTrace.mark("replacement_returned","CurveVisualMigrationChecks.importBusiness.waitForMonitorWithTimeout")
+                main { newSnapshot=nativeTrace.capture("new_after_replacement_returned",activity,input(activity),activity.window.decorView)
+                    observeRoot(activity); nativeTrace.compare(requireNotNull(oldSnapshot),requireNotNull(newSnapshot)) }
             }
             finally { test.removeMonitor(monitor) }
             await("Import restored ready") { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
             stableWindow(activity,directory,"raw-after-recreate")
-            nativeTrace.mark("after_comparison_before")
+            nativeTrace.mark("after_comparison_before","CurveVisualMigrationChecks.importBusiness.rawStateComparison")
             main { val after=rawState(activity)
+                nativeTrace.observe("after_comparison",activity,input(activity),"CurveVisualMigrationChecks.importBusiness.rawStateComparison")
                 File(directory,"raw-restoration.json").writeText(JSONObject().put("before",before).put("after",after)
                     .put("afterGeometryBeforeAssertion",geometry(activity)).toString(2))
                 check(after.toString()==before.toString()) { "M3 raw text/focus/selection/scroll changed before screenshot side effects" } }
@@ -697,13 +730,26 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             try {diagnostic(activity,File(directory,"raw-recreate-failure"))}catch(secondary:Throwable) {error.addSuppressed(secondary)}
             throw error
         } finally {
+            var restoredEvidence:JSONObject?=null
+            try {main { observedRoots.forEach { (view,listener) -> view.removeOnAttachStateChangeListener(listener) }
+                app.unregisterActivityLifecycleCallbacks(lifecycle)
+                if(activity is CurveImportActivity) restoredEvidence=JSONObject((activity as CurveImportActivity).productRestoreEvidence.toString())
+                nativeTrace.observe("observers_removed",activity) }
+                restoredEvidence?.let(nativeTrace::productEvidence)
+            } catch(secondary:Throwable) {
+                val primary=restorationFailure
+                if(primary!=null)primary.addSuppressed(secondary)
+                else File(directory,"ime-causal-links-finalization-error.txt").writeText(secondary.stackTraceToString())
+            }
             try {nativeTrace.finish()}catch(secondary:Throwable) {
                 val primary=restorationFailure
                 if(primary!=null)primary.addSuppressed(secondary)
                 else File(directory,"ime-trace-finalization-error.txt").writeText(secondary.stackTraceToString())
             }
         }
-        unfocus(activity); captureState(activity,directory,"raw-restored")
+        unfocus(activity,nativeTrace)
+        nativeTrace.observe("fixture_unfocus_returned",callerSite="CurveVisualMigrationChecks.importBusiness.unfocus")
+        captureState(activity,directory,"raw-restored")
         for((index,invalid) in listOf("{bad",scope.document.encode().replace("\"schema\":1","\"schema\":99"),
             scope.document.copy(temperatureC=200).toJson().toString()).withIndex()) {
             check(runCatching { CustomCurveDocument.decode(invalid) }.isFailure)

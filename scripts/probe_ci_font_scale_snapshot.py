@@ -36,15 +36,19 @@ def snapshot_names(result):
         require(payload[-1] in empty_rows and payload[:-1] in ([], [header]), 'mixed snapshot empty/list response')
         return []
     names = []
+    id_styles = set()
     for line in payload:
         if line == header:
             continue
         if re.fullmatch(r'ID\s+TAG\s+VM SIZE\s+DATE\s+VM CLOCK(?:\s+ICOUNT)?', line):
             continue
-        # QEMU snapshot table: numeric ID, tag, VM size, date, VM clock.
-        match = re.fullmatch(r'\d+\s+([A-Za-z0-9_-]+)\s+\d+(?:\.\d+)?\s*[KMGT]?i?B?\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+\d+)?', line)
+        # QEMU snapshot table: numeric ID or the observed "--" ID, then tag,
+        # VM size, date and VM clock. Other ID forms stay unknown.
+        match = re.fullmatch(r'(\d+|--)\s+([A-Za-z0-9_-]+)\s+\d+(?:\.\d+)?\s*[KMGT]?i?B?\s+\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+\d+)?', line)
         require(match is not None, 'unknown snapshot list row: ' + line)
-        names.append(match.group(1))
+        id_styles.add('dash_dash' if match.group(1) == '--' else 'numeric')
+        names.append(match.group(2))
+    require(len(id_styles) <= 1, 'mixed snapshot ID styles')
     require(len(names) == len(set(names)), 'duplicate snapshot names')
     return names
 

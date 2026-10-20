@@ -741,9 +741,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             main { activity.window.setLayout(-1,HoyiUi.dp(activity,280)) }
             stableWindow(activity,directory,"short-window")
             val folder=File(directory,"short-window").apply {check(isDirectory || mkdirs())}
-            // This is still an Activity target: preserve its original strict metrics/decor gate.
-            // No automatic retry through the explicit-Window mode on a mapping failure.
-            val captured=frames.screenshot(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
+            // Explicitly declared short Activity; default captures remain strict.
+            val captured=frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
             check(captured.proof.getBoolean("accepted") && captured.proof.getInt("protocolVersion")==2)
             File(folder,"geometry.json").writeText(captured.target.toString(2))
             main {

@@ -22,6 +22,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.ScrollView
+import android.widget.CompoundButton
 import android.widget.Button
 import android.widget.TextView
 import io.openhoyi.bean.BeanInventory
@@ -533,7 +534,14 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
     }
     private fun click(activity:Activity,view:View) {
         reveal(activity,view)
-        main {check(view.isShown && view.isEnabled && view.isClickable && view.width>=HoyiUi.dp(activity,48) && view.height>=HoyiUi.dp(activity,48));check(view.performClick())}
+        main {
+            check(view.isShown && view.isEnabled && view.isClickable && view.width>=HoyiUi.dp(activity,48) && view.height>=HoyiUi.dp(activity,48))
+            val toggleTag=view.tag in setOf("product/settings/app/theme/toggle", "product/settings/app/feedback/toggle")
+            if (toggleTag) {
+                check(view is CompoundButton) { "M8 real settings toggle changed class: ${view.tag}" }
+                view.performClick()
+            } else check(view.performClick())
+        }
     }
     private fun click(activity:Activity,tag:String)=click(activity,tagged(activity,tag))
     private fun capture(activity:Activity,folder:File):NativeWindowFrameEvidence.CapturedFrame {

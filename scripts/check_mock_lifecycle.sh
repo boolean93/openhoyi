@@ -16,6 +16,7 @@ on_error() {
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb pull "/sdcard/Android/data/$package/files/language-detail-failures" "$output_dir/" || true
   adb pull "/sdcard/Android/data/$package/files/language-detail-success" "$output_dir/" || true
+  adb pull "/sdcard/Android/data/$package/files/idle-accessibility-diagnostic" "$output_dir/" || true
   adb shell settings put system font_scale 1.0 || true
   adb shell wm size 1600x1000 || true
   exit "$status"

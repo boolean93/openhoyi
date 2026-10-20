@@ -115,3 +115,38 @@ M5 exact inventory复核收口：最新候选20固定key，原journal selected s
 本run整体 FAIL。font_scale 原presence/value未恢复是独立清理失败，不能归入图例断言或由本次修正关闭。全24页仍未通过。
 
 bcc图例窄修最新两文件diff已复核：独立声明current/reference，实际chart.points/overlay.reference全等，有序semanticId精确匹配，runner同契约；原missing-samples后续raw空/segments空/vertices空检查继续保留。静态无剩余阻断；实际CI仍待，不据构建成功关闭视觉/清理缺口。
+
+## 2026-10-20 a47c870 Comparison 来源全文实际 FAIL
+
+PR39417690186，artifact12263680615，ZIP SHA256 `d2151fbc2d72a5083f9f91f6030ca74faf7640288d29481612ba619c36f895b7`，648 CRC（根校验）。manifest 实读 source `12de379c8bc98ed1d309d04c8e73edf09b3cae87`，head `a47c87090240d5b682501d84759d48f0bcf36736`。原件 `ci-a47c870-m5/raw/raw-device/<source>/tablet-user-landscape-light-font-1.3/comparison/`。
+
+Astra 查看 `states/comparison-target-8-reachable/window.png` 与 geometry：details viewport `[216,1298,2524,1429]` 高131px；实际第一杯来源 TextView `[252,1298,1316,1583]` 高285px，5行、零省略，visible只能到1429。原屏同步看见来源后半被局部区下缘截。第二杯自然来源也高285px。主态预算为 toolbar455 + chart598 + details131 = workspace1184px。来源文字完整、Layout宽高自然，并非错误坐标或requestRectangle无效；**目标自身比viewport高154px，无法靠滚动让整目标同时可见，G1/G3 FAIL成立**。本轮已越过旧图例集合失败，但不覆盖这个独立缺陷。
+
+根因在 TaskComparisonLayout.measureProduct 的 controlMinimum：只计 clickable 后代自然高，details来源全文不是clickable，因此只保了按钮级viewport，没有保已批准必须完整滚达的来源块。
+
+最小生产修正限 TaskComparisonLayout（如必须新增只读预算字段就在该文件）：detailsMinimum 取既有48dp、原可点击控件、两来源TextView、摘要四个独立行的**实际自然测量高**最大值，再加真实scroll内距。不把整个details或整张summary表当不可分目标，不新增控件、不压缩/省略来源、不改字号字重及字符串。使用已存在真实View/tag/行结构定位且保对象不替换；隐藏状态不参与最低预算。
+
+分配仍先保障完整目标最低viewport：若 height >= preferredChart + toolbarMinimum + detailsMinimum，则保持标准160dp plot；否则用既准96dp fallback。toolbar预算在预留detailsMinimum后取自然高与可用高较小值，details再取自然高与剩余；两viewport必须满足各自实测最低高。当前1184/598/285算术仅说明toolbar最多301px，不作为硬编码，也不先宣称toolbar自然最低可满足。无法同时满足时保真实不足状态并FAIL，不挤穿plot96或控制48下限。记录minimum来源、两source自然高度、各summary row自然高度及可满足性，便于下一CI核。
+
+测试保原20+条件warning精确集合、whole/真实Layout、两个永久scroll恢复和业务identity/journal门禁；不修改失败断言来迁就viewport。下一实际CI须完整走到source1/2、摘要行、taste及四按钮，并恢复初态。仅本light1.3原件的失败已定位，其它配置和后续特殊态不能由此外推通过。
+
+### Comparison 最低详情预算修正静态收口
+
+已审 TaskComparisonLayout.kt SHA256 `7ca0c698a18bd9065c3a2c71aae63c1cdca507c89dd12f142160e1fac72818ef`。只在 product 分支增加两精确来源 TextView 与原 summary 直接 LinearLayout 独立行的自然高度；隐藏不计，最低值取 max 并加原 scroll padding，不取整表高度。预留 details 最低预算再分 toolbar，160优先/96 fallback 与真实不足字段保持。旧 null visual 路径、字体/内容/业务和测试门禁未变。静态无新增阻断；编译日志由 owner 提供，不代表实际5行来源已完整滚达，仍待新CI。
+
+## a47c870 History / HistoryDetail 增量原图验收
+
+该包仅采到 **light/font1.3** 的 History、HistoryDetail（及已失败Comparison），没有 font1.0 或 dark 原件。因此旧 History **标准1.0截轴仍无本轮修复证据**，不能用1.3滚达代替关闭。
+
+### 两个指定旧问题的实际结果
+
+- 独立 HistoryDetail `special-states/unknown-observation`：Astra 实看初态、note-5-reachable、restored 原PNG。真实 Canvas plot local `[275,127.875595,1310,358.87402]`，screen `[491,911.8756,1526,1142.874]`，visible与全plot完全相等，density2.25，**102.66596dp ≥96dp**。不是用chart外框代替plot。条件同行的 metricsInline=true，自然宽1169≤1562，chrome293→214回收79px；UNKNOWN说明仍完整，结束时长/秤读数保持破折号，没有假造结果。旧该配置67.55dp不足已由新实际图与Canvas证明修复。六notes报告与固定编辑按钮、shotId/journal/scroll恢复成立；所看末目标及恢复图未见新增裁切。
+- History `special-states/missing-samples`：Astra 实看 chart/explanation/note-0/note-1/restored 五张原PNG。真实0sample、无path；图例为压力/累计注水/温度三项，不强行造WEIGHT。actualPlotHeightDp及初态visiblePlotHeightDp均96.44374。滚达四目标对应scrollY129/226/328/412，complete均true，说明“各项独立量程 · 等待本杯采样”与两note原文完整；最后恢复0、permanent explanation identity与journal不变。1.3恢复初屏底轴仍可在局部scroll下缘，符合已准“滚达后完整”，不作为标准1.0通过证据。
+
+### G1–G4 限定结论
+
+G1：上述UNKNOWN真实plot下限和missing-samples全目标滚达/恢复通过本配置验收，不扩至未采配置。History共40份、HistoryDetail共48份protocol2均accepted/5000ms且四正式diff count=0（独立逐份读核），这只证明采集契约，不代替未逐图细读状态的视觉结论。
+
+G2：沿用固定字体资产与角色来源；本次未取得新的glyph fallback/原稿字体身份认证，unknown保持。G3：两个指定状态的product TextView实际letterSpacing0/textScaleX1/fontPadding=false；missing的elapsed/weight数值单位baseline同为671px，UNKNOWN sampled-water数值单位同为488px。所看原图轴字、单位、说明和滚达notes未见被切/错位。G4：原图保白色图面、ink/muted层级、UNKNOWN褐色说明、原四指标辨色；实际配置ink #101820/muted #657183/accent #087A78/warning #795119。此为浅色指定状态，不外推深色或所有动画合成像素。
+
+独立详情其余已采主态及4特殊态的plot几何均137.77707dp，作为机械证据记录，不凭数字代签其所有文字视觉。UNKNOWN预算账本仍有 `primaryBudgetSatisfiable=false`（chartNativeHeaderNaturalPx434、chartMinimum986），与实际完整102.66596dp不是同一个测量量；本次以原Canvas/屏幕交集验收真实plot，保留该账本不一致待单独静态核实，不能删字段或由false反推图形不足。全M5、Comparison裁切、标准1.0截轴及未采配置结论不变。

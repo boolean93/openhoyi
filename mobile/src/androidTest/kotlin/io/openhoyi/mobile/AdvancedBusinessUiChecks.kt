@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import android.app.Activity
+import android.app.Application
 import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.ClipData
@@ -8,6 +9,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
+import android.os.Bundle
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -567,12 +569,49 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         }
         fun roundTrip(label: String) {
             val key=when(page) { "bean-entry" -> "opened"; "review" -> "next"; else -> "target-3" }
+            val causalSite="AdvancedBusinessUiChecks.verifyM2FormContract.editor-stage-hidden-values"
+            val causal=if(page=="curve-editor" && label=="editor-stage-hidden-values" &&
+                directory.parentFile?.name=="tablet-user-landscape-light-font-1.0")
+                ImeRecreationTrace(test,directory,"CurveEditor.editor-stage-hidden-values.recreate",causalSite,null) else null
+            var causalError:Throwable?=null
+            fun diagnose(action:()->Unit) { try { action() } catch(error:Throwable) {
+                val previous=causalError
+                if(previous==null) causalError=error else previous.addSuppressed(error)
+            } }
+            val observedDecors=mutableListOf<Pair<View,View.OnAttachStateChangeListener>>()
+            fun observeDecor(owner:Activity) {
+                val decor=owner.window.decorView
+                if(observedDecors.any { (view,_) -> view===decor }) return
+                val listener=object:View.OnAttachStateChangeListener {
+                    override fun onViewAttachedToWindow(view:View) { diagnose { causal?.observe("decor_attached",owner,view,causalSite,"decor") } }
+                    override fun onViewDetachedFromWindow(view:View) { diagnose { causal?.observe("decor_detached",owner,view,causalSite,"decor") } }
+                }
+                decor.addOnAttachStateChangeListener(listener);observedDecors.add(decor to listener)
+            }
+            val lifecycle=object:Application.ActivityLifecycleCallbacks {
+                override fun onActivityCreated(owner:Activity,state:Bundle?) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_created",owner,callerSite=causalSite) } }
+                override fun onActivityPostCreated(owner:Activity,state:Bundle?) { if(owner is CurveEditorActivity) {
+                    diagnose { causal?.observe("activity_post_created",owner,callerSite=causalSite);observeDecor(owner) } } }
+                override fun onActivityStarted(owner:Activity) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_started",owner,callerSite=causalSite) } }
+                override fun onActivityResumed(owner:Activity) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_resumed",owner,callerSite=causalSite) } }
+                override fun onActivityPaused(owner:Activity) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_paused",owner,callerSite=causalSite) } }
+                override fun onActivityStopped(owner:Activity) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_stopped",owner,callerSite=causalSite) } }
+                override fun onActivitySaveInstanceState(owner:Activity,state:Bundle) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_save_state",owner,callerSite=causalSite) } }
+                override fun onActivityDestroyed(owner:Activity) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_destroyed",owner,callerSite=causalSite) } }
+            }
+            var observersRegistered=false
+            var oldReference:ImeRecreationTrace.Snapshot?=null
+            var roundTripFailure:Throwable?=null
+            try {
+            diagnose { causal?.start() }
             onMain {
                 val target=fields().getValue(key)
                 check(target.requestFocus())
                 check(target.length()>0)
                 target.setSelection(if(target.length()>3) 1 else 0, minOf(4,target.length()))
+                diagnose { causal?.observe("fixture_setup_show_before",activity,target,causalSite,"field") }
                 (activity.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(target,0)
+                diagnose { causal?.observe("fixture_setup_show_returned",activity,target,causalSite,"field") }
             }
             // Wait only for actual IME presence, never for a restore/visibility assertion to become true.
             val imeDeadline=SystemClock.elapsedRealtime()+5000
@@ -620,7 +659,17 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             check(before.getJSONArray("scrolls").let { values -> (0 until values.length()).any { values.getJSONObject(it).getInt("y")>0 } }) {
                 "M2 $label did not establish a real nonzero scroll fixture; do not claim scroll restoration"
             }
+            if(causal!=null) onMain { diagnose {
+                oldReference=causal.capture("old_before_recreate",activity,fields().getValue(key),activity.window.decorView,causalSite)
+                observeDecor(activity);app.registerActivityLifecycleCallbacks(lifecycle);observersRegistered=true
+            } }
+            diagnose { causal?.mark("recreate_call_before",causalSite) }
             activity=recreate(activity)
+            diagnose { causal?.mark("replacement_returned",causalSite) }
+            if(causal!=null) onMain { diagnose {
+                val replacement=causal.capture("new_after_replacement_returned",activity,fields().getValue(key),activity.window.decorView,causalSite)
+                observeDecor(activity);oldReference?.let { causal.compare(it,replacement) }
+            } }
             val after=stableSnapshot("$label-after-recreate")
             assertFiniteScrolls("after-recreate")
             val equal=before.toString()==after.toString()
@@ -643,9 +692,35 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             File(directory,"$label-restore.json").writeText(org.json.JSONObject().put("before",before).put("after",after).put("equal",equal)
                 .put("restoreDiagnosticBeforeAssertion",restoreDiagnostic)
                 .put("afterObservedBeforeAnyCaptureUnfocus",true).toString(2))
+            diagnose { causal?.mark("after_comparison_before",causalSite) }
             check(equal) { "M2 form recreation changed draft/focus/selection/identity/scroll: $label" }
             unchangedExceptNotesOrDraft(); record(label)
+            diagnose { causal?.mark("post_assert_capture_call_before","$causalSite.capture") }
             capture(activity,"$label-recreated") // Only after the untouched restored state has been asserted.
+            diagnose { causal?.mark("post_assert_capture_returned","$causalSite.capture") }
+            } catch(error:Throwable) { roundTripFailure=error;throw error }
+            finally { if(causal!=null) {
+                try {
+                    var product:org.json.JSONObject?=null
+                    onMain {
+                        observedDecors.forEach { (view,listener) -> view.removeOnAttachStateChangeListener(listener) }
+                        if(observersRegistered) app.unregisterActivityLifecycleCallbacks(lifecycle)
+                        val form=activity.javaClass.getDeclaredField("form").apply { isAccessible=true }.get(activity)
+                        if(form is TaskCurveEditorForm) product=org.json.JSONObject(form.productRestoreEvidence.toString())
+                        causal.observe("observers_removed",activity,callerSite=causalSite)
+                    }
+                    product?.let(causal::productEvidence)
+                } catch(secondary:Throwable) {
+                    if(roundTripFailure!=null) roundTripFailure.addSuppressed(secondary)
+                    else runCatching { File(directory,"m2-ime-causal-finalization-error.txt").writeText(secondary.stackTraceToString()) }
+                }
+                try { causal.finish() } catch(secondary:Throwable) {
+                    if(roundTripFailure!=null) roundTripFailure.addSuppressed(secondary)
+                    else runCatching { File(directory,"m2-ime-trace-finalization-error.txt").writeText(secondary.stackTraceToString()) }
+                }
+                causalError?.let { diagnostic -> runCatching {
+                    File(directory,"m2-ime-causal-observation-error.txt").writeText(diagnostic.stackTraceToString()) } }
+            } }
         }
         fun error(label: String, save: Int, expected: Int) {
             click(activity,save)

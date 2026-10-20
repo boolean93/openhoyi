@@ -2,8 +2,10 @@ package io.openhoyi.mobile
 
 import android.app.Instrumentation
 import android.os.Looper
+import android.os.Process
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import android.view.View
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -12,19 +14,84 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 /** Read-only native IME tracing around one existing fixture. Never requests focus/show/hide. */
-internal class ImeRecreationTrace(private val test:Instrumentation,private val fixture:File) {
+internal class ImeRecreationTrace(private val test:Instrumentation,private val fixture:File,
+    private val fixtureLabel:String="Import.raw.recreate",
+    private val captureCallerSite:String="CurveVisualMigrationChecks.importBusiness",
+    private val priorRawReference:String?="build/task-first-evidence/ci-bcc64c1-curve/raw; historical run only") {
     private val directory=File(fixture,"ime-recreation-native")
     private val token=UUID.randomUUID().toString()
     private val events=JSONArray()
     private val commands=JSONArray()
     private val proof=JSONObject().put("schemaVersion",2).put("traceOwnerToken",token)
-        .put("package",test.targetContext.packageName).put("fixture","Import.raw.recreate")
+        .put("package",test.targetContext.packageName).put("fixture",fixtureLabel)
         .put("sourceSha",requireNotNull(requireNotNull(fixture.parentFile).parentFile).name).put("profile",requireNotNull(fixture.parentFile).name)
         .put("productionImePolicyChanged",false).put("originalBusinessAssertionsChanged",false)
         .put("clock","real_SystemClock_elapsedRealtimeNanos; never MobileMonotonicClock")
         .put("shellOutputPolicy","Rwe_fixed_shell_stdin; separate_bounded_stdout_stderr; per_command_nonce_rc; one_real_deadline")
         .put("events",events).put("commands",commands).put("ownedStart",false).put("stopAttempted",false)
         .put("status","NOT_STARTED")
+    private val linksEvents=JSONArray()
+    private val linksLock=Any()
+    private val linksFileLock=Any()
+    private var linksRevision=0L
+    private var writtenLinksRevision=-1L
+    private val links=JSONObject().put("schemaVersion",1).put("clock","device_SystemClock.elapsedRealtimeNanos")
+        .put("events",linksEvents).put("comparison",JSONObject.NULL).put("comparisonStatus","unknown_replacement_missing")
+        .put("trackerHistory",JSONObject().put("rawFiles",JSONArray(listOf("ime-diagnostics.txt","input-method.txt")))
+            .put("currentRunRequestTags",JSONObject.NULL).put("currentRunOriginReasonTerminal",JSONObject.NULL)
+            .put("relationshipToAppEvents","unknown")
+            .put("priorRawReference",priorRawReference ?: JSONObject.NULL)
+            .apply { if(priorRawReference==null) put("priorRawReferenceReason","no_same_scope_prior_native_trace") })
+        .put("requestTagIsWindowToken",false).put("requestTagIsImeToken",false)
+        .put("frameworkRequestInheritance","unknown").put("nearbyEventsRelationship","unknown")
+        .apply { if(priorRawReference==null) put("nativeTraceRaw",JSONObject()
+            .put("hostDirectory","form-visual-migration/ime-native-traces/light-1.0-curve-editor")
+            .put("deviceDirectory","curve-editor/ime-recreation-native")
+            .put("files",JSONArray(listOf("ime_trace_clients.winscope","ime_trace_service.winscope","ime_trace_managerservice.winscope")))
+            .put("timeBase","device_elapsedRealtimeNanos; proto alignment pending actual collection")
+            .put("appToNativeRequestRelationship","unknown")) }
+    data class Snapshot(val activity:Any,val field:View,val decor:View,val windowToken:Any?)
+    private fun id(value:Any?)=value?.let(System::identityHashCode) ?: JSONObject.NULL
+    private fun editLinks(action:()->Unit) { synchronized(linksLock) { action();linksRevision++ } }
+    private fun persistLinks() {
+        val snapshot=synchronized(linksLock) { linksRevision to links.toString(2) }
+        synchronized(linksFileLock) {
+            if(snapshot.first<=writtenLinksRevision) return
+        check(fixture.isDirectory || fixture.mkdirs())
+            val temporary=File(fixture,"ime-causal-links.json.tmp")
+            temporary.writeText(snapshot.second)
+            check(temporary.renameTo(File(fixture,"ime-causal-links.json")))
+            writtenLinksRevision=snapshot.first
+        }
+    }
+    fun capture(name:String,activity:Any,field:View,decor:View,callerSite:String=captureCallerSite):Snapshot {
+        val captured=Snapshot(activity,field,decor,field.windowToken)
+        editLinks { linksEvents.put(JSONObject().put("name",name).put("callerSite",callerSite)
+            .put("elapsedRealtimeNanos",SystemClock.elapsedRealtimeNanos()).put("pid",Process.myPid()).put("tid",Process.myTid())
+            .put("activityIdentity",id(activity)).put("fieldIdentity",id(field)).put("decorIdentity",id(decor))
+            .put("fieldId",field.id).put("windowTokenIdentity",id(captured.windowToken))
+            .put("windowTokenText",captured.windowToken?.toString() ?: JSONObject.NULL)
+            .put("fieldAttached",field.isAttachedToWindow)) }
+        return captured
+    }
+    fun compare(old:Snapshot,new:Snapshot) {
+        editLinks { links.put("comparison",JSONObject().put("sameActivity",old.activity===new.activity)
+            .put("sameField",old.field===new.field).put("sameDecor",old.decor===new.decor)
+            .put("sameWindowToken",if(old.windowToken==null || new.windowToken==null) JSONObject.NULL else old.windowToken===new.windowToken)
+            .put("windowTokenComparisonStatus",if(old.windowToken==null || new.windowToken==null) "unknown_unattached" else "direct_reference_comparison"))
+            .put("comparisonStatus","direct_same_process_references") }
+    }
+    fun observe(name:String,activity:Any?=null,view:View?=null,callerSite:String="CurveVisualMigrationChecks.importBusiness.observer",
+        viewRole:String?=null) {
+        editLinks { linksEvents.put(JSONObject().put("name",name).put("callerSite",callerSite)
+            .put("elapsedRealtimeNanos",SystemClock.elapsedRealtimeNanos()).put("pid",Process.myPid()).put("tid",Process.myTid())
+            .put("activityIdentity",id(activity)).put("viewIdentity",id(view))
+            .put("viewRole",viewRole ?: JSONObject.NULL).put("decorIdentity",if(viewRole=="decor") id(view) else JSONObject.NULL)
+            .put("viewAttached",view?.isAttachedToWindow ?: JSONObject.NULL)) }
+        // Keep lifecycle/attach callbacks read-only and off the fixture's disk I/O path.
+        if(Looper.myLooper()!==Looper.getMainLooper()) runCatching { persistLinks() }
+    }
+    fun productEvidence(value:JSONObject) { editLinks { links.put("productRestoreEvidence",value) };persistLinks() }
     private var owned=false
     private var stopAttempted=false
     private fun persist() {
@@ -34,9 +101,15 @@ internal class ImeRecreationTrace(private val test:Instrumentation,private val f
         temporary.writeText(proof.toString(2))
         check(temporary.renameTo(File(directory,"trace-state.json"))) {"Cannot persist native trace ownership proof"}
     }
-    fun mark(name:String) {
-        events.put(JSONObject().put("name",name).put("elapsedRealtimeNanos",SystemClock.elapsedRealtimeNanos())
+    fun mark(name:String,callerSite:String="ImeRecreationTrace") {
+        val elapsed=SystemClock.elapsedRealtimeNanos()
+        events.put(JSONObject().put("name",name).put("elapsedRealtimeNanos",elapsed)
             .put("wallTimeMs",System.currentTimeMillis()))
+        editLinks { linksEvents.put(JSONObject().put("name",name).put("callerSite",callerSite)
+            .put("elapsedRealtimeNanos",elapsed).put("pid",Process.myPid()).put("tid",Process.myTid()))
+        }
+        runCatching { persistLinks() }.onFailure { proof.put("causalLinksWriteError",it.stackTraceToString())
+            proof.put("causalLinksStatus","DIAGNOSTIC_FAIL_WRITE") }
         persist()
     }
     private fun command(name:String,body:String):JSONObject {

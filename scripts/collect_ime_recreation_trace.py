@@ -351,7 +351,8 @@ def main():
     if args.mode == 'before':
         save(args.directory / 'files-before.json', stat_files()); return 0
     expected = r'/sdcard/Android/data/io\.openhoyi\.mobile\.mock/files/curve-visual-migration/[0-9a-f]{40}/tablet-user-landscape-(light|dark)-font-1\.(0|3)/import/ime-recreation-native'
-    if not args.device_directory or not re.fullmatch(expected, args.device_directory) or args.probe_directory is None:
+    m2_expected = r'/sdcard/Android/data/io\.openhoyi\.mobile\.mock/files/form-visual-migration/[0-9a-f]{40}/tablet-user-landscape-light-font-1\.0/curve-editor/ime-recreation-native'
+    if not args.device_directory or not (re.fullmatch(expected, args.device_directory) or re.fullmatch(m2_expected, args.device_directory)) or args.probe_directory is None:
         raise ValueError('Unexpected trace source path; no arbitrary pull/stop')
     return after(args.directory, args.device_directory, args.probe_directory)
 

@@ -73,17 +73,34 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
         val renderer = ProductHistoryChartRenderer(activity, style)
         val preferred = renderer.minimumComparisonHeight(160f)
         val fallback = renderer.minimumComparisonHeight(96f)
-        fun controlMinimum(body: View, scroll: ScrollView): Pair<Int, org.json.JSONArray> {
+        val sourceHeights=org.json.JSONObject()
+        val summaryRowHeights=org.json.JSONArray()
+        fun controlMinimum(body: View, scroll: ScrollView, detailsBody: Boolean = false): Pair<Int, org.json.JSONArray> {
             var maximum=touch
             val sources=org.json.JSONArray()
+            fun include(view: View, kind: String) {
+                maximum=maxOf(maximum,view.measuredHeight)
+                sources.put(org.json.JSONObject().put("kind",kind).put("tag",view.tag?.toString() ?: org.json.JSONObject.NULL)
+                    .put("class",view.javaClass.name).put("isShown",view.isShown).put("naturalHeightPx",view.measuredHeight)
+                    .put("text",(view as? android.widget.TextView)?.text?.toString()?.take(96) ?: org.json.JSONObject.NULL))
+            }
             fun visit(view: View, visible: Boolean) {
                 val shown=visible && view.visibility==View.VISIBLE
                 if(!shown)return
-                if(view.isClickable) {
-                    maximum=maxOf(maximum,view.measuredHeight)
-                    sources.put(org.json.JSONObject().put("tag",view.tag?.toString() ?: org.json.JSONObject.NULL)
-                        .put("class",view.javaClass.name).put("isShown",view.isShown).put("naturalHeightPx",view.measuredHeight)
-                        .put("text",(view as? android.widget.TextView)?.text?.toString()?.take(96) ?: org.json.JSONObject.NULL))
+                if(view.isClickable)include(view,"clickable")
+                if(detailsBody && view is android.widget.TextView && view.tag in setOf("comparison-source-1","comparison-source-2")) {
+                    include(view,"source_full_text")
+                    sourceHeights.put(view.tag.toString(),view.measuredHeight)
+                }
+                if(detailsBody && view.tag=="comparison-summary-table" && view is android.view.ViewGroup) {
+                    (0 until view.childCount).forEach { index ->
+                        val row=view.getChildAt(index)
+                        if(row is LinearLayout && row.visibility==View.VISIBLE) {
+                            include(row,"summary_individual_row")
+                            summaryRowHeights.put(org.json.JSONObject().put("tag",row.tag?.toString() ?: "comparison-summary-header")
+                                .put("naturalHeightPx",row.measuredHeight))
+                        }
+                    }
                 }
                 if(view is android.view.ViewGroup)(0 until view.childCount).forEach {visit(view.getChildAt(it),shown)}
             }
@@ -91,17 +108,18 @@ internal class TaskComparisonLayout(private val activity: ThemedActivity, privat
             return maximum+scroll.paddingTop+scroll.paddingBottom to sources
         }
         val (toolbarMinimum,toolbarSources)=controlMinimum(toolbar,toolbarScroll)
-        val (detailsMinimum,detailsSources)=controlMinimum(details,detailsScroll)
+        val (detailsMinimum,detailsSources)=controlMinimum(details,detailsScroll,true)
         val standard = height >= preferred + toolbarMinimum + detailsMinimum
         val minimum = if (standard) preferred else fallback
-        val toolbarBudget = minOf(toolbar.measuredHeight, (height - minimum - detailsMinimum).coerceAtLeast(0))
-        val detailBudget = minOf(details.measuredHeight, (height - toolbarBudget - minimum).coerceAtLeast(0))
+        val toolbarBudget = minOf(maxOf(toolbar.measuredHeight,toolbarMinimum), (height - minimum - detailsMinimum).coerceAtLeast(0))
+        val detailBudget = minOf(maxOf(details.measuredHeight,detailsMinimum), (height - toolbarBudget - minimum).coerceAtLeast(0))
         productLayoutEvidence.put("availableHeightPx", height).put("toolbarNaturalPx", toolbar.measuredHeight)
             .put("toolbarBudgetPx", toolbarBudget).put("toolbarLocallyScrollable", toolbar.measuredHeight > toolbarBudget)
             .put("detailsNaturalPx", details.measuredHeight).put("detailsViewportPx", detailBudget)
             .put("detailsMinimumPx", detailsMinimum).put("toolbarMinimumPx",toolbarMinimum)
             .put("detailsMinimumSources",detailsSources).put("toolbarMinimumSources",toolbarSources)
-            .put("minimumSource","visible_tree_clickable_actual_natural_height_plus_scroll_padding; at_least_48dp")
+            .put("detailsSourceNaturalHeightPx",sourceHeights).put("detailsSummaryRowNaturalHeightPx",summaryRowHeights)
+            .put("minimumSource","visible_tree_clickable_source_full_text_and_individual_summary_rows_actual_natural_height_plus_scroll_padding; at_least_48dp")
             .put("detailsMinimumSatisfiable",detailBudget>=detailsMinimum).put("toolbarMinimumSatisfiable",toolbarBudget>=toolbarMinimum)
             .put("chartMinimumPx", minimum)
             .put("preferredChartMinimumPx", preferred).put("fallbackChartMinimumPx", fallback)

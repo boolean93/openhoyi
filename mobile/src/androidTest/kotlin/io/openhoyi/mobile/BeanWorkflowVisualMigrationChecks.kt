@@ -601,6 +601,92 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         }
         check(!failed) { "M4 initial/reachable text/control bounds failed; original PNGs saved before failure" }
     }
+    /** Reaches an existing business-state explanation without changing that state or its fixed actions. */
+    private fun preparationDescriptionReach(page: Activity, scope: Scope, directory: File, phase: String, expectedText: String) {
+        check(phase in setOf("confirmed-ledger-matched-receipt", "post-consume-intent-write-failed"))
+        val folder=File(directory,"states/$phase")
+        check(File(folder,"window-frame-sync.json").isFile && File(folder,"window.png").isFile) {
+            "M4 original business-state image must precede description reachability: $phase"
+        }
+        lateinit var scroll: ScrollView
+        lateinit var target: TextView
+        lateinit var fixedViews: List<View>
+        lateinit var initial: JSONObject
+        lateinit var fixedBefore: List<String>
+        var priorX=0; var priorY=0
+        main {
+            scroll=requireNotNull(root(page).findViewWithTag("product/preparation/support-scroll"))
+            val matching=nodes(scroll).filterIsInstance<TextView>().filter { it.text.toString()==expectedText }
+            check(matching.size==1) { "M4 expected one actual explanation in support scroll: $phase" }
+            target=matching.single()
+            check(target.rootView===root(page).rootView && target.isAttachedToWindow && target.isShown)
+            val actions=requireNotNull(root(page).findViewWithTag<View>("product/preparation/actions"))
+            fixedViews=listOf(actions)+nodes(actions).filterIsInstance<Button>()
+            check(fixedViews.size>=2 && fixedViews.all { it.isAttachedToWindow && it.isShown })
+            fixedBefore=fixedViews.map { visibility(it).getJSONArray("rectPx").toString() }
+            priorX=scroll.scrollX; priorY=scroll.scrollY
+            initial=observation(target)
+        }
+        val intent=requireNotNull(scope.preparation.current())
+        val eventId=intent.eventId
+        val balanceBefore=balance(scope)
+        val batchesBefore=scope.inventory.batches().map { it.batch.id to it.balanceMg }
+        val eventsBefore=scope.inventory.events().map { it.toString() }
+        val journalBefore=scope.journal.exportJson()
+        fun unchanged(): Boolean = scope.preparation.current()===intent && scope.preparation.current()?.eventId==eventId &&
+            balance(scope)==balanceBefore && scope.inventory.batches().map { it.batch.id to it.balanceMg }==batchesBefore &&
+            scope.inventory.events().map { it.toString() }==eventsBefore && scope.journal.exportJson()==journalBefore
+        fun fixedSame(): Boolean {
+            var same=false
+            main { same=fixedViews.indices.all { index -> fixedViews[index].isAttachedToWindow &&
+                visibility(fixedViews[index]).getJSONArray("rectPx").toString()==fixedBefore[index] } }
+            return same
+        }
+        val proof=JSONObject().put("phase",phase).put("scope","same_real_Preparation_business_state")
+            .put("initialStateImage","states/$phase/window.png")
+            .put("targetText",expectedText).put("targetIdentity",System.identityHashCode(target))
+            .put("supportScrollIdentity",System.identityHashCode(scroll))
+            .put("intentIdentity",System.identityHashCode(intent)).put("eventId",eventId)
+            .put("initial",initial).put("initialScrollPx",JSONArray(listOf(priorX,priorY)))
+            .put("fixedActionIdentities",JSONArray(fixedViews.map(System::identityHashCode)))
+            .put("fixedActionRectsBeforePx",JSONArray(fixedBefore))
+            .put("balanceMgBefore",balanceBefore).put("eventsBefore",JSONArray(eventsBefore))
+            .put("journalBefore",journalBefore)
+        var failure:Throwable?=null
+        try {
+            main { target.requestRectangleOnScreen(Rect(0,0,target.width,target.height),true) }
+            frames.committedFrame(root(page))
+            captureState(page,directory,"$phase/description-visible")
+            lateinit var after:JSONObject
+            main { after=observation(target) }
+            val fixedAfter=fixedSame(); val businessAfter=unchanged()
+            proof.put("after",after).put("wholeAfter",whole(after))
+                .put("fixedActionsUnmovedAfter",fixedAfter).put("businessUnchangedAfter",businessAfter)
+                .put("visibleImage","states/$phase/description-visible/window.png")
+            check(whole(after) && fixedAfter && businessAfter) { "M4 original $phase explanation did not become fully reachable without business/fixed-action changes" }
+        } catch(error:Throwable) { failure=error }
+        finally {
+            try {
+                main { scroll.scrollTo(priorX,priorY) }
+                frames.committedFrame(root(page))
+                captureState(page,directory,"$phase/description-restored")
+                lateinit var restored:JSONObject
+                main { restored=observation(target) }
+                val exactScroll=scroll.scrollX==priorX && scroll.scrollY==priorY
+                val fixedRestored=fixedSame(); val businessRestored=unchanged()
+                val targetRestored=restored.toString()==initial.toString()
+                proof.put("restored",restored).put("scrollRestoredExactly",exactScroll)
+                    .put("fixedActionsUnmovedRestored",fixedRestored).put("businessUnchangedRestored",businessRestored)
+                    .put("targetObservationRestoredExactly",targetRestored)
+                    .put("restoredImage","states/$phase/description-restored/window.png")
+                check(exactScroll && fixedRestored && businessRestored && targetRestored) { "M4 original $phase state did not restore exactly" }
+            } catch(error:Throwable) { if(failure==null) failure=error else failure!!.addSuppressed(error) }
+            proof.put("status",if(failure==null) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
+            failure?.let { proof.put("failure",it.stackTraceToString()) }
+            File(folder,"support-description-reachability.json").writeText(proof.toString(2))
+        }
+        failure?.let { throw it }
+    }
     private fun preparationBusiness(initial: Activity, scope: Scope, directory: File) {
         var page=initial; val frozen=otherModels(scope); val cases=JSONArray()
         fun events()=scope.inventory.events().filter { it.batchId==scope.batchId }
@@ -678,7 +764,10 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
             val label=requireNotNull(root(page).findViewWithTag<TextView>("dose-balance-receipt"))
             check(label.text.toString()==page.getString(R.string.dose_balance_receipt,BeanQuantity.formatGrams(initialBalance),BeanQuantity.formatGrams(receipt.balanceMg)))
         }
-        captureState(page,directory,"confirmed-ledger-matched-receipt"); record("explicit-retry-repeat-recreate-consume-exactly-once")
+        captureState(page,directory,"confirmed-ledger-matched-receipt")
+        preparationDescriptionReach(page,scope,directory,"confirmed-ledger-matched-receipt",
+            page.getString(R.string.dose_confirmed,BeanQuantity.formatGrams(confirmed.amountMg)))
+        record("explicit-retry-repeat-recreate-consume-exactly-once")
         click(page,R.string.dose_discard); dialogClick(page,AlertDialog.BUTTON_NEGATIVE,R.string.dose_cancel_dialog)
         check(scope.preparation.current()==confirmed && events().count { it.eventId==pending.eventId }==1)
         click(page,R.string.dose_discard); dialogClick(page,AlertDialog.BUTTON_POSITIVE,R.string.dose_discard_confirm)
@@ -690,7 +779,9 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         try { click(page,R.string.dose_confirm); error(R.string.dose_confirm_failed)
             check(scope.preparation.current()?.let { it.eventId==uncertainId && it.attempted && !it.confirmed }==true)
             check(events().count { it.eventId==uncertainId }==1)
-            captureState(page,directory,"post-consume-intent-write-failed"); record("unresolved-intent-matching-authoritative-ledger-not-replaced")
+            captureState(page,directory,"post-consume-intent-write-failed")
+            preparationDescriptionReach(page,scope,directory,"post-consume-intent-write-failed",page.getString(R.string.dose_attempted))
+            record("unresolved-intent-matching-authoritative-ledger-not-replaced")
         } finally { scope.preparationWritesBeforeFailure=null }
         val beforeRetry=events(); click(page,R.string.dose_retry)
         check(scope.preparation.current()?.confirmed==true && events()==beforeRetry); record("explicit-reconcile-same-event-no-second-consume")

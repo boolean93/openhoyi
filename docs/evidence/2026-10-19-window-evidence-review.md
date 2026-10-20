@@ -42,3 +42,28 @@ runner 现在逐一要求主图、短窗、modal、滚后等预期 proof 存在�
 允许仅helper与新WindowOriginDiagnostic两个测试文件，在上述两个结构化unsupported reason点标记；原FAIL proof持久化后，只对原同identity/attached root与Window执行一次独立DIAGNOSTIC_NOT_ACCEPTANCE。不触发像素差、超时、失焦、wrong-root负例或泛异常。独立诊断真实5s单独记时，不延长原验收5s、不改accepted、不覆盖原异常/requiredproof。失效仅记录不可用，不切换窗口重试。
 
 只读采集完整Window/decor/root/token/display、四边surfaceInsets、metrics、原请求Rect和SDK后Rect、PixelCopy/window-layer/display原始尺寸与PNG。Layer完整不裁不缩；display与screen app矩形仅对照，不试多偏移找最小差。未知layer原点继续FAIL。本批仅获得真实mapping证据，支持与否须后续独立审查，不自动认证。
+
+## 2026-10-20 a47c870 实际原点诊断与下一最小支持范围
+
+原件分别为 `ci-a47c870-scale/raw`、`ci-a47c870-legacy/raw`，source 12de379c8bc98ed1d309d04c8e73edf09b3cae87。Astra 读两份 diagnostic-window-origin.json，并查看原 layer PNG，独立逐像素核算三张原件；它们仍是 DIAGNOSTIC_NOT_ACCEPTANCE，不追认任何 protocol 2 成功。
+
+- Scale：decor 1408×1048，screen `[576,245,1984,1293]`；SDK 将本次独立 source `[0,0,1408,1048]` 平移为 `[72,72,1480,1120]`。完整 layer 1552×1192。按该实测 source 裁 layer，与原 surface **0 像素差**；完整 display 的同 screen 区域有 728 像素差，均对应 surface alpha<255 的边缘。actualViewRootSurfaceInsets 为 UNKNOWN_REFLECTION_UNAVAILABLE（NoSuchFieldException），不得写成四边已知。
+- Legacy 短窗：decor/root 2560×630，screen `[0,485,2560,1115]`，host metrics 2560×1600；SDK source 不偏移。完整 surface/layer PNG 同 SHA，display 同 screen 区域也为 **0 像素差**。
+
+**纠正一次口头判断：** Scale 的 728 跨域差不是正式门禁失败。既定正式零差仍是 S1_W1、S1_W2、S1_S2、D1_D2_app；S1_D1_diagnosticOnly 不要求等价。不得新增跨域零差要求，也不得掩掉透明像素。
+
+批准下一候选仅显式 opt-in 两种映射，默认 Activity 全窗口规则不变：
+
+1. `MEASURED_WINDOW_BUFFER_TRANSLATION`：仅现有 Scale 两个真实 trend dialog 入口启用。保同 Window/decor/root/token/display、焦点、全祖先 identity transform 与前后几何检查。每次 PixelCopy 用新的原 source Rect，要求 SDK 返回 source 宽高完全不变、各边是同一非负 dx/dy 平移；S1 与 S2 的实际平移必须精确相同。不得写入 72 常数或靠搜索像素选择偏移。
+2. W1/W2 完整原 layer 均保存、尺寸必须一致。本批只支持已观察的对称扩展：layer.width=decor.width+2*dx，height=decor.height+2*dy；source+offset 全部位于 layer。记录这是测得的 buffer 扩展约束，不称其为已读取四边 surfaceInsets。其它不对称/未知大小继续 FAIL，后续要支持必须另取证。
+3. 用实际 SDK 后 source 作为 W1/W2 的 hash/diff rect，保留整个原 root ROI（含透明圆角）；S1/S2不缩放。display 仍用实测 screen rect，D1/D2 原域零差不变，cross-domain差原样输出。所有前置测量和六次采集仍在原真实 5s 内，无额外预采样、时限扩大或重试预算重置。
+4. `MEASURED_SHORT_ACTIVITY_WINDOW`：只用于已声明的 M6/M7 短窗调用，保 Activity 自身焦点及与显式Window同等身份链核验。不得在默认 metrics 等式失败后自动 fallback。decor inWindow 必须(0,0)，root screen−window 必须等于decor screen；decor screen矩形包含在host metrics/display内。source无SDK偏移，layer必须等于decor尺寸，完整root边界不得缩小。host metrics 作为host边界保留，不再在这个**显式模式**错误要求与短decor等大。M6短窗未有本次实际样本，仍需运行验证。
+5. 原错误 Window/root/失焦负例继续失败；补离线映射契约反例：偏移非平移、负偏移、S1/S2偏移不同、W1/W2尺寸不同、非对称扩展、越界、screen/window原点不等、默认模式短窗不能自动通过。不能用离线反例代替真实CI四零差。新的 accepted 只能由后续真实 protocol 2 产生，原诊断失败记录保留。
+
+实现由根分配原 helper owner 顺序执行，避免与在制阶段计时冲突；本审查不改 helper 或生产。
+
+### 显式映射与阶段计时实现静态收口
+
+已审最终 NativeWindowFrameEvidence.kt SHA256 `efe2a0653e24d8cde2e9cac71f768783a0562fcf874d1a33268391db011318f0`，及 M6/M7 调用、两 runner、window_mapping_contract.py（`c8c01a7f0ad4899dc9192a1a9c497071c6d600b1a24b9e55a684bf103b653527`）。实测平移、对称扩展、两次一致、边界和身份链均依上述限定；默认 Activity 不 fallback。仅原两 trend modal 与已声明短窗 opt-in，负例仍原 strict Window 入口。translated 成功保留完整 W1/W2 原层 PNG，Scale runner（`dc888125180bd261b23ec0ebf1f2c9dc20ddcc5d804ac3fc50c2c65318fbce71`）要求四原件角色及逐 SHA/层尺寸。
+
+纳秒计时仅在匹配过程内存记录既有阶段，终态 finally 写独立 diagnostic sidecar；不参与 accepted，不覆盖失败，不添加等待。原真实5秒、六次采集顺序、四正式零差和跨域仅诊断保持。独立执行9项映射契约测试全过、三个runner bash-n与diff-check通过。静态无剩余阻断；这些离线结果不证明新的真实 Window capture 已通过，需新CI原件验收。

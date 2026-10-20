@@ -68,3 +68,11 @@ TaskFrameChecks本次窄diff已读：定位真实steam row内唯一input及label
 ### scrollbar 前置门规格撤回（同日新证据优先）
 
 SDK34 ScrollabilityCache.state 标注 @UnsupportedAppUsage(maxTargetSdk=R)，项目target35。此前依赖该字段的mandatory OFF门不再批准：不得把高风险不可访问反射设成所有页面的验收前置，不绕hidden API。本批删除settleFadingScrollbars调用及其受限state依赖，恢复原S1前hardware commit、原总5s与四零差协议；两种mapping失败后的独立只读WindowOriginDiagnostic可保留。Settings原渐隐失败仍未关闭。后续仅独立调查公开fade duration/delay、真实帧与各阶段耗时，或优化比较成本争取原预算重试；不把定时等待当稳定证明、不隐藏bar、不增加预算。
+
+## 2026-10-20 a47c870 首个 Switch 点击误判
+
+实际 settings 包已过初始 capture 与主态滚达，首个 appSpecials 的 theme-write-rejected click 在通用 helper 第536行失败。failure-context 中 theme toggle 为 `[722,449,2018,566]`（高117px=52dp），完整；已有错误文字“主题保存失败，已恢复原选择”，证明 checked listener 已运行。SDK34 `CompoundButton.java:143–153` 的 performClick 先 toggle，再返回 super.performClick 的 OnClickListener handled；只有 OnCheckedChangeListener 的真实 Switch 可以完成业务而返回 false。因此不是放宽48dp，也不是替换目标。
+
+批准最小测试适配：原 shown/enabled/clickable/48dp、完整可见检查原样保留。只对已声明 theme/feedback tag 且真实 CompoundButton 的分支调用 performClick **一次**，不以其布尔返回值否定 checked 回调；普通 View 继续要求返回 true。随后现有写入拒绝回滚、偏好值、错误文本、成功重建等业务断言仍必需。不得二次 toggle、补假 OnClickListener、直接写偏好或删业务断言。生产无改动需求；实际新CI前仍未关闭本项。
+
+上述 Switch 窄修已静态收口：SettingsVisualMigrationChecks.kt SHA256 `6fa1b0fd4b97f049f9739e958eba3cfa1a9b463a0b34561fb9649187abfed120`。仅 theme/feedback 两 tag 且实际 CompoundButton 允许忽略 performClick 返回值，调用仍恰一次；普通控件返回值、48dp、完整可见及后续业务断言未变。静态无新增阻断，新运行验证仍待。
