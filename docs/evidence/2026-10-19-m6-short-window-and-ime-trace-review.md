@@ -93,3 +93,22 @@ ImeRecreationTrace 的 M3 默认 fixture/capture caller/prior引用及mark/obser
 | collect_ime_recreation_trace.py | fac2cc0ec54595f34ccb58feed2369f2768e658d78a09faa2fcbf2c4aa0fd829 |
 
 静态无剩余阻断。已读前一冻结稿 assembleMockAndroidTest 31s成功日志；两窄收口后最终编译由根/owner协调，不能以旧日志冒称新hash已编译。本审查 bash-n/py_compile/diff-check通过。新CI尚未取得因果记录，M2原恢复FAIL与M3原PARTIAL均不升级。
+
+## 708 Scale push 已采主态限定实图接受
+
+2026-10-20。原件：`ci-7082e04-scale-push/raw/raw-device/7082e044fdf8eb2a0613154921908eaf6cbd4a01/tablet-user-landscape-light-font-1.3/scale`。对照批准`scale-v2.png`与M6冻结原生角色，实际看主图、trend-main-data原生Dialog及after-scroll-1…6共8张PNG。不是截图重采，也不重做root完整性校验。
+
+**协议边界：** 8份独立protocol2均accepted、timeout5000、四零差、geometryUnchanged/windowReady、两域颜色相等；另调用现window_mapping_contract逐份核原默认Activity或仅Dialog的MEASURED_WINDOW_BUFFER_TRANSLATION。后者实际decor1408×1048、screen原点[576,245]，不是沿用旧72常数或诊断截图当accepted。负例仍为拒绝，未计入8张。整run因随后聚合summary OOM仍FAIL。
+
+| 门 | 本格结论与直接证据 |
+|---|---|
+| G1 构图/间距 | 限定接受。左大重量/真实证据说明/底部去皮、右App计时与设备工具的主次及栏间细线符合批准构图。workspace[216,311,2524,1429]，primary宽1562、support宽692、间隔54px=24dp；页面侧边36px=16dp，数字单位间18px=8dp，计时双按钮间36px=16dp。1.3必要fallback已获原计划允许：inline所需658px而可用521px，故趋势用原详情，不能拿本图签1.0必须inline条款。留白未以缩字号填塞。 |
+| G2 字体/字重 | 主页面沿冻结Noto Sans SC角色，重量700、单位400、计时700、动作500，非fakeBold/字距0；中文字形及数字形态与冻结原生基线一致。原生Dialog标题保持原AlertDialog系统角色（53px/400），不冒称其逐glyph字体SHA已由公共API证明，也不因此要求换原生标题。 |
+| G3 字号/行盒/基线 | 限定接受。64sp主值在API34本1.3配置实际144px，lineHeight216px；22sp单位实际56.25px、lineHeight76px（实际View81px），两者screen baseline精确821px。计时40sp实际90px、lineHeight135px，完整00:24.6。六目标完整且零ellipsis，按钮高108px=48dp；去皮126px=56dp。设备状态自然3行完整，不删说明、不缩字。 |
+| G4 色彩/状态 | 限定接受。实际TextView主值#FF101820、单位#FF657183；白/近白背景、青色动作与选中、灰色禁用层级与冻结palette一致。Dialog真实Canvas数据线#FF087A78、4.5px；图轴/填充可辨，不把disabled去皮当绿色成功状态。 |
+
+**数据与工具区：** 主值18.00来自显式同源11样本末值1800，非原稿固定18.0；timer实际paused24600ms且按钮“开始计时”，不伪称秤内时钟。图中清楚保留“演示模式，不是真实设备读数”“实验性只读协议…不支持去皮或自动停水”；电量显示未提供，不复刻概念82%。Dialog显示真实-10s/-5s/0s、完整纵轴与最近18.0g/0.0秒前，取消按钮完整。
+
+六份after-scroll实图均已看：toggle/reset/battery/device-status/connect/settings各目标完整，数据状态3行、其余1行；left reading与去皮不随右栏滚动。目标rect分别[1832,408,2160,516]、[2196,408,2524,516]、[2085,706,2523,772]、[2085,813,2523,997]、[1832,1051,2524,1159]、[1832,1177,2524,1285]。六图相似是之前趋势入口已将support滚到底，并非捏造不同scroll结果。
+
+**不能关闭：** 此次OOM发生在scroll-reachability摘要持久化，不能把独立图接受扩大为完整工具恢复合同通过；无完整恢复摘要/对应恢复原图则保持缺证。short-height、freshness/其他特殊态、深色、1.0与ScaleConnection本批未采，不签。主态8张的限定接受不洗掉整run FAIL，也不证明真实秤硬件能力。

@@ -2,6 +2,23 @@
 
 ## 当前状态（优先于下方历史观察时点）
 
+最新远端 head `7082e044fdf8eb2a0613154921908eaf6cbd4a01`，PR4仍为draft、目标develop；PR实际 tested merge `847a2befd04f0384edc133958a95d5cc4fab91ee`。26个运行已全部终态：PR6成功/8失败、push4成功/8失败，完整结果见 `build/task-first-evidence/ci-7082e04/final-all-status.json`。原件按对应run/head或merge分账，不把push样本写成PR样本。
+
+本地已提交、尚未推送 `b8dcc1f`：Legacy长名/短窗与M4详情全文补证、同日隐藏日期检查修正、Scale报告去重。Astra静态通过，统一AndroidTest构建37秒成功。后续B合法测试ID、M8精度Switch窄修、Curve原范围漏采补齐及Window JSON精确等价优化均已静态通过，统一AndroidTest构建40秒成功，待本次提交推送后的新CI。
+
+| 最新确切进展 | 仍需完成 |
+|---|---|
+| M1四配置、M4既定主态及说明补证沿用已有明确限定接受 | 未采详情原生弹窗全文须新图，不以字符串/构建代验 |
+| 708浅1.3 Comparison UNKNOWN警示、两来源全文及双scroll恢复；History轴/说明/notes滚达链获Astra限定接受 | History标准1.0旧截轴及其余未采配置不由1.3覆盖 |
+| LegacyHistory自然plot由84.11提升至160.1106dp，该自然高度缺陷关闭 | 初态可见plot约136.22dp，底轴完整滚达与整页验收仍待证 |
+| M8固定12格均执行，隔离通过才继续，首失败码保留 | 12格均失败；App/Machine同步超时、precision返回值误判分别处理 |
+| Scale浅1.3主态、趋势Dialog、6工具目标共8原图G1–G4限定接受；专用snapshot一次实测精确恢复 | 完整scroll恢复仍缺证；short/freshness/深色/1.0/Connection未签，汇总OOM待新运行；独立probe仍FAIL |
+| Extraction STARTING和STOP_REQUESTED实际页面已产 | STOP_REQUESTED样本写入清理失败，合法ID修正后需重新验证余态；M2/M3 IME恢复仍FAIL |
+
+**完整24页G1–G4尚未完成。** 以上只限明确源码/配置/状态；未安装、合并或发版。所有旧失败保留原件，后文按时间点阅读，不把历史“运行中”当当前状态。
+
+### dc5875c历史批次摘要
+
 最新已推送 head `dc5875cc924b2fbf7359b876b29e4e38f30ee1ec`，PR4仍为draft、目标develop；工作树提交后干净。新PR检查已启动：frame39422164343、curve39422164404、bean39422164468、scale39422164339、legacy39422164336、settings39422164407、M539422164438、snapshot39422164320；完整句柄在 `build/task-first-evidence/ci-dc5875c/run-handles.json`。本批全部终态：PR 7 success/7 failure，push 4 success/8 failure；PR branch-policy、snapshot、upgrade、lifecycle、single、native、advanced通过，curve、scale、settings、bean、legacy、M5、frame失败，本head仅取得下述M4说明与Comparison浅色1.3限定验收，不借用其他配置结果。
 
 本提交包含：Comparison按来源全文/摘要独立行自然高保详情viewport；M4两已有特殊态全文滚达/恢复补证；M8两真实Switch单次点击测试修正；Scale/Legacy显式窗口映射及诊断计时；M2/M3独立IME因果证据、生命周期超时条件快照；snapshot实际列表解析。全部经Astra静态审查，最终AndroidTest编译30秒成功；8分支策略、11snapshot、9window契约测试通过，5runner/8段Python语法通过。编译/契约通过不代表UI或硬件通过。
@@ -383,3 +400,15 @@ Scale push 39427126224（源码head非PRmerge）ZIP SHA `65469c972d17a51af293f16
 空间维护：dc旧M5与frame解压镜像每文件SHA、完整inventory与保留ZIP核相等后，释放606,857,308 bytes；原ZIP、诊断、验证报告及raw-eviction-record保留，需要旧raw时按同ZIP还原。新708正在审查原件未清理。
 
 708后续三组补证/修正（Legacy详情、M4原生详情、Scale汇总去重）已获Astra最终静态通过。统一assembleMockAndroidTest成功37s；日志visual-disclosure-unified-build.log SHA9fe9edf18a38243209bb5df3bdea1db3ae8abef5833d44ff3805c116c719cda7。真实滚达/自然窗口映射/Scale OOM后续状态仍须新CI，未用构建宣称视觉关闭。
+
+### 708完整终态与增量实图审查
+
+原26运行已全部终态：PR6成功8失败、push4成功8失败；single三屏型、native、lifecycle、upgrade、advanced等具体成功范围见 `ci-7082e04/final-all-status.json`，不外推视觉全过。
+
+Astra实际新审708 push中文浅1.3：Comparison UNKNOWN警示一行61px、两source五行285px全文及双scroll精确恢复已限定通过，关闭该具体UNKNOWN滚达缺口；History主图+chart/explanation/two-notes/restored六图真实轴/说明/notes完整滚达、固定操作不移，该格滚达链接受。详见M5review末节。root逐一核本包1698 manifest引用SHA。History1.0旧缺口没有新图，仍pending；不以浅1.3替代浅深四格。
+
+708 Scale push浅1.3的8张原图已由Astra实际对照scale-v2与原生基线，角色64/22实际144/56.25px、数字单位同baseline821、8/16/24dp间距，实际18.00与paused24.6s、禁用能力说明保持；主态/trend Dialog/6目标限定G1–G4接受。每份独立protocol与mapping已核。详见M6review末节；没有完整scroll恢复摘要/恢复图，仍不能签完整恢复，其他配置/特殊态/Connection与硬件均不外推。
+
+### 当前整批最终验证
+
+B/M8/Window/Curve冻结源码统一 `assembleMockAndroidTest` 成功40s，74 tasks，构建前后源码SHA一致；日志 `window-json-equivalence/unified-build.log` SHA256 `6bd6e6dc3452373876c9278a5c75b04c61ed168eac76ace1035141cd94cd84c7`。root复核日志/哈希，并运行窗口契约9项、分支规则8项通过；官方Android34 JSON oracle57组含708原JSON通过。各最终源码hash和边界在对应计划。真实Android5000ms、Curve6态/slot/route、B12态、M8精度及三组详情完整图仍须新CI，不据本节签视觉完成。

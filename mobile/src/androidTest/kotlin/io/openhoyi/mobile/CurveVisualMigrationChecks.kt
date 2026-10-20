@@ -4,12 +4,15 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.app.Application
 import android.app.Instrumentation
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.net.Uri
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Rect
+import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -69,23 +72,70 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
         digest.digest().joinToString("") { "%02x".format(it) }
     }
-    private fun businessDisk(): Map<String, String> = listOf("files", "shared_prefs", "databases").flatMap { name ->
+    private fun shaText(value:String):String = MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(it) }
+    private fun businessDisk(allowPresetFiles:Boolean=false): Map<String, String> = listOf("files", "shared_prefs", "databases").flatMap { name ->
         File(context.applicationInfo.dataDir, name).walkTopDown().filter { it.isFile &&
-            !(name == "shared_prefs" && it.name in setOf("appearance.xml", "appearance.xml.bak", "curves.xml", "curves.xml.bak")) }
+            !(name == "shared_prefs" && (it.name in setOf("appearance.xml", "appearance.xml.bak", "curves.xml", "curves.xml.bak") ||
+                (allowPresetFiles && it.name in setOf("presets.xml", "presets.xml.bak")))) }
             .map { it.relativeTo(File(context.applicationInfo.dataDir)).path to sha(it) }.toList()
     }.toMap()
     private fun services(): List<String> = (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager)
         .getRunningServices(100).filter { it.service.packageName == context.packageName }.map { it.service.className }
     private fun rect(value: Rect) = JSONArray(listOf(value.left, value.top, value.right, value.bottom))
+    private fun rect(value: JSONArray) = Rect(value.getInt(0), value.getInt(1), value.getInt(2), value.getInt(3))
+    /** Measure the hierarchy clip and its origin in the same screen coordinate space. */
+    private fun visibility(view: View): JSONObject {
+        val ownerRoot=view.rootView
+        val origin=IntArray(2); view.getLocationOnScreen(origin)
+        val rootScreen=IntArray(2); ownerRoot.getLocationOnScreen(rootScreen)
+        val rootWindow=IntArray(2); ownerRoot.getLocationInWindow(rootWindow)
+        val raw=Rect(); val targetGlobalOffset=Point()
+        val shown=view.getGlobalVisibleRect(raw,targetGlobalOffset)
+        val rootRaw=Rect(); val rootGlobalOffset=Point()
+        val rootShown=ownerRoot.getGlobalVisibleRect(rootRaw,rootGlobalOffset)
+        val dx=rootScreen[0]-rootGlobalOffset.x-ownerRoot.scrollX
+        val dy=rootScreen[1]-rootGlobalOffset.y-ownerRoot.scrollY
+        val derived=Rect(raw).apply { if(shown && rootShown) offset(dx,dy) }
+        val full=Rect(origin[0],origin[1],origin[0]+view.width,origin[1]+view.height)
+        val mappedOrigin=intArrayOf(targetGlobalOffset.x+view.scrollX+dx,targetGlobalOffset.y+view.scrollY+dy)
+        var identity=true; var current:View?=view
+        while(current!=null) {
+            val target=current
+            identity=identity && target.matrix.isIdentity && target.scaleX==1f && target.scaleY==1f &&
+                target.rotation==0f && target.rotationX==0f && target.rotationY==0f &&
+                target.translationX==0f && target.translationY==0f && target.translationZ==0f
+            if(target===ownerRoot) break
+            current=target.parent as? View
+        }
+        val sameRoot=current===ownerRoot && view.isAttachedToWindow && ownerRoot.isAttachedToWindow &&
+            view.windowToken!=null && view.windowToken===ownerRoot.windowToken && view.display!=null &&
+            view.display?.displayId==ownerRoot.display?.displayId
+        val mapping=shown && rootShown && sameRoot && identity && mappedOrigin.contentEquals(origin)
+        return JSONObject().put("rectPx",rect(full)).put("visibleRectPx",rect(derived)).put("rectCoordinateSpace","screen")
+            .put("rawGlobalVisibleRectRootPx",rect(raw)).put("rawRootGlobalVisibleRect",rect(rootRaw))
+            .put("rawGlobalVisibleRectDefined",shown).put("rootGlobalVisibleRectDefined",rootShown)
+            .put("targetGlobalOffsetPointPx",JSONArray(listOf(targetGlobalOffset.x,targetGlobalOffset.y)))
+            .put("rootGlobalOffsetPointPx",JSONArray(listOf(rootGlobalOffset.x,rootGlobalOffset.y)))
+            .put("rootOriginOnScreenPx",JSONArray(rootScreen.toList())).put("rootOriginInWindowPx",JSONArray(rootWindow.toList()))
+            .put("rootScrollPx",JSONArray(listOf(ownerRoot.scrollX,ownerRoot.scrollY)))
+            .put("targetScrollPx",JSONArray(listOf(view.scrollX,view.scrollY)))
+            .put("derivedScreenOffsetPx",JSONArray(listOf(dx,dy))).put("mappedScreenOriginPx",JSONArray(mappedOrigin.toList()))
+            .put("rootIdentity",System.identityHashCode(ownerRoot)).put("attachedToSameRootWindow",sameRoot)
+            .put("rootAttached",ownerRoot.isAttachedToWindow).put("targetAttached",view.isAttachedToWindow)
+            .put("rootDisplayId",ownerRoot.display?.displayId ?: JSONObject.NULL).put("targetDisplayId",view.display?.displayId ?: JSONObject.NULL)
+            .put("identityTransformChain",identity).put("screenMappingVerified",mapping)
+            .put("visibleRectConversion","raw_global_rect_plus_measured_root_screen_minus_root_global_Point_origin; own_scroll_explicitly_removed")
+            .put("visibilitySemantics","exact_hierarchy_clip_only; not_system_window_or_IME_occlusion_proof")
+            .put("globalVisible",shown).put("complete",mapping && view.width>0 && view.height>0 && derived==full)
+    }
     private fun observation(view: View): JSONObject {
-        val origin = IntArray(2); view.getLocationOnScreen(origin)
-        val full = Rect(origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)
-        val visible = Rect(); val shown = view.getGlobalVisibleRect(visible)
+        val visible=visibility(view)
         val texts = nodes(view).filterIsInstance<TextView>().map { text ->
-            val box = Rect(); val point = IntArray(2); text.getLocationOnScreen(point)
-            val whole = text.getGlobalVisibleRect(box) && box == Rect(point[0], point[1], point[0] + text.width, point[1] + text.height)
+            val textVisibility=visibility(text)
             val layout = text.layout
-            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", whole)
+            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", textVisibility.getBoolean("complete"))
+                .put("visibility",textVisibility)
                 .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
                 .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
                 .put("layoutHeightPx", layout?.height ?: JSONObject.NULL)
@@ -95,9 +145,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
                 }) } ?: JSONObject.NULL)
         }
-        return JSONObject().put("semanticId", view.tag).put("rectPx", rect(full)).put("visibleRectPx", rect(visible))
-            .put("complete", shown && view.width > 0 && view.height > 0 && visible == full)
-            .put("textLineBoxes", JSONArray(texts))
+        return visible.put("semanticId",view.tag).put("textLineBoxes",JSONArray(texts))
     }
     private fun whole(value: JSONObject): Boolean = value.getBoolean("complete") && value.getJSONArray("textLineBoxes").let { lines ->
         (0 until lines.length()).all { index -> val line = lines.getJSONObject(index)
@@ -109,19 +157,24 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                             bounds.getDouble("rightPx")-bounds.getDouble("leftPx")<=line.getInt("contentWidthPx") }
                 } }
     }
-    private inner class Scope(private val directory: File, private val page: String) {
+    private inner class Scope(private val directory: File, private val page: String, private val specialLibrary: Boolean=false) {
         private val delegateNames = listOf("feedbackPreferences", "logs", "curves", "samples", "history", "customCurvesResult",
             "curveUsageResult", "beanInventoryResult", "beanPreparationResult", "journalStoreResult")
         private val legacyNames = listOf("legacyHistory", "legacyCurves")
         private val saved = linkedMapOf<String, Lazy<*>>()
         private val originalInitialized = linkedMapOf<String, Boolean>()
         private val legacy = linkedMapOf<String, Pair<Lazy<*>, Boolean>>()
+        private var ownedLegacy: LegacyCurveStore? = null
+        private var ownedLegacySha:String?=null
+        private val legacyReaders = linkedSetOf<Thread>()
+        private val legacyReaderNames = setOf("legacy-curve-list", "legacy-curve-import")
         private var oldLanguage: Any? = null
         private var oldFailure: Any? = null
         private val savedPrefs = linkedMapOf<String, Map<String, *>>()
         private var diskBefore = emptyMap<String, String>()
         private var whitePrefFileBefore = emptyMap<String, String>()
-        private fun whitePrefFiles(): Map<String,String> = listOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak").mapNotNull { name ->
+        private fun whitePrefFiles(): Map<String,String> = listOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak",
+            "presets.xml","presets.xml.bak").mapNotNull { name ->
             File(File(context.applicationInfo.dataDir,"shared_prefs"),name).takeIf { it.isFile }?.let { name to sha(it) }
         }.toMap()
         private var installed = false
@@ -162,6 +215,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             private set
         lateinit var incoming: CustomCurveDocument
             private set
+        var readonly: CustomCurveDocument?=null
+            private set
         lateinit var fixture: JSONObject
             private set
         private val lifecycle = object : Application.ActivityLifecycleCallbacks {
@@ -189,6 +244,11 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     JSONObject().put("text",item.text?.toString()).put("htmlText",item.htmlText)
                         .put("uri",item.uri?.toString()).put("intent",item.intent?.toUri(0)) })).toString()
         }
+        fun clipboardSnapshot():String {
+            val manager=context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            return JSONObject().put("present",manager.hasPrimaryClip())
+                .put("fingerprint",clipFingerprint(manager.primaryClip) ?: JSONObject.NULL).toString()
+        }
         fun pasteFixture(owner: Activity, value: String) {
             main {
                 check(owner is CurveImportActivity && owner.hasWindowFocus())
@@ -214,6 +274,36 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             // Thread may have finished before it was observable; main callback outcome and this barrier prove no pending callback remains.
             main { }
             check(liveImportThreads().isEmpty()) { "M3 new import thread still alive" }
+        }
+        private fun liveLegacyReaders()=Thread.getAllStackTraces().keys.filter { it.isAlive && it.name in legacyReaderNames }
+        fun installOwnedLegacy(): LegacyCurveStore {
+            check(page=="library" && ownedLegacy==null && liveLegacyReaders().isEmpty())
+            val archive=JSONObject().put("format","openhoyi-legacy-curves-v1").put("factoryVersion",3)
+                .put("items",JSONArray().put(JSONObject().put("name","M3 owned legacy route").put("category","espresso")
+                    .put("factory",false).put("temp",93).put("flow",60).put("weight",360).put("seg",4)))
+            val store=LegacyCurveStore(File(ownedDirectory,"library-route-legacy.json"))
+            store.import(archive.toString().byteInputStream())
+            check(store.load()?.curves?.single()?.name=="M3 owned legacy route")
+            ownedLegacySha=sha(File(ownedDirectory,"library-route-legacy.json"))
+            main {
+                val old=requireNotNull(legacy["legacyCurves"])
+                check(field(app,"legacyCurves\$delegate")===old.first && !old.second && !old.first.isInitialized())
+                write(app,"legacyCurves\$delegate",lazyOf(store))
+                check(app.legacyCurves===store)
+            }
+            ownedLegacy=store
+            return store
+        }
+        fun drainOwnedLegacyReaders() {
+            legacyReaders.addAll(liveLegacyReaders())
+            val deadline=SystemClock.elapsedRealtime()+10000
+            legacyReaders.filter { it.isAlive }.forEach { reader ->
+                val remaining=deadline-SystemClock.elapsedRealtime()
+                check(remaining>0); reader.join(remaining)
+                check(!reader.isAlive && SystemClock.elapsedRealtime()<=deadline)
+            }
+            main { }
+            check(liveLegacyReaders().isEmpty()) { "M3 owned legacy reader still alive" }
         }
         fun restoreClipboard(owner: Activity?) {
             if(!clipboardCaptured || clipboardRestored) return
@@ -252,13 +342,21 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             document=CustomCurveDocument("draft-00000000-0000-0000-0000-000000000301", "经典浓缩", 93, 3600,
                 CustomCurveDocument.ControlMode.PRESSURE, listOf(20,90,80,60).zip(listOf(150,250,150,50)).map { CustomCurveDocument.Stage(it.first,it.second) })
             custom.save(document)
+            if(specialLibrary) {
+                check(page=="library")
+                readonly=document.copy(id=CustomCurveDocument.newId(),name="FlowRaw只读参数",
+                    controlMode=CustomCurveDocument.ControlMode.FLOW_RAW,
+                    stages=listOf(30,90,70,50).zip(listOf(150,250,150,50)).map { CustomCurveDocument.Stage(it.first,it.second) })
+                custom.save(requireNotNull(readonly))
+            }
             incoming=document.copy(name="经典浓缩（新版）",stages=listOf(30,90,70,50).zip(listOf(150,250,150,50)).map { CustomCurveDocument.Stage(it.first,it.second) })
             val factory=FactoryCurveCatalog.load(context.assets.open("factory_curves_v3.tsv"))
             val proof=FactoryWireProof.load(context.assets.open("factory_wire_v1.tsv"),factory,context.assets.open("factory_slot_wire_v1.tsv"))
             baseLibraryIds=CurveLibrary(factory,proof).items.map { it.id }
             check(baseLibraryIds.size==103) { "M3 must preserve the original complete 103-item fixture" }
             curves=CurveLibrary(factory,proof,{ custom.items() },true)
-            check(curves.items.map { it.id }.containsAll(baseLibraryIds) && curves.items.size==baseLibraryIds.size+1)
+            check(curves.items.map { it.id }.containsAll(baseLibraryIds) &&
+                curves.items.size==baseLibraryIds.size+(if(specialLibrary) 2 else 1))
             var nextShot=0
             val fixedNow=1792026750000L
             history=ShotHistory(object : ShotHistory.Storage { var value=""
@@ -282,6 +380,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             check(usage.stats(document.id).count==3L && history.entries.size==3 && journal.entries().size==3)
             fixture=JSONObject().put("page",page).put("document",document.toJson())
                 .put("incomingPreviewDocumentNotSaved",incoming.toJson()).put("baseLibraryIds",JSONArray(baseLibraryIds))
+                .put("specialLibraryScope",specialLibrary).put("readonlyOwnedDocument",readonly?.toJson() ?: JSONObject.NULL)
+                .put("ownedCustomWriteAttemptsAtPrepare",customWriteAttempts)
                 .put("actualLibraryCount",curves.items.size).put("scopedHistory",JSONArray(history.entries.map { entry ->
                     JSONObject().put("id",entry.id).put("curveId",entry.curveId).put("status",entry.status).put("observedRunning",entry.observedRunning)
                 })).put("usageCount",usage.stats(document.id).count)
@@ -301,8 +401,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 // A fresh process must not have acquired any original store before this entire group is installed.
                 check(saved.values.none { it.isInitialized() }) { "Original delegate initialized before fixture isolation" }
                 oldLanguage = field(app,"languagePreferences"); oldFailure=field(app,"journalObservationFailure")
-                listOf("appearance","curves").forEach { savedPrefs[it]=context.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
-                diskBefore=businessDisk(); whitePrefFileBefore=whitePrefFiles()
+                listOf("appearance","curves","presets").forEach { savedPrefs[it]=context.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
+                diskBefore=businessDisk(specialLibrary); whitePrefFileBefore=whitePrefFiles()
                 app.registerActivityLifecycleCallbacks(lifecycle)
                 val values = mapOf("feedbackPreferences" to feedback,"logs" to logs,"curves" to curves,"samples" to samples,"history" to history,
                     "customCurvesResult" to Result.success(custom),"curveUsageResult" to Result.success(usage),"beanInventoryResult" to Result.success(inventory),
@@ -326,6 +426,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             try {
                 if (installed) {
                     drainImportThreads()
+                    if(ownedLegacy!=null) drainOwnedLegacyReaders()
                     restoreClipboard(activeActivity())
                     main { tracked.filter { !it.isDestroyed }.forEach { it.finish() } }
                     await("all fixture Activities destroyed") { tracked.all { it.isDestroyed && it in destroyed } }
@@ -341,8 +442,16 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         } ?: true)
                     }
                     drainImportThreads()
+                    if(ownedLegacy!=null) drainOwnedLegacyReaders()
                     check(android.view.inspector.WindowInspector.getGlobalWindowViews().isEmpty()) { "M3 fixture dialog/window remains after Activity destruction" }
                     proof.put("ownedImportThreadsObserved",importThreads.size).put("allImportThreadsExitedAndMainCallbackBarrier",true)
+                    if(ownedLegacy!=null) {
+                        val current=sha(File(ownedDirectory,"library-route-legacy.json"))
+                        check(current==ownedLegacySha) { "M3 owned legacy read-only route changed archive bytes" }
+                        proof.put("ownedLegacyArchiveSha256",current)
+                        .put("ownedLegacyReadersObserved",legacyReaders.size)
+                        .put("allOwnedLegacyReadersExitedAndMainCallbackBarrier",true)
+                    }
                     proof.put("activityDestroyedCount",destroyed.size).put("allActivitiesDestroyed",true)
                         .put("serviceRemovedAndOnDestroyPostconditions",true).put("mainQueueBarrierAfterDestroy",true)
                 }
@@ -356,11 +465,21 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 providerSession?.let { provider("cleanup"); providerSession=null; proof.put("ownedProviderSessionRemoved",true) }
                 proof.put("clipboardIsolation",if(!clipboardCaptured) "NOT_TOUCHED" else if(clipboardRestored) "PASS_FOREGROUND_LOGICAL_RESTORE" else "UNKNOWN")
                 if (installed) main {
+                    if(ownedLegacy!=null) {
+                        val original=requireNotNull(legacy["legacyCurves"])
+                        write(app,"legacyCurves\$delegate",original.first)
+                        check(field(app,"legacyCurves\$delegate")===original.first && !original.first.isInitialized())
+                    }
                     saved.forEach { (name,lazy) -> write(app,name+"\$delegate",lazy) }
                     write(app,"languagePreferences",oldLanguage); write(app,"journalObservationFailure",oldFailure)
                     savedPrefs.forEach { (name,values) ->
                         val preferences = context.getSharedPreferences(name,Context.MODE_PRIVATE)
-                        val keys = if (name == "appearance") listOf("dark") else listOf("selected","sort")
+                        if(name=="presets" && preferences.all==values) return@forEach
+                        val keys = when(name) {
+                            "appearance" -> listOf("dark")
+                            "curves" -> listOf("selected","sort")
+                            else -> (1..5).map(PresetSlots::key)
+                        }
                         val edit = preferences.edit()
                         keys.forEach { key ->
                             if (key !in values) edit.remove(key)
@@ -385,13 +504,15 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     legacy.forEach { (name,pair) -> check(field(app,name+"\$delegate") === pair.first && pair.first.isInitialized()==pair.second) }
                     check(field(app,"languagePreferences") === oldLanguage && field(app,"journalObservationFailure") === oldFailure)
                     savedPrefs.forEach { (name,values) -> check(context.getSharedPreferences(name,Context.MODE_PRIVATE).all==values) }
-                    val after = businessDisk()
+                    val after = businessDisk(specialLibrary)
                     proof.put("businessDiskBefore",JSONObject(diskBefore)).put("businessDiskAfter",JSONObject(after))
                     check(after==diskBefore) { "Original business disk changed; no rollback attempted" }
                     proof.put("originalLazyIdentityAndInitializedRestored",true).put("legacyUnchanged",true)
                         .put("typedPreferencesRestored",true).put("businessDiskByteUnchanged",true)
                         .put("whitePrefFilesBefore",JSONObject(whitePrefFileBefore)).put("whitePrefFilesAfter",JSONObject(whitePrefFiles()))
-                        .put("whitePrefPhysicalBytesMayDiffer","only appearance.dark/curves.selected/curves.sort typed restoration; no file deletion or byte rollback")
+                        .put("whitePrefPhysicalBytesMayDiffer",if(specialLibrary)
+                            "appearance.dark/curves.selected/curves.sort/presets.slot_1..slot_5 typed restoration; no file deletion or byte rollback"
+                            else "only appearance.dark/curves.selected/curves.sort typed restoration; presets bytes part of strict businessDisk")
                 }
                 proof.put("status","PASS_ISOLATION_ONLY")
             } catch (failure: Throwable) {
@@ -448,6 +569,28 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("status",if(number.isShown && unit.isShown && number.baseline>=0 && unit.baseline>=0 && delta==0)
                 "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
     })
+    private fun librarySpecialBaselines(activity: Activity, fixture: JSONObject, fallbackText: String): JSONArray =
+        JSONArray((0..1).map { index ->
+            val prefix="product/curve-library/summary/$index"
+            val number=requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/number"))
+            val unit=requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/unit"))
+            val modelNull=fixture.getJSONArray("metricUnits").isNull(index)
+            val a=IntArray(2); val b=IntArray(2); number.getLocationOnScreen(a); unit.getLocationOnScreen(b)
+            val delta=a[1]+number.baseline-b[1]-unit.baseline
+            val status=when {
+                fallbackText.isNotBlank() && !number.isShown && !unit.isShown -> "NOT_APPLICABLE_SHORT_FALLBACK"
+                modelNull && unit.visibility==View.GONE && number.isShown -> "NOT_APPLICABLE_MODEL_NULL_UNIT"
+                number.isShown && unit.isShown && number.baseline>=0 && unit.baseline>=0 && delta==0 ->
+                    "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE"
+                else -> "FAIL"
+            }
+            JSONObject().put("index",index).put("numberId",number.tag).put("unitId",unit.tag)
+                .put("modelUnit",fixture.getJSONArray("metricUnits").opt(index))
+                .put("numberVisibility",number.visibility).put("unitVisibility",unit.visibility)
+                .put("numberShown",number.isShown).put("unitShown",unit.isShown)
+                .put("deltaPx",delta).put("numberBaselineScreenPx",a[1]+number.baseline)
+                .put("unitBaselineScreenPx",b[1]+unit.baseline).put("status",status)
+        })
     private fun list(activity: Activity)=field(activity,"curveList") as ListView
     private fun listState(activity: Activity): JSONObject {
         val view=list(activity)
@@ -501,6 +644,802 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val folder=File(directory,"states/$phase").apply { check(isDirectory || mkdirs()) }
         frames.screenshot(activity,root(activity),File(folder,"window.png")) { geometry(activity) }
         main { File(folder,"geometry.json").writeText(geometry(activity).toString(2)); TaskTypographyEvidence.capture(activity,folder) }
+    }
+    private fun libraryCapture(activity: Activity, folder: File, short: Boolean=false, observe: () -> JSONObject): JSONObject {
+        check(folder.isDirectory || folder.mkdirs())
+        frames.committedFrame(root(activity))
+        val frame=if(short) frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png"),observe)
+            else frames.screenshot(activity,root(activity),File(folder,"window.png"),observe)
+        File(folder,"geometry.json").writeText(frame.target.toString(2))
+        check(frame.proof.getInt("protocolVersion")==2 && frame.proof.getBoolean("accepted") && frame.proof.getInt("timeoutMs")==5000)
+        return frame.target
+    }
+    private fun captureReference(scopeRoot:File, folder:File):JSONObject {
+        fun relative(name:String)=File(folder,name).relativeTo(scopeRoot).invariantSeparatorsPath
+        return JSONObject().put("image",relative("window.png")).put("imageSha256",sha(File(folder,"window.png")))
+            .put("geometry",relative("geometry.json")).put("geometrySha256",sha(File(folder,"geometry.json")))
+            .put("proof",relative("window-frame-sync.json")).put("proofSha256",sha(File(folder,"window-frame-sync.json")))
+    }
+    private fun libraryWindowDialog(activity: Activity): AlertDialog? {
+        val candidates=android.view.inspector.WindowInspector.getGlobalWindowViews().filter {
+            it!==activity.window.decorView && it.isAttachedToWindow && it.isLaidOut && it.hasWindowFocus()
+        }
+        check(candidates.size<=1) { "M3 ambiguous focused library Window" }
+        val decor=candidates.singleOrNull() ?: return null
+        val window=decor.javaClass.getDeclaredField("mWindow").apply { isAccessible=true }.get(decor) as android.view.Window
+        val dialog=window.callback as AlertDialog
+        var owner: Context=dialog.context
+        while(owner is ContextWrapper && owner!==activity) owner=owner.baseContext
+        check(window.decorView===decor && dialog.window===window && dialog.isShowing &&
+            (dialog.ownerActivity===activity || owner===activity)) { "M3 details Window not owned by Library" }
+        return dialog
+    }
+    private fun librarySelect(activity: Activity, scope: Scope, item: CurveLibraryItem): JSONObject {
+        check(scope.curves.find(item.id)==item && item.id in scope.curves.items.map { it.id })
+        main {
+            if(field(activity,"category")!=CurveCategoryFilter.ALL) {
+                val chip=nodes(root(activity)).filterIsInstance<TextView>().single {
+                    it.isClickable && it.text.toString()==CurveCategoryFilter.ALL.label(activity)
+                }
+                check(chip.performClick())
+            }
+            (field(activity,"search") as EditText).setText(item.id)
+        }
+        await("real Library result for ${item.id}") { list(activity).count==1 && list(activity).childCount==1 }
+        main {
+            val view=list(activity); val row=view.getChildAt(0)
+            check(row.isShown && row.isAttachedToWindow && view.adapter.getItem(0)==item.id)
+            check(view.performItemClick(row,0,view.adapter.getItemId(0)))
+            check((field(activity,"selected") as CurveLibraryItem)==item)
+        }
+        return JSONObject().put("searchQuery",item.id).put("adapterItemId",list(activity).adapter.getItem(0))
+            .put("actualVisibleChildIndex",0).put("selectedId",item.id)
+            .put("list",listState(activity))
+    }
+    private fun libraryFixture(item: CurveLibraryItem, scope: Scope): JSONObject {
+        val copyable=runCatching { CustomCurveDocument.fromLibraryItem(item) }.getOrNull()
+        val weight=item.customDocument?.targetHundredthsGram ?: item.factoryCurve?.weightTenthsGram?.times(10)
+            ?: item.controlProfile?.targetHundredthsGram
+        val temperature=item.customDocument?.temperatureC ?: item.factoryCurve?.temperatureC ?: item.controlProfile?.temperatureC
+        val stages=item.customDocument?.stages?.size ?: item.factoryCurve?.segmentCount ?: item.controlProfile?.parameters?.segmentCount
+        val values=listOf(temperature?.toString() ?: "—",weight?.let { if(it==0) context.getString(R.string.curve_details_no_weight)
+            else String.format(java.util.Locale.getDefault(),"%.2f",it/100.0) } ?: "—",stages?.toString() ?: "—")
+        return JSONObject().put("id",item.id).put("name",item.name).put("category",item.category)
+            .put("source",when { item.factoryCurve!=null -> "factory"; item.controlProfile!=null -> "captured";
+                item.customDocument!=null -> "owned-draft"; else -> "unknown" })
+            .put("modelDetails",item.details).put("factoryModel",item.factoryCurve?.toString() ?: JSONObject.NULL)
+            .put("capturedModel",item.controlProfile?.toString() ?: JSONObject.NULL)
+            .put("customDocument",item.customDocument?.toJson() ?: JSONObject.NULL)
+            .put("targets",JSONArray(CurveStageParameters.pressureTargets(item)))
+            .put("metricUnits",JSONArray(listOf("°C",if(weight==null || weight==0) JSONObject.NULL else "g",JSONObject.NULL)))
+            .put("metricValues",JSONArray(values))
+            .put("canStart",scope.curves.canStart(item)).put("copyable",copyable!=null)
+            .put("slotEligible",item.factoryCurve!=null && scope.curves.canStart(item))
+    }
+    private fun libraryDisclosureState(activity: Activity, item: CurveLibraryItem, scope: Scope): JSONObject {
+        val page=geometry(activity)
+        val required=JSONObject()
+        val tags=listOf("product/curve-library/full-parameters","product/curve-library/use")+
+            (0..2).flatMap { index -> listOf("product/curve-library/summary/$index/label",
+                "product/curve-library/summary/$index/number") }+
+            (0..1).map { "product/curve-library/summary/$it/unit" }
+        tags.forEach { tag ->
+            val view=requireNotNull(root(activity).findViewWithTag<View>(tag)) { "M3 missing common target $tag" }
+            required.put(tag,observation(view))
+        }
+        val title=field(activity,"detailTitle") as TextView
+        val source=field(activity,"detailCategory") as TextView
+        val availability=field(activity,"availability") as TextView
+        val details=field(activity,"details") as TextView
+        val chart=field(activity,"stageChart") as CurveStageView
+        val fallback=field(activity,"previewFallback") as TextView
+        val fallbackScroll=field(activity,"previewFallbackScroll") as ScrollView
+        val fallbackLines=JSONArray()
+        if(fallback.isShown) {
+            val layout=requireNotNull(fallback.layout); val mapped=visibility(fallbackScroll)
+            check(mapped.getBoolean("screenMappingVerified")); val viewport=rect(mapped.getJSONArray("visibleRectPx"))
+            val location=IntArray(2); fallback.getLocationOnScreen(location)
+            val originX=location[0]+fallback.compoundPaddingLeft-fallback.scrollX
+            val originY=location[1]+fallback.baseline-layout.getLineBaseline(0)-fallback.scrollY
+            for(index in 0 until layout.lineCount) {
+                val line=Rect(kotlin.math.floor(originX+layout.getLineLeft(index)).toInt(),originY+layout.getLineTop(index),
+                    kotlin.math.ceil(originX+layout.getLineRight(index)).toInt(),originY+layout.getLineBottom(index))
+                val text=fallback.text.toString().substring(layout.getLineStart(index),layout.getLineEnd(index))
+                val horizontal=if(text.isBlank()) line.left>=viewport.left && line.left<=viewport.right
+                    else line.width()>0 && line.left>=viewport.left && line.right<=viewport.right
+                fallbackLines.put(JSONObject().put("index",index).put("start",layout.getLineStart(index))
+                    .put("end",layout.getLineEnd(index)).put("text",text)
+                    .put("rectScreenPx",rect(line)).put("ellipsisCount",layout.getEllipsisCount(index))
+                    .put("fullyVisible",horizontal && line.height()>0 && line.top>=viewport.top &&
+                        line.bottom<=viewport.bottom && layout.getEllipsisCount(index)==0))
+            }
+        }
+        val targets=CurveStageParameters.pressureTargets(item)
+        val fixture=libraryFixture(item,scope)
+        val expectedLabels=listOf(R.string.curve_preview_temperature,R.string.curve_preview_weight,R.string.curve_preview_stages)
+        for(index in 0..2) {
+            val label=requireNotNull(root(activity).findViewWithTag<TextView>("product/curve-library/summary/$index/label"))
+            val number=requireNotNull(root(activity).findViewWithTag<TextView>("product/curve-library/summary/$index/number"))
+            check(label.text.toString()==activity.getString(expectedLabels[index]) &&
+                number.text.toString()==fixture.getJSONArray("metricValues").getString(index))
+            if(index<2) {
+                val unit=requireNotNull(root(activity).findViewWithTag<TextView>("product/curve-library/summary/$index/unit"))
+                check(if(fixture.getJSONArray("metricUnits").isNull(index)) unit.visibility==View.GONE
+                    else unit.visibility==View.VISIBLE && unit.text.toString()==fixture.getJSONArray("metricUnits").getString(index))
+            }
+        }
+        val expectedSource=if(item.customDocument!=null) activity.getString(R.string.profiles_category)
+            else CurveCategoryFilter.display(activity,item.category)
+        val expectedAvailability=if(item.customDocument!=null) activity.getString(if(scope.curves.canStart(item))
+            R.string.profiles_pressure_compatible else R.string.profiles_read_only)
+            else activity.getString(if(scope.curves.canStart(item)) R.string.curve_verified else R.string.curve_unavailable)
+        val expectedDetails=if(item.customDocument!=null) (activity as ThemedActivity).profileSummary(item.customDocument)
+            else CurveDetailsText(activity).render(item,scope.curves.canStart(item))
+        check(title.text.toString()==item.name && chart.targets==targets &&
+            source.text.toString()==expectedSource && availability.text.toString()==expectedAvailability &&
+            details.text.toString()==expectedDetails && (field(activity,"selected") as CurveLibraryItem)==item)
+        check((field(activity,"select") as Button).isEnabled==scope.curves.canStart(item))
+        check((field(activity,"assignPreset") as Button).isEnabled==(item.factoryCurve!=null && scope.curves.canStart(item)))
+        check(!chart.isShown || targets.isNotEmpty()) { "M3 fake pressure path" }
+        return page.put("libraryDisclosure",JSONObject().put("itemId",item.id).put("title",observation(title))
+            .put("source",observation(source)).put("availability",observation(availability))
+            .put("details",details.text.toString()).put("common",required)
+            .put("metricValues",fixture.getJSONArray("metricValues")).put("metricUnits",fixture.getJSONArray("metricUnits"))
+            .put("actualChartTargets",JSONArray(chart.targets)).put("chartShown",chart.isShown)
+            .put("actualDrawOperations",chart.productDrawEvidence)
+            .put("fallback",observation(fallback)).put("fallbackText",fallback.text.toString())
+            .put("fallbackLines",fallbackLines)
+            .put("selectEnabled",(field(activity,"select") as Button).isEnabled)
+            .put("editEnabled",(field(activity,"editDraft") as Button).isEnabled)
+            .put("shareEnabled",(field(activity,"shareParameters") as Button).isEnabled)
+            .put("assignVisible",(field(activity,"assignPreset") as Button).visibility==View.VISIBLE)
+            .put("assignEnabled",(field(activity,"assignPreset") as Button).isEnabled)
+            .put("detailRequested",(field(activity,"collection") as TaskCollectionLayout).detailRequested))
+    }
+    private fun libraryDetails(activity: Activity, item: CurveLibraryItem, scope: Scope, folder: File): JSONObject {
+        val selectedBefore=field(activity,"selected") as CurveLibraryItem
+        val listBefore=listState(activity).toString()
+        val details=field(activity,"details") as TextView
+        val availability=field(activity,"availability") as TextView
+        val expected=item.name+"\n\n"+details.text.toString()+"\n\n"+availability.text.toString()
+        val formatter=if(item.customDocument!=null) (activity as ThemedActivity).profileSummary(item.customDocument)
+            else CurveDetailsText(activity).render(item,scope.curves.canStart(item))
+        check(details.text.toString()==formatter && selectedBefore==item)
+        main { val button=field(activity,"parameterShortcut") as Button
+            check(button.isShown && button.isEnabled && button.performClick()) }
+        var dialog:AlertDialog?=null
+        await("original Library parameter AlertDialog") { dialog=libraryWindowDialog(activity); dialog!=null }
+        val owner=requireNotNull(dialog); val window=requireNotNull(owner.window); val decor=window.decorView
+        val message=requireNotNull(owner.findViewById<TextView>(android.R.id.message))
+        val positive=requireNotNull(owner.getButton(AlertDialog.BUTTON_POSITIVE))
+        val scroll=nodes(decor).filterIsInstance<ScrollView>().single { nodes(it).any { node -> node===message } }
+        val originalX=scroll.scrollX; val originalY=scroll.scrollY
+        val report=JSONObject().put("itemId",item.id).put("expectedMessage",expected)
+            .put("modelFormatter",formatter).put("originalScroll",JSONArray(listOf(originalX,originalY)))
+            .put("windowIdentity",System.identityHashCode(window)).put("decorIdentity",System.identityHashCode(decor))
+            .put("windowTokenIdentity",System.identityHashCode(requireNotNull(decor.windowToken)))
+            .put("ownerActivityIdentity",System.identityHashCode(activity))
+            .put("visualAcceptance","ASTRA_PENDING")
+        val steps=JSONArray(); val covered=linkedSetOf<Int>(); var primary:Throwable?=null
+        fun state():JSONObject {
+            check(libraryWindowDialog(activity)===owner && message.text.toString()==expected &&
+                positive.text.toString()==activity.getString(android.R.string.ok))
+            val layout=requireNotNull(message.layout); check(layout.lineCount>0)
+            val mapped=visibility(scroll)
+            check(mapped.getBoolean("screenMappingVerified")); val visible=rect(mapped.getJSONArray("visibleRectPx"))
+            val location=IntArray(2); message.getLocationOnScreen(location)
+            val originX=location[0]+message.compoundPaddingLeft-message.scrollX
+            val originY=location[1]+message.baseline-layout.getLineBaseline(0)-message.scrollY
+            val lines=JSONArray()
+            for(index in 0 until layout.lineCount) {
+                val line=Rect(kotlin.math.floor(originX+layout.getLineLeft(index)).toInt(),originY+layout.getLineTop(index),
+                    kotlin.math.ceil(originX+layout.getLineRight(index)).toInt(),originY+layout.getLineBottom(index))
+                val text=expected.substring(layout.getLineStart(index),layout.getLineEnd(index))
+                val horizontal=if(text.isBlank()) line.left>=visible.left && line.left<=visible.right
+                    else line.width()>0 && line.left>=visible.left && line.right<=visible.right
+                val readable=horizontal && line.height()>0 && line.top>=visible.top && line.bottom<=visible.bottom &&
+                    layout.getEllipsisCount(index)==0
+                lines.put(JSONObject().put("index",index).put("start",layout.getLineStart(index)).put("end",layout.getLineEnd(index))
+                    .put("text",text)
+                    .put("rectScreenPx",rect(line)).put("fullyVisible",readable).put("ellipsisCount",layout.getEllipsisCount(index)))
+            }
+            val safe=Rect(); decor.getWindowVisibleDisplayFrame(safe)
+            val title=requireNotNull(nodes(decor).filterIsInstance<TextView>().singleOrNull { it.text.toString()==item.name && it!==message })
+            check(whole(observation(title)) && whole(observation(positive)) && positive.width>=HoyiUi.dp(activity,48) &&
+                positive.height>=HoyiUi.dp(activity,48)) { "M3 details title/confirm not fully readable" }
+            return JSONObject().put("windowIdentity",System.identityHashCode(window)).put("decorIdentity",System.identityHashCode(decor))
+                .put("windowTokenIdentity",System.identityHashCode(requireNotNull(decor.windowToken)))
+                .put("messageText",message.text.toString()).put("title",observation(title)).put("positive",observation(positive))
+                .put("scroll",JSONArray(listOf(scroll.scrollX,scroll.scrollY))).put("scrollVisibleRectScreenPx",rect(visible))
+                .put("safeRectScreenPx",rect(safe)).put("layoutOriginScreenPx",JSONArray(listOf(originX,originY)))
+                .put("layoutWidthPx",layout.width).put("contentWidthPx",message.width-message.compoundPaddingLeft-message.compoundPaddingRight)
+                .put("messageSelfScroll",JSONArray(listOf(message.scrollX,message.scrollY)))
+                .put("lines",lines).put("lineCount",layout.lineCount)
+        }
+        fun capture(name:String):JSONObject {
+            val step=File(folder,"details/$name").apply { check(isDirectory || mkdirs()) }
+            frames.committedFrame(decor)
+            val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(step,"window.png")) { state() }
+            File(step,"geometry.json").writeText(frame.target.toString(2))
+            val geometry=frame.target; val lines=geometry.getJSONArray("lines")
+            val indices=(0 until lines.length()).filter { lines.getJSONObject(it).getBoolean("fullyVisible") }
+            covered.addAll(indices)
+            steps.put(JSONObject().put("name",name).put("directory","details/$name")
+                .put("windowSha256",sha(File(step,"window.png"))).put("geometrySha256",sha(File(step,"geometry.json")))
+                .put("proofSha256",sha(File(step,"window-frame-sync.json"))).put("coveredLines",JSONArray(indices)))
+            return geometry
+        }
+        try {
+            val first=capture("initial"); val firstLines=first.getJSONArray("lines"); val count=first.getInt("lineCount")
+            for(index in 0 until count) {
+                if(index in covered) continue
+                main {
+                    val layout=requireNotNull(message.layout)
+                    check(layout.lineCount==count)
+                    val y=message.baseline-layout.getLineBaseline(0)
+                    message.requestRectangleOnScreen(Rect(0,y+layout.getLineTop(index),message.width,
+                        y+layout.getLineBottom(index)),true)
+                }
+                val current=capture("segment-%03d".format(index))
+                check(current.getInt("lineCount")==count && index in covered)
+                val lines=current.getJSONArray("lines")
+                check((0 until count).all { row ->
+                    val before=firstLines.getJSONObject(row); val after=lines.getJSONObject(row)
+                    before.getInt("start")==after.getInt("start") && before.getInt("end")==after.getInt("end") &&
+                        after.getInt("ellipsisCount")==0
+                })
+            }
+            check(covered==(0 until count).toSet()) { "M3 full Library parameter text not reachable" }
+            report.put("lineCount",count).put("coveredLines",JSONArray(covered.sorted())).put("status","PENDING_RESTORE")
+        } catch(error:Throwable) { primary=error; report.put("status","FAIL").put("failure",error.stackTraceToString()); throw error }
+        finally {
+            var restore:Throwable?=null
+            try {
+                main { scroll.scrollTo(originalX,originalY) }
+                val restored=capture("restored")
+                check(restored.getJSONArray("scroll").toString()==JSONArray(listOf(originalX,originalY)).toString() &&
+                    field(activity,"selected")==selectedBefore && listState(activity).toString()==listBefore)
+                report.put("restoredScroll",JSONArray(listOf(originalX,originalY)))
+                if(primary==null) report.put("status","PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE")
+            } catch(error:Throwable) {
+                report.put("status","FAIL").put("restoreFailure",error.stackTraceToString())
+                if(primary!=null) primary?.addSuppressed(error) else restore=error
+            } finally {
+                report.put("steps",steps)
+                try { File(folder,"details-report.json").writeText(report.toString(2)) }
+                catch(error:Throwable) { if(primary!=null) primary?.addSuppressed(error)
+                    else if(restore!=null) restore?.addSuppressed(error) else restore=error }
+                try { main { check(positive.performClick()) } }
+                catch(error:Throwable) { if(primary!=null) primary?.addSuppressed(error)
+                    else if(restore!=null) restore?.addSuppressed(error) else restore=error }
+            }
+            restore?.let { throw it }
+        }
+        await("Library parameter Window closed") { activity.hasWindowFocus() }
+        return report
+    }
+    private fun librarySpecialVisualCases(scope: Scope, directory: File): List<CurveLibraryItem> {
+        val folder=File(directory,"special-states/library").apply { check(isDirectory || mkdirs()) }
+        val original=scope.curves.items
+        val factory=original.filter { it.factoryCurve!=null }
+        val long=factory.maxWithOrNull(compareBy<CurveLibraryItem> {
+            CurveDetailsText(context).render(it,scope.curves.canStart(it)).length
+        }.thenBy { it.id }) ?: error("M3 no real factory")
+        val captured=original.filter { it.controlProfile?.let(CurveCatalog::validated)==true }.minByOrNull { it.id }
+            ?: error("M3 no validated captured curve")
+        val noPressure=factory.filter { CurveStageParameters.pressureTargets(it).isEmpty() }.minByOrNull { it.id }
+            ?: error("M3 factory has no real no-pressure source; fixture capability FAIL")
+        val readonly=requireNotNull(scope.curves.find(requireNotNull(scope.readonly).id))
+        val four=requireNotNull(scope.curves.find(scope.document.id))
+        val cases=listOf("long-factory" to long,"captured" to captured,"no-pressure" to noPressure,
+            "readonly-flow" to readonly,"four-stage-pressure" to four,"short-pressure" to four)
+        check(cases.size==6 && original.size==105 && scope.baseLibraryIds.size==103)
+        val frozen=invariant(scope); val prefs=context.getSharedPreferences("curves",Context.MODE_PRIVATE).all.toMap()
+        cases.forEach { (name,item) ->
+            val case=File(folder,name).apply { check(isDirectory || mkdirs()) }
+            val fixture=libraryFixture(item,scope)
+            if(name=="long-factory") {
+                val full=CurveDetailsText(context).render(item,scope.curves.canStart(item))
+                fixture.put("formatterFullTextSha256",shaText(full)).put("formatterFullTextLength",full.length)
+                    .put("longSelectionRule","max_CurveDetailsText_render_length_then_id")
+            }
+            File(case,"fixture.json").writeText(fixture.toString(2))
+            var activity:Activity?=null; var short=false; var error:Throwable?=null
+            val report=JSONObject().put("case",name).put("itemId",item.id).put("visualAcceptance","ASTRA_PENDING")
+            try {
+                val page=start(CurveActivity::class.java); activity=page
+                unfocus(page)
+                val before=listState(page)
+                val beforeDetail=(field(page,"collection") as TaskCollectionLayout).detailRequested
+                val beforeScroll=(field(page,"detailScroll") as ScrollView).scrollY
+                val beforeFallback=(field(page,"previewFallbackScroll") as ScrollView).scrollY
+                val choice=librarySelect(page,scope,item)
+                if(name=="short-pressure") {
+                    val old=page.window.attributes
+                    report.put("originalWindowLayout",JSONArray(listOf(old.width,old.height)))
+                    main { page.window.setLayout(-1,HoyiUi.dp(page,280)) }
+                    short=true
+                    await("real short Library Window measured") { root(page).isLaidOut && !root(page).isLayoutRequested }
+                }
+                val initial=libraryCapture(page,case,short) { libraryDisclosureState(page,item,scope) }
+                report.put("initialCapture",captureReference(directory,case))
+                val disclosure=initial.getJSONObject("libraryDisclosure")
+                val targets=CurveStageParameters.pressureTargets(item)
+                check(disclosure.getJSONArray("actualChartTargets").length()==targets.size)
+                if(targets.isEmpty()) check(!disclosure.getBoolean("chartShown") &&
+                    disclosure.getString("fallbackText").contains(page.getString(R.string.task_curve_library_no_pressure)))
+                else check(disclosure.getBoolean("chartShown") || disclosure.getString("fallbackText").isNotBlank())
+                if(name=="readonly-flow") check(!disclosure.getBoolean("selectEnabled") && !disclosure.getBoolean("editEnabled") &&
+                    !disclosure.getBoolean("assignEnabled") && !disclosure.getBoolean("chartShown") &&
+                    disclosure.getJSONObject("availability").getJSONArray("textLineBoxes").toString().contains(page.getString(R.string.profiles_read_only)))
+                File(case,"canvas.json").writeText(JSONObject().put("actualTargets",JSONArray(targets))
+                    .put("chartShown",disclosure.getBoolean("chartShown"))
+                    .put("drawOperations",disclosure.getJSONArray("actualDrawOperations"))
+                    .put("noPressureMeansNoFakePath",targets.isNotEmpty() || !disclosure.getBoolean("chartShown")).toString(2))
+                main { File(case,"baseline-alignment.json").writeText(
+                    librarySpecialBaselines(page,libraryFixture(item,scope),disclosure.getString("fallbackText")).toString(2)) }
+                main { TaskTypographyEvidence.capture(page,case) }
+                val reachable=JSONObject(); val common=disclosure.getJSONObject("common")
+                val keys=common.keys().asSequence().toList()+listOf("title","source","availability")
+                keys.forEach { key ->
+                    val proof=if(common.has(key)) common.getJSONObject(key) else disclosure.getJSONObject(key)
+                    if(whole(proof)) reachable.put(key,JSONObject().put("mode","initial").put("geometry","geometry.json"))
+                    else {
+                        val view=if(key=="title") field(page,"detailTitle") as View
+                            else if(key=="source") field(page,"detailCategory") as View
+                            else if(key=="availability") field(page,"availability") as View
+                            else requireNotNull(root(page).findViewWithTag<View>(key))
+                        if(view.isShown) {
+                            main { view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true) }
+                            val segment="reachable/"+key.replace('/','-')
+                            val sampled=libraryCapture(page,File(case,segment),short) { libraryDisclosureState(page,item,scope) }
+                            val observed=sampled.getJSONObject("libraryDisclosure")
+                            val target=if(observed.getJSONObject("common").has(key)) observed.getJSONObject("common").getJSONObject(key)
+                                else observed.getJSONObject(key)
+                            check(whole(target)) { "M3 Library $name target $key not reachable" }
+                            reachable.put(key,JSONObject().put("mode","reachable")
+                                .put("capture",captureReference(directory,File(case,segment))))
+                        } else {
+                            if(key=="product/curve-library/summary/1/unit" &&
+                                libraryFixture(item,scope).getJSONArray("metricUnits").isNull(1)) {
+                                check(view.visibility==View.GONE)
+                                reachable.put(key,JSONObject().put("mode","model-null-unit").put("expected",JSONObject.NULL))
+                                return@forEach
+                            }
+                            check(name=="short-pressure" && disclosure.getString("fallbackText").isNotBlank()) {
+                                "M3 Library $name target $key hidden without real short fallback"
+                            }
+                            reachable.put(key,JSONObject().put("mode","short-fallback").put("directory",".")
+                                .put("actualFallbackText",disclosure.getString("fallbackText")))
+                        }
+                    }
+                }
+                if(!disclosure.getBoolean("chartShown")) {
+                    val fallback=field(page,"previewFallback") as TextView
+                    val first=disclosure.getJSONArray("fallbackLines")
+                    check(first.length()>0 && disclosure.getString("fallbackText").isNotBlank())
+                    val lineCaptures=JSONArray(); val covered=linkedSetOf<Int>()
+                    (0 until first.length()).forEach { if(first.getJSONObject(it).getBoolean("fullyVisible")) covered.add(it) }
+                    for(index in 0 until first.length()) {
+                        if(index in covered) continue
+                        main {
+                            val layout=requireNotNull(fallback.layout); check(layout.lineCount==first.length())
+                            val y=fallback.baseline-layout.getLineBaseline(0)
+                            fallback.requestRectangleOnScreen(Rect(0,y+layout.getLineTop(index),fallback.width,
+                                y+layout.getLineBottom(index)),true)
+                        }
+                        val step=File(case,"reachable/fallback-line-$index")
+                        val observed=libraryCapture(page,step,short) { libraryDisclosureState(page,item,scope) }
+                            .getJSONObject("libraryDisclosure").getJSONArray("fallbackLines")
+                        check(observed.length()==first.length() && observed.getJSONObject(index).getBoolean("fullyVisible"))
+                        for(row in 0 until first.length()) {
+                            val prior=first.getJSONObject(row); val now=observed.getJSONObject(row)
+                            check(now.getInt("start")==prior.getInt("start") && now.getInt("end")==prior.getInt("end") &&
+                                now.getInt("ellipsisCount")==0)
+                            if(now.getBoolean("fullyVisible")) covered.add(row)
+                        }
+                        lineCaptures.put(JSONObject().put("line",index).put("capture",captureReference(directory,step)))
+                    }
+                    check(covered==(0 until first.length()).toSet())
+                    reachable.put("fallback-line-coverage",JSONObject().put("lineCount",first.length())
+                        .put("initialCovered",JSONArray((0 until first.length()).filter { first.getJSONObject(it).getBoolean("fullyVisible") }))
+                        .put("segments",lineCaptures).put("allCovered",JSONArray(covered.sorted())))
+                }
+                File(case,"reachability.json").writeText(reachable.toString(2))
+                report.put("sourceSelection",choice).put("initialList",before).put("initialDetailRequested",beforeDetail)
+                    .put("initialScroll",JSONArray(listOf(beforeScroll,beforeFallback)))
+                    .put("modelTargets",JSONArray(targets)).put("details",libraryDetails(page,item,scope,case))
+                if(short) {
+                    val compact=field(page,"compact") as Boolean
+                    report.put("actualCompact",compact).put("preRestoreActivityIdentity",System.identityHashCode(page))
+                    if(compact) {
+                        test.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+                        await("compact short Library returned to browser") { !page.isDestroyed &&
+                            !(field(page,"collection") as TaskCollectionLayout).detailRequested }
+                    }
+                    val old=report.getJSONArray("originalWindowLayout")
+                    main { page.window.setLayout(old.getInt(0),old.getInt(1)) }
+                    short=false
+                }
+                val originalItem=requireNotNull(scope.curves.find(before.getString("selectedId")))
+                librarySelect(page,scope,originalItem)
+                main {
+                    (field(page,"search") as EditText).setText(before.getString("query"))
+                    list(page).setSelectionFromTop(before.getInt("position"),before.getInt("offsetPx"))
+                    (field(page,"detailScroll") as ScrollView).scrollTo(0,beforeScroll)
+                    (field(page,"previewFallbackScroll") as ScrollView).scrollTo(0,beforeFallback)
+                }
+                val restoredFolder=File(case,"restored")
+                val restored=libraryCapture(page,restoredFolder) { geometry(page) }
+                check(listState(page).toString()==before.toString() &&
+                    (field(page,"collection") as TaskCollectionLayout).detailRequested==beforeDetail &&
+                    (field(page,"detailScroll") as ScrollView).scrollY==beforeScroll &&
+                    (field(page,"previewFallbackScroll") as ScrollView).scrollY==beforeFallback &&
+                    restored.getJSONObject("actualRestoreState").getBoolean("hasWindowFocus") && invariant(scope)==frozen &&
+                    context.getSharedPreferences("curves",Context.MODE_PRIVATE).all==prefs && services().isEmpty()) {
+                    "M3 Library $name original state not restored" }
+                report.put("restoredList",listState(page)).put("restoredCapture",captureReference(directory,restoredFolder))
+                    .put("status","PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE")
+                if(name=="short-pressure") report.put("postRestoreActivityIdentity",System.identityHashCode(page))
+                    .put("windowLayoutAfterRestore",JSONArray(listOf(page.window.attributes.width,page.window.attributes.height)))
+                if(name=="short-pressure" && !(field(page,"compact") as Boolean)) {
+                    val decor=page.window.decorView
+                    test.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+                    await("wide short Library original Back finished Activity") { page.isDestroyed }
+                    check(android.view.inspector.WindowInspector.getGlobalWindowViews().none { it===decor || it.windowToken===decor.windowToken })
+                    report.put("originalBackAfterRestore","finished_original_activity")
+                        .put("destroyedActivityIdentity",System.identityHashCode(page))
+                }
+            } catch(failure:Throwable) { error=failure; report.put("status","FAIL").put("failure",failure.stackTraceToString()); throw failure }
+            finally {
+                var cleanupFailure:Throwable?=null
+                try { activity?.let { page -> if(!page.isDestroyed) close(page) } }
+                catch(closeFailure:Throwable) { report.put("status","FAIL").put("cleanupFailure",closeFailure.stackTraceToString())
+                    if(error!=null) error?.addSuppressed(closeFailure) else cleanupFailure=closeFailure }
+                try { File(case,"case.json").writeText(report.toString(2)) }
+                catch(writeFailure:Throwable) { if(error!=null) error?.addSuppressed(writeFailure)
+                    else if(cleanupFailure!=null) cleanupFailure?.addSuppressed(writeFailure) else cleanupFailure=writeFailure }
+                cleanupFailure?.let { throw it }
+            }
+        }
+        return listOf(long,captured,readonly)
+    }
+    private fun popupList(activity:Activity):ListView? = android.view.inspector.WindowInspector.getGlobalWindowViews()
+        .filter { it!==activity.window.decorView && it.isAttachedToWindow }
+        .flatMap(::nodes).filterIsInstance<ListView>().singleOrNull { it.isShown && (it.adapter?.count ?: 0)>0 }
+    private fun popupChoices(activity:Activity):List<String> {
+        val list=requireNotNull(popupList(activity)) { "M3 original PopupMenu not visible" }
+        return (0 until list.adapter.count).map { list.adapter.getItem(it).toString() }
+    }
+    private fun popupEvidence(activity:Activity):JSONObject {
+        val list=requireNotNull(popupList(activity)); val labels=popupChoices(activity)
+        val visible=JSONArray((0 until list.childCount).map { index -> val child=list.getChildAt(index)
+            JSONObject().put("adapterPosition",list.firstVisiblePosition+index)
+                .put("adapterText",labels[list.firstVisiblePosition+index])
+                .put("actualNodeTexts",JSONArray(nodes(child).filterIsInstance<TextView>().map { it.text.toString() }))
+                .put("actualNode",observation(child)) })
+        return JSONObject().put("localizedAdapterChoices",JSONArray(labels)).put("visibleNodes",visible)
+            .put("noIndependentWindowProtocolClaim",true)
+    }
+    private fun openLibraryMenu(activity:Activity, management:Boolean=false):List<String> {
+        main {
+            val anchor=if(management) requireNotNull(root(activity).findViewWithTag<View>("curve-library-management"))
+                else field(activity,"detailActions") as View
+            check(anchor.isShown && anchor.isAttachedToWindow && anchor.performClick())
+        }
+        await("original Library PopupMenu") { popupList(activity)!=null }
+        return popupChoices(activity)
+    }
+    private fun choosePopup(activity:Activity, label:String) {
+        val list=requireNotNull(popupList(activity))
+        val matches=(0 until list.adapter.count).filter { list.adapter.getItem(it).toString()==label }
+        check(matches.size==1) { "M3 PopupMenu action $label absent/ambiguous" }
+        val position=matches.single()
+        main { list.setSelection(position) }
+        await("visible original PopupMenu child $label") {
+            position>=list.firstVisiblePosition && position<list.firstVisiblePosition+list.childCount }
+        main {
+            val child=list.getChildAt(position-list.firstVisiblePosition)
+            check(child!=null && child.isShown && list.performItemClick(child,position,list.adapter.getItemId(position)))
+        }
+    }
+    private fun prefMapJson(values:Map<String,*>):JSONObject = JSONObject(values.mapValues { (_,value) ->
+        JSONObject().put("type",when(value) { is Boolean -> "Boolean"; is String -> "String"; is Int -> "Int";
+            is Long -> "Long"; is Float -> "Float"; is Set<*> -> "StringSet"; else -> error("Unknown preference type") })
+            .put("value",if(value is Set<*>) JSONArray(value.sortedBy { it.toString() }) else value)
+    })
+    private fun restorePresetKeys(before:Map<String,*>) {
+        val preferences=context.getSharedPreferences("presets",Context.MODE_PRIVATE)
+        val edit=preferences.edit()
+        (1..5).map(PresetSlots::key).forEach { key ->
+            if(!before.containsKey(key)) edit.remove(key)
+            else when(val value=before[key]) {
+                is Boolean -> edit.putBoolean(key,value)
+                is String -> edit.putString(key,value)
+                is Int -> edit.putInt(key,value)
+                is Long -> edit.putLong(key,value)
+                is Float -> edit.putFloat(key,value)
+                is Set<*> -> { check(value.all { it is String }); @Suppress("UNCHECKED_CAST")
+                    edit.putStringSet(key,value as Set<String>) }
+                else -> error("Unknown original preset key type $key")
+            }
+        }
+        check(edit.commit()); main { }
+        check(preferences.all==before) { "M3 preset whitelist restoration changed original map" }
+    }
+    private fun presetDisk():JSONObject = JSONObject().apply {
+        listOf("presets.xml","presets.xml.bak").forEach { name ->
+            val file=File(context.applicationInfo.dataDir,"shared_prefs/$name")
+            put(name,if(file.isFile) sha(file) else JSONObject.NULL)
+        }
+    }
+    private fun diskPresetString(key:String):String? {
+        val file=File(context.applicationInfo.dataDir,"shared_prefs/presets.xml")
+        if(!file.isFile) return null
+        val parser=android.util.Xml.newPullParser()
+        file.inputStream().use { parser.setInput(it,"UTF-8")
+            while(parser.eventType!=org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+                if(parser.eventType==org.xmlpull.v1.XmlPullParser.START_TAG && parser.name=="string" &&
+                    parser.getAttributeValue(null,"name")==key) return parser.nextText()
+                parser.next()
+            }
+        }
+        return null
+    }
+    private fun librarySlots(scope: Scope, directory: File, qualified:CurveLibraryItem, captured:CurveLibraryItem,
+        readonly:CurveLibraryItem) {
+        val folder=File(directory,"preset-eligibility-and-slots").apply { check(isDirectory || mkdirs()) }
+        check(qualified.factoryCurve!=null && scope.curves.canStart(qualified) &&
+            captured.factoryCurve==null && readonly.factoryCurve==null)
+        val prefs=context.getSharedPreferences("presets",Context.MODE_PRIVATE)
+        val before=prefs.all.toMap(); val diskBefore=presetDisk(); val frozen=invariant(scope)
+        val report=JSONObject().put("qualifiedId",qualified.id).put("before",prefMapJson(before))
+            .put("diskBeforeSha256",diskBefore).put("steps",JSONArray()).put("negative",JSONArray())
+            .put("allowedKeys",JSONArray((1..5).map(PresetSlots::key))).put("visualAcceptance","ASTRA_PENDING")
+        var activity:Activity?=null; var primary:Throwable?=null
+        try {
+            val page=start(CurveActivity::class.java); activity=page; unfocus(page)
+            librarySelect(page,scope,qualified)
+            for(slot in 1..5) {
+                val menu=openLibraryMenu(page)
+                check(menu.count { it==page.getString(R.string.curve_assign_slot) }==1)
+                val menuNodes=popupEvidence(page)
+                choosePopup(page,page.getString(R.string.curve_assign_slot))
+                var dialog:AlertDialog?=null
+                await("original slot chooser") { dialog=libraryWindowDialog(page); dialog!=null }
+                val chooser=requireNotNull(dialog); val window=requireNotNull(chooser.window); val decor=window.decorView
+                val labels=(1..5).map { page.getString(R.string.home_slot,it.toString()) }
+                val list=requireNotNull(chooser.listView)
+                main { check(list.adapter.count==5 && (0 until 5).map { list.adapter.getItem(it).toString() }==labels) }
+                if(slot==1) {
+                    val chooserFolder=File(folder,"chooser")
+                    val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(chooserFolder.apply { check(isDirectory || mkdirs()) },"window.png")) {
+                        val titleText=page.getString(R.string.curve_choose_slot)
+                        val title=requireNotNull(nodes(decor).filterIsInstance<TextView>().singleOrNull { it.text.toString()==titleText })
+                        check(list.firstVisiblePosition==0 && list.childCount==5)
+                        val rows=JSONArray((0 until 5).map { index ->
+                            val child=requireNotNull(list.getChildAt(index))
+                            val text=requireNotNull(nodes(child).filterIsInstance<TextView>()
+                                .singleOrNull { it.text.toString()==labels[index] })
+                            check(child.isShown && text.isShown)
+                            JSONObject().put("adapterPosition",index).put("adapterText",list.adapter.getItem(index).toString())
+                                .put("child",observation(child)).put("label",observation(text))
+                        })
+                        check(whole(observation(title)) && (0 until rows.length()).all { index ->
+                            val row=rows.getJSONObject(index); whole(row.getJSONObject("child")) && whole(row.getJSONObject("label")) })
+                        JSONObject().put("title",titleText).put("titleView",observation(title)).put("choices",JSONArray(labels))
+                            .put("visibleRows",rows)
+                            .put("actualAdapterChoices",JSONArray((0 until list.adapter.count).map { list.adapter.getItem(it).toString() }))
+                            .put("windowIdentity",System.identityHashCode(window))
+                    }
+                    File(chooserFolder,"geometry.json").writeText(frame.target.toString(2))
+                    report.put("chooserCapture",captureReference(directory,chooserFolder))
+                }
+                val justBefore=prefs.all.toMap()
+                main { list.setSelection(slot-1) }
+                await("visible original slot child $slot") { slot-1>=list.firstVisiblePosition &&
+                    slot-1<list.firstVisiblePosition+list.childCount }
+                main {
+                    val child=list.getChildAt(slot-1-list.firstVisiblePosition)
+                    check(child!=null && child.isShown && list.performItemClick(child,slot-1,list.adapter.getItemId(slot-1)))
+                }
+                await("slot chooser dismissed") { page.hasWindowFocus() }
+                main { }
+                val after=prefs.all.toMap(); val key=PresetSlots.key(slot)
+                check(after.keys==justBefore.keys+key && after[key]==qualified.id &&
+                    after.filterKeys { it!=key }==justBefore.filterKeys { it!=key }) { "M3 slot $slot wrote outside whitelist" }
+                await("slot $slot original apply persisted") { diskPresetString(key)==qualified.id }
+                val step=File(folder,"slot-$slot")
+                libraryCapture(page,step) { libraryDisclosureState(page,qualified,scope) }
+                report.getJSONArray("steps").put(JSONObject().put("slot",slot).put("menu",JSONArray(menu))
+                    .put("menuNodes",menuNodes)
+                    .put("before",prefMapJson(justBefore)).put("after",prefMapJson(after))
+                    .put("diskSha256",presetDisk()).put("actualStoredId",after[key])
+                    .put("capture",captureReference(directory,step)))
+                check(invariant(scope)==frozen && services().isEmpty())
+            }
+            for((label,item) in listOf("captured" to captured,"readonly-flow" to readonly)) {
+                librarySelect(page,scope,item)
+                val unchanged=prefs.all.toMap()
+                val menu=openLibraryMenu(page)
+                val menuNodes=popupEvidence(page)
+                check(page.getString(R.string.curve_assign_slot) !in menu &&
+                    !(field(page,"assignPreset") as Button).isEnabled &&
+                    (field(page,"assignPreset") as Button).visibility==View.GONE && prefs.all==unchanged)
+                report.getJSONArray("negative").put(JSONObject().put("case",label).put("itemId",item.id)
+                    .put("actualMenu",JSONArray(menu)).put("actualMenuNodes",menuNodes)
+                    .put("localizedAssignText",page.getString(R.string.curve_assign_slot))
+                    .put("assignEnabled",false).put("assignAbsent",true)
+                    .put("slotMap",prefMapJson(prefs.all)))
+                test.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+                await("negative qualification menu dismissed") { popupList(page)==null }
+            }
+            restorePresetKeys(before)
+            val restoredFolder=File(folder,"restored")
+            libraryCapture(page,restoredFolder) { libraryDisclosureState(page,readonly,scope) }
+            report.put("afterRestore",prefMapJson(prefs.all)).put("diskAfterSha256",presetDisk())
+                .put("restoredCapture",captureReference(directory,restoredFolder))
+                .put("typedPresenceValueRestored",prefs.all==before).put("businessModelUnchanged",invariant(scope)==frozen)
+                .put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
+        } catch(error:Throwable) { primary=error; report.put("status","FAIL").put("failure",error.stackTraceToString()); throw error }
+        finally {
+            try { if(prefs.all!=before) restorePresetKeys(before) }
+            catch(error:Throwable) { report.put("status","FAIL").put("restoreFailure",error.stackTraceToString())
+                if(primary!=null) primary?.addSuppressed(error) else primary=error }
+            try { activity?.let { if(!it.isDestroyed) close(it) } }
+            catch(error:Throwable) { report.put("status","FAIL").put("closeFailure",error.stackTraceToString())
+                if(primary!=null) primary?.addSuppressed(error) else primary=error }
+            try { File(folder,"business.json").writeText(report.toString(2)) }
+            catch(error:Throwable) { if(primary!=null) primary?.addSuppressed(error) else primary=error }
+            if(primary!=null && report.optString("failure").isEmpty()) throw requireNotNull(primary)
+        }
+    }
+    private fun librarySourceRoutes(scope:Scope, directory:File, qualified:CurveLibraryItem) {
+        val rootFolder=File(directory,"library-source-routes").apply { check(isDirectory || mkdirs()) }
+        val source=listOf("edit-draft" to requireNotNull(scope.curves.find(scope.document.id)),
+            "edit-copy-factory" to qualified,"share-page" to requireNotNull(scope.curves.find(scope.document.id)),
+            "import-page" to null,"legacy-page" to null)
+        check(source.size==5 && qualified.factoryCurve!=null && scope.curves.canStart(qualified) &&
+            CustomCurveDocument.fromLibraryItem(qualified).controlMode==CustomCurveDocument.ControlMode.PRESSURE)
+        val frozen=invariant(scope); val preset=context.getSharedPreferences("presets",Context.MODE_PRIVATE).all.toMap()
+        val curvePrefs=context.getSharedPreferences("curves",Context.MODE_PRIVATE).all.toMap()
+        val clipboard=scope.clipboardSnapshot()
+        val report=JSONObject().put("routes",JSONArray(source.map { it.first })).put("visualAcceptance","ASTRA_PENDING")
+        source.forEach { (route,item) ->
+            val folder=File(rootFolder,"routes/$route").apply { check(isDirectory || mkdirs()) }
+            var library:Activity?=null; var target:Activity?=null; var primary:Throwable?=null
+            val routeReport=JSONObject().put("route",route).put("sourceId",item?.id ?: JSONObject.NULL)
+                .put("visualAcceptance","ASTRA_PENDING")
+            try {
+                if(route=="legacy-page") scope.installOwnedLegacy()
+                val page=start(CurveActivity::class.java); library=page; unfocus(page)
+                if(item!=null) routeReport.put("realSelection",librarySelect(page,scope,item))
+                val before=listState(page); val requested=(field(page,"collection") as TaskCollectionLayout).detailRequested
+                val scroll=(field(page,"detailScroll") as ScrollView).scrollY
+                val fallback=(field(page,"previewFallbackScroll") as ScrollView).scrollY
+                val expected=when(route) {
+                    "edit-draft","edit-copy-factory" -> CurveEditorActivity::class.java
+                    "share-page" -> CurveShareActivity::class.java
+                    "import-page" -> CurveImportActivity::class.java
+                    else -> LegacyCurveActivity::class.java
+                }
+                val monitor=test.addMonitor(expected.name,null,false)
+                try {
+                    when(route) {
+                        "edit-draft","edit-copy-factory" -> {
+                            var direct=false
+                            main { val view=field(page,"directEdit") as Button
+                                direct=view.isShown
+                                if(direct) check(view.isEnabled && view.performClick()) }
+                            if(!direct) {
+                                val menu=openLibraryMenu(page)
+                                val label=page.getString(if(route=="edit-draft") R.string.profiles_edit else R.string.profiles_edit_copy)
+                                check(label in menu); choosePopup(page,label)
+                            }
+                        }
+                        "share-page" -> {
+                            var direct=false
+                            main { val view=field(page,"directShare") as Button
+                                direct=view.isShown
+                                if(direct) check(view.isEnabled && view.performClick()) }
+                            if(!direct) { val menu=openLibraryMenu(page)
+                                check(page.getString(R.string.profiles_share) in menu)
+                                choosePopup(page,page.getString(R.string.profiles_share)) }
+                        }
+                        else -> { val menu=openLibraryMenu(page,true)
+                            val label=page.getString(if(route=="import-page") R.string.profiles_import else R.string.curve_legacy)
+                            check(label in menu); choosePopup(page,label) }
+                    }
+                    target=test.waitForMonitorWithTimeout(monitor,10000)
+                } finally { test.removeMonitor(monitor) }
+                val destination=requireNotNull(target) { "M3 $route target Activity not launched" }
+                await("M3 $route target focused") { destination.hasWindowFocus() && root(destination).isLaidOut &&
+                    !root(destination).isLayoutRequested }
+                check(destination.javaClass==expected && !page.isDestroyed)
+                val extra=when(route) { "edit-draft","edit-copy-factory" -> destination.intent.getStringExtra(CurveEditorActivity.CURVE_ID)
+                    "share-page" -> destination.intent.getStringExtra(CurveShareActivity.CURVE_ID)
+                    else -> null }
+                check(extra==item?.id && destination.intent.extras?.keySet()?.all { key ->
+                    key==CurveEditorActivity.CURVE_ID || key==CurveShareActivity.CURVE_ID
+                }!=false) { "M3 $route wrong source Intent or unrequested extra" }
+                when(route) {
+                    "edit-draft" -> {
+                        val actual=(field(destination,"fields") as Map<*,*>)["name"] as EditText
+                        check(field(destination,"draftId")==scope.document.id && actual.text.toString()==scope.document.name)
+                        routeReport.put("targetContent",JSONObject().put("draftId",field(destination,"draftId"))
+                            .put("name",actual.text.toString()).put("sourceDocument",scope.document.toJson()))
+                    }
+                    "edit-copy-factory" -> {
+                        val newId=field(destination,"draftId") as String
+                        val warning=nodes(root(destination)).filterIsInstance<TextView>()
+                            .any { it.text.toString()==destination.getString(R.string.profiles_copy_warning) }
+                        check(newId.startsWith("draft-") && newId!=item?.id && warning)
+                        routeReport.put("targetContent",JSONObject().put("newDraftId",newId)
+                            .put("copyWarningVisible",warning).put("factorySourceId",item?.id))
+                    }
+                    "share-page" -> {
+                        val actual=field(destination,"document") as CustomCurveDocument
+                        check(actual==scope.document && nodes(root(destination)).filterIsInstance<TextView>()
+                            .any { it.text.toString()==scope.document.name })
+                        routeReport.put("targetContent",JSONObject().put("encodedDocument",actual.toJson())
+                            .put("externalShareCopyExportInvoked",false))
+                    }
+                    "import-page" -> {
+                        val empty=nodes(root(destination)).filterIsInstance<EditText>().single().text.isEmpty()
+                        check(empty)
+                        routeReport.put("targetContent",JSONObject().put("rawInputEmpty",empty)
+                            .put("clipboardOrSafReadInvoked",false))
+                    }
+                    "legacy-page" -> {
+                        scope.drainOwnedLegacyReaders()
+                        main { check(nodes(root(destination)).filterIsInstance<TextView>().any {
+                            it.text.toString()==destination.getString(R.string.legacy_curve_count,"1") }) }
+                        routeReport.put("targetContent",JSONObject().put("ownedArchiveCount",1)
+                            .put("importOrOriginalFileReadInvoked",false))
+                    }
+                }
+                val targetFolder=File(folder,"target")
+                libraryCapture(destination,targetFolder) { geometry(destination) }
+                routeReport.put("before",before).put("detailRequestedBefore",requested)
+                    .put("scrollBefore",JSONArray(listOf(scroll,fallback))).put("intentExtraId",extra ?: JSONObject.NULL)
+                    .put("targetClass",destination.javaClass.name).put("targetFocused",true)
+                    .put("targetCapture",captureReference(directory,targetFolder))
+                when(route) {
+                    "edit-draft","edit-copy-factory" -> main {
+                        val cancel=requireNotNull(root(destination).findViewWithTag<Button>("product/form/curve-editor/cancel"))
+                        check(cancel.isShown && cancel.performClick()) }
+                    "import-page" -> main { val cancel=requireNotNull(root(destination).findViewWithTag<Button>("product/curve-import/cancel"))
+                        check(cancel.text.toString()==destination.getString(R.string.beans_cancel))
+                        check(cancel.isShown && cancel.performClick()) }
+                    else -> test.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+                }
+                await("M3 $route returned to original Library") { destination.isDestroyed && page.hasWindowFocus() }
+                if(route=="legacy-page") scope.drainOwnedLegacyReaders()
+                val restoredFolder=File(folder,"restored")
+                val returned=libraryCapture(page,restoredFolder) { geometry(page) }
+                check(listState(page).toString()==before.toString() &&
+                    (field(page,"collection") as TaskCollectionLayout).detailRequested==requested &&
+                    (field(page,"detailScroll") as ScrollView).scrollY==scroll &&
+                    (field(page,"previewFallbackScroll") as ScrollView).scrollY==fallback &&
+                    returned.getJSONObject("actualRestoreState").getBoolean("hasWindowFocus") &&
+                    invariant(scope)==frozen && context.getSharedPreferences("presets",Context.MODE_PRIVATE).all==preset &&
+                    context.getSharedPreferences("curves",Context.MODE_PRIVATE).all==curvePrefs &&
+                    scope.clipboardSnapshot()==clipboard && services().isEmpty()) { "M3 $route return/invariant failed" }
+                routeReport.put("returned",listState(page)).put("restoredCapture",captureReference(directory,restoredFolder))
+                    .put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
+            } catch(error:Throwable) { primary=error; routeReport.put("status","FAIL").put("failure",error.stackTraceToString()); throw error }
+            finally {
+                try { target?.let { if(!it.isDestroyed) close(it) }; library?.let { if(!it.isDestroyed) close(it) }
+                    if(route=="legacy-page") scope.drainOwnedLegacyReaders() }
+                catch(error:Throwable) { routeReport.put("status","FAIL").put("closeFailure",error.stackTraceToString())
+                    if(primary!=null) primary?.addSuppressed(error) else primary=error }
+                try { File(folder,"business.json").writeText(routeReport.toString(2)) }
+                catch(error:Throwable) { if(primary!=null) primary?.addSuppressed(error) else primary=error }
+                if(primary!=null && routeReport.optString("failure").isEmpty()) throw requireNotNull(primary)
+            }
+        }
+        report.put("completed",true).put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
+        File(rootFolder,"business.json").writeText(report.toString(2))
     }
     private fun libraryBusiness(initial: Activity, scope: Scope, directory: File) {
         var activity=initial
@@ -951,7 +1890,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("ciRun",arguments.getString("ciRun")).put("ciJob",arguments.getString("ciJob"))
             .put("profile",profile).put("page",page).put("realProductActivity",true).put("specimenOnly",false).put("visualAcceptance","ASTRA_PENDING")
             .put("pid",android.os.Process.myPid()).put("deliveryScope","one_of_M3_three_real_Activities_by_four_profiles; host_requires_complete_12")
-        var scope: Scope?=null; var failure: Throwable?=null
+        var scope: Scope?=null; var failure: Throwable?=null; var isolatedScopes=0
         try {
             val active=Scope(directory,page); scope=active; active.prepare(); active.install(dark)
             File(directory,"fixture.json").writeText(active.fixture.toString(2))
@@ -1015,6 +1954,31 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 "library" -> {
                     libraryBusiness(activity,active,directory)
                     File(directory,"curve-business.json").writeText(JSONObject(File(directory,"continuous-list-business.json").readText()).toString(2))
+                    scope=null; active.cleanup(); isolatedScopes++
+                    val specialDirectory=File(directory,"library-special-scope").apply { check(isDirectory || mkdirs()) }
+                    val special=Scope(specialDirectory,page,true); scope=special
+                    special.prepare(); special.install(dark)
+                    File(specialDirectory,"fixture.json").writeText(special.fixture.toString(2))
+                    val candidates=librarySpecialVisualCases(special,specialDirectory)
+                    val qualified=candidates.first().takeIf { it.factoryCurve!=null && special.curves.canStart(it) &&
+                        runCatching { CustomCurveDocument.fromLibraryItem(it).controlMode==CustomCurveDocument.ControlMode.PRESSURE }.getOrDefault(false) }
+                        ?: special.curves.items.filter { it.factoryCurve!=null && special.curves.canStart(it) &&
+                            runCatching { CustomCurveDocument.fromLibraryItem(it).controlMode==CustomCurveDocument.ControlMode.PRESSURE }.getOrDefault(false) }
+                            .minByOrNull { it.id } ?: error("M3 no real slot-eligible copyable factory")
+                    librarySlots(special,specialDirectory,qualified,candidates[1],candidates[2])
+                    librarySourceRoutes(special,specialDirectory,qualified)
+                    check(special.customWriteAttempts==2 && special.custom.list().map { it.id }==
+                        listOf(special.document.id,requireNotNull(special.readonly).id) && services().isEmpty())
+                    File(specialDirectory,"special-scope-business.json").writeText(JSONObject()
+                        .put("expectedOwnedCustomWrites",2).put("actualOwnedCustomWrites",special.customWriteAttempts)
+                        .put("ownedDocumentIds",JSONArray(special.custom.list().map { it.id }))
+                        .put("specialLibraryCount",special.curves.items.size)
+                        .put("originalMainScopeAlreadyCleaned",isolatedScopes==1)
+                        .put("noService",services().isEmpty()).toString(2))
+                    scope=null; special.cleanup(); isolatedScopes++
+                    manifest.put("libraryVisualCaseCount",6).put("libraryBusinessCaseCount",2)
+                        .put("librarySpecialActualCount",special.curves.items.size)
+                        .put("mainLibraryOriginalCount",104)
                 }
                 "import" -> importBusiness(activity,active,directory)
                 else -> { previewReachability(activity,directory); previewBusiness(activity,active,directory) }
@@ -1034,8 +1998,10 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             } catch(captureFailure: Throwable) { error.addSuppressed(captureFailure) } }
         } finally {
             try {
-                scope?.cleanup()
-                manifest.put("isolationStatus", if(scope != null) "PASS_ISOLATION_ONLY" else "NOT_INSTALLED")
+                scope?.let { it.cleanup(); isolatedScopes++ }
+                manifest.put("isolationStatus", if(isolatedScopes==(if(page=="library") 2 else 1))
+                    "PASS_ISOLATION_ONLY" else "FAIL")
+                manifest.put("isolatedOwnedScopeCount",isolatedScopes)
             } catch(error: Throwable) {
                 manifest.put("isolationStatus","FAIL").put("cleanupFailure",error.stackTraceToString())
                 if(failure==null) failure=error else failure!!.addSuppressed(error)

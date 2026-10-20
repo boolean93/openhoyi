@@ -125,3 +125,36 @@ Legacy入口存在具体Scope前置：当前M3只保存legacyHistory/legacyCurve
 | check_legacy_visual_migration.sh | 331dcf24d096dd64fd50012d23f6b21d40126992699fa622804e2546a59cab3c |
 
 M4原message formatter与event身份、原一次点击/dismiss保持；accepted target包含真实baseline行盒，四原PNG及映射全契约保留。Legacy逐行事实现从accepted target读取、host逐字段核对；GONE仅原同日日期对象、可见标题/metadata及卡rect仍完整；报告写盘异常不覆盖原错误。
+
+### Library §4 owned store 生命周期定案
+
+`CustomCurveStore`没有单draft删除接口。主Scope的原103/104流程完整执行并严格cleanup之后，才创建独立Library特殊态owned Scope；在其prepare/install之前预装合法FlowRaw/four-stage模型，另报真实count，不套用主Scope的104不变断言。六case、依赖该模型的slot/route在这个独立scope顺序完成；Activity/readers/writers排空后恢复原Lazy/prefs，沿原owned目录清理规则结束整个scope。禁止反射documents、为撤单draft删文件、初始化/操作原用户store。任一scope清理失败即停止后续scope。
+
+### Library short-pressure 恢复顺序修正
+
+用户宽屏1138dp中CurveActivity.compact=false，setLayout仅缩高不会改变onCreate决定的compact；原Back会finish。故在同Activity还活着时先恢复原Window属性、commit、列表/详情scroll及selected/model，采restored图和同identity账本；再走原Back并确认原Activity destroyed、Window消失。下一case需要Library时明确启动新Activity并记录新identity，owned store仍同scope，不冒称同实例返回。实际compact=true才按其真实Back返回browser分支执行。禁止改产品compact/反射showBrowser或要求已finish实例再截图。此为按原导航纠正取证顺序，不新增功能或减掉恢复核验。
+
+### Library §4 首轮冻结静态审（2026-10-20，待窄补）
+
+审查候选：Kotlin `285a2cc359aec02b6b6cb87acbb5491cf32e38ecc81a55382af4f2a0a0419d4c`；runner `fede905472142eaf6207474e287c4fb5e7c57094cf9a67d7145737b94b`。本轮未编译、未设备执行，不签通过。
+
+104 主 Scope 先完整 cleanup，再开 105 特殊 Scope 的顺序、六项真实库选择、五 slot 的原菜单/chooser及逐类型白名单恢复、五路由的 Activity monitor/原返回、owned legacy Lazy 隔离，均在原合同范围内。需要收口的限定项已直接交两文件 owner：
+
+1. 新 short/Dialog 的 `observation` 与逐行 viewport 不能直接比较 raw `getGlobalVisibleRect` 和 screen origin。复用已批准的实测同根 screen 映射，保 token/display/祖先 identity、全矩形与全部行检查，不用固定偏移。
+2. `no-pressure` 按稳定 ID 实际选 `factory-v3-003`，其重量为 0、单位应 GONE。特殊态基线必须按声明模型区分真实单位同基线与 `NOT_APPLICABLE_MODEL_NULL_UNIT`；短窗实际隐藏项另标 fallback，不伪 PASS。原 main 两项严格基线不改。
+3. 新 host 的 initial/reachable 分支要重验同次 accepted target 的原 whole 合同（完整 rect、Layout、行数、无省略、行盒宽高），不能 initial 只认文件名或 reachable 只认 complete。
+4. slot chooser 的 accepted target 须记录真实标题和五个 adapter-position 对应的 View/文字/whole，而非只记录构造字符串与 adapter 内容；不增加选择动作或截图次数。
+5. long-factory 按合同仅以原 formatter 全文长度排序、ID 打破并列，落原全文 SHA；不能悄加 name 长度改变选择规则。
+
+以上是修正取证语义和精确覆盖，不增加产品功能、状态或门禁。owner 新 hash 冻结后再核，统一构建与真实 CI 图仍是后续步骤。
+
+### Library §4 窄补终审通过（2026-10-20）
+
+最终实核 SHA-256：
+
+- `CurveVisualMigrationChecks.kt`：`e3b6342681061e2371fd76dbd32342881cd5196cd367c2d3c43e6d645eac916a`
+- `check_curve_visual_migration.sh`：`adda5af43032f2f69abd6e4e2b467e4c3575acc397a50e44c0688b2de7c50df4`
+
+上述五项已逐项复核：同根映射覆盖 observation 与两处逐行 clip；特殊基线精确区分可见/模型 null/short fallback且原 main 不动；host initial/reachable 重验原 whole 全字段；chooser 同次 accepted target 包含真实标题、五个 adapter 位置绑定的 child/label及完整行盒；long-factory恢复原 formatter 长度排序并保存全文 SHA。本组静态无剩余阻断，允许进入 root 协调的统一构建。
+
+本 reviewer 独立执行 `bash -n`、6 段 Python heredoc 编译、`git diff --check` 全部 exit 0。尚无本候选 Android 编译或真实 CI 执行结论；六状态、原生 dialog、slot与路由的真实采集/视觉验收仍待原件，不由静态通过或旧图代签。

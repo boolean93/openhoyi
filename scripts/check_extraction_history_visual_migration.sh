@@ -130,7 +130,7 @@ done
 adb pull "/sdcard/Android/data/$package/files/extraction-history-visual-migration/$source_sha" "$output_dir/"
 python3 - "$output_dir/$source_sha" <<'VERIFY_PY'
 from pathlib import Path
-import hashlib, json, struct, sys
+import hashlib, json, re, struct, sys
 root = Path(sys.argv[1])
 sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 manifests = sorted(root.glob('*/*/manifest.json'))
@@ -141,6 +141,16 @@ extraction_special_captures=0
 extraction_special_names=['STARTING','STOP_REQUESTED','UNKNOWN_live','no_scale','stale_scale',
     'no_service_ready','manual','historical_reference_toggle','missing_samples',
     'water_reset','sample_gap','journal_unavailable']
+extraction_scenario_ids={
+    'STARTING':'m5-extraction-starting','STOP_REQUESTED':'m5-extraction-stop-requested',
+    'UNKNOWN_live':'m5-extraction-unknown-live','no_scale':'m5-extraction-no-scale',
+    'stale_scale':'m5-extraction-stale-scale','no_service_ready':'m5-extraction-no-service-ready',
+    'manual':'m5-extraction-manual','historical_reference_toggle':'m5-extraction-historical-reference-toggle',
+    'missing_samples':'m5-extraction-missing-samples','water_reset':'m5-extraction-water-reset',
+    'sample_gap':'m5-extraction-sample-gap','journal_unavailable':'m5-extraction-journal-unavailable'}
+assert list(extraction_scenario_ids)==extraction_special_names
+assert len(set(extraction_scenario_ids.values()))==12
+assert all(re.fullmatch(r'[A-Za-z0-9-]{1,64}',value) for value in extraction_scenario_ids.values())
 expected_specials={'missing-samples':'m5-history-extra-38','no-notes':'m5-history-extra-6',
     'unknown-observation':'m5-history-extra-7','sample-gap':'m5-history-extra-8','water-reset':'m5-history-extra-9'}
 def require_proof(path):
@@ -267,6 +277,7 @@ for path in manifests:
     require_proof(folder/'window-frame-sync.json')
     for name,value in m['fileSha256'].items(): assert sha(folder/name)==value, (path,name)
     isolation=json.loads((folder/'fixture-isolation.json').read_text())
+    assert isolation['sampleFailures']==[] and isolation['sampleFailureScopeCase']==folder.name and isolation['sampleFailureOwnedScope']
     assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['businessDiskByteUnchanged'] and isolation['typedPreferencesRestored']
     proof_files=list(folder.rglob('*-frame-sync.json'))
     assert proof_files, path
@@ -387,6 +398,14 @@ for path in manifests:
         assert special['sourceSha']==m['sourceSha'] and special['profile']==m['profile'] and special['page']=='extraction'
         assert special['synthetic'] and special['hardwareMeasurement'] is False and special['realProductActivity'] and special['visualAcceptance']=='ASTRA_PENDING'
         assert special['expectedCases']==extraction_special_names and special['mainConfigurationCountContribution']==0
+        assert special['scenarioShotIds']==extraction_scenario_ids
+        contract=json.loads((folder/'special-states/id-contract.json').read_text())
+        assert contract['realShotSamplesStoreSaveAndLoad'] and set(contract['cases'])==set(extraction_special_names)
+        for name,id in extraction_scenario_ids.items():
+            evidence=contract['cases'][name]
+            sample=folder/'special-states/id-contract'/f'samples-{id}.tsv'
+            assert evidence['shotId']==id and sample.is_file() and sha(sample)==evidence['sha256']
+            assert sample.read_text().splitlines()==['# openhoyi-shot-points-v3','0\t90\t100\t6\t9300\t\t\ttrue']
         assert special['actualAdditionalActivityCaptures']==len(special['cases'])==12
         assert [case['case'] for case in special['cases']]==extraction_special_names
         assert m['completedSpecialCases']==extraction_special_names and m['pendingSpecialCases']==[]
@@ -401,13 +420,15 @@ for path in manifests:
             assert case['actualRunningService']==(name!='no_service_ready')
             assert case['actualOfferedFrameSerial']==len(case['offeredMachineFrames'])
             assert case['actualSampleCount']==case['actualOfferedFrameSerial']
-            assert case['actualTraceIdentity']==(None if name=='no_service_ready' else f'm5-extraction-{name}')
+            assert case['declaredShotId']==extraction_scenario_ids[name]
+            assert case['actualTraceIdentity']==(None if name=='no_service_ready' else extraction_scenario_ids[name])
             assert case['actualCurveId']==('manual' if name=='manual' else None if name=='no_service_ready' else 'factory-v3-002')
-            assert case['shotId']==(None if name in ('manual','no_service_ready') else f'm5-extraction-{name}')
+            assert case['shotId']==(None if name in ('manual','no_service_ready') else extraction_scenario_ids[name])
             assert case['frameSync']['protocolVersion']==2 and case['frameSync']['accepted']
             assert json.loads((target/'case.json').read_text())==case
             fixture=json.loads((target/'fixture.json').read_text())
             assert fixture['case']==name and fixture['synthetic'] and fixture['hardwareMeasurement'] is False
+            assert fixture['declaredShotId']==extraction_scenario_ids[name]
             assert fixture['offeredMachineFrames']==case['offeredMachineFrames']
             assert fixture['operationInputs']==case['operationInputs']
             operations=case['operationInputs']
@@ -428,6 +449,7 @@ for path in manifests:
                 assert operations[-1]['completion']=='not_offered' and operations[-1]['requestId']>operations[0]['requestId']
             if name=='UNKNOWN_live':assert operations[-1]['state']=='DISCONNECTED'
             own=json.loads((target/'fixture-isolation.json').read_text())
+            assert own['sampleFailures']==[] and own['sampleFailureScopeCase']==name and own['sampleFailureOwnedScope']
             assert own['status']=='PASS_ISOLATION_ONLY' and own['businessDiskByteUnchanged'] and own['allActivitiesDestroyed']
             assert own['scopedServiceDestroyed'] and own['mockClockRemovedAfterAllOwnersDrained']
             assert len(case['offeredMachineFrames'])==len({x['serial'] for x in case['offeredMachineFrames']})

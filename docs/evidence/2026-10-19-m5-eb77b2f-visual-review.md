@@ -212,3 +212,13 @@ G2–G4沿用本文件已完成的四主态角色/基线/颜色限定接受；�
 冻结SHA256：MockExtractionScenario `ce632475ae1079337fed9ac316368839a951390c73df7fe2004a03be2b11e6c0`；MobileService `651cdeeb62cd3be808ad35e93db37443c433e081322085b60af41bc0cbcef73d`；M5测试 `ca4c1d0a9e95542bb7233a9b636209ac9ba1bc0fbf6f420773bca3dbad2641d0`；runner `38f7a3e7ff4b73ab8f4ee11f6ae4c14ed5c1a52d2087b94e4dcbc42db5d6b6aa`；unit `b530ab76322cc2d58ad1f0aad10fa37f581c28c5dd72b8f7dc33f726d87bfb60`。最终operationInputs增量后构建由root统一核。
 
 RUNNING滚达规格纠正：当前实际模式说明在header，非support-scroll内；精确两个滚动目标为reference-choice/overview。核header实际模式全文完整，不虚构第三个滚动目标。已核两目标原对象、每目标protocol2/完整行盒、恢复图、停止rect与本杯/参考身份保持的静态闭环。Comparison UNKNOWN窄适配也已核：仅其初态whole延后至原21目标，其他页whole未改；实际滚后图仍待。
+
+## 708 push 增量实图：Comparison UNKNOWN及History light1.3
+
+证据 `ci-7082e04-m5-push/raw/raw-device/7082e044fdf8eb2a0613154921908eaf6cbd4a01/tablet-user-landscape-light-font-1.3`，这是push HEAD，不是PR merge。root已核1698文件引用，本次不重复完整性核验。仅本profile，不外推1.0/深色或整个M5。
+
+- **Comparison UNKNOWN警示滚达缺口关闭（限定本格）**：实看unknown-observation的target-8原PNG，警示“结果未确认，请以咖啡机实际状态为准。”完整一行，棕色文字不与指标条重叠；真实rect[216,377,2524,438]，Layout61px/零ellipsis。21目标集合含原20+条件warning，selectedSourceStatuses为UNKNOWN/ENDED，非去掉警示检查。
+- **UNKNOWN两来源全文及恢复关闭（限定本格）**：实看target-9图，两栏来源完整，未确认一侧如实写“31个部分采样点”“结果未知”，另一侧29点/已观察结束；原对齐限制完整显示。两source为5行、285px高、零ellipsis，rect分别[252,1144,1316,1429]与[1424,1144,2488,1429]。末字自然换行仍可见，无缩字/覆盖固定区。实看comparison-scrolls-restored图，双scroll从[0,0]/[0,0]恢复相同，ID/metric/journal未变；初态警示不在viewport是允许局部滚动，并未冒称首屏whole。原20目标不重复全视觉签章。
+- **History light1.3图轴与详情滚达链限定接受**：实看主图、chart/explanation/note-0/note-1 reachable及restored共6张。初态时间轴确实处局部viewport外；chart-reachable图真实完整展示四量程、0/13.7/27.4刻度与“时间·s”，不是geometry假称整图可见。后续图分别完整展示独立量程说明、豆款、口感全文；固定复盘/详情始终可见，列表选择未移。chart滚达rect[1193,607,2524,1267]完整；scroll0恢复0、永久说明对象和journal不变。字体层级、原蓝/青/绿/棕及实虚点线区分与先前冻结接受基线一致，本次可见字无新裁切/拥挤。
+
+上述只关闭本格明确滚达/恢复缺口。History1.0本批未采，不能用1.3关闭标准构图旧问题；Extraction STOP_REQUESTED样本writer cleanup仍FAIL，24页未全过。

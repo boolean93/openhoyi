@@ -536,10 +536,16 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         reveal(activity,view)
         main {
             check(view.isShown && view.isEnabled && view.isClickable && view.width>=HoyiUi.dp(activity,48) && view.height>=HoyiUi.dp(activity,48))
-            val toggleTag=view.tag in setOf("product/settings/app/theme/toggle", "product/settings/app/feedback/toggle")
+            val precision=view.tag=="product/settings/scale/precision"
+            val toggleTag=view.tag in setOf("product/settings/app/theme/toggle", "product/settings/app/feedback/toggle",
+                "product/settings/scale/precision")
             if (toggleTag) {
                 check(view is CompoundButton) { "M8 real settings toggle changed class: ${view.tag}" }
+                if(precision) check(!view.isChecked &&
+                    !context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).getBoolean("one_decimal",false))
                 view.performClick()
+                if(precision) check(view.isChecked &&
+                    context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).getBoolean("one_decimal",false))
             } else check(view.performClick())
         }
     }
@@ -908,7 +914,8 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
     private fun scaleSpecials(initial:ScaleSettingsActivity,folder:File):JSONArray {
         var activity=initial;val cases=JSONArray()
         click(activity,"product/settings/scale/precision")
-        main {check(context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).getBoolean("one_decimal",false))}
+        main {check((tagged(activity,"product/settings/scale/precision") as android.widget.Switch).isChecked &&
+            context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).getBoolean("one_decimal",false))}
         activity=recreate(activity) as ScaleSettingsActivity
         main {check((tagged(activity,"product/settings/scale/precision") as android.widget.Switch).isChecked);check((field(activity,"capabilities") as TextView).text.toString()==activity.getString(R.string.scale_capability_no_device))}
         capture(activity,File(folder,"precision-recreated"));reachability(activity,File(folder,"all-instructions"),"all-instructions")

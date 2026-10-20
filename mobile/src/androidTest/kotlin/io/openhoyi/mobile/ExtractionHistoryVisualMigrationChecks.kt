@@ -57,6 +57,13 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private val extractionPendingSpecialCases=listOf("STARTING","STOP_REQUESTED","UNKNOWN_live","no_scale",
         "stale_scale","no_service_ready","manual","historical_reference_toggle","missing_samples",
         "water_reset","sample_gap","journal_unavailable")
+    private val extractionScenarioShotIds=linkedMapOf(
+        "STARTING" to "m5-extraction-starting", "STOP_REQUESTED" to "m5-extraction-stop-requested",
+        "UNKNOWN_live" to "m5-extraction-unknown-live", "no_scale" to "m5-extraction-no-scale",
+        "stale_scale" to "m5-extraction-stale-scale", "no_service_ready" to "m5-extraction-no-service-ready",
+        "manual" to "m5-extraction-manual", "historical_reference_toggle" to "m5-extraction-historical-reference-toggle",
+        "missing_samples" to "m5-extraction-missing-samples", "water_reset" to "m5-extraction-water-reset",
+        "sample_gap" to "m5-extraction-sample-gap", "journal_unavailable" to "m5-extraction-journal-unavailable")
     private val historyPendingSpecialCases=listOf("STARTING","STOP_REQUESTED","UNKNOWN_live","no_scale",
         "stale_scale","no_service_ready","manual","historical_reference_toggle","journal_unavailable")
     private fun main(action: () -> Unit) {
@@ -433,7 +440,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             main {
                 owner.installMockExtractionScenario(clockOwner)
                 scenarioInstalled=true
-                nextId="m5-extraction-$case"
+                nextId=extractionScenarioShotIds.getValue(case)
                 check(owner.shotState==ExtractionState.IDLE && owner.mockExtractionOfferedFrameSerial==0L)
             }
             return owner
@@ -476,7 +483,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 check(curves.validated(profile) && profile.targetHundredthsGram==0)
                 check(owner.startShot(curveId,profile.scaleMode,7)==null)
                 id=requireNotNull(owner.chartTraceIdentity)
-                check(id=="m5-extraction-$case" && owner.shotState==ExtractionState.STARTING)
+                check(id==extractionScenarioShotIds.getValue(case) && owner.shotState==ExtractionState.STARTING)
                 check(owner.chartPoints.isEmpty() && owner.mockExtractionPendingStartId!=null)
             }
             return id
@@ -541,6 +548,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             val proof = JSONObject().put("scopedOwnedDirectory",ownedDirectory.absolutePath)
                 .put("noBackupFilesDir",context.noBackupFilesDir.canonicalPath)
                 .put("businessDiskRoots",JSONArray(listOf("files","shared_prefs","databases",context.noBackupFilesDir.canonicalPath)))
+            var cleanupFailure: Throwable? = null
             try {
                 if (installed) {
                     main { tracked.filter { !it.isDestroyed }.forEach { it.finish() } }
@@ -671,10 +679,29 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 }
                 proof.put("status","PASS_ISOLATION_ONLY")
             } catch (failure: Throwable) {
-                proof.put("status","FAIL").put("failure",failure.stackTraceToString())
+                cleanupFailure=failure
+                try {
+                    proof.put("status","FAIL").put("failure",failure.stackTraceToString())
+                } catch (reportFailure: Throwable) {
+                    failure.addSuppressed(reportFailure)
+                }
                 // Do not restore original delegates while a scoped Activity/service/writer may still hold references.
                 throw failure
-            } finally { File(directory,"fixture-isolation.json").writeText(proof.toString(2)) }
+            } finally {
+                try {
+                    proof.put("sampleFailureScopeCase",directory.name).put("sampleFailureOwnedScope",ownedDirectory.absolutePath)
+                    proof.put("sampleFailures",JSONArray(sampleFailures.map { error -> JSONObject()
+                        .put("exceptionClass",error.javaClass.name).put("message",error.message ?: JSONObject.NULL)
+                        .put("stackTrace",error.stackTraceToString())
+                        .put("causeClass",error.cause?.javaClass?.name ?: JSONObject.NULL)
+                        .put("causeMessage",error.cause?.message ?: JSONObject.NULL)
+                        .put("suppressed",JSONArray(error.suppressed.map {it.stackTraceToString()})) }))
+                    File(directory,"fixture-isolation.json").writeText(proof.toString(2))
+                } catch (reportFailure: Throwable) {
+                    val original=cleanupFailure
+                    if(original==null) throw reportFailure else original.addSuppressed(reportFailure)
+                }
+            }
         }
     }
     /** Keep raw hierarchy coordinates; derive a screen rect from measured origins, not clipped edges. */
@@ -1140,12 +1167,29 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("noToolClicks",true).put("modelAndSelectionUnchanged",true).put("completed",true).toString(2))
     }
     private fun extractionSpecialStates(folder: File, theme: String, source: String, profile: String): JSONObject {
+        check(extractionScenarioShotIds.keys.toList()==extractionPendingSpecialCases &&
+            extractionScenarioShotIds.values.toSet().size==extractionPendingSpecialCases.size &&
+            extractionScenarioShotIds.values.all {it.matches(Regex("[A-Za-z0-9-]{1,64}"))}) {
+            "M5 explicit scenario IDs must be unique legal ShotSamplesStore IDs"
+        }
         val base=File(folder,"special-states").apply {check(isDirectory || mkdirs())}
+        val idContractFolder=File(base,"id-contract")
+        val idContractStore=ShotSamplesStore(idContractFolder)
+        val idContractPoint=listOf(ShotPoint(0L,90,100,6,9300,null,null,true))
+        val idContract=JSONObject()
+        extractionScenarioShotIds.forEach { (case,id) ->
+            idContractStore.save(id,idContractPoint)
+            check(idContractStore.load(id)==idContractPoint) {"M5 actual ShotSamplesStore rejected declared ID: $case"}
+            idContract.put(case,JSONObject().put("shotId",id).put("sha256",sha(File(idContractFolder,"samples-$id.tsv"))))
+        }
+        File(base,"id-contract.json").writeText(JSONObject().put("cases",idContract)
+            .put("realShotSamplesStoreSaveAndLoad",true).toString(2))
         val cases=JSONArray()
         val summary=JSONObject().put("sourceSha",source).put("profile",profile).put("page","extraction")
             .put("synthetic",true).put("hardwareMeasurement",false).put("realProductActivity",true)
             .put("visualAcceptance","ASTRA_PENDING")
-            .put("expectedCases",JSONArray(extractionPendingSpecialCases)).put("cases",cases)
+            .put("expectedCases",JSONArray(extractionPendingSpecialCases))
+            .put("scenarioShotIds",JSONObject(extractionScenarioShotIds)).put("cases",cases)
             .put("mainConfigurationCountContribution",0)
         fun persist() { File(base,"manifest.json").writeText(summary.toString(2)) }
         try {
@@ -1153,6 +1197,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 val caseFolder=File(base,case).apply {check(isDirectory || mkdirs())}
                 val scope=Scope(caseFolder,"extraction")
                 val proof=JSONObject().put("case",case).put("sourceSha",source).put("profile",profile)
+                    .put("declaredShotId",extractionScenarioShotIds.getValue(case))
                     .put("synthetic",true).put("hardwareMeasurement",false).put("realProductActivity",true)
                     .put("visualAcceptance","ASTRA_PENDING")
                 cases.put(proof)
@@ -1231,6 +1276,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         "STARTING","no_service_ready"->Unit
                     }
                     File(caseFolder,"fixture.json").writeText(scope.fixture.put("case",case)
+                        .put("declaredShotId",extractionScenarioShotIds.getValue(case))
                         .put("synthetic",true).put("hardwareMeasurement",false)
                         .put("offeredMachineFrames",inputs).put("operationInputs",operationInputs).toString(2))
                     val activity=start(ExtractionActivity::class.java)

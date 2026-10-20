@@ -537,7 +537,7 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                         after = timed(Timing.GEOMETRY_AFTER) { geometry() }
                         if(activity==null || originMode==OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW) validateExplicitWindow()
                     }
-                    val geometryStable = timed(Timing.GEOMETRY_JSON_COMPARE) { before.toString() == after.toString() }
+                    val geometryStable = timed(Timing.GEOMETRY_JSON_COMPARE) { WindowGeometryJsonEquality.same(before, after) }
                     val windowReady = listOf(before, after).all {
                         it.getBoolean("hasWindowFocus") && !it.getBoolean("rootLayoutRequested") && !it.getBoolean("decorLayoutRequested")
                     }
