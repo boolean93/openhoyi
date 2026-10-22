@@ -41,6 +41,7 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    implementation(project(":bean-core"))
     implementation(project(":bluetooth-android"))
     implementation(project(":trace-core"))
     testImplementation("junit:junit:4.13.2")

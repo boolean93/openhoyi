@@ -122,19 +122,13 @@ class HomeActivity : ThemedActivity() {
         HoyiUi.navigation(this, root, HomeActivity::class.java)
         setContentView(root)
         val header = HoyiUi.header(this, content, "HOYI",
-            if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.home_subtitle))
-        val themeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
-        if (HoyiUi.wide(this)) header.addView(themeRow)
-        else content.addView(themeRow)
-        HoyiUi.label(this, themeRow, getString(R.string.home_dark_mode), 14, muted = true)
-        themeRow.addView(Switch(this).apply {
-            contentDescription = getString(R.string.home_dark_description)
-            isChecked = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
-            setOnCheckedChangeListener { _, dark ->
-                getSharedPreferences("appearance", MODE_PRIVATE).edit().putBoolean("dark", dark).apply()
-                recreate()
-            }
-        })
+            if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.ui_brew))
+        HoyiUi.button(this, header, getString(R.string.app_settings_title)) {
+            startActivity(Intent(this, AppSettingsActivity::class.java))
+        }.apply {
+            maxWidth=dp(144)
+            layoutParams=LinearLayout.LayoutParams(-2,-2).apply {marginStart=dp(12)}
+        }
         safetyWarning = text(content, "", 17, true).apply {
             setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
         }
@@ -287,11 +281,9 @@ class HomeActivity : ThemedActivity() {
         right.removeView(curveCard)
         right.addView(curveCard, 0)
         val tools = card(content, getString(R.string.home_records))
-        button(tools, getString(R.string.home_history)) { startActivity(Intent(this, HistoryActivity::class.java)) }
-        button(tools, getString(R.string.home_export)) {
-            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
-        }
+        button(tools, getString(R.string.extraction_title)) { startActivity(Intent(this, ExtractionActivity::class.java)) }
+        button(tools, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
+        button(tools, getString(R.string.scale_title)) { startActivity(Intent(this, ScaleActivity::class.java)) }
         button(tools, getString(R.string.home_shutdown)) {
             val owner = service
             owner?.shutdown()
@@ -319,8 +311,10 @@ class HomeActivity : ThemedActivity() {
             if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, Context.BIND_AUTO_CREATE)
             return bound
         }
-        val address = getSharedPreferences("devices", MODE_PRIVATE).getString("scale", null)
-        if (address == null || !BluetoothAdapter.checkBluetoothAddress(address) || missingBle().isNotEmpty())
+        val prefs = getSharedPreferences("devices", MODE_PRIVATE)
+        val selection = io.openhoyi.session.ScaleSelectionPolicy.remembered(prefs.getString("scale", null), prefs.getString("scaleProtocol", null)) ?: return false
+        val address = selection.address
+        if (!BluetoothAdapter.checkBluetoothAddress(address) || missingBle().isNotEmpty())
             return false
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter ?: return false
         return try {
@@ -376,12 +370,12 @@ class HomeActivity : ThemedActivity() {
     }
     private fun choose(device: DiscoveredDevice) {
         if (BuildConfig.MOCK_MODE) {
-            if (device.candidateRole == DeviceRole.BOOKOO) service?.connectScale(device.address)
+            if (device.candidateRole == DeviceRole.BOOKOO) device.scaleProtocolId?.let { service?.connectScale(device.address, it) }
             else service?.connectCoffee(device.address, "000000")
             render()
             return
         }
-        if (device.candidateRole == DeviceRole.BOOKOO) { service?.connectScale(device.address); return }
+        if (device.candidateRole == DeviceRole.BOOKOO) { device.scaleProtocolId?.let { service?.connectScale(device.address, it) }; return }
         if (service?.connectRememberedCoffee(device.address) == true) return
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
@@ -461,7 +455,7 @@ class HomeActivity : ThemedActivity() {
             s.coffeeState, running)
         emergencyStop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         emergencyStop.isEnabled = stopAction.enabled
-        emergencyStop.text = if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource)
+        emergencyStop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
@@ -525,7 +519,7 @@ class HomeActivity : ThemedActivity() {
         val compactStatus = resources.configuration.screenWidthDp < 400
         coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else label(s.coffeeState))
             else getString(R.string.home_coffee_status, label(s.coffeeState), if (coffeeFresh) getString(R.string.home_live_suffix) else ""))
-        coffeeDot.background = dotShape(when (s.coffeeState) {
+        coffeeDot.showDot(when (s.coffeeState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
             else -> R.color.mobile_muted
@@ -545,24 +539,28 @@ class HomeActivity : ThemedActivity() {
             }
             else -> listOf(brewTemperature, brewPressure, steamTemperature, steamPressure).forEach { it.show("—") }
         }
-        val liveScale = LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)
+        val liveScale = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.hundredthsGram
+            ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.weightHundredthsGram
         scale.show(if (compactStatus) getString(R.string.home_scale_compact, if (liveScale != null) getString(R.string.home_live) else label(s.scaleState))
             else getString(R.string.home_scale_status, label(s.scaleState), if (liveScale != null) getString(R.string.home_live_suffix) else ""))
-        scaleDot.background = dotShape(when (s.scaleState) {
+        scaleDot.showDot(when (s.scaleState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
             else -> R.color.mobile_muted
         })
-        scaleWeight.show("${liveScale?.let { number(it.weightHundredthsGram) } ?: "—"} g" +
-            "  ·  ${liveScale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
+        val liveDeviceFlow = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.let {
+            it.deviceFlowHundredths.takeIf { _ -> it.capabilities.deviceFlow }
+        } ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.deviceFlowHundredths
+        scaleWeight.show("${liveScale?.let(::number) ?: "—"} g" +
+            "  ·  ${liveDeviceFlow?.let(::number) ?: "—"} g/s")
         val library = (application as MobileApplication).curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         selection.show(selected?.let { getString(R.string.home_selected_curve, it.name, getString(if (!library.canStart(it)) R.string.home_curve_readonly else R.string.home_curve_startable)) } ?: getString(R.string.home_curve_missing))
-        brewButton.text = when {
+        brewButton.show(when {
             selected == null -> getString(R.string.home_curve_select)
             !library.canStart(selected) -> getString(R.string.home_curve_replace)
             else -> getString(R.string.home_curve_prepare)
-        }
+        })
         browseCurvesButton.visibility = if (selected == null) View.GONE else View.VISIBLE
         val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
         presetButtons.forEachIndexed { index, button ->
@@ -572,10 +570,12 @@ class HomeActivity : ThemedActivity() {
             val label = getString(R.string.home_slot_curve, slot.toString(), item?.name ?: id)
             if (button.text.toString() != label) button.text = label
         }
-        val keys = s.candidates.map { "${it.address}:${it.advertisedName}" }
+        val keys = s.candidates.map { "${it.address}:${it.advertisedName}:${it.scaleProtocolId}" }
         if (keys != candidateKeys) {
             candidateKeys = keys; candidates.removeAllViews()
             s.candidates.forEach { device ->
+                if (device.scaleProtocolId == io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
+                    HoyiUi.label(this, candidates, getString(R.string.scale_read_only_live), 14, muted = true)
                 button(candidates, getString(R.string.home_candidate, device.advertisedName, getString(if (device.candidateRole == DeviceRole.COFFEE) R.string.home_coffee else R.string.home_scale))) { choose(device) }
             }
         }
@@ -591,6 +591,13 @@ class HomeActivity : ThemedActivity() {
     private fun dotShape(color: Int) = GradientDrawable().apply {
         shape = GradientDrawable.OVAL
         setColor(getColor(color))
+    }
+    private fun View.showDot(colorResource: Int) {
+        val color = getColor(colorResource)
+        val dot = background as? GradientDrawable
+        // Replacing an unchanged background emits native accessibility subtree events.
+        if (dot == null) background = dotShape(colorResource)
+        else if (dot.color?.defaultColor != color) dot.setColor(color)
     }
     private fun statusDot(parent: LinearLayout): View = View(this).apply {
         background = dotShape(R.color.mobile_muted)

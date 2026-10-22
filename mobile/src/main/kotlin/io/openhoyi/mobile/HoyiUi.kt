@@ -9,13 +9,33 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
+import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
 /** Reusable native visual language. The views own no machine or BLE state. */
 internal object HoyiUi {
+    /** Names and batch descriptions must remain readable at phone widths and large fonts. */
+    fun spinnerAdapter(activity: Activity, labels: List<String>): ArrayAdapter<String> =
+        object : ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item, labels) {
+            private fun readable(view: View): View = view.apply {
+                if (this is TextView) {
+                    setSingleLine(false)
+                    ellipsize = null
+                    minHeight = dp(activity, 48)
+                    setTextColor(activity.getColor(R.color.mobile_text))
+                    setBackgroundColor(activity.getColor(R.color.mobile_surface))
+                    layoutParams = layoutParams?.apply { height = ViewGroup.LayoutParams.WRAP_CONTENT }
+                }
+            }
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View =
+                readable(super.getView(position, convertView, parent))
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View =
+                readable(super.getDropDownView(position, convertView, parent))
+        }
     fun dp(activity: Activity, value: Int) = (activity.resources.displayMetrics.density * value).toInt()
     fun wide(activity: Activity): Boolean = activity.resources.configuration.screenWidthDp >= 700
     fun dark(activity: Activity) = activity.resources.configuration.uiMode and
@@ -135,15 +155,14 @@ internal object HoyiUi {
         }
         parent.addView(bar, LinearLayout.LayoutParams(-1, -2))
         val items = listOf(
-            Triple(R.drawable.nav_home, activity.getString(R.string.ui_home), HomeActivity::class.java),
+            Triple(R.drawable.nav_home, activity.getString(R.string.ui_brew), HomeActivity::class.java),
             Triple(R.drawable.nav_curves, activity.getString(R.string.ui_curves), CurveActivity::class.java),
-            Triple(R.drawable.nav_extraction, activity.getString(R.string.ui_extraction), ExtractionActivity::class.java),
             Triple(R.drawable.nav_history, activity.getString(R.string.ui_history), HistoryActivity::class.java),
-            Triple(R.drawable.nav_settings, activity.getString(R.string.ui_settings), MachineSettingsActivity::class.java),
+            Triple(R.drawable.nav_beans, activity.getString(R.string.ui_beans), BeanInventoryActivity::class.java),
         )
         val wide = wide(activity)
         items.forEach { (icon, label, target) ->
-            val active = selected == target
+            val active = selected == target || (target == HomeActivity::class.java && selected == ExtractionActivity::class.java)
             val tint = activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
             val item = LinearLayout(activity).apply {
                 orientation = if (wide) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_settings_title">应用设置</string>
+    <string name="app_settings_subtitle">主题、语言和萃取反馈仅保存在本机</string>
+    <string name="app_settings_appearance">外观</string>
+    <string name="app_settings_dark">深色主题</string>
+    <string name="app_settings_theme_failed">主题保存失败，已恢复原选择</string>
+    <string name="app_settings_export">导出诊断日志</string>
+    <string name="app_settings_export_hint">选择文件位置后才导出，不会自动发送日志</string>
+    <string name="app_settings_machine">机器设置</string>
+</resources>
