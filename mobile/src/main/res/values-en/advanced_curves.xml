@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_sort_recent">Recently used</string>
+    <string name="curve_sort_most_used">Usage count</string>
+    <string name="curve_usage_count">" · Used %1$d times"</string>
+    <string name="curve_usage_unavailable">Usage history is temporarily unavailable. The original file has been preserved.</string>
+</resources>

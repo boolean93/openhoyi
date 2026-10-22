@@ -13,6 +13,14 @@ PACKAGE = "io.openhoyi.mobile.mock"
 RUNNER = "io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation"
 
 
+def require_phase_success(name, output):
+    advanced = (f"MOCK_UPGRADE_ADVANCED_{name.upper()}_PASSED "
+                "stores=5 protocolPair=true readOnlyDraft=true doseIdempotent=true")
+    lines = output.splitlines()
+    if f"MOCK_UPGRADE_{name.upper()}_PASSED" not in lines or advanced not in lines or "CHECKS_FAILED" in output or "FAILURE" in output:
+        raise RuntimeError(f"Mock upgrade phase failed: {name}")
+
+
 def require_emulator(serial, kernel_qemu):
     if not re.fullmatch(r"emulator-[0-9]+", serial) or kernel_qemu.strip() != "1":
         raise ValueError("Mock upgrade checks require a qemu emulator")
@@ -54,8 +62,7 @@ def main():
     def phase(name):
         output = command(["shell", "am", "instrument", "-w", "-e", "upgradeChecks", name, RUNNER])
         (args.output / f"{name}.txt").write_text(output)
-        if f"MOCK_UPGRADE_{name.upper()}_PASSED" not in output or "CHECKS_FAILED" in output or "FAILURE" in output:
-            raise RuntimeError(f"Mock upgrade phase failed: {name}")
+        require_phase_success(name, output)
     try:
         # Never downgrade, clear app data, uninstall, or access another package.
         installed = command(["shell", "pm", "list", "packages", PACKAGE])

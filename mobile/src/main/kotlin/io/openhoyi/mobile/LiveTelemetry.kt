@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import io.openhoyi.protocol.BookooSample
 import io.openhoyi.protocol.HoyiMessage
+import io.openhoyi.protocol.ScaleObservation
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ScaleReadingPolicy
 
@@ -15,4 +16,9 @@ object LiveTelemetry {
 
     fun scale(sample: BookooSample?, state: DeviceState, at: Long?, now: Long): BookooSample? =
         sample?.takeIf { state == DeviceState.READY && ScaleReadingPolicy.isFresh(it.weightHundredthsGram,at,now) }
+
+    /** Read-only display does not confer permission to control extraction. */
+    fun scale(sample: ScaleObservation?, state: DeviceState, now: Long): ScaleObservation? =
+        sample?.takeIf { it.capabilities.weight && state == DeviceState.READY &&
+            ScaleReadingPolicy.isFresh(it.hundredthsGram, it.receivedAtMs, now) }
 }

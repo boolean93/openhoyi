@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dose_title">اختيار القهوة وتأكيد الجرعة</string>
+    <string name="dose_subtitle">حفظ اختيار القهوة لا يخصم من المخزون؛ التأكيد الصريح لإضافة الجرعة يخصم مرة واحدة فقط</string>
+    <string name="dose_batch">اختيار دفعة من المخزون</string>
+    <string name="dose_batch_choice">%1$s · المتبقي %2$s غ · %3$s</string>
+    <string name="dose_amount">كمية البن الفعلية (غ، حتى 3 منازل عشرية)</string>
+    <string name="dose_save_selection">حفظ اختيار القهوة (دون خصم المخزون)</string>
+    <string name="dose_saved">تم حفظ اختيار القهوة؛ لم يُخصم المخزون بعد</string>
+    <string name="dose_confirm">تأكيد إضافة البن وخصم المخزون</string>
+    <string name="dose_retry">إعادة محاولة التأكيد بسجل التحضير نفسه</string>
+    <string name="dose_confirmed">تم خصم %1$s غ من المخزون. فشل بدء التشغيل لا يعيدها تلقائيًا؛ للتصحيح أضف عملية تعديل في صفحة المخزون.</string>
+    <string name="dose_attempted">لم يكتمل تأكيد الجرعة؛ قد يكون المخزون قد خُصم بالفعل. إعادة المحاولة تتحقق من الحدث نفسه دون خصم مكرر. لا تنشئ سجل تحضير آخر لخصمها مجددًا.</string>
+    <string name="dose_summary">القهوة: %1$s\nالدفعة: %2$s\nكمية البن الفعلية: %3$s غ</string>
+    <string name="dose_record">سجل التحضير %1$s</string>
+    <string name="dose_next_cup">الجرعة السابقة مرتبطة باستخلاص واحد. أدخل جرعة جديدة للاستخلاص التالي؛ لن تُستخدم تلقائيًا مرة أخرى.</string>
+    <string name="dose_cancel_selection">إلغاء اختيار القهوة والاختيار مجددًا</string>
+    <string name="dose_discard">التخلي صراحةً عن هذا التحضير (دون إعادة المخزون)</string>
+    <string name="dose_discard_title">التخلي عن تحضير الجرعة الحالي</string>
+    <string name="dose_discard_message">ستُراجع عمليات المخزون أولًا ثم يُتخلى عن سجل التحضير هذا. لن يُعاد أي مخزون خُصم بالفعل؛ أضف عملية تعديل إذا لزم التصحيح.</string>
+    <string name="dose_discard_confirm">مراجعة العمليات والتخلي</string>
+    <string name="dose_cancel_dialog">الاحتفاظ بالتحضير</string>
+    <string name="dose_return">العودة إلى صفحة تحضير القهوة</string>
+    <string name="dose_scale">أخذ القراءة الحالية من صفحة وزن الحبوب</string>
+    <string name="dose_scale_hint">يمكن وزن الحبوب فقط عندما لا يكون هناك تحضير جارٍ أو نتيجة مجهولة. القراءات لا تخصم المخزون تلقائيًا.</string>
+    <string name="dose_scale_wait">حالة الخدمة غير مؤكدة. يمكنك إدخال الجرعة يدويًا، لكن وزن الحبوب غير متاح حاليًا.</string>
+    <string name="dose_scale_blocked">لا يمكن وزن الحبوب حتى تُحل عملية التحضير الحالية أو حالة الاستعادة</string>
+    <string name="dose_scale_invalid">لا توجد قراءة فعلية صالحة لوزن الحبوب. أعد الوزن أو أدخل الجرعة يدويًا.</string>
+    <string name="dose_bad_amount">أدخل كمية بن فعلية أكبر من 0، حتى 3 منازل عشرية وضمن النطاق المسموح</string>
+    <string name="dose_empty">لا توجد دفعات في المخزون بعد. أضف عبوة حبوب أولًا.</string>
+    <string name="dose_add_beans">إضافة دفعة للمخزون</string>
+    <string name="dose_save_failed">تعذّر حفظ اختيار القهوة. لم يُخصم المخزون. حاول مرة أخرى لاحقًا.</string>
+    <string name="dose_confirm_failed">لم يكتمل تأكيد الجرعة. أعد المحاولة بسجل التحضير نفسه، أو راجع العمليات صراحةً قبل التخلي عنه.</string>
+    <string name="dose_discard_failed">ما زال سجل التحضير محفوظًا. تعذّرت مراجعة العمليات أو الحفظ. لا تنشئ سجلًا آخر للخصم مجددًا.</string>
+    <string name="dose_changed">تغير سجل التحضير. يرجى مراجعته مرة أخرى.</string>
+    <string name="dose_ledger_conflict">سجل التحضير لا يتطابق مع عمليات المخزون؛ لا يمكن تأكيد النجاح. تم الاحتفاظ بالسجل الأصلي.</string>
+    <string name="dose_start_unconfirmed">أكمل تأكيد الجرعة أولًا، أو تخلَّ صراحةً عن اختيار القهوة هذا في صفحة التحضير.</string>
+    <string name="dose_start_unavailable">بيانات تحضير الجرعة غير متاحة. راجعها أولًا في صفحة التحضير؛ لن تُعاد إنشاء السجلات الأصلية أو تُستبدل.</string>
+    <string name="dose_association_pending">تم خصم المخزون؛ ربط المراجعة بانتظار الاستعادة. لا يمكن إنشاء تحضير جديد قبل الاستعادة، ولن يُخصم المخزون مجددًا.</string>
+    <string name="dose_association_retry">استعادة ربط مراجعة هذا الاستخلاص (ملء الحقول الفارغة فقط)</string>
+    <string name="dose_association_failed">لم يُستعد ربط المراجعة بعد. ما زال التحضير الأصلي محفوظًا. لن تُنشأ سجلات وهمية ولن يُخصم المخزون مجددًا.</string>
+</resources>

@@ -38,8 +38,6 @@ import java.util.Locale
 
 /** Only known setting commands are exposed; applied state requires a subsequent 0x83 readback. */
 class MachineSettingsActivity : ThemedActivity() {
-    internal lateinit var feedbackCard: BrewFeedbackPreferencesCard
-        private set
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     private data class ScheduleCard(val heading: TextView, val period: TextView)
     private var service: MobileService? = null
@@ -61,7 +59,6 @@ class MachineSettingsActivity : ThemedActivity() {
     private lateinit var writeStatus: TextView
     private lateinit var scheduleWriteStatus: TextView
     private lateinit var cupResetStatus: TextView
-    private lateinit var languageCard: AppLanguagePreferencesCard
     private lateinit var cupResetButton: Button
     private lateinit var brewInput: EditText
     private lateinit var compensationInput: EditText
@@ -81,8 +78,6 @@ class MachineSettingsActivity : ThemedActivity() {
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
-            // A language selection can finish before this asynchronous binding is ready.
-            service?.refreshNotificationDisplay()
             render()
         }
         override fun onServiceDisconnected(name: ComponentName) { service = null; render() }
@@ -168,14 +163,9 @@ class MachineSettingsActivity : ThemedActivity() {
             settings.visibility = if (detailsExpanded) View.VISIBLE else View.GONE
             settingsToggle.text = if (detailsExpanded) getString(R.string.machine_settings_readback_collapse) else getString(R.string.machine_settings_readback_expand)
         }
-        val appInfo = card(overview, getString(R.string.application_info))
-        text(appInfo, getString(R.string.app_name), 16, true)
-        text(appInfo, getString(R.string.application_version,
-            BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), 14)
-        text(appInfo, getString(if (BuildConfig.MOCK_MODE)
-            R.string.application_mode_mock else R.string.application_mode_alpha), 14)
-        text(appInfo, getString(R.string.application_package, BuildConfig.APPLICATION_ID), 13)
-            .setTextIsSelectable(true)
+        action(overview, getString(R.string.app_settings_title)) {
+            startActivity(Intent(this, AppSettingsActivity::class.java))
+        }
         val writeCard = card(controlsPane, getString(R.string.machine_settings_feedback_title))
         writeStatus = text(writeCard, getString(R.string.machine_settings_feedback_initial), 14)
         val tabsScroll = HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false }
@@ -303,32 +293,21 @@ class MachineSettingsActivity : ThemedActivity() {
         val cupCard = card(maintenanceSection, getString(R.string.machine_settings_cups_title))
         cupResetStatus = text(cupCard, getString(R.string.machine_settings_cups_initial), 14)
         cupResetButton = action(cupCard, getString(R.string.machine_settings_cups_reset)) { confirmCupReset() }
-        feedbackCard = BrewFeedbackPreferencesCard(this, body)
-        languageCard = AppLanguagePreferencesCard(this, body) {
-            service?.refreshNotificationDisplay()
-            recreate()
-        }
         showSettingsSection(selectedSettingsSection)
         render()
     }
 
     override fun onStart() {
-        feedbackCard.start()
         super.onStart()
         visible = true
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
         handler.post(refresh)
     }
     override fun onStop() {
-        feedbackCard.stop()
         visible = false
         handler.removeCallbacks(refresh)
         release()
         super.onStop()
-    }
-    override fun onDestroy() {
-        if (::languageCard.isInitialized) languageCard.close()
-        super.onDestroy()
     }
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("settingsExpanded", detailsExpanded)
@@ -353,7 +332,6 @@ class MachineSettingsActivity : ThemedActivity() {
         service = null
     }
     private fun render() {
-        if (::feedbackCard.isInitialized) feedbackCard.refresh()
         if (!::connectionState.isInitialized) return
         val owner = service
         val snapshot = owner?.snapshot ?: MobileSnapshot()

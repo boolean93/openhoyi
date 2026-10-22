@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_settings_title">App settings</string>
+    <string name="app_settings_subtitle">Theme, language, and extraction feedback are saved on this device only</string>
+    <string name="app_settings_appearance">Appearance</string>
+    <string name="app_settings_dark">Dark theme</string>
+    <string name="app_settings_theme_failed">Could not save the theme. The previous selection has been restored.</string>
+    <string name="app_settings_export">Export diagnostic logs</string>
+    <string name="app_settings_export_hint">Export happens only after you choose a file location; logs are not sent automatically</string>
+    <string name="app_settings_machine">Machine settings</string>
+</resources>
