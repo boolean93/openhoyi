@@ -106,6 +106,42 @@ public final class WindowProofStreamingWriterOracle {
         @Override public String toString(){toStringCalls++;return "text";}
     }
 
+    private static final class ValueCharSequence implements CharSequence {
+        private final String value;
+        ValueCharSequence(String value) { this.value=value; }
+        public int length() { return value.length(); }
+        public char charAt(int index) { return value.charAt(index); }
+        public CharSequence subSequence(int start,int end) { return value.subSequence(start,end); }
+        @Override public String toString() { return value; }
+    }
+
+    private static JSONObject knownTextTree(Object text, Object placeholder) throws JSONException {
+        JSONObject line=new JSONObject().put("text",text);
+        JSONObject node=new JSONObject().put("textLineBoxes",new JSONArray().put(line));
+        JSONObject target=new JSONObject().put("nodes",new JSONArray().put(node));
+        JSONObject attempt=new JSONObject().put("geometryBefore",new JSONObject().put("target",target));
+        JSONObject oneCase=new JSONObject().put("frameSync",new JSONObject()
+            .put("attempts",new JSONArray().put(attempt))).put("blankNotesPlaceholder",placeholder);
+        return new JSONObject().put("cases",new JSONArray().put(oneCase));
+    }
+
+    private static void knownTextSnapshot(String label, String value) throws Exception {
+        ValueCharSequence rawText=new ValueCharSequence(value);
+        ValueCharSequence rawPlaceholder=new ValueCharSequence(value);
+        JSONObject raw=knownTextTree(rawText,rawPlaceholder);
+        strictRejectDetail(label+"-raw-text",raw,
+            "/cases/0/frameSync/attempts/0/geometryBefore/target/nodes/0/textLineBoxes/0/text",
+            ValueCharSequence.class.getName(),"non_string_char_sequence",null);
+        JSONObject placeholderOnly=new JSONObject().put("blankNotesPlaceholder",rawPlaceholder);
+        strictRejectDetail(label+"-raw-placeholder",placeholderOnly,"/blankNotesPlaceholder",
+            ValueCharSequence.class.getName(),"non_string_char_sequence",null);
+        JSONObject snapshotted=knownTextTree(rawText.toString(),rawPlaceholder.toString());
+        byte[] originalSdk=raw.toString(2).getBytes(StandardCharsets.UTF_8);
+        byte[] snapshotSdk=snapshotted.toString(2).getBytes(StandardCharsets.UTF_8);
+        if(!Arrays.equals(originalSdk,snapshotSdk))throw new AssertionError(label+" snapshot changed SDK bytes");
+        sameStrict(label+"-known-text-snapshot",snapshotted);
+    }
+
     private static final class ProbeUnknown {
         int toStringCalls;
         @Override public String toString(){toStringCalls++;return "unknown payload";}
@@ -289,6 +325,11 @@ public final class WindowProofStreamingWriterOracle {
         ProbeUnknown unknown=new ProbeUnknown();
         strictRejectDetail("strict-unknown-no-tostring",new JSONObject().put("v",unknown),"/v",
             ProbeUnknown.class.getName(),"unsupported_class",()->unknown.toStringCalls);
+        knownTextSnapshot("known-text-chinese","经典浓缩：不使用");
+        knownTextSnapshot("known-text-dash","—");
+        knownTextSnapshot("known-text-escapes","引号\" 反斜杠\\ 换行\n");
+        knownTextSnapshot("known-text-supplementary","咖啡\uD83D\uDE00");
+        knownTextSnapshot("known-text-empty","");
         JSONObject invalid=new JSONObject().put("v",new JSONArray().put((Object)Double.NaN));
         Path folder=Files.createTempDirectory("window-proof-invalid-");
         try {

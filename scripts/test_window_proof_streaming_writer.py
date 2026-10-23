@@ -30,6 +30,10 @@ def main():
                  "ExtractionHistoryVisualMigrationChecks.kt").read_text()
     assert m5_source.count("fun persist() { WindowProofStreamingWriter.writeStrict(summary,") == 2, (
         "both M5 cumulative summaries must use strict streaming")
+    assert 'JSONObject().put("semanticId", text.tag).put("text", text.text.toString())' in m5_source, (
+        "M5 observed TextView text must be snapshotted as String at the JSON boundary")
+    assert 'proof.put("blankNotesPlaceholder",taste.text.toString()).put("blankTasteDisclosureDisabled",true)' in m5_source, (
+        "M5 comparison blank notes must be snapshotted as String at the JSON boundary")
     profiles = list(RAW.glob("*/tablet-user-landscape-light-font-1.3/connection"))
     assert len(profiles) == 1, profiles
     connection = profiles[0]
@@ -78,6 +82,13 @@ def main():
                                "strict-unknown-no-tostring"]
         for label in strict_detail_cases:
             assert f"case={label} strictRejected=true path=" in normal.stdout, label
+        known_text_samples = ["chinese", "dash", "escapes", "supplementary", "empty"]
+        for sample in known_text_samples:
+            prefix = f"case=known-text-{sample}"
+            assert f"{prefix}-raw-text strictRejected=true path=/cases/0/frameSync/attempts/0/geometryBefore/target/nodes/0/textLineBoxes/0/text" in normal.stdout, sample
+            assert f"{prefix}-raw-placeholder strictRejected=true path=/blankNotesPlaceholder" in normal.stdout, sample
+            assert f"{prefix}-known-text-snapshot strict=true bytes=" in normal.stdout, sample
+        assert "checked=54" in normal.stdout, "39 original cases plus 15 known-text boundary cases"
         real_summary = subprocess.run(["java", "-Xmx1g", "-cp", str(classes),
                                        "io.openhoyi.mobile.WindowProofStreamingWriterOracle",
                                        "--real-summary", str(m5_summary), M5_MEMBER_SHA],
@@ -118,6 +129,9 @@ def main():
               "strictValuePathProbe": {"cases": strict_detail_cases,
                                        "sdkCharSequenceSamplesAreNotAndroidSpannableStringEvidence": True,
                                        "successfulEncodingWhitelistUnchanged": True},
+              "knownTextSnapshotProbe": {"samples": known_text_samples,
+                                         "strictRawRejectedAndSnapshotSdkBytesEqual": True,
+                                         "sdkCharSequenceSamplesAreNotAndroidSpannedStringEvidence": True},
               "limitedResult": limited.stdout.strip(),
               "syntheticPressureIsNotLostFortyGestureProof": True,
               "hostTestIsNotAndroidAcceptance": True}

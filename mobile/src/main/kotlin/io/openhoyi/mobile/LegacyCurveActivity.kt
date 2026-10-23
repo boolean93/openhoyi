@@ -265,10 +265,12 @@ class LegacyCurveActivity : ThemedActivity() {
                     { it.javaClass.simpleName })))
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
-                Toast.makeText(this, result.fold(
+                val toast = Toast.makeText(this, result.fold(
                     { if (it.changed) getString(R.string.legacy_curve_import_changed, it.count.toString()) else getString(R.string.legacy_curve_import_unchanged, it.count.toString()) },
                     { getString(R.string.legacy_import_error, it.message ?: it.javaClass.simpleName) }),
-                    Toast.LENGTH_LONG).show()
+                    Toast.LENGTH_LONG)
+                LegacyImportToastObservation.beforeShow(toast, "legacy-curve-import")
+                toast.show()
                 if (result.getOrNull()?.changed == true) { selectedIndex = -1; selectedFingerprint = null }
                 refresh()
             }

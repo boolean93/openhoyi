@@ -64,3 +64,42 @@ G1/G3：五个History真实/初屏可见plot均96.44374dp；详情除UNKNOWN为1
 | history-detail/water-reset | `build/task-first-evidence/ci-4076c2d/m5-visual-selected/history-detail/water-reset/window.png` | `34e1afaf597661478edcc20904248fde435c7038bd162b471fe6f5d0a95d108a` |
 
 最终范围：本索引13张初态PNG全部实看，但并非完整M5视觉通过。全部局部滚达/恢复、Comparison其余特殊态/说明全文、其它字体/主题、Extraction和真机仍不在此范围。可有限接受本节明确可见的特殊态表达和详情UNKNOWN真实图预算；不把初态图数量当全合同覆盖。本阶段仍仅写审查文档。
+
+
+## 阶段三：7帧目标滚达与恢复实看
+
+实际逐张打开本source的7个PNG路径，新增4个目标帧、3个恢复帧。累计查看20个原件路径，其中History/Detail恢复PNG与阶段一主态分别同SHA，不能把20路径说成20个不同画面。来源仍为run39906804820 / `4076c2d862f94608fa6ec3d405c91d23a6b6867c` / light1.3；本节不引用588运行，也不改变原run FAIL。
+
+索引 `build/task-first-evidence/ci-4076c2d/m5-reachability-selected/index.json`（SHA256 `b2657e8e848c0ceafa0178351b913b89eacc00dc73aceeaf545ea7443142475e`）。独立复算28个选件SHA均匹配；7帧均核验 geometry==accepted geometryBefore.target==geometryAfter.target、typographyEvidence==配对typography、PNG SHA==proof.imageSha256。实际proof预算均5000ms，记录耗时依次3166/2595/2503/2433/1305/1233/1233ms。本次未重跑像素算法，四零值依据原认证proof，不用机械结果代替以下视觉判断。
+
+### G1–G4与本轮关闭项
+
+| 实际帧 | 观察与同帧边界 | 限定结论 |
+|---|---|---|
+| History main-chart-reachable | 右预览scrollY118后，0/13.7/27.4及“时间·s”完整；图例、四独立纵轴、曲线与底部两动作均可辨，无轴字撞线/按钮覆盖。时间标题实际screen框[1791,1214.3176,1951,1254.3176]，不以缩放预览估量。左列表选中仍为22:13:20的SOE浅烘。 | 关闭**该主态**阶段一时间轴滚达视觉缺口；首屏仍不是全轴同屏，不能扩至五个History特殊态。 |
+| History main-restored | 标题重新出现；时间轴回到原初屏下边界，底部固定动作仍在。原PNG与阶段一main同SHA。 | 恢复原初态，不把恢复后轴又处于屏外误写成滚达失败，也不宣称恢复帧全轴可见。 |
+| Detail taste-reachable | 右侧“口感感受”及“柑橘酸质，焦糖甜感，尾段略干。”完整一行；实际文本框[1832,967,2524,1033]，Layout高66px、可用宽692px、行实际宽675px、无省略。上方豆款/投粉/研磨及曲线期待仍可读；固定“写个人复盘”不盖口感正文。左图与时间轴保持完整。 | 关闭该记录主态口感全文缺口；右栏标题“个人记录”随局部滚动移出，不要求与底部全文同屏。未操作编辑/比较入口。 |
+| Detail notes-restored | “个人记录”回顶部，口感回到原屏外/边界，左图、结束状态及固定动作不变。原PNG与阶段一main同SHA。 | 仅签原scroll恢复；不把恢复帧口感标题裁切当全文已同屏。 |
+| Comparison target8 / missing-source-explanation | 第一杯五行明确“暂无保存的采样点”“没有可对齐的萃取采样”“A：没有可对齐的原始秤采样”；第二杯明确29个采样点、首次观察对齐并非已验证真实启动时刻，末尾“刻”换行完整。两列分隔清楚，无文字互压；图上仅B压力虚线，与A缺样本相符。 | 关闭该missing-samples来源解释全文缺口。顶部选择框随上区滚动局部裁切，非本帧全页面初态验收。 |
+| Comparison target13 / missing-summary-lower | 三行“萃取时长 / 结束时秤读数 / 口感感受”及两杯值完整；30.0/27.4秒，36.00/36.20g，A口感破折号、B口感全文与Detail一致。行框分别y1149..1233、1235..1319、1321..1429，文本无省略；右口感行宽675px<819px。只有水平分隔，无整格竖线。 | 关闭该态第三行/完整三行摘要视觉缺口；**来源说明和三行摘要在不同滚动帧，不签二者同屏**。 |
+| Comparison missing-scrolls-restored | 两杯选择器、交换动作与表头回到初态，A21:35:20、B22:13:20顺序不变；压力仍B虚线，口感又在下方滚动区外。 | 签本fixture原滚动恢复，不要求像素等同早期主态（系统时钟等已变化），不用目测代替业务不变量记录。 |
+
+G1：目标与图/固定动作的空间关系清楚；Comparison来源左右列与摘要三列均有留白，未见目标正文被动作盖住。G2：7帧配对真实typography，沿阶段一固定字体身份边界；已看正文、单位、数字无明显缺字/假粗，不能将candidate asset association升级为逐glyph身份证明。G3：目标全文与行框如上；History轴、Detail正文、Comparison来源及摘要分别关闭明确缺口，不宣称整个页面所有文字同屏。G4：浅底深字/灰辅助字、青色动作及状态、蓝压力/青注水/绿秤/橙温度延续原分工；本批无深色图，不能外推深色或全页量化对比度。
+
+### 原fixture与恢复核对
+
+直接从同一原ZIP读取 `history/history-preview-reachability.json`、`history-detail/detail-business.json`、`comparison/special-states/missing-samples/comparison-reachability.json`，未全包展开。History初始/恢复scrollY均0；Detail初始/恢复[0,0]，口感目标[0,126]，shotId为`m5-history-a`；Comparison两容器初始/恢复均[[0,0],[0,0]]，原两杯为`m5-history-extra-38`与`m5-history-a`，均ENDED。三组原记录exactScrollRestored为true；记录另保留journal/shot/metric不变及未调用编辑/口感业务Dialog的约束。本节只把这些作为已保存原取证记录，不冒称重新执行交互或硬件验收。
+
+### 本轮实看原PNG
+
+| 目标 | 路径 | SHA256 |
+|---|---|---|
+| history/main-chart-reachable | `build/task-first-evidence/ci-4076c2d/m5-reachability-selected/history/main-chart-reachable/window.png` | `eb2dbcd5baebf5ef73bccf5b49c4b5ea53752dfaa3829a462388529f0c27b525` |
+| history/main-restored | `build/task-first-evidence/ci-4076c2d/m5-reachability-selected/history/main-restored/window.png` | `bcfb18dd873e181c9e4fb70f4753ab4a97f8d78f56b4eade4477f1aee2886c1f` |
+| history-detail/taste-reachable | `build/task-first-evidence/ci-4076c2d/m5-reachability-selected/history-detail/taste-reachable/window.png` | `0d62a926a58c70210c7c36ec76068cd3d016d1a3319378d34e6a48ceb08457c7` |
+| history-detail/notes-restored | `build/task-first-evidence/ci-4076c2d/m5-reachability-selected/history-detail/notes-restored/window.png` | `a7008ef41b22d6f965b3cce2590eaec1634b0651e2c1f7eff2aad459f2546fb5` |
+| comparison/missing-source-explanation | `build/task-first-evidence/ci-4076c2d/m5-reachability-selected/comparison/missing-source-explanation/window.png` | `821cb72a11c0b6f3d44870564ab6bfffa028298239c7243cb5e309e82174ff42` |
+| comparison/missing-summary-lower | `build/task-first-evidence/ci-4076c2d/m5-reachability-selected/comparison/missing-summary-lower/window.png` | `5e19b8a4322eff5d77b9afb363cf086842b88daed6c8696338d5e5f1e47460b3` |
+| comparison/missing-scrolls-restored | `build/task-first-evidence/ci-4076c2d/m5-reachability-selected/comparison/missing-scrolls-restored/window.png` | `64790c1289b74ffd9c6c5df97e9f5a8071b4f5009c0d2d05e3c0c9afb4dc96da` |
+
+本轮只更新以上主态/指定missing-samples目标与恢复。五个History特殊态各自轴/说明滚达、其它Detail特殊态完整notes、Comparison其它态/全部工具及Dialog、Extraction、其它字号/主题/真实设备仍未在本节验收。阶段一二未完成项仅按上述明确目标部分关闭；不签整个M5或24页通过。未改源码、构建、设备操作、提交或推送。

@@ -9,6 +9,7 @@ import android.content.Intent
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
@@ -16,6 +17,7 @@ import android.view.WindowInsets
 import android.widget.ListView
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import io.openhoyi.bean.BeanInventory
 import io.openhoyi.bean.InventoryStorage
 import io.openhoyi.trace.TraceStore
@@ -41,8 +43,86 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
     private val ownedReaders=linkedSetOf<Thread>()
     private fun observeReaders() { ownedReaders.addAll(Thread.getAllStackTraces().keys.filter { it.isAlive && it.name in readerNames }) }
     private val readerDrainProofs=JSONArray()
-    private fun drainReaders(label:String="scope-cleanup", settled:()->Boolean={true}) {
-        val started=SystemClock.elapsedRealtime();val deadline=started+10000
+    private class ToastLedger(private val page:String, private val profile:String) {
+        private data class Event(val name:String,val elapsedNs:Long,val mainThread:Boolean) {
+            fun json()=JSONObject().put("event",name).put("elapsedNs",elapsedNs).put("mainThread",mainThread)
+        }
+        private data class BoundToast(val sequence:Int,val identity:Int,val source:String,val operation:Int,
+            val pid:Int,val duration:Int,val events:MutableList<Event> = mutableListOf()) {
+            fun json()=JSONObject().put("observerSequence",sequence).put("objectIdentity",identity)
+                .put("source",source).put("operationSequence",operation).put("pid",pid)
+                .put("duration",if(duration==Toast.LENGTH_LONG) "LENGTH_LONG" else "UNEXPECTED_$duration")
+                .put("events",JSONArray(events.map {it.json()}))
+        }
+        private data class Operation(val sequence:Int,val label:String,val source:String?,val pid:Int,
+            val startedNs:Long,val deadlineNs:Long,val toasts:MutableList<BoundToast> = mutableListOf()) {
+            fun json()=JSONObject().put("sequence",sequence).put("case",label).put("source",source ?: JSONObject.NULL)
+                .put("pid",pid).put("startedNs",startedNs).put("deadlineNs",deadlineNs)
+                .put("toasts",JSONArray(toasts.map {it.json()}))
+        }
+        private val operations=mutableListOf<Operation>()
+        private val unattributed=mutableListOf<String>()
+        private var current:Operation?=null
+        private var nextToast=1
+        var scopeClosed=false
+            private set
+        private val pid=android.os.Process.myPid()
+        private fun event(name:String)=Event(name,SystemClock.elapsedRealtimeNanos(),Looper.myLooper()===Looper.getMainLooper())
+        fun begin(label:String,cancelled:Boolean):Long {
+            check(Looper.myLooper()===Looper.getMainLooper() && current==null && !scopeClosed)
+            val started=SystemClock.elapsedRealtimeNanos()
+            current=Operation(operations.size+1,label,if(cancelled)null else if(page=="curve") "legacy-curve-import" else "legacy-history-import",
+                pid,started,started+10_000_000_000L).also(operations::add)
+            return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(started)+10000
+        }
+        val observer: (Toast,String)->Unit = { toast,source ->
+            val operation=current
+            if(operation==null || Looper.myLooper()!==Looper.getMainLooper() || source!=operation.source ||
+                operation.toasts.isNotEmpty() || toast.duration!=Toast.LENGTH_LONG) {
+                unattributed.add("unexpected-bind:${operation?.label}:$source:${System.identityHashCode(toast)}")
+            } else {
+                val bound=BoundToast(nextToast++,System.identityHashCode(toast),source,operation.sequence,pid,toast.duration)
+                operation.toasts.add(bound)
+                bound.events.add(event("show-request"))
+                toast.addCallback(object:Toast.Callback() {
+                    override fun onToastShown() { bound.events.add(event("shown")) }
+                    override fun onToastHidden() { bound.events.add(event("hidden")) }
+                })
+            }
+        }
+        private fun closed(operation:Operation):Boolean {
+            if(operation.source==null)return operation.toasts.isEmpty()
+            if(operation.toasts.size!=1)return false
+            val toast=operation.toasts.single();val events=toast.events
+            return toast.source==operation.source && toast.operation==operation.sequence &&
+                toast.pid==pid && toast.duration==Toast.LENGTH_LONG &&
+                events.map {it.name}==listOf("show-request","shown","hidden") &&
+                events.all {it.mainThread} && operation.startedNs<=events[0].elapsedNs &&
+                events[0].elapsedNs<events[1].elapsedNs && events[1].elapsedNs<events[2].elapsedNs &&
+                events[2].elapsedNs<=operation.deadlineNs
+        }
+        fun settled():Boolean {
+            val operation=requireNotNull(current)
+            if(unattributed.isNotEmpty())return false
+            return closed(operation)
+        }
+        fun finish() { current=null }
+        fun beforeMainReady():Boolean=current==null && operations.isEmpty() && unattributed.isEmpty()
+        fun close() {
+            check(current==null && unattributed.isEmpty() && operations.all(::closed)) {
+                "M7 owned import Toast lifecycle remains open or unowned" }
+            scopeClosed=true
+        }
+        fun json():JSONObject=JSONObject().put("claim","owned_import_toasts_ended").put("page",page).put("profile",profile)
+            .put("pid",pid).put("scopeClosed",scopeClosed).put("unattributedEvents",JSONArray(unattributed))
+            .put("pending",operations.sumOf { operation -> operation.toasts.count { toast ->
+                toast.events.map {it.name}!=listOf("show-request","shown","hidden") } })
+            .put("operations",JSONArray(operations.map {it.json()}))
+    }
+    private var toastLedger:ToastLedger?=null
+    private var axisScope:Scope?=null
+    private fun drainReaders(label:String="scope-cleanup", deadlineOverrideMs:Long?=null, settled:()->Boolean={true}) {
+        val started=deadlineOverrideMs?.minus(10000) ?: SystemClock.elapsedRealtime();val deadline=deadlineOverrideMs ?: started+10000
         val rounds=JSONArray();val proof=JSONObject().put("label",label).put("timeoutMs",10000).put("rounds",rounds)
         fun snapshot(threads:Collection<Thread>)=JSONArray(threads.map { thread -> JSONObject().put("id",thread.id)
             .put("name",thread.name).put("state",thread.state.name).put("alive",thread.isAlive) })
@@ -201,6 +281,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         private val legacy = linkedMapOf<String, Pair<Lazy<*>, Boolean>>()
         private var oldLanguage: Any? = null
         private var oldFailure: Any? = null
+        private var oldToastObserver: ((Toast,String)->Unit)? = null
+        private var toastObserverInstalled=false
         private val savedPrefs = linkedMapOf<String, Map<String, *>>()
         private var diskBefore = emptyMap<String, String>()
         private var whitePrefFileBefore = emptyMap<String, String>()
@@ -306,6 +388,11 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 // A fresh process must not have acquired any original store before this entire group is installed.
                 check(saved.values.none { it.isInitialized() } && legacy.values.none { it.first.isInitialized() }) { "Original delegate initialized before fixture isolation" }
                 oldLanguage = field(app,"languagePreferences"); oldFailure=field(app,"journalObservationFailure")
+                oldToastObserver=LegacyImportToastObservation.observer
+                check(oldToastObserver==null) { "M7 fresh scope inherited an import Toast observer" }
+                val ledger=requireNotNull(toastLedger)
+                LegacyImportToastObservation.observer=ledger.observer
+                toastObserverInstalled=true
                 listOf("appearance").forEach { savedPrefs[it]=context.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
                 diskBefore=businessDisk(); whitePrefFileBefore=whitePrefFiles()
                 app.registerActivityLifecycleCallbacks(lifecycle)
@@ -343,6 +430,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         fun activeActivity(): Activity? = tracked.lastOrNull { !it.isDestroyed }
         fun cleanup() {
             val proof = JSONObject().put("scopedOwnedDirectory",ownedDirectory.absolutePath)
+            var cleanupFailure:Throwable?=null
             try {
                 if (installed) {
                     observeReaders()
@@ -353,6 +441,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                     main { check(services().isEmpty()) { "M7 no-service scope unexpectedly holds a service; original delegates not restored" } }
                     check(android.view.inspector.WindowInspector.getGlobalWindowViews().isEmpty()) { "M7 fixture dialog/window remains after Activity destruction" }
                     drainReaders()
+                    main { requireNotNull(toastLedger).close() }
                     proof.put("ownedReaderThreads",JSONArray(ownedReaders.map { JSONObject().put("id",it.id).put("name",it.name).put("alive",it.isAlive) }))
                         .put("allOwnedReadersExitedAndMainBarrier",true)
                     proof.put("activityDestroyedCount",destroyed.size).put("allActivitiesDestroyed",true)
@@ -416,17 +505,33 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 }
                 proof.put("status","PASS_ISOLATION_ONLY")
             } catch (failure: Throwable) {
+                cleanupFailure=failure
                 proof.put("status","FAIL").put("failure",failure.stackTraceToString())
                 // Do not restore original delegates while a scoped Activity/service/writer may still hold references.
-                throw failure
-            } finally { File(directory,"fixture-isolation.json").writeText(proof.toString(2)) }
+            } finally {
+                if(toastObserverInstalled) try {
+                    main {
+                        check(LegacyImportToastObservation.observer===requireNotNull(toastLedger).observer)
+                        LegacyImportToastObservation.observer=oldToastObserver
+                        proof.put("originalToastObserverRestored",LegacyImportToastObservation.observer===oldToastObserver)
+                    }
+                } catch (observerFailure:Throwable) {
+                    proof.put("status","FAIL").put("observerRestoreFailure",observerFailure.stackTraceToString())
+                    if(cleanupFailure==null)cleanupFailure=observerFailure else cleanupFailure!!.addSuppressed(observerFailure)
+                }
+                try {File(directory,"fixture-isolation.json").writeText(proof.toString(2))}
+                catch (writeFailure:Throwable) {
+                    if(cleanupFailure==null)cleanupFailure=writeFailure else cleanupFailure!!.addSuppressed(writeFailure)
+                }
+            }
+            cleanupFailure?.let {throw it}
         }
     }
     private fun geometry(activity: Activity): JSONObject {
         val content=root(activity); val origin=IntArray(2); content.getLocationOnScreen(origin)
         val insets=requireNotNull(content.rootWindowInsets); val bars=insets.getInsets(WindowInsets.Type.systemBars())
         val config=activity.resources.configuration
-        return JSONObject().put("windowMetricsBoundsPx",rect(activity.windowManager.currentWindowMetrics.bounds))
+        val result=JSONObject().put("windowMetricsBoundsPx",rect(activity.windowManager.currentWindowMetrics.bounds))
             .put("appOriginPx",JSONArray(origin.toList())).put("appSizePx",JSONArray(listOf(content.width,content.height)))
             .put("systemInsetsPx",JSONArray(listOf(bars.left,bars.top,bars.right,bars.bottom)))
             .put("imeVisible",insets.isVisible(WindowInsets.Type.ime())).put("densityDpi",config.densityDpi)
@@ -437,6 +542,166 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 JSONObject().put("view",observation(chart)).put("actualDraw",JSONObject(chart.visualEvidence.toString())) }))
             .put("scrolls",JSONArray(nodes(content).filterIsInstance<ScrollView>().map { JSONObject().put("tag",it.tag).put("x",it.scrollX).put("y",it.scrollY) }))
             .put("nodes",JSONArray(nodes(content).filter { it.tag is String }.map { observation(it) }))
+        if(activity is LegacyHistoryActivity && nodes(content).filterIsInstance<LegacyShotChartView>()
+                .singleOrNull()?.let {it.points.isNotEmpty() && it.visualEvidence.has("operations")}==true)
+            result.put("mainHistoryAxis",historyAxisState(activity,requireNotNull(axisScope)))
+        return result
+    }
+    private fun historyAxisState(activity:LegacyHistoryActivity,scope:Scope):JSONObject {
+        val owner=root(activity)
+        val chart=nodes(owner).filterIsInstance<LegacyShotChartView>().single()
+        val viewport=requireNotNull(chart.parent as? LegacyChartViewport)
+        val chartVisible=visibility(chart)
+        val clip=chartVisible.getJSONArray("visibleRectPx")
+        val origin=IntArray(2);chart.getLocationOnScreen(origin)
+        val operations=chart.visualEvidence.getJSONArray("operations")
+        val ticks=JSONArray((0 until operations.length()).mapNotNull { index ->
+            val operation=operations.getJSONObject(index)
+            if(operation.optString("role")!="time-tick" || operation.optString("operation")!="text")null
+            else {
+                val box=operation.getJSONArray("glyphBoundsPx")
+                val screen=JSONArray(listOf(origin[0]+box.getDouble(0),origin[1]+box.getDouble(1),
+                    origin[0]+box.getDouble(2),origin[1]+box.getDouble(3)))
+                JSONObject().put("index",index).put("role",operation.getString("role"))
+                    .put("text",operation.getString("text")).put("glyphBoundsPx",box)
+                    .put("screenBoundsPx",screen).put("wholeGlyph",chartVisible.getBoolean("screenMappingVerified") &&
+                        screen.getDouble(0)>=clip.getDouble(0) && screen.getDouble(1)>=clip.getDouble(1) &&
+                        screen.getDouble(2)<=clip.getDouble(2) && screen.getDouble(3)<=clip.getDouble(3))
+            }
+        })
+        val plot=chart.visualEvidence.getJSONArray("plotBoundsPx")
+        val visiblePlotHeight=(minOf(origin[1]+plot.getDouble(3),clip.getDouble(3))-
+            maxOf(origin[1]+plot.getDouble(1),clip.getDouble(1))).coerceAtLeast(0.0)
+        val detail=nodes(owner).single {it.tag=="legacy/history/selected/open"}
+        return JSONObject().put("activityIdentity",System.identityHashCode(activity))
+            .put("windowIdentity",System.identityHashCode(activity.window))
+            .put("rootIdentity",System.identityHashCode(owner))
+            .put("decorIdentity",System.identityHashCode(activity.window.decorView))
+            .put("windowTokenIdentity",System.identityHashCode(requireNotNull(activity.window.decorView.windowToken)))
+            .put("chartIdentity",System.identityHashCode(chart)).put("viewportIdentity",System.identityHashCode(viewport))
+            .put("selectedId",field(activity,"selectedId")).put("listState",listState(activity))
+            .put("points",JSONArray(chart.points.map {it.toString()})).put("nativeInvariant",nativeInvariant(scope))
+            .put("detailAction",observation(detail)).put("detailActionHeightPx",detail.height)
+            .put("actualPlotHeightDp",chart.visualEvidence.getDouble("plotHeightDp"))
+            .put("visiblePlotHeightDp",visiblePlotHeight/activity.resources.displayMetrics.density)
+            .put("chartMappingVerified",chartVisible.getBoolean("screenMappingVerified"))
+            .put("canvasOperations",JSONArray(operations.toString()))
+            .put("chartOriginScreenPx",JSONArray(origin.toList())).put("chartVisibleRectPx",clip)
+            .put("chartScrollPx",JSONArray(listOf(chart.scrollX,chart.scrollY)))
+            .put("viewportHeightPx",viewport.height)
+            .put("scrolls",JSONArray(nodes(owner).filterIsInstance<ScrollView>().map { scroll ->
+                JSONObject().put("identity",System.identityHashCode(scroll)).put("tag",scroll.tag ?: JSONObject.NULL)
+                    .put("x",scroll.scrollX).put("y",scroll.scrollY) }))
+            .put("timeTicks",ticks)
+    }
+    private fun mainHistoryAxisReachability(activity:LegacyHistoryActivity,scope:Scope,directory:File,initial:JSONObject) {
+        lateinit var chart:LegacyShotChartView
+        lateinit var viewport:LegacyChartViewport
+        lateinit var scrolls:List<Pair<ScrollView,Pair<Int,Int>>>
+        var viewportWidth=0;var viewportHeight=0
+        main {
+            val owner=root(activity)
+            chart=nodes(owner).filterIsInstance<LegacyShotChartView>().single()
+            viewport=requireNotNull(chart.parent as? LegacyChartViewport)
+            scrolls=nodes(owner).filterIsInstance<ScrollView>().map {it to (it.scrollX to it.scrollY)}
+            viewportWidth=viewport.width;viewportHeight=viewport.height
+            val live=historyAxisState(activity,scope)
+            val frozen=listOf("activityIdentity","windowIdentity","rootIdentity","decorIdentity",
+                "windowTokenIdentity","chartIdentity","viewportIdentity","selectedId","listState",
+                "points","nativeInvariant","canvasOperations","actualPlotHeightDp","chartScrollPx",
+                "viewportHeightPx","scrolls")
+            check(frozen.all {live.get(it).toString()==initial.get(it).toString()} &&
+                chart.parent===viewport && viewport.chart===chart &&
+                System.identityHashCode(chart)==initial.getInt("chartIdentity") &&
+                System.identityHashCode(viewport)==initial.getInt("viewportIdentity") &&
+                chart.points==scope.mainShot.points) {"M7 captured main History axis owner or scroll changed before request"}
+        }
+        val ticks=initial.getJSONArray("timeTicks")
+        check(ticks.length()>0 && initial.getBoolean("chartMappingVerified") &&
+            initial.getDouble("actualPlotHeightDp")>=160.0)
+        val boxes=(0 until ticks.length()).map {ticks.getJSONObject(it).getJSONArray("glyphBoundsPx")}
+        check(boxes.all {it.length()==4 && it.getDouble(2)>it.getDouble(0) && it.getDouble(3)>it.getDouble(1)})
+        val request=Rect(kotlin.math.floor(boxes.minOf {it.getDouble(0)}).toInt(),
+            kotlin.math.floor(boxes.minOf {it.getDouble(1)}).toInt(),
+            kotlin.math.ceil(boxes.maxOf {it.getDouble(2)}).toInt(),
+            kotlin.math.ceil(boxes.maxOf {it.getDouble(3)}).toInt())
+        val report=JSONObject().put("completed",false).put("initial",initial)
+            .put("initialWindowSha256",sha(File(directory,"window.png")))
+            .put("requestRectChartPx",rect(request)).put("requestTarget","original LegacyShotChartView")
+        val output=File(directory,"history-main-axis-reachability.json")
+        output.writeText(report.toString(2))
+        check(request.width()>0 && request.height()>0 && request.height()<=viewportHeight &&
+            request.width()<=viewportWidth) {"M7 original time-tick union cannot fit the actual viewport"}
+        fun ref(file:File)=JSONObject().put("path",file.relativeTo(directory).invariantSeparatorsPath).put("sha256",sha(file))
+        fun capture(phase:String):Pair<JSONObject,JSONObject> {
+            stableWindow(activity,directory,phase)
+            val folder=File(directory,"states/$phase").apply {check(isDirectory || mkdirs())}
+            val image=File(folder,"window.png")
+            val frame=frames.screenshot(activity,root(activity),image) {geometry(activity)}
+            check(frame.proof.getInt("protocolVersion")==2 && frame.proof.getBoolean("accepted"))
+            val geo=File(folder,"geometry.json");geo.writeText(frame.target.toString(2))
+            val proof=File(folder,"window-frame-sync.json")
+            return frame.target.getJSONObject("mainHistoryAxis") to JSONObject()
+                .put("windowRef",ref(image)).put("geometryRef",ref(geo)).put("frameSyncRef",ref(proof))
+        }
+        fun verify(state:JSONObject,reached:Boolean) {
+            val fixed=listOf("activityIdentity","windowIdentity","rootIdentity","decorIdentity","windowTokenIdentity",
+                "chartIdentity","viewportIdentity","selectedId","listState","points","nativeInvariant",
+                "canvasOperations","actualPlotHeightDp")
+            check(fixed.all {state.get(it).toString()==initial.get(it).toString()} &&
+                state.getDouble("actualPlotHeightDp")>=160.0 && state.getBoolean("chartMappingVerified") &&
+                state.getInt("detailActionHeightPx")>=HoyiUi.dp(activity,48) &&
+                whole(state.getJSONObject("detailAction")) &&
+                state.getJSONObject("detailAction").getString("semanticId")=="legacy/history/selected/open")
+            val initialActionLines=initial.getJSONObject("detailAction").getJSONArray("textLineBoxes")
+            val actionLines=state.getJSONObject("detailAction").getJSONArray("textLineBoxes")
+            check(actionLines.length()==initialActionLines.length() && (0 until actionLines.length()).all { index ->
+                actionLines.getJSONObject(index).getString("text")==initialActionLines.getJSONObject(index).getString("text") &&
+                    actionLines.getJSONObject(index).getString("semanticId")==initialActionLines.getJSONObject(index).getString("semanticId") })
+            val after=state.getJSONArray("timeTicks");check(after.length()==ticks.length())
+            val scroll=state.getJSONArray("scrolls");val beforeScroll=initial.getJSONArray("scrolls")
+            check(scroll.length()==beforeScroll.length() && (0 until scroll.length()).all { index ->
+                scroll.getJSONObject(index).getInt("identity")==beforeScroll.getJSONObject(index).getInt("identity") &&
+                    scroll.getJSONObject(index).optString("tag")==beforeScroll.getJSONObject(index).optString("tag") })
+            val clip=state.getJSONArray("chartVisibleRectPx");val origin=state.getJSONArray("chartOriginScreenPx")
+            (0 until ticks.length()).forEach { index ->
+                val original=ticks.getJSONObject(index);val actual=after.getJSONObject(index)
+                check(listOf("index","role","text","glyphBoundsPx").all { key ->
+                    original.get(key).toString()==actual.get(key).toString() })
+                val box=actual.getJSONArray("glyphBoundsPx");val screen=actual.getJSONArray("screenBoundsPx")
+                check((0..3).all { side -> screen.getDouble(side)==box.getDouble(side)+origin.getDouble(if(side%2==0)0 else 1) })
+                if(reached) check(actual.getBoolean("wholeGlyph") &&
+                    screen.getDouble(0)>=clip.getDouble(0) && screen.getDouble(1)>=clip.getDouble(1) &&
+                    screen.getDouble(2)<=clip.getDouble(2) && screen.getDouble(3)<=clip.getDouble(3))
+            }
+        }
+        var failure:Throwable?=null
+        try {
+            var moved=false
+            main {moved=chart.requestRectangleOnScreen(request,true)}
+            report.put("requestRectangleReturned",moved)
+            val (state,refs)=capture("history-main-axis-reached")
+            report.put("reached",state).put("reachedRefs",refs)
+            verify(state,true)
+        } catch(error:Throwable) {failure=error}
+        finally {
+            try {
+                main {scrolls.forEach { (scroll,point) -> scroll.scrollTo(point.first,point.second) }}
+                val (state,refs)=capture("history-main-axis-restored")
+                report.put("restored",state).put("restoredRefs",refs)
+                verify(state,false)
+                check(state.getJSONArray("scrolls").toString()==initial.getJSONArray("scrolls").toString() &&
+                    state.getJSONArray("timeTicks").toString()==initial.getJSONArray("timeTicks").toString())
+                if(failure==null)report.put("completed",true)
+            } catch(restoreError:Throwable) {
+                report.put("restoreFailure",restoreError.stackTraceToString())
+                if(failure==null)failure=restoreError else failure.addSuppressed(restoreError)
+            }
+            if(failure!=null)report.put("completed",false).put("failure",failure.stackTraceToString())
+            try {output.writeText(report.toString(2))}
+            catch(writeError:Throwable) {if(failure==null)failure=writeError else failure.addSuppressed(writeError)}
+        }
+        failure?.let {throw it}
     }
     private fun diagnostic(activity: Activity, folder: File) {
         check(folder.isDirectory || folder.mkdirs())
@@ -638,21 +903,40 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             .put("nativeModelsUnchanged",true).toString(2))
         close(page)
     }
-    private fun callback(activity: Activity, request: Int, result: Int, uri: android.net.Uri?) {
-        main {
-            val method=activity.javaClass.getDeclaredMethod("onActivityResult",Int::class.javaPrimitiveType,
-                Int::class.javaPrimitiveType,Intent::class.java).apply { isAccessible=true }
-            method.invoke(activity,request,result,uri?.let { Intent().setData(it) })
-            observeReaders()
-        }
-        drainReaders("activity-result-${activity.javaClass.simpleName}-$request-$result") {
-            if(activity is LegacyCurveActivity) {
+    private fun callback(activity: Activity, request: Int, result: Int, uri: android.net.Uri?, caseLabel:String) {
+        val ledger=requireNotNull(toastLedger)
+        var deadline=0L
+        var began=false
+        var callbackFailure:Throwable?=null
+        try {
+            main {
+                deadline=ledger.begin(caseLabel,result==Activity.RESULT_CANCELED)
+                began=true
+                val method=activity.javaClass.getDeclaredMethod("onActivityResult",Int::class.javaPrimitiveType,
+                    Int::class.javaPrimitiveType,Intent::class.java).apply { isAccessible=true }
+                method.invoke(activity,request,result,uri?.let { Intent().setData(it) })
+                observeReaders()
+            }
+            drainReaders("activity-result-${activity.javaClass.simpleName}-$request-$result",deadline) {
+                val readerReady=if(activity is LegacyCurveActivity) {
                 val status=(field(activity,"count") as TextView).text.toString()
                 val pending=setOf(R.string.legacy_curve_loading_initial,R.string.legacy_curve_loading,R.string.legacy_curve_checking).map {activity.getString(it)}
                 status !in pending && ((field(activity,"list") as View).visibility==View.VISIBLE ||
                     (field(activity,"emptyState") as View).visibility==View.VISIBLE)
-            } else true
+                } else true
+                readerReady && ledger.settled()
+            }
+            main {check(ledger.settled()) {"M7 original Toast has not completed: $caseLabel"}}
+        } catch(failure:Throwable) {callbackFailure=failure}
+        finally {
+            if(began) {
+                try {main {ledger.finish()}}
+                catch(finishFailure:Throwable) {
+                    if(callbackFailure==null)callbackFailure=finishFailure else callbackFailure!!.addSuppressed(finishFailure)
+                }
+            }
         }
+        callbackFailure?.let {throw it}
     }
     private fun sourcesBusiness(scope: Scope, directory: File) {
         var legacy=start(LegacyHistoryActivity::class.java)
@@ -685,7 +969,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         val target=if(curve) scope.curveFile else scope.historyFile
         fun checkImport(label: String, bytes: ByteArray, success: Boolean) {
             val before=sha(target); val uri=scope.providerUri(bytes)
-            callback(page,request,Activity.RESULT_OK,uri)
+            callback(page,request,Activity.RESULT_OK,uri,label)
             if(curve) await("curve import result reader completed") { ready(page) }
             val after=sha(target)
             check((after!=before)==success) { "M7 $label wrong archive mutation" }
@@ -696,7 +980,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         val valid=if(curve) scope.mainCurves else LegacyHistoryCodec.encode(scope.shots).toByteArray(Charsets.UTF_8)
         val uri=scope.providerUri(valid)
         val beforeCancel=sha(target); val reads=scope.provider("stats").getInt("read:output.json")
-        callback(page,request,Activity.RESULT_CANCELED,uri)
+        callback(page,request,Activity.RESULT_CANCELED,uri,"saf-cancel")
         check(sha(target)==beforeCancel && scope.provider("stats").getInt("read:output.json")==reads)
         cases.put(JSONObject().put("case","saf-cancel").put("archiveUnchanged",true).put("providerNotRead",true))
         checkImport("duplicate-no-change",valid,false)
@@ -983,6 +1267,41 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         return JSONObject().put("windowRef",ref("window.png")).put("geometryRef",ref("geometry.json"))
             .put("frameSyncRef",ref("window-frame-sync.json"))
     }
+    private fun shortBadgeTypography(readonly:TextView):JSONObject {
+        check(Looper.myLooper()===Looper.getMainLooper()) { "M7 badge typography must be captured on main" }
+        val face=readonly.typeface
+        val color=String.format(java.util.Locale.ROOT,"#%08X",readonly.currentTextColor)
+        return JSONObject().put("source","same_original_readonly_TextView_public_getters")
+            .put("objectIdentity",System.identityHashCode(readonly))
+            .put("semanticId",readonly.tag).put("text",readonly.text.toString())
+            .put("textSourceClass",readonly.text.javaClass.name).put("viewClass",readonly.javaClass.name)
+            .put("attached",readonly.isAttachedToWindow).put("layoutRequested",readonly.isLayoutRequested)
+            .put("density",readonly.resources.displayMetrics.density)
+            .put("fontScale",readonly.resources.configuration.fontScale)
+            .put("textSizePx",readonly.textSize).put("paintTextSizePx",readonly.paint.textSize)
+            .put("typefacePresent",face!=null)
+            .put("typefaceIdentity",face?.let(System::identityHashCode) ?: JSONObject.NULL)
+            .put("typefaceUnknownReason",if(face==null) "TextView_getTypeface_returned_null" else JSONObject.NULL)
+            .put("weight",if(Build.VERSION.SDK_INT>=28) face?.weight ?: JSONObject.NULL else JSONObject.NULL)
+            .put("isItalic",face?.isItalic ?: JSONObject.NULL)
+            .put("fakeBold",readonly.paint.isFakeBoldText)
+            .put("letterSpacingEm",readonly.letterSpacing).put("textScaleX",readonly.textScaleX)
+            .put("paintTextSkewX",readonly.paint.textSkewX)
+            .put("includeFontPadding",readonly.includeFontPadding)
+            .put("lineHeightPx",readonly.lineHeight)
+            .put("lineSpacingExtraPx",readonly.lineSpacingExtra)
+            .put("lineSpacingMultiplier",readonly.lineSpacingMultiplier)
+            .put("baselinePx",readonly.baseline)
+            .put("paddingPx",JSONArray(listOf(readonly.paddingLeft,readonly.paddingTop,
+                readonly.paddingRight,readonly.paddingBottom)))
+            .put("actualLayout",TaskTypographyEvidence.actualTextLayout(readonly))
+            .put("textColors",TaskVisualColorEvidence.text(readonly))
+            .put("currentTextColorArgb",color)
+            .put("drawableState",TaskVisualColorEvidence.state(readonly))
+            .put("background",TaskVisualColorEvidence.background(readonly.background,readonly.resources))
+            .put("foreground",TaskVisualColorEvidence.background(readonly.foreground,readonly.resources))
+            .put("glyphFontIdentity","UNKNOWN_PUBLIC_TEXTVIEW_API_DOES_NOT_EXPOSE_FALLBACK_GLYPH_FONT")
+    }
     private fun shortDetailState(activity:Activity):JSONObject {
         val workspace=nodes(root(activity)).filterIsInstance<TaskWorkspaceLayout>().single()
         val contentScroll=nodes(root(activity)).filterIsInstance<LegacyDetailContentScroll>().single()
@@ -991,7 +1310,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         val button=action(activity,R.string.ui_full_details)
         val chart=nodes(root(activity)).filterIsInstance<LegacyShotChartView>().single()
         val heading=nodes(contentScroll).filterIsInstance<LegacyNaturalFlow>().single()
-        val readonly=nodes(heading).single {it.tag=="legacy/readonly"}
+        val readonly=nodes(heading).single {it.tag=="legacy/readonly"} as TextView
         val pageRoot=nodes(root(activity)).single {it.tag=="product/page/root"}
         val chartViewport=requireNotNull(chart.parent as? LegacyChartViewport)
         val plot=chart.visualEvidence.getJSONArray("plotBoundsPx")
@@ -1035,6 +1354,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             .put("headingMetadata",observation(nodes(heading).single {it.tag=="legacy/detail/metadata"}))
             .put("headingReadonly",observation(readonly))
             .put("headingReadonlyIdentity",System.identityHashCode(readonly))
+            .put("headingReadonlyTypography",shortBadgeTypography(readonly))
             .put("body",visibility(requireNotNull(contentScroll.parent as? View)))
             .put("rootPaddingPx",JSONArray(listOf(pageRoot.paddingLeft,pageRoot.paddingTop,
                 pageRoot.paddingRight,pageRoot.paddingBottom)))
@@ -1448,6 +1768,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         check(arguments.getString("referencePngSha256")==reference)
         val profile="tablet-user-landscape-$theme-font-$scale"
         val directory=File(requireNotNull(context.getExternalFilesDir(null)),"legacy-visual-migration/$source/$profile/$page").apply { check(isDirectory || mkdirs()) }
+        toastLedger=ToastLedger(page,profile)
         val manifest=JSONObject().put("sourceSha",source).put("headSha",arguments.getString("headSha"))
             .put("sourceDirty",arguments.getString("sourceDirty")).put("apkSha256",arguments.getString("apkSha"))
             .put("ciRun",arguments.getString("ciRun")).put("ciJob",arguments.getString("ciJob"))
@@ -1456,11 +1777,13 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             .put("pid",android.os.Process.myPid()).put("scopePolicy","original_12Lazy_identity_before_value; scoped_owned_legal_legacy_archives; no_Service_no_Mock_clock")
         var scope: Scope?=null; var failure: Throwable?=null
         try {
-            val active=Scope(directory,page);scope=active;active.prepare();active.install(theme=="dark")
+            val active=Scope(directory,page);scope=active;axisScope=active;active.prepare();active.install(theme=="dark")
             File(directory,"fixture.json").writeText(active.fixture.toString(2))
             val activity=when(page) { "curve" -> start(LegacyCurveActivity::class.java)
                 "history" -> start(LegacyHistoryActivity::class.java)
                 else -> start(LegacyHistoryDetailActivity::class.java,active.mainId) }
+            manifest.put("ownedImportToastsBeforeMain",if(requireNotNull(toastLedger).beforeMainReady()) 0 else -1)
+            check(manifest.getInt("ownedImportToastsBeforeMain")==0)
             stableWindow(activity,directory,"main-ready")
             // First retain the untouched nonempty main frame, only then run any assertions or business mutation.
             val captured=frames.screenshot(activity,root(activity),File(directory,"window.png")) { geometry(activity) }
@@ -1493,6 +1816,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 }
             }
             check(services().isEmpty())
+            if(page=="history") mainHistoryAxisReachability(activity as LegacyHistoryActivity,active,directory,
+                captured.target.getJSONObject("mainHistoryAxis"))
             if(page=="detail") { detailReachability(activity,directory); close(activity) } else listBusiness(activity,active,directory)
             val special=specials(active,page,File(directory,"special-states").apply { check(isDirectory || mkdirs()) })
             File(directory,"special-states/manifest.json").writeText(special.toString(2))
@@ -1506,6 +1831,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             catch(error: Throwable) { manifest.put("isolationStatus","FAIL").put("cleanupFailure",error.stackTraceToString())
                 if(failure==null) failure=error else failure!!.addSuppressed(error) }
             try {File(directory,"reader-drains.json").writeText(readerDrainProofs.toString(2))}
+            catch(error:Throwable) {if(failure==null)failure=error else failure!!.addSuppressed(error)}
+            try {File(directory,"toast-lifecycle.json").writeText(requireNotNull(toastLedger).json().toString(2))}
             catch(error:Throwable) {if(failure==null)failure=error else failure!!.addSuppressed(error)}
             manifest.put("overallStatus",if(failure==null) "PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
             failure?.let { manifest.put("failure",it.stackTraceToString()) }

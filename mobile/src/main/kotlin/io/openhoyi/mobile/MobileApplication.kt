@@ -178,10 +178,12 @@ class MobileApplication : Application() {
                 mapOf("result" to result.fold({ "${it.added} added, ${it.total} total" },
                     { it.javaClass.simpleName })))
             Handler(Looper.getMainLooper()).post {
-                Toast.makeText(this, result.fold(
+                val toast = Toast.makeText(this, result.fold(
                     { getString(R.string.legacy_history_import_result, it.added.toString(), it.total.toString()) },
                     { getString(R.string.legacy_import_error, it.message ?: it.javaClass.simpleName) }),
-                    Toast.LENGTH_LONG).show()
+                    Toast.LENGTH_LONG)
+                LegacyImportToastObservation.beforeShow(toast, "legacy-history-import")
+                toast.show()
             }
         }, "legacy-history-import").start()
     }

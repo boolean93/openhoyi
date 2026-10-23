@@ -1870,14 +1870,16 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("geometryUnchanged",before.toString()==after.toString()).put("sameCompositorFrameProven",false)
             .put("protocol","unsynchronized_IME_diagnostic_not_main_protocol2").toString(2))
     }
-    private fun stableWindow(activity: Activity, directory: File, phase: String) {
+    private fun stableWindow(activity: Activity, directory: File, phase: String,
+        transitionProbe: ImeViewportTransitionProbe?=null) {
         val deadline=SystemClock.elapsedRealtime()+5000; val samples=JSONArray()
         var prior: String?=null; var consecutive=0
         try {
             while(SystemClock.elapsedRealtime()<deadline) {
                 frames.committedFrame(root(activity))
                 lateinit var value: JSONObject; var pending=true
-                main { value=geometry(activity); pending=nodes(root(activity)).any { it.isShown && it.isLayoutRequested } }
+                main { value=geometry(activity);transitionProbe?.sample("stable-frame-$phase",samples.length()+1,force=false)
+                    pending=nodes(root(activity)).any { it.isShown && it.isLayoutRequested } }
                 val signature=value.toString(); val within=SystemClock.elapsedRealtime()<=deadline
                 consecutive=if(!pending && signature==prior) consecutive+1 else if(!pending) 1 else 0
                 samples.put(JSONObject().put("geometry",value).put("pendingLayout",pending)
@@ -1933,6 +1935,15 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
     private fun importBusiness(initial: Activity, scope: Scope, directory: File) {
         var activity=initial; val frozen=invariant(scope); val cases=JSONArray()
         val nativeTrace=ImeRecreationTrace(test,directory)
+        val transitionProbe=ImeViewportTransitionProbe("Import.raw.recreate",{ owner ->
+            val raw=input(owner);val pageRoot=root(owner)
+            val middle=field(owner,"formScroll") as ScrollView
+            check(nodes(pageRoot).count { it===raw }==1 && nodes(pageRoot).count { it===middle }==1)
+            val host=middle.parent as? View
+            check(host!=null && nodes(pageRoot).count { it===host }==1)
+            ImeViewportTransitionProbe.Targets(pageRoot,host,raw,
+                nodes(pageRoot).filterIsInstance<ScrollView>())
+        },{ owner -> (owner as? CurveImportActivity)?.productRestoreEvidence })
         fun record(name: String) {
             cases.put(JSONObject().put("case",name).put("modelsUnchanged",invariant(scope)==frozen))
             File(directory,"curve-business.json").writeText(JSONObject().put("cases",cases).put("completed",false).toString(2))
@@ -1951,20 +1962,28 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             view.scrollTo(0,(layout.height-view.height+view.compoundPaddingTop+view.compoundPaddingBottom).coerceAtLeast(0)) }
         stableWindow(activity,directory,"raw-before-recreate")
         lateinit var before: JSONObject
-        main {
-            before=rawState(activity)
-            // Preserve the actual pre-assertion state in this SAME main turn, even if its establishment failed.
-            File(directory,"raw-ime-geometry.json").writeText(JSONObject().put("geometry",geometry(activity))
-                .put("state",before).put("phase","before_focus_nonzero_scroll_and_footer_assertions")
-                .put("sameCompositorFrameProven",false).toString(2))
-            check(before.getBoolean("focused") && before.getInt("scrollY")>0) {
-                "M3 raw draft state not established: focused=${before.getBoolean("focused")} scrollY=${before.getInt("scrollY")} " +
-                    "inputHeightPx=${input(activity).height}; original focus/nonzero-scroll gate is unchanged"
+        try {
+            main {
+                before=rawState(activity)
+                transitionProbe.install(activity,"old-before-recreate")
+                transitionProbe.sample("before-state-assertion")
+                // Preserve the actual pre-assertion state in this SAME main turn, even if its establishment failed.
+                File(directory,"raw-ime-geometry.json").writeText(JSONObject().put("geometry",geometry(activity))
+                    .put("state",before).put("phase","before_focus_nonzero_scroll_and_footer_assertions")
+                    .put("sameCompositorFrameProven",false).toString(2))
+                check(before.getBoolean("focused") && before.getInt("scrollY")>0) {
+                    "M3 raw draft state not established: focused=${before.getBoolean("focused")} scrollY=${before.getInt("scrollY")} " +
+                        "inputHeightPx=${input(activity).height}; original focus/nonzero-scroll gate is unchanged"
+                }
+                listOf(R.string.beans_cancel,R.string.profiles_import_preview).forEach { id ->
+                    val button=action(activity,id); check(whole(observation(button)) && button.height>=HoyiUi.dp(activity,48)) }
             }
-            listOf(R.string.beans_cancel,R.string.profiles_import_preview).forEach { id ->
-                val button=action(activity,id); check(whole(observation(button)) && button.height>=HoyiUi.dp(activity,48)) }
+            diagnostic(activity,File(directory,"raw-ime"))
+        } catch(error:Throwable) {
+            try { main { transitionProbe.closeAndWrite(File(directory,"ime-viewport-transitions.json")) } }
+            catch(secondary:Throwable) { error.addSuppressed(secondary) }
+            throw error
         }
-        diagnostic(activity,File(directory,"raw-ime"))
         var restorationFailure:Throwable?=null
         var oldSnapshot:ImeRecreationTrace.Snapshot?=null
         var newSnapshot:ImeRecreationTrace.Snapshot?=null
@@ -1980,9 +1999,11 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             observedRoots.add(view to listener)
         }
         val lifecycle=object:Application.ActivityLifecycleCallbacks {
-            override fun onActivityCreated(owner:Activity,state:Bundle?) { if(owner is CurveImportActivity) nativeTrace.observe("activity_created",owner) }
+            override fun onActivityCreated(owner:Activity,state:Bundle?) { if(owner is CurveImportActivity) {
+                nativeTrace.observe("activity_created",owner) } }
             override fun onActivityPostCreated(owner:Activity,state:Bundle?) { if(owner is CurveImportActivity) {
-                nativeTrace.observe("activity_post_created",owner); observeRoot(owner) } }
+                nativeTrace.observe("activity_post_created",owner)
+                transitionProbe.install(owner,"replacement-post-created"); observeRoot(owner) } }
             override fun onActivityStarted(owner:Activity) { if(owner is CurveImportActivity) nativeTrace.observe("activity_started",owner) }
             override fun onActivityResumed(owner:Activity) { if(owner is CurveImportActivity) nativeTrace.observe("activity_resumed",owner) }
             override fun onActivityPaused(owner:Activity) { if(owner is CurveImportActivity) nativeTrace.observe("activity_paused",owner) }
@@ -2004,9 +2025,10 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             }
             finally { test.removeMonitor(monitor) }
             await("Import restored ready") { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
-            stableWindow(activity,directory,"raw-after-recreate")
+            stableWindow(activity,directory,"raw-after-recreate",transitionProbe)
             nativeTrace.mark("after_comparison_before","CurveVisualMigrationChecks.importBusiness.rawStateComparison")
             main { val after=rawState(activity)
+                transitionProbe.sample("after-state-assertion")
                 nativeTrace.observe("after_comparison",activity,input(activity),"CurveVisualMigrationChecks.importBusiness.rawStateComparison")
                 File(directory,"raw-restoration.json").writeText(JSONObject().put("before",before).put("after",after)
                     .put("afterGeometryBeforeAssertion",geometry(activity)).toString(2))
@@ -2018,22 +2040,27 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             try {diagnostic(activity,File(directory,"raw-recreate-failure"))}catch(secondary:Throwable) {error.addSuppressed(secondary)}
             throw error
         } finally {
+            var finalizationFailure:Throwable?=null
+            fun preserveFinalization(error:Throwable, reportName:String) {
+                val primary=restorationFailure ?: finalizationFailure
+                if(primary!=null) primary.addSuppressed(error)
+                else try { File(directory,reportName).writeText(error.stackTraceToString()) }
+                catch(writeError:Throwable) { finalizationFailure=error;error.addSuppressed(writeError) }
+            }
+            try {main { transitionProbe.closeAndWrite(File(directory,"ime-viewport-transitions.json")) }}
+            catch(secondary:Throwable) { val primary=restorationFailure
+                if(primary!=null)primary.addSuppressed(secondary) else finalizationFailure=secondary }
             var restoredEvidence:JSONObject?=null
             try {main { observedRoots.forEach { (view,listener) -> view.removeOnAttachStateChangeListener(listener) }
                 app.unregisterActivityLifecycleCallbacks(lifecycle)
                 if(activity is CurveImportActivity) restoredEvidence=JSONObject((activity as CurveImportActivity).productRestoreEvidence.toString())
                 nativeTrace.observe("observers_removed",activity) }
                 restoredEvidence?.let(nativeTrace::productEvidence)
-            } catch(secondary:Throwable) {
-                val primary=restorationFailure
-                if(primary!=null)primary.addSuppressed(secondary)
-                else File(directory,"ime-causal-links-finalization-error.txt").writeText(secondary.stackTraceToString())
-            }
+            } catch(secondary:Throwable) { preserveFinalization(secondary,"ime-causal-links-finalization-error.txt") }
             try {nativeTrace.finish()}catch(secondary:Throwable) {
-                val primary=restorationFailure
-                if(primary!=null)primary.addSuppressed(secondary)
-                else File(directory,"ime-trace-finalization-error.txt").writeText(secondary.stackTraceToString())
+                preserveFinalization(secondary,"ime-trace-finalization-error.txt")
             }
+            if(restorationFailure==null) finalizationFailure?.let { throw it }
         }
         unfocus(activity,nativeTrace)
         nativeTrace.observe("fixture_unfocus_returned",callerSite="CurveVisualMigrationChecks.importBusiness.unfocus")

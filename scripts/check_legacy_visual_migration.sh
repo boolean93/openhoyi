@@ -127,6 +127,31 @@ if result.returncode or 'LEGACY_VISUAL_MIGRATION_CAPTURED fixtures=1 realActivit
     print(text)
     raise SystemExit('Real product capture failed; partial evidence retained, no automatic reset/retry')
 RUN_PY
+      # Verify this page's owned Toasts before the next force-stop/process. Never claim global overlay absence.
+      page_profile="tablet-user-landscape-$product_theme-font-$font_scale"
+      page_remote="/sdcard/Android/data/$package/files/legacy-visual-migration/$source_sha/$page_profile/$legacy_page"
+      page_local="$output_dir/toast-page-check/$page_profile/$legacy_page"
+      mkdir -p "$page_local"
+      adb pull "$page_remote/toast-lifecycle.json" "$page_local/toast-lifecycle.json"
+      adb pull "$page_remote/manifest.json" "$page_local/manifest.json"
+      python3 - "$page_local" "$source_sha" "$legacy_page" "$page_profile" <<'TOAST_PAGE_PY'
+import hashlib,json,sys
+from pathlib import Path
+sys.path.insert(0,str(Path('scripts').resolve()))
+from test_legacy_toast_lifecycle_contract import validate
+folder=Path(sys.argv[1]);source,page,profile=sys.argv[2:]
+manifest=json.loads((folder/'manifest.json').read_text())
+record_path=folder/'toast-lifecycle.json';record=json.loads(record_path.read_text())
+assert manifest['sourceSha']==source and manifest['profile']==profile and manifest['page']==page
+assert manifest['overallStatus']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE'
+assert manifest['ownedImportToastsBeforeMain']==0 and manifest['pid']==record['pid']
+assert manifest['fileSha256']['toast-lifecycle.json']==hashlib.sha256(record_path.read_bytes()).hexdigest()
+cases={'curve':['saf-cancel','duplicate-no-change','malformed-utf8','wrong-format','over-16MiB','curve-explicit-replacement'],
+       'history':['saf-cancel','duplicate-no-change','malformed-utf8','wrong-format','over-16MiB',
+                  'history-merge-new-id','history-conflicting-id','history-duplicate-id-in-file'],
+       'detail':[]}
+validate(record,page,profile,manifest['pid'],cases[page])
+TOAST_PAGE_PY
     done
   done
 done
@@ -136,6 +161,8 @@ from pathlib import Path
 import hashlib,json,struct,sys
 sys.path.insert(0,str(Path('scripts').resolve()))
 from window_mapping_contract import validate, DEFAULT_ACTIVITY, DEFAULT_WINDOW, TRANSLATED_WINDOW, SHORT_ACTIVITY
+from test_legacy_toast_lifecycle_contract import validate as validate_toasts
+from test_legacy_history_axis_contract import validate as validate_axis, validate_badge_typography
 root=Path(sys.argv[1]); sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
 manifests=sorted(root.glob('*/*/manifest.json'))
 assert len(manifests)==12, f'Expected 12 real M7 configurations, got {len(manifests)}'
@@ -223,6 +250,12 @@ def short_badge_whole(state, initial, fixed_identity):
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
     assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
+    assert m['ownedImportToastsBeforeMain']==0
+    toast_record=json.loads((folder/'toast-lifecycle.json').read_text())
+    toast_cases={'curve':['saf-cancel','duplicate-no-change','malformed-utf8','wrong-format','over-16MiB','curve-explicit-replacement'],
+        'history':['saf-cancel','duplicate-no-change','malformed-utf8','wrong-format','over-16MiB',
+            'history-merge-new-id','history-conflicting-id','history-duplicate-id-in-file'],'detail':[]}
+    validate_toasts(toast_record,m['page'],m['profile'],m['pid'],toast_cases[m['page']])
     assert m['visualAcceptance']=='ASTRA_PENDING' and m['layoutStatus']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE'
     assert m['overallStatus']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE' and m['isolationStatus']=='PASS_ISOLATION_ONLY'
     assert m['referenceDesignPngSha256']==references[m['page']]
@@ -241,7 +274,7 @@ for path in manifests:
         protocol_count+=1
     isolation=json.loads((folder/'fixture-isolation.json').read_text())
     for name in ('businessDiskByteUnchanged','typedPreferencesRestored','originalLazyIdentityAndInitializedRestored','legacyUnchanged',
-    'allActivitiesDestroyed','noServiceBeforeOriginalDelegateRestore','scopedWritersTerminated','allOwnedReadersExitedAndMainBarrier','providerSessionRemoved','mockClockOwnerAbsentBeforeAndAfter'):
+    'allActivitiesDestroyed','noServiceBeforeOriginalDelegateRestore','scopedWritersTerminated','allOwnedReadersExitedAndMainBarrier','providerSessionRemoved','mockClockOwnerAbsentBeforeAndAfter','originalToastObserverRestored'):
         assert isolation[name] is True,(path,name)
     assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['clipboard']=='NOT_READ_OR_WRITTEN'
     status=isolation['scopedTraceStatusAfterTermination'].split()
@@ -269,6 +302,7 @@ for path in manifests:
     special=json.loads((folder/'special-states/manifest.json').read_text())
     assert special['completed'] and special['mainConfigurationCountContribution']==0 and special['visualAcceptance']=='ASTRA_PENDING'
     assert {case['case'] for case in special['cases']}==required[m['page']],path
+    assert [case['case'] for case in special['cases'] if case['case'] in toast_cases[m['page']]]==toast_cases[m['page']]
     require_protocol(folder/'window-frame-sync.json','ACTIVITY')
     require_protocol(folder/'special-states/short-window/window-frame-sync.json','ACTIVITY')
     short=next(case for case in special['cases'] if case['case']=='short-window')
@@ -303,6 +337,16 @@ for path in manifests:
         assert all(badge_restored[key]==initial[key] for key in fixed_identity)
         assert badge_restored['windowLayout']==initial['windowLayout'] and badge_restored['headingReadonly']['semanticId']=='legacy/readonly'
         assert badge_restored['headingReadonly']['textLineBoxes']==initial['headingReadonly']['textLineBoxes']
+        background_values=validate_badge_typography(initial,badge_state,badge_restored,
+            float(m['profile'].rsplit('-font-',1)[-1]),m['profile'].split('-font-')[0].rsplit('-',1)[-1])
+        def unknown_background(value):
+            if isinstance(value,dict):
+                return ([value.get('reason','unknown')] if value.get('status')=='unknown' else []) + [
+                    reason for child in value.values() for reason in unknown_background(child)]
+            if isinstance(value,list):return [reason for child in value for reason in unknown_background(child)]
+            return []
+        reasons=sorted(set(reason for value in background_values for reason in unknown_background(value)))
+        if reasons:pending.append(f"badge-background-unknown:{m['profile']}:{','.join(reasons)}")
         chart_reach=short['chartReachability']
         assert chart_reach['completed'] and chart_reach['initialScrolls']==initial['scrolls']
         expected_text=initial['canvasTextOperations']
@@ -415,6 +459,23 @@ for path in manifests:
         business=json.loads((folder/'continuous-list-business.json').read_text())
         assert business['count']==41 and business['realTouchGesture'] and business['exactOffsetAndSelectionRestored'] and business['nativeModelsUnchanged']
     if m['page']=='history':
+        axis=json.loads((folder/'history-main-axis-reachability.json').read_text())
+        initial_axis=m['window']['mainHistoryAxis']
+        assert axis['initialWindowSha256']==sha(folder/'window.png')
+        assert axis['requestTarget']=='original LegacyShotChartView'
+        captured_axis=[]
+        for phase,key in (('history-main-axis-reached','reached'),('history-main-axis-restored','restored')):
+            refs=axis[key+'Refs'];assert set(refs)=={'windowRef','geometryRef','frameSyncRef'}
+            image=referenced_file(folder,refs['windowRef'],f'states/{phase}/window.png')
+            geometry_path=referenced_file(folder,refs['geometryRef'],f'states/{phase}/geometry.json')
+            proof_path=referenced_file(folder,refs['frameSyncRef'],f'states/{phase}/window-frame-sync.json')
+            proof=require_protocol(proof_path,'ACTIVITY')
+            geometry=json.loads(geometry_path.read_text())
+            assert geometry==proof['attempts'][proof['acceptedAttempt']-1]['geometryBefore']['target']
+            assert proof['imageSha256']==sha(image) and axis[key]==geometry['mainHistoryAxis']
+            assert whole(axis[key]['detailAction'])
+            captured_axis.append(axis[key])
+        validate_axis(axis,initial_axis,*captured_axis,m['window']['densityDpi']/160)
         row=json.loads((folder/'selected-history-row-visibility.json').read_text())
         assert row['selectedChildIndex']==1 and row['adapterIndex']==row['firstVisiblePosition']+1
         assert row['sameDay']==(row['expectedDay']==row['previousDay'])

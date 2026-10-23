@@ -520,7 +520,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         @Suppress("UNCHECKED_CAST")
         fun fields(owner: Activity=activity) = owner.javaClass.getDeclaredField("fields").apply { isAccessible=true }.get(owner) as Map<String,EditText>
         fun input(key: String, value: String) = onMain { fields().getValue(key).setText(value); check(fields().getValue(key).text.toString()==value) }
-        fun snapshot(): org.json.JSONObject {
+        fun snapshot(transitionProbe:ImeViewportTransitionProbe?=null,source:String="snapshot",frameIndex:Int?=null): org.json.JSONObject {
             lateinit var result: org.json.JSONObject
             onMain {
                 result=org.json.JSONObject().put("fields",org.json.JSONObject(fields().mapValues { (_,v) ->
@@ -535,6 +535,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 val bundle=android.os.Bundle(); state.invoke(activity,bundle)
                 result.put("savedIdentity",org.json.JSONObject(listOf("draftId","stageCount","selectedBeanId","rememberedBeanId","existingMode","newNameDraft","eventId","batchId","newBeanId")
                     .filter { bundle.containsKey(it) }.associateWith { bundle.get(it) ?: org.json.JSONObject.NULL }))
+                transitionProbe?.sample(source,frameIndex,force=false)
             }
             return result
         }
@@ -543,14 +544,14 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             check(journal.entries().map { it.observation }==journalBefore.map { it.observation }) { "M2 editing changed observations" }
             check(curvesBefore.associate { it.id to usage.stats(it.id) }==usageBefore) { "M2 editing changed use counts" }
         }
-        fun stableSnapshot(label: String): org.json.JSONObject {
+        fun stableSnapshot(label: String,transitionProbe:ImeViewportTransitionProbe?=null): org.json.JSONObject {
             val samples=org.json.JSONArray()
             val deadline=SystemClock.elapsedRealtime()+5000
             var previous: String?=null; var unchanged=0
             try {
                 while(SystemClock.elapsedRealtime()<deadline) {
                     NativeWindowFrameEvidence(test).committedFrame(root(activity))
-                    val value=snapshot()
+                    val value=snapshot(transitionProbe,"stable-frame-$label",samples.length()+1)
                     var pending=false
                     onMain { pending=views(root(activity)).any { it.isShown && it.isLayoutRequested } }
                     val signature=value.toString()
@@ -573,6 +574,18 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             val causal=if(page=="curve-editor" && label=="editor-stage-hidden-values" &&
                 directory.parentFile?.name=="tablet-user-landscape-light-font-1.0")
                 ImeRecreationTrace(test,directory,"CurveEditor.editor-stage-hidden-values.recreate",causalSite,null) else null
+            val transitionProbe=if(causal!=null) ImeViewportTransitionProbe("CurveEditor.editor-stage-hidden-values.recreate",{ owner ->
+                val pageRoot=root(owner)
+                val target=fields(owner)[key]
+                check(target!=null && views(pageRoot).count { it===target }==1)
+                val form=owner.javaClass.getDeclaredField("form").apply { isAccessible=true }.get(owner)
+                val host=form.javaClass.getDeclaredField("host").apply { isAccessible=true }.get(form) as View
+                check(views(pageRoot).count { it===host }==1)
+                ImeViewportTransitionProbe.Targets(pageRoot,host,target,views(pageRoot).filterIsInstance<android.widget.ScrollView>())
+            },{ owner ->
+                val form=owner.javaClass.getDeclaredField("form").apply { isAccessible=true }.get(owner)
+                (form as? TaskCurveEditorForm)?.productRestoreEvidence
+            }) else null
             var causalError:Throwable?=null
             fun diagnose(action:()->Unit) { try { action() } catch(error:Throwable) {
                 val previous=causalError
@@ -589,9 +602,11 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 decor.addOnAttachStateChangeListener(listener);observedDecors.add(decor to listener)
             }
             val lifecycle=object:Application.ActivityLifecycleCallbacks {
-                override fun onActivityCreated(owner:Activity,state:Bundle?) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_created",owner,callerSite=causalSite) } }
+                override fun onActivityCreated(owner:Activity,state:Bundle?) { if(owner is CurveEditorActivity) diagnose {
+                    causal?.observe("activity_created",owner,callerSite=causalSite) } }
                 override fun onActivityPostCreated(owner:Activity,state:Bundle?) { if(owner is CurveEditorActivity) {
-                    diagnose { causal?.observe("activity_post_created",owner,callerSite=causalSite);observeDecor(owner) } } }
+                    diagnose { causal?.observe("activity_post_created",owner,callerSite=causalSite)
+                        transitionProbe?.install(owner,"replacement-post-created");observeDecor(owner) } } }
                 override fun onActivityStarted(owner:Activity) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_started",owner,callerSite=causalSite) } }
                 override fun onActivityResumed(owner:Activity) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_resumed",owner,callerSite=causalSite) } }
                 override fun onActivityPaused(owner:Activity) { if(owner is CurveEditorActivity) diagnose { causal?.observe("activity_paused",owner,callerSite=causalSite) } }
@@ -660,6 +675,8 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 "M2 $label did not establish a real nonzero scroll fixture; do not claim scroll restoration"
             }
             if(causal!=null) onMain { diagnose {
+                transitionProbe?.install(activity,"old-before-recreate")
+                transitionProbe?.sample("before-state-assertion")
                 oldReference=causal.capture("old_before_recreate",activity,fields().getValue(key),activity.window.decorView,causalSite)
                 observeDecor(activity);app.registerActivityLifecycleCallbacks(lifecycle);observersRegistered=true
             } }
@@ -670,11 +687,12 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 val replacement=causal.capture("new_after_replacement_returned",activity,fields().getValue(key),activity.window.decorView,causalSite)
                 observeDecor(activity);oldReference?.let { causal.compare(it,replacement) }
             } }
-            val after=stableSnapshot("$label-after-recreate")
+            val after=stableSnapshot("$label-after-recreate",transitionProbe)
             assertFiniteScrolls("after-recreate")
             val equal=before.toString()==after.toString()
             lateinit var restoreDiagnostic: org.json.JSONObject
             onMain {
+                transitionProbe?.sample("after-state-assertion")
                 val form=activity.javaClass.getDeclaredField("form").apply { isAccessible=true }.get(activity)
                 val evidence=if(form is TaskCurveEditorForm) org.json.JSONObject(form.productRestoreEvidence.toString())
                     else org.json.JSONObject().put("status","unknown").put("reason","form_has_no_productRestoreEvidence_interface")
@@ -693,13 +711,24 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 .put("restoreDiagnosticBeforeAssertion",restoreDiagnostic)
                 .put("afterObservedBeforeAnyCaptureUnfocus",true).toString(2))
             diagnose { causal?.mark("after_comparison_before",causalSite) }
-            check(equal) { "M2 form recreation changed draft/focus/selection/identity/scroll: $label" }
+            onMain { transitionProbe?.sample("strict-assertion")
+                check(equal) { "M2 form recreation changed draft/focus/selection/identity/scroll: $label" } }
             unchangedExceptNotesOrDraft(); record(label)
             diagnose { causal?.mark("post_assert_capture_call_before","$causalSite.capture") }
             capture(activity,"$label-recreated") // Only after the untouched restored state has been asserted.
             diagnose { causal?.mark("post_assert_capture_returned","$causalSite.capture") }
             } catch(error:Throwable) { roundTripFailure=error;throw error }
             finally { if(causal!=null) {
+                var probeFinalizationFailure:Throwable?=null
+                fun preserveFinalization(error:Throwable,reportName:String) {
+                    val primary=roundTripFailure ?: probeFinalizationFailure
+                    if(primary!=null) primary.addSuppressed(error)
+                    else try { File(directory,reportName).writeText(error.stackTraceToString()) }
+                    catch(writeError:Throwable) { probeFinalizationFailure=error;error.addSuppressed(writeError) }
+                }
+                try { onMain { transitionProbe?.closeAndWrite(File(directory,"ime-viewport-transitions.json")) } }
+                catch(secondary:Throwable) { if(roundTripFailure!=null)roundTripFailure.addSuppressed(secondary)
+                    else probeFinalizationFailure=secondary }
                 try {
                     var product:org.json.JSONObject?=null
                     onMain {
@@ -710,16 +739,13 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                         causal.observe("observers_removed",activity,callerSite=causalSite)
                     }
                     product?.let(causal::productEvidence)
-                } catch(secondary:Throwable) {
-                    if(roundTripFailure!=null) roundTripFailure.addSuppressed(secondary)
-                    else runCatching { File(directory,"m2-ime-causal-finalization-error.txt").writeText(secondary.stackTraceToString()) }
-                }
+                } catch(secondary:Throwable) { preserveFinalization(secondary,"m2-ime-causal-finalization-error.txt") }
                 try { causal.finish() } catch(secondary:Throwable) {
-                    if(roundTripFailure!=null) roundTripFailure.addSuppressed(secondary)
-                    else runCatching { File(directory,"m2-ime-trace-finalization-error.txt").writeText(secondary.stackTraceToString()) }
+                    preserveFinalization(secondary,"m2-ime-trace-finalization-error.txt")
                 }
                 causalError?.let { diagnostic -> runCatching {
                     File(directory,"m2-ime-causal-observation-error.txt").writeText(diagnostic.stackTraceToString()) } }
+                probeFinalizationFailure?.let { throw it }
             } }
         }
         fun error(label: String, save: Int, expected: Int) {

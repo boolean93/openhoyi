@@ -45,3 +45,46 @@ run `39906804817` / job `120260530808`；source=head `4076c2d862f94608fa6ec3d405
 - 本次未看完整14+14、所有 restored 图和特殊态；索引 exactScrollRestored/机械 PASS 仅作库存，不能转视觉 PASS。
 - 首败 MachineSettings 温度 tab 的48dp问题不属于本页24dp修正，也未被此审查关闭。整个 Settings run 仍失败，ENOSPC 是后续错误，不篡改首因。
 - 本文只审以上原件，不改源码/设计，不构建、不触发CI、不提交推送。后续窄视觉只需补未审范围，不必重复签已看三档。
+
+
+## 阶段二：新增10张去重原PNG实看
+
+本阶段实际逐张打开 `settings-next-visual-index.json` 的10张去重PNG，不以图相同替代各目标geometry。索引SHA256 `6f5fe6ed3d02f46900b17fb0688917fdd4de052a5b2b2e64c6153686cd11efa2`。仍为4076c2d / Settings push39906804817原件，仅light1.3与dark1.3；不混入新588运行。本阶段独立复算所有列出的选件SHA；10组PNG==proof.imageSha256、accepted before.target==geometry==after.target、actual-text-typography.nodes==geometry.nodes均相等。逐帧耗时1194/1061/915/932/961/1104/909/972/1055/1087ms；这些认证字段不替代实看结论。
+
+### 逐范围判断
+
+| 范围 | 实际观察及G1–G4 | 限定结论 |
+|---|---|---|
+| 两主题main target12 | scrollY160时“协议支持”标题完整，实际框[686,1399,2054,1465]，45.45px/weight500、Layout66px、一行无省略；与上方操作限制分隔清楚。标题深浅色均可读，仍沿24dp外边距。此帧协议正文在屏外，不拿标题完整代正文完整。 | 新增接受两个target12标题；正文沿前阶段独立target13结论，不称同初屏。 |
+| light main restored | 页名、副标题、精度关闭开关及能力行回到顶部；下方说明回原可见范围。geometry实际settings scrollY0。 | 新增浅色恢复帧视觉检查；不要求系统时间/滚动条像素与初图相同，不据此签深色restore。 |
+| 两主题precision-recreated | 页名/三组层级与原布局一致，精度开关确为开启，青色圆钮在右、开关关闭说明仍保留。显示字号没有因重建而缩小；卡片边距/文字对齐未见改变。 | 接受重建后**可见**开启状态与布局，不把截图当实际硬件精度改变，屏外说明不在这两帧签全文。 |
+| 两主题all-instructions target13 | scrollY295，三段说明正文均可读：本地计时不用于自动停水、未知/进行中禁止去皮换秤取粉量、协议实验只读及未实机验收限制。正文42.3px/400；协议两行117px，完整框[686,1348,2054,1465]，底部未被系统栏盖住。标题45.45px/500，分隔/卡内16dp保持。顶部“显示精度”标题随整页滚动裁切，不是本目标全文失败。 | 接受这两个特殊态目标帧中的三段说明；与开关关闭的主态target13不是同业务态，分别留证。 |
+| dark all-instructions target11 | scrollY56，“操作限制”正文完整落在[686,1404,2054,1465]，42.3px/400一行61px；协议标题/正文此时在屏外。暗底、浅主字、灰辅助、青色开启状态层级清楚。 | 接受该特殊态target11，不拿其替代target13或全部目标。 |
+| 两主题real-scale-no-data | 实际画面是**电子秤主页而非ScaleSettings**。中央重量为破折号+g、电子秤未就绪、去皮灰态与“尚未请求”；右侧00:00.0和App本地计时/不是秤内计时说明清楚。顶部仍写“演示模式，不是真实设备读数”，不能依据fixture名字宣称真硬件验收。 | 只接受缺数据不伪造重量及已见状态表达；不计入设置页24dp证明，不签整电子秤页。 |
+
+### real-scale-no-data的额外边界
+
+两张电子秤主页右侧“当前协议未提供电量”贴近支持栏滚动条。light配对TextView原文为9字，rect==visibleRect=[2085,1107,2523,1173]、actual Layout宽438px、行left33/right438、45.45px/400、无ellipsis；所以不能仅凭缩放预览说它已被父容器裁切。原图右边同时存在滚动条，hierarchy完整不等于绘制遮挡排除：本轮不签该末字逐glyph无遮挡，也不据此直接判产品裁切根因或改布局。若扩展电子秤主页全文验收，应核该同帧实际末字/滚动条覆盖关系；当前只记录边界，不生成新修复任务。
+
+G2已核同帧actualTypography节点，不用独立资产常量填未知glyph身份。已见中文、单位与数字无明显缺字或字体风格突变；公开API的UNKNOWN glyph边界保留。G4仅是这两主题已见区域的可读性与开关状态对比，不宣称所有颜色状态/量化对比度通过。
+
+### 新增实际查看清单
+
+以下路径相对 `build/task-first-evidence/ci-4076c2d/`，每项已查看原PNG及配对geometry/proof/actual text。
+
+| 配置/范围 | PNG路径 | SHA256 |
+|---|---|---|
+| light-font-1.3 / main-reachability/target-12 | `settings-next-selected/tablet-user-landscape-light-font-1.3/scale-settings/main-reachability/target-12/window.png` | `1d6950bcfaf03a83348a10e1abb1dda15cb8668d394fa01d27867859b27cf90b` |
+| light-font-1.3 / main-reachability/restored | `settings-next-selected/tablet-user-landscape-light-font-1.3/scale-settings/main-reachability/restored/window.png` | `84d51ca6fade1f1040f8be78af918874ca62b61d9ed7f812a19310c443967f21` |
+| light-font-1.3 / special-states/precision-recreated | `settings-next-selected/tablet-user-landscape-light-font-1.3/scale-settings/special-states/precision-recreated/window.png` | `3bc3d10995738f3e589219ee90847cd69161ef02f7bfdf89cc3f9c98af1c81d7` |
+| light-font-1.3 / special-states/real-scale-no-data | `settings-next-selected/tablet-user-landscape-light-font-1.3/scale-settings/special-states/real-scale-no-data/window.png` | `e7e62b6fe5fa244f42ab94f18a086b66e8cee0e67fb12e60c287284b7a6b5b32` |
+| light-font-1.3 / special-states/all-instructions/target-13 | `settings-next-selected/tablet-user-landscape-light-font-1.3/scale-settings/special-states/all-instructions/target-13/window.png` | `de30cb1a1a996569dc1d0ef74fd9e54e8979b3e3d57a6ac70232e81816bba11a` |
+| dark-font-1.3 / main-reachability/target-12 | `settings-next-selected/tablet-user-landscape-dark-font-1.3/scale-settings/main-reachability/target-12/window.png` | `ba13d41fdce96d7be5d3bad1761e665a6ed87247b045935142602bfb530f9602` |
+| dark-font-1.3 / special-states/precision-recreated | `settings-next-selected/tablet-user-landscape-dark-font-1.3/scale-settings/special-states/precision-recreated/window.png` | `08023a6f848f08eebcadcbf610df84edcc6ef978ebb13ff90afbf47341b8f266` |
+| dark-font-1.3 / special-states/real-scale-no-data | `settings-next-selected/tablet-user-landscape-dark-font-1.3/scale-settings/special-states/real-scale-no-data/window.png` | `28fb6535611b97ed460a17996b3ca99b9cb93c7ae8fbed644f8dfbc67a29fd19` |
+| dark-font-1.3 / special-states/all-instructions/target-13 | `settings-next-selected/tablet-user-landscape-dark-font-1.3/scale-settings/special-states/all-instructions/target-13/window.png` | `36989340c933bdef8b1836c94db0ba3b5eec28b0dfda05c9e4d8944fc8707134` |
+| dark-font-1.3 / special-states/all-instructions/target-11 | `settings-next-selected/tablet-user-landscape-dark-font-1.3/scale-settings/special-states/all-instructions/target-11/window.png` | `94bdd92443ce27ac4a04e00bdef6fb2680f94761e7946e959a93ac0944d5ccbe` |
+
+### 仍未关闭
+
+main 14+14库存不等于全部逐目标视觉验收：结合前阶段，目前每主题只明确审到main target9/11/12/13；其余20个目标即使PNG与主态相同，仍保留各自target/geometry未逐项审的状态。light restored本次实看，dark restored未独立实看。特殊态仅覆盖上表，不签所有交互、Dialog及恢复。dark1.0原件缺失仍保留；light1.0全文滚达仍未在本阶段补审。Machine首败、设备ENOSPC与整run FAIL不因这些可见范围接受而关闭。没有修改源码、构建、设备操作、提交或推送。

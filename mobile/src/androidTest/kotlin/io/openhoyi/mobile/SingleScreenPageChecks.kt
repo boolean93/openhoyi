@@ -75,7 +75,27 @@ internal object SingleScreenPageChecks {
             check(activity.intent.getStringExtra("legacyId")==expected.id) { "$fixture legacyId does not match original fixture" }
             // Generic visit intentionally stops at ScrollView. Inspect only this explicit local viewport,
             // not every scrolling subtree, and do not add its long chart to the global visibleFully list.
-            val viewport=views.filterIsInstance<LegacyChartViewport>().single()
+            val outers=views.filterIsInstance<LegacyDetailContentScroll>()
+            check(outers.size==1) { "$fixture Legacy Detail path requires exactly one visible content-scroll; found ${outers.size}" }
+            val outer=outers.single()
+            check(outer.tag=="legacy/detail/content-scroll" && outer.isAttachedToWindow && outer.isShown &&
+                outer.rootView===content.rootView) { "$fixture Legacy Detail path invalid content-scroll tag/attachment/root" }
+            check(outer.childCount==1) { "$fixture Legacy Detail path content-scroll must have one direct content child" }
+            val column=outer.getChildAt(0)
+            check(column is ViewGroup && column.tag=="legacy/detail/content" && column.parent===outer) {
+                "$fixture Legacy Detail path invalid direct content column/tag/parent" }
+            val workspaces=(0 until column.childCount).map {column.getChildAt(it)}.filterIsInstance<TaskWorkspaceLayout>()
+            check(workspaces.size==1) { "$fixture Legacy Detail path requires one direct TaskWorkspaceLayout; found ${workspaces.size}" }
+            val workspace=workspaces.single()
+            check(workspace.parent===column && workspace.primaryBody.parent===workspace) {
+                "$fixture Legacy Detail path invalid workspace/primaryBody parent" }
+            val primary=workspace.primaryBody
+            val viewports=(0 until primary.childCount).map {primary.getChildAt(it)}.filterIsInstance<LegacyChartViewport>()
+            check(viewports.size==1) { "$fixture Legacy Detail path requires one direct LegacyChartViewport; found ${viewports.size}" }
+            val viewport=viewports.single()
+            check(viewport.parent===primary && viewport.tag=="legacy/chart/viewport" &&
+                viewport.chart.tag=="legacy/detail/chart") {
+                "$fixture Legacy Detail path invalid viewport/parent/chart tag" }
             val chart=viewport.chart
             check(viewport.childCount==1 && viewport.getChildAt(0)===chart && chart.parent===viewport)
             check(viewport.isAttachedToWindow && chart.isAttachedToWindow && viewport.isShown && chart.isShown &&

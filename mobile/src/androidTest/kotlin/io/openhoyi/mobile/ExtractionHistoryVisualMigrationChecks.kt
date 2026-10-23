@@ -117,7 +117,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             val box = Rect(); val point = IntArray(2); text.getLocationOnScreen(point)
             val whole = text.getGlobalVisibleRect(box) && box == Rect(point[0], point[1], point[0] + text.width, point[1] + text.height)
             val layout = text.layout
-            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", whole)
+            JSONObject().put("semanticId", text.tag).put("text", text.text.toString()).put("fullViewVisible", whole)
                 .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
                 .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
                 .put("layoutHeightPx", layout?.height ?: JSONObject.NULL)
@@ -2110,7 +2110,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                                 val row=root(activity).findViewWithTag<ViewGroup>("comparison-summary-row-2")
                                 val taste=row.getChildAt(1) as TextView
                                 check(taste.text.toString()=="—" && !taste.isClickable) { "M5 comparison blank first-cup taste must not carry second-cup notes" }
-                                proof.put("blankNotesPlaceholder",taste.text).put("blankTasteDisclosureDisabled",true)
+                                proof.put("blankNotesPlaceholder",taste.text.toString()).put("blankTasteDisclosureDisabled",true)
                             } else {
                                 val placeholders=nodes(root(activity)).filterIsInstance<TextView>().count { it.text.toString()==activity.getString(R.string.journal_optional) }
                                 check(placeholders>0) { "M5 blank legal notes must not display prior cup notes" }
