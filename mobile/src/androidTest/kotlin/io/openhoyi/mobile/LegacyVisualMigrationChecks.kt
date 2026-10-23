@@ -991,6 +991,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         val button=action(activity,R.string.ui_full_details)
         val chart=nodes(root(activity)).filterIsInstance<LegacyShotChartView>().single()
         val heading=nodes(contentScroll).filterIsInstance<LegacyNaturalFlow>().single()
+        val readonly=nodes(heading).single {it.tag=="legacy/readonly"}
         val pageRoot=nodes(root(activity)).single {it.tag=="product/page/root"}
         val chartViewport=requireNotNull(chart.parent as? LegacyChartViewport)
         val plot=chart.visualEvidence.getJSONArray("plotBoundsPx")
@@ -1032,7 +1033,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             .put("headingRect",visibility(heading)).put("headingNaturalHeightPx",heading.measuredHeight)
             .put("headingName",observation(nodes(heading).single {it.tag=="legacy/detail/name"}))
             .put("headingMetadata",observation(nodes(heading).single {it.tag=="legacy/detail/metadata"}))
-            .put("headingReadonly",observation(nodes(heading).single {it.tag=="legacy/readonly"}))
+            .put("headingReadonly",observation(readonly))
+            .put("headingReadonlyIdentity",System.identityHashCode(readonly))
             .put("body",visibility(requireNotNull(contentScroll.parent as? View)))
             .put("rootPaddingPx",JSONArray(listOf(pageRoot.paddingLeft,pageRoot.paddingTop,
                 pageRoot.paddingRight,pageRoot.paddingBottom)))
@@ -1065,6 +1067,98 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             .put("windowLayout",JSONArray(listOf(attributes.width,attributes.height,attributes.gravity,attributes.x,attributes.y)))
     }
     private fun shortDetailGeometry(activity:Activity):JSONObject=geometry(activity).put("shortDetail",shortDetailState(activity))
+    private fun shortDetailBadgeReachability(activity:Activity,specialRoot:File,shortFolder:File,
+        initial:JSONObject,report:JSONObject) {
+        var badge:View?=null
+        var scrolls:List<Pair<ScrollView,Pair<Int,Int>>> = emptyList()
+        main {
+            val content=nodes(root(activity)).filterIsInstance<LegacyDetailContentScroll>().single()
+            val heading=nodes(content).filterIsInstance<LegacyNaturalFlow>().single()
+            badge=nodes(heading).single {it.tag=="legacy/readonly"}
+            scrolls=nodes(root(activity)).filterIsInstance<ScrollView>().map {it to (it.scrollX to it.scrollY)}
+        }
+        val target=requireNotNull(badge)
+        val initialScrolls=JSONArray(scrolls.map { (scroll,point) -> JSONObject()
+            .put("identity",System.identityHashCode(scroll)).put("tag",scroll.tag ?: JSONObject.NULL)
+            .put("x",point.first).put("y",point.second) })
+        report.put("semanticKey","legacy/readonly").put("initialScrolls",initialScrolls)
+        check(initialScrolls.toString()==initial.getJSONArray("scrolls").toString() &&
+            System.identityHashCode(target)==initial.getInt("headingReadonlyIdentity") &&
+            initial.getJSONObject("headingReadonly").getString("semanticId")=="legacy/readonly")
+        val initialBadge=initial.getJSONObject("headingReadonly")
+        val initialLines=initialBadge.getJSONArray("textLineBoxes")
+        check(initialLines.length()>0)
+        fun capture(phase:String):Pair<JSONObject,JSONObject> {
+            stableWindow(activity,shortFolder,phase)
+            val folder=File(shortFolder,phase).apply {check(isDirectory || mkdirs())}
+            val frame=frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {
+                shortDetailGeometry(activity) }
+            check(frame.proof.getInt("protocolVersion")==2 && frame.proof.getBoolean("accepted"))
+            File(folder,"geometry.json").writeText(frame.target.toString(2))
+            return frame.target.getJSONObject("shortDetail") to shortFrameRefs(specialRoot,folder)
+        }
+        fun sameIdentity(state:JSONObject):Boolean {
+            val keys=listOf("activityIdentity","windowIdentity","decorIdentity","windowTokenIdentity",
+                "workspaceIdentity","contentScrollIdentity","supportingScrollIdentity","chartViewportIdentity",
+                "buttonIdentity","chartIdentity","headingReadonlyIdentity")
+            val observedScrolls=state.getJSONArray("scrolls")
+            val baselineScrolls=initial.getJSONArray("scrolls")
+            return keys.all {state.getInt(it)==initial.getInt(it)} &&
+                observedScrolls.length()==baselineScrolls.length() &&
+                (0 until observedScrolls.length()).all { index ->
+                    val observed=observedScrolls.getJSONObject(index)
+                    val baseline=baselineScrolls.getJSONObject(index)
+                    observed.getInt("identity")==baseline.getInt("identity") &&
+                        observed.optString("tag")==baseline.optString("tag")
+                } &&
+                state.getJSONArray("listIdentities").toString()==initial.getJSONArray("listIdentities").toString() &&
+                state.getJSONArray("windowLayout").toString()==initial.getJSONArray("windowLayout").toString() &&
+                state.getInt("workspaceHeightPx")==initial.getInt("workspaceHeightPx") &&
+                state.getString("actualPaneMode")==initial.getString("actualPaneMode")
+        }
+        fun wholeBadge(state:JSONObject):Boolean {
+            val value=state.getJSONObject("headingReadonly")
+            val rect=value.getJSONArray("rectPx");val visible=value.getJSONArray("visibleRectPx")
+            val lines=value.getJSONArray("textLineBoxes")
+            return sameIdentity(state) && value.getString("semanticId")=="legacy/readonly" &&
+                value.getBoolean("screenMappingVerified") && value.getBoolean("globalVisible") &&
+                rect.length()==4 && visible.length()==4 && rect.toString()==visible.toString() &&
+                rect.getInt(2)>rect.getInt(0) && rect.getInt(3)>rect.getInt(1) &&
+                lines.length()==initialLines.length() &&
+                (0 until lines.length()).all {index ->
+                    val before=initialLines.getJSONObject(index);val after=lines.getJSONObject(index)
+                    before.getString("semanticId")==after.getString("semanticId") &&
+                        before.getString("text")==after.getString("text")
+                } && whole(value)
+        }
+        var failure:Throwable?=null
+        try {
+            var requested=false
+            if(!wholeBadge(initial)) {
+                main {
+                    requested=target.requestRectangleOnScreen(Rect(target.scrollX,target.scrollY,
+                        target.scrollX+target.width,target.scrollY+target.height),true)
+                }
+            }
+            report.put("requestRectangleReturned",requested)
+            val (state,refs)=capture("badge-reachable")
+            report.put("reached",JSONObject().put("capture",refs).put("state",state))
+            check(wholeBadge(state)) {"M7 short Detail readonly badge not wholly reachable"}
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            try {
+                main {scrolls.forEach { (scroll,point) -> scroll.scrollTo(point.first,point.second) }}
+                val (state,refs)=capture("badge-restored")
+                report.put("restored",JSONObject().put("capture",refs).put("state",state))
+                check(state.getJSONArray("scrolls").toString()==initialScrolls.toString() &&
+                    sameIdentity(state) &&
+                    state.getJSONObject("headingReadonly").getString("semanticId")=="legacy/readonly" &&
+                    state.getJSONObject("headingReadonly").getJSONArray("textLineBoxes").toString()==initialLines.toString()) {
+                    "M7 short Detail readonly badge scroll/identity not restored" }
+            } catch(error:Throwable) {if(failure==null)throw error else failure.addSuppressed(error)}
+        }
+        report.put("completed",true)
+    }
     private fun shortDetailChartReachability(activity:Activity,specialRoot:File,shortFolder:File,initial:JSONObject):JSONObject {
         val chart=nodes(root(activity)).filterIsInstance<LegacyShotChartView>().single()
         val viewport=requireNotNull(chart.parent as? LegacyChartViewport)
@@ -1181,6 +1275,9 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             if(activity is LegacyHistoryDetailActivity) {
                 val initial=captured.target.getJSONObject("shortDetail")
                 report.put("initialDetail",initial).put("initialCapture",shortFrameRefs(directory,folder))
+                val badgeReachability=JSONObject()
+                report.put("badgeReachability",badgeReachability)
+                shortDetailBadgeReachability(activity,directory,folder,initial,badgeReachability)
                 report.put("chartReachability",shortDetailChartReachability(activity,directory,folder,initial))
                 val mode=initial.getString("actualPaneMode")
                 check(mode=="split" || mode=="stacked")
@@ -1218,7 +1315,16 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 disclosureRef(directory,folder)
             } else JSONObject.NULL
             report.put("curveDisclosureRef",disclosure)
-        } catch(error:Throwable) {failure=error;throw error}
+        } catch(error:Throwable) {
+            failure=error
+            if(activity is LegacyHistoryDetailActivity) {
+                try {
+                    File(directory,"short-window/badge-reachability-diagnostic.json").writeText(
+                        report.optJSONObject("badgeReachability")?.toString(2) ?: "{}")
+                } catch(saveError:Throwable) {error.addSuppressed(saveError)}
+            }
+            throw error
+        }
         finally {
             try {
                 main { activity.window.attributes=old }

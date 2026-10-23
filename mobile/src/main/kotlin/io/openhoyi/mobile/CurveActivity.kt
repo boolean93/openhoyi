@@ -464,9 +464,11 @@ class CurveActivity : ThemedActivity() {
         if (!::adapter.isInitialized) return
         val previousId = selected?.id
         val wasVisible = !compact || detailPanel.visibility == View.VISIBLE
+        val requested = collection.detailRequested
         refreshList()
         previousId?.let(library::find)?.takeIf { it in visibleItems }?.let {
-            if (wasVisible) show(it) else { selected = it; adapter.notifyDataSetChanged() }
+            if (wasVisible) renderPreview(it, requested, resetDetailScroll = false)
+            else { selected = it; adapter.notifyDataSetChanged() }
         }
     }
 
@@ -501,6 +503,10 @@ class CurveActivity : ThemedActivity() {
     }
 
     private fun show(item: CurveLibraryItem) {
+        renderPreview(item, requested = true, resetDetailScroll = true)
+    }
+
+    private fun renderPreview(item: CurveLibraryItem, requested: Boolean, resetDetailScroll: Boolean) {
         // Changing the preview must not move the independent library viewport.
         val viewport = curveList.onSaveInstanceState()
         selected = item
@@ -518,8 +524,8 @@ class CurveActivity : ThemedActivity() {
         previewSpacer.visibility = if (hasPressureSchematic) View.GONE else View.VISIBLE
         stageCaption.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
         stageCaption.text = getString(R.string.profiles_stage_caption)
-        collection.detailRequested = true
-        detailScroll.scrollTo(0, 0)
+        collection.detailRequested = requested
+        if (resetDetailScroll) detailScroll.scrollTo(0, 0)
         val canStart = library.canStart(item)
         detailTitle.text = item.name
         detailCategory.text = if (draft != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(this, item.category)

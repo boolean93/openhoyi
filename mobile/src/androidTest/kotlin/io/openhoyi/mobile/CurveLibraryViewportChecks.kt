@@ -18,6 +18,114 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
         failure?.let { throw it }
     }
+    private fun returnIntentRegression(activity: CurveActivity, app: MobileApplication, directory: File) {
+        fun field(name: String) = CurveActivity::class.java.getDeclaredField(name).apply { isAccessible = true }.get(activity)
+        val show = CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java).apply { isAccessible = true }
+        val onStart = CurveActivity::class.java.getDeclaredMethod("onStart").apply { isAccessible = true }
+        lateinit var collection: TaskCollectionLayout
+        lateinit var list: android.widget.ListView
+        lateinit var detail: ScrollView
+        lateinit var fallback: ScrollView
+        lateinit var original: CurveLibraryItem
+        var originalRequested = false
+        var originalDetailY = 0
+        var originalFallbackY = 0
+        main {
+            collection = field("collection") as TaskCollectionLayout
+            list = field("curveList") as android.widget.ListView
+            detail = field("detailScroll") as ScrollView
+            fallback = field("previewFallbackScroll") as ScrollView
+            original = field("selected") as CurveLibraryItem
+            originalRequested = collection.detailRequested
+            originalDetailY = detail.scrollY
+            originalFallbackY = fallback.scrollY
+        }
+        val pressure = app.curves.items.filter { CurveStageParameters.pressureTargets(it).isNotEmpty() }
+            .maxByOrNull { CurveDetailsText(activity).render(it, app.curves.canStart(it)).length }
+            ?: error("No pressure curve for return-intent regression")
+        val noPressure = app.curves.items.first { it.factoryCurve != null && CurveStageParameters.pressureTargets(it).isEmpty() }
+        fun viewport() = list.firstVisiblePosition to (list.getChildAt(0)?.top ?: 0)
+        fun selectedId() = (field("selected") as CurveLibraryItem?)?.id
+        fun refresh() { main { onStart.invoke(activity) }; test.waitForIdleSync() }
+        var detailRange = 0
+        var fallbackRange = 0
+        var detailBefore = 0
+        var fallbackBefore = 0
+        var failure: Throwable? = null
+        try {
+            main {
+                show.invoke(activity, pressure)
+                check(collection.browserBody.visibility == View.VISIBLE && collection.detailBody.visibility == View.VISIBLE)
+                collection.detailRequested = false
+            }
+            test.waitForIdleSync()
+            var before = 0 to 0
+            main { before = viewport() }
+            refresh()
+            main {
+                check(!collection.detailRequested && selectedId() == pressure.id && viewport() == before) {
+                    "Curve return turned visible two-pane detail into requested detail" }
+            }
+            main { show.invoke(activity, pressure) }
+            test.waitForIdleSync()
+            main {
+                check(collection.detailRequested)
+                detailRange = (detail.getChildAt(0).height - detail.height).coerceAtLeast(0)
+                if (detailRange > 0) { detail.scrollTo(0, detailRange); check(detail.scrollY > 0) }
+                detailBefore = detail.scrollY
+                before = viewport()
+            }
+            refresh()
+            main {
+                check(collection.detailRequested && selectedId() == pressure.id && viewport() == before)
+                if (detailRange > 0) check(detail.scrollY == detailBefore) {
+                    "Curve return reset nonzero detail preview scroll" }
+                if (detailRange > 0) {
+                    show.invoke(activity, pressure)
+                    check(collection.detailRequested && detail.scrollY == 0) {
+                        "Explicit Curve selection no longer resets detail preview scroll" }
+                }
+            }
+            main { show.invoke(activity, noPressure) }
+            test.waitForIdleSync()
+            main {
+                fallbackRange = (fallback.getChildAt(0).height - fallback.height).coerceAtLeast(0)
+                if (fallbackRange > 0) { fallback.scrollTo(0, fallbackRange); check(fallback.scrollY > 0) }
+                fallbackBefore = fallback.scrollY
+                before = viewport()
+            }
+            refresh()
+            main {
+                check(collection.detailRequested && selectedId() == noPressure.id && viewport() == before)
+                if (fallbackRange > 0) check(fallback.scrollY == fallbackBefore) {
+                    "Curve return reset nonzero fallback preview scroll" }
+            }
+            File(directory, "return-intent-regression.txt").writeText(
+                "twoPaneFalseAndTruePreserved=true explicitShowRequested=true detailNonzeroCovered=${detailRange > 0} " +
+                    "fallbackNonzeroCovered=${fallbackRange > 0} detailRangePx=$detailRange fallbackRangePx=$fallbackRange\n")
+        } catch (error: Throwable) {
+            failure = error
+            throw error
+        } finally {
+            var cleanupFailure: Throwable? = null
+            fun recordCleanup(error: Throwable) {
+                if (cleanupFailure == null) cleanupFailure = error else cleanupFailure!!.addSuppressed(error)
+            }
+            try {
+                main {
+                    fun restore(action: () -> Unit) {
+                        try { action() } catch (error: Throwable) { recordCleanup(error) }
+                    }
+                    restore { show.invoke(activity, original) }
+                    restore { collection.detailRequested = originalRequested }
+                    restore { detail.scrollTo(0, originalDetailY) }
+                    restore { fallback.scrollTo(0, originalFallbackY) }
+                }
+            } catch (error: Throwable) { recordCleanup(error) }
+            try { test.waitForIdleSync() } catch (error: Throwable) { recordCleanup(error) }
+            cleanupFailure?.let { if (failure == null) throw it else failure!!.addSuppressed(it) }
+        }
+    }
     fun run(expectedFontScale: Float) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
@@ -170,6 +278,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 }
             }
             test.waitForIdleSync()
+            returnIntentRegression(activity, app, File(context.getExternalFilesDir(null), "curve-library-checks"))
             val frames = java.util.concurrent.CountDownLatch(1)
             main {
                 activity.window.decorView.postOnAnimation {

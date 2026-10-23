@@ -17,6 +17,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
@@ -1250,19 +1251,77 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         .filter { it!==activity.window.decorView && it.isAttachedToWindow }
         .flatMap(::nodes).filterIsInstance<ListView>().singleOrNull { it.isShown && (it.adapter?.count ?: 0)>0 }
     private fun popupChoices(activity:Activity):List<String> {
+        check(Looper.myLooper()==Looper.getMainLooper()) { "M3 Popup choices must be read on main" }
         val list=requireNotNull(popupList(activity)) { "M3 original PopupMenu not visible" }
-        return (0 until list.adapter.count).map { list.adapter.getItem(it).toString() }
+        val adapter=requireNotNull(list.adapter) { "M3 original PopupMenu adapter missing" }
+        return (0 until adapter.count).map { index ->
+            requireNotNull(adapter.getItem(index)) { "M3 original PopupMenu label $index missing" }.toString()
+        }
     }
-    private fun popupEvidence(activity:Activity, originalList:ListView?=null):JSONObject {
-        val list=originalList ?: requireNotNull(popupList(activity))
-        val labels=(0 until list.adapter.count).map {list.adapter.getItem(it).toString()}
-        val visible=JSONArray((0 until list.childCount).map { index -> val child=list.getChildAt(index)
-            JSONObject().put("adapterPosition",list.firstVisiblePosition+index)
-                .put("adapterText",labels[list.firstVisiblePosition+index])
-                .put("actualNodeTexts",JSONArray(nodes(child).filterIsInstance<TextView>().map { it.text.toString() }))
-                .put("actualNode",observation(child)) })
-        return JSONObject().put("localizedAdapterChoices",JSONArray(labels)).put("visibleNodes",visible)
-            .put("noIndependentWindowProtocolClaim",true)
+    private fun popupEvidence(activity:Activity,list:ListView,expected:List<String>,diagnostic:JSONObject):JSONObject {
+        check(Looper.myLooper()==Looper.getMainLooper()) { "M3 Popup evidence must be read on main" }
+        val scope=diagnostic.getString("case")
+        fun phase(value:String) { diagnostic.put("phase",value) }
+        fun reason(value:String)="M3 $scope phase=${diagnostic.optString("phase")} $value"
+        try {
+            phase("identity-before")
+            val popup=slotPopup(activity,list,expected)
+            val adapter=requireNotNull(list.adapter) { reason("adapter missing before snapshot") }
+            val count=adapter.count;val first=list.firstVisiblePosition;val childCount=list.childCount
+            diagnostic.put("before",slotPopupState(popup).put("listAttached",list.isAttachedToWindow)
+                .put("listLaidOut",list.isLaidOut).put("listLayoutRequested",list.isLayoutRequested)
+                .put("adapterIdentity",System.identityHashCode(adapter)).put("adapterCount",count)
+                .put("firstVisiblePosition",first).put("childCount",childCount))
+            check(list.isAttachedToWindow && list.isLaidOut && popup.root.isAttachedToWindow && popup.root.isLaidOut &&
+                count>0 && first>=0 && childCount>0 && first+childCount<=count) {
+                reason("invalid original Popup snapshot bounds/layout") }
+            phase("adapter-labels")
+            val labels=(0 until count).map { index ->
+                requireNotNull(adapter.getItem(index)) { reason("adapter label $index missing") }.toString()
+            }
+            check(labels==expected) { reason("original Popup labels changed") }
+            val children=ArrayList<View>(childCount)
+            phase("child-refs")
+            for(index in 0 until childCount) {
+                val child=requireNotNull(list.getChildAt(index)) { reason("child $index missing") }
+                check(child.parent===list) { reason("child $index parent changed") }
+                children.add(child)
+            }
+            diagnostic.put("childIdentities",JSONArray(children.map { System.identityHashCode(it) }))
+            val visible=JSONArray()
+            children.forEachIndexed { index,child ->
+                phase("child-$index-text-and-node")
+                val texts=nodes(child).filterIsInstance<TextView>().mapIndexed { textIndex,text ->
+                    requireNotNull(text.text) { reason("child $index text $textIndex null") }.toString()
+                }
+                visible.put(JSONObject().put("adapterPosition",first+index)
+                    .put("adapterText",labels[first+index])
+                    .put("actualNodeTexts",JSONArray(texts)).put("actualNode",observation(child)))
+                diagnostic.put("capturedChildCount",visible.length())
+            }
+            phase("identity-after")
+            val after=slotPopup(activity,list,expected)
+            diagnostic.put("after",slotPopupState(after).put("listAttached",list.isAttachedToWindow)
+                .put("listLaidOut",list.isLaidOut).put("listLayoutRequested",list.isLayoutRequested)
+                .put("adapterIdentity",list.adapter?.let { System.identityHashCode(it) } ?: JSONObject.NULL)
+                .put("adapterCount",list.adapter?.count ?: JSONObject.NULL)
+                .put("firstVisiblePosition",list.firstVisiblePosition).put("childCount",list.childCount)
+                .put("childIdentities",JSONArray((0 until list.childCount).map { index ->
+                    list.getChildAt(index)?.let { System.identityHashCode(it) } ?: JSONObject.NULL })))
+            check(after.root===popup.root && after.token===popup.token && after.displayId==popup.displayId &&
+                list.adapter===adapter && list.adapter?.count==count && list.firstVisiblePosition==first &&
+                list.childCount==childCount && children.indices.all { index -> list.getChildAt(index)===children[index] &&
+                    children[index].parent===list } && list.rootView===popup.root &&
+                list.windowToken===popup.token && list.display?.displayId==popup.displayId &&
+                list.isAttachedToWindow && list.isLaidOut && popup.root.isAttachedToWindow && popup.root.isLaidOut) {
+                reason("original Popup changed during snapshot") }
+            phase("complete")
+            return JSONObject().put("localizedAdapterChoices",JSONArray(labels)).put("visibleNodes",visible)
+                .put("noIndependentWindowProtocolClaim",true)
+        } catch(error:Throwable) {
+            diagnostic.put("failure",error.stackTraceToString())
+            throw error
+        }
     }
     private fun openLibraryMenu(activity:Activity, management:Boolean=false):List<String> {
         main {
@@ -1271,7 +1330,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             check(anchor.isShown && anchor.isAttachedToWindow && anchor.performClick())
         }
         await("original Library PopupMenu") { popupList(activity)!=null }
-        return popupChoices(activity)
+        lateinit var choices:List<String>
+        main { choices=popupChoices(activity) }
+        return choices
     }
     private fun choosePopup(activity:Activity, label:String) {
         val list=requireNotNull(popupList(activity))
@@ -1362,6 +1423,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val before=prefs.all.toMap(); val diskBefore=presetDisk(); val frozen=invariant(scope)
         val report=JSONObject().put("qualifiedId",qualified.id).put("before",prefMapJson(before))
             .put("diskBeforeSha256",diskBefore).put("steps",JSONArray()).put("negative",JSONArray())
+            .put("menuDiagnostics",JSONArray())
             .put("allowedKeys",JSONArray((1..5).map(PresetSlots::key))).put("visualAcceptance","ASTRA_PENDING")
         var activity:Activity?=null; var primary:Throwable?=null
         try {
@@ -1370,11 +1432,24 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             for(slot in 1..5) {
                 val menu=openLibraryMenu(page)
                 check(menu.count { it==page.getString(R.string.curve_assign_slot) }==1)
+                val menuDiagnostic=JSONObject().put("case","slot-$slot").put("phase","before-main")
+                report.getJSONArray("menuDiagnostics").put(menuDiagnostic)
                 lateinit var menuList:ListView
-                main { menuList=requireNotNull(popupList(page)) }
-                val menuNodes=popupEvidence(page,menuList)
+                lateinit var menuNodes:JSONObject
                 lateinit var popup:SlotPopup
-                main { popup=slotPopup(page,menuList,menu) }
+                main {
+                    try {
+                        menuDiagnostic.put("phase","original-list")
+                        menuList=requireNotNull(popupList(page)) { "M3 slot-$slot phase=original-list Popup List missing" }
+                        menuNodes=popupEvidence(page,menuList,menu,menuDiagnostic)
+                        menuDiagnostic.put("phase","post-evidence-slot-identity")
+                        popup=slotPopup(page,menuList,menu)
+                        menuDiagnostic.put("phase","complete")
+                    } catch(error:Throwable) {
+                        if(!menuDiagnostic.has("failure"))menuDiagnostic.put("failure",error.stackTraceToString())
+                        throw error
+                    }
+                }
                 val transitionFile=File(folder,"slot-$slot-transition.json")
                 val observations=JSONArray()
                 val transition=JSONObject().put("slot",slot).put("menu",JSONArray(menu))
@@ -1471,7 +1546,19 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 librarySelect(page,scope,item)
                 val unchanged=prefs.all.toMap()
                 val menu=openLibraryMenu(page)
-                val menuNodes=popupEvidence(page)
+                val menuDiagnostic=JSONObject().put("case","negative-$label").put("phase","before-main")
+                report.getJSONArray("menuDiagnostics").put(menuDiagnostic)
+                lateinit var menuNodes:JSONObject
+                main {
+                    try {
+                        menuDiagnostic.put("phase","original-list")
+                        val menuList=requireNotNull(popupList(page)) { "M3 negative-$label phase=original-list Popup List missing" }
+                        menuNodes=popupEvidence(page,menuList,menu,menuDiagnostic)
+                    } catch(error:Throwable) {
+                        if(!menuDiagnostic.has("failure"))menuDiagnostic.put("failure",error.stackTraceToString())
+                        throw error
+                    }
+                }
                 check(page.getString(R.string.curve_assign_slot) !in menu &&
                     !(field(page,"assignPreset") as Button).isEnabled &&
                     (field(page,"assignPreset") as Button).visibility==View.GONE && prefs.all==unchanged)

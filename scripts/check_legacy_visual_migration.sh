@@ -205,6 +205,21 @@ def short_detail_capture(special_root, refs, prefix, expected_mode):
     assert tuple(geometry['appSizePx']) and struct.unpack('>II',image.read_bytes()[16:24])==(2560,1600)
     return geometry['shortDetail']
 
+def short_badge_whole(state, initial, fixed_identity):
+    assert all(state[key]==initial[key] for key in fixed_identity)
+    assert [(item['identity'],item['tag']) for item in state['scrolls']]==[(item['identity'],item['tag']) for item in initial['scrolls']]
+    assert state['windowLayout']==initial['windowLayout'] and state['workspaceHeightPx']==initial['workspaceHeightPx']
+    badge=state['headingReadonly'];original=initial['headingReadonly']
+    assert state['headingReadonlyIdentity']==initial['headingReadonlyIdentity']
+    assert badge['semanticId']==original['semanticId']=='legacy/readonly'
+    assert len(badge['textLineBoxes'])==len(original['textLineBoxes'])>0
+    for before,after in zip(original['textLineBoxes'],badge['textLineBoxes']):
+        assert before['semanticId']==after['semanticId']=='legacy/readonly' and before['text']==after['text']
+    rect=badge['rectPx'];visible=badge['visibleRectPx']
+    assert badge['screenMappingVerified'] and badge['globalVisible']
+    assert len(rect)==len(visible)==4 and rect==visible and rect[2]>rect[0] and rect[3]>rect[1]
+    assert whole(badge)
+
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
     assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
@@ -269,6 +284,25 @@ for path in manifests:
         assert initial['workspaceHeightPx']>=initial['contentBudget']['workspaceMinimumPx']>0
         assert initial['supportingViewportHeightPx']>0 and initial['chartViewportHeightPx']>0
         assert initial['contentBudget']['contentHeightPx']==initial['contentScrollChildHeightPx']
+        fixed_identity=('activityIdentity','windowIdentity','decorIdentity','windowTokenIdentity',
+            'workspaceIdentity','supportingScrollIdentity','contentScrollIdentity','chartViewportIdentity',
+            'buttonIdentity','chartIdentity','listIdentities','headingReadonlyIdentity')
+        badge_reach=short['badgeReachability']
+        assert set(badge_reach)=={'semanticKey','initialScrolls','requestRectangleReturned','reached','restored','completed'}
+        assert badge_reach['semanticKey']=='legacy/readonly' and badge_reach['completed'] is True
+        assert badge_reach['initialScrolls']==initial['scrolls']
+        assert isinstance(badge_reach['requestRectangleReturned'],bool)
+        assert set(badge_reach['reached'])==set(badge_reach['restored'])=={'capture','state'}
+        assert badge_reach['reached']['capture']!=badge_reach['restored']['capture']
+        badge_state=short_detail_capture(base,badge_reach['reached']['capture'],'short-window/badge-reachable',SHORT_ACTIVITY)
+        assert badge_state==badge_reach['reached']['state']
+        short_badge_whole(badge_state,initial,fixed_identity)
+        badge_restored=short_detail_capture(base,badge_reach['restored']['capture'],'short-window/badge-restored',SHORT_ACTIVITY)
+        assert badge_restored==badge_reach['restored']['state']
+        assert badge_restored['scrolls']==badge_reach['initialScrolls']==initial['scrolls']
+        assert all(badge_restored[key]==initial[key] for key in fixed_identity)
+        assert badge_restored['windowLayout']==initial['windowLayout'] and badge_restored['headingReadonly']['semanticId']=='legacy/readonly'
+        assert badge_restored['headingReadonly']['textLineBoxes']==initial['headingReadonly']['textLineBoxes']
         chart_reach=short['chartReachability']
         assert chart_reach['completed'] and chart_reach['initialScrolls']==initial['scrolls']
         expected_text=initial['canvasTextOperations']
@@ -276,9 +310,6 @@ for path in manifests:
         assert [x['semanticKey'] for x in expected_text]==[f"text-{x['index']}" for x in expected_text]
         assert [x['semanticKey'] for x in chart_reach['reached']]==['plot']+[x['semanticKey'] for x in expected_text]
         assert {'legend','pressure-unit','flow-unit','pressure-tick','flow-tick','time-tick'} <= {x['role'] for x in expected_text}
-        fixed_identity=('activityIdentity','windowIdentity','decorIdentity','windowTokenIdentity',
-            'workspaceIdentity','supportingScrollIdentity','contentScrollIdentity','chartViewportIdentity',
-            'buttonIdentity','chartIdentity','listIdentities')
         for position,target_reach in enumerate(chart_reach['reached']):
             phase='short-window/chart-plot-reachable' if target_reach['semanticKey']=='plot' else f"short-window/chart-{target_reach['semanticKey']}-reachable"
             state=short_detail_capture(base,target_reach['capture'],phase,SHORT_ACTIVITY)

@@ -72,6 +72,12 @@ def main():
                                 text=True, capture_output=True)
         if normal.returncode:
             raise RuntimeError(normal.stderr or normal.stdout)
+        strict_detail_cases = ["strict-stringbuilder-pointer", "strict-custom-charsequence",
+                               "strict-first-bad-order", "strict-custom-number-path",
+                               "strict-container-subclass-path", "strict-nonfinite-path",
+                               "strict-unknown-no-tostring"]
+        for label in strict_detail_cases:
+            assert f"case={label} strictRejected=true path=" in normal.stdout, label
         real_summary = subprocess.run(["java", "-Xmx1g", "-cp", str(classes),
                                        "io.openhoyi.mobile.WindowProofStreamingWriterOracle",
                                        "--real-summary", str(m5_summary), M5_MEMBER_SHA],
@@ -109,6 +115,9 @@ def main():
                                                "isOfflineModelNotAndroidExecution": True},
               "normalHostHeap": "-Xmx1g", "limitedHostHeap": "-Xmx192m",
               "normalResults": normal.stdout.strip().splitlines(),
+              "strictValuePathProbe": {"cases": strict_detail_cases,
+                                       "sdkCharSequenceSamplesAreNotAndroidSpannableStringEvidence": True,
+                                       "successfulEncodingWhitelistUnchanged": True},
               "limitedResult": limited.stdout.strip(),
               "syntheticPressureIsNotLostFortyGestureProof": True,
               "hostTestIsNotAndroidAcceptance": True}

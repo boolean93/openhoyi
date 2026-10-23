@@ -11,6 +11,57 @@ profile="${1:-tablet-user-landscape}"
 [[ "$profile" == tablet-user-landscape ]] || { echo 'Only the frozen tablet-user-landscape profile is supported' >&2; exit 1; }
 output_dir="${2:-$PWD/build/task-first-evidence/settings-visual-migration}"
 mkdir -p "$output_dir"
+record_capacity() {
+  # Diagnostic only: no app files, screenshot timing, or matrix outcome depends on this probe.
+  python3 - "$output_dir" "$source_sha" "$package" "${GITHUB_RUN_ID:-unknown}" "$@" <<'CAPACITY_PY'
+import datetime, json, pathlib, re, subprocess, sys
+output, source, package, run, phase, theme, scale, page, original_exit = sys.argv[1:]
+assert re.fullmatch(r'[a-z0-9.-]+', phase)
+root = pathlib.Path(output).resolve()
+folder = root / 'capacity'
+folder.mkdir(parents=True, exist_ok=True)
+remote = f'/sdcard/Android/data/{package}/files/settings-visual-migration/{source}'
+def probe(command):
+    result = {'command': command, 'timeoutSeconds': 10, 'stdout': '', 'stderr': '', 'exitCode': None}
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, errors='replace', timeout=10)
+        result.update(stdout=completed.stdout, stderr=completed.stderr, exitCode=completed.returncode,
+                      status='ok' if completed.returncode == 0 else 'error')
+    except subprocess.TimeoutExpired as error:
+        result.update(stdout=(error.stdout or b'').decode('utf-8', 'replace') if isinstance(error.stdout, bytes) else (error.stdout or ''),
+                      stderr=(error.stderr or b'').decode('utf-8', 'replace') if isinstance(error.stderr, bytes) else (error.stderr or ''),
+                      status='timeout')
+    except OSError as error:
+        result.update(stderr=str(error), status='error')
+    return result
+document = {'phase': phase, 'theme': theme, 'fontScale': scale, 'page': page, 'sourceSha': source,
+            'ciRun': run, 'originalExitStatus': int(original_exit),
+            'capturedAtUtc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'units': 'raw command output; /data and emulated storage may be aliases, never add them'}
+document['deviceDfBlocks'] = probe(['adb', 'shell', 'df', '-k', '/data', '/storage/emulated/0'])
+document['deviceDfInodes'] = probe(['adb', 'shell', 'df', '-i', '/data', '/storage/emulated/0'])
+document['deviceSourceExists'] = probe(['adb', 'shell', 'test', '-d', remote])
+document['deviceSourceDu'] = (probe(['adb', 'shell', 'du', '-sk', remote])
+    if document['deviceSourceExists']['status'] == 'ok'
+    else {'command': ['adb', 'shell', 'du', '-sk', remote], 'status': 'not_present' if document['deviceSourceExists']['exitCode'] == 1 and not document['deviceSourceExists']['stderr'] else 'unknown',
+          'stdout': '', 'stderr': '', 'exitCode': None, 'timeoutSeconds': 10})
+document['hostDfBlocks'] = probe(['df', '-kP', str(root)])
+document['hostDfInodes'] = probe(['df', '-iP', str(root)])
+document['hostOutputDu'] = probe(['du', '-sk', str(root)])
+target = folder / (phase + '.json')
+target.write_text(json.dumps(document, ensure_ascii=False, indent=2) + '\n')
+if phase == 'exit-after-pull':
+    try:
+        first = json.loads((folder / 'pre-matrix.json').read_text())
+        valid = (first['deviceDfBlocks']['status'] == document['deviceDfBlocks']['status'] == 'ok'
+            and bool(first['deviceDfBlocks']['stdout'].strip()) and bool(document['deviceDfBlocks']['stdout'].strip()))
+    except (OSError, KeyError, ValueError):
+        valid = False
+    (folder / 'capacity-observation.json').write_text(json.dumps({
+        'status': 'OBSERVED_PENDING_MATRIX_AND_ACTUAL_CAPACITY_REVIEW' if valid else 'INCOMPLETE_DEVICE_DF_OBSERVATION',
+        'initialAndFinalDeviceDfAvailable': valid, 'sourceSha': source, 'ciRun': run}, indent=2) + '\n')
+CAPACITY_PY
+}
 apk_sha=$(python3 - <<'PY'
 import hashlib
 from pathlib import Path
@@ -39,10 +90,12 @@ collect() {
       fi
     fi
   fi
+  record_capacity exit-before-pull none none none "$exit_status" || true
   if (( exit_status != 0 )); then
     mkdir -p "$output_dir/raw-device" || true
     adb pull "/sdcard/Android/data/$package/files/settings-visual-migration/$source_sha" "$output_dir/raw-device/" || true
   fi
+  record_capacity exit-after-pull none none none "$exit_status" || true
   adb logcat -d -s AndroidRuntime:E > "$output_dir/runtime-errors.txt" || true
   adb logcat -d -v threadtime -s ImeTracker:I InputMethodManager:D InsetsController:D > "$output_dir/ime-diagnostics.txt" || true
   adb shell dumpsys input_method > "$output_dir/input-method.txt" || true
@@ -91,6 +144,7 @@ adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest
 matrix_gate=scripts/settings_matrix_isolation.py
 python3 "$matrix_gate" init --output "$output_dir" --source "$source_sha" --apk "$apk_sha"
 matrix_initialized=true
+record_capacity pre-matrix none none none 0 || true
 for product_theme in light dark; do
   if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
   # End with three real 1.0 pages; this removes delete's explicit 1.3 -> default-1.0 transition,
@@ -152,8 +206,10 @@ RUN_PY
       then cell_exit=0; else cell_exit=$?; fi
       if ! python3 "$matrix_gate" after --output "$output_dir" --page "$settings_page" --theme "$product_theme" --scale "$font_scale" --result "$result_file" --exit-status "$cell_exit"; then
         # Unknown isolation/ownership/evidence: preserve the original failure and do not launch another cell.
+        record_capacity "after-$product_theme-$font_scale-$settings_page" "$product_theme" "$font_scale" "$settings_page" "$cell_exit" || true
         break 3
       fi
+      record_capacity "after-$product_theme-$font_scale-$settings_page" "$product_theme" "$font_scale" "$settings_page" "$cell_exit" || true
     done
   done
 done

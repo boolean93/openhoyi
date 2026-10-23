@@ -551,11 +551,16 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         main {check(view.isShown && view.isEnabled && view.isClickable && view.height>=HoyiUi.dp(activity,48));check(view.performClick())}
     }
     private fun capture(activity:Activity,folder:File, measuredShort:Boolean=false,
-        supportService:MobileService?=null, disclosure:Pair<String,TextView>?=null):NativeWindowFrameEvidence.CapturedFrame {
+        supportService:MobileService?=null, disclosure:Pair<String,TextView>?=null,
+        captureObserve:(()->Unit)?=null):NativeWindowFrameEvidence.CapturedFrame {
         check(folder.isDirectory || folder.mkdirs())
-        fun observed()=geometry(activity).apply {
-            supportService?.let {put("supportState",supportState(activity,it))}
-            disclosure?.let {put("disclosureTarget",disclosureTarget(activity,it.first,it.second))}
+        fun observed():JSONObject {
+            val target=geometry(activity).apply {
+                supportService?.let {put("supportState",supportState(activity,it))}
+                disclosure?.let {put("disclosureTarget",disclosureTarget(activity,it.first,it.second))}
+            }
+            captureObserve?.invoke()
+            return target
         }
         val captured=if (measuredShort) frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {observed()}
             else frames.screenshot(activity,root(activity),File(folder,"window.png")) {observed()}
@@ -1333,7 +1338,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             check(!(field(activity,"scan") as Button).isEnabled)
         }
     }
-    private fun swipe(view:View) {
+    private fun swipe(view:View,afterUp:(()->Unit)?=null) {
         val bounds=Rect();main {check(view.getGlobalVisibleRect(bounds) && bounds.width()>32 && bounds.height()>64)}
         val x=bounds.exactCenterX();val from=bounds.top+bounds.height()*.82f;val to=bounds.top+bounds.height()*.22f
         val down=SystemClock.uptimeMillis()
@@ -1344,7 +1349,44 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         event(android.view.MotionEvent.ACTION_DOWN,from)
         for(step in 1..16) {SystemClock.sleep(25);event(android.view.MotionEvent.ACTION_MOVE,from+(to-from)*step/16)}
         repeat(4) {SystemClock.sleep(50);event(android.view.MotionEvent.ACTION_MOVE,to)}
-        event(android.view.MotionEvent.ACTION_UP,to);test.waitForIdleSync()
+        event(android.view.MotionEvent.ACTION_UP,to);afterUp?.invoke();test.waitForIdleSync()
+    }
+    private fun scrollbarDrawableState(drawable:android.graphics.drawable.Drawable?):Any = drawable?.let { value ->
+        JSONObject().put("class",value.javaClass.name).put("identity",System.identityHashCode(value))
+            .put("boundsPx",rect(Rect(value.bounds))).put("alpha",value.alpha)
+    } ?: JSONObject.NULL
+    private fun candidateScrollbarState(activity:Activity,scroll:ScrollView):JSONObject {
+        val screen=IntArray(2);val window=IntArray(2);scroll.getLocationOnScreen(screen);scroll.getLocationInWindow(window)
+        val globalClip=Rect();val localClip=Rect()
+        val globallyVisible=scroll.getGlobalVisibleRect(globalClip)
+        val locallyVisible=scroll.getLocalVisibleRect(localClip)
+        val decor=activity.window.decorView;val child=scroll.getChildAt(0)
+        return JSONObject().put("tag",scroll.tag ?: JSONObject.NULL).put("class",scroll.javaClass.name)
+            .put("viewIdentity",System.identityHashCode(scroll))
+            .put("viewTokenIdentity",scroll.windowToken?.let {System.identityHashCode(it)} ?: JSONObject.NULL)
+            .put("windowIdentity",System.identityHashCode(activity.window))
+            .put("decorIdentity",System.identityHashCode(decor))
+            .put("tokenIdentity",decor.windowToken?.let {System.identityHashCode(it)} ?: JSONObject.NULL)
+            .put("locationOnScreenPx",JSONArray(screen.toList())).put("locationInWindowPx",JSONArray(window.toList()))
+            .put("globalClipVisible",globallyVisible).put("rawGlobalVisibleRectRootPx",rect(globalClip))
+            .put("rawGlobalVisibleRectSemantics",JSONObject().put("coordinateSpace","root").put("notScreenMapped",true))
+            .put("localClipVisible",locallyVisible).put("rawLocalVisibleRectLocalPx",rect(localClip))
+            .put("rawLocalVisibleRectSemantics",JSONObject().put("coordinateSpace","local").put("getter","getLocalVisibleRect"))
+            .put("widthPx",scroll.width).put("heightPx",scroll.height)
+            .put("paddingPx",JSONArray(listOf(scroll.paddingLeft,scroll.paddingTop,scroll.paddingRight,scroll.paddingBottom)))
+            .put("scrollX",scroll.scrollX).put("scrollY",scroll.scrollY)
+            .put("childCount",scroll.childCount).put("childHeightPx",child?.height ?: JSONObject.NULL)
+            .put("layoutDirection",scroll.layoutDirection).put("canScrollUp",scroll.canScrollVertically(-1))
+            .put("canScrollDown",scroll.canScrollVertically(1))
+            .put("isLaidOut",scroll.isLaidOut).put("isLayoutRequested",scroll.isLayoutRequested)
+            .put("verticalScrollBarEnabled",scroll.isVerticalScrollBarEnabled)
+            .put("scrollBarStyle",scroll.scrollBarStyle).put("verticalScrollbarPosition",scroll.verticalScrollbarPosition)
+            .put("scrollBarSizePx",scroll.scrollBarSize).put("verticalScrollbarWidthPx",scroll.verticalScrollbarWidth)
+            .put("scrollbarFadingEnabled",scroll.isScrollbarFadingEnabled)
+            .put("scrollBarDefaultDelayBeforeFadeMs",scroll.scrollBarDefaultDelayBeforeFade)
+            .put("scrollBarFadeDurationMs",scroll.scrollBarFadeDuration)
+            .put("thumbDrawable",scrollbarDrawableState(scroll.verticalScrollbarThumbDrawable))
+            .put("trackDrawable",scrollbarDrawableState(scroll.verticalScrollbarTrackDrawable))
     }
     private fun connectionSpecials(scope:Scope,initial:Activity,folder:File) {
         var activity=initial;val proofs=JSONArray()
@@ -1376,12 +1418,48 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         state("long-name")
         setCandidates(scope,activity,candidates(40))
         var scroll=field(activity,"candidateScroll") as ScrollView
-        main {check(scroll.canScrollVertically(1))};swipe(scroll)
-        // Compare only after a real frame with the gesture no longer moving; never wait for a restored expected value.
-        frames.committedFrame(root(activity))
-        main {check(scroll.scrollY>0);saved=scroll.scrollY}
-        val beforeFolder=File(folder,"forty-gesture")
-        capture(activity,beforeFolder)
+        main {check(scroll.canScrollVertically(1))}
+        val beforeFolder=File(folder,"forty-gesture").apply {check(isDirectory || mkdirs())}
+        val scrollbarSamples=JSONArray();val scrollbarLimit=32
+        val scrollbarDiagnostic=JSONObject().put("viewTag","product/scale-connection/candidate-scroll")
+            .put("sampleLimit",scrollbarLimit).put("samples",scrollbarSamples)
+            .put("sdkInt",Build.VERSION.SDK_INT).put("hardware",Build.HARDWARE)
+            .put("device",Build.DEVICE).put("model",Build.MODEL)
+            .put("drawableStateMeaning","getter_returns_last_drawn_object_state_not_current_composite_pixels_or_OFF_proof")
+            .put("hiddenFadeState","unknown_no_reflection")
+        var samplingEnabled=false;var sampleAttempts=0;var sampleOverflow=false
+        fun recordScrollbar(stage:String) {
+            if(!samplingEnabled)return
+            sampleAttempts++
+            if(scrollbarSamples.length()>=scrollbarLimit) {sampleOverflow=true;return}
+            val sample=JSONObject().put("sequence",sampleAttempts).put("stage",stage)
+                .put("uptimeMs",SystemClock.uptimeMillis()).put("elapsedRealtimeMs",SystemClock.elapsedRealtime())
+            scrollbarSamples.put(sample)
+            try {sample.put("actual",candidateScrollbarState(activity,scroll))}
+            catch(error:Throwable) {sample.put("readFailure",error.stackTraceToString())}
+        }
+        var scrollbarFailure:Throwable?=null
+        try {
+            main {samplingEnabled=true;recordScrollbar("before-swipe")}
+            swipe(scroll) {main {recordScrollbar("after-original-UP-before-idle")}}
+            // Compare only after a real frame with the gesture no longer moving; never wait for a restored expected value.
+            frames.committedFrame(root(activity))
+            main {recordScrollbar("after-original-committedFrame");check(scroll.scrollY>0);saved=scroll.scrollY}
+            capture(activity,beforeFolder,captureObserve={recordScrollbar("capture-existing-observe")})
+            main {recordScrollbar("capture-returned")}
+        } catch(error:Throwable) {scrollbarFailure=error;throw error}
+        finally {
+            try {main {samplingEnabled=false}}
+            catch(error:Throwable) {if(scrollbarFailure==null)scrollbarFailure=error
+                else if(scrollbarFailure!==error)scrollbarFailure!!.addSuppressed(error)}
+            try {
+                scrollbarDiagnostic.put("sampleAttempts",sampleAttempts).put("sampleOverflow",sampleOverflow)
+                    .put("sampleCount",scrollbarSamples.length())
+                File(beforeFolder,"scrollbar-diagnostics.json").writeText(scrollbarDiagnostic.toString(2))
+            } catch(error:Throwable) {if(scrollbarFailure==null)scrollbarFailure=error
+                else if(scrollbarFailure!==error)scrollbarFailure!!.addSuppressed(error)}
+            scrollbarFailure?.let {throw it}
+        }
         preRecreateRefs=captureRefs(pageRoot,beforeFolder);persist(false)
         main {check(scroll.scrollY==saved)}
         activity=recreate(activity);render(activity);frames.committedFrame(root(activity))

@@ -51,7 +51,7 @@ final class WindowProofStreamingWriter {
     private static void writeInternal(JSONObject proof, File canonical, OutputFactory output,
                                       Publisher publish, boolean strict) throws IOException, JSONException {
         boolean streamable = streamable(proof);
-        if (strict && !streamable) throw new JSONException("Unsupported strict JSON value tree");
+        if (strict && !streamable) throw strictRejection(proof);
         File destination = canonical.getAbsoluteFile();
         File parent = destination.getParentFile();
         File temporary = File.createTempFile(destination.getName() + ".owned-", ".tmp", parent);
@@ -103,6 +103,74 @@ final class WindowProofStreamingWriter {
             }
         }
         return false;
+    }
+
+    private static final class RejectedNode {
+        final String path;
+        final String className;
+        final String reason;
+
+        RejectedNode(String path, Object value, String reason) {
+            this.path = path;
+            this.className = value == null ? "null" : value.getClass().getName();
+            this.reason = reason;
+        }
+    }
+
+    private static JSONException strictRejection(JSONObject proof) {
+        final String prefix = "Unsupported strict JSON value tree";
+        try {
+            RejectedNode node = firstRejected(proof, "");
+            if (node == null) return new JSONException(prefix + "; path=\"\"; class=unknown; reason=changed_after_precheck");
+            return new JSONException(prefix + "; path=" + node.path + "; class=" + node.className +
+                "; reason=" + node.reason);
+        } catch (Throwable diagnosticFailure) {
+            JSONException rejected = new JSONException(prefix);
+            rejected.addSuppressed(diagnosticFailure);
+            return rejected;
+        }
+    }
+
+    private static String pointerKey(String key) {
+        return key.replace("~", "~0").replace("/", "~1");
+    }
+
+    private static RejectedNode firstRejected(Object value, String path) {
+        if (value == null || value == JSONObject.NULL || value instanceof String || value instanceof Boolean) return null;
+        if (value.getClass() == JSONObject.class) {
+            JSONObject object = (JSONObject) value;
+            Iterator<String> keys = object.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                if (key == null) return new RejectedNode(path, null, "null_object_key");
+                RejectedNode nested = firstRejected(object.opt(key), path + "/" + pointerKey(key));
+                if (nested != null) return nested;
+            }
+            return null;
+        }
+        if (value.getClass() == JSONArray.class) {
+            JSONArray array = (JSONArray) value;
+            for (int i = 0; i < array.length(); i++) {
+                RejectedNode nested = firstRejected(array.opt(i), path + "/" + i);
+                if (nested != null) return nested;
+            }
+            return null;
+        }
+        if (value.getClass() == Byte.class || value.getClass() == Short.class ||
+            value.getClass() == Integer.class || value.getClass() == Long.class ||
+            value.getClass() == Float.class || value.getClass() == Double.class) {
+            try {
+                JSONObject.numberToString((Number) value);
+                return null;
+            } catch (JSONException invalidNumber) {
+                return new RejectedNode(path, value, "non_finite_number");
+            }
+        }
+        if (value instanceof CharSequence) return new RejectedNode(path, value, "non_string_char_sequence");
+        if (value instanceof JSONObject) return new RejectedNode(path, value, "unsupported_jsonobject_subclass");
+        if (value instanceof JSONArray) return new RejectedNode(path, value, "unsupported_jsonarray_subclass");
+        if (value instanceof Number) return new RejectedNode(path, value, "unsupported_number_class");
+        return new RejectedNode(path, value, "unsupported_class");
     }
 
     private static void writeValue(Object value, Writer writer, int depth) throws IOException, JSONException {

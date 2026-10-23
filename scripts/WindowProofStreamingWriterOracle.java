@@ -98,6 +98,46 @@ public final class WindowProofStreamingWriterOracle {
         }finally{Files.deleteIfExists(canonical.toPath());Files.deleteIfExists(folder);}
     }
 
+    private static final class ProbeCharSequence implements CharSequence {
+        int toStringCalls;
+        public int length(){return 4;}
+        public char charAt(int index){return "text".charAt(index);}
+        public CharSequence subSequence(int start,int end){return "text".subSequence(start,end);}
+        @Override public String toString(){toStringCalls++;return "text";}
+    }
+
+    private static final class ProbeUnknown {
+        int toStringCalls;
+        @Override public String toString(){toStringCalls++;return "unknown payload";}
+    }
+
+    private static void strictRejectDetail(String label, JSONObject object, String path,
+            String className, String reason, java.util.function.IntSupplier calls) throws Exception {
+        Path folder=Files.createTempDirectory("window-proof-strict-detail-");
+        File canonical=folder.resolve("manifest.json").toFile();
+        byte[] original="existing-canonical".getBytes(StandardCharsets.UTF_8);
+        try {
+            Files.write(canonical.toPath(),original);
+            try {WindowProofStreamingWriter.writeStrict(object,canonical);
+                throw new AssertionError(label+" strict accepted unsupported value");}
+            catch(JSONException expected) {
+                String message=expected.getMessage();
+                if(message==null || !message.startsWith("Unsupported strict JSON value tree") ||
+                        !message.contains("path="+path+";") || !message.contains("class="+className+";") ||
+                        !message.contains("reason="+reason))
+                    throw new AssertionError(label+" wrong strict rejection detail: "+message);
+                if(!Arrays.equals(original,Files.readAllBytes(canonical.toPath())))
+                    throw new AssertionError(label+" replaced canonical");
+                try(java.util.stream.Stream<Path> paths=Files.list(folder)) {
+                    if(paths.count()!=1)throw new AssertionError(label+" leaked strict temporary file");
+                }
+            }
+            if(calls!=null && calls.getAsInt()!=0)throw new AssertionError(label+" diagnostic invoked unknown toString");
+            System.out.println("case="+label+" strictRejected=true path="+path+" class="+className+
+                " reason="+reason+" canonicalPreserved=true");cases++;
+        }finally{Files.deleteIfExists(canonical.toPath());Files.deleteIfExists(folder);}
+    }
+
     private static void strictFailure(String label, JSONObject object, int fault) throws Exception {
         Path folder=Files.createTempDirectory("window-proof-strict-fault-");
         File canonical=folder.resolve("manifest.json").toFile();
@@ -224,6 +264,31 @@ public final class WindowProofStreamingWriterOracle {
         strictReject("strict-container-subclass",new JSONObject().put("v",new JSONArray(){ {put(1);} }));
         strictReject("strict-object-subclass",new JSONObject(){ {put("v",1);} });
         strictReject("strict-nonfinite",new JSONObject().put("v",new JSONArray().put((Object)Double.NaN)));
+        JSONObject textTree=new JSONObject().put("a~/b",new JSONArray().put(new JSONObject().put("text",new StringBuilder("builder text"))));
+        if(!textTree.toString(2).contains("\"text\": \"builder text\""))
+            throw new AssertionError("SDK CharSequence text output changed");
+        strictRejectDetail("strict-stringbuilder-pointer",textTree,"/a~0~1b/0/text",
+            StringBuilder.class.getName(),"non_string_char_sequence",null);
+        ProbeCharSequence charSequence=new ProbeCharSequence();
+        JSONObject customText=new JSONObject().put("nested",new JSONArray().put(charSequence));
+        if(!customText.toString(2).contains("\"text\""))
+            throw new AssertionError("SDK custom CharSequence text output changed");
+        charSequence.toStringCalls=0;
+        strictRejectDetail("strict-custom-charsequence",customText,"/nested/0",
+            ProbeCharSequence.class.getName(),"non_string_char_sequence",()->charSequence.toStringCalls);
+        JSONObject firstBad=new JSONObject().put("first",new StringBuilder("a")).put("second",new Object());
+        strictRejectDetail("strict-first-bad-order",firstBad,"/first",
+            StringBuilder.class.getName(),"non_string_char_sequence",null);
+        strictRejectDetail("strict-custom-number-path",new JSONObject().put("n",customNumber),"/n",
+            customNumber.getClass().getName(),"unsupported_number_class",null);
+        JSONArray subclass=new JSONArray(){ {put(1);} };
+        strictRejectDetail("strict-container-subclass-path",new JSONObject().put("container",subclass),"/container",
+            subclass.getClass().getName(),"unsupported_jsonarray_subclass",null);
+        strictRejectDetail("strict-nonfinite-path",new JSONObject().put("bad",new JSONArray().put((Object)Double.NaN)),"/bad/0",
+            Double.class.getName(),"non_finite_number",null);
+        ProbeUnknown unknown=new ProbeUnknown();
+        strictRejectDetail("strict-unknown-no-tostring",new JSONObject().put("v",unknown),"/v",
+            ProbeUnknown.class.getName(),"unsupported_class",()->unknown.toStringCalls);
         JSONObject invalid=new JSONObject().put("v",new JSONArray().put((Object)Double.NaN));
         Path folder=Files.createTempDirectory("window-proof-invalid-");
         try {

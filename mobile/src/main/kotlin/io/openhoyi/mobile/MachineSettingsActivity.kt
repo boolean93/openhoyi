@@ -308,6 +308,7 @@ class MachineSettingsActivity : ThemedActivity() {
             section.visibility = if (selected) View.VISIBLE else View.GONE
             settingTabs[position].apply {
                 visual.palette.apply(this,if(selected)TaskProductVisualStyle.action else TaskProductVisualStyle.body,!selected)
+                minimumHeight = dp(48); minHeight = dp(48)
                 setTextColor(if(selected)visual.palette.accent else visual.palette.muted)
                 isSelected = selected
                 typeface = TaskTypography.face(context, if (selected) 500 else 400)
