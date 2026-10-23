@@ -25,6 +25,12 @@ def main():
     inputs = [connection / "window-frame-sync.json",
               connection / "special-states/long-name/window-frame-sync.json",
               connection / "failure-context/geometry.json"]
+    settings = list((ROOT / "build/task-first-evidence/ci-bcc64c1-settings/raw/raw-device")
+                    .glob("*/tablet-user-landscape-light-font-1.3/app/manifest.json"))
+    m5 = list((ROOT / "build/task-first-evidence/ci-bcc64c1-m5/raw/raw-device")
+              .glob("*/tablet-user-landscape-light-font-1.3/history/special-states/manifest.json"))
+    assert len(settings) == len(m5) == 1, (settings, m5)
+    inputs.extend([settings[0], m5[0]])
     assert all(path.is_file() for path in inputs)
     sources = sorted(SDK_JSON.glob("*.java"))
     assert len(sources) == 6, sources

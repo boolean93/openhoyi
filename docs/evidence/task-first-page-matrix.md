@@ -2,6 +2,21 @@
 
 ## 当前状态（优先于下方历史观察时点）
 
+2026-10-23 当前已推送 `3a78c4c4db4fa9b2fb9af688924c19431fa3d04e`，PR4仍draft。包含七组修复/证据补齐，本地双Mock构建42秒成功；不是视觉全通过。新批实际27运行（PR正文编辑额外触发一次branch-policy），现27项全部终态，PR6成功/9失败、push4成功/8失败，句柄见 `ci-3a78c4c/final-all-status.json`。
+
+- M5：首格light/1.3 History主态及五特殊态有机械完成证据，但最终顶层`manifest.toString(2)` OOM，顶层manifest缺失，门禁FAIL；不能误记为Extraction像素/PNG分配失败。独立window proof流式写盘未覆盖顶层嵌入数据。
+- Settings：App首格instrumentation完成但原完整host验证已失败；Machine在finally顶层序列化OOM，且已存在一个被遮蔽的先前异常。后续十格未跑，不能套用旧批四Scale绿色。完整ZIP未展开，保留原件。
+- Curve：第一个slot chooser等待时对聚焦`PopupDecorView`反射`mWindow`失败，尚未完成Dialog身份验证/取图；不视为真实Dialog身份已合格。
+- Legacy：短窗内容区有高度，但首plot滚达仍只有17.5552dp实际可见（不是舍入误差）；轴字/legend后续检查未执行。原图与坐标见`ci-3a78c4c/legacy-first-failure-diagnosis.md`；96dp门槛不变。
+- Scale：Connection特殊态仍因5000ms内Window/display未同步失败，具体字段待原件诊断；Capture仍“查看详情”歧义；Frame仍editor-stage-hidden-values恢复FAIL，未据简短日志猜具体字段。
+- 下批已实施而未推送：截图选择器歧义补证，三个脚本/测试文件获Astra静态通过，9离线测试通过；保持失败停止，不猜选第一个。M8 ScaleSettings旧5d08四配置实图与字体/几何索引已准备，Astra审图遇容量限制，仍待视觉验收，不换模型。
+
+3a78共27项已全部终态：PR6成功/9失败、push4成功/8失败；`ci-3a78c4c/final-all-status.json`保留全部句柄。最后push Settings39889370109也失败；本批PR lifecycle成功，不能据此证明旧异常唯一根因。Scale前三格完成，第四格light/font1.0 Connection forty-gesture首帧441px差、次帧四零差但5320ms，仍严格FAIL。Settings App离线复算定位两个host假设冲突：显式Dialog四artifact被硬要求两artifact，以及窗口有焦点时仍硬要求控件有焦点；尚未改门禁或签视觉通过。
+
+下批已按Astra计划实施strict顶层manifest writer与Curve原Popup过渡识别；32项writer oracle（含真实字节等价/192MiB/失败注入）、9项selector单测及语法检查通过；统一双Mock构建40秒成功，日志与源码/产物hash在`ui-3a78-followup-build/`。Astra对后两组最终静态复核现已完成并追加各自计划，冻结hash一致；静态通过不冒充Android运行或视觉验收。Curve源码原slot await为10秒、独立frame门槛5秒，均未改，计划已校正文档事实。M8旧ScaleSettings四配置仍ASTRA_PENDING。
+
+以下是5d08与更早历史，不能替代3a78结果。
+
 2026-10-23 最新已推送 `5d08fd658ad7300d0478a2b5e117e88eb3c99f11`，PR4保持draft。26个CI已全部终态：PR5成功/9失败，push3成功/8失败/1取消；最后push M5 `39884256124` 为cancelled，不记通过。句柄与终态见 `build/task-first-evidence/ci-5d08fd6/{run-handles,final-all-status}.json`。以下643为上一批历史，不能套用到5d08。
 
 该snapshot原件SHA `0100ebc9e1c2bd39d01d4ae020c96d97ffa924a1ac788c91ffb6aa6f2613cee1`/CRC及内部引用已核，保存于 `ci-5d08fd6-snapshot-pr/`。save有ACK、load退出0但stdout空，未确认ACK/恢复；随后console连接拒绝。保留未知结果，不重发load、不删除snapshot，不把上一批成功替代本批失败。
@@ -479,3 +494,9 @@ Astra实际新审708 push中文浅1.3：Comparison UNKNOWN警示一行61px、两
 B/M8/Window/Curve冻结源码统一 `assembleMockAndroidTest` 成功40s，74 tasks，构建前后源码SHA一致；日志 `window-json-equivalence/unified-build.log` SHA256 `6bd6e6dc3452373876c9278a5c75b04c61ed168eac76ace1035141cd94cd84c7`。root复核日志/哈希，并运行窗口契约9项、分支规则8项通过；官方Android34 JSON oracle57组含708原JSON通过。各最终源码hash和边界在对应计划。真实Android5000ms、Curve6态/slot/route、B12态、M8精度及三组详情完整图仍须新CI，不据本节签视觉完成。
 
 新批准备空间：bcc64c1-bean/a47c870-bean/a47c870-m5的重复raw在与各自完整ZIP成员逐文件SHA相等后移除，共释放1,272,444,839 bytes；原ZIP和raw-eviction-record保留。未动M2/M3因果原件、eb77主图或当前708待审原件。
+
+### 3a78 后续合同核验补充
+
+Settings仅指定语言非输入Dialog的host合同已按Astra计划实施；8项离线测试（含真实原ZIP完整App verifier重放）通过，未混入输入Dialog或其它窗口规则，最终静态复核通过（限指定App单格离线重放，不覆盖12格）。Legacy精确坐标复算证明测试请求`0..viewport.height`漏加内层已滚量，传播到外层恰好少176px；动态实际scrollX/Y内容矩形与ceil起点已实施并获Astra逆hash静态通过，不硬编码位移，不据算术可行性签实测可达。
+
+最终加入Legacy后的统一双Mock构建34秒、91 tasks、退出0；构建前后代码及runner hash一致，日志/源码与APK hash见`ui-3a78-followup-build/{attempt-2.log,source-after-attempt-2.json,apk-sha256-attempt-2.json}`。此前40秒构建是未含该Legacy增量的历史，不替代当前结果。新CI尚未启动，仍未安装/合并/发版。

@@ -31,10 +31,27 @@ final class WindowProofStreamingWriter {
                 StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING));
     }
 
+    static void writeStrict(JSONObject proof, File canonical) throws IOException, JSONException {
+        writeStrict(proof, canonical, file -> Files.newOutputStream(file.toPath()),
+            (temporary, destination) -> Files.move(temporary.toPath(), destination.toPath(),
+                StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING));
+    }
+
     // Fault seams are used only by the offline oracle. The production call uses the overload above.
     static void write(JSONObject proof, File canonical, OutputFactory output, Publisher publish)
         throws IOException, JSONException {
+        writeInternal(proof, canonical, output, publish, false);
+    }
+
+    static void writeStrict(JSONObject proof, File canonical, OutputFactory output, Publisher publish)
+        throws IOException, JSONException {
+        writeInternal(proof, canonical, output, publish, true);
+    }
+
+    private static void writeInternal(JSONObject proof, File canonical, OutputFactory output,
+                                      Publisher publish, boolean strict) throws IOException, JSONException {
         boolean streamable = streamable(proof);
+        if (strict && !streamable) throw new JSONException("Unsupported strict JSON value tree");
         File destination = canonical.getAbsoluteFile();
         File parent = destination.getParentFile();
         File temporary = File.createTempFile(destination.getName() + ".owned-", ".tmp", parent);

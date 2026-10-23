@@ -1079,12 +1079,16 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             File(target,"geometry.json").writeText(frame.target.toString(2))
             return frame.target.getJSONObject("shortDetail") to shortFrameRefs(specialRoot,target)
         }
+        fun requestVisibleViewport() {
+            val x=viewport.scrollX;val y=viewport.scrollY
+            viewport.requestRectangleOnScreen(Rect(x,y,x+viewport.width,y+viewport.height),true)
+        }
         val reached=JSONArray();var restored:JSONObject?=null;var failure:Throwable?=null
         try {
             val plot=initial.getJSONArray("plotBoundsPx")
             main {
-                viewport.scrollTo(0,plot.getDouble(1).toInt())
-                viewport.requestRectangleOnScreen(Rect(0,0,viewport.width,viewport.height),true)
+                viewport.scrollTo(0,kotlin.math.ceil(chart.top+plot.getDouble(1)).toInt())
+                requestVisibleViewport()
             }
             val (plotState,plotRef)=capture("chart-plot-reachable")
             check(plotState.getBoolean("chartMappingVerified") && plotState.getDouble("visiblePlotHeightDp")>=96.0 &&
@@ -1101,7 +1105,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 val center=(box.getDouble(1)+box.getDouble(3))/2
                 main {
                     viewport.scrollTo(0,(center-viewport.height/2.0).toInt())
-                    viewport.requestRectangleOnScreen(Rect(0,0,viewport.width,viewport.height),true)
+                    requestVisibleViewport()
                 }
                 val (state,ref)=capture("chart-text-$index-reachable")
                 val observed=state.getJSONArray("canvasTextOperations").getJSONObject(position)

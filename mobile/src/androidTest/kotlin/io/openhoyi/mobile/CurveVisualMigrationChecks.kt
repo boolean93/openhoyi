@@ -16,6 +16,7 @@ import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.IBinder
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
@@ -679,19 +680,101 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("geometry",relative("geometry.json")).put("geometrySha256",sha(File(folder,"geometry.json")))
             .put("proof",relative("window-frame-sync.json")).put("proofSha256",sha(File(folder,"window-frame-sync.json")))
     }
-    private fun libraryWindowDialog(activity: Activity): AlertDialog? {
-        val candidates=android.view.inspector.WindowInspector.getGlobalWindowViews().filter {
-            it!==activity.window.decorView && it.isAttachedToWindow && it.isLaidOut && it.hasWindowFocus()
+    private data class SlotPopup(val root:View,val list:ListView,val token:IBinder,val displayId:Int,
+        val choices:List<String>)
+    private fun slotPopup(activity:Activity, list:ListView, expected:List<String>):SlotPopup {
+        val inspectors=android.view.inspector.WindowInspector.getGlobalWindowViews()
+        val ancestors=generateSequence(list as View) { it.parent as? View }.toList()
+        val roots=inspectors.filter { candidate->ancestors.any { it===candidate } }
+        check(roots.size==1) { "M3 original slot menu has no unique Inspector root" }
+        val popup=roots.single();val token=requireNotNull(popup.windowToken)
+        check(popup!==activity.window.decorView && popup.isAttachedToWindow &&
+            popup.javaClass.name=="android.widget.PopupWindow\$PopupDecorView" &&
+            list.rootView===popup && list.isAttachedToWindow && list.windowToken===token &&
+            list.display?.displayId==popup.display?.displayId &&
+            (0 until list.adapter.count).map {list.adapter.getItem(it).toString()}==expected) {
+            "M3 original slot menu root/token/items changed" }
+        return SlotPopup(popup,list,token,requireNotNull(popup.display).displayId,expected)
+    }
+    private fun slotRootState(view:View):JSONObject=JSONObject()
+        .put("class",view.javaClass.name).put("identity",System.identityHashCode(view))
+        .put("tokenIdentity",view.windowToken?.let {System.identityHashCode(it)} ?: JSONObject.NULL)
+        .put("attached",view.isAttachedToWindow).put("laidOut",view.isLaidOut)
+        .put("layoutRequested",view.isLayoutRequested).put("focused",view.hasWindowFocus())
+        .put("displayId",view.display?.displayId ?: JSONObject.NULL)
+    private fun slotPopupState(popup:SlotPopup):JSONObject=slotRootState(popup.root)
+        .put("listIdentity",System.identityHashCode(popup.list))
+        .put("listTokenIdentity",System.identityHashCode(popup.token))
+        .put("choices",JSONArray(popup.choices))
+    private fun libraryWindowDialog(activity: Activity, popup:SlotPopup?=null,
+        observe:((JSONObject)->Unit)?=null): AlertDialog? {
+        val roots=android.view.inspector.WindowInspector.getGlobalWindowViews().filter {
+            it!==activity.window.decorView && it.isAttachedToWindow }
+        val state=JSONObject().put("foreignRoots",JSONArray(roots.map(::slotRootState)))
+            .put("originalPopup",popup?.let(::slotPopupState) ?: JSONObject.NULL)
+        fun decision(value:String,reason:String,dialog:AlertDialog?=null):AlertDialog? {
+            state.put("decision",value).put("reason",reason)
+            dialog?.let { owner->val window=requireNotNull(owner.window);val decor=window.decorView
+                val list=owner.listView
+                state.put("dialog",slotRootState(decor).put("windowIdentity",System.identityHashCode(window))
+                    .put("ownerActivityIdentity",System.identityHashCode(activity))
+                    .put("listIdentity",list?.let {System.identityHashCode(it)} ?: JSONObject.NULL)
+                    .put("listAttached",list?.isAttachedToWindow ?: false)
+                    .put("listLaidOut",list?.isLaidOut ?: false)
+                    .put("listRootIdentity",list?.rootView?.let {System.identityHashCode(it)} ?: JSONObject.NULL)
+                    .put("listTokenIdentity",list?.windowToken?.let {System.identityHashCode(it)} ?: JSONObject.NULL)
+                    .put("listDisplayId",list?.display?.displayId ?: JSONObject.NULL)) }
+            observe?.invoke(state);return if(value=="READY") dialog else null
         }
-        check(candidates.size<=1) { "M3 ambiguous focused library Window" }
-        val decor=candidates.singleOrNull() ?: return null
-        val window=decor.javaClass.getDeclaredField("mWindow").apply { isAccessible=true }.get(decor) as android.view.Window
-        val dialog=window.callback as AlertDialog
-        var owner: Context=dialog.context
-        while(owner is ContextWrapper && owner!==activity) owner=owner.baseContext
-        check(window.decorView===decor && dialog.window===window && dialog.isShowing &&
-            (dialog.ownerActivity===activity || owner===activity)) { "M3 details Window not owned by Library" }
-        return dialog
+        try {
+            if(popup!=null && popup.root.windowToken!=null && popup.root.windowToken!==popup.token)
+                error("M3 original slot Popup token changed")
+            if(popup!=null && popup.root.display!=null && popup.root.display?.displayId!=popup.displayId)
+                error("M3 original slot Popup display changed")
+            if(popup!=null && popup.root.isAttachedToWindow && roots.none {it===popup.root})
+                error("M3 original slot Popup missing from Inspector")
+            val dialogs=ArrayList<AlertDialog>()
+            var popupPresent=false
+            for(decor in roots) {
+                if(popup!=null && decor===popup.root) {
+                    check(decor.javaClass.name=="android.widget.PopupWindow\$PopupDecorView" &&
+                        decor.windowToken===popup.token && decor.display?.displayId==popup.displayId &&
+                        popup.list.rootView===decor && popup.list.windowToken===popup.token) {
+                        "M3 original slot Popup identity/token changed" }
+                    popupPresent=true;continue
+                }
+                check(decor.javaClass.name=="com.android.internal.policy.DecorView") {
+                    "M3 unknown foreign library Window ${decor.javaClass.name}" }
+                val window=decor.javaClass.getDeclaredField("mWindow").apply { isAccessible=true }
+                    .get(decor) as android.view.Window
+                val dialog=window.callback as? AlertDialog ?: error("M3 foreign Window is not AlertDialog")
+                var owner:Context=dialog.context
+                while(owner is ContextWrapper && owner!==activity) owner=owner.baseContext
+                check(window.decorView===decor && dialog.window===window && dialog.isShowing &&
+                    (dialog.ownerActivity===activity || owner===activity) &&
+                    decor.windowToken!=null && decor.display?.displayId==activity.window.decorView.display?.displayId) {
+                    "M3 details Window not owned by Library" }
+                dialogs.add(dialog)
+            }
+            check(dialogs.size<=1) { "M3 ambiguous real library Dialog Windows" }
+            val dialog=dialogs.singleOrNull() ?: return decision("PENDING","no_dialog" + if(popupPresent) "_original_popup" else "")
+            val decor=requireNotNull(dialog.window).decorView
+            if(!decor.isLaidOut || !decor.hasWindowFocus() || (popup!=null && decor.isLayoutRequested))
+                return decision("PENDING","dialog_not_ready",dialog)
+            if(popup==null) return decision("READY","single_real_dialog",dialog)
+            val list=dialog.listView
+            if(list==null || !list.isAttachedToWindow || !list.isLaidOut)
+                return decision("PENDING","dialog_list_not_ready",dialog)
+            check(list.rootView===decor && list.windowToken===decor.windowToken &&
+                list.display?.displayId==decor.display?.displayId) { "M3 Dialog list root/token/display mismatch" }
+            if(popupPresent && popup.root.hasWindowFocus())
+                return decision("PENDING","original_popup_still_focused",dialog)
+            return decision("READY",if(popupPresent) "original_popup_defocused" else "original_popup_absent",dialog)
+        }catch(error:Throwable) {
+            state.put("decision","FAIL").put("reason",error.javaClass.name+":"+error.message)
+            try {observe?.invoke(state)}catch(recordFailure:Throwable){error.addSuppressed(recordFailure)}
+            throw error
+        }
     }
     private fun librarySelect(activity: Activity, scope: Scope, item: CurveLibraryItem): JSONObject {
         check(scope.curves.find(item.id)==item && item.id in scope.curves.items.map { it.id })
@@ -1170,8 +1253,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val list=requireNotNull(popupList(activity)) { "M3 original PopupMenu not visible" }
         return (0 until list.adapter.count).map { list.adapter.getItem(it).toString() }
     }
-    private fun popupEvidence(activity:Activity):JSONObject {
-        val list=requireNotNull(popupList(activity)); val labels=popupChoices(activity)
+    private fun popupEvidence(activity:Activity, originalList:ListView?=null):JSONObject {
+        val list=originalList ?: requireNotNull(popupList(activity))
+        val labels=(0 until list.adapter.count).map {list.adapter.getItem(it).toString()}
         val visible=JSONArray((0 until list.childCount).map { index -> val child=list.getChildAt(index)
             JSONObject().put("adapterPosition",list.firstVisiblePosition+index)
                 .put("adapterText",labels[list.firstVisiblePosition+index])
@@ -1262,17 +1346,51 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             for(slot in 1..5) {
                 val menu=openLibraryMenu(page)
                 check(menu.count { it==page.getString(R.string.curve_assign_slot) }==1)
-                val menuNodes=popupEvidence(page)
-                choosePopup(page,page.getString(R.string.curve_assign_slot))
+                lateinit var menuList:ListView
+                main { menuList=requireNotNull(popupList(page)) }
+                val menuNodes=popupEvidence(page,menuList)
+                lateinit var popup:SlotPopup
+                main { popup=slotPopup(page,menuList,menu) }
+                val transitionFile=File(folder,"slot-$slot-transition.json")
+                val observations=JSONArray()
+                val transition=JSONObject().put("slot",slot).put("menu",JSONArray(menu))
+                    .put("activityIdentity",System.identityHashCode(page))
+                    .put("originalPopupBeforeClick",slotPopupState(popup)).put("observations",observations)
+                var lastObservation:String?=null
+                fun recordTransition(observed:JSONObject) {
+                    val value=observed.toString()
+                    if(value!=lastObservation) {
+                        observations.put(observed);lastObservation=value
+                        transitionFile.writeText(transition.toString(2))
+                    }
+                }
+                transitionFile.writeText(transition.toString(2))
                 var dialog:AlertDialog?=null
-                await("original slot chooser") { dialog=libraryWindowDialog(page); dialog!=null }
+                try {
+                    choosePopup(page,page.getString(R.string.curve_assign_slot))
+                    await("original slot chooser") { dialog=libraryWindowDialog(page,popup,::recordTransition); dialog!=null }
+                }catch(error:Throwable) {
+                    transition.put("failure",error.stackTraceToString())
+                    try {transitionFile.writeText(transition.toString(2))}
+                    catch(recordFailure:Throwable) {error.addSuppressed(recordFailure)}
+                    throw error
+                }
                 val chooser=requireNotNull(dialog); val window=requireNotNull(chooser.window); val decor=window.decorView
+                var selected:JSONObject?=null
+                main { check(libraryWindowDialog(page,popup) {selected=it}===chooser) }
+                transition.put("selected",requireNotNull(selected))
+                    .put("chooserWindowIdentity",System.identityHashCode(window))
+                    .put("chooserDecorIdentity",System.identityHashCode(decor))
+                    .put("chooserTokenIdentity",System.identityHashCode(requireNotNull(decor.windowToken)))
+                transitionFile.writeText(transition.toString(2))
                 val labels=(1..5).map { page.getString(R.string.home_slot,it.toString()) }
                 val list=requireNotNull(chooser.listView)
                 main { check(list.adapter.count==5 && (0 until 5).map { list.adapter.getItem(it).toString() }==labels) }
                 if(slot==1) {
                     val chooserFolder=File(folder,"chooser")
                     val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(chooserFolder.apply { check(isDirectory || mkdirs()) },"window.png")) {
+                        var transitionState:JSONObject?=null
+                        check(libraryWindowDialog(page,popup) {transitionState=it}===chooser)
                         val titleText=page.getString(R.string.curve_choose_slot)
                         val title=requireNotNull(nodes(decor).filterIsInstance<TextView>().singleOrNull { it.text.toString()==titleText })
                         check(list.firstVisiblePosition==0 && list.childCount==5)
@@ -1290,10 +1408,16 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                             .put("visibleRows",rows)
                             .put("actualAdapterChoices",JSONArray((0 until list.adapter.count).map { list.adapter.getItem(it).toString() }))
                             .put("windowIdentity",System.identityHashCode(window))
+                            .put("slotTransition",requireNotNull(transitionState))
+                            .put("originalPopupBeforeClick",transition.getJSONObject("originalPopupBeforeClick"))
                     }
                     File(chooserFolder,"geometry.json").writeText(frame.target.toString(2))
+                    transition.put("acceptedChooserState",frame.target.getJSONObject("slotTransition"))
+                    transitionFile.writeText(transition.toString(2))
                     report.put("chooserCapture",captureReference(directory,chooserFolder))
                 }
+                main { check(libraryWindowDialog(page,popup,::recordTransition)===chooser) }
+                transitionFile.writeText(transition.toString(2))
                 val justBefore=prefs.all.toMap()
                 main { list.setSelection(slot-1) }
                 await("visible original slot child $slot") { slot-1>=list.firstVisiblePosition &&
@@ -1312,6 +1436,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 libraryCapture(page,step) { libraryDisclosureState(page,qualified,scope) }
                 report.getJSONArray("steps").put(JSONObject().put("slot",slot).put("menu",JSONArray(menu))
                     .put("menuNodes",menuNodes)
+                    .put("slotTransitionFile",transitionFile.relativeTo(directory).invariantSeparatorsPath)
+                    .put("slotTransitionSha256",sha(transitionFile))
                     .put("before",prefMapJson(justBefore)).put("after",prefMapJson(after))
                     .put("diskSha256",presetDisk()).put("actualStoredId",after[key])
                     .put("capture",captureReference(directory,step)))

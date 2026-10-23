@@ -70,7 +70,7 @@ assert_activity() {
 }
 
 tap_control() {
-  python3 scripts/mock_ui_tap.py "$1" --scroll
+  python3 scripts/mock_ui_tap.py "$1" --scroll --diagnostics-dir "$output_dir/selector-diagnostics"
   sleep 2
 }
 

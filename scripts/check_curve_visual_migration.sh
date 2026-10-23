@@ -253,6 +253,77 @@ def require_details(scope, case_folder, report, item_id):
     assert initial_ranges[0][0]==0 and initial_ranges[-1][1]==len(report['expectedMessage'])
     assert all(initial_ranges[i][1]==initial_ranges[i+1][0] for i in range(len(initial_ranges)-1))
     assert ''.join(row[2] for row in initial_ranges)==report['expectedMessage']
+POPUP_DECOR='android.widget.PopupWindow$PopupDecorView'
+DIALOG_DECOR='com.android.internal.policy.DecorView'
+def classify_slot_transition(observed, original, activity_identity):
+    roots=observed['foreignRoots']
+    assert len({root['identity'] for root in roots})==len(roots)
+    old=observed['originalPopup']
+    assert old['class']==original['class']==POPUP_DECOR
+    assert old['identity']==original['identity'] and old['listIdentity']==original['listIdentity']
+    assert old['choices']==original['choices']
+    popup=[root for root in roots if root['identity']==original['identity']]
+    assert len(popup)<=1
+    if popup:
+        root=popup[0]
+        assert root['class']==POPUP_DECOR and root['attached']
+        assert root['tokenIdentity']==original['tokenIdentity']==original['listTokenIdentity']
+        assert root['displayId']==original['displayId']
+    dialogs=[root for root in roots if root['identity']!=original['identity']]
+    assert len(dialogs)<=1 and all(root['class']==DIALOG_DECOR and root['attached'] for root in dialogs)
+    if not dialogs:
+        assert 'dialog' not in observed
+        expected=('PENDING','no_dialog_original_popup' if popup else 'no_dialog')
+    else:
+        root=dialogs[0];dialog=observed['dialog']
+        assert all(dialog[key]==root[key] for key in ('class','identity','tokenIdentity','attached',
+            'laidOut','layoutRequested','focused','displayId'))
+        assert dialog['tokenIdentity'] is not None and dialog['displayId']==original['displayId']
+        assert dialog['windowIdentity']!=0 and dialog['ownerActivityIdentity']==activity_identity
+        if not root['laidOut'] or root['layoutRequested'] or not root['focused']:
+            expected=('PENDING','dialog_not_ready')
+        elif dialog['listIdentity'] is None or not dialog['listAttached'] or not dialog['listLaidOut']:
+            expected=('PENDING','dialog_list_not_ready')
+        else:
+            assert dialog['listRootIdentity']==root['identity']
+            assert dialog['listTokenIdentity']==root['tokenIdentity']
+            assert dialog['listDisplayId']==root['displayId']
+            expected=('PENDING','original_popup_still_focused') if popup and popup[0]['focused'] else (
+                'READY','original_popup_defocused' if popup else 'original_popup_absent')
+    assert (observed['decision'],observed['reason'])==expected,(observed,expected)
+    return expected[0]
+def require_slot_transition(scope, step, chooser=None):
+    slot=step['slot']
+    relative=Path(step['slotTransitionFile'])
+    assert relative==Path(f'preset-eligibility-and-slots/slot-{slot}-transition.json')
+    path=scope/relative
+    assert path.is_file() and sha(path)==step['slotTransitionSha256']
+    transition=json.loads(path.read_text())
+    assert transition['slot']==slot and transition['menu']==step['menu']
+    original=transition['originalPopupBeforeClick']
+    assert original['class']==POPUP_DECOR and original['attached']
+    assert original['identity']!=0 and original['listIdentity']!=0
+    assert original['tokenIdentity']==original['listTokenIdentity'] and original['tokenIdentity']!=0
+    assert original['displayId']==0 and original['choices']==step['menu']
+    observed=transition['observations']
+    assert observed and all(classify_slot_transition(item,original,transition['activityIdentity']) in ('PENDING','READY')
+        for item in observed)
+    assert any(item['decision']=='READY' for item in observed)
+    selected=transition['selected']
+    assert classify_slot_transition(selected,original,transition['activityIdentity'])=='READY'
+    dialog=selected['dialog']
+    assert dialog['windowIdentity']==transition['chooserWindowIdentity']
+    assert dialog['identity']==transition['chooserDecorIdentity']
+    assert dialog['tokenIdentity']==transition['chooserTokenIdentity']
+    if chooser is not None:
+        assert transition['acceptedChooserState']==chooser['slotTransition']
+        assert chooser['originalPopupBeforeClick']==original
+        accepted=chooser['slotTransition']
+        assert classify_slot_transition(accepted,original,transition['activityIdentity'])=='READY'
+        assert accepted['dialog']['windowIdentity']==chooser['windowIdentity']==transition['chooserWindowIdentity']
+        assert accepted['dialog']['identity']==transition['chooserDecorIdentity']
+        assert accepted['dialog']['tokenIdentity']==transition['chooserTokenIdentity']
+    else: assert 'acceptedChooserState' not in transition
 def require_library_special(folder):
     scope=folder/'library-special-scope'
     fixture=json.loads((scope/'fixture.json').read_text())
@@ -379,8 +450,11 @@ def require_library_special(folder):
         assert whole(row['child']) and whole(row['label'])
         assert row['label']['textLineBoxes'][0]['text']==chooser['choices'][index]
     assert [step['slot'] for step in preset['steps']]==[1,2,3,4,5]
+    assert {path.name for path in (scope/'preset-eligibility-and-slots').glob('slot-*-transition.json')}=={
+        f'slot-{slot}-transition.json' for slot in range(1,6)}
     for step in preset['steps']:
         require_capture(scope,step['capture'],DEFAULT_ACTIVITY)
+        require_slot_transition(scope,step,chooser if step['slot']==1 else None)
         key=f'slot_{step["slot"]}'; before=step['before']; after=step['after']
         assert step['menu']==step['menuNodes']['localizedAdapterChoices']
         assert step['menuNodes']['visibleNodes'] and step['menuNodes']['noIndependentWindowProtocolClaim']

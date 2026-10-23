@@ -57,6 +57,83 @@ public final class WindowProofStreamingWriterOracle {
         }
     }
 
+    private static void sameStrict(String label, JSONObject object) throws Exception {
+        Path folder=Files.createTempDirectory("window-proof-strict-");
+        try {
+            File canonical=folder.resolve("manifest.json").toFile();
+            byte[] expected=object.toString(2).getBytes(StandardCharsets.UTF_8);
+            WindowProofStreamingWriter.writeStrict(object,canonical);
+            byte[] actual=Files.readAllBytes(canonical.toPath());
+            if(!Arrays.equals(expected,actual))throw new AssertionError(label+" strict bytes differ");
+            try(java.util.stream.Stream<Path> paths=Files.list(folder)) {
+                if(paths.count()!=1)throw new AssertionError(label+" leaked strict temporary file");
+            }
+            System.out.println("case="+label+" strict=true bytes="+actual.length+" sha256="+sha(actual));cases++;
+        }finally{
+            try(java.util.stream.Stream<Path> paths=Files.list(folder)) {
+                paths.forEach(path->{try{Files.deleteIfExists(path);}catch(IOException e){throw new RuntimeException(e);}});
+            }
+            Files.deleteIfExists(folder);
+        }
+    }
+
+    private static void strictReject(String label, JSONObject object) throws Exception {
+        Path folder=Files.createTempDirectory("window-proof-strict-reject-");
+        File canonical=folder.resolve("manifest.json").toFile();
+        byte[] original="existing-canonical".getBytes(StandardCharsets.UTF_8);
+        try {
+            Files.write(canonical.toPath(),original);
+            try {WindowProofStreamingWriter.writeStrict(object,canonical);
+                throw new AssertionError(label+" strict accepted unsupported value");}
+            catch(JSONException expected) {
+                if(!Arrays.equals(original,Files.readAllBytes(canonical.toPath())))
+                    throw new AssertionError(label+" replaced canonical");
+                try(java.util.stream.Stream<Path> paths=Files.list(folder)) {
+                    if(paths.count()!=1)throw new AssertionError(label+" leaked strict temporary file");
+                }
+            }
+            System.out.println("case="+label+" strictRejected=true canonicalPreserved=true");cases++;
+        }finally{Files.deleteIfExists(canonical.toPath());Files.deleteIfExists(folder);}
+    }
+
+    private static void strictFailure(String label, JSONObject object, int fault) throws Exception {
+        Path folder=Files.createTempDirectory("window-proof-strict-fault-");
+        File canonical=folder.resolve("manifest.json").toFile();
+        byte[] original="existing-canonical".getBytes(StandardCharsets.UTF_8);
+        try {
+            Files.write(canonical.toPath(),original);
+            WindowProofStreamingWriter.OutputFactory output=file->{
+                OutputStream target=Files.newOutputStream(file.toPath());
+                return new FilterOutputStream(target){int count;
+                    @Override public void write(int b)throws IOException {
+                        if(fault==1 && count++>=10)throw new IOException("injected-write");out.write(b);
+                    }
+                    @Override public void write(byte[] bytes,int offset,int length)throws IOException {
+                        for(int i=0;i<length;i++)write(bytes[offset+i]);
+                    }
+                    @Override public void close()throws IOException {
+                        super.close();if(fault==2)throw new IOException("injected-close");
+                    }
+                };
+            };
+            WindowProofStreamingWriter.Publisher publish=(temporary,destination)->{
+                if(fault==3)throw new IOException("injected-rename");
+                Files.move(temporary.toPath(),destination.toPath());
+            };
+            try {WindowProofStreamingWriter.writeStrict(object,canonical,output,publish);
+                throw new AssertionError(label+" strict unexpectedly succeeded");}
+            catch(IOException expected) {
+                if(!expected.getMessage().startsWith("injected-"))throw expected;
+                if(!Arrays.equals(original,Files.readAllBytes(canonical.toPath())))
+                    throw new AssertionError(label+" changed canonical");
+                try(java.util.stream.Stream<Path> paths=Files.list(folder)) {
+                    if(paths.count()!=1)throw new AssertionError(label+" leaked strict temporary file");
+                }
+            }
+            System.out.println("case="+label+" strictFailure=true canonicalPreserved=true");cases++;
+        }finally{Files.deleteIfExists(canonical.toPath());Files.deleteIfExists(folder);}
+    }
+
     private static void failure(String label, JSONObject object, int fault) throws Exception {
         Path folder=Files.createTempDirectory("window-proof-fault-");
         File canonical=folder.resolve("frame-sync.json").toFile();
@@ -137,6 +214,14 @@ public final class WindowProofStreamingWriterOracle {
             public float floatValue(){return 7;}public double doubleValue(){return 7;}public String toString(){return "7";}};
         same("number-subclass-fallback",new JSONObject().put("v",customNumber));
         same("container-subclass-fallback",new JSONObject().put("v",new JSONArray(){ { put(1); } }));
+        sameStrict("strict-empty",new JSONObject().put("object",new JSONObject()).put("array",new JSONArray()));
+        sameStrict("strict-nested-escaped",new JSONObject().put("中文/\n",new JSONArray().put(JSONObject.NULL)
+            .put(new JSONObject().put("number",1.25d).put("text","\"/\\\t"))));
+        strictReject("strict-custom-object",new JSONObject().put("v",new Object(){public String toString(){return "fallback";}}));
+        strictReject("strict-custom-number",new JSONObject().put("v",customNumber));
+        strictReject("strict-container-subclass",new JSONObject().put("v",new JSONArray(){ {put(1);} }));
+        strictReject("strict-object-subclass",new JSONObject(){ {put("v",1);} });
+        strictReject("strict-nonfinite",new JSONObject().put("v",new JSONArray().put((Object)Double.NaN)));
         JSONObject invalid=new JSONObject().put("v",new JSONArray().put((Object)Double.NaN));
         Path folder=Files.createTempDirectory("window-proof-invalid-");
         try {
@@ -155,6 +240,9 @@ public final class WindowProofStreamingWriterOracle {
         failure("close-failure",ordinary,2);
         failure("rename-failure",ordinary,3);
         existingCanonicalSurvives(ordinary);
+        strictFailure("strict-write-failure",ordinary,1);
+        strictFailure("strict-close-failure",ordinary,2);
+        strictFailure("strict-rename-failure",ordinary,3);
     }
 
     public static void main(String[] args)throws Exception {
@@ -166,7 +254,7 @@ public final class WindowProofStreamingWriterOracle {
             Path folder=Files.createTempDirectory("window-proof-limited-");
             try {
                 File canonical=folder.resolve("frame-sync.json").toFile();
-                WindowProofStreamingWriter.write(syntheticPressure,canonical);
+                WindowProofStreamingWriter.writeStrict(syntheticPressure,canonical);
                 System.out.println("limitedSynthetic=true bytes="+Files.size(canonical.toPath())+
                     " sha256="+shaFile(canonical.toPath()));
                 Files.delete(canonical.toPath());
@@ -178,6 +266,7 @@ public final class WindowProofStreamingWriterOracle {
             byte[] source=Files.readAllBytes(Path.of(args[i]));
             JSONObject parsed=new JSONObject(new String(source,StandardCharsets.UTF_8));
             same("real-"+i+" inputSha256="+sha(source),parsed);
+            if(i>=3)sameStrict("real-top-manifest-"+(i-3)+" inputSha256="+sha(source),parsed);
             if(i==2) {
                 JSONObject syntheticPressure=new JSONObject().put("attempts",new JSONArray()
                     .put(new JSONObject().put("geometryBefore",parsed).put("geometryAfter",parsed))

@@ -2245,7 +2245,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             manifest.put("overallStatus",if(failure==null) "PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
             failure?.let { manifest.put("failure",it.stackTraceToString()) }
             manifest.put("fileSha256",JSONObject(directory.walkTopDown().filter { it.isFile && it!=File(directory,"manifest.json") }.associate { it.relativeTo(directory).path to sha(it) }))
-            File(directory,"manifest.json").writeText(manifest.toString(2))
+            try { WindowProofStreamingWriter.writeStrict(manifest,File(directory,"manifest.json")) }
+            catch(error:Throwable) { if(failure==null) failure=error else failure!!.addSuppressed(error) }
         }
         failure?.let { throw it }; return 1
     }

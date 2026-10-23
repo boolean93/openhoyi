@@ -223,7 +223,9 @@ def require_protocol(path, kind=None):
     source=attempt['windowSourceRectPx']; screen=attempt['displayAppRectPx']
     measured=(path.parent.name=='language-write-rejected' and path.parent.parent.name=='special-states'
         and path.parent.parent.parent.name=='app')
-    if measured: validate_measured_window_attempt(proof,attempt)
+    if measured:
+        assert proof['captureWindowKind']=='EXPLICIT_WINDOW' and proof['mappingMode']=='MEASURED_WINDOW_BUFFER_TRANSLATION'
+        validate_measured_window_attempt(proof,attempt)
     else: assert attempt['surface-beforeSourceRectAfterSdk']==source==attempt['surface-afterSourceRectAfterSdk'],path
     for geometry in (attempt['geometryBefore'],attempt['geometryAfter']):
         assert geometry['hasWindowFocus'] and not geometry['rootLayoutRequested'] and not geometry['decorLayoutRequested']
@@ -256,7 +258,18 @@ def require_protocol(path, kind=None):
             assert proof['mappingMode']=='ACTIVITY_STRICT_METRICS_DECOR'
             assert geometry['windowMetricsBoundsPx']==[ds[0],ds[1],ds[0]+decor[0],ds[1]+decor[1]]
     artifacts=proof['captureArtifacts']
-    assert {item['role'] for item in artifacts}=={'display','display-after'}
+    expected_roles=({'layer-before','display','display-after','layer-after'} if measured
+        else {'display','display-after'})
+    assert len(artifacts)==len(expected_roles)
+    assert {item['role'] for item in artifacts}==expected_roles
+    if measured:
+        expected_files={'layer-before':'window-layer-before.png','display':'window.png',
+            'display-after':'window-display-after.png','layer-after':'window-layer-after.png'}
+        assert len({item['file'] for item in artifacts})==len(expected_roles)
+        for item in artifacts:
+            assert item['attempt']==proof['acceptedAttempt']
+            assert item['file']==expected_files[item['role']]
+            assert item['bitmap']==attempt[item['role']]
     for item in artifacts:
         image=path.parent/item['file'];assert image.is_file() and sha(image)==item['fileSha256']
     return proof
@@ -289,6 +302,10 @@ def require_whole(actual):
 
 def validate_language_dialog_target(accepted,safe,proof):
     assert safe==accepted['safeControls']
+    assert accepted['imeVisible'] is False
+    text_classes={text['actualTypography']['class'] for node in accepted['nodes'] for text in node['textLineBoxes']}
+    assert text_classes=={'android.widget.Button','android.widget.CheckedTextView',
+        'com.android.internal.widget.DialogTitle'}
     assert safe['dialogIdentity']>0 and safe['ownerActivityIdentity']>0
     assert safe['windowIdentity']==proof['windowIdentity'] and safe['decorIdentity']==proof['decorIdentity']
     assert all(safe[key] is True for key in ('callbackIsDialog','dialogWindowIsWindow','ownerMatches',
@@ -302,18 +319,39 @@ def validate_language_dialog_target(accepted,safe,proof):
     node_by_identity={}
     for node in accepted['nodes']:
         node_by_identity.setdefault(node['viewIdentity'],[]).append(node)
-    control_ids=[]
+    control_ids=[];control_roles=[]
     for control in safe['controls']:
         identity=control['viewIdentity'];control_ids.append(identity)
         assert identity>0 and len(node_by_identity.get(identity,[]))==1
+        assert control['isShown'] is True and control['isEditText'] is False
+        assert control['roles'] and len(control['roles'])==len(set(control['roles']))
+        assert set(control['roles'])<={'positive','negative','focused'}
+        control_roles.extend(control['roles'])
         raw={key:value for key,value in control.items() if key not in ('roles','isShown','heightPx','isButton','isEditText')}
         assert raw==node_by_identity[identity][0]
         assert control['heightPx']==control['rectPx'][3]-control['rectPx'][1]
         if control['isButton']: assert control['heightPx']>=int(48*safe['density'])
         if control['isEditText']: assert control['heightPx']>=int(52*safe['density'])
     assert len(control_ids)==len(set(control_ids))
+    for role in ('positive','negative','focused'):
+        assert control_roles.count(role)<=1
+    buttons=safe['buttonRoles']
+    assert len(buttons)==2 and {button['role'] for button in buttons}=={'positive','negative'}
+    for button in buttons:
+        assert isinstance(button['present'],bool) and isinstance(button['isShown'],bool)
+        assert button['isShown']==(button['role']=='negative')
+        if button['isShown']:
+            assert button['present'] and isinstance(button['identity'],int) and button['identity']>0
+            matches=[control for control in safe['controls'] if button['role'] in control['roles']]
+            assert len(matches)==1 and matches[0]['viewIdentity']==button['identity']
+        else:
+            assert not any(button['role'] in control['roles'] for control in safe['controls'])
     focused=[control for control in safe['controls'] if 'focused' in control['roles']]
-    assert len(focused)==1 and safe['focusedControlIdentity']==focused[0]['viewIdentity']
+    if safe['focusedControlIdentity'] is None:
+        assert not focused
+    else:
+        assert len(focused)==1
+        assert safe['focusedControlIdentity']==focused[0]['viewIdentity']
 
 def require_state(folder,kind):
     assert (folder/'window.png').is_file() and (folder/'geometry.json').is_file(),folder
