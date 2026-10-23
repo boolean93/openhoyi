@@ -70,7 +70,7 @@ assert_activity() {
 }
 
 tap_control() {
-  python3 scripts/mock_ui_tap.py "$1" --scroll --diagnostics-dir "$output_dir/selector-diagnostics"
+  python3 scripts/mock_ui_tap.py "$@" --scroll --diagnostics-dir "$output_dir/selector-diagnostics"
   sleep 2
 }
 
@@ -196,7 +196,7 @@ capture history-list-dark
 tap_control '采集曲线 2'
 assert_activity HistoryActivity
 capture history-selected-dark
-tap_control '查看详情'
+tap_control '查看详情' --node-class android.widget.Button
 assert_activity HistoryDetailActivity
 capture history-detail-dark
 

@@ -14,6 +14,7 @@ class ScaleSettingsActivity:ScaleOwnerActivity() {
         val style=visual.palette
         // This page retains ScaleOwner's original binding/refresh lifecycle; only its shell is opt-in.
         val body=visual.page(this,R.string.scale_settings,R.string.scale_settings_subtitle,688,"scale")
+        body.setPadding(style.dp(24),body.paddingTop,style.dp(24),body.paddingBottom)
         val prefs=getSharedPreferences("scale_tool",MODE_PRIVATE)
         val display = settingsGroup(this, body, getString(R.string.scale_display_precision),visual)
         display.addView(Switch(this).apply {

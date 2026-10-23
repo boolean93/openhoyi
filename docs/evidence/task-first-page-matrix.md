@@ -2,6 +2,14 @@
 
 ## 当前状态（优先于下方历史观察时点）
 
+2026-10-23 已推送 `8b5237989eaae99181ff137b8873896eb96bda7c`，PR4仍draft。27运行全部终态：PR8成功/7失败、push5成功/7失败；完整句柄见 `ci-8b52379/final-all-status.json`。Legacy两run机械成功，新PR已获20张原图限定验收（四档96dp plot及已见轴字/恢复），见2026-10-23-m7-short-detail-visual-review.md；其余72轴字现也已实审，见2026-10-23-m7-axis-text-visual-review.md；可关闭80目标逐项滚达可读性，不签同时完整或整M7。其余失败分别保留。
+
+M8已完成旧5d08四主态+四底部滚达原图限定审查，见[ScaleSettings实图审查](2026-10-23-m8-scale-settings-visual-review.md)。已见区域G2/G3/G4有限接受，发现冻结左右24dp与实际16dp的G1差异；Astra已规划仅修ScaleSettings本页padding，688dp总宽/上下间距/shared style不动。新原图、完整14+14目标/恢复及特殊态仍待验，不改设计迁就实现。
+
+新capture原XML确认History两种动作同标签：ImageButton的content-desc与Button文本均“查看详情”；新的歧义诊断未点击。后续只按明确目标规划脚本选择，不删产品入口、不猜坐标。Curve越过旧Popup异常后在import-page返回合同失败，尚未诊断具体差项。M5新首败是historySpecialStates汇总summary.toString(2) OOM，已改顶层strict成功保存FAIL manifest，不能混称旧顶层写点。Settings12格中8格App/ScaleSettings原host完整通过，4Machine均初帧5秒捕获失败，无顶层OOM；全run仍FAIL。
+
+下方3a78及更早均为历史，不替代本head验收。
+
 2026-10-23 当前已推送 `3a78c4c4db4fa9b2fb9af688924c19431fa3d04e`，PR4仍draft。包含七组修复/证据补齐，本地双Mock构建42秒成功；不是视觉全通过。新批实际27运行（PR正文编辑额外触发一次branch-policy），现27项全部终态，PR6成功/9失败、push4成功/8失败，句柄见 `ci-3a78c4c/final-all-status.json`。
 
 - M5：首格light/1.3 History主态及五特殊态有机械完成证据，但最终顶层`manifest.toString(2)` OOM，顶层manifest缺失，门禁FAIL；不能误记为Extraction像素/PNG分配失败。独立window proof流式写盘未覆盖顶层嵌入数据。
@@ -500,3 +508,11 @@ B/M8/Window/Curve冻结源码统一 `assembleMockAndroidTest` 成功40s，74 tas
 Settings仅指定语言非输入Dialog的host合同已按Astra计划实施；8项离线测试（含真实原ZIP完整App verifier重放）通过，未混入输入Dialog或其它窗口规则，最终静态复核通过（限指定App单格离线重放，不覆盖12格）。Legacy精确坐标复算证明测试请求`0..viewport.height`漏加内层已滚量，传播到外层恰好少176px；动态实际scrollX/Y内容矩形与ceil起点已实施并获Astra逆hash静态通过，不硬编码位移，不据算术可行性签实测可达。
 
 最终加入Legacy后的统一双Mock构建34秒、91 tasks、退出0；构建前后代码及runner hash一致，日志/源码与APK hash见`ui-3a78-followup-build/{attempt-2.log,source-after-attempt-2.json,apk-sha256-attempt-2.json}`。此前40秒构建是未含该Legacy增量的历史，不替代当前结果。新CI尚未启动，仍未安装/合并/发版。
+
+本候选已实施：ScaleSettings仅本页body左右24dp（688dp总宽和上下不变）获Astra静态通过；History截图仅指定调用精确Button class，默认歧义仍failclosed，15离线测试过，最终静态通过。均尚未新图验收。
+
+### 8b52379后续合批验证
+
+M5两个局部summary持久化按Astra计划复用原strict writer，History本次OOM已证、Extraction仅同机制静态风险。真实17,877,067字节汇总与SDK34原序列化/ZIP逐字节相同；192MiB下同进程解析+写入长度/SHA一致，旧32oracle/合成压力与13项异常控制流模型通过。最终Kotlin异常链已获Astra静态复核通过，冻结三文件SHA及旧writer不变；模型测试不替代Android运行。
+
+统一`:mobile:assembleMock :mobile:assembleMockAndroidTest`62秒、91 tasks、退出0；构建前后源码/runner hash不变，完整日志和APK hash位于`ui-8b52379-followup-build/`。Capture15离线测试通过。未安装/合并/发版，新图和新CI尚待推送后执行。

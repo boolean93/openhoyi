@@ -1544,7 +1544,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("expectedCases",JSONArray(extractionPendingSpecialCases))
             .put("scenarioShotIds",JSONObject(extractionScenarioShotIds)).put("cases",cases)
             .put("mainConfigurationCountContribution",0)
-        fun persist() { File(base,"manifest.json").writeText(summary.toString(2)) }
+        fun persist() { WindowProofStreamingWriter.writeStrict(summary,File(base,"manifest.json")) }
+        var primaryFailure: Throwable?=null
         try {
             extractionPendingSpecialCases.forEach { case ->
                 val caseFolder=File(base,case).apply {check(isDirectory || mkdirs())}
@@ -1680,16 +1681,25 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     failure=error;proof.put("status","FAIL").put("failure",error.stackTraceToString())
                 } finally {
                     try { scope.cleanup() } catch(error: Throwable) {
-                        if(failure==null)failure=error else failure!!.addSuppressed(error)
+                        if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
                         proof.put("status","FAIL").put("cleanupFailure",error.stackTraceToString())
                     }
-                    File(caseFolder,"case.json").writeText(proof.toString(2));persist()
+                    try { File(caseFolder,"case.json").writeText(proof.toString(2));persist() }
+                    catch(error: Throwable) {
+                        if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
+                    }
                 }
                 failure?.let {throw it}
             }
             summary.put("completed",true).put("actualAdditionalActivityCaptures",cases.length())
             return summary
-        } finally {persist()}
+        } catch(error: Throwable) { primaryFailure=error;throw error }
+        finally {
+            try {persist()} catch(error: Throwable) {
+                if(primaryFailure==null)throw error
+                if(primaryFailure!==error)primaryFailure!!.addSuppressed(error)
+            }
+        }
     }
     private fun extractionReferenceToggle(activity: Activity, scope: Scope, folder: File, proof: JSONObject) {
         val owner=requireNotNull(field(activity,"service") as? MobileService)
@@ -2010,8 +2020,9 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("mainConfigurationCountContribution",0).put("expectedCases",JSONArray(scope.historySpecialIds.keys.toList()))
             .put("cases",entries).put("completed",false)
         val journalBefore=scope.journal.exportJson(); val historyBefore=scope.history.entries
-        fun persist() { File(directory,"manifest.json").writeText(summary.toString(2)) }
+        fun persist() { WindowProofStreamingWriter.writeStrict(summary,File(directory,"manifest.json")) }
         persist()
+        var primaryFailure: Throwable?=null
         try {
             for((case,id) in scope.historySpecialIds) {
                 val expected=scope.expectedSamples(id)
@@ -2026,6 +2037,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     .put("declaredReferenceSamples",pointRecords(emptyList()))
                     .put("status","RUNNING").put("visualAcceptance","ASTRA_PENDING")
                 entries.put(proof); persist()
+                var caseFailure: Throwable?=null
                 try {
                     val activity=when(page) {
                         "history"->start(HistoryActivity::class.java).also { selectHistory(it,id,requireNonemptySamples=false) }
@@ -2143,12 +2155,24 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     check(scope.journal.exportJson()==journalBefore && scope.history.entries==historyBefore)
                     proof.put("readOnlyModelsUnchanged",true).put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
                 } catch(error: Throwable) {
-                    proof.put("status","FAIL").put("failure",error.stackTraceToString()); throw error
-                } finally { File(caseDirectory,"case.json").writeText(proof.toString(2)); persist() }
+                    caseFailure=error;proof.put("status","FAIL").put("failure",error.stackTraceToString()); throw error
+                } finally {
+                    try { File(caseDirectory,"case.json").writeText(proof.toString(2)); persist() }
+                    catch(error: Throwable) {
+                        if(caseFailure==null)throw error
+                        if(caseFailure!==error)caseFailure!!.addSuppressed(error)
+                    }
+                }
             }
             summary.put("completed",true).put("actualAdditionalActivityCaptures",entries.length()).put("mainConfigurationCountContribution",0)
             return summary
-        } finally { persist() }
+        } catch(error: Throwable) { primaryFailure=error;throw error }
+        finally {
+            try {persist()} catch(error: Throwable) {
+                if(primaryFailure==null)throw error
+                if(primaryFailure!==error)primaryFailure!!.addSuppressed(error)
+            }
+        }
     }
     fun run(arguments: Bundle): Int {
         check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock")

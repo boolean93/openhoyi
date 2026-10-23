@@ -13,6 +13,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 
 /** Exact byte oracle compiled against unmodified Android 34 org.json sources. */
 public final class WindowProofStreamingWriterOracle {
@@ -245,7 +247,156 @@ public final class WindowProofStreamingWriterOracle {
         strictFailure("strict-rename-failure",ordinary,3);
     }
 
+    private static void realSummary(Path source, String sourceSha) throws Exception {
+        byte[] original=Files.readAllBytes(source);
+        if(!sha(original).equals(sourceSha))throw new AssertionError("real summary input SHA changed");
+        JSONObject parsed=new JSONObject(new String(original,StandardCharsets.UTF_8));
+        byte[] expected=parsed.toString(2).getBytes(StandardCharsets.UTF_8);
+        Path folder=Files.createTempDirectory("window-proof-real-summary-");
+        try {
+            Path canonical=folder.resolve("manifest.json");
+            WindowProofStreamingWriter.writeStrict(parsed,canonical.toFile());
+            byte[] actual=Files.readAllBytes(canonical);
+            if(!Arrays.equals(expected,actual))throw new AssertionError("real summary strict differs from SDK toString(2)");
+            if(!Arrays.equals(original,actual))throw new AssertionError("real summary strict differs from ZIP member");
+            System.out.println("realSummary=true zipBytesEqual=true bytes="+actual.length+" sha256="+sha(actual));
+        }finally {
+            try(java.util.stream.Stream<Path> paths=Files.list(folder)) {
+                paths.forEach(path->{try{Files.deleteIfExists(path);}catch(IOException e){throw new RuntimeException(e);}});
+            }
+            Files.deleteIfExists(folder);
+        }
+    }
+
+    private static void limitedRealSummary(Path source, long expectedBytes, String expectedSha) throws Exception {
+        JSONObject parsed=new JSONObject(Files.readString(source));
+        Path folder=Files.createTempDirectory("window-proof-limited-real-summary-");
+        try {
+            Path canonical=folder.resolve("manifest.json");
+            WindowProofStreamingWriter.writeStrict(parsed,canonical.toFile());
+            long bytes=Files.size(canonical);
+            String digest=shaFile(canonical);
+            if(bytes!=expectedBytes || !digest.equals(expectedSha))
+                throw new AssertionError("limited real summary length/SHA differs from normal heap");
+            System.out.println("limitedRealSummary=true parsedAndWrittenSameProcess=true bytes="+bytes+" sha256="+digest);
+            Files.delete(canonical);
+        }finally{Files.deleteIfExists(folder);}
+    }
+
+    // Offline control-flow model of the two Kotlin special-state functions. It does not execute Android code;
+    // the Kotlin catch/finally boundaries must also be reviewed statically against this model.
+    private static final class SpecialStateResult {
+        final List<String> writes=new ArrayList<>();
+        Throwable thrown;
+        boolean completed;
+        boolean proofFailed;
+    }
+
+    private static void failIf(Throwable error) throws Throwable {if(error!=null)throw error;}
+
+    private static SpecialStateResult specialStateFlow(boolean history, Throwable caseError, Throwable cleanupError,
+            Throwable caseJsonError, Throwable casePersistError, Throwable finalPersistError) {
+        SpecialStateResult result=new SpecialStateResult();
+        Throwable primary=null;
+        if(history){result.writes.add("initialPersist");result.writes.add("runningPersist");}
+        try {
+            if(history) {
+                Throwable current=null;
+                try {failIf(caseError);}
+                catch(Throwable error){current=error;result.proofFailed=true;throw error;}
+                finally {
+                    try {
+                        result.writes.add("caseJson");failIf(caseJsonError);
+                        result.writes.add("casePersist");failIf(casePersistError);
+                    }catch(Throwable error) {
+                        if(current==null)throw error;
+                        if(current!=error)current.addSuppressed(error);
+                    }
+                }
+            }else{
+                Throwable current=caseError;
+                if(current!=null)result.proofFailed=true;
+                if(cleanupError!=null){
+                    if(current==null)current=cleanupError;
+                    else if(current!=cleanupError)current.addSuppressed(cleanupError);
+                    result.proofFailed=true;
+                }
+                try {
+                    result.writes.add("caseJson");failIf(caseJsonError);
+                    result.writes.add("casePersist");failIf(casePersistError);
+                }catch(Throwable error){
+                    if(current==null)current=error;
+                    else if(current!=error)current.addSuppressed(error);
+                }
+                failIf(current);
+            }
+            result.completed=true;
+        }catch(Throwable error){primary=error;result.thrown=error;}
+        finally{
+            try {result.writes.add("finalPersist");failIf(finalPersistError);}
+            catch(Throwable error){
+                if(primary==null)result.thrown=error;
+                else if(primary!=error)primary.addSuppressed(error);
+            }
+        }
+        return result;
+    }
+
+    private static void flowAssert(String name, SpecialStateResult actual, Throwable expected,
+            boolean completed, boolean proofFailed, String writes, Throwable... suppressed) {
+        if(actual.thrown!=expected || actual.completed!=completed || actual.proofFailed!=proofFailed ||
+                !String.join(",",actual.writes).equals(writes) ||
+                !Arrays.equals(actual.thrown==null?new Throwable[0]:actual.thrown.getSuppressed(),suppressed))
+            throw new AssertionError("special flow mismatch: "+name+" writes="+actual.writes);
+        System.out.println("specialFlow="+name+" identity=true suppressedOrder=true completed="+completed+
+            " writes="+writes);
+    }
+
+    private static void specialStateFlows() {
+        for(boolean history:new boolean[]{false,true}){
+            String prefix=history?"history":"extraction";
+            String start=history?"initialPersist,runningPersist,":"";
+            String complete=start+"caseJson,casePersist,finalPersist";
+            Error write=new AssertionError("case-persist");
+            flowAssert(prefix+"-write-only",specialStateFlow(history,null,null,null,write,null),write,
+                false,false,complete);
+            Error primary=new AssertionError("case");
+            Error writeAfterCase=new AssertionError("case-persist");
+            Error finalWrite=new AssertionError("final-persist");
+            flowAssert(prefix+"-case-and-two-writes",specialStateFlow(history,primary,null,null,writeAfterCase,finalWrite),
+                primary,false,true,complete,writeAfterCase,finalWrite);
+            Error json=new AssertionError("case-json");
+            flowAssert(prefix+"-json-short-circuit",specialStateFlow(history,null,null,json,null,null),
+                json,false,false,start+"caseJson,finalPersist");
+            Error jsonAfterCase=new AssertionError("case-json");
+            Error finalAfterJson=new AssertionError("final-persist");
+            Error caseBeforeJson=new AssertionError("case");
+            flowAssert(prefix+"-case-json-final",specialStateFlow(history,caseBeforeJson,null,jsonAfterCase,null,finalAfterJson),
+                caseBeforeJson,false,true,start+"caseJson,finalPersist",jsonAfterCase,finalAfterJson);
+            flowAssert(prefix+"-success",specialStateFlow(history,null,null,null,null,null),null,
+                true,false,complete);
+            Error onlyFinal=new AssertionError("final-persist");
+            flowAssert(prefix+"-final-only",specialStateFlow(history,null,null,null,null,onlyFinal),onlyFinal,
+                true,false,complete);
+        }
+        Error cleanup=new AssertionError("cleanup");
+        Error caseWrite=new AssertionError("case-persist");
+        Error finalWrite=new AssertionError("final-persist");
+        flowAssert("extraction-cleanup-and-two-writes",
+            specialStateFlow(false,null,cleanup,null,caseWrite,finalWrite),cleanup,false,true,
+            "caseJson,casePersist,finalPersist",caseWrite,finalWrite);
+    }
+
     public static void main(String[] args)throws Exception {
+        if(args.length==1 && "--special-state-flows".equals(args[0])) {
+            specialStateFlows();return;
+        }
+        if(args.length==3 && "--real-summary".equals(args[0])) {
+            realSummary(Path.of(args[1]),args[2]);return;
+        }
+        if(args.length==4 && "--limited-summary".equals(args[0])) {
+            limitedRealSummary(Path.of(args[1]),Long.parseLong(args[2]),args[3]);return;
+        }
         if(args.length==2 && "--limited".equals(args[0])) {
             JSONObject geometry=new JSONObject(Files.readString(Path.of(args[1])));
             JSONObject syntheticPressure=new JSONObject().put("attempts",new JSONArray()

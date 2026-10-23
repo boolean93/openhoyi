@@ -25,7 +25,7 @@ def node_record(node, paths):
     return {'path': paths[node], 'attributes': dict(node.attrib)}
 
 
-def find_target(xml, text, contains=False):
+def find_target(xml, text, contains=False, node_class=None):
     root = ET.fromstring(xml)
     parents = {child: parent for parent in root.iter() for child in parent}
     paths = {root: '0'}
@@ -45,6 +45,9 @@ def find_target(xml, text, contains=False):
                   'ancestorChain': [], 'selectionReason': None, 'selectedNode': None,
                   'selectedBounds': None, 'center': None, 'invalidReason': None}
         candidates.append(record)
+        if node_class is not None and node.get('class') != node_class:
+            record['invalidReason'] = 'class-filtered'
+            continue
         candidate = node
         child = node
         while candidate is not None:
@@ -87,13 +90,14 @@ def find_target(xml, text, contains=False):
     return next(iter(targets), None)
 
 
-def save_ambiguity_diagnostics(directory, xml, error, selector, contains, attempt, completed_scrolls, foreground):
+def save_ambiguity_diagnostics(directory, xml, error, selector, contains, attempt, completed_scrolls, foreground,
+                               node_class=None):
     parent = Path(directory)
     parent.mkdir(parents=True, exist_ok=True)
     folder = Path(tempfile.mkdtemp(prefix='ambiguous-', dir=parent))
     source = xml.encode('utf-8')
     (folder / 'hierarchy.xml').write_bytes(source)
-    record = {'selector': selector, 'contains': contains, 'attempt': attempt,
+    record = {'selector': selector, 'contains': contains, 'nodeClass': node_class, 'attempt': attempt,
               'completedScrollDirections': completed_scrolls,
               'foregroundCheckBeforeHierarchy': foreground,
               'hierarchySha256': hashlib.sha256(source).hexdigest(),
@@ -129,6 +133,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('text')
     parser.add_argument('--contains', action='store_true')
+    parser.add_argument('--node-class')
     parser.add_argument('--scroll', action='store_true')
     parser.add_argument('--diagnostics-dir')
     args = parser.parse_args()
@@ -140,12 +145,12 @@ def main():
         foreground = ensure_mock()
         xml = read_hierarchy()
         try:
-            point = find_target(xml, args.text, args.contains)
+            point = find_target(xml, args.text, args.contains, args.node_class)
         except AmbiguousMockControl as error:
             if args.diagnostics_dir:
                 try:
                     save_ambiguity_diagnostics(args.diagnostics_dir, xml, error, args.text,
-                        args.contains, attempt, completed_scrolls, foreground)
+                        args.contains, attempt, completed_scrolls, foreground, args.node_class)
                 except OSError as write_error:
                     print(f'Mock selector diagnostic write failed: {write_error}', file=sys.stderr)
             raise
