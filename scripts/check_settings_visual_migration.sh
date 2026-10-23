@@ -180,6 +180,31 @@ required={
 'machine':{'section-'+str(index) for index in range(5)} | {'section-recreated','invalid-brew','invalid-compensation',
 'invalid-steam','legal-input-mock-preview','temperature-native-ime','schedule-draft-native-ime','schedule-cancel-no-write','device-confirmed-unknown-recovery','no-service-disabled'},
 'scale-settings':{'precision-recreated','real-scale-no-data','ready-nonmock-hardware-capabilities'}}
+def validate_measured_window_attempt(proof,attempt):
+    assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000
+    assert proof['captureWindowKind']=='EXPLICIT_WINDOW' and proof['mappingMode']=='MEASURED_WINDOW_BUFFER_TRANSLATION'
+    assert attempt['accepted'] and attempt['withinMatchingBudget'] and attempt['geometryUnchanged']
+    assert attempt['windowReadyAtBothEnds'] and attempt['windowLayerMatch'] and attempt['displayStable']
+    assert attempt['windowDomainColorSpacesEqual'] and attempt['displayDomainColorSpacesEqual']
+    complete=[event for event in attempt['budget'] if event['stage']=='comparison_complete']
+    assert len(complete)==1 and 0<=complete[0]['elapsedMs']<=5000 and complete[0]['remainingMs']>=0
+    assert all(attempt[key]['count']==0 for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'))
+    source=attempt['windowSourceRectPx'];dx,dy=attempt['measuredSourceTranslationPx']
+    assert len(source)==4 and len(attempt['measuredSourceTranslationPx'])==2 and dx>=0 and dy>=0
+    roi=[source[0]+dx,source[1]+dy,source[2]+dx,source[3]+dy]
+    assert attempt['surface-beforeSourceRectAfterSdk']==roi==attempt['surface-afterSourceRectAfterSdk']
+    assert attempt['windowLayerRoiPx']==roi
+    before=attempt['geometryBefore'];after=attempt['geometryAfter']
+    decor=before['windowDecorSizePx']
+    assert decor==after['windowDecorSizePx'] and source==[0,0,decor[0],decor[1]]
+    size=[decor[0]+2*dx,decor[1]+2*dy]
+    assert attempt['measuredWindowLayerSizePx']==size
+    assert attempt['layer-before']['sizePx']==size==attempt['layer-after']['sizePx']
+    assert 0<=roi[0]<roi[2]<=size[0] and 0<=roi[1]<roi[3]<=size[1]
+    assert before['target']==after['target']
+    for geometry in (before,after):
+        assert geometry['mappingMode']==proof['mappingMode']
+
 def require_protocol(path, kind=None):
     assert path.is_file(), ('Missing expected protocol2 proof',str(path))
     proof=json.loads(path.read_text())
@@ -196,7 +221,10 @@ def require_protocol(path, kind=None):
     assert attempt['windowLayerMatch'] and attempt['displayStable']
     for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'):assert attempt[key]['count']==0,(path,key)
     source=attempt['windowSourceRectPx']; screen=attempt['displayAppRectPx']
-    assert attempt['surface-beforeSourceRectAfterSdk']==source==attempt['surface-afterSourceRectAfterSdk'],path
+    measured=(path.parent.name=='language-write-rejected' and path.parent.parent.name=='special-states'
+        and path.parent.parent.parent.name=='app')
+    if measured: validate_measured_window_attempt(proof,attempt)
+    else: assert attempt['surface-beforeSourceRectAfterSdk']==source==attempt['surface-afterSourceRectAfterSdk'],path
     for geometry in (attempt['geometryBefore'],attempt['geometryAfter']):
         assert geometry['hasWindowFocus'] and not geometry['rootLayoutRequested'] and not geometry['decorLayoutRequested']
         target=geometry['target']
@@ -209,9 +237,10 @@ def require_protocol(path, kind=None):
         assert geometry['decorLocationInWindowPx']==[0,0]
         assert screen[0]-source[0]==ds[0] and screen[1]-source[1]==ds[1]
         assert 0<=source[0]<source[2]<=decor[0] and 0<=source[1]<source[3]<=decor[1]
-        assert attempt['layer-before']['sizePx']==decor==attempt['layer-after']['sizePx']
+        if not measured: assert attempt['layer-before']['sizePx']==decor==attempt['layer-after']['sizePx']
         if proof['captureWindowKind']=='EXPLICIT_WINDOW':
-            assert proof['mappingMode']=='EXPLICIT_WINDOW_MEASURED_DECOR'
+            assert proof['mappingMode']==('MEASURED_WINDOW_BUFFER_TRANSLATION' if measured else 'EXPLICIT_WINDOW_MEASURED_DECOR')
+            assert geometry['mappingMode']==proof['mappingMode']
             assert geometry['windowIdentity']==proof['windowIdentity'] and geometry['decorIdentity']==proof['decorIdentity']
             assert geometry['rootIdentity']==proof['rootIdentity'] and geometry['rootViewIdentity']==proof['decorIdentity']
             assert geometry['rootTokenIdentity']==geometry['decorTokenIdentity']==proof['windowTokenIdentity']
@@ -223,6 +252,7 @@ def require_protocol(path, kind=None):
                 assert node['tokenIdentity']==proof['windowTokenIdentity'] and node['displayId']==0
                 assert node['matrixIdentity'] and node['transform']==[1,1,0,0,0,0,0,0]
         else:
+            assert not measured
             assert proof['mappingMode']=='ACTIVITY_STRICT_METRICS_DECOR'
             assert geometry['windowMetricsBoundsPx']==[ds[0],ds[1],ds[0]+decor[0],ds[1]+decor[1]]
     artifacts=proof['captureArtifacts']
@@ -257,10 +287,39 @@ def require_whole(actual):
         typography=text['actualTypography']
         assert {'textSizePx','weight','typeface','textScaleX','textSkewX','fakeBold','letterSpacingEm','baselineScreenPx','colors','actualLayout','fontMetricsPx'}<=set(typography)
 
+def validate_language_dialog_target(accepted,safe,proof):
+    assert safe==accepted['safeControls']
+    assert safe['dialogIdentity']>0 and safe['ownerActivityIdentity']>0
+    assert safe['windowIdentity']==proof['windowIdentity'] and safe['decorIdentity']==proof['decorIdentity']
+    assert all(safe[key] is True for key in ('callbackIsDialog','dialogWindowIsWindow','ownerMatches',
+        'decorAttached','decorLaidOut','decorHasWindowFocus','uniqueFocusedWindow','safeIntersectsVisibleFrame'))
+    assert safe['decorLayoutRequested'] is False and safe['density']>0
+    assert safe['safeRectScreenPx']==accepted['decorScreenPx'] or (
+        accepted['decorScreenPx'][0]<=safe['safeRectScreenPx'][0]<safe['safeRectScreenPx'][2]<=accepted['decorScreenPx'][2] and
+        accepted['decorScreenPx'][1]<=safe['safeRectScreenPx'][1]<safe['safeRectScreenPx'][3]<=accepted['decorScreenPx'][3])
+    frame=safe['visibleFrameScreenPx'];rect=safe['safeRectScreenPx']
+    assert frame[0]<=rect[0]<rect[2]<=frame[2] and frame[1]<=rect[1]<rect[3]<=frame[3]
+    node_by_identity={}
+    for node in accepted['nodes']:
+        node_by_identity.setdefault(node['viewIdentity'],[]).append(node)
+    control_ids=[]
+    for control in safe['controls']:
+        identity=control['viewIdentity'];control_ids.append(identity)
+        assert identity>0 and len(node_by_identity.get(identity,[]))==1
+        raw={key:value for key,value in control.items() if key not in ('roles','isShown','heightPx','isButton','isEditText')}
+        assert raw==node_by_identity[identity][0]
+        assert control['heightPx']==control['rectPx'][3]-control['rectPx'][1]
+        if control['isButton']: assert control['heightPx']>=int(48*safe['density'])
+        if control['isEditText']: assert control['heightPx']>=int(52*safe['density'])
+    assert len(control_ids)==len(set(control_ids))
+    focused=[control for control in safe['controls'] if 'focused' in control['roles']]
+    assert len(focused)==1 and safe['focusedControlIdentity']==focused[0]['viewIdentity']
+
 def require_state(folder,kind):
     assert (folder/'window.png').is_file() and (folder/'geometry.json').is_file(),folder
     proof=require_protocol(folder/'window-frame-sync.json',kind)
-    accepted=proof['attempts'][proof['acceptedAttempt']-1]['geometryBefore']['target']
+    accepted_attempt=proof['attempts'][proof['acceptedAttempt']-1]
+    accepted=accepted_attempt['geometryBefore']['target']
     assert json.loads((folder/'geometry.json').read_text())==accepted
     if kind=='EXPLICIT_WINDOW':
         typography=json.loads((folder/'dialog-typography.json').read_text())
@@ -272,12 +331,17 @@ def require_state(folder,kind):
         for text in texts:
             assert {'textSizePx','weight','typeface','textScaleX','textSkewX','fakeBold','letterSpacingEm','baselineScreenPx','colors','actualLayout','fontMetricsPx'}<=set(text['actualTypography'])
         safe=json.loads((folder/'safe-controls.json').read_text());assert safe['controls']
+        if folder.name=='language-write-rejected' and folder.parent.parent.name=='app':
+            assert accepted_attempt['geometryAfter']['target']==accepted
+            validate_language_dialog_target(accepted,safe,proof)
         expected={'language-write-rejected':{'negative'},'legal-input-mock-preview':{'positive'},
                   'schedule-draft-native-ime':{'positive','negative'},'schedule-cancel-no-write':{'positive','negative'}}[folder.name]
         buttons=safe['buttonRoles'];assert {button['role'] for button in buttons}=={'positive','negative'} and len(buttons)==2
         for button in buttons:
             assert isinstance(button['present'],bool) and isinstance(button['isShown'],bool)
             assert button['isShown']==(button['role'] in expected) and (not button['isShown'] or button['present'])
+            if folder.name=='language-write-rejected' and button['isShown']:
+                assert button['identity'] in {control['viewIdentity'] for control in safe['controls'] if button['role'] in control['roles']}
         left,top,right,bottom=safe['safeRectScreenPx']
         shown_roles=set()
         for control in safe['controls']:

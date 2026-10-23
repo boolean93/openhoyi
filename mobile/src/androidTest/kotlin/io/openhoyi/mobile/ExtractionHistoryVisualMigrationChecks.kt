@@ -6,6 +6,7 @@ import android.app.ActivityManager
 import android.app.Application
 import android.app.Instrumentation
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.ComponentName
 import android.content.ServiceConnection
@@ -986,27 +987,227 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         main { File(folder,"geometry.json").writeText(geometry(activity).put("sameCompositorFrameProven",false)
             .put("protocol","unsynchronized_failure_diagnostic_not_protocol2_acceptance").toString(2)) }
     }
+    private fun baselineView(view: TextView?): JSONObject {
+        if (view == null) return JSONObject().put("present", false).put("valid", false)
+            .put("invalidReason", "missing_unit_view")
+        val attached=view.isAttachedToWindow; val shown=view.isShown; val requested=view.isLayoutRequested
+        val layoutPresent=view.layout!=null; val local=view.baseline
+        val origin=IntArray(2); if(attached) view.getLocationOnScreen(origin)
+        val valid=attached && shown && layoutPresent && !requested && local>=0
+        val reason=when {
+            !attached -> "detached_view"
+            !shown -> "not_shown"
+            !layoutPresent -> "text_layout_not_built"
+            requested -> "view_layout_requested"
+            local<0 -> "negative_local_baseline"
+            else -> null
+        }
+        return JSONObject().put("present",true).put("identity",System.identityHashCode(view))
+            .put("text",view.text.toString()).put("attached",attached).put("isShown",shown)
+            .put("layoutPresent",layoutPresent).put("viewLayoutRequested",requested)
+            .put("originOnScreenPx",if(attached) JSONArray(origin.toList()) else JSONObject.NULL)
+            .put("localBaselinePx",local)
+            .put("screenBaselinePx",if(valid) origin[1]+local else JSONObject.NULL)
+            .put("valid",valid).put("invalidReason",reason ?: JSONObject.NULL)
+    }
+    private fun baselinePairs(activity: Activity): JSONArray {
+        val content=root(activity); val pairs=JSONArray()
+        nodes(content).filterIsInstance<TextView>().filter { (it.tag as? String)?.endsWith("/number")==true && it.isShown }
+            .forEach { number ->
+                val prefix=(number.tag as String).removeSuffix("/number")
+                val unit=content.findViewWithTag<TextView>("$prefix/unit")
+                if(unit==null || !unit.isShown) return@forEach
+                val numberEvidence=baselineView(number); val unitEvidence=baselineView(unit)
+                val valid=numberEvidence.getBoolean("valid") && unitEvidence.getBoolean("valid")
+                val exact=valid && numberEvidence.getInt("screenBaselinePx")==unitEvidence.getInt("screenBaselinePx")
+                pairs.put(JSONObject().put("semanticId",prefix)
+                    .put("number",numberEvidence).put("unit",unitEvidence)
+                    .put("numberBaselineOnScreenPx",if(valid) numberEvidence.getInt("screenBaselinePx") else JSONObject.NULL)
+                    .put("unitBaselineOnScreenPx",if(valid) unitEvidence.getInt("screenBaselinePx") else JSONObject.NULL)
+                    .put("status",when { !valid -> "FAIL_INVALID_BASELINE"; exact -> "PASS_EXACT_BASELINE_ONLY"; else -> "FAIL_EXACT_BASELINE_MISMATCH" }))
+            }
+        return pairs
+    }
+    private fun captureTarget(activity: Activity): JSONObject {
+        val pairs=baselinePairs(activity)
+        return geometry(activity).put("typographyEvidence",TaskTypographyEvidence.snapshot(activity))
+            .put("baselinePairs",pairs).put("baselinePairCount",pairs.length())
+            .put("baselinePairIds",JSONArray((0 until pairs.length()).map {pairs.getJSONObject(it).getString("semanticId")}))
+    }
     private fun capture(activity: Activity, folder: File): NativeWindowFrameEvidence.CapturedFrame {
         check(folder.isDirectory || folder.mkdirs())
-        val result=frames.screenshot(activity,root(activity),File(folder,"window.png")) { geometry(activity) }
-        main {
-            File(folder,"geometry.json").writeText(geometry(activity).toString(2)); TaskTypographyEvidence.capture(activity,folder)
-            val pairs=JSONArray()
-            nodes(root(activity)).filterIsInstance<TextView>().filter { (it.tag as? String)?.endsWith("/number")==true }.forEach { number ->
-                val prefix=(number.tag as String).removeSuffix("/number")
-                val unit=root(activity).findViewWithTag<TextView>("$prefix/unit")
-                if(unit!=null && number.isShown && unit.isShown) {
-                    val n=IntArray(2); val u=IntArray(2); number.getLocationOnScreen(n); unit.getLocationOnScreen(u)
-                    val numberBaseline=n[1]+number.baseline; val unitBaseline=u[1]+unit.baseline
-                    check(numberBaseline==unitBaseline) { "M5 actual number/unit baseline mismatch: $prefix" }
-                    pairs.put(JSONObject().put("semanticId",prefix).put("numberBaselineOnScreenPx",numberBaseline)
-                        .put("unitBaselineOnScreenPx",unitBaseline).put("status","PASS_EXACT_BASELINE_ONLY"))
-                }
-            }
-            File(folder,"baseline-alignment.json").writeText(pairs.toString(2))
+        main { TaskTypographyEvidence.verify(activity) }
+        val result=frames.screenshot(activity,root(activity),File(folder,"window.png")) { captureTarget(activity) }
+        val target=result.target; val pairs=target.getJSONArray("baselinePairs")
+        File(folder,"geometry.json").writeText(target.toString(2))
+        File(folder,"${activity.javaClass.simpleName}-typography.json")
+            .writeText(target.getJSONObject("typographyEvidence").toString(2))
+        File(folder,"baseline-alignment.json").writeText(pairs.toString(2))
+        check(target.getInt("baselinePairCount")==pairs.length() &&
+            target.getJSONArray("baselinePairIds").length()==pairs.length()) {"M5 baseline pair count/ID mismatch"}
+        for(index in 0 until pairs.length()) {
+            val pair=pairs.getJSONObject(index); val id=pair.getString("semanticId")
+            check(target.getJSONArray("baselinePairIds").getString(index)==id) {"M5 baseline pair ID mismatch: $id"}
+            check(pair.getJSONObject("number").getBoolean("valid") && pair.getJSONObject("unit").getBoolean("valid")) {
+                "M5 actual number/unit baseline invalid: $id ${pair.getJSONObject("number").optString("invalidReason")} / ${pair.getJSONObject("unit").optString("invalidReason")}" }
+            check(pair.getInt("numberBaselineOnScreenPx")==pair.getInt("unitBaselineOnScreenPx") &&
+                pair.getString("status")=="PASS_EXACT_BASELINE_ONLY") {"M5 actual number/unit baseline mismatch: $id"}
         }
         check(result.proof.getInt("protocolVersion")==2 && result.proof.getBoolean("accepted"))
         return result
+    }
+    private fun requireExtractionPlot(activity: Activity, folder: File, frame: NativeWindowFrameEvidence.CapturedFrame): JSONObject {
+        val chart=requireNotNull(root(activity).findViewWithTag<ExtractionOverlayView>("product/extraction/chart"))
+        val plot=requireNotNull(chart.findViewWithTag<View>("chart-plot"))
+        val visibility=historyVisibility(plot)
+        check(visibility.getBoolean("screenMappingVerified")) {"M5 Extraction plot screen mapping failed"}
+        val rect=visibility.getJSONArray("visibleRectPx")
+        val viewport=android.graphics.RectF(rect.getDouble(0).toFloat(),rect.getDouble(1).toFloat(),
+            rect.getDouble(2).toFloat(),rect.getDouble(3).toFloat())
+        val origin=IntArray(2);plot.getLocationOnScreen(origin)
+        val charts=frame.target.getJSONArray("charts")
+        val canvas=(0 until charts.length()).map {charts.getJSONObject(it)}
+            .single {it.getString("class")=="ExtractionOverlayView"}.getJSONArray("canvasEvidence")
+        val operations=(0 until canvas.length()).map {canvas.getJSONObject(it)}
+        val drawing=operations.single {it.optString("operation")=="plot"}.getJSONArray("boundsPx")
+        val bounds=android.graphics.RectF(drawing.getDouble(0).toFloat()+origin[0],drawing.getDouble(1).toFloat()+origin[1],
+            drawing.getDouble(2).toFloat()+origin[0],drawing.getDouble(3).toFloat()+origin[1])
+        val visible=android.graphics.RectF(bounds).apply {if(!intersect(viewport))setEmpty()}
+        val inks=operations.filter {it.optString("operation")=="text" &&
+            it.optString("role") in setOf("axis-unit","axis-tick","time-tick","time-unit")}.map {operation ->
+            val raw=operation.getJSONArray("glyphBoundsPx")
+            val ink=android.graphics.RectF(raw.getDouble(0).toFloat()+origin[0],raw.getDouble(1).toFloat()+origin[1],
+                raw.getDouble(2).toFloat()+origin[0],raw.getDouble(3).toFloat()+origin[1])
+            JSONObject().put("role",operation.getString("role")).put("text",operation.getString("text"))
+                .put("glyphScreenBoundsPx",JSONArray(listOf(ink.left,ink.top,ink.right,ink.bottom)))
+                .put("completeInVisiblePlotView",ink.left>=viewport.left && ink.top>=viewport.top &&
+                    ink.right<=viewport.right && ink.bottom<=viewport.bottom)
+        }
+        val density=activity.resources.displayMetrics.density
+        val evidence=JSONObject().put("frameSync",frame.proof).put("plotView",visibility)
+            .put("canvasPlotBoundsScreenPx",JSONArray(listOf(bounds.left,bounds.top,bounds.right,bounds.bottom)))
+            .put("visibleCanvasPlotBoundsScreenPx",JSONArray(listOf(visible.left,visible.top,visible.right,visible.bottom)))
+            .put("actualPlotHeightDp",bounds.height()/density).put("visiblePlotHeightDp",visible.height()/density)
+            .put("axisInk",JSONArray(inks)).put("actualSampleCount",chart.points.size)
+        File(folder,"extraction-plot-budget.json").writeText(evidence.toString(2))
+        check(bounds.height()/density>=96f && visible.height()/density>=96f) {
+            "M5 Extraction real Canvas plot / visible intersection <96dp: $evidence" }
+        check(inks.isNotEmpty() && inks.all {it.getBoolean("completeInVisiblePlotView")}) {
+            "M5 Extraction axis glyph clipped: $evidence" }
+        return evidence
+    }
+    private fun extractionChartHeaderReachability(activity: Activity, scope: Scope, folder: File,
+        initial: NativeWindowFrameEvidence.CapturedFrame): JSONObject {
+        val chart=requireNotNull(root(activity).findViewWithTag<ExtractionOverlayView>("product/extraction/chart"))
+        val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val legend=field(chart,"legend") as View
+        val explanation=field(chart,"explanation") as TextView
+        val caption=field(chart,"referenceCaption") as TextView
+        val targets=nodes(legend).filterIsInstance<Button>().filter {it.visibility==View.VISIBLE}.map {button ->
+            val metric=(button.tag as String).removePrefix("chart-metric:").lowercase(java.util.Locale.ROOT)
+            "legend-$metric" to (button as View)
+        } + listOf("explanation" to (explanation as View)) +
+            (if(caption.visibility==View.VISIBLE && caption.text.isNotEmpty())
+                listOf("reference-caption" to (caption as View)) else emptyList())
+        check(targets.size in 4..6 && targets.map {it.first}.distinct().size==targets.size)
+        val savedX=header.scrollX;val savedY=header.scrollY
+        val owner=requireNotNull(field(activity,"service") as? MobileService)
+        val support=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
+        val start=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/start"))
+        val stop=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/stop"))
+        val density=activity.resources.displayMetrics.density
+        fun fixedAction(): JSONObject {
+            check(root(activity).findViewWithTag<Button>("product/extraction/start")===start &&
+                root(activity).findViewWithTag<Button>("product/extraction/stop")===stop)
+            val expected=StopActionPresentation.describe(owner.shotState,owner.snapshot.coffeeState,owner.running)
+            check(stop.isEnabled==expected.enabled &&
+                (stop.visibility==View.VISIBLE)==expected.visible &&
+                (start.visibility==View.VISIBLE)==!expected.visible)
+            val visible=if(expected.visible)stop else start
+            check(whole(screenObservation(visible))) {"M5 Extraction visible fixed action clipped: ${visible.tag}"}
+            return JSONObject().put("semanticId",visible.tag).put("rectPx",observation(visible).getJSONArray("rectPx"))
+                .put("enabled",visible.isEnabled).put("text",visible.text.toString())
+                .put("startVisibility",start.visibility).put("startEnabled",start.isEnabled).put("startText",start.text.toString())
+                .put("stopVisibility",stop.visibility).put("stopEnabled",stop.isEnabled).put("stopText",stop.text.toString())
+                .put("startIdentity",System.identityHashCode(start)).put("stopIdentity",System.identityHashCode(stop))
+        }
+        fun unchangedState(): JSONObject {
+            check(field(activity,"service")===owner && field(activity,"chart")===chart &&
+                root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll")===support)
+            return JSONObject().put("serviceIdentity",System.identityHashCode(owner))
+                .put("chartIdentity",System.identityHashCode(chart)).put("headerIdentity",System.identityHashCode(header))
+                .put("supportScrollIdentity",System.identityHashCode(support))
+                .put("supportScrollPx",JSONArray(listOf(support.scrollX,support.scrollY)))
+                .put("shotState",owner.shotState.name).put("manualShotActive",owner.manualShotActive)
+                .put("traceIdentity",owner.chartTraceIdentity ?: JSONObject.NULL)
+                .put("curveId",owner.chartCurveId ?: JSONObject.NULL)
+                .put("ownerPoints",pointRecords(owner.chartPoints))
+                .put("chartTraceIdentity",chart.traceIdentity ?: JSONObject.NULL)
+                .put("chartPoints",pointRecords(chart.points)).put("chartReference",pointRecords(chart.reference))
+                .put("referenceId",field(activity,"referenceId") ?: JSONObject.NULL)
+                .put("referenceCurveId",field(activity,"referenceCurveId") ?: JSONObject.NULL)
+                .put("journalExport",scope.journal.exportJson())
+                .put("journalResultFailed",app.journalResult.isFailure)
+                .put("fixedAction",fixedAction())
+        }
+        fun targetRecord(key:String,view:View):JSONObject {
+            val result=JSONObject().put("semanticKey",key).put("layout",screenObservation(view))
+                .put("identity",System.identityHashCode(view))
+            if(key.startsWith("legend-")) {
+                check(view is Button && view.width/density>=48f && view.height/density>=48f) {
+                    "M5 Extraction legend actual touch target <48dp: $key ${view.width}x${view.height} density=$density" }
+                result.put("touchWidthPx",view.width).put("touchHeightPx",view.height).put("density",density)
+                    .put("minimumTouchDp",48)
+            }
+            return result
+        }
+        val initialState=unchangedState()
+        val initialTargets=JSONArray(targets.map {(key,view)->targetRecord(key,view)})
+        val initialPlot=requireExtractionPlot(activity,folder,initial)
+        val plotRect=initialPlot.getJSONArray("canvasPlotBoundsScreenPx").toString()
+        val reached=JSONArray();var restored: NativeWindowFrameEvidence.CapturedFrame?=null
+        try {
+            targets.forEach { (key,view) ->
+                main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
+                frames.committedFrame(root(activity))
+                val targetFolder=File(folder,"states/chart-header-$key-reachable")
+                val frame=capture(activity,targetFolder)
+                main {
+                    val target=targetRecord(key,view)
+                    val layout=target.getJSONObject("layout")
+                    check(whole(layout)) {"M5 Extraction chart header target not wholly reachable: $key $layout"}
+                    check(view.parent!=null && nodes(header).any {it===view})
+                    val current=unchangedState()
+                    check(current.toString()==initialState.toString()) {"M5 Extraction header reach changed business state: $key"}
+                    val plot=requireExtractionPlot(activity,targetFolder,frame)
+                    check(plot.getJSONArray("canvasPlotBoundsScreenPx").toString()==plotRect)
+                    reached.put(target.put("state",current).put("scrollPx",JSONArray(listOf(header.scrollX,header.scrollY)))
+                        .put("frameSync",frame.proof))
+                }
+            }
+        } finally {
+            main {header.scrollTo(savedX,savedY)}
+            frames.committedFrame(root(activity))
+            restored=capture(activity,File(folder,"states/chart-header-restored"))
+        }
+        var restoredState: JSONObject?=null
+        main {
+            check(root(activity).findViewWithTag<ExtractionOverlayView>("product/extraction/chart")===chart &&
+                chart.findViewWithTag<ScrollView>("product/extraction/chart-header")===header &&
+                header.scrollX==savedX && header.scrollY==savedY &&
+                targets.all {(_,view)->nodes(header).any {it===view}})
+            restoredState=unchangedState()
+            check(restoredState.toString()==initialState.toString()) {"M5 Extraction header restore changed business state"}
+            val plot=requireExtractionPlot(activity,File(folder,"states/chart-header-restored"),requireNotNull(restored))
+            check(plot.getJSONArray("canvasPlotBoundsScreenPx").toString()==plotRect)
+        }
+        return JSONObject().put("targetKeys",JSONArray(targets.map {it.first})).put("initialTargets",initialTargets)
+            .put("reached",reached).put("initialState",initialState).put("restoredState",requireNotNull(restoredState))
+            .put("initialScrollPx",JSONArray(listOf(savedX,savedY)))
+            .put("restoredScrollPx",JSONArray(listOf(header.scrollX,header.scrollY)))
+            .put("exactScrollRestored",true).put("completed",true).also {
+                File(folder,"chart-header-reachability.json").writeText(it.toString(2))
+            }
     }
     private fun action(activity: Activity, label: Int): TextView=nodes(root(activity)).filterIsInstance<TextView>()
         .single { it.isClickable && it.text.toString()==activity.getString(label) }
@@ -1180,6 +1381,144 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("modeSubtitle",screenObservation(mode)).put("modeLocation","header_outside_support_scroll_in_current_version")
             .put("noToolClicks",true).put("modelAndSelectionUnchanged",true).put("completed",true).toString(2))
     }
+    private fun extractionSpecialSupportReachability(activity: Activity, scope: Scope, folder: File, case: String): JSONObject {
+        val expected=when(case) {
+            "UNKNOWN_live"->listOf("choose-beans","reference-choice","overview","prepare","cancel-prepare")
+            "manual"->listOf("reference-choice","overview","prepare","cancel-prepare")
+            "no_service_ready"->listOf("connect-devices","choose-beans","reference-choice","overview","prepare","cancel-prepare")
+            else->listOf("reference-choice","overview")
+        }
+        val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
+        val chart=requireNotNull(field(activity,"chart") as? ExtractionOverlayView)
+        val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val owner=requireNotNull(field(activity,"service") as? MobileService)
+        val start=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/start"))
+        val stop=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/stop"))
+        val choice=field(activity,"referenceChoice") as Button
+        val overview=nodes(requireNotNull(choice.parent as? View)).filterIsInstance<Button>()
+            .single {it!==choice && it.text.toString()==activity.getString(R.string.extraction_overview)}
+        val all=linkedMapOf("connect-devices" to field(activity,"connectDevices") as Button,
+            "choose-beans" to field(activity,"chooseBeans") as Button,
+            "reference-choice" to choice,"overview" to overview,
+            "prepare" to field(activity,"prepare") as Button,
+            "cancel-prepare" to field(activity,"cancelPrepare") as Button)
+        val chooseCurve=field(activity,"chooseCurve") as Button
+        val preparationTools=field(activity,"preparationTools") as View
+        fun expectedEnabled(key:String)=key!="prepare" && key!="cancel-prepare" &&
+            !(case=="manual" && key=="reference-choice")
+        check(chooseCurve.visibility==View.GONE && all.keys.toList().filter {all.getValue(it).isShown}==expected &&
+            all.all {(key,view)->view.isEnabled==expectedEnabled(key)} &&
+            all.values.distinct().size==all.size && all.values.all {it.isAttachedToWindow && it in nodes(scroll)}) {
+            "M5 Extraction special support targets mismatch: $case" }
+        val saved=JSONArray(listOf(scroll.scrollX,scroll.scrollY));val headerSaved=JSONArray(listOf(header.scrollX,header.scrollY))
+        val visibleAction=if(StopActionPresentation.describe(owner.shotState,owner.snapshot.coffeeState,owner.running).visible)stop else start
+        val density=activity.resources.displayMetrics.density
+        val state: () -> JSONObject = {
+            check(field(activity,"service")===owner && field(activity,"chart")===chart &&
+                root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll")===scroll &&
+                chart.findViewWithTag<ScrollView>("product/extraction/chart-header")===header &&
+                all.all {(key,view)->key=="overview" || field(activity,when(key) {
+                    "connect-devices"->"connectDevices";"choose-beans"->"chooseBeans";"reference-choice"->"referenceChoice"
+                    "prepare"->"prepare";else->"cancelPrepare"})===view})
+            check(chooseCurve.visibility==View.GONE &&
+                all.keys.filter {all.getValue(it).isShown}==expected &&
+                all.all {(key,view)->view.isEnabled==expectedEnabled(key)})
+            val stopPolicy=StopActionPresentation.describe(owner.shotState,owner.snapshot.coffeeState,owner.running)
+            check(stop.isEnabled==stopPolicy.enabled && (stop.visibility==View.VISIBLE)==stopPolicy.visible &&
+                (start.visibility==View.VISIBLE)==!stopPolicy.visible && whole(screenObservation(visibleAction)))
+            val plot=requireNotNull(chart.findViewWithTag<View>("chart-plot"))
+            JSONObject().put("serviceIdentity",System.identityHashCode(owner))
+                .put("chartIdentity",System.identityHashCode(chart)).put("supportIdentity",System.identityHashCode(scroll))
+                .put("headerIdentity",System.identityHashCode(header)).put("headerScrollPx",JSONArray(listOf(header.scrollX,header.scrollY)))
+                .put("plotRectPx",observation(plot).getJSONArray("rectPx"))
+                .put("shotState",owner.shotState.name).put("manualShotActive",owner.manualShotActive)
+                .put("traceIdentity",owner.chartTraceIdentity ?: JSONObject.NULL).put("curveId",owner.chartCurveId ?: JSONObject.NULL)
+                .put("ownerPoints",pointRecords(owner.chartPoints))
+                .put("pendingStartId",owner.mockExtractionPendingStartId ?: JSONObject.NULL)
+                .put("pendingStopId",owner.mockExtractionPendingStopId ?: JSONObject.NULL)
+                .put("preparationToolsVisibility",preparationTools.visibility)
+                .put("preparationToolsEffectiveShown",preparationTools.isShown)
+                .put("toolStates",JSONArray(all.map {(key,view)->JSONObject().put("semanticKey",key)
+                    .put("identity",System.identityHashCode(view)).put("visibility",view.visibility)
+                    .put("effectiveShown",view.isShown).put("parentVisibility",(view.parent as View).visibility)
+                    .put("enabled",view.isEnabled).put("text",view.text.toString())}))
+                .put("chartTraceIdentity",chart.traceIdentity ?: JSONObject.NULL)
+                .put("chartPoints",pointRecords(chart.points)).put("chartReference",pointRecords(chart.reference))
+                .put("referenceId",field(activity,"referenceId") ?: JSONObject.NULL)
+                .put("referenceCurveId",field(activity,"referenceCurveId") ?: JSONObject.NULL)
+                .put("journalExport",scope.journal.exportJson()).put("journalResultFailed",app.journalResult.isFailure)
+                .put("fixedAction",JSONObject().put("semanticId",visibleAction.tag).put("rectPx",observation(visibleAction).getJSONArray("rectPx"))
+                    .put("text",visibleAction.text.toString()).put("enabled",visibleAction.isEnabled)
+                    .put("startVisibility",start.visibility).put("startEnabled",start.isEnabled)
+                    .put("stopVisibility",stop.visibility).put("stopEnabled",stop.isEnabled))
+        }
+        fun target(key:String,view:View):JSONObject {
+            check(view.isAttachedToWindow && view in nodes(scroll))
+            val result=JSONObject().put("semanticKey",key).put("identity",System.identityHashCode(view))
+                .put("layout",screenObservation(view))
+            if(view is Button) {
+                check(view.width/density>=48f && view.height/density>=48f)
+                result.put("widthPx",view.width).put("heightPx",view.height).put("density",density)
+                    .put("enabled",view.isEnabled).put("text",view.text.toString())
+            }
+            return result
+        }
+        val baseline=state()
+        check(headerSaved.toString()==baseline.getJSONArray("headerScrollPx").toString())
+        val tools=expected.map {it to all.getValue(it)}
+        val initial=JSONArray(tools.map {(key,view)->target(key,view)})
+        val textViews=listOf("device-summary" to field(activity,"deviceSummary") as TextView,
+            "preparation-summary" to field(activity,"preparationSummary") as TextView)
+            .filter {(_,view)->view.visibility==View.VISIBLE}
+        val initialText=JSONArray(textViews.map {(key,view)->target(key,view)})
+        val reached=JSONArray();val reachedText=JSONArray()
+        try {
+            for ((key,view) in tools) {
+                main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
+                frames.committedFrame(root(activity))
+                val phase=File(folder,"states/extraction-support-$key-reachable")
+                val frame=capture(activity,phase)
+                main {
+                    val record=target(key,view)
+                    check(whole(record.getJSONObject("layout"))) {"M5 Extraction special support tool clipped: $case/$key"}
+                    val current=state();check(current.toString()==baseline.toString())
+                    reached.put(record.put("state",current).put("scrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
+                        .put("frameSync",frame.proof))
+                }
+            }
+            for (index in textViews.indices) {
+                val (key,view)=textViews[index]
+                if(!whole(initialText.getJSONObject(index).getJSONObject("layout"))) {
+                    main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
+                    frames.committedFrame(root(activity))
+                    val phase=File(folder,"states/extraction-support-$key-reachable")
+                    val frame=capture(activity,phase)
+                    main {
+                        val record=target(key,view)
+                        check(whole(record.getJSONObject("layout"))) {"M5 Extraction special support text clipped: $case/$key"}
+                        val current=state();check(current.toString()==baseline.toString())
+                        reachedText.put(record.put("state",current).put("scrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
+                            .put("frameSync",frame.proof))
+                    }
+                }
+            }
+        } finally {
+            main {scroll.scrollTo(saved.getInt(0),saved.getInt(1))}
+            frames.committedFrame(root(activity))
+        }
+        val restored=capture(activity,File(folder,"states/extraction-support-restored"))
+        val finalState=state()
+        check(scroll.scrollX==saved.getInt(0) && scroll.scrollY==saved.getInt(1) &&
+            finalState.toString()==baseline.toString())
+        return JSONObject().put("case",case).put("targetKeys",JSONArray(expected)).put("initialTargets",initial)
+            .put("reached",reached).put("initialText",initialText).put("reachedText",reachedText)
+            .put("initialState",baseline).put("restoredState",finalState)
+            .put("initialScrollPx",saved).put("restoredScrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
+            .put("restoredFrameSync",restored.proof).put("chooseCurveVisibility",chooseCurve.visibility)
+            .put("noToolClicks",true).put("completed",true).also {
+                File(folder,"extraction-support-reachability.json").writeText(it.toString(2))
+            }
+    }
     private fun extractionSpecialStates(folder: File, theme: String, source: String, profile: String): JSONObject {
         check(extractionScenarioShotIds.keys.toList()==extractionPendingSpecialCases &&
             extractionScenarioShotIds.values.toSet().size==extractionPendingSpecialCases.size &&
@@ -1299,6 +1638,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             (field(activity,"chart") as ExtractionOverlayView).traceIdentity==owner.chartTraceIdentity
                     }
                     val frame=capture(activity,caseFolder)
+                    proof.put("chartHeaderReachability",extractionChartHeaderReachability(activity,scope,caseFolder,frame))
+                    proof.put("supportReachability",extractionSpecialSupportReachability(activity,scope,caseFolder,case))
                     main {
                         val chart=field(activity,"chart") as ExtractionOverlayView
                         check(field(activity,"service")===owner && chart.traceIdentity==owner.chartTraceIdentity)
@@ -1331,7 +1672,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             .put("stop",screenObservation(stop)).put("frameSync",frame.proof)
                     }
                     if(case=="historical_reference_toggle")extractionReferenceToggle(activity,scope,caseFolder,proof)
-                    if(case=="journal_unavailable")extractionJournalUnavailable(activity,caseFolder,proof)
+                    if(case=="journal_unavailable")extractionJournalUnavailable(activity,scope,caseFolder,proof)
                     proof.put("offeredMachineFrames",inputs).put("operationInputs",operationInputs)
                         .put("shotId",shotId ?: JSONObject.NULL)
                         .put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
@@ -1382,6 +1723,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 field(activity,"referenceId")==selected && (field(activity,"chart") as ExtractionOverlayView).reference.isNotEmpty()
             }
             val on=capture(activity,File(folder,"states/extraction-reference-on"))
+            proof.put("referenceOnChartHeaderReachability",extractionChartHeaderReachability(activity,scope,
+                File(folder,"states/extraction-reference-on"),on))
             main {
                 val chart=field(activity,"chart") as ExtractionOverlayView
                 check(chart.reference==ExtractionReference.align(scope.expectedSamples(selected)).points &&
@@ -1394,12 +1737,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 field(activity,"referenceId")==null && (field(activity,"chart") as ExtractionOverlayView).reference.isEmpty()
             }
             val off=capture(activity,File(folder,"states/extraction-reference-off"))
+            proof.put("referenceOffChartHeaderReachability",extractionChartHeaderReachability(activity,scope,
+                File(folder,"states/extraction-reference-off"),off))
             proof.put("referenceOffFrameSync",off.proof)
         } finally {
             main {scroll.scrollTo(beforeScroll.first,beforeScroll.second)}
             frames.committedFrame(root(activity))
         }
-        capture(activity,File(folder,"states/extraction-reference-restored"))
+        val restored=capture(activity,File(folder,"states/extraction-reference-restored"))
+        proof.put("referenceRestoredChartHeaderReachability",extractionChartHeaderReachability(activity,scope,
+            File(folder,"states/extraction-reference-restored"),restored))
         main {
             check(scroll.scrollX==beforeScroll.first && scroll.scrollY==beforeScroll.second)
             check(owner.chartTraceIdentity==trace && owner.chartPoints==points && field(activity,"referenceId")==null)
@@ -1410,27 +1757,154 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         proof.put("referenceToggleActualSavedJournal",true).put("selectionAndScrollRestored",true)
             .put("currentCupAndJournalUnchanged",true)
     }
-    private fun extractionJournalUnavailable(activity: Activity, folder: File, proof: JSONObject) {
+    private fun focusedJournalDialog(activity: Activity): AlertDialog? {
+        val foreign=android.view.inspector.WindowInspector.getGlobalWindowViews().filter {it!==activity.window.decorView}
+        check(foreign.size<=1) {"M5 ambiguous journal chooser Window"}
+        val decor=foreign.singleOrNull() ?: return null
+        if(!decor.isAttachedToWindow || !decor.isLaidOut || !decor.hasWindowFocus() || decor.isLayoutRequested) return null
+        val window=decor.javaClass.getDeclaredField("mWindow").apply {isAccessible=true}.get(decor) as android.view.Window
+        check(window.decorView===decor)
+        val dialog=window.callback as AlertDialog
+        var owner:Context=dialog.context
+        while(owner is ContextWrapper && owner!==activity) owner=owner.baseContext
+        check(dialog.window===window && dialog.isShowing &&
+            (dialog.ownerActivity===activity || owner===activity) && decor.windowToken!=null) {
+            "M5 journal chooser Window is not owned by current Activity" }
+        return dialog
+    }
+    private fun extractionJournalUnavailable(activity: Activity, scope: Scope, folder: File, proof: JSONObject) {
         val button=field(activity,"referenceChoice") as Button
-        check(app.journalResult.isFailure)
-        main {check(button.isEnabled);button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
-        frames.committedFrame(root(activity))
-        main {check(whole(screenObservation(button)));check(button.performClick())}
-        test.waitForIdleSync()
-        main {
-            val dialog=android.view.inspector.WindowInspector.getGlobalWindowViews().single {it !== activity.window.decorView}
-            val list=nodes(dialog).filterIsInstance<ListView>().single()
+        val support=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
+        val chart=field(activity,"chart") as ExtractionOverlayView
+        val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val owner=requireNotNull(field(activity,"service") as? MobileService)
+        val supportX=support.scrollX;val supportY=support.scrollY
+        val headerX=header.scrollX;val headerY=header.scrollY
+        val trace=owner.chartTraceIdentity;val shot=owner.shotState;val points=owner.chartPoints.toList()
+        val referenceCurve=field(activity,"referenceCurveId")
+        val journal=scope.journal.exportJson()
+        val start=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/start"))
+        val stop=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/stop"))
+        val fixedAction=if(stop.visibility==View.VISIBLE)stop else start
+        check(app.journalResult.isFailure && chart.reference.isEmpty() && field(activity,"referenceId")==null)
+        fun activityState(requireActionWhole:Boolean):JSONObject {
+            check(field(activity,"service")===owner && field(activity,"chart")===chart &&
+                root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll")===support &&
+                chart.findViewWithTag<ScrollView>("product/extraction/chart-header")===header)
+            check(owner.chartTraceIdentity==trace && owner.shotState==shot && owner.chartPoints==points &&
+                chart.traceIdentity==trace && chart.reference.isEmpty() && field(activity,"referenceId")==null &&
+                field(activity,"referenceCurveId")==referenceCurve && app.journalResult.isFailure &&
+                scope.journal.exportJson()==journal && header.scrollX==headerX && header.scrollY==headerY)
+            val actionLayout=observation(fixedAction)
+            if(requireActionWhole)check(whole(screenObservation(fixedAction)))
+            return JSONObject().put("serviceIdentity",System.identityHashCode(owner))
+                .put("chartIdentity",System.identityHashCode(chart))
+                .put("supportIdentity",System.identityHashCode(support))
+                .put("headerIdentity",System.identityHashCode(header))
+                .put("headerScrollPx",JSONArray(listOf(header.scrollX,header.scrollY)))
+                .put("shotState",owner.shotState.name).put("manualShotActive",owner.manualShotActive)
+                .put("traceIdentity",owner.chartTraceIdentity ?: JSONObject.NULL)
+                .put("curveId",owner.chartCurveId ?: JSONObject.NULL)
+                .put("ownerPoints",pointRecords(owner.chartPoints))
+                .put("chartTraceIdentity",chart.traceIdentity ?: JSONObject.NULL)
+                .put("chartPoints",pointRecords(chart.points)).put("chartReference",pointRecords(chart.reference))
+                .put("pendingStartId",owner.mockExtractionPendingStartId ?: JSONObject.NULL)
+                .put("pendingStopId",owner.mockExtractionPendingStopId ?: JSONObject.NULL)
+                .put("referenceId",field(activity,"referenceId") ?: JSONObject.NULL)
+                .put("referenceCurveId",field(activity,"referenceCurveId") ?: JSONObject.NULL)
+                .put("journalExport",scope.journal.exportJson()).put("journalResultFailed",app.journalResult.isFailure)
+                .put("fixedAction",JSONObject().put("identity",System.identityHashCode(fixedAction))
+                    .put("semanticId",fixedAction.tag).put("rectPx",actionLayout.getJSONArray("rectPx"))
+                    .put("text",fixedAction.text.toString()).put("enabled",fixedAction.isEnabled)
+                    .put("visibility",fixedAction.visibility).put("startVisibility",start.visibility)
+                    .put("startEnabled",start.isEnabled).put("stopVisibility",stop.visibility)
+                    .put("stopEnabled",stop.isEnabled))
+        }
+        val initialState=activityState(true)
+        fun unchanged(requireActionWhole:Boolean):JSONObject=activityState(requireActionWhole).also {
+            check(it.toString()==initialState.toString()) {"M5 journal chooser changed Activity model or fixed action"}
+        }
+        var dialog:AlertDialog?=null;var failure:Throwable?=null
+        try {
+            main {check(button.isEnabled);button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
+            frames.committedFrame(root(activity))
+            main {check(whole(screenObservation(button)));proof.put("journalUnavailableBeforeDialogState",unchanged(true));check(button.performClick())}
+            await("unique focused real journal chooser") {
+                dialog=focusedJournalDialog(activity);dialog!=null
+            }
+            val actual=requireNotNull(dialog);val window=requireNotNull(actual.window);val decor=window.decorView
+            val list=nodes(decor).filterIsInstance<ListView>().single()
+            val title=nodes(decor).filterIsInstance<TextView>().single {it.text.toString()==activity.getString(R.string.reference_choose)}
+            val cancel=requireNotNull(actual.getButton(AlertDialog.BUTTON_NEGATIVE))
+            check(cancel.id==android.R.id.button2 && cancel.text.toString()==activity.getString(R.string.machine_settings_cancel))
             check(list.count==1 && list.adapter.getItem(0).toString()==activity.getString(R.string.reference_off))
-            check(list.performItemClick(requireNotNull(list.getChildAt(0)),0,list.adapter.getItemId(0)))
+            val off=requireNotNull(list.getChildAt(0)) as TextView
+            check(off.text.toString()==activity.getString(R.string.reference_off))
+            fun typography(view:TextView):JSONObject=JSONObject().put("identity",System.identityHashCode(view))
+                .put("text",view.text.toString()).put("textSizePx",view.textSize).put("textColor",view.currentTextColor)
+                .put("typefaceWeight",if(Build.VERSION.SDK_INT>=28) view.typeface?.weight ?: JSONObject.NULL else JSONObject.NULL)
+                .put("fakeBold",view.paint.isFakeBoldText).put("letterSpacing",view.letterSpacing)
+                .put("includeFontPadding",view.includeFontPadding).put("baseline",view.baseline)
+                .put("layout",screenObservation(view))
+            fun dialogState():JSONObject {
+                check(focusedJournalDialog(activity)===actual && window.decorView===decor &&
+                    decor.windowToken===list.windowToken && decor.windowToken===cancel.windowToken)
+                val observedActivity=unchanged(false)
+                val density=activity.resources.displayMetrics.density
+                check(whole(screenObservation(title)) && whole(screenObservation(off)) && whole(screenObservation(cancel)))
+                check(off.width/density>=48f && off.height/density>=48f &&
+                    cancel.width/density>=48f && cancel.height/density>=48f)
+                val position=IntArray(2);decor.getLocationOnScreen(position)
+                val safe=Rect();decor.getWindowVisibleDisplayFrame(safe)
+                return JSONObject().put("windowIdentity",System.identityHashCode(window))
+                    .put("decorIdentity",System.identityHashCode(decor)).put("tokenIdentity",System.identityHashCode(decor.windowToken))
+                    .put("ownerActivityIdentity",System.identityHashCode(activity))
+                    .put("decorOriginScreenPx",JSONArray(position.toList())).put("decorSizePx",JSONArray(listOf(decor.width,decor.height)))
+                    .put("safeRectScreenPx",rect(safe)).put("title",typography(title))
+                    .put("off",typography(off)).put("cancel",typography(cancel))
+                    .put("allNativeText",JSONArray(nodes(decor).filterIsInstance<TextView>().map(::typography)))
+                    .put("listCount",list.count).put("offItemId",list.adapter.getItemId(0))
+                    .put("offTouchPx",JSONArray(listOf(off.width,off.height)))
+                    .put("cancelTouchPx",JSONArray(listOf(cancel.width,cancel.height)))
+                    .put("density",density).put("journalResultFailed",app.journalResult.isFailure)
+                    .put("referenceId",field(activity,"referenceId") ?: JSONObject.NULL)
+                    .put("chartReferenceCount",chart.reference.size)
+                    .put("traceIdentity",trace ?: JSONObject.NULL).put("shotState",shot.name)
+                    .put("sampleCount",points.size)
+                    .put("activityState",observedActivity)
+            }
+            val dialogFolder=File(folder,"states/extraction-journal-unavailable-dialog").apply {check(isDirectory || mkdirs())}
+            val dialogFrame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(dialogFolder,"window.png")) {dialogState()}
+            File(dialogFolder,"geometry.json").writeText(dialogFrame.target.toString(2))
+            File(dialogFolder,"typography.json").writeText(dialogFrame.target.getJSONArray("allNativeText").toString(2))
+            check(dialogFrame.proof.getInt("protocolVersion")==2 && dialogFrame.proof.getBoolean("accepted"))
+            proof.put("journalUnavailableDialog",dialogFrame.target).put("journalUnavailableDialogFrameSync",dialogFrame.proof)
+            main {check(focusedJournalDialog(activity)===actual &&
+                list.performItemClick(off,0,list.adapter.getItemId(0)))}
+            await("journal chooser closed after original off item") {
+                android.view.inspector.WindowInspector.getGlobalWindowViews().none {it!==activity.window.decorView} && activity.hasWindowFocus()
+            }
+            val frame=capture(activity,File(folder,"states/extraction-journal-unavailable-choice"))
+            main {proof.put("journalUnavailableChoiceState",unchanged(true))}
+            proof.put("journalUnavailableChoiceFrameSync",frame.proof)
+        } catch(error:Throwable) {failure=error}
+        finally {
+            try {
+                main {dialog?.takeIf {it.isShowing}?.dismiss()
+                    support.scrollTo(supportX,supportY);header.scrollTo(headerX,headerY)}
+                frames.committedFrame(root(activity))
+                val restored=capture(activity,File(folder,"states/extraction-journal-unavailable-restored"))
+                main {check(android.view.inspector.WindowInspector.getGlobalWindowViews().none {it!==activity.window.decorView} &&
+                    support.scrollX==supportX && support.scrollY==supportY)
+                    proof.put("journalUnavailableRestoredState",unchanged(true))}
+                proof.put("journalUnavailableRestoredFrameSync",restored.proof)
+                    .put("journalUnavailableInitialState",initialState)
+                    .put("journalUnavailableInitialScrollPx",JSONArray(listOf(supportX,supportY,headerX,headerY)))
+                    .put("journalUnavailableRestoredScrollPx",JSONArray(listOf(support.scrollX,support.scrollY,header.scrollX,header.scrollY)))
+            } catch(error:Throwable) {if(failure==null)failure=error else failure!!.addSuppressed(error)}
         }
-        test.waitForIdleSync()
-        val frame=capture(activity,File(folder,"states/extraction-journal-unavailable-choice"))
-        main {
-            check(app.journalResult.isFailure && field(activity,"referenceId")==null &&
-                (field(activity,"chart") as ExtractionOverlayView).reference.isEmpty())
-        }
+        failure?.let {throw it}
         proof.put("actualJournalResultFailed",true).put("chooserOnlyOffNoFakeRecord",true)
-            .put("journalUnavailableChoiceFrameSync",frame.proof)
     }
     private fun comparisonReachability(activity:Activity,scope:Scope,folder:File) {
         val toolbar=requireNotNull(root(activity).findViewWithTag<ScrollView>("comparison-toolbar"))
@@ -1740,7 +2214,9 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     window.getInt("densityDpi")==360 && window.getString("locale").startsWith("zh") && !window.getBoolean("imeVisible"))
             }
             when(page) {
-                "extraction"->{active.verifyExtraction(activity,captureStartedAtRealMs,captureFinishedAtRealMs);extractionReachability(activity,directory)}
+                "extraction"->{active.verifyExtraction(activity,captureStartedAtRealMs,captureFinishedAtRealMs)
+                    manifest.put("chartHeaderReachability",extractionChartHeaderReachability(activity,active,directory,captured))
+                    extractionReachability(activity,directory)}
                 "history"->{historyPreviewReachability(activity,active,directory);savedHistoryBusiness(activity,active,directory)}
                 "history-detail"->detailReachability(activity,active,directory)
                 else->{comparisonReachability(activity,active,directory);comparisonBusiness(activity,active,directory)}

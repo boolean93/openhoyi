@@ -647,7 +647,40 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         main {dialog.dismiss()};await("actual dialog dismissed and owner focus restored") {!dialog.isShowing && !requireNotNull(dialog.window).decorView.isAttachedToWindow && ready(activity)}
         frames.committedFrame(root(activity))
     }
-    private fun dialogGeometry(window:android.view.Window):JSONObject {
+    private fun dialogSafeControls(dialog:AlertDialog,owner:Activity,window:android.view.Window):JSONObject {
+        var ownerContext:Context=dialog.context
+        while(ownerContext is android.content.ContextWrapper && ownerContext !is Activity)ownerContext=ownerContext.baseContext
+        val decor=window.decorView;val visible=Rect();decor.getWindowVisibleDisplayFrame(visible)
+        val origin=IntArray(2);decor.getLocationOnScreen(origin)
+        val safe=Rect(origin[0],origin[1],origin[0]+decor.width,origin[1]+decor.height)
+        val safeIntersectsVisibleFrame=safe.intersect(visible)
+        val focused=decor.findFocus()
+        val positive=dialog.getButton(AlertDialog.BUTTON_POSITIVE);val negative=dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+        val buttons=listOf("positive" to positive,"negative" to negative)
+        val controls=JSONArray(listOfNotNull(positive,negative,focused).distinct().filter {it.isShown}.map {view ->
+            observation(view).put("roles",JSONArray(listOfNotNull(if(view===positive)"positive" else null,
+                if(view===negative)"negative" else null,if(view===focused)"focused" else null)))
+                .put("isShown",view.isShown).put("heightPx",view.height)
+                .put("isButton",view is Button).put("isEditText",view is android.widget.EditText)
+        })
+        val focusedWindows=android.view.inspector.WindowInspector.getGlobalWindowViews()
+            .filter {it.isAttachedToWindow && it.isLaidOut && it.hasWindowFocus()}
+        return JSONObject().put("safeRectScreenPx",rect(safe)).put("safeIntersectsVisibleFrame",safeIntersectsVisibleFrame)
+            .put("visibleFrameScreenPx",rect(visible)).put("density",owner.resources.displayMetrics.density)
+            .put("dialogIdentity",System.identityHashCode(dialog)).put("windowIdentity",System.identityHashCode(window))
+            .put("decorIdentity",System.identityHashCode(decor)).put("ownerActivityIdentity",System.identityHashCode(owner))
+            .put("callbackIsDialog",window.callback===dialog).put("dialogWindowIsWindow",dialog.window===window)
+            .put("ownerMatches",dialog.ownerActivity===owner || ownerContext===owner)
+            .put("decorAttached",decor.isAttachedToWindow).put("decorLaidOut",decor.isLaidOut)
+            .put("decorLayoutRequested",decor.isLayoutRequested).put("decorHasWindowFocus",decor.hasWindowFocus())
+            .put("uniqueFocusedWindow",focusedWindows.size==1 && focusedWindows[0]===decor)
+            .put("focusedControlIdentity",focused?.let(System::identityHashCode) ?: JSONObject.NULL)
+            .put("buttonRoles",JSONArray(buttons.map {(role,button)->JSONObject().put("role",role)
+                .put("present",button!=null).put("isShown",button?.isShown==true)
+                .put("identity",button?.let(System::identityHashCode) ?: JSONObject.NULL)}))
+            .put("controls",controls)
+    }
+    private fun dialogGeometry(window:android.view.Window,dialog:AlertDialog?=null,owner:Activity?=null):JSONObject {
         check(Looper.myLooper()==Looper.getMainLooper()) {"M8 Settings dialog geometry must observe text on the main thread"}
         val decor=window.decorView;val insets=requireNotNull(decor.rootWindowInsets);val screen=IntArray(2);decor.getLocationOnScreen(screen)
         val available=Rect();decor.getWindowVisibleDisplayFrame(available)
@@ -655,7 +688,12 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             .put("decorScreenPx",rect(Rect(screen[0],screen[1],screen[0]+decor.width,screen[1]+decor.height)))
             .put("actualVisibleFrameScreenPx",rect(available)).put("imeVisible",insets.isVisible(WindowInsets.Type.ime()))
             .put("softInputMode",window.attributes.softInputMode).put("hasWindowFocus",decor.hasWindowFocus())
-            .put("nodes",JSONArray(nodes(decor).filter {it is TextView || it.tag is String}.map(::observation)))
+            .put("nodes",JSONArray(nodes(decor).filter {view ->
+                view is TextView || view.tag is String || (dialog!=null &&
+                    (view===dialog.getButton(AlertDialog.BUTTON_POSITIVE) ||
+                        view===dialog.getButton(AlertDialog.BUTTON_NEGATIVE) || view===decor.findFocus()))
+            }.map(::observation)))
+            .apply {if(dialog!=null && owner!=null)put("safeControls",dialogSafeControls(dialog,owner,window))}
     }
     private fun captureDialog(dialog:AlertDialog,folder:File) {
         check(folder.isDirectory || folder.mkdirs());val window=requireNotNull(dialog.window)
@@ -663,11 +701,37 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         while(ownerContext is android.content.ContextWrapper && ownerContext !is Activity)ownerContext=ownerContext.baseContext
         val owner=dialog.ownerActivity ?: ownerContext as Activity
         check(window.callback===dialog && (dialog.ownerActivity===owner || ownerContext===owner))
-        val frame=frames.screenshot(window,window.decorView,File(folder,"window.png")) {dialogGeometry(window)}
+        val languageRejected=folder.name=="language-write-rejected"
+        if(languageRejected)check(owner is AppSettingsActivity)
+        val frame=if(languageRejected)
+            frames.screenshotMeasuredWindowBufferTranslation(window,window.decorView,File(folder,"window.png")) {
+                dialogGeometry(window,dialog,owner)
+            }
+        else frames.screenshot(window,window.decorView,File(folder,"window.png")) {dialogGeometry(window)}
         File(folder,"geometry.json").writeText(frame.target.toString(2))
         File(folder,"dialog-typography.json").writeText(JSONObject().put("source","accepted_explicit_dialog_window_target_geometry_not_owner_Activity")
             .put("nodes",frame.target.getJSONArray("nodes")).toString(2))
-        main {
+        if(languageRejected) {
+            val safe=frame.target.getJSONObject("safeControls")
+            File(folder,"safe-controls.json").writeText(safe.toString(2))
+            check(safe.getBoolean("callbackIsDialog") && safe.getBoolean("dialogWindowIsWindow") && safe.getBoolean("ownerMatches") &&
+                safe.getBoolean("decorAttached") && safe.getBoolean("decorLaidOut") && !safe.getBoolean("decorLayoutRequested") &&
+                safe.getBoolean("decorHasWindowFocus") && safe.getBoolean("uniqueFocusedWindow") && safe.getBoolean("safeIntersectsVisibleFrame"))
+            val buttons=safe.getJSONArray("buttonRoles")
+            check(buttons.length()==2 && !buttons.getJSONObject(0).getBoolean("isShown") &&
+                buttons.getJSONObject(1).getBoolean("isShown")) {"M8 actual native dialog button role mismatch: ${folder.name}"}
+            val bounds=safe.getJSONArray("safeRectScreenPx")
+            val controls=safe.getJSONArray("controls")
+            check(controls.length()>0)
+            for(index in 0 until controls.length()) {
+                val info=controls.getJSONObject(index);val full=info.getJSONArray("rectPx")
+                check(info.getBoolean("isShown") && whole(info) &&
+                    full.getInt(0)>=bounds.getInt(0) && full.getInt(1)>=bounds.getInt(1) &&
+                    full.getInt(2)<=bounds.getInt(2) && full.getInt(3)<=bounds.getInt(3))
+                if(info.getBoolean("isButton"))check(info.getInt("heightPx")>=HoyiUi.dp(owner,48))
+                if(info.getBoolean("isEditText"))check(info.getInt("heightPx")>=HoyiUi.dp(owner,52))
+            }
+        } else main {
             val visible=Rect();window.decorView.getWindowVisibleDisplayFrame(visible)
             val origin=IntArray(2);window.decorView.getLocationOnScreen(origin)
             val safe=Rect(origin[0],origin[1],origin[0]+window.decorView.width,origin[1]+window.decorView.height)

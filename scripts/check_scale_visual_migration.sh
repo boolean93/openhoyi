@@ -201,11 +201,73 @@ def referenced_file(page, ref, expected):
     assert target.resolve().is_relative_to(page.resolve()) and sha(target)==ref['sha256']
     return target
 
+SNAPSHOT_KEYS={'coffeeState','scaleState','coffee','coffeeAt','alarmBits','alarmAt','settings','settingsAt',
+    'sleepFirst','sleepSecond','sleepFirstAt','sleepSecondAt','weight','weightAt','scaleObservation',
+    'scaleCapabilities','candidates','scanning','message'}
+CAPABILITY_KEYS={'weight','tare','deviceFlow','battery','deviceTimer','validatedWeightControl'}
+MESSAGE_KEYS={
+    'Settings':{'firmwareMajor','firmwareMinor','firmwarePatch','flags','brewTemperatureC',
+        'brewCompensationTenthsC','steamTemperatureC','standbyMinutes','standbyTemperatureC',
+        'cupCount','filterFlags'},
+    'IdleTelemetry':{'brewTemperatureHundredthsC','steamTemperatureHundredthsC',
+        'brewPressureTenthsBar','steamPressureTenthsBar','sleepStateRaw','alarmBits','cupCount','extraSensorRaw'},
+    'ExtractionTelemetry':{'slotOrPhase','elapsedSeconds','pressureTenthsBar','totalWaterTenthsMl',
+        'brewTemperatureHundredthsC','flowTenthsMlPerSecond','statusBits','manualStageRaw'},
+    'SleepPart':{'firstDaySundayIndex','enabledBits','days'}}
+def require_frame(value):
+    assert set(value)=={'size','hex'} and isinstance(value['size'],int) and value['size']>=0
+    assert isinstance(value['hex'],str) and len(value['hex'])==2*value['size']
+    assert all(ch in '0123456789ABCDEF' for ch in value['hex'])
+def require_message(value):
+    assert isinstance(value,dict) and value.get('kind') in MESSAGE_KEYS
+    assert set(value)==MESSAGE_KEYS[value['kind']]|{'kind','raw'}
+    require_frame(value['raw'])
+    if value['kind']=='SleepPart':
+        assert isinstance(value['days'],list)
+        assert all(set(day)=={'sleepHour','sleepMinute','wakeHour','wakeMinute'} for day in value['days'])
+def require_resource(value):
+    assert isinstance(value,dict) and value.get('kind') in {'ResourceMessage','ResourceSequence'}
+    if value['kind']=='ResourceSequence':
+        assert set(value)=={'kind','parts'} and isinstance(value['parts'],list)
+        for part in value['parts']:require_resource(part)
+    else:
+        assert set(value)=={'kind','resourceId','values'} and isinstance(value['resourceId'],int)
+        assert isinstance(value['values'],list)
+        scalar_types={'null','String','Char','Boolean','Byte','Short','Int','Long','Float','Double',
+            'BigInteger','BigDecimal','ResourceText'}
+        for item in value['values']:
+            assert set(item)=={'type','value'} and item['type'] in scalar_types
+            if item['type']=='ResourceText':require_resource(item['value'])
+            elif item['type']=='null':assert item['value'] is None
+def require_snapshot(state):
+    assert state['serviceSnapshotSchemaVersion']==1
+    value=state['serviceSnapshot'];assert isinstance(value,dict) and set(value)==SNAPSHOT_KEYS
+    for key in ('coffee','settings','sleepFirst','sleepSecond'):
+        if value[key] is not None:require_message(value[key])
+    if value['weight'] is not None:
+        weight=value['weight'];assert set(weight)=={'weightHundredthsGram','deviceFlowHundredths',
+            'weightSignRaw','flowSignRaw','raw'};require_frame(weight['raw'])
+    if value['scaleCapabilities'] is not None:assert set(value['scaleCapabilities'])==CAPABILITY_KEYS
+    if value['scaleObservation'] is not None:
+        observation=value['scaleObservation']
+        assert set(observation)=={'hundredthsGram','receivedAtMs','capabilities','evidence',
+            'deviceFlowHundredths','batteryPercent','raw','eligibleForControl'}
+        assert set(observation['capabilities'])==CAPABILITY_KEYS;require_frame(observation['raw'])
+    assert isinstance(value['candidates'],list)
+    assert all(set(candidate)=={'address','advertisedName','rssi','candidateRole','scaleProtocolId'}
+        for candidate in value['candidates'])
+    if value['message'] is not None:
+        message=value['message'];assert set(message)=={'initialText','rendered','isResource','resource'}
+        assert isinstance(message['initialText'],str) and isinstance(message['rendered'],str)
+        assert message['isResource']==(message['resource'] is not None)
+        if message['resource'] is not None:require_resource(message['resource'])
+
 def capture_ref_pair(page, case, directory, kind):
     assert set(case)>= {'geometryRef','frameSyncRef'} and not any(k in case for k in ('geometry','observed','actualWindowGeometry','frameSync'))
     geometry=referenced_file(page,case['geometryRef'],f'{directory}/geometry.json')
     proof=referenced_file(page,case['frameSyncRef'],f'{directory}/window-frame-sync.json')
     observed=json.loads(geometry.read_text());assert isinstance(observed,dict) and observed
+    if 'supportState' in observed:require_snapshot(observed['supportState'])
     accepted=require_protocol(proof,kind)
     assert observed==accepted['attempts'][accepted['acceptedAttempt']-1]['geometryBefore']['target']
     return observed
@@ -226,6 +288,12 @@ for path in manifests:
     require_protocol(folder/'window-frame-sync.json','ACTIVITY')
     negative_folders=[]
     if m['page']=='scale':
+        contract=json.loads((folder/'snapshot-contract.json').read_text())
+        assert contract['schemaVersion']==1 and contract['completed'] and contract['sameValueNewInstancesEqual']
+        assert set(contract['topLevelKeys'])==SNAPSHOT_KEYS
+        assert set(contract['changedValueCases'])=={'sleepDay','sleepEnabledBits','sleepRaw','sleepTimestamp',
+            'capability','candidateOrder','messageResourceId','messageArgument','nullVersusZero',
+            'candidateEmpty','scaleRaw','coffeeField'}
         negative_folders.append(folder/'special-states/short-height-trend-detail/window-negative-cases')
         if not m['window']['productLayoutEvidence']['trendInline']:
             negative_folders.append(folder/'trend-main-data/window-negative-cases')
@@ -353,7 +421,7 @@ for path in manifests:
                     assert stage['whole']==exact['whole'] and stage['visibleLines']==exact['visibleLines']
                     for key in ('activityIdentity','windowIdentity','decorIdentity','rootIdentity','windowTokenIdentity',
                         'scrollIdentity','trendInline','fallbackIdentity','fallbackVisibility','fallbackShown',
-                        'serviceSnapshot','serviceObservationSerial','weight','freshness','tareStatus',
+                        'serviceSnapshotSchemaVersion','serviceSnapshot','serviceObservationSerial','weight','freshness','tareStatus',
                         'deviceStatus','tareEnabled','captureEnabled','fixedPrimary','fixedTare','fixedCaptureFooter'):
                         assert actual[key]==original[key],(state,semantic,key)
                     for key in ('buffer','bufferNow','timer'):

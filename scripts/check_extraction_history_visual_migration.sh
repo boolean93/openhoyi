@@ -167,6 +167,168 @@ def require_proof(path):
         assert attempt[key]['count']==0,(path,key)
     return proof
 
+def validate_same_frame_values(geometry, typography, pairs, before, after):
+    assert geometry==before==after, 'Accepted before/after target differs from saved geometry'
+    assert geometry['typographyEvidence']==typography, 'Typography is not accepted-target typography'
+    assert geometry['baselinePairs']==pairs, 'Baseline file is not accepted-target baseline data'
+    assert geometry['baselinePairCount']==len(pairs)
+    ids=geometry['baselinePairIds']
+    assert ids==[pair['semanticId'] for pair in pairs] and len(ids)==len(set(ids))
+    views={}
+    for view in typography['views']:
+        tag=view.get('tag')
+        if tag and (tag.endswith('/number') or tag.endswith('/unit')):
+            assert tag not in views, ('Duplicate typography tag',tag)
+            views[tag]=view
+    expected=[tag[:-len('/number')] for tag in views if tag.endswith('/number') and tag[:-len('/number')]+'/unit' in views]
+    assert set(ids)==set(expected), ('Visible number/unit pair missing',ids,expected)
+    for pair in pairs:
+        prefix=pair['semanticId']
+        for role in ('number','unit'):
+            item=pair[role]; view=views[prefix+'/'+role]
+            assert type(item['identity']) is int and item['identity']>0
+            assert item['present'] is True and item['text']==view['text']
+            assert item['attached'] is True and item['isShown'] is True
+            assert item['layoutPresent'] is True and item['viewLayoutRequested'] is False
+            assert item['valid'] is True and item['invalidReason'] is None
+            assert type(item['localBaselinePx']) is int and item['localBaselinePx']>=0
+            assert len(item['originOnScreenPx'])==2 and all(type(x) is int for x in item['originOnScreenPx'])
+            assert type(item['screenBaselinePx']) is int
+            assert item['originOnScreenPx'][1]+item['localBaselinePx']==item['screenBaselinePx']
+            layout=view['actualLayout']
+            assert layout['viewOriginOnScreenPx']==item['originOnScreenPx']
+            assert layout['viewAttachedToWindow'] is True and layout['viewLayoutRequested'] is False
+            assert layout['displayedLayoutConfirmed'] is True and layout['status']=='actual_layout_api'
+            assert view['baselinePx']==item['localBaselinePx']
+            assert pair[role+'BaselineOnScreenPx']==item['screenBaselinePx']
+        assert pair['numberBaselineOnScreenPx']==pair['unitBaselineOnScreenPx'], ('Exact baseline mismatch',prefix,pair)
+        assert pair['status']=='PASS_EXACT_BASELINE_ONLY', ('Missing exact baseline result',prefix)
+
+def require_same_frame_capture(folder, proof):
+    assert proof['captureWindowKind']=='ACTIVITY',folder
+    geometry=json.loads((folder/'geometry.json').read_text())
+    typography_files=list(folder.glob('*Activity-typography.json'))
+    assert len(typography_files)==1, ('Missing or duplicate Activity typography',folder)
+    typography=json.loads(typography_files[0].read_text())
+    pairs=json.loads((folder/'baseline-alignment.json').read_text())
+    attempt=proof['attempts'][proof['acceptedAttempt']-1]
+    validate_same_frame_values(geometry,typography,pairs,
+        attempt['geometryBefore']['target'],attempt['geometryAfter']['target'])
+
+def require_extraction_plot(folder):
+    frame=require_proof(folder/'window-frame-sync.json')
+    evidence=json.loads((folder/'extraction-plot-budget.json').read_text())
+    assert evidence['frameSync']==frame
+    assert evidence['plotView']['screenMappingVerified']
+    assert evidence['actualPlotHeightDp']>=96 and evidence['visiblePlotHeightDp']>=96,(folder,evidence)
+    assert evidence['axisInk'] and all(x['completeInVisiblePlotView'] for x in evidence['axisInk'])
+    geometry=json.loads((folder/'geometry.json').read_text())
+    chart=next(x for x in geometry['charts'] if x['class']=='ExtractionOverlayView')
+    plots=[x['boundsPx'] for x in chart['canvasEvidence'] if x['operation']=='plot']
+    assert len(plots)==1 and abs((plots[0][3]-plots[0][1])/(geometry['densityDpi']/160)-evidence['actualPlotHeightDp'])<0.01
+    return evidence
+
+def require_chart_header(folder,metrics,caption=False,action='stop'):
+    expected=[f'legend-{name}' for name in metrics]+['explanation']+(['reference-caption'] if caption else [])
+    reach=json.loads((folder/'chart-header-reachability.json').read_text())
+    assert reach['completed'] and reach['targetKeys']==expected
+    assert [x['semanticKey'] for x in reach['initialTargets']]==expected
+    assert [x['semanticKey'] for x in reach['reached']]==expected
+    assert reach['initialScrollPx']==reach['restoredScrollPx'] and reach['exactScrollRestored']
+    state=reach['initialState']
+    assert reach['restoredState']==state
+    assert state['chartTraceIdentity']==state['traceIdentity']
+    assert state['fixedAction']['semanticId']==f'product/extraction/{action}'
+    fixed=state['fixedAction']
+    assert (fixed['startVisibility']==0)==(action=='start')
+    assert (fixed['stopVisibility']==0)==(action=='stop')
+    assert {fixed['startVisibility'],fixed['stopVisibility']}=={0,8}
+    for key in ('serviceIdentity','chartIdentity','headerIdentity','supportScrollIdentity','supportScrollPx',
+        'shotState','manualShotActive','traceIdentity','curveId','ownerPoints','chartPoints','chartReference',
+        'referenceId','referenceCurveId','journalExport','journalResultFailed','fixedAction'):
+        assert key in state,(folder,key)
+    assert len(state['supportScrollPx'])==2 and all(isinstance(x,int) for x in state['supportScrollPx'])
+    def fixed_geometry(phase):
+        geometry=json.loads((phase/'geometry.json').read_text())
+        matches=[x for x in geometry['nodes'] if x.get('semanticId')==fixed['semanticId']]
+        assert len(matches)==1 and matches[0]['rectPx']==fixed['rectPx']
+        assert matches[0]['complete']
+    require_extraction_plot(folder)
+    fixed_geometry(folder)
+    density=json.loads((folder/'geometry.json').read_text())['densityDpi']/160
+    for initial,reached in zip(reach['initialTargets'],reach['reached']):
+        assert initial['identity']==reached['identity']
+        if initial['semanticKey'].startswith('legend-'):
+            for item in (initial,reached):
+                assert item['minimumTouchDp']==48 and abs(item['density']-density)<0.001
+                assert item['touchWidthPx']>=48*density and item['touchHeightPx']>=48*density
+        phase=folder/'states'/f"chart-header-{reached['semanticKey']}-reachable"
+        require_extraction_plot(phase)
+        fixed_geometry(phase)
+        assert reached['frameSync']==json.loads((phase/'window-frame-sync.json').read_text())
+        assert reached['state']==state
+        require_text_layout(reached['layout'])
+    require_extraction_plot(folder/'states/chart-header-restored')
+    fixed_geometry(folder/'states/chart-header-restored')
+    return reach
+
+def require_special_support(folder,name):
+    basic=['reference-choice','overview']
+    expected={'UNKNOWN_live':['choose-beans',*basic,'prepare','cancel-prepare'],
+        'manual':basic+['prepare','cancel-prepare'],
+        'no_service_ready':['connect-devices','choose-beans',*basic,'prepare','cancel-prepare']}.get(name,basic)
+    reach=json.loads((folder/'extraction-support-reachability.json').read_text())
+    assert reach['completed'] and reach['case']==name and reach['noToolClicks']
+    assert reach['targetKeys']==expected and [x['semanticKey'] for x in reach['initialTargets']]==expected
+    assert [x['semanticKey'] for x in reach['reached']]==expected and reach['chooseCurveVisibility']==8
+    assert reach['initialScrollPx']==reach['restoredScrollPx'] and reach['initialState']==reach['restoredState']
+    state=reach['initialState']; assert len(state['headerScrollPx'])==2
+    assert [x['semanticKey'] for x in state['toolStates']]==['connect-devices','choose-beans','reference-choice',
+        'overview','prepare','cancel-prepare']
+    assert [x['semanticKey'] for x in state['toolStates'] if x['effectiveShown']]==expected
+    assert state['preparationToolsVisibility']==(0 if name in ('UNKNOWN_live','manual','no_service_ready') else 8)
+    assert state['preparationToolsEffectiveShown']==(name in ('UNKNOWN_live','manual','no_service_ready'))
+    assert all(x['visibility'] in (0,8) and x['parentVisibility'] in (0,8) for x in state['toolStates'])
+    assert all(x['enabled']==(x['semanticKey'] not in ('prepare','cancel-prepare') and
+        not (name=='manual' and x['semanticKey']=='reference-choice')) for x in state['toolStates'])
+    assert state['fixedAction']['semanticId']==f"product/extraction/{'start' if name in ('manual','no_service_ready') else 'stop'}"
+    assert state['chartTraceIdentity']==state['traceIdentity']
+    assert state['journalResultFailed']==(name=='journal_unavailable')
+    def fixed_geometry(phase):
+        observed=json.loads((phase/'geometry.json').read_text())
+        fixed=state['fixedAction']; matches=[x for x in observed['nodes'] if x.get('semanticId')==fixed['semanticId']]
+        assert len(matches)==1 and matches[0]['rectPx']==fixed['rectPx'] and matches[0]['complete']
+    fixed_geometry(folder)
+    density=json.loads((folder/'geometry.json').read_text())['densityDpi']/160
+    for first,reached in zip(reach['initialTargets'],reach['reached']):
+        assert first['identity']==reached['identity'] and first['enabled']==reached['enabled'] and first['text']==reached['text']
+        for target in (first,reached):
+            assert abs(target['density']-density)<0.001 and target['widthPx']>=48*density and target['heightPx']>=48*density
+        phase=folder/'states'/f"extraction-support-{reached['semanticKey']}-reachable"
+        assert reached['frameSync']==require_proof(phase/'window-frame-sync.json')
+        assert reached['state']==state and len(reached['scrollPx'])==2
+        require_text_layout(reached['layout']);fixed_geometry(phase)
+    text=reach['initialText'];assert [x['semanticKey'] for x in text] in (["device-summary"],["device-summary","preparation-summary"])
+    def complete_text(layout):
+        return layout['complete'] and all(line['fullViewVisible'] and line['layoutPresent'] and line['lineCount']>0 and
+            line['ellipsisCount']==0 and line['layoutHeightPx']<=line['contentHeightPx'] and
+            all(row['leftPx']>=0 and row['rightPx']<=line['contentWidthPx'] for row in line['horizontalLayoutLines'])
+            for line in layout['textLineBoxes'])
+    clipped=[x['semanticKey'] for x in text if not complete_text(x['layout'])]
+    assert [x['semanticKey'] for x in reach['reachedText']]==clipped
+    for reached in reach['reachedText']:
+        first=next(x for x in text if x['semanticKey']==reached['semanticKey'])
+        assert first['identity']==reached['identity'] and reached['state']==state
+        original_lines=first['layout']['textLineBoxes'];reached_lines=reached['layout']['textLineBoxes']
+        assert len(original_lines)==len(reached_lines) and all(a['text']==b['text'] for a,b in zip(original_lines,reached_lines))
+        phase=folder/'states'/f"extraction-support-{reached['semanticKey']}-reachable"
+        assert reached['frameSync']==require_proof(phase/'window-frame-sync.json')
+        require_text_layout(reached['layout']);fixed_geometry(phase)
+    restored=folder/'states/extraction-support-restored'
+    assert reach['restoredFrameSync']==require_proof(restored/'window-frame-sync.json')
+    fixed_geometry(restored)
+    return reach
+
 def require_text_layout(layout,skip_taste=False):
     assert layout['complete']
     for text in layout['textLineBoxes']:
@@ -308,7 +470,8 @@ for path in manifests:
     proof_files=list(folder.rglob('*-frame-sync.json'))
     assert proof_files, path
     for proof_file in proof_files:
-        require_proof(proof_file)
+        proof=require_proof(proof_file)
+        if proof['captureWindowKind']=='ACTIVITY': require_same_frame_capture(proof_file.parent,proof)
     assert isolation['originalLazyIdentityAndInitializedRestored'] and isolation['legacyUnchanged']
     assert isolation['allActivitiesDestroyed'] and isolation['historyDetailReadersTerminated'] and isolation['comparisonReaderPoolsTerminated']
     assert isolation['mainQueueBarrierAfterReaders'] and isolation['scopedWritersTerminated']
@@ -397,6 +560,10 @@ for path in manifests:
             special_captures+=1
     else:
         # Full M5 may not report success without the reviewed real RUNNING service proof.
+        main_header=require_chart_header(folder,['pressure','water','weight','temperature'])
+        assert m['chartHeaderReachability']==main_header
+        assert main_header['initialState']['shotState']=='RUNNING'
+        assert main_header['initialState']['traceIdentity']=='m5-live-shot'
         live=json.loads((folder/'extraction-business.json').read_text())
         assert live['actualMockStart'] and live['running'] and live['lastSampleElapsedMs']==24600
         assert live['sameMonotonicDomain'] and live['realSystemClockEvidenceDeadline'] and live['originalRecoveryAndCredentialsUntouched']
@@ -438,8 +605,19 @@ for path in manifests:
         assert m['completedSpecialCases']==extraction_special_names and m['pendingSpecialCases']==[]
         states={'STARTING':'STARTING','STOP_REQUESTED':'STOP_REQUESTED','UNKNOWN_live':'OUTCOME_UNKNOWN',
             'no_service_ready':'IDLE','manual':'IDLE'}
+        three_metric_cases={'STARTING','no_scale','stale_scale','no_service_ready','missing_samples'}
         for case in special['cases']:
             name=case['case'];target=folder/'special-states'/name
+            metrics=['pressure','water']+([] if name in three_metric_cases else ['weight'])+['temperature']
+            header=require_chart_header(target,metrics,action='start' if name in ('manual','no_service_ready') else 'stop')
+            assert case['chartHeaderReachability']==header
+            assert case['supportReachability']==require_special_support(target,name)
+            assert header['initialState']['shotState']==case['actualState']
+            assert header['initialState']['manualShotActive']==case['actualManualShotActive']
+            assert header['initialState']['traceIdentity']==case['actualTraceIdentity']
+            assert header['initialState']['curveId']==case['actualCurveId']
+            assert len(header['initialState']['ownerPoints'])==case['actualSampleCount']
+            assert header['initialState']['journalResultFailed']==(name=='journal_unavailable')
             assert case['status']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE'
             assert case['synthetic'] and case['hardwareMeasurement'] is False and case['realProductActivity'] and case['visualAcceptance']=='ASTRA_PENDING'
             assert case['actualState']==states.get(name,'RUNNING')
@@ -494,9 +672,54 @@ for path in manifests:
                 assert case['referenceOnCount']>0
                 for phase in ('on','off','restored'):
                     require_proof(target/'states'/f'extraction-reference-{phase}'/'window-frame-sync.json')
+                for phase,field in (('on','referenceOnChartHeaderReachability'),('off','referenceOffChartHeaderReachability'),
+                    ('restored','referenceRestoredChartHeaderReachability')):
+                    reference_folder=target/'states'/f'extraction-reference-{phase}'
+                    assert case[field]==require_chart_header(reference_folder,
+                        ['pressure','water','weight','temperature'],caption=phase=='on')
+                    assert (case[field]['initialState']['referenceId'] is not None)==(phase=='on')
             if name=='journal_unavailable':
                 assert case['actualJournalResultFailed'] and case['chooserOnlyOffNoFakeRecord']
-                require_proof(target/'states/extraction-journal-unavailable-choice/window-frame-sync.json')
+                dialog=target/'states/extraction-journal-unavailable-dialog'
+                dialog_frame=require_proof(dialog/'window-frame-sync.json')
+                actual=json.loads((dialog/'geometry.json').read_text())
+                assert case['journalUnavailableDialog']==actual and case['journalUnavailableDialogFrameSync']==dialog_frame
+                assert json.loads((dialog/'typography.json').read_text())==actual['allNativeText']
+                assert tuple(struct.unpack('>II',(dialog/'window.png').read_bytes()[16:24]))==(2560,1600)
+                assert actual['listCount']==1 and actual['journalResultFailed'] and actual['referenceId'] is None
+                assert actual['chartReferenceCount']==0 and actual['shotState']==case['actualState']
+                assert actual['traceIdentity']==case['actualTraceIdentity'] and actual['sampleCount']==case['actualSampleCount']
+                activity_state=case['journalUnavailableInitialState']
+                assert case['journalUnavailableBeforeDialogState']==activity_state
+                assert actual['activityState']==activity_state
+                assert case['journalUnavailableChoiceState']==activity_state
+                assert case['journalUnavailableRestoredState']==activity_state
+                assert activity_state['journalResultFailed'] and activity_state['referenceId'] is None
+                assert activity_state['chartReference']==[] and len(activity_state['ownerPoints'])==case['actualSampleCount']
+                assert isinstance(activity_state['chartPoints'],list)
+                assert activity_state['shotState']==case['actualState'] and activity_state['traceIdentity']==case['actualTraceIdentity']
+                assert activity_state['chartTraceIdentity']==case['actualTraceIdentity']
+                assert isinstance(activity_state['journalExport'],str) and activity_state['journalExport']
+                assert len(activity_state['headerScrollPx'])==2
+                assert activity_state['fixedAction']['semanticId'] in ('product/extraction/start','product/extraction/stop')
+                assert activity_state['fixedAction']['identity']>0 and len(activity_state['fixedAction']['rectPx'])==4
+                assert activity_state['fixedAction']['visibility']==0
+                assert all(key in activity_state for key in ('manualShotActive','curveId','pendingStartId','pendingStopId','referenceCurveId'))
+                assert actual['windowIdentity']>0 and actual['decorIdentity']>0 and actual['tokenIdentity']>0
+                assert actual['ownerActivityIdentity']>0 and len(actual['decorOriginScreenPx'])==2
+                assert all(x>0 for x in actual['decorSizePx']) and len(actual['safeRectScreenPx'])==4
+                assert actual['title']['text'] and actual['off']['text'] and actual['cancel']['text']
+                for role in ('title','off','cancel'):
+                    require_text_layout(actual[role]['layout'])
+                    assert actual[role]['identity']>0 and actual[role]['textSizePx']>0
+                    assert isinstance(actual[role]['textColor'],int)
+                assert len(actual['allNativeText'])>=3 and actual['density']>0
+                assert all(value>=48*actual['density'] for value in actual['offTouchPx']+actual['cancelTouchPx'])
+                choice=target/'states/extraction-journal-unavailable-choice'
+                restored=target/'states/extraction-journal-unavailable-restored'
+                assert case['journalUnavailableChoiceFrameSync']==require_proof(choice/'window-frame-sync.json')
+                assert case['journalUnavailableRestoredFrameSync']==require_proof(restored/'window-frame-sync.json')
+                assert case['journalUnavailableInitialScrollPx']==case['journalUnavailableRestoredScrollPx']
             extraction_special_captures+=1
     assert 'noBackupFilesDir' in isolation and isolation['noBackupFilesDir'] in isolation['businessDiskRoots']
     assert (folder/'baseline-alignment.json').is_file()

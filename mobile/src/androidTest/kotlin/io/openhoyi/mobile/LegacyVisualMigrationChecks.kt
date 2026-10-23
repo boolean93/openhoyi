@@ -985,14 +985,60 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
     }
     private fun shortDetailState(activity:Activity):JSONObject {
         val workspace=nodes(root(activity)).filterIsInstance<TaskWorkspaceLayout>().single()
+        val contentScroll=nodes(root(activity)).filterIsInstance<LegacyDetailContentScroll>().single()
         val split=requireNotNull(field(workspace,"paneMode") as? Boolean) { "M7 short Detail pane not measured" }
         val support=workspace.getChildAt(1) as ScrollView
         val button=action(activity,R.string.ui_full_details)
         val chart=nodes(root(activity)).filterIsInstance<LegacyShotChartView>().single()
+        val heading=nodes(contentScroll).filterIsInstance<LegacyNaturalFlow>().single()
+        val pageRoot=nodes(root(activity)).single {it.tag=="product/page/root"}
+        val chartViewport=requireNotNull(chart.parent as? LegacyChartViewport)
+        val plot=chart.visualEvidence.getJSONArray("plotBoundsPx")
+        val chartOrigin=IntArray(2);chart.getLocationOnScreen(chartOrigin)
+        val chartVisibility=visibility(chart)
+        val visible=chartVisibility.getJSONArray("visibleRectPx")
+        val operations=chart.visualEvidence.getJSONArray("operations")
+        val canvasText=JSONArray((0 until operations.length()).mapNotNull { index ->
+            val operation=operations.getJSONObject(index)
+            if(operation.getString("operation")!="text")null else {
+                val box=operation.getJSONArray("glyphBoundsPx")
+                val wholeGlyph=chartVisibility.getBoolean("screenMappingVerified") &&
+                    box.getDouble(0)+chartOrigin[0]>=visible.getInt(0) &&
+                    box.getDouble(1)+chartOrigin[1]>=visible.getInt(1) &&
+                    box.getDouble(2)+chartOrigin[0]<=visible.getInt(2) &&
+                    box.getDouble(3)+chartOrigin[1]<=visible.getInt(3)
+                JSONObject().put("index",index).put("semanticKey","text-$index")
+                    .put("role",operation.getString("role")).put("text",operation.getString("text"))
+                    .put("glyphBoundsPx",box).put("wholeGlyph",wholeGlyph)
+            }
+        })
+        val plotTop=chartOrigin[1]+plot.getDouble(1)
+        val plotBottom=chartOrigin[1]+plot.getDouble(3)
+        val plotLeft=chartOrigin[0]+plot.getDouble(0)
+        val plotRight=chartOrigin[0]+plot.getDouble(2)
+        val visiblePlotHeight=(minOf(plotBottom,visible.getInt(3).toDouble())-
+            maxOf(plotTop,visible.getInt(1).toDouble())).coerceAtLeast(0.0)
+        val visiblePlotWidth=(minOf(plotRight,visible.getInt(2).toDouble())-
+            maxOf(plotLeft,visible.getInt(0).toDouble())).coerceAtLeast(0.0)
         val attributes=activity.window.attributes
         return JSONObject().put("actualPaneMode",if(split) "split" else "stacked")
+            .put("contentScrollIdentity",System.identityHashCode(contentScroll))
+            .put("contentScrollViewportPx",contentScroll.height)
+            .put("contentScrollChildHeightPx",contentScroll.getChildAt(0).height)
+            .put("contentScrollCapacityPx",(contentScroll.getChildAt(0).height-contentScroll.height).coerceAtLeast(0))
+            .put("contentBudget",contentScroll.budgetEvidence)
             .put("workspaceIdentity",System.identityHashCode(workspace))
+            .put("workspaceHeightPx",workspace.height).put("workspaceMeasuredHeightPx",workspace.measuredHeight)
+            .put("headingRect",visibility(heading)).put("headingNaturalHeightPx",heading.measuredHeight)
+            .put("headingName",observation(nodes(heading).single {it.tag=="legacy/detail/name"}))
+            .put("headingMetadata",observation(nodes(heading).single {it.tag=="legacy/detail/metadata"}))
+            .put("headingReadonly",observation(nodes(heading).single {it.tag=="legacy/readonly"}))
+            .put("body",visibility(requireNotNull(contentScroll.parent as? View)))
+            .put("rootPaddingPx",JSONArray(listOf(pageRoot.paddingLeft,pageRoot.paddingTop,
+                pageRoot.paddingRight,pageRoot.paddingBottom)))
             .put("supportingScrollIdentity",System.identityHashCode(support))
+            .put("supportingViewportHeightPx",support.height)
+            .put("supportingChildHeightPx",support.getChildAt(0).height)
             .put("supportingScrollCapacityPx",(support.getChildAt(0).height-support.height).coerceAtLeast(0))
             .put("secondaryViewportBounded",workspace.secondaryViewportBounded)
             .put("scrolls",JSONArray(nodes(root(activity)).filterIsInstance<ScrollView>().map { scroll ->
@@ -1000,6 +1046,16 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                     .put("x",scroll.scrollX).put("y",scroll.scrollY) }))
             .put("buttonIdentity",System.identityHashCode(button)).put("buttonHeightPx",button.height)
             .put("button",observation(button)).put("chartIdentity",System.identityHashCode(chart))
+            .put("chartViewportIdentity",System.identityHashCode(chartViewport))
+            .put("chartViewportHeightPx",chartViewport.height)
+            .put("chartOriginScreenPx",JSONArray(chartOrigin.toList()))
+            .put("chartMappingVerified",chartVisibility.getBoolean("screenMappingVerified"))
+            .put("chartVisibleRectPx",visible)
+            .put("canvasTextOperations",canvasText).put("plotBoundsPx",plot)
+            .put("plotScreenTopPx",plotTop).put("plotScreenBottomPx",plotBottom)
+            .put("visiblePlotWidthPx",visiblePlotWidth)
+            .put("visiblePlotHeightDp",visiblePlotHeight/activity.resources.displayMetrics.density)
+            .put("density",activity.resources.displayMetrics.density)
             .put("listIdentities",JSONArray(nodes(root(activity)).filterIsInstance<ListView>().map(System::identityHashCode)))
             .put("actualPlotHeightDp",chart.visualEvidence.getDouble("plotHeightDp"))
             .put("activityIdentity",System.identityHashCode(activity))
@@ -1009,6 +1065,68 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             .put("windowLayout",JSONArray(listOf(attributes.width,attributes.height,attributes.gravity,attributes.x,attributes.y)))
     }
     private fun shortDetailGeometry(activity:Activity):JSONObject=geometry(activity).put("shortDetail",shortDetailState(activity))
+    private fun shortDetailChartReachability(activity:Activity,specialRoot:File,shortFolder:File,initial:JSONObject):JSONObject {
+        val chart=nodes(root(activity)).filterIsInstance<LegacyShotChartView>().single()
+        val viewport=requireNotNull(chart.parent as? LegacyChartViewport)
+        val outer=nodes(root(activity)).filterIsInstance<LegacyDetailContentScroll>().single()
+        val scrolls=nodes(root(activity)).filterIsInstance<ScrollView>().map {it to (it.scrollX to it.scrollY)}
+        check(outer.height>0 && viewport.height>0 && initial.getInt("workspaceHeightPx")>0)
+        fun capture(phase:String):Pair<JSONObject,JSONObject> {
+            stableWindow(activity,shortFolder,phase)
+            val target=File(shortFolder,phase).apply {check(isDirectory || mkdirs())}
+            val frame=frames.screenshotMeasuredShortActivity(activity,root(activity),File(target,"window.png")) {shortDetailGeometry(activity)}
+            check(frame.proof.getInt("protocolVersion")==2 && frame.proof.getBoolean("accepted"))
+            File(target,"geometry.json").writeText(frame.target.toString(2))
+            return frame.target.getJSONObject("shortDetail") to shortFrameRefs(specialRoot,target)
+        }
+        val reached=JSONArray();var restored:JSONObject?=null;var failure:Throwable?=null
+        try {
+            val plot=initial.getJSONArray("plotBoundsPx")
+            main {
+                viewport.scrollTo(0,plot.getDouble(1).toInt())
+                viewport.requestRectangleOnScreen(Rect(0,0,viewport.width,viewport.height),true)
+            }
+            val (plotState,plotRef)=capture("chart-plot-reachable")
+            check(plotState.getBoolean("chartMappingVerified") && plotState.getDouble("visiblePlotHeightDp")>=96.0 &&
+                plotState.getDouble("visiblePlotWidthPx")>0.0 &&
+                plotState.getInt("chartViewportHeightPx")>=HoyiUi.dp(activity,96)) {
+                "M7 short Detail did not expose 96dp of actual Canvas plot" }
+            reached.put(JSONObject().put("semanticKey","plot").put("capture",plotRef)
+                .put("visiblePlotHeightDp",plotState.getDouble("visiblePlotHeightDp")))
+            val operations=initial.getJSONArray("canvasTextOperations")
+            for(position in 0 until operations.length()) {
+                val operation=operations.getJSONObject(position)
+                val index=operation.getInt("index")
+                val box=operation.getJSONArray("glyphBoundsPx")
+                val center=(box.getDouble(1)+box.getDouble(3))/2
+                main {
+                    viewport.scrollTo(0,(center-viewport.height/2.0).toInt())
+                    viewport.requestRectangleOnScreen(Rect(0,0,viewport.width,viewport.height),true)
+                }
+                val (state,ref)=capture("chart-text-$index-reachable")
+                val observed=state.getJSONArray("canvasTextOperations").getJSONObject(position)
+                check(observed.getInt("index")==index &&
+                    observed.getString("role")==operation.getString("role") &&
+                    observed.getString("text")==operation.getString("text") &&
+                    observed.getJSONArray("glyphBoundsPx").toString()==box.toString() &&
+                    state.getBoolean("chartMappingVerified") && observed.getBoolean("wholeGlyph")) {
+                    "M7 short Detail Canvas ${operation.getString("role")} glyph clipped" }
+                reached.put(JSONObject().put("semanticKey","text-$index").put("operation",observed).put("capture",ref))
+            }
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            try {
+                main {scrolls.forEach {(scroll,point)->scroll.scrollTo(point.first,point.second)}}
+                val (state,ref)=capture("chart-restored")
+                check(state.getJSONArray("scrolls").toString()==initial.getJSONArray("scrolls").toString() &&
+                    state.getInt("chartIdentity")==initial.getInt("chartIdentity") &&
+                    state.getInt("contentScrollIdentity")==initial.getInt("contentScrollIdentity"))
+                restored=JSONObject().put("state",state).put("capture",ref)
+            } catch(error:Throwable) {if(failure==null)throw error else failure.addSuppressed(error)}
+        }
+        return JSONObject().put("initialScrolls",initial.getJSONArray("scrolls"))
+            .put("reached",reached).put("restored",requireNotNull(restored)).put("completed",true)
+    }
     private fun shortWindow(activity: Activity, directory: File, scope: Scope): JSONObject {
         val old=android.view.WindowManager.LayoutParams().apply { copyFrom(activity.window.attributes) }
         val ids=nodes(root(activity)).filter { it is LegacyShotChartView || it is ListView }.map(System::identityHashCode)
@@ -1059,6 +1177,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             if(activity is LegacyHistoryDetailActivity) {
                 val initial=captured.target.getJSONObject("shortDetail")
                 report.put("initialDetail",initial).put("initialCapture",shortFrameRefs(directory,folder))
+                report.put("chartReachability",shortDetailChartReachability(activity,directory,folder,initial))
                 val mode=initial.getString("actualPaneMode")
                 check(mode=="split" || mode=="stacked")
                 if(mode=="split") {

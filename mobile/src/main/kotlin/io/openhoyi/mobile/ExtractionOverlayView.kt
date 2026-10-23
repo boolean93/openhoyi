@@ -86,6 +86,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         addView(referenceCaption, LayoutParams(-1, -2))
     }
     private val header = ScrollView(context).apply {
+        if (visual != null && !embeddedHistory) tag = "product/extraction/chart-header"
         isFillViewport = false
         addView(headerContent, ViewGroup.LayoutParams(-1, -2))
     }
@@ -419,7 +420,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val path = Path()
         fun minimumAxisHeight(): Int {
-            productRenderer?.let { return if (embeddedHistory) it.minimumEmbeddedHistoryHeight() else it.minimumAxisHeight() }
+            productRenderer?.let { return it.minimumEmbeddedHistoryHeight() }
             val fm = labels.fontMetrics
             // Four lines of axis margins + one tick height and >=8dp tick separation.
             return ceil((fm.descent - fm.ascent) * 5 + dp(32f)).toInt()

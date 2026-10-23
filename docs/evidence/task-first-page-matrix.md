@@ -2,6 +2,12 @@
 
 ## 当前状态（优先于下方历史观察时点）
 
+2026-10-23 最新已推送 `5d08fd658ad7300d0478a2b5e117e88eb3c99f11`，PR4保持draft。26个CI已全部终态：PR5成功/9失败，push3成功/8失败/1取消；最后push M5 `39884256124` 为cancelled，不记通过。句柄与终态见 `build/task-first-evidence/ci-5d08fd6/{run-handles,final-all-status}.json`。以下643为上一批历史，不能套用到5d08。
+
+该snapshot原件SHA `0100ebc9e1c2bd39d01d4ae020c96d97ffa924a1ac788c91ffb6aa6f2613cee1`/CRC及内部引用已核，保存于 `ci-5d08fd6-snapshot-pr/`。save有ACK、load退出0但stdout空，未确认ACK/恢复；随后console连接拒绝。保留未知结果，不重发load、不删除snapshot，不把上一批成功替代本批失败。
+
+新增旧643萃取特殊态[Astra审查](2026-10-20-m5-extraction-special-visual-review.md)：16PNG逐图核验，5张真实plot低于96dp；右工具全目标滚达及journal选择器本体仍缺证。5d08只修History，未改Extraction，不能以该提交关闭这些萃取缺口。
+
 已推送 head `643d8281ee46a4765133ec6e9796a971d8120dc8`；PR4为draft、目标develop。25个已观察运行全部终态：PR 7成功/7失败，push 4成功/7失败；完整句柄与结果见 `build/task-first-evidence/ci-643d828/{run-handles,final-all-status}.json`。已核原件的PR tested merge为 `4f990722c0181504b665ab1fe91ac60832619d18`，各包仍按自身manifest/run绑定，不把push与PR混用。
 
 **完整24页G1–G4尚未完成。** 编译、机械检查、原件完整性、视觉验收分别记账；未安装、合并或发版。旧失败和原ZIP全部保留，不以新计划或局部通过覆盖。
@@ -11,19 +17,46 @@
 | M1 Home / Inventory / Share | 原四配置限定接受沿用，无新增变更 | 不扩展为硬件验收，不重复已过范围 |
 | M2 表单 | 643 Editor文字/选区/焦点/draft保持；曾在IME=true时实际恢复scroll662 | 最终IME=false、viewport680→1391、scroll0，恢复仍FAIL；首hide归属未知；其余未采配置不外推 |
 | M3 曲线库 / 导入 / 预览 | 原Library浅1.0主态限定接受；643定位long-factory恢复前后detailRequested不同 | 合法真实交互后的基线/恢复补证静态通过，待新CI；Import IME旧FAIL未关闭，其余库特殊态及后续页未验完 |
-| M4 准备 / 批量 / 流水 | 原12主态/已列特殊态和准备说明沿用限定接受；643 PR业务与font key absent→absent均成功。32张新详情原图的四配置全文、逐行滚达/恢复和实际原生配色获Astra限定接受 | 公共字号/字重元数据补证已静态通过，待下批实测；系统字体SHA不是无限补采门槛；同head push清理FAIL另记 |
+| M4 准备 / 批量 / 流水 | 原12主态/已列特殊态和准备说明沿用限定接受；643 PR业务与font key absent→absent均成功。32张新详情原图的四配置全文、逐行滚达/恢复和实际原生配色获Astra限定接受 | 5d08原生详情8组/32步/96角色元数据已获Astra限定接受，见2026-10-23-m4-native-dialog-typography-review；5d08字体清理FAIL仍保留，不能宣称M4全通过 |
 | M5 萃取 / 历史 / 详情 / 对比 | 643浅1.3四页及12+5+5+5既有特殊态机械通过；Extraction特殊态正在实图审。708 Comparison来源全文/警示/水平线和History滚达链的限定接受沿用 | 643浅1.0 History UNKNOWN时间轴真裁42px，条件title+warning同行产品修复已静态通过，待新图；其余未采配置/状态仍待验 |
 | M6 秤 / 连接 | 原浅1.3主态8图限定接受；643新增15特殊图已审，短窗主读数/去皮/footer预算不足在本配置关闭，原生短窗趋势详情限定接受；snapshot本scope PASS_EXACT | 右栏长文与独立恢复原图补证在做；Connection forty单份proof写盘OOM仍FAIL，流式写盘仅静态通过；深色/1.0不外推 |
 | M7 旧曲线 / 历史 / 详情 | LegacyHistory自然plot84.11→160.1106dp缺陷已关闭；643顺序推进到detail短窗 | 其全文按钮初态在窗外，按批准stacked滚达合同补证已静态通过，待新CI；其余正式G1–G4未验完 |
 | M8 三设置页 | 643固定12格全部执行；4格ScaleSettings及3类特殊态机械通过，待实图审 | 8格App/Machine仍FAIL；App第二次四零差但超5秒，Machine有像素差且超时。活Spannable/Editable触发整树fallback已确证，采样String快照语义修正正在实施；不量化未证收益、不放宽门槛 |
 
-### 当前未提交合批候选
+### 上一批643→5d08合批候选（历史）
 
 - 已静态通过：Window proof无损流式写盘（官方SDK34逐字节18案含192MiB宿主机压力）；Curve/Legacy恢复与滚达补证；M5条件同行布局；M4原生详情三对象公共typography字段。
 - 正在收口：Scale原六目标独立恢复原图及三个既有特殊态右栏全文；Settings主线程不可变文字快照V1及反例验证。未知custom仍沿原comparator回退，不把并发活引用行为改正冒称新旧无条件等价。
 - 所有组冻结后由唯一owner统一构建，再按原CI矩阵验证。此前643构建40秒成功只证明旧hash，不覆盖这些未提交改动。IME方法trace本批不追加：格式/overflow合同尚未证实，且643 M3未越过Library；不为诊断阻住已证UI修复。
 
-### 2026-10-23 合批构建复验
+### 5d08 新失败定位与下一批（未验收）
+
+本批补充：Bean PR39884263325原ZIP `0b29abf2f7106e5b943cde1c65c859a1b66dc6339c5bab17b607127af439848a`、1233项CRC、12manifest共1192引用SHA已核；业务退出0，四配置机械完成，但清理font_scale原absent→present1.0仍FAIL。Astra已完成[8组原生Dialog字体增量审](2026-10-23-m4-native-dialog-typography-review.md)：32步同次target/96角色元数据及8初态图核验，关闭其实际字重/字号/字距/行距/baseline同帧缺口，不外推全M4或清理结果。新Ledger恢复坐标464/438与旧457/431分账。
+
+Frame PR39884263335原ZIP `b3839589e67e2e0f5d90c3f1d045372295edb63a56939ad0f7973a1714bb90e1`/1082CRC已核；Editor11字段/选区/焦点/draft保持，IME true→false、viewport680→1391、scroll662→0，本次未记录apply，show结果回调时IME已false。与643曾apply后消失分别记账，不猜首hide因果。
+
+Lifecycle push39884256134首败为wideFont暗色Extraction单位g缺Layout；末尾idle diagnostic目录不存在只是错误处理中的可选pull，不能误判首因。M5 PR39884263345原ZIP `c9f706694d885a4498f84353573d90e5c657ac91d57402e5b48526ac00142280`/1768CRC已核，浅1.3Extraction数量/单位基线失败，仍待具体case诊断；不能借此前主态验收覆盖本轮。
+
+- Curve PR39884263331原件SHA `ce5d1c2f31c9f7f2fa08414413fa2c87a21b983ee6a4b148a2f4e984342eca32`；tested merge `0109982664efc7b3951094c35a6f0eaed586fbfb`。long-factory/captured越过旧恢复阻断，但no-pressure摘要严格相等失败，回调先抛错所以无该目标原图。Astra另从源码与fixture证实targetContext英文/Activity中文的oracle缺陷；仅修测试locale及失败前实际值诊断，产品视觉仍待图。
+- Legacy PR39884263257旧curve/history机械越过；short Detail full-notice仍实际未滚达。Scale push39884256073初态reach采集时画面零差、geometry里的serviceSnapshot临时SleepPart对象标识变化；完整证据及边界见各 `ci-5d08fd6-{legacy-pr,scale-push}/diagnosis.md`，不判为同类视觉缺陷，不放宽5秒/零差。
+- Capture push39884256142在History“查看详情”发生选择器歧义。原ZIP SHA `ac2dface804cd33d86f8c77063a4cc6c92d2b8b70d7380a690e194676325b2e1`已核CRC；failure.png确为History，但包内没有该时刻UI层级，不能用早期Curve层级替代。保留失败，不凭画面猜节点原因。
+- 下一批Extraction只修真实96dp绘图区并补原header全文滚达/恢复；Astra初审的固定动作/48dp/状态保持三阻断已有Sol候选修正，待复核。右tools与journal真实Dialog按独立计划串行补证。上述候选尚未统一构建/新图验收，不关闭全24页。
+
+### 5d08后续候选的诊断与静态审查记录
+
+Curve locale与Scale完整值快照已由Astra静态通过；Extraction plot/header及tools/Dialog在同帧取证前的冻结版本亦静态通过。后续不能拿这份静态结论覆盖修改后的hash。
+
+当前实施：[M5同帧字体/基线](../plans/2026-10-23-m5-same-frame-typography.md)、[Legacy短窗内容区](../plans/2026-10-23-legacy-short-detail-viewport.md)。M5新诊断证明accepted帧的ml Layout存在，随后独立后采才layout缺失/baseline=-1，不能当已渲染基线错位；新方案将原件绑定返回target并保精确门槛。Legacy原短窗workspace真实高0，采用本页永久scroll与自然预算，不改共享Workspace或硬编码527px。
+
+Settings新12格诊断见 `ci-5d08fd6-settings-pr/diagnosis.md`：4App初态及theme-write-rejected越过旧首败，language-write-rejected原生Dialog因72px surfaceInset未认证失败；4Machine仍initial像素差/5秒耗尽，4Scale机械过。完整ZIP SHA `390505712dbb5e7fac16e0ee232435090c8ceb0bfa65f3cdf6badf615c6dc727`、4270CRC已核。不同原因分别保留，计时下降不等于已证优化归因。所有本批未推送候选仍待统一构建/原CI/Astra真实图验收。
+
+### 5d08 后续合批构建状态（最新）
+
+七组计划已完成Astra静态审查：Extraction真实plot/header与tools/Dialog、M5同帧字体/基线、Legacy短窗内容区、Curve fixture locale、Scale完整值快照、Settings语言Dialog映射。静态通过不是新截图验收。
+
+统一构建保留三次结果于 `build/task-first-evidence/ui-5d08-followup-build/`：attempt-1为Scale重复import；单行修复经逆hash复核。attempt-2在AndroidTest D8处理Extraction support方法时出现Index -1/length21；attempt-3仅将该方法两处内联forEach改显式for，Astra逆hash确认循环体/finally/门禁未变，40秒后仍同类D8失败。Mock主包与Kotlin编译通过不等于完整构建通过。随后同版本D8的单class隔离确认目标方法LocalVariableTable交互；21捕获参数单独不足以触发，不能作为根因结论。Astra批准仅将局部state函数改为函数值，逆hash验证调用/逻辑/门禁未变。attempt-4统一构建42秒、91 tasks、退出0；源码及runner构建前后hash一致，APK hash已归档。未升级工具链或删调试信息。当前准备合批提交，新的原CI截图与Astra视觉验收仍待执行。
+
+### 2026-10-23 上一批643合批构建复验
 
 上述六组候选已完成本地统一 `:mobile:assembleMock :mobile:assembleMockAndroidTest`，84秒、91 tasks、退出0。首次构建暴露 HistoryDetailContent 两处局部 `val width` 遮蔽 LayoutParams.width；Sol仅显式改成 `this.width`，Astra逆替换验证精确恢复此前已审hash，增量静态通过。新生产文件SHA为 `c6005f088b111f4d5742a589050b11138161fdd3d99cecd1dcb9c7831d5f151d`，设计合同不变。
 

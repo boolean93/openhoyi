@@ -26,11 +26,26 @@ import android.widget.Button
 import android.widget.TextView
 import io.openhoyi.bean.BeanInventory
 import io.openhoyi.bean.InventoryStorage
+import io.openhoyi.bluetooth.DiscoveredDevice
+import io.openhoyi.protocol.BookooSample
+import io.openhoyi.protocol.ByteFrame
+import io.openhoyi.protocol.ExtractionTelemetry
+import io.openhoyi.protocol.HoyiMessage
+import io.openhoyi.protocol.IdleTelemetry
+import io.openhoyi.protocol.ScaleCapabilities
+import io.openhoyi.protocol.ScaleEvidence
+import io.openhoyi.protocol.ScaleObservation
+import io.openhoyi.protocol.Settings
+import io.openhoyi.protocol.SleepDay
+import io.openhoyi.protocol.SleepPart
+import io.openhoyi.session.DeviceRole
 import io.openhoyi.trace.TraceStore
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
+import java.math.BigDecimal
+import java.math.BigInteger
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
@@ -637,7 +652,184 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                 JSONObject().put("identity",System.identityHashCode(it)).put("x",it.scrollX).put("y",it.scrollY)
             }))
     }
+    private fun frameValue(frame:ByteFrame):JSONObject=JSONObject().put("size",frame.size).put("hex",frame.hex())
+    private fun <T:Any> nullableValue(value:T?,encode:(T)->Any):Any=
+        value?.let(encode) ?: JSONObject.NULL
+    private fun capabilitiesValue(value:ScaleCapabilities):JSONObject=JSONObject()
+        .put("weight",value.weight).put("tare",value.tare).put("deviceFlow",value.deviceFlow)
+        .put("battery",value.battery).put("deviceTimer",value.deviceTimer)
+        .put("validatedWeightControl",value.validatedWeightControl)
+    private fun sleepValue(value:SleepPart):JSONObject=JSONObject().put("kind","SleepPart")
+        .put("firstDaySundayIndex",value.firstDaySundayIndex)
+        .put("enabledBits",nullableValue(value.enabledBits) {it})
+        .put("days",JSONArray(value.days.map {day->JSONObject()
+            .put("sleepHour",day.sleepHour).put("sleepMinute",day.sleepMinute)
+            .put("wakeHour",day.wakeHour).put("wakeMinute",day.wakeMinute)}))
+        .put("raw",frameValue(value.raw))
+    private fun messageValue(value:HoyiMessage):JSONObject=when(value) {
+        is Settings->JSONObject().put("kind","Settings")
+            .put("firmwareMajor",value.firmwareMajor).put("firmwareMinor",value.firmwareMinor)
+            .put("firmwarePatch",value.firmwarePatch).put("flags",value.flags)
+            .put("brewTemperatureC",value.brewTemperatureC)
+            .put("brewCompensationTenthsC",value.brewCompensationTenthsC)
+            .put("steamTemperatureC",value.steamTemperatureC)
+            .put("standbyMinutes",value.standbyMinutes)
+            .put("standbyTemperatureC",value.standbyTemperatureC)
+            .put("cupCount",value.cupCount).put("filterFlags",value.filterFlags)
+            .put("raw",frameValue(value.raw))
+        is IdleTelemetry->JSONObject().put("kind","IdleTelemetry")
+            .put("brewTemperatureHundredthsC",value.brewTemperatureHundredthsC)
+            .put("steamTemperatureHundredthsC",value.steamTemperatureHundredthsC)
+            .put("brewPressureTenthsBar",value.brewPressureTenthsBar)
+            .put("steamPressureTenthsBar",value.steamPressureTenthsBar)
+            .put("sleepStateRaw",value.sleepStateRaw).put("alarmBits",value.alarmBits)
+            .put("cupCount",value.cupCount).put("extraSensorRaw",value.extraSensorRaw)
+            .put("raw",frameValue(value.raw))
+        is ExtractionTelemetry->JSONObject().put("kind","ExtractionTelemetry")
+            .put("slotOrPhase",value.slotOrPhase).put("elapsedSeconds",value.elapsedSeconds)
+            .put("pressureTenthsBar",value.pressureTenthsBar)
+            .put("totalWaterTenthsMl",value.totalWaterTenthsMl)
+            .put("brewTemperatureHundredthsC",value.brewTemperatureHundredthsC)
+            .put("flowTenthsMlPerSecond",value.flowTenthsMlPerSecond)
+            .put("statusBits",value.statusBits).put("manualStageRaw",value.manualStageRaw)
+            .put("raw",frameValue(value.raw))
+        is SleepPart->sleepValue(value)
+    }
+    private fun scalarValue(value:Any?):JSONObject=when(value) {
+        null->JSONObject().put("type","null").put("value",JSONObject.NULL)
+        is String->JSONObject().put("type","String").put("value",value)
+        is Char->JSONObject().put("type","Char").put("value",value.toString())
+        is Boolean->JSONObject().put("type","Boolean").put("value",value)
+        is Byte->JSONObject().put("type","Byte").put("value",value.toInt())
+        is Short->JSONObject().put("type","Short").put("value",value.toInt())
+        is Int->JSONObject().put("type","Int").put("value",value)
+        is Long->JSONObject().put("type","Long").put("value",value)
+        is Float->JSONObject().put("type","Float").put("value",value.toString())
+        is Double->JSONObject().put("type","Double").put("value",value.toString())
+        is BigInteger->JSONObject().put("type","BigInteger").put("value",value.toString())
+        is BigDecimal->JSONObject().put("type","BigDecimal").put("value",value.toString())
+        is ResourceText->JSONObject().put("type","ResourceText").put("value",resourceValue(value))
+        else->error("M6 unsupported resource argument type ${value.javaClass.name}")
+    }
+    private fun resourceValue(value:ResourceText):JSONObject=when(value) {
+        is ResourceMessage->JSONObject().put("kind","ResourceMessage")
+            .put("resourceId",value.resourceId)
+            .put("values",JSONArray((field(value,"values") as List<*>).map(::scalarValue)))
+        is ResourceSequence->JSONObject().put("kind","ResourceSequence")
+            .put("parts",JSONArray((field(value,"parts") as List<*>).map {
+                resourceValue(it as? ResourceText ?: error("M6 resource sequence contains non-resource part")) }))
+    }
+    private fun snapshotMessageValue(value:SnapshotMessage,activity:Activity):JSONObject {
+        val resource=field(value,"resource") as? ResourceText
+        return JSONObject().put("initialText",value.initialText)
+            .put("rendered",value.render {id,args->activity.getString(id,*args)})
+            .put("isResource",resource!=null)
+            .put("resource",resource?.let(::resourceValue) ?: JSONObject.NULL)
+    }
+    private fun snapshotValue(value:MobileSnapshot,activity:Activity):JSONObject=JSONObject()
+        .put("coffeeState",value.coffeeState.name).put("scaleState",value.scaleState.name)
+        .put("coffee",nullableValue(value.coffee,::messageValue))
+        .put("coffeeAt",nullableValue(value.coffeeAt) {it})
+        .put("alarmBits",nullableValue(value.alarmBits) {it})
+        .put("alarmAt",nullableValue(value.alarmAt) {it})
+        .put("settings",nullableValue(value.settings,::messageValue))
+        .put("settingsAt",nullableValue(value.settingsAt) {it})
+        .put("sleepFirst",nullableValue(value.sleepFirst,::sleepValue))
+        .put("sleepSecond",nullableValue(value.sleepSecond,::sleepValue))
+        .put("sleepFirstAt",nullableValue(value.sleepFirstAt) {it})
+        .put("sleepSecondAt",nullableValue(value.sleepSecondAt) {it})
+        .put("weight",nullableValue(value.weight) {sample:BookooSample->JSONObject()
+            .put("weightHundredthsGram",sample.weightHundredthsGram)
+            .put("deviceFlowHundredths",sample.deviceFlowHundredths)
+            .put("weightSignRaw",sample.weightSignRaw).put("flowSignRaw",sample.flowSignRaw)
+            .put("raw",frameValue(sample.raw)) })
+        .put("weightAt",nullableValue(value.weightAt) {it})
+        .put("scaleObservation",nullableValue(value.scaleObservation) {observation:ScaleObservation->JSONObject()
+            .put("hundredthsGram",observation.hundredthsGram)
+            .put("receivedAtMs",observation.receivedAtMs)
+            .put("capabilities",capabilitiesValue(observation.capabilities))
+            .put("evidence",observation.evidence.name)
+            .put("deviceFlowHundredths",nullableValue(observation.deviceFlowHundredths) {it})
+            .put("batteryPercent",nullableValue(observation.batteryPercent) {it})
+            .put("raw",frameValue(observation.raw))
+            .put("eligibleForControl",observation.eligibleForControl) })
+        .put("scaleCapabilities",nullableValue(value.scaleCapabilities,::capabilitiesValue))
+        .put("candidates",JSONArray(value.candidates.map {candidate:DiscoveredDevice->JSONObject()
+            .put("address",candidate.address).put("advertisedName",candidate.advertisedName)
+            .put("rssi",candidate.rssi).put("candidateRole",candidate.candidateRole.name)
+            .put("scaleProtocolId",nullableValue(candidate.scaleProtocolId) {it}) }))
+        .put("scanning",value.scanning)
+        .put("message",nullableValue(value.message) {snapshotMessageValue(it,activity)})
+    private fun verifySnapshotValueContract(activity:Activity,folder:File) {
+        fun frame(vararg bytes:Int)=ByteFrame(bytes.map {it.toByte()}.toByteArray())
+        fun sleep(day:SleepDay=SleepDay(1,2,3,4),enabled:Int?=128,raw:ByteFrame=frame(0x83,1))=
+            SleepPart(0,enabled,listOf(day),raw)
+        fun message(first:String="A",second:Int=7)=SnapshotMessage.resource(
+            ResourceMessage(R.string.curve_row_summary,first,second)) {id,args->activity.getString(id,*args)}
+        val capabilities=ScaleCapabilities(weight=true,tare=true,deviceFlow=true,battery=true,
+            deviceTimer=true,validatedWeightControl=true)
+        val settings=Settings(1,2,3,4,90,5,110,6,70,8,9,frame(0x81,1))
+        val idle=IdleTelemetry(9000,10000,20,30,1,2,3,4,frame(0x82,1))
+        val extraction=ExtractionTelemetry(1,2,3,4,5,6,7,8,frame(0x82,2))
+        val candidate1=DiscoveredDevice("A","one",-40,DeviceRole.BOOKOO,"bookoo")
+        val candidate2=DiscoveredDevice("B","two",-50,DeviceRole.COFFEE,null)
+        val base=MobileSnapshot(coffeeState=DeviceState.READY,scaleState=DeviceState.READY,
+            coffee=idle,coffeeAt=101L,alarmBits=0,alarmAt=102L,settings=settings,settingsAt=103L,
+            sleepFirst=sleep(),sleepSecond=sleep(SleepDay(5,6,7,8),null,frame(0x83,2)),
+            sleepFirstAt=104L,sleepSecondAt=105L,
+            weight=BookooSample(1234,56,1,0,frame(0xAA,0xBB)),weightAt=106L,
+            scaleObservation=ScaleObservation(1234,107L,capabilities,ScaleEvidence.VERIFIED_TRANSPORT,
+                deviceFlowHundredths=56,batteryPercent=80,raw=frame(0xCC)),
+            scaleCapabilities=capabilities,candidates=listOf(candidate1,candidate2),scanning=true,
+            message=message())
+        fun encoded(value:MobileSnapshot)=snapshotValue(value,activity).toString()
+        val original=encoded(base)
+        val same=base.copy(coffee=idle.copy(raw=frame(0x82,1)),settings=settings.copy(raw=frame(0x81,1)),
+            sleepFirst=sleep(),sleepSecond=sleep(SleepDay(5,6,7,8),null,frame(0x83,2)),message=message())
+        check(original==encoded(same)) {"M6 equal values from new instances changed snapshot evidence"}
+        val negative=linkedMapOf(
+            "sleepDay" to base.copy(sleepFirst=sleep(SleepDay(1,2,3,5))),
+            "sleepEnabledBits" to base.copy(sleepFirst=sleep(enabled=0)),
+            "sleepRaw" to base.copy(sleepFirst=sleep(raw=frame(0x83,3))),
+            "sleepTimestamp" to base.copy(sleepFirstAt=105L),
+            "capability" to base.copy(scaleCapabilities=capabilities.copy(battery=false)),
+            "candidateOrder" to base.copy(candidates=listOf(candidate2,candidate1)),
+            "messageResourceId" to base.copy(message=SnapshotMessage.resource(
+                ResourceMessage(R.string.curve_details_no_weight)) {id,args->activity.getString(id,*args)}),
+            "messageArgument" to base.copy(message=message(second=8)),
+            "nullVersusZero" to base.copy(alarmBits=null),
+            "candidateEmpty" to base.copy(candidates=emptyList()),
+            "scaleRaw" to base.copy(scaleObservation=base.scaleObservation!!.copy(raw=frame(0xCD))),
+            "coffeeField" to base.copy(coffee=idle.copy(cupCount=4)))
+        negative.forEach { (name,changed)->check(original!=encoded(changed)) {
+            "M6 snapshot value evidence missed $name" } }
+        val empty=MobileSnapshot()
+        check(encoded(empty)!=encoded(empty.copy(alarmBits=0)) &&
+            encoded(empty)!=encoded(empty.copy(message=SnapshotMessage.raw("")))) {
+            "M6 null, zero and empty snapshot values collapsed" }
+        val scalars=resourceValue(ResourceMessage(R.string.curve_row_summary,null,"",'x',true,
+            1.toByte(),2.toShort(),3,4L,1.25f,2.5,BigInteger("6"),BigDecimal("7.00")))
+            .getJSONArray("values")
+        check((0 until scalars.length()).map {scalars.getJSONObject(it).getString("type")}==
+            listOf("null","String","Char","Boolean","Byte","Short","Int","Long","Float","Double",
+                "BigInteger","BigDecimal"))
+        val sequence=resourceValue(ResourceSequence(ResourceMessage(R.string.curve_details_no_weight),
+            ResourceMessage(R.string.curve_row_summary,"A",7)))
+        check(sequence.getJSONArray("parts").length()==2 &&
+            sequence.getJSONArray("parts").getJSONObject(0).getInt("resourceId")==R.string.curve_details_no_weight &&
+            sequence.getJSONArray("parts").getJSONObject(1).getInt("resourceId")==R.string.curve_row_summary)
+        check(messageValue(extraction).getString("kind")=="ExtractionTelemetry" &&
+            messageValue(settings).getString("kind")=="Settings")
+        val expected=setOf("coffeeState","scaleState","coffee","coffeeAt","alarmBits","alarmAt",
+            "settings","settingsAt","sleepFirst","sleepSecond","sleepFirstAt","sleepSecondAt",
+            "weight","weightAt","scaleObservation","scaleCapabilities","candidates","scanning","message")
+        check(snapshotValue(base,activity).keys().asSequence().toSet()==expected)
+        File(folder,"snapshot-contract.json").writeText(JSONObject().put("schemaVersion",1)
+            .put("topLevelKeys",JSONArray(expected.sorted())).put("sameValueNewInstancesEqual",true)
+            .put("changedValueCases",JSONArray(negative.keys.toList())).put("completed",true).toString(2))
+    }
     private fun supportState(activity:Activity,service:MobileService):JSONObject {
+        val snapshot=service.snapshot
         val content=root(activity);val scroll=tagged(activity,"product/scale/support-scroll") as ScrollView
         val fallback=tagged(activity,"scale-trend-fallback")
         val trendInline=(activity as ScaleActivity).productLayoutEvidence.getBoolean("trendInline")
@@ -653,7 +845,8 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             .put("trendInline",trendInline).put("fallbackIdentity",System.identityHashCode(fallback))
             .put("fallbackVisibility",fallback.visibility).put("fallbackShown",fallback.isShown)
             .put("trendBufferTimerAndAllScrolls",trendReturnState(activity))
-            .put("serviceSnapshot",service.snapshot.toString()).put("serviceObservationSerial",serial(service))
+            .put("serviceSnapshotSchemaVersion",1).put("serviceSnapshot",snapshotValue(snapshot,activity))
+            .put("serviceObservationSerial",serial(service))
             .put("weight",(field(activity,"weight") as TextView).text.toString())
             .put("freshness",(field(activity,"freshness") as TextView).text.toString())
             .put("tareStatus",(field(activity,"tareStatus") as TextView).text.toString())
@@ -912,7 +1105,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
           fun invariant(actual:JSONObject) {
             for(key in listOf("activityIdentity","windowIdentity","decorIdentity","rootIdentity","windowTokenIdentity",
                 "scrollIdentity","trendInline","fallbackIdentity","fallbackVisibility","fallbackShown",
-                "serviceSnapshot","serviceObservationSerial","weight","freshness","tareStatus",
+                "serviceSnapshotSchemaVersion","serviceSnapshot","serviceObservationSerial","weight","freshness","tareStatus",
                 "deviceStatus","tareEnabled","captureEnabled","fixedPrimary","fixedTare","fixedCaptureFooter"))
                 check(actual.get(key).toString()==original.get(key).toString()) {"M6 $caseName support business/identity changed: $key"}
             val expectedTrend=original.getJSONObject("trendBufferTimerAndAllScrolls")
@@ -1258,6 +1451,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                 }
             }
             if(page=="scale") {
+                main { verifySnapshotValueContract(activity,directory) }
                 trendEvidence(activity,File(directory,"trend-main-data"),scale==1f)
                 supportReachability(active,activity,directory)
                 scaleSpecials(active,activity,File(directory,"special-states"))

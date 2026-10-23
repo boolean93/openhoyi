@@ -264,6 +264,47 @@ for path in manifests:
         initial=short_detail_capture(base,short['initialCapture'],'short-window',SHORT_ACTIVITY)
         assert original==short['originalDetail']
         assert initial==short['initialDetail'] and initial['actualPlotHeightDp']>=96.0
+        assert not original['contentBudget']['shortFallback'] and initial['contentBudget']['shortFallback']
+        assert initial['contentScrollViewportPx']>0 and initial['contentScrollChildHeightPx']>=initial['contentScrollViewportPx']
+        assert initial['workspaceHeightPx']>=initial['contentBudget']['workspaceMinimumPx']>0
+        assert initial['supportingViewportHeightPx']>0 and initial['chartViewportHeightPx']>0
+        assert initial['contentBudget']['contentHeightPx']==initial['contentScrollChildHeightPx']
+        chart_reach=short['chartReachability']
+        assert chart_reach['completed'] and chart_reach['initialScrolls']==initial['scrolls']
+        expected_text=initial['canvasTextOperations']
+        assert expected_text and [x['index'] for x in expected_text]==sorted(set(x['index'] for x in expected_text))
+        assert [x['semanticKey'] for x in expected_text]==[f"text-{x['index']}" for x in expected_text]
+        assert [x['semanticKey'] for x in chart_reach['reached']]==['plot']+[x['semanticKey'] for x in expected_text]
+        assert {'legend','pressure-unit','flow-unit','pressure-tick','flow-tick','time-tick'} <= {x['role'] for x in expected_text}
+        fixed_identity=('activityIdentity','windowIdentity','decorIdentity','windowTokenIdentity',
+            'workspaceIdentity','supportingScrollIdentity','contentScrollIdentity','chartViewportIdentity',
+            'buttonIdentity','chartIdentity','listIdentities')
+        for position,target_reach in enumerate(chart_reach['reached']):
+            phase='short-window/chart-plot-reachable' if target_reach['semanticKey']=='plot' else f"short-window/chart-{target_reach['semanticKey']}-reachable"
+            state=short_detail_capture(base,target_reach['capture'],phase,SHORT_ACTIVITY)
+            assert all(state[key]==initial[key] for key in fixed_identity)
+            assert state['workspaceHeightPx']>0 and state['chartViewportHeightPx']>0
+            assert state['chartMappingVerified'] and len(state['chartOriginScreenPx'])==2 and len(state['chartVisibleRectPx'])==4
+            assert len(state['canvasTextOperations'])==len(expected_text)
+            for before,after in zip(expected_text,state['canvasTextOperations']):
+                assert all(before[key]==after[key] for key in ('index','semanticKey','role','text','glyphBoundsPx'))
+            if target_reach['semanticKey']=='plot':
+                box=state['plotBoundsPx'];origin=state['chartOriginScreenPx'];visible=state['chartVisibleRectPx']
+                actual_width=max(0,min(origin[0]+box[2],visible[2])-max(origin[0]+box[0],visible[0]))
+                actual_height=max(0,min(origin[1]+box[3],visible[3])-max(origin[1]+box[1],visible[1]))
+                assert actual_width>0 and actual_height/state['density']>=96
+                assert abs(actual_width-state['visiblePlotWidthPx'])<0.001
+                assert abs(actual_height/state['density']-state['visiblePlotHeightDp'])<0.001
+                assert target_reach['visiblePlotHeightDp']==state['visiblePlotHeightDp']
+            else:
+                expected=expected_text[position-1];observed=state['canvasTextOperations'][position-1]
+                assert target_reach['operation']==observed and observed['semanticKey']==expected['semanticKey']
+                box=observed['glyphBoundsPx'];origin=state['chartOriginScreenPx'];visible=state['chartVisibleRectPx']
+                assert len(box)==4 and observed['wholeGlyph']
+                assert origin[0]+box[0]>=visible[0] and origin[1]+box[1]>=visible[1]
+                assert origin[0]+box[2]<=visible[2] and origin[1]+box[3]<=visible[3]
+        chart_restored=short_detail_capture(base,chart_reach['restored']['capture'],'short-window/chart-restored',SHORT_ACTIVITY)
+        assert chart_restored==chart_reach['restored']['state'] and chart_restored['scrolls']==initial['scrolls']
         assert initial['actualPaneMode'] in ('split','stacked')
         assert initial['button']['semanticId']=='legacy/detail/full-notice'
         if initial['actualPaneMode']=='split':
@@ -275,7 +316,8 @@ for path in manifests:
             reached=short_detail_capture(base,short['reachableCapture'],'short-window/reachable',SHORT_ACTIVITY)
             assert reached==short['reachableDetail'] and reached['actualPaneMode']=='stacked'
             for key in ('activityIdentity','windowIdentity','decorIdentity','windowTokenIdentity',
-                        'workspaceIdentity','supportingScrollIdentity','buttonIdentity','chartIdentity','listIdentities'):
+                        'workspaceIdentity','supportingScrollIdentity','contentScrollIdentity','chartViewportIdentity',
+                        'buttonIdentity','chartIdentity','listIdentities'):
                 assert reached[key]==initial[key]
             assert whole(reached['button']) and reached['buttonHeightPx']>=108
             assert reached['button']['semanticId']=='legacy/detail/full-notice'
@@ -284,7 +326,8 @@ for path in manifests:
         assert restored['actualPaneMode']==original['actualPaneMode']
         assert restored['windowLayout']==short['originalWindowLayout']
         for key in ('activityIdentity','windowIdentity','decorIdentity','windowTokenIdentity',
-                    'workspaceIdentity','supportingScrollIdentity','buttonIdentity','chartIdentity','listIdentities'):
+                    'workspaceIdentity','supportingScrollIdentity','contentScrollIdentity','chartViewportIdentity',
+                    'buttonIdentity','chartIdentity','listIdentities'):
             assert restored[key]==original[key]==initial[key]
     if m['page']=='curve':
         expected_targets=['title','metadata']

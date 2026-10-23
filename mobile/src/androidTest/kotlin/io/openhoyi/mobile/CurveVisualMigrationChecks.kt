@@ -715,13 +715,14 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("actualVisibleChildIndex",0).put("selectedId",item.id)
             .put("list",listState(activity))
     }
-    private fun libraryFixture(item: CurveLibraryItem, scope: Scope): JSONObject {
+    private fun libraryFixture(item: CurveLibraryItem, scope: Scope,
+        displayContext: Context = AppLanguageContext.wrap(context,app.languagePreferences.current)): JSONObject {
         val copyable=runCatching { CustomCurveDocument.fromLibraryItem(item) }.getOrNull()
         val weight=item.customDocument?.targetHundredthsGram ?: item.factoryCurve?.weightTenthsGram?.times(10)
             ?: item.controlProfile?.targetHundredthsGram
         val temperature=item.customDocument?.temperatureC ?: item.factoryCurve?.temperatureC ?: item.controlProfile?.temperatureC
         val stages=item.customDocument?.stages?.size ?: item.factoryCurve?.segmentCount ?: item.controlProfile?.parameters?.segmentCount
-        val values=listOf(temperature?.toString() ?: "—",weight?.let { if(it==0) context.getString(R.string.curve_details_no_weight)
+        val values=listOf(temperature?.toString() ?: "—",weight?.let { if(it==0) displayContext.getString(R.string.curve_details_no_weight)
             else String.format(java.util.Locale.getDefault(),"%.2f",it/100.0) } ?: "—",stages?.toString() ?: "—")
         return JSONObject().put("id",item.id).put("name",item.name).put("category",item.category)
             .put("source",when { item.factoryCurve!=null -> "factory"; item.controlProfile!=null -> "captured";
@@ -735,7 +736,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("canStart",scope.curves.canStart(item)).put("copyable",copyable!=null)
             .put("slotEligible",item.factoryCurve!=null && scope.curves.canStart(item))
     }
-    private fun libraryDisclosureState(activity: Activity, item: CurveLibraryItem, scope: Scope): JSONObject {
+    private fun libraryDisclosureState(activity: Activity, item: CurveLibraryItem, scope: Scope,
+        diagnosticFile: File? = null): JSONObject {
         val page=geometry(activity)
         val required=JSONObject()
         val tags=listOf("product/curve-library/full-parameters","product/curve-library/use")+
@@ -774,13 +776,25 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             }
         }
         val targets=CurveStageParameters.pressureTargets(item)
-        val fixture=libraryFixture(item,scope)
+        val fixture=libraryFixture(item,scope,activity)
         val expectedLabels=listOf(R.string.curve_preview_temperature,R.string.curve_preview_weight,R.string.curve_preview_stages)
-        for(index in 0..2) {
+        val summaryRows=(0..2).map { index ->
             val label=requireNotNull(root(activity).findViewWithTag<TextView>("product/curve-library/summary/$index/label"))
             val number=requireNotNull(root(activity).findViewWithTag<TextView>("product/curve-library/summary/$index/number"))
-            check(label.text.toString()==activity.getString(expectedLabels[index]) &&
-                number.text.toString()==fixture.getJSONArray("metricValues").getString(index))
+            JSONObject().put("index",index).put("actualLabel",label.text.toString())
+                .put("expectedLabel",activity.getString(expectedLabels[index]))
+                .put("actualNumber",number.text.toString())
+                .put("expectedNumber",fixture.getJSONArray("metricValues").getString(index))
+        }
+        diagnosticFile?.writeText(JSONObject().put("itemId",item.id)
+            .put("selectedId",(field(activity,"selected") as? CurveLibraryItem)?.id ?: JSONObject.NULL)
+            .put("activityLocale",activity.resources.configuration.locales[0].toLanguageTag())
+            .put("targetContextLocale",context.resources.configuration.locales[0].toLanguageTag())
+            .put("rows",JSONArray(summaryRows)).toString(2))
+        for(index in 0..2) {
+            val row=summaryRows[index]
+            check(row.getString("actualLabel")==row.getString("expectedLabel") &&
+                row.getString("actualNumber")==row.getString("expectedNumber"))
             if(index<2) {
                 val unit=requireNotNull(root(activity).findViewWithTag<TextView>("product/curve-library/summary/$index/unit"))
                 check(if(fixture.getJSONArray("metricUnits").isNull(index)) unit.visibility==View.GONE
@@ -998,7 +1012,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     short=true
                     await("real short Library Window measured") { root(page).isLaidOut && !root(page).isLayoutRequested }
                 }
-                val initial=libraryCapture(page,case,short) { libraryDisclosureState(page,item,scope) }
+                val initial=libraryCapture(page,case,short) {
+                    libraryDisclosureState(page,item,scope,File(case,"summary-assertion.json")) }
                 report.put("initialCapture",captureReference(directory,case))
                 val disclosure=initial.getJSONObject("libraryDisclosure")
                 val targets=CurveStageParameters.pressureTargets(item)

@@ -126,7 +126,8 @@ internal object TaskTypographyEvidence {
         return null
     }
 
-    fun capture(activity: Activity, directory: File) {
+    /** One-time assertions may allocate a probe, so callers run this before frame observation. */
+    fun verify(activity: Activity) {
         TaskTextLayoutEvidenceChecks.verifyOnce(activity)
         TaskVisualColorEvidenceChecks.verifyOnce(activity)
         check(activity.resources.configuration.locales[0].language == "zh")
@@ -143,6 +144,10 @@ internal object TaskTypographyEvidence {
             probe.setTypeface(probe.typeface, Typeface.BOLD)
             check(probe.typeface.weight == 700) { "Native bold did not select the bold family member" }
         }
+    }
+
+    /** Detached JSON value snapshot; no file writes or page mutations during observation. */
+    fun snapshot(activity: Activity): JSONObject {
         val items = JSONArray()
         val layout = JSONArray()
         fun visit(view: View, path: String) {
@@ -203,13 +208,18 @@ internal object TaskTypographyEvidence {
         }
         visit(activity.window.decorView, "root")
         val metrics = activity.resources.displayMetrics
-        File(directory, "${activity.javaClass.simpleName}-typography.json").writeText(JSONObject()
+        return JSONObject()
             .put("visualEvidenceVersion", 1)
             .put("visualEvidenceScope", "TextView_and_static_drawable_evidence_not_full_visual_acceptance")
             .put("canvasPaintCoverage", "not_collected")
             .put("screenCompositeColorCoverage", "requires_corresponding_PNG_review")
             .put("font", "Noto Sans SC 2.004-H2 fixed source; Chinese only")
             .put("density", metrics.density).put("scaledDensity", metrics.scaledDensity)
-            .put("fontScale", activity.resources.configuration.fontScale).put("views", items).put("layout", layout).toString(2))
+            .put("fontScale", activity.resources.configuration.fontScale).put("views", items).put("layout", layout)
+    }
+
+    fun capture(activity: Activity, directory: File) {
+        verify(activity)
+        File(directory, "${activity.javaClass.simpleName}-typography.json").writeText(snapshot(activity).toString(2))
     }
 }
