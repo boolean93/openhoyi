@@ -11,8 +11,7 @@ from pathlib import Path
 from mock_ui_tap import AmbiguousMockControl, find_target, read_hierarchy, main
 
 
-REAL_HISTORY_XML = (Path(__file__).resolve().parent.parent / 'build/task-first-evidence/'
-    'ci-8b52379-capture-push/raw/selector-diagnostics/ambiguous-5yiwqhu8/hierarchy.xml')
+REAL_HISTORY_XML = Path(__file__).resolve().parent / 'fixtures/mock_ui_tap/history-detail-ambiguous.xml'
 REAL_HISTORY_XML_SHA = '2bf2c04e93e3d7038e0c69393b64093660d20f4465c0944d46052ef6bac88336'
 
 

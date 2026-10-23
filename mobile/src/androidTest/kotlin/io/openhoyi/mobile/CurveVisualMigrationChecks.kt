@@ -1291,6 +1291,30 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             is Long -> "Long"; is Float -> "Float"; is Set<*> -> "StringSet"; else -> error("Unknown preference type") })
             .put("value",if(value is Set<*>) JSONArray(value.sortedBy { it.toString() }) else value)
     })
+    private fun routePreferenceSnapshot(name:String):Map<String,*> =
+        context.getSharedPreferences(name,Context.MODE_PRIVATE).all.mapValues { (_,value) ->
+            if(value is Set<*>) value.toSet() else value
+        }.toMap()
+    private fun routeViewState(view:View):JSONObject = JSONObject()
+        .put("identity",System.identityHashCode(view)).put("class",view.javaClass.name)
+        .put("visibility",view.visibility).put("isLaidOut",view.isLaidOut)
+        .put("isLayoutRequested",view.isLayoutRequested)
+        .put("width",view.width).put("height",view.height)
+        .put("scrollX",view.scrollX).put("scrollY",view.scrollY)
+    private fun routeActivityState(activity:Activity, into:JSONObject) {
+        val window=activity.window; val decor=window.decorView; val token=decor.windowToken
+        into.put("activityIdentity",System.identityHashCode(activity)).put("activityClass",activity.javaClass.name)
+            .put("windowIdentity",System.identityHashCode(window)).put("windowClass",window.javaClass.name)
+            .put("decorIdentity",System.identityHashCode(decor)).put("decorClass",decor.javaClass.name)
+            .put("windowTokenIdentity",token?.let { System.identityHashCode(it) } ?: JSONObject.NULL)
+            .put("windowTokenClass",token?.javaClass?.name ?: JSONObject.NULL)
+            .put("compact",field(activity,"compact") as Boolean)
+        into.put("root",routeViewState(root(activity)))
+        into.put("list",routeViewState(list(activity)))
+        into.put("detailPanel",routeViewState(field(activity,"detailPanel") as View))
+        into.put("detailScroll",routeViewState(field(activity,"detailScroll") as ScrollView))
+        into.put("fallbackScroll",routeViewState(field(activity,"previewFallbackScroll") as ScrollView))
+    }
     private fun restorePresetKeys(before:Map<String,*>) {
         val preferences=context.getSharedPreferences("presets",Context.MODE_PRIVATE)
         val edit=preferences.edit()
@@ -1486,8 +1510,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             "import-page" to null,"legacy-page" to null)
         check(source.size==5 && qualified.factoryCurve!=null && scope.curves.canStart(qualified) &&
             CustomCurveDocument.fromLibraryItem(qualified).controlMode==CustomCurveDocument.ControlMode.PRESSURE)
-        val frozen=invariant(scope); val preset=context.getSharedPreferences("presets",Context.MODE_PRIVATE).all.toMap()
-        val curvePrefs=context.getSharedPreferences("curves",Context.MODE_PRIVATE).all.toMap()
+        val frozen=invariant(scope); val preset=routePreferenceSnapshot("presets")
+        val curvePrefs=routePreferenceSnapshot("curves")
         val clipboard=scope.clipboardSnapshot()
         val report=JSONObject().put("routes",JSONArray(source.map { it.first })).put("visualAcceptance","ASTRA_PENDING")
         source.forEach { (route,item) ->
@@ -1499,9 +1523,18 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 if(route=="legacy-page") scope.installOwnedLegacy()
                 val page=start(CurveActivity::class.java); library=page; unfocus(page)
                 if(item!=null) routeReport.put("realSelection",librarySelect(page,scope,item))
-                val before=listState(page); val requested=(field(page,"collection") as TaskCollectionLayout).detailRequested
-                val scroll=(field(page,"detailScroll") as ScrollView).scrollY
-                val fallback=(field(page,"previewFallbackScroll") as ScrollView).scrollY
+                val departure=JSONObject().put("stage","before_route_departure_main_snapshot")
+                routeReport.put("departureSnapshot",departure)
+                main { try {
+                    departure.put("sampleElapsedRealtimeMs",SystemClock.elapsedRealtime())
+                    departure.put("listState",listState(page))
+                    departure.put("detailRequested",(field(page,"collection") as TaskCollectionLayout).detailRequested)
+                    departure.put("detailScrollY",(field(page,"detailScroll") as ScrollView).scrollY)
+                    departure.put("fallbackScrollY",(field(page,"previewFallbackScroll") as ScrollView).scrollY)
+                    routeActivityState(page,departure)
+                } catch(error:Throwable) { departure.put("snapshotFailure",error.stackTraceToString());throw error } }
+                val before=departure.getJSONObject("listState"); val requested=departure.getBoolean("detailRequested")
+                val scroll=departure.getInt("detailScrollY"); val fallback=departure.getInt("fallbackScrollY")
                 val expected=when(route) {
                     "edit-draft","edit-copy-factory" -> CurveEditorActivity::class.java
                     "share-page" -> CurveShareActivity::class.java
@@ -1602,16 +1635,60 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 if(route=="legacy-page") scope.drainOwnedLegacyReaders()
                 val restoredFolder=File(folder,"restored")
                 val returned=libraryCapture(page,restoredFolder) { geometry(page) }
-                check(listState(page).toString()==before.toString() &&
-                    (field(page,"collection") as TaskCollectionLayout).detailRequested==requested &&
-                    (field(page,"detailScroll") as ScrollView).scrollY==scroll &&
-                    (field(page,"previewFallbackScroll") as ScrollView).scrollY==fallback &&
-                    returned.getJSONObject("actualRestoreState").getBoolean("hasWindowFocus") &&
-                    invariant(scope)==frozen && context.getSharedPreferences("presets",Context.MODE_PRIVATE).all==preset &&
-                    context.getSharedPreferences("curves",Context.MODE_PRIVATE).all==curvePrefs &&
-                    scope.clipboardSnapshot()==clipboard && services().isEmpty()) { "M3 $route return/invariant failed" }
-                routeReport.put("returned",listState(page)).put("restoredCapture",captureReference(directory,restoredFolder))
-                    .put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
+                val diagnostics=JSONObject().put("stage","after_restored_capture_pre_assertion_main_snapshot")
+                    .put("sameCompositorFrameProven",false)
+                    .put("returnedFrameFocusSource","restored_capture_target_actualRestoreState")
+                routeReport.put("returnAssertionDiagnostics",diagnostics)
+                    .put("restoredCapture",captureReference(directory,restoredFolder))
+                main { try {
+                    diagnostics.put("sampleElapsedRealtimeMs",SystemClock.elapsedRealtime())
+                    val after=JSONObject();diagnostics.put("after",after)
+                    val afterList=listState(page);after.put("listState",afterList);routeReport.put("returned",afterList)
+                    val afterRequested=(field(page,"collection") as TaskCollectionLayout).detailRequested
+                    after.put("detailRequested",afterRequested)
+                    val afterScroll=(field(page,"detailScroll") as ScrollView).scrollY
+                    after.put("detailScrollY",afterScroll)
+                    val afterFallback=(field(page,"previewFallbackScroll") as ScrollView).scrollY
+                    after.put("fallbackScrollY",afterFallback)
+                    routeActivityState(page,after)
+                    val afterInvariant=invariant(scope);after.put("invariant",afterInvariant)
+                    val afterPreset=routePreferenceSnapshot("presets");after.put("presets",prefMapJson(afterPreset))
+                    val afterCurvePrefs=routePreferenceSnapshot("curves");after.put("curvePrefs",prefMapJson(afterCurvePrefs))
+                    val afterClipboard=scope.clipboardSnapshot();after.put("clipboard",afterClipboard)
+                    val afterServices=services().toList();after.put("services",JSONArray(afterServices))
+                    val capturedFocus=returned.getJSONObject("actualRestoreState").getBoolean("hasWindowFocus")
+                    after.put("returnedFrameHasWindowFocus",capturedFocus)
+                        .put("currentHasWindowFocus",page.hasWindowFocus())
+                        .put("currentFocusedViewTag",page.currentFocus?.tag ?: JSONObject.NULL)
+                        .put("currentFocusedViewClass",page.currentFocus?.javaClass?.name ?: JSONObject.NULL)
+                        .put("targetDestroyed",destination.isDestroyed).put("targetHasWindowFocus",destination.hasWindowFocus())
+                    val comparisons=JSONObject();val falseItems=JSONArray()
+                    diagnostics.put("comparisons",comparisons).put("falseItems",falseItems)
+                    fun compare(name:String, original:Any?, actual:Any?, equal:Boolean) {
+                        comparisons.put(name,JSONObject().put("before",original ?: JSONObject.NULL)
+                            .put("after",actual ?: JSONObject.NULL).put("equal",equal))
+                        if(!equal)falseItems.put(name)
+                    }
+                    compare("listState",before,afterList,before.toString()==afterList.toString())
+                    val listFields=JSONObject();diagnostics.put("listFields",listFields)
+                    listOf("position","offsetPx","firstItemId","count","query","category","sort","selectedId")
+                        .forEach { key -> val original=before.get(key);val actual=afterList.get(key)
+                            listFields.put(key,JSONObject().put("before",original).put("after",actual)
+                                .put("equal",original==actual)) }
+                    compare("detailRequested",requested,afterRequested,requested==afterRequested)
+                    compare("detailScrollY",scroll,afterScroll,scroll==afterScroll)
+                    compare("fallbackScrollY",fallback,afterFallback,fallback==afterFallback)
+                    compare("returnedFrameHasWindowFocus",true,capturedFocus,capturedFocus)
+                    compare("invariant",frozen,afterInvariant,frozen==afterInvariant)
+                    compare("presetMap",prefMapJson(preset),prefMapJson(afterPreset),preset==afterPreset)
+                    compare("curvePrefsMap",prefMapJson(curvePrefs),prefMapJson(afterCurvePrefs),curvePrefs==afterCurvePrefs)
+                    compare("clipboard",clipboard,afterClipboard,clipboard==afterClipboard)
+                    compare("servicesEmpty",JSONArray(),JSONArray(afterServices),afterServices.isEmpty())
+                    diagnostics.put("allTenEqual",falseItems.length()==0)
+                        .put("sampleFinishedElapsedRealtimeMs",SystemClock.elapsedRealtime())
+                } catch(error:Throwable) { diagnostics.put("snapshotFailure",error.stackTraceToString());throw error } }
+                check(diagnostics.getBoolean("allTenEqual")) { "M3 $route return/invariant failed" }
+                routeReport.put("status","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")
             } catch(error:Throwable) { primary=error; routeReport.put("status","FAIL").put("failure",error.stackTraceToString()); throw error }
             finally {
                 try { target?.let { if(!it.isDestroyed) close(it) }; library?.let { if(!it.isDestroyed) close(it) }
