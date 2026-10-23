@@ -17,6 +17,7 @@ import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
@@ -41,6 +42,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
     private val context get() = test.targetContext
     private val app get() = context.applicationContext as MobileApplication
     private val frames = NativeWindowFrameEvidence(test)
+    private val textSnapshotContract="SETTINGS_TEXT_AT_MAIN_THREAD_OBSERVATION_V1"
     private val ownedProviderSessions=linkedSetOf<String>()
     private val providerLifecycle=JSONArray()
     private fun main(action: () -> Unit) {
@@ -125,9 +127,9 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             .put("visibilitySemantics","exact_hierarchy_clip_only; not_system_window_or_IME_occlusion_proof")
             .put("globalVisible",shown).put("complete",mapping && view.width>0 && view.height>0 && derived==full)
     }
-    private fun actualTypography(text:TextView):JSONObject {
+    private fun actualTypography(text:TextView,textSnapshot:String):JSONObject {
         val paint=text.paint;val metrics=paint.fontMetrics;val origin=IntArray(2);text.getLocationOnScreen(origin)
-        return JSONObject().put("text",text.text.toString()).put("class",text.javaClass.name).put("tag",text.tag)
+        return JSONObject().put("text",textSnapshot).put("class",text.javaClass.name).put("tag",text.tag)
             .put("textSizePx",paint.textSize).put("weight",paint.typeface?.weight ?: JSONObject.NULL)
             .put("typeface",paint.typeface?.toString() ?: JSONObject.NULL).put("glyphFontIdentity","UNKNOWN_PUBLIC_TEXTVIEW_API_DOES_NOT_EXPOSE_FALLBACK_GLYPH_FONT")
             .put("textScaleX",paint.textScaleX).put("textSkewX",paint.textSkewX).put("fakeBold",paint.isFakeBoldText)
@@ -143,7 +145,9 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         val texts = nodes(view).filterIsInstance<TextView>().map { text ->
             val textVisibility=visibility(text)
             val layout = text.layout
-            JSONObject().put("actualTypography",actualTypography(text)).put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", textVisibility.getBoolean("complete")).put("visibility",textVisibility)
+            val textSnapshot=text.text.toString() // Main-thread observation value, not a live Editable/Spannable reference.
+            JSONObject().put("actualTypography",actualTypography(text,textSnapshot)).put("semanticId", text.tag)
+                .put("text",textSnapshot).put("fullViewVisible", textVisibility.getBoolean("complete")).put("visibility",textVisibility)
                 .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
                 .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
                 .put("layoutHeightPx", layout?.height ?: JSONObject.NULL)
@@ -506,10 +510,12 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         }
     }
     private fun geometry(activity:Activity):JSONObject {
+        check(Looper.myLooper()==Looper.getMainLooper()) {"M8 Settings geometry must observe text on the main thread"}
         val content=root(activity);val origin=IntArray(2);content.getLocationOnScreen(origin)
         val insets=requireNotNull(content.rootWindowInsets);val bars=insets.getInsets(WindowInsets.Type.systemBars())
         val config=activity.resources.configuration
-        return JSONObject().put("windowMetricsBoundsPx",rect(activity.windowManager.currentWindowMetrics.bounds))
+        return JSONObject().put("textSnapshotContract",textSnapshotContract)
+            .put("windowMetricsBoundsPx",rect(activity.windowManager.currentWindowMetrics.bounds))
             .put("appOriginPx",JSONArray(origin.toList())).put("appSizePx",JSONArray(listOf(content.width,content.height)))
             .put("systemInsetsPx",JSONArray(listOf(bars.left,bars.top,bars.right,bars.bottom)))
             .put("imeVisible",insets.isVisible(WindowInsets.Type.ime())).put("densityDpi",config.densityDpi)
@@ -642,9 +648,11 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         frames.committedFrame(root(activity))
     }
     private fun dialogGeometry(window:android.view.Window):JSONObject {
+        check(Looper.myLooper()==Looper.getMainLooper()) {"M8 Settings dialog geometry must observe text on the main thread"}
         val decor=window.decorView;val insets=requireNotNull(decor.rootWindowInsets);val screen=IntArray(2);decor.getLocationOnScreen(screen)
         val available=Rect();decor.getWindowVisibleDisplayFrame(available)
-        return JSONObject().put("decorScreenPx",rect(Rect(screen[0],screen[1],screen[0]+decor.width,screen[1]+decor.height)))
+        return JSONObject().put("textSnapshotContract",textSnapshotContract)
+            .put("decorScreenPx",rect(Rect(screen[0],screen[1],screen[0]+decor.width,screen[1]+decor.height)))
             .put("actualVisibleFrameScreenPx",rect(available)).put("imeVisible",insets.isVisible(WindowInsets.Type.ime()))
             .put("softInputMode",window.attributes.softInputMode).put("hasWindowFocus",decor.hasWindowFocus())
             .put("nodes",JSONArray(nodes(decor).filter {it is TextView || it.tag is String}.map(::observation)))

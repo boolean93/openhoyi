@@ -199,6 +199,12 @@ def require_protocol(path, kind=None):
     assert attempt['surface-beforeSourceRectAfterSdk']==source==attempt['surface-afterSourceRectAfterSdk'],path
     for geometry in (attempt['geometryBefore'],attempt['geometryAfter']):
         assert geometry['hasWindowFocus'] and not geometry['rootLayoutRequested'] and not geometry['decorLayoutRequested']
+        target=geometry['target']
+        assert target['textSnapshotContract']=='SETTINGS_TEXT_AT_MAIN_THREAD_OBSERVATION_V1',(path,target.get('textSnapshotContract'))
+        assert target['nodes']
+        for node in target['nodes']:
+            for text in node['textLineBoxes']:
+                assert isinstance(text['text'],str) and text['text']==text['actualTypography']['text']
         decor=geometry['windowDecorSizePx']; ds=geometry['decorLocationOnScreenPx']
         assert geometry['decorLocationInWindowPx']==[0,0]
         assert screen[0]-source[0]==ds[0] and screen[1]-source[1]==ds[1]
@@ -253,7 +259,9 @@ def require_whole(actual):
 
 def require_state(folder,kind):
     assert (folder/'window.png').is_file() and (folder/'geometry.json').is_file(),folder
-    require_protocol(folder/'window-frame-sync.json',kind)
+    proof=require_protocol(folder/'window-frame-sync.json',kind)
+    accepted=proof['attempts'][proof['acceptedAttempt']-1]['geometryBefore']['target']
+    assert json.loads((folder/'geometry.json').read_text())==accepted
     if kind=='EXPLICIT_WINDOW':
         typography=json.loads((folder/'dialog-typography.json').read_text())
         assert typography['source']=='accepted_explicit_dialog_window_target_geometry_not_owner_Activity'
@@ -332,7 +340,8 @@ for path in manifests:
         proofs=list(folder.rglob('*-frame-sync.json'));assert proofs
         for proof in proofs:
             require_protocol(proof); protocol_count+=1
-        require_protocol(folder/'window-frame-sync.json','ACTIVITY')
+        require_state(folder,'ACTIVITY')
+        assert m['window']==json.loads((folder/'geometry.json').read_text())
         isolation=json.loads((folder/'fixture-isolation.json').read_text())
         for name in ('businessDiskByteUnchanged','typedPreferencesRestored','originalLazyIdentityAndInitializedRestored',
                      'allActivitiesDestroyed','noServiceBeforeOriginalDelegateRestore','scopedWritersTerminated',

@@ -2,20 +2,52 @@
 
 ## 当前状态（优先于下方历史观察时点）
 
-最新远端 head `7082e044fdf8eb2a0613154921908eaf6cbd4a01`，PR4仍为draft、目标develop；PR实际 tested merge `847a2befd04f0384edc133958a95d5cc4fab91ee`。26个运行已全部终态：PR6成功/8失败、push4成功/8失败，完整结果见 `build/task-first-evidence/ci-7082e04/final-all-status.json`。原件按对应run/head或merge分账，不把push样本写成PR样本。
+已推送 head `643d8281ee46a4765133ec6e9796a971d8120dc8`；PR4为draft、目标develop。25个已观察运行全部终态：PR 7成功/7失败，push 4成功/7失败；完整句柄与结果见 `build/task-first-evidence/ci-643d828/{run-handles,final-all-status}.json`。已核原件的PR tested merge为 `4f990722c0181504b665ab1fe91ac60832619d18`，各包仍按自身manifest/run绑定，不把push与PR混用。
 
-本地已提交、尚未推送 `b8dcc1f`：Legacy长名/短窗与M4详情全文补证、同日隐藏日期检查修正、Scale报告去重。Astra静态通过，统一AndroidTest构建37秒成功。后续B合法测试ID、M8精度Switch窄修、Curve原范围漏采补齐及Window JSON精确等价优化均已静态通过，统一AndroidTest构建40秒成功，待本次提交推送后的新CI。
+**完整24页G1–G4尚未完成。** 编译、机械检查、原件完整性、视觉验收分别记账；未安装、合并或发版。旧失败和原ZIP全部保留，不以新计划或局部通过覆盖。
 
-| 最新确切进展 | 仍需完成 |
+| 模块 | 最新已证进展 | 仍需完成 |
+|---|---|---|
+| M1 Home / Inventory / Share | 原四配置限定接受沿用，无新增变更 | 不扩展为硬件验收，不重复已过范围 |
+| M2 表单 | 643 Editor文字/选区/焦点/draft保持；曾在IME=true时实际恢复scroll662 | 最终IME=false、viewport680→1391、scroll0，恢复仍FAIL；首hide归属未知；其余未采配置不外推 |
+| M3 曲线库 / 导入 / 预览 | 原Library浅1.0主态限定接受；643定位long-factory恢复前后detailRequested不同 | 合法真实交互后的基线/恢复补证静态通过，待新CI；Import IME旧FAIL未关闭，其余库特殊态及后续页未验完 |
+| M4 准备 / 批量 / 流水 | 原12主态/已列特殊态和准备说明沿用限定接受；643 PR业务与font key absent→absent均成功。32张新详情原图的四配置全文、逐行滚达/恢复和实际原生配色获Astra限定接受 | 公共字号/字重元数据补证已静态通过，待下批实测；系统字体SHA不是无限补采门槛；同head push清理FAIL另记 |
+| M5 萃取 / 历史 / 详情 / 对比 | 643浅1.3四页及12+5+5+5既有特殊态机械通过；Extraction特殊态正在实图审。708 Comparison来源全文/警示/水平线和History滚达链的限定接受沿用 | 643浅1.0 History UNKNOWN时间轴真裁42px，条件title+warning同行产品修复已静态通过，待新图；其余未采配置/状态仍待验 |
+| M6 秤 / 连接 | 原浅1.3主态8图限定接受；643新增15特殊图已审，短窗主读数/去皮/footer预算不足在本配置关闭，原生短窗趋势详情限定接受；snapshot本scope PASS_EXACT | 右栏长文与独立恢复原图补证在做；Connection forty单份proof写盘OOM仍FAIL，流式写盘仅静态通过；深色/1.0不外推 |
+| M7 旧曲线 / 历史 / 详情 | LegacyHistory自然plot84.11→160.1106dp缺陷已关闭；643顺序推进到detail短窗 | 其全文按钮初态在窗外，按批准stacked滚达合同补证已静态通过，待新CI；其余正式G1–G4未验完 |
+| M8 三设置页 | 643固定12格全部执行；4格ScaleSettings及3类特殊态机械通过，待实图审 | 8格App/Machine仍FAIL；App第二次四零差但超5秒，Machine有像素差且超时。活Spannable/Editable触发整树fallback已确证，采样String快照语义修正正在实施；不量化未证收益、不放宽门槛 |
+
+### 当前未提交合批候选
+
+- 已静态通过：Window proof无损流式写盘（官方SDK34逐字节18案含192MiB宿主机压力）；Curve/Legacy恢复与滚达补证；M5条件同行布局；M4原生详情三对象公共typography字段。
+- 正在收口：Scale原六目标独立恢复原图及三个既有特殊态右栏全文；Settings主线程不可变文字快照V1及反例验证。未知custom仍沿原comparator回退，不把并发活引用行为改正冒称新旧无条件等价。
+- 所有组冻结后由唯一owner统一构建，再按原CI矩阵验证。此前643构建40秒成功只证明旧hash，不覆盖这些未提交改动。IME方法trace本批不追加：格式/overflow合同尚未证实，且643 M3未越过Library；不为诊断阻住已证UI修复。
+
+### 2026-10-23 合批构建复验
+
+上述六组候选已完成本地统一 `:mobile:assembleMock :mobile:assembleMockAndroidTest`，84秒、91 tasks、退出0。首次构建暴露 HistoryDetailContent 两处局部 `val width` 遮蔽 LayoutParams.width；Sol仅显式改成 `this.width`，Astra逆替换验证精确恢复此前已审hash，增量静态通过。新生产文件SHA为 `c6005f088b111f4d5742a589050b11138161fdd3d99cecd1dcb9c7831d5f151d`，设计合同不变。
+
+日志、首败、构建前后源码hash保存在 `build/task-first-evidence/ui-643-followup-build/`。构建期间源码/runner/oracle未漂移，仅计划追加复核文字。六个runner的bash语法和六段Python语法、git diff检查通过。这里只证明编译与静态检查，尚未取得新CI截图，旧643失败不关闭。Astra继续单独核验旧643萃取特殊态，未提前签全范围通过；未安装、合并或发版。
+
+### 643 原件与限定审查索引
+
+各目录均在 `build/task-first-evidence/`；SHA/CRC/选择提取边界由各自 `preservation.json` 记录。完整ZIP保留，不以raw存在推定整包已展开。
+
+| 原件 | 核验与边界 |
 |---|---|
-| M1四配置、M4既定主态及说明补证沿用已有明确限定接受 | 未采详情原生弹窗全文须新图，不以字符串/构建代验 |
-| 708浅1.3 Comparison UNKNOWN警示、两来源全文及双scroll恢复；History轴/说明/notes滚达链获Astra限定接受 | History标准1.0旧截轴及其余未采配置不由1.3覆盖 |
-| LegacyHistory自然plot由84.11提升至160.1106dp，该自然高度缺陷关闭 | 初态可见plot约136.22dp，底轴完整滚达与整页验收仍待证 |
-| M8固定12格均执行，隔离通过才继续，首失败码保留 | 12格均失败；App/Machine同步超时、precision返回值误判分别处理 |
-| Scale浅1.3主态、趋势Dialog、6工具目标共8原图G1–G4限定接受；专用snapshot一次实测精确恢复 | 完整scroll恢复仍缺证；short/freshness/深色/1.0/Connection未签，汇总OOM待新运行；独立probe仍FAIL |
-| Extraction STARTING和STOP_REQUESTED实际页面已产 | STOP_REQUESTED样本写入清理失败，合法ID修正后需重新验证余态；M2/M3 IME恢复仍FAIL |
+| `ci-643d828-scale-pr/` | ZIP `49e1b906e9ee66d19acfd1aa298f0a101c20a021d6267abe9a09dd0594aca153`，484项CRC/完整展开；见acceptance-index.json。视觉限定见[Scale审查](2026-10-19-m6-short-window-and-ime-trace-review.md)末节 |
+| `ci-643d828-m5-pr/` | ZIP `38b9776a621dffdea48fa919aab6c416ac2b070edc4dd9520355275a12f485bb`，2037项CRC、5主manifest2016引用SHA通过；raw选择提取，完整原件在ZIP。42px裁轴见diagnosis.md |
+| `ci-643d828-bean-pr/` | ZIP `70c58db161d42984b9126928985441aa3b3581a1c5cd46804fc9eafbc24b3093`，1233项CRC、12主manifest1192引用SHA通过；raw选择提取。见[M4详情审查](2026-10-20-m4-detail-dialog-visual-review.md) |
+| `ci-643d828-settings-pr/` | ZIP `4d7fc9b93807eac9f7efe3e16b0c72649b1a83da1cdaa55f4f02293b1bd2d160`，2414项CRC；raw仅小诊断，完整原件在ZIP。见settings-diagnosis.md、comparator-fallback-type-trace.md |
+| `ci-643d828-frame-pr/` | ZIP `13164544d08764353a7f2763dc81c401d6be36411b0be7d54cc8ff0363580da6`，1082项CRC；raw选择提取，ime-diagnosis.json区分本轮实际apply与a47未apply |
+| `ci-643d828-curve-push/`、`ci-643d828-legacy-push/` | 两原ZIP完整校验/展开，diagnosis.md记录首败具体字段与屏幕rect，不混为PR产物 |
+| `ci-643d828-single-user-pr/` | ZIP `ce00ba92b8d6fdcd10efa0db3c46cc9dd7f49bd8aeab43e26d5a66cddac63e14`，115项CRC/完整展开。中文Home首图有Quickstep无响应系统弹窗，终态dumpsys焦点为Launcher ANR；instrument1200秒FAIL保留，不据此判产品布局缺陷。其余两个single job成功，不外推用户屏型 |
 
-**完整24页G1–G4尚未完成。** 以上只限明确源码/配置/状态；未安装、合并或发版。所有旧失败保留原件，后文按时间点阅读，不把历史“运行中”当当前状态。
+空间管理只移除经逐文件证明与原ZIP完全相同的可重建raw镜像（含708 M5）；原ZIP、原SHA/CRC与`raw-eviction-record.json`保留。没有删除唯一原件、旧失败或用户数据。
+
+### 7082e04 历史批次摘要
+
+head `7082e044fdf8eb2a0613154921908eaf6cbd4a01` / PR tested merge `847a2befd04f0384edc133958a95d5cc4fab91ee`。26运行终态为PR6成功/8失败、push4成功/8失败，见 `ci-7082e04/final-all-status.json`。其有限视觉接受继续有效，失败不能被643的不同scope覆盖。原件仍按run/head或merge分账。
 
 ### dc5875c历史批次摘要
 
@@ -412,3 +444,5 @@ Astra实际新审708 push中文浅1.3：Comparison UNKNOWN警示一行61px、两
 ### 当前整批最终验证
 
 B/M8/Window/Curve冻结源码统一 `assembleMockAndroidTest` 成功40s，74 tasks，构建前后源码SHA一致；日志 `window-json-equivalence/unified-build.log` SHA256 `6bd6e6dc3452373876c9278a5c75b04c61ed168eac76ace1035141cd94cd84c7`。root复核日志/哈希，并运行窗口契约9项、分支规则8项通过；官方Android34 JSON oracle57组含708原JSON通过。各最终源码hash和边界在对应计划。真实Android5000ms、Curve6态/slot/route、B12态、M8精度及三组详情完整图仍须新CI，不据本节签视觉完成。
+
+新批准备空间：bcc64c1-bean/a47c870-bean/a47c870-m5的重复raw在与各自完整ZIP成员逐文件SHA相等后移除，共释放1,272,444,839 bytes；原ZIP和raw-eviction-record保留。未动M2/M3因果原件、eb77主图或当前708待审原件。

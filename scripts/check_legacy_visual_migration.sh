@@ -182,6 +182,29 @@ def referenced_file(base, ref, expected):
     assert sha(target)==ref['sha256']
     return target
 
+def whole(observation):
+    if not observation['complete']:return False
+    for line in observation['textLineBoxes']:
+        if not (line['fullViewVisible'] and line['layoutPresent'] and line['lineCount']>0 and
+                line['ellipsisCount']==0 and line['layoutHeightPx']<=line['contentHeightPx']):return False
+        for bounds in line['horizontalLayoutLines']:
+            if not (bounds['leftPx']>=0 and bounds['rightPx']<=line['contentWidthPx'] and
+                    bounds['rightPx']-bounds['leftPx']<=line['contentWidthPx']):return False
+    return True
+
+def short_detail_capture(special_root, refs, prefix, expected_mode):
+    assert set(refs)=={'windowRef','geometryRef','frameSyncRef'}
+    image=referenced_file(special_root,refs['windowRef'],f'{prefix}/window.png')
+    geometry_path=referenced_file(special_root,refs['geometryRef'],f'{prefix}/geometry.json')
+    proof_path=referenced_file(special_root,refs['frameSyncRef'],f'{prefix}/window-frame-sync.json')
+    proof=require_protocol(proof_path,'ACTIVITY')
+    assert proof['mappingMode']==expected_mode
+    geometry=json.loads(geometry_path.read_text())
+    accepted=proof['attempts'][proof['acceptedAttempt']-1]['geometryBefore']['target']
+    assert geometry==accepted and proof['imageSha256']==sha(image)
+    assert tuple(geometry['appSizePx']) and struct.unpack('>II',image.read_bytes()[16:24])==(2560,1600)
+    return geometry['shortDetail']
+
 for path in manifests:
     m=json.loads(path.read_text()); folder=path.parent
     assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
@@ -235,6 +258,34 @@ for path in manifests:
     require_protocol(folder/'special-states/short-window/window-frame-sync.json','ACTIVITY')
     short=next(case for case in special['cases'] if case['case']=='short-window')
     assert short['acceptanceStatus']=='PASS_PROTOCOL2_ONLY_NOT_VISUAL' and short['frameSync']['accepted']
+    if m['page']=='detail':
+        base=folder/'special-states'
+        original=short_detail_capture(base,short['originalCapture'],'states/short-window-detail-original',DEFAULT_ACTIVITY)
+        initial=short_detail_capture(base,short['initialCapture'],'short-window',SHORT_ACTIVITY)
+        assert original==short['originalDetail']
+        assert initial==short['initialDetail'] and initial['actualPlotHeightDp']>=96.0
+        assert initial['actualPaneMode'] in ('split','stacked')
+        assert initial['button']['semanticId']=='legacy/detail/full-notice'
+        if initial['actualPaneMode']=='split':
+            assert short['reachabilityMode']=='SPLIT_FIXED_INITIAL' and initial['secondaryViewportBounded']
+            assert whole(initial['button']) and initial['buttonHeightPx']>=108
+            assert 'reachableCapture' not in short
+        else:
+            assert short['reachabilityMode']=='STACKED_REAL_SUPPORT_SCROLL' and not initial['secondaryViewportBounded']
+            reached=short_detail_capture(base,short['reachableCapture'],'short-window/reachable',SHORT_ACTIVITY)
+            assert reached==short['reachableDetail'] and reached['actualPaneMode']=='stacked'
+            for key in ('activityIdentity','windowIdentity','decorIdentity','windowTokenIdentity',
+                        'workspaceIdentity','supportingScrollIdentity','buttonIdentity','chartIdentity','listIdentities'):
+                assert reached[key]==initial[key]
+            assert whole(reached['button']) and reached['buttonHeightPx']>=108
+            assert reached['button']['semanticId']=='legacy/detail/full-notice'
+        restored=short_detail_capture(base,short['restoredCapture'],'states/short-window-detail-restored',DEFAULT_ACTIVITY)
+        assert restored==short['restoredDetail'] and restored['scrolls']==original['scrolls']
+        assert restored['actualPaneMode']==original['actualPaneMode']
+        assert restored['windowLayout']==short['originalWindowLayout']
+        for key in ('activityIdentity','windowIdentity','decorIdentity','windowTokenIdentity',
+                    'workspaceIdentity','supportingScrollIdentity','buttonIdentity','chartIdentity','listIdentities'):
+            assert restored[key]==original[key]==initial[key]
     if m['page']=='curve':
         expected_targets=['title','metadata']
         for index in range(4):

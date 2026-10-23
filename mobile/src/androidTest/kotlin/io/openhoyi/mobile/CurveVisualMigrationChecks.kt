@@ -654,6 +654,25 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         check(frame.proof.getInt("protocolVersion")==2 && frame.proof.getBoolean("accepted") && frame.proof.getInt("timeoutMs")==5000)
         return frame.target
     }
+    private fun libraryCaseState(activity: Activity, scope: Scope): JSONObject {
+        val window=activity.window
+        return JSONObject().put("list",listState(activity))
+            .put("detailRequested",(field(activity,"collection") as TaskCollectionLayout).detailRequested)
+            .put("detailScrollY",(field(activity,"detailScroll") as ScrollView).scrollY)
+            .put("fallbackScrollY",(field(activity,"previewFallbackScroll") as ScrollView).scrollY)
+            .put("activityIdentity",System.identityHashCode(activity))
+            .put("windowIdentity",System.identityHashCode(window))
+            .put("decorIdentity",System.identityHashCode(window.decorView))
+            .put("windowTokenIdentity",System.identityHashCode(requireNotNull(window.decorView.windowToken)))
+            .put("windowLayout",JSONArray(listOf(window.attributes.width,window.attributes.height,
+                window.attributes.gravity,window.attributes.x,window.attributes.y)))
+            .put("curvesPreferences",prefMapJson(context.getSharedPreferences("curves",Context.MODE_PRIVATE).all))
+            .put("ownedStoreSha256",shaText(invariant(scope)))
+            .put("services",JSONArray(services()))
+            .put("hasWindowFocus",activity.hasWindowFocus())
+    }
+    private fun libraryCaseGeometry(activity: Activity, scope: Scope): JSONObject =
+        geometry(activity).put("libraryCaseState",libraryCaseState(activity,scope))
     private fun captureReference(scopeRoot:File, folder:File):JSONObject {
         fun relative(name:String)=File(folder,name).relativeTo(scopeRoot).invariantSeparatorsPath
         return JSONObject().put("image",relative("window.png")).put("imageSha256",sha(File(folder,"window.png")))
@@ -949,10 +968,28 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             try {
                 val page=start(CurveActivity::class.java); activity=page
                 unfocus(page)
+                val startupFolder=File(case,"startup")
+                val startup=libraryCapture(page,startupFolder) { libraryCaseGeometry(page,scope) }
+                val startupState=startup.getJSONObject("libraryCaseState")
+                check(!startupState.getBoolean("detailRequested") && startupState.getJSONObject("list").getString("selectedId")!="")
+                report.put("startupCapture",captureReference(directory,startupFolder)).put("startupState",startupState)
+                val originalItem=requireNotNull(scope.curves.find(startupState.getJSONObject("list").getString("selectedId")))
+                val originalSelection=librarySelect(page,scope,originalItem)
+                stableList(page,case,"prepared-baseline")
+                val preparedFolder=File(case,"prepared")
+                val prepared=libraryCapture(page,preparedFolder) { libraryCaseGeometry(page,scope) }
+                val preparedState=prepared.getJSONObject("libraryCaseState")
+                check(preparedState.getBoolean("detailRequested") &&
+                    preparedState.getJSONObject("list").getString("selectedId")==originalItem.id &&
+                    preparedState.getJSONObject("list").getString("query")==originalItem.id)
+                report.put("originalSelection",originalSelection).put("preparedCapture",captureReference(directory,preparedFolder))
+                    .put("preparedState",preparedState).put("baselineSemantics","real_list_click_after_startup; startup_false_preserved")
                 val before=listState(page)
                 val beforeDetail=(field(page,"collection") as TaskCollectionLayout).detailRequested
                 val beforeScroll=(field(page,"detailScroll") as ScrollView).scrollY
                 val beforeFallback=(field(page,"previewFallbackScroll") as ScrollView).scrollY
+                check(before.toString()==preparedState.getJSONObject("list").toString() && beforeDetail &&
+                    beforeScroll==preparedState.getInt("detailScrollY") && beforeFallback==preparedState.getInt("fallbackScrollY"))
                 val choice=librarySelect(page,scope,item)
                 if(name=="short-pressure") {
                     val old=page.window.attributes
@@ -1061,7 +1098,6 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     main { page.window.setLayout(old.getInt(0),old.getInt(1)) }
                     short=false
                 }
-                val originalItem=requireNotNull(scope.curves.find(before.getString("selectedId")))
                 librarySelect(page,scope,originalItem)
                 main {
                     (field(page,"search") as EditText).setText(before.getString("query"))
@@ -1070,7 +1106,15 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     (field(page,"previewFallbackScroll") as ScrollView).scrollTo(0,beforeFallback)
                 }
                 val restoredFolder=File(case,"restored")
-                val restored=libraryCapture(page,restoredFolder) { geometry(page) }
+                val restored=libraryCapture(page,restoredFolder) { libraryCaseGeometry(page,scope) }
+                val restoredState=restored.getJSONObject("libraryCaseState")
+                val fields=listOf("list","detailRequested","detailScrollY","fallbackScrollY","activityIdentity",
+                    "windowIdentity","decorIdentity","windowTokenIdentity","windowLayout","curvesPreferences",
+                    "ownedStoreSha256","services","hasWindowFocus")
+                val mismatches=fields.filter { key -> restoredState.get(key).toString()!=preparedState.get(key).toString() }
+                report.put("restoredState",restoredState).put("restorationMismatches",JSONArray(mismatches))
+                    .put("restoredCapture",captureReference(directory,restoredFolder))
+                check(mismatches.isEmpty()) { "M3 Library $name prepared state mismatch: $mismatches" }
                 check(listState(page).toString()==before.toString() &&
                     (field(page,"collection") as TaskCollectionLayout).detailRequested==beforeDetail &&
                     (field(page,"detailScroll") as ScrollView).scrollY==beforeScroll &&
@@ -1078,7 +1122,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     restored.getJSONObject("actualRestoreState").getBoolean("hasWindowFocus") && invariant(scope)==frozen &&
                     context.getSharedPreferences("curves",Context.MODE_PRIVATE).all==prefs && services().isEmpty()) {
                     "M3 Library $name original state not restored" }
-                report.put("restoredList",listState(page)).put("restoredCapture",captureReference(directory,restoredFolder))
+                report.put("restoredList",listState(page))
                     .put("status","PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE")
                 if(name=="short-pressure") report.put("postRestoreActivityIdentity",System.identityHashCode(page))
                     .put("windowLayoutAfterRestore",JSONArray(listOf(page.window.attributes.width,page.window.attributes.height)))

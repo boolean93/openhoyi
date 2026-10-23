@@ -226,11 +226,37 @@ def expected_history_legend(current,reference):
     has_weight=any(point['weightHundredthsGram'] is not None for point in current+reference)
     return ['chart-metric:PRESSURE','chart-metric:WATER']+(['chart-metric:WEIGHT'] if has_weight else [])+['chart-metric:TEMPERATURE']
 
-def require_history_special(folder,window,empty_expected,current,reference):
+def require_embedded_header(evidence,expected_warning):
+    budget=evidence['budget']
+    for key in ('firstScreenMinimumBeforePx','firstScreenMinimumResolvedPx','firstScreenBudgetSatisfiable',
+        'titleNaturalWidthPx','warningNaturalWidthPx','moreOccupationPx','titleWarningRowAvailableWidthPx',
+        'titleWarningGapPx','titleWarningWidthFits','titleWarningInlineCondition','titleWarningInlineResolved'):
+        assert key in budget,key
+    assert budget['titleNaturalWidthPx']>0 and budget['moreOccupationPx']>0 and budget['titleWarningGapPx']>0
+    warning=evidence['warning']
+    assert (warning is not None)==expected_warning
+    fits=expected_warning and budget['titleNaturalWidthPx']+budget['titleWarningGapPx']+budget['warningNaturalWidthPx']<=budget['titleWarningRowAvailableWidthPx']
+    inline=fits and budget['firstScreenMinimumBeforePx']>budget['contentViewportPx']
+    assert budget['titleWarningWidthFits']==fits and budget['titleWarningInlineCondition']==inline
+    assert budget['titleWarningInlineResolved']==inline
+    assert budget['firstScreenBudgetSatisfiable']==(budget['firstScreenMinimumResolvedPx']<=budget['contentViewportPx'])
+    assert budget['firstScreenMinimumResolvedPx']<=budget['firstScreenMinimumBeforePx']
+    if inline:assert budget['firstScreenMinimumResolvedPx']<budget['firstScreenMinimumBeforePx']
+    else:assert budget['firstScreenMinimumResolvedPx']==budget['firstScreenMinimumBeforePx']
+    if expected_warning:
+        assert budget['warningNaturalWidthPx']>0 and warning['semanticId']=='product/history/warning'
+        assert evidence['warningText']==warning['textLineBoxes'][0]['text'] and evidence['warningText']
+        assert evidence['warningScreenVisibility']['complete']
+        require_text_layout(warning)
+    else:
+        assert budget['warningNaturalWidthPx']==0 and evidence['warningText'] is None and evidence['warningScreenVisibility'] is None
+
+def require_history_special(folder,window,empty_expected,current,reference,expected_warning):
     evidence=window['embeddedHistoryPreview']
     assert json.loads((folder/'history-initial-chart.json').read_text())==evidence
     assert evidence['samePermanentProducerView'] and evidence['externalSiblingAfterChart'] and evidence['sameProjectionSamplingDescription']
     budget=evidence['budget'];assert budget['minimumPlotDp']==96
+    require_embedded_header(evidence,expected_warning)
     assert budget['explanationPlacement']=='same_permanent_producer_view_after_complete_chart_before_notes'
     if evidence['actualPlotHeightDp'] is None:
         assert empty_expected and evidence['actualSampleCount']==0
@@ -293,6 +319,7 @@ for path in manifests:
         assert preview['budgetSource']=='deep_copy_existing_EmbeddedHistoryPreview.productLayoutEvidence'
         assert preview['samePermanentProducerView'] and preview['externalSiblingAfterChart'] and preview['sameProjectionSamplingDescription']
         budget=preview['budget']
+        require_embedded_header(preview,False)
         for name in ('availableHeightPx','fixedFooterNaturalPx','contentViewportPx','headerAndMetricsNaturalPx',
             'chartNativeHeaderNaturalPx','chartActualPaintAxisMinimumPx','chartMinimumPx','chartMarginsPx','fullNaturalPx',
             'chartLegendNaturalPx','externalExplanationNaturalPx','externalExplanationTopMarginPx','chartOverlayPaddingPx'):
@@ -347,7 +374,7 @@ for path in manifests:
             if m['page']=='history':
                 assert case['declaredReferenceSamples']==[]
                 if case['case']=='missing-samples':assert case['declaredSamples']==[]
-                require_history_special(target,observed,case['case']=='missing-samples',case['declaredSamples'],case['declaredReferenceSamples'])
+                require_history_special(target,observed,case['case']=='missing-samples',case['declaredSamples'],case['declaredReferenceSamples'],case['case']=='unknown-observation')
             assert case['frameSync']['protocolVersion']==2 and case['frameSync']['accepted']
             segments=case['actualProjectedSegments']; vertices=case['actualCanvasCurrentMetricVertexCounts']
             assert vertices==[len(segment) for segment in segments] and len(segments)==case['actualCanvasCurrentMetricPathCount']

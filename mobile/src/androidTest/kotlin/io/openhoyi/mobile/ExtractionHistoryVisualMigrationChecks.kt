@@ -781,12 +781,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val sampling=projected.observedThroughMs?.let {activity.getString(R.string.task_chart_summary_observed,
             String.format(java.util.Locale.ROOT,"%.1f",it/1000.0))} ?: activity.getString(R.string.task_chart_summary_waiting)
         val legend=requireNotNull(chart.findViewWithTag<View>("product/history/chart-legend"))
+        val warning=root(activity).findViewWithTag<TextView>("product/history/warning")
         return JSONObject().put("budget",budget).put("budgetSource","deep_copy_existing_EmbeddedHistoryPreview.productLayoutEvidence")
             .put("chart",historyVisibility(chart)).put("plotView",historyVisibility(plot)).put("explanation",observation(explanation))
             .put("explanationScreenVisibility",historyVisibility(explanation)).put("explanationText",explanation.text.toString())
             .put("samePermanentProducerView",producer.embeddedExplanationView===explanation)
             .put("externalSiblingAfterChart",explanation.parent===content && content.indexOfChild(explanation)==content.indexOfChild(chart)+1)
             .put("sameProjectionSamplingDescription",explanation.text.toString().contains(sampling))
+            .put("warning",warning?.let { observation(it) } ?: JSONObject.NULL)
+            .put("warningScreenVisibility",warning?.let { historyVisibility(it) } ?: JSONObject.NULL)
+            .put("warningText",warning?.text?.toString() ?: JSONObject.NULL)
             .put("legend",historyVisibility(legend)).put("legendActions",JSONArray(nodes(legend).filterIsInstance<Button>().filter {it.isShown}.map {
                 JSONObject().put("observation",observation(it)).put("screenVisibility",historyVisibility(it)).put("heightPx",it.height)
             })).put("axisInk",JSONArray(inks)).put("actualCanvas",JSONArray(chart.visualEvidence.toString())).put("actualSampleCount",chart.points.size)
@@ -810,6 +814,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val budget=evidence.getJSONObject("budget")
         check(budget.getInt("chartLegendNaturalPx")>0 && budget.getInt("externalExplanationNaturalPx")>0 &&
             budget.getString("explanationPlacement")=="same_permanent_producer_view_after_complete_chart_before_notes")
+        val widthFits=!evidence.isNull("warning") && budget.getInt("titleNaturalWidthPx")+
+            budget.getInt("titleWarningGapPx")+budget.getInt("warningNaturalWidthPx")<=budget.getInt("titleWarningRowAvailableWidthPx")
+        val shouldInline=widthFits && budget.getInt("firstScreenMinimumBeforePx")>budget.getInt("contentViewportPx")
+        check(budget.getBoolean("titleWarningWidthFits")==widthFits &&
+            budget.getBoolean("titleWarningInlineCondition")==shouldInline &&
+            budget.getBoolean("titleWarningInlineResolved")==shouldInline &&
+            budget.getBoolean("firstScreenBudgetSatisfiable")==
+                (budget.getInt("firstScreenMinimumResolvedPx")<=budget.getInt("contentViewportPx")))
+        if(!evidence.isNull("warning")) check(evidence.getString("warningText")==activity.getString(R.string.history_unknown_warning) &&
+            evidence.getJSONObject("warningScreenVisibility").getBoolean("complete") && whole(evidence.getJSONObject("warning")))
         val hasWeight=(declaredCurrent+declaredReference).any {it.weightHundredthsGram!=null}
         val expectedLegend=listOf("chart-metric:PRESSURE","chart-metric:WATER")+
             (if(hasWeight)listOf("chart-metric:WEIGHT") else emptyList())+"chart-metric:TEMPERATURE"

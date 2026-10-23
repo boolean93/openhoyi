@@ -16,6 +16,17 @@ public final class WindowGeometryJsonEqualityOracle {
     private static int checked;
     private static final List<String> measurements = new ArrayList<>();
 
+    /** Controlled host source, not a claim about Android's Editable implementation. */
+    private static final class MutableText implements CharSequence {
+        private String current;
+        MutableText(String value) { current = value; }
+        void set(String value) { current = value; }
+        @Override public int length() { return current.length(); }
+        @Override public char charAt(int index) { return current.charAt(index); }
+        @Override public CharSequence subSequence(int start, int end) { return current.subSequence(start, end); }
+        @Override public String toString() { return current; }
+    }
+
     private static boolean old(JSONObject a, JSONObject b) {
         String first = a.toString(), second = b.toString();
         return first == null ? second == null : first.equals(second);
@@ -33,6 +44,51 @@ public final class WindowGeometryJsonEqualityOracle {
 
     private static JSONObject object(String name, Object value) throws Exception {
         return new JSONObject().put(name, value);
+    }
+
+    private static void producerSnapshots() throws Exception {
+        MutableText live = new MutableText("A");
+        JSONObject oldBefore = object("text", live);
+        JSONObject sampledBefore = object("text", live.toString());
+        live.set("B");
+        JSONObject sampledAfter = object("text", live.toString());
+        JSONObject oldAfter = object("text", live);
+        if (!old(oldBefore, oldAfter) || WindowGeometryJsonEquality.same(sampledBefore, sampledAfter)
+                || !"A".equals(sampledBefore.getString("text"))
+                || !"B".equals(sampledAfter.getString("text"))) {
+            throw new AssertionError("producer-live-reference-versus-main-observation-snapshot");
+        }
+        live.set("C");
+        if (!"A".equals(sampledBefore.getString("text"))
+                || !"B".equals(sampledAfter.getString("text"))
+                || !"C".equals(oldBefore.get("text").toString())) {
+            throw new AssertionError("producer-before-and-after-must-remain-independent");
+        }
+        checked++;
+        measurements.add("producer-contract=old-live-B/B-versus-sampled-A/B; later-C-keeps-A/B; intentionally-not-equivalent");
+        for (String content : Arrays.asList("", "\"\\\t\b\n\r\f\u0001", "中文", "\uD83D\uDE00", "\uD800")) {
+            MutableText source = new MutableText(content);
+            JSONObject original = object("text", source);
+            JSONObject copied = object("text", source.toString());
+            if (!original.toString().equals(copied.toString())
+                    || !content.equals(copied.getString("text"))) {
+                throw new AssertionError("producer-same-content-sdk-json-encoding");
+            }
+            checked++;
+        }
+        JSONObject throwing = object("text", new Object() {
+            @Override public String toString() { throw new IllegalStateException("custom-text-toString"); }
+        });
+        Throwable oldFailure = null, newFailure = null;
+        try { old(throwing, object("text", "x")); } catch (Throwable error) { oldFailure = error; }
+        try { WindowGeometryJsonEquality.same(throwing, object("text", "x")); }
+        catch (Throwable error) { newFailure = error; }
+        if (!(oldFailure instanceof IllegalStateException)
+                || !(newFailure instanceof IllegalStateException)
+                || !oldFailure.getMessage().equals(newFailure.getMessage())) {
+            throw new AssertionError("unknown-custom-throwing-toString-must-retain-whole-pair-fallback");
+        }
+        checked++;
     }
 
     private static void synthetic() throws Exception {
@@ -114,6 +170,7 @@ public final class WindowGeometryJsonEqualityOracle {
 
     public static void main(String[] args) throws Exception {
         synthetic();
+        producerSnapshots();
         for (String path : args) {
             JSONObject proof=new JSONObject(Files.readString(Path.of(path)));
             JSONArray attempts=proof.getJSONArray("attempts");

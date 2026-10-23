@@ -973,6 +973,42 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         check(path.split('/').none {it.isEmpty() || it=="." || it==".."})
         return JSONObject().put("path",path).put("sha256",sha(file))
     }
+    private fun shortFrameRefs(specialRoot:File, folder:File):JSONObject {
+        fun ref(name:String):JSONObject {
+            val file=File(folder,name);check(file.isFile && file.length()>0)
+            val path=file.relativeTo(specialRoot).invariantSeparatorsPath
+            check(path.split('/').none { it.isEmpty() || it=="." || it==".." })
+            return JSONObject().put("path",path).put("sha256",sha(file))
+        }
+        return JSONObject().put("windowRef",ref("window.png")).put("geometryRef",ref("geometry.json"))
+            .put("frameSyncRef",ref("window-frame-sync.json"))
+    }
+    private fun shortDetailState(activity:Activity):JSONObject {
+        val workspace=nodes(root(activity)).filterIsInstance<TaskWorkspaceLayout>().single()
+        val split=requireNotNull(field(workspace,"paneMode") as? Boolean) { "M7 short Detail pane not measured" }
+        val support=workspace.getChildAt(1) as ScrollView
+        val button=action(activity,R.string.ui_full_details)
+        val chart=nodes(root(activity)).filterIsInstance<LegacyShotChartView>().single()
+        val attributes=activity.window.attributes
+        return JSONObject().put("actualPaneMode",if(split) "split" else "stacked")
+            .put("workspaceIdentity",System.identityHashCode(workspace))
+            .put("supportingScrollIdentity",System.identityHashCode(support))
+            .put("supportingScrollCapacityPx",(support.getChildAt(0).height-support.height).coerceAtLeast(0))
+            .put("secondaryViewportBounded",workspace.secondaryViewportBounded)
+            .put("scrolls",JSONArray(nodes(root(activity)).filterIsInstance<ScrollView>().map { scroll ->
+                JSONObject().put("identity",System.identityHashCode(scroll)).put("tag",scroll.tag ?: JSONObject.NULL)
+                    .put("x",scroll.scrollX).put("y",scroll.scrollY) }))
+            .put("buttonIdentity",System.identityHashCode(button)).put("buttonHeightPx",button.height)
+            .put("button",observation(button)).put("chartIdentity",System.identityHashCode(chart))
+            .put("listIdentities",JSONArray(nodes(root(activity)).filterIsInstance<ListView>().map(System::identityHashCode)))
+            .put("actualPlotHeightDp",chart.visualEvidence.getDouble("plotHeightDp"))
+            .put("activityIdentity",System.identityHashCode(activity))
+            .put("windowIdentity",System.identityHashCode(activity.window))
+            .put("decorIdentity",System.identityHashCode(activity.window.decorView))
+            .put("windowTokenIdentity",System.identityHashCode(requireNotNull(activity.window.decorView.windowToken)))
+            .put("windowLayout",JSONArray(listOf(attributes.width,attributes.height,attributes.gravity,attributes.x,attributes.y)))
+    }
+    private fun shortDetailGeometry(activity:Activity):JSONObject=geometry(activity).put("shortDetail",shortDetailState(activity))
     private fun shortWindow(activity: Activity, directory: File, scope: Scope): JSONObject {
         val old=android.view.WindowManager.LayoutParams().apply { copyFrom(activity.window.attributes) }
         val ids=nodes(root(activity)).filter { it is LegacyShotChartView || it is ListView }.map(System::identityHashCode)
@@ -981,36 +1017,91 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         val curveArchive=if(activity is LegacyCurveActivity) sha(scope.curveFile) else null
         val curveNative=if(activity is LegacyCurveActivity) nativeInvariant(scope) else null
         val originalImport=if(activity is LegacyCurveActivity) observation(action(activity,R.string.curve_import_legacy)).getJSONArray("rectPx").toString() else null
+        val report=JSONObject().put("case","short-window").put("realWindowResize",true)
+            .put("permanentListAndChartIdentity",true).put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL")
+            .put("componentOnly",false).put("originalWindowLayout",JSONArray(listOf(old.width,old.height,old.gravity,old.x,old.y)))
+        var originalDetail:JSONObject?=null
+        var originalScrolls:List<Pair<ScrollView,Pair<Int,Int>>> = emptyList()
+        val nativeBefore=if(activity is LegacyHistoryDetailActivity) nativeInvariant(scope) else null
         var failure:Throwable?=null
         try {
+            if(activity is LegacyHistoryDetailActivity) {
+                val originalFolder=File(directory,"states/short-window-detail-original").apply { check(isDirectory || mkdirs()) }
+                val original=frames.screenshot(activity,root(activity),File(originalFolder,"window.png")) {
+                    shortDetailGeometry(activity) }
+                check(original.proof.getBoolean("accepted") && original.proof.getInt("protocolVersion")==2)
+                File(originalFolder,"geometry.json").writeText(original.target.toString(2))
+                val state=original.target.getJSONObject("shortDetail");originalDetail=state
+                main { originalScrolls=nodes(root(activity)).filterIsInstance<ScrollView>()
+                    .map { it to (it.scrollX to it.scrollY) } }
+                check(JSONArray(originalScrolls.map { (scroll,point) -> JSONObject()
+                    .put("identity",System.identityHashCode(scroll)).put("tag",scroll.tag ?: JSONObject.NULL)
+                    .put("x",point.first).put("y",point.second) }).toString()==state.getJSONArray("scrolls").toString())
+                report.put("originalDetail",state).put("originalCapture",shortFrameRefs(directory,originalFolder))
+            }
             main { activity.window.setLayout(-1,HoyiUi.dp(activity,280)) }
             stableWindow(activity,directory,"short-window")
             val folder=File(directory,"short-window").apply {check(isDirectory || mkdirs())}
             // Explicitly declared short Activity; default captures remain strict.
-            val captured=frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
+            val captured=frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {
+                if(activity is LegacyHistoryDetailActivity) shortDetailGeometry(activity) else geometry(activity) }
             check(captured.proof.getBoolean("accepted") && captured.proof.getInt("protocolVersion")==2)
             File(folder,"geometry.json").writeText(captured.target.toString(2))
+            report.put("frameSync",captured.proof)
             main {
                 check(nodes(root(activity)).filter { it is LegacyShotChartView || it is ListView }.map(System::identityHashCode)==ids)
                 val content=root(activity)
                 check(content.height<1200) { "Short window was not actually applied" }
                 if(activity is LegacyHistoryDetailActivity) {
-                    check(whole(observation(action(activity,R.string.ui_full_details))))
                     check(nodes(content).filterIsInstance<LegacyShotChartView>().single().visualEvidence.getDouble("plotHeightDp")>=96.0)
+                }
+            }
+            if(activity is LegacyHistoryDetailActivity) {
+                val initial=captured.target.getJSONObject("shortDetail")
+                report.put("initialDetail",initial).put("initialCapture",shortFrameRefs(directory,folder))
+                val mode=initial.getString("actualPaneMode")
+                check(mode=="split" || mode=="stacked")
+                if(mode=="split") {
+                    check(whole(initial.getJSONObject("button")) && initial.getInt("buttonHeightPx")>=HoyiUi.dp(activity,48)) {
+                        "M7 split short Detail fixed full-notice not whole initially" }
+                    report.put("reachabilityMode","SPLIT_FIXED_INITIAL")
+                } else {
+                    check(!initial.getBoolean("secondaryViewportBounded"))
+                    var requested=false
+                    main { val button=action(activity,R.string.ui_full_details)
+                        requested=button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true) }
+                    report.put("requestRectangleReturned",requested)
+                    stableWindow(activity,folder,"full-notice-reachable")
+                    val reachFolder=File(folder,"reachable").apply { check(isDirectory || mkdirs()) }
+                    val reached=frames.screenshotMeasuredShortActivity(activity,root(activity),File(reachFolder,"window.png")) {
+                        shortDetailGeometry(activity) }
+                    check(reached.proof.getBoolean("accepted") && reached.proof.getInt("protocolVersion")==2)
+                    File(reachFolder,"geometry.json").writeText(reached.target.toString(2))
+                    val state=reached.target.getJSONObject("shortDetail")
+                    report.put("reachabilityMode","STACKED_REAL_SUPPORT_SCROLL")
+                        .put("reachableCapture",shortFrameRefs(directory,reachFolder)).put("reachableDetail",state)
+                    check(state.getString("actualPaneMode")=="stacked" &&
+                        state.getInt("buttonIdentity")==initial.getInt("buttonIdentity") &&
+                        state.getInt("chartIdentity")==initial.getInt("chartIdentity") &&
+                        state.getJSONArray("listIdentities").toString()==initial.getJSONArray("listIdentities").toString() &&
+                        state.getInt("supportingScrollIdentity")==initial.getInt("supportingScrollIdentity") &&
+                        state.getInt("windowTokenIdentity")==initial.getInt("windowTokenIdentity") &&
+                        state.getInt("buttonHeightPx")>=HoyiUi.dp(activity,48) && whole(state.getJSONObject("button"))) {
+                        "M7 stacked short Detail original full-notice not actually reached" }
                 }
             }
             val disclosure=if(activity is LegacyCurveActivity) {
                 curveDisclosure(activity,scope,folder,true)
                 disclosureRef(directory,folder)
             } else JSONObject.NULL
-            return JSONObject().put("case","short-window").put("realWindowResize",true).put("permanentListAndChartIdentity",true)
-                .put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL").put("frameSync",captured.proof).put("componentOnly",false)
-                .put("curveDisclosureRef",disclosure)
+            report.put("curveDisclosureRef",disclosure)
         } catch(error:Throwable) {failure=error;throw error}
         finally {
             try {
                 main { activity.window.attributes=old }
                 stableWindow(activity,directory,"short-window-restored")
+                main { originalScrolls.forEach { (scroll,point) -> scroll.scrollTo(point.first,point.second) } }
+                if(originalScrolls.isNotEmpty()) stableWindow(activity,directory,"short-window-scroll-restored")
                 if(activity is LegacyCurveActivity) {
                     captureState(activity,directory,"short-window-restored")
                     main {
@@ -1022,8 +1113,29 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                     }
                     check(sha(scope.curveFile)==curveArchive && nativeInvariant(scope)==curveNative)
                 }
+                if(activity is LegacyHistoryDetailActivity && originalDetail!=null) {
+                    val restoredFolder=File(directory,"states/short-window-detail-restored").apply { check(isDirectory || mkdirs()) }
+                    val restored=frames.screenshot(activity,root(activity),File(restoredFolder,"window.png")) {
+                        shortDetailGeometry(activity) }
+                    check(restored.proof.getBoolean("accepted") && restored.proof.getInt("protocolVersion")==2)
+                    File(restoredFolder,"geometry.json").writeText(restored.target.toString(2))
+                    val state=restored.target.getJSONObject("shortDetail"); val original=requireNotNull(originalDetail)
+                    report.put("restoredCapture",shortFrameRefs(directory,restoredFolder)).put("restoredDetail",state)
+                    check(state.getJSONArray("scrolls").toString()==original.getJSONArray("scrolls").toString() &&
+                        state.getString("actualPaneMode")==original.getString("actualPaneMode") &&
+                        state.getInt("activityIdentity")==original.getInt("activityIdentity") &&
+                        state.getInt("windowIdentity")==original.getInt("windowIdentity") &&
+                        state.getInt("decorIdentity")==original.getInt("decorIdentity") &&
+                        state.getInt("windowTokenIdentity")==original.getInt("windowTokenIdentity") &&
+                        state.getInt("chartIdentity")==original.getInt("chartIdentity") &&
+                        state.getJSONArray("listIdentities").toString()==original.getJSONArray("listIdentities").toString() &&
+                        state.getJSONArray("windowLayout").toString()==JSONArray(listOf(old.width,old.height,old.gravity,old.x,old.y)).toString() &&
+                        nativeInvariant(scope)==nativeBefore && services().isEmpty()) {
+                        "M7 short Detail scroll/Window/identity/business not restored" }
+                }
             } catch(restoreError:Throwable) {if(failure==null)throw restoreError else failure.addSuppressed(restoreError)}
         }
+        return report
     }
     private fun specials(scope: Scope, page: String, directory: File): JSONObject {
         val cases=JSONArray(); val nativeBefore=nativeInvariant(scope)

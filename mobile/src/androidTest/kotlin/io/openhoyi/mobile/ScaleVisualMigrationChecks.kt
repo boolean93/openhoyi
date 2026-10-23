@@ -535,10 +535,15 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         val view=tagged(activity,tag);reveal(activity,view)
         main {check(view.isShown && view.isEnabled && view.isClickable && view.height>=HoyiUi.dp(activity,48));check(view.performClick())}
     }
-    private fun capture(activity:Activity,folder:File, measuredShort:Boolean=false):NativeWindowFrameEvidence.CapturedFrame {
+    private fun capture(activity:Activity,folder:File, measuredShort:Boolean=false,
+        supportService:MobileService?=null, disclosure:Pair<String,TextView>?=null):NativeWindowFrameEvidence.CapturedFrame {
         check(folder.isDirectory || folder.mkdirs())
-        val captured=if (measuredShort) frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
-            else frames.screenshot(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
+        fun observed()=geometry(activity).apply {
+            supportService?.let {put("supportState",supportState(activity,it))}
+            disclosure?.let {put("disclosureTarget",disclosureTarget(activity,it.first,it.second))}
+        }
+        val captured=if (measuredShort) frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {observed()}
+            else frames.screenshot(activity,root(activity),File(folder,"window.png")) {observed()}
         File(folder,"geometry.json").writeText(captured.target.toString(2))
         main {
             TaskTypographyEvidence.capture(activity,folder)
@@ -631,6 +636,71 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             .put("scrolls",JSONArray(nodes(root(activity)).filterIsInstance<ScrollView>().map {
                 JSONObject().put("identity",System.identityHashCode(it)).put("x",it.scrollX).put("y",it.scrollY)
             }))
+    }
+    private fun supportState(activity:Activity,service:MobileService):JSONObject {
+        val content=root(activity);val scroll=tagged(activity,"product/scale/support-scroll") as ScrollView
+        val fallback=tagged(activity,"scale-trend-fallback")
+        val trendInline=(activity as ScaleActivity).productLayoutEvidence.getBoolean("trendInline")
+        fun fixed(tag:String):JSONObject=visibility(tagged(activity,tag))
+        val capture=content.findViewWithTag<View>("product/scale/capture")
+        return JSONObject().put("activityIdentity",System.identityHashCode(activity))
+            .put("windowIdentity",System.identityHashCode(activity.window))
+            .put("decorIdentity",System.identityHashCode(activity.window.decorView))
+            .put("rootIdentity",System.identityHashCode(content))
+            .put("windowTokenIdentity",System.identityHashCode(requireNotNull(content.windowToken)))
+            .put("scrollIdentity",System.identityHashCode(scroll))
+            .put("scrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
+            .put("trendInline",trendInline).put("fallbackIdentity",System.identityHashCode(fallback))
+            .put("fallbackVisibility",fallback.visibility).put("fallbackShown",fallback.isShown)
+            .put("trendBufferTimerAndAllScrolls",trendReturnState(activity))
+            .put("serviceSnapshot",service.snapshot.toString()).put("serviceObservationSerial",serial(service))
+            .put("weight",(field(activity,"weight") as TextView).text.toString())
+            .put("freshness",(field(activity,"freshness") as TextView).text.toString())
+            .put("tareStatus",(field(activity,"tareStatus") as TextView).text.toString())
+            .put("deviceStatus",(field(activity,"deviceStatus") as TextView).text.toString())
+            .put("tareEnabled",(field(activity,"tare") as Button).isEnabled)
+            .put("captureEnabled",capture?.isEnabled ?: JSONObject.NULL)
+            .put("fixedPrimary",fixed("product/scale/primary"))
+            .put("fixedTare",fixed("product/scale/tare"))
+            .put("fixedCaptureFooter",capture?.let(::visibility) ?: JSONObject.NULL)
+    }
+    private fun disclosureTarget(activity:Activity,semanticId:String,text:TextView):JSONObject {
+        val scroll=tagged(activity,"product/scale/support-scroll") as ScrollView
+        val layout=requireNotNull(text.layout) {"M6 $semanticId has no actual TextView Layout"}
+        val origin=IntArray(2);text.getLocationOnScreen(origin)
+        val viewport=visibility(scroll).getJSONArray("visibleRectPx")
+        val target=visibility(text);val clip=target.getJSONArray("visibleRectPx")
+        val left=maxOf(viewport.getInt(0),clip.getInt(0));val top=maxOf(viewport.getInt(1),clip.getInt(1))
+        val right=minOf(viewport.getInt(2),clip.getInt(2));val bottom=minOf(viewport.getInt(3),clip.getInt(3))
+        val layoutX=origin[0]+text.compoundPaddingLeft-text.scrollX
+        val layoutY=origin[1]+text.baseline-layout.getLineBaseline(0)-text.scrollY
+        val contentWidth=text.width-text.compoundPaddingLeft-text.compoundPaddingRight
+        val rows=JSONArray();val visible=JSONArray()
+        for(index in 0 until layout.lineCount) {
+            val x0=layoutX+layout.getLineLeft(index);val x1=layoutX+layout.getLineRight(index)
+            val y0=layoutY+layout.getLineTop(index);val y1=layoutY+layout.getLineBottom(index)
+            val ellipsis=layout.getEllipsisCount(index)
+            val complete=target.getBoolean("screenMappingVerified") && ellipsis==0 &&
+                layout.getLineLeft(index)>=0 && layout.getLineRight(index)<=contentWidth &&
+                x0>=left && x1<=right && y0>=top && y1<=bottom
+            rows.put(JSONObject().put("line",index).put("start",layout.getLineStart(index))
+                .put("end",layout.getLineEnd(index)).put("ellipsisCount",ellipsis)
+                .put("layoutLeftPx",layout.getLineLeft(index)).put("layoutRightPx",layout.getLineRight(index))
+                .put("rectPx",JSONArray(listOf(x0,y0,x1,y1)))
+                .put("fullyVisible",complete))
+            if(complete)visible.put(index)
+        }
+        return JSONObject().put("semanticId",semanticId).put("actualTag",text.tag ?: JSONObject.NULL)
+            .put("viewIdentity",System.identityHashCode(text)).put("scrollIdentity",System.identityHashCode(scroll))
+            .put("text",text.text.toString()).put("lineCount",layout.lineCount)
+            .put("lineScreenRects",rows).put("visibleLines",visible)
+            .put("viewportScreenRectPx",viewport).put("targetVisibleRectPx",clip)
+            .put("screenMappingVerified",target.getBoolean("screenMappingVerified"))
+            .put("contentWidthPx",contentWidth)
+            .put("whole",whole(observation(text))).put("button",text is Button)
+            .put("enabled",text.isEnabled).put("clickable",text.isClickable)
+            .put("heightPx",text.height).put("scrollHeightPx",scroll.height)
+            .put("minimumTouchHeightPx",HoyiUi.dp(activity,48))
     }
     private fun diagnostic(activity:Activity,folder:File) {
         check(folder.isDirectory || folder.mkdirs())
@@ -746,16 +816,25 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                     .put("exactBufferTimerAndScrollRestored",true).put("activityFocusRestored",activity.hasWindowFocus()).toString(2))}
         }
     }
-    private fun supportReachability(activity:Activity,folder:File) {
+    private fun supportReachability(scope:Scope,activity:Activity,folder:File) {
         val scroll=tagged(activity,"product/scale/support-scroll") as ScrollView
-        var saved=0;main {saved=scroll.scrollY}
+        var savedX=0;var savedY=0;main {savedX=scroll.scrollX;savedY=scroll.scrollY}
         val targets=listOf("product/scale/timer/toggle","product/scale/timer/reset","product/scale/battery","product/scale/device-status","product/scale/connect","product/scale/settings")
         val results=JSONArray()
         val report=File(folder,"scroll-reachability.json")
+        var beforeRefs:JSONObject?=null;var restoredRefs:JSONObject?=null;var beforeState:JSONObject?=null
+        var restoredEqual=false;var failure:Throwable?=null
         fun persist(completed:Boolean) {report.writeText(JSONObject().put("evidenceSummaryVersion",2)
             .put("referenceBase","page_root").put("completed",completed).put("targets",results)
-            .put("restoredY",if(completed) saved else JSONObject.NULL).toString(2))}
+            .put("beforeRefs",beforeRefs ?: JSONObject.NULL).put("restoredRefs",restoredRefs ?: JSONObject.NULL)
+            .put("restoredStateEqual",restoredEqual)
+            .put("originalScrollPx",JSONArray(listOf(savedX,savedY)))
+            .put("restoredY",if(completed) savedY else JSONObject.NULL).toString(2))}
         try {
+            val beforeFolder=File(folder,"support-before")
+            val before=capture(activity,beforeFolder,supportService=scope.ownerService)
+            beforeState=before.target.getJSONObject("supportState")
+            beforeRefs=captureRefs(folder,beforeFolder);persist(false)
             targets.forEachIndexed {index,tag->val view=tagged(activity,tag);reveal(activity,view)
                 val captureFolder=File(folder,"after-scroll-${index+1}")
                 capture(activity,captureFolder)
@@ -765,8 +844,187 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                     .put("frameSyncRef",refs.getJSONObject("frameSyncRef")))
                 persist(false)
             }
-        } finally {main {scroll.scrollTo(0,saved)};frames.committedFrame(root(activity));main {check(scroll.scrollY==saved)}}
-        persist(true)
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            var restoreFailure:Throwable?=null
+            try {
+                main {scroll.scrollTo(savedX,savedY)};frames.committedFrame(root(activity))
+                val restoredFolder=File(folder,"scroll-restored")
+                val restored=capture(activity,restoredFolder,supportService=scope.ownerService)
+                restoredRefs=captureRefs(folder,restoredFolder)
+                main {check(scroll.scrollX==savedX && scroll.scrollY==savedY)}
+                beforeState?.let {expected->
+                    check(expected.toString()==restored.target.getJSONObject("supportState").toString()) {
+                        "M6 original support identity, business state, fixed rects or scrolls changed"
+                    }
+                    restoredEqual=true
+                }
+            } catch(error:Throwable) {restoreFailure=error;if(failure!=null)failure!!.addSuppressed(error)}
+            try {persist(failure==null && restoreFailure==null && restoredEqual && results.length()==targets.size &&
+                beforeRefs!=null && restoredRefs!=null)}
+            catch(error:Throwable) {when {failure!=null->failure!!.addSuppressed(error)
+                restoreFailure!=null->restoreFailure!!.addSuppressed(error)
+                else->restoreFailure=error}}
+            if(failure==null)restoreFailure?.let {throw it}
+        }
+    }
+    private fun supportDisclosure(scope:Scope,activity:Activity,pageRoot:File,caseName:String,
+        initialRefs:JSONObject,initialTarget:JSONObject,short:Boolean):JSONObject {
+        val scroll=tagged(activity,"product/scale/support-scroll") as ScrollView
+        val supportBody=tagged(activity,"product/scale/support-body") as ViewGroup
+        val original=initialTarget.getJSONObject("supportState")
+        val originalX=original.getJSONArray("scrollPx").getInt(0)
+        val originalY=original.getJSONArray("scrollPx").getInt(1)
+        val caseFolder=File(pageRoot,"special-states/$caseName")
+        val report=JSONObject().put("case",caseName).put("evidenceSummaryVersion",2)
+            .put("referenceBase","page_root").put("initialRefs",initialRefs)
+            .put("originalScrollPx",JSONArray(listOf(originalX,originalY)))
+            .put("targets",JSONArray()).put("completed",false)
+        val targets=linkedMapOf<String,TextView>()
+        var primary:Throwable?=null;var restoration:Throwable?=null;var restoredRefs:JSONObject?=null
+        try {
+          main {
+            fun beneath(view:View,ancestor:View):Boolean {
+                var current:View?=view
+                while(current!=null) {if(current===ancestor)return true;current=current.parent as? View}
+                return false
+            }
+            val timer=tagged(activity,"product/scale/timer")
+            targets["product/scale/timer/help"]=nodes(timer).filterIsInstance<TextView>()
+                .single {it.text.toString()==activity.getString(R.string.scale_timer_help)}
+            for(tag in listOf("product/scale/device-status","product/scale/connect","product/scale/settings","scale-trend-fallback"))
+                targets[tag]=tagged(activity,tag) as TextView
+            if(caseName!="negative-offline")
+                targets["product/scale/dose-help"]=(0 until supportBody.childCount).map(supportBody::getChildAt)
+                    .filterIsInstance<TextView>().single {it.text.toString()==activity.getString(R.string.scale_dose_help)}
+            check(targets.size==(if(caseName=="negative-offline")5 else 6))
+            check(targets.values.all {beneath(it,scroll) && it.rootView===root(activity).rootView &&
+                it.windowToken===scroll.windowToken && it.isAttachedToWindow})
+            check(scroll.scrollX==originalX && scroll.scrollY==originalY)
+            check(original.getInt("activityIdentity")==System.identityHashCode(activity) &&
+                original.getInt("windowIdentity")==System.identityHashCode(activity.window) &&
+                original.getInt("scrollIdentity")==System.identityHashCode(scroll))
+            check(original.getBoolean("trendInline")==initialTarget.getJSONObject("productLayoutEvidence").getBoolean("trendInline"))
+            check(original.getInt("fallbackIdentity")==System.identityHashCode(targets.getValue("scale-trend-fallback")))
+            check(if(original.getBoolean("trendInline")) original.getInt("fallbackVisibility")==View.GONE && !original.getBoolean("fallbackShown")
+                else original.getInt("fallbackVisibility")==View.VISIBLE)
+          }
+          fun invariant(actual:JSONObject) {
+            for(key in listOf("activityIdentity","windowIdentity","decorIdentity","rootIdentity","windowTokenIdentity",
+                "scrollIdentity","trendInline","fallbackIdentity","fallbackVisibility","fallbackShown",
+                "serviceSnapshot","serviceObservationSerial","weight","freshness","tareStatus",
+                "deviceStatus","tareEnabled","captureEnabled","fixedPrimary","fixedTare","fixedCaptureFooter"))
+                check(actual.get(key).toString()==original.get(key).toString()) {"M6 $caseName support business/identity changed: $key"}
+            val expectedTrend=original.getJSONObject("trendBufferTimerAndAllScrolls")
+            val trend=actual.getJSONObject("trendBufferTimerAndAllScrolls")
+            for(key in listOf("buffer","bufferNow","timer"))
+                check(trend.get(key).toString()==expectedTrend.get(key).toString()) {"M6 $caseName trend/timer changed: $key"}
+          }
+            for((semanticId,text) in targets) {
+                if(semanticId=="scale-trend-fallback" && original.getBoolean("trendInline")) {
+                    check(text.visibility==View.GONE && System.identityHashCode(text)==original.getInt("fallbackIdentity"))
+                    report.getJSONArray("targets").put(JSONObject().put("semanticId",semanticId)
+                        .put("actualTag",text.tag).put("viewIdentity",System.identityHashCode(text))
+                        .put("model","LAYOUT_NOT_APPLICABLE_INLINE_TREND")
+                        .put("lineCount",0).put("coveredLines",JSONArray()).put("stages",JSONArray()))
+                    continue
+                }
+                var originalText="";var lineCount=0;var fits=false
+                main {
+                    val layout=requireNotNull(text.layout)
+                    originalText=text.text.toString();lineCount=layout.lineCount
+                    check(lineCount>0 && (0 until lineCount).all {layout.getEllipsisCount(it)==0})
+                    fits=text.height<=scroll.height
+                }
+                val covered=linkedSetOf<Int>();val stages=JSONArray();var baselineOffsets:JSONArray?=null
+                val targetReport=JSONObject().put("semanticId",semanticId)
+                    .put("actualTag",text.tag ?: JSONObject.NULL).put("viewIdentity",System.identityHashCode(text))
+                    .put("model","REAL_VISIBLE_SUPPORT_TARGET")
+                    .put("text",originalText).put("lineCount",lineCount)
+                    .put("coveredLines",JSONArray()).put("lineOffsets",JSONArray()).put("fitsViewport",fits)
+                    .put("button",text is Button).put("stages",stages)
+                report.getJSONArray("targets").put(targetReport)
+                fun stage(requestedLine:Int?) {
+                    frames.committedFrame(root(activity))
+                    val stageFolder=File(caseFolder,"disclosure/${targets.keys.indexOf(semanticId)}-stage-${stages.length()}")
+                    val captured=capture(activity,stageFolder,measuredShort=short,supportService=scope.ownerService,
+                        disclosure=semanticId to text)
+                    val refs=captureRefs(pageRoot,stageFolder)
+                    val target=captured.target.getJSONObject("disclosureTarget")
+                    val state=captured.target.getJSONObject("supportState")
+                    invariant(state)
+                    check(target.getString("semanticId")==semanticId && target.getString("text")==originalText &&
+                        target.getInt("viewIdentity")==System.identityHashCode(text) &&
+                        target.getInt("scrollIdentity")==System.identityHashCode(scroll) && target.getInt("lineCount")==lineCount)
+                    val lines=target.getJSONArray("lineScreenRects")
+                    check(lines.length()==lineCount)
+                    val offsets=JSONArray()
+                    for(row in 0 until lineCount) {
+                        val line=lines.getJSONObject(row)
+                        val start=line.getInt("start");val end=line.getInt("end")
+                        check(line.getInt("line")==row && start>=0 && end>=start &&
+                            (row==0 && start==0 || row>0 && start==lines.getJSONObject(row-1).getInt("end")))
+                        offsets.put(JSONArray(listOf(start,end)))
+                    }
+                    check(lines.getJSONObject(lineCount-1).getInt("end")==originalText.length)
+                    if(baselineOffsets==null) {baselineOffsets=offsets;targetReport.put("lineOffsets",offsets)}
+                    else check(baselineOffsets.toString()==offsets.toString()) {"M6 $caseName $semanticId Layout offsets changed"}
+                    val visible=target.getJSONArray("visibleLines").let {rows->(0 until rows.length()).map(rows::getInt)}
+                    check(visible.any {it !in covered} && (requestedLine==null || requestedLine in visible)) {
+                        "M6 $caseName $semanticId requested Layout line not fully visible"
+                    }
+                    covered.addAll(visible)
+                    if(text is Button)check(target.getBoolean("whole") && target.getBoolean("enabled") &&
+                        target.getBoolean("clickable") && target.getInt("heightPx")>=target.getInt("minimumTouchHeightPx"))
+                    else if(fits)check(target.getBoolean("whole")) {"M6 $caseName $semanticId fits but is not whole"}
+                    stages.put(JSONObject().put("requestedLine",requestedLine ?: JSONObject.NULL)
+                        .put("visibleLines",JSONArray(visible)).put("whole",target.getBoolean("whole"))
+                        .put("geometryRef",refs.getJSONObject("geometryRef"))
+                        .put("frameSyncRef",refs.getJSONObject("frameSyncRef")))
+                    targetReport.put("coveredLines",JSONArray(covered.sorted()))
+                }
+                if(text is Button || fits) {
+                    main {text.requestRectangleOnScreen(Rect(0,0,text.width,text.height),true)}
+                    stage(null)
+                } else {
+                    while(covered.size<lineCount) {
+                        val next=(0 until lineCount).first {it !in covered}
+                        main {
+                            val layout=requireNotNull(text.layout)
+                            check(layout.lineCount==lineCount && text.text.toString()==originalText)
+                            val localY=text.baseline-layout.getLineBaseline(0)-text.scrollY
+                            text.requestRectangleOnScreen(Rect(0,localY+layout.getLineTop(next),
+                                text.width,localY+layout.getLineBottom(next)),true)
+                        }
+                        stage(next)
+                    }
+                }
+                check(covered==(0 until lineCount).toSet()) {"M6 $caseName $semanticId Layout lines not covered"}
+            }
+        } catch(error:Throwable) {primary=error;report.put("failure",error.stackTraceToString());throw error}
+        finally {
+            try {
+                main {scroll.scrollTo(originalX,originalY)};frames.committedFrame(root(activity))
+                val restoredFolder=File(caseFolder,"disclosure-restored")
+                val restored=capture(activity,restoredFolder,measuredShort=short,supportService=scope.ownerService)
+                restoredRefs=captureRefs(pageRoot,restoredFolder)
+                check(restored.target.getJSONObject("supportState").toString()==original.toString()) {
+                    "M6 $caseName exact scroll, identity, business state or fixed rect not restored"
+                }
+                report.put("restoredStateEqual",true).put("restoredRefs",restoredRefs)
+            } catch(error:Throwable) {restoration=error;report.put("restorationFailure",error.stackTraceToString())
+                if(primary!=null)primary!!.addSuppressed(error)}
+            report.put("completed",primary==null && restoration==null && restoredRefs!=null &&
+                report.getJSONArray("targets").length()==targets.size)
+            try {File(caseFolder,"support-disclosure.json").writeText(report.toString(2))}
+            catch(error:Throwable) {when {primary!=null->primary!!.addSuppressed(error)
+                restoration!=null->restoration!!.addSuppressed(error)
+                else->restoration=error}}
+            if(primary==null)restoration?.let {throw it}
+        }
+        check(report.getBoolean("completed"))
+        val file=File(caseFolder,"support-disclosure.json")
+        return JSONObject().put("path",file.relativeTo(pageRoot).invariantSeparatorsPath).put("sha256",sha(file))
     }
     private fun scaleSpecials(scope:Scope,initial:Activity,folder:File) {
         var activity=initial;val proofs=JSONArray()
@@ -777,10 +1035,19 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             .put("noControlOrInventoryWrite",true).put("pendingStrictEvidence",JSONArray())
             .put("hardwareTareStatePages","PENDING_NO_LEGAL_MOCK_UI_WRITING_WAITING_ZERO_CONFIRMED_FAILED_UNKNOWN; original StandaloneTare unit coverage unchanged")
             .put("visualAcceptance","ASTRA_PENDING").put("completed",completed).toString(2))}
-        fun state(name:String,assertion:()->Unit) {render(activity);val captureFolder=File(folder,name);capture(activity,captureFolder);main(assertion)
+        fun state(name:String,assertion:()->Unit) {render(activity);val captureFolder=File(folder,name)
+            val needsDisclosure=name in setOf("negative-offline","mock-capture-disabled")
+            val captured=capture(activity,captureFolder,supportService=if(needsDisclosure)scope.ownerService else null)
+            main(assertion)
             val refs=captureRefs(pageRoot,captureFolder)
-            proofs.put(JSONObject().put("case",name).put("geometryRef",refs.getJSONObject("geometryRef"))
-                .put("frameSyncRef",refs.getJSONObject("frameSyncRef")));persist(false)}
+            val case=JSONObject().put("case",name).put("geometryRef",refs.getJSONObject("geometryRef"))
+                .put("frameSyncRef",refs.getJSONObject("frameSyncRef"))
+            proofs.put(case);persist(false)
+            if(needsDisclosure) {
+                val reference=supportDisclosure(scope,activity,pageRoot,name,refs,captured.target,false)
+                case.put("supportDisclosureRef",reference);persist(false)
+            }
+        }
         main {check(context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).edit().putBoolean("one_decimal",true).commit())}
         state("one-decimal") {check((field(activity,"weight") as TextView).text.toString()=="18.0")}
         main {check(context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).edit().putBoolean("one_decimal",false).commit())}
@@ -824,12 +1091,15 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         render(activity)
         // Explicitly declared short Activity, never a fallback from the default gate.
         val shortFolder=File(folder,"short-height")
-        capture(activity,shortFolder,measuredShort=true)
+        val shortCaptured=capture(activity,shortFolder,measuredShort=true,supportService=scope.ownerService)
         main {check((activity as ScaleActivity).productLayoutEvidence.getBoolean("trendInline").not())}
         val shortRefs=captureRefs(pageRoot,shortFolder)
-        proofs.put(JSONObject().put("case","short-height").put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL")
+        val shortCase=JSONObject().put("case","short-height").put("acceptanceStatus","PASS_PROTOCOL2_ONLY_NOT_VISUAL")
             .put("geometryRef",shortRefs.getJSONObject("geometryRef"))
-            .put("frameSyncRef",shortRefs.getJSONObject("frameSyncRef")));persist(false)
+            .put("frameSyncRef",shortRefs.getJSONObject("frameSyncRef"))
+        proofs.put(shortCase);persist(false)
+        shortCase.put("supportDisclosureRef",supportDisclosure(scope,activity,pageRoot,"short-height",shortRefs,shortCaptured.target,true))
+        persist(false)
         reveal(activity,tagged(activity,"scale-trend-fallback"))
         lateinit var beforeDetail:JSONObject;main {beforeDetail=trendReturnState(activity)}
         click(activity,"scale-trend-fallback")
@@ -989,7 +1259,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             }
             if(page=="scale") {
                 trendEvidence(activity,File(directory,"trend-main-data"),scale==1f)
-                supportReachability(activity,directory)
+                supportReachability(active,activity,directory)
                 scaleSpecials(active,activity,File(directory,"special-states"))
             } else connectionSpecials(active,activity,File(directory,"special-states"))
             manifest.put("layoutStatus","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE")

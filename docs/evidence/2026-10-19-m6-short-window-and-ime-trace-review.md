@@ -112,3 +112,24 @@ ImeRecreationTrace 的 M3 默认 fixture/capture caller/prior引用及mark/obser
 六份after-scroll实图均已看：toggle/reset/battery/device-status/connect/settings各目标完整，数据状态3行、其余1行；left reading与去皮不随右栏滚动。目标rect分别[1832,408,2160,516]、[2196,408,2524,516]、[2085,706,2523,772]、[2085,813,2523,997]、[1832,1051,2524,1159]、[1832,1177,2524,1285]。六图相似是之前趋势入口已将support滚到底，并非捏造不同scroll结果。
 
 **不能关闭：** 此次OOM发生在scroll-reachability摘要持久化，不能把独立图接受扩大为完整工具恢复合同通过；无完整恢复摘要/对应恢复原图则保持缺证。short-height、freshness/其他特殊态、深色、1.0与ScaleConnection本批未采，不签。主态8张的限定接受不洗掉整run FAIL，也不证明真实秤硬件能力。
+
+## 643 Scale PR：浅色 1.3 新增特殊态限定实图审
+
+Astra 逐张查看 `ci-643d828-scale-pr/raw/raw-device/4f990722c0181504b665ab1fe91ac60832619d18/tablet-user-landscape-light-font-1.3/scale/special-states/*/window.png` 全15张原图。身份为 head643d828、tested merge4f990722、run39433459427；引用根/Sol已核的 acceptance-index，不重复完整性校验。15个Scale特殊态有独立 accepted proof；Connection整体及整run仍FAIL，未写成完整proof的forty不能接受。
+
+| 范围 | 实图结论与边界 |
+|---|---|
+| one-decimal / paused-recreated | 18.0与18.00真实位数区别可见；暂停24.6秒独立于主重量，主次层级保留。字体与按钮没有可见挤压。 |
+| stale-1501 / expired-10001 / ready-null / weight-capability-false | 主值明确为破折号，不伪装0g；过期/等待文案可见，灰态去皮没有暗示可控制。单张主图不能独立证明隐藏trend完整过期数据语义。 |
+| disconnected / no-service | 主读数破折号、未就绪文字完整；本地计时与秤状态分开，主次清晰。 |
+| negative-offline | -1.25g及主区两行Felicita/ACAIA/DIFLUID边界文字完整；右侧重复长状态末尾在scroll窗外，不能签该特殊态右栏全文已滚达。不是已证产品不可达。 |
+| gap-and-evidence-change / battery-capability-82 / battery-unavailable | 18.00g仍为主；82%和“当前协议未提供电量”有明确区别，不伪造电量。主图无内嵌trend，不能用主图单独签采样断线图形。 |
+| mock-capture-disabled | 采豆重固定footer完整且灰态；说明完整可见，主值未被footer覆盖。右侧更下方状态尚在滚动区外，不签其全文。 |
+| short-height | 主区条件同行有效，重量、单位、freshness、去皮及固定footer都实际完整。旧短窗主区预算不足可在本配置关闭；不外推其它字体/主题。 |
+| short-height-trend-detail | 原生详情图、g轴和时间刻度/单位、断开的数据段、下方真实状态/最近读数与关闭动作可见完整；仅此dialog配置接受。 |
+
+G1新增重点：短窗真实app `[0,327,2560,1272]`，workspace宽2308、高528，primary1562/support692，间隔54px=24dp；reading原纵排374px，同行自然295px，保留freshness独立61px。实际primary minimum500≤528，非隐藏文案换来的满足。数字 `[871,578,1258,794]`、单位 `[1276,684,1308,765]`，水平18px=8dp；freshness `[216,812,1778,873]`完整、去皮 `[727,905,1267,1013]`完整48dp。说明/按键没有互盖。
+
+G2–G4增量：承接既有批准固定Noto策略与上节原稿对照，不声称从栅格猜出字体名称。逐special typography中14个主readout均144px，unit56.25px（现64/22角色在该系统字体缩放的实际值），主色#FF101820、单位/说明#FF657183；短窗实际Layout数字208px置于216px View、单位81px，零省略，二者screen baseline同749。negative-offline主说明117px两行完整，42.3px文字未缩小；新图字形/字重/中英文数字节奏与旧已审主图一致。灰态与teal可操作项辨识清楚，未以颜色替代文案。
+
+滚动恢复边界：本轮 `scroll-reachability.json` 已 completed=true，六目标原capture引用完整、restoredY=401，可确认旧aggregate OOM不再阻止该报告完成。但文件只有恢复数值，没有独立 restored PNG/proof，不能据此称已完成“恢复后实际原图”验收；六主态目标也不能代替negative-offline/short特殊态更长右栏全文滚达。保留这两项明确缺证，不将整个15态签为全域G1–G4完成。其余主题/1.0未在本包产出，不外推。

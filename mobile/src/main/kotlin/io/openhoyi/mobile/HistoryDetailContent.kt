@@ -341,10 +341,11 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
     val chart = ShotChartView(this, visual, embeddedHistory = true).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
     val preview = EmbeddedHistoryPreview(this, visual, chart)
     body.addView(preview, LinearLayout.LayoutParams(-1, 0, 1f))
-    val header = style.column("product/history/preview-header")
-    style.add(preview.content, header)
     val title = style.row("product/history/title-row").apply { gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = style.dp(48) }
-    title.addView(style.text(curve, TaskProductVisualStyle.title, "product/history/identity"), LinearLayout.LayoutParams(0, -2, 1f))
+    val identity = style.text(curve, TaskProductVisualStyle.title, "product/history/identity")
+    title.addView(identity, LinearLayout.LayoutParams(0, -2, 1f))
+    val titleSpacer = android.view.View(this)
+    title.addView(titleSpacer, LinearLayout.LayoutParams(0, 0))
     val more = android.widget.ImageButton(this).apply {
         tag = "product/history/more"; contentDescription = getString(R.string.ui_full_details)
         setImageDrawable(HomeVisualIcon.drawable(this@renderEmbeddedHistoryPreview, "more", style.accent))
@@ -364,7 +365,6 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         }
     }
     title.addView(more, LinearLayout.LayoutParams(style.dp(48), style.dp(48)).apply { marginStart = style.dp(16) })
-    style.add(header, title)
     val meta = HistoryVisualFlow(this, style.dp(16), style.dp(8)).apply { tag = "product/history/identity-meta" }
     meta.addView(style.text(date(entry.startedAtMs), TaskProductVisualStyle.auxiliary, "product/history/date", true))
     meta.addView(style.text(status(entry.status), TaskProductVisualStyle.auxiliary, "product/history/status").apply {
@@ -374,9 +374,10 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
     })
     val chartStatus = style.text(getString(R.string.history_loading_samples), TaskProductVisualStyle.auxiliary, "product/history/chart-status", true)
     meta.addView(chartStatus)
-    style.add(header, meta, 8)
-    if (entry.status == ShotHistory.Status.UNKNOWN) style.add(header, style.text(getString(R.string.history_unknown_warning),
-        TaskProductVisualStyle.auxiliary, "product/history/warning").apply { setTextColor(visual.warningInk) }, 8)
+    val warning = if (entry.status == ShotHistory.Status.UNKNOWN) style.text(getString(R.string.history_unknown_warning),
+        TaskProductVisualStyle.auxiliary, "product/history/warning").apply { setTextColor(visual.warningInk) } else null
+    val header = EmbeddedHistoryHeader(this, title, identity, titleSpacer, more, meta, warning, style.dp(16), style.dp(8))
+    style.add(preview.content, header)
     val metrics = HistoryVisualFlow(this, style.dp(24), style.dp(8)).apply { tag = "product/history/metrics" }
     style.add(preview.content, metrics, 16)
     fun metric(label: Int, number: String, unit: String?, id: String, prominent: Boolean = true): HistoryQuantity {
@@ -491,6 +492,69 @@ private class StandaloneHistoryPlot(context: android.content.Context, visual: Ex
     }
 }
 
+/** The UNKNOWN warning keeps its one TextView; only its measured position changes. */
+private class EmbeddedHistoryHeader(context: android.content.Context, private val titleRow: LinearLayout,
+    private val identity: android.widget.TextView, private val spacer: android.view.View,
+    private val more: android.widget.ImageButton, private val meta: android.view.View,
+    private val warning: android.widget.TextView?, private val inlineGapPx: Int, private val rowGapPx: Int
+) : android.view.ViewGroup(context) {
+    var inlineWarning = false
+        set(value) { if (field != value) { field = value; forceLayout() } }
+    var resolvedInline = false; private set
+    var titleNaturalWidthPx = 0; private set
+    var warningNaturalWidthPx = 0; private set
+    var moreOccupationPx = 0; private set
+    var rowAvailableWidthPx = 0; private set
+    init {
+        tag = "product/history/preview-header"
+        addView(titleRow); addView(meta); warning?.let { addView(it) }
+    }
+    override fun generateDefaultLayoutParams() = LayoutParams(-1, -2)
+    fun fitsInline(width: Int): Boolean = warning != null &&
+        titleNaturalWidthPx + inlineGapPx + warningNaturalWidthPx <= width - moreOccupationPx
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val width = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
+        val exact = android.view.View.MeasureSpec.makeMeasureSpec(width, android.view.View.MeasureSpec.EXACTLY)
+        val free = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
+        identity.forceLayout(); identity.measure(free, free)
+        titleNaturalWidthPx = identity.measuredWidth
+        warning?.let { it.forceLayout(); it.measure(free, free) }
+        warningNaturalWidthPx = warning?.measuredWidth ?: 0
+        val moreParams = more.layoutParams as LinearLayout.LayoutParams
+        moreOccupationPx = moreParams.width + moreParams.marginStart + moreParams.marginEnd
+        rowAvailableWidthPx = width - moreOccupationPx
+        resolvedInline = inlineWarning && fitsInline(width)
+        (identity.layoutParams as LinearLayout.LayoutParams).apply {
+            this.width = if (resolvedInline) titleNaturalWidthPx else 0
+            weight = if (resolvedInline) 0f else 1f
+        }
+        (spacer.layoutParams as LinearLayout.LayoutParams).apply {
+            this.width = 0; weight = if (resolvedInline) 1f else 0f
+        }
+        titleRow.forceLayout(); titleRow.measure(exact, free)
+        meta.forceLayout(); meta.measure(exact, free)
+        warning?.let {
+            it.forceLayout()
+            it.measure(if (resolvedInline) android.view.View.MeasureSpec.makeMeasureSpec(warningNaturalWidthPx, android.view.View.MeasureSpec.EXACTLY) else exact, free)
+        }
+        val height = titleRow.measuredHeight + rowGapPx + meta.measuredHeight +
+            if (warning != null && !resolvedInline) rowGapPx + warning.measuredHeight else 0
+        setMeasuredDimension(resolveSize(width, widthMeasureSpec), resolveSize(height, heightMeasureSpec))
+    }
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        titleRow.layout(0, 0, width, titleRow.measuredHeight)
+        val metaTop = titleRow.measuredHeight + rowGapPx
+        meta.layout(0, metaTop, width, metaTop + meta.measuredHeight)
+        warning?.let {
+            val left = if (resolvedInline && layoutDirection == LAYOUT_DIRECTION_RTL)
+                width - titleNaturalWidthPx - inlineGapPx - it.measuredWidth
+            else if (resolvedInline) titleNaturalWidthPx + inlineGapPx else 0
+            val top = if (resolvedInline) (titleRow.measuredHeight - it.measuredHeight) / 2 else metaTop + meta.measuredHeight + rowGapPx
+            it.layout(left, top, left + it.measuredWidth, top + it.measuredHeight)
+        }
+    }
+}
+
 /** Permanent layout: resize changes only native measure inputs, never a source or parent. */
 private class EmbeddedHistoryPreview(context: android.content.Context, visual: ExtractionHistoryVisualStyle,
     private val chart: ShotChartView) : LinearLayout(context) {
@@ -524,6 +588,8 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
             }
             return total
         }
+        val previewHeader = content.getChildAt(0) as EmbeddedHistoryHeader
+        previewHeader.inlineWarning = false
         metricCells.forEach { it.inline = false }
         val verticalChrome = measureChrome()
         val overlay = chart.getChildAt(0) as LinearLayout
@@ -539,8 +605,24 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
         val inlineWidth = metricCells.sumOf { it.inlineNaturalWidth() } + style.dp(24) * (metricCells.size - 1).coerceAtLeast(0)
         val inlineMetrics = verticalMinimum > available && inlineWidth <= width
         metricCells.forEach { it.inline = inlineMetrics }
+        measureChrome()
+        fun firstScreenMinimum(): Int {
+            var beforeChart = 0
+            for (index in 0 until content.indexOfChild(chart)) {
+                val child = content.getChildAt(index)
+                if (child.visibility == android.view.View.GONE) continue
+                val params = child.layoutParams as LayoutParams
+                beforeChart += child.measuredHeight + params.topMargin + params.bottomMargin
+            }
+            return beforeChart + chartMargins + chartMinimum
+        }
+        val firstScreenBeforePx = firstScreenMinimum()
+        val titleWarningWidthFits = previewHeader.fitsInline(width)
+        val mergeWarning = firstScreenBeforePx > available && titleWarningWidthFits
+        previewHeader.inlineWarning = mergeWarning
         val sections = org.json.JSONArray()
         val chrome = measureChrome(sections)
+        val firstScreenResolvedPx = firstScreenMinimum()
         val minimumContent = chrome + chartMargins + chartMinimum
         val scrolling = minimumContent > available
         content.resolvedHeightPx = if (scrolling) minimumContent else available
@@ -548,6 +630,14 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
         productLayoutEvidence.put("availableHeightPx", height).put("fixedFooterNaturalPx", footer.measuredHeight)
             .put("fixedFooterBudgetSatisfiable", footer.measuredHeight <= height)
             .put("contentViewportPx", available).put("headerAndMetricsNaturalPx", chrome).put("sections", sections)
+            .put("firstScreenMinimumBeforePx", firstScreenBeforePx).put("firstScreenMinimumResolvedPx", firstScreenResolvedPx)
+            .put("firstScreenBudgetSatisfiable", firstScreenResolvedPx <= available)
+            .put("titleNaturalWidthPx", previewHeader.titleNaturalWidthPx)
+            .put("warningNaturalWidthPx", previewHeader.warningNaturalWidthPx)
+            .put("moreOccupationPx", previewHeader.moreOccupationPx)
+            .put("titleWarningRowAvailableWidthPx", previewHeader.rowAvailableWidthPx)
+            .put("titleWarningGapPx", style.dp(16)).put("titleWarningWidthFits", titleWarningWidthFits)
+            .put("titleWarningInlineCondition", mergeWarning).put("titleWarningInlineResolved", previewHeader.resolvedInline)
             .put("verticalChromeNaturalPx", verticalChrome).put("verticalMinimumContentPx", verticalMinimum)
             .put("metricsInlineNaturalWidthPx", inlineWidth).put("metricsInline", inlineMetrics)
             .put("chartNativeHeaderNaturalPx", headerHeight).put("chartActualPaintAxisMinimumPx", axisMinimum)

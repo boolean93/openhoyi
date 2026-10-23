@@ -274,6 +274,24 @@ def require_library_special(folder):
         report=json.loads((case/'case.json').read_text()); model=json.loads((case/'fixture.json').read_text())
         assert report['case']==name and report['itemId']==model['id'] and report['status']=='PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE'
         assert report['visualAcceptance']=='ASTRA_PENDING' and report['sourceSelection']['selectedId']==model['id']
+        startup=require_capture(scope,report['startupCapture'],DEFAULT_ACTIVITY)['libraryCaseState']
+        prepared=require_capture(scope,report['preparedCapture'],DEFAULT_ACTIVITY)['libraryCaseState']
+        assert report['startupState']==startup and report['preparedState']==prepared
+        assert report['baselineSemantics']=='real_list_click_after_startup; startup_false_preserved'
+        assert startup['detailRequested'] is False and startup['list']['selectedId']==report['originalSelection']['selectedId']
+        assert prepared['detailRequested'] is True and prepared['list']['selectedId']==report['originalSelection']['selectedId']
+        assert report['originalSelection']['adapterItemId']==startup['list']['selectedId']
+        assert prepared['list']['query']==startup['list']['selectedId']
+        assert report['initialList']==prepared['list'] and report['initialDetailRequested'] is True
+        assert report['initialScroll']==[prepared['detailScrollY'],prepared['fallbackScrollY']]
+        restored_case=require_capture(scope,report['restoredCapture'],DEFAULT_ACTIVITY)['libraryCaseState']
+        assert report['restoredState']==restored_case and report['restorationMismatches']==[]
+        assert restored_case==prepared and report['restoredList']==prepared['list']
+        assert startup['activityIdentity']==prepared['activityIdentity']==restored_case['activityIdentity']
+        assert startup['windowIdentity']==prepared['windowIdentity']==restored_case['windowIdentity']
+        assert startup['decorIdentity']==prepared['decorIdentity']==restored_case['decorIdentity']
+        assert startup['windowTokenIdentity']==prepared['windowTokenIdentity']==restored_case['windowTokenIdentity']
+        assert prepared['hasWindowFocus'] and restored_case['hasWindowFocus'] and prepared['services']==[]
         initial=require_capture(scope,report['initialCapture'],SHORT_ACTIVITY if name=='short-pressure' else DEFAULT_ACTIVITY)
         disclosure=initial['libraryDisclosure']
         assert disclosure['itemId']==model['id'] and disclosure['actualChartTargets']==model['targets']

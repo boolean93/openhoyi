@@ -852,6 +852,15 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         val steps=JSONArray(); val covered=linkedSetOf<Int>(); var primary:Throwable?=null
         val folder=File(directory,"states/$caseName").apply { check(isDirectory || mkdirs()) }
         fun bounds(array:JSONArray)=Rect(array.getInt(0),array.getInt(1),array.getInt(2),array.getInt(3))
+        fun nativeTypography(view:TextView, role:String)=JSONObject()
+            .put("nativeRole",role).put("objectIdentity",System.identityHashCode(view))
+            .put("textSizePx",view.textSize)
+            .put("typeface",JSONObject().put("weight",if(android.os.Build.VERSION.SDK_INT>=28) view.typeface?.weight ?: JSONObject.NULL else JSONObject.NULL))
+            .put("paint",JSONObject().put("isFakeBoldText",view.paint.isFakeBoldText))
+            .put("letterSpacing",view.letterSpacing).put("textScaleX",view.textScaleX)
+            .put("includeFontPadding",view.includeFontPadding)
+            .put("lineSpacingExtra",view.lineSpacingExtra).put("lineSpacingMultiplier",view.lineSpacingMultiplier)
+            .put("baseline",view.baseline)
         fun state():JSONObject {
             check(focusedDetailsDialog(activity)===owner && window.decorView===decor && decor.hasWindowFocus())
             val layout=requireNotNull(message.layout); check(message.text.toString()==expectedMessage && layout.lineCount>0)
@@ -874,7 +883,9 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
                     .put("screenRectPx",rect(line)).put("fullyVisible",readable).put("ellipsisCount",layout.getEllipsisCount(index)))
             }
             val safe=Rect(); decor.getWindowVisibleDisplayFrame(safe)
-            val titleProof=observation(title); val messageProof=observation(message); val buttonProof=observation(positive)
+            val titleProof=observation(title).put("nativeTypography",nativeTypography(title,"native-title"))
+            val messageProof=observation(message).put("nativeTypography",nativeTypography(message,"native-message"))
+            val buttonProof=observation(positive).put("nativeTypography",nativeTypography(positive,"native-positive"))
             val messageFitsViewport=message.height<=visible.height()
             check(!messageFitsViewport || whole(messageProof)) { "M4 viewport-fit details message is not wholly readable" }
             val buttonBounds=bounds(buttonProof.getJSONArray("rectPx"))

@@ -169,7 +169,7 @@ def require_protocol(path, kind=None):
     assert attempt['windowDomainColorSpacesEqual'] and attempt['displayDomainColorSpacesEqual']
     assert attempt['windowLayerMatch'] and attempt['displayStable']
     for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'):assert attempt[key]['count']==0,(path,key)
-    if path.parent.name=='short-height': expected=SHORT_ACTIVITY
+    if 'short-height' in path.parts and 'special-states' in path.parts and proof['captureWindowKind']=='ACTIVITY': expected=SHORT_ACTIVITY
     elif path.parent.name in ('trend-main-data','short-height-trend-detail') and proof['captureWindowKind']=='EXPLICIT_WINDOW': expected=TRANSLATED_WINDOW
     else: expected=DEFAULT_WINDOW if proof['captureWindowKind']=='EXPLICIT_WINDOW' else DEFAULT_ACTIVITY
     validate(proof,attempt,expected)
@@ -289,6 +289,99 @@ for path in manifests:
             assert case['case']==f'after-scroll-{i}'
             capture_ref_pair(folder,case,f'after-scroll-{i}','ACTIVITY')
         assert isinstance(reach['restoredY'],int) and reach['restoredY']>=0
+        assert len(reach['originalScrollPx'])==2 and all(isinstance(v,int) and v>=0 for v in reach['originalScrollPx'])
+        assert reach['originalScrollPx'][1]==reach['restoredY'] and reach['restoredStateEqual'] is True
+        before=capture_ref_pair(folder,reach['beforeRefs'],'support-before','ACTIVITY')
+        restored=capture_ref_pair(folder,reach['restoredRefs'],'scroll-restored','ACTIVITY')
+        assert before['supportState']==restored['supportState']
+        assert before['supportState']['scrollPx']==reach['originalScrollPx']
+        assert before['supportState']['activityIdentity']==restored['supportState']['activityIdentity']
+        assert before['supportState']['windowIdentity']==restored['supportState']['windowIdentity']
+        assert before['supportState']['scrollIdentity']==restored['supportState']['scrollIdentity']
+        disclosure_cases={'negative-offline','mock-capture-disabled','short-height'}
+        fixed=['product/scale/timer/help','product/scale/device-status','product/scale/connect',
+            'product/scale/settings','scale-trend-fallback']
+        for case in special['cases']:
+            state=case['case']
+            if state not in disclosure_cases:
+                assert 'supportDisclosureRef' not in case
+                continue
+            path=referenced_file(folder,case['supportDisclosureRef'],f'special-states/{state}/support-disclosure.json')
+            disclosure=json.loads(path.read_text())
+            assert disclosure['case']==state and disclosure['evidenceSummaryVersion']==2
+            assert disclosure['referenceBase']=='page_root' and disclosure['completed'] is True
+            assert disclosure['restoredStateEqual'] is True
+            assert disclosure['initialRefs']=={'geometryRef':case['geometryRef'],'frameSyncRef':case['frameSyncRef']}
+            initial=capture_ref_pair(folder,case,f'special-states/{state}','ACTIVITY')
+            restored=capture_ref_pair(folder,disclosure['restoredRefs'],f'special-states/{state}/disclosure-restored','ACTIVITY')
+            original=initial['supportState']
+            assert restored['supportState']==original
+            assert original['scrollPx']==disclosure['originalScrollPx']
+            assert original['trendInline']==initial['productLayoutEvidence']['trendInline']
+            if original['trendInline']:
+                assert original['fallbackVisibility']==8 and original['fallbackShown'] is False
+            else:assert original['fallbackVisibility']==0
+            required=fixed+([] if state=='negative-offline' else ['product/scale/dose-help'])
+            assert len(disclosure['targets'])==len(required)
+            assert [t['semanticId'] for t in disclosure['targets']]==required
+            for index,target in enumerate(disclosure['targets']):
+                semantic=target['semanticId'];count=target['lineCount']
+                if semantic=='scale-trend-fallback' and original['trendInline']:
+                    assert target=={'semanticId':semantic,'actualTag':semantic,
+                        'viewIdentity':original['fallbackIdentity'],
+                        'model':'LAYOUT_NOT_APPLICABLE_INLINE_TREND',
+                        'lineCount':0,'coveredLines':[],'stages':[]}
+                    continue
+                assert target['model']=='REAL_VISIBLE_SUPPORT_TARGET'
+                assert isinstance(target['text'],str) and target['text'] and count>0
+                assert target['actualTag']==(None if semantic in ('product/scale/timer/help','product/scale/dose-help') else semantic)
+                assert target['coveredLines']==list(range(count)) and target['stages']
+                offsets=target['lineOffsets'];assert len(offsets)==count and offsets[0][0]==0
+                assert offsets[-1][1]==len(target['text'].encode('utf-16-le','surrogatepass'))//2
+                assert all(len(pair)==2 and 0<=pair[0]<=pair[1] for pair in offsets)
+                assert all(offsets[i-1][1]==offsets[i][0] for i in range(1,count))
+                assert target['button']==(semantic in ('product/scale/connect','product/scale/settings','scale-trend-fallback'))
+                covered=set()
+                for step,stage in enumerate(target['stages']):
+                    observed=capture_ref_pair(folder,stage,f'special-states/{state}/disclosure/{index}-stage-{step}','ACTIVITY')
+                    exact=observed['disclosureTarget'];actual=observed['supportState']
+                    assert exact['semanticId']==semantic and exact['text']==target['text']
+                    assert exact['actualTag']==target['actualTag']
+                    assert exact['viewIdentity']==target['viewIdentity'] and exact['scrollIdentity']==original['scrollIdentity']
+                    assert exact['lineCount']==count and exact['button']==target['button']
+                    assert target['fitsViewport']==(exact['heightPx']<=exact['scrollHeightPx'])
+                    assert stage['whole']==exact['whole'] and stage['visibleLines']==exact['visibleLines']
+                    for key in ('activityIdentity','windowIdentity','decorIdentity','rootIdentity','windowTokenIdentity',
+                        'scrollIdentity','trendInline','fallbackIdentity','fallbackVisibility','fallbackShown',
+                        'serviceSnapshot','serviceObservationSerial','weight','freshness','tareStatus',
+                        'deviceStatus','tareEnabled','captureEnabled','fixedPrimary','fixedTare','fixedCaptureFooter'):
+                        assert actual[key]==original[key],(state,semantic,key)
+                    for key in ('buffer','bufferNow','timer'):
+                        assert actual['trendBufferTimerAndAllScrolls'][key]==original['trendBufferTimerAndAllScrolls'][key]
+                    visible=[]
+                    assert len(exact['lineScreenRects'])==count
+                    for row,line in enumerate(exact['lineScreenRects']):
+                        assert line['line']==row and line['ellipsisCount']==0
+                        assert [line['start'],line['end']]==offsets[row]
+                        utf16_length=len(exact['text'].encode('utf-16-le','surrogatepass'))//2
+                        assert 0<=line['start']<=line['end']<=utf16_length
+                        rect=line['rectPx'];viewport=exact['viewportScreenRectPx'];clip=exact['targetVisibleRectPx']
+                        horizontal=0<=line['layoutLeftPx']<=line['layoutRightPx']<=exact['contentWidthPx']
+                        shown=exact['screenMappingVerified'] and horizontal and viewport[0]<=rect[0] and rect[2]<=viewport[2] and \
+                            viewport[1]<=rect[1] and rect[3]<=viewport[3] and \
+                            clip[0]<=rect[0] and rect[2]<=clip[2] and clip[1]<=rect[1] and rect[3]<=clip[3]
+                        assert line['fullyVisible']==shown
+                        if shown:visible.append(row)
+                    assert visible==exact['visibleLines'] and visible
+                    assert stage['requestedLine'] is None or stage['requestedLine'] in visible
+                    assert set(visible)-covered
+                    covered.update(visible)
+                    if target['button']:
+                        assert exact['whole'] and exact['enabled'] and exact['clickable']
+                        assert exact['heightPx']>=exact['minimumTouchHeightPx']
+                    elif target['fitsViewport']:assert exact['whole']
+                assert covered==set(range(count))
+                if target['button'] or target['fitsViewport']:assert len(target['stages'])==1
         for case in special['cases']:
             if case['case'] in ('short-height','short-height-trend-detail'):
                 assert case['acceptanceStatus']=='PASS_PROTOCOL2_ONLY_NOT_VISUAL'

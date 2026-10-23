@@ -125,7 +125,7 @@ done
 adb pull "/sdcard/Android/data/$package/files/bean-workflow-visual-migration/$source_sha" "$output_dir/"
 python3 - "$output_dir/$source_sha" <<'VERIFY_PY'
 from pathlib import Path
-import hashlib, json, struct, sys
+import hashlib, json, math, struct, sys
 sys.path.insert(0,str(Path('scripts').resolve()))
 from window_mapping_contract import validate, TRANSLATED_WINDOW
 root = Path(sys.argv[1])
@@ -148,7 +148,7 @@ def require_details(folder, case_name, expected_event=None):
     steps=report['steps']
     assert len(steps)>=2 and steps[0]['name']=='initial' and steps[-1]['name']=='restored'
     assert len({step['name'] for step in steps})==len(steps)
-    covered=set(); initial_ranges=None
+    covered=set(); initial_ranges=None; typography_ids={}
     for step in steps:
         name=step['name']; state=base/name
         assert step['image']==f'states/{case_name}/{name}/window.png'
@@ -187,6 +187,20 @@ def require_details(folder, case_name, expected_event=None):
         assert geometry==accepted['geometryBefore']['target'],(state,'geometry not from accepted same-sample target')
         for key in ('windowIdentity','decorIdentity','windowTokenIdentity','ownerActivityIdentity','messageIdentity'):
             assert geometry[key]==report[key],(state,key)
+        for role in ('title','message','positive'):
+            view=geometry[role]; typography=view['nativeTypography']; expected_role=f'native-{role}'
+            assert typography['nativeRole']==expected_role and type(typography['objectIdentity']) is int,(state,role)
+            assert math.isfinite(typography['textSizePx']) and typography['textSizePx']>0,(state,role)
+            assert set(typography['typeface'])=={'weight'} and (typography['typeface']['weight'] is None or
+                type(typography['typeface']['weight']) is int and 1<=typography['typeface']['weight']<=1000),(state,role)
+            assert set(typography['paint'])=={'isFakeBoldText'} and type(typography['paint']['isFakeBoldText']) is bool,(state,role)
+            assert all(math.isfinite(typography[key]) for key in ('letterSpacing','textScaleX','lineSpacingExtra','lineSpacingMultiplier')),(state,role)
+            assert typography['textScaleX']>0 and typography['lineSpacingMultiplier']>0,(state,role)
+            assert type(typography['includeFontPadding']) is bool and type(typography['baseline']) is int and typography['baseline']>=0,(state,role)
+            assert typography['objectIdentity']==typography_ids.setdefault(role,typography['objectIdentity']),(state,role)
+            assert view['textLineBoxes'] and view['textLineBoxes'][0]['text'],(state,role)
+        assert geometry['message']['nativeTypography']['objectIdentity']==geometry['messageIdentity'],state
+        assert geometry['title']['textLineBoxes'][0]['text']==report['title'],state
         assert geometry['message']['textLineBoxes'] and geometry['message']['textLineBoxes'][0]['text']==report['expectedMessage']
         assert geometry['lineGeometrySemantics']=='actual_Layout_line_boxes_screen_origin_from_TextView_baseline_includes_vertical_gravity_and_self_scroll_not_glyph_ink'
         assert len(geometry['layoutOriginScreenPx'])==2 and len(geometry['messageSelfScroll'])==2

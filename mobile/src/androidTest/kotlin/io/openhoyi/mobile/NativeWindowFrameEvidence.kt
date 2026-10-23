@@ -252,10 +252,8 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
             error?.let { proof.put("failure", it) }
             proofTiming[1] = SystemClock.elapsedRealtimeNanos()
             proofTiming[2] = SystemClock.elapsedRealtimeNanos()
-            val serialized = proof.toString(2)
-            proofTiming[3] = SystemClock.elapsedRealtimeNanos()
-            proofTiming[4] = SystemClock.elapsedRealtimeNanos()
-            try { proofFile.writeText(serialized) } finally { proofTiming[5] = SystemClock.elapsedRealtimeNanos() }
+            try { WindowProofStreamingWriter.write(proof, proofFile) }
+            finally { proofTiming[5] = SystemClock.elapsedRealtimeNanos() }
             return proof
         }
         try {
@@ -606,11 +604,13 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                 proofTimings.forEachIndexed { index, times ->
                     proofRows.put(JSONObject().put("writeOrdinal", index + 1)
                         .put("proofBuildNanos", if (times[1] >= times[0] && times[0] > 0L) times[1] - times[0] else JSONObject.NULL)
-                        .put("proofSerializationNanos", if (times[3] >= times[2] && times[2] > 0L) times[3] - times[2] else JSONObject.NULL)
-                        .put("proofFileWriteNanos", if (times[5] >= times[4] && times[4] > 0L) times[5] - times[4] else JSONObject.NULL))
+                        .put("proofSerializationNanos", JSONObject.NULL)
+                        .put("proofFileWriteNanos", JSONObject.NULL)
+                        .put("proofStreamedWriteNanos", if (times[5] >= times[2] && times[2] > 0L) times[5] - times[2] else JSONObject.NULL))
                 }
                 timingFile.writeText(JSONObject().put("scope", "DIAGNOSTIC_ONLY_NOT_ACCEPTANCE")
                     .put("clock", "SystemClock.elapsedRealtimeNanos")
+                    .put("proofWriteTimingDefinition", "proofStreamedWriteNanos includes UTF-8 serialization, flush, close, and atomic publication; legacy split fields unavailable")
                     .put("attempts", attemptRows).put("proofWrites", proofRows).toString(2))
             } catch (_: Throwable) {
                 // Timing diagnostics cannot replace the original accepted/failed result.
