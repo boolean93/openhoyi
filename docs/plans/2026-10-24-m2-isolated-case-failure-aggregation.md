@@ -37,7 +37,9 @@
 1. 预先记录完整预期身份：source/head SHA、APK SHA、`GITHUB_RUN_ID`、`GITHUB_JOB`、host run attempt（如有）、page、profile、请求字体与主题。
 2. 该 case 的设备目录 `/sdcard/Android/data/io.openhoyi.mobile.mock/files/form-visual-migration/<source>/<profile>/<page>` **必须原先不存在**；host 接收该 case 的终态目录也不得已存在。远端检查必须完成并有明确退出状态；权限/transport/不明输出不是「不存在」。发现既有目录即 ABORT，不删除后重试、不接受其中的旧证明。
 3. 原 `am force-stop` 与 exact `pidof` fresh-process guard 保留；每次独立 instrumentation 启动前重新验证。force-stop 只能建立下一次无进程前提，不能补发上次清理成功证书。
-4. `am instrument -w` 必须正常返回且有明确唯一终态：原成功 marker + `INSTRUMENTATION_CODE: -1`，或原 `FORM_VISUAL_MIGRATION_FAILED` + `INSTRUMENTATION_CODE: 0`。ADB 非零、超时、崩溃/无终态、冲突或重复终态均 ABORT，不仅根据 subprocess returncode 判断业务成功。
+4. `am instrument -w` 必须由 host 亲自观察 subprocess 正常完成且 `returncode=0`；完整 stdout+stderr 原样保存。再要求唯一**行首**终态：精确整行 `FORM_VISUAL_MIGRATION_CAPTURED fixtures=1 realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true`，或 `FORM_VISUAL_MIGRATION_FAILED ` 后非空原异常及堆栈。成功与失败不能并存，重复 marker、无 marker、ADB 非零、timeout/崩溃/未知退出均 ABORT；唯一 marker 还必须与下述本次终态 manifest/隔离证据相互一致。returncode=0 本身只证明 transport 正常，不能单独判断业务成功。
+   - **终态勘误（2026-10-24）：不要求 `INSTRUMENTATION_CODE`。** 58ae 的 1672 字节原 result.txt 没有该行；原 RUN_PY 直接保存 stdout、stderr合并，没有过滤。当前命令没有 `-r`，官方 Android14r1 `Instrument.java` 的 `TextStatusReporter.onInstrumentationFinishedLocked` 在非 raw 且结果有 `stream` 时只输出 stream；只有另一分支打印 CODE。`BrewAudioInstrumentation` 成功/失败都设置 stream 后 `finish`，与原件吻合。不得加 `-r` 改输出契约或补造 code。
+   - 新 helper 将本次实际 subprocess completion/returncode 写入 host case 记录，字段明确是 host 观测，不伪装设备既有字段。历史 archive 未持久化这个 returncode，离线重放必须把它标为测试输入假设，不能声称已从旧包证实 exit0。官方来源：[Android14r1 Instrument.java](https://android.googlesource.com/platform/frameworks/base/+/refs/tags/android-14.0.0_r1/cmds/am/src/com/android/commands/am/Instrument.java)。
 5. instrumentation 终结后立即拉取**该 case** manifest 与所列原件到新 host case 目录。来源、page/profile、CI 身份与本次参数全部一致；PID 为有效正整数。PID 不要求跨 case 永不复用（系统可复用 PID），新进程证明来自启动前 guard，而非数值不同。
 6. 校验 manifest 中所有 `fileSha256`；`fixture-isolation.json` 必须在该 map 中且 hash 匹配。路径不得越出 case 目录；缺文件/无效 JSON/旧 source 或 CI 身份/hash 不一致均 ABORT。manifest 本身另算 host SHA，不能伪称它有自哈希。
 
@@ -108,7 +110,7 @@
   - 首 Editor FAIL、完整清理/collector 成功，其余 11 PASS：恰好 12 次 instrumentation、无重试、最终 exit 1、原 failure 原样保留。
   - 12 PASS：完整原验证均运行、exit 0；业务 PASS 但原验证失败不得输出成功。
   - 假 `PASS_ISOLATION_ONLY`、任一 required 字段缺失/false/字符串、before/after disk 不等、cleanup FAIL：ABORT，后续调用数为 0。
-  - 设备或 host case 目录原先存在、旧 source/head/CI/profile、hash 错、缺 manifest/proof、instrument 终态缺失或矛盾：ABORT；不得删除/重跑。
+  - 设备或 host case 目录原先存在、旧 source/head/CI/profile、hash 错、缺 manifest/proof、instrument 唯一 marker 缺失或矛盾：ABORT；不得删除/重跑。实际无CODE且正常返回+唯一marker+完整证明必须可分类，不得误拒；marker存在但transport未知/非零必须ABORT。
   - fresh pidof 未明确执行/有 PID/transport 异常，instrument timeout/crash：ABORT。
   - collector 正常 exit 1、PARTIAL/time coverage不足，但安全合同全部满足：继续下一 case、质量仍 FAIL、最终非零；实际58ae报告应能作为离线回放基例。collector 停止安全 unknown、超时/异常退出、stop 未确认、错 owner、已取得原件缺失/错 SHA：ABORT；合法唯一 fallback ack 可接受，不增加 stop。
   - cleanup PASS 不掩盖原业务 FAIL；质量 PARTIAL 不冒充 COMPLETE；正常业务 PASS + 质量 PARTIAL仍最终非零；伪造 stopAcknowledged=true 但无实际 stop 命令/worker退出证据必须 ABORT。EXIT 收集再失败仍非零并保两错误。
@@ -122,3 +124,27 @@
 - 不发版、不签名、不安装真实设备、不合并本轮未通过 PR。提交仅本任务文件，普通推送现工作分支；不得直接推 main/develop、强推或取消在途 CI。
 - 回退为 revert 此 host 聚合补丁，恢复原 fail-fast；保留已生成原件和 FAIL，不删设备数据/回滚业务盘来制造隔离通过。
 - 未完成：Editor IME 产品恢复仍 FAIL；M2 其余配置须实际运行与 G1–G4 图审。即使新矩阵取得更多独立 PASS，M2 总体仍由原 FAIL 阻断。
+
+## 6. 2026-10-24 冻结实现的限定验收
+
+Astra 已按当前 M2 `FormVisualMigrationChecks`/`BrewAudioInstrumentation` 生产者、HEAD 原 shell `VERIFY_PY` 和现有 collector 源码完成静态对照。本轮无剩余静态阻断，可进入精确提交的真实 CI；不是产品恢复或视觉验收通过。
+
+冻结文件 SHA256：
+
+| 文件 | SHA256 |
+|---|---|
+| `scripts/check_form_visual_migration.sh` | `54ef0f8241a037af1043013c8c3e77647af91aac7b424994281163489c01e6da` |
+| `scripts/form_visual_case_aggregation.py` | `685708cf8bd0c846ead628361b4775d9644e4314899a245377416805f127a267` |
+| `scripts/test_form_visual_case_aggregation.py` | `63fffa156fe9fa8a5a29a827409fb5adf8d88c809817230f6930a1c085448812` |
+
+已核：
+
+- 当前 M2 manifest 成功 `PASS`、失败 `SEE_fixture-isolation.json` 与独立 proof `PASS_ISOLATION_ONLY` 分别处理；不套其他批次格式。原成功 verifier 的字体 SHA、PNG 尺寸、theme/locale/density、精确 float32、无 IME、初始及全部 frame proof、业务完成/无命令、geometry/hash 均保留；`layoutStatus` 仍为必需字段。
+- 每 case 原顺序、独立 instrument、fresh pidof 和远端目录检查保留；目录原始检查结果现已落盘。旧 host case/result/native/capability/active 证据不删除、不复用。
+- collector 质量 PARTIAL 与明确安全停止分离；业务原结果、质量错误与聚合结果分别记录。stop/collector 退出不明则停止后续，剩余 NOT_RUN；不改原四零或 5 秒门槛。
+- 已修 EXIT 旧 owner 风险：shell 生成本次随机 sessionNonce，helper 只向本次新建 active marker 写入 nonce、source/head/APK/CI/profile/固定路径；EXIT 完整等值验证，不匹配只保留并报收尾错误，零次 collector.after。已存在本次 completion 也不重复 after；helper 的 after 已尝试路径移除 active marker，避免 EXIT 再发一次。
+- `collect` 被 `if` 调用时不依赖隐式 `set -e` 处理错误；显式累积 cleanupErrors。空错误数组采用兼容 `bash -u` 的展开，仍写 `exit-collection.json`。原非零不翻绿，收尾失败升级为 exit 2 并保 originalExit。
+
+Astra 独立运行 `python3 -m unittest discover -s scripts -p 'test_form_visual_case_aggregation.py' -v`：13 tests，0 failure/error。包含真实 `CaseExecutor.execute` 使用假 subprocess transport 遍历 12 case（collector 校验另以专门测试覆盖，不冒称端到端真实 trace）；以及真实 Bash runner 配假 PATH 的五种 EXIT 情形：主 1/收尾成功→1、主 1/收尾失败→2、主 0/收尾失败→2、旧 marker→2 且零 after、本次 completion/主 1→1 且零 after。测试没有实际 ADB、设备或 Gradle 调用。
+
+真实 CI **尚未运行此实现**；不能据离线测试声称后 11 配置已采到、M2 已通过或 Editor IME 已修复。后续仍需检查本次来源、实际隔离证明、原失败保留、完整矩阵实际执行数及 G1–G4 原图。
