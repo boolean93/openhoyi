@@ -73,3 +73,28 @@ Astra复读 `build/task-first-evidence/ci-dc5875c-snapshot/raw/` 的 result、op
 已复核四文件最终候选：runner `b47ab1d28fdd7f5bd87549f0595b3e898a0d1fc60d6e5fd34e921ed37961313a`，workflow `7375a2753a09c6f4259545fb4f946bafa5a05e9f786f90e4795a6cd5ffbca90e`，helper `186d2045d1459566dba6d530bff7329b7abe26c231e57c22f59c9809a9ffdf1e`，test `3b3b1ed5152865035cb671f30de9907bd94d7601153a6397f155ed2d211701cb`。
 
 原业务码先durable记录、终态报告写失败保原非零；snapshot模式force-stop移至留证后；拉取树manifest source/fileSHA及安全路径检查；业务进程组有界终止与quiescent不明零load；关键identity/list原件保留且每Scope实例UUID前缀不覆盖verify子进程记录。Astra实际重跑专用13测试通过（其中disk full输出是预期负例，不是本机新失败）；probe11及shell/Python/YAML检查由owner报告通过。静态无剩余阻断，可交root合批实际CI。此为首批集成候选接受，不代表runner实际回滚/业务或视觉已通过；原probe成功与旧FAIL边界不变。
+
+### 2026-10-24：Scale 正式集成正常路径实际收口
+
+run `40056758145` / artifact `12546056702` 已 success。实际 tested merge source 为 `084a7b18ec62e2d316b2bf0df514f0d2369f31e9`，不是 PR head `8fee86b`。原 ZIP `build/task-first-evidence/ci-8fee86b-scale/artifact.zip` SHA256 `586913d2f5889a7369a357827971d6268ff8094682b486ca207efdf350152aac`，root 已核 remote digest / 3139 条 CRC。
+
+Astra 定向读取原 `snapshot-scope/result.json`、`operations.json`、`business-exit.json`，与 Sol 审计中逐文件 SHA 一致：businessExitStatus=0、processGroupQuiescent=true，save/load/delete 各一次 intent+ACK，saveVerified/loadAcknowledged=true，errors=[]，restoreStatus=PASS_EXACT，snapshotCleanupStatus=DELETED_OWN_ONLY。
+
+完整机械复核由 Sol 执行，Astra 阅读其原审计 `snapshot-scope-mechanical-audit.json`（SHA256 `8482bf0f12640be5411e63a9895e0f4d619a9ac2bf7cd531bc8ac518a7cfeab5`），未重复全量 hash：before/restored 均 key absent、value null、实际 frameworkFontScale=1.0，5/5 identity 与 owner 一致，7 次 snapshot list 只为空或本 owner 快照；1542 pulled、1566 hostBusiness 文件逐 SHA，22 manifest/1534 引用及 inventory 均核对，业务证据在 load 前保全。
+
+**只接受这次独占 disposable Scale 正常完成路径的真实恢复事务。** 不签真实 runner 早停/失败集成路径，不代替视觉验收，也不追认旧 Bean 等恢复 FAIL。原早停边界仍须下一自然失败原件或另行明确授权的 host 级故障注入；本轮不接 Bean runner、不自动注入。
+
+### 2026-10-24：自然业务失败后的真实恢复路径
+
+接受 run `40056753959` 的**自然失败后恢复事务**，关闭此前“尚无真实 runner 失败路径原件”的限定缺口；不关闭该运行截图失败，不扩到未接入的 Bean runner。
+
+实际 source `8fee86b4e3f004ed3be5811d22a5bb49c2f87b98`，artifact `12546935104`；ZIP `build/task-first-evidence/ci-8fee86b-scale-failed/artifact.zip`，68480949B，SHA256 `53364678d9af19d5c28cbdfb802ea84920976a14d6c69b5320cee52168af12fb`，root 已核远端 digest / 804 CRC。不是人工故障注入。
+
+Astra 直接从 ZIP 只读核对 scope 原件与部分业务证据，未整包解压：
+
+- 原 `business-exit.json` 为1且 processGroupQuiescent=true；result 同样保留1，errors=[]、evidencePreserved=true、PASS_EXACT、DELETED_OWN_ONLY。日志 `ci-8fee86b-scale/push-run-failed.log` 第219行保留 LOCAL_AUDIO_CHECKS_FAILED / Equivalent Window/display domains did not synchronize within 5000ms，第242行最终 sh exit1。恢复成功没有把原失败变绿。
+- before/restored settings 均无 font_scale key（absent/null），原 dumpsys 的 mGlobalConfiguration 均实际1.0，与 owner baseline一致；不是拿默认值替代key presence。
+- save/load/delete 各一次intent+ACK，三命令exit0、stdout OK、stderr空；5份identity parsed均与owner一致，原查询exit0/无stderr；7份snapshot list只出现本owner快照或空。
+- evidence-preserved.inventorySha256与原inventory字节相等；381 pulled与392 hostBusiness逐SHA相等，deviceGenerated与pulled映射完全一致。2份带fileSha256的页面manifest/source及379个引用逐SHA相等。其余4份special/negative manifest是case摘要，不具有sourceSha/fileSha256，不冒称同一schema；它们本身已纳入inventory哈希。
+
+审计记录 `ci-8fee86b-scale-failed/snapshot-failure-audit.json`，SHA256 `85185fc747bc826e0f10bf4f01e77a11e4949460834a6c7c02cd84011c55c502`。本次证明已有Scale runner自然业务失败后的留证、原退出码保留及精确还原；不证明截图通过，不改变5s/四零，不追认旧恢复FAIL，不授权新runner或设备执行。

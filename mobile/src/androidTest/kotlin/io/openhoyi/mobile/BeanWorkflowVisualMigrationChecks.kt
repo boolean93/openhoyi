@@ -689,7 +689,167 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         }
         failure?.let { throw it }
     }
-    private fun preparationBusiness(initial: Activity, scope: Scope, directory: File) {
+    private fun preparation424(page: BeanPreparationActivity, scope: Scope, directory: File) {
+        val report=JSONObject().put("case","light-1.0-real-IME-workspace-424px")
+            .put("captureProtocol","unsynchronized_IME_diagnostic_not_main_protocol2")
+            .put("requestedWorkspaceHeightPx",424)
+        val original=android.view.WindowManager.LayoutParams()
+        lateinit var input:EditText; lateinit var save:TextView; lateinit var back:TextView
+        lateinit var workspace:View; lateinit var secondary:View; lateinit var actions:LinearLayout
+        lateinit var baseline:JSONObject
+        var originalDecorHeight=0; var originalScrollX=0; var originalScrollY=0
+        var originalSelectionStart=0; var originalSelectionEnd=0
+        lateinit var originalBatchId:String; lateinit var originalEventId:String
+        val businessBefore=JSONObject().put("balanceMg",balance(scope))
+            .put("events",JSONArray(scope.inventory.events().map { it.toString() }))
+            .put("intent",scope.preparation.current()?.toString() ?: JSONObject.NULL)
+        main {
+            original.copyFrom(page.window.attributes)
+            input=field(page,"amount") as EditText
+            save=action(page,R.string.dose_save_selection); back=action(page,R.string.dose_return)
+            workspace=requireNotNull(root(page).findViewWithTag("task-workspace"))
+            secondary=requireNotNull(root(page).findViewWithTag("product/preparation/support-pane"))
+            actions=requireNotNull(root(page).findViewWithTag("product/preparation/actions"))
+            originalDecorHeight=page.window.decorView.height
+            val scroll=requireNotNull(root(page).findViewWithTag<ScrollView>("product/preparation/support-scroll"))
+            originalScrollX=scroll.scrollX; originalScrollY=scroll.scrollY
+            originalSelectionStart=input.selectionStart; originalSelectionEnd=input.selectionEnd
+            originalBatchId=field(page,"draftBatchId") as String
+            originalEventId=field(page,"nextEventId") as String
+            baseline=geometry(page)
+            report.put("originalWindowAttributes",JSONObject().put("width",original.width).put("height",original.height)
+                .put("gravity",original.gravity).put("x",original.x).put("y",original.y)
+                .put("softInputMode",original.softInputMode))
+                .put("originalDecorHeightPx",originalDecorHeight)
+                .put("originalWorkspace",observation(workspace))
+                .put("originalSecondary",observation(secondary))
+                .put("originalGeometry",baseline)
+                .put("originalDensityDpi",page.resources.configuration.densityDpi)
+                .put("originalIdentities",JSONArray(listOf(System.identityHashCode(input),System.identityHashCode(save),
+                    System.identityHashCode(back),System.identityHashCode(workspace),System.identityHashCode(actions))))
+                .put("originalSelection",JSONArray(listOf(originalSelectionStart,originalSelectionEnd)))
+                .put("originalDraftBatchId",originalBatchId).put("originalNextEventId",originalEventId)
+                .put("originalText",input.text.toString())
+                .put("originalScroll",JSONArray(listOf(originalScrollX,originalScrollY)))
+                .put("businessBefore",businessBefore)
+        }
+        var failure:Throwable?=null
+        try {
+            main {
+                check(requireNotNull(root(page).rootWindowInsets).isVisible(WindowInsets.Type.ime()))
+                check(input.isFocused && input.text.toString()=="18" && originalSelectionStart==0 && originalSelectionEnd==1)
+                check(workspace.height>=424 && originalDecorHeight>0 && original.width==page.window.attributes.width)
+                val candidate=originalDecorHeight-(workspace.height-424)
+                report.put("candidateWindowHeightPx",candidate)
+                check(candidate>0) { "M4 424px window candidate has nonpositive height" }
+                val resize=workspace.height!=424
+                if(resize) page.window.setLayout(original.width,candidate)
+                report.put("resizeRequested",resize)
+            }
+            stableWindow(page,directory,"preparation-amount-IME-424")
+            main {
+                val budget=JSONObject(page.productLayoutEvidence.toString())
+                val actual=geometry(page)
+                report.put("actualGeometry",actual).put("actualBudget",budget)
+                    .put("actualDecorHeightPx",page.window.decorView.height)
+                    .put("actualWorkspace",observation(workspace))
+                    .put("actualSecondary",observation(secondary))
+                    .put("actualWindowAttributes",JSONObject().put("width",page.window.attributes.width)
+                        .put("height",page.window.attributes.height).put("gravity",page.window.attributes.gravity)
+                        .put("x",page.window.attributes.x).put("y",page.window.attributes.y)
+                        .put("softInputMode",page.window.attributes.softInputMode))
+                check(workspace.height==424 && budget.getInt("workspaceAvailableHeightPx")==424 &&
+                    budget.getInt("secondaryWidthPx")==1154 && budget.getInt("actionsInnerWidthPx")==1082 &&
+                    budget.getBoolean("workspaceWidthFirstSplit") &&
+                    requireNotNull(root(page).rootWindowInsets).isVisible(WindowInsets.Type.ime()) &&
+                    page.resources.configuration.densityDpi==report.getInt("originalDensityDpi") &&
+                    page.window.attributes.width==original.width) {
+                    "M4 controlled candidate did not reproduce actual 424px/1154px/1082px IME window"
+                }
+                report.put("windowReproductionQualified",true)
+                input.requestRectangleOnScreen(Rect(0,0,input.width,input.height),true)
+            }
+            stableWindow(page,directory,"preparation-amount-IME-424-revealed")
+            diagnostic(page,File(directory,"states/preparation-amount-IME-424"))
+            main {
+                val budget=JSONObject(page.productLayoutEvidence.toString())
+                val gap=HoyiUi.dp(page,8)
+                val saveRect=observation(save).getJSONArray("rectPx")
+                val backRect=observation(back).getJSONArray("rectPx")
+                report.put("revealedGeometry",geometry(page)).put("revealedBudget",budget)
+                    .put("save",observation(save)).put("back",observation(back))
+                    .put("amount",observation(input)).put("actualButtonGapPx",backRect.getInt(0)-saveRect.getInt(2))
+                    .put("secondaryPaddingPx",JSONArray(listOf(secondary.paddingLeft,secondary.paddingTop,
+                        secondary.paddingRight,secondary.paddingBottom)))
+                    .put("secondaryMarginStartPx",(secondary.layoutParams as LinearLayout.LayoutParams).marginStart)
+                check(workspace.height==424 && budget.getInt("workspaceAvailableHeightPx")==424 &&
+                    budget.getInt("secondaryWidthPx")==1154 && budget.getInt("actionsInnerWidthPx")==1082 &&
+                    budget.getBoolean("actionRowImeVisible") && budget.getBoolean("actionRowEligible") &&
+                    budget.getBoolean("workspaceWidthFirstSplit") &&
+                    budget.getInt("actionsVerticalRequiredPx")>budget.getInt("secondaryHeightPx") &&
+                    budget.getInt("actionsCompactNaturalWidthPx")<=budget.getInt("actionsInnerWidthPx") &&
+                    budget.getBoolean("actionsCompactEnabled") && actions.orientation==LinearLayout.HORIZONTAL &&
+                    budget.getBoolean("secondaryBudgetSatisfiable") &&
+                    budget.getInt("supportViewportBudgetPx")>=budget.getInt("editorNaturalMinimumPx") &&
+                    budget.getInt("actionsFinalHeightPx")==actions.height &&
+                    budget.getJSONArray("actionsFinalRectPx").length()==4)
+                check(secondary.paddingLeft==HoyiUi.dp(page,16) && secondary.paddingTop==HoyiUi.dp(page,16) &&
+                    secondary.paddingRight==HoyiUi.dp(page,16) && secondary.paddingBottom==HoyiUi.dp(page,16) &&
+                    (secondary.layoutParams as LinearLayout.LayoutParams).marginStart==HoyiUi.dp(page,24) &&
+                    (actions.layoutParams as LinearLayout.LayoutParams).topMargin==gap &&
+                    backRect.getInt(0)-saveRect.getInt(2)==gap)
+                check(whole(observation(input)) && input.height>=HoyiUi.dp(page,52) &&
+                    whole(observation(save)) && save.height>=HoyiUi.dp(page,56) &&
+                    whole(observation(back)) && back.height>=HoyiUi.dp(page,48))
+                report.put("productLayoutQualified",true)
+            }
+        } catch(error:Throwable) { failure=error }
+        finally {
+            try {
+                main {
+                    page.window.attributes=original
+                }
+                stableWindow(page,directory,"preparation-amount-IME-424-restored")
+                main { requireNotNull(root(page).findViewWithTag<ScrollView>("product/preparation/support-scroll"))
+                    .scrollTo(originalScrollX,originalScrollY) }
+                stableWindow(page,directory,"preparation-amount-IME-424-scroll-restored")
+                main {
+                    val scroll=requireNotNull(root(page).findViewWithTag<ScrollView>("product/preparation/support-scroll"))
+                    val restored=android.view.WindowManager.LayoutParams().apply { copyFrom(page.window.attributes) }
+                    val attributeDelta=restored.copyFrom(original)
+                    val businessAfter=JSONObject().put("balanceMg",balance(scope))
+                        .put("events",JSONArray(scope.inventory.events().map { it.toString() }))
+                        .put("intent",scope.preparation.current()?.toString() ?: JSONObject.NULL)
+                    report.put("restoredGeometry",geometry(page)).put("restoredWorkspace",observation(workspace))
+                        .put("restoredAttributeChangeMask",attributeDelta).put("businessAfter",businessAfter)
+                    check(attributeDelta==0 && page.window.decorView.height==originalDecorHeight &&
+                        observation(workspace).getJSONArray("rectPx").toString()==
+                            report.getJSONObject("originalWorkspace").getJSONArray("rectPx").toString() &&
+                        observation(secondary).getJSONArray("rectPx").toString()==
+                            report.getJSONObject("originalSecondary").getJSONArray("rectPx").toString() &&
+                        scroll.scrollX==originalScrollX && scroll.scrollY==originalScrollY &&
+                        input===field(page,"amount") && save===action(page,R.string.dose_save_selection) &&
+                        back===action(page,R.string.dose_return) && input.isFocused &&
+                        input.selectionStart==originalSelectionStart && input.selectionEnd==originalSelectionEnd &&
+                        input.text.toString()==report.getString("originalText") &&
+                        field(page,"draftBatchId")==originalBatchId && field(page,"nextEventId")==originalEventId &&
+                        businessAfter.toString()==businessBefore.toString() &&
+                        requireNotNull(root(page).rootWindowInsets).isVisible(WindowInsets.Type.ime())) {
+                        "M4 controlled 424px window did not restore original attributes, geometry, UI, or business"
+                    }
+                    report.put("restorationQualified",true)
+                }
+            } catch(error:Throwable) { if(failure==null) failure=error else failure!!.addSuppressed(error) }
+            try {
+                report.put("status",if(failure==null) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
+                failure?.let { report.put("failure",it.stackTraceToString()) }
+                File(directory,"preparation-amount-IME-424.json").writeText(report.toString(2))
+            }
+            catch(error:Throwable) { if(failure==null) failure=error else failure!!.addSuppressed(error) }
+        }
+        failure?.let { throw it }
+    }
+    private fun preparationBusiness(initial: Activity, scope: Scope, directory: File, lightOne: Boolean) {
         var page=initial; val frozen=otherModels(scope); val cases=JSONArray()
         fun events()=scope.inventory.events().filter { it.batchId==scope.batchId }
         fun record(name: String) {
@@ -739,6 +899,7 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
             listOf(R.string.dose_save_selection,R.string.dose_return).forEach { id ->
                 val button=action(page,id); check(whole(observation(button)) && button.height>=HoyiUi.dp(page,if(id==R.string.dose_save_selection) 56 else 48)) }
         }
+        if(lightOne) preparation424(page as BeanPreparationActivity,scope,directory)
         unfocus(page); frames.committedFrame(root(page))
         main {
             val budget=(page as BeanPreparationActivity).productLayoutEvidence
@@ -1321,7 +1482,7 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
             }
             reach(activity,directory,targets,initialRequired,fixed)
             when(page) {
-                "preparation" -> preparationBusiness(activity,active,directory)
+                "preparation" -> preparationBusiness(activity,active,directory,theme=="light" && scale==1f)
                 "batch" -> batchBusiness(activity,active,directory)
                 else -> ledgerBusiness(activity,active,directory)
             }
