@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_history_flow_details">Flow samples (advanced)</string>
+    <string name="task_history_flow_columns">Elapsed time · Machine water flow · Scale-derived flow; — means no sample</string>
+</resources>

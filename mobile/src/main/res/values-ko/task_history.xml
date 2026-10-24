@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_history_flow_details">유량 상세 (고급)</string>
+    <string name="task_history_flow_columns">경과 시간 · 머신 물 유량 · 저울 파생 유량; — 는 측정값 없음</string>
+</resources>

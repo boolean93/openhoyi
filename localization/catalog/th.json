@@ -535,6 +535,7 @@
   "curve_filter_selected_suffix": " เลือกแล้ว",
   "curve_row_summary": "%1$s · %2$s",
   "curve_slot_assigned": "ใส่ %1$s ในช่อง %2$s แล้ว",
+  "curve_slot_assigned_latest": "ตั้งเป็นช่องทางลัด %1$s แล้ว",
   "curve_result_count": "พบ %1$s กราฟ",
   "curve_title": "คลังกราฟ",
   "curve_subtitle": "ค้นหา ดูตัวอย่าง และเลือกกราฟ",

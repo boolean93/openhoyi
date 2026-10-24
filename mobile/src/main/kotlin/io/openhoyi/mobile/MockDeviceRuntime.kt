@@ -16,6 +16,8 @@ import io.openhoyi.session.ExtractionState
 
 /** Deterministic UI fixture. It has no Bluetooth transport and cannot encode a GATT command. */
 internal class MockDeviceRuntime(private val text: (Int) -> String) {
+    /** Fixture state only: never controls a Bluetooth connection. */
+    var scaleConnected = true
     private val emptyFrame = ByteFrame(byteArrayOf())
     private var schedule = WeeklySleepSchedule(List(7) { index ->
         WeeklySleepDay(index in 1..5, SleepDay(23, 0, 7, 0))
@@ -171,16 +173,16 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
             alarmBits = 0, cupCount = settings.cupCount, extraSensorRaw = 0, raw = emptyFrame,
         )
         return MobileSnapshot(
-            coffeeState = DeviceState.READY, scaleState = DeviceState.READY,
+            coffeeState = DeviceState.READY, scaleState = if (scaleConnected) DeviceState.READY else DeviceState.DISCONNECTED,
             coffee = coffee, coffeeAt = now, alarmBits = 0, alarmAt = now,
             settings = settings, settingsAt = now, sleepFirstAt = now, sleepSecondAt = now,
             sleepFirst = SleepPart(0, schedule.days.foldIndexed(0) { index, bits, day ->
                 bits or if (day.enabled) (0x80 shr index) else 0
             }, schedule.days.take(4).map(WeeklySleepDay::time), emptyFrame),
             sleepSecond = SleepPart(4, null, schedule.days.drop(4).map(WeeklySleepDay::time), emptyFrame),
-            weight = BookooSample(if (extracting) elapsed * 70 else idleWeightHundredths,
+            weight = if (scaleConnected) BookooSample(if (extracting) elapsed * 70 else idleWeightHundredths,
                 if (extracting) 70 else 0,
-                43, 43, emptyFrame), weightAt = now,
+                43, 43, emptyFrame) else null, weightAt = now.takeIf { scaleConnected },
             message = SnapshotMessage.resource(ResourceMessage(R.string.mock_runtime_sample_notice)) { id, _ -> text(id) },
         )
     }

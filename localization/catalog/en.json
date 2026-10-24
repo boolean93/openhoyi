@@ -535,6 +535,7 @@
   "curve_filter_selected_suffix": ", selected",
   "curve_row_summary": "%1$s · %2$s",
   "curve_slot_assigned": "Assigned %1$s to slot %2$s",
+  "curve_slot_assigned_latest": "Assigned to quick slot %1$s",
   "curve_result_count": "Found %1$s curves",
   "curve_title": "Curve library",
   "curve_subtitle": "Search, preview and select curves",

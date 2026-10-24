@@ -1,0 +1,7 @@
+<resources>
+    <string name="task_curve_library_manage">관리</string>
+    <string name="task_curve_library_actions">곡선 작업</string>
+    <string name="task_curve_library_no_pressure">이 소스에는 사용 가능한 압력 단계가 없습니다. 원본 매개변수를 확인하세요.</string>
+    <string name="task_curve_library_short_preview">차트 공간이 부족합니다. 압력 단계 매개변수: %1$s. 단계 개요이며 시간 예측이 아닙니다.</string>
+    <string name="curve_library_stage_heading">단계별 압력 목표</string>
+</resources>

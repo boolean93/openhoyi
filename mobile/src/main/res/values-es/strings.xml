@@ -77,6 +77,7 @@
     <string name="curve_row_summary">"%1$s · %2$s"</string>
     <string name="curve_search_hint">"Buscar nombre de curva"</string>
     <string name="curve_slot_assigned">"%1$s asignada a la ranura %2$s"</string>
+    <string name="curve_slot_assigned_latest">"Asignada a la ranura rápida %1$s"</string>
     <string name="curve_stage_caption">"Ilustración de objetivos por etapas · No es una curva de extracción real"</string>
     <string name="curve_subtitle">"Buscar, previsualizar y seleccionar curvas"</string>
     <string name="curve_title">"Biblioteca de curvas"</string>

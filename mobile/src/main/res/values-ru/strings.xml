@@ -77,6 +77,7 @@
     <string name="curve_row_summary">"%1$s · %2$s"</string>
     <string name="curve_search_hint">"Поиск по названию профиля"</string>
     <string name="curve_slot_assigned">"%1$s помещён в слот %2$s"</string>
+    <string name="curve_slot_assigned_latest">"Назначена в быстрый слот %1$s"</string>
     <string name="curve_stage_caption">"Схема целей этапов · Не фактический график экстракции"</string>
     <string name="curve_subtitle">"Ищите, просматривайте и выбирайте профили"</string>
     <string name="curve_title">"Библиотека профилей"</string>

@@ -7,7 +7,6 @@ import io.openhoyi.session.SettingsWriteTracker
 import io.openhoyi.session.SleepNowTracker
 import io.openhoyi.session.StandaloneTare
 import android.Manifest
-import android.app.Activity
 import android.app.AlertDialog
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
@@ -64,6 +63,11 @@ class HomeActivity : ThemedActivity() {
     private lateinit var scaleWeight: TextView
     private lateinit var tareStatus: TextView
     private lateinit var selection: TextView
+    private lateinit var recipeDescription: TextView
+    private lateinit var machineCardState: TextView
+    private lateinit var scaleCardState: TextView
+    private lateinit var machineStatusCard: LinearLayout
+    private lateinit var scaleStatusCard: LinearLayout
     private lateinit var brewButton: Button
     private lateinit var browseCurvesButton: Button
     private lateinit var presetButtons: List<Button>
@@ -73,6 +77,28 @@ class HomeActivity : ThemedActivity() {
     private lateinit var scaleDisconnect: Button
     private lateinit var tareButton: Button
     private var candidateKeys = emptyList<String>()
+    private lateinit var devicePanel: LinearLayout
+    private var deviceDialog: AlertDialog? = null
+    private lateinit var presetPanel: LinearLayout
+    private var presetDialog: AlertDialog? = null
+    private lateinit var stagePreview: CurveStageView
+    private var hasRecipeMetrics = false
+    private lateinit var recipeMetrics: TaskProductRecipeMetrics
+    private lateinit var previewNote: TextView
+    private lateinit var previewUnavailable: TextView
+    private lateinit var stageFallback: ScrollView
+    private lateinit var stageFallbackText: TextView
+    private var textStagePreview = false
+    private lateinit var beanSummary: TextView
+    private lateinit var doseStateSummary: TextView
+    private lateinit var doseQuantity: TextView
+    private lateinit var doseUnit: TextView
+    private val productStyle by lazy { TaskProductVisualStyle(this) }
+    private lateinit var temperatureSummary: TextView
+    private lateinit var usageSummary: TextView
+    private lateinit var recentCurves: HomeRecentCurves
+    private var selectionDetails = ""
+    private lateinit var quickPresets: Button
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
             service = (binder as MobileService.LocalBinder).service
@@ -90,9 +116,8 @@ class HomeActivity : ThemedActivity() {
         feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(getColor(R.color.mobile_background))
+            setBackgroundColor(productStyle.page)
         }
-        val scroll = ScrollView(this).apply { isFillViewport = true; setBackgroundColor(getColor(R.color.mobile_background)) }
         root.setOnApplyWindowInsetsListener { view, insets ->
             if (Build.VERSION.SDK_INT >= 30) {
                 val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
@@ -103,9 +128,8 @@ class HomeActivity : ThemedActivity() {
             }
             insets
         }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(24), dp(20), dp(24), dp(28)) }
-        scroll.addView(content)
-        root.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(16), dp(16), dp(16)) }
+        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         emergencyStop = Button(this).apply {
             text = getString(R.string.home_stop)
             isAllCaps = false
@@ -119,22 +143,70 @@ class HomeActivity : ThemedActivity() {
         root.addView(emergencyStop, LinearLayout.LayoutParams(-1, -2).apply {
             setMargins(dp(24), dp(4), dp(24), dp(12))
         })
-        HoyiUi.navigation(this, root, HomeActivity::class.java)
+        TaskPageFrame.install(this, root, productStyle)
         setContentView(root)
-        val header = HoyiUi.header(this, content, "HOYI",
-            if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.home_subtitle))
-        val themeRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
-        if (HoyiUi.wide(this)) header.addView(themeRow)
-        else content.addView(themeRow)
-        HoyiUi.label(this, themeRow, getString(R.string.home_dark_mode), 14, muted = true)
-        themeRow.addView(Switch(this).apply {
-            contentDescription = getString(R.string.home_dark_description)
-            isChecked = getSharedPreferences("appearance", MODE_PRIVATE).getBoolean("dark", false)
-            setOnCheckedChangeListener { _, dark ->
-                getSharedPreferences("appearance", MODE_PRIVATE).edit().putBoolean("dark", dark).apply()
-                recreate()
+        val oldHeader = HoyiUi.header(this, content, getString(R.string.task_brew_title),
+            if (BuildConfig.MOCK_MODE) getString(R.string.home_mock_subtitle) else getString(R.string.ui_brew))
+        productStyle.styleHeader(oldHeader)
+        val words = oldHeader.getChildAt(0)
+        val tools = oldHeader.getChildAt(1)
+        ((words as LinearLayout).getChildAt(1) as? TextView)?.let {
+            productStyle.apply(it, TaskProductVisualStyle.auxiliary, secondary = true)
+            it.setPadding(0, 0, 0, 0)
+            (it.layoutParams as LinearLayout.LayoutParams).topMargin = dp(8)
+        }
+        oldHeader.removeAllViews(); content.removeView(oldHeader)
+        val cards = productStyle.row("product/home/device-cards")
+        fun statusCard(labelResource: Int, kind: String, id: String): Pair<LinearLayout, TextView> {
+            val label = getString(labelResource)
+            val card = productStyle.row(id).apply {
+                minimumHeight = dp(64); gravity = android.view.Gravity.CENTER_VERTICAL
+                setPadding(dp(8), dp(8), dp(8), dp(8)); isClickable = true; isFocusable = true
+                background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(productStyle.selected),
+                    productStyle.shape(productStyle.disabled), productStyle.shape(android.graphics.Color.WHITE))
+                contentDescription = getString(R.string.home_visual_open_device_status, label)
+                setOnClickListener { showDevicePanel() }
             }
-        })
+            card.addView(HomeVisualIcon(this, kind, productStyle.muted), LinearLayout.LayoutParams(dp(24), dp(24)))
+            val labels = productStyle.column()
+            productStyle.add(labels, productStyle.text(label, TaskProductVisualStyle.auxiliary, secondary = true))
+            val state = productStyle.text(this@HomeActivity.label(DeviceState.DISCONNECTED), TaskProductVisualStyle.auxiliary.copy(weight = 500), "$id/state")
+            productStyle.add(labels, state)
+            card.addView(labels, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
+            return card to state
+        }
+        statusCard(R.string.home_coffee, "coffeeMachine", "product/home/machine-card").let { (card, state) ->
+            machineStatusCard = card; machineCardState = state
+            cards.addView(card, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        statusCard(R.string.home_scale, "scale", "product/home/scale-card").let { (card, state) ->
+            scaleStatusCard = card; scaleCardState = state
+            cards.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
+        }
+        val header = object : LinearLayout(this) {
+            init {
+                tag = "product/home/header"; minimumHeight = dp(80)
+                gravity = android.view.Gravity.CENTER_VERTICAL; isBaselineAligned = false
+                addView(words, LayoutParams(0, -2, 1f))
+                addView(tools, LayoutParams(-2, -2))
+                addView(cards, LayoutParams(dp(308), -2).apply { marginStart = dp(16) })
+            }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val available = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+                val title = (words as LinearLayout).getChildAt(0) as TextView
+                val titleWidth = title.paint.measureText(title.text.toString()).toInt()
+                val toolsWidth = if (tools.visibility == View.GONE) 0 else dp(48)
+                val stacked = available < titleWidth + dp(308 + 16) + toolsWidth
+                orientation = if (stacked) VERTICAL else HORIZONTAL
+                (words.layoutParams as LayoutParams).apply { width = if (stacked) -1 else 0; weight = if (stacked) 0f else 1f }
+                (cards.layoutParams as LayoutParams).apply {
+                    width = minOf(available, dp(308)); marginStart = if (stacked) 0 else dp(16); topMargin = if (stacked) dp(8) else 0
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }
+        content.addView(header, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(8) })
+        content.addView(View(this).apply { setBackgroundColor(productStyle.border) }, LinearLayout.LayoutParams(-1, dp(1)))
         safetyWarning = text(content, "", 17, true).apply {
             setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
         }
@@ -168,141 +240,282 @@ class HomeActivity : ThemedActivity() {
         }.apply { visibility = View.GONE }
         prominentAlarm = TextView(this).apply {
             textSize = 16f
-            setTypeface(null, Typeface.BOLD)
+            typeface = TaskTypography.face(context, 700)
             setPadding(dp(16), dp(12), dp(16), dp(12))
             background = HoyiUi.shape(this@HomeActivity, R.color.mobile_accent_soft, 12, R.color.mobile_border)
             visibility = View.GONE
         }
         content.addView(prominentAlarm, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
 
-        val deviceCard = card(content, getString(R.string.home_device_connection))
-        status = text(deviceCard, getString(R.string.home_not_connected_initial), 14)
-        val deviceRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        deviceCard.addView(deviceRow)
+        // Device controls retain their live views and write gates in an explicit panel.
+        // Only this auxiliary panel scrolls; the main task surface remains fixed.
+        devicePanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(16))
+        }
+        val deviceCard = devicePanel
+        button(deviceCard, getString(R.string.app_settings_title)) {
+            startActivity(Intent(this, AppSettingsActivity::class.java))
+        }
+        button(deviceCard, getString(R.string.extraction_title)) {
+            startActivity(Intent(this, ExtractionActivity::class.java))
+        }
+        status = text(content, getString(R.string.home_not_connected_initial), 14).apply { tag = "product/home/service-status" }
         val machineChip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
-        deviceRow.addView(machineChip, LinearLayout.LayoutParams(0, -2, 1f))
-        deviceRow.addView(scaleChip, LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(12) })
         coffeeDot = statusDot(machineChip)
-        coffee = text(machineChip, getString(R.string.home_coffee_initial), 15, true)
+        coffee = text(machineChip, getString(R.string.home_coffee_initial), 14, true)
         scaleDot = statusDot(scaleChip)
-        scale = text(scaleChip, getString(R.string.home_scale_initial), 15, true)
+        scale = text(scaleChip, getString(R.string.home_scale_initial), 14, true)
         scanButton = button(deviceCard, getString(R.string.home_scan)) { enableAndScan() }
         candidates = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         deviceCard.addView(candidates)
-
-        val wide = HoyiUi.wide(this)
-        val workArea = LinearLayout(this).apply { orientation = if (wide) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL }
-        content.addView(workArea)
-        val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        if (wide) {
-            workArea.addView(left, LinearLayout.LayoutParams(0, -2, .9f))
-            workArea.addView(right, LinearLayout.LayoutParams(0, -2, 1.1f).apply { marginStart = dp(16) })
-        } else {
-            workArea.addView(right, LinearLayout.LayoutParams(-1, -2))
-            workArea.addView(left, LinearLayout.LayoutParams(-1, -2))
-        }
-        val machineCard = card(left, getString(R.string.home_coffee))
-        machineCard.addView(ImageView(this).apply {
-            setImageResource(R.drawable.hoyi_machine)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = getString(R.string.home_machine_description)
-        }, LinearLayout.LayoutParams(-1, dp(if (wide) 190 else 150)))
-        firmwareStatus = text(machineCard, getString(R.string.home_firmware_initial), 14)
-        alarmStatus = text(machineCard, getString(R.string.home_alarm_initial), 14)
-        leverStatus = text(machineCard, getString(R.string.settings_lever_missing), 14)
-        sleepStatus = text(machineCard, getString(R.string.home_sleep_initial), 14)
-        val machineControls = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
-        val controlsToggle = button(machineCard, getString(R.string.home_controls_expand)) {}
-        controlsToggle.setOnClickListener {
-            machineControls.visibility = if (machineControls.visibility == View.GONE) View.VISIBLE else View.GONE
-            controlsToggle.text = if (machineControls.visibility == View.VISIBLE) getString(R.string.home_controls_collapse) else getString(R.string.home_controls_expand)
-        }
-        machineCard.addView(machineControls)
-        leverButton = button(machineControls, getString(R.string.home_lever_button)) { chooseLeverMode() }
-        sleepButton = button(machineControls, getString(R.string.home_sleep_button)) { confirmSleepNow() }
-        button(machineControls, getString(R.string.home_settings_button)) { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
-        coffeeDisconnect = button(machineControls, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
-        val scaleCard = card(left, getString(R.string.home_scale))
-        scaleWeight = text(scaleCard, "— g", 27, true)
-        tareStatus = text(scaleCard, getString(R.string.home_tare_initial), 14)
-        tareButton = button(scaleCard, getString(R.string.home_tare_button)) { service?.tareScale()?.let(::toast); render() }
-        scaleDisconnect = button(scaleCard, getString(R.string.home_scale_disconnect)) { service?.disconnect(DeviceRole.BOOKOO) }
-
-        val metrics = card(right, getString(R.string.home_live_status))
-        fun metricRow(first: String, second: String): Pair<TextView, TextView> {
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            metrics.addView(row, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-            fun item(label: String): TextView {
-                val box = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL; setPadding(dp(14), dp(12), dp(14), dp(12))
-                    background = HoyiUi.shape(this@HomeActivity, R.color.mobile_accent_soft, 12)
-                }
-                row.addView(box, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(6) })
-                HoyiUi.label(this, box, label, 13, muted = true)
-                return HoyiUi.label(this, box, "—", 25, true).apply { setPadding(0, dp(8), 0, 0) }
-            }
-            return item(first) to item(second)
-        }
-        metricRow(getString(R.string.home_brew_temperature), getString(R.string.home_brew_pressure)).also { brewTemperature = it.first; brewPressure = it.second }
-        metricRow(getString(R.string.home_steam_temperature), getString(R.string.home_steam_pressure)).also { steamTemperature = it.first; steamPressure = it.second }
-        val curveCard = card(right, getString(R.string.home_current_curve))
-        val curveActionRow = if (wide) LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = android.view.Gravity.CENTER_VERTICAL
-            curveCard.addView(this)
-        } else curveCard
-        selection = text(curveActionRow, getString(R.string.home_curve_missing), 19, true)
-        if (wide) selection.layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        brewButton = button(curveActionRow, getString(R.string.home_curve_select), primary = true) {
-            val library = (application as MobileApplication).curves
-            val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
-            startActivity(Intent(this, if (item != null && library.canStart(item))
-                ExtractionActivity::class.java else CurveActivity::class.java))
-        }
-        if (wide) brewButton.layoutParams = LinearLayout.LayoutParams(dp(236), -2).apply {
-            marginStart = dp(16)
-        }
-        browseCurvesButton = button(curveCard, getString(R.string.home_curve_browse)) { startActivity(Intent(this, CurveActivity::class.java)) }
-        val presets = card(right, getString(R.string.home_quick_curves))
-        HoyiUi.label(this, presets, getString(R.string.home_quick_curves_hint), 13, muted = true)
-        val buttons = mutableListOf<Button>()
-        val columns = if (resources.configuration.screenWidthDp >= 1000) 2 else 1
-        (1..5).chunked(columns).forEach { slots ->
-            val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            presets.addView(row)
-            slots.forEach { slot ->
-                val cell = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-                row.addView(cell, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                    if (slot != slots.last()) marginEnd = dp(10)
-                })
-                buttons += button(cell, getString(R.string.home_slot, slot.toString())) {
-                    startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
-                }
-            }
-            if (slots.size < columns) row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        }
-        presetButtons = buttons
-        right.removeView(curveCard)
-        right.addView(curveCard, 0)
-        val tools = card(content, getString(R.string.home_records))
-        button(tools, getString(R.string.home_history)) { startActivity(Intent(this, HistoryActivity::class.java)) }
-        button(tools, getString(R.string.home_export)) {
-            startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-                .setType("application/zip").putExtra(Intent.EXTRA_TITLE, "openhoyi-alpha-${System.currentTimeMillis()}.zip"), EXPORT)
-        }
-        button(tools, getString(R.string.home_shutdown)) {
+        firmwareStatus = text(deviceCard, getString(R.string.home_firmware_initial), 14)
+        alarmStatus = text(deviceCard, getString(R.string.home_alarm_initial), 14)
+        leverStatus = text(deviceCard, getString(R.string.settings_lever_missing), 14)
+        sleepStatus = text(deviceCard, getString(R.string.home_sleep_initial), 14)
+        leverButton = button(deviceCard, getString(R.string.home_lever_button)) { chooseLeverMode() }
+        sleepButton = button(deviceCard, getString(R.string.home_sleep_button)) { confirmSleepNow() }
+        button(deviceCard, getString(R.string.home_settings_button)) { startActivity(Intent(this, MachineSettingsActivity::class.java)) }
+        coffeeDisconnect = button(deviceCard, getString(R.string.home_coffee_disconnect)) { service?.disconnect(DeviceRole.COFFEE) }
+        scaleWeight = text(deviceCard, "— g", 27, true)
+        tareStatus = text(deviceCard, getString(R.string.home_tare_initial), 14)
+        tareButton = button(deviceCard, getString(R.string.home_tare_button)) { service?.tareScale()?.let(::toast); render() }
+        scaleDisconnect = button(deviceCard, getString(R.string.home_scale_disconnect)) { service?.disconnect(DeviceRole.BOOKOO) }
+        button(deviceCard, getString(R.string.home_shutdown)) {
             val owner = service
             owner?.shutdown()
             if (owner?.running == true) toast(getString(R.string.home_shutdown_busy)) else release()
             render()
         }
+
+        val metrics = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        text(deviceCard, getString(R.string.task_brew_machine_readings), 16, true)
+        deviceCard.addView(metrics, LinearLayout.LayoutParams(-1, -2))
+        var metricRow: LinearLayout? = null
+        var metricIndex = 0
+        val metricColumns = if (HoyiUi.wide(this)) 4 else 2
+        fun metric(label: String): TextView {
+            if (metricIndex++ % metricColumns == 0) {
+                metricRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                metrics.addView(metricRow, LinearLayout.LayoutParams(-1, -2))
+            }
+            val box = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; setPadding(dp(4), dp(6), dp(4), dp(6))
+            }
+            metricRow!!.addView(box, LinearLayout.LayoutParams(0, -2, 1f))
+            HoyiUi.label(this, box, label, 12, muted = true)
+            return HoyiUi.label(this, box, "—", 16, true)
+        }
+        brewTemperature = metric(getString(R.string.home_brew_temperature))
+        brewPressure = metric(getString(R.string.home_brew_pressure))
+        steamTemperature = metric(getString(R.string.home_steam_temperature))
+        steamPressure = metric(getString(R.string.home_steam_pressure))
+
+        val workspace = TaskWorkspaceLayout(this, boundedSecondaryViewport = true)
+        content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
+        val primary = workspace.primaryBody.apply { tag = "product/home/main" }
+        workspace.foreground = object : android.graphics.drawable.Drawable() {
+            private val paint = android.graphics.Paint().apply { color = productStyle.border; strokeWidth = resources.displayMetrics.density }
+            override fun draw(canvas: android.graphics.Canvas) {
+                // The actual 24dp split-pane gap is untouched; only its centre is drawn.
+                val secondaryHost = workspace.getChildAt(1)
+                if (workspace.orientation == LinearLayout.HORIZONTAL) {
+                    val x = (primary.right + secondaryHost.left) / 2f
+                    canvas.drawLine(x, primary.top.toFloat(), x, primary.bottom.toFloat(), paint)
+                }
+            }
+            override fun setAlpha(alpha: Int) { paint.alpha = alpha }
+            override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
+            @Deprecated("Drawable opacity") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
+        }
+        val right = workspace.secondaryBody
+        workspace.fillSecondaryViewport = true
+        val secondary = productStyle.column("product/home/cup/body")
+        right.addView(ScrollView(this).apply {
+            tag = "product/home/cup/body-scroll"; isFillViewport = false; addView(secondary)
+        }, LinearLayout.LayoutParams(-1, 0, 1f))
+        val recipeIdentity = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+        primary.addView(recipeIdentity, LinearLayout.LayoutParams(-1, -2))
+        val recipeWords = object : LinearLayout(this) {
+            init { isBaselineAligned = true; gravity = android.view.Gravity.BOTTOM }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val needed = selection.paint.measureText(selection.text.toString()) +
+                    recipeDescription.paint.measureText(recipeDescription.text.toString()) + dp(16)
+                val stacked = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
+                    needed > View.MeasureSpec.getSize(widthMeasureSpec)
+                orientation = if (stacked) VERTICAL else HORIZONTAL
+                (selection.layoutParams as LayoutParams).width = if (stacked) -1 else -2
+                (recipeDescription.layoutParams as LayoutParams).apply { width = if (stacked) -1 else -2; marginStart = if (stacked) 0 else dp(16) }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }
+        recipeIdentity.addView(recipeWords, LinearLayout.LayoutParams(0, -2, 1f))
+        selection = text(recipeWords, getString(R.string.home_curve_missing), 24, true).apply {
+            productStyle.apply(this, TaskProductVisualStyle.title)
+            maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+            minimumHeight = dp(48)
+            setOnClickListener {
+                AlertDialog.Builder(this@HomeActivity).setTitle(getString(R.string.home_current_curve))
+                    .setMessage(selectionDetails).setPositiveButton(android.R.string.ok, null).show()
+            }
+        }
+        recipeDescription = productStyle.text(getString(R.string.home_visual_unknown_mode), TaskProductVisualStyle.auxiliary,
+            "product/home/recipe-description", true)
+        recipeWords.addView(recipeDescription)
+        browseCurvesButton = workbenchLink(recipeIdentity, getString(R.string.home_curve_browse)) {
+            startActivity(Intent(this, CurveActivity::class.java))
+        }.apply { layoutParams = LinearLayout.LayoutParams(dp(144), -2).apply { marginStart = dp(16) } }
+        recipeMetrics = TaskProductRecipeMetrics(this, productStyle).apply { visibility = View.GONE; tag = "home-recipe-metrics" }
+        primary.addView(recipeMetrics, LinearLayout.LayoutParams(-1, -2))
+        val summaryRule = View(this).apply { setBackgroundColor(productStyle.border); tag = "product/home/summary-divider" }
+        primary.addView(summaryRule, LinearLayout.LayoutParams(-1, dp(1)))
+        val stageHeading = productStyle.text(getString(R.string.curve_library_stage_heading), TaskProductVisualStyle.section, "product/home/stage-title")
+        productStyle.add(primary, stageHeading, 8)
+        stagePreview = CurveStageView(this).apply {
+            minimumHeight = dp(160); tag = "stage-preview"; pressureColor = true; productVisualStyle = this@HomeActivity.productStyle
+        }
+        primary.addView(stagePreview, LinearLayout.LayoutParams(-1, 0, 1f))
+        previewUnavailable = text(primary, "", 14).apply { visibility = View.GONE }
+        previewNote = text(primary, getString(R.string.task_brew_preview_note), 14)
+        val fallbackBody = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        stageFallbackText = text(fallbackBody, "", 14)
+        stageFallback = ScrollView(this).apply {
+            tag = "stage-fallback"; isFillViewport = false; visibility = View.GONE
+            addView(fallbackBody)
+        }
+        primary.addView(stageFallback, LinearLayout.LayoutParams(-1, 0, 1f))
+        recentCurves = HomeRecentCurves(this, primary, secondary,
+            active = { service?.let { ShotGate.active(it.shotState) || it.manualShotActive } == true }) { item ->
+            getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
+            render()
+        }
+        recentCurves.refresh()
+        workspace.onPrimarySpaceAvailable = { width, height ->
+            val lines = if (height < dp(240)) 1 else 2
+            if (selection.maxLines != lines) selection.maxLines = lines
+            val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
+            val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            // Measure actual localized text, including font scale and padding. Do not infer its height.
+            val fixed = listOf(recipeIdentity, stageHeading, previewNote) +
+                (if (hasRecipeMetrics) listOf(recipeMetrics, summaryRule) else emptyList()) +
+                (if (stagePreview.targets.isEmpty()) listOf(previewUnavailable) else emptyList())
+            val fixedHeight = fixed.sumOf { child ->
+                val params = child.layoutParams as LinearLayout.LayoutParams
+                child.measure(exactWidth, if (params.height > 0) View.MeasureSpec.makeMeasureSpec(params.height, View.MeasureSpec.EXACTLY) else naturalHeight)
+                child.measuredHeight + params.topMargin + params.bottomMargin
+            }
+            val required = fixedHeight + if (stagePreview.targets.isEmpty()) 0 else dp(160)
+            val recentHeight = recentCurves.fit(width, height - required)
+            textStagePreview = height < required
+            updateStagePreviewVisibility()
+            summaryRule.visibility = if (hasRecipeMetrics && !textStagePreview) View.VISIBLE else View.GONE
+            stageHeading.visibility = if (textStagePreview) View.GONE else View.VISIBLE
+            // This budget already excludes the supporting viewport; only stage details scroll here.
+            if (textStagePreview) height else required + recentHeight
+        }
+        val cupTitle = productStyle.row().apply { minimumHeight = dp(42); gravity = android.view.Gravity.CENTER_VERTICAL }
+        productStyle.add(cupTitle, productStyle.text(getString(R.string.task_brew_cup_summary), TaskProductVisualStyle.section))
+        productStyle.add(secondary, cupTitle)
+        productStyle.divider(secondary, 2, 7)
+        productStyle.add(secondary, productStyle.text(getString(R.string.home_visual_bean_label), TaskProductVisualStyle.auxiliary, secondary = true))
+        val beanRow = productStyle.row().apply { minimumHeight = dp(48); gravity = android.view.Gravity.CENTER_VERTICAL }
+        beanSummary = productStyle.text("", TaskProductVisualStyle.title).apply {
+            minimumHeight = dp(48)
+            setOnClickListener { startActivity(Intent(this@HomeActivity, BeanPreparationActivity::class.java)) }
+        }
+        beanRow.addView(beanSummary, LinearLayout.LayoutParams(0, -2, 1f))
+        productStyle.action(beanRow, getString(R.string.home_visual_change), "product/home/change-bean", top = 0) {
+            startActivity(Intent(this, BeanPreparationActivity::class.java))
+        }.layoutParams = LinearLayout.LayoutParams(dp(64), -2).apply { marginStart = dp(8) }
+        productStyle.add(secondary, beanRow)
+        productStyle.divider(secondary, 8, 7)
+        val doseGroup = productStyle.column()
+        productStyle.add(secondary, doseGroup)
+        doseStateSummary = text(doseGroup, "", TaskVisualTokens.SUPPORTING_SP)
+        val doseRow = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+        val doseValues = productStyle.row("product/home/dose").apply { isBaselineAligned = true; gravity = android.view.Gravity.BOTTOM }
+        doseRow.addView(doseValues, LinearLayout.LayoutParams(0, -2, 1f))
+        doseQuantity = text(doseValues, "", 40, true).apply {
+            tag = "home-dose-quantity"; fontFeatureSettings = "tnum"; visibility = View.GONE
+        }
+        doseUnit = productStyle.text("g", TaskProductVisualStyle.auxiliary, "product/home/dose/unit", true).apply { visibility = View.GONE }
+        doseValues.addView(doseUnit, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
+        productStyle.action(doseRow, getString(R.string.home_visual_edit), "product/home/edit-dose", top = 0) {
+            startActivity(Intent(this, BeanPreparationActivity::class.java))
+        }.layoutParams = LinearLayout.LayoutParams(dp(64), -2).apply { marginStart = dp(24) }
+        productStyle.add(doseGroup, doseRow, 8)
+        productStyle.divider(secondary, 8, 7)
+        coffee.tag = "product/home/state-machine"; scale.tag = "product/home/state-scale"
+        productStyle.apply(coffee, TaskProductVisualStyle.body); productStyle.apply(scale, TaskProductVisualStyle.body)
+        secondary.addView(machineChip, LinearLayout.LayoutParams(-1, -2))
+        productStyle.divider(secondary, 8, 7)
+        secondary.addView(scaleChip, LinearLayout.LayoutParams(-1, -2))
+        productStyle.divider(secondary, 8, 7)
+        val preparationDetails = productStyle.column("product/home/details-group")
+        productStyle.add(devicePanel, preparationDetails, 16)
+        productStyle.add(preparationDetails, productStyle.text(getString(R.string.home_visual_details), TaskProductVisualStyle.section))
+        temperatureSummary = text(preparationDetails, "", 14)
+        usageSummary = text(preparationDetails, "", 14).apply {
+            minimumHeight = dp(48)
+            setOnClickListener { startActivity(Intent(this@HomeActivity, HistoryActivity::class.java)) }
+        }
+        presetPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), 0, dp(16), 0) }
+        presetButtons = (1..5).map { slot ->
+            button(presetPanel, getString(R.string.home_slot, slot.toString())) {
+                presetDialog?.dismiss()
+                startActivity(Intent(this, ExtractionActivity::class.java).putExtra(PresetSlots.EXTRA_SLOT, slot))
+            }
+        }
+        quickPresets = workbenchLink(preparationDetails, getString(R.string.home_quick_curves)) { showQuickPresets() }
+        workbenchLink(preparationDetails, getString(R.string.dose_title)) { startActivity(Intent(this, BeanPreparationActivity::class.java)) }
+        workbenchLink(preparationDetails, getString(R.string.scale_title)) { startActivity(Intent(this, ScaleActivity::class.java)) }
+        val actionDock = TaskActionDock(this, edgeInsetDp = 0, fullWidthContent = true).apply { tag = "product/home/dock" }
+        right.addView(actionDock, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        val confirmation = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+        confirmation.addView(HomeVisualIcon(this, "info", productStyle.muted), LinearLayout.LayoutParams(dp(24), dp(24)))
+        confirmation.addView(productStyle.text(getString(R.string.home_quick_curves_hint),
+            TaskProductVisualStyle.auxiliary, "product/home/confirmation", true), LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = dp(8) })
+        productStyle.add(actionDock, confirmation)
+        brewButton = button(actionDock, getString(R.string.home_curve_select), primary = true) {
+            val library = (application as MobileApplication).curves
+            val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
+            val active = service?.let { ShotGate.active(it.shotState) || it.manualShotActive } == true
+            startActivity(Intent(this, if (active || (item != null && library.canStart(item)))
+                ExtractionActivity::class.java else CurveActivity::class.java))
+        }
+        HomeVisualIcon.buttonIcon(brewButton, "chevron")
+        productStyle.action(actionDock, getString(R.string.home_visual_show_details), "product/home/details") { showDevicePanel() }
+        render()
+    }
+    private fun showQuickPresets() {
+        if (presetDialog?.isShowing == true) return
+        (presetPanel.parent as? android.view.ViewGroup)?.removeView(presetPanel)
+        presetDialog = AlertDialog.Builder(this).setTitle(getString(R.string.home_quick_curves))
+            .setMessage(getString(R.string.home_quick_curves_hint))
+            .setView(ScrollView(this).apply { addView(presetPanel) })
+            .setNegativeButton(android.R.string.cancel, null).create().also { dialog ->
+                dialog.setOnDismissListener {
+                    (presetPanel.parent as? android.view.ViewGroup)?.removeView(presetPanel)
+                    presetDialog = null
+                }
+                dialog.show()
+            }
+    }
+    private fun showDevicePanel() {
+        if (deviceDialog?.isShowing == true) return
+        (devicePanel.parent as? android.view.ViewGroup)?.removeView(devicePanel)
+        val scroll = ScrollView(this).apply { addView(devicePanel) }
+        deviceDialog = AlertDialog.Builder(this).setTitle(getString(R.string.home_visual_panel_title))
+            .setView(scroll).setPositiveButton(android.R.string.ok, null).create().also { dialog ->
+                dialog.setOnDismissListener { (devicePanel.parent as? android.view.ViewGroup)?.removeView(devicePanel); deviceDialog = null }
+                dialog.show()
+            }
         render()
     }
     override fun onStart() {
         feedbackUi.start()
         super.onStart()
+        recentCurves.refresh()
         visible = true
         if (!startRememberedScaleService()) bindExisting()
         handler.post(refresh)
@@ -310,6 +523,9 @@ class HomeActivity : ThemedActivity() {
     override fun onStop() {
         feedbackUi.leave(isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
+        deviceDialog?.dismiss()
+        presetDialog?.dismiss()
+        recentCurves.dismiss()
         release(); super.onStop()
     }
     private fun bindExisting() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0) }
@@ -319,8 +535,10 @@ class HomeActivity : ThemedActivity() {
             if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, Context.BIND_AUTO_CREATE)
             return bound
         }
-        val address = getSharedPreferences("devices", MODE_PRIVATE).getString("scale", null)
-        if (address == null || !BluetoothAdapter.checkBluetoothAddress(address) || missingBle().isNotEmpty())
+        val prefs = getSharedPreferences("devices", MODE_PRIVATE)
+        val selection = io.openhoyi.session.ScaleSelectionPolicy.remembered(prefs.getString("scale", null), prefs.getString("scaleProtocol", null)) ?: return false
+        val address = selection.address
+        if (!BluetoothAdapter.checkBluetoothAddress(address) || missingBle().isNotEmpty())
             return false
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter ?: return false
         return try {
@@ -376,12 +594,12 @@ class HomeActivity : ThemedActivity() {
     }
     private fun choose(device: DiscoveredDevice) {
         if (BuildConfig.MOCK_MODE) {
-            if (device.candidateRole == DeviceRole.BOOKOO) service?.connectScale(device.address)
+            if (device.candidateRole == DeviceRole.BOOKOO) device.scaleProtocolId?.let { service?.connectScale(device.address, it) }
             else service?.connectCoffee(device.address, "000000")
             render()
             return
         }
-        if (device.candidateRole == DeviceRole.BOOKOO) { service?.connectScale(device.address); return }
+        if (device.candidateRole == DeviceRole.BOOKOO) { device.scaleProtocolId?.let { service?.connectScale(device.address, it) }; return }
         if (service?.connectRememberedCoffee(device.address) == true) return
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
@@ -461,7 +679,7 @@ class HomeActivity : ThemedActivity() {
             s.coffeeState, running)
         emergencyStop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         emergencyStop.isEnabled = stopAction.enabled
-        emergencyStop.text = if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource)
+        emergencyStop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
         val settingBusy = owner?.settingWriteState in setOf(
             SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
             SettingsWriteTracker.State.UNKNOWN)
@@ -525,7 +743,7 @@ class HomeActivity : ThemedActivity() {
         val compactStatus = resources.configuration.screenWidthDp < 400
         coffee.show(if (compactStatus) getString(R.string.home_coffee_compact, if (coffeeFresh) getString(R.string.home_live) else label(s.coffeeState))
             else getString(R.string.home_coffee_status, label(s.coffeeState), if (coffeeFresh) getString(R.string.home_live_suffix) else ""))
-        coffeeDot.background = dotShape(when (s.coffeeState) {
+        coffeeDot.showDot(when (s.coffeeState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
             else -> R.color.mobile_muted
@@ -545,25 +763,98 @@ class HomeActivity : ThemedActivity() {
             }
             else -> listOf(brewTemperature, brewPressure, steamTemperature, steamPressure).forEach { it.show("—") }
         }
-        val liveScale = LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)
+        val liveScale = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.hundredthsGram
+            ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.weightHundredthsGram
         scale.show(if (compactStatus) getString(R.string.home_scale_compact, if (liveScale != null) getString(R.string.home_live) else label(s.scaleState))
             else getString(R.string.home_scale_status, label(s.scaleState), if (liveScale != null) getString(R.string.home_live_suffix) else ""))
-        scaleDot.background = dotShape(when (s.scaleState) {
+        machineCardState.show(label(s.coffeeState) + if (coffeeFresh) getString(R.string.home_live_suffix) else "")
+        scaleCardState.show(label(s.scaleState) + if (liveScale != null) getString(R.string.home_live_suffix) else "")
+        fun cardColor(state: DeviceState, live: Boolean) = if (state in setOf(DeviceState.FAILED, DeviceState.UNSUPPORTED))
+            getColor(R.color.mobile_danger) else if (live) productStyle.accent else productStyle.muted
+        machineCardState.setTextColor(cardColor(s.coffeeState, coffeeFresh))
+        scaleCardState.setTextColor(cardColor(s.scaleState, liveScale != null))
+        machineStatusCard.contentDescription = getString(R.string.home_visual_open_device_status, getString(R.string.home_coffee)) + ": " + machineCardState.text
+        scaleStatusCard.contentDescription = getString(R.string.home_visual_open_device_status, getString(R.string.home_scale)) + ": " + scaleCardState.text
+        scaleDot.showDot(when (s.scaleState) {
             DeviceState.READY -> R.color.mobile_success
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
             else -> R.color.mobile_muted
         })
-        scaleWeight.show("${liveScale?.let { number(it.weightHundredthsGram) } ?: "—"} g" +
-            "  ·  ${liveScale?.let { number(it.deviceFlowHundredths) } ?: "—"} g/s")
-        val library = (application as MobileApplication).curves
+        val liveDeviceFlow = LiveTelemetry.scale(s.scaleObservation, s.scaleState, now)?.let {
+            it.deviceFlowHundredths.takeIf { _ -> it.capabilities.deviceFlow }
+        } ?: LiveTelemetry.scale(s.weight, s.scaleState, s.weightAt, now)?.deviceFlowHundredths
+        scaleWeight.show("${liveScale?.let(::number) ?: "—"} g" +
+            "  ·  ${liveDeviceFlow?.let(::number) ?: "—"} g/s")
+        val app = application as MobileApplication
+        val library = app.curves
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
-        selection.show(selected?.let { getString(R.string.home_selected_curve, it.name, getString(if (!library.canStart(it)) R.string.home_curve_readonly else R.string.home_curve_startable)) } ?: getString(R.string.home_curve_missing))
-        brewButton.text = when {
+        val cupActive = shotActive || owner?.manualShotActive == true
+        recentCurves.updateAvailability()
+        val displayed = if (cupActive) owner?.chartCurveId?.let(library::find) else selected
+        val title = displayed?.name ?: getString(if (cupActive && owner?.chartCurveId == "manual") R.string.extraction_manual_label
+            else if (cupActive) R.string.task_brew_curve_unknown else R.string.home_curve_missing)
+        selection.show(title)
+        recipeDescription.show(displayed?.let { HomeRecipePresentation.from(it).description(this) }
+            ?: getString(R.string.home_visual_unknown_mode))
+        displayed?.let(recipeMetrics::present)
+        hasRecipeMetrics = displayed != null
+        selectionDetails = title + "\n\n" + (displayed?.let { getString(if (library.canStart(it))
+            R.string.home_curve_startable else R.string.home_curve_readonly) + "\n" + it.details } ?: "") + "\n\n" + getString(R.string.task_brew_preview_note)
+        val targets = displayed?.let(CurveStageParameters::pressureTargets).orEmpty()
+        if (stagePreview.targets != targets) stagePreview.targets = targets
+        val previewDescription = getString(R.string.task_brew_preview_note) + " " +
+            targets.mapIndexed { index, target -> getString(R.string.chart_stage, (index + 1).toString()) +
+                " " + String.format(Locale.ROOT, "%.1f bar", target / 10.0) }.joinToString(", ")
+        if (stagePreview.contentDescription?.toString() != previewDescription)
+            stagePreview.contentDescription = previewDescription
+        previewUnavailable.show(getString(R.string.task_brew_no_pressure_preview))
+        stageFallbackText.show(getString(R.string.task_brew_compact_preview) + "\n" +
+            getString(R.string.task_brew_preview_note) + "\n" +
+            (if (hasRecipeMetrics) recipeMetrics.contentDescription.toString() + "\n" else "") +
+            if (targets.isEmpty()) getString(R.string.task_brew_no_pressure_preview) else
+                targets.mapIndexed { index, target -> getString(R.string.chart_stage, (index + 1).toString()) +
+                    " · " + String.format(Locale.ROOT, "%.1f bar", target / 10.0) }.joinToString("\n"))
+        updateStagePreviewVisibility()
+        brewButton.show(when {
+            cupActive -> getString(R.string.task_brew_live_state)
             selected == null -> getString(R.string.home_curve_select)
             !library.canStart(selected) -> getString(R.string.home_curve_replace)
             else -> getString(R.string.home_curve_prepare)
+        })
+        browseCurvesButton.visibility = View.VISIBLE
+        val profile = displayed?.let { library.resolve(it.id, s.scaleState == DeviceState.READY) }
+        temperatureSummary.show(getString(R.string.task_brew_temperature,
+            owner?.currentCorrectedBrewTemperature()?.let(::number) ?: "—", profile?.temperatureC?.toString() ?: "—"))
+        val doseResult = app.beanPreparationResult
+        val dose = doseResult.getOrNull()?.current()
+        val matches = dose?.let { value -> app.beanInventoryResult.getOrNull()?.events()?.any {
+            it.eventId == value.eventId && it.batchId == value.batchId &&
+                it.kind == io.openhoyi.bean.InventoryEventKind.CONSUME && it.deltaMg == -value.amountMg
+        } }
+        val doseState = when {
+            doseResult.isFailure -> R.string.task_brew_dose_unavailable
+            dose == null -> R.string.task_brew_dose_missing
+            dose.shotId != null && !dose.associated -> R.string.task_brew_dose_association
+            dose.shotId != null -> R.string.task_brew_dose_previous
+            dose.attempted && !dose.confirmed -> R.string.task_brew_dose_pending
+            dose.confirmed && matches != true -> R.string.task_brew_dose_conflict
+            dose.confirmed -> R.string.task_brew_dose_confirmed
+            else -> R.string.task_brew_dose_selected
         }
-        browseCurvesButton.visibility = if (selected == null) View.GONE else View.VISIBLE
+        beanSummary.show(dose?.beanName ?: getString(R.string.task_brew_dose_entry))
+        doseStateSummary.show(getString(doseState))
+        doseQuantity.visibility = if (dose == null) View.GONE else View.VISIBLE
+        doseUnit.visibility = doseQuantity.visibility
+        if (dose != null) doseQuantity.show(BeanQuantity.formatGrams(dose.amountMg))
+        val stats = displayed?.let { app.curveUsageResult.getOrNull()?.stats(it.id) }
+        usageSummary.show(when {
+            app.curveUsageResult.isFailure -> getString(R.string.task_brew_usage_unavailable)
+            stats == null || (stats.count == 0L && stats.lastUsedAtMs == null) -> getString(R.string.task_brew_usage_empty)
+            else -> getString(R.string.task_brew_usage, stats.count.toString(), stats.lastUsedAtMs?.let {
+                java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT,
+                    app.languagePreferences.current.locale).format(java.util.Date(it))
+            } ?: "—")
+        } + "\n" + getString(R.string.task_brew_history_entry))
         val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
         presetButtons.forEachIndexed { index, button ->
             val slot = index + 1
@@ -572,10 +863,12 @@ class HomeActivity : ThemedActivity() {
             val label = getString(R.string.home_slot_curve, slot.toString(), item?.name ?: id)
             if (button.text.toString() != label) button.text = label
         }
-        val keys = s.candidates.map { "${it.address}:${it.advertisedName}" }
+        val keys = s.candidates.map { "${it.address}:${it.advertisedName}:${it.scaleProtocolId}" }
         if (keys != candidateKeys) {
             candidateKeys = keys; candidates.removeAllViews()
             s.candidates.forEach { device ->
+                if (device.scaleProtocolId == io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
+                    HoyiUi.label(this, candidates, getString(R.string.scale_read_only_live), 14, muted = true)
                 button(candidates, getString(R.string.home_candidate, device.advertisedName, getString(if (device.candidateRole == DeviceRole.COFFEE) R.string.home_coffee else R.string.home_scale))) { choose(device) }
             }
         }
@@ -590,20 +883,52 @@ class HomeActivity : ThemedActivity() {
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
     private fun dotShape(color: Int) = GradientDrawable().apply {
         shape = GradientDrawable.OVAL
-        setColor(getColor(color))
+        setColor(when (color) { R.color.mobile_success -> productStyle.accent; R.color.mobile_muted -> productStyle.muted; else -> getColor(color) })
     }
+    private fun View.showDot(colorResource: Int) {
+        val color = when (colorResource) { R.color.mobile_success -> productStyle.accent; R.color.mobile_muted -> productStyle.muted; else -> getColor(colorResource) }
+        val dot = background as? GradientDrawable
+        // Replacing an unchanged background emits native accessibility subtree events.
+        if (dot == null) background = dotShape(colorResource)
+        else if (dot.color?.defaultColor != color) dot.setColor(color)
+    }
+    private fun updateStagePreviewVisibility() {
+        fun View.visibleWhen(show: Boolean) {
+            val next = if (show) View.VISIBLE else View.GONE
+            if (visibility != next) visibility = next
+        }
+        recipeMetrics.visibleWhen(hasRecipeMetrics && !textStagePreview)
+        stagePreview.visibleWhen(!textStagePreview && stagePreview.targets.isNotEmpty())
+        previewUnavailable.visibleWhen(!textStagePreview && stagePreview.targets.isEmpty())
+        previewNote.visibleWhen(!textStagePreview)
+        stageFallback.visibleWhen(textStagePreview)
+    }
+
     private fun statusDot(parent: LinearLayout): View = View(this).apply {
         background = dotShape(R.color.mobile_muted)
-        parent.addView(this, LinearLayout.LayoutParams(dp(9), dp(9)).apply { marginEnd = dp(8) })
+        parent.addView(this, LinearLayout.LayoutParams(dp(12), dp(12)).apply { marginEnd = dp(8) })
     }
     private fun text(parent: LinearLayout, value: String, size: Int, bold: Boolean = false): TextView =
         TextView(this).apply {
             text = value; textSize = size.toFloat(); setTextColor(getColor(R.color.mobile_text))
-            setPadding(0, dp(6), 0, dp(6)); if (bold) setTypeface(null, Typeface.BOLD)
+            includeFontPadding = false
+            productStyle.apply(this, when {
+                size >= 40 -> TaskProductVisualStyle.largeValue
+                size >= 24 -> TaskProductVisualStyle.title
+                size >= 20 -> TaskProductVisualStyle.section
+                size <= 14 -> TaskProductVisualStyle.auxiliary
+                bold -> TaskProductVisualStyle.action
+                else -> TaskProductVisualStyle.body
+            }, secondary = size <= 14)
+            setPadding(0, 0, 0, 0)
             parent.addView(this)
         }
     private fun card(parent: LinearLayout, title: String) = HoyiUi.card(this, parent, title)
     private fun button(parent: LinearLayout, value: String, primary: Boolean = false, action: () -> Unit) =
-        HoyiUi.button(this, parent, value, primary = primary, action = action)
+        productStyle.button(HoyiUi.button(this, parent, value, primary = primary, action = action), primary)
+    private fun workbenchLink(parent: LinearLayout, value: String, action: () -> Unit) =
+        productStyle.button(HoyiUi.button(this, parent, value, action = action)).apply {
+            gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+        }
     companion object { private const val PERMISSIONS = 12; private const val ENABLE = 13; private const val EXPORT = 14 }
 }

@@ -1,0 +1,72 @@
+name: Verify settings visual migration UI
+
+on:
+  push:
+    branches: [feature/task-first-ui]
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  settings-visual:
+    runs-on: ubuntu-latest
+    # Independent M8 three-page / 12-profile matrix; internal protocol / fixture budgets are unchanged.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Build isolated Mock
+        run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+      - name: Record host capacity before AVD
+        run: |
+          capacity=build/task-first-evidence/settings-visual-migration/capacity/pre-avd
+          mkdir -p "$capacity"
+          date -u +%Y-%m-%dT%H:%M:%SZ > "$capacity/captured-at-utc.txt"
+          for probe in blocks inodes; do
+            if [[ "$probe" == blocks ]]; then command=(df -kP "$capacity"); else command=(df -iP "$capacity"); fi
+            printf '%q ' "${command[@]}" > "$capacity/$probe.command.txt"
+            printf '\n' >> "$capacity/$probe.command.txt"
+            if timeout 10s "${command[@]}" > "$capacity/$probe.stdout.txt" 2> "$capacity/$probe.stderr.txt"; then
+              printf '0\n' > "$capacity/$probe.exit-code.txt"
+            else
+              printf '%s\n' "$?" > "$capacity/$probe.exit-code.txt"
+            fi
+          done
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify real AppSettings, MachineSettings and ScaleSettings pages
+        env:
+          PRODUCT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel_7_pro
+          ram-size: 2048M
+          disk-size: 16G
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/check_settings_visual_migration.sh tablet-user-landscape build/task-first-evidence/settings-visual-migration
+      - name: Upload real settings evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: settings-visual-tablet-user-landscape
+          path: build/task-first-evidence/settings-visual-migration/
+          if-no-files-found: warn
+          retention-days: 7

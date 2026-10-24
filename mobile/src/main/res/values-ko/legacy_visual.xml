@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_visual_readonly">이전 데이터 · 읽기 전용</string>
+    <string name="legacy_visual_pressure">압력 (bar)</string>
+    <string name="legacy_visual_flow">머신 유량 (ml/s)</string>
+    <string name="legacy_visual_notice">이전 샘플은 읽기 전용입니다. 기본 온도, 누적 물량, 저울 무게 및 종료 확인은 제공되지 않습니다.</string>
+</resources>

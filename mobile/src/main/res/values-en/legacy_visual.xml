@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_visual_readonly">Legacy · read only</string>
+    <string name="legacy_visual_pressure">Pressure (bar)</string>
+    <string name="legacy_visual_flow">Machine flow (ml/s)</string>
+    <string name="legacy_visual_notice">Legacy samples are read only; native temperature, cumulative water, scale weight and stop confirmation are unavailable.</string>
+</resources>

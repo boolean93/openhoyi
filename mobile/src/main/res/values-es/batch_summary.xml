@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="batch_remaining_ratio">Proporción restante</string>
+    <string name="batch_recent_events">Movimientos recientes</string>
+    <string name="batch_initial_weight">Peso inicial</string>
+    <string name="batch_information">Información del lote</string>
+    <string name="batch_ledger_retained">Los cambios de cantidad se guardan en el registro.</string>
+</resources>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="live_pressure_chart">Presión de extracción · bar</string>
+    <string name="live_cup_flow_chart">Flujo hacia la taza · g/s</string>
+    <string name="live_cup_flow_source">Estimado a partir de los cambios de peso de la báscula, solo como referencia</string>
+    <string name="live_cup_flow_metric">Flujo hacia la taza (estimado)</string>
+    <string name="live_chart_no_data">Aún no hay datos</string>
+    <string name="live_time_axis">Tiempo · s</string>
+    <string name="ui_brew">Preparar café</string>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item type="id" name="m8_settings_scroll" />
+    <string name="m8_brew_label">萃取设定温度</string>
+    <string name="m8_compensation_label">冲泡温差补偿</string>
+    <string name="m8_steam_label">蒸汽设定温度</string>
+    <string name="m8_standby_label">待机温度</string>
+    <string name="m8_brew_range">范围 75–105 °C</string>
+    <string name="m8_compensation_range">范围 0–5 °C</string>
+    <string name="m8_steam_range">范围 110–145 °C</string>
+    <string name="m8_standby_range">范围 0–100 °C</string>
+</resources>

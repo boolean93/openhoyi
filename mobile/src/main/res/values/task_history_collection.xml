@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_back_to_list">返回记录列表</string>
+    <string name="history_select_record">选择一杯，查看曲线与复盘</string>
+</resources>

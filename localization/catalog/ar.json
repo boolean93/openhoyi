@@ -535,6 +535,7 @@
   "curve_filter_selected_suffix": "، محدد",
   "curve_row_summary": "%1$s · %2$s",
   "curve_slot_assigned": "وُضع %1$s في الخانة %2$s",
+  "curve_slot_assigned_latest": "تم التعيين للخانة السريعة %1$s",
   "curve_result_count": "عُثر على %1$s منحنيات",
   "curve_title": "مكتبة المنحنيات",
   "curve_subtitle": "البحث عن المنحنيات ومعاينتها واختيارها",

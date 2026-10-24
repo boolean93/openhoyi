@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_detail_samples_heading">عينات سابقة</string>
+    <string name="legacy_detail_source_heading">مصدر البيانات</string>
+    <string name="legacy_detail_source_body">سجل قديم مستورد: الضغط (bar) وتدفق ماء الآلة (ml/s).</string>
+    <string name="legacy_detail_missing_heading">البيانات المفقودة</string>
+    <string name="legacy_detail_missing_body">حرارة الآلة: غير متوفرة\nالماء التراكمي: غير متوفر\nوزن الميزان الأصلي: غير متوفر\nتأكيد الانتهاء الأصلي: غير متوفر</string>
+    <string name="legacy_detail_limits_heading">حدود التفسير</string>
+    <string name="legacy_detail_limits_body">حُفظت قيم wFlow/wTrend الخام. التنعيم ومعالجة خط الأساس القديمة لا تساوي وزن الميزان أو تدفقه في التطبيق الأصلي. لا يثبت هذا السجل توقف الآلة فعليًا.</string>
+</resources>

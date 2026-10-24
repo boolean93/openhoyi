@@ -1,0 +1,9 @@
+<resources>
+    <string name="task_extraction_elapsed">เวลา</string>
+    <string name="task_extraction_scale">ค่าที่อ่านจากตาชั่ง</string>
+    <string name="task_extraction_water">น้ำสะสม</string>
+    <string name="task_extraction_pressure">แรงดัน %1$s bar</string>
+    <string name="task_extraction_temperature">อุณหภูมิเครื่อง %1$s °C</string>
+    <string name="task_extraction_supporting">ข้อมูลแก้วและเครื่องมือ</string>
+    <string name="task_extraction_flow">อัตราไหลลงแก้ว (ประมาณ) %1$s g/s</string>
+</resources>

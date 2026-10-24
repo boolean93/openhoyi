@@ -535,6 +535,7 @@
   "curve_filter_selected_suffix": ", 선택됨",
   "curve_row_summary": "%1$s · %2$s",
   "curve_slot_assigned": "%1$s을(를) 슬롯 %2$s에 배치했습니다",
+  "curve_slot_assigned_latest": "빠른 슬롯 %1$s에 설정됨",
   "curve_result_count": "곡선 %1$s개 찾음",
   "curve_title": "곡선 라이브러리",
   "curve_subtitle": "곡선 검색, 미리 보기 및 선택",

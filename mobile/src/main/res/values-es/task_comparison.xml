@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_comparison_swap">Intercambiar tazas</string>
+    <string name="task_comparison_metric">Métrica de comparación</string>
+    <string name="task_comparison_choose_cup">Elegir registro</string>
+    <string name="task_comparison_missing_selection">Registro seleccionado no disponible; elige otro</string>
+    <string name="task_comparison_pressure">Presión · bar</string>
+    <string name="task_comparison_water">Agua acumulada de máquina · ml</string>
+    <string name="task_comparison_weight">Lectura bruta de báscula · g</string>
+    <string name="task_comparison_temperature">Temperatura bruta de máquina · °C</string>
+    <string name="task_comparison_observed_origin">Alineado con la primera muestra de extracción observada, no con un inicio real verificado</string>
+    <string name="task_comparison_record_origin">Alineado con la primera muestra registrada disponible; inicio real desconocido</string>
+    <string name="task_comparison_no_aligned_samples">Sin muestras de extracción alineables</string>
+    <string name="task_comparison_no_weight">%1$s: sin muestras brutas de báscula alineables</string>
+    <string name="task_comparison_no_weight_both">Sin muestras brutas de báscula disponibles para comparar; no se genera curva de peso</string>
+    <string name="task_comparison_short_chart">No hay espacio suficiente. Amplía la ventana; los detalles siguen disponibles al desplazar abajo</string>
+    <string name="task_comparison_scale">Escala compartida para ambas tazas · %1$s</string>
+</resources>

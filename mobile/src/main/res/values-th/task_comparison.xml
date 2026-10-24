@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_comparison_swap">สลับสองแก้ว</string>
+    <string name="task_comparison_metric">ตัวชี้วัดที่เปรียบเทียบ</string>
+    <string name="task_comparison_choose_cup">เลือกบันทึก</string>
+    <string name="task_comparison_missing_selection">ไม่มีบันทึกที่เลือก โปรดเลือกใหม่</string>
+    <string name="task_comparison_pressure">แรงดัน · bar</string>
+    <string name="task_comparison_water">น้ำสะสมจากเครื่อง · ml</string>
+    <string name="task_comparison_weight">ค่าน้ำหนักดิบจากตาชั่ง · g</string>
+    <string name="task_comparison_temperature">อุณหภูมิดิบจากเครื่อง · °C</string>
+    <string name="task_comparison_observed_origin">จัดแนวตามตัวอย่างแรกที่สังเกตว่ากำลังสกัด ไม่ใช่เวลาเริ่มจริงที่ยืนยันแล้ว</string>
+    <string name="task_comparison_record_origin">จัดแนวตามตัวอย่างแรกที่ใช้ได้ในบันทึก ไม่ทราบจุดเริ่มสกัดจริง</string>
+    <string name="task_comparison_no_aligned_samples">ไม่มีตัวอย่างการสกัดที่จัดแนวได้</string>
+    <string name="task_comparison_no_weight">%1$s: ไม่มีตัวอย่างดิบจากตาชั่งที่จัดแนวได้</string>
+    <string name="task_comparison_no_weight_both">ไม่มีตัวอย่างดิบจากตาชั่งที่ใช้เปรียบเทียบได้ จึงไม่สร้างเส้นน้ำหนัก</string>
+    <string name="task_comparison_short_chart">พื้นที่กราฟไม่พอ โปรดขยายหน้าต่าง ยังเลื่อนดูรายละเอียดบันทึกด้านล่างได้</string>
+    <string name="task_comparison_scale">ใช้สเกลร่วมกันสำหรับสองแก้ว · %1$s</string>
+</resources>

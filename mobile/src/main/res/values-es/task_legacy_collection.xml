@@ -1,0 +1,5 @@
+<resources>
+    <string name="legacy_curve_select_hint">Selecciona una curva para ver sus parámetros</string>
+    <string name="legacy_curve_water_label">Volumen de agua</string>
+    <string name="legacy_curve_metadata">%1$s · %2$s · Posición original %3$d</string>
+</resources>

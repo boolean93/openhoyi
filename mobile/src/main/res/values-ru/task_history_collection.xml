@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_back_to_list">Вернуться к списку</string>
+    <string name="history_select_record">Выберите приготовление, чтобы посмотреть график и заметки</string>
+</resources>

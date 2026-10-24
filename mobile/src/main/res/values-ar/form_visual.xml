@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="form_visual_local_curve_scope">يحفظ المنحنى محليًا فقط، ولا يبدأ الاستخلاص.</string>
+    <string name="form_visual_stage_parameters">معلمات المراحل</string>
+</resources>

@@ -1,0 +1,5 @@
+<resources>
+    <string name="legacy_curve_select_hint">选择一条曲线查看参数</string>
+    <string name="legacy_curve_water_label">水量</string>
+    <string name="legacy_curve_metadata">%1$s · %2$s · 原位置 %3$d</string>
+</resources>

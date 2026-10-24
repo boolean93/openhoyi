@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_chart_pressure">Давление</string>
+    <string name="task_chart_water">Всего воды</string>
+    <string name="task_chart_weight">Показание весов</string>
+    <string name="task_chart_temperature">Температура</string>
+    <string name="task_chart_hint">Выберите показатель для просмотра шкалы</string>
+    <string name="task_chart_independent">Независимые диапазоны; шкала: %1$s · %2$s</string>
+    <string name="task_chart_observed">Данные этой чашки до %1$s с</string>
+    <string name="task_chart_waiting">Ожидание данных этой чашки</string>
+    <string name="task_chart_reference">Тонкая серая линия: история для %1$s, не прогноз</string>
+    <string name="task_chart_water_reset">Сброс счётчика воды; отдельные сегменты</string>
+    <string name="task_chart_gap">Пропуски данных; отдельные сегменты</string>
+    <string name="task_chart_latest">%1$s, последнее измерение %2$s %3$s</string>
+    <string name="task_chart_compact_notice">Недостаточно места для графика. Увеличьте окно.</string>
+    <string name="task_chart_summary_observed">Независимые диапазоны · Данные чашки до %1$s с</string>
+    <string name="task_chart_summary_waiting">Независимые диапазоны · Ожидание данных чашки</string>
+</resources>

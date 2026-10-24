@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="inventory_visual_in_stock">Coffee beans in stock</string>
+    <string name="inventory_visual_consumption_hint">Stock is deducted only after confirming this cup’s dose.</string>
+</resources>

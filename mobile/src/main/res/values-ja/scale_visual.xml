@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="m6_nearby_scales">近くの電子はかり</string>
+  <string name="m6_scale_candidate_count">候補 %1$d 台</string>
+  <string name="m6_app_timer">アプリのタイマー</string>
+</resources>

@@ -77,6 +77,7 @@
     <string name="curve_row_summary">"%1$s · %2$s"</string>
     <string name="curve_search_hint">"البحث باسم المنحنى"</string>
     <string name="curve_slot_assigned">"وُضع %1$s في الخانة %2$s"</string>
+    <string name="curve_slot_assigned_latest">"تم التعيين للخانة السريعة %1$s"</string>
     <string name="curve_stage_caption">"رسم أهداف المراحل · ليس منحنى الاستخلاص الفعلي"</string>
     <string name="curve_subtitle">"البحث عن المنحنيات ومعاينتها واختيارها"</string>
     <string name="curve_title">"مكتبة المنحنيات"</string>
