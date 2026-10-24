@@ -984,8 +984,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val bitmap=requireNotNull(test.uiAutomation.takeScreenshot())
         try { File(folder,"window.png").outputStream().use { check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)) } }
         finally { bitmap.recycle() }
-        main { File(folder,"geometry.json").writeText(geometry(activity).put("sameCompositorFrameProven",false)
-            .put("protocol","unsynchronized_failure_diagnostic_not_protocol2_acceptance").toString(2)) }
+        main { WindowProofStreamingWriter.writeStrict(geometry(activity).put("sameCompositorFrameProven",false)
+            .put("protocol","unsynchronized_failure_diagnostic_not_protocol2_acceptance"),File(folder,"geometry.json")) }
     }
     private fun baselineView(view: TextView?): JSONObject {
         if (view == null) return JSONObject().put("present", false).put("valid", false)
@@ -1039,9 +1039,9 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         main { TaskTypographyEvidence.verify(activity) }
         val result=frames.screenshot(activity,root(activity),File(folder,"window.png")) { captureTarget(activity) }
         val target=result.target; val pairs=target.getJSONArray("baselinePairs")
-        File(folder,"geometry.json").writeText(target.toString(2))
-        File(folder,"${activity.javaClass.simpleName}-typography.json")
-            .writeText(target.getJSONObject("typographyEvidence").toString(2))
+        WindowProofStreamingWriter.writeStrict(target,File(folder,"geometry.json"))
+        WindowProofStreamingWriter.writeStrict(target.getJSONObject("typographyEvidence"),
+            File(folder,"${activity.javaClass.simpleName}-typography.json"))
         File(folder,"baseline-alignment.json").writeText(pairs.toString(2))
         check(target.getInt("baselinePairCount")==pairs.length() &&
             target.getJSONArray("baselinePairIds").length()==pairs.length()) {"M5 baseline pair count/ID mismatch"}
@@ -1089,7 +1089,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("visibleCanvasPlotBoundsScreenPx",JSONArray(listOf(visible.left,visible.top,visible.right,visible.bottom)))
             .put("actualPlotHeightDp",bounds.height()/density).put("visiblePlotHeightDp",visible.height()/density)
             .put("axisInk",JSONArray(inks)).put("actualSampleCount",chart.points.size)
-        File(folder,"extraction-plot-budget.json").writeText(evidence.toString(2))
+        WindowProofStreamingWriter.writeStrict(evidence,File(folder,"extraction-plot-budget.json"))
         check(bounds.height()/density>=96f && visible.height()/density>=96f) {
             "M5 Extraction real Canvas plot / visible intersection <96dp: $evidence" }
         check(inks.isNotEmpty() && inks.all {it.getBoolean("completeInVisiblePlotView")}) {
@@ -1206,7 +1206,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("initialScrollPx",JSONArray(listOf(savedX,savedY)))
             .put("restoredScrollPx",JSONArray(listOf(header.scrollX,header.scrollY)))
             .put("exactScrollRestored",true).put("completed",true).also {
-                File(folder,"chart-header-reachability.json").writeText(it.toString(2))
+                WindowProofStreamingWriter.writeStrict(it,File(folder,"chart-header-reachability.json"))
             }
     }
     private fun action(activity: Activity, label: Int): TextView=nodes(root(activity)).filterIsInstance<TextView>()
@@ -1516,7 +1516,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("initialScrollPx",saved).put("restoredScrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
             .put("restoredFrameSync",restored.proof).put("chooseCurveVisibility",chooseCurve.visibility)
             .put("noToolClicks",true).put("completed",true).also {
-                File(folder,"extraction-support-reachability.json").writeText(it.toString(2))
+                WindowProofStreamingWriter.writeStrict(it,File(folder,"extraction-support-reachability.json"))
             }
     }
     private fun extractionSpecialStates(folder: File, theme: String, source: String, profile: String): JSONObject {
@@ -1885,7 +1885,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
             val dialogFolder=File(folder,"states/extraction-journal-unavailable-dialog").apply {check(isDirectory || mkdirs())}
             val dialogFrame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(dialogFolder,"window.png")) {dialogState()}
-            File(dialogFolder,"geometry.json").writeText(dialogFrame.target.toString(2))
+            WindowProofStreamingWriter.writeStrict(dialogFrame.target,File(dialogFolder,"geometry.json"))
             File(dialogFolder,"typography.json").writeText(dialogFrame.target.getJSONArray("allNativeText").toString(2))
             check(dialogFrame.proof.getInt("protocolVersion")==2 && dialogFrame.proof.getBoolean("accepted"))
             proof.put("journalUnavailableDialog",dialogFrame.target).put("journalUnavailableDialogFrameSync",dialogFrame.proof)
@@ -2157,7 +2157,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 } catch(error: Throwable) {
                     caseFailure=error;proof.put("status","FAIL").put("failure",error.stackTraceToString()); throw error
                 } finally {
-                    try { File(caseDirectory,"case.json").writeText(proof.toString(2)); persist() }
+                    try { WindowProofStreamingWriter.writeStrict(proof,File(caseDirectory,"case.json")); persist() }
                     catch(error: Throwable) {
                         if(caseFailure==null)throw error
                         if(caseFailure!==error)caseFailure!!.addSuppressed(error)

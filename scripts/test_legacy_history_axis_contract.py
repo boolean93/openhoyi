@@ -1,4 +1,5 @@
 import copy
+import json
 import math
 import struct
 import unittest
@@ -39,7 +40,9 @@ def validate(report, initial, reached, restored, density):
             assert all(before[key] == after[key] for key in ('index','role','text','glyphBoundsPx'))
             box = after['glyphBoundsPx'];screen = after['screenBoundsPx']
             assert len(box) == len(screen) == 4 and box[2] > box[0] and box[3] > box[1]
-            assert screen == [origin[0]+box[0],origin[1]+box[1],origin[0]+box[2],origin[1]+box[3]]
+            float_box=[struct.unpack('>f',struct.pack('>f',value))[0] for value in box]
+            assert screen == [origin[0]+float_box[0],origin[1]+float_box[1],
+                              origin[0]+float_box[2],origin[1]+float_box[3]]
             if state is reached:
                 assert after['wholeGlyph'] is True
                 assert clip[0] <= screen[0] < screen[2] <= clip[2]
@@ -116,6 +119,24 @@ def sample():
             'initial': base, 'reached': after, 'restored': copy.deepcopy(base)}, base, after, copy.deepcopy(base)
 
 
+def serialized_float_sample():
+    report,_,_,_=sample()
+    bounds=[63,535.928,126,560.928]
+    for state in (report['initial'],report['reached'],report['restored']):
+        state['canvasOperations'][0]['glyphBoundsPx']=bounds[:]
+        state['chartOriginScreenPx']=[1090,692 if state is not report['reached'] else 672]
+        state['chartVisibleRectPx']=[1000,700,1400,1400]
+        tick=state['timeTicks'][0]
+        tick['glyphBoundsPx']=bounds[:]
+        origin=state['chartOriginScreenPx']
+        for current in state['timeTicks']:
+            current['screenBoundsPx']=[origin[index%2]+struct.unpack('>f',struct.pack('>f',value))[0]
+                                       for index,value in enumerate(current['glyphBoundsPx'])]
+    report['requestRectChartPx']=[63,60,126,561]
+    report=json.loads(json.dumps(report))
+    return report,report['initial'],report['reached'],report['restored']
+
+
 def badge_sample():
     layout={'source':'existing_TextView_layout_and_getLineBounds_APIs','status':'actual_layout_api',
             'displayedLayoutConfirmed':True,'viewAttachedToWindow':True,'viewLayoutRequested':False,
@@ -143,6 +164,16 @@ def badge_sample():
 class AxisContractTest(unittest.TestCase):
     def test_valid(self):
         validate(*sample(), 2.0)
+
+    def test_serialized_float_source(self):
+        validate(*serialized_float_sample(),2.0)
+
+    def test_serialized_float_screen_nextafter_still_rejected(self):
+        report,initial,reached,restored=serialized_float_sample()
+        reached['timeTicks'][0]['screenBoundsPx'][1]=math.nextafter(
+            reached['timeTicks'][0]['screenBoundsPx'][1],math.inf)
+        with self.assertRaises(AssertionError):
+            validate(report,initial,reached,restored,2.0)
 
     def test_mutations(self):
         for name, change in [
