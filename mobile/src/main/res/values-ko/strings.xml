@@ -77,6 +77,7 @@
     <string name="curve_row_summary">"%1$s · %2$s"</string>
     <string name="curve_search_hint">"곡선 이름 검색"</string>
     <string name="curve_slot_assigned">"%1$s을(를) 슬롯 %2$s에 배치했습니다"</string>
+    <string name="curve_slot_assigned_latest">"빠른 슬롯 %1$s에 설정됨"</string>
     <string name="curve_stage_caption">"구간 목표 도식 · 실제 추출 곡선이 아닙니다"</string>
     <string name="curve_subtitle">"곡선 검색, 미리 보기 및 선택"</string>
     <string name="curve_title">"곡선 라이브러리"</string>

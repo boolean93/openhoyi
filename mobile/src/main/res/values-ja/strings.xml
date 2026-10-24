@@ -77,6 +77,7 @@
     <string name="curve_row_summary">"%1$s · %2$s"</string>
     <string name="curve_search_hint">"曲線名を検索"</string>
     <string name="curve_slot_assigned">"%1$sをスロット%2$sに配置済み"</string>
+    <string name="curve_slot_assigned_latest">"クイックスロット%1$sに設定済み"</string>
     <string name="curve_stage_caption">"区間目標の図示 · 実際の抽出曲線ではありません"</string>
     <string name="curve_subtitle">"曲線を検索・プレビュー・選択"</string>
     <string name="curve_title">"曲線ライブラリ"</string>

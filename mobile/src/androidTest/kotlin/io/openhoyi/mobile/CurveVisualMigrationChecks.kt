@@ -821,7 +821,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("slotEligible",item.factoryCurve!=null && scope.curves.canStart(item))
     }
     private fun libraryDisclosureState(activity: Activity, item: CurveLibraryItem, scope: Scope,
-        diagnosticFile: File? = null): JSONObject {
+        diagnosticFile: File? = null, expectedAssignedSlot: Int? = null): JSONObject {
         val page=geometry(activity)
         val required=JSONObject()
         val tags=listOf("product/curve-library/full-parameters","product/curve-library/use")+
@@ -887,9 +887,11 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         }
         val expectedSource=if(item.customDocument!=null) activity.getString(R.string.profiles_category)
             else CurveCategoryFilter.display(activity,item.category)
-        val expectedAvailability=if(item.customDocument!=null) activity.getString(if(scope.curves.canStart(item))
+        val baseAvailability=if(item.customDocument!=null) activity.getString(if(scope.curves.canStart(item))
             R.string.profiles_pressure_compatible else R.string.profiles_read_only)
             else activity.getString(if(scope.curves.canStart(item)) R.string.curve_verified else R.string.curve_unavailable)
+        val expectedAvailability=baseAvailability+(expectedAssignedSlot?.let {
+            " · "+activity.getString(R.string.curve_slot_assigned_latest,it.toString()) } ?: "")
         val expectedDetails=if(item.customDocument!=null) (activity as ThemedActivity).profileSummary(item.customDocument)
             else CurveDetailsText(activity).render(item,scope.curves.canStart(item))
         check(title.text.toString()==item.name && chart.targets==targets &&
@@ -897,9 +899,25 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             details.text.toString()==expectedDetails && (field(activity,"selected") as CurveLibraryItem)==item)
         check((field(activity,"select") as Button).isEnabled==scope.curves.canStart(item))
         check((field(activity,"assignPreset") as Button).isEnabled==(item.factoryCurve!=null && scope.curves.canStart(item)))
+        check(field(activity,"lastAssignedCurveId")==(
+            if(expectedAssignedSlot==null) null else item.id))
+        check(field(activity,"lastAssignedSlot")==expectedAssignedSlot)
+        check(field(activity,"baseAvailabilityText")==baseAvailability)
+        val feedbackOwner=if(availability.isShown) "availability" else if(fallback.isShown) "fallback" else "none"
+        if(expectedAssignedSlot!=null) {
+            check(feedbackOwner!="none" && (feedbackOwner!="fallback" || fallback.text.toString().contains(expectedAvailability)))
+            check(availability.accessibilityLiveRegion==(
+                if(feedbackOwner=="availability") View.ACCESSIBILITY_LIVE_REGION_POLITE else View.ACCESSIBILITY_LIVE_REGION_NONE))
+            check(fallback.accessibilityLiveRegion==(
+                if(feedbackOwner=="fallback") View.ACCESSIBILITY_LIVE_REGION_POLITE else View.ACCESSIBILITY_LIVE_REGION_NONE))
+            check(whole(required.getJSONObject("product/curve-library/full-parameters")) &&
+                whole(required.getJSONObject("product/curve-library/use"))) { "M3 slot $expectedAssignedSlot footer obscured" }
+        }
         check(!chart.isShown || targets.isNotEmpty()) { "M3 fake pressure path" }
         return page.put("libraryDisclosure",JSONObject().put("itemId",item.id).put("title",observation(title))
             .put("source",observation(source)).put("availability",observation(availability))
+            .put("baseAvailability",baseAvailability).put("visibleFeedbackOwner",feedbackOwner)
+            .put("latestAssignedSlot",expectedAssignedSlot ?: JSONObject.NULL)
             .put("details",details.text.toString()).put("common",required)
             .put("metricValues",fixture.getJSONArray("metricValues")).put("metricUnits",fixture.getJSONArray("metricUnits"))
             .put("actualChartTargets",JSONArray(chart.targets)).put("chartShown",chart.isShown)
@@ -1100,6 +1118,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     libraryDisclosureState(page,item,scope,File(case,"summary-assertion.json")) }
                 report.put("initialCapture",captureReference(directory,case))
                 val disclosure=initial.getJSONObject("libraryDisclosure")
+                if(name=="short-pressure") check(disclosure.getString("visibleFeedbackOwner")=="fallback" &&
+                    disclosure.getString("fallbackText").contains(disclosure.getString("baseAvailability")))
                 val targets=CurveStageParameters.pressureTargets(item)
                 check(disclosure.getJSONArray("actualChartTargets").length()==targets.size)
                 if(targets.isEmpty()) check(!disclosure.getBoolean("chartShown") &&
@@ -1375,6 +1395,12 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         into.put("detailPanel",routeViewState(field(activity,"detailPanel") as View))
         into.put("detailScroll",routeViewState(field(activity,"detailScroll") as ScrollView))
         into.put("fallbackScroll",routeViewState(field(activity,"previewFallbackScroll") as ScrollView))
+        if(activity is CurveActivity) {
+            val assignedId=field(activity,"lastAssignedCurveId")
+            val assignedSlot=field(activity,"lastAssignedSlot")
+            check(assignedId==null && assignedSlot==null) { "M3 route leaked local slot feedback" }
+            into.put("latestAssignedCurveId",JSONObject.NULL).put("latestAssignedSlot",JSONObject.NULL)
+        }
     }
     private fun restorePresetKeys(before:Map<String,*>) {
         val preferences=context.getSharedPreferences("presets",Context.MODE_PRIVATE)
@@ -1532,18 +1558,37 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     after.filterKeys { it!=key }==justBefore.filterKeys { it!=key }) { "M3 slot $slot wrote outside whitelist" }
                 await("slot $slot original apply persisted") { diskPresetString(key)==qualified.id }
                 val step=File(folder,"slot-$slot")
-                libraryCapture(page,step) { libraryDisclosureState(page,qualified,scope) }
+                val captured=libraryCapture(page,step) {
+                    libraryDisclosureState(page,qualified,scope,expectedAssignedSlot=slot) }
+                val feedback=captured.getJSONObject("libraryDisclosure")
                 report.getJSONArray("steps").put(JSONObject().put("slot",slot).put("menu",JSONArray(menu))
                     .put("menuNodes",menuNodes)
                     .put("slotTransitionFile",transitionFile.relativeTo(directory).invariantSeparatorsPath)
                     .put("slotTransitionSha256",sha(transitionFile))
                     .put("before",prefMapJson(justBefore)).put("after",prefMapJson(after))
                     .put("diskSha256",presetDisk()).put("actualStoredId",after[key])
+                    .put("feedbackCurveId",qualified.id).put("feedbackExpectedSlot",slot)
+                    .put("feedbackBase",feedback.getString("baseAvailability"))
+                    .put("visibleFeedbackOwner",feedback.getString("visibleFeedbackOwner"))
+                    .put("visibleFeedback",if(feedback.getString("visibleFeedbackOwner")=="fallback")
+                        feedback.getString("fallbackText") else feedback.getJSONObject("availability")
+                            .getJSONArray("textLineBoxes").getJSONObject(0).getString("text"))
+                    .put("footerVisibleRange",JSONObject()
+                        .put("fullParameters",feedback.getJSONObject("common").getJSONObject("product/curve-library/full-parameters"))
+                        .put("use",feedback.getJSONObject("common").getJSONObject("product/curve-library/use")))
                     .put("capture",captureReference(directory,step)))
+                if(slot==5) {
+                    val reselected=librarySelect(page,scope,qualified)
+                    main { check(field(page,"lastAssignedCurveId")==qualified.id && field(page,"lastAssignedSlot")==5 &&
+                        (field(page,"availability") as TextView).text.toString()==feedback.getString("baseAvailability")+
+                            " · "+page.getString(R.string.curve_slot_assigned_latest,"5")) }
+                    report.put("sameCurveRedraw",reselected.put("latestAssignedSlot",5))
+                }
                 check(invariant(scope)==frozen && services().isEmpty())
             }
             for((label,item) in listOf("captured" to captured,"readonly-flow" to readonly)) {
                 librarySelect(page,scope,item)
+                main { check(field(page,"lastAssignedCurveId")==null && field(page,"lastAssignedSlot")==null) }
                 val unchanged=prefs.all.toMap()
                 val menu=openLibraryMenu(page)
                 val menuDiagnostic=JSONObject().put("case","negative-$label").put("phase","before-main")

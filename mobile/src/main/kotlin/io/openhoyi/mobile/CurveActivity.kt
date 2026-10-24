@@ -55,6 +55,9 @@ class CurveActivity : ThemedActivity() {
     private var sortMode = CurveSortMode.RECENT
     private var visibleItems = emptyList<CurveLibraryItem>()
     private var selected: CurveLibraryItem? = null
+    private var lastAssignedCurveId: String? = null
+    private var lastAssignedSlot: Int? = null
+    private var baseAvailabilityText = ""
     private lateinit var selectionDock: TaskActionDock
     private var detailBackCallback: android.window.OnBackInvokedCallback? = null
     private val curveDetailsText by lazy { CurveDetailsText(this) }
@@ -389,7 +392,10 @@ class CurveActivity : ThemedActivity() {
                     val slot = index + 1
                     getSharedPreferences("presets", MODE_PRIVATE).edit()
                         .putString(PresetSlots.key(slot), item.id).apply()
-                    Toast.makeText(this, getString(R.string.curve_slot_assigned, item.name, slot.toString()), Toast.LENGTH_SHORT).show()
+                    lastAssignedCurveId = item.id
+                    lastAssignedSlot = slot
+                    updateAvailabilityFeedback()
+                    collection.requestLayout()
                 }.show()
         }.apply {
             isEnabled = false; visibility = View.GONE
@@ -472,6 +478,26 @@ class CurveActivity : ThemedActivity() {
         }
     }
 
+    override fun onStop() {
+        clearAssignmentFeedback()
+        super.onStop()
+    }
+
+    private fun clearAssignmentFeedback() {
+        lastAssignedCurveId = null
+        lastAssignedSlot = null
+        if (::availability.isInitialized) {
+            updateAvailabilityFeedback()
+            if (::collection.isInitialized) collection.requestLayout()
+        }
+    }
+
+    private fun updateAvailabilityFeedback() {
+        val slot = lastAssignedSlot?.takeIf { lastAssignedCurveId == selected?.id }
+        availability.text = if (slot == null) baseAvailabilityText else
+            "$baseAvailabilityText · ${getString(R.string.curve_slot_assigned_latest, slot.toString())}"
+    }
+
     private fun showBrowser() {
         collection.detailRequested = false
         unregisterDetailBack()
@@ -509,6 +535,10 @@ class CurveActivity : ThemedActivity() {
     private fun renderPreview(item: CurveLibraryItem, requested: Boolean, resetDetailScroll: Boolean) {
         // Changing the preview must not move the independent library viewport.
         val viewport = curveList.onSaveInstanceState()
+        if (lastAssignedCurveId != null && lastAssignedCurveId != item.id) {
+            lastAssignedCurveId = null
+            lastAssignedSlot = null
+        }
         selected = item
         stageChart.targets = stageTargets(item)
         val draft = item.customDocument
@@ -530,7 +560,8 @@ class CurveActivity : ThemedActivity() {
         detailTitle.text = item.name
         detailCategory.text = if (draft != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(this, item.category)
         details.text = if (draft != null) profileSummary(draft) else curveDetailsText.render(item, canStart)
-        availability.text = if (draft != null) getString(if (canStart) R.string.profiles_pressure_compatible else R.string.profiles_read_only) else if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
+        baseAvailabilityText = if (draft != null) getString(if (canStart) R.string.profiles_pressure_compatible else R.string.profiles_read_only) else if (canStart) getString(R.string.curve_verified) else getString(R.string.curve_unavailable)
+        updateAvailabilityFeedback()
         val copyable = runCatching { CustomCurveDocument.fromLibraryItem(item) }.getOrNull()
         editDraft.text = getString(if (draft != null) R.string.profiles_edit else R.string.profiles_edit_copy)
         editDraft.visibility = View.VISIBLE
@@ -611,6 +642,8 @@ class CurveActivity : ThemedActivity() {
         stageChart.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
         val fallback = shortPreview || !hasPressure
         previewFallbackScroll.visibility = if (fallback) View.VISIBLE else View.GONE
+        availability.accessibilityLiveRegion = if (shortPreview) View.ACCESSIBILITY_LIVE_REGION_NONE else View.ACCESSIBILITY_LIVE_REGION_POLITE
+        previewFallback.accessibilityLiveRegion = if (shortPreview) View.ACCESSIBILITY_LIVE_REGION_POLITE else View.ACCESSIBILITY_LIVE_REGION_NONE
         val fallbackHeight = if (shortPreview) 0 else -2
         val fallbackWeight = if (shortPreview) 1f else 0f
         val currentParams = previewFallbackScroll.layoutParams as LinearLayout.LayoutParams
@@ -645,6 +678,7 @@ class CurveActivity : ThemedActivity() {
         adapter.addAll(visibleItems.map { it.id })
         viewport?.let { curveList.onRestoreInstanceState(it) }
         if (selected != null && selected !in visibleItems) {
+            clearAssignmentFeedback()
             selected = null
             collection.detailRequested = false
             detailActions.visibility = View.GONE
