@@ -52,3 +52,15 @@ finally恢复完整attributes，并核copyFrom变化mask为0、decor/workspace/s
 - `mobile/build/outputs/apk/mock/mobile-mock.apk` SHA256：`30c2addce50aca4f439bbec7204ec8971af93c43f231e0cb098f2eb5799bceea`
 
 未安装、未发布；424px实际复现、同行可读和恢复仍待本次精确源码CI，构建不证明这些已通过。
+
+## 2026-10-24 首次真实候选结果：窗口未复现，不是同行产品失败
+
+run40058928582实际tested merge `a7f6afbb29b760589f5d3c7598d950b3172a0ba6`，原ZIP `ci-484b137-bean/artifact.zip` 5183778B，SHA `9bbe3e9f276c875e946b772bca1969700d06dbcf2ee78b442ab0d90435e040bc`，root核72CRC。Astra直接只读原 `preparation-amount-IME-424.json` 和稳定记录，未解全包/改源码。
+
+候选1540确已设置，decor1600→1540；但workspace原/实际均 `[216,234,2524,718]` 高484，app均2560×691，secondary1154/inner1082不变。真实IME=true，stableWindow通过三连续无pending布局帧。系统栏局部insets由 `[0,63,0,135]` 变 `[0,33,0,105]`，各减少30px；decor减60并未减少实际workspace。不能把窗口attributes接受等同目标可用高复现。
+
+原预算实际verticalRequired459≤secondary484，support142≥editor117，所以compact=false/not_needed是正确guard结果，候选在资格检查即按计划FAIL；尚未执行同行/whole单例验收，不判产品布局失败，也不关闭旧424缺口。
+
+finally `restorationQualified=true`、attribute change mask0，原workspace/secondary/scroll/输入身份/选区焦点/事件与业务严格还原；独立对比businessBefore==businessAfter。原IME保持true，系统insets回63/135。该局部窗口恢复不替代runner全局font_scale结果。索引摘要 `ci-484b137-bean/424-candidate-review.json`。
+
+本轮按原计划停止，不追加第二尺寸、不硬开guard、不缩字号/间距。后续若root再授权规划，应以此次实际窗口/insets关系选择可用区控制策略；当前不猜下一高度、不自动重跑。

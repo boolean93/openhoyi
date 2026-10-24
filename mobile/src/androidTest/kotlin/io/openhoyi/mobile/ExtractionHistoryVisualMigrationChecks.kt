@@ -24,6 +24,7 @@ import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
 import android.view.View
 import android.view.ViewGroup
@@ -47,6 +48,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.time.LocalDate
 import java.util.UUID
+import java.util.IdentityHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 
@@ -109,23 +111,27 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("temperatureHundredthsC",point.temperatureHundredthsC).put("weightHundredthsGram",point.weightHundredthsGram ?: JSONObject.NULL)
             .put("scaleFlowHundredths",point.scaleFlowHundredths ?: JSONObject.NULL).put("brewing",point.brewing ?: JSONObject.NULL)
     })
-    private fun observation(view: View): JSONObject {
+    private fun textLineBox(text: TextView): JSONObject {
+        val box = Rect(); val point = IntArray(2); text.getLocationOnScreen(point)
+        val whole = text.getGlobalVisibleRect(box) && box == Rect(point[0], point[1], point[0] + text.width, point[1] + text.height)
+        val layout = text.layout
+        return JSONObject().put("semanticId", text.tag).put("text", text.text.toString()).put("fullViewVisible", whole)
+            .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
+            .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
+            .put("layoutHeightPx", layout?.height ?: JSONObject.NULL)
+            .put("contentHeightPx", text.height - text.compoundPaddingTop - text.compoundPaddingBottom)
+            .put("contentWidthPx", text.width - text.compoundPaddingLeft - text.compoundPaddingRight)
+            .put("horizontalLayoutLines",layout?.let { actual -> JSONArray((0 until actual.lineCount).map { index ->
+                JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
+            }) } ?: JSONObject.NULL)
+    }
+    private fun observation(view: View, textCache: IdentityHashMap<TextView,JSONObject>? = null): JSONObject {
         val origin = IntArray(2); view.getLocationOnScreen(origin)
         val full = Rect(origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)
         val visible = Rect(); val shown = view.getGlobalVisibleRect(visible)
         val texts = nodes(view).filterIsInstance<TextView>().map { text ->
-            val box = Rect(); val point = IntArray(2); text.getLocationOnScreen(point)
-            val whole = text.getGlobalVisibleRect(box) && box == Rect(point[0], point[1], point[0] + text.width, point[1] + text.height)
-            val layout = text.layout
-            JSONObject().put("semanticId", text.tag).put("text", text.text.toString()).put("fullViewVisible", whole)
-                .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
-                .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
-                .put("layoutHeightPx", layout?.height ?: JSONObject.NULL)
-                .put("contentHeightPx", text.height - text.compoundPaddingTop - text.compoundPaddingBottom)
-                .put("contentWidthPx", text.width - text.compoundPaddingLeft - text.compoundPaddingRight)
-                .put("horizontalLayoutLines",layout?.let { actual -> JSONArray((0 until actual.lineCount).map { index ->
-                    JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
-                }) } ?: JSONObject.NULL)
+            if(textCache==null) textLineBox(text)
+            else textCache[text] ?: textLineBox(text).also { textCache[text]=it }
         }
         return JSONObject().put("semanticId", view.tag).put("rectPx", rect(full)).put("visibleRectPx", rect(visible))
             .put("complete", shown && view.width > 0 && view.height > 0 && visible == full)
@@ -140,6 +146,48 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         bounds.getDouble("leftPx")>=0 && bounds.getDouble("rightPx")<=line.getInt("contentWidthPx") &&
                             bounds.getDouble("rightPx")-bounds.getDouble("leftPx")<=line.getInt("contentWidthPx") }
                 } }
+    }
+    private fun localLineBoxReuseContract() {
+        check(Looper.myLooper()===Looper.getMainLooper())
+        val outer=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL; tag="synthetic/m5/outer" }
+        val inner=LinearLayout(context).apply { orientation=LinearLayout.VERTICAL; tag="synthetic/m5/inner" }
+        val first=TextView(context).apply { tag="synthetic/m5/same"; text="第一行\n第二行" }
+        val second=TextView(context).apply { tag="synthetic/m5/same"; text="第一行\n第二行" }
+        val unlaid=TextView(context).apply { tag="synthetic/m5/same"; text="第一行\n第二行" }
+        inner.addView(first,LinearLayout.LayoutParams(180,-2))
+        inner.addView(second,LinearLayout.LayoutParams(180,-2))
+        outer.addView(inner,LinearLayout.LayoutParams(220,-2))
+        fun layout() {
+            outer.measure(View.MeasureSpec.makeMeasureSpec(300,View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(500,View.MeasureSpec.AT_MOST))
+            outer.layout(0,0,outer.measuredWidth,outer.measuredHeight)
+        }
+        layout()
+        check((first.layout?.lineCount ?: 0)>=2)
+        val views=listOf(outer,inner,first,second,unlaid)
+        val original=JSONArray(views.map { observation(it) })
+        val cache=IdentityHashMap<TextView,JSONObject>()
+        val reused=JSONArray(views.map { observation(it,cache) })
+        val originalBytes=original.toString(2).toByteArray(Charsets.UTF_8)
+        check(originalBytes.contentEquals(reused.toString(2).toByteArray(Charsets.UTF_8)))
+        val oldConstructions=views.sumOf { nodes(it).filterIsInstance<TextView>().size }
+        check(oldConstructions==7 && cache.size==3 && oldConstructions>cache.size &&
+            reused.getJSONObject(0).getJSONArray("textLineBoxes").getJSONObject(0)===
+                reused.getJSONObject(1).getJSONArray("textLineBoxes").getJSONObject(0) &&
+            reused.getJSONObject(0).getJSONArray("textLineBoxes").getJSONObject(0)===cache[first] &&
+            cache[first]!==cache[second] && cache[first]!==cache[unlaid] &&
+            cache[first]?.getInt("ellipsisCount")==0 &&
+            cache[unlaid]?.getBoolean("layoutPresent")==false && cache[unlaid]?.isNull("ellipsisCount")==true)
+        val originalText=original.getJSONObject(0).getJSONArray("textLineBoxes").getJSONObject(0).getString("text")
+        first.text="更新\n下一行"; outer.scrollTo(0,1); layout()
+        val changedOriginal=JSONArray(views.map { observation(it) })
+        val changedCache=IdentityHashMap<TextView,JSONObject>()
+        val changedReused=JSONArray(views.map { observation(it,changedCache) })
+        check(changedOriginal.toString(2).toByteArray(Charsets.UTF_8)
+            .contentEquals(changedReused.toString(2).toByteArray(Charsets.UTF_8)) &&
+            !originalBytes.contentEquals(changedReused.toString(2).toByteArray(Charsets.UTF_8)) &&
+            originalText=="第一行\n第二行" && cache[first]?.getString("text")==originalText &&
+            changedCache[first]?.getString("text")=="更新\n下一行" && changedCache.size==3)
     }
     private inner class Scope(private val directory: File, private val page: String) {
         private val delegateNames = listOf("feedbackPreferences", "logs", "curves", "samples", "history", "customCurvesResult",
@@ -934,6 +982,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
     }
     private fun geometry(activity: Activity): JSONObject {
+        check(Looper.myLooper()===Looper.getMainLooper()) { "M5 geometry must observe text on the main thread" }
+        val textCache=IdentityHashMap<TextView,JSONObject>()
         val content=root(activity); val origin=IntArray(2); content.getLocationOnScreen(origin)
         val insets=requireNotNull(content.rootWindowInsets); val bars=insets.getInsets(WindowInsets.Type.systemBars())
         val config=activity.resources.configuration
@@ -950,11 +1000,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("uiModeNightMeaning",when(config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) {
                 android.content.res.Configuration.UI_MODE_NIGHT_YES -> "dark"
                 android.content.res.Configuration.UI_MODE_NIGHT_NO -> "light"; else -> "undefined"
-            }).put("nodes",JSONArray(nodes(content).filter { it.tag is String || it is TextView }.map(::observation)))
+            }).put("nodes",JSONArray(nodes(content).filter { it.tag is String || it is TextView }.map { observation(it,textCache) }))
             .put("charts",JSONArray(charts.map { chart ->
                 val evidence=when(chart) { is ShotChartView->chart.visualEvidence; is TwoCupChartView->chart.visualEvidence
                     is ExtractionOverlayView->chart.visualEvidence; else->error("Unrecognized chart") }
-                JSONObject().put("class",chart.javaClass.simpleName).put("rect",observation(chart)).put("canvasEvidence",evidence)
+                JSONObject().put("class",chart.javaClass.simpleName).put("rect",observation(chart,textCache)).put("canvasEvidence",evidence)
             }))
     }
     private fun start(type: Class<out Activity>, extras: (Intent)->Unit = {}): Activity {
@@ -2199,6 +2249,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("pendingSpecialCases",JSONArray(extractionPendingSpecialCases))
         var scope: Scope?=null; var failure: Throwable?=null
         try {
+            main { localLineBoxReuseContract() }
             val active=Scope(directory,page); scope=active; active.prepare(); active.install(theme=="dark")
             if(page=="extraction") active.beginExtraction()
             File(directory,"fixture.json").writeText(active.fixture.toString(2))
