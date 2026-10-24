@@ -1684,7 +1684,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
                         proof.put("status","FAIL").put("cleanupFailure",error.stackTraceToString())
                     }
-                    try { File(caseFolder,"case.json").writeText(proof.toString(2));persist() }
+                    try { WindowProofStreamingWriter.writeStrict(proof,File(caseFolder,"case.json"));persist() }
                     catch(error: Throwable) {
                         if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
                     }

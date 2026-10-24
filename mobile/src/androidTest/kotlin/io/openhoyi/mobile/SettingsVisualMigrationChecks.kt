@@ -33,6 +33,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
+import java.util.IdentityHashMap
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
@@ -140,13 +141,11 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             .put("colors",TaskVisualColorEvidence.text(text)).put("background",TaskVisualColorEvidence.background(text.background,text.resources))
             .put("foreground",TaskVisualColorEvidence.background(text.foreground,text.resources))
     }
-    private fun observation(view: View): JSONObject {
-        val visible=visibility(view)
-        val texts = nodes(view).filterIsInstance<TextView>().map { text ->
-            val textVisibility=visibility(text)
-            val layout = text.layout
-            val textSnapshot=text.text.toString() // Main-thread observation value, not a live Editable/Spannable reference.
-            JSONObject().put("actualTypography",actualTypography(text,textSnapshot)).put("semanticId", text.tag)
+    private fun textLineBox(text:TextView):JSONObject {
+        val textVisibility=visibility(text)
+        val layout = text.layout
+        val textSnapshot=text.text.toString() // Main-thread observation value, not a live Editable/Spannable reference.
+        return JSONObject().put("actualTypography",actualTypography(text,textSnapshot)).put("semanticId", text.tag)
                 .put("text",textSnapshot).put("fullViewVisible", textVisibility.getBoolean("complete")).put("visibility",textVisibility)
                 .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
                 .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
@@ -156,6 +155,12 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 .put("horizontalLayoutLines",layout?.let { actual -> JSONArray((0 until actual.lineCount).map { index ->
                     JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
                 }) } ?: JSONObject.NULL)
+    }
+    private fun observation(view: View, textCache:IdentityHashMap<TextView,JSONObject>?=null): JSONObject {
+        val visible=visibility(view)
+        val texts = nodes(view).filterIsInstance<TextView>().map { text ->
+            if(textCache==null)textLineBox(text)
+            else textCache[text] ?: textLineBox(text).also {textCache[text]=it}
         }
         return visible.put("viewIdentity",System.identityHashCode(view)).put("semanticId",view.tag).put("textLineBoxes",JSONArray(texts))
     }
@@ -509,8 +514,52 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             } finally { File(directory,"fixture-isolation.json").writeText(proof.toString(2)) }
         }
     }
+    private fun syntheticObservationEquivalence() {
+        check(Looper.myLooper()==Looper.getMainLooper())
+        val outer=android.widget.LinearLayout(context).apply {orientation=android.widget.LinearLayout.VERTICAL;tag="synthetic/outer"}
+        val inner=android.widget.LinearLayout(context).apply {orientation=android.widget.LinearLayout.VERTICAL;tag="synthetic/inner"}
+        val styled=android.text.SpannableString("第一行\n第二行").apply {
+            setSpan(android.text.style.StyleSpan(android.graphics.Typeface.BOLD),0,3,android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        val background=android.graphics.drawable.ColorDrawable(android.graphics.Color.rgb(18,52,86))
+        val first=TextView(context).apply {tag="synthetic/same";text=styled;setBackground(background);setTextColor(android.graphics.Color.rgb(20,40,60))}
+        val second=TextView(context).apply {tag="synthetic/same";text=styled}
+        val empty=TextView(context).apply {tag="synthetic/empty"}
+        inner.addView(first,android.widget.LinearLayout.LayoutParams(180,android.widget.LinearLayout.LayoutParams.WRAP_CONTENT))
+        inner.addView(second,android.widget.LinearLayout.LayoutParams(180,android.widget.LinearLayout.LayoutParams.WRAP_CONTENT))
+        outer.addView(inner,android.widget.LinearLayout.LayoutParams(220,android.widget.LinearLayout.LayoutParams.WRAP_CONTENT))
+        outer.measure(View.MeasureSpec.makeMeasureSpec(300,View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(500,View.MeasureSpec.AT_MOST))
+        outer.layout(0,0,outer.measuredWidth,outer.measuredHeight)
+        check(first.layout!=null && first.layout.lineCount>=2 && empty.layout==null && first!==second && first.tag==second.tag)
+        val views=listOf(outer,inner,first,second,empty)
+        fun expanded(cache:IdentityHashMap<TextView,JSONObject>?):String = JSONArray(views.map {observation(it,cache)}).toString(2)
+        val beforeText=first.text.toString();val beforeColor=first.currentTextColor
+        val beforePaintSize=first.paint.textSize;val beforeBackground=first.background
+        val beforeBounds=Rect(background.bounds);val beforeAlpha=background.alpha
+        val beforeSize=first.width to first.height;val beforeScroll=outer.scrollX to outer.scrollY
+        val original=expanded(null)
+        val cache=IdentityHashMap<TextView,JSONObject>()
+        val reused=expanded(cache)
+        check(original==reused && cache.size==3 && cache.containsKey(first) && cache.containsKey(second) &&
+            cache[first]!==cache[second] && first.text.toString()==beforeText && first.currentTextColor==beforeColor &&
+            first.paint.textSize==beforePaintSize && first.background===beforeBackground &&
+            background.bounds==beforeBounds && background.alpha==beforeAlpha &&
+            (first.width to first.height)==beforeSize && (outer.scrollX to outer.scrollY)==beforeScroll)
+        first.text="更新\n下一行";first.setTextColor(android.graphics.Color.rgb(60,40,20));outer.scrollTo(0,1)
+        outer.measure(View.MeasureSpec.makeMeasureSpec(300,View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(500,View.MeasureSpec.AT_MOST))
+        outer.layout(0,0,outer.measuredWidth,outer.measuredHeight)
+        val changedOriginal=expanded(null)
+        val changedCache=IdentityHashMap<TextView,JSONObject>()
+        val changedReused=expanded(changedCache)
+        check(changedOriginal==changedReused && changedOriginal!=original && changedCache.size==3 &&
+            changedCache[first]?.getString("text")=="更新\n下一行" &&
+            first.currentTextColor==android.graphics.Color.rgb(60,40,20) && first.background===beforeBackground)
+    }
     private fun geometry(activity:Activity):JSONObject {
         check(Looper.myLooper()==Looper.getMainLooper()) {"M8 Settings geometry must observe text on the main thread"}
+        val textCache=IdentityHashMap<TextView,JSONObject>()
         val content=root(activity);val origin=IntArray(2);content.getLocationOnScreen(origin)
         val insets=requireNotNull(content.rootWindowInsets);val bars=insets.getInsets(WindowInsets.Type.systemBars())
         val config=activity.resources.configuration
@@ -521,7 +570,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             .put("imeVisible",insets.isVisible(WindowInsets.Type.ime())).put("densityDpi",config.densityDpi)
             .put("fontScale",config.fontScale).put("locale",config.locales.toLanguageTags())
             .put("uiModeNightMeaning",if(config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK==android.content.res.Configuration.UI_MODE_NIGHT_YES)"dark" else "light")
-            .put("nodes",JSONArray(nodes(content).filter {it.tag is String || it is TextView}.map(::observation)))
+            .put("nodes",JSONArray(nodes(content).filter {it.tag is String || it is TextView}.map {observation(it,textCache)}))
             .put("productLayoutEvidence",if(activity is MachineSettingsActivity)JSONObject(activity.productLayoutEvidence.toString()) else JSONObject.NULL)
             .put("scrolls",JSONArray(nodes(content).filterIsInstance<ScrollView>().map {JSONObject().put("tag",it.tag).put("x",it.scrollX).put("y",it.scrollY)}))
     }
@@ -1025,6 +1074,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             .put("pid",android.os.Process.myPid()).put("scopePolicy","M8_10Lazy_default_system_clock_single_real_Mock_Service_only_for_Machine_no_control_injection")
         var scope:Scope?=null;var failure:Throwable?=null
         try {
+            main {syntheticObservationEquivalence()}
             val active=Scope(directory,page);scope=active;active.prepare();active.install(theme=="dark")
             if(page=="machine")active.beginService()
             val activity=start(when(page) {"app"->AppSettingsActivity::class.java;"machine"->MachineSettingsActivity::class.java;else->ScaleSettingsActivity::class.java})

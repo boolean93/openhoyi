@@ -574,14 +574,24 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             val causal=if(page=="curve-editor" && label=="editor-stage-hidden-values" &&
                 directory.parentFile?.name=="tablet-user-landscape-light-font-1.0")
                 ImeRecreationTrace(test,directory,"CurveEditor.editor-stage-hidden-values.recreate",causalSite,null) else null
-            val transitionProbe=if(causal!=null) ImeViewportTransitionProbe("CurveEditor.editor-stage-hidden-values.recreate",{ owner ->
-                val pageRoot=root(owner)
-                val target=fields(owner)[key]
-                check(target!=null && views(pageRoot).count { it===target }==1)
-                val form=owner.javaClass.getDeclaredField("form").apply { isAccessible=true }.get(owner)
-                val host=form.javaClass.getDeclaredField("host").apply { isAccessible=true }.get(form) as View
-                check(views(pageRoot).count { it===host }==1)
-                ImeViewportTransitionProbe.Targets(pageRoot,host,target,views(pageRoot).filterIsInstance<android.widget.ScrollView>())
+            val transitionProbe=if(causal!=null) ImeViewportTransitionProbe("CurveEditor.editor-stage-hidden-values.recreate",{ owner,attempt ->
+                attempt.value("targetCount",null);attempt.value("targetCountStatus","not_evaluated")
+                attempt.value("hostCount",null);attempt.value("hostCountStatus","not_evaluated")
+                attempt.stage("page-root-read");val pageRoot=root(owner);attempt.viewReference("pageRoot",pageRoot)
+                attempt.stage("field-map-read");attempt.value("fieldKey",key)
+                val target=fields(owner)[key];attempt.value("targetNull",target==null);attempt.viewReference("target",target)
+                attempt.stage("target-count");val targetCount=if(target!=null) views(pageRoot).count { it===target } else null
+                if(targetCount!=null) {attempt.value("targetCount",targetCount);attempt.value("targetCountStatus","evaluated")}
+                attempt.stage("first-check");check(target!=null && targetCount==1)
+                attempt.stage("form-reflection");val form=owner.javaClass.getDeclaredField("form").apply { isAccessible=true }.get(owner)
+                attempt.reference("form",form)
+                attempt.stage("host-reflection");val host=form.javaClass.getDeclaredField("host").apply { isAccessible=true }.get(form) as View
+                attempt.viewReference("host",host)
+                attempt.stage("host-count");val hostCount=views(pageRoot).count { it===host }
+                attempt.value("hostCount",hostCount);attempt.value("hostCountStatus","evaluated")
+                attempt.stage("second-check");check(hostCount==1)
+                attempt.stage("targets");val scrolls=views(pageRoot).filterIsInstance<android.widget.ScrollView>()
+                ImeViewportTransitionProbe.Targets(pageRoot,host,target,scrolls)
             },{ owner ->
                 val form=owner.javaClass.getDeclaredField("form").apply { isAccessible=true }.get(owner)
                 (form as? TaskCurveEditorForm)?.productRestoreEvidence

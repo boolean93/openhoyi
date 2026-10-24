@@ -1935,14 +1935,26 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
     private fun importBusiness(initial: Activity, scope: Scope, directory: File) {
         var activity=initial; val frozen=invariant(scope); val cases=JSONArray()
         val nativeTrace=ImeRecreationTrace(test,directory)
-        val transitionProbe=ImeViewportTransitionProbe("Import.raw.recreate",{ owner ->
-            val raw=input(owner);val pageRoot=root(owner)
-            val middle=field(owner,"formScroll") as ScrollView
-            check(nodes(pageRoot).count { it===raw }==1 && nodes(pageRoot).count { it===middle }==1)
-            val host=middle.parent as? View
-            check(host!=null && nodes(pageRoot).count { it===host }==1)
+        val transitionProbe=ImeViewportTransitionProbe("Import.raw.recreate",{ owner,attempt ->
+            attempt.value("rawCount",null);attempt.value("rawCountStatus","not_evaluated")
+            attempt.value("middleCount",null);attempt.value("middleCountStatus","not_evaluated")
+            attempt.value("hostCount",null);attempt.value("hostCountStatus","not_evaluated")
+            attempt.stage("input-read");val raw=input(owner);attempt.viewReference("input",raw)
+            attempt.stage("page-root-read");val pageRoot=root(owner);attempt.viewReference("pageRoot",pageRoot)
+            attempt.stage("form-scroll-read");val middle=field(owner,"formScroll") as ScrollView
+            attempt.viewReference("formScroll",middle)
+            attempt.stage("raw-count");val rawCount=nodes(pageRoot).count { it===raw }
+            attempt.value("rawCount",rawCount);attempt.value("rawCountStatus","evaluated")
+            attempt.stage("middle-count");val middleCount=if(rawCount==1) nodes(pageRoot).count { it===middle } else null
+            if(middleCount!=null) {attempt.value("middleCount",middleCount);attempt.value("middleCountStatus","evaluated")}
+            attempt.stage("first-check");check(rawCount==1 && middleCount==1)
+            attempt.stage("parent-host-read");val host=middle.parent as? View;attempt.viewReference("parentHost",host)
+            attempt.stage("host-count");val hostCount=if(host!=null) nodes(pageRoot).count { it===host } else null
+            if(hostCount!=null) {attempt.value("hostCount",hostCount);attempt.value("hostCountStatus","evaluated")}
+            attempt.stage("second-check");check(host!=null && hostCount==1)
+            attempt.stage("targets");val scrolls=nodes(pageRoot).filterIsInstance<ScrollView>()
             ImeViewportTransitionProbe.Targets(pageRoot,host,raw,
-                nodes(pageRoot).filterIsInstance<ScrollView>())
+                scrolls)
         },{ owner -> (owner as? CurveImportActivity)?.productRestoreEvidence })
         fun record(name: String) {
             cases.put(JSONObject().put("case",name).put("modelsUnchanged",invariant(scope)==frozen))

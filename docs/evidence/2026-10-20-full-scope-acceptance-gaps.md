@@ -35,20 +35,20 @@
 | P0 HistoryActivity | **标准1.0旧时间轴缺39px仍待新图关闭**；a47 light/1.3主态及 missing-samples 全图/说明/两notes滚达恢复已限定过 | eb77 所采限定过；新变化图例/轴增量核 | light/1.3 missing 三图例、零采样无path和滚达已过；标准1.0完整轴墨迹、深色各配置新证待核 | 所采限定过；新深色增量核 | 当前 M5 可产四配置；不得用浅1.3关闭浅深1.0旧失败 |
 | P1 HistoryDetailActivity | **a47 UNKNOWN light/1.3真plot102.66596dp已关闭该配置旧67.55dp失败**；深色UNKNOWN及其余配置完整notes仍需图审 | 所采限定过；新配置/滚后长notes增量核 | 已看指定状态基线/行盒过；其余仅几何137.77707dp不替代文字图审 | 已看浅色UNKNOWN限定过；深色及未细看状态待核 | 当前 M5 可补；budget账本false与实际plot足保留差异，不能以账本替代实际验收或扩本批修复 |
 | P0 BrewComparisonActivity | **a47来源285px高、viewport131px，全文不可同时露出是真FAIL**；dc自然最低预算修复待实图。三条水平线替代整格边框亦需新图核 | eb77 所采限定过；新分配后来源/summary角色不变需增量核 | 20固定+条件warning目标，来源两杯、表头/三行、taste与原动作逐目标完整/两scroll恢复待核；48/96下限不降 | eb77 所采限定过；水平线层次属G1，不能因border色正确关闭 | 本批生产修复+现有精确目标测试可验证；必须看真实完整来源及表格，不只看 accepted |
-| P0 ScaleActivity | 旧短高 freshness 溢出51px需新条件同行图；趋势 dialog/短窗此前因映射失败，尚无正式全链接受 | 64/22、标签/状态/计时/轴实际字体待完整审 | 同基线、8间距、freshness自然高、负数/无数据/短高图轴和完整操作待核 | 浅深读数/陈旧/禁用/图系列补审 | dc显式实测映射可解采集阻断，不证明布局修复；真实秤能力/ACK不在Mock证据内 |
+| P1 ScaleActivity | 旧51px freshness裁切不再列作未关闭：643浅1.3既有限定审查，加[588三配置六帧](2026-10-23-m6-short-window-three-profiles-review.md)已实看条件同行/纵排、完整说明、固定动作及趋势Dialog；全高与其余特殊态仍按原范围补审 | 已审短窗quantity/说明及Dialog轴字、原生角色限定接受；未看状态不外推 | 三配置baseline786/786/749、freshness49/49/61px完整、七轴字/图表完整；右工具全目标滚达未由这六帧覆盖 | 六帧浅深主辅色、禁用及趋势限定接受；陈旧等未看状态仍待审 | 精确source588，非新58ae整run接受；真实秤能力/ACK不由Mock证明 |
 | P1 ScaleConnectionActivity | 缺完整四配置候选列表、无设备、已选、重连/不支持、限制说明布局 | 列表/连接状态/限制/操作角色补审 | 长设备名/说明自然换行、48触点和滚达恢复补审 | 连接/选中/不可用层次补审 | 前页失败可能阻断；不能借Scale主态通过代验 |
 | P0 LegacyCurveActivity | a47短Activity原mapping失败；尚缺正式34:66列表/四参数卡、固定导入返回、短窗滚达原件 | 只读标题、参数、来源角色补审 | 真实参数/限制说明、短窗自然高完整行盒补审 | 浅深选中/只读色补审 | dc显式短窗模式可产证；原默认Activity协议未放宽 |
 | P1 LegacyHistoryActivity | bcc single三屏型中文浅深只证明已看初态图结构/真实plot下限和返回身份；未完成正式34:66列表+预览、标准160/短96、来源滚达 | 正式列表/图轴/来源实际字体待G2对照 | single不保存完整正式Canvas账本；需轴墨迹、参数单位bar/ml/s与滚后全文 | 正式四配置选中/图系列/只读色补审 | M7正式流程可补；不把single成功升格G1–4全过 |
 | P1 LegacyHistoryDetailActivity | bcc single限定已过初态；正式2/3图+1/3来源/缺失/限制三段与滚达恢复待验 | 三段及轴字实际字体补审 | 压力/水流真实图、完整轴/说明行盒待核；不伪造原生重量/温度 | 正式浅深图系列与缺失提示补审 | M7能产；single不代替正式12主态与特殊态 |
 | P0 AppSettingsActivity | a47浅1.3初图+26reach已采但非完整设计接受；首theme点击false-return阻断。需640dp中心四组、八语言滚达/恢复等实际对照 | 四组、八语言实际角色/可见字形补审；非中文fallback不得冒充中文同字体 | 自然行高、完整说明、主题重建/反馈/SAF既有状态及dialog行盒补审 | 四配置选中/禁用/拒绝/反馈状态补审 | dc仅精确修CompoundButton返回值并加计时；滚动条渐隐仍可能失败，未宣称解决 |
 | P1 MachineSettingsActivity | 缺正式四配置40:60、五tab/section、原控件与原生dialog实图；App提前退出曾阻断 | 原输入/单位、dialog自身字体及按钮角色补审 | 原52输入、长非法值限制、8间距、IME/schedule完整safeRect待核 | Service启停、禁用/陈旧与浅深补审 | 当前M8可产证；原生window身份/映射失败必须保留。真实写ACK不能由Mock合法预览代替 |
-| P1 ScaleSettingsActivity | 缺正式四配置688dp三组、精度/重建/无数据返回与限制说明实际布局 | 标签/精度/说明/动作实际字体补审 | 自然行盒、全文滚达与恢复补审 | 浅深选中/禁用/限制层次补审 | 当前M8可产证，前页可能阻断；真实设备能力不靠Mock认证 |
+| P1 ScaleSettingsActivity | [588四主态](2026-10-23-m8-scale-settings-four-main-review.md)已实看688dp含边距、左右24dp与三组；[56目标+4恢复](2026-10-23-m8-scale-settings-reachability-review.md)已全部限定接受，不再列四主态/主说明缺图 | 四主态和56目标的标签/精度/说明/动作实际字体限定接受，依既定终点不再重复pending | 两档1.3帮助全文及所有主目标自然行框、独立滚达、四restore已闭环；不是要求全部帮助同屏 | 已审四主态与主目标浅深层次接受；未审特殊态不外推 | source588实际图；precision-recreated/real-scale-no-data等特殊态依其独立报告与未审范围，不据主态签整M8；真实设备能力另验 |
 
 ## 现在优先做什么：从诊断回到设计对照
 
 已出现诊断投入多、正式设计图审覆盖不足的风险。剩余工作不能继续以“多一份 protocol JSON”计作设计进度。下一批原件到达后按以下顺序做，不加场景、不重开设计：
 
-1. **先关真实差异**：Comparison 来源全文及水平分隔层次；History 浅深1.0时间轴；Scale 短高 freshness/读数同行。各只比较旧失败、同配置新原图、批准构图与实际 geometry/Canvas，明确通过或仍失败。
+1. **先关真实差异**：Comparison 来源全文及水平分隔层次；History 浅深1.0时间轴；Scale 短高 freshness/读数同行已按643浅1.3及588其余三配置限定闭环（见上表），不重复列为待修。各只比较旧失败、同配置新原图、批准构图与实际 geometry/Canvas，明确通过或仍失败。
 2. **补两个已有状态证据**：Preparation confirmed/post-consume 说明 visible/restored 原图。通过后仅关闭该缺口，不重审其全部已过主态。
 3. **完成还未完成的逐页设计审**：M2/M3/M6/M7/M8 每页四主配置，及其计划既有特殊态。先看构图/字体层次/间距，再用实际测量解释差异；不能从协议绿色倒推好看或一致。前序阻断时只审已经产出的可用样本，逐项记“未产出”，不全批丢弃。
 4. **复用已完成审查**：M1及M4所列已过范围、M5已过G2/G4和指定a47状态沿用原结论；只有源码、角色或对应状态变动才增量复核。Extraction四主态核心G1已复用原图完成；其12个实时特殊分支实际未采，须补原计划测试，详见M5审查追加节。
@@ -76,3 +76,7 @@
 ## 现有结论定位
 
 M1：[原生样本审查](2026-10-18-native-specimen-review.md)及[矩阵](task-first-page-matrix.md)的026f993限定接受；M2/M3：[短窗与IME审查](2026-10-19-m6-short-window-and-ime-trace-review.md)；M4：[原图审查及两态补证](2026-10-19-m4-native-focus-review.md)；M5：[完整逐门审计、a47实际失败与增量接受](2026-10-19-m5-eb77b2f-visual-review.md)；M6/M7：[Window审查](2026-10-19-window-evidence-review.md)、[single限定接受](2026-10-19-single-legacy-chart-review.md)；M8：[静态及采集边界](2026-10-19-m8-static-review.md)；清理：[font-scale独立审查](2026-10-19-font-scale-restoration-review.md)。本记录不撤销这些文档中的明确失败，也不把较早的待审文字覆盖较晚限定通过。
+
+### 2026-10-23 已审范围同步
+
+本次仅据新正式报告更新 ScaleActivity 短窗六帧及 ScaleSettings 四主态/56目标/4恢复两行，关闭过时的51px与四主态缺图描述。没有重审、没有新增门槛，也未把主态/短窗推广到所有特殊态、硬件或整run；其余页历史行待各自已审报告逐项同步，不由此批量签署。

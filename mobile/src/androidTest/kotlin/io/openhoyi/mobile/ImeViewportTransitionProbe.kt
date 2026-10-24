@@ -19,11 +19,51 @@ import java.security.MessageDigest
 /** One recreate interval. Observes existing Views; never changes focus, IME, layout, or scroll. */
 internal class ImeViewportTransitionProbe(
     private val fixture: String,
-    private val resolve: (Activity) -> Targets,
+    private val resolve: (Activity, ResolutionAttempt) -> Targets,
     private val productEvidence: (Activity) -> JSONObject?
 ) {
     data class Targets(val root: View, val host: View?, val field: EditText?,
         val scrolls: List<ScrollView>, val resolution: String = "exact_named_references")
+
+    /** Values read by the original resolver, not a later reconstruction of its View tree. */
+    inner class ResolutionAttempt(owner: Activity, private val phase: String) {
+        private val values=JSONObject()
+        private val proof=JSONObject().put("fixture",fixture).put("phase",phase)
+            .put("startedElapsedRealtimeNanos",SystemClock.elapsedRealtimeNanos())
+            .put("mainThread",Looper.myLooper()===Looper.getMainLooper())
+            .put("ownerIdentity",System.identityHashCode(owner))
+            .put("ownerClass",owner.javaClass.name).put("stage","created")
+            .put("values",values).put("result","in_progress")
+        private fun safely(action:()->Unit) {
+            try { action() } catch(error:Throwable) {
+                try { proof.put("diagnosticFailure",error.stackTraceToString()) } catch(_:Throwable) { }
+                try { issues.put("resolution_diagnostic_${phase}_${error.javaClass.name}") } catch(_:Throwable) { }
+            }
+        }
+        fun stage(name:String) { safely { proof.put("stage",name) } }
+        fun value(name:String, value:Any?) { safely {
+            check(value==null || value is String || value is Boolean || value is Number)
+            values.put(name,value ?: JSONObject.NULL)
+        } }
+        fun reference(name:String, ref:Any?) {
+            value("${name}Identity",ref?.let(System::identityHashCode))
+            value("${name}Class",ref?.javaClass?.name)
+        }
+        fun viewReference(name:String, view:View?) {
+            reference(name,view)
+            safely { reference("${name}Parent",view?.parent) }
+        }
+        fun finish(error:Throwable?) {
+            safely { proof.put("endedElapsedRealtimeNanos",SystemClock.elapsedRealtimeNanos()) }
+            safely { proof.put("result",if(error==null) "exact_named_references" else "fallback_partial") }
+            if(error!=null) {
+                safely { proof.put("resolutionFailureClass",error.javaClass.name) }
+                safely { proof.put("resolutionFailureMessage",error.message ?: JSONObject.NULL) }
+                safely { proof.put("resolutionFailureStack",error.stackTraceToString()) }
+            }
+        }
+        fun json():JSONObject=proof
+    }
 
     private inner class Observed(val owner: Activity, val ordinal: Int, val targets: Targets) {
         val decor: View = owner.window.decorView
@@ -89,6 +129,7 @@ internal class ImeViewportTransitionProbe(
 
     private val events=JSONArray()
     private val issues=JSONArray()
+    private val resolutionAttempts=JSONArray()
     private val observed=mutableListOf<Observed>()
     private var current:Observed?=null
     private var observations=0
@@ -184,7 +225,10 @@ internal class ImeViewportTransitionProbe(
         mainOnly()
         if(closed) {issues.put("install_after_close");return}
         if(observed.any { it.owner===owner }) {issues.put("duplicate_activity_install_$phase");return}
-        val targets=try { resolve(owner) } catch(error:Throwable) {
+        val attempt=ResolutionAttempt(owner,phase)
+        resolutionAttempts.put(attempt.json())
+        val targets=try { val exact=resolve(owner,attempt);attempt.finish(null);exact } catch(error:Throwable) {
+            attempt.finish(error)
             issues.put("resolve_${phase}_${error.javaClass.name}")
             Targets(owner.window.decorView,null,null,emptyList(),"unknown_named_reference_resolution")
         }
@@ -230,7 +274,8 @@ internal class ImeViewportTransitionProbe(
             .put("listenerInstallCount",listenerInstallCount).put("listenerRemoveCount",listenerRemoveCount)
             .put("oldNewIdentity",same)
             .put("textSha256AtInstall",JSONArray(observed.map { nullable(it.textShaAtInstall) }))
-            .put("issues",issues).put("events",events).put("status",status)
+            .put("issues",issues).put("resolutionAttempts",resolutionAttempts)
+            .put("events",events).put("status",status)
         check(file.parentFile.isDirectory || file.parentFile.mkdirs())
         file.writeText(proof.toString(2))
     }

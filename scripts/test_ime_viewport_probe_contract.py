@@ -100,6 +100,147 @@ def main():
         raise AssertionError('missing installation phase')
     assert first_binding('created') == 'unknown_permanently_bound'
     assert first_binding('post-created') == 'exact'
+    # Resolver diagnostics must be captured by the same install, with explicit
+    # not-evaluated values rather than turning a failed first check into count 0.
+    assert 'resolutionAttempts' in source
+    assert 'ResolutionAttempt' in source and 'resolve(owner,attempt)' in source
+    assert 'resolve_${phase}_${error.javaClass.name}' in source
+    assert 'unknown_named_reference_resolution' in source
+    assert 'resolutionFailureStack' in source and 'diagnosticFailure' in source
+    assert 'fun viewReference(name:String, view:View?)' in source
+    assert 'reference("${name}Parent",view?.parent)' in source
+    for owner_source, names in ((imported, ('input', 'pageRoot', 'formScroll', 'parentHost')),
+                                (editor, ('pageRoot', 'target', 'host'))):
+        for name in names:
+            assert f'attempt.viewReference("{name}",' in owner_source
+    assert 'val rawCount=nodes(pageRoot).count { it===raw }' in imported
+    assert 'val middleCount=if(rawCount==1)' in imported
+    assert 'val hostCount=if(host!=null)' in imported
+    assert 'val targetCount=if(target!=null)' in editor
+    assert 'val hostCount=views(pageRoot).count { it===host }' in editor
+    for owner_source, ordered in ((imported, ('input-read', 'page-root-read', 'form-scroll-read',
+                                           'raw-count', 'middle-count', 'first-check',
+                                           'parent-host-read', 'host-count', 'second-check', 'targets')),
+                                  (editor, ('page-root-read', 'field-map-read', 'target-count',
+                                            'first-check', 'form-reflection', 'host-reflection',
+                                            'host-count', 'second-check', 'targets'))):
+        positions=[owner_source.index(f'attempt.stage("{stage}")') for stage in ordered]
+        assert positions==sorted(positions)
+    assert imported.count('val rawCount=nodes(pageRoot).count { it===raw }') == 1
+    assert imported.count('val middleCount=if(rawCount==1) nodes(pageRoot).count { it===middle } else null') == 1
+    assert editor.count('val targetCount=if(target!=null) views(pageRoot).count { it===target } else null') == 1
+    assert imported.index('attempt.value("rawCount",null)') < imported.index('attempt.stage("input-read")')
+    assert editor.index('attempt.value("targetCount",null)') < editor.index('attempt.stage("page-root-read")')
+    def valid_attempt(a):
+        page, stage, values = a['fixture'], a['stage'], a['values']
+        assert a['mainThread'] is True
+        assert isinstance(a['startedElapsedRealtimeNanos'], int)
+        assert isinstance(a['endedElapsedRealtimeNanos'], int)
+        assert a['endedElapsedRealtimeNanos'] >= a['startedElapsedRealtimeNanos']
+        assert a['ownerIdentity'] is not None and a['ownerClass']
+        for count in (('rawCount', 'middleCount', 'hostCount') if page == 'import'
+                      else ('targetCount', 'hostCount')):
+            status = values[count + 'Status']
+            assert status in ('evaluated', 'not_evaluated')
+            assert (values[count] is None) == (status == 'not_evaluated')
+        if stage == 'first-check' and page == 'import':
+            assert values['rawCountStatus'] == 'evaluated'
+            assert (values['rawCount'] != 1 or values['middleCount'] != 1)
+            assert values['middleCountStatus'] == ('evaluated' if values['rawCount'] == 1 else 'not_evaluated')
+            assert values['hostCountStatus'] == 'not_evaluated'
+        if stage == 'second-check' and page == 'import':
+            assert values['rawCount'] == values['middleCount'] == 1
+            assert values['hostCount'] in (None, 0, 2)
+            assert values['hostCount'] is None or values['hostCountStatus'] == 'evaluated'
+        if stage == 'first-check' and page == 'editor':
+            assert values['targetNull'] or values['targetCount'] in (0, 2)
+            assert values['targetCountStatus'] == ('not_evaluated' if values['targetNull'] else 'evaluated')
+            assert values['hostCountStatus'] == 'not_evaluated'
+        if stage == 'second-check' and page == 'editor':
+            assert values['targetNull'] is False and values['targetCount'] == 1
+            assert values['hostCount'] in (0, 2)
+        if stage == 'targets':
+            assert a['result'] == 'exact_named_references'
+            assert 'resolutionFailureClass' not in a
+        else:
+            assert a['result'] == 'fallback_partial'
+            assert a['resolutionFailureClass'] and a['resolutionFailureMessage']
+            assert a['resolutionFailureStack'].startswith(a['resolutionFailureClass'] + ': ' + a['resolutionFailureMessage'])
+    def make_attempt(page, stage, values, failure_class='java.lang.IllegalStateException', message='check failed'):
+        a={'fixture':page,'stage':stage,'mainThread':True,'startedElapsedRealtimeNanos':1,
+           'endedElapsedRealtimeNanos':2,'ownerIdentity':101,'ownerClass':'Activity',
+           'values':values,'result':'fallback_partial',
+           'resolutionFailureClass':failure_class,'resolutionFailureMessage':message,
+           'resolutionFailureStack':failure_class + ': ' + message + '\n  at Resolver.resolve(Resolver.kt:1)'}
+        valid_attempt(a)
+        return a
+    def import_values(raw=None, middle=None, host=None):
+        result={}
+        for name,value in (('rawCount',raw),('middleCount',middle),('hostCount',host)):
+            result[name]=value
+            result[name+'Status']='not_evaluated' if value is None else 'evaluated'
+        return result
+    def editor_values(target=None, host=None, target_null=False):
+        return {**{'targetNull':target_null},
+                **{key:val for name,value in (('targetCount',target),('hostCount',host))
+                   for key,val in ((name,value),(name+'Status','not_evaluated' if value is None else 'evaluated'))}}
+    # Each fixture has a different first and second check and different early read failures.
+    import_cases=[make_attempt('import','first-check',import_values(0)),
+                  make_attempt('import','first-check',import_values(2)),
+                  make_attempt('import','first-check',import_values(1,0)),
+                  make_attempt('import','first-check',import_values(1,2)),
+                  make_attempt('import','second-check',import_values(1,1,None)),
+                  make_attempt('import','second-check',import_values(1,1,0)),
+                  make_attempt('import','second-check',import_values(1,1,2))]
+    editor_cases=[make_attempt('editor','first-check',editor_values(target_null=True)),
+                  make_attempt('editor','first-check',editor_values(0)),
+                  make_attempt('editor','first-check',editor_values(2)),
+                  make_attempt('editor','second-check',editor_values(1,0)),
+                  make_attempt('editor','second-check',editor_values(1,2))]
+    early_import=make_attempt('import','form-scroll-read',import_values(),
+                              'java.lang.ClassCastException','formScroll is not ScrollView')
+    early_editor=make_attempt('editor','form-reflection',editor_values(1),
+                              'java.lang.NoSuchFieldException','form')
+    assert early_import['resolutionFailureClass'] != early_editor['resolutionFailureClass']
+    assert early_import['resolutionFailureStack'] != early_editor['resolutionFailureStack']
+    success=deepcopy(editor_cases[-1]);success['stage']='targets'
+    success['values']=editor_values(1,1)
+    for key in ('resolutionFailureClass','resolutionFailureMessage','resolutionFailureStack'):
+        success.pop(key)
+    success['result']='exact_named_references';valid_attempt(success)
+    for bad in (lambda a:a['values'].update(middleCount=0,middleCountStatus='evaluated'),
+                lambda a:a.update(mainThread=False),
+                lambda a:a.pop('resolutionFailureStack')):
+        candidate=deepcopy(import_cases[0]);bad(candidate)
+        try: valid_attempt(candidate)
+        except (AssertionError,KeyError): pass
+        else: raise AssertionError('resolver counterexample unexpectedly passed')
+    # Simulate one diagnostic put failure: each finish field is isolated, and fallback stays partial.
+    assert source.count('safely { proof.put("resolutionFailure') == 3
+    def finish_model(original, fail_key):
+        proof={'stage':'form-reflection'};caught=original;resolve_calls=1
+        issues=['resolve_replacement-post-created_'+caught['resolutionFailureClass']]
+        writes={'result':'fallback_partial','resolutionFailureClass':original['resolutionFailureClass'],
+                'resolutionFailureMessage':original['resolutionFailureMessage'],
+                'resolutionFailureStack':original['resolutionFailureStack']}
+        for key,value in writes.items():
+            if key==fail_key:
+                proof['diagnosticFailure']='org.json.JSONException: failed '+key
+                issues.append('resolution_diagnostic_replacement-post-created_org.json.JSONException')
+            else: proof[key]=value
+        status='PARTIAL_OR_ERROR' if issues else 'COMPLETE'
+        return proof,issues,resolve_calls,caught,status
+    for failed in ('result','resolutionFailureClass','resolutionFailureMessage','resolutionFailureStack'):
+        proof,issues,calls,caught,status=finish_model(early_editor,failed)
+        assert calls==1 and caught is early_editor and status=='PARTIAL_OR_ERROR'
+        assert len(issues)==2 and proof['diagnosticFailure']
+        assert all(proof[key]==early_editor[key] for key in
+                   ('resolutionFailureClass','resolutionFailureMessage','resolutionFailureStack') if key!=failed)
+    distinct=[deepcopy(import_cases[0]),deepcopy(editor_cases[0])]
+    distinct[0]['ownerIdentity']=101;distinct[1]['ownerIdentity']=202
+    assert len({a['ownerIdentity'] for a in distinct})==2
+    fallback={'resolution':'unknown_named_reference_resolution','issues':['resolve_replacement-post-created_java.lang.IllegalStateException']}
+    assert fallback['issues'] and fallback['resolution']=='unknown_named_reference_resolution'
     validate(BASE)
     cases = [
         lambda p: p["events"][2]["actual"].update(fieldIdentity=101),  # old/new field reused

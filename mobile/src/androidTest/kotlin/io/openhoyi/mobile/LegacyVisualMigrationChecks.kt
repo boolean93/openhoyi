@@ -27,6 +27,7 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 /** M7 real imported-data pages. Legal owned archives only; never a machine controller. */
@@ -55,7 +56,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 .put("events",JSONArray(events.map {it.json()}))
         }
         private data class Operation(val sequence:Int,val label:String,val source:String?,val pid:Int,
-            val startedNs:Long,val deadlineNs:Long,val toasts:MutableList<BoundToast> = mutableListOf()) {
+            val startedNs:Long,val deadlineNs:Long,val toasts:MutableList<BoundToast> = mutableListOf(),
+            val hiddenSignal:CountDownLatch=CountDownLatch(1)) {
             fun json()=JSONObject().put("sequence",sequence).put("case",label).put("source",source ?: JSONObject.NULL)
                 .put("pid",pid).put("startedNs",startedNs).put("deadlineNs",deadlineNs)
                 .put("toasts",JSONArray(toasts.map {it.json()}))
@@ -80,15 +82,49 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             if(operation==null || Looper.myLooper()!==Looper.getMainLooper() || source!=operation.source ||
                 operation.toasts.isNotEmpty() || toast.duration!=Toast.LENGTH_LONG) {
                 unattributed.add("unexpected-bind:${operation?.label}:$source:${System.identityHashCode(toast)}")
+                operation?.hiddenSignal?.countDown()
             } else {
                 val bound=BoundToast(nextToast++,System.identityHashCode(toast),source,operation.sequence,pid,toast.duration)
                 operation.toasts.add(bound)
                 bound.events.add(event("show-request"))
                 toast.addCallback(object:Toast.Callback() {
-                    override fun onToastShown() { bound.events.add(event("shown")) }
-                    override fun onToastHidden() { bound.events.add(event("hidden")) }
+                    override fun onToastShown() {
+                        bound.events.add(event("shown"))
+                        if(bound.events.map {it.name}!=listOf("show-request","shown") ||
+                            !bound.events.last().mainThread ||
+                            bound.events.last().elapsedNs<=bound.events.first().elapsedNs ||
+                            bound.events.last().elapsedNs>operation.deadlineNs) operation.hiddenSignal.countDown()
+                    }
+                    override fun onToastHidden() { bound.events.add(event("hidden"));operation.hiddenSignal.countDown() }
                 })
             }
+        }
+        fun signal():CountDownLatch? {
+            check(Looper.myLooper()===Looper.getMainLooper())
+            return requireNotNull(current).takeIf {it.source!=null}?.hiddenSignal
+        }
+        fun pendingSignal(expected:CountDownLatch?):CountDownLatch? {
+            check(Looper.myLooper()===Looper.getMainLooper())
+            val operation=requireNotNull(current)
+            check((operation.source==null && expected==null) ||
+                (operation.source!=null && operation.hiddenSignal===expected)) {"M7 Toast operation signal ownership changed"}
+            check(unattributed.isEmpty()) {"M7 unowned or duplicate Toast bind: $unattributed"}
+            if(operation.source==null) {
+                check(operation.toasts.isEmpty()) {"M7 cancelled import emitted Toast"}
+                return null
+            }
+            check(operation.toasts.size<=1) {"M7 duplicate owned Toast"}
+            operation.toasts.singleOrNull()?.let { bound ->
+                check(bound.source==operation.source && bound.operation==operation.sequence &&
+                    bound.pid==pid && bound.duration==Toast.LENGTH_LONG) {"M7 Toast owner or duration changed"}
+                val events=bound.events
+                check(events.map {it.name} in listOf(listOf("show-request"),listOf("show-request","shown"),
+                    listOf("show-request","shown","hidden")) && events.all {it.mainThread &&
+                    it.elapsedNs in operation.startedNs..operation.deadlineNs} &&
+                    events.zipWithNext().all {(first,second)->first.elapsedNs<second.elapsedNs}) {
+                    "M7 Toast callback order/thread/deadline invalid"}
+            }
+            return if(closed(operation)) null else operation.hiddenSignal
         }
         private fun closed(operation:Operation):Boolean {
             if(operation.source==null)return operation.toasts.isEmpty()
@@ -121,7 +157,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
     }
     private var toastLedger:ToastLedger?=null
     private var axisScope:Scope?=null
-    private fun drainReaders(label:String="scope-cleanup", deadlineOverrideMs:Long?=null, settled:()->Boolean={true}) {
+    private fun drainReaders(label:String="scope-cleanup", deadlineOverrideMs:Long?=null,
+        pendingSignal:(()->CountDownLatch?)?=null, settled:()->Boolean={true}) {
         val started=deadlineOverrideMs?.minus(10000) ?: SystemClock.elapsedRealtime();val deadline=deadlineOverrideMs ?: started+10000
         val rounds=JSONArray();val proof=JSONObject().put("label",label).put("timeoutMs",10000).put("rounds",rounds)
         fun snapshot(threads:Collection<Thread>)=JSONArray(threads.map { thread -> JSONObject().put("id",thread.id)
@@ -140,12 +177,29 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                     check(!thread.isAlive && SystemClock.elapsedRealtime()<=deadline) {"M7 owned reader did not terminate within the original total budget: ${thread.name}/${thread.id}"}
                 }
                 var uiSettled=false
+                var signal:CountDownLatch?=null
                 // An import's main callback can start refresh's successor reader. Re-observe after this barrier.
-                main {uiSettled=settled()}
+                main {uiSettled=settled();signal=pendingSignal?.invoke()}
                 observeReaders()
                 val after=live()
                 round.put("afterMainBarrier",snapshot(after)).put("newThreadIds",JSONArray(ownedReaders.filter {it.id !in priorIds}.map {it.id}))
                     .put("uiSettled",uiSettled).put("remainingMs",deadline-SystemClock.elapsedRealtime())
+                val waitSignal=signal
+                if(after.isEmpty() && !uiSettled && waitSignal!=null) {
+                    val remaining=deadline-SystemClock.elapsedRealtime()
+                    check(remaining>0) {"M7 Toast event wait exhausted original total budget: $label"}
+                    val eventWait=JSONObject().put("startedElapsedMs",SystemClock.elapsedRealtime()-started)
+                        .put("remainingBeforeWaitMs",remaining)
+                    round.put("eventWait",eventWait)
+                    val woke=waitSignal.await(remaining,TimeUnit.MILLISECONDS)
+                    eventWait.put("returned",woke).put("endedElapsedMs",SystemClock.elapsedRealtime()-started)
+                        .put("remainingAfterWaitMs",deadline-SystemClock.elapsedRealtime())
+                    main {uiSettled=settled();pendingSignal?.invoke()}
+                    observeReaders()
+                    round.put("afterEventMainBarrier",snapshot(live())).put("afterEventUiSettled",uiSettled)
+                    check(woke || SystemClock.elapsedRealtime()<deadline) {"M7 Toast hidden not observed in original total budget: $label"}
+                    continue
+                }
                 if(after.isEmpty() && uiSettled) {
                     // Drain a completion posted by a reader that exited between the first barrier and observation.
                     main {uiSettled=settled()}
@@ -906,18 +960,21 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
     private fun callback(activity: Activity, request: Int, result: Int, uri: android.net.Uri?, caseLabel:String) {
         val ledger=requireNotNull(toastLedger)
         var deadline=0L
+        var ownedSignal:CountDownLatch?=null
         var began=false
         var callbackFailure:Throwable?=null
         try {
             main {
                 deadline=ledger.begin(caseLabel,result==Activity.RESULT_CANCELED)
                 began=true
+                ownedSignal=ledger.signal()
                 val method=activity.javaClass.getDeclaredMethod("onActivityResult",Int::class.javaPrimitiveType,
                     Int::class.javaPrimitiveType,Intent::class.java).apply { isAccessible=true }
                 method.invoke(activity,request,result,uri?.let { Intent().setData(it) })
                 observeReaders()
             }
-            drainReaders("activity-result-${activity.javaClass.simpleName}-$request-$result",deadline) {
+            drainReaders("activity-result-${activity.javaClass.simpleName}-$request-$result",deadline,
+                pendingSignal={ledger.pendingSignal(ownedSignal)}) {
                 val readerReady=if(activity is LegacyCurveActivity) {
                 val status=(field(activity,"count") as TextView).text.toString()
                 val pending=setOf(R.string.legacy_curve_loading_initial,R.string.legacy_curve_loading,R.string.legacy_curve_checking).map {activity.getString(it)}
