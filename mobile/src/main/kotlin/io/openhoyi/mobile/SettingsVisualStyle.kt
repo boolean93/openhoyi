@@ -25,7 +25,7 @@ import kotlin.math.ceil
 internal class SettingsVisualStyle(val context:Context) {
     val palette=TaskProductVisualStyle(context)
     val evidence=JSONObject()
-    fun page(activity:ThemedActivity,title:Int,subtitle:Int,maxContentDp:Int?=null,pageId:String):LinearLayout {
+    fun page(activity:ThemedActivity,title:Int,subtitle:Int,maxContentDp:Int?=null,pageId:String,persistentScrollIndicator:Boolean=false):LinearLayout {
         activity.window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         val root=palette.column("product/settings/$pageId/root").apply {
             setBackgroundColor(palette.page)
@@ -40,7 +40,10 @@ internal class SettingsVisualStyle(val context:Context) {
                 insets
             }
         }
-        val scroll=ScrollView(activity).apply {tag="product/settings/$pageId/scroll";isFillViewport=true;id=R.id.m8_settings_scroll}
+        val scroll=ScrollView(activity).apply {
+            tag="product/settings/$pageId/scroll";isFillViewport=true;id=R.id.m8_settings_scroll
+            if(persistentScrollIndicator)isScrollbarFadingEnabled=false
+        }
         val container=object:FrameLayout(activity) {
             override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
                 val actual=View.MeasureSpec.getSize(widthMeasureSpec)

@@ -25,7 +25,6 @@ import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.HorizontalScrollView
 import android.widget.TextView
 import android.widget.Toast
@@ -96,9 +95,7 @@ class MachineSettingsActivity : ThemedActivity() {
         detailsExpanded = savedInstanceState?.getBoolean("settingsExpanded") ?: false
         selectedSettingsSection = savedInstanceState?.getInt("settingsSection") ?: 0
         val style=visual.palette
-        val body=visual.page(this,R.string.machine_settings_title,R.string.machine_settings_subtitle,pageId="machine")
-        val pageScroll = requireNotNull(findViewById<ScrollView>(R.id.m8_settings_scroll))
-        pageScroll.isScrollbarFadingEnabled = false
+        val body=visual.page(this,R.string.machine_settings_title,R.string.machine_settings_subtitle,pageId="machine",persistentScrollIndicator=true)
         text(body, if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_mock_disclaimer)
             else getString(R.string.machine_settings_real_disclaimer), 14).apply {
             val warning=ExtractionHistoryVisualStyle(this@MachineSettingsActivity)

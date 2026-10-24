@@ -74,3 +74,18 @@ fixture新增两条只读断言在原capture之后的Machine分支，保原selec
 - `mobile/build/outputs/apk/mock/mobile-mock.apk` SHA256：`30260e7ea09e2e64ad600d5490459025ba0835a88346559712d6d7a2c5d3d118`
 
 未安装/发布/合并；原5秒四零及四主图是否通过仍待本次CI，构建与静态接受不替代视觉。
+
+## 后续生命周期修订：创建时设置常显（2026-10-24）
+
+原生命周期两轮实际崩溃在 `MachineSettingsActivity.onCreate` 的 `requireNotNull(findViewById(m8_settings_scroll))`。源码因果独立核实：`SettingsVisualStyle.page` 创建scroll后，`TaskPageFrame.install` 将其移入pageContent；pageContent直到TaskPageFrame首次onMeasure才挂到frame。故onCreate同步Activity树查找null是合法未挂载状态，不是scroll未创建。此前静态通过未覆盖此挂载先后，不能用编译通过替代运行事实。
+
+批准最小修订仅两个生产文件：
+
+1. `SettingsVisualStyle.page` 参数末尾增加 `persistentScrollIndicator: Boolean = false`。原ScrollView构造apply内仅在true时设置 `isScrollbarFadingEnabled = false`；false时不调用setter，保原平台默认行为。原id/tag/容器/vertical enabled/颜色/宽度/布局不动。
+2. `MachineSettingsActivity` 原page调用以named参数传true；删除其后Activity.findViewById/requireNotNull及fade设置两行。无需查body父链、延迟、重试或吞null；设置作用于原创建对象。
+
+AppSettings/ScaleSettings调用不改，TaskPageFrame公共生命周期不改。保现Machine初态vertical enabled/fading disabled断言与全部lifecycle检查，原5000ms四零不动。继续同工作分支/PR develop、root统一两包构建及原lifecycle运行；不是发版/设备授权。回退使用新提交，不恢复已证实会崩溃的过早查树；原常显视觉需求保持。实施后记录精确SHA，运行通过前不宣称产品崩溃闭合。
+
+Astra增量静态验收：实际diff严格符合上述两文件修订；仅额外删除不再使用的ScrollView import。原对象id/tag/fillViewport保留，默认false不调用setter，仅Machine传true，未动TaskPageFrame与测试。`git diff --check` exit0。冻结SHA256：SettingsVisualStyle `0cd64646732f4684ef5543f524ae20dd9305a3a6714ec340380f1cea06f89f21`；MachineSettingsActivity `6006fbaa196bd6c62c1af90a3fd0c20efeca8e5f865bb7ad2d348ba2cb4cc2cc`。静态无阻断，可交root统一构建；生命周期真实重跑仍未完成。
+
+root构建验证：`:mobile:assembleMock :mobile:assembleMockAndroidTest` exit0，BUILD SUCCESSFUL in 1m 2s（91 tasks，6 executed）；构建后两生产文件SHA与上述冻结值一致。日志 `build/task-first-evidence/required-lifecycle-scroll-fix/build.log`。原失败PR run40070126254实际checkout `3b2d453297a1684f49ace3f40381d74bac21d854`，push run40070122340实际checkout `aa40a2f5e81dd1a55b2804d0533ca4f9f7435e26`；均为同一onCreate崩溃。新提交的原lifecycle运行仍待CI，不用编译/静态结果替代。
