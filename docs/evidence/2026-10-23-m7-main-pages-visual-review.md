@@ -64,3 +64,39 @@ History四档底部都出现“导入失败：Unsupported curves format；原有
 独立核 `git diff --name-only 8b52379..588855c -- mobile/src/main mobile/src/mock`：仅CurveActivity、MachineSettingsActivity、ScaleSettingsActivity，未涉及Legacy生产或共享字体/style。此源码连续性只作辅助，绝不把旧merge原件写成 `588855c96fdceec79bf87f0fd5950f33fa6aff1c` 实际运行证明，也不签新badge测试图。
 
 先前短窗96dp/80轴字逐项/长名恢复有限结论独立保留；不能替代这里普通History被裁时间轴或Toast遮挡区域。当前未审全部支持区/Dialog、全部交互与恢复、其他语言/硬件。只新增本文，未改产品/测试/计划，未构建、推送或重跑CI。
+
+
+## 2026-10-24：aac5c91十二主图增量实审
+
+**关闭旧六张Toast遮挡缺口；不关闭History初态轴裁切。** 逐张实看三页×浅深×1.0/1.3共12张新原PNG，没有借host合同代看图；旧8b拒绝原件保留，不重复既有80轴字/短窗验收。
+
+source/head `aac5c917c4bada1b30602b263a49db5221f52c74`；ZIP `ci-aac5c91/legacy-artifact.zip` SHA `60a6f4564522fe707f85103dac3dc174a94725802841c9d68c15ecc0f0b7d512`。磁盘约3.3GiB可用后只定向提取60文件（12组PNG/geometry/typography/proof/manifest，40,546,207字节），未整包解压。索引 `ci-aac5c91/m7-main-selected/index.json` 保存member/路径/字节/SHA。逐项核manifest文件SHA、geometry==manifest.window==accepted before/after.target、proof==initialFrameSync、imageSHA、5000ms、四差异count=0。初次核证脚本误猜差异字段名后改为原schema的count完成检查，未改原件。
+
+### G1–G4限定判断
+
+| 页面 | G1/G2结构字体 | G3完整性/间距 | G4/本次结论 |
+|---|---|---|---|
+| Curve四配置 | 左列表右参数、名称/来源/2×2四参数层级清楚，数字单位无碰撞；名称54/59.399998px 500、参数同尺寸700、列表36/45.45px 500。 | 与冻结参数分组/16dp内边距视觉相符；93°C、60ml、36.0g、4、常显只读与详情入口完整。末行处于滚动边缘，不签41条全文。 | 浅白卡/深暗卡、青色选中与琥珀只读提示清楚。主态所见范围限定接受，Dialog未审。 |
+| History四配置 | 日期/时长/选中/来源切换层级清楚；普通标题完整、只读徽标31.5/42.3px 400；无旧Toast混入产品字体。 | 四图只读说明全文及固定详情动作已无遮盖；但1.0 chart `[1090,692,2488,1288]`、visible底1249，裁39px；1.3 chart `[1090,721,2488,1364]`、visible底1204，裁160px。四图五个time tick均wholeGlyph=false；不签初态整图。 | 蓝实线压力/青虚线机器水流、bar/ml/s可辨；关闭旧四图Toast遮挡。初态裁切仍独立，reached合同通过不能倒灌本图。 |
+| Detail四配置 | 左图右支持栏、普通名/元信息/徽标完整，三组标题45/53.100002px 500；来源/缺失/限制层级清楚。 | 四图左右轴、图例、0.0–30.0s时间字均可见无遮挡；1.0三组正文完整，1.3解释限制仅首段露出，余下不由本批签全文。 | 压力蓝实线、水流青虚线和浅深网格清楚，四项缺失均“未提供”。关闭旧light1.3与dark1.0两图Toast盖轴；当前主图轴可读限定接受。 |
+
+12份字体资产SHA均 `a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da`；主字浅#101820/深#EDF3F2，只读浅#795119/深#EACB87。实图未见缺字、假粗或放大后的碰撞，颜色层级保持；这是所见区域接受，不是私有逐glyph身份/量化全屏对比度证明。字体记录与同帧关系仍沿用本报告原限制。
+
+### 本次十二张实看PNG SHA
+
+| 配置 | 页面 | SHA256 |
+|---|---|---|
+| dark-font-1.0 | curve | `5d6a0ed1a54e87c7fe928e9635beb96abfcb15b703eb369743400f8a6370c59b` |
+| dark-font-1.0 | detail | `dc3634d826f9fc175c634a79a21fe497aad042c906b0fb100691e3743a733c40` |
+| dark-font-1.0 | history | `fda707abbdcab94113e8600732bb64b4b7aa63eeab7129c77fab163b227af363` |
+| dark-font-1.3 | curve | `8ab61ba4a5a918a3b50e10bd8976749c22dc8e87ed7923cd8d495415e2601230` |
+| dark-font-1.3 | detail | `8397c564bfa41ba412c28ef493822cf52a525655df23dfa112a507deec865f63` |
+| dark-font-1.3 | history | `19cffb4f9c8bd82fae50b38b50a61f19200126900ee566a982a12ef539511248` |
+| light-font-1.0 | curve | `058c4e487b5ea7a2f635111bc884fc850e66173cb4806bd50c9667dccff87323` |
+| light-font-1.0 | detail | `a2e08dc452f1ed367d3c649777c63a018da6684f7e45c91dbd549c763bdb564d` |
+| light-font-1.0 | history | `7cd2dbcf7bdef2e65a7f8e9c280e5e29d308a9b4898af4fed4d0f93397df8128` |
+| light-font-1.3 | curve | `376a62c657a1b05babd33ed2cfbaf261d6397ec1bdad35fc8489778e8cf1927f` |
+| light-font-1.3 | detail | `bdb838e8556c24114c5033764ad8d0b73796a443f340186c73636285941cd1d6` |
+| light-font-1.3 | history | `69a82307c6c9f8c80acfb3f0b0eaae42d7820a7a1ea2d3832cf9d2b06ec17944` |
+
+**12主图全部已看；本批关闭History四图与Detail两图的旧Toast遮挡。** History初态时间轴裁切、Detail1.3主态未露出的解释正文不由本批签全。既有滚达/80轴字/短窗结论及其source边界保留，不新开门槛，不宣称整M7、业务或宿主恢复通过。无源码/构建/设备/提交操作。

@@ -118,7 +118,7 @@ def main():
     assert 'val hostCount=if(host!=null)' in imported
     assert 'val targetCount=if(target!=null)' in editor
     assert 'val hostCount=views(pageRoot).count { it===host }' in editor
-    for owner_source, ordered in ((imported, ('input-read', 'page-root-read', 'form-scroll-read',
+    for owner_source, ordered in ((imported, ('input-read', 'form-scroll-read', 'page-root-read',
                                            'raw-count', 'middle-count', 'first-check',
                                            'parent-host-read', 'host-count', 'second-check', 'targets')),
                                   (editor, ('page-root-read', 'field-map-read', 'target-count',
@@ -131,6 +131,60 @@ def main():
     assert editor.count('val targetCount=if(target!=null) views(pageRoot).count { it===target } else null') == 1
     assert imported.index('attempt.value("rawCount",null)') < imported.index('attempt.stage("input-read")')
     assert editor.index('attempt.value("targetCount",null)') < editor.index('attempt.stage("page-root-read")')
+    assert 'rawChain.first.filter { it.id==android.R.id.content && it is FrameLayout }' in imported
+    assert 'middleChain.first.filter { it.id==android.R.id.content && it is FrameLayout }' in imported
+    assert 'rawRoots.single()!==middleRoots.single()' in imported
+    assert 'if(chain.any { it===node }) return chain to "cycle"' in imported
+    failure_start=imported.index('val failure=IllegalStateException("Import content ancestor: $reason")')
+    assert failure_start < imported.index('attempt.value("${name}Chain",',failure_start) < imported.index('throw failure',failure_start)
+    def ancestor_failure(diagnostic):
+        failure=RuntimeError('Import content ancestor: not owner decor')
+        try: diagnostic()
+        except Exception: pass
+        try: raise failure
+        except RuntimeError as caught: return failure,caught
+    def broken_diagnostic():
+        raise ValueError('chain serialization failed')
+    original,caught=ancestor_failure(broken_diagnostic)
+    assert caught is original and str(caught)=='Import content ancestor: not owner decor'
+    class Node:
+        def __init__(self, kind, parent=None):
+            self.kind, self.parent = kind, parent
+    def content_ancestor(raw, middle, decor):
+        def chain(start):
+            seen = []
+            current = start
+            while current is not None:
+                if any(node is current for node in seen):
+                    return seen, 'cycle'
+                seen.append(current)
+                if current is decor:
+                    return seen, 'owner_decor'
+                current = current.parent
+            return seen, 'parent_not_view'
+        raw_chain, raw_stop = chain(raw)
+        middle_chain, middle_stop = chain(middle)
+        assert raw_stop == middle_stop == 'owner_decor'
+        raw_roots = [node for node in raw_chain if node.kind == 'content_frame']
+        middle_roots = [node for node in middle_chain if node.kind == 'content_frame']
+        assert len(raw_roots) == len(middle_roots) == 1
+        assert raw_roots[0] is middle_roots[0]
+        return raw_roots[0]
+    decor=Node('decor');page=Node('content_frame',decor)
+    raw=Node('raw',Node('editor',page));middle=Node('middle',Node('host',page))
+    Node('content_frame',decor)  # A sibling stale content ID must not win a decor-wide search.
+    assert content_ancestor(raw,middle,decor) is page
+    bad_roots=[(Node('raw',Node('plain',decor)),middle,decor),
+               (Node('raw',Node('content_frame',page)),middle,decor),
+               (raw,Node('middle',Node('content_frame',decor)),decor),
+               (raw,Node('middle',Node('content_frame',Node('other_decor'))),decor),
+               (raw,Node('middle',Node('detached')),decor)]
+    loop=Node('raw');loop.parent=loop
+    bad_roots.append((loop,middle,decor))
+    for bad_raw,bad_middle,bad_decor in bad_roots:
+        try: content_ancestor(bad_raw,bad_middle,bad_decor)
+        except AssertionError: pass
+        else: raise AssertionError('content ancestor counterexample unexpectedly passed')
     def valid_attempt(a):
         page, stage, values = a['fixture'], a['stage'], a['values']
         assert a['mainThread'] is True

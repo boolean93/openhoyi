@@ -23,6 +23,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.ScrollView
+import android.widget.FrameLayout
 import android.widget.EditText
 import android.widget.ListView
 import android.widget.Button
@@ -1985,9 +1986,42 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             attempt.value("middleCount",null);attempt.value("middleCountStatus","not_evaluated")
             attempt.value("hostCount",null);attempt.value("hostCountStatus","not_evaluated")
             attempt.stage("input-read");val raw=input(owner);attempt.viewReference("input",raw)
-            attempt.stage("page-root-read");val pageRoot=root(owner);attempt.viewReference("pageRoot",pageRoot)
             attempt.stage("form-scroll-read");val middle=field(owner,"formScroll") as ScrollView
             attempt.viewReference("formScroll",middle)
+            attempt.stage("page-root-read")
+            val decor=owner.window.decorView
+            fun parentChain(start:View):Pair<List<View>,String> {
+                val chain=mutableListOf<View>()
+                var current:View?=start
+                while(true) {
+                    val node=current ?: return chain to "parent_not_view"
+                    if(chain.any { it===node }) return chain to "cycle"
+                    chain.add(node)
+                    if(node===decor) return chain to "owner_decor"
+                    current=node.parent as? View
+                }
+            }
+            val rawChain=parentChain(raw);val middleChain=parentChain(middle)
+            fun failAncestor(reason:String):Nothing {
+                val failure=IllegalStateException("Import content ancestor: $reason")
+                try {
+                    for((name,result) in listOf("raw" to rawChain,"formScroll" to middleChain)) {
+                        try { attempt.value("${name}ChainStop",result.second) } catch(_:Throwable) { }
+                        try { attempt.value("${name}Chain",result.first.joinToString(" > ") {
+                            "${System.identityHashCode(it)}:${it.javaClass.name}:${it.id}"
+                        }) } catch(_:Throwable) { }
+                    }
+                } catch(_:Throwable) {
+                    // Diagnostic construction must not replace the original root failure.
+                }
+                throw failure
+            }
+            if(rawChain.second!="owner_decor" || middleChain.second!="owner_decor") failAncestor("not owner decor")
+            val rawRoots=rawChain.first.filter { it.id==android.R.id.content && it is FrameLayout }
+            val middleRoots=middleChain.first.filter { it.id==android.R.id.content && it is FrameLayout }
+            if(rawRoots.size!=1 || middleRoots.size!=1 || rawRoots.single()!==middleRoots.single())
+                failAncestor("not one shared content FrameLayout")
+            val pageRoot=rawRoots.single();attempt.viewReference("pageRoot",pageRoot)
             attempt.stage("raw-count");val rawCount=nodes(pageRoot).count { it===raw }
             attempt.value("rawCount",rawCount);attempt.value("rawCountStatus","evaluated")
             attempt.stage("middle-count");val middleCount=if(rawCount==1) nodes(pageRoot).count { it===middle } else null
