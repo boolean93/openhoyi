@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import android.content.Intent
+import android.content.Context
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
@@ -38,9 +39,10 @@ class LegacyHistoryActivity : ThemedActivity() {
         selectedId = savedInstanceState?.getString("selectedId")
         val root = style.page(this, getString(R.string.legacy_history_title))
         count = style.text("", TaskProductVisualStyle.auxiliary, "legacy/history/count", true)
-        style.add(root, count, 8)
-        val tabsIndex = root.childCount
-        HoyiUi.tabs(this, root, listOf(getString(R.string.journal_tab), getString(R.string.history_local_tab),
+        val information = LegacyHistoryInformationRow(this)
+        root.addView(information, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        information.addView(count, LinearLayout.LayoutParams(-1, -2))
+        HoyiUi.tabs(this, information, listOf(getString(R.string.journal_tab), getString(R.string.history_local_tab),
             getString(R.string.history_legacy_tab)), selected = 2) {
             if (it != 2) {
                 rememberList()
@@ -49,7 +51,7 @@ class LegacyHistoryActivity : ThemedActivity() {
                 })
             }
         }
-        visual.styleTabs(root.getChildAt(tabsIndex))
+        visual.styleTabs(information.getChildAt(1))
         collection = TaskCollectionLayout(this, .34f)
         root.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(16) })
         preview = LegacyHistoryContent(this, visual) { openDetails(it) }
@@ -167,4 +169,36 @@ class LegacyHistoryActivity : ThemedActivity() {
     }
 
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()
+}
+
+/** Measures the existing count and three tabs at natural width before choosing one or two rows. */
+private class LegacyHistoryInformationRow(context: Context) : LinearLayout(context) {
+    init { orientation = VERTICAL; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val count = getChildAt(0)
+        val tabs = getChildAt(1) as LinearLayout
+        val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        count.measure(natural, natural)
+        val minTab = (0 until tabs.childCount).maxOf { index ->
+            tabs.getChildAt(index).measure(natural, natural)
+            maxOf(tabs.getChildAt(index).measuredWidth, (48 * resources.displayMetrics.density).toInt())
+        }
+        val density = resources.displayMetrics.density
+        val gap = (24 * density).toInt()
+        val tabGap = (8 * density).toInt()
+        val available = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+        val inline = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
+            count.measuredWidth + gap + minTab * tabs.childCount + tabGap * (tabs.childCount - 1) <= available
+        orientation = if (inline) HORIZONTAL else VERTICAL
+        (count.layoutParams as LayoutParams).apply { width = if (inline) -2 else -1; height = -2; weight = 0f }
+        (tabs.layoutParams as LayoutParams).apply {
+            width = if (inline) 0 else -1; height = -2; weight = if (inline) 1f else 0f
+            marginStart = if (inline) gap else 0
+            topMargin = if (inline) 0 else (12 * density).toInt()
+            resolveLayoutDirection(this@LegacyHistoryInformationRow.layoutDirection)
+        }
+        count.forceLayout(); tabs.forceLayout()
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
 }

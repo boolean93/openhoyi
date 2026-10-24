@@ -640,7 +640,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             .put("visiblePlotHeightDp",visiblePlotHeight/activity.resources.displayMetrics.density)
             .put("chartMappingVerified",chartVisible.getBoolean("screenMappingVerified"))
             .put("canvasOperations",JSONArray(operations.toString()))
-            .put("chartOriginScreenPx",JSONArray(origin.toList())).put("chartVisibleRectPx",clip)
+            .put("chartOriginScreenPx",JSONArray(origin.toList()))
+            .put("chartRectPx",chartVisible.getJSONArray("rectPx")).put("chartVisibleRectPx",clip)
             .put("chartScrollPx",JSONArray(listOf(chart.scrollX,chart.scrollY)))
             .put("viewportHeightPx",viewport.height)
             .put("scrolls",JSONArray(nodes(owner).filterIsInstance<ScrollView>().map { scroll ->
@@ -703,7 +704,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 "chartIdentity","viewportIdentity","selectedId","listState","points","nativeInvariant",
                 "canvasOperations","actualPlotHeightDp")
             check(fixed.all {state.get(it).toString()==initial.get(it).toString()} &&
-                state.getDouble("actualPlotHeightDp")>=160.0 && state.getBoolean("chartMappingVerified") &&
+                state.getDouble("actualPlotHeightDp")>=160.0 &&
+                state.getDouble("visiblePlotHeightDp")>=160.0 && state.getBoolean("chartMappingVerified") &&
                 state.getInt("detailActionHeightPx")>=HoyiUi.dp(activity,48) &&
                 whole(state.getJSONObject("detailAction")) &&
                 state.getJSONObject("detailAction").getString("semanticId")=="legacy/history/selected/open")
@@ -731,6 +733,9 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         }
         var failure:Throwable?=null
         try {
+            check(initial.getJSONArray("chartRectPx").toString()==initial.getJSONArray("chartVisibleRectPx").toString()) {
+                "M7 main History chart view is clipped before any scroll request" }
+            verify(initial,true)
             var moved=false
             main {moved=chart.requestRectangleOnScreen(request,true)}
             report.put("requestRectangleReturned",moved)

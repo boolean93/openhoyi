@@ -24,10 +24,9 @@ internal class LegacyHistoryContent(context: Context, private val visual: Legacy
     init {
         orientation = VERTICAL; visual.panel(this)
         val heading = LegacyNaturalFlow(context, style.dp(16), style.dp(8)).apply {
-            addView(title); addView(visual.readonly())
+            addView(title); addView(visual.readonly()); addView(metadata)
         }
         style.add(this, heading)
-        style.add(this, metadata, 8)
         addView(chartViewport, LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(16) })
         val footer = LegacyNoticeActionRow(context, visual.warning(context.getString(R.string.legacy_visual_notice),
             "legacy/history/selected/notice"), action, style.dp(16))

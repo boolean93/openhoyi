@@ -29,7 +29,7 @@ def validate(report, initial, reached, restored, density):
              'detailActionHeightPx','actualPlotHeightDp')
     for state in (initial,reached,restored):
         assert all(state[key] == initial[key] for key in fixed)
-        assert state['actualPlotHeightDp'] >= 160 and state['chartMappingVerified']
+        assert state['actualPlotHeightDp'] >= 160 and state['visiblePlotHeightDp'] >= 160 and state['chartMappingVerified']
         assert state['detailActionHeightPx'] >= math.ceil(48*density)
         assert state['detailAction']['semanticId'] == 'legacy/history/selected/open' and state['detailAction']['complete']
         assert len(state['timeTicks']) == len(ticks)
@@ -43,10 +43,11 @@ def validate(report, initial, reached, restored, density):
             float_box=[struct.unpack('>f',struct.pack('>f',value))[0] for value in box]
             assert screen == [origin[0]+float_box[0],origin[1]+float_box[1],
                               origin[0]+float_box[2],origin[1]+float_box[3]]
-            if state is reached:
-                assert after['wholeGlyph'] is True
-                assert clip[0] <= screen[0] < screen[2] <= clip[2]
-                assert clip[1] <= screen[1] < screen[3] <= clip[3]
+            assert after['wholeGlyph'] is True
+            assert clip[0] <= screen[0] < screen[2] <= clip[2]
+            assert clip[1] <= screen[1] < screen[3] <= clip[3]
+        if state is initial:
+            assert state['chartRectPx'] == clip
     assert restored['scrolls'] == initial['scrolls'] and restored['timeTicks'] == initial['timeTicks']
 
 
@@ -105,7 +106,8 @@ def sample():
                 canvasOperations=[{'operation':'text','role':'time-tick','text':'0s','glyphBoundsPx':[5,60,15,70]},
                                   {'operation':'text','role':'time-tick','text':'30s','glyphBoundsPx':[75,60,90,70]}],
                 detailAction={'complete': True, 'semanticId': 'legacy/history/selected/open', 'textLineBoxes': []},
-                actualPlotHeightDp=160, chartMappingVerified=True,
+                actualPlotHeightDp=160, visiblePlotHeightDp=160, chartMappingVerified=True,
+                chartRectPx=[0,0,100,100],
                 chartOriginScreenPx=[0, 0], chartVisibleRectPx=[0, 0, 100, 100],
                 scrolls=[{'identity': 8, 'tag': 'legacy/chart/viewport', 'x': 0, 'y': 0}],
                 timeTicks=[{'index': 0, 'role': 'time-tick', 'text': '0s', 'glyphBoundsPx': [5, 60, 15, 70], 'screenBoundsPx': [5, 60, 15, 70], 'wholeGlyph': True},
@@ -126,6 +128,7 @@ def serialized_float_sample():
         state['canvasOperations'][0]['glyphBoundsPx']=bounds[:]
         state['chartOriginScreenPx']=[1090,692 if state is not report['reached'] else 672]
         state['chartVisibleRectPx']=[1000,700,1400,1400]
+        state['chartRectPx']=[1000,700,1400,1400]
         tick=state['timeTicks'][0]
         tick['glyphBoundsPx']=bounds[:]
         origin=state['chartOriginScreenPx']
@@ -184,6 +187,8 @@ class AxisContractTest(unittest.TestCase):
                 (a['initial'],a['reached'],a['restored'])]),
             ('wrong-index', lambda a: a['reached']['timeTicks'][0].update(index=5)),
             ('outside-clip', lambda a: a['reached']['timeTicks'][0].update(screenBoundsPx=[5, 40, 15, 101])),
+            ('initial-clipped-reached-whole', lambda a: [state.update(chartVisibleRectPx=[0,0,100,65],visiblePlotHeightDp=120)
+                for state in (a['initial'],a['restored'])]),
             ('wrong-scroll', lambda a: a['restored']['scrolls'][0].update(y=1)),
             ('wrong-selection', lambda a: a['reached'].update(selectedId='other')),
             ('new-window', lambda a: a['reached'].update(windowIdentity=9)),
