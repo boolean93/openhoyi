@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "d83eb887cfd020fa4e1bdb945953920bbd7d6dbf41dafcb6d89d3e8eba649e84",
+  "sha256": "4d1e492666f030faef54b59b9446f5beec8851a917c06245d9f748f900c6b36e",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
@@ -538,6 +538,7 @@
     "curve_filter_selected_suffix": "，已选中",
     "curve_row_summary": "%1$s · %2$s",
     "curve_slot_assigned": "已将%1$s放入槽位 %2$s",
+    "curve_slot_assigned_latest": "已设为快捷槽位 %1$s",
     "curve_result_count": "找到 %1$s 条曲线",
     "curve_title": "曲线库",
     "curve_subtitle": "搜索、预览并选用曲线",

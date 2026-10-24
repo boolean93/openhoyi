@@ -535,6 +535,7 @@
   "curve_filter_selected_suffix": ", выбрано",
   "curve_row_summary": "%1$s · %2$s",
   "curve_slot_assigned": "%1$s помещён в слот %2$s",
+  "curve_slot_assigned_latest": "Назначена в быстрый слот %1$s",
   "curve_result_count": "Найдено профилей: %1$s",
   "curve_title": "Библиотека профилей",
   "curve_subtitle": "Ищите, просматривайте и выбирайте профили",

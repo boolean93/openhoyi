@@ -535,6 +535,7 @@
   "curve_filter_selected_suffix": ", seleccionada",
   "curve_row_summary": "%1$s · %2$s",
   "curve_slot_assigned": "%1$s asignada a la ranura %2$s",
+  "curve_slot_assigned_latest": "Asignada a la ranura rápida %1$s",
   "curve_result_count": "Se encontraron %1$s curvas",
   "curve_title": "Biblioteca de curvas",
   "curve_subtitle": "Buscar, previsualizar y seleccionar curvas",

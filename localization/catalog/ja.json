@@ -535,6 +535,7 @@
   "curve_filter_selected_suffix": "、選択済み",
   "curve_row_summary": "%1$s · %2$s",
   "curve_slot_assigned": "%1$sをスロット%2$sに配置済み",
+  "curve_slot_assigned_latest": "クイックスロット%1$sに設定済み",
   "curve_result_count": "%1$s件の曲線が見つかりました",
   "curve_title": "曲線ライブラリ",
   "curve_subtitle": "曲線を検索・プレビュー・選択",
