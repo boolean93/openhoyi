@@ -40,7 +40,7 @@
 | P0 LegacyCurveActivity | a47短Activity原mapping失败；尚缺正式34:66列表/四参数卡、固定导入返回、短窗滚达原件 | 只读标题、参数、来源角色补审 | 真实参数/限制说明、短窗自然高完整行盒补审 | 浅深选中/只读色补审 | dc显式短窗模式可产证；原默认Activity协议未放宽 |
 | P1 LegacyHistoryActivity | bcc single三屏型中文浅深只证明已看初态图结构/真实plot下限和返回身份；未完成正式34:66列表+预览、标准160/短96、来源滚达 | 正式列表/图轴/来源实际字体待G2对照 | single不保存完整正式Canvas账本；需轴墨迹、参数单位bar/ml/s与滚后全文 | 正式四配置选中/图系列/只读色补审 | M7正式流程可补；不把single成功升格G1–4全过 |
 | P1 LegacyHistoryDetailActivity | bcc single限定已过初态；正式2/3图+1/3来源/缺失/限制三段与滚达恢复待验 | 三段及轴字实际字体补审 | 压力/水流真实图、完整轴/说明行盒待核；不伪造原生重量/温度 | 正式浅深图系列与缺失提示补审 | M7能产；single不代替正式12主态与特殊态 |
-| P0 AppSettingsActivity | a47浅1.3初图+26reach已采但非完整设计接受；首theme点击false-return阻断。需640dp中心四组、八语言滚达/恢复等实际对照 | 四组、八语言实际角色/可见字形补审；非中文fallback不得冒充中文同字体 | 自然行高、完整说明、主题重建/反馈/SAF既有状态及dialog行盒补审 | 四配置选中/禁用/拒绝/反馈状态补审 | dc仅精确修CompoundButton返回值并加计时；滚动条渐隐仍可能失败，未宣称解决 |
+| P0 AppSettingsActivity | 588855c四主配置+各26滚达目标+restored已审，普通主页面视觉覆盖收口；[限定报告§4](2026-10-24-app-settings-main-limited-review.md) | 可见中文角色及下半页字体接受；八语言/非中文fallback特殊态仍待审 | 1.3试听说明滚达、完整四项信息/诊断动作、原scroll精确恢复及app像素相等接受；dialog/重建/反馈/SAF状态未覆盖 | 普通浅深色主态接受；拒绝/错误/特殊色态待审 | 108原件逐目标核证、65唯一画面联系表+四张下半页原分辨率图审；不签整个AppSettings状态范围 |
 | P1 MachineSettingsActivity | 缺正式四配置40:60、五tab/section、原控件与原生dialog实图；App提前退出曾阻断 | 原输入/单位、dialog自身字体及按钮角色补审 | 原52输入、长非法值限制、8间距、IME/schedule完整safeRect待核 | Service启停、禁用/陈旧与浅深补审 | 当前M8可产证；原生window身份/映射失败必须保留。真实写ACK不能由Mock合法预览代替 |
 | P1 ScaleSettingsActivity | [588四主态](2026-10-23-m8-scale-settings-four-main-review.md)已实看688dp含边距、左右24dp与三组；[56目标+4恢复](2026-10-23-m8-scale-settings-reachability-review.md)已全部限定接受，不再列四主态/主说明缺图 | 四主态和56目标的标签/精度/说明/动作实际字体限定接受，依既定终点不再重复pending | 两档1.3帮助全文及所有主目标自然行框、独立滚达、四restore已闭环；不是要求全部帮助同屏 | 已审四主态与主目标浅深层次接受；未审特殊态不外推 | source588实际图；precision-recreated/real-scale-no-data等特殊态依其独立报告与未审范围，不据主态签整M8；真实设备能力另验 |
 

@@ -8,6 +8,8 @@ import android.text.TextWatcher
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.view.View
+import android.view.Gravity
+import android.view.WindowInsets
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -376,7 +378,8 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
             errorResource = if (result.isSuccess) null else R.string.dose_save_failed
             if (result.isSuccess) renderPreparation() else { error?.setText(R.string.dose_save_failed); select.isEnabled = true }
         }
-        action(getString(R.string.dose_return)) { finish() }
+        val back = action(getString(R.string.dose_return)) { finish() }
+        workspace.actionRowButtons = select to back
         renderScale()
     }
     private fun captureAllowed(): Boolean = !BuildConfig.MOCK_MODE && changesAllowed() && owner?.machineControlSafetyMessage == null
@@ -413,6 +416,9 @@ private class PreparationWorkspace(context: android.content.Context, private val
     val secondaryBody = style.column()
     var editor: EditText? = null
     var actions: View? = null
+    var actionRowButtons: Pair<Button, Button>? = null
+    private var originalActionGravity: Int? = null
+    private var originalActionBaselineAligned: Boolean? = null
     init { isBaselineAligned = false; tag = "task-workspace"; addView(primaryBody); addView(secondaryBody) }
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val width = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
@@ -422,16 +428,80 @@ private class PreparationWorkspace(context: android.content.Context, private val
         val secondaryWidth = if (split) minOf((width * .5f).toInt().coerceIn(style.dp(280), style.dp(680)), width - style.dp(320 + 24)) else width
         val innerWidth = (secondaryWidth - secondaryBody.paddingLeft - secondaryBody.paddingRight).coerceAtLeast(0)
         val exact = View.MeasureSpec.makeMeasureSpec(innerWidth, View.MeasureSpec.EXACTLY)
+        val buttons = actionRowButtons
+        val dock = actions as? LinearLayout
+        val gap = style.dp(8)
+        fun setActionRow(horizontal: Boolean) {
+            if (buttons == null || dock == null) return
+            if (originalActionGravity == null) originalActionGravity = dock.gravity
+            if (originalActionBaselineAligned == null) originalActionBaselineAligned = dock.isBaselineAligned
+            dock.orientation = if (horizontal) HORIZONTAL else VERTICAL
+            dock.gravity = if (horizontal) Gravity.CENTER_VERTICAL else requireNotNull(originalActionGravity)
+            dock.isBaselineAligned = if (horizontal) false else requireNotNull(originalActionBaselineAligned)
+            val (save, back) = buttons
+            (save.layoutParams as LayoutParams).apply {
+                this.width = if (horizontal) 0 else -1; this.height = -2; weight = if (horizontal) 1f else 0f
+                marginStart = 0; marginEnd = 0; topMargin = 0; bottomMargin = 0
+                resolveLayoutDirection(dock.layoutDirection)
+            }
+            (back.layoutParams as LayoutParams).apply {
+                this.width = if (horizontal) -2 else -1; this.height = -2; weight = 0f
+                marginStart = if (horizontal) gap else 0; marginEnd = 0
+                topMargin = if (horizontal) 0 else gap; bottomMargin = 0
+                resolveLayoutDirection(dock.layoutDirection)
+            }
+            save.forceLayout(); back.forceLayout(); dock.forceLayout()
+        }
+        // Always measure the original vertical arrangement first, never the previous compact result.
+        setActionRow(false)
         actions?.measure(exact, free)
         val actionParams = actions?.layoutParams as? LayoutParams
-        val actionHeight = actions?.measuredHeight ?: 0
+        val verticalActionHeight = actions?.measuredHeight ?: 0
         val actionMargins = (actionParams?.topMargin ?: 0) + (actionParams?.bottomMargin ?: 0)
         val editorMinimum = editor?.let { field ->
             field.measure(exact, free)
             maxOf(style.dp(52), field.measuredHeight, field.minimumHeight, field.minHeight)
         } ?: 0
         val panePadding = secondaryBody.paddingTop + secondaryBody.paddingBottom
-        val minimumSecondary = panePadding + actionHeight + actionMargins + maxOf(editorMinimum, style.dp(48))
+        val editorBudget = maxOf(editorMinimum, style.dp(48))
+        val verticalRequired = panePadding + verticalActionHeight + actionMargins + editorBudget
+        val imeVisible = android.os.Build.VERSION.SDK_INT >= 30 &&
+            rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true
+        val eligible = buttons != null && dock?.childCount == 2 && editor?.isFocused == true
+        var saveNaturalWidth = 0
+        var backNaturalWidth = 0
+        var saveAllocatedWidth = 0
+        var compactNaturalWidth = 0
+        var compactNaturalHeight = 0
+        var compactReason = "not_needed"
+        var compact = false
+        if (imeVisible && split && eligible && verticalRequired > height) {
+            val (save, back) = requireNotNull(buttons)
+            save.measure(free, free); back.measure(free, free)
+            saveNaturalWidth = maxOf(save.measuredWidth, save.minimumWidth, save.minWidth)
+            backNaturalWidth = maxOf(back.measuredWidth, back.minimumWidth, back.minWidth)
+            compactNaturalWidth = saveNaturalWidth + gap + backNaturalWidth
+            if (compactNaturalWidth <= innerWidth) {
+                saveAllocatedWidth = innerWidth - backNaturalWidth - gap
+                save.measure(View.MeasureSpec.makeMeasureSpec(saveAllocatedWidth, View.MeasureSpec.EXACTLY), free)
+                back.measure(View.MeasureSpec.makeMeasureSpec(backNaturalWidth, View.MeasureSpec.EXACTLY), free)
+                compactNaturalHeight = maxOf(save.measuredHeight, back.measuredHeight)
+                if (height - panePadding - actionMargins - compactNaturalHeight >= editorBudget) {
+                    compact = true; compactReason = "enabled"
+                } else compactReason = "compact_budget_insufficient"
+            } else compactReason = "natural_width_insufficient"
+        } else if (!imeVisible) compactReason = "ime_hidden"
+        else if (!split) compactReason = "not_split"
+        else if (!eligible) compactReason = "not_editing"
+        if (compact) setActionRow(true) else setActionRow(false)
+        actions?.measure(exact, free)
+        var actionHeight = actions?.measuredHeight ?: 0
+        if (compact && height - panePadding - actionMargins - actionHeight < editorBudget) {
+            compact = false; compactReason = "measured_compact_budget_insufficient"
+            setActionRow(false); actions?.measure(exact, free)
+            actionHeight = actions?.measuredHeight ?: 0
+        }
+        val minimumSecondary = panePadding + actionHeight + actionMargins + editorBudget
         val stackedGap = if (split) 0 else style.dp(24)
         val secondaryHeight = if (split) height else minOf(minimumSecondary, (height - stackedGap).coerceAtLeast(0))
         val primaryHeight = (height - secondaryHeight - stackedGap).coerceAtLeast(0)
@@ -456,6 +526,20 @@ private class PreparationWorkspace(context: android.content.Context, private val
             .put("editorNaturalMinimumPx", editorMinimum).put("minimumSecondaryHeightPx", minimumSecondary)
             .put("secondaryBudgetSatisfiable", secondaryHeight >= minimumSecondary)
             .put("supportViewportBudgetPx", (secondaryHeight - panePadding - actionHeight - actionMargins).coerceAtLeast(0))
+            .put("actionRowImeVisible",imeVisible).put("actionRowEligible",eligible)
+            .put("actionsVerticalRequiredPx",verticalRequired).put("actionsVerticalNaturalHeightPx",verticalActionHeight)
+            .put("actionsInnerWidthPx",innerWidth).put("saveNaturalWidthPx",saveNaturalWidth)
+            .put("backNaturalWidthPx",backNaturalWidth).put("saveAllocatedWidthPx",saveAllocatedWidth)
+            .put("actionsCompactNaturalWidthPx",compactNaturalWidth).put("actionsCompactNaturalHeightPx",compactNaturalHeight)
+            .put("actionsCompactEnabled",compact).put("actionsCompactReason",compactReason)
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+    }
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        actions?.let { dock ->
+            val location=IntArray(2); dock.getLocationOnScreen(location)
+            evidence.put("actionsFinalRectPx",org.json.JSONArray(listOf(location[0],location[1],
+                location[0]+dock.width,location[1]+dock.height))).put("actionsFinalHeightPx",dock.height)
+        }
     }
 }

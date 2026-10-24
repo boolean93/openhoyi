@@ -17,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
 import android.widget.ScrollView
+import android.widget.LinearLayout
 import android.widget.EditText
 import android.widget.Button
 import android.widget.TextView
@@ -722,11 +723,35 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         stableWindow(page,directory,"preparation-amount-IME")
         diagnostic(page,File(directory,"states/preparation-amount-IME"))
         main {
+            val budget=(page as BeanPreparationActivity).productLayoutEvidence
+            val actions=requireNotNull(root(page).findViewWithTag<LinearLayout>("product/preparation/actions"))
+            check(budget.getBoolean("actionRowImeVisible") && budget.getBoolean("actionRowEligible") &&
+                budget.getBoolean("secondaryBudgetSatisfiable") &&
+                budget.getInt("supportViewportBudgetPx")>=budget.getInt("editorNaturalMinimumPx"))
+            val needsCompact=budget.getBoolean("workspaceWidthFirstSplit") &&
+                budget.getInt("actionsVerticalRequiredPx")>budget.getInt("secondaryHeightPx")
+            check(budget.getBoolean("actionsCompactEnabled")==needsCompact &&
+                actions.orientation==(if(needsCompact) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL))
+            check(actions.childCount==2 &&
+                budget.getInt("actionsFinalHeightPx")==actions.height &&
+                budget.getJSONArray("actionsFinalRectPx").length()==4)
             check(whole(observation(field(page,"amount") as EditText))) { "M4 actual amount not completely reachable with IME" }
             listOf(R.string.dose_save_selection,R.string.dose_return).forEach { id ->
                 val button=action(page,id); check(whole(observation(button)) && button.height>=HoyiUi.dp(page,if(id==R.string.dose_save_selection) 56 else 48)) }
         }
-        unfocus(page); record("actual-amount-IME-local-reveal-and-fixed-actions")
+        unfocus(page); frames.committedFrame(root(page))
+        main {
+            val budget=(page as BeanPreparationActivity).productLayoutEvidence
+            val actions=requireNotNull(root(page).findViewWithTag<LinearLayout>("product/preparation/actions"))
+            check(!budget.getBoolean("actionRowImeVisible") && !budget.getBoolean("actionsCompactEnabled") &&
+                actions.orientation==LinearLayout.VERTICAL)
+            val first=actions.getChildAt(0).layoutParams as LinearLayout.LayoutParams
+            val second=actions.getChildAt(1).layoutParams as LinearLayout.LayoutParams
+            check(first.width==-1 && first.weight==0f && first.topMargin==0 &&
+                second.width==-1 && second.weight==0f && second.topMargin==HoyiUi.dp(page,8) &&
+                second.marginStart==0 && second.marginEnd==0)
+        }
+        record("actual-amount-IME-local-reveal-and-fixed-actions")
         for(invalid in listOf("18.0001","0","bad")) {
             amount(invalid); click(page,R.string.dose_save_selection); error(R.string.dose_bad_amount)
             check(scope.preparation.current()==null && scope.inventory.events()==initialEvents); record("invalid-$invalid-no-intent-or-stock-write")
