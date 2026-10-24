@@ -13,6 +13,8 @@ import android.widget.Switch
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.view.View
+import java.lang.ref.WeakReference
 
 /** Offline app preferences. Binds only an already-running owner for notification display refresh. */
 class AppSettingsActivity : ThemedActivity() {
@@ -23,6 +25,12 @@ class AppSettingsActivity : ThemedActivity() {
         private set
     internal lateinit var themeError: TextView
         private set
+    internal lateinit var exportStatus: TextView
+        private set
+    private var exportNormalColor = 0
+    private var exportGeneration = 0L
+    private var exportStarted = false
+    private var pendingExportResult: Pair<String, Boolean>? = null
     private var service: MobileService? = null
     private var bound = false
     private var updatingTheme = false
@@ -65,7 +73,7 @@ class AppSettingsActivity : ThemedActivity() {
             if (!updatingTheme) {
                 val previous = appearance.getBoolean("dark", false)
                 val saved = runCatching { appearanceWrite(dark) }.getOrDefault(false)
-                if (saved) { themeError.text = ""; service?.refreshNotificationDisplay(); recreate() }
+                if (saved) { themeError.text = "";invalidateExportResult();service?.refreshNotificationDisplay(); recreate() }
                 else {
                     // SharedPreferences may update its memory even when disk commit reports failure.
                     runCatching { appearanceWrite(previous) }
@@ -77,7 +85,7 @@ class AppSettingsActivity : ThemedActivity() {
             }
         }
         settingsDivider(this, theme, visual)
-        languageCard = AppLanguagePreferencesCard(this, theme, embedded = true, visual = visual) { service?.refreshNotificationDisplay(); recreate() }
+        languageCard = AppLanguagePreferencesCard(this, theme, embedded = true, visual = visual) { invalidateExportResult();service?.refreshNotificationDisplay(); recreate() }
         feedbackCard = BrewFeedbackPreferencesCard(this, body, visual)
         val info = settingsGroup(this, body, getString(R.string.application_info), visual)
         fun infoRow(label: Int, value: String, description: String = value, selectable: Boolean = false) {
@@ -101,11 +109,17 @@ class AppSettingsActivity : ThemedActivity() {
         val diagnostics = settingsGroup(this, body, getString(R.string.settings_diagnostics_devices), visual)
         style.add(diagnostics,style.text(getString(R.string.app_settings_export_hint),TaskProductVisualStyle.auxiliary,secondary=true))
         HoyiUi.button(this, diagnostics, getString(R.string.app_settings_export)) {
+            invalidateExportResult()
             startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("application/zip")
                 .putExtra(Intent.EXTRA_TITLE, "openhoyi-diagnostics-${System.currentTimeMillis()}.zip"), EXPORT_LOGS)
         }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL
             visual.action(this,icon="export",atEnd=true);tag="product/settings/app/export"
         }
+        exportNormalColor=style.ink
+        exportStatus=style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/export/result").apply {
+            visibility=View.GONE;accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
+        }
+        style.add(diagnostics,exportStatus,8)
         settingsDivider(this, diagnostics, visual)
         HoyiUi.button(this, diagnostics, getString(R.string.app_settings_machine)) {
             startActivity(Intent(this, MachineSettingsActivity::class.java))
@@ -115,6 +129,8 @@ class AppSettingsActivity : ThemedActivity() {
     }
     override fun onStart() {
         super.onStart()
+        exportStarted=true
+        pendingExportResult?.let {showExportResult(it.first,it.second);pendingExportResult=null}
         feedbackCard.start(); feedbackCard.refresh()
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
     }
@@ -124,10 +140,12 @@ class AppSettingsActivity : ThemedActivity() {
         super.onPause()
     }
     override fun onStop() {
+        exportStarted=false;invalidateExportResult()
         feedbackCard.stop(); languageCard.close(); release()
         super.onStop()
     }
     override fun onDestroy() {
+        exportStarted=false;invalidateExportResult()
         if (::feedbackCard.isInitialized) feedbackCard.stop()
         if (::languageCard.isInitialized) languageCard.close()
         release()
@@ -137,10 +155,31 @@ class AppSettingsActivity : ThemedActivity() {
         if (bound) { unbindService(connection); bound = false }
         service = null
     }
+    private fun clearExportResult() {
+        pendingExportResult=null
+        if (::exportStatus.isInitialized) {exportStatus.text="";exportStatus.visibility=View.GONE}
+    }
+    private fun invalidateExportResult() {exportGeneration++;clearExportResult()}
+    private fun showExportResult(message:String,failed:Boolean) {
+        exportStatus.setTextColor(if(failed)getColor(R.color.mobile_danger) else exportNormalColor)
+        exportStatus.text=message;exportStatus.visibility=View.VISIBLE
+    }
+    private fun deliverExportResult(generation:Long,message:String,failed:Boolean) {
+        if (isDestroyed || isFinishing || generation!=exportGeneration) return
+        if (exportStarted) showExportResult(message,failed)
+        else pendingExportResult=message to failed
+    }
     @Deprecated("Platform activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == EXPORT_LOGS && resultCode == RESULT_OK) data?.data?.let { (application as MobileApplication).export(it) }
+        if (requestCode == EXPORT_LOGS && resultCode == RESULT_OK) data?.data?.let {uri->
+            invalidateExportResult()
+            val generation=exportGeneration
+            val owner=WeakReference(this)
+            (application as MobileApplication).export(uri) {message,failed->
+                owner.get()?.deliverExportResult(generation,message,failed)
+            }
+        }
     }
     companion object { private const val EXPORT_LOGS = 64 }
 }

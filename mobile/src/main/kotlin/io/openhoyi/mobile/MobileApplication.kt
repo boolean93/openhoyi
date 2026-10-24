@@ -187,7 +187,7 @@ class MobileApplication : Application() {
             }
         }, "legacy-history-import").start()
     }
-    fun export(uri: Uri) {
+    fun export(uri: Uri, onResult: ((String, Boolean) -> Unit)? = null) {
         logs.record("ui.export")
         try {
             logs.export({ contentResolver.openOutputStream(uri, "wt") ?: error("No output stream") }) { error ->
@@ -197,11 +197,14 @@ class MobileApplication : Application() {
                     // Keep diagnostic log text stable; resolve the UI text using current resources.
                     val displayMessage = if (error == null) getString(R.string.export_trace_success)
                         else getString(R.string.export_trace_failed, error.javaClass.simpleName)
-                    Toast.makeText(this, displayMessage, Toast.LENGTH_LONG).show()
+                    if(onResult==null)Toast.makeText(this, displayMessage, Toast.LENGTH_LONG).show()
+                    else onResult(displayMessage,error!=null)
                 }
             }
         } catch (error: RuntimeException) {
-            Toast.makeText(this, getString(R.string.export_trace_not_started, error.javaClass.simpleName), Toast.LENGTH_LONG).show()
+            val displayMessage=getString(R.string.export_trace_not_started, error.javaClass.simpleName)
+            if(onResult==null)Toast.makeText(this, displayMessage, Toast.LENGTH_LONG).show()
+            else Handler(Looper.getMainLooper()).post {onResult(displayMessage,true)}
         }
     }
     fun exportHistory(uri: Uri) {

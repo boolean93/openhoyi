@@ -761,6 +761,10 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         File(folder,"dialog-typography.json").writeText(JSONObject().put("source","accepted_explicit_dialog_window_target_geometry_not_owner_Activity")
             .put("nodes",frame.target.getJSONArray("nodes")).toString(2))
         if(languageRejected) {
+            val observed=frame.target.getJSONArray("nodes")
+            val error=(0 until observed.length()).map {observed.getJSONObject(it)}.single {
+                it.optString("semanticId")=="product/settings/app/language/error" }
+            check(whole(error) && error.getJSONArray("textLineBoxes").getJSONObject(0).getString("text")==owner.getString(R.string.language_save_failed))
             val safe=frame.target.getJSONObject("safeControls")
             File(folder,"safe-controls.json").writeText(safe.toString(2))
             check(safe.getBoolean("callbackIsDialog") && safe.getBoolean("dialogWindowIsWindow") && safe.getBoolean("ownerMatches") &&
@@ -810,6 +814,8 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                     .put("isShown",view.isShown)})).toString(2))
         }
     }
+    private fun mainDialogStatus(dialog:AlertDialog,tag:String):TextView =
+        nodes(requireNotNull(dialog.window).decorView).single {it.tag==tag} as TextView
     /** SDK34 read-only identity discovery; missing reflection or an ambiguous Window is a hard failure. */
     private fun focusedDialog(activity:Activity):AlertDialog? {
         val candidates=android.view.inspector.WindowInspector.getGlobalWindowViews().filter {it!==activity.window.decorView && it.isAttachedToWindow && it.isLaidOut && it.hasWindowFocus()}
@@ -867,22 +873,21 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         try {
             picker(Activity.RESULT_CANCELED,null);test.waitForIdleSync();main {}
             check(provider("stats").getInt("write:output.json")==0)
+            main {val status=tagged(activity,"product/settings/app/export/result") as TextView;check(!status.isShown && status.text.isEmpty())}
             result.put(JSONObject().put("case","saf-cancel").put("writes",0).put("originalCallback",true))
             val failedPrefix=activity.getString(R.string.export_trace_failed,"")
-            val failed=test.uiAutomation.executeAndWaitForEvent({picker(Activity.RESULT_OK,CurveFixtureProvider.uri(session,"valid.json"))}, {event->
-                event.eventType==android.view.accessibility.AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED && event.packageName?.toString()==context.packageName && event.text.any {it.toString().startsWith(failedPrefix)}
-            },10000)
-            try {check(failed.text.any {it.toString().startsWith(failedPrefix)})}finally {failed.recycle()}
+            picker(Activity.RESULT_OK,CurveFixtureProvider.uri(session,"valid.json"))
+            await("actual SAF failure inline result") {val status=tagged(activity,"product/settings/app/export/result") as TextView
+                status.isShown && status.text.toString().startsWith(failedPrefix) && status.text.length>failedPrefix.length}
             scope.expectedTraceExportErrors++
-            result.put(JSONObject().put("case","saf-failure").put("actualFailedToast",true).put("outputWrites",provider("stats").getInt("write:output.json")))
-            val success=test.uiAutomation.executeAndWaitForEvent({picker(Activity.RESULT_OK,CurveFixtureProvider.uri(session,"output.json"))}, {event->
-                event.eventType==android.view.accessibility.AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED && event.packageName?.toString()==context.packageName && event.text.any {it.toString()==activity.getString(R.string.export_trace_success)}
-            },10000)
-            try {check(success.text.any {it.toString()==activity.getString(R.string.export_trace_success)})}finally {success.recycle()}
+            result.put(JSONObject().put("case","saf-failure").put("actualFailedInline",true).put("outputWrites",provider("stats").getInt("write:output.json")))
+            picker(Activity.RESULT_OK,CurveFixtureProvider.uri(session,"output.json"))
+            await("actual SAF success inline result") {val status=tagged(activity,"product/settings/app/export/result") as TextView
+                status.isShown && status.text.toString()==activity.getString(R.string.export_trace_success)}
             check(provider("stats").getInt("write:output.json")==1)
             val bytes=requireNotNull(context.contentResolver.openInputStream(CurveFixtureProvider.uri(session,"output.json"))).use {it.readBytes()}
             val names=mutableListOf<String>();java.util.zip.ZipInputStream(bytes.inputStream()).use {zip->while(true) {val entry=zip.nextEntry ?: break;names.add(entry.name);zip.readBytes()}}
-            check("metadata.json" in names);result.put(JSONObject().put("case","saf-owned-success").put("zipEntries",JSONArray(names)).put("actualSuccessToast",true).put("outputWrites",provider("stats").getInt("write:output.json")))
+            check("metadata.json" in names);result.put(JSONObject().put("case","saf-owned-success").put("zipEntries",JSONArray(names)).put("actualSuccessInline",true).put("outputWrites",provider("stats").getInt("write:output.json")))
         } finally {provider("cleanup");check(ownedProviderSessions.remove(session));providerLifecycle.put(JSONObject().put("session",session).put("operation","owned_provider_cleanup_returned"))}
         check(folder.isDirectory || folder.mkdirs());File(folder,"saf-business.json").writeText(JSONObject().put("cases",result).put("providerSession",session).put("providerSessionRemoved",!ownedProviderSessions.contains(session)).toString(2))
     }
@@ -905,7 +910,8 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             val index=AppLanguage.entries.indexOf(AppLanguage.ENGLISH);chooser.listView.setSelection(index)
         }
         frames.committedFrame(requireNotNull(chooser.window).decorView)
-        main {val index=AppLanguage.entries.indexOf(AppLanguage.ENGLISH);val row=chooser.listView.getChildAt(index-chooser.listView.firstVisiblePosition);check(chooser.listView.performItemClick(row,index,chooser.listView.adapter.getItemId(index)));check(app.languagePreferences.current==AppLanguage.CHINESE && chooser.listView.checkedItemPosition==0)}
+        main {val index=AppLanguage.entries.indexOf(AppLanguage.ENGLISH);val row=chooser.listView.getChildAt(index-chooser.listView.firstVisiblePosition);check(chooser.listView.performItemClick(row,index,chooser.listView.adapter.getItemId(index)));check(app.languagePreferences.current==AppLanguage.CHINESE && chooser.listView.checkedItemPosition==0)
+            val error=mainDialogStatus(chooser,"product/settings/app/language/error");check(error.isShown && error.text.toString()==activity.getString(R.string.language_save_failed))}
         captureDialog(chooser,File(folder,"language-write-rejected"));dismiss(chooser,activity)
         main {scope.rejectLanguageWrites=false}
         cases.put(JSONObject().put("case","language-write-rejected").put("acceptanceStatus","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE"))
@@ -917,7 +923,9 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         }
         main {scope.rejectFeedbackWrites=true}
         click(activity,"product/settings/app/feedback/toggle")
-        main {check(!scope.feedback.enabled && !activity.feedbackCard.enabledSwitch.isChecked)};state("feedback-write-rejected")
+        main {check(!scope.feedback.enabled && !activity.feedbackCard.enabledSwitch.isChecked)
+            val error=tagged(activity,"product/settings/app/feedback/error") as TextView
+            check(error.isShown && error.text.toString()==activity.getString(R.string.feedback_save_failed))};state("feedback-write-rejected")
         main {scope.rejectFeedbackWrites=false}
         click(activity,"product/settings/app/feedback/toggle");main {check(scope.feedback.enabled)}
         click(activity,"product/settings/app/feedback/preview")

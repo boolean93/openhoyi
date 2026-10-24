@@ -538,8 +538,8 @@ for path in manifests:
             entries={item['case']:item for item in saf['cases']}
             assert len(saf['cases'])==3 and set(entries)=={'saf-cancel','saf-failure','saf-owned-success'}
             assert entries['saf-cancel']['writes']==0 and entries['saf-cancel']['originalCallback']
-            assert entries['saf-failure']['actualFailedToast'] and entries['saf-failure']['outputWrites']==0
-            assert entries['saf-owned-success']['actualSuccessToast'] and entries['saf-owned-success']['outputWrites']==1 and 'metadata.json' in entries['saf-owned-success']['zipEntries']
+            assert entries['saf-failure']['actualFailedInline'] and entries['saf-failure']['outputWrites']==0
+            assert entries['saf-owned-success']['actualSuccessInline'] and entries['saf-owned-success']['outputWrites']==1 and 'metadata.json' in entries['saf-owned-success']['zipEntries']
             owned=[item for item in isolation['providerLifecycle'] if item['session']==saf['providerSession']]
             assert [item['operation'] for item in owned]==['created_owned_provider','owned_provider_cleanup_returned']
         pending.extend(case['acceptanceStatus'] for case in special['cases'] if case.get('acceptanceStatus','').startswith('PENDING'))

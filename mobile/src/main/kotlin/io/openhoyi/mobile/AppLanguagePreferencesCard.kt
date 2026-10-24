@@ -4,7 +4,9 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
+import android.view.View
 
 /** Local language storage and display only; the Activity owns its notification/rebuild callback. */
 internal class AppLanguagePreferencesCard(
@@ -17,6 +19,8 @@ internal class AppLanguagePreferencesCard(
 ) {
     val button: Button
     var dialog: AlertDialog? = null
+        private set
+    internal var dialogError: TextView? = null
         private set
     init {
         val card = if (embedded) parent else HoyiUi.card(activity, parent, activity.getString(R.string.language_title))
@@ -53,18 +57,31 @@ internal class AppLanguagePreferencesCard(
     private fun choose() {
         close()
         val choices = AppLanguage.entries
+        val error = visual?.palette?.let { style ->
+            style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/language/error").apply {
+                setTextColor(activity.getColor(R.color.mobile_danger))
+                visibility=View.GONE
+                accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
+            }
+        }
+        val errorContainer=visual?.palette?.column()?.apply {visibility=View.GONE}
         val selected=android.content.DialogInterface.OnClickListener { value, index ->
                 when (preferences.select(choices[index])) {
                     AppLanguagePreference.Selection.APPLIED -> {
+                        error?.apply {text="";visibility=View.GONE};errorContainer?.visibility=View.GONE
                         value.dismiss()
                         button.text = currentLabel()
                         button.contentDescription = activity.getString(R.string.language_current, preferences.current.nativeName)
                         onApplied()
                     }
-                    AppLanguagePreference.Selection.UNCHANGED -> value.dismiss()
+                    AppLanguagePreference.Selection.UNCHANGED -> {
+                        error?.apply {text="";visibility=View.GONE};errorContainer?.visibility=View.GONE
+                        value.dismiss()
+                    }
                     AppLanguagePreference.Selection.SAVE_FAILED -> {
                         (value as AlertDialog).listView.setItemChecked(choices.indexOf(preferences.current), true)
-                        Toast.makeText(activity, R.string.language_save_failed, Toast.LENGTH_LONG).show()
+                        if(error==null)Toast.makeText(activity, R.string.language_save_failed, Toast.LENGTH_LONG).show()
+                        else {error.text=activity.getString(R.string.language_save_failed);error.visibility=View.VISIBLE;errorContainer?.visibility=View.VISIBLE}
                     }
                 }
             }
@@ -82,12 +99,15 @@ internal class AppLanguagePreferencesCard(
                     }
             }
             builder.setSingleChoiceItems(adapter,choices.indexOf(preferences.current),selected)
+            visual.palette.add(requireNotNull(errorContainer),requireNotNull(error),8)
+            builder.setView(errorContainer)
         }
         val chooser=builder.setNegativeButton(R.string.machine_settings_cancel,null).create()
-        chooser.setOnDismissListener { if (dialog === chooser) dialog = null }
+        chooser.setOnDismissListener { if (dialog === chooser) {dialog = null;dialogError=null};error?.apply {text="";visibility=View.GONE};errorContainer?.visibility=View.GONE }
         dialog = chooser
+        dialogError=error
         chooser.show()
         visual?.dialog(chooser)
     }
-    fun close() { dialog?.dismiss(); dialog = null }
+    fun close() { dialog?.dismiss(); dialog = null;dialogError=null }
 }

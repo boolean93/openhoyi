@@ -4,6 +4,8 @@ import android.app.Activity
 import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.Toast
+import android.widget.TextView
+import android.view.View
 import kotlin.random.Random
 
 /** App-local controls stay usable while disconnected and never enter machine controlButtons. */
@@ -15,6 +17,8 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
     private var updating = false
     val enabledSwitch: Switch
     private val preview: android.widget.Button
+    internal var errorStatus: TextView? = null
+        private set
     init {
         val card = settingsGroup(activity, parent, activity.getString(R.string.feedback_enabled), visual)
         enabledSwitch = Switch(activity).apply {
@@ -29,14 +33,24 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
                 if (!updating) {
                     if (!prefs.setEnabled(checked)) {
                         refresh()
-                        runCatching { Toast.makeText(activity, R.string.feedback_save_failed, Toast.LENGTH_SHORT).show() }
-                    } else if (!checked) stopAudio()
+                        if (visual==null) runCatching { Toast.makeText(activity, R.string.feedback_save_failed, Toast.LENGTH_SHORT).show() }
+                        else errorStatus?.apply {text=activity.getString(R.string.feedback_save_failed);visibility=View.VISIBLE}
+                    } else {
+                        clearError()
+                        if (!checked) stopAudio()
+                    }
                 }
             }
         }
         visual?.let {it.switch(enabledSwitch);enabledSwitch.tag="product/settings/app/feedback/toggle"}
         HoyiUi.label(activity, card, activity.getString(R.string.feedback_enabled_description), 14, muted = true).also {label->
             visual?.palette?.apply {apply(label,TaskProductVisualStyle.auxiliary,true);label.setPadding(0,dp(8),0,0)}
+        }
+        errorStatus=visual?.palette?.let {style->
+            style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/feedback/error").apply {
+                setTextColor(activity.getColor(R.color.mobile_danger));visibility=View.GONE
+                accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
+            }.also {style.add(card,it,8)}
         }
         settingsDivider(activity, card, visual)
         preview = HoyiUi.button(activity, card, activity.getString(R.string.feedback_preview)) {
@@ -62,5 +76,6 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
     }
     fun start() { prefs.observe(this) { enabled -> if (!enabled) stopAudio(); refresh() } }
     fun pausePreview() { stopAudio(); refresh() }
-    fun stop() { prefs.unobserve(this); stopAudio() }
+    private fun clearError() {errorStatus?.apply {text="";visibility=View.GONE}}
+    fun stop() { prefs.unobserve(this); stopAudio();clearError() }
 }
