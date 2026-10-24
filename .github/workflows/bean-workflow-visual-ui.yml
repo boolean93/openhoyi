@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     # Independent M4 three-page / 12-profile matrix; internal protocol / fixture budgets are unchanged.
     timeout-minutes: 45
+    env:
+      CI_DISPOSABLE_AVD: font-scale-bean-${{ github.run_id }}-${{ github.run_attempt }}-bean-workflow-visual
+      BEAN_SNAPSHOT_SERIAL: emulator-5554
     steps:
       - uses: actions/checkout@v7
         with:
@@ -29,6 +32,8 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Build isolated Mock
         run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+      - name: Offline snapshot transaction contracts
+        run: python3 -m unittest discover -s scripts -p 'test_*snapshot_scope*.py'
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -42,10 +47,13 @@ jobs:
           api-level: 34
           target: default
           arch: x86_64
+          avd-name: ${{ env.CI_DISPOSABLE_AVD }}
+          force-avd-creation: true
+          emulator-port: 5554
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_bean_workflow_visual_migration.sh
+          script: python3 scripts/ci_font_scale_snapshot_scope.py run --profile bean
       - name: Upload real bean workflow evidence
         if: always()
         uses: actions/upload-artifact@v6

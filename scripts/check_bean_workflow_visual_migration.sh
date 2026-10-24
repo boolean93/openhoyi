@@ -9,6 +9,9 @@ source_dirty=false
 [[ -z "$(git status --porcelain)" ]] || source_dirty=true
 output_dir="$PWD/build/task-first-evidence/bean-workflow-visual-migration"
 mkdir -p "$output_dir"
+if [[ -n "${BEAN_SNAPSHOT_SCOPE_FILE:-}" ]]; then
+  python3 scripts/ci_font_scale_snapshot_scope.py verify --profile bean --owner "$BEAN_SNAPSHOT_SCOPE_FILE"
+fi
 apk_sha=$(python3 - <<'PY'
 import hashlib
 from pathlib import Path
@@ -32,7 +35,23 @@ collect() {
   fi
   adb logcat -d -s AndroidRuntime:E > "$output_dir/runtime-errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
-  adb shell am force-stop "$package" || true
+  if [[ -z "${BEAN_SNAPSHOT_SCOPE_FILE:-}" ]]; then
+    adb shell am force-stop "$package" || true
+  fi
+  if [[ -n "${BEAN_SNAPSHOT_SCOPE_FILE:-}" ]]; then
+    if ! python3 - "$output_dir/font-scale-before.json" "$output_dir/font-scale-restore.json" "$exit_status" <<'SNAPSHOT_PENDING_PY'
+import json,sys
+from pathlib import Path
+before=json.loads(Path(sys.argv[1]).read_text())
+Path(sys.argv[2]).write_text(json.dumps({'before':before,'originalExitStatus':int(sys.argv[3]),
+    'status':'PENDING_SNAPSHOT_RESTORE','restoreOperation':'owned_full_avd_snapshot_in_host_wrapper'},indent=2)+'\n')
+SNAPSHOT_PENDING_PY
+    then
+      echo 'Snapshot pending proof write failed' >&2
+      if (( exit_status == 0 )); then exit_status=1; fi
+    fi
+    return "$exit_status"
+  fi
   # Restore only this key, preserving absence; never put the literal "null" for an absent setting.
   if ! python3 - "$output_dir/font-scale-before.json" "$output_dir/font-scale-restore.json" "$exit_status" <<'FONT_RESTORE_PY'
 import json, subprocess, sys, traceback
@@ -63,7 +82,7 @@ FONT_RESTORE_PY
   fi
   return "$exit_status"
 }
-trap 'collect "$?"' EXIT
+trap 'original_exit=$?; trap - EXIT; if collect "$original_exit"; then exit 0; else exit "$?"; fi' EXIT
 adb shell wm size 2560x1600
 adb shell wm density 360
 adb shell settings put system accelerometer_rotation 0

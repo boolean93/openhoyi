@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Single-owner full-AVD snapshot transaction for Scale CI only."""
+"""Single-owner full-AVD snapshot transaction for fixed Scale/Bean CI profiles."""
 import argparse
 import hashlib
 import json
@@ -9,13 +9,39 @@ import re
 import signal
 import subprocess
 import sys
+from types import MappingProxyType
 import uuid
+from typing import NamedTuple
 
 from probe_ci_font_scale_snapshot import ProbeError, parse_state, require, snapshot_names
 
 PACKAGE = 'io.openhoyi.mobile.mock'
 ROOT = Path('build/task-first-evidence/scale-visual-migration').resolve()
 SCOPE = ROOT / 'snapshot-scope'
+
+
+class Profile(NamedTuple):
+    root: Path
+    business_directory: str
+    business_script: str
+    avd_prefix: str
+    serial_key: str
+    owner_key: str
+    snapshot_prefix: str
+
+
+PROFILES = MappingProxyType({
+    'scale': Profile(ROOT, 'scale-visual-migration', 'scripts/check_scale_visual_migration.sh',
+                     'font-scale-scale-', 'SCALE_SNAPSHOT_SERIAL', 'SCALE_SNAPSHOT_SCOPE_FILE', 'scale_scope_'),
+    'bean': Profile(Path('build/task-first-evidence/bean-workflow-visual-migration').resolve(),
+                    'bean-workflow-visual-migration', 'scripts/check_bean_workflow_visual_migration.sh',
+                    'font-scale-bean-', 'BEAN_SNAPSHOT_SERIAL', 'BEAN_SNAPSHOT_SCOPE_FILE', 'bean_scope_'),
+})
+
+
+def profile_config(profile):
+    require(profile in PROFILES, 'unknown snapshot scope profile')
+    return PROFILES[profile]
 
 
 def digest(path):
@@ -65,21 +91,24 @@ def strict_console(result):
             'unknown/failed snapshot console response')
 
 
-def checked_env(env):
+def checked_env(env, profile='scale'):
+    config = profile_config(profile)
     require(env.get('GITHUB_ACTIONS') == 'true', 'CI only')
     identity = '-'.join(env.get(key, '') for key in ('GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_JOB'))
     require(re.fullmatch(r'[0-9]+-[0-9]+-[A-Za-z0-9_-]+', identity) is not None, 'missing run identity')
-    require(env.get('CI_DISPOSABLE_AVD') == 'font-scale-scale-' + identity, 'wrong disposable AVD scope')
-    require(env.get('SCALE_SNAPSHOT_SERIAL') == 'emulator-5554', 'explicit dedicated serial required')
+    require(env.get('CI_DISPOSABLE_AVD') == config.avd_prefix + identity, 'wrong disposable AVD scope')
+    require(env.get(config.serial_key) == 'emulator-5554', 'explicit dedicated serial required')
     return identity
 
 
 class Scope:
-    def __init__(self, env=None, output=SCOPE):
+    def __init__(self, env=None, output=None, profile='scale'):
+        self.profile = profile
+        self.config = profile_config(profile)
         self.env = dict(os.environ if env is None else env)
-        self.identity_name = checked_env(self.env)
-        self.serial = self.env['SCALE_SNAPSHOT_SERIAL']
-        self.output = Path(output).resolve()
+        self.identity_name = checked_env(self.env, profile)
+        self.serial = self.env[self.config.serial_key]
+        self.output = Path(output if output is not None else self.root / 'snapshot-scope').resolve()
         self.owner_path = self.output / 'owner.json'
         self.report_path = self.output / 'result.json'
         self.operations = []
@@ -87,6 +116,11 @@ class Scope:
         self.record_prefix = uuid.uuid4().hex
         self.identity_checks = 0
         self.list_checks = 0
+
+    @property
+    def root(self):
+        # Keep the original Scale test's patched ROOT seam; Bean always uses its fixed profile root.
+        return ROOT if self.profile == 'scale' else self.config.root
 
     def adb(self, *args, timeout=90):
         return subprocess.run(['adb', '-s', self.serial, *args], capture_output=True, text=True, timeout=timeout)
@@ -164,7 +198,13 @@ class Scope:
         require(self.owner_path.is_file(), 'host owner missing')
         persisted = json.loads(self.owner_path.read_text())
         require(persisted == self.owner, 'host owner changed')
+        require(persisted.get('scopeProfile', 'scale') == self.profile, 'scope profile mismatch')
         require(persisted['runIdentity'] == self.identity_name, 'run owner mismatch')
+        snapshot = persisted['snapshot']
+        require(re.fullmatch(re.escape(self.config.snapshot_prefix + self.identity_name.replace('-', '_') + '_')
+                             + r'[0-9a-f]{8}', snapshot) is not None, 'snapshot profile/name mismatch')
+        require(persisted['remoteDirectory'] == '/data/local/tmp/' + snapshot and
+                persisted['remoteMarker'] == '/data/local/tmp/' + snapshot + '/owner', 'remote owner path mismatch')
         require(persisted['sourceSha'] == self.git_head(), 'source HEAD changed')
         require(persisted['sourceDirty'] == bool(subprocess.run(['git','status','--porcelain'],capture_output=True,text=True,check=True).stdout), 'source dirty state changed')
         require(persisted['apkSha256'] == digest('mobile/build/outputs/apk/mock/mobile-mock.apk'), 'APK changed')
@@ -181,7 +221,7 @@ class Scope:
         require(not self.output.exists(), 'scope output already exists')
         self.output.mkdir(parents=True)
         scope_uuid = uuid.uuid4().hex
-        snapshot = 'scale_scope_' + self.identity_name.replace('-', '_') + '_' + scope_uuid[:8]
+        snapshot = self.config.snapshot_prefix + self.identity_name.replace('-', '_') + '_' + scope_uuid[:8]
         remote = '/data/local/tmp/' + snapshot
         source = self.git_head()
         require(re.fullmatch(r'[0-9a-f]{40}', source) is not None, 'invalid source SHA')
@@ -189,7 +229,7 @@ class Scope:
         require(snapshot not in self.names(), 'snapshot collision')
         baseline = self.state('before')
         remote_marker = remote + '/owner'
-        self.owner = {'runIdentity': self.identity_name, 'scopeUuid': scope_uuid,
+        self.owner = {'scopeProfile': self.profile, 'runIdentity': self.identity_name, 'scopeUuid': scope_uuid,
                       'snapshot': snapshot, 'remoteMarker': remote_marker, 'remoteDirectory': remote,
                       'sourceSha': source, 'sourceDirty': bool(subprocess.run(['git','status','--porcelain'],capture_output=True,text=True,check=True).stdout),
                       'apkSha256': digest('mobile/build/outputs/apk/mock/mobile-mock.apk'),
@@ -204,7 +244,7 @@ class Scope:
     def preserve(self):
         """No load until every existing generated file and host proof is durable and hashed."""
         source = self.owner['sourceSha']
-        remote = f'/sdcard/Android/data/{PACKAGE}/files/scale-visual-migration/{source}'
+        remote = f'/sdcard/Android/data/{PACKAGE}/files/{self.config.business_directory}/{source}'
         exists = self.adb('shell', 'test -d ' + remote)
         require(exists.stderr == '' and exists.returncode in (0, 1), 'scope directory status unknown')
         root = self.output / 'pulled-business'
@@ -227,7 +267,7 @@ class Scope:
         else:
             expected = {}
         # The original business script owns ROOT and any pre-load diagnostic files.
-        for manifest in ROOT.rglob('manifest.json'):
+        for manifest in self.root.rglob('manifest.json'):
             if self.output in manifest.parents and root not in manifest.parents:
                 continue
             data = json.loads(manifest.read_text())
@@ -239,13 +279,13 @@ class Scope:
                         'unsafe manifest relative path')
                 candidate = manifest.parent / name
                 require(candidate.is_file() and digest(candidate) == claimed, 'manifest reference mismatch: ' + str(candidate))
-        files = {str(p.relative_to(ROOT)): digest(p) for p in ROOT.rglob('*')
+        files = {str(p.relative_to(self.root)): digest(p) for p in self.root.rglob('*')
                  if p.is_file() and self.output not in p.parents}
         pulled_files = {str(p.relative_to(root)): digest(p) for p in root.rglob('*') if p.is_file()}
         durable_json(self.output / 'evidence-inventory.json',
                      {'deviceGenerated': expected, 'pulled': pulled_files, 'hostBusiness': files,
                       'missingDeviceScope': exists.returncode == 1})
-        durable_tree(ROOT)
+        durable_tree(self.root)
         durable_json(self.output / 'evidence-preserved.json',
                      {'evidencePreserved': True, 'inventorySha256': digest(self.output / 'evidence-inventory.json'),
                       'sourceSha': source, 'scopeUuid': self.owner['scopeUuid']})
@@ -301,9 +341,9 @@ class Scope:
                 print('snapshot initialization/report failed: ' + str(exc) + '; ' + str(report_error), file=sys.stderr)
             return 1
         env = dict(self.env)
-        env['SCALE_SNAPSHOT_SCOPE_FILE'] = str(self.owner_path)
+        env[self.config.owner_key] = str(self.owner_path)
         try:
-            child = subprocess.Popen(['bash', 'scripts/check_scale_visual_migration.sh'], env=env,
+            child = subprocess.Popen(['bash', self.config.business_script], env=env,
                                      start_new_session=True)
         except OSError as exc:
             try:
@@ -366,10 +406,12 @@ class Scope:
         return self.finish(business_exit, quiescent)
 
 
-def verify(path):
+def verify(path, profile='scale'):
+    config = profile_config(profile)
     owner_path = Path(path).resolve()
-    require(owner_path == SCOPE / 'owner.json', 'unexpected owner path')
-    scope = Scope(output=SCOPE)
+    output = (ROOT if profile == 'scale' else config.root) / 'snapshot-scope'
+    require(owner_path == output / 'owner.json', 'unexpected owner path')
+    scope = Scope(output=output, profile=profile)
     scope.owner = json.loads(owner_path.read_text())
     scope.verify_owner()
 
@@ -377,10 +419,13 @@ def verify(path):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest='action', required=True)
-    sub.add_parser('run')
-    sub.add_parser('verify').add_argument('--owner', required=True)
+    run_parser = sub.add_parser('run')
+    run_parser.add_argument('--profile', choices=tuple(PROFILES), default='scale')
+    verify_parser = sub.add_parser('verify')
+    verify_parser.add_argument('--profile', choices=tuple(PROFILES), default='scale')
+    verify_parser.add_argument('--owner', required=True)
     args = parser.parse_args()
     if args.action == 'verify':
-        verify(args.owner)
+        verify(args.owner, args.profile)
     else:
-        sys.exit(Scope().run())
+        sys.exit(Scope(profile=args.profile).run())
