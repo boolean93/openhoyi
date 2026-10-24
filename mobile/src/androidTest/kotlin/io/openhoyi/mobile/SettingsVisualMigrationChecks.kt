@@ -1099,6 +1099,9 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                         check(!(field(activity.feedbackCard,"audioOwner") as Lazy<*>).isInitialized()) {"Main screenshot started preview audio"}
                     }
                     is MachineSettingsActivity -> {
+                        val pageScroll=requireNotNull(activity.findViewById<ScrollView>(R.id.m8_settings_scroll))
+                        check(pageScroll.isVerticalScrollBarEnabled)
+                        check(!pageScroll.isScrollbarFadingEnabled)
                         check(field(activity,"selectedSettingsSection")==0)
                         listOf("brewInput","compensationInput","steamInput").forEach {check((field(activity,it) as TextView).text.isNotEmpty())}
                         check(active.ownerService.snapshot.settings!=null && active.ownerService.pendingSetting==null)
