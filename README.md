@@ -1,84 +1,131 @@
-# OpenHOYI Native
+# OpenHOYI
 
-纯 Kotlin 协议与业务状态机 + Android BLE 库。没有 UniApp、JS、WebView 依赖。仓库提供两套独立 Android 包：`OpenHOYI Lab`（`io.openhoyi.lab`）用于诊断与采集；`OpenHOYI Alpha`（`io.openhoyi.mobile`）是日常使用版的第一段原生功能。Lab 已实测咖啡机和 BOOKOO 双设备连接、后台及短时锁屏收数。Alpha 已具备首页连接/实时状态、曲线与五槽位启动报文校验、常用机器设置、运行模式和拨杆模式写入与回读状态、曲线温度预热、一次性立即睡眠、实时/历史曲线，以及需要显式确认的萃取与手动停止页面；Alpha已有受监护启动与手动停止的局部实机记录，见 `docs/alpha-acceptance.md`；目标重量停止、设置写入和异常路径仍待实机验收。
+面向 **HOYI 咖啡机**的开源 Android 应用，使用 Kotlin 原生技术全新重写。
 
-## 协作与发布
+通过蓝牙连接咖啡机和电子秤，查看萃取中的温度、压力、流量和重量，选择萃取曲线，回看每一杯的记录。
 
-所有任务遵守 [Git工作流](docs/git-workflow.md) 和 [AGENTS.md](AGENTS.md)。默认集成分支为develop，main只接受release/hotfix PR；规划使用 [任务模板](docs/plans/task-template.md)。
+电子秤目前仅支持 **BOOKOO**。项目将蓝牙协议、设备会话与萃取控制分层，并设计了可扩展的电子秤接入架构，未来计划支持多种蓝牙电子秤与 HOYI 咖啡机联动。其他电子秤尚未适配。
 
-## 模块
+> **当前处于 Alpha 阶段。** 已有双设备连接、受监护萃取和手动停止的实机记录；目标重量自动停止、设置写入和异常恢复仍待完整验收。试用时请在机器旁看守，并保留机器上的手动停止手段。详见 [实机验收记录](docs/alpha-acceptance.md)。
 
-| 模块 | 边界 |
+## 可以做什么
+
+- **连接设备**：扫描并连接咖啡机和电子秤，查看连接状态、实时读数和机器告警。
+- **选择曲线**：浏览 100 条工厂曲线与 3 条已采集曲线，按分类或名称查找，配置首页的 5 个快捷槽位。
+- **观察萃取**：在实时曲线中查看压力、温度、机器水流、秤流速和重量；启动前确认，萃取中可手动请求停止。
+- **管理机器**：查看和调整温度、加热、照明、运行模式、拨杆模式及睡眠计划。设置写入后等待机器回报确认。
+- **回看记录**：离线查看萃取历史和采样曲线，导出历史 ZIP；也可显式导入旧版历史数据，单独只读查看。
+- **排查问题**：导出传输与操作日志，帮助定位连接、协议和设备状态问题。
+
+以上是已实现的功能范围，具体实机验证进度见 [功能状态](docs/native-feature-status.md) 和 [覆盖矩阵](docs/coverage.md)。
+
+## 设备与兼容性
+
+| 项目 | 当前范围 |
 |---|---|
-| `app` | 原生 Activity + Binder + connectedDevice 前台服务，实时数据显示、权限请求、日志导出 |
-| `mobile` | 独立 Alpha 包；原生首页、设备连接、实时读数、曲线库、萃取页与本地曲线选择；复用同一套协议/会话/BLE 库 |
-| `protocol-core` | HOYI / BOOKOO 编解码、整数单位、不可变字节、格式校验、未支持命令清单。无 Android 依赖 |
-| `device-session` | 串行 GATT 队列、独立连接代次、初始化就绪、重连策略、去皮及停止策略、设置/杯数/睡眠写入确认状态机、预热状态与被动萃取识别、真实时序回放。无 Android 依赖 |
-| `bluetooth-android` | Android GATT 回调桥接、订阅、扫描、权限检查、主线程调度；`NativeDeviceHub` 连接上述模块 |
-| `trace-core` | 两款App共用的有界异步JSONL日志与ZIP导出；无Android依赖 |
+| 手机 / 平板 | Android 8.0（API 26）及以上，支持 BLE |
+| 咖啡机 | HOYI；控制功能仅对已采集验证的固件 **1.1.3** 开放 |
+| 电子秤 | 目前仅支持已采集协议的 BOOKOO 设备；计划扩展其他蓝牙电子秤 |
+| 萃取曲线 | 启动入口限于已校验的工厂曲线及采集曲线；导入的个人曲线暂只读 |
+| 其他平台 | 当前仓库提供 Android 应用 |
 
-`NativeDeviceHub` 应由应用或前台服务持有，不能随页面销毁。`app` 模块实现权限请求、前台服务生命周期、成功连接的秤地址持久化与 UI；库只检查权限，不弹出页面。Android 最低版本26（Android8），Java17；使用 `java.time` 因而不声称支持旧版App的API21。
+其他咖啡机固件处于只读或不支持范围，请勿据此推断兼容。BOOKOO 的负值帧已有解码测试，但仍缺少已知负重量的实物对照。
 
-设备会话只对已采集的 HOYI 固件1.1.3开放控制；其他固件只读/不支持。启动控制限定三条已采集曲线或100条经旧版有秤/无秤报文双模式逐字节校验的工厂曲线。编解码器可以处理其他合法字段，但业务发送入口不会因此自动开放。BOOKOO仅接受已采集的ASCII正负号帧，其他型号和符号编码明确不支持。
+## 选择哪个应用
 
-当前分层与状态机归属见 [架构说明](docs/architecture.md)。
+仓库包含两个独立安装的应用，共用协议和蓝牙库：
 
-## 构建和验证
+| 应用 | 用途 | Android 包名 |
+|---|---|---|
+| **OpenHOYI Alpha** | 试用连接、曲线、萃取和历史等功能 | `io.openhoyi.mobile` |
+| **OpenHOYI Lab** | 开发调试、协议采集和连接诊断 | `io.openhoyi.lab` |
 
-Java17、Android SDK35、Gradle wrapper8.11.1、Kotlin2.0.21、AGP8.10.0。
-设置 `ANDROID_HOME`，或在不提交的 `local.properties` 配置 `sdk.dir`。
+两者可与旧版 HOYI App 并存，但连接同一台设备前，请先断开其他 App 的连接。新应用不会直接读取旧 App 的私有数据；数据迁移需手动导出和导入。
+
+## 从源码构建
+
+准备 **JDK 17** 和 **Android SDK 35**。仓库自带 Gradle Wrapper，无需另装 Gradle。
 
 ```sh
-./gradlew :protocol-core:check :device-session:check :bluetooth-android:assembleDebug :bluetooth-android:lintDebug :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug :mobile:testDebugUnitTest :mobile:assembleDebug :mobile:lintDebug
+git clone --branch develop https://github.com/boolean93/openhoyi.git
+cd openhoyi
 ```
 
-两个纯 Kotlin 模块的 `check` 包含确定性 JVM `verify` 任务；`device-session` 还运行55项写入确认、安全恢复、萃取/预热决策、告警与被动萃取 JUnit 测试。断言失败即构建失败。逐帧断言不是独立案例；App 的日志/数据展示使用 JUnit 测试。
+用 Android Studio 打开项目并配置 SDK，或设置 `ANDROID_HOME`。也可在本地 `local.properties` 中填写 `sdk.dir`，不要将该文件提交到仓库。
 
-Google Maven 无法访问时可显式使用 `-PgoogleMirror=aliyun`。本机全局Gradle代理指向未启动的127.0.0.1:7890，本次仅命令行加 `-Dhttp.proxyHost= -Dhttps.proxyHost=` 绕过，没有修改全局配置。Google依赖首次通过可选阿里云镜像获取；默认仍使用官方仓库。
+构建 Alpha：
 
-APK：Lab `app/build/outputs/apk/debug/app-debug.apk`；Alpha `mobile/build/outputs/apk/debug/mobile-debug.apk`；独立 UI Mock `mobile/build/outputs/apk/mock/mobile-mock.apk`；Lab UI 冒烟测试包 `app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk`。
+```sh
+./gradlew :mobile:assembleDebug
+```
 
-分发前可用 `scripts/apk_distribution.py` 校验实际包名、版本与指定签名证书，并导出文件哈希清单；默认拒绝覆盖已有文件。命令和签名连续性边界见 [安装包分发](docs/plans/apk-distribution.md)。当前开发包仍使用 debug 签名，不能假设云端 APK 能覆盖本机已安装包；该工具不安装或重新签名。正式构建现支持仓库外签名与显式版本递增预检，缺配置会拒绝release；不自动将既有开发包更换为正式签名。
+APK 位于 `mobile/build/outputs/apk/debug/mobile-debug.apk`。
 
-## 使用原生 Alpha
+需要诊断应用时，构建 Lab：
+
+```sh
+./gradlew :app:assembleDebug
+```
+
+APK 位于 `app/build/outputs/apk/debug/app-debug.apk`。
+
+若网络无法访问 Google Maven，可在构建命令后添加 `-PgoogleMirror=aliyun`，显式使用可选镜像。
+
+### 安装与首次连接
+
+开启 Android 设备的 USB 调试，连接电脑后安装 Alpha：
 
 ```sh
 adb install -r mobile/build/outputs/apk/debug/mobile-debug.apk
-adb shell am start -n io.openhoyi.mobile/.HomeActivity
 ```
 
-Alpha 与 Lab、旧版 HOYI 分包安装。首页可扫描、手动连接咖啡机和秤、查看实时温度/压力/重量及机器告警、独立去皮，并通过系统选择器导出本包的传输与操作日志；成功连接过的秤地址只保存在 Alpha 自身，首页前台的10分钟内可独立于咖啡机自动重连。曲线库可按分类及名称查找三条已采集曲线与100条旧版工厂曲线；后者的200种临时槽位帧和1000种五槽位帧均与旧版编码函数逐字节对照。首页五个快捷槽位可指定工厂曲线，启动前仍须确认。首页可查看及切换手动、自动压力、自动流量三种拨杆模式；机器设置页显示设定值与睡眠计划，并可修改两路温度、冲泡温差补偿、加热、照明、自动待机时间、待机温度、供水来源、运行模式、每周睡眠计划总开关及每日睡眠时间。累计杯数也可经两次确认后重置，并须等待机器回报归零。上述设置写入后等待机器对应回报才确认。萃取页用原生Canvas显示实时压力、机器水流、萃取温度、秤流速和重量；历史详情可离线查看本包采集的曲线，历史页可导出包含采样点的ZIP。历史页还可显式导入旧版 `brew_history_v1` JSON，在单独的只读页面查看；新包不能直接读取旧包私有数据。机器拨杆手动萃取可在连续活动通知后被动记录为独立历史；只有新鲜待机回报才确认结束，断线保留未知，App 不向手动萃取发送停止命令。首页支持持久化的深浅色切换。未知状态明确保留为未知。选择曲线只保存其 ID；曲线通过报文校验并在萃取页明确确认后才可能发送控制。产品层要求已验证固件、咖啡机新鲜待机遥测；重量模式还要求秤的新鲜数据。连接同一设备前应关闭其他 App 对该设备的连接。Alpha 的局部实杯记录不能替代目标重量停止、设置写入和异常路径验收，不应把编译通过视为硬件等效。
+1. 打开 OpenHOYI Alpha，开启蓝牙并授予扫描、连接所需权限。
+2. 确认咖啡机空闲，且其他 App 已断开连接，再扫描并选择设备。
+3. 按提示输入咖啡机的六位设备密码；电子秤单独连接。
+4. 等待设备就绪和实时读数更新，再选择曲线或操作机器。
 
-库产物：`bluetooth-android/build/outputs/aar/bluetooth-android-debug.aar`。AAR不是自包含APK，使用时需同时包含协议和会话模块；Gradle项目依赖通过 `api` 传递。
+未收到的数据会显示为未知；过期读数和断线状态不能作为控制成功的依据。若操作结果未知，先核对机器实际状态，不要反复发送命令。
 
-## 使用诊断 App
+本地构建使用 debug 签名。更新已有安装包时必须保持签名一致；遇到签名冲突请先核对安装来源，不要通过卸载清空历史来解决。正式签名与升级要求见 [安装包分发说明](docs/plans/apk-distribution.md)。
 
-安装新包，不覆盖旧App：
+## 开发与贡献
+
+欢迎通过 [Issues](https://github.com/boolean93/openhoyi/issues) 反馈问题或讨论功能。报告设备问题时，请附上应用版本、Android 版本、设备型号与固件、复现步骤，以及脱敏日志；不要上传设备密码或其他个人信息。
+
+开发从 `develop` 创建短分支，通过 PR 合入 `develop`。分支、验证和发布规则见 [贡献工作流](docs/git-workflow.md)。
+
+### 项目结构
+
+| 模块 | 职责 |
+|---|---|
+| `mobile` | Alpha 应用：连接、曲线、萃取、历史和设置 |
+| `app` | Lab 应用：诊断、采集和日志导出 |
+| `protocol-core` | HOYI / BOOKOO 协议编解码，无 Android 依赖 |
+| `device-session` | 设备会话、命令队列、重连和控制状态机，无 Android 依赖 |
+| `bluetooth-android` | Android BLE 扫描、GATT 与设备会话桥接 |
+| `trace-core` | 两个应用共用的日志与 ZIP 导出，无 Android 依赖 |
+
+设计细节见 [架构说明](docs/architecture.md)。
+
+### 运行检查
 
 ```sh
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n io.openhoyi.lab/.LabActivity
+./gradlew :protocol-core:check :device-session:check \
+  :bluetooth-android:assembleDebug :bluetooth-android:lintDebug \
+  :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug \
+  :mobile:testDebugUnitTest :mobile:assembleDebug :mobile:lintDebug
 ```
 
-点击扫描并授权，选择 HOYI 或 BOOKOO。咖啡机需要六位设备密码，仅内存使用；连接会认证和同步时间。秤连接会执行四条初始化写入。只显示已接收的数据；未收到显示未知，超过1.5秒标陈旧，断线保留历史标记。独立包不读取旧App数据，也不保存机器密码。
+离线测试与构建检查不能替代实机验收。涉及启动、停止、去皮或设置写入的改动，需要记录机器回报及实际动作；GATT 写入成功本身不代表机器已执行。
 
-连接属于前台服务，离开/旋转页面不主动断链；通知或页面可停止服务。进程被杀后不会自动重启或恢复机器连接。成功连接过的秤地址仅保存在本App，进入前台10分钟内、咖啡机就绪后尝试重连；手动断秤取消该窗口。
+## 更多文档
 
-通过系统文件选择器导出 ZIP。日志按 GATT 请求/接受/完成/通知区分，密码指令整帧脱敏；最多保留8个4MiB文件。后台有界队列满时丢记录并统计，不阻塞蓝牙；metadata包含当前日志sessionId、丢失/错误/淘汰统计。每条服务记录ownerId区分Service重建，generation/token关联操作。进程突然终止可能丢失尚未落盘记录，不能视为完整黑匣子。
+- [Alpha 实机验收](docs/alpha-acceptance.md)：已验证场景、已知问题与待验收项。
+- [功能状态](docs/native-feature-status.md) · [覆盖矩阵](docs/coverage.md)：实现范围、证据与缺口。
+- [Lab 使用说明](docs/native-lab.md)：诊断应用、日志采集和手工验证。
+- [旧版曲线迁移](docs/legacy-curve-import.md)：导出与只读导入的范围。
+- [安装包分发](docs/plans/apk-distribution.md)：签名、版本、升级和分发校验。
 
-诊断 App 的范围与手工验证步骤见 [Lab说明](docs/native-lab.md)。
+## 许可证
 
-## 证据与限制
-
-- 32,856条脱敏通知输入（含listener重复）；每条解码为已知有效帧。
-- 三条曲线启动编码与原始20字节完全一致。
-- 三次完整窗口回放覆盖手动停止、机器按流量结束、App重量停止。
-- 目标重量停止使用去皮后新鲜样本；写入去皮成功不等于重量已归零。
-- 新控制策略不等同于旧App：例如当前回放重量停止为17.786秒，旧日志为17.887秒，相差101ms；差异尚未定位到唯一原因，输入调度及基线策略需实机对照，未做硬件等效认证。
-- BOOKOO旧代码二进制符号判断与实采ASCII `+/-` 不符；新解码保留符号，已测试负值原始帧，但尚未用已知负重量实物确认。
-- 认证密码是六个数字字节（0..9），不是六个ASCII码；日志字符串默认脱敏。
-- 没有向咖啡机发送本版本测试控制命令。未修改或安装旧App。
-
-最新实机结果见 [验证报告](docs/validation-2026-09-23.md)。完整范围、缺口和发布门禁见 [覆盖矩阵](docs/coverage.md) 与 [功能状态](docs/native-feature-status.md)；接续开发见 [HANDOFF](HANDOFF.md)。
-
-旧版曲线库的显式导出与原生只读导入见 [迁移说明](docs/legacy-curve-import.md)；导入曲线暂不能控制机器。
+项目使用 [GNU GPL v2](LICENSE) 许可证。使用、修改或分发前请阅读许可证全文。
