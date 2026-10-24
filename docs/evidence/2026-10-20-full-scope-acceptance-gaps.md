@@ -29,14 +29,14 @@
 | P0 CurveImportActivity | 原 raw 重建后 IME/scroll 失败未关闭；需输入主体、页脚、错误与 SAF 分支的真实布局对照 | raw/错误/辅助/按钮实际字体及字形补审 | raw 文本选区不变不等于 viewport/IME恢复；需实际行盒与页脚可见证据 | 四配置错误/禁用/正文层次补审 | 本批只加因果关联，未猜改恢复策略；原断言继续有效 |
 | P1 CurveImportPreviewActivity | 早期 limited 样本不能覆盖当前四配置；需图表主次、参数表、冲突/无冲突及固定操作 | 表头、参数、冲突提示实际角色补审 | 标准图预算/局部滚达、表格全文与长名补审 | 冲突/可执行/禁用与曲线色补审 | 前序 Import 失败可阻断；真实写入/幂等硬件结果另验 |
 | P1 BeanPreparationActivity | bcc 既有主态限定过；[2f 两态说明16图](2026-10-24-m4-preparation-description-review.md)已实看接受全文滚达/原位置恢复，不冒称首屏全文可见 | 两态四配置36/45.45px、两行零省略接受 | 两态固定动作不动、精确恢复接受；[四IME图](2026-10-24-m4-preparation-ime-row-review.md)117px输入/56+48dp动作完整，但workspace484px仍纵排，旧424px紧凑同行未触发 | 两态主辅/确认/错误层次接受 | 两态既有缺口关闭；旧424px同行与run末尾font_scale恢复FAIL独立保留，不签整Bean |
-| P2 BeanBatchActivity | 四主态及所列特殊态限定过；旧原生 modal 焦点竞争已越过 | 已采限定过；长理由原生详情全文缺独立原图字形验收 | 全文字符串通过不等于 dialog 行盒/字形图审 | 已采限定过；未采 dialog 合成色不外推 | 当前无新增全文 dialog PNG 补证；该边界不由 CI 成功自动关闭 |
-| P2 BeanLedgerActivity | 四主态及所列特殊态限定过：五列、三事件、滚达恢复 | 已采限定过；未采详情 dialog 字形保留边界 | 原列表允许的两行省略不改成全文；原生详情全文视觉需实际图而非字符串 | 已采 ADD/consume 与浅深限定过 | 无新增已知布局失败；未采详情图不是本批自动覆盖 |
+| P2 BeanBatchActivity | 四主态及所列特殊态限定过；[2f原生详情32图审](2026-10-24-m4-native-details-review.md)中Batch24图接受四配置长理由逐行披露/固定确定/原位置恢复 | 原生title/message/button400与可见字形限定接受；不伪称主页面500角色 | 18/22真实Layout行零省略；1.3局部滚达接受，不要求全文同屏 | 原生白/炭灰、蓝/青确定及正文实屏色限定接受，不冒充产品teal | source2f784ec push40056061748；关闭旧“未采详情PNG”缺口。旧modal焦点/调整IME失败各自保留，不外推其它状态 |
+| P2 BeanLedgerActivity | 四主态及所列特殊态限定过；[2f原生详情32图审](2026-10-24-m4-native-details-review.md)中Ledger8图接受非零列表选中事件详情及恢复 | 四配置原生详情实际字形/400角色限定接受 | m4-scroll-adjust-19四行全文初态可见、零省略；列表两行省略规则不变，不冒称另一超长理由夹具 | 详情原生浅深表面/正文/确定实屏色已核；既有列表ADD/consume结论不变 | source2f784ec四配置各initial/restored；关闭旧“未采详情图”边界，不外推任意新事件文本 |
 | P1 ExtractionActivity | eb77四主态核心G1已补审限定接受；1.3右工具滚达仍缺证。库存纠正：12实时特殊分支均manifest pending，无特殊原图；60特殊属于其余三页 | eb77 四主态限定过；仅新增或变化状态按角色增量核 | eb77 四主态限定过；未审状态不借主态基线外推 | eb77 四主态限定过；未采 pressed/focus 不外推 | M5 能产后续版本；需补原计划12实时特殊分支及右栏滚达，不是新产品范围 |
 | P0 HistoryActivity | **标准1.0旧时间轴缺39px仍待新图关闭**；a47 light/1.3主态及 missing-samples 全图/说明/两notes滚达恢复已限定过 | eb77 所采限定过；新变化图例/轴增量核 | light/1.3 missing 三图例、零采样无path和滚达已过；标准1.0完整轴墨迹、深色各配置新证待核 | 所采限定过；新深色增量核 | 当前 M5 可产四配置；不得用浅1.3关闭浅深1.0旧失败 |
 | P1 HistoryDetailActivity | **a47 UNKNOWN light/1.3真plot102.66596dp已关闭该配置旧67.55dp失败**；深色UNKNOWN及其余配置完整notes仍需图审 | 所采限定过；新配置/滚后长notes增量核 | 已看指定状态基线/行盒过；其余仅几何137.77707dp不替代文字图审 | 已看浅色UNKNOWN限定过；深色及未细看状态待核 | 当前 M5 可补；budget账本false与实际plot足保留差异，不能以账本替代实际验收或扩本批修复 |
 | P0 BrewComparisonActivity | **a47来源285px高、viewport131px，全文不可同时露出是真FAIL**；dc自然最低预算修复待实图。三条水平线替代整格边框亦需新图核 | eb77 所采限定过；新分配后来源/summary角色不变需增量核 | 20固定+条件warning目标，来源两杯、表头/三行、taste与原动作逐目标完整/两scroll恢复待核；48/96下限不降 | eb77 所采限定过；水平线层次属G1，不能因border色正确关闭 | 本批生产修复+现有精确目标测试可验证；必须看真实完整来源及表格，不只看 accepted |
 | P1 ScaleActivity | 旧51px freshness裁切不再列作未关闭：643浅1.3既有限定审查，加[588三配置六帧](2026-10-23-m6-short-window-three-profiles-review.md)已实看条件同行/纵排、完整说明、固定动作及趋势Dialog；全高与其余特殊态仍按原范围补审 | 已审短窗quantity/说明及Dialog轴字、原生角色限定接受；未看状态不外推 | 三配置baseline786/786/749、freshness49/49/61px完整、七轴字/图表完整；右工具全目标滚达未由这六帧覆盖 | 六帧浅深主辅色、禁用及趋势限定接受；陈旧等未看状态仍待审 | 精确source588，非新58ae整run接受；真实秤能力/ACK不由Mock证明 |
-| P1 ScaleConnectionActivity | 缺完整四配置候选列表、无设备、已选、重连/不支持、限制说明布局 | 列表/连接状态/限制/操作角色补审 | 长设备名/说明自然换行、48触点和滚达恢复补审 | 连接/选中/不可用层次补审 | 前页失败可能阻断；不能借Scale主态通过代验 |
+| P1 ScaleConnectionActivity | [084 四配置28目标/22唯一图](2026-10-24-m6-connection-limited-review.md)已实看主态、空态、长名、正常三行滚达及40项手势/重建/返回；实际连接状态与信息Dialog未审 | 已显示名称/地址/RSSI/只读全文限定接受；未显示字形不外推 | 原48dp连接触点、正常第三行滚达接受；1.3长名第三行完整滚达仍缺 | 浅深主辅/警示/禁用层次限定接受；已选/重连等未看状态保留 | source084a7b18、5秒四零逐目标核；原滚动精确恢复成立；Mock READY不证明真实硬件/ACK |
 | P0 LegacyCurveActivity | [aac5c91四配置主图实审](2026-10-23-m7-main-pages-visual-review.md)：列表/2×2参数/常显只读/详情入口所见范围接受 | 普通名、来源、参数及单位实际字形/层级四档限定过 | 四参数与只读提示完整；列表滚动边缘不等于全部41条，完整Dialog未由本批覆盖 | 浅深主辅/选中/只读色已实看 | 不替代既有短窗/特殊态各自source边界；非整页所有动作通过 |
 | P1 LegacyHistoryActivity | [aac5c91四配置主图实审](2026-10-23-m7-main-pages-visual-review.md)：来源/列表/预览及固定只读提示已看 | 日期/时长/普通名/徽标实际字形与字号限定过 | 旧四图Toast遮挡已关闭；初态chart仍裁39px(1.0)/160px(1.3)，五time tick均未完整，不签初态整图，保留为产品布局问题 | 四档选中/蓝实线压力/青虚线水流/琥珀提示已看 | host Float32四配置validate通过只属原件合同；既有reached/轴字验收不倒灌初态，不新增已审范围 |
 | P1 LegacyHistoryDetailActivity | [aac5c91四配置主图实审](2026-10-23-m7-main-pages-visual-review.md)：主图/来源/缺失/限制分组所见范围接受 | 四档普通名/元信息/只读徽标、三段标题实际字形限定过 | 四主图轴与0–30s可读，旧light1.3/dark1.0 Toast盖轴关闭；1.3解释正文首屏仍未全露出，不由本批签全文 | 四档浅深图系列、缺失“未提供”和只读色已看 | 既有短窗/徽标/80轴字/滚达结论保留各自source，本批不重复；Dialog及未覆盖特殊态不升格全过 |
@@ -69,7 +69,7 @@
 
 - font_scale 原始key absent恢复仍是独立清理问题；snapshot探针成功与否不追认旧run，也不覆盖具体页面视觉。主体原件可独立审，最终run FAIL不能抹掉。
 - M2/M3重建诊断、Window mapping诊断、lifecycle timeout快照和成本计时只提供根因材料。只有正式既定协议通过的原件才用于相应正式接受；跨域差异保持diagnostic，不加新跨域零差门禁，也不删原四零差。
-- M4长理由/详情全文只有字符串而没有相应原图的部分，是明确图像证据边界；当前不变runner不会凭空产生这些图。需要后续针对既有状态的最小补证决定，不能写成“等当前CI即可”。
+- M4原生详情旧“只有字符串、没有原图”条目已由[2f既有32原图验收](2026-10-24-m4-native-details-review.md)限定关闭：Batch指定长理由24图、Ledger指定已选事件8图，均含四配置及恢复。既有detailDisclosure已产出，不新增runner或重跑主矩阵；较新484包在Preparation提前退出，没有新详情原件，不覆盖这份明确source结论。
 - 实际设备写入ACK、未知记录处置、真实秤能力、音频可听性等需既有硬件验收，Mock不能替代；这些与中文主视觉是否通过分账。
 - 已有图但尚未做设计对照的工作，必须由Astra实际审完；不能继续标成笼统“缺采集能力”，也不能让Sol的机械核验代签。
 
