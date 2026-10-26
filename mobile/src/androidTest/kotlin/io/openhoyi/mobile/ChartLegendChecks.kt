@@ -43,16 +43,17 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                             Triple("WATER", R.string.task_chart_water, "ml"),
                             Triple("WEIGHT", R.string.task_chart_weight, "g"),
                             Triple("TEMPERATURE", R.string.task_chart_temperature, "°C"))
+                        val endpoints = mapOf(
+                            "PRESSURE" to ("0.0" to "12.0"),
+                            "WATER" to ("0.0" to "60.0"),
+                            "WEIGHT" to ("0.0" to "50.0"),
+                            "TEMPERATURE" to ("80.0" to "100.0"))
                         val controls = descendants(chart).filterIsInstance<Button>().filter { it.tag.toString().startsWith("chart-metric:") }
                         check(controls.map { it.tag } == expected.map { "chart-metric:${it.first}" }) { "$fixture missing metric" }
                         controls.zip(expected).forEach { (control, metric) ->
                             val label = control.text.toString()
-                            val expectedRange = when (metric.first) {
-                                "PRESSURE" -> "0.0–12.0 bar"
-                                "WATER" -> "0.0–60.0 ml"
-                                "WEIGHT" -> "0.0–50.0 g"
-                                else -> "80.0–100.0 °C"
-                            }
+                            val range = endpoints.getValue(metric.first)
+                            val expectedRange = "${range.first}–${range.second} ${metric.third}"
                             // Fixture's final sample: 10 bar, 30 ml, 30 g, 92 °C.
                             val reading = when (metric.first) {
                                 "PRESSURE" -> "10.0"
@@ -60,13 +61,12 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                                 else -> "92.0"
                             }
                             val name = "${context.getString(metric.second)} $reading ${metric.third}"
-                            check(label == "$name\n$expectedRange" || label == name) {
+                            check(label == "$name\n$expectedRange") {
                                 "$fixture metric name, physical range or unit changed: $label"
                             }
                             check(control.contentDescription.toString().contains("$name;$expectedRange")) {
                                 "$fixture accessible physical range missing"
                             }
-                            if (widthDp <= 300) check(label.contains(expectedRange)) { "$fixture focused axis lost visible range" }
                             check(!label.contains("ml/s") && !label.contains("g/s")) { "$fixture flow replaced quantity" }
                             check(control.width >= 48 * density && control.height >= 48 * density)
                             LanguageUiLayoutChecks.textFits(control, fixture)
@@ -83,17 +83,6 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                                 TextView(context).apply { textSize = 11f }.textSize, fixture)
                             plot.draw(textCanvas)
                             check(textCanvas.labels >= 6 && "bar" in textCanvas.texts)
-                            controls.filter { !it.text.contains('–') }.forEach { control ->
-                                val description = control.contentDescription.toString()
-                                val unit = expected.single { "chart-metric:${it.first}" == control.tag }.third
-                                val endpoints = description.substringAfter(';').substringBefore(' ').split('–')
-                                check(unit in textCanvas.texts && endpoints.size == 2 && endpoints.all { it in textCanvas.texts }) {
-                                    "$fixture compact legend without complete visible axis: $description"
-                                }
-                            }
-                            if (widthDp >= 540) check(listOf("bar", "ml", "g", "°C").all { it in textCanvas.texts }) {
-                                "$fixture independent physical axes missing"
-                            }
                             var paths = 0
                             plot.draw(object : Canvas(bitmap) {
                                 override fun drawPath(path: Path, paint: Paint) {
@@ -102,10 +91,27 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                                 }
                             })
                             check(paths == 4) { "$fixture expected four physical series, got $paths" }
-                            controls.forEach { control ->
-                                check(control.performClick() && control.isSelected)
+                            controls.zip(expected).forEach { (control, metric) ->
+                                check(control.performClick() && control.isSelected && controls.count { it.isSelected } == 1)
                                 layout()
                                 LanguageUiLayoutChecks.textFits(control, "$fixture focused")
+                                val focusedCanvas = TrendChartTextChecks.TextBoundsCanvas(bitmap,
+                                    TextView(context).apply { textSize = 11f }.textSize, "$fixture focused ${metric.first}")
+                                plot.draw(focusedCanvas)
+                                val axisUnits = focusedCanvas.texts.filter { it in listOf("bar", "ml", "g", "°C") }
+                                val range = endpoints.getValue(metric.first)
+                                check(axisUnits == listOf(metric.third) &&
+                                    range.first in focusedCanvas.texts && range.second in focusedCanvas.texts) {
+                                    "$fixture selected ${metric.first} axis lost its unit or physical endpoints: ${focusedCanvas.texts}"
+                                }
+                                var focusedPaths = 0
+                                plot.draw(object : Canvas(bitmap) {
+                                    override fun drawPath(path: Path, paint: Paint) {
+                                        if (!path.isEmpty) focusedPaths++
+                                        super.drawPath(path, paint)
+                                    }
+                                })
+                                check(focusedPaths == 4) { "$fixture selecting ${metric.first} hid a physical series: $focusedPaths" }
                             }
                         } finally { bitmap.recycle() }
                         chart.points = chart.points.map { it.copy(weightHundredthsGram = null) }

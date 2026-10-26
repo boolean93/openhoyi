@@ -403,3 +403,15 @@ ChartLegendChecks末尾旧断言要求WEIGHT节点消失，与已批准的四指
 有限检查后续三通知suite未发现依赖旧图表或root可见结构的明确断言，仍使用真实Main的服务、系统通知文本/权限/意图及Mock隔离门禁；这不是通知运行通过结论。root报告b44真实runner已通过核心生命周期、五组audio及language context/activeCup/charts阶段，随后在旧缺秤节点断言失败；只记录已走过范围，不概括整个lifecycle或全部CI通过。与Product弹层准备等待小修一起待提交复验，文档冻结。
 
 Root本地复验：`missing-scale-dialog-test-build.log` AndroidTest构建42秒成功，覆盖Product弹窗就绪与ChartLegend缺秤契约小修；Astra静态通过，实际新CI仍待。生产未改变。
+
+### ChartLegend单轴契约方案审查
+
+dfb0f3a运行到historical zh-Hans/540/false后，旧同帧四轴断言失败。Astra通读现有函数、非embedded ShotChartView实际轴路径及规格：各指标独立映射，左轴仅显示选中量纲，四图例持续提供各自范围，点击不隐藏其他曲线。批准最小替换方案：同时移除宽屏同帧四单位要求及compact图例分支暗含的同帧全部单位/端点要求；复用原点击循环，每次实际点击/layout后重绘TextBoundsCanvas，按独立fixture字面值核选中单位及两端刻度、唯一选中态，并再次实际Canvas计数四条非空path。四图例完整范围/无障碍/48dp/textFits/不重叠与缺秤三path保留。当前非embedded图例所有宽度均fullTitle，可将旧name-only容许收紧为全部宽度完整范围。
+
+未发现本函数其他确定的旧显示契约；不改生产、不新增工具或测试矩阵。此次仅方案批准，实施diff与真实运行仍待，不能标chart-legends或整个lifecycle通过。文档冻结。
+
+### ChartLegend选轴实施静态闭合
+
+Astra复核冻结diff：四个量纲端点以独立字面常量定义，所有宽度均严格检查图例完整当前值/范围；两处旧同帧多轴断言已替换。原四次真实performClick/layout分别校验唯一selected，新建TextBoundsCanvas捕获实际plot绘制，轴单位列表必须恰为当前单位且包含对应两端点；每次实际drawPath仍严格四条。初始Canvas文字边界、四线、图例textFits/触控尺寸/非重叠以及缺秤三线检查均保留。未扩语言/尺寸/主题矩阵，未改生产或引入新测试工具。实施静态批准，最终编译和CI原生运行待root执行；文档冻结。
+
+Root确认`selected-axis-test-build.log` AndroidTest构建45秒成功；仅图例测试契约小修，生产保持c12b2d5，原生最新完整CI仍待。
