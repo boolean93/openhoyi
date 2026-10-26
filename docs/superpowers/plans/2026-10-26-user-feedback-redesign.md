@@ -19,13 +19,13 @@
 
 ## 进度
 
-当前状态截至已推送的 `267b408`，含Capture Mock UI运行40387407728、40389930415证据；首页槽位全称及深色快捷文字经原图复核闭合；720执行标记待补证。下方历史审查按当时事实保留；本表是当前状态，旧容器启动、旧首页布局问题已修复，不再列为未关闭阻塞。“开发完成”表示实现与静态审查完成，不等于全部软件或硬件验收通过。
+当前状态截至已推送的 `267b408`，含Capture Mock UI运行40387407728、40389930415证据；首页槽位全称及深色快捷文字经原图复核闭合；720双态执行标记已核实通过。下方历史审查按当时事实保留；本表是当前状态，旧容器启动、旧首页布局问题已修复，不再列为未关闭阻塞。“开发完成”表示实现与静态审查完成，不等于全部软件或硬件验收通过。
 
 | 项目 | 当前状态 | 已有证据 / 仍待验 |
 |---|---|---|
 | 协议计时修复 | 软件通过；实机待验 | 仅删07，精确三帧/时序、同地址两代连接回归通过；Mini/Ultra实际计时与重量待验 |
 | 真Tab迁移 | 开发完成；核心原生通过 | 25169d2真实MainNavigation：六Tab20轮、720×360几何、冷启动/重建、同服务同series通过；历史来源后续修复已静态审结，710f33c复验待结果。非零历史滚动、豆列表滚动/选批/详情的Tab往返新增测试已静态通过，运行待验；二级编辑页及全部子路由重建仍按既有验收确认 |
-| 机器首页常驻控制 | 中文浅深代表图及五槽全称通过 | 267b408实际浅深首页全称与快捷文字可读；深色文字原PNG像素复核相同，撤回缩放显示疑点。最新720九控件执行marker待补证；实际设备操作待验 |
+| 机器首页常驻控制 | 中文浅深代表图及五槽全称通过 | 267b408实际浅深首页全称与快捷文字可读；深色文字原PNG像素复核相同，撤回缩放显示疑点。b8e18e6的720×360 idle/running实际执行标记通过；实际设备操作待验 |
 | 大图设计 | 平板代表场景面积及视觉通过 | 23d2eab有/无秤实际网格291.7147dp、图宽占页面96.97%、停止完整56dp且间隔8dp；浅/深运行及有/无秤图已审。仅此正常字体平板范围，不代表全部字号/尺寸或硬件 |
 | 自动导航与重连 | 开发完成；策略及核心导航通过 | 101 session checks与手动ID策略通过，251原生manualShell通过；原机恢复、主动断开抑制、认证only静态审结，真实机器/秤恢复待验 |
 | 设置弹层统一 | 开发完成；部分视觉通过 | 根页、二级及自有DatePicker接入已审；启动确认浅/深图、机器设置浅色可见部分通过；全部弹层长文本/IME/英文与放大字体尚未整体批准 |
@@ -495,3 +495,15 @@ Astra重新以原detail查看home-dark确见“选择曲线”，并直接读取
 Astra复核MainNavigationChecks及check_mock_lifecycle.sh：原getRealSize/density与1dp容差不变，不匹配发送含state/px/density/dp的SKIP；仅原主线程idle或running全部几何断言完成后发送对应PASS。原两处调用不变。脚本既有1440×720/density320阶段将am instrument -w stdout完整写入同main-navigation.txt，文件以w重建；先要求原总PASS，再拒绝SKIP并要求idle/running两PASS。set -Eeuo pipefail及原超时/返回码检查保留，缺标记即失败，不吞原错误。Capture脚本未改，不要求平板产生720标记。实施静态批准，编译和原CI实际标记待验；文档冻结。
 
 Root确认`compact-geometry-evidence-build.log` AndroidTest构建35秒成功；lifecycle脚本bash-n及diff检查通过。二级页合同与720两态执行证据小修均经Astra批准，原实际CI待验；不把此前无分支marker的通用PASS补算720验收。
+
+### 720真实双态通过与二级滚动合同修正方案
+
+Astra独立读取run40392682399/main-navigation.txt，idle/running两条MAIN_HOME_720_GEOMETRY_PASS均为display1440×720、density2、dp720×360；此前主体是否执行的不确定性闭合。root报告MachineSettings初始geometry通过，随后scroll=40时随内容滚走的返回按钮被部分裁切，新增二级分支错误要求它固定完整。
+
+批准仅为checkGeometry增加显式initial/scroll阶段：初始仍严格验证真实back/action至少48dp且完整可见；滚动阶段不要求滚走的header-back固定完整。Main全部导航门禁、二级rail隐藏、公共frame/pageContent/子项及原文字/滚动终点/五节设置检查不变，禁止按isShown猜阶段或换可见按钮替代初始合同。不改生产或矩阵。方案批准，实施/CI待验，文档冻结。
+
+### 二级滚动阶段参数实施静态闭合
+
+Astra核最终LanguagePageChecks diff：requireSecondaryAction无默认值，两调用均显式，初次true、滚动position==0为true、>0为false；原back优先真实交互的48dp与完整可见检查只在该条件中。MachineSettings类型和根rail隐藏始终受检，Main不受参数影响，公共frame/content/子项、文本、滚动终点及五节设置保持。实施静态批准，不改生产/矩阵；编译与实际后续CI待验。文档冻结。
+
+Root确认`secondary-scroll-phase-build.log` AndroidTest构建35秒成功；Astra终审通过，生产未改。b8e18e6的720两态真实PASS已记录，完整语言/滚动矩阵仍以新CI为准。

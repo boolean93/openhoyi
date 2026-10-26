@@ -190,7 +190,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         onMain {
             val views = descendants(root(activity))
             scrolls += views.filterIsInstance<ScrollView>().filter { it.isShown }
-            checkGeometry(activity, fixture)
+            checkGeometry(activity, fixture, requireSecondaryAction = true)
             var checked = 0
             for (view in views.filterIsInstance<TextView>()) {
                 if (!view.isShown || view is EditText || view.text.isNullOrEmpty()) continue
@@ -214,7 +214,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
             while (true) {
                 onMain { scroll.scrollTo(0, position) }
                 test.waitForIdleSync()
-                onMain { checkGeometry(activity, "$fixture scroll=$position") }
+                onMain { checkGeometry(activity, "$fixture scroll=$position", requireSecondaryAction = position == 0) }
                 if (position == maximum) break
                 position = (position + step).coerceAtMost(maximum)
             }
@@ -226,7 +226,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         }
     }
 
-    private fun checkGeometry(activity: Activity, fixture: String) {
+    private fun checkGeometry(activity: Activity, fixture: String, requireSecondaryAction: Boolean) {
         val root = root(activity)
         val frame = descendants(root).filterIsInstance<TaskPageFrame>().single()
         fullyVisible(frame, fixture)
@@ -272,16 +272,18 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         } else {
             check(activity is MachineSettingsActivity) { "$fixture unexpected secondary page: ${activity.javaClass.simpleName}" }
             check(!frame.navigation.isShown && targets.none { it.isShown }) { "$fixture secondary page exposed the root task rail" }
-            val minimum = HoyiUi.dp(activity, 48)
-            val controls = descendants(content).filter { view ->
-                view.isShown && view.isEnabled && view.isClickable &&
-                    (!view.contentDescription.isNullOrBlank() || (view as? TextView)?.text?.isNotBlank() == true)
+            if (requireSecondaryAction) {
+                val minimum = HoyiUi.dp(activity, 48)
+                val controls = descendants(content).filter { view ->
+                    view.isShown && view.isEnabled && view.isClickable &&
+                        (!view.contentDescription.isNullOrBlank() || (view as? TextView)?.text?.isNotBlank() == true)
+                }
+                val control = controls.firstOrNull { it.contentDescription == activity.getString(R.string.ui_back) }
+                    ?: controls.firstOrNull { it.width >= minimum && it.height >= minimum }
+                    ?: error("$fixture no visible secondary-page action")
+                check(control.width >= minimum && control.height >= minimum) { "$fixture small secondary action: ${control.tag}" }
+                fullyVisible(control, fixture)
             }
-            val control = controls.firstOrNull { it.contentDescription == activity.getString(R.string.ui_back) }
-                ?: controls.firstOrNull { it.width >= minimum && it.height >= minimum }
-                ?: error("$fixture no visible secondary-page action")
-            check(control.width >= minimum && control.height >= minimum) { "$fixture small secondary action: ${control.tag}" }
-            fullyVisible(control, fixture)
         }
         // Content and fixed actions remain inside the frame in both root and secondary pages.
         for (index in 0 until content.childCount) {
