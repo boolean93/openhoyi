@@ -19,14 +19,14 @@
 
 ## 进度
 
-当前状态截至已推送的 `c12b2d5`，含Capture Mock UI运行40372606827证据。下方历史审查按当时事实保留；本表是当前状态，旧容器启动、旧首页布局问题已修复，不再列为未关闭阻塞。“开发完成”表示实现与静态审查完成，不等于全部软件或硬件验收通过。
+当前状态截至已推送的 `23d2eab`，含Capture Mock UI运行40387407728证据及首页五槽待提交修复。下方历史审查按当时事实保留；本表是当前状态，旧容器启动、旧首页布局问题已修复，不再列为未关闭阻塞。“开发完成”表示实现与静态审查完成，不等于全部软件或硬件验收通过。
 
 | 项目 | 当前状态 | 已有证据 / 仍待验 |
 |---|---|---|
 | 协议计时修复 | 软件通过；实机待验 | 仅删07，精确三帧/时序、同地址两代连接回归通过；Mini/Ultra实际计时与重量待验 |
 | 真Tab迁移 | 开发完成；核心原生通过 | 25169d2真实MainNavigation：六Tab20轮、720×360几何、冷启动/重建、同服务同series通过；历史来源后续修复已静态审结，710f33c复验待结果。非零历史滚动、豆列表滚动/选批/详情的Tab往返新增测试已静态通过，运行待验；二级编辑页及全部子路由重建仍按既有验收确认 |
-| 机器首页常驻控制 | 开发完成；已看代表图通过 | 机器状态、紧凑双锅炉、快捷五槽及常驻控制已实现；720×360几何通过，中文浅/深首页实图已审；实际锅炉回读与设备操作待验 |
-| 大图设计 | 平板代表场景面积及视觉通过 | c12b2d5有/无秤实际网格263.27023dp、图宽占页面96.97%、停止完整56dp且间隔8dp；浅/深运行及有/无秤图已审。仅此正常字体平板范围，不代表全部字号/尺寸或硬件 |
+| 机器首页常驻控制 | 已有代表图通过；五槽全称修复待CI | 原机器状态/双锅炉/常驻控制代表图与720×360几何已有证据；23d2eab发现槽位全称省略，1:3余宽及自然换行小修已静审，最新全称与九控件首屏待CI；实际设备操作待验 |
+| 大图设计 | 平板代表场景面积及视觉通过 | 23d2eab有/无秤实际网格291.7147dp、图宽占页面96.97%、停止完整56dp且间隔8dp；浅/深运行及有/无秤图已审。仅此正常字体平板范围，不代表全部字号/尺寸或硬件 |
 | 自动导航与重连 | 开发完成；策略及核心导航通过 | 101 session checks与手动ID策略通过，251原生manualShell通过；原机恢复、主动断开抑制、认证only静态审结，真实机器/秤恢复待验 |
 | 设置弹层统一 | 开发完成；部分视觉通过 | 根页、二级及自有DatePicker接入已审；启动确认浅/深图、机器设置浅色可见部分通过；全部弹层长文本/IME/英文与放大字体尚未整体批准 |
 | 整体验收 | 进行中，未整体通过 | 710f33c已推；root确认最新统一构建2分15秒、两APK资源各10897值通过。251核心原生与audio五组通过，代表图已审；最新完整CI、下列未验状态恢复和全部硬件仍待 |
@@ -457,3 +457,17 @@ Astra实际查看run40384714929的extraction-running-light.png并读取with-scal
 Astra复核ExtractionOverlayView/ExtractionFragment两文件：active状态同步compactRunningExplanation，仅visual非embedded运行态启用；正常采样说明不占主图高度，water reset/gap仍显示notes.drop(1)的精简警示。fullExplanation保留完整采样/异常文本，工具→概览调用overviewExplanation并附当前选轴的独立量程/单位；plot.contentDescription原完整notes未削减。idle恢复全文，embedded历史不启用压缩，四图例、量程、字体、renderer及停止逻辑未改。实施静态批准，测试focusedBitmap修订保持此前审结；统一构建与新几何/截图复验待root执行，未提前标260dp通过。计划冻结。
 
 Root确认`live-inset-budget-build.log`完整Mock单测、Mock/Debug/AndroidTest APK、lintDebug构建2分钟成功；两APK资源各10897值及6 literal round trips通过。Astra批准常态说明移概览及focusedBitmap尺寸生命周期修正；原260dp/选轴/字边界门槛不变，实际新CI待验。
+
+### 首页五槽全称省略：局部设计审查
+
+root报告23d2eab已通过chart-legends及notificationFactory/Posting/ServiceRefresh，随后真实中文横屏首页槽位Espresso深烘被省略，整个lifecycle仍未通过。静态根因确认为presetRow固定320dp等分且maxLines2/END，宽屏剩余空间全部给当前配方标题。
+
+批准先做最小局部调整：当前配方标题与槽区以1:3权重分配余宽，取消槽位ellipsis及固定两行截断，名称自然换行；保持原11sp、不少于48dp触控、独立quickLaunch及既有启动门禁。比例本身不是验收，必须用实际全称和原textFits验证，并在720×360实测九控件全部完整可见、不重叠。若槽区自然行高仍超预算，再评估只将quick区域变两行、五槽占满宽的后备方案，当前不一并扩实现。不能改fixture名、降字号、放宽可见性或用滚动隐藏高频控件。实施/构建/原生验收待；文档冻结。
+
+### 23d2eab主图复验与首页小修审结
+
+Astra实际view_image查看run40387407728的浅/深running及with-scale/no-scale四图，并读两geometry：fontScale1、1138×623dp、density2.25，两者真实网格291.7147dp、图宽96.97479%，stop完整56dp且间距8dp，axesInsidePlot/dataPlotFullyVisible/plotScreenMappingMatches均true。四图文字/单位/范围清晰，停止完整，无秤明确缺测且无绿色假线，常态说明已不占图高。批准所看正常字体平板场景，Capture成功不等于全部CI通过；本次顶部inset为63px，未冒称本次实测74px，但31.71dp余量大于此前4.89dp差。
+
+HomeFragment冻结diff仅presetRow由固定320dp改width0/weight3（标题原weight1），槽位maxLines放开/ellipsis=null；11sp/min48和slot confirmStart回调原样。该小修静态批准，实际全称与720×360九控件仍待新CI，不用主图Capture代替首页验收。文档冻结。
+
+Root确认`home-slot-width-build.log`完整Mock单测、Mock/Debug/AndroidTest APK、lintDebug构建1分41秒成功；两APK资源各10897值及6 literal round trips通过。Home真实全称与720×360九控件仍待新提交CI，原断言不变。

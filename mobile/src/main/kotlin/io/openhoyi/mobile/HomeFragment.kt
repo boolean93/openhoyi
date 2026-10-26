@@ -255,12 +255,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             else host.select(TaskDestination.CURVES)
         }.apply { tag = "product/home/quick-launch"; layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) } }
         val presetRow = productStyle.row("product/home/direct-presets")
-        quickRow.addView(presetRow, LinearLayout.LayoutParams(dp(320), -2).apply { marginStart = dp(8) })
+        quickRow.addView(presetRow, LinearLayout.LayoutParams(0, -2, 3f).apply { marginStart = dp(8) })
         directPresetButtons = (1..5).map { slot ->
             button(presetRow, slot.toString()) { host.showExtraction(slot, confirmStart = true) }.apply {
                 tag = "product/home/direct-preset/$slot"
-                minimumHeight = dp(48); maxLines = 2
-                ellipsize = android.text.TextUtils.TruncateAt.END
+                minimumHeight = dp(48); maxLines = Int.MAX_VALUE
+                ellipsize = null
                 textSize = 11f
                 layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
                     if (slot > 1) marginStart = dp(4)
