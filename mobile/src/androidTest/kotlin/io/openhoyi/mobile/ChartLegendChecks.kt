@@ -76,7 +76,37 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                             }
                         }
                         val plot = descendants(chart).single { it.tag == "chart-plot" }
-                        check(plot.visibility == View.VISIBLE && plot.height >= 96 * density) { "$fixture usable plot missing" }
+                        check(plot.visibility == View.VISIBLE && plot.height >= 96 * density) {
+                            val diagnostic = runCatching {
+                                fun member(owner: Any?, name: String): Any? = runCatching {
+                                    owner?.javaClass?.getDeclaredField(name)?.apply { isAccessible = true }?.get(owner)
+                                }.getOrElse { "unavailable:${it.javaClass.simpleName}" }
+                                fun size(view: View?): String = if (view == null) "unavailable" else
+                                    "measured=${view.measuredWidth}x${view.measuredHeight},layout=${view.width}x${view.height}," +
+                                        "visibility=${view.visibility},scroll=${view.scrollX},${view.scrollY}"
+                                val overlay = member(chart, "chart") as? View
+                                val header = member(overlay, "header") as? View
+                                val headerContent = member(overlay, "headerContent") as? View
+                                val legend = member(overlay, "legend") as? View
+                                val explanation = member(overlay, "explanation") as? View
+                                val minimum = runCatching {
+                                    plot.javaClass.getDeclaredMethod("minimumAxisHeight").apply { isAccessible = true }.invoke(plot)
+                                }.getOrElse { "unavailable:${it.javaClass.simpleName}" }
+                                val fontLine = runCatching {
+                                    val labels = member(plot, "labels") as android.graphics.Paint
+                                    val metrics = labels.fontMetrics
+                                    "${metrics.descent - metrics.ascent}px(ascent=${metrics.ascent},descent=${metrics.descent})"
+                                }.getOrElse { "unavailable:${it.javaClass.simpleName}" }
+                                "density=$density,scaledDensity=${context.resources.displayMetrics.scaledDensity}," +
+                                    "fontScale=${context.resources.configuration.fontScale}," +
+                                    "chart=[${size(chart)}],overlay=[${size(overlay)}],plot=[${size(plot)}]," +
+                                    "header=[${size(header)}],headerContent=[${size(headerContent)}]," +
+                                    "legend=[${size(legend)}],explanation=[${size(explanation)}]," +
+                                    "minimumAxisHeight=$minimum,fontMetricsLine=$fontLine," +
+                                    "compact=${member(overlay, "compactMode")},notice=[${size(member(overlay, "compactNotice") as? View)}]"
+                            }.getOrElse { "diagnostic_unavailable:${it.javaClass.simpleName}" }
+                            "$fixture usable plot missing; $diagnostic"
+                        }
                         val bitmap = Bitmap.createBitmap(plot.width, plot.height, Bitmap.Config.ARGB_8888)
                         try {
                             val textCanvas = TrendChartTextChecks.TextBoundsCanvas(bitmap,

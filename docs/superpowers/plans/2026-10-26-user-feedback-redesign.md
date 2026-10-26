@@ -415,3 +415,15 @@ dfb0f3a运行到historical zh-Hans/540/false后，旧同帧四轴断言失败。
 Astra复核冻结diff：四个量纲端点以独立字面常量定义，所有宽度均严格检查图例完整当前值/范围；两处旧同帧多轴断言已替换。原四次真实performClick/layout分别校验唯一selected，新建TextBoundsCanvas捕获实际plot绘制，轴单位列表必须恰为当前单位且包含对应两端点；每次实际drawPath仍严格四条。初始Canvas文字边界、四线、图例textFits/触控尺寸/非重叠以及缺秤三线检查均保留。未扩语言/尺寸/主题矩阵，未改生产或引入新测试工具。实施静态批准，最终编译和CI原生运行待root执行；文档冻结。
 
 Root确认`selected-axis-test-build.log` AndroidTest构建45秒成功；仅图例测试契约小修，生产保持c12b2d5，原生最新完整CI仍待。
+
+### 240×220英文裸图组件高度失败：限定诊断
+
+4e693d1的ChartLegendChecks在en/240/false报usable plot missing，原条件合并VISIBLE及plot高度至少96dp，artifact未分别记录实际值。Astra核对当前路径为ShotChartView(context)的visual=null非embedded图：minimumAxisHeight=ceil(fontMetrics行高×4.5+32dp)，header最多占总高减此动态最低高；高度不足最低高加48dp时才进入compact并隐藏图。96dp并非此路径的显式预算，本轮规格180/260dp指整页真实dataPlot，与此240×220裸组件不能直接等同。英文标题增高可能让图收至动态最低高，但现有证据不足以断定实际失败分支。
+
+下一步仅在原断言补density/fontScale、父子measure/layout高、header/legend/explanation及scroll、plot可见性/高度、动态minimum/fontMetrics/compact诊断；保留原96dp、220dpfixture及既有矩阵，先得到真实数值。未批准降低阈值、增大fixture或修改生产，不将非目标英文窄组件扩展为新产品范围。文档冻结。
+
+### 裸图高度失败诊断补丁静态闭合
+
+Astra读取ChartLegendChecks最终小diff：仅扩展原check的惰性失败message，VISIBLE且>=96dp条件、240×220fixture及后续绘制门禁未改。记录density/scaledDensity/fontScale、chart/overlay/plot/header/headerContent/legend/explanation实测与布局尺寸/可见性/scroll，以及动态最低轴高、字体行高、compact/notice；反射各自runCatching，外层诊断亦捕获并保留原usable plot missing前缀，不改变失败结论。静态批准，待仅编译测试并重跑原用例取得数值，不增加矩阵，不提前判定根因或批准阈值调整。文档冻结。
+
+Root确认`legend-height-diagnostic-build.log` AndroidTest构建35秒成功；仅原断言失败诊断，96dp门禁/fixture/生产未改。原生具体尺寸待CI取证。
