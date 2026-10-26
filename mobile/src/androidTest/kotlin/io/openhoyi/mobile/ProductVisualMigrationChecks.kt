@@ -101,13 +101,32 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
             line.getBoolean("fullViewVisible") && line.getBoolean("layoutPresent") && line.getInt("lineCount") > 0 &&
                 line.getInt("ellipsisCount") == 0 && line.getInt("layoutHeightPx") <= line.getInt("contentHeightPx") }
     }
-    private fun captureReachable(activity: Activity, directory: File, ids: List<String>, initialRequired: Set<String>): JSONArray {
+    private fun homeDetails(activity: MainActivity): android.app.AlertDialog {
+        fun open()=check(requireNotNull(root(activity).findViewWithTag<View>("product/home/connect")).performClick())
+        if(android.os.Looper.myLooper()==android.os.Looper.getMainLooper()) {
+            open()
+            val home=activity.supportFragmentManager.primaryNavigationFragment as HomeFragment
+            return requireNotNull(field(home,"deviceDialog") as? android.app.AlertDialog)
+                .also {check(it.isShowing)}
+        }
+        main {open()}
+        var dialog: android.app.AlertDialog?=null
+        await("real Home details dialog ready") {
+            val home=activity.supportFragmentManager.primaryNavigationFragment as? HomeFragment
+            dialog=home?.let {field(it,"deviceDialog") as? android.app.AlertDialog}
+            dialog?.isShowing==true && dialog?.window?.decorView?.isLaidOut==true
+        }
+        return requireNotNull(dialog)
+    }
+    private fun captureReachable(activity: Activity, directory: File, ids: List<String>,
+        initialRequired: Set<String>, dialog: android.app.AlertDialog?=null): JSONArray {
         val results = JSONArray()
+        val targetRoot=dialog?.window?.decorView ?: root(activity)
         ids.forEachIndexed { index, id ->
             lateinit var view: View; lateinit var before: JSONObject
             lateinit var scrolls: List<Triple<ScrollView, Int, Int>>
             main {
-                view = nodes(root(activity)).single { it.tag == id }
+                view = nodes(targetRoot).single { it.tag == id }
                 before = observation(view)
                 scrolls = generateSequence(view.parent) { it.parent }.filterIsInstance<ScrollView>().map { Triple(it, it.scrollX, it.scrollY) }.toList()
             }
@@ -116,23 +135,25 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
             val image = "after-scroll-${index + 1}.png"
             try {
                 main { view.requestRectangleOnScreen(Rect(0, 0, view.width, view.height), true) }
-                val captured = frames.screenshot(activity, root(activity), File(directory, image)) { observation(view) }
+                val captured = if(dialog==null) frames.screenshot(activity, targetRoot, File(directory, image)) { observation(view) }
+                    else frames.screenshot(requireNotNull(dialog.window), targetRoot, File(directory, image)) { observation(view) }
                 after = captured.target; proof = captured.proof
             } finally {
                 main { scrolls.forEach { (scroll, x, y) -> scroll.scrollTo(x, y) } }
-                frames.committedFrame(root(activity))
+                frames.committedFrame(targetRoot)
                 main { restored = scrolls.all { (scroll, x, y) -> scroll.scrollX == x && scroll.scrollY == y } }
             }
             val pass = whole(after) && restored && (id !in initialRequired || whole(before))
             results.put(JSONObject().put("semanticId", id).put("initial", before).put("afterScroll", after)
                 .put("initialRequired", id in initialRequired).put("scrollRestored", restored)
-                .put("initialPng", "window.png").put("afterScrollPng", image).put("frameSync", proof)
+                .put("initialPng", if(dialog==null) "window.png" else "details-initial.png")
+                .put("afterScrollPng", image).put("frameSync", proof)
                 .put("status", if (pass) "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL"))
             File(directory, "scroll-reachability.json").writeText(results.toString(2))
         }
         return results
     }
-    private fun baselines(activity: Activity, page: String): JSONArray {
+    private fun baselines(activity: Activity, page: String, dialog: android.app.AlertDialog?=null): JSONArray {
         val pairs = when (page) {
             "home" -> (0..1).map { "product/home/summary/$it/values/number" to "product/home/summary/$it/values/unit" } +
                 ("home-dose-quantity" to "product/home/dose/unit")
@@ -140,7 +161,7 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
             else -> listOf("product/inventory/balance/number" to "product/inventory/balance/unit")
         }
         return JSONArray(pairs.map { (number, unit) ->
-            fun baseline(id: String): Int { val view = nodes(root(activity)).single { it.tag == id } as TextView
+            fun baseline(id: String): Int { val view = nodes(dialog?.window?.decorView ?: root(activity)).single { it.tag == id } as TextView
                 check(view.baseline >= 0); val point = IntArray(2); view.getLocationOnScreen(point); return point[1] + view.baseline }
             val a = baseline(number); val b = baseline(unit)
             JSONObject().put("numberSemanticId", number).put("unitSemanticId", unit)
@@ -368,10 +389,16 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
                     check(prefs.edit().putString("selected",id).commit())
                     write(mock,"shotState",if(state=="active") ExtractionState.RUNNING else ExtractionState.IDLE)
                     render()
-                    val rows=nodes(root(activity)).filter { it.tag?.toString()?.startsWith("home-recent-curve-")==true && it.isShown }
+                    val details=homeDetails(activity)
+                    val rows=nodes(requireNotNull(details.window).decorView)
+                        .filter { it.tag?.toString()?.startsWith("home-recent-curve-")==true && it.isShown }
+                    check(rows.isNotEmpty()) { "Home details recent curves missing" }
                     if(state=="active") check(rows.all { !it.isEnabled }) { "Active cup recent choices enabled" }
                     val action=field(activity,"brewButton") as View
-                    check(action.isEnabled && action.performClick())
+                    action.requestRectangleOnScreen(Rect(0,0,action.width,action.height),true)
+                    check(action.rootView===requireNotNull(details.window).decorView.rootView &&
+                        action.isShown && action.isEnabled && whole(observation(action)))
+                    check(action.performClick())
                     val expected=if(state in setOf("active","startable")) "extraction" else "root:CURVES"
                     check(activity.supportFragmentManager.primaryNavigationFragment?.tag==expected) { "Wrong Home route $state" }
                     results.put(JSONObject().put("state",state).put("destination",expected).put("intercepted",true)
@@ -428,6 +455,9 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
             }
             check(font==TaskProductVisualStyle.FONT_SHA); manifest.put("fontSha256",font)
             val initial=frames.screenshot(activity,root(activity),File(directory,"window.png")) { geometry(activity) }
+            val details=if(page=="home") homeDetails(activity as MainActivity) else null
+            if(details!=null) frames.screenshot(requireNotNull(details.window),requireNotNull(details.window).decorView,
+                File(directory,"details-initial.png")) {JSONObject().put("source","real_home_details_dialog")}
             val imageBounds=android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds=true }
             android.graphics.BitmapFactory.decodeFile(File(directory,"window.png").absolutePath,imageBounds)
             manifest.put("wholeWindowPngSizePx",JSONArray(listOf(imageBounds.outWidth,imageBounds.outHeight)))
@@ -436,7 +466,7 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
             lateinit var baseline: JSONArray
             main {
                 TaskTypographyEvidence.capture(activity,directory)
-                baseline=baselines(activity,page)
+                baseline=baselines(activity,page,details)
                 File(directory,"baseline-alignment.json").writeText(baseline.toString(2))
                 File(directory,"anchors.json").writeText(geometry(activity).toString(2))
                 File(directory,"canvas.json").writeText(JSONArray(nodes(root(activity)).filterIsInstance<CurveStageView>().map { chart ->
@@ -454,7 +484,8 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
                 "share" -> if(scale==1f) ids.dropLast(1).toSet() else emptySet()
                 else -> if(scale==1f) ids.toSet() else emptySet()
             }
-            val reached=captureReachable(activity,directory,ids,initialRequired)
+            val reached=captureReachable(activity,directory,ids,initialRequired,details)
+            details?.dismiss()
             if(page=="home") File(directory,"home-route-business.json").writeText(homeRoutes(activity as MainActivity,activeScope).toString(2))
             if(activity is CurveShareActivity) AdvancedBusinessUiChecks(test).verifyM1ExportContract(activity,activeScope.document,directory)
             if(page=="inventory") AdvancedBusinessUiChecks(test).verifyM1InventoryThreeEvents(activity as MainActivity,activeScope.inventory,directory)

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home_machine_title">Máquina</string>
+    <string name="home_target_label">Objetivo</string>
+    <string name="home_slot_unconfigured">Sin asignar</string>
     <string name="home_visual_details">Detalles de preparación</string>
     <string name="home_visual_show_details">Ver detalles de preparación ›</string>
     <string name="home_visual_change">Cambiar</string>

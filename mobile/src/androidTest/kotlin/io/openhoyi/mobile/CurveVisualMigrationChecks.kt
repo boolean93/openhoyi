@@ -87,6 +87,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         .joinToString("") { "%02x".format(it) }
     private fun businessDisk(allowPresetFiles:Boolean=false): Map<String, String> = listOf("files", "shared_prefs", "databases").flatMap { name ->
         File(context.applicationInfo.dataDir, name).walkTopDown().filter { it.isFile &&
+            !(name == "files" && it.parentFile == File(context.applicationInfo.dataDir, "files") && it.name == "profileInstalled") &&
             !(name == "shared_prefs" && (it.name in setOf("appearance.xml", "appearance.xml.bak", "curves.xml", "curves.xml.bak") ||
                 (allowPresetFiles && it.name in setOf("presets.xml", "presets.xml.bak")))) }
             .map { it.relativeTo(File(context.applicationInfo.dataDir)).path to sha(it) }.toList()
@@ -183,6 +184,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         private var oldFailure: Any? = null
         private val savedPrefs = linkedMapOf<String, Map<String, *>>()
         private var diskBefore = emptyMap<String, String>()
+        private var profileInstallerMarkerBefore: String? = null
         private var whitePrefFileBefore = emptyMap<String, String>()
         private fun whitePrefFiles(): Map<String,String> = listOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak",
             "presets.xml","presets.xml.bak").mapNotNull { name ->
@@ -193,6 +195,19 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         private val tracked = linkedSetOf<Activity>()
         private val destroyed = linkedSetOf<Activity>()
         var service: MobileService? = null
+        fun readOnlyService(): Boolean {
+            val host=tracked.filterIsInstance<MainActivity>().lastOrNull { !it.isDestroyed }
+            val current=host?.currentService
+            if(service==null && current!=null) service=current
+            val owner=service ?: return services().isEmpty()
+            val mock=field(owner,"mock") as? MockDeviceRuntime ?: return false
+            return services()==listOf(MobileService::class.java.name) && owner.running &&
+                (current==null || current===owner) && owner.shotState==ExtractionState.IDLE &&
+                field(owner,"hub")==null && !owner.snapshot.scanning &&
+                mock.lastSetting==null && !mock.scheduleChanged && !mock.tareChanged &&
+                !mock.cupReset && !mock.preheatActive && !mock.isSleeping
+        }
+        fun singleReadOnlyService()=readOnlyService() && service!=null
         val inventory = BeanInventory(object : InventoryStorage { var value: ByteArray? = null
             override fun read() = value?.clone(); override fun write(bytes: ByteArray) { value = bytes.clone() } })
         val preparation = BeanPreparation(object : BeanPreparation.Storage { var value: String? = null
@@ -398,7 +413,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 })).put("usageCount",usage.stats(document.id).count)
                 .put("usageSource","three_synthetic_legal_ShotHistory_domain_observations_not_hardware_telemetry")
                 .put("source","legal_memory_Storage_and_scoped_owned_cache_writers")
-                .put("servicePolicy","no_service_launch_bind_or_machine_commands")
+                .put("servicePolicy",if(page=="library") "single_Main_MockService_no_BLE_or_machine_commands" else "no_service_launch_bind_or_machine_commands")
                 .put("clipboardAndPresetPolicy","clipboard_only_explicit_import_business_with_foreground_restore; presets_not_touched")
         }
         fun install(dark: Boolean) {
@@ -414,6 +429,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 oldLanguage = field(app,"languagePreferences"); oldFailure=field(app,"journalObservationFailure")
                 listOf("appearance","curves","presets").forEach { savedPrefs[it]=context.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
                 diskBefore=businessDisk(specialLibrary); whitePrefFileBefore=whitePrefFiles()
+                profileInstallerMarkerBefore=File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha)
                 app.registerActivityLifecycleCallbacks(lifecycle)
                 val values = mapOf("feedbackPreferences" to feedback,"logs" to logs,"curves" to curves,"samples" to samples,"history" to history,
                     "customCurvesResult" to Result.success(custom),"curveUsageResult" to Result.success(usage),"beanInventoryResult" to Result.success(inventory),
@@ -517,6 +533,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     savedPrefs.forEach { (name,values) -> check(context.getSharedPreferences(name,Context.MODE_PRIVATE).all==values) }
                     val after = businessDisk(specialLibrary)
                     proof.put("businessDiskBefore",JSONObject(diskBefore)).put("businessDiskAfter",JSONObject(after))
+                        .put("androidxProfileInstallerMarkerBeforeSha256",profileInstallerMarkerBefore ?: JSONObject.NULL)
+                        .put("androidxProfileInstallerMarkerAfterSha256",
+                            File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha) ?: JSONObject.NULL)
                     check(after==diskBefore) { "Original business disk changed; no rollback attempted" }
                     proof.put("originalLazyIdentityAndInitializedRestored",true).put("legacyUnchanged",true)
                         .put("typedPreferencesRestored",true).put("businessDiskByteUnchanged",true)
@@ -1248,7 +1267,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     (field(page,"detailScroll") as ScrollView).scrollY==beforeScroll &&
                     (field(page,"previewFallbackScroll") as ScrollView).scrollY==beforeFallback &&
                     restored.getJSONObject("actualRestoreState").getBoolean("hasWindowFocus") && invariant(scope)==frozen &&
-                    context.getSharedPreferences("curves",Context.MODE_PRIVATE).all==prefs && services().isEmpty()) {
+                    context.getSharedPreferences("curves",Context.MODE_PRIVATE).all==prefs && scope.readOnlyService()) {
                     "M3 Library $name original state not restored" }
                 report.put("restoredList",listState(page))
                     .put("status","PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE")
@@ -1595,7 +1614,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                             " · "+page.getString(R.string.curve_slot_assigned_latest,"5")) }
                     report.put("sameCurveRedraw",reselected.put("latestAssignedSlot",5))
                 }
-                check(invariant(scope)==frozen && services().isEmpty())
+                check(invariant(scope)==frozen && scope.readOnlyService())
             }
             for((label,item) in listOf("captured" to captured,"readonly-flow" to readonly)) {
                 librarySelect(page,scope,item)
@@ -1826,7 +1845,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     compare("presetMap",prefMapJson(preset),prefMapJson(afterPreset),preset==afterPreset)
                     compare("curvePrefsMap",prefMapJson(curvePrefs),prefMapJson(afterCurvePrefs),curvePrefs==afterCurvePrefs)
                     compare("clipboard",clipboard,afterClipboard,clipboard==afterClipboard)
-                    compare("servicesEmpty",JSONArray(),JSONArray(afterServices),afterServices.isEmpty())
+                    compare("singleReadOnlyService",JSONArray(listOf(MobileService::class.java.name)),
+                        JSONArray(afterServices),scope.singleReadOnlyService())
                     diagnostics.put("allTenEqual",falseItems.length()==0)
                         .put("sampleFinishedElapsedRealtimeMs",SystemClock.elapsedRealtime())
                 } catch(error:Throwable) { diagnostics.put("snapshotFailure",error.stackTraceToString());throw error } }
@@ -1910,7 +1930,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             (activity as MainActivity).supportFragmentManager.primaryNavigationFragment is HomeFragment
         }
         check(preferences.all==beforeUse.toMutableMap().apply { put("selected",chosen.id) }) { "M3 use-for-cup changed unrelated preferences" }
-        check(invariant(scope)==frozen && services().isEmpty()) { "M3 library action changed domain data or started service" }
+        check(invariant(scope)==frozen && scope.singleReadOnlyService()) { "M3 library action changed domain data or single read-only service" }
         File(directory,"continuous-list-business.json").writeText(JSONObject().put("beforeSelection",before).put("afterSelection",after)
             .put("afterDetailsReturn",returned).put("afterRecreate",recreated).put("originalBaseCount",scope.baseLibraryIds.size)
             .put("actualLibraryCountIncludingRealDraft",scope.curves.items.size).put("onlySelectedPreferenceChanged",true)
@@ -2247,7 +2267,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         record("SAF-valid-strict-UTF8-direct-preview-no-write")
         scope.restoreClipboard(activity)
         click(activity,R.string.beans_cancel); await("Import cancel destroyed") { activity.isDestroyed }
-        check(invariant(scope)==frozen && services().isEmpty()); record("cancel-no-store-or-machine-write")
+        check(invariant(scope)==frozen && scope.readOnlyService()); record("cancel-no-store-or-machine-write")
         File(directory,"curve-business.json").writeText(JSONObject().put("cases",cases)
             .put("providerStats",JSONObject(stats.keySet().associateWith { stats.getInt(it) }))
             .put("completed",true).put("noMachineOrServiceCommands",true).put("modelsAndUsageUnchanged",true).toString(2))
@@ -2292,7 +2312,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
     }
     private fun previewBusiness(initial: Activity, scope: Scope, directory: File) {
         val fixedDomain=nonCustomInvariant(scope); val cases=JSONArray(); val original=scope.custom.list()
-        fun expectDomain() { check(nonCustomInvariant(scope)==fixedDomain && services().isEmpty()) }
+        fun expectDomain() { check(nonCustomInvariant(scope)==fixedDomain && scope.readOnlyService()) }
         fun record(name: String) {
             expectDomain(); cases.put(JSONObject().put("case",name).put("documents",JSONArray(scope.custom.list().map { it.toJson() })))
             File(directory,"curve-business.json").writeText(JSONObject().put("cases",cases).put("completed",false).toString(2))
@@ -2382,7 +2402,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             }
             unfocus(activity)
             frames.committedFrame(root(activity))
-            check(services().isEmpty())
+            if(page=="library") await("single read-only Main service bound") { active.singleReadOnlyService() }
+            else check(active.readOnlyService())
             val captured=frames.screenshot(activity,root(activity),File(directory,"window.png")) { geometry(activity) }
             val image=android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds=true }
             android.graphics.BitmapFactory.decodeFile(File(directory,"window.png").absolutePath,image)
@@ -2448,13 +2469,14 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     librarySlots(special,specialDirectory,qualified,candidates[1],candidates[2])
                     librarySourceRoutes(special,specialDirectory,qualified)
                     check(special.customWriteAttempts==2 && special.custom.list().map { it.id }==
-                        listOf(special.document.id,requireNotNull(special.readonly).id) && services().isEmpty())
+                        listOf(special.document.id,requireNotNull(special.readonly).id) && special.singleReadOnlyService())
                     File(specialDirectory,"special-scope-business.json").writeText(JSONObject()
                         .put("expectedOwnedCustomWrites",2).put("actualOwnedCustomWrites",special.customWriteAttempts)
                         .put("ownedDocumentIds",JSONArray(special.custom.list().map { it.id }))
                         .put("specialLibraryCount",special.curves.items.size)
                         .put("originalMainScopeAlreadyCleaned",isolatedScopes==1)
-                        .put("noService",services().isEmpty()).toString(2))
+                        .put("noService",services().isEmpty())
+                        .put("singleReadOnlyService",special.singleReadOnlyService()).toString(2))
                     scope=null; special.cleanup(); isolatedScopes++
                     manifest.put("libraryVisualCaseCount",6).put("libraryBusinessCaseCount",2)
                         .put("librarySpecialActualCount",special.curves.items.size)

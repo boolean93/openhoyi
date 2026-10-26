@@ -93,8 +93,17 @@ tap_nav() {
     BeanInventoryActivity) tap_control '豆子' ;;
     ExtractionActivity)
       tap_control '冲煮'
-      tap_control '查看准备详情 ›'
-      tap_control '实时萃取'
+      # Empty preset slots are disabled, and quick launch opens the curve library.
+      # Screenshot instrumentation uses MainActivity's supported Intent route, not a
+      # user tap path. It opens preparation without starting or recording a cup.
+      assert_activity MainActivity
+      adb shell am start -W -f 0x20000000 \
+        -n io.openhoyi.mobile.mock/io.openhoyi.mobile.MainActivity \
+        --ez io.openhoyi.mobile.open_extraction true >/dev/null
+      sleep 2
+      adb shell rm -f /data/local/tmp/openhoyi-extraction.xml
+      adb shell uiautomator dump /data/local/tmp/openhoyi-extraction.xml >/dev/null
+      adb shell cat /data/local/tmp/openhoyi-extraction.xml | grep 'text="实时萃取"' >/dev/null
       ;;
     AppSettingsActivity)
       tap_control '设置'

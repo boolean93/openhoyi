@@ -1,6 +1,7 @@
 package io.openhoyi.mobile
 
 import android.app.Instrumentation
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -48,19 +49,6 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
             check(kotlin.math.abs(activity.resources.configuration.fontScale - expectedFontScale) < .01f) {
                 "Home font scale ${activity.resources.configuration.fontScale} != $expectedFontScale"
             }
-            val deadline = SystemClock.elapsedRealtime() + 10000
-            while (true) {
-                var ready = false
-                main {
-                    val stage = activity.window.decorView.findViewWithTag<CurveStageView>("stage-preview")
-                    ready = activity.hasWindowFocus() && activity.window.decorView.isLaidOut &&
-                        !activity.window.decorView.isLayoutRequested && stage != null &&
-                        stage.targets == CurveStageParameters.pressureTargets(chosen)
-                }
-                if (ready) break
-                check(SystemClock.elapsedRealtime() < deadline) { "Home stage targets did not render" }
-                SystemClock.sleep(50)
-            }
             // Capture the real window before local size probes mutate the workspace bounds.
             val windowDirectory = File(context.getExternalFilesDir(null), "home-workbench-checks").apply { mkdirs() }
             val windowImage = requireNotNull(test.uiAutomation.takeScreenshot())
@@ -70,7 +58,7 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                 }
             } finally { windowImage.recycle() }
             main {
-                val action = page.viewField<TextView>(home, "brewButton")
+                val action = page.viewField<TextView>(home, "quickLaunch")
                 val bounds = android.graphics.Rect()
                 val complete = action.isShown && action.getGlobalVisibleRect(bounds) &&
                     bounds.width() == action.width && bounds.height() == action.height
@@ -82,8 +70,25 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                 )
                 check(complete) { "Selected Home action clipped in real window: $bounds ${action.width}x${action.height}" }
             }
+            main { check(page.viewField<View>(home, "machineConnect").performClick()) }
+            test.waitForIdleSync()
+            val dialog = requireNotNull(HomeFragment::class.java.getDeclaredField("deviceDialog")
+                .apply { isAccessible = true }.get(home) as? AlertDialog) { "Home details did not open from the actual connect action" }
+            val detailRoot = requireNotNull(dialog.window).decorView
+            val deadline = SystemClock.elapsedRealtime() + 10000
+            while (true) {
+                var ready = false
+                main {
+                    val stage = detailRoot.findViewWithTag<CurveStageView>("stage-preview")
+                    ready = dialog.isShowing && stage != null &&
+                        stage.targets == CurveStageParameters.pressureTargets(chosen)
+                }
+                if (ready) break
+                check(SystemClock.elapsedRealtime() < deadline) { "Home details stage targets did not render" }
+                SystemClock.sleep(50)
+            }
             main {
-                val workspace = activity.window.decorView.findViewWithTag<TaskWorkspaceLayout>("task-workspace")
+                val workspace = detailRoot.findViewWithTag<TaskWorkspaceLayout>("task-workspace")
                 val stage = workspace.findViewWithTag<CurveStageView>("stage-preview")
                 val fallback = workspace.findViewWithTag<ScrollView>("stage-fallback")
                 val supporting = (0 until workspace.childCount).map { workspace.getChildAt(it) }
@@ -185,6 +190,7 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                 check(app.journalResult.getOrThrow().exportJson() == journal)
                 check(app.curves.items.associate { it.id to app.curveUsageResult.getOrThrow().stats(it.id) } == usage)
             }
+            main { dialog.dismiss() }
         } finally {
             main { activity.finish() }
             test.waitForIdleSync()

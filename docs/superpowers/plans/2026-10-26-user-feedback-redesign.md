@@ -25,7 +25,7 @@
 |---|---|---|
 | 协议计时修复 | 软件通过 | Astra最终审结通过：生产仅删07且保留时序；同地址READY→FAILED→重连两代精确三帧通过。主协调者核对675个JUnit零失败/错误、协议39823 checks、会话93 checks；Mini/Ultra实机待验 |
 | 真Tab迁移 | 开发中 | 六根及萃取已迁真实Fragment，本地统一构建通过；c729ab9原生CI启动崩溃：Fragment容器首次测量前未附着；两文件修复静态通过，冷启动/重建原生重跑仍阻塞验收 |
-| 机器首页常驻控制 | 开发中 | 紧凑双锅炉/快捷五槽/48dp壳控制已实现；FAILED重连图标及UNSUPPORTED转设备选择已闭合，720×360实际布局待运行 |
+| 机器首页常驻控制 | 开发中 | 紧凑双锅炉/快捷五槽/48dp壳控制已实现；实际701eda0首页截图不通过：仍是准备页、重复块/大按钮/rail截字；720×360快捷控件真实裁切，已交Sol修复 |
 | 大图设计 | 开发中 | 实际live renderer四指标、独立刻度及几何静态通过；新Main/Fragment入口下原生绘制与图高待验 |
 | 自动导航与重连 | 开发中 | 后端静态审查与101 checks通过，首次秤READY资格已闭合；壳新杯导航仍待原生验收；机器/秤恢复实机待验 |
 | 设置弹层统一 | 开发中 | 二级/辅助弹层及根Fragment接入静态审查通过；最终统一构建通过，长文本/IME原生运行仍待验 |
@@ -219,3 +219,35 @@ root查实新增键仅为AndroidX的`androidx_startup`与`status_bar_notificatio
 ### 启动容器与依赖资源修复构建核对
 
 主协调者核对修复构建 exit 0，2分13秒，Mock/Debug/AndroidTest APK及lintDebug通过（container-fix-build.log）。独立运行localization全部22项测试通过；实际两APK资源校验通过，literalRoundTrips=6，Alpha/Mock各matchedStrings=10873。生产两文件及资源脚本小diff均获Astra静态批准。新增Home/Scale冷启动与重建容器ID/附着/活动Fragment回归仍待新提交原生CI；本地构建不证明启动崩溃已在设备闭合。
+
+### 701eda0首次真实首页图审：未通过
+
+Astra已用view_image查看`build/task-first-evidence/feedback-redesign-2026-10-26/run-40359050909/mock-ui-screenshots/home-light.png`。页面仍以“准备冲煮”为标题，已连接时占一整行“扫描并连接设备”；锅炉开关横跨大卡，五槽仅数字，配方未选提示重复，下半旧准备区包含模式未知/空间不足/阶段示意等冗余，rail秤文字实际截为“电…”。与机器首页和简洁常驻控制目标不符，不批准视觉验收。
+
+已交导航Sol的有界修正：所有横屏统一紧凑机器页，不只对短屏特判；机器标题与单行连接状态，READY时把设备选择收为小入口；双锅炉两行卡，温度与至少48dp局部开关同排，第二行明确目标温度；单一配方启动区，五槽显示真实配方短名或未配置；旧准备/重复配方块移入仍可达的次级入口，保留业务。窄rail使用秤图标和独立状态点，完整状态保留可访问描述及点击入口，横向壳才显示短文字；睡眠/断开/重连触控目标不缩小。
+
+另已读取`run-40359050840/mock-lifecycle/errors.txt`：720×360快捷按钮view高112px而可见仅110px，属于真实裁切；必须减少实际内容和间距，保留完整可见与48dp断言，不加容差。修后重跑既有geometry与同场景截图；不扩旧视觉矩阵。启动容器崩溃已通过当前实际运行，当前失败是新的布局问题。隐藏二级rail为0×0的旧测试语义由测试所有者修正，不与真实首屏裁切混淆。硬件待验状态不变。
+
+### 首页图审后的生产修订静态复核
+
+Astra已读HomeFragment、TaskShellStatusView及新增文案diff。旧标题/重复设备卡撤下，机器状态行、紧凑双锅炉和目标标签、单行快捷五槽已接入；五槽名称取现有PresetSlots解析后的本地曲线名，缺失显示未配置，不扩大协议。旧workspace移入仍可打开的devicePanel，保留原业务回调与onPause弹层清理。锅炉继续confirmBoilerChange及MachineSettingsEditGate，快捷/五槽继续共享confirmStart。公共48dp触控下限、主快捷56dp及固定停止区未削弱。窄rail仅秤符号+状态点，状态改变会重新着色，完整状态仍在可访问描述。
+
+720×360常态静态预算约212dp：content上下16、机器行48、两间距16、锅炉约76、快捷56；相比上次实际236dp页面viewport有余量。此估算不替代测量，长名称/温度、告警和放大字体仍按既有场景核验。本批实现静态通过；统一构建及新截图/geometry实际复跑待完成，首页视觉仍未批准。
+
+### 视觉fixture迁移有限审查
+
+新增磁盘例外仅为files根下精确`profileInstalled`，四套均另记其前后SHA；原业务文件哈希相等与既有偏好恢复检查未放宽。Main单一Mock服务检查保留IDLE、hub为空、未扫描及设置/日程/去皮/杯数/预热未写；Scale先启动受控Main再释放该宿主绑定并停止服务，不在停止后重启Main。二级rail改断言隐藏并检查真实可见48dp控件，顶层完整可见断言保留。
+
+仍有两处明确待修，已交root：ProductVisualMigrationChecks.homeRoutes在关闭详情后调用已脱离窗口的brewButton.performClick，须改成真实可见入口并核完整可见，不以隐藏控件调用证明路由；Curve/Legacy/Settings只读服务helper漏检Mock.sleeping，sleepNow只改该字段而不会触发现有写入标志，须补初始睡眠状态不变检查。仅修此两处，不扩大旧视觉测试矩阵；本批暂不批准全部隔离门禁闭合。
+
+### 首页修订构建与fixture补丁进展
+
+root确认Home-layout-build退出码0，2分33秒；mobile Mock unit337项零失败1跳过，Mock/Debug/AndroidTest APK及lint通过，实际两APK资源各10897值校验通过。此构建之后的最小测试补丁仍需AndroidTest重编译。Astra已确认homeRoutes保留打开的details，并在点击前断言同dialog视图树、isShown及完整可见，隐藏按钮调用问题静态闭合。三套sleeping检查待补丁落盘复核；新截图与原生CI仍待，不提前标首页视觉通过。
+
+### fixture两项静态收口与冻结
+
+Astra重新读取当前落盘源码，已确认CurveVisualMigrationChecks:208、LegacyVisualMigrationChecks:379、SettingsVisualMigrationChecks:214的只读服务条件均包含`!mock.isSleeping`。连同前述真实dialog内按钮可见性检查，本轮两项审查问题均静态闭合。root正在执行仅assembleMockAndroidTest重编译（session11735），结果待其确认。计划本轮冻结；实际原生运行、新截图及硬件仍待验，不将静态收口当视觉通过。
+
+### 首页实图整改本地验证
+
+主协调者已核对：home-layout-build.log exit0，2分33秒，Mobile Mock337 tests/0fail/1skip，Mock/Debug/AndroidTest APK与lint通过。两APK资源逐值校验各10897项。Astra要求的可见按钮与sleeping守卫补齐后，home-test-final-build.log再次assembleMockAndroidTest exit0，33秒。四份相关脚本bash -n及diff检查通过。此为新提交前软件构建证据；720×360首屏、新截图、原生服务隔离与全部硬件效果仍待验证，不以估算212dp代替实测。

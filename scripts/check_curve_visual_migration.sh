@@ -331,7 +331,8 @@ def require_library_special(folder):
     owned=json.loads((scope/'special-scope-business.json').read_text())
     assert owned['expectedOwnedCustomWrites']==owned['actualOwnedCustomWrites']==fixture['ownedCustomWriteAttemptsAtPrepare']==2
     assert owned['ownedDocumentIds']==[fixture['document']['id'],fixture['readonlyOwnedDocument']['id']]
-    assert owned['specialLibraryCount']==105 and owned['originalMainScopeAlreadyCleaned'] and owned['noService']
+    assert owned['specialLibraryCount']==105 and owned['originalMainScopeAlreadyCleaned']
+    assert owned['noService'] is False and owned['singleReadOnlyService'] is True
     isolation=json.loads((scope/'fixture-isolation.json').read_text())
     assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['typedPreferencesRestored'] and isolation['businessDiskByteUnchanged']
     assert isolation['allOwnedLegacyReadersExitedAndMainCallbackBarrier'] and isolation['ownedLegacyArchiveSha256']

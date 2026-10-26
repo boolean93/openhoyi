@@ -277,6 +277,7 @@ for path in manifests:
     'allActivitiesDestroyed','noServiceBeforeOriginalDelegateRestore','scopedWritersTerminated','allOwnedReadersExitedAndMainBarrier','providerSessionRemoved','mockClockOwnerAbsentBeforeAndAfter','originalToastObserverRestored'):
         assert isolation[name] is True,(path,name)
     assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['clipboard']=='NOT_READ_OR_WRITTEN'
+    assert isolation['singleReadOnlyServiceObserved'] is (m['page']=='history')
     status=isolation['scopedTraceStatusAfterTermination'].split()
     assert status[0]=='closed' and 'dropped=0' in status and 'errors=0' in status and not any(t.startswith('lastError=') for t in status)
     assert all(not thread['alive'] for thread in isolation['ownedReaderThreads'])
@@ -290,7 +291,9 @@ for path in manifests:
             assert {'beforeJoin','afterMainBarrier','newThreadIds','uiSettled','remainingMs'}<=set(round)
             assert all({'id','name','state','alive'}<=set(thread) for thread in round['beforeJoin']+round['afterMainBarrier'])
     fixture=json.loads((folder/'fixture.json').read_text())
-    assert fixture['synthetic'] and not fixture['hardwareMeasurement'] and fixture['noServiceNoMockClock']
+    assert fixture['synthetic'] and not fixture['hardwareMeasurement']
+    assert fixture['noServiceNoMockClock'] is (m['page']!='history')
+    assert fixture['rootHistoryServicePolicy']==('single_Main_MockService_read_only' if m['page']=='history' else 'none')
     assert len(fixture['historyArchive']['items'])==41 and len(fixture['curveArchive']['items'])==41
     assert fixture['mainLegacyId']=='m7-main-legacy-shot'
     assert (folder/'baseline-alignment.json').is_file() and (folder/'geometry.json').is_file()

@@ -100,6 +100,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         val data=File(context.applicationInfo.dataDir)
         val roots=listOf(File(data,"files"),File(data,"shared_prefs"),File(data,"databases"),context.noBackupFilesDir).distinctBy { it.canonicalPath }
         return roots.flatMap { directory -> directory.walkTopDown().filter { it.isFile &&
+            !(directory == File(data,"files") && it.parentFile == directory && it.name == "profileInstalled") &&
             !(directory.name=="shared_prefs" && it.name in setOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak","scale_tool.xml","scale_tool.xml.bak")) }
             .map { it.canonicalPath to sha(it) }.toList() }.toMap()
     }
@@ -190,6 +191,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         private var oldFailure: Any? = null
         private val savedPrefs = linkedMapOf<String, Map<String, *>>()
         private var diskBefore = emptyMap<String, String>()
+        private var profileInstallerMarkerBefore: String? = null
         private var whitePrefFileBefore = emptyMap<String, String>()
         private fun whitePrefFiles(): Map<String,String> = listOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak","scale_tool.xml","scale_tool.xml.bak").mapNotNull { name ->
             File(File(context.applicationInfo.dataDir,"shared_prefs"),name).takeIf { it.isFile }?.let { name to sha(it) }
@@ -320,6 +322,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                 oldLanguage = field(app,"languagePreferences"); oldFailure=field(app,"journalObservationFailure")
                 listOf("appearance","curves","scale_tool").forEach { savedPrefs[it]=context.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
                 diskBefore=businessDisk(); whitePrefFileBefore=whitePrefFiles()
+                profileInstallerMarkerBefore=File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha)
                 originalVisibilityObservers=(field(app.visibility,"observers") as Map<*,*>).entries.associate { it.key to it.value }
                 app.registerActivityLifecycleCallbacks(lifecycle)
                 val values = mapOf("feedbackPreferences" to feedback,"logs" to logs,"curves" to curves,"samples" to samples,"history" to history,
@@ -378,14 +381,16 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             }
 
         }
-        fun stopForNoServiceState() {
-            closeActivities()
+        fun stopForNoServiceState(activity: MainActivity) {
             main {
+                check(field(activity,"owner")===ownerService)
+                activity.releaseServiceBinding()
                 if(serviceBound) {context.unbindService(serviceConnection);serviceBound=false}
                 check(context.stopService(Intent(context,MobileService::class.java)));serviceStarted=false
             }
             await("actual scoped Service destroyed before no-service state") {
-                services().isEmpty() && !(field(ownerService,"handler") as Handler).hasCallbacks(field(ownerService,"mockTick") as Runnable) &&
+                services().isEmpty() && field(activity,"owner")==null && field(activity,"bound")==false &&
+                    !(field(ownerService,"handler") as Handler).hasCallbacks(field(ownerService,"mockTick") as Runnable) &&
                     !(field(feedback,"observers") as Map<*,*>).containsKey(serviceOwnerId)
             }
         }
@@ -507,6 +512,9 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                     savedPrefs.forEach { (name,values) -> check(context.getSharedPreferences(name,Context.MODE_PRIVATE).all==values) }
                     val after = businessDisk()
                     proof.put("businessDiskBefore",JSONObject(diskBefore)).put("businessDiskAfter",JSONObject(after))
+                        .put("androidxProfileInstallerMarkerBeforeSha256",profileInstallerMarkerBefore ?: JSONObject.NULL)
+                        .put("androidxProfileInstallerMarkerAfterSha256",
+                            File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha) ?: JSONObject.NULL)
                     check(after==diskBefore) { "Original business disk changed; no rollback attempted" }
                     proof.put("originalLazyIdentityAndInitializedRestored",true).put("legacyUnchanged",true)
                         .put("typedPreferencesRestored",true).put("businessDiskByteUnchanged",true)
@@ -1352,8 +1360,12 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         main {val after=trendReturnState(activity);check(after.toString()==beforeDetail.toString())
             File(folder,"short-height-trend-detail/dialog-return-state.json").writeText(JSONObject().put("before",beforeDetail).put("after",after)
                 .put("exactBufferTimerAndScrollRestored",true).put("activityFocusRestored",activity.hasWindowFocus()).toString(2))}
-        scope.stopForNoServiceState();activity=start(ScaleActivity::class.java);render(activity)
-        state("no-service") {check(services().isEmpty() && (field(activity,"weight") as TextView).text.toString()=="—" && !(field(activity,"tare") as Button).isEnabled)}
+        main { activity.finish() }
+        await("short capture page destroyed") {activity.isDestroyed}
+        activity=start(ScaleActivity::class.java)
+        scope.stopForNoServiceState(activity as MainActivity);render(activity)
+        state("no-service") {check(services().isEmpty() && field(activity,"owner")==null &&
+            (field(activity,"weight") as TextView).text.toString()=="—" && !(field(activity,"tare") as Button).isEnabled)}
         persist(true)
     }
     private fun candidates(count:Int,longName:Boolean=false)= (1..count).map {index->io.openhoyi.bluetooth.DiscoveredDevice(

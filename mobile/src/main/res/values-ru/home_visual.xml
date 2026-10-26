@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home_machine_title">Кофемашина</string>
+    <string name="home_target_label">Цель</string>
+    <string name="home_slot_unconfigured">Не задано</string>
     <string name="home_visual_details">Детали подготовки</string>
     <string name="home_visual_show_details">Детали подготовки ›</string>
     <string name="home_visual_change">Сменить</string>

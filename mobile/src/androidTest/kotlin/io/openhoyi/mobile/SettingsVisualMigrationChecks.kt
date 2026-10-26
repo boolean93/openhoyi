@@ -86,6 +86,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         val data=File(context.applicationInfo.dataDir)
         val roots=listOf(File(data,"files"),File(data,"shared_prefs"),File(data,"databases"),context.noBackupFilesDir).distinctBy { it.canonicalPath }
         return roots.flatMap { directory -> directory.walkTopDown().filter { it.isFile &&
+            !(directory == File(data,"files") && it.parentFile == directory && it.name == "profileInstalled") &&
             !(directory.name=="shared_prefs" && it.name in setOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak","scale_tool.xml","scale_tool.xml.bak")) }
             .map { it.canonicalPath to sha(it) }.toList() }.toMap()
     }
@@ -195,12 +196,32 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         private var oldFailure: Any? = null
         private val savedPrefs = linkedMapOf<String, Map<String, *>>()
         private var diskBefore = emptyMap<String, String>()
+        private var profileInstallerMarkerBefore: String? = null
         private var whitePrefFileBefore = emptyMap<String, String>()
         private fun whitePrefFiles(): Map<String,String> = listOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak","scale_tool.xml","scale_tool.xml.bak").mapNotNull { name ->
             File(File(context.applicationInfo.dataDir,"shared_prefs"),name).takeIf { it.isFile }?.let { name to sha(it) }
         }.toMap()
         private var installed = false
         private var service: MobileService?=null
+        private var rootService: MobileService?=null
+        fun readOnlyRootService(): Boolean {
+            val owner=rootService ?: return false
+            val mock=field(owner,"mock") as? MockDeviceRuntime ?: return false
+            return services()==listOf(MobileService::class.java.name) && owner.running &&
+                owner.shotState==io.openhoyi.session.ExtractionState.IDLE &&
+                field(owner,"hub")==null && !owner.snapshot.scanning &&
+                mock.lastSetting==null && !mock.scheduleChanged && !mock.tareChanged &&
+                !mock.cupReset && !mock.preheatActive && !mock.isSleeping
+        }
+        fun observeRootService(activity: MainActivity) {
+            await("settings root single Main service bound") {activity.currentService?.running==true}
+            main {
+                val owner=requireNotNull(activity.currentService)
+                check(rootService==null || rootService===owner)
+                rootService=owner
+                check(readOnlyRootService())
+            }
+        }
         private var serviceBound=false
         private var serviceStarted=false
         private var serviceCallbackFailure: Throwable?=null
@@ -311,9 +332,9 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             })
             fixture=JSONObject().put("page",page).put("synthetic",true).put("hardwareMeasurement",false)
                 .put("noHome",true).put("noScan",true).put("noConnect",true).put("noTare",true).put("noShotControl",true)
-                .put("source","scoped_memory_10Lazy; real_Mock_service_only_for_Machine; no_device_control")
+                .put("source","scoped_memory_10Lazy; single_Main_Mock_service_for_root_tabs; no_device_control")
                 .put("clock","DEFAULT_SYSTEM_MONOTONIC").put("noDeviceControl",true).put("noMockReadOnlyScaleInput",true)
-                .put("realMockService",page=="machine").put("hardwareMeasurement",false)
+                .put("realMockService",true).put("hardwareMeasurement",false)
         }
         fun install(dark: Boolean) {
             main {
@@ -328,6 +349,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 oldLanguage = field(app,"languagePreferences"); oldFailure=field(app,"journalObservationFailure")
                 listOf("appearance","curves","scale_tool").forEach { savedPrefs[it]=context.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
                 diskBefore=businessDisk(); whitePrefFileBefore=whitePrefFiles()
+                profileInstallerMarkerBefore=File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha)
                 originalVisibilityObservers=(field(app.visibility,"observers") as Map<*,*>).entries.associate { it.key to it.value }
                 app.registerActivityLifecycleCallbacks(lifecycle)
                 val values = mapOf("feedbackPreferences" to feedback,"logs" to logs,"curves" to curves,"samples" to samples,"history" to history,
@@ -399,6 +421,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                     }
                     run {
                         main {
+                            rootService?.let { check(readOnlyRootService()) }
                             tracked.filterIsInstance<ScaleOwnerActivity>().forEach {activity ->
                                 fun parentField(name:String)=ScaleOwnerActivity::class.java.getDeclaredField(name).apply {isAccessible=true}.get(activity)
                                 check(parentField("owner")==null && parentField("bound")==false && parentField("visible")==false &&
@@ -420,7 +443,12 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                                 callbacks.none { handler.hasCallbacks(field(owner,it) as Runnable) } && field(owner,"hub")==null &&
                                     !(field(feedback,"observers") as Map<*,*>).containsKey(serviceOwnerId) &&
                                     !(field(app.visibility,"observers") as Map<*,*>).containsKey(serviceOwnerId)
-                            })
+                            }) && (rootService?.let { root ->
+                                val handler=field(root,"handler") as Handler
+                                listOf("mockTick","watchShot","leaveForeground","stopAutomaticScale")
+                                    .none { handler.hasCallbacks(field(root,it) as Runnable) } &&
+                                    field(root,"hub")==null
+                            } ?: true)
                         }
                         main {
                             check(!serviceBound && services().isEmpty())
@@ -431,7 +459,10 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                                     .put("serviceHubClosed",field(owner,"hub")==null).put("serviceHandlersDrained",true)
                             }
                         }
-                        proof.put("actualServiceDestroyed",service!=null).put("noServiceWasStartedForThisPage",service==null).put("serviceRecoveryLazyIdentityRestored",true)
+                        proof.put("actualServiceDestroyed",service!=null || rootService!=null)
+                            .put("noServiceWasStartedForThisPage",service==null && rootService==null)
+                            .put("singleReadOnlyRootServiceObserved",rootService!=null)
+                            .put("serviceRecoveryLazyIdentityRestored",true)
                             .put("serviceVisibilityObserverRemoved",true).put("serviceFeedbackObserverRemoved",true).put("scaleOwnersUnboundAndRefreshRemoved",true)
                             .put("originalVisibilityObserversPreserved",true)
                     }
@@ -512,6 +543,9 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                     savedPrefs.forEach { (name,values) -> check(context.getSharedPreferences(name,Context.MODE_PRIVATE).all==values) }
                     val after = businessDisk()
                     proof.put("businessDiskBefore",JSONObject(diskBefore)).put("businessDiskAfter",JSONObject(after))
+                        .put("androidxProfileInstallerMarkerBeforeSha256",profileInstallerMarkerBefore ?: JSONObject.NULL)
+                        .put("androidxProfileInstallerMarkerAfterSha256",
+                            File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha) ?: JSONObject.NULL)
                     check(after==diskBefore) { "Original business disk changed; no rollback attempted" }
                     proof.put("originalLazyIdentityAndInitializedRestored",true).put("legacyUnchanged",true)
                         .put("typedPreferencesRestored",true).put("businessDiskByteUnchanged",true)
@@ -1055,7 +1089,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         state("no-service-disabled")
         return cases
     }
-    private fun scaleSpecials(initial:ScaleSettingsActivity,folder:File):JSONArray {
+    private fun scaleSpecials(scope:Scope,initial:ScaleSettingsActivity,folder:File):JSONArray {
         var activity=initial;val cases=JSONArray()
         click(activity,"product/settings/scale/precision")
         main {check((tagged(activity,"product/settings/scale/precision") as android.widget.Switch).isChecked &&
@@ -1069,7 +1103,10 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             main {activity.startActivity(Intent(activity,ScaleActivity::class.java))}
             val scale=requireNotNull(test.waitForMonitorWithTimeout(monitor,10000)) as MainActivity
             await("actual no-service scale page ready") {ready(scale)}
-            main {check((field(scale,"weight") as TextView).text.toString()=="—" && context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).getBoolean("one_decimal",false) && services().isEmpty())}
+            scope.observeRootService(scale)
+            main {check((field(scale,"weight") as TextView).text.toString()=="—" &&
+                context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).getBoolean("one_decimal",false) &&
+                scope.readOnlyRootService())}
             capture(scale,File(folder,"real-scale-no-data"))
             main {scale.finish()};await("return from actual scale") {ready(activity)}
         } finally {test.removeMonitor(monitor)}
@@ -1102,6 +1139,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             if(page=="machine")active.beginService()
             val activity=start(when(page) {"app"->AppSettingsActivity::class.java;"machine"->MachineSettingsActivity::class.java;else->ScaleSettingsActivity::class.java})
             if(activity is MachineSettingsActivity)await("actual Machine binding to exact isolated Service") {field(activity,"service")===active.ownerService}
+            else if(activity is MainActivity) active.observeRootService(activity)
             else main {check(services().isEmpty())}
             File(directory,"fixture.json").writeText(active.fixture.toString(2))
             val frame=capture(activity,directory)
@@ -1137,7 +1175,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             val cases=when(activity) {
                 is MainActivity->appSpecials(active,activity,specialFolder)
                 is MachineSettingsActivity->machineSpecials(active,activity,specialFolder)
-                is ScaleSettingsActivity->scaleSpecials(activity,specialFolder)
+                is ScaleSettingsActivity->scaleSpecials(active,activity,specialFolder)
                 else->error("Unexpected real M8 Activity")
             }
             File(specialFolder,"manifest.json").writeText(JSONObject().put("cases",cases).put("completed",true).put("mainConfigurationCountContribution",0).put("visualAcceptance","ASTRA_PENDING").toString(2))

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home_machine_title">الآلة</string>
+    <string name="home_target_label">الهدف</string>
+    <string name="home_slot_unconfigured">غير معيّن</string>
     <string name="home_visual_details">تفاصيل التحضير</string>
     <string name="home_visual_show_details">عرض تفاصيل التحضير ›</string>
     <string name="home_visual_change">تغيير</string>

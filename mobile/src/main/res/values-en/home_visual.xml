@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home_machine_title">Machine</string>
+    <string name="home_target_label">Target</string>
+    <string name="home_slot_unconfigured">Unassigned</string>
     <string name="home_visual_details">Preparation details</string>
     <string name="home_visual_show_details">View preparation details ›</string>
     <string name="home_visual_change">Change</string>

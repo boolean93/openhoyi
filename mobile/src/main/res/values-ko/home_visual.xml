@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home_machine_title">머신</string>
+    <string name="home_target_label">목표</string>
+    <string name="home_slot_unconfigured">미설정</string>
     <string name="home_visual_details">준비 상세</string>
     <string name="home_visual_show_details">준비 상세 보기 ›</string>
     <string name="home_visual_change">변경</string>

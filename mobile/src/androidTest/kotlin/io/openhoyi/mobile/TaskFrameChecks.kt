@@ -247,17 +247,38 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                         primary.forEachIndexed { index, view ->
                             check(view.isSelected == (TaskNavigationModel.primary[index] == selected)) { "${page.simpleName}: selected ${view.tag}" }
                             check(view.isClickable && !view.contentDescription.isNullOrBlank())
+                        }
+                        if (rootDestination == null) {
+                            check(!frame.navigation.isShown && targets.none { it.isShown }) {
+                                "${page.simpleName}: secondary page exposed the root task rail"
+                            }
+                            val minimum = HoyiUi.dp(activity, 48)
+                            val controls = descendants(frame.pageContent).filter { view ->
+                                view.isShown && view.isEnabled && view.isClickable &&
+                                    (!view.contentDescription.isNullOrBlank() ||
+                                        (view as? android.widget.TextView)?.text?.isNotBlank() == true)
+                            }
+                            val control = controls.firstOrNull { it.contentDescription == activity.getString(R.string.ui_back) }
+                                ?: controls.firstOrNull { it.width >= minimum && it.height >= minimum }
+                                ?: error("${page.simpleName}: no visible secondary-page action")
+                            val bounds = Rect()
+                            check(control.width >= minimum && control.height >= minimum &&
+                                control.getGlobalVisibleRect(bounds) &&
+                                bounds.width() == control.width && bounds.height() == control.height) {
+                                "${page.simpleName}: secondary action clipped or under 48dp: ${control.tag} $bounds"
+                            }
+                        } else primary.forEach { view ->
                             val minimum = HoyiUi.dp(activity, 48)
                             check(view.width >= minimum && view.height >= minimum) { "${page.simpleName}: small target ${view.tag} ${view.width}x${view.height}" }
                             val bounds = Rect()
                             check(view.getGlobalVisibleRect(bounds) && bounds.width() == view.width && bounds.height() == view.height) { "${page.simpleName}: clipped ${view.tag}" }
                         }
-                        if (frame.toolsInTopBar) {
+                        if (rootDestination != null && frame.toolsInTopBar) {
                             val menu = all.single { it.tag == "task-tools-menu" && it.isShown }
                             val bounds = Rect()
                             check(menu.getGlobalVisibleRect(bounds) && bounds.width() == menu.width && bounds.height() == menu.height)
                             check(menu.width >= HoyiUi.dp(activity, 48) && menu.height >= HoyiUi.dp(activity, 48))
-                        } else {
+                        } else if (rootDestination != null) {
                             check(targets.drop(4).map { it.tag } == TaskNavigationModel.tools.map { "task-nav:${it.name}" })
                             check(targets.drop(4).all { it.isShown })
                         }

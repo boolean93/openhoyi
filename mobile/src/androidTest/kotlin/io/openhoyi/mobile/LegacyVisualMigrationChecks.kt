@@ -9,6 +9,7 @@ import android.content.Intent
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.View
@@ -20,6 +21,7 @@ import android.widget.TextView
 import android.widget.Toast
 import io.openhoyi.bean.BeanInventory
 import io.openhoyi.bean.InventoryStorage
+import io.openhoyi.session.ExtractionState
 import io.openhoyi.trace.TraceStore
 import org.json.JSONArray
 import org.json.JSONObject
@@ -254,6 +256,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         val data=File(context.applicationInfo.dataDir)
         return listOf(File(data,"files"),File(data,"shared_prefs"),File(data,"databases"),context.noBackupFilesDir)
             .distinctBy { it.canonicalPath }.flatMap { folder -> folder.walkTopDown().filter { it.isFile &&
+                !(folder == File(data,"files") && it.parentFile == folder && it.name == "profileInstalled") &&
                 !(folder.name=="shared_prefs" && it.name in setOf("appearance.xml","appearance.xml.bak")) }
                 .map { it.canonicalPath to sha(it) }.toList() }.toMap()
     }
@@ -347,6 +350,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         private var toastObserverInstalled=false
         private val savedPrefs = linkedMapOf<String, Map<String, *>>()
         private var diskBefore = emptyMap<String, String>()
+        private var profileInstallerMarkerBefore: String? = null
         private var whitePrefFileBefore = emptyMap<String, String>()
         private fun whitePrefFiles(): Map<String,String> = listOf("appearance.xml","appearance.xml.bak").mapNotNull { name ->
             File(File(context.applicationInfo.dataDir,"shared_prefs"),name).takeIf { it.isFile }?.let { name to sha(it) }
@@ -355,6 +359,25 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         private val ownedDirectory = File(context.cacheDir, "legacy-visual-${UUID.randomUUID()}")
         private val tracked = linkedSetOf<Activity>()
         private val destroyed = linkedSetOf<Activity>()
+        private var rootService: MobileService? = null
+        fun captureRootService(activity: Activity) {
+            if(activity !is MainActivity) return
+            await("legacy route single Main service bound") { activity.currentService?.running==true }
+            main {
+                val owner=requireNotNull(activity.currentService)
+                check(rootService==null || rootService===owner)
+                rootService=owner
+                check(readOnlyService())
+            }
+        }
+        fun readOnlyService(): Boolean {
+            val owner=rootService ?: return services().isEmpty()
+            val mock=field(owner,"mock") as? MockDeviceRuntime ?: return false
+            return services()==listOf(MobileService::class.java.name) && owner.running &&
+                owner.shotState==ExtractionState.IDLE && field(owner,"hub")==null && !owner.snapshot.scanning &&
+                mock.lastSetting==null && !mock.scheduleChanged && !mock.tareChanged &&
+                !mock.cupReset && !mock.preheatActive && !mock.isSleeping
+        }
         val inventory = BeanInventory(object : InventoryStorage { var value: ByteArray? = null
             override fun read() = value?.clone()
             override fun write(bytes: ByteArray) { value=bytes.clone() } })
@@ -436,7 +459,8 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 .put("source","synthetic legacy archive; real LegacyCurve/History codec and owned cache stores")
                 .put("mainLegacyId",mainId).put("historyArchive",JSONObject(LegacyHistoryCodec.encode(shots)))
                 .put("curveArchive",JSONObject(String(mainCurves,Charsets.UTF_8)))
-                .put("noServiceNoMockClock",true).put("unknownFieldsAreNotNativeMetrics",true)
+                .put("noServiceNoMockClock",page!="history").put("unknownFieldsAreNotNativeMetrics",true)
+                .put("rootHistoryServicePolicy",if(page=="history") "single_Main_MockService_read_only" else "none")
         }
         fun install(dark: Boolean) {
             main {
@@ -457,6 +481,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 toastObserverInstalled=true
                 listOf("appearance").forEach { savedPrefs[it]=context.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
                 diskBefore=businessDisk(); whitePrefFileBefore=whitePrefFiles()
+                profileInstallerMarkerBefore=File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha)
                 app.registerActivityLifecycleCallbacks(lifecycle)
                 val values = mapOf("feedbackPreferences" to feedback,"logs" to logs,"curves" to curves,"samples" to samples,"history" to history,
                     "customCurvesResult" to Result.success(custom),"curveUsageResult" to Result.success(usage),"beanInventoryResult" to Result.success(inventory),
@@ -500,14 +525,26 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                     await("all fixture Activities and dialogs destroyed") {
                         tracked.all { it.isDestroyed && it in destroyed } && android.view.inspector.WindowInspector.getGlobalWindowViews().isEmpty()
                     }
-                    main { check(services().isEmpty()) { "M7 no-service scope unexpectedly holds a service; original delegates not restored" } }
+                    main {
+                        rootService?.let { check(readOnlyService());check(context.stopService(Intent(context,MobileService::class.java))) }
+                    }
+                    await("legacy scoped service removed before delegate restore") {
+                        services().isEmpty() && (rootService?.let { owner ->
+                            val handler=field(owner,"handler") as Handler
+                            listOf("mockTick","watchShot","leaveForeground","stopAutomaticScale")
+                                .none { handler.hasCallbacks(field(owner,it) as Runnable) } &&
+                                field(owner,"hub")==null
+                        } ?: true)
+                    }
                     check(android.view.inspector.WindowInspector.getGlobalWindowViews().isEmpty()) { "M7 fixture dialog/window remains after Activity destruction" }
                     drainReaders()
                     main { requireNotNull(toastLedger).close() }
                     proof.put("ownedReaderThreads",JSONArray(ownedReaders.map { JSONObject().put("id",it.id).put("name",it.name).put("alive",it.isAlive) }))
                         .put("allOwnedReadersExitedAndMainBarrier",true)
                     proof.put("activityDestroyedCount",destroyed.size).put("allActivitiesDestroyed",true)
-                        .put("noServiceBeforeOriginalDelegateRestore",true).put("mainQueueBarrierAfterDestroy",true)
+                        .put("noServiceBeforeOriginalDelegateRestore",true)
+                        .put("singleReadOnlyServiceObserved",rootService!=null)
+                        .put("mainQueueBarrierAfterDestroy",true)
                 }
                 proof.put("ownedSampleRepositoryCreated",::samples.isInitialized).put("ownedTraceCreated",::logs.isInitialized)
                 if (::samples.isInitialized) {
@@ -559,6 +596,9 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                     savedPrefs.forEach { (name,values) -> check(context.getSharedPreferences(name,Context.MODE_PRIVATE).all==values) }
                     val after = businessDisk()
                     proof.put("businessDiskBefore",JSONObject(diskBefore)).put("businessDiskAfter",JSONObject(after))
+                        .put("androidxProfileInstallerMarkerBeforeSha256",profileInstallerMarkerBefore ?: JSONObject.NULL)
+                        .put("androidxProfileInstallerMarkerAfterSha256",
+                            File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha) ?: JSONObject.NULL)
                     check(after==diskBefore) { "Original business disk changed; no rollback attempted" }
                     proof.put("originalLazyIdentityAndInitializedRestored",true).put("legacyUnchanged",true)
                         .put("typedPreferencesRestored",true).put("businessDiskByteUnchanged",true)
@@ -964,7 +1004,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         val rebuilt=stableList(page,directory,"list-recreated")
         check(rebuilt.toString()==selected.toString()) { "M7 selected id or exact first-row offset changed on recreation" }
         captureState(page,directory,"list-restored")
-        check(nativeInvariant(scope)==frozen && services().isEmpty())
+        check(nativeInvariant(scope)==frozen && scope.readOnlyService())
         File(directory,"continuous-list-business.json").writeText(JSONObject().put("count",41)
             .put("realTouchGesture",true).put("before",before).put("afterGesture",moved).put("selection",selected)
             .put("return",returned).put("recreated",rebuilt).put("exactOffsetAndSelectionRestored",true)
@@ -1022,6 +1062,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 requireNotNull(test.waitForMonitorWithTimeout(monitor,10000))
             } finally { test.removeMonitor(monitor) }
             await("real native source ready") { ready(native) }
+            scope.captureRootService(native)
             check(field(native,"showJournal")==journal)
             native=recreate(native)
             check(field(native,"showJournal")==journal)
@@ -1037,6 +1078,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
     private fun archiveImports(scope: Scope, directory: File, curve: Boolean): JSONArray {
         val cases=JSONArray(); val nativeBefore=nativeInvariant(scope)
         val page=start(if(curve) LegacyCurveActivity::class.java else HistoryActivity::class.java)
+        scope.captureRootService(page)
         val request=if(curve) 43 else 42
         val target=if(curve) scope.curveFile else scope.historyFile
         fun checkImport(label: String, bytes: ByteArray, success: Boolean) {
@@ -1045,7 +1087,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             if(curve) await("curve import result reader completed") { ready(page) }
             val after=sha(target)
             check((after!=before)==success) { "M7 $label wrong archive mutation" }
-            check(nativeInvariant(scope)==nativeBefore && services().isEmpty())
+            check(nativeInvariant(scope)==nativeBefore && scope.readOnlyService())
             cases.put(JSONObject().put("case",label).put("ownedProviderUri",uri.toString()).put("originalArchiveSha",before)
                 .put("resultArchiveSha",after).put("changed",after!=before).put("nativeModelsUnchanged",true))
         }
@@ -1751,7 +1793,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                         state.getInt("chartIdentity")==original.getInt("chartIdentity") &&
                         state.getJSONArray("listIdentities").toString()==original.getJSONArray("listIdentities").toString() &&
                         state.getJSONArray("windowLayout").toString()==JSONArray(listOf(old.width,old.height,old.gravity,old.x,old.y)).toString() &&
-                        nativeInvariant(scope)==nativeBefore && services().isEmpty()) {
+                        nativeInvariant(scope)==nativeBefore && scope.readOnlyService()) {
                         "M7 short Detail scroll/Window/identity/business not restored" }
                 }
             } catch(restoreError:Throwable) {if(failure==null)throw restoreError else failure.addSuppressed(restoreError)}
@@ -1820,7 +1862,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             main { check(nodes(root(activity)).none { it is LegacyShotChartView }) }
             cases.put(JSONObject().put("case","missing-legacy-id").put("noPreviousChart",true)); close(activity)
         }
-        check(nativeInvariant(scope)==nativeBefore && services().isEmpty())
+        check(nativeInvariant(scope)==nativeBefore && scope.readOnlyService())
         return JSONObject().put("completed",true).put("cases",cases).put("mainConfigurationCountContribution",0)
             .put("visualAcceptance","ASTRA_PENDING").put("nativeModelsUnchanged",true)
     }

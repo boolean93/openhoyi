@@ -998,13 +998,22 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
             awaitMain { page.hasWindowFocus() && !page.isDestroyed }
             MainPageTestHost(test, page).select(TaskDestination.BREW)
+            var details: android.app.AlertDialog? = null
             try {
-                awaitMain { page.hasWindowFocus() && owner(page) === service && views(root(page)).filterIsInstance<TextView>().any {
+                onMain {
+                    val homeFragment = MainPageTestHost(test, page).active("root:BREW") as HomeFragment
+                    check(root(page).findViewWithTag<View>("product/home/connect").performClick())
+                    details = HomeFragment::class.java.getDeclaredField("deviceDialog")
+                        .apply { isAccessible = true }.get(homeFragment) as? android.app.AlertDialog
+                    check(details?.isShowing == true) { "Home details did not open from the visible connect action" }
+                }
+                val detailRoot = requireNotNull(details?.window).decorView
+                awaitMain { details?.isShowing == true && owner(page) === service && views(detailRoot).filterIsInstance<TextView>().any {
                     it.isShown && it.text.toString() == page.getString(state)
                 } }
                 onMain {
-                    val quantity = root(page).findViewWithTag<TextView>("home-dose-quantity")
-                    val unit = root(page).findViewWithTag<TextView>("product/home/dose/unit")
+                    val quantity = detailRoot.findViewWithTag<TextView>("home-dose-quantity")
+                    val unit = detailRoot.findViewWithTag<TextView>("product/home/dose/unit")
                     check(quantity.isShown && quantity.text.toString() == "18" && unit.isShown && unit.text.toString() == "g") {
                         "Home did not display the selected 18 g dose"
                     }
@@ -1014,7 +1023,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                         numberOrigin[1] + quantity.baseline == unitOrigin[1] + unit.baseline) {
                         "Home dose number and unit do not share their actual TextView baseline"
                     }
-                    check(views(root(page)).filterIsInstance<TextView>().any {
+                    check(views(detailRoot).filterIsInstance<TextView>().any {
                         it.isShown && it.text.toString().contains(beanName)
                     }) { "Home dose lost its bean identity" }
                 }
@@ -1023,7 +1032,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                     "Viewing the home dose changed preparation or inventory"
                 }
             } finally {
-                onMain { page.startActivity(Intent(page, returnTo.javaClass)
+                onMain { details?.dismiss(); page.startActivity(Intent(page, returnTo.javaClass)
                     .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
                 awaitMain { !returnTo.isDestroyed && returnTo.hasWindowFocus() }
             }

@@ -24,6 +24,8 @@ internal class TaskShellStatusView(
 ) : LinearLayout(host) {
     private val style = TaskProductVisualStyle(host)
     private var mode: TaskNavigationMode? = null
+    private var scaleLabel = ""
+    private var scaleState = DeviceState.DISCONNECTED
     private val sleep = Button(host).apply {
         tag = "task-shell-sleep"; setOnClickListener { onSleep() }; style.button(this, outline = true)
         minHeight = style.dp(48); minimumHeight = style.dp(48)
@@ -67,6 +69,17 @@ internal class TaskShellStatusView(
             addView(reconnect, LayoutParams(style.dp(48), style.dp(48)))
             addView(disconnect, LayoutParams(style.dp(48), style.dp(48)))
         }
+        showScaleLabel()
+    }
+
+    private fun showScaleLabel() {
+        val label = if (mode == TaskNavigationMode.RAIL) "●  ⚖" else "●  $scaleLabel"
+        if (scale.text.toString() != label) {
+            val colored = SpannableString(label)
+            colored.setSpan(ForegroundColorSpan(host.getColor(if (scaleState == DeviceState.READY)
+                R.color.mobile_success else R.color.mobile_muted)), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            scale.text = colored
+        }
     }
 
     fun present(owner: MobileService?) {
@@ -88,11 +101,11 @@ internal class TaskShellStatusView(
             owner.brewPreparationState == BrewPreparation.State.IDLE && idle?.sleepStateRaw == 0 &&
             owner.sleepNowState !in setOf(SleepNowTracker.State.WRITING, SleepNowTracker.State.WAITING_ASLEEP,
                 SleepNowTracker.State.UNKNOWN) && owner.machineControlSafetyMessage == null
-        val scaleLabel = host.getString(R.string.home_scale) + " · " + DeviceStatusText.label(host, snapshot.scaleState)
-        val colored = SpannableString("●  $scaleLabel")
-        colored.setSpan(ForegroundColorSpan(host.getColor(if (snapshot.scaleState == DeviceState.READY)
-            R.color.mobile_success else R.color.mobile_muted)), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-        scale.text = colored
+        scaleLabel = host.getString(R.string.home_scale) + " · " + DeviceStatusText.label(host, snapshot.scaleState)
+        val oldState = scaleState
+        scaleState = snapshot.scaleState
+        if (oldState != scaleState) scale.text = ""
+        showScaleLabel()
         scale.contentDescription = scaleLabel
         val disconnected = snapshot.scaleState in setOf(DeviceState.DISCONNECTED, DeviceState.FAILED, DeviceState.UNSUPPORTED)
         reconnect.visibility = if (disconnected) View.VISIBLE else View.GONE

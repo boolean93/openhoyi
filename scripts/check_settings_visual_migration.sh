@@ -515,12 +515,15 @@ for path in manifests:
         fixture=json.loads((folder/'fixture.json').read_text())
         assert fixture['synthetic'] and not fixture['hardwareMeasurement'] and fixture['clock']=='DEFAULT_SYSTEM_MONOTONIC'
         assert fixture['noDeviceControl'] and fixture['noMockReadOnlyScaleInput']
+        assert fixture['realMockService']
         if m['page']=='machine':
             assert fixture['realMockService'] and fixture['realSettingsReadback']
             for name in ('actualServiceDestroyed','serviceRecoveryLazyIdentityRestored','serviceHandlersDrained','serviceHubClosed',
                          'serviceVisibilityObserverRemoved','serviceFeedbackObserverRemoved'):
                 assert isolation[name] is True,(path,name)
-        else: assert not fixture['realMockService']
+        else:
+            assert isolation['actualServiceDestroyed'] is True
+            assert isolation['singleReadOnlyRootServiceObserved'] is True
         assert (folder/'baseline-alignment.json').is_file() and (folder/'geometry.json').is_file()
         special=json.loads((folder/'special-states/manifest.json').read_text())
         assert special['completed'] and special['mainConfigurationCountContribution']==0 and special['visualAcceptance']=='ASTRA_PENDING'

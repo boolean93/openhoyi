@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="home_machine_title">เครื่องชง</string>
+    <string name="home_target_label">เป้าหมาย</string>
+    <string name="home_slot_unconfigured">ยังไม่ตั้งค่า</string>
     <string name="home_visual_details">รายละเอียดการเตรียม</string>
     <string name="home_visual_show_details">ดูรายละเอียดการเตรียม ›</string>
     <string name="home_visual_change">เปลี่ยน</string>
