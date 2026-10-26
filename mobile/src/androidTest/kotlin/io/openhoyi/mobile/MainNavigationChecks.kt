@@ -22,8 +22,15 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         @Suppress("DEPRECATION")
         activity.windowManager.defaultDisplay.getRealSize(real)
         val density = activity.resources.displayMetrics.density
-        if (kotlin.math.abs(real.x / density - 720f) > 1f ||
-            kotlin.math.abs(real.y / density - 360f) > 1f) return
+        val widthDp = real.x / density
+        val heightDp = real.y / density
+        val state = if (activeCup) "running" else "idle"
+        val geometry = "state=$state displayPx=${real.x}x${real.y} density=$density dp=${widthDp}x${heightDp}"
+        if (kotlin.math.abs(widthDp - 720f) > 1f ||
+            kotlin.math.abs(heightDp - 360f) > 1f) {
+            test.sendStatus(0, Bundle().apply { putString("stream", "MAIN_HOME_720_GEOMETRY_SKIP $geometry\n") })
+            return
+        }
         val home = host.select(TaskDestination.BREW) as HomeFragment
         test.runOnMainSync {
             val root = requireNotNull(home.view)
@@ -56,6 +63,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 }
             }
         }
+        test.sendStatus(0, Bundle().apply { putString("stream", "MAIN_HOME_720_GEOMETRY_PASS $geometry\n") })
     }
 
     private fun awaitPage(activity: MainActivity, tag: String) {

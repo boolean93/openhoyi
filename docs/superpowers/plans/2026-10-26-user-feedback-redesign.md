@@ -19,13 +19,13 @@
 
 ## 进度
 
-当前状态截至已推送的 `23d2eab`，含Capture Mock UI运行40387407728证据及首页五槽待提交修复。下方历史审查按当时事实保留；本表是当前状态，旧容器启动、旧首页布局问题已修复，不再列为未关闭阻塞。“开发完成”表示实现与静态审查完成，不等于全部软件或硬件验收通过。
+当前状态截至已推送的 `267b408`，含Capture Mock UI运行40387407728、40389930415证据；首页槽位全称及深色快捷文字经原图复核闭合；720执行标记待补证。下方历史审查按当时事实保留；本表是当前状态，旧容器启动、旧首页布局问题已修复，不再列为未关闭阻塞。“开发完成”表示实现与静态审查完成，不等于全部软件或硬件验收通过。
 
 | 项目 | 当前状态 | 已有证据 / 仍待验 |
 |---|---|---|
 | 协议计时修复 | 软件通过；实机待验 | 仅删07，精确三帧/时序、同地址两代连接回归通过；Mini/Ultra实际计时与重量待验 |
 | 真Tab迁移 | 开发完成；核心原生通过 | 25169d2真实MainNavigation：六Tab20轮、720×360几何、冷启动/重建、同服务同series通过；历史来源后续修复已静态审结，710f33c复验待结果。非零历史滚动、豆列表滚动/选批/详情的Tab往返新增测试已静态通过，运行待验；二级编辑页及全部子路由重建仍按既有验收确认 |
-| 机器首页常驻控制 | 已有代表图通过；五槽全称修复待CI | 原机器状态/双锅炉/常驻控制代表图与720×360几何已有证据；23d2eab发现槽位全称省略，1:3余宽及自然换行小修已静审，最新全称与九控件首屏待CI；实际设备操作待验 |
+| 机器首页常驻控制 | 中文浅深代表图及五槽全称通过 | 267b408实际浅深首页全称与快捷文字可读；深色文字原PNG像素复核相同，撤回缩放显示疑点。最新720九控件执行marker待补证；实际设备操作待验 |
 | 大图设计 | 平板代表场景面积及视觉通过 | 23d2eab有/无秤实际网格291.7147dp、图宽占页面96.97%、停止完整56dp且间隔8dp；浅/深运行及有/无秤图已审。仅此正常字体平板范围，不代表全部字号/尺寸或硬件 |
 | 自动导航与重连 | 开发完成；策略及核心导航通过 | 101 session checks与手动ID策略通过，251原生manualShell通过；原机恢复、主动断开抑制、认证only静态审结，真实机器/秤恢复待验 |
 | 设置弹层统一 | 开发完成；部分视觉通过 | 根页、二级及自有DatePicker接入已审；启动确认浅/深图、机器设置浅色可见部分通过；全部弹层长文本/IME/英文与放大字体尚未整体批准 |
@@ -471,3 +471,27 @@ Astra实际view_image查看run40387407728的浅/深running及with-scale/no-scale
 HomeFragment冻结diff仅presetRow由固定320dp改width0/weight3（标题原weight1），槽位maxLines放开/ellipsis=null；11sp/min48和slot confirmStart回调原样。该小修静态批准，实际全称与720×360九控件仍待新CI，不用主图Capture代替首页验收。文档冻结。
 
 Root确认`home-slot-width-build.log`完整Mock单测、Mock/Debug/AndroidTest APK、lintDebug构建1分41秒成功；两APK资源各10897值及6 literal round trips通过。Home真实全称与720×360九控件仍待新提交CI，原断言不变。
+
+### LanguagePage二级页隐藏根导航合同方案
+
+root报告267b408已越过Home五槽，在既有language-pages的MachineSettings遇到对隐藏root rail子项验48dp的旧断言。Astra核实际pages仅Home/Curve/Extraction/History/AppSettings五Main内容及MachineSettings一个二级Activity，无新增类型需求。批准明确分支：Main保原全部nav选中/文字/触控/可见性/tools及内容不重叠门禁；非Main硬限定MachineSettings，验证root nav及targets均不显示，并按既有TaskFrame合同从pageContent真实可见、enabled、clickable且具名称的交互中优先back，验至少48dp且完整可见。隐藏nav的getGlobalVisibleRect及不重叠检查仅在Main执行；公共frame/content、内容子项/textFits/scroll与原settingTabs五节点击保留。
+
+这是现有单壳架构的测试合同修正，不是跳过二级页验证、不改生产、不扩矩阵。方案静态批准，实施diff与原CI待验；首页已越当前失败点不代表所有语言/尺寸已通过。文档冻结。
+
+### MachineSettings测试分支实施与267首页实图
+
+LanguagePageChecks最终diff静态批准：Main原primary/selected/尺寸/标签/tools/内容避让门禁保留；唯一MachineSettings分支要求根导航隐藏且真实内容交互至少48dp完整可见；公共内容、文字、滚动和五节设置检查不变。
+
+Astra实际查看run40389930415的home-light/dark，五槽真实全称均无省略，机器状态/双锅炉/槽位布局可读，1:3宽度修复在这两图获有限批准。但深色图quick-launch青色按钮内看不到“选择曲线”，浅色图有，已报root仅定位原始图/文本颜色，暂不批准深色首页全部内容。读取main-navigation.txt有两条PASS，证实该运行六Tab/服务/手动杯；capture脚本是在同平板几何执行，而compactHomeGeometry非720×360会return，因此此marker不能单独作为本提交720九控件证据，需既有lifecycle对应尺寸记录，不新增矩阵。计划冻结。
+
+### 深色快捷文字原像素复核与720执行证据方案
+
+Astra重新以原detail查看home-dark确见“选择曲线”，并直接读取原PNG同一区域(770,440)-(930,510)：浅深差异bbox=None，精确255白像素各1367，主要底色同(8,122,120)。此前缩放显示疑点撤回，不能据此改生产；所看中文浅深首页快捷文字及五槽全称批准。
+
+批准最小720取证方案：原尺寸判断记录实测px/density/dp与idle/running，非匹配明确SKIP；匹配时仅在原断言全部执行完后发对应PASS。既有lifecycle720阶段要求idle/running两PASS且不可用SKIP代替，Capture平板不强求；原断言、容差、矩阵不变，不增加测试工具。现有脚本配置不能替代断言主体执行证据，待实施及运行标记后再确认本提交720边界。文档冻结。
+
+### 720执行标记实施静态闭合
+
+Astra复核MainNavigationChecks及check_mock_lifecycle.sh：原getRealSize/density与1dp容差不变，不匹配发送含state/px/density/dp的SKIP；仅原主线程idle或running全部几何断言完成后发送对应PASS。原两处调用不变。脚本既有1440×720/density320阶段将am instrument -w stdout完整写入同main-navigation.txt，文件以w重建；先要求原总PASS，再拒绝SKIP并要求idle/running两PASS。set -Eeuo pipefail及原超时/返回码检查保留，缺标记即失败，不吞原错误。Capture脚本未改，不要求平板产生720标记。实施静态批准，编译和原CI实际标记待验；文档冻结。
+
+Root确认`compact-geometry-evidence-build.log` AndroidTest构建35秒成功；lifecycle脚本bash-n及diff检查通过。二级页合同与720两态执行证据小修均经Astra批准，原实际CI待验；不把此前无分支marker的通用PASS补算720验收。

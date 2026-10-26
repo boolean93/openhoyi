@@ -98,6 +98,12 @@ adb shell wm size 1440x720
 adb shell wm density 320
 run_instrumentation "$output_dir/main-navigation.txt" navigation
 grep -F 'MAIN_NAVIGATION_CHECKS_PASSED rounds=20 tabs=6 singleHost=true curveFilterRetained=true serviceContinuous=true manualShell=true noBle=true' "$output_dir/main-navigation.txt" >/dev/null
+if grep -F 'MAIN_HOME_720_GEOMETRY_SKIP ' "$output_dir/main-navigation.txt" >/dev/null; then
+  echo '720x360 Home geometry did not run at the target display size' >&2
+  exit 1
+fi
+grep -F 'MAIN_HOME_720_GEOMETRY_PASS state=idle ' "$output_dir/main-navigation.txt" >/dev/null
+grep -F 'MAIN_HOME_720_GEOMETRY_PASS state=running ' "$output_dir/main-navigation.txt" >/dev/null
 adb shell wm size 1600x1000
 adb shell wm density 200
 adb shell am force-stop "$package"

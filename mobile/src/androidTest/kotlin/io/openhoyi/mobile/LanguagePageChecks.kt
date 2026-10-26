@@ -237,38 +237,53 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         val targets = descendants(frame.navigation).filter { it.tag?.toString()?.startsWith("task-nav:") == true }
         val labels = listOf(R.string.ui_brew, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)
         check(targets.take(4).map { it.tag } == TaskNavigationModel.primary.map { "task-nav:${it.name}" })
-        targets.take(4).forEachIndexed { index, item ->
-            check(item.isClickable && item.isFocusable && item.width >= HoyiUi.dp(activity, 48) && item.height >= HoyiUi.dp(activity, 48))
-            val selected = if (activity is MainActivity)
-                when (activity.supportFragmentManager.primaryNavigationFragment) {
-                    is HomeFragment, is ExtractionFragment -> TaskDestination.BREW
-                    is CurveFragment -> TaskDestination.CURVES
-                    is HistoryFragment -> TaskDestination.HISTORY
-                    is BeanInventoryFragment -> TaskDestination.BEANS
-                    is ScaleFragment -> TaskDestination.SCALE
-                    is AppSettingsFragment -> TaskDestination.SETTINGS
-                    else -> error("Unknown active task Fragment")
-                } else TaskNavigationModel.forPage(activity.javaClass.simpleName)
-            check(item.isSelected == (TaskNavigationModel.primary[index] == selected))
-            fullyVisible(item, fixture)
-            val label = descendants(item).filterIsInstance<TextView>().single()
-            check(label.text.toString() == activity.getString(labels[index]))
-            LanguageUiLayoutChecks.textFits(label, fixture)
-            fullyVisible(label, fixture)
-        }
-        if (frame.toolsInTopBar) {
-            val menu = descendants(frame.pageContent).single { it.tag == "task-tools-menu" && it.isShown }
-            fullyVisible(menu, fixture)
-            check(menu.width >= HoyiUi.dp(activity, 48) && menu.height >= HoyiUi.dp(activity, 48))
-        } else {
-            check(targets.drop(4).map { it.tag } == TaskNavigationModel.tools.map { "task-nav:${it.name}" })
-            targets.drop(4).forEach { fullyVisible(it, fixture) }
-        }
-        // Content and fixed actions now live inside the frame; neither may cross its navigation.
         val content = frame.pageContent
         val contentBounds = Rect().also { check(content.getGlobalVisibleRect(it)) }
-        val navigationBounds = Rect().also { check(frame.navigation.getGlobalVisibleRect(it)) }
-        check(!Rect.intersects(contentBounds, navigationBounds)) { "$fixture content overlaps navigation" }
+        if (activity is MainActivity) {
+            val selected = when (activity.supportFragmentManager.primaryNavigationFragment) {
+                is HomeFragment, is ExtractionFragment -> TaskDestination.BREW
+                is CurveFragment -> TaskDestination.CURVES
+                is HistoryFragment -> TaskDestination.HISTORY
+                is BeanInventoryFragment -> TaskDestination.BEANS
+                is ScaleFragment -> TaskDestination.SCALE
+                is AppSettingsFragment -> TaskDestination.SETTINGS
+                else -> error("Unknown active task Fragment")
+            }
+            targets.take(4).forEachIndexed { index, item ->
+                check(item.isClickable && item.isFocusable && item.width >= HoyiUi.dp(activity, 48) && item.height >= HoyiUi.dp(activity, 48))
+                check(item.isSelected == (TaskNavigationModel.primary[index] == selected))
+                fullyVisible(item, fixture)
+                val label = descendants(item).filterIsInstance<TextView>().single()
+                check(label.text.toString() == activity.getString(labels[index]))
+                LanguageUiLayoutChecks.textFits(label, fixture)
+                fullyVisible(label, fixture)
+            }
+            if (frame.toolsInTopBar) {
+                val menu = descendants(content).single { it.tag == "task-tools-menu" && it.isShown }
+                fullyVisible(menu, fixture)
+                check(menu.width >= HoyiUi.dp(activity, 48) && menu.height >= HoyiUi.dp(activity, 48))
+            } else {
+                check(targets.drop(4).map { it.tag } == TaskNavigationModel.tools.map { "task-nav:${it.name}" })
+                targets.drop(4).forEach { fullyVisible(it, fixture) }
+            }
+            // Root content and fixed actions may not cross the visible task navigation.
+            val navigationBounds = Rect().also { check(frame.navigation.getGlobalVisibleRect(it)) }
+            check(!Rect.intersects(contentBounds, navigationBounds)) { "$fixture content overlaps navigation" }
+        } else {
+            check(activity is MachineSettingsActivity) { "$fixture unexpected secondary page: ${activity.javaClass.simpleName}" }
+            check(!frame.navigation.isShown && targets.none { it.isShown }) { "$fixture secondary page exposed the root task rail" }
+            val minimum = HoyiUi.dp(activity, 48)
+            val controls = descendants(content).filter { view ->
+                view.isShown && view.isEnabled && view.isClickable &&
+                    (!view.contentDescription.isNullOrBlank() || (view as? TextView)?.text?.isNotBlank() == true)
+            }
+            val control = controls.firstOrNull { it.contentDescription == activity.getString(R.string.ui_back) }
+                ?: controls.firstOrNull { it.width >= minimum && it.height >= minimum }
+                ?: error("$fixture no visible secondary-page action")
+            check(control.width >= minimum && control.height >= minimum) { "$fixture small secondary action: ${control.tag}" }
+            fullyVisible(control, fixture)
+        }
+        // Content and fixed actions remain inside the frame in both root and secondary pages.
         for (index in 0 until content.childCount) {
             val child = content.getChildAt(index)
             if (child.visibility != View.VISIBLE) continue
