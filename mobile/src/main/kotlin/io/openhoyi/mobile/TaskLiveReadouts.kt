@@ -17,6 +17,7 @@ internal class TaskLiveReadouts(context: Context, private val visual: Extraction
         check(childCount == 3)
         val available = MeasureSpec.getSize(widthMeasureSpec)
         val support = getChildAt(2) as LinearLayout
+        val showSupport = support.visibility != GONE
         fun arrangeSupport(vertical: Boolean) {
             support.orientation = if (vertical) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
             for (index in 0 until support.childCount) {
@@ -27,19 +28,20 @@ internal class TaskLiveReadouts(context: Context, private val visual: Extraction
                 params.marginEnd = if (!vertical && index == 0) gap else 0
             }
         }
-        arrangeSupport(true)
+        if (showSupport) arrangeSupport(true)
         val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-        for (index in 0 until childCount) getChildAt(index).measure(natural, natural)
+        for (index in 0 until (if (showSupport) childCount else 2)) getChildAt(index).measure(natural, natural)
         val mainMinimum = maxOf(getChildAt(0).measuredWidth, getChildAt(1).measuredWidth)
-        val supportingWidth = maxOf(support.measuredWidth, (160 * resources.displayMetrics.density).toInt())
-        inline = mainMinimum * 2 + supportingWidth + gap * 2 <= available
-        arrangeSupport(inline)
-        val primaryWidth = if (inline) ((available - supportingWidth - gap * 2) / 2).coerceAtLeast(0)
+        val supportingWidth = if (showSupport) maxOf(support.measuredWidth, (160 * resources.displayMetrics.density).toInt()) else 0
+        inline = !showSupport || mainMinimum * 2 + supportingWidth + gap * 2 <= available
+        if (showSupport) arrangeSupport(inline)
+        val primaryWidth = if (inline) ((available - supportingWidth - if (showSupport) gap * 2 else gap) / 2).coerceAtLeast(0)
             else ((available - gap) / 2).coerceAtLeast(0)
         for (index in 0..1) getChildAt(index).measure(MeasureSpec.makeMeasureSpec(primaryWidth, MeasureSpec.EXACTLY), natural)
-        support.measure(MeasureSpec.makeMeasureSpec(if (inline) supportingWidth else available, MeasureSpec.EXACTLY), natural)
+        if (showSupport) support.measure(MeasureSpec.makeMeasureSpec(if (inline) supportingWidth else available, MeasureSpec.EXACTLY), natural)
         firstRowHeight = maxOf(getChildAt(0).measuredHeight, getChildAt(1).measuredHeight)
-        val height = if (inline) maxOf(firstRowHeight, support.measuredHeight) else firstRowHeight + support.measuredHeight + if (visual != null) gap else 0
+        val height = if (!showSupport) firstRowHeight else if (inline) maxOf(firstRowHeight, support.measuredHeight)
+            else firstRowHeight + support.measuredHeight + if (visual != null) gap else 0
         setMeasuredDimension(available, resolveSize(height, heightMeasureSpec))
     }
 
@@ -51,6 +53,7 @@ internal class TaskLiveReadouts(context: Context, private val visual: Extraction
         place(getChildAt(0), 0, 0)
         place(getChildAt(1), getChildAt(0).measuredWidth + gap, 0)
         val support = getChildAt(2)
+        if (support.visibility == GONE) return
         place(support, if (inline) width - support.measuredWidth else 0,
             if (inline) (measuredHeight - support.measuredHeight) / 2 else firstRowHeight + if (visual != null) gap else 0)
     }

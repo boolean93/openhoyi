@@ -100,6 +100,11 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var prepare: Button
     private lateinit var cancelPrepare: Button
     private lateinit var pageHeader: LinearLayout
+    private lateinit var pageBody: LinearLayout
+    private lateinit var headerWords: LinearLayout
+    private var headerSubtitle: TextView? = null
+    private lateinit var supportReadings: LinearLayout
+    private lateinit var chartHost: FrameLayout
     private lateinit var liveHeading: TextView
     private lateinit var modeBadge: TextView
     // Chrome compaction must not depend on height that this same chrome consumes.
@@ -121,10 +126,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(16), dp(16), dp(16), dp(16))
         }
+        pageBody = content
         root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
         pageHeader = HoyiUi.header(host, content, getString(R.string.extraction_title),
             if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else null)
         style.styleHeader(pageHeader)
+        headerWords = pageHeader.getChildAt(0) as LinearLayout
+        headerSubtitle = headerWords.getChildAt(1) as? TextView
         (pageHeader.layoutParams as LinearLayout.LayoutParams).bottomMargin = dp(8)
         // Secondary prose remains available in a details dialog, not in the plot's height budget.
         val details = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
@@ -165,18 +173,21 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val metrics = TaskLiveReadouts(host, visual)
         plotColumn.addView(metrics, LinearLayout.LayoutParams(-1, -2))
         fun reading(label: String, quantity: Boolean = false): TextView {
-            val cell = style.column("product/extraction/" + if (quantity) "quantity-cell" else "elapsed-cell")
+            val cell = style.column("product/extraction/" + if (quantity) "quantity-cell" else "elapsed-cell").apply {
+                orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
+            }
             metrics.addView(cell)
             val heading = style.text(label, TaskProductVisualStyle.auxiliary, secondary = true)
-            style.add(cell, heading)
+            cell.addView(heading, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
             if (quantity) quantityLabel = heading
             val group = HistoryQuantity(host, visual, if (quantity) "product/extraction/quantity" else "product/extraction/elapsed", focus = true)
-            style.add(cell, group, 8)
+            cell.addView(group, LinearLayout.LayoutParams(-2, -2))
             return group.number.also { readoutGroups[it] = group }
         }
         elapsedValue = reading(getString(R.string.task_extraction_elapsed))
         weightValue = reading(getString(R.string.task_extraction_water), quantity = true)
         val secondaryReadings = style.row("product/extraction/readouts-support")
+        supportReadings = secondaryReadings
         metrics.addView(secondaryReadings)
         fun supportReading(label: Int, id: String): TextView {
             val row = style.row("$id/cell").apply { gravity = android.view.Gravity.CENTER_VERTICAL }
@@ -191,7 +202,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         waterValue = supportReading(R.string.task_chart_water, "product/extraction/water")
         temperatureValue = supportReading(R.string.task_chart_temperature, "product/extraction/temperature")
         flowValue = text(details, "", 14)
-        val chartHost = FrameLayout(host).apply { tag = "product/extraction/chart-host" }
+        chartHost = FrameLayout(host).apply { tag = "product/extraction/chart-host" }
         chart = ExtractionOverlayView(host, visual).apply { tag = "product/extraction/chart"; background = style.shape(style.surface) }
         chartHost.addView(chart, FrameLayout.LayoutParams(-1, -1))
         val chartTools = Button(host).apply {
@@ -386,6 +397,41 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
         pageHeader.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
+        val compactRunning = active && !compactChrome
+        val wordsOrientation = if (compactRunning) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
+        if (headerWords.orientation != wordsOrientation) {
+            headerWords.orientation = wordsOrientation
+            (headerWords.getChildAt(0).layoutParams as LinearLayout.LayoutParams).apply {
+                width = if (compactRunning) -2 else -1
+                weight = 0f
+                headerWords.getChildAt(0).layoutParams = this
+            }
+            headerSubtitle?.apply {
+                (layoutParams as LinearLayout.LayoutParams).also { params ->
+                    params.width = if (compactRunning) 0 else -1
+                    params.weight = if (compactRunning) 1f else 0f
+                    layoutParams = params
+                }
+                setPadding(if (compactRunning) dp(8) else 0, if (compactRunning) 0 else dp(4), 0, 0)
+                maxLines = if (compactRunning) 1 else Int.MAX_VALUE
+                ellipsize = if (compactRunning) android.text.TextUtils.TruncateAt.END else null
+            }
+        }
+        val headerParams = pageHeader.layoutParams as LinearLayout.LayoutParams
+        val headerGap = if (compactRunning) 0 else dp(8)
+        if (headerParams.bottomMargin != headerGap) {
+            headerParams.bottomMargin = headerGap
+            pageHeader.layoutParams = headerParams
+        }
+        val chartParams = chartHost.layoutParams as LinearLayout.LayoutParams
+        val chartGap = if (active) 0 else dp(8)
+        if (chartParams.topMargin != chartGap) {
+            chartParams.topMargin = chartGap
+            chartHost.layoutParams = chartParams
+        }
+        val edge = dp(if (active) 8 else 16)
+        if (pageBody.paddingTop != edge) pageBody.setPadding(dp(16), edge, dp(16), edge)
+        supportReadings.visibility = if (active) View.GONE else View.VISIBLE
         modeBadge.visibility = if (active && compactChrome && BuildConfig.MOCK_MODE) View.VISIBLE else View.GONE
         liveHeading.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
         shotSummary.visibility = if (active && compactChrome) View.GONE else View.VISIBLE

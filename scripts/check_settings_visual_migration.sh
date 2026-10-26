@@ -104,19 +104,27 @@ collect() {
   adb shell am force-stop "$package" || true
   # Restore only this key, preserving absence; never put the literal "null" for an absent setting.
   if ! python3 - "$output_dir/font-scale-before.json" "$output_dir/font-scale-restore.json" "$exit_status" <<'FONT_RESTORE_PY'
-import json, subprocess, sys, traceback
+import json, subprocess, sys, time, traceback
 from pathlib import Path
 before=json.loads(Path(sys.argv[1]).read_text())
 proof={'before':before,'originalExitStatus':int(sys.argv[3])}
 try:
     command=['adb','shell','settings']+(['put','system','font_scale',before['value']] if before['present'] else ['delete','system','font_scale'])
     proof['restoreOperation']='put_original_value' if before['present'] else 'delete_originally_absent_key'
-    restored=subprocess.run(command,capture_output=True,text=True,timeout=10,check=True)
-    proof['restoreReturnCode']=restored.returncode
-    result=subprocess.run(['adb','shell','settings','list','system'],capture_output=True,text=True,timeout=10,check=True)
-    entries=[line[len('font_scale='):] for line in result.stdout.replace('\r\n','\n').splitlines() if line.startswith('font_scale=')]
-    assert len(entries)<=1, 'Ambiguous restored font_scale'
-    after={'present':bool(entries),'value':entries[0] if entries else None}
+    proof['restoreAttempts']=[]
+    # Android may reinsert its default font_scale while a configuration change settles.
+    # Repeat only the original restore operation; every attempt observes key presence
+    # and the final result must still match the exact pre-matrix snapshot.
+    for attempt in range(5 if not before['present'] else 1):
+        restored=subprocess.run(command,capture_output=True,text=True,timeout=10,check=True)
+        proof['restoreReturnCode']=restored.returncode
+        result=subprocess.run(['adb','shell','settings','list','system'],capture_output=True,text=True,timeout=10,check=True)
+        entries=[line[len('font_scale='):] for line in result.stdout.replace('\r\n','\n').splitlines() if line.startswith('font_scale=')]
+        assert len(entries)<=1, 'Ambiguous restored font_scale'
+        after={'present':bool(entries),'value':entries[0] if entries else None}
+        proof['restoreAttempts'].append({'ordinal':attempt+1,'returnCode':restored.returncode,'after':after})
+        if after==before: break
+        if attempt<4 and not before['present']: time.sleep(0.2)
     proof['after']=after
     assert after==before, 'font_scale presence/value not restored'
     proof['status']='PASS_SETTING_RESTORE_ONLY'

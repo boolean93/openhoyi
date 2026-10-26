@@ -146,6 +146,26 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             return replacement
         } finally { test.removeMonitor(monitor) }
     }
+    private fun tabReturn(activity: Activity, destination: TaskDestination) {
+        val host = MainPageTestHost(test, activity as MainActivity)
+        val original = host.active("root:${destination.name}")
+        fun click(next: TaskDestination) {
+            main {
+                val tab = views(activity.window.decorView).single {
+                    it.tag == "task-nav:${next.name}" && it.isShown && it.isEnabled && it.isClickable
+                }
+                check(tab.performClick()) { "Visible ${next.name} tab rejected the click" }
+            }
+            test.waitForIdleSync()
+            host.active("root:${next.name}")
+        }
+        click(TaskDestination.BREW)
+        click(destination)
+        check(host.active("root:${destination.name}") === original) {
+            "${destination.name} Fragment was rebuilt by tab navigation"
+        }
+        check(!activity.isFinishing && activity.hasWindowFocus()) { "Tab return left the original MainActivity" }
+    }
     private fun list(activity: Activity): ListView = children(activity).filterIsInstance<ListView>().single()
     private fun listReady(activity: Activity) {
         await { list(activity).let { it.isShown && it.count > 1 && it.childCount > 0 && !it.isLayoutRequested } }
@@ -442,6 +462,13 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                     }
                     if (type == BeanInventoryActivity::class.java || activity is BeanLedgerActivity) {
                         val saved = swipeScroll(activity, field(activity, "listScroll") as ScrollView)
+                        if (type == BeanInventoryActivity::class.java) {
+                            tabReturn(activity, TaskDestination.BEANS)
+                            await { (field(activity, "listScroll") as ScrollView).let {
+                                it.isShown && !it.isLayoutRequested && it.scrollY == saved
+                            } }
+                            main { SingleScreenPageChecks.verify(activity) }
+                        }
                         activity = recreate(activity)
                         await { (field(activity, "listScroll") as ScrollView).scrollY == saved }
                         main { SingleScreenPageChecks.verify(activity) }
@@ -459,6 +486,14 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                                 selectedMetadata = views(activity.findViewById<ViewGroup>(android.R.id.content)
                                     .findViewWithTag<View>("inventory-batch-metadata")).filterIsInstance<TextView>().map { it.text.toString() }
                                 check(selectedMetadata.size >= 7)
+                            }
+                            tabReturn(activity, TaskDestination.BEANS)
+                            await { field(activity, "selectedBatchId") == selectedId &&
+                                (field(activity, "collection") as TaskCollectionLayout).detailRequested }
+                            main {
+                                check(views(activity.findViewById<ViewGroup>(android.R.id.content)
+                                    .findViewWithTag<View>("inventory-batch-metadata"))
+                                    .filterIsInstance<TextView>().map { it.text.toString() } == selectedMetadata)
                             }
                             activity = recreate(activity)
                             ready(activity)
@@ -502,13 +537,20 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                         }
                         await { (field(activity, "listScroll") as ScrollView).let { it.isShown && it.scrollY == saved } }
                         main { SingleScreenPageChecks.verify(activity) }
-                        evidence += "${type.simpleName} navigation-detail-return scrollY=$saved gesture=swipe"
+                        evidence += "${type.simpleName} navigation-detail-return scrollY=$saved gesture=swipe" +
+                            (if (type == BeanInventoryActivity::class.java) " tabReturn=scroll-selection" else "")
                     } else {
                         val saved = scrollList(activity)
+                        if (type == HistoryActivity::class.java) {
+                            tabReturn(activity, TaskDestination.HISTORY)
+                            main { check(field(activity, "showJournal") == true) }
+                            restored(activity, saved, "tab-return")
+                        }
                         activity = recreate(activity)
                         if (type == HistoryActivity::class.java) main { check(field(activity, "showJournal") == true) }
                         restored(activity, saved, "recreate")
-                        evidence += "${type.simpleName} recreate position=${saved.position} offset=${saved.offset} gesture=swipe journal=${type == HistoryActivity::class.java}"
+                        evidence += "${type.simpleName} recreate position=${saved.position} offset=${saved.offset} gesture=swipe journal=${type == HistoryActivity::class.java}" +
+                            (if (type == HistoryActivity::class.java) " tabReturn=nonzero-anchor" else "")
                         if (activity is LegacyCurveActivity) {
                             clickVisible(activity)
                             await { (field(activity, "collection") as TaskCollectionLayout).detailRequested }

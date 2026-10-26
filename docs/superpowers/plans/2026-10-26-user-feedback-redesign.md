@@ -19,17 +19,21 @@
 
 ## 进度
 
-状态仅使用“未开始 / 开发中 / 软件通过 / 实机待验”。“软件通过”不代表设备效果确认。
+当前状态截至已推送的 `710f33c`。下方历史审查按当时事实保留；本表是当前状态，旧容器启动、旧首页布局问题已修复，不再列为未关闭阻塞。“开发完成”表示实现与静态审查完成，不等于全部软件或硬件验收通过。
 
-| 项目 | 状态 | 当前证据/下一步 |
+| 项目 | 当前状态 | 已有证据 / 仍待验 |
 |---|---|---|
-| 协议计时修复 | 软件通过 | Astra最终审结通过：生产仅删07且保留时序；同地址READY→FAILED→重连两代精确三帧通过。主协调者核对675个JUnit零失败/错误、协议39823 checks、会话93 checks；Mini/Ultra实机待验 |
-| 真Tab迁移 | 开发中 | 六根及萃取已迁真实Fragment，本地统一构建通过；c729ab9原生CI启动崩溃：Fragment容器首次测量前未附着；两文件修复静态通过，冷启动/重建原生重跑仍阻塞验收 |
-| 机器首页常驻控制 | 开发中 | 紧凑双锅炉/快捷五槽/48dp壳控制已实现；实际701eda0首页截图不通过：仍是准备页、重复块/大按钮/rail截字；720×360快捷控件真实裁切，已交Sol修复 |
-| 大图设计 | 开发中 | 实际live renderer四指标、独立刻度及几何静态通过；新Main/Fragment入口下原生绘制与图高待验 |
-| 自动导航与重连 | 开发中 | 后端静态审查与101 checks通过，首次秤READY资格已闭合；壳新杯导航仍待原生验收；机器/秤恢复实机待验 |
-| 设置弹层统一 | 开发中 | 二级/辅助弹层及根Fragment接入静态审查通过；最终统一构建通过，长文本/IME原生运行仍待验 |
-| 整体验收 | 未开始 | 下述有界原生场景，硬件项单独标记 |
+| 协议计时修复 | 软件通过；实机待验 | 仅删07，精确三帧/时序、同地址两代连接回归通过；Mini/Ultra实际计时与重量待验 |
+| 真Tab迁移 | 开发完成；核心原生通过 | 25169d2真实MainNavigation：六Tab20轮、720×360几何、冷启动/重建、同服务同series通过；历史来源后续修复已静态审结，710f33c复验待结果。非零历史滚动、豆列表滚动/选批/详情的Tab往返新增测试已静态通过，运行待验；二级编辑页及全部子路由重建仍按既有验收确认 |
+| 机器首页常驻控制 | 开发完成；已看代表图通过 | 机器状态、紧凑双锅炉、快捷五槽及常驻控制已实现；720×360几何通过，中文浅/深首页实图已审；实际锅炉回读与设备操作待验 |
+| 大图设计 | 外观局部通过；绘图区面积待修验 | 四线/图例/固定停止已图审；最新实际plotBounds约173–184dp低于平板260dp目标，需压缩重复页头/数值区并测真实网格，不能以外框高度代替 |
+| 自动导航与重连 | 开发完成；策略及核心导航通过 | 101 session checks与手动ID策略通过，251原生manualShell通过；原机恢复、主动断开抑制、认证only静态审结，真实机器/秤恢复待验 |
+| 设置弹层统一 | 开发完成；部分视觉通过 | 根页、二级及自有DatePicker接入已审；启动确认浅/深图、机器设置浅色可见部分通过；全部弹层长文本/IME/英文与放大字体尚未整体批准 |
+| 整体验收 | 进行中，未整体通过 | 710f33c已推；root确认最新统一构建2分15秒、两APK资源各10897值通过。251核心原生与audio五组通过，代表图已审；最新完整CI、下列未验状态恢复和全部硬件仍待 |
+
+未验边界：截图只批准实际看过的页面与主题；曲线库浅/深首屏通过不代表滚动恢复通过。非零历史滚动、豆列表滚动/选批/详情、二级豆编辑页及全部子路由/语言重建、全套自有弹层、真实拨杆两杯、睡眠唤醒与原设备恢复仍需对应证据。没有安装或操作真实设备，不以Mock替代硬件。
+
+批次复选框表示该条写明的工作已完成；混合“实现+验证”的旧条目已拆开，未取得运行证据的验收项保持未勾。
 
 ## 文件所有权与交接
 
@@ -45,41 +49,45 @@
 
 首页/萃取视觉改动在导航迁移交接后由其Controller所有者接入，避免两个Sol同时改巨型Activity。任何临时兼容Activity不得成为最终导航实现。
 
-## 批次1：真Tab与内容迁移（立即执行）
+## 批次1：真Tab与内容迁移
 
-- [ ] 增加AndroidX Fragment依赖并将主题宿主改为FragmentActivity；保持语言/主题包裹。Manifest主入口指向MainActivity。
-- [ ] 新增壳导航契约：`selectTab(destination)`、`openRoute(route)`、`back()`；根页稳定tag匹配destination。Tab transaction只show/hide、setPrimaryNavigationFragment、setMaxLifecycle；重复点当前Tab不重建、不写返回栈。
-- [ ] MainActivity只安装一个TaskPageFrame和导航/状态操作区。TaskNavigationView只接受当前目的地和回调，不凭activity.javaClass推断选中项。
-- [ ] 先迁AppSettings/Scale，再Curve/History/Bean，最后Home/Extraction。Fragment真正返回页面内容View；Controller可使用宿主Context/主题/系统授权，不可创建Activity、调用host.setContentView或读取宿主类名决定页面。
-- [ ] Controller输入为路由参数和saved state；实现createView、可见/隐藏、saveState、dispose。隐藏停UI轮询；onDestroyView清View引用、监听和弹窗。服务连接由MainActivity统一持有，页面不得因Tab切换释放BLE连接。
-- [ ] 每Tab子路由与草稿独立恢复；处理返回、旋转、主题/语言重建；外部通知入口转为壳内路由。旧顶层兼容Activity只能转到MainActivity并结束，不能再创建业务View；二级Activity可保留但无顶层rail。
+- [x] 增加AndroidX Fragment依赖并将主题宿主改为FragmentActivity；保持语言/主题包裹。Manifest主入口指向MainActivity。
+- [x] 新增壳导航契约：`selectTab(destination)`、`openRoute(route)`、`back()`；根页稳定tag匹配destination。Tab transaction只show/hide、setPrimaryNavigationFragment、setMaxLifecycle；重复点当前Tab不重建、不写返回栈。
+- [x] MainActivity只安装一个TaskPageFrame和导航/状态操作区。TaskNavigationView只接受当前目的地和回调，不凭activity.javaClass推断选中项。
+- [x] 先迁AppSettings/Scale，再Curve/History/Bean，最后Home/Extraction。Fragment真正返回页面内容View；Controller可使用宿主Context/主题/系统授权，不可创建Activity、调用host.setContentView或读取宿主类名决定页面。
+- [x] Controller输入为路由参数和saved state；实现createView、可见/隐藏、saveState、dispose。隐藏停UI轮询；onDestroyView清View引用、监听和弹窗。服务连接由MainActivity统一持有，页面不得因Tab切换释放BLE连接。
+- [x] 返回/saved state及壳内入口迁移完成；旧顶层Activity仅重定向Main并结束，二级页不带顶层rail。
+- [ ] 验证所有Tab子路由、非零历史滚动及豆列表滚动/选批/详情恢复，以及全部主题/语言重建入口；不得仅据核心导航marker勾选。
+- [ ] 二级豆编辑Activity按既有编辑/重建测试确认草稿恢复。根Bean Tab为列表，没有编辑草稿，不要求不存在的根草稿Tab往返场景。
 - [ ] 核对二级页：曲线编辑/导入/预览/分享，历史详情/对比/复盘，豆录入/批次/准备/台账，机器设置/秤连接/秤设置，以及仍可达的legacy页面本轮只确保入口和状态无回归，可保留原Activity但移除顶层rail；不展开所有二级Fragment迁移。
-- [ ] 新增 `MainNavigationChecks.kt` 原生场景：六Tab循环20次Activity始终1个、每根Fragment至多1个；Curve筛选/History滚动/豆草稿各保留；Extraction切走回来series ID/时间递增；配置重建恢复当前Tab和子页。单看截图或类声明不算通过。
+- [x] 新增并运行核心 `MainNavigationChecks.kt`：25169d2实际六Tab20轮、冷启动/重建、720×360 geometry、manualShell及同服务同series通过。
+- [ ] 非零History滚动及豆列表滚动/选批/详情的Tab往返补足实际运行证据；新增测试已复用非零fixture并静态通过，仍不能据测试存在标运行通过。全部子页恢复单独验收。
 
-批次1交付点：真实六页和萃取在单壳可用，原有业务门禁不变。之后按所有权交接视觉接入，不能让占位Fragment变成永久实现。
+批次1当前交付：真实六页和萃取在单壳，原业务门禁保留；核心原生已通过，剩余状态恢复验收按上列未勾项记录。
 
 ## 批次2：机器首页与常驻操作
 
-- [ ] HomeController改成机器状态首屏；固定双锅炉温度/开关、机器连接状态、配方与快捷启动；把准备细节移到次级展开区。
-- [ ] 抽取原confirmStart可复用入口供首页和萃取共用，同样执行设备/曲线/温度/秤/未知写入门禁和用户确认；不复制一套较弱校验。
-- [ ] 提取睡眠确认与秤连接状态到壳操作区；断开×和重连icon为独立48dp目标，禁用时保留说明。锅炉写入等待回读，不乐观标成功。
+- [x] HomeController改成机器状态首屏；固定双锅炉温度/开关、机器连接状态、配方与快捷启动；把准备细节移到次级展开区。
+- [x] 抽取原confirmStart可复用入口供首页和萃取共用，同样执行设备/曲线/温度/秤/未知写入门禁和用户确认；不复制一套较弱校验。
+- [x] 提取睡眠确认与秤连接状态到壳操作区；断开×和重连icon为独立48dp目标，禁用时保留说明。锅炉写入等待回读，不乐观标成功。
 - [ ] 测试IdleTelemetry双锅炉可显示、ExtractionTelemetry蒸汽缺失显示未知；检查五槽合法边界及断连/未知写入时不可快捷启动。
-- [ ] 原生截图：720×360dp和1280×800dp首页首屏，不滚动能看到连接、双锅炉、快捷启动和常驻操作。
+- [x] 720×360首页完整控件geometry实际通过；1280×800中文浅/深实图已查看，连接、双锅炉、快捷与常驻操作可见。
 
 ## 批次3：萃取大图
 
-- [ ] 改 `TaskExtractionWorkspace.kt` 移除强制宽侧栏，主图占主要空间；原 `ExtractionOverlayView.kt`/`ProductHistoryChartRenderer.kt` 复用 `FourMetricChartProjection.kt`。
-- [ ] 四线同图、指标/单位/范围一排；当前实线与参考虚线区分；图例只切轴和强调，不能退回四小图或一次只见一项。
-- [ ] 把重复准备/摘要/说明卡压缩为一行和次级工具；停止固定可见。遵守spec尺寸、色值与无动画参数。
-- [ ] 保留并运行 `FourMetricChartProjectionTest` 和 `ChartInspectionTest`；增加同图四指标呈现、缺测断线、注水复位、负重量场景。原生量测图高与停止按钮边界，不只检查tag存在。
+- [x] 改 `TaskExtractionWorkspace.kt` 移除强制宽侧栏，主图占主要空间；原 `ExtractionOverlayView.kt`/`ProductHistoryChartRenderer.kt` 复用 `FourMetricChartProjection.kt`。
+- [x] 四线同图、指标/单位/范围一排；当前实线与参考虚线区分；图例只切轴和强调，不能退回四小图或一次只见一项。
+- [x] 把重复准备/摘要/说明卡压缩为一行和次级工具；停止固定可见。遵守spec尺寸、色值与无动画参数。
+- [x] 保留projection/inspection单元测试及原生四指标、缺测、几何断言；本地Mock unit构建通过，浅/深运行主图与停止边界已图审。
+- [ ] 四指标原生全部场景（缺测、注水复位、负重量、字体/语言）按实际CI逐项确认，不以主图截图代替。
 
 ## 批次4：新手动杯导航与连接恢复
 
-- [ ] MobileService从PassiveShotDetector开始事件公开稳定ID；MainActivity只消费新ID。先保存lastPresented再导航。重复遥测、旋转、同杯切Tab不重跳；下一杯重跳一次。
-- [ ] 新增纯策略测试：前台新杯→一次，切走同杯→零次，重建同杯→零次，下一杯→一次，后台已结束杯→零次。
-- [ ] 查明现有ReconnectPolicy和DeviceHub角色连接所有权后复用；仅补缺失的原设备地址、用户意图抑制和退避触发。禁止全设备扫描后随便连另一台。
-- [ ] 增加意外断连→同地址恢复；主动断开→不恢复；明确重连→解除抑制；旧generation回调→不改变新连接；蓝牙关闭/权限缺失→停重试并提示。
-- [ ] outbound回归：重连不能发送启动/停止/设置/睡眠/去皮/计时；原未知结果继续等待核实。机器唤醒无证据的控制帧不新增。
+- [x] MobileService从PassiveShotDetector开始事件公开稳定ID；MainActivity只消费新ID。先保存lastPresented再导航。重复遥测、旋转、同杯切Tab不重跳；下一杯重跳一次。
+- [x] 新增纯策略测试：前台新杯→一次，切走同杯→零次，重建同杯→零次，下一杯→一次，后台已结束杯→零次。
+- [x] 查明现有ReconnectPolicy和DeviceHub角色连接所有权后复用；仅补缺失的原设备地址、用户意图抑制和退避触发。禁止全设备扫描后随便连另一台。
+- [x] 增加意外断连→同地址恢复；主动断开→不恢复；明确重连→解除抑制；旧generation回调→不改变新连接；蓝牙关闭/权限缺失→停重试并提示。
+- [x] outbound回归：重连不能发送启动/停止/设置/睡眠/去皮/计时；原未知结果继续等待核实。机器唤醒无证据的控制帧不新增。
 
 ## 批次5：BOOKOO初始化修复
 
@@ -91,10 +99,10 @@
 
 ## 批次6：设置与自有弹层统一
 
-- [ ] 用rg枚举 `AlertDialog.Builder`、`Dialog(`、`PopupMenu` 入口并映射到公共构建组件；统一间距/字体/颜色/宽度/动作顺序。系统权限和文件面板不接管。
-- [ ] 设置机器/秤/App三组保留所有现存参数和低频入口。迁移只改显示与导航，不改设置编码/值范围/回读与未知结果门禁。
+- [x] 用rg枚举 `AlertDialog.Builder`、`Dialog(`、`PopupMenu` 入口并映射到公共构建组件；统一间距/字体/颜色/宽度/动作顺序。系统权限和文件面板不接管。
+- [x] 设置机器/秤/App三组保留所有现存参数和低频入口。迁移只改显示与导航，不改设置编码/值范围/回读与未知结果门禁。
 - [ ] 检查代表弹窗：启动确认、睡眠、断开、锅炉编辑、删除曲线、语言/主题选择、图表检查、恢复未知结果；浅深色、长中文及英文、放大字体时正文可滚动且动作可点。
-- [ ] 搜索所有剩余直接构建点，逐项迁移或注明系统/外部排除理由；不能只换一个公共弹窗后宣称“全部统一”。
+- [x] 搜索所有剩余直接构建点，逐项迁移或注明系统/外部排除理由；不能只换一个公共弹窗后宣称“全部统一”。
 
 ## 有界验证与验收
 
@@ -299,3 +307,49 @@ root正在统一history-route-build（session14116）。本轮计划冻结；仅
 ### 本地复验（2026-10-27，历史路由与测试坐标批次）
 
 Root 复核 `history-route-build.log`：Mock 单测、Mock/Debug/AndroidTest APK、lintDebug 统一构建成功，耗时 2 分 15 秒。实际 Alpha/Mock APK 资源各 10897 个值、6 个 literal round trips 校验通过；diff 检查无错误。Astra 已静态批准本批，原生运行与截图仍以新提交 CI 为准。
+
+### 非零列表真实Tab往返测试静态审结
+
+Astra已读SingleScreenListStateChecks/MainNavigationChecks小diff：复用既有40项fixture与真实swipe，History要求非零firstVisiblePosition，Bean要求scrollY>0；新增tabReturn通过可见可用可点击的实际task-nav切到首页再返回，waitForIdleSync与当前真实Fragment检查同实例。History保留showJournal与完整position/offset Anchor，Bean保留滚动值、selectedBatchId、detailRequested和详情metadata。等待沿用有界状态轮询，不新增盲sleep，原业务与偏好清理不变。静态通过，原生运行待CI。
+
+纠正概念：根Bean是库存列表，Tab状态为滚动、选批与详情；编辑草稿属于独立二级Activity，按既有重建验收单列，不再要求根Bean草稿切Tab。本轮仅改计划，冻结待运行证据。
+
+### font_scale恢复与截图同步问题记录
+
+Astra已读check_settings_visual_migration.sh小diff：仅原先缺席的font_scale最多五次重复原delete；原存在时仍单次put原值。每次记录存在性和值，最终严格after==before；恢复失败不会把原非零退出码改成功。静态批准有界恢复重试，结论限最后一次实际读取，不宣称Android之后永不重建默认值。
+
+Settings/Scale反复出现PixelCopy S1与Window层不同步，窗口几何及显示D1/D2一致并不能证明像素属于同一提交帧；现有5秒守卫失败应保留。Main每250ms shellStatus.present可能重复设置未变文本只是未证实假设，不足以放宽截图接受条件、增加任意等待或直接改生产。建议限原失败场景记录捕获/提交帧与shell实际变更计数时间，先验证因果；若证实无意义重复绘制，再单点去重并复跑原场景。当前仅记录问题，不新增矩阵或标截图同步通过。
+
+### LayoutHost与严格磁盘差异诊断复核
+
+Astra已读LanguageUiLayoutChecks/StrictVisualSampleChecks两diff，静态通过。Language使用Main同款TaskPageFrame.host，明确六Tab顺序、BREW选中和不出现根壳冗余tools菜单；原宽度/字体矩阵、精确尺寸、48dp、textFits及内部边界检查保留。被移除的是二级install宿主下不适用的旧工具菜单条件，不削根导航断言。既有窄宽布局回归不升级为本轮产品竖屏支持目标。
+
+Strict只在原storage哈希不等时向外部证据目录写added/removed/changed路径及前后SHA，storage收集范围不变，未添加profileInstalled白名单；原严格相等失败和service owner检查仍在，诊断写入失败也不会吞原数据不变失败。此补丁提供定位证据，不把尚未解释的磁盘差异当成功。计划冻结，实际运行待CI。
+
+### 实际绘图区面积复核：尚未达标
+
+Astra实际view_image查看`run-40368846679/extraction-running-light.png`。原测试chartBottom>stopTop与当前固定停止在图下方的设计冲突，应改为两者不重叠且停止完整可见；本次约8dp间隔合理。但chart外框或MetricPlot高度不等于renderer实际plotBounds；Sol测得扣轴后约173–184dp，低于spec常见平板260dp目标。此前代表图批准仅适用于可读性/外观，不代表该数值面积已验收，本项现明确待修。
+
+最小空间调整交导航Sol：运行态标题/模拟说明/安全提示压为约48dp紧凑行，时间与秤读数用约56–64dp同排；压力/注水/温度已由四指标图例展示，避免重复大数值支持区，节省约70–90dp归实际网格。四指标、单位/量程、轴文字安全间距及至少48dp停止不能删减。正常字体常见平板按真实plotBounds高至少260dp验收。720×360原180dp目标与安全优先保留，若预算不足先报告真实几何，不静默改规格或缩触控。
+
+测试应先输出viewport、density、chart外框、MetricPlot、renderer.plotBounds和stop几何，再断言plotBounds/density及chart-stop不重叠。不能只改旧断言使通过，不能按外框高度宣称图面积达标。
+
+### 图面积几何测试首轮复核
+
+LanguageActiveCupChecks已先输出geometry，记录pageContent宽、真实plotBounds高度/density，要求图宽至少页面70%，仅常见平板>=1000×600dp、fontScale=1要求网格>=260dp，未将260套用短屏。但新非重叠断言仍将chart.getLocationOnScreen与stop.getGlobalVisibleRect混比，暂不批准；已交测试Sol统一stop屏幕坐标，global矩形仅用于完整宽高校验，同时建议核真实网格在plot及祖先可见范围内。生产图面积仍待调整，不能只修测试取得通过。
+
+### 主图压缩生产与最终几何检查复核
+
+生产ExtractionFragment/TaskLiveReadouts首版压缩仍有阻塞：HoyiUi.header内标签默认在纵向容器生成MATCH_PARENT宽，单改横排会使标题占满、副标题挤出；须运行态显式title WRAP_CONTENT、subtitle余量weight并在非运行态恢复。理论回收约80dp，原较低173dp网格仅到约253dp，尚不能保证260；需再去除约8dp无效间距或按实际可用预算分配，不动字号、四图例、轴文字安全距离及停止。已交导航Sol，当前构建不作为面积通过。
+
+测试最终版已重新读取并静态批准：chart与stop均以getLocationOnScreen坐标比较不重叠；plot的global可见矩形映射到screen，并验证映射与真实plotLocation一致；axesInsidePlot及可见RectF包含完整dataPlotScreen避免祖先裁切漏检。geometry先落盘，再执行真实plotBounds>=260dp（平板正常字体）、宽度>=页面70%和停止完整可见条件。未削阈值，实际面积仍须修后CI测量与截图确认。
+
+### 主图压缩最终生产静态收口
+
+已读最终ExtractionFragment/TaskLiveReadouts：运行态title WRAP_CONTENT、subtitle宽0/weight1，退出运行态恢复MATCH_PARENT/weight0；chartHost运行态上边距0、非运行态恢复8dp。GONE支持数值行不再参与测量或布局，四指标图例、原值/单位、字号、renderer轴间距和固定停止保持。两项静态阻塞闭合。额外回收8dp后最低预算约261dp，只是理论估算，仍须真实plotBounds>=260dp及可见边界/截图验证。
+
+root确认上一版统一构建2分30秒通过，但最后标题宽度与间距补丁在其后，待最终构建与单批推送CI；本轮计划冻结，绘图区面积未提前标通过。
+
+### 绘图区最终补丁本地复验（2026-10-27）
+
+Root确认 `live-plot-final-build.log` 完整Mock单测、Mock/Debug/AndroidTest APK与lintDebug构建成功，2分8秒；实际两APK各10897资源值及6 literal round trips通过。Astra最终生产和测试静态复审通过。260dp为真实数据plot门槛，尚待新提交CI；未因编译成功批准图面积。710f33c的verify/upgrade/branch-policy通过，lifecycle根frame身份问题已针对性修正；Capture越过概览温度后发现旧交叠断言及真实图面积不足，本批同时修测试和生产。Settings/Scale像素帧同步仍未闭合，Strict样张磁盘差异新增逐文件诊断而非白名单。

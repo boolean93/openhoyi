@@ -170,7 +170,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 host.select(TaskDestination.CURVES)
                 host.select(TaskDestination.HISTORY)
                 host.select(TaskDestination.BEANS)
-                check(beans.view === beanView) { "Bean editor page was rebuilt by tab navigation" }
+                check(beans.view === beanView) { "Bean inventory tab was rebuilt by tab navigation" }
                 host.extraction()
                 check(activity.currentService === service && service.running) { "Tab switch restarted the service" }
                 check(service.chartTraceIdentity == trace && service.chartPoints.size >= points) {

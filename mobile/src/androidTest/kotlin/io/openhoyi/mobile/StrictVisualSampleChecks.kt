@@ -520,7 +520,22 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                     "原稿锚点由host finalizer附入；不把测量结果倒写成设计标准。库存使用入口仅展示，真实操作需先确认投粉才扣减。\n")
             } finally {
                 main { activity.finish() }; test.waitForIdleSync()
-                check(storage(context) == baselineStorage) { "Specimen changed persistent app state; no automatic reset" }
+                val afterStorage = storage(context)
+                if (afterStorage != baselineStorage) runCatching {
+                    val beforePaths = baselineStorage.keys
+                    val afterPaths = afterStorage.keys
+                    val prefix = "${context.applicationInfo.dataDir}/"
+                    fun entry(path: String) = JSONObject().put("path", path.removePrefix(prefix))
+                        .put("beforeSha256", baselineStorage[path] ?: JSONObject.NULL)
+                        .put("afterSha256", afterStorage[path] ?: JSONObject.NULL)
+                    File(base, "storage-diff-$fixtureId.json").writeText(JSONObject()
+                        .put("added", JSONArray((afterPaths - beforePaths).sorted().map(::entry)))
+                        .put("removed", JSONArray((beforePaths - afterPaths).sorted().map(::entry)))
+                        .put("changed", JSONArray((beforePaths intersect afterPaths).filter {
+                            baselineStorage[it] != afterStorage[it]
+                        }.sorted().map(::entry))).toString(2))
+                }.onFailure { android.util.Log.e("StrictVisualSample", "Could not write storage diff", it) }
+                check(afterStorage == baselineStorage) { "Specimen changed persistent app state; no automatic reset" }
                 check(services(context) == baselineServices) { "Specimen changed running service owners" }
             }
             val manifestFile = File(directory, "manifest.json")

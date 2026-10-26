@@ -171,31 +171,85 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
             fun chartChild(name: String) = ExtractionOverlayView::class.java.getDeclaredField(name)
                 .apply { isAccessible = true }.get(overlay) as android.view.View
             val stopBounds = android.graphics.Rect()
-            check(stop(screen).getGlobalVisibleRect(stopBounds) && stopBounds.width() == stop(screen).width &&
-                stopBounds.height() == stop(screen).height) { "Running fixed stop is clipped" }
-            if (screen.resources.configuration.screenWidthDp >= 1000) {
-                val chartLocation = IntArray(2)
-                overlay.getLocationOnScreen(chartLocation)
-                check(chartLocation[1] + overlay.height > stopBounds.top) {
-                    "Full-width action row still steals the chart's bottom area"
-                }
-            }
+            val stopFullyVisible = stop(screen).getGlobalVisibleRect(stopBounds) &&
+                stopBounds.width() == stop(screen).width && stopBounds.height() == stop(screen).height
             val plot = chartChild("plot")
             val axes = plot.javaClass.getDeclaredField("plotBounds").apply { isAccessible = true }
                 .get(plot) as android.graphics.RectF
-            check(plot.isShown && !axes.isEmpty) { "Running chart has no measurable data plot" }
             val plotLocation = IntArray(2)
             plot.getLocationOnScreen(plotLocation)
+            val dataPlotScreen = android.graphics.RectF(plotLocation[0] + axes.left,
+                plotLocation[1] + axes.top, plotLocation[0] + axes.right, plotLocation[1] + axes.bottom)
             val dataBounds = org.json.JSONObject().put("x", plotLocation[0] + axes.left)
                 .put("y", plotLocation[1] + axes.top).put("width", axes.width()).put("height", axes.height())
-            val geometry = org.json.JSONObject().put("density", screen.resources.displayMetrics.density)
-                .put("fontScale", screen.resources.configuration.fontScale)
+            val chartLocation = IntArray(2)
+            overlay.getLocationOnScreen(chartLocation)
+            val stopLocation = IntArray(2)
+            stop(screen).getLocationOnScreen(stopLocation)
+            val stopScreen = android.graphics.Rect(stopLocation[0], stopLocation[1],
+                stopLocation[0] + stop(screen).width, stopLocation[1] + stop(screen).height)
+            val plotRoot = plot.rootView
+            val rootScreen = IntArray(2)
+            plotRoot.getLocationOnScreen(rootScreen)
+            val rootRaw = android.graphics.Rect()
+            val rootOffset = android.graphics.Point()
+            val rootVisible = plotRoot.getGlobalVisibleRect(rootRaw, rootOffset)
+            val plotRaw = android.graphics.Rect()
+            val plotOffset = android.graphics.Point()
+            val plotVisible = plot.getGlobalVisibleRect(plotRaw, plotOffset)
+            val dx = rootScreen[0] - rootOffset.x - plotRoot.scrollX
+            val dy = rootScreen[1] - rootOffset.y - plotRoot.scrollY
+            val plotVisibleScreen = android.graphics.Rect(plotRaw).apply { offset(dx, dy) }
+            val axesInsidePlot = axes.left >= 0f && axes.top >= 0f &&
+                axes.right <= plot.width && axes.bottom <= plot.height
+            val plotScreenMappingMatches = plotOffset.x + plot.scrollX + dx == plotLocation[0] &&
+                plotOffset.y + plot.scrollY + dy == plotLocation[1]
+            val dataPlotFullyVisible = rootVisible && plotVisible && plotScreenMappingMatches &&
+                android.graphics.RectF(plotVisibleScreen).contains(dataPlotScreen)
+            val frame = requireNotNull(screen.window.decorView.findViewWithTag<TaskPageFrame>(TaskPageFrame.TAG))
+            val density = screen.resources.displayMetrics.density
+            val config = screen.resources.configuration
+            val geometry = org.json.JSONObject().put("density", density)
+                .put("fontScale", config.fontScale)
+                .put("screenWidthDp", config.screenWidthDp).put("screenHeightDp", config.screenHeightDp)
                 .put("content", bounds(screen.findViewById(android.R.id.content)))
+                .put("availablePage", bounds(frame.pageContent))
                 .put("chart", bounds(overlay)).put("legend", bounds(chartChild("legend")))
                 .put("explanation", bounds(chartChild("explanation"))).put("plotView", bounds(plot))
                 .put("dataPlot", dataBounds).put("stop", bounds(stop(screen)))
-                .put("dataPlotFractionOfChart", axes.height() / overlay.height)
+                .put("stopScreenRect", org.json.JSONArray(listOf(
+                    stopScreen.left, stopScreen.top, stopScreen.right, stopScreen.bottom)))
+                .put("stopGlobalVisibleRect", org.json.JSONArray(listOf(
+                    stopBounds.left, stopBounds.top, stopBounds.right, stopBounds.bottom)))
+                .put("stopFullyVisible", stopFullyVisible)
+                .put("plotBoundsLocal", org.json.JSONArray(listOf(axes.left, axes.top, axes.right, axes.bottom)))
+                .put("plotGlobalVisibleRect", org.json.JSONArray(listOf(
+                    plotRaw.left, plotRaw.top, plotRaw.right, plotRaw.bottom)))
+                .put("plotVisibleScreenRect", org.json.JSONArray(listOf(
+                    plotVisibleScreen.left, plotVisibleScreen.top, plotVisibleScreen.right, plotVisibleScreen.bottom)))
+                .put("axesInsidePlot", axesInsidePlot).put("dataPlotFullyVisible", dataPlotFullyVisible)
+                .put("plotScreenMappingMatches", plotScreenMappingMatches)
+                .put("chartWidthFractionOfPage", if (frame.pageContent.width > 0)
+                    overlay.width.toFloat() / frame.pageContent.width else org.json.JSONObject.NULL)
+                .put("dataPlotHeightDp", axes.height() / density)
+                .put("dataPlotFractionOfChart", if (overlay.height > 0) axes.height() / overlay.height else org.json.JSONObject.NULL)
             java.io.File(directory, "geometry.json").writeText(geometry.toString(2))
+            check(stopFullyVisible) { "Running fixed stop is clipped" }
+            check(chartLocation[1] + overlay.height <= stopScreen.top) {
+                "Running chart overlaps the fixed stop area"
+            }
+            check(plot.isShown && !axes.isEmpty) { "Running chart has no measurable data plot" }
+            check(axesInsidePlot && dataPlotFullyVisible) {
+                "Running data plot is outside the real visible plot viewport"
+            }
+            check(frame.pageContent.width > 0 && overlay.width.toLong() * 10 >= frame.pageContent.width.toLong() * 7) {
+                "Running chart uses less than 70% of the available page width"
+            }
+            if (config.screenWidthDp >= 1000 && config.screenHeightDp >= 600 && config.fontScale == 1f) {
+                check(axes.height() / density >= 260f) {
+                    "Common-tablet running data plot is below 260dp"
+                }
+            }
             java.io.File(directory, "source.txt").writeText(
                 "mock=true scaleConnected=$connected samples=${points.size} weightedSamples=${points.count { it.weightHundredthsGram != null }} state=${owner.shotState}\n")
         }

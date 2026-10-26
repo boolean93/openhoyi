@@ -38,9 +38,10 @@ internal object LanguageUiLayoutChecks {
                 orientation = LinearLayout.VERTICAL
                 layoutDirection = expectedDirection
             }
-            TaskPageFrame.install(activity, root)
+            val frame = TaskPageFrame.host(activity, TaskProductVisualStyle(activity),
+                { TaskDestination.BREW }, {}).also { root.addView(it, LinearLayout.LayoutParams(-1, -1)) }
             measure(activity, root, widthDp, heightDp)
-            val frame = root.findViewWithTag<View>(TaskPageFrame.TAG) as TaskPageFrame
+            check(root.findViewWithTag<View>(TaskPageFrame.TAG) === frame)
             check(frame.width == HoyiUi.dp(activity, widthDp) && frame.height == HoyiUi.dp(activity, heightDp)) {
                 "$fixture frame did not receive the exact window size"
             }
@@ -52,17 +53,20 @@ internal object LanguageUiLayoutChecks {
             check(root.layoutDirection == expectedDirection && frame.layoutDirection == expectedDirection &&
                 frame.navigation.layoutDirection == expectedDirection) { "$fixture incorrect navigation direction" }
             val targets = descendants(frame.navigation).filter { it.tag?.toString()?.startsWith("task-nav:") == true }
-            val expectedDestinations = primary + if (frame.toolsInTopBar) emptyList() else tools
+            val expectedDestinations = primary + tools
             check(targets.map { it.tag } == expectedDestinations.map { "task-nav:${it.name}" }) {
                 "$fixture incorrect primary/tool navigation entries or order"
             }
+            check(!frame.toolsInTopBar) { "$fixture root frame hid Scale/Settings behind a tools menu" }
             fun checkScaled(label: TextView, key: String) {
                 if (fontScale == 1f) normalTextSizes[key] = label.textSize
                 else check(label.textSize > requireNotNull(normalTextSizes[key])) { "$fixture font scaling did not enlarge actual text" }
             }
             targets.forEachIndexed { index, target ->
                 val item = target as LinearLayout
-                check(!item.isSelected) { "$fixture detached LayoutHost must not impersonate an actual selected Activity" }
+                check(item.isSelected == (expectedDestinations[index] == TaskDestination.BREW)) {
+                    "$fixture root frame selected the wrong tab: ${item.tag}"
+                }
                 checkTarget(activity, item, fixture)
                 check(item.layoutDirection == expectedDirection) { "$fixture incorrect item direction" }
                 val label = descendants(item).filterIsInstance<TextView>().single()
@@ -74,22 +78,10 @@ internal object LanguageUiLayoutChecks {
                 // Rail scrolling is allowed; the complete label must fit its own touch target.
                 inside(item, label, fixture)
             }
-            if (frame.toolsInTopBar) {
-                val menu = descendants(frame).filterIsInstance<TextView>().single {
-                    it.tag == "task-tools-menu" && it.visibility == View.VISIBLE &&
-                        (it.parent as View).visibility == View.VISIBLE
-                }
-                check(menu.text.toString() == activity.getString(R.string.task_tools) &&
-                    menu.contentDescription.toString() == menu.text.toString()) { "$fixture incorrect tools menu label" }
-                checkTarget(activity, menu, fixture)
-                check(menu.layoutDirection == expectedDirection) { "$fixture incorrect tools direction" }
-                // The menu exists at every bottom width, so this baseline also covers a compact rail.
-                checkScaled(menu, "tools-menu")
-                textFits(menu, fixture)
-                inside(menu.parent as ViewGroup, menu, fixture)
-            } else {
-                check(frame.mode == TaskNavigationMode.RAIL) { "$fixture tools disappeared outside the rail" }
-            }
+            check(descendants(frame).none {
+                it.tag == "task-tools-menu" && it.visibility == View.VISIBLE &&
+                    (it.parent as? View)?.visibility == View.VISIBLE
+            }) { "$fixture root frame exposed a redundant tools menu" }
             val body = LinearLayout(activity).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutDirection = expectedDirection
