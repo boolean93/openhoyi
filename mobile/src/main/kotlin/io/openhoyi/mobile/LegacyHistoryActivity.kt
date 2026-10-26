@@ -47,7 +47,8 @@ class LegacyHistoryActivity : ThemedActivity() {
             if (it != 2) {
                 rememberList()
                 startActivity(Intent(this, HistoryActivity::class.java).apply {
-                    if (it == 0) putExtra(HistoryActivity.EXTRA_HISTORY_SOURCE, HistoryActivity.SOURCE_JOURNAL)
+                    putExtra(HistoryActivity.EXTRA_HISTORY_SOURCE,
+                        if (it == 0) HistoryActivity.SOURCE_JOURNAL else HistoryActivity.SOURCE_LOCAL)
                 })
             }
         }

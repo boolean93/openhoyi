@@ -368,6 +368,7 @@ class HistoryActivity : ThemedActivity() {
     companion object {
         const val EXTRA_HISTORY_SOURCE = "historySource"
         const val SOURCE_JOURNAL = "journal"
+        const val SOURCE_LOCAL = "local"
         private const val EXPORT_HISTORY = 41
         private const val IMPORT_LEGACY = 42
         private const val EXPORT_JOURNAL = 43

@@ -32,8 +32,18 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
     private lateinit var emptyAction: Button
     private var rows = emptyList<ShotHistory.Entry>()
     private var showJournal = false
-    internal fun showJournalSource() {
-        if (!showJournal) { showJournal = true; if (view != null) { buildScreen(); render() } }
+    private var requestedSource: Boolean? = null
+    internal fun showSource(journal: Boolean) {
+        if (view == null) {
+            requestedSource = journal
+            showJournal = journal
+        } else if (showJournal != journal) {
+            rememberList()
+            showJournal = journal
+            restoreDetail = false
+            buildScreen()
+            render()
+        }
     }
     private lateinit var collection: TaskCollectionLayout
     private lateinit var detailContent: LinearLayout
@@ -44,8 +54,9 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
     private val journalActions = mutableListOf<Button>()
 
     override fun onCreateView(inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?): View {
-        showJournal = savedInstanceState?.getBoolean("showJournal")
+        showJournal = requestedSource ?: savedInstanceState?.getBoolean("showJournal")
             ?: false
+        requestedSource = null
         savedInstanceState?.getParcelable<android.os.Parcelable>("localList")?.let { listStates[false] = it }
         savedInstanceState?.getParcelable<android.os.Parcelable>("journalList")?.let { listStates[true] = it }
         savedInstanceState?.getString("localSelection")?.let { selectedIds[false] = it }

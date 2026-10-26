@@ -273,3 +273,29 @@ LanguageActiveCupChecks已改为真实点击工具→概览，读取实际AlertD
 ### 原生契约适配构建核对
 
 主协调者核对native-contract-build.log exit0，2分25秒：Mobile Mock单测、Mock/Debug/AndroidTest APK、lintDebug均通过；两实际APK资源各10897值核对通过。Astra已静态复核本批owner/活动Fragment/真实弹窗入口与只读fixture修复。此前25169d2真实MainNavigation、前后台edges及5组音频通过，核心浅色4图已批准；整条lifecycle及其它原生流程仍待本次修复重跑，不能把分项成功冒充全绿。
+
+### 已有中文深色及曲线库代表图复核
+
+Astra已实际view_image查看同一`run-40362904894/mock-ui-screenshots`中的home-dark、extraction-running-dark、extraction-confirm-dark、curves-light、curves-dark五张现有截图。深色首页的温度/目标/机器状态/快捷入口可读，层次与浅色一致；实时图四色线和图例清楚，量程、单位及固定停止完整可见；深色确认弹窗底板与遮罩有区分，标题、参数、正文和两个动作完整。批准这三张中文深色代表图的局部视觉结果。
+
+曲线库浅/深两图的搜索、排序、筛选、数量、可见列表条目与右侧详情占位布局清晰，字重、行间距、缩略图及分隔线可读，未见可见完整行的文字遮挡。筛选条右缘和列表下缘显示的是滚动区域边界；截图不能证明滚动行为、末项可达或滚动位置恢复，相关原生运行证据仍单独验收。批准这两张当前首屏的局部外观，不批准未展示的选中详情/滚动状态，不新增风格调整。
+
+root确认统一构建2分25秒通过，39e4eac已推送完整CI复验；本次视觉判断沿用25169d2现有artifact，后续唯一相关生产改动为不改变外观的AppSettings info tags。新提交完整CI及硬件结果仍待，未提交或推送本文档。
+
+### 历史来源路由与诊断滚动目标修复
+
+Astra已独立读取MainActivity/HistoryFragment/HistoryActivity/LegacyHistoryActivity小diff：requestedSource优先于onCreateView的saved/default并消费一次，消除onCreate阶段请求被默认false覆盖；已有View切来源先记列表并退出旧详情。Legacy入口明确传journal/local双向来源，普通无source Tab不改当前来源；Main重建不重复消费旧intent，新onNewIntent仍消费明确来源。既有LegacyVisual强断言未改，静态批准此根因修复，真实路由仍待CI复跑。
+
+TaskFrame诊断目标改为当前真实底部export按钮，并同时核诊断组标题；目标需可点击/可用，原完整可见与滚动恢复条件保留。没有通过重复或已移顶的机器设置文字替代底部验证，未改停止或业务逻辑。本批仅静态结论，构建与原生结果待root记录。
+
+### 最后两项测试隔离与坐标修复审结
+
+Astra已读ServiceWriteDisconnectionChecks小diff及上下文：strict Context仅新增随机fixture的devices偏好映射；实际允许同机replacement时精确要求仅coffeeAutoSuppressed=false，其余被拒场景仍保持原空集。真实devices纳入finally逐值不变检查，系统服务/权限/BLE/组件零调用断言与原写入/停止条件未动。
+
+LanguageActiveCupChecks将getGlobalVisibleRect的root坐标经root屏幕位置和Point offset换算到screen；目标采用实际layout首末行范围、padding和scroll构造屏幕框。保留并加强offset与getLocationOnScreen一致、整行contains、全文textFits，双postOnAnimation等待后检查且写数字诊断，没有增加容差或删可见性。静态批准坐标系修正，真实CI仍须验证；先前root/window矩形与屏幕origin混比可解释旧失败，但不据此跳过复跑。
+
+root正在统一history-route-build（session14116）。本轮计划冻结；仅确认上述静态门禁未放宽，不声明本次构建或新CI已经通过。
+
+### 本地复验（2026-10-27，历史路由与测试坐标批次）
+
+Root 复核 `history-route-build.log`：Mock 单测、Mock/Debug/AndroidTest APK、lintDebug 统一构建成功，耗时 2 分 15 秒。实际 Alpha/Mock APK 资源各 10897 个值、6 个 literal round trips 校验通过；diff 检查无错误。Astra 已静态批准本批，原生运行与截图仍以新提交 CI 为准。

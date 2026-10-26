@@ -206,7 +206,7 @@ class MainActivity : ThemedActivity() {
             override fun handleOnBackPressed() { navigateBack() }
         })
         showCurrent()
-        routeHistorySource(intent)
+        if (savedInstanceState == null) routeHistorySource(intent)
     }
 
     override fun onStart() {
@@ -312,9 +312,12 @@ class MainActivity : ThemedActivity() {
     }
 
     private fun routeHistorySource(intent: Intent) {
-        if (intent.getStringExtra(HistoryActivity.EXTRA_HISTORY_SOURCE) == HistoryActivity.SOURCE_JOURNAL) {
-            (supportFragmentManager.findFragmentByTag(tag(TaskDestination.HISTORY)) as? HistoryFragment)?.showJournalSource()
+        val journal = when (intent.getStringExtra(HistoryActivity.EXTRA_HISTORY_SOURCE)) {
+            HistoryActivity.SOURCE_JOURNAL -> true
+            HistoryActivity.SOURCE_LOCAL -> false
+            else -> return
         }
+        (supportFragmentManager.findFragmentByTag(tag(TaskDestination.HISTORY)) as? HistoryFragment)?.showSource(journal)
     }
 
     private fun navigateBack() {

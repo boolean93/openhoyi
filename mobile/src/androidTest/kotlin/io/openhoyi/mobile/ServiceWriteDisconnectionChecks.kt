@@ -30,7 +30,7 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
-        val names = listOf("shot_safety", "machine_write_safety", "curves")
+        val names = listOf("shot_safety", "machine_write_safety", "curves", "devices")
         val original = names.associateWith { app.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         val first = decode("8340FE0A00071E0A00071E0A00071E0A00071E3D") as SleepPart
         val second = decode("83800A00071E0A00071E0A00071E10") as SleepPart
@@ -77,7 +77,9 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
                     .putBoolean("unresolved_shot", false).commit())
                 val before = fixtures.mapValues { (_, name) -> app.getSharedPreferences(name, Context.MODE_PRIVATE).all.toMap() }
                 val prefs = app.getSharedPreferences(fixtures.getValue("machine_write_safety"), Context.MODE_PRIVATE)
+                val devicesPrefs = app.getSharedPreferences(fixtures.getValue("devices"), Context.MODE_PRIVATE)
                 check(prefs.all.isEmpty())
+                check(devicesPrefs.all.isEmpty())
                 var failure: Throwable? = null
                 test.runOnMainSync {
                     val services = mutableListOf<MobileService>()
@@ -280,8 +282,12 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
                         check(prefs.all == saved && recovery(instance).pending && calls.size == expectedCalls)
                         val reloaded = attach() // Real storage adapter reads the committed record anew.
                         checkBlocked(reloaded)
-                        before.filterKeys { it != "machine_write_safety" }.forEach { (name, values) ->
+                        before.filterKeys { it != "machine_write_safety" && it != "devices" }.forEach { (name, values) ->
                             check(app.getSharedPreferences(fixtures.getValue(name), Context.MODE_PRIVATE).all == values)
+                        }
+                        check(devicesPrefs.all == if (replaced) mapOf("coffeeAutoSuppressed" to false)
+                            else before.getValue("devices")) {
+                            "Detached reconnect changed unexpected device memory or suppression fields"
                         }
                         check(systemLookups == 0 && permissionChecks == 0 && componentCalls == 0)
                         checkedFixtures++

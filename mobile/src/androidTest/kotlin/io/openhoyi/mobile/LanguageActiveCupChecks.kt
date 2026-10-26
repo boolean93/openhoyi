@@ -45,6 +45,8 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
             }
             test.waitForIdleSync()
             lateinit var message: TextView
+            var lineLeft = 0
+            var lineRight = 0
             var lineTop = 0
             var lineBottom = 0
             test.runOnMainSync {
@@ -56,18 +58,53 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                 val start = message.text.indexOf(expected)
                 check(start >= 0) { "$language overview lost the cup-bound recipe temperature: $expected" }
                 val layout = requireNotNull(message.layout)
-                lineTop = layout.getLineTop(layout.getLineForOffset(start))
-                lineBottom = layout.getLineBottom(layout.getLineForOffset(start + expected.length - 1))
-                message.requestRectangleOnScreen(Rect(0, lineTop, message.width, lineBottom), true)
+                val firstLine = layout.getLineForOffset(start)
+                val lastLine = layout.getLineForOffset(start + expected.length - 1)
+                lineLeft = (firstLine..lastLine).minOf { kotlin.math.floor(layout.getLineLeft(it).toDouble()).toInt() }
+                lineRight = (firstLine..lastLine).maxOf { kotlin.math.ceil(layout.getLineRight(it).toDouble()).toInt() }
+                lineTop = layout.getLineTop(firstLine)
+                lineBottom = layout.getLineBottom(lastLine)
+                message.requestRectangleOnScreen(Rect(
+                    message.totalPaddingLeft + lineLeft - message.scrollX,
+                    message.totalPaddingTop + lineTop - message.scrollY,
+                    message.totalPaddingLeft + lineRight - message.scrollX,
+                    message.totalPaddingTop + lineBottom - message.scrollY), true)
             }
+            val drawn = java.util.concurrent.CountDownLatch(1)
+            test.runOnMainSync { requireNotNull(details?.window).decorView.postOnAnimation {
+                requireNotNull(details?.window).decorView.postOnAnimation { drawn.countDown() }
+            } }
+            check(drawn.await(5, java.util.concurrent.TimeUnit.SECONDS)) { "$language overview layout frame timed out" }
             test.waitForIdleSync()
             test.runOnMainSync {
-                val visible = Rect()
-                val origin = IntArray(2)
-                message.getLocationOnScreen(origin)
-                check(message.isShown && message.getGlobalVisibleRect(visible) &&
-                    visible.top <= origin[1] + lineTop && visible.bottom >= origin[1] + lineBottom) {
-                    "$language overview recipe temperature is outside the real dialog viewport: $visible"
+                val root = message.rootView
+                val rootScreen = IntArray(2).also(root::getLocationOnScreen)
+                val rootRaw = Rect()
+                val rootOffset = android.graphics.Point()
+                check(root.getGlobalVisibleRect(rootRaw, rootOffset))
+                val raw = Rect()
+                val messageOffset = android.graphics.Point()
+                val shown = message.isShown && message.getGlobalVisibleRect(raw, messageOffset)
+                val dx = rootScreen[0] - rootOffset.x - root.scrollX
+                val dy = rootScreen[1] - rootOffset.y - root.scrollY
+                val visibleScreen = Rect(raw).apply { offset(dx, dy) }
+                val originScreen = IntArray(2).also(message::getLocationOnScreen)
+                val lineScreen = Rect(originScreen[0] + message.totalPaddingLeft + lineLeft - message.scrollX,
+                    originScreen[1] + message.totalPaddingTop + lineTop - message.scrollY,
+                    originScreen[0] + message.totalPaddingLeft + lineRight - message.scrollX,
+                    originScreen[1] + message.totalPaddingTop + lineBottom - message.scrollY)
+                val evidence = "originScreen=${originScreen.contentToString()} messageOffset=$messageOffset " +
+                    "rootScreen=${rootScreen.contentToString()} rootOffset=$rootOffset " +
+                    "raw=$raw visibleScreen=$visibleScreen lineScreen=$lineScreen " +
+                    "padding=${message.totalPaddingLeft},${message.totalPaddingTop} " +
+                    "scroll=${message.scrollX},${message.scrollY} " +
+                    "layoutLine=$lineLeft,$lineTop..$lineRight,$lineBottom shown=$shown"
+                java.io.File(requireNotNull(test.targetContext.getExternalFilesDir(null)),
+                    "active-cup-overview-${language.replace('/', '-')}.txt").writeText(evidence + "\n")
+                check(shown && messageOffset.x + message.scrollX + dx == originScreen[0] &&
+                    messageOffset.y + message.scrollY + dy == originScreen[1] &&
+                    visibleScreen.contains(lineScreen)) {
+                    "$language overview recipe temperature is outside the real dialog viewport: $evidence"
                 }
                 LanguageUiLayoutChecks.textFits(message, "$language active cup overview recipe temperature")
             }

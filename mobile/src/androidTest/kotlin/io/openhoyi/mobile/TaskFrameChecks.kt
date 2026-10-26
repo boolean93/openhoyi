@@ -78,12 +78,15 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             "protocol-support" to activity.getString(R.string.scale_offline_evidence)
         ) else listOf(
             "app-info" to BuildConfig.APPLICATION_ID,
-            "diagnostics" to activity.getString(R.string.app_settings_machine)
+            "diagnostics" to activity.getString(R.string.app_settings_export)
         )
         try {
             for ((name, label) in targets) {
                 main {
-                    val target = descendants(scroll).filterIsInstance<android.widget.TextView>().single { it.text.toString() == label }
+                    val target = descendants(scroll).filterIsInstance<android.widget.TextView>().single {
+                        it.text.toString() == label && (name != "diagnostics" ||
+                            it is android.widget.Button && it.isClickable && it.isEnabled)
+                    }
                     if (machineSettings) {
                         val content = scroll.getChildAt(0) as ViewGroup
                         val group = steamGroup()
@@ -102,8 +105,10 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 fun recordGeometry(phase: String) = main {
                     val visibleWindow = Rect()
                     activity.window.decorView.getWindowVisibleDisplayFrame(visibleWindow)
+                    val geometryLabels = if (name == "diagnostics")
+                        listOf(label, activity.getString(R.string.settings_diagnostics_devices)) else listOf(label)
                     val lines = (if (machineSettings) steamGroup() else descendants(scroll).filterIsInstance<android.widget.TextView>().filter {
-                        it.text.toString() == label
+                        it.text.toString() in geometryLabels
                     }).map { view ->
                         val bounds = Rect()
                         view.getGlobalVisibleRect(bounds)
@@ -126,7 +131,8 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 recordGeometry("after-capture")
                 main {
                     val labels = descendants(scroll).filterIsInstance<android.widget.TextView>()
-                    val required = if (name == "diagnostics") listOf(label, activity.getString(R.string.app_settings_export)) else listOf(label)
+                    val required = if (name == "diagnostics")
+                        listOf(activity.getString(R.string.settings_diagnostics_devices), label) else listOf(label)
                     required.forEach { text ->
                         val target = labels.single { it.text.toString() == text }
                         val visible = Rect()
