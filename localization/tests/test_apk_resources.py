@@ -58,3 +58,22 @@ class ApkResourcesTest(unittest.TestCase):
         with self.assertRaises(ValueError): apk.verify(table, source, catalogs, 'Mock')
         del table['message']['ar']
         with self.assertRaises(ValueError): apk.verify(table, source, catalogs, 'Mock')
+
+    def test_only_known_dependency_strings_may_extend_compiled_keys(self):
+        source = {'app_name': 'Alpha', 'message': '中文'}
+        catalogs = {tag: {'app_name': 'unused', 'message': tag} for tag in apk.validator.LANGUAGES}
+        table = {'app_name': {'': 'Mock'}, 'message': {'': '中文', **{tag: tag for tag in apk.validator.LANGUAGES}},
+                 'androidx_startup': {'': 'androidx.startup'},
+                 'status_bar_notification_info_overflow': {'': '999+', 'en': '999+', 'hi': '९९९+'}}
+        self.assertEqual(9, apk.verify(table, source, catalogs, 'Mock'))
+        table['unowned_extra'] = {'': 'surprise'}
+        with self.assertRaisesRegex(ValueError, 'unowned_extra'):
+            apk.verify(table, source, catalogs, 'Mock')
+        del table['unowned_extra']
+        table['androidx_startup'][''] = 'changed'
+        with self.assertRaisesRegex(ValueError, 'androidx_startup'):
+            apk.verify(table, source, catalogs, 'Mock')
+        table['androidx_startup'][''] = 'androidx.startup'
+        table['status_bar_notification_info_overflow'][''] = 'changed'
+        with self.assertRaisesRegex(ValueError, 'status_bar_notification_info_overflow'):
+            apk.verify(table, source, catalogs, 'Mock')

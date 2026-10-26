@@ -7,6 +7,7 @@ import android.graphics.Rect
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ListView
 import io.openhoyi.session.ExtractionState
 
@@ -68,8 +69,41 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         MainPageTestHost(test, activity).active(tag)
     }
 
+    private fun startupAndRestore(destination: TaskDestination) {
+        val tag = "root:${destination.name}"
+        var activity = MainPageTestHost.launch(test, destination).activity
+        fun assertAttached(): Int {
+            val pageId = MainActivity::class.java.getDeclaredField("pageId")
+                .apply { isAccessible = true }.getInt(activity)
+            val container = requireNotNull(activity.findViewById<FrameLayout>(pageId)) {
+                "$destination page container missing from MainActivity window"
+            }
+            check(container.tag == "task-tab-content" && container.isAttachedToWindow)
+            val fragment = MainPageTestHost(test, activity).active(tag)
+            check(fragment.id == pageId && fragment.view?.parent === container) {
+                "$destination Fragment is not attached to its saved page container"
+            }
+            return pageId
+        }
+        try {
+            val initialPageId = assertAttached()
+            val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
+            try {
+                test.runOnMainSync { activity.recreate() }
+                activity = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity
+                    ?: error("$destination MainActivity recreation was not observed")
+                test.waitForIdleSync()
+            } finally { test.removeMonitor(monitor) }
+            check(assertAttached() == initialPageId) {
+                "$destination page container ID changed across Fragment restoration"
+            }
+        } finally { test.runOnMainSync { activity.finish() }; test.waitForIdleSync() }
+    }
+
     fun run() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
+        startupAndRestore(TaskDestination.BREW)
+        startupAndRestore(TaskDestination.SCALE)
         val host = MainPageTestHost.launch(test)
         var activity = host.activity
         try {

@@ -24,7 +24,7 @@
 | 项目 | 状态 | 当前证据/下一步 |
 |---|---|---|
 | 协议计时修复 | 软件通过 | Astra最终审结通过：生产仅删07且保留时序；同地址READY→FAILED→重连两代精确三帧通过。主协调者核对675个JUnit零失败/错误、协议39823 checks、会话93 checks；Mini/Ultra实机待验 |
-| 真Tab迁移 | 开发中 | 六根及萃取已迁真实Fragment，单壳状态/返回静态符合；一次性确认取消与辅助弹窗离页清理静态闭合；测试已迁真实Fragment且最终统一构建通过，原生保状态运行待验 |
+| 真Tab迁移 | 开发中 | 六根及萃取已迁真实Fragment，本地统一构建通过；c729ab9原生CI启动崩溃：Fragment容器首次测量前未附着；两文件修复静态通过，冷启动/重建原生重跑仍阻塞验收 |
 | 机器首页常驻控制 | 开发中 | 紧凑双锅炉/快捷五槽/48dp壳控制已实现；FAILED重连图标及UNSUPPORTED转设备选择已闭合，720×360实际布局待运行 |
 | 大图设计 | 开发中 | 实际live renderer四指标、独立刻度及几何静态通过；新Main/Fragment入口下原生绘制与图高待验 |
 | 自动导航与重连 | 开发中 | 后端静态审查与101 checks通过，首次秤READY资格已闭合；壳新杯导航仍待原生验收；机器/秤恢复实机待验 |
@@ -197,3 +197,25 @@ root最新统一构建1分21秒成功：protocol39823 checks、device101 checks�
 root已核对session38861退出码0，`final-integration.log`末尾BUILD SUCCESSFUL，耗时2分34秒，167 tasks（45 executed）。覆盖protocol/session checks、mobile Mock unit、Mock/Debug/AndroidTest APK及lintDebug：协议39823 checks、session101 checks；mobile337 JUnit零失败1跳过、session676 JUnit零失败。该结果覆盖最后冻结的生产与测试改动，取代前文“最终重编译待验”状态。
 
 生产静态阻塞全部闭合，本地最终统一构建通过。新提交CI、原生布局/生命周期实际运行及真实硬件仍待验；远端c48dee2的既有CI不能替代新提交验证，旧可选视觉基线失败记录仍保留。本计划本轮冻结，后续仅据实际验收证据更新。
+
+### c729ab9原生CI启动阻塞（2026-10-27）
+
+新提交c729ab9的lifecycle运行40356964635与scale运行40356964624暴露产品启动崩溃，不属于基础设施失败。Astra已读取`build/task-first-evidence/feedback-redesign-2026-10-26/run-40356964635/mock-lifecycle/errors.txt`：`No view found for id 0x1`，HomeFragment在FragmentActivity.onStart创建View时找不到容器；scale运行同类问题由root确认。
+
+静态根因：MainActivity虽然在onCreate调用setContentView，但TaskPageFrame.pageContent直到首次onMeasure才挂入frame；FragmentActivity.onStart可早于首次测量，因此容器尚非Activity视图树后代。导航Sol负责修复，Astra复审：onCreate提交Fragment前容器必须已附着且可按ID找到；重建恢复稳定容器ID；布局调整保留同一容器。不得以推迟Fragment生命周期或放宽测试绕过。此前本地构建结果仍有效，但“生产静态全部闭合”已被实际运行证据推翻，原生验收目前明确未通过。硬件仍待验。
+
+### 启动容器修复独立复审
+
+Astra实际读取MainActivity/TaskPageFrame两文件diff，静态批准本次根因修复：TaskPageFrame.init立即将pageContent与navigation挂入初始BOTTOM结构，configuredMode与之对应；MainActivity.setContentView后、showCurrent前检查findViewById(pageId)与实际container身份相同。onMeasure切换布局仍搬移同一pageContent/container对象，STATE_PAGE_ID保存恢复路径未变。未推迟Fragment生命周期，未放松测试。此结论仅限静态修复正确；最小冷启动与重建容器断言正在补齐，统一构建和真实CI重跑仍待，不据此将原生启动标通过。
+
+另据root核对，c729ab9的verify失败为`compiled string keys differ from source`资源键校验，并非Gradle或基础设施失败；已交所有者定位Fragment依赖资源键，保留现有门禁。该问题与启动崩溃分开跟踪，待修复证据关闭。
+
+### APK资源键修复静态审结
+
+root查实新增键仅为AndroidX的`androidx_startup`与`status_bar_notification_info_overflow`，App缺键为0。Astra实际复核`localization/verify_apk_resources.py`及`localization/tests/test_apk_resources.py`：仅对source之外这两个精确键接受依赖默认值`androidx.startup`、`999+`；startup不得包含语言配置，overflow可保留依赖自带非空翻译。App缺键和其他额外键仍失败，App全部source键及七语言逐值字典严格相等检查未改；同名若进入App source也适用原严格校验。新增用例拒绝未知键及错误依赖默认值，原缺语言/错值检查保留。静态审查通过，root独立22 tests通过。
+
+本批文档冻结。修复后Gradle构建仍在运行，资源校验真实APK/新提交CI、冷启动与重建原生运行、硬件仍待对应证据，不以本次脚本静态批准代替。
+
+### 启动容器与依赖资源修复构建核对
+
+主协调者核对修复构建 exit 0，2分13秒，Mock/Debug/AndroidTest APK及lintDebug通过（container-fix-build.log）。独立运行localization全部22项测试通过；实际两APK资源校验通过，literalRoundTrips=6，Alpha/Mock各matchedStrings=10873。生产两文件及资源脚本小diff均获Astra静态批准。新增Home/Scale冷启动与重建容器ID/附着/活动Fragment回归仍待新提交原生CI；本地构建不证明启动崩溃已在设备闭合。

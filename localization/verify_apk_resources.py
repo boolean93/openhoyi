@@ -10,6 +10,14 @@ import xml.etree.ElementTree as ET
 import validate_catalog as validator
 import android_resources as converter
 
+# These strings are supplied by AndroidX, not by the app catalogs:
+# startup-runtime:1.1.1 marks androidx_startup translatable=false;
+# core:1.8.0 supplies localized notification overflow text.
+DEPENDENCY_STRING_DEFAULTS = {
+    "androidx_startup": "androidx.startup",
+    "status_bar_notification_info_overflow": "999+",
+}
+
 
 def extend_resources(source, catalogs, res_root):
     """Include split feature resources without relaxing exact compiled checks."""
@@ -85,8 +93,16 @@ def parse_dump(text):
 
 
 def verify(table, source, catalogs, brand):
-    if table.keys() != source.keys():
-        raise ValueError("compiled string keys differ from source")
+    missing = source.keys() - table.keys()
+    unexpected = table.keys() - source.keys() - DEPENDENCY_STRING_DEFAULTS.keys()
+    if missing or unexpected:
+        raise ValueError(f"compiled string keys differ from source: missing={sorted(missing)}, unexpected={sorted(unexpected)}")
+    for key in table.keys() - source.keys():
+        compiled = table[key]
+        if compiled.get("") != DEPENDENCY_STRING_DEFAULTS[key] or not all(compiled.values()):
+            raise ValueError(f"compiled dependency resource mismatch: {key}")
+        if key == "androidx_startup" and set(compiled) != {""}:
+            raise ValueError(f"compiled dependency resource mismatch: {key}")
     count = 0
     for key, original in source.items():
         expected = {"": brand if key == "app_name" else original}

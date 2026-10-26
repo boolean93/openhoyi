@@ -39,6 +39,13 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
         tag = TAG
         railScroll.addView(navigation)
         railColumn.addView(railScroll, LayoutParams(-1, 0, 1f))
+        // FragmentManager restores pages in FragmentActivity.onStart, before this view's
+        // first measure. Keep the page container attached as soon as setContentView runs.
+        railScroll.removeView(navigation)
+        orientation = VERTICAL
+        addView(pageContent, LayoutParams(-1, 0, 1f))
+        addView(navigation, LayoutParams(-1, -2))
+        configuredMode = TaskNavigationMode.BOTTOM
     }
 
     fun installShellStatus(view: View) {

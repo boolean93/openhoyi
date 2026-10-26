@@ -201,6 +201,7 @@ class MainActivity : ThemedActivity() {
         val container = FrameLayout(this).apply { id = pageId; tag = "task-tab-content" }
         frame.pageContent.addView(container, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
+        check(findViewById<View>(pageId) === container) { "Task page container must be attached before Fragment restoration" }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() { navigateBack() }
         })
