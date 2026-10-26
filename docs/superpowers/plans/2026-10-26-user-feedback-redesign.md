@@ -251,3 +251,25 @@ Astra重新读取当前落盘源码，已确认CurveVisualMigrationChecks:208、
 ### 首页实图整改本地验证
 
 主协调者已核对：home-layout-build.log exit0，2分33秒，Mobile Mock337 tests/0fail/1skip，Mock/Debug/AndroidTest APK与lint通过。两APK资源逐值校验各10897项。Astra要求的可见按钮与sleeping守卫补齐后，home-test-final-build.log再次assembleMockAndroidTest exit0，33秒。四份相关脚本bash -n及diff检查通过。此为新提交前软件构建证据；720×360首屏、新截图、原生服务隔离与全部硬件效果仍待验证，不以估算212dp代替实测。
+
+### 25169d2新版两张真实主图验收
+
+Astra已用view_image实际查看`run-40362904894/mock-ui-screenshots/home-light.png`及`extraction-running-light.png`：首页机器状态、紧凑双锅炉与目标、局部开关、快捷五槽及rail状态符号可见，旧准备重复块消失；萃取四线同图面积足够，四色图例/独立量程/末时间刻度单位清楚，停止完整可见。批准这两张中文浅色常态截图的本轮视觉结果；不泛化到其他语言、字体、全部弹层或真实设备。
+
+root核对25169d2真实MainNavigation marker通过：六Tab二十轮、720×360 geometry、冷启动/重建、manualShell、同服务同series；audio五组通过。全CI尚未通过，HubCleanup旧coffee反射修订中；AppSettings稳定tag、TaskFrame活动滚动及M5History只读owner fixture小补丁待后续统一验证。
+
+LanguageActiveCupChecks:172的温度裁切断言已定位旧视图：TaskRecipeSummary属于隐藏secondaryBody；真实“工具→概览”把recipeSummary.text展示为AlertDialog正文，不会搬移原number/unit视图。已要求通过真实入口检查实际展示温度/单位完整可见并保留同杯/快照/语言条件；不能放宽可见断言或继续查隐藏旧view。若坚持独立数字单位baseline，需对实际展示的TaskRecipeSummary组件验，而不能伪造视图可见。本项修复及CI结果仍待，硬件验收仍待。
+
+同一artifact补看`extraction-confirm-light.png`与`settings-light.png`：确认弹窗实体圆角底板、标题、四行参数/模拟说明、取消和开始动作均完整可读，无观察到的遮挡；批准该中文浅色确认弹窗代表图。机器设置浅色图的回读状态/设置反馈/分类标签层次清晰，当前温度输入、单位、范围和提交按钮可读，保留“等待机器回读确认”语义；批准该截图可见部分。下方设置内容为滚动区域，不据截图批准未展示部分、IME或全部设置弹窗。
+
+Language检查采用当前真实工具→概览文本契约，导航Sol已确认撤回临时搬移TaskRecipeSummary的草稿，生产无此改动；测试应检查真实弹层全文、同杯/快照/停止/语言条件。其余标签、滚动、Hub及语言旧UI断言修复仍待CI。
+
+### 旧结构断言适配最终有限复核
+
+Astra已实际读本批diff：AppSettings仅改稳定语义tag，原文本和样式不变；TaskFrame从当前Settings Fragment的明确scroll取证，增加isShown/attached，48dp与其他几何断言保留。test-only NativeHubTestOwners获取真实coffee$delegate.value和scale对象，13组同类读取为机械替换，原停止、写帧、未知结果与清理条件未删。M5 History明确单一IDLE Mock、hub为空/不扫描/不睡眠/无业务写，绑定隔离logs/history身份；停服务、清空回调和observer后才恢复原delegate。M5及Product仅额外排除files根精确profileInstalled并另存前后SHA，其余业务哈希不变。
+
+LanguageActiveCupChecks已改为真实点击工具→概览，读取实际AlertDialog message，核本杯快照温度与单位、将目标文本行滚动进入真实可见区域并执行全文textFits；保留同杯ID/快照/语言/偏好不变及点击停止立即ENDED_OBSERVED断言。不再检查隐藏的旧独立number/unit节点。以上适配静态通过，不代表原生运行已通过；待root统一构建与CI结果。本轮计划冻结，不扩大视觉矩阵。
+
+### 原生契约适配构建核对
+
+主协调者核对native-contract-build.log exit0，2分25秒：Mobile Mock单测、Mock/Debug/AndroidTest APK、lintDebug均通过；两实际APK资源各10897值核对通过。Astra已静态复核本批owner/活动Fragment/真实弹窗入口与只读fixture修复。此前25169d2真实MainNavigation、前后台edges及5组音频通过，核心浅色4图已批准；整条lifecycle及其它原生流程仍待本次修复重跑，不能把分项成功冒充全绿。

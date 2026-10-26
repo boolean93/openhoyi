@@ -467,6 +467,9 @@ for path in manifests:
     isolation=json.loads((folder/'fixture-isolation.json').read_text())
     assert isolation['sampleFailures']==[] and isolation['sampleFailureScopeCase']==folder.name and isolation['sampleFailureOwnedScope']
     assert isolation['status']=='PASS_ISOLATION_ONLY' and isolation['businessDiskByteUnchanged'] and isolation['typedPreferencesRestored']
+    assert 'androidxProfileInstallerMarkerBeforeSha256' in isolation and 'androidxProfileInstallerMarkerAfterSha256' in isolation
+    for marker in ('androidxProfileInstallerMarkerBeforeSha256','androidxProfileInstallerMarkerAfterSha256'):
+        assert isolation[marker] is None or (isinstance(isolation[marker],str) and len(isolation[marker])==64)
     proof_files=list(folder.rglob('*-frame-sync.json'))
     assert proof_files, path
     for proof_file in proof_files:
@@ -511,6 +514,10 @@ for path in manifests:
         require_reach(folder,m['page'])
         if m['page']=='history-detail':require_standalone(folder,m['window'],False)
         assert isolation['noServiceBeforeOriginalDelegateRestore']
+        if m['page']=='history':
+            assert isolation['historyRootSingleReadOnlyServiceObserved'] and isolation['historyRootServiceDestroyed']
+        else:
+            assert not isolation['historyRootSingleReadOnlyServiceObserved'] and not isolation['historyRootServiceDestroyed']
         business_name={'history':'history-business.json','history-detail':'detail-business.json','comparison':'comparison-business.json'}[m['page']]
         business=json.loads((folder/business_name).read_text()); assert business['completed']
         special=json.loads((folder/'special-states/manifest.json').read_text())
@@ -523,7 +530,11 @@ for path in manifests:
         for case in special['cases']:
             assert case['status']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE' and case['visualAcceptance']=='ASTRA_PENDING'
             assert case['shotId']==expected_specials[case['case']] and case['page']==m['page']
-            assert case['readOnlyModelsUnchanged'] and case['noServiceOrClockOverride']
+            assert case['readOnlyModelsUnchanged']
+            if m['page']=='history':
+                assert case['singleReadOnlyHistoryRootService'] and not case['noServiceOrClockOverride']
+            else:
+                assert not case['singleReadOnlyHistoryRootService'] and case['noServiceOrClockOverride']
             assert case['actualRawSamples']==case['declaredSamples']
             target=folder/'special-states'/case['case']
             assert json.loads((target/'case.json').read_text())==case

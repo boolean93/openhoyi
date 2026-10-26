@@ -45,7 +45,16 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
         var originalY = 0
         main {
             val page = descendants(activity.window.decorView).filterIsInstance<TaskPageFrame>().single().pageContent
-            scroll = descendants(page).filterIsInstance<android.widget.ScrollView>().single()
+            val pageRoot = if (activity is MainActivity)
+                MainPageTestHost(test, activity).active("root:SETTINGS").requireView()
+                else page
+            val pageId = if (machineSettings) "machine" else if (scaleSettings) "scale" else "app"
+            scroll = requireNotNull(pageRoot.findViewWithTag<android.widget.ScrollView>("product/settings/$pageId/scroll")) {
+                "${activity.javaClass.simpleName}: active settings scroll missing"
+            }
+            check(scroll.isShown && scroll.isAttachedToWindow) {
+                "${activity.javaClass.simpleName}: settings scroll is detached or hidden"
+            }
             originalY = scroll.scrollY
             inputValues = descendants(scroll).filterIsInstance<EditText>().map { it.text.toString() }
         }

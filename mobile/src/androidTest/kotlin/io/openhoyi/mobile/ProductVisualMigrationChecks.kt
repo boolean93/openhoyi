@@ -72,6 +72,7 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
     }
     private fun businessDisk(): Map<String, String> = listOf("files", "shared_prefs", "databases").flatMap { name ->
         File(context.applicationInfo.dataDir, name).walkTopDown().filter { it.isFile &&
+            !(name == "files" && it.parentFile == File(context.applicationInfo.dataDir, "files") && it.name == "profileInstalled") &&
             !(name == "shared_prefs" && it.name in setOf("appearance.xml", "appearance.xml.bak", "curves.xml", "curves.xml.bak")) }
             .map { it.relativeTo(File(context.applicationInfo.dataDir)).path to sha(it) }.toList()
     }.toMap()
@@ -195,6 +196,7 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
         private var oldFailure: Any? = null
         private val savedPrefs = linkedMapOf<String, Map<String, *>>()
         private var diskBefore = emptyMap<String, String>()
+        private var profileInstallerMarkerBefore: String? = null
         private var whitePrefFileBefore = emptyMap<String, String>()
         private fun whitePrefFiles(): Map<String,String> = listOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak").mapNotNull { name ->
             File(File(context.applicationInfo.dataDir,"shared_prefs"),name).takeIf { it.isFile }?.let { name to sha(it) }
@@ -285,6 +287,7 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
                 oldLanguage = field(app,"languagePreferences"); oldFailure=field(app,"journalObservationFailure")
                 listOf("appearance","curves").forEach { savedPrefs[it]=context.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
                 diskBefore=businessDisk(); whitePrefFileBefore=whitePrefFiles()
+                profileInstallerMarkerBefore=File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha)
                 app.registerActivityLifecycleCallbacks(lifecycle)
                 val values = mapOf("feedbackPreferences" to feedback,"logs" to logs,"curves" to curves,"samples" to samples,"history" to history,
                     "customCurvesResult" to Result.success(custom),"curveUsageResult" to Result.success(usage),"beanInventoryResult" to Result.success(inventory),
@@ -356,6 +359,9 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
                     savedPrefs.forEach { (name,values) -> check(context.getSharedPreferences(name,Context.MODE_PRIVATE).all==values) }
                     val after = businessDisk()
                     proof.put("businessDiskBefore",JSONObject(diskBefore)).put("businessDiskAfter",JSONObject(after))
+                        .put("androidxProfileInstallerMarkerBeforeSha256",profileInstallerMarkerBefore ?: JSONObject.NULL)
+                        .put("androidxProfileInstallerMarkerAfterSha256",
+                            File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha) ?: JSONObject.NULL)
                     check(after==diskBefore) { "Original business disk changed; no rollback attempted" }
                     proof.put("originalLazyIdentityAndInitializedRestored",true).put("legacyUnchanged",true)
                         .put("typedPreferencesRestored",true).put("businessDiskByteUnchanged",true)

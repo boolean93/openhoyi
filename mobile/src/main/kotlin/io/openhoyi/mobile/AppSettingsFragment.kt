@@ -101,16 +101,18 @@ class AppSettingsFragment : Fragment() {
         }
         feedbackCard = BrewFeedbackPreferencesCard(activity, body, visual)
         val info = settingsGroup(activity, body, getString(R.string.application_info), visual)
-        fun infoRow(label: Int, value: String) {
+        fun infoRow(key: String, label: Int, value: String) {
             if (info.childCount > 0) settingsDivider(activity, info, visual)
-            val pair = visual.pair(style.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true),
-                style.text(value, TaskProductVisualStyle.body), "product/settings/app/info/${info.childCount}", false)
+            val pair = visual.pair(
+                style.text(getString(label), TaskProductVisualStyle.auxiliary, "product/settings/app/info/$key/label", true),
+                style.text(value, TaskProductVisualStyle.body, "product/settings/app/info/$key/value"),
+                "product/settings/app/info/$key", false)
             style.add(info, pair)
         }
-        infoRow(R.string.settings_info_name, getString(R.string.app_name))
-        infoRow(R.string.settings_info_version, getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
-        infoRow(R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
-        infoRow(R.string.settings_info_package, BuildConfig.APPLICATION_ID)
+        infoRow("name", R.string.settings_info_name, getString(R.string.app_name))
+        infoRow("version", R.string.settings_info_version, getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
+        infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
+        infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
         val diagnostics = settingsGroup(activity, body, getString(R.string.settings_diagnostics_devices), visual)
         style.add(diagnostics, style.text(getString(R.string.app_settings_export_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         HoyiUi.button(activity, diagnostics, getString(R.string.app_settings_export)) {

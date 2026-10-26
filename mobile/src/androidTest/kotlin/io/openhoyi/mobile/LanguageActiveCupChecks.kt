@@ -1,15 +1,82 @@
 package io.openhoyi.mobile
 
 import android.app.Instrumentation
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.graphics.Rect
 import android.os.SystemClock
+import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
+import android.widget.TextView
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.session.ExtractionState
 
 /** Runs real product start and translated stop affordances, only against the guarded Mock runtime. */
 internal class LanguageActiveCupChecks(private val test: Instrumentation) {
+    private fun descendants(view: View): List<View> = listOf(view) +
+        if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+
+    private fun visibleRecipeTemperature(screen: MainActivity, recipe: ShotRecipeSnapshot, language: String) {
+        val fragment = page(screen)
+        var tools: AlertDialog? = null
+        var details: AlertDialog? = null
+        try {
+            test.runOnMainSync {
+                val trigger = requireNotNull(fragment.requireView().findViewWithTag<View>("product/extraction/chart-tools"))
+                check(trigger.isShown && trigger.isEnabled && trigger.performClick()) {
+                    "$language running chart tools are not reachable"
+                }
+                tools = ExtractionFragment::class.java.getDeclaredField("toolsDialog")
+                    .apply { isAccessible = true }.get(fragment) as? AlertDialog
+                check(tools?.isShowing == true)
+            }
+            test.waitForIdleSync()
+            test.runOnMainSync {
+                val overview = descendants(requireNotNull(tools?.window).decorView)
+                    .filterIsInstance<Button>().single {
+                        it.isShown && it.isEnabled && it.text.toString() == screen.getString(R.string.extraction_overview)
+                    }
+                check(overview.performClick()) { "$language overview action was not handled" }
+                val dialogs = ExtractionFragment::class.java.getDeclaredField("transientDialogs")
+                    .apply { isAccessible = true }.get(fragment) as List<*>
+                details = dialogs.filterIsInstance<AlertDialog>().last { it.isShowing }
+            }
+            test.waitForIdleSync()
+            lateinit var message: TextView
+            var lineTop = 0
+            var lineBottom = 0
+            test.runOnMainSync {
+                message = requireNotNull(details?.findViewById<TextView>(android.R.id.message)) {
+                    "$language overview has no real message view"
+                }
+                val expected = screen.getString(R.string.journal_field_value,
+                    screen.getString(R.string.task_recipe_temperature), "${recipe.temperatureC} °C")
+                val start = message.text.indexOf(expected)
+                check(start >= 0) { "$language overview lost the cup-bound recipe temperature: $expected" }
+                val layout = requireNotNull(message.layout)
+                lineTop = layout.getLineTop(layout.getLineForOffset(start))
+                lineBottom = layout.getLineBottom(layout.getLineForOffset(start + expected.length - 1))
+                message.requestRectangleOnScreen(Rect(0, lineTop, message.width, lineBottom), true)
+            }
+            test.waitForIdleSync()
+            test.runOnMainSync {
+                val visible = Rect()
+                val origin = IntArray(2)
+                message.getLocationOnScreen(origin)
+                check(message.isShown && message.getGlobalVisibleRect(visible) &&
+                    visible.top <= origin[1] + lineTop && visible.bottom >= origin[1] + lineBottom) {
+                    "$language overview recipe temperature is outside the real dialog viewport: $visible"
+                }
+                LanguageUiLayoutChecks.textFits(message, "$language active cup overview recipe temperature")
+            }
+        } finally {
+            test.runOnMainSync { details?.dismiss(); tools?.dismiss() }
+            test.waitForIdleSync()
+        }
+    }
+
     private fun awaitMain(condition: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 10000
         while (true) {
@@ -159,28 +226,9 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     check(original.shotState == ExtractionState.RUNNING && cupId(original) == id)
                     check(original.chartPoints.first() == first && original.snapshot.message === message)
                     check(original.activeShotRecipe === recipe && recipe?.forTrace(original.chartTraceIdentity) != null)
-                    val summary = screen.window.decorView.findViewWithTag<android.widget.TextView>(
-                        "recipe-value-${R.string.task_recipe_temperature}")
-                    val unit = screen.window.decorView.findViewWithTag<android.widget.TextView>(
-                        "product/extraction/recipe/${R.string.task_recipe_temperature}/unit")
-                    check(summary.text.toString() == recipe!!.temperatureC.toString() && unit.text.toString() == "°C") {
-                        "${language.tag} active recipe temperature number/unit missing after recreation"
-                    }
-                    check(summary.parent === unit.parent) { "${language.tag} active recipe temperature number/unit have different parents" }
-                    listOf(summary, unit).forEach { value ->
-                        val visible = android.graphics.Rect()
-                        check(value.isShown && value.width > 0 && value.height > 0 && value.getGlobalVisibleRect(visible) &&
-                            visible.width() == value.width && visible.height() == value.height) {
-                            "${language.tag} active recipe temperature number/unit clipped after recreation"
-                        }
-                        LanguageUiLayoutChecks.textFits(value, "${language.tag} active recipe temperature number/unit")
-                        check(value.baseline >= 0) { "${language.tag} active recipe temperature number/unit missing native baseline" }
-                    }
-                    val numberOrigin = IntArray(2); summary.getLocationOnScreen(numberOrigin)
-                    val unitOrigin = IntArray(2); unit.getLocationOnScreen(unitOrigin)
-                    check(numberOrigin[1] + summary.baseline == unitOrigin[1] + unit.baseline) {
-                        "${language.tag} active recipe temperature number/unit baselines differ"
-                    }
+                }
+                visibleRecipeTemperature(screen, requireNotNull(recipe), language.tag)
+                test.runOnMainSync {
                     val action = stop(screen)
                     check(action.text.toString() == screen.getString(R.string.home_stop))
                     check(action.getGlobalVisibleRect(android.graphics.Rect()))

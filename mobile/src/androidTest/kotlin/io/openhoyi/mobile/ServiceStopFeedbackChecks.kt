@@ -5,7 +5,6 @@ import android.app.Service
 import android.content.*
 import android.os.Bundle
 import android.os.SystemClock
-import io.openhoyi.bluetooth.AndroidDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
@@ -66,7 +65,7 @@ internal class ServiceStopFeedbackChecks(private val test:Instrumentation) {
                         }
                         val service=attach();val hub=NativeDeviceHub(context);owner=hub
                         field(service,"hub").set(service,hub)
-                        val session=(field(hub,"coffee").get(hub) as AndroidDevice).session
+                        val session=hubDevice(hub, "coffee").session
                         val queue=field(session,"queue").get(session) as GattQueue
                         val calls=mutableListOf<Triple<Long,Long,GattOperation>>()
                         val address="AA:BB:CC:DD:EE:01"

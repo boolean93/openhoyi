@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.Handler
-import io.openhoyi.bluetooth.AndroidDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
@@ -91,7 +90,7 @@ internal class ServiceStandaloneTareDispatchChecks(private val test:Instrumentat
                             check(!(field(hub,"scaleControl").get(hub) as ScaleControl).startAllowed)
                         }
                         field(instance,"hub").set(instance,hub)
-                        val scale=(field(hub,"scale").get(hub) as AndroidDevice).session
+                        val scale=hubDevice(hub, "scale").session
                         val queue=field(scale,"queue").get(scale) as GattQueue
                         val calls=mutableListOf<Triple<Long,Long,GattOperation>>()
                         field(queue,"driver").set(queue,GuardedGattDriver(DeviceRole.BOOKOO,object:GattDriver {
@@ -167,7 +166,7 @@ internal class ServiceStandaloneTareDispatchChecks(private val test:Instrumentat
                             if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
                         } }
                         owner?.let { hub->
-                            listOf("coffee","scale").forEach { name->cleaned { (field(hub,name).get(hub) as AndroidDevice).close() } }
+                            listOf("coffee","scale").forEach { name->cleaned { hubDevice(hub, name).close() } }
                             cleaned { hub.scanner.close() }
                             cleaned { (field(hub,"handler").get(hub) as Handler).removeCallbacks(field(hub,"ticker").get(hub) as Runnable) }
                         }

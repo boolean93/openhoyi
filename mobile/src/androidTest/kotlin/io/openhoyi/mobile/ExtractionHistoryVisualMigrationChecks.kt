@@ -107,6 +107,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val data=File(context.applicationInfo.dataDir)
         val roots=listOf(File(data,"files"),File(data,"shared_prefs"),File(data,"databases"),context.noBackupFilesDir).distinctBy { it.canonicalPath }
         return roots.flatMap { directory -> directory.walkTopDown().filter { it.isFile &&
+            !(directory == File(data,"files") && it.parentFile == directory && it.name == "profileInstalled") &&
             !(directory.name=="shared_prefs" && it.name in setOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak")) }
             .map { it.canonicalPath to sha(it) }.toList() }.toMap()
     }
@@ -208,6 +209,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         private var oldFailure: Any? = null
         private val savedPrefs = linkedMapOf<String, Map<String, *>>()
         private var diskBefore = emptyMap<String, String>()
+        private var profileInstallerMarkerBefore: String? = null
         private var whitePrefFileBefore = emptyMap<String, String>()
         private fun whitePrefFiles(): Map<String,String> = listOf("appearance.xml","appearance.xml.bak","curves.xml","curves.xml.bak").mapNotNull { name ->
             File(File(context.applicationInfo.dataDir,"shared_prefs"),name).takeIf { it.isFile }?.let { name to sha(it) }
@@ -217,6 +219,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         private val initialMonotonicMs=1000000L
         private var clockInstalled=false
         private var service: MobileService?=null
+        private var historyRootService: MobileService?=null
         private var serviceBound=false
         private var serviceStarted=false
         private var scenarioInstalled=false
@@ -305,6 +308,27 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         private val comparisonReaders=linkedMapOf<Activity,ExecutorService>()
         private val readerNames=setOf("history-detail-reader")
         private fun detailReaders()=Thread.getAllStackTraces().keys.filter { it.isAlive && it.name in readerNames }
+        fun readOnlyHistoryRootService(): Boolean {
+            if(page!="history") return services().isEmpty()
+            val owner=historyRootService ?: return false
+            val mock=field(owner,"mock") as? MockDeviceRuntime ?: return false
+            return services()==listOf(MobileService::class.java.name) && owner.running &&
+                owner.shotState==ExtractionState.IDLE && field(owner,"hub")==null && !owner.snapshot.scanning &&
+                field(owner,"logs")===logs && field(owner,"history")===history &&
+                mock.lastSetting==null && !mock.scheduleChanged && !mock.tareChanged &&
+                !mock.cupReset && !mock.preheatActive && !mock.isSleeping
+        }
+        fun captureHistoryRootService(activity: Activity) {
+            if(page!="history") return
+            check(activity is MainActivity)
+            await("history Main single Mock service bound") { activity.currentService?.running==true }
+            main {
+                val owner=requireNotNull(activity.currentService)
+                check(historyRootService==null || historyRootService===owner)
+                historyRootService=owner
+                check(readOnlyHistoryRootService()) { "M5 History root service performed a business command or opened BLE" }
+            }
+        }
         private fun points(elapsed: Long, water: Int, weight: Int): List<ShotPoint> =
             ((0L..elapsed step 1000).toList()+elapsed).distinct().map { time ->
                 ShotPoint(time,90,100,(water*time/elapsed).toInt(),9300,(weight*time/elapsed).toInt(),null,true)
@@ -382,7 +406,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 }))
                 .put("sampleUnits","elapsedMs; pressureTenthsBar; machineFlowTenthsMlPerSecond=100 independent; waterTenthsMl; temperatureHundredthsC; weightHundredthsGram")
                 .put("source","legal_memory_Storage; actual_ShotHistory_begin_observeRunning_transition_and_BrewJournal_edit; repository_save_then_writer_barrier")
-                .put("synthetic",true).put("hardwareMeasurement",false).put("servicePolicy","history_only_no_Home_no_service")
+                .put("synthetic",true).put("hardwareMeasurement",false).put("servicePolicy",if(page=="history")
+                    "single_History_Main_MockService_IDLE_no_BLE_or_machine_commands" else "secondary_history_no_service")
                 .put("clipboardSAFSlots","not_touched")
         }
         fun install(dark: Boolean) {
@@ -398,6 +423,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 oldLanguage = field(app,"languagePreferences"); oldFailure=field(app,"journalObservationFailure")
                 listOf("appearance","curves").forEach { savedPrefs[it]=context.getSharedPreferences(it,Context.MODE_PRIVATE).all.toMap() }
                 diskBefore=businessDisk(); whitePrefFileBefore=whitePrefFiles()
+                profileInstallerMarkerBefore=File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha)
                 originalVisibilityObservers=(field(app.visibility,"observers") as Map<*,*>).entries.associate { it.key to it.value }
                 app.registerActivityLifecycleCallbacks(lifecycle)
                 val values = mapOf("feedbackPreferences" to feedback,"logs" to logs,"curves" to curves,"samples" to samples,"history" to history,
@@ -594,11 +620,12 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
         }
         fun closeActivities() {
+            main { check(readOnlyHistoryRootService()) { "M5 historical page changed its single read-only service" } }
             main { tracked.filter { !it.isDestroyed }.forEach { it.finish() } }
             await("all current scoped pages/dialogs closed before next saved-record case") {
                 tracked.all { it.isDestroyed && it in destroyed } && android.view.inspector.WindowInspector.getGlobalWindowViews().isEmpty()
             }
-            main { check(services().isEmpty()) { "M5 historical special states may not inherit a service" } }
+            main { check(readOnlyHistoryRootService()) { "M5 historical page service state changed after close" } }
         }
         fun activeActivity(): Activity? = tracked.lastOrNull { !it.isDestroyed }
         fun cleanup() {
@@ -654,7 +681,30 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         }
                         proof.put("scopedServiceDestroyed",true).put("extractionActivityUnboundAndRefreshRemoved",true)
                             .put("originalVisibilityObserversPreserved",true)
-                    } else main { check(services().isEmpty()) { "M5 history-only scope unexpectedly holds a service; original delegates retained" } }
+                    } else {
+                        main {
+                            check(readOnlyHistoryRootService()) { "M5 History root changed its single read-only service" }
+                            tracked.filterIsInstance<MainActivity>().forEach { activity ->
+                                check(field(activity,"service")==null && field(activity,"bound")==false) {
+                                    "M5 destroyed History Main retained a service binding" }
+                            }
+                            if(page=="history") check(context.stopService(Intent(context,MobileService::class.java))) {
+                                "M5 History root service stop rejected" }
+                        }
+                        await("History root service destroyed before original delegates restored") {
+                            services().isEmpty() && (historyRootService?.let { owner ->
+                                val handler=field(owner,"handler") as Handler
+                                listOf("mockTick","watchShot","leaveForeground","stopAutomaticScale")
+                                    .none { handler.hasCallbacks(field(owner,it) as Runnable) } &&
+                                    field(owner,"hub")==null &&
+                                    !(field(feedback,"observers") as Map<*,*>).containsKey(field(owner,"ownerId")) &&
+                                    !(field(app.visibility,"observers") as Map<*,*>).containsKey(field(owner,"ownerId"))
+                            } ?: true)
+                        }
+                        main { check((field(app.visibility,"observers") as Map<*,*>)==originalVisibilityObservers) }
+                        proof.put("historyRootSingleReadOnlyServiceObserved",historyRootService!=null)
+                            .put("historyRootServiceDestroyed",page=="history")
+                    }
                     check(android.view.inspector.WindowInspector.getGlobalWindowViews().isEmpty()) { "M5 fixture dialog/window remains after Activity destruction" }
                     // Activities close before any original Lazy is restored. Raw detail readers belong to
                     // this fresh scope (none existed before install); comparison pools are per actual instance.
@@ -730,6 +780,9 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     savedPrefs.forEach { (name,values) -> check(context.getSharedPreferences(name,Context.MODE_PRIVATE).all==values) }
                     val after = businessDisk()
                     proof.put("businessDiskBefore",JSONObject(diskBefore)).put("businessDiskAfter",JSONObject(after))
+                        .put("androidxProfileInstallerMarkerBeforeSha256",profileInstallerMarkerBefore ?: JSONObject.NULL)
+                        .put("androidxProfileInstallerMarkerAfterSha256",
+                            File(context.filesDir,"profileInstalled").takeIf {it.isFile}?.let(::sha) ?: JSONObject.NULL)
                     check(after==diskBefore) { "Original business disk changed; no rollback attempted" }
                     proof.put("originalLazyIdentityAndInitializedRestored",true).put("legacyUnchanged",true)
                         .put("typedPreferencesRestored",true).put("businessDiskByteUnchanged",true)
@@ -2109,6 +2162,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             it.putExtra(BrewComparisonActivity.FIRST_SHOT_ID,id).putExtra(BrewComparisonActivity.SECOND_SHOT_ID,scope.firstId)
                         }
                     }
+                    scope.captureHistoryRootService(activity)
                     await("saved special-state asynchronous reader finished: $page/$case") {
                         if(page=="comparison") {
                             listOf("comparison-source-1","comparison-source-2").all { tag ->
@@ -2130,7 +2184,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         if(page=="history-detail")requireStandaloneHistoryPlot(activity,caseDirectory,captured.target.getJSONObject("standaloneHistoryPlot"),expected.isEmpty())
                     }
                     main {
-                        check(services().isEmpty() && MobileMonotonicClock.mockOwnerIdentity()==null)
+                        check(scope.readOnlyHistoryRootService() && MobileMonotonicClock.mockOwnerIdentity()==null)
                         val data: FourMetricChartData
                         val canvas: JSONArray
                         val raw: List<ShotPoint>
@@ -2207,7 +2261,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                             .put("actualProjectedSegments",JSONArray(series.current.map { segment -> JSONArray(segment.map { it.elapsedMs }) }))
                             .put("actualWaterResetTimesMs",JSONArray(data.waterResetsMs)).put("actualCanvasCurrentMetricPathCount",paths.size)
                             .put("actualCanvasCurrentMetricVertexCounts",JSONArray(paths.map { it.getJSONArray("verticesPx").length() }))
-                            .put("noServiceOrClockOverride",true)
+                            .put("noServiceOrClockOverride",services().isEmpty() && MobileMonotonicClock.mockOwnerIdentity()==null)
+                            .put("singleReadOnlyHistoryRootService",page=="history" && scope.readOnlyHistoryRootService())
                     }
                     when(page) {
                         "history"->historyPreviewReachability(activity,scope,caseDirectory,expected.isEmpty())
@@ -2272,6 +2327,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 "history-detail"->start(HistoryDetailActivity::class.java) { it.putExtra("shotId",active.firstId) }
                 else->start(BrewComparisonActivity::class.java) { it.putExtra(BrewComparisonActivity.FIRST_SHOT_ID,active.firstId).putExtra(BrewComparisonActivity.SECOND_SHOT_ID,active.secondId) }
             }
+            active.captureHistoryRootService(activity)
             if(page=="extraction") await("actual Extraction bound to the real running Mock owner") {
                 val owner=field(activity,"service") as? MobileService
                 owner!=null && owner.shotState==ExtractionState.RUNNING &&
