@@ -10,9 +10,9 @@ class ScaleProtocolAdapterTest {
         this[0]=3;this[1]=11;this[6]=43;this[7]=0;this[8]=7;this[9]=8;this[10]=45;this[12]=10
         this[19]=take(19).fold(0) { a,b -> a xor (b.toInt() and 255) }.toByte()
     }
-    @Test fun bookooAdapterPreservesCapturedCommandsAndSigns() {
+    @Test fun bookooAdapterPreservesSafeInitializationCommandsAndSigns() {
         val adapter=BookooScaleProtocolAdapter
-        assertEquals(listOf("030A02000308","030A0300141E","030A0700000E","030A08010000"),adapter.initializationCommands.map { it.frame.hex() })
+        assertEquals(listOf("030A02000308","030A0300141E","030A08010000"),adapter.initializationCommands.map { it.frame.hex() })
         assertEquals("030A01000008",adapter.tareCommand!!.frame.hex())
         val observation=(adapter.decode(sample(),123L) as DecodeResult.Valid).value
         assertEquals(1800,observation.hundredthsGram);assertEquals(-10,observation.deviceFlowHundredths)
@@ -39,6 +39,7 @@ class ScaleProtocolAdapterTest {
         assertTrue(adapter.permitsWrite(GattOperation.Write(KnownGatt.bookooWrite,BookooCodec.tare().frame.toByteArray(),false)))
         assertFalse(adapter.permitsWrite(GattOperation.Write(KnownGatt.coffeeWrite,BookooCodec.tare().frame.toByteArray(),true)))
         assertFalse(adapter.permitsWrite(GattOperation.Write(KnownGatt.bookooWrite,hex("030A09000000"),true)))
+        assertFalse(adapter.permitsWrite(GattOperation.Write(KnownGatt.bookooWrite,hex("030A0700000E"),true)))
         assertTrue(adapter.decode(sample().apply { this[19]=0 },0) is DecodeResult.Invalid)
         assertTrue(adapter.decode(hex("0102"),0) is DecodeResult.Unknown)
     }
@@ -47,7 +48,37 @@ class ScaleProtocolAdapterTest {
         override fun execute(generation:Long,token:Long,operation:GattOperation):Boolean {operations+=Triple(generation,token,operation);return true}
         override fun close(generation:Long) {}
     }
-    @Test fun sessionEmitsGenericAndLegacySampleOnlyAfterFourInitFrames() {
+    @Test fun bookooConnectionAndReconnectOnlyWriteSafeInitializationFrames() {
+        var now=0L;val driver=Driver();val session=DeviceSession(DeviceRole.BOOKOO,driver,{now})
+        fun complete(result:OperationResult=OperationResult.Success()) {
+            val(g,t,_)=driver.operations.last();session.onComplete(g,t,result)
+        }
+        val expected=listOf("030A02000308","030A0300141E","030A08010000")
+        var previousGeneration:Long?=null
+        repeat(2) { attempt ->
+            session.connect("bookoo");val generation=session.generation
+            previousGeneration?.let { assertNotEquals(it,generation) }
+            complete()
+            complete(OperationResult.Success(listOf(
+                CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),
+                CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
+            complete()
+            val initAt=now
+            for(delay in listOf(500L,1000L,2000L)) {now=initAt+delay;session.tick();complete()}
+            assertEquals(DeviceState.SYNCHRONIZING,session.state)
+            assertEquals(expected,driver.operations.filter { it.first==generation }.mapNotNull { (_,_,operation) ->
+                (operation as? GattOperation.Write)?.bytes?.joinToString("") { "%02X".format(it.toInt() and 255) }
+            })
+            session.onNotification(generation,KnownGatt.bookooNotify,sample())
+            assertEquals(DeviceState.READY,session.state)
+            if(attempt==0) {
+                session.onDisconnected(generation,"unexpected link loss")
+                assertEquals(DeviceState.FAILED,session.state)
+                previousGeneration=generation
+            }
+        }
+    }
+    @Test fun sessionEmitsGenericAndLegacySampleOnlyAfterSafeInitFrames() {
         var now=0L;val driver=Driver();val observations=mutableListOf<ScaleObservation>();val legacy=mutableListOf<BookooSample>()
         val session=DeviceSession(DeviceRole.BOOKOO,driver,{now},weightFrame={s,_->legacy+=s},scaleObservation={observations+=it})
         fun complete(result:OperationResult=OperationResult.Success()) {val(g,t,_)=driver.operations.last();session.onComplete(g,t,result)}
@@ -55,7 +86,7 @@ class ScaleProtocolAdapterTest {
         complete(OperationResult.Success(listOf(CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
         complete()
         session.onNotification(session.generation,KnownGatt.bookooNotify,sample());assertTrue(observations.isEmpty())
-        repeat(4) {now+=500;session.tick();complete()}
+        for(command in BookooCodec.initializationCommands()) {now=command.delayMs;session.tick();complete()}
         assertEquals(DeviceState.SYNCHRONIZING,session.state)
         session.onNotification(session.generation,KnownGatt.bookooNotify,sample())
         assertEquals(DeviceState.READY,session.state);assertEquals(1,legacy.size);assertEquals(1,observations.size)

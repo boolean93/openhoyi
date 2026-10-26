@@ -201,8 +201,8 @@ fun main() {
     verify(CoffeeCommands.brewTemperature(105).frame.hex()=="0402006900")
     rejected { CoffeeCommands.start(starts[0].first.copy(maximumWaterMl=65536)) }
     rejected { CoffeeCommands.start(starts[0].first.copy(segmentCount=5)) }
-    verify(BookooCodec.initializationCommands().map { it.frame.hex() } == listOf("030A02000308","030A0300141E","030A0700000E","030A08010000"))
-    verify(BookooCodec.initializationCommands().map { it.delayMs } == listOf(500L,1000L,1500L,2000L))
+    verify(BookooCodec.initializationCommands().map { it.frame.hex() } == listOf("030A02000308","030A0300141E","030A08010000"))
+    verify(BookooCodec.initializationCommands().map { it.delayMs } == listOf(500L,1000L,2000L))
     verify(BookooCodec.tare().frame.hex()=="030A01000008")
     val replay = object {}.javaClass.getResourceAsStream("/notifications.tsv") ?: error("Missing fixtures")
     var frames=0

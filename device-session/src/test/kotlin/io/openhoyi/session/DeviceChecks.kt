@@ -1,6 +1,7 @@
 package io.openhoyi.session
 
 import java.time.LocalDateTime
+import io.openhoyi.protocol.BookooCodec
 import io.openhoyi.protocol.StartParameters
 import io.openhoyi.protocol.MachineSettingChange
 import io.openhoyi.protocol.SleepDay
@@ -150,7 +151,7 @@ fun deviceChecks():Int {
         now=499;s.tick();check(d.calls.size==initial)
         val frame=hex("030B000000012D007A3A2D03424600C803010084")
         s.onNotification(s.generation,KnownGatt.bookooNotify,frame);check(s.state!=DeviceState.READY)
-        repeat(4){now+=501;s.tick();check(d.calls.last().third is GattOperation.Write);complete()}
+        for(command in BookooCodec.initializationCommands()){now=command.delayMs+1;s.tick();check(d.calls.last().third is GattOperation.Write);complete()}
         check(s.state==DeviceState.SYNCHRONIZING)
         s.onNotification(s.generation,KnownGatt.bookooNotify,frame);check(s.state==DeviceState.READY)
         val readyCalls=d.calls.size
@@ -172,7 +173,7 @@ fun deviceChecks():Int {
                 CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),
                 CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
             complete()
-            repeat(4){now+=501;s.tick();complete()}
+            for(command in BookooCodec.initializationCommands()){now=command.delayMs+1;s.tick();complete()}
             s.onNotification(s.generation,KnownGatt.bookooNotify,hex("030B000000012D007A3A2D03424600C803010084"))
             check(s.state==DeviceState.READY)
             val scale=ScaleSessionControl(s,tare,{sampleSerial})
@@ -223,7 +224,7 @@ starts++;done(OperationResult.Success())}
         complete();complete(OperationResult.Success(listOf(
             CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),
             CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
-        complete();repeat(4){now+=501;s.tick();complete()}
+        complete();for(command in BookooCodec.initializationCommands()){now=command.delayMs+1;s.tick();complete()}
         s.onNotification(s.generation,KnownGatt.bookooNotify,hex("030B000000012D007A3A2D03424600C803010084"))
         check(s.state==DeviceState.READY)
         // A transport write occupies the queue; the new shot's tare has not been sent.
