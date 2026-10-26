@@ -439,3 +439,21 @@ root/Sol报告1beb199运行40382248647实际诊断：en/240×220dp、density1.25
 Astra复核ExtractionOverlayView唯一函数diff：dynamic沿用原renderer或fallback字体公式；embeddedHistory直接返回dynamic，其他路径返回maxOf(dynamic,ceil(dp(96f)).toInt())。向上取整不低于96dp，既有onMeasure/compact共享此函数，未改header滚动、轴绘制、字体、测试或fixture。实施静态批准，root统一构建及原用例CI待验，尚不标问题实际通过。文档冻结。
 
 Root确认`minimum-axis-floor-build.log`完整Mock单测、Mock/Debug/AndroidTest APK、lintDebug构建2分19秒成功；实际两APK资源各10897值和6 literal round trips通过。仅非embedded MetricPlot最低View高96dp修正，Astra静态通过，原fixture及新提交CI仍待。
+
+### 选轴Canvas尺寸载体静态闭合
+
+root报告a4cbca4已越过en/240的96dp检查，后在en/540/WATER文字边界检查遇到旧675×120 bitmap尺寸。Astra复核测试：点击后重新layout可能改变plot高度，原focused绘制确实复用了首次分配的bitmap。冻结小diff现于每次真实点击/layout后按当前plot.width/height建立focusedBitmap，两次真实Canvas绘制共用该当前尺寸，finally回收。唯一selected、单位及端点、TextBoundsCanvas严格文字边界和四条path断言原样；初始检查保留初始bitmap，缺秤原本已按重测尺寸单独分配，无需改动。
+
+该测试生命周期适配静态批准，生产未变；实际后续CI仍待，不把旧载体异常解释为已证生产裁切，也不概括整个图例矩阵通过。计划冻结。
+
+### 系统inset变化后主图余量不足与最小布局批准
+
+Astra实际查看run40384714929的extraction-running-light.png并读取with-scale geometry：content顶74px/高1391px，dataPlot581.35803px=258.38135dp，未过260dp；说明行64px，stop126px完整可见、间距18px，图宽96.97%。相比既有263.27023dp，内容少11px对应网格少11px，说明旧余量不足，不能以调整截图配置或门槛规避。此前代表场景通过保持为历史事实，当前面积出现明确回归待修。
+
+批准运行态将常态采样/独立量程说明移至既有工具→概览，保留完整文字和plot无障碍说明；回收当前64px后理论网格286.83dp，实际待测。四图例/范围/缺秤提示/停止/字体/renderer边距及系统insets不动。由于说明还承载注水复位和遥测间断，禁止无条件隐藏所有说明：异常时保留精简警示，常态采样前缀可省；闲置与embedded历史不变。此为有界方案批准，不增功能/矩阵，实施与真实面积复验待验。文档冻结。
+
+### 运行态说明压缩实施静态闭合
+
+Astra复核ExtractionOverlayView/ExtractionFragment两文件：active状态同步compactRunningExplanation，仅visual非embedded运行态启用；正常采样说明不占主图高度，water reset/gap仍显示notes.drop(1)的精简警示。fullExplanation保留完整采样/异常文本，工具→概览调用overviewExplanation并附当前选轴的独立量程/单位；plot.contentDescription原完整notes未削减。idle恢复全文，embedded历史不启用压缩，四图例、量程、字体、renderer及停止逻辑未改。实施静态批准，测试focusedBitmap修订保持此前审结；统一构建与新几何/截图复验待root执行，未提前标260dp通过。计划冻结。
+
+Root确认`live-inset-budget-build.log`完整Mock单测、Mock/Debug/AndroidTest APK、lintDebug构建2分钟成功；两APK资源各10897值及6 literal round trips通过。Astra批准常态说明移概览及focusedBitmap尺寸生命周期修正；原260dp/选轴/字边界门槛不变，实际新CI待验。

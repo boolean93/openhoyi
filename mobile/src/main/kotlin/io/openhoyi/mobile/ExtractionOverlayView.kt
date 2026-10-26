@@ -43,6 +43,12 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         }
     var referenceLabel: String? = null
         set(value) { if (field != value) { field = value; updateDescription() } }
+    var compactRunningExplanation = false
+        set(value) { if (field != value) { field = value; updateDescription() } }
+    private var fullExplanation = ""
+    fun overviewExplanation(): String = listOf(fullExplanation,
+        context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit))
+        .filter { it.isNotBlank() }.joinToString("\n")
 
     private var inspectedTime: Long? = null
     private var inspectionDialog: AlertDialog? = null
@@ -254,8 +260,12 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         if (data.waterResetsMs.isNotEmpty() || data.referenceWaterResetsMs.isNotEmpty())
             notes += context.getString(R.string.task_chart_water_reset)
         if (hasGaps()) notes += context.getString(R.string.task_chart_gap)
-        val description = notes.joinToString(" · ")
-        if (explanation.text.toString() != description) explanation.text = description
+        fullExplanation = notes.joinToString(" · ")
+        val compact = compactRunningExplanation && visual != null && !embeddedHistory
+        val warnings = notes.drop(1)
+        val inline = if (compact) warnings.joinToString(" · ") else fullExplanation
+        if (explanation.text.toString() != inline) explanation.text = inline
+        explanation.visibility = if (compact && warnings.isEmpty()) GONE else VISIBLE
         plot.contentDescription = (notes + context.getString(R.string.task_chart_inspect_hint) + context.getString(R.string.task_chart_hint) +
             context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit) +
             referenceNotes + data.series.map { series ->

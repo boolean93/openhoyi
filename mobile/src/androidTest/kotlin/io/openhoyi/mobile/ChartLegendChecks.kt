@@ -125,23 +125,26 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                                 check(control.performClick() && control.isSelected && controls.count { it.isSelected } == 1)
                                 layout()
                                 LanguageUiLayoutChecks.textFits(control, "$fixture focused")
-                                val focusedCanvas = TrendChartTextChecks.TextBoundsCanvas(bitmap,
-                                    TextView(context).apply { textSize = 11f }.textSize, "$fixture focused ${metric.first}")
-                                plot.draw(focusedCanvas)
-                                val axisUnits = focusedCanvas.texts.filter { it in listOf("bar", "ml", "g", "°C") }
-                                val range = endpoints.getValue(metric.first)
-                                check(axisUnits == listOf(metric.third) &&
-                                    range.first in focusedCanvas.texts && range.second in focusedCanvas.texts) {
-                                    "$fixture selected ${metric.first} axis lost its unit or physical endpoints: ${focusedCanvas.texts}"
-                                }
-                                var focusedPaths = 0
-                                plot.draw(object : Canvas(bitmap) {
-                                    override fun drawPath(path: Path, paint: Paint) {
-                                        if (!path.isEmpty) focusedPaths++
-                                        super.drawPath(path, paint)
+                                val focusedBitmap = Bitmap.createBitmap(plot.width, plot.height, Bitmap.Config.ARGB_8888)
+                                try {
+                                    val focusedCanvas = TrendChartTextChecks.TextBoundsCanvas(focusedBitmap,
+                                        TextView(context).apply { textSize = 11f }.textSize, "$fixture focused ${metric.first}")
+                                    plot.draw(focusedCanvas)
+                                    val axisUnits = focusedCanvas.texts.filter { it in listOf("bar", "ml", "g", "°C") }
+                                    val range = endpoints.getValue(metric.first)
+                                    check(axisUnits == listOf(metric.third) &&
+                                        range.first in focusedCanvas.texts && range.second in focusedCanvas.texts) {
+                                        "$fixture selected ${metric.first} axis lost its unit or physical endpoints: ${focusedCanvas.texts}"
                                     }
-                                })
-                                check(focusedPaths == 4) { "$fixture selecting ${metric.first} hid a physical series: $focusedPaths" }
+                                    var focusedPaths = 0
+                                    plot.draw(object : Canvas(focusedBitmap) {
+                                        override fun drawPath(path: Path, paint: Paint) {
+                                            if (!path.isEmpty) focusedPaths++
+                                            super.drawPath(path, paint)
+                                        }
+                                    })
+                                    check(focusedPaths == 4) { "$fixture selecting ${metric.first} hid a physical series: $focusedPaths" }
+                                } finally { focusedBitmap.recycle() }
                             }
                         } finally { bitmap.recycle() }
                         chart.points = chart.points.map { it.copy(weightHundredthsGram = null) }

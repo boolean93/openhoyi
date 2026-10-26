@@ -247,7 +247,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
             val info = listOf(curveSummary, deviceSummary, shotSummary, live, flowValue, weightTarget, traceCurve, stageTargets, referenceStatus)
                 .map { it.text.toString() }.filter { it.isNotBlank() }.joinToString("\n\n") +
-                "\n\n" + recipeSummary.text + "\n\n" + getString(R.string.live_cup_flow_source)
+                "\n\n" + recipeSummary.text + "\n\n" + chart.overviewExplanation() +
+                "\n\n" + getString(R.string.live_cup_flow_source)
             AlertDialog.Builder(host).setTitle(getString(R.string.extraction_overview)).setMessage(info)
                 .setPositiveButton(android.R.string.ok, null).let(::showTransient)
         }
@@ -396,6 +397,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val state = owner?.shotState ?: ExtractionState.IDLE
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
+        chart.compactRunningExplanation = active
         pageHeader.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
         val compactRunning = active && !compactChrome
         val wordsOrientation = if (compactRunning) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
