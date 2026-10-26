@@ -3,6 +3,7 @@ package io.openhoyi.mobile
 import android.app.Instrumentation
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.view.View
 
 /** Actual native Canvas rendering, without screenshots or changing service/controller state. */
@@ -23,7 +24,9 @@ internal class LanguageChartChecks(private val test: Instrumentation) {
                 // Targets are tenths of a bar on the new fixed 0..12 bar scale.
                 // 2,4,6,8 meant only 0.2..0.8 bar, below the 20dp rise assertion.
                 val stages = CurveStageView(context).apply { targets = listOf(20, 40, 60, 80) }
-                verifyIncreasing(native, context.getColor(R.color.chart_pressure), 42f, 18f, 74f, 28f, language)
+                // Approved live pressure palette; keep this expected pixel value independent of the renderer.
+                val livePressure = Color.parseColor(if (dark) "#80B4FF" else "#176BD1")
+                verifyIncreasing(native, livePressure, 42f, 18f, 74f, 28f, language)
                 verifyIncreasing(legacy, context.getColor(R.color.chart_pressure), 42f, 18f, 52f, 30f, language)
                 verifyIncreasing(stages, context.getColor(R.color.chart_pressure), 20f, 20f, 18f, 28f, language,
                     listOf(R.color.stage_one, R.color.stage_two, R.color.stage_three, R.color.stage_four).map(context::getColor))

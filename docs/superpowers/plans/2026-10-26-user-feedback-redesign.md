@@ -19,14 +19,14 @@
 
 ## 进度
 
-当前状态截至已推送的 `710f33c`。下方历史审查按当时事实保留；本表是当前状态，旧容器启动、旧首页布局问题已修复，不再列为未关闭阻塞。“开发完成”表示实现与静态审查完成，不等于全部软件或硬件验收通过。
+当前状态截至已推送的 `c12b2d5`，含Capture Mock UI运行40372606827证据。下方历史审查按当时事实保留；本表是当前状态，旧容器启动、旧首页布局问题已修复，不再列为未关闭阻塞。“开发完成”表示实现与静态审查完成，不等于全部软件或硬件验收通过。
 
 | 项目 | 当前状态 | 已有证据 / 仍待验 |
 |---|---|---|
 | 协议计时修复 | 软件通过；实机待验 | 仅删07，精确三帧/时序、同地址两代连接回归通过；Mini/Ultra实际计时与重量待验 |
 | 真Tab迁移 | 开发完成；核心原生通过 | 25169d2真实MainNavigation：六Tab20轮、720×360几何、冷启动/重建、同服务同series通过；历史来源后续修复已静态审结，710f33c复验待结果。非零历史滚动、豆列表滚动/选批/详情的Tab往返新增测试已静态通过，运行待验；二级编辑页及全部子路由重建仍按既有验收确认 |
 | 机器首页常驻控制 | 开发完成；已看代表图通过 | 机器状态、紧凑双锅炉、快捷五槽及常驻控制已实现；720×360几何通过，中文浅/深首页实图已审；实际锅炉回读与设备操作待验 |
-| 大图设计 | 外观局部通过；绘图区面积待修验 | 四线/图例/固定停止已图审；最新实际plotBounds约173–184dp低于平板260dp目标，需压缩重复页头/数值区并测真实网格，不能以外框高度代替 |
+| 大图设计 | 平板代表场景面积及视觉通过 | c12b2d5有/无秤实际网格263.27023dp、图宽占页面96.97%、停止完整56dp且间隔8dp；浅/深运行及有/无秤图已审。仅此正常字体平板范围，不代表全部字号/尺寸或硬件 |
 | 自动导航与重连 | 开发完成；策略及核心导航通过 | 101 session checks与手动ID策略通过，251原生manualShell通过；原机恢复、主动断开抑制、认证only静态审结，真实机器/秤恢复待验 |
 | 设置弹层统一 | 开发完成；部分视觉通过 | 根页、二级及自有DatePicker接入已审；启动确认浅/深图、机器设置浅色可见部分通过；全部弹层长文本/IME/英文与放大字体尚未整体批准 |
 | 整体验收 | 进行中，未整体通过 | 710f33c已推；root确认最新统一构建2分15秒、两APK资源各10897值通过。251核心原生与audio五组通过，代表图已审；最新完整CI、下列未验状态恢复和全部硬件仍待 |
@@ -353,3 +353,29 @@ root确认上一版统一构建2分30秒通过，但最后标题宽度与间距�
 ### 绘图区最终补丁本地复验（2026-10-27）
 
 Root确认 `live-plot-final-build.log` 完整Mock单测、Mock/Debug/AndroidTest APK与lintDebug构建成功，2分8秒；实际两APK各10897资源值及6 literal round trips通过。Astra最终生产和测试静态复审通过。260dp为真实数据plot门槛，尚待新提交CI；未因编译成功批准图面积。710f33c的verify/upgrade/branch-policy通过，lifecycle根frame身份问题已针对性修正；Capture越过概览温度后发现旧交叠断言及真实图面积不足，本批同时修测试和生产。Settings/Scale像素帧同步仍未闭合，Strict样张磁盘差异新增逐文件诊断而非白名单。
+
+### Settings固定像素差证据的限定结论
+
+据Sol对两run retained PNG的精确比较：差异8038坐标一致，跨run对应图像字节相同；alpha一致，RGB最大差3（6510像素差1、1401差2、127差3），范围x35..1956/y17..1399；导航1866、正文6172，其中shell281。一次S1=W1精确相同，W2随后呈相同8038差异。Astra读取run-40368854378与run-40368846485的window-frame-sync，确认对应surface-before/surface-after文件SHA跨run重复及各run D1/D2一致，失败状态仍为捕获截止时间耗尽。
+
+这些事实支持优先定位取证/合成路径差异，而不支持把250ms shell刷新认作主因；Sol已撤回该猜测。尚不足以唯一排除产品、渲染驱动或合成时序影响，也不能把retained失败attempt当成功样本。原5秒及精确像素门禁不改，不基于此扩大生产重绘整改。生产c12b2d5已冻结推送CI中；本项只记录定位证据与限制，不宣称视觉取证通过。
+
+### Strict唯一profileInstalled差异的证据与最小方案
+
+Astra独立读取run-40372606813的`storage-diff-preparation-confirmed-four-stage.json`：added/removed均空，唯一changed为files根直接`profileInstalled`；SHA从d20889a3238789b8f254f507c5c54b7c5c508bdd6f447d05d9c7eaa24f3b7174变为3c708052c56c6044f35dd56fc86c3bde2b1727cc0533867dc1937bf0224a784f，未报告其他files/prefs/db变化。
+
+批准与既有套件一致的最小方案：仅该精确路径从business hash map单列，另记marker前后SHA（缺席为null）；其余所有文件严格相等、原服务与失败门禁不变，不删除marker、不按basename递归扩大排除。此为有实际差异证据后的方案批准，实施diff及TaskFrame真实重跑仍待，不宣称套件通过。
+
+### Strict精确marker实现静态闭合
+
+Astra已读实施diff：storage排除条件同时要求name=files、parentFile=root、name=profileInstalled；子目录同名文件及prefs/db仍受检。每fixture启动前、finish并idle后分别读marker SHA/null，原断言通过后附入对应manifest。原业务哈希严格相等、service owner及storage-diff失败诊断保持；失败不转成功，不删除marker。实施静态通过，文档冻结，实际套件重跑待验。
+
+### c12b2d5真实主图面积验收闭合
+
+Capture Mock UI运行40372606827成功。Astra实际view_image查看extraction-running-light/dark及active-cup-visual/with-scale、no-scale/window.png，并读取两份geometry：1138×623dp、fontScale1、density2.25；真实dataPlot高592.35803px=263.27023dp，chartWidthFractionOfPage=0.9697479。axesInsidePlot、dataPlotFullyVisible、plotScreenMappingMatches、stopFullyVisible均true；chart底1303px、stop顶1321px，间距18px=8dp，stop高126px=56dp。
+
+批准此平板正常字体有秤/无秤的绘图区面积与真实可见边界。浅深运行图紧凑标题/数值/四图例可读，网格明显增高；无秤明确“未记录该时刻的秤读数”，不画绿色假线，主数值使用累计注水。批准所看四图范围，不泛化到其他字体/尺寸或硬件，也不概括全部CI通过。旧173–184dp面积阻塞在本场景已被实际证据关闭。
+
+同时静态复核LanguageChartChecks最小diff：仅native ShotChartView像素期望独立明写浅#176BD1/深#80B4FF，与已审live/fallback色板一致，不从被测renderer读取期望；Legacy/Stage旧色及实际Canvas精确像素、meanY上升>20dp、语言/浅深矩阵保持。该测试修订运行待验，文档冻结。
+
+root另核对ACTIVE_CUP_VISUAL_PASSED marker与上述几何一致，最终小测试补丁构建35秒通过；待其提交推送复跑，生产c12b2d5未改变。

@@ -43,8 +43,13 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
     private fun nodes(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
     private fun storage(context: Context): Map<String, String> = listOf("files", "shared_prefs", "databases").flatMap { name ->
-        File(context.applicationInfo.dataDir, name).walkTopDown().filter { it.isFile }.map { it.path to sha(it) }.toList()
+        val root = File(context.applicationInfo.dataDir, name)
+        root.walkTopDown().filter { it.isFile &&
+            !(name == "files" && it.parentFile == root && it.name == "profileInstalled")
+        }.map { it.path to sha(it) }.toList()
     }.toMap()
+    private fun profileInstallerMarker(context: Context): String? =
+        File(context.filesDir, "profileInstalled").takeIf { it.isFile }?.let(::sha)
     private fun services(context: Context): List<String> =
         (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getRunningServices(100)
             .filter { it.service.packageName == context.packageName }.map { it.service.className }.sorted()
@@ -306,6 +311,8 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
         var commonGeometry: String? = null
         for (fixtureId in StrictVisualSampleFixtures.ids) {
             val directory = File(base, fixtureId).apply { mkdirs() }
+            val profileInstallerMarkerBefore = profileInstallerMarker(context)
+            var profileInstallerMarkerAfter: String? = null
             val activity = test.startActivitySync(Intent(context, StrictVisualSampleActivity::class.java)
                 .putExtra("fixtureId", fixtureId).putExtra("candidateVersion", StrictVisualSampleFixtures.VERSION)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as StrictVisualSampleActivity
@@ -520,6 +527,7 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
                     "原稿锚点由host finalizer附入；不把测量结果倒写成设计标准。库存使用入口仅展示，真实操作需先确认投粉才扣减。\n")
             } finally {
                 main { activity.finish() }; test.waitForIdleSync()
+                profileInstallerMarkerAfter = profileInstallerMarker(context)
                 val afterStorage = storage(context)
                 if (afterStorage != baselineStorage) runCatching {
                     val beforePaths = baselineStorage.keys
@@ -541,6 +549,8 @@ internal class StrictVisualSampleChecks(private val test: Instrumentation) {
             val manifestFile = File(directory, "manifest.json")
             val manifest = JSONObject(manifestFile.readText()).put("storageUnchanged", true)
                 .put("storageAfterSha256", sha(JSONObject(storage(context)).toString().toByteArray()))
+                .put("androidxProfileInstallerMarkerBeforeSha256", profileInstallerMarkerBefore ?: JSONObject.NULL)
+                .put("androidxProfileInstallerMarkerAfterSha256", profileInstallerMarkerAfter ?: JSONObject.NULL)
                 .put("servicesBefore", JSONArray(baselineServices)).put("servicesAfter", JSONArray(services(context)))
             manifestFile.writeText(manifest.toString(2))
         }
