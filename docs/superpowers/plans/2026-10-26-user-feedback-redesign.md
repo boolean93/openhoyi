@@ -379,3 +379,13 @@ Capture Mock UI运行40372606827成功。Astra实际view_image查看extraction-r
 同时静态复核LanguageChartChecks最小diff：仅native ShotChartView像素期望独立明写浅#176BD1/深#80B4FF，与已审live/fallback色板一致，不从被测renderer读取期望；Legacy/Stage旧色及实际Canvas精确像素、meanY上升>20dp、语言/浅深矩阵保持。该测试修订运行待验，文档冻结。
 
 root另核对ACTIVE_CUP_VISUAL_PASSED marker与上述几何一致，最终小测试补丁构建35秒通过；待其提交推送复跑，生产c12b2d5未改变。
+
+### 通知阶段宿主适配首轮审查
+
+BrewAudioInstrumentation改为activeCup清理后新建真实Main并由同一宿主运行三通知suite，方向正确；顶层Mock包门禁保留，清理仅作用同Mock服务组件，无生产变更。但首版finally清理异常可能覆盖原suite失败，暂不批准：已要求保存原Throwable，清理错误附为suppressed，无原失败时仍抛清理错误，finish与idle各自尽力执行。通知断言不改，待此小项闭合。
+
+### 通知阶段宿主适配最终静态闭合
+
+Astra复核最终diff：三通知suite共享新建的真实Main宿主；stage异常原样抛出并保存，shutdown/stopService、finish、waitForIdleSync分别尽力执行，主线程清理异常捕获回传。已有stage失败时清理错误附为suppressed；无stage失败时仍抛清理首错并附其余错误，不掩盖原失败或吞清理失败。顶层Mock模式及精确Mock包校验保留，清理仅同Mock服务组件，原context/activeCup顺序、通知权限和无BLE断言未改，生产未变。此前唯一静态阻塞闭合。
+
+已读取notification-host-final-build.log：assembleMockAndroidTest BUILD SUCCESSFUL in 34s（74 tasks，4 executed）。本项静态审查及测试APK构建通过，通知阶段实际CI运行仍待；不概括全部CI或硬件通过。计划冻结。

@@ -280,15 +280,45 @@ class BrewAudioInstrumentation : Instrumentation() {
                     sendStatus(0, Bundle().apply { putString("stream", "LANGUAGE_STAGE_PASS $name\n") })
                     return result
                 }
-                val home = stage("context") { LanguageContextChecks(this).run() }
+                stage("context") { LanguageContextChecks(this).run() }
                 stage("activeCup") { LanguageActiveCupChecks(this).run() }
                 stage("charts") { LanguageChartChecks(this).run() }
                 stage("chart-legends") { ChartLegendChecks(this).run() }
-                // Home remains the task root after Extraction finishes. NEW_TASK would reuse it,
-                // while startActivitySync waits indefinitely for a new onCreate callback.
-                stage("notificationFactory") { LanguageNotificationChecks(this, home).run() }
-                stage("notificationPosting") { LanguageNotificationPostingChecks(this, home).run() }
-                stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, home).run() }
+                // The active-cup fixture used CLEAR_TASK and finished its own MainActivity.
+                // Notifications need a fresh real host, owned and closed by this stage.
+                val notificationHome = MainPageTestHost.launch(this).activity
+                var stageFailure: Throwable? = null
+                try {
+                    stage("notificationFactory") { LanguageNotificationChecks(this, notificationHome).run() }
+                    stage("notificationPosting") { LanguageNotificationPostingChecks(this, notificationHome).run() }
+                    stage("serviceNotificationRefresh") { LanguageServiceNotificationChecks(this, notificationHome).run() }
+                } catch (error: Throwable) {
+                    stageFailure = error
+                    throw error
+                } finally {
+                    val cleanupFailures = mutableListOf<Throwable>()
+                    fun attempt(action: () -> Unit) {
+                        try { action() } catch (error: Throwable) { cleanupFailures += error }
+                    }
+                    fun onMain(action: () -> Unit) {
+                        var failure: Throwable? = null
+                        runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
+                        failure?.let { throw it }
+                    }
+                    attempt { onMain {
+                        val owner = notificationHome.currentService
+                        if (owner != null) owner.shutdown()
+                        else targetContext.stopService(Intent(targetContext, MobileService::class.java))
+                    } }
+                    attempt { onMain { notificationHome.finish() } }
+                    attempt { waitForIdleSync() }
+                    val originalFailure = stageFailure
+                    if (originalFailure != null) cleanupFailures.forEach(originalFailure::addSuppressed)
+                    else cleanupFailures.firstOrNull()?.let { first ->
+                        cleanupFailures.drop(1).forEach(first::addSuppressed)
+                        throw first
+                    }
+                }
                 report.putString("stream", "SERVICE_PREHEAT_TIMEOUT_OWNER_CHECKS_PASSED fixtures=6 fakeWrites=8 delayMs=600000 phases=2 allowedCancels=2 blockedCancels=4 reloadedRecords=6 actualScheduledCallback=true simulatedExpiry=true lateCallbackIgnored=true noBle=true detached=true\n" +
                     "SERVICE_STOP_FEEDBACK_CHECKS_PASSED fixtures=2 fakeWrites=4 retainedRecords=2 missingJournal=true exactStopWire=true repeatedStopIgnored=true noBle=true detached=true\n" +
                     "RECOVERY_MARKER_READ_CHECKS_PASSED recordFixtures=20 blockedEntries=108 absentClear=2 tareFixtures=4 realDisk=true noBle=true detached=true\n" +
