@@ -431,9 +431,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val path = Path()
         fun minimumAxisHeight(): Int {
-            productRenderer?.let { return if (embeddedHistory) it.minimumEmbeddedHistoryHeight() else it.minimumAxisHeight() }
             val fm = labels.fontMetrics
-            return ceil((fm.descent - fm.ascent) * 4.5f + dp(32f)).toInt()
+            val dynamic = productRenderer?.let {
+                if (embeddedHistory) it.minimumEmbeddedHistoryHeight() else it.minimumAxisHeight()
+            } ?: ceil((fm.descent - fm.ascent) * 4.5f + dp(32f)).toInt()
+            return if (embeddedHistory) dynamic else maxOf(dynamic, ceil(dp(96f)).toInt())
         }
         private fun axisColumns() = data.series.associate { series ->
             val strings = (0..4).map { format(series.range.low + (series.range.high - series.range.low) * it / 4) } + series.metric.unit

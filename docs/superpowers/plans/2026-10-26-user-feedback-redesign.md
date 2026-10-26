@@ -427,3 +427,15 @@ Root确认`selected-axis-test-build.log` AndroidTest构建45秒成功；仅图�
 Astra读取ChartLegendChecks最终小diff：仅扩展原check的惰性失败message，VISIBLE且>=96dp条件、240×220fixture及后续绘制门禁未改。记录density/scaledDensity/fontScale、chart/overlay/plot/header/headerContent/legend/explanation实测与布局尺寸/可见性/scroll，以及动态最低轴高、字体行高、compact/notice；反射各自runCatching，外层诊断亦捕获并保留原usable plot missing前缀，不改变失败结论。静态批准，待仅编译测试并重跑原用例取得数值，不增加矩阵，不提前判定根因或批准阈值调整。文档冻结。
 
 Root确认`legend-height-diagnostic-build.log` AndroidTest构建35秒成功；仅原断言失败诊断，96dp门禁/fixture/生产未改。原生具体尺寸待CI取证。
+
+### 96dp组件最低预算根因与最小修复批准
+
+root/Sol报告1beb199运行40382248647实际诊断：en/240×220dp、density1.25，plot可见300×113px=90.4dp且恰等minimumAxisHeight；原96dp需120px，差7px。header162px、content199px、legend145px、explanation54px，compact=false。批准非embedded的MetricPlot View最低预算max(原字体动态值,ceil(96dp))，保留embedded历史原值及所有轴几何。96dp是含轴View下限，不是数据网格高度；平板真实网格260dp验收仍独立。
+
+建议在minimumAxisHeight集中处理，使onMeasure与compact共用；当前案例header上限回收7px到155px，199px内容仍由原ScrollView可达。非compact分支保证高度至少minimum+48dp，因此header上限非负；compact分支用已钳为非负的总高，沿原提示降级。字体/范围/测试96dp及220dpfixture不改，不扩语言适配。此为方案批准，实施及原用例复验仍待；文档冻结。
+
+### 96dp最低预算实施静态闭合
+
+Astra复核ExtractionOverlayView唯一函数diff：dynamic沿用原renderer或fallback字体公式；embeddedHistory直接返回dynamic，其他路径返回maxOf(dynamic,ceil(dp(96f)).toInt())。向上取整不低于96dp，既有onMeasure/compact共享此函数，未改header滚动、轴绘制、字体、测试或fixture。实施静态批准，root统一构建及原用例CI待验，尚不标问题实际通过。文档冻结。
+
+Root确认`minimum-axis-floor-build.log`完整Mock单测、Mock/Debug/AndroidTest APK、lintDebug构建2分19秒成功；实际两APK资源各10897值和6 literal round trips通过。仅非embedded MetricPlot最低View高96dp修正，Astra静态通过，原fixture及新提交CI仍待。
