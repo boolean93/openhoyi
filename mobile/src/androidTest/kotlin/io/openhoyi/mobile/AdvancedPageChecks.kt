@@ -41,8 +41,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
             Thread.sleep(25)
         }
     }
-    private fun homeOwner(activity: Activity): MobileService? = HomeActivity::class.java.getDeclaredField("service")
-        .apply { isAccessible = true }.get(activity) as? MobileService
+    private fun homeOwner(activity: MainActivity): MobileService? = activity.currentService
     private fun scaleOwner(activity: Activity): MobileService? = ScaleOwnerActivity::class.java.getDeclaredField("owner")
         .apply { isAccessible = true }.get(activity) as? MobileService
     private fun root(activity: Activity): ViewGroup =
@@ -63,7 +62,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
         val oldLanguageStorage = languagePrefs.all.toMap()
         val appearance = context.getSharedPreferences("appearance", Context.MODE_PRIVATE)
         val oldAppearance = appearance.all.toMap()
-        var home = test.startActivitySync(Intent(context, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
+        var home = MainPageTestHost.launch(test).activity
         test.waitForIdleSync()
         awaitMain { homeOwner(home)?.running == true && home.window.decorView.isLaidOut }
         val inventory = app.beanInventoryResult.getOrThrow()
@@ -132,12 +131,12 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
         var completed = 0
         var screenshots = 0
         var failure: Throwable? = null
-        val homeLifecycle = test.addMonitor(HomeActivity::class.java.name, null, false)
+        val homeLifecycle = test.addMonitor(MainActivity::class.java.name, null, false)
         var originalHomeTask = -1
         onMain { originalHomeTask = home.taskId }
         fun followHomeRecreation() {
             if (!home.isDestroyed) return
-            val replacement = homeLifecycle.lastActivity as? HomeActivity ?: return
+            val replacement = homeLifecycle.lastActivity as? MainActivity ?: return
             if (replacement === home || replacement.isDestroyed || replacement.taskId != originalHomeTask) return
             home = replacement
             test.sendStatus(0, Bundle().apply {
@@ -151,10 +150,10 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                 HoyiUi.dark(home) == appearance.getBoolean("dark", false)
         }
         fun rebuildHome() {
-            val monitor = test.addMonitor(HomeActivity::class.java.name, null, false)
+            val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
             try {
                 onMain { home.recreate() }
-                home = test.waitForMonitorWithTimeout(monitor, 10000) as? HomeActivity ?: error("Advanced Home recreation missing")
+                home = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity ?: error("Advanced Home recreation missing")
                 test.waitForIdleSync()
                 awaitMain { homeOwner(home) === service && home.window.decorView.isLaidOut }
             } finally { test.removeMonitor(monitor) }
@@ -180,7 +179,18 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                         if (intent.getBooleanExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, false)) "-Capture" else ""
                     val fixture = "$profile ${language.tag} dark=$dark page=$name"
                     test.sendStatus(0, Bundle().apply { putString("stream", "ADVANCED_PAGE_START $fixture\n") })
-                    val activity = test.startActivitySync(intent).also { currentPage = it }
+                    val rootDestination = when {
+                        intent.component?.className == BeanInventoryActivity::class.java.name -> TaskDestination.BEANS
+                        intent.component?.className == ScaleActivity::class.java.name &&
+                            !intent.getBooleanExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, false) -> TaskDestination.SCALE
+                        else -> null
+                    }
+                    val activity: Activity = if (rootDestination == null) {
+                        test.startActivitySync(intent).also { currentPage = it }
+                    } else {
+                        MainPageTestHost(test, home).select(rootDestination)
+                        home
+                    }
                     test.waitForIdleSync()
                     awaitMain {
                         activity.hasWindowFocus() && root(activity).height > 0 && !root(activity).isLayoutRequested &&
@@ -248,14 +258,15 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                     }
                     assertState()
                     completed++
-                    onMain { activity.finish() }
+                    if (rootDestination == null) onMain { activity.finish() }
+                    else MainPageTestHost(test, home).select(TaskDestination.BREW)
                     awaitMain(diagnostic = {
                         "$fixture return: childDestroyed=${activity.isDestroyed} childFinishing=${activity.isFinishing} " +
                             "homeDestroyed=${home.isDestroyed} homeFinishing=${home.isFinishing} " +
                             "homeFocus=${home.hasWindowFocus()} homeAttached=${home.window.decorView.isAttachedToWindow} " +
                             "sameService=${homeOwner(home) === service} serviceRunning=${service?.running} " +
                             "childTask=${activity.taskId} homeTask=${home.taskId}"
-                    }) { activity.isDestroyed && homeReturned() }
+                    }) { (rootDestination != null || activity.isDestroyed) && homeReturned() }
                     currentPage = null
                     assertState()
                 }

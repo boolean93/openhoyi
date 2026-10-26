@@ -15,7 +15,8 @@ internal object SingleScreenPageChecks {
     /** Call on the UI thread after layout. This never clicks or changes device state. */
     fun verify(activity: Activity, expectedLegacyShot: LegacyShot? = null) {
         val content = activity.findViewById<ViewGroup>(android.R.id.content)
-        if (activity is ExtractionActivity) TrendChartTextChecks.run(activity, "single-screen overlay")
+        val active = (activity as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        if (active is ExtractionFragment) TrendChartTextChecks.run(activity, "single-screen overlay")
         val fixture = activity.javaClass.simpleName + " " + activity.resources.configuration
         fun visibleFully(view: View) {
             val rect = Rect()
@@ -41,7 +42,7 @@ internal object SingleScreenPageChecks {
             check(it.height >= HoyiUi.dp(activity, 48)) { "$fixture clickable target below 48dp: ${it.javaClass.simpleName} ${it.height}" }
         }
         val config = activity.resources.configuration
-        if (activity is ScaleActivity && config.screenWidthDp in 600..839 &&
+        if ((activity is ScaleActivity || active is ScaleFragment) && config.screenWidthDp in 600..839 &&
             content.height >= HoyiUi.dp(activity, 850) && config.fontScale <= 1.3f &&
             config.locales[0].language == "zh") {
             val all = mutableListOf<View>()
@@ -147,13 +148,13 @@ internal object SingleScreenPageChecks {
         views.filterIsInstance<ScrollView>().forEach { viewport ->
             visibleFully(viewport)
             check(viewport.parent !== content.getChildAt(0)) { "$fixture whole page is a ScrollView" }
-            if (activity is CurveActivity) {
-                val fallback = CurveActivity::class.java.getDeclaredField("previewFallbackScroll")
-                    .apply { isAccessible = true }.get(activity) as ScrollView
+            if (active is CurveFragment) {
+                val fallback = CurveFragment::class.java.getDeclaredField("previewFallbackScroll")
+                    .apply { isAccessible = true }.get(active) as ScrollView
                 if (viewport === fallback) {
                     check(viewport.height > 0 && viewport.childCount == 1) { "$fixture explicit stage details are unreachable" }
-                    val text = CurveActivity::class.java.getDeclaredField("previewFallback")
-                        .apply { isAccessible = true }.get(activity) as TextView
+                    val text = CurveFragment::class.java.getDeclaredField("previewFallback")
+                        .apply { isAccessible = true }.get(active) as TextView
                     check(text.text.isNotBlank())
                     LanguageUiLayoutChecks.textFits(text, "$fixture local stage fallback")
                 } else check(viewport.childCount == 0 || viewport.getChildAt(0).height <= viewport.height - viewport.paddingTop - viewport.paddingBottom) {

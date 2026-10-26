@@ -65,6 +65,7 @@ class CurveActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectRoot(TaskDestination.CURVES)) return
         productStyle = TaskProductVisualStyle(this)
         category = CurveCategoryFilter.restore(savedInstanceState?.getString("category"))
         sortMode = CurveSortMode.restore(getSharedPreferences("curves", MODE_PRIVATE).getString("sort", null))
@@ -467,6 +468,7 @@ class CurveActivity : ThemedActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (redirectedRoot) return
         if (!::adapter.isInitialized) return
         val previousId = selected?.id
         val wasVisible = !compact || detailPanel.visibility == View.VISIBLE
@@ -479,6 +481,7 @@ class CurveActivity : ThemedActivity() {
     }
 
     override fun onStop() {
+        if (redirectedRoot) { super.onStop(); return }
         clearAssignmentFeedback()
         super.onStop()
     }
@@ -524,6 +527,7 @@ class CurveActivity : ThemedActivity() {
     }
 
     override fun onDestroy() {
+        if (redirectedRoot) { super.onDestroy(); return }
         unregisterDetailBack()
         super.onDestroy()
     }
@@ -707,6 +711,7 @@ class CurveActivity : ThemedActivity() {
     }
     private fun stageTargets(item: CurveLibraryItem): List<Int> = CurveStageParameters.pressureTargets(item)
     override fun onSaveInstanceState(outState: Bundle) {
+        if (redirectedRoot) { super.onSaveInstanceState(outState); return }
         outState.putParcelable("listState", curveList.onSaveInstanceState())
         outState.putString("selected", selected?.id)
         outState.putString("category", category.name)

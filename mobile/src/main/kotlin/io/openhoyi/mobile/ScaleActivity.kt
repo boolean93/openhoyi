@@ -37,8 +37,8 @@ abstract class ScaleOwnerActivity: ThemedActivity() {
         override fun run() {renderScale();if(visible)handler.postDelayed(this,250)}
     }
     protected fun bindOwner() {if(!bound)bound=bindService(Intent(this,MobileService::class.java),connection,0)}
-    override fun onStart() {super.onStart();visible=true;bindOwner();handler.post(refresh)}
-    override fun onStop() {visible=false;handler.removeCallbacks(refresh);releaseOwner();super.onStop()}
+    override fun onStart() {super.onStart();if(redirectedRoot)return;visible=true;bindOwner();handler.post(refresh)}
+    override fun onStop() {if(!redirectedRoot){visible=false;handler.removeCallbacks(refresh);releaseOwner()};super.onStop()}
     private fun releaseOwner() {if(bound)unbindService(connection);bound=false;owner=null}
     protected abstract fun renderScale()
     protected fun changesAllowed():Boolean = owner?.let { !it.manualShotActive && DeviceConnectionGate.mayChangeScale(it.shotState) } == true
@@ -97,6 +97,7 @@ class ScaleActivity:ScaleOwnerActivity() {
     override fun onStop() { if (::trend.isInitialized) trend.dismiss(); owner?.resetBeanDoseCapture();super.onStop()}
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
+        if (!intent.getBooleanExtra(EXTRA_CAPTURE_BEAN_DOSE, false) && redirectRoot(TaskDestination.SCALE)) return
         timer=LocalScaleTimer(LocalScaleTimer.State(savedInstanceState?.getLong("scale.timer.accumulated") ?: 0,
             savedInstanceState?.takeIf {it.containsKey("scale.timer.origin")}?.getLong("scale.timer.origin")))
         val visual = ScaleVisualStyle(this)
@@ -219,6 +220,7 @@ class ScaleActivity:ScaleOwnerActivity() {
         renderScale()
     }
     override fun onSaveInstanceState(outState:Bundle) {
+        if (redirectedRoot) { super.onSaveInstanceState(outState); return }
         val state=timer.snapshot();outState.putLong("scale.timer.accumulated",state.accumulatedMs)
         state.startedAtMs?.let {outState.putLong("scale.timer.origin",it)}
         super.onSaveInstanceState(outState)

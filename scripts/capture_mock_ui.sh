@@ -54,11 +54,15 @@ if result.returncode or 'IDLE_ACCESSIBILITY_DIAGNOSTIC_DONE' not in output.read_
 PY
 # Formal capture gets normal continuous rendering, not the diagnostic pause.
 adb shell am force-stop io.openhoyi.mobile.mock
-adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.HomeActivity
+adb shell am start -W -n io.openhoyi.mobile.mock/io.openhoyi.mobile.MainActivity
 sleep 15
 
 assert_activity() {
   local expected="$1" attempt
+  case "$expected" in
+    HomeActivity|CurveActivity|HistoryActivity|BeanInventoryActivity|ExtractionActivity|AppSettingsActivity)
+      expected=MainActivity ;;
+  esac
   for attempt in 1 2 3 4 5; do
     if adb shell dumpsys activity activities | grep "topResumedActivity=.*io.openhoyi.mobile.$expected" >/dev/null; then
       return 0
@@ -76,6 +80,12 @@ tap_control() {
 
 tap_nav() {
   local expected="$2"
+  # Detail/settings Activities no longer carry the task rail. Return to the retained
+  # MainActivity before selecting another root, preserving the current Mock process.
+  if ! adb shell dumpsys activity activities | grep 'topResumedActivity=.*io.openhoyi.mobile.MainActivity' >/dev/null; then
+    adb shell input keyevent KEYCODE_BACK
+    assert_activity MainActivity
+  fi
   case "$expected" in
     HomeActivity) tap_control '冲煮' ;;
     CurveActivity) tap_control '曲线' ;;
@@ -87,14 +97,10 @@ tap_nav() {
       tap_control '实时萃取'
       ;;
     AppSettingsActivity)
-      tap_control '冲煮'
-      tap_control '查看准备详情 ›'
-      tap_control '应用设置'
+      tap_control '设置'
       ;;
     MachineSettingsActivity)
-      tap_control '冲煮'
-      tap_control '查看准备详情 ›'
-      tap_control '应用设置'
+      tap_control '设置'
       tap_control '机器设置'
       ;;
     *) echo "Unsupported Mock route: $expected" >&2; return 1 ;;
@@ -203,6 +209,8 @@ capture history-detail-dark
 
 # Capture the approved light-theme running composition at the user's tablet geometry.
 # This is a second real Mock shot, not relabeling the waiting-state screenshot.
+adb shell input keyevent KEYCODE_BACK
+assert_activity MainActivity
 toggle_theme
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/light-theme-pref.xml"
 grep 'name="dark" value="false"' "$output_dir/light-theme-pref.xml" >/dev/null
@@ -223,7 +231,18 @@ capture extraction-ended-light
 # Reuse actual start/recreation/stop checks at this same user-tablet geometry.
 # Separate raw-source scenarios; do not hide weight values to fake no-scale data.
 adb shell am force-stop io.openhoyi.mobile.mock
-# Instrumentation starts Home inside its own process before binding Extraction.
+python3 - "$output_dir/main-navigation.txt" <<'PY'
+from pathlib import Path
+import subprocess,sys
+output=Path(sys.argv[1])
+with output.open('w') as capture:
+    result=subprocess.run(['adb','shell','am','instrument','-w','-e','mainNavigationChecks','true',
+        'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation'],stdout=capture,timeout=600)
+if result.returncode or 'MAIN_NAVIGATION_CHECKS_PASSED rounds=20 tabs=6 singleHost=true curveFilterRetained=true serviceContinuous=true manualShell=true noBle=true' not in output.read_text():
+    raise SystemExit('Main Fragment navigation diagnostic failed; output retained')
+PY
+adb shell am force-stop io.openhoyi.mobile.mock
+# Instrumentation starts Main inside its own process before binding Extraction.
 python3 - "$output_dir" <<'PYCAPTURE'
 import subprocess
 import sys

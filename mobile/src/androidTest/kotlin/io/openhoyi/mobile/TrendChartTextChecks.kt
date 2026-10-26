@@ -12,9 +12,13 @@ internal object TrendChartTextChecks {
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
 
-    fun run(activity: ExtractionActivity, fixture: String) {
-        val actual = ExtractionActivity::class.java.getDeclaredField("chart")
-            .apply { isAccessible = true }.get(activity) as ExtractionOverlayView
+    fun run(activity: android.app.Activity, fixture: String) {
+        check(activity is MainActivity) { "$fixture must inspect MainActivity's active ExtractionFragment" }
+        val fragment = activity.supportFragmentManager.primaryNavigationFragment
+        check(fragment is ExtractionFragment && fragment.isVisible && !fragment.isHidden)
+        val actual = ExtractionFragment::class.java.getDeclaredField("chart")
+            .apply { isAccessible = true }.get(fragment) as ExtractionOverlayView
+        check(actual.isAttachedToWindow && actual.rootView === activity.window.decorView.rootView)
         check(actual.width > 0 && actual.height > 0)
         val samples = (0..3).map { index ->
             ShotPoint(index * 800L, 90, 0, 0, 9300, index * 100, brewing = true)
@@ -30,12 +34,14 @@ internal object TrendChartTextChecks {
             probe.layout(0, 0, actual.width, actual.height)
             val children = descendants(probe)
             val controls = children.filter { it.tag?.toString()?.startsWith("chart-metric:") == true }
-            val expected = if (data.first.any { it.weightHundredthsGram != null } || data.second.any { it.weightHundredthsGram != null })
-                listOf("PRESSURE", "WATER", "WEIGHT", "TEMPERATURE") else listOf("PRESSURE", "WATER", "TEMPERATURE")
+            val expected = listOf("PRESSURE", "WATER", "WEIGHT", "TEMPERATURE")
             check(controls.map { it.tag } == expected.map { "chart-metric:$it" }) { "$fixture missing four-metric legend" }
             controls.forEach { control ->
                 val label = (control as TextView).text.toString()
-                check(control.contentDescription.toString().contains("–") && label.contains(when (control.tag) {
+                val missingWeight = control.tag == "chart-metric:WEIGHT" &&
+                    FourMetricChartProjection.build(data.first, data.second).series.none { it.metric == ChartMetric.WEIGHT }
+                check((missingWeight && !control.isEnabled && control.contentDescription.contains(activity.getString(R.string.task_chart_missing_scale)) ||
+                    !missingWeight && control.contentDescription.toString().contains("–")) && label.contains(when (control.tag) {
                     "chart-metric:PRESSURE" -> "bar"
                     "chart-metric:WATER" -> "ml"
                     "chart-metric:WEIGHT" -> "g"
@@ -57,7 +63,7 @@ internal object TrendChartTextChecks {
                 val canvas = TextBoundsCanvas(bitmap, nativeTextSize, "$fixture overlay case=$index")
                 plot.draw(canvas)
                 check(canvas.labels >= 6) { "Four-metric plot has no usable labeled viewport" }
-                controls.filter { !(it as TextView).text.contains('–') }.forEach { control ->
+                controls.filter { it.isEnabled && !(it as TextView).text.contains('–') }.forEach { control ->
                     val description = control.contentDescription.toString()
                     val unit = when (control.tag) {
                         "chart-metric:PRESSURE" -> "bar"

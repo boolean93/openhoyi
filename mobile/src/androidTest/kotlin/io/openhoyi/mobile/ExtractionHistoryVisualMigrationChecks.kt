@@ -88,8 +88,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private fun nodes(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
-    private fun field(owner: Any, name: String): Any? = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)
-    private fun write(owner: Any, name: String, value: Any?) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(owner, value)
+    private fun field(owner: Any, name: String): Any? {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        return target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
+    }
+    private fun write(owner: Any, name: String, value: Any?) {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
+    }
     private fun sha(file: File): String = file.inputStream().use { input ->
         val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(8192)
         while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
@@ -606,10 +614,12 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     }
                     if(page=="extraction") {
                         main {
-                            tracked.filterIsInstance<ExtractionActivity>().forEach { activity ->
-                                val handler=field(activity,"handler") as Handler
-                                check(field(activity,"service")==null && field(activity,"bound")==false && field(activity,"visible")==false &&
-                                    !handler.hasCallbacks(field(activity,"refresh") as Runnable)) { "M5 destroyed Extraction still holds a service or refresh" }
+                            tracked.filterIsInstance<MainActivity>().forEach { activity ->
+                                val extraction=activity.supportFragmentManager.findFragmentByTag("extraction") as? ExtractionFragment
+                                    ?: return@forEach
+                                val handler=field(extraction,"handler") as Handler
+                                check(field(extraction,"service")==null && field(activity,"bound")==false && field(extraction,"visible")==false &&
+                                    !handler.hasCallbacks(field(extraction,"refresh") as Runnable)) { "M5 destroyed Extraction still holds a service or refresh" }
                             }
                             if(serviceBound) { context.unbindService(serviceConnection); serviceBound=false }
                             val stopped=context.stopService(Intent(context,MobileService::class.java))
@@ -988,7 +998,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val insets=requireNotNull(content.rootWindowInsets); val bars=insets.getInsets(WindowInsets.Type.systemBars())
         val config=activity.resources.configuration
         val charts=nodes(content).filter { it is ShotChartView || it is TwoCupChartView || it is ExtractionOverlayView }
-        return JSONObject().apply { if(activity is HistoryActivity) {
+        return JSONObject().apply { if(activity is MainActivity &&
+            activity.supportFragmentManager.primaryNavigationFragment is HistoryFragment) {
             put("embeddedHistoryPreview",embeddedHistoryEvidence(activity) ?: JSONObject.NULL)
         }
             if(activity is HistoryDetailActivity)put("standaloneHistoryPlot",standaloneHistoryEvidence(activity) ?: JSONObject.NULL)
@@ -1008,6 +1019,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }))
     }
     private fun start(type: Class<out Activity>, extras: (Intent)->Unit = {}): Activity {
+        if(type==ExtractionActivity::class.java) return MainPageTestHost.launch(test,extraction=true).activity
+        if(type==HistoryActivity::class.java) return MainPageTestHost.launch(test,TaskDestination.HISTORY).activity
         val intent=Intent(context,type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); extras(intent)
         return test.startActivitySync(intent).also { activity -> await("${type.simpleName} ready") {
             activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested } }

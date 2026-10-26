@@ -115,10 +115,20 @@ internal class TaskProductVisualStyle(val context: Context) {
     /** Explicit three-page shell. The existing beanPage and all other callers keep their defaults. */
     fun page(activity: ThemedActivity, title: String, subtitle: String? = null,
         navigation: Class<out Activity>? = null): LinearLayout {
+        val (root, body) = createPage(activity, title, subtitle, navigation == null, true)
+        TaskPageFrame.install(activity, root, this)
+        activity.window.statusBarColor = page; activity.window.navigationBarColor = surface
+        activity.setContentView(root)
+        return body
+    }
+    fun fragmentPage(activity: ThemedActivity, title: String, subtitle: String? = null): Pair<LinearLayout, LinearLayout> =
+        createPage(activity, title, subtitle, false, false)
+
+    private fun createPage(activity: ThemedActivity, title: String, subtitle: String?, back: Boolean, applyInsets: Boolean): Pair<LinearLayout, LinearLayout> {
         activity.window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         val root = column("product/page/root").apply {
             setBackgroundColor(page); isFocusableInTouchMode = true
-            setOnApplyWindowInsetsListener { view, insets ->
+            if (applyInsets) setOnApplyWindowInsetsListener { view, insets ->
                 if (android.os.Build.VERSION.SDK_INT >= 30) {
                     val bars = insets.getInsets(android.view.WindowInsets.Type.systemBars() or android.view.WindowInsets.Type.displayCutout() or android.view.WindowInsets.Type.ime())
                     view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
@@ -131,7 +141,7 @@ internal class TaskProductVisualStyle(val context: Context) {
         }
         val shell = column().apply { setPadding(dp(16), dp(16), dp(16), dp(16)) }
         root.addView(shell, LinearLayout.LayoutParams(-1, 0, 1f))
-        val header = HoyiUi.header(activity, shell, title, back = navigation == null)
+        val header = HoyiUi.header(activity, shell, title, back = back)
         subtitle?.let { description ->
             header.contentDescription = "$title. $description"
             button(HoyiUi.button(activity, header, "ⓘ") { activity.beanDetails(title, description) }).apply {
@@ -141,7 +151,7 @@ internal class TaskProductVisualStyle(val context: Context) {
         }
         styleHeader(header)
         // Explicit product shell only. HoyiUi.header and its legacy callers are untouched.
-        if (navigation == null) (header.getChildAt(0) as? android.widget.ImageView)?.apply {
+        if (back) (header.getChildAt(0) as? android.widget.ImageView)?.apply {
             setImageDrawable(HomeVisualIcon.drawable(activity, "back", accent)); imageTintList = null
             background = RippleDrawable(ColorStateList.valueOf(selected), null, shape(Color.WHITE))
         }
@@ -150,10 +160,7 @@ internal class TaskProductVisualStyle(val context: Context) {
         val actions = BeanActionRows(activity)
         shell.addView(actions, LinearLayout.LayoutParams(-1, -2))
         body.tag = BeanPageRegions(actions, header)
-        TaskPageFrame.install(activity, root, this)
-        activity.window.statusBarColor = page; activity.window.navigationBarColor = surface
-        activity.setContentView(root)
-        return body
+        return root to body
     }
     fun styleHeader(view: View) {
         if (view is Button) button(view)

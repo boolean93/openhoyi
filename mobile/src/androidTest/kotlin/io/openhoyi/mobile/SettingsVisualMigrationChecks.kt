@@ -65,8 +65,18 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
     private fun nodes(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
-    private fun field(owner: Any, name: String): Any? = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)
-    private fun write(owner: Any, name: String, value: Any?) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(owner, value)
+    private fun appPage(activity: MainActivity) =
+        MainPageTestHost(test,activity).active("root:SETTINGS") as AppSettingsFragment
+    private fun field(owner: Any, name: String): Any? {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        return target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
+    }
+    private fun write(owner: Any, name: String, value: Any?) {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
+    }
     private fun sha(file: File): String = file.inputStream().use { input ->
         val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(8192)
         while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
@@ -394,7 +404,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                                 check(parentField("owner")==null && parentField("bound")==false && parentField("visible")==false &&
                                     !(parentField("handler") as Handler).hasCallbacks(parentField("refresh") as Runnable)) {"M8 ScaleOwner binding/refresh survived destruction"}
                             }
-                            tracked.filter {it is AppSettingsActivity || it is MachineSettingsActivity}.forEach {activity->
+                            tracked.filter {it is MainActivity || it is MachineSettingsActivity}.forEach {activity->
                                 check(field(activity,"service")==null && field(activity,"bound")==false) {"M8 settings binding survived destruction"}
                                 if(activity is MachineSettingsActivity)check(field(activity,"visible")==false && !(field(activity,"handler") as Handler).hasCallbacks(field(activity,"refresh") as Runnable))
                             }
@@ -447,8 +457,10 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 }
                 check(sampleFailures.isEmpty()) { "Scoped sample writer failed" }
                 main {check((field(feedback,"observers") as Map<*,*>).isEmpty())}
-                main {tracked.filterIsInstance<AppSettingsActivity>().forEach {activity->
-                    val card=activity.feedbackCard;val audio=field(card,"audioOwner") as Lazy<*>
+                main {tracked.filterIsInstance<MainActivity>().forEach {activity->
+                    val settings=activity.supportFragmentManager.findFragmentByTag("root:SETTINGS") as? AppSettingsFragment
+                        ?: return@forEach
+                    val card=requireNotNull(field(settings,"feedbackCard"));val audio=field(card,"audioOwner") as Lazy<*>
                     if(audio.isInitialized()) {val owner=audio.value as BrewFeedbackAudio;check(!owner.playing && field(owner,"request")==null && field(owner,"cancel")==null) {"Preview audio/token/cancel survived page destruction"}}
                 }}
                 check(ownedProviderSessions.isEmpty()) {"Owned SAF provider session not removed"}
@@ -576,7 +588,10 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
     }
     private fun ready(activity:Activity)=activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested &&
         !activity.window.decorView.isLayoutRequested && root(activity).width>0 && root(activity).height>0
-    private fun start(type:Class<out Activity>):Activity=test.startActivitySync(Intent(context,type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).also {activity->await("${type.simpleName} real window ready") {ready(activity)}}
+    private fun start(type:Class<out Activity>):Activity {
+        if(type==AppSettingsActivity::class.java) return MainPageTestHost.launch(test,TaskDestination.SETTINGS).activity
+        return test.startActivitySync(Intent(context,type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).also {activity->await("${type.simpleName} real window ready") {ready(activity)}}
+    }
     private fun recreate(activity:Activity):Activity {
         val monitor=test.addMonitor(activity.javaClass.name,null,false)
         try {main {activity.recreate()};return requireNotNull(test.waitForMonitorWithTimeout(monitor,10000)).also {replacement->await("replacement window ready") {ready(replacement)}}}
@@ -653,7 +668,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
     }
     private fun reachability(activity:Activity,folder:File,domain:String="main",subtree:View?=null):JSONObject {
         check(folder.isDirectory || folder.mkdirs())
-        val page=when(activity) {is AppSettingsActivity->"app";is MachineSettingsActivity->"machine";else->"scale"}
+        val page=when(activity) {is MainActivity->"app";is MachineSettingsActivity->"machine";else->"scale"}
         val source=subtree ?: requireNotNull(root(activity).findViewWithTag<ScrollView>("product/settings/$page/scroll"))
         val targets=stableTextTargets(activity,source)
         check(targets.isNotEmpty())
@@ -751,7 +766,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         val owner=dialog.ownerActivity ?: ownerContext as Activity
         check(window.callback===dialog && (dialog.ownerActivity===owner || ownerContext===owner))
         val languageRejected=folder.name=="language-write-rejected"
-        if(languageRejected)check(owner is AppSettingsActivity)
+        if(languageRejected)check(owner is MainActivity)
         val frame=if(languageRejected)
             frames.screenshotMeasuredWindowBufferTranslation(window,window.decorView,File(folder,"window.png")) {
                 dialogGeometry(window,dialog,owner)
@@ -834,24 +849,24 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         await("unique real native dialog focused/laid out") {found=focusedDialog(activity);found!=null && !requireNotNull(found?.window).decorView.isLayoutRequested}
         return requireNotNull(found)
     }
-    private fun languageCard(activity:AppSettingsActivity)=field(activity,"languageCard") as AppLanguagePreferencesCard
-    private fun chooseLanguage(activity:AppSettingsActivity,language:AppLanguage):AppSettingsActivity {
+    private fun languageCard(activity:MainActivity)=field(activity,"languageCard") as AppLanguagePreferencesCard
+    private fun chooseLanguage(activity:MainActivity,language:AppLanguage):MainActivity {
         click(activity,"product/settings/app/language/current")
         val chooser=requireNotNull(languageCard(activity).dialog)
         await("native language chooser ready") {chooser.isShowing && requireNotNull(chooser.window).decorView.hasWindowFocus() && chooser.listView.isLaidOut}
         val index=AppLanguage.entries.indexOf(language)
         val changes=app.languagePreferences.current!=language
-        val monitor=test.addMonitor(AppSettingsActivity::class.java.name,null,false)
+        val monitor=test.addMonitor(MainActivity::class.java.name,null,false)
         try {
             main {chooser.listView.setSelection(index)};frames.committedFrame(requireNotNull(chooser.window).decorView)
             main {val row=chooser.listView.getChildAt(index-chooser.listView.firstVisiblePosition);check(row!=null && whole(observation(row)) && row.height>=HoyiUi.dp(activity,52));check(chooser.listView.performItemClick(row,index,chooser.listView.adapter.getItemId(index)))}
             return if(changes)requireNotNull(test.waitForMonitorWithTimeout(monitor,10000)).let {replacement->
                 await("selected language real recreated context") {ready(replacement) && app.languagePreferences.current==language && replacement.resources.configuration.locales[0].language==language.locale.language}
-                replacement as AppSettingsActivity
+                replacement as MainActivity
             } else activity.also {await("unchanged language dialog dismissed") {!chooser.isShowing && ready(activity)}}
         } finally {test.removeMonitor(monitor)}
     }
-    private fun appExport(scope:Scope,activity:AppSettingsActivity,folder:File) {
+    private fun appExport(scope:Scope,activity:MainActivity,folder:File) {
         check(context.checkSelfPermission(CurveFixtureProvider.PERMISSION)==android.content.pm.PackageManager.PERMISSION_GRANTED)
         check(context.packageManager.checkSignatures(context.packageName,test.context.packageName)==android.content.pm.PackageManager.SIGNATURE_MATCH)
         val session=UUID.randomUUID().toString();val base=android.net.Uri.parse("content://${CurveFixtureProvider.AUTHORITY}")
@@ -891,17 +906,17 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         } finally {provider("cleanup");check(ownedProviderSessions.remove(session));providerLifecycle.put(JSONObject().put("session",session).put("operation","owned_provider_cleanup_returned"))}
         check(folder.isDirectory || folder.mkdirs());File(folder,"saf-business.json").writeText(JSONObject().put("cases",result).put("providerSession",session).put("providerSessionRemoved",!ownedProviderSessions.contains(session)).toString(2))
     }
-    private fun appSpecials(scope:Scope,initial:AppSettingsActivity,folder:File):JSONArray {
+    private fun appSpecials(scope:Scope,initial:MainActivity,folder:File):JSONArray {
         var activity=initial;val cases=JSONArray()
         fun state(name:String) {capture(activity,File(folder,name));cases.put(JSONObject().put("case",name).put("acceptanceStatus","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE"))}
         val stored=context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",false)
-        val writer=activity.appearanceWrite
+        val writer=appPage(activity).appearanceWrite
         try {
-            main {activity.appearanceWrite={false}}
+            main {appPage(activity).appearanceWrite={false}}
             click(activity,"product/settings/app/theme/toggle")
-            main {check(activity.themeCheckBox.isChecked==stored && activity.themeError.text.isNotEmpty() && context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",false)==stored)}
+            main {check(appPage(activity).themeCheckBox.isChecked==stored && appPage(activity).themeError.text.isNotEmpty() && context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",false)==stored)}
             state("theme-write-rejected")
-        } finally {main {activity.appearanceWrite=writer}}
+        } finally {main {appPage(activity).appearanceWrite=writer}}
         main {scope.rejectLanguageWrites=true}
         click(activity,"product/settings/app/language/current")
         val chooser=requireNotNull(languageCard(activity).dialog)
@@ -923,13 +938,13 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         }
         main {scope.rejectFeedbackWrites=true}
         click(activity,"product/settings/app/feedback/toggle")
-        main {check(!scope.feedback.enabled && !activity.feedbackCard.enabledSwitch.isChecked)
+        main {check(!scope.feedback.enabled && !(requireNotNull(field(activity,"feedbackCard")) as BrewFeedbackPreferencesCard).enabledSwitch.isChecked)
             val error=tagged(activity,"product/settings/app/feedback/error") as TextView
             check(error.isShown && error.text.toString()==activity.getString(R.string.feedback_save_failed))};state("feedback-write-rejected")
         main {scope.rejectFeedbackWrites=false}
         click(activity,"product/settings/app/feedback/toggle");main {check(scope.feedback.enabled)}
         click(activity,"product/settings/app/feedback/preview")
-        val card=activity.feedbackCard
+        val card=requireNotNull(field(activity,"feedbackCard")) as BrewFeedbackPreferencesCard
         main {val lazy=field(card,"audioOwner") as Lazy<*>;check(lazy.isInitialized() && (lazy.value as BrewFeedbackAudio).playing)}
         main {val preview=tagged(activity,"product/settings/app/feedback/preview");check(whole(observation(preview)) && preview.isEnabled && preview.isClickable);check(preview.performClick());check(!((field(card,"audioOwner") as Lazy<*>).value as BrewFeedbackAudio).playing)}
         state("feedback-preview-start-stop")
@@ -945,9 +960,9 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         appExport(scope,activity,folder)
         listOf("saf-cancel","saf-failure","saf-owned-success").forEach {cases.put(JSONObject().put("case",it).put("acceptanceStatus","PASS_BUSINESS_ONLY_NOT_VISUAL_ACCEPTANCE"))}
         // Successful theme selection uses the real preference/recreate path after the rejection contract.
-        val themeMonitor=test.addMonitor(AppSettingsActivity::class.java.name,null,false)
-        try {click(activity,"product/settings/app/theme/toggle");activity=requireNotNull(test.waitForMonitorWithTimeout(themeMonitor,10000)) as AppSettingsActivity;await("theme recreated actual window") {ready(activity)}
-            main {check(activity.themeCheckBox.isChecked==!stored && context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",stored)==!stored)}
+        val themeMonitor=test.addMonitor(MainActivity::class.java.name,null,false)
+        try {click(activity,"product/settings/app/theme/toggle");activity=requireNotNull(test.waitForMonitorWithTimeout(themeMonitor,10000)) as MainActivity;await("theme recreated actual window") {ready(activity)}
+            main {check(appPage(activity).themeCheckBox.isChecked==!stored && context.getSharedPreferences("appearance",Context.MODE_PRIVATE).getBoolean("dark",stored)==!stored)}
             state("theme-success-recreated")
         } finally {test.removeMonitor(themeMonitor)}
         cases.put(JSONObject().put("case","hardware-audio-output").put("acceptanceStatus","PENDING_PHYSICAL_AUDIO_OUTPUT_NOT_INFERRED_FROM_PLAYER"))
@@ -1049,10 +1064,10 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         main {check((tagged(activity,"product/settings/scale/precision") as android.widget.Switch).isChecked);check((field(activity,"capabilities") as TextView).text.toString()==activity.getString(R.string.scale_capability_no_device))}
         capture(activity,File(folder,"precision-recreated"));reachability(activity,File(folder,"all-instructions"),"all-instructions")
         cases.put(JSONObject().put("case","precision-recreated").put("acceptanceStatus","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE"))
-        val monitor=test.addMonitor(ScaleActivity::class.java.name,null,false)
+        val monitor=test.addMonitor(MainActivity::class.java.name,null,false)
         try {
             main {activity.startActivity(Intent(activity,ScaleActivity::class.java))}
-            val scale=requireNotNull(test.waitForMonitorWithTimeout(monitor,10000)) as ScaleActivity
+            val scale=requireNotNull(test.waitForMonitorWithTimeout(monitor,10000)) as MainActivity
             await("actual no-service scale page ready") {ready(scale)}
             main {check((field(scale,"weight") as TextView).text.toString()=="—" && context.getSharedPreferences("scale_tool",Context.MODE_PRIVATE).getBoolean("one_decimal",false) && services().isEmpty())}
             capture(scale,File(folder,"real-scale-no-data"))
@@ -1101,10 +1116,10 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 check(window.getDouble("fontScale").toFloat()==scale && window.getString("uiModeNightMeaning")==theme && window.getInt("densityDpi")==360 && window.getString("locale").startsWith("zh") && !window.getBoolean("imeVisible"))
                 check(MobileMonotonicClock.mockOwnerIdentity()==null)
                 when(activity) {
-                    is AppSettingsActivity -> {
+                    is MainActivity -> {
                         check((tagged(activity,"product/settings/app/info/package/value") as TextView).text.toString()==BuildConfig.APPLICATION_ID)
                         check((tagged(activity,"product/settings/app/info/mode/value") as TextView).text.toString()==activity.getString(R.string.application_mode_mock))
-                        check(!(field(activity.feedbackCard,"audioOwner") as Lazy<*>).isInitialized()) {"Main screenshot started preview audio"}
+                        check(!(field(requireNotNull(field(activity,"feedbackCard")),"audioOwner") as Lazy<*>).isInitialized()) {"Main screenshot started preview audio"}
                     }
                     is MachineSettingsActivity -> {
                         val pageScroll=requireNotNull(activity.findViewById<ScrollView>(R.id.m8_settings_scroll))
@@ -1120,7 +1135,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
             reachability(activity,File(directory,"main-reachability"))
             val specialFolder=File(directory,"special-states").apply {check(isDirectory || mkdirs())}
             val cases=when(activity) {
-                is AppSettingsActivity->appSpecials(active,activity,specialFolder)
+                is MainActivity->appSpecials(active,activity,specialFolder)
                 is MachineSettingsActivity->machineSpecials(active,activity,specialFolder)
                 is ScaleSettingsActivity->scaleSpecials(activity,specialFolder)
                 else->error("Unexpected real M8 Activity")

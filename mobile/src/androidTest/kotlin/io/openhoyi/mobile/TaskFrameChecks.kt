@@ -202,11 +202,28 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 } ?: error("No captured share fixture") else null
                 val shareDocument = shareSource?.let(CustomCurveDocument::fromLibraryItem)
                 val shareBefore = if (shareSource != null) app.customCurvesResult.getOrThrow().list() else null
-                val intent = Intent(test.targetContext, page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                val rootDestination = when (page) {
+                    HomeActivity::class.java, ExtractionActivity::class.java -> TaskDestination.BREW
+                    CurveActivity::class.java -> TaskDestination.CURVES
+                    HistoryActivity::class.java -> TaskDestination.HISTORY
+                    BeanInventoryActivity::class.java -> TaskDestination.BEANS
+                    ScaleActivity::class.java -> TaskDestination.SCALE
+                    AppSettingsActivity::class.java -> TaskDestination.SETTINGS
+                    else -> null
+                }
+                val intent = Intent(test.targetContext, if (rootDestination == null) page else MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                rootDestination?.let { intent.putExtra(MainActivity.EXTRA_INITIAL_DESTINATION, it.name) }
+                if (page == ExtractionActivity::class.java) intent.putExtra(MainActivity.EXTRA_OPEN_EXTRACTION, true)
                 shareSource?.let { intent.putExtra(CurveShareActivity.CURVE_ID, it.id) }
                 previewDocument?.let { intent.putExtra(CurveImportPreviewActivity.DOCUMENT, it.encode()) }
                 val activity = test.startActivitySync(intent)
                 try {
+                    if (rootDestination != null) {
+                        check(activity is MainActivity) { "${page.simpleName} did not open the real host" }
+                        val tag = if (page == ExtractionActivity::class.java) "extraction" else "root:${rootDestination.name}"
+                        MainPageTestHost(test, activity).active(tag)
+                    }
                     val deadline = SystemClock.elapsedRealtime() + 10000
                     while (true) {
                         var ready = false
@@ -244,7 +261,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                             check(targets.drop(4).map { it.tag } == TaskNavigationModel.tools.map { "task-nav:${it.name}" })
                             check(targets.drop(4).all { it.isShown })
                         }
-                        if (activity is AppSettingsActivity && frame.toolsInTopBar) {
+                        if (appSettingsPage(activity) && frame.toolsInTopBar) {
                             // The original settings page scrolls. Its global tool entry must not.
                             descendants(frame.pageContent).filterIsInstance<android.widget.ScrollView>().forEach { scroll ->
                                 val maximum = (scroll.getChildAt(0).height - scroll.height + scroll.paddingTop + scroll.paddingBottom).coerceAtLeast(0)
@@ -323,7 +340,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                         File(directory, "import-preview-fixture.txt").writeText(
                             "validDocument=true stages=4 conflict=false saveNotInvoked=true storeUnchanged=true noBle=true\n")
                     }
-                    if (activity is AppSettingsActivity || activity is ScaleSettingsActivity || activity is MachineSettingsActivity) verifySettingsScroll(activity, directory)
+                    if (appSettingsPage(activity) || activity is ScaleSettingsActivity || activity is MachineSettingsActivity) verifySettingsScroll(activity, directory)
                 } finally {
                     test.runOnMainSync { activity.finish() }
                     test.waitForIdleSync()
@@ -349,11 +366,13 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
         }
     }
 
+    private fun appSettingsPage(activity: Activity) = activity is MainActivity &&
+        activity.supportFragmentManager.primaryNavigationFragment is AppSettingsFragment
+
     private fun verifyRoutesAndFocus() {
-        val home = test.startActivitySync(Intent(test.targetContext, HomeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
+        val host = MainPageTestHost.launch(test)
+        val home = host.activity
         try {
-            test.waitForIdleSync()
             test.runOnMainSync {
                 val frame = descendants(home.window.decorView).filterIsInstance<TaskPageFrame>().single()
                 if (frame.mode == TaskNavigationMode.RAIL) {
@@ -361,7 +380,6 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                     frame.pageContent.addView(input)
                     input.requestFocus()
                     check(input.hasFocus())
-                    // Simulate the measured height reduction caused by IME without changing window width.
                     frame.measure(View.MeasureSpec.makeMeasureSpec(frame.width, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(HoyiUi.dp(home, 200), View.MeasureSpec.EXACTLY))
                     check(input.hasFocus()) { "Moving tools to header cleared input focus" }
@@ -370,62 +388,40 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 }
             }
             test.waitForIdleSync()
-            val routes = listOf(
-                TaskDestination.CURVES to CurveActivity::class.java,
-                TaskDestination.HISTORY to HistoryActivity::class.java,
-                TaskDestination.BEANS to BeanInventoryActivity::class.java,
-                TaskDestination.SCALE to ScaleActivity::class.java,
-                TaskDestination.SETTINGS to AppSettingsActivity::class.java
-            )
-            for ((destination, target) in routes) {
-                val monitor = test.addMonitor(target.name, null, false)
-                try {
-                    var popup = false
-                    test.runOnMainSync {
-                        val all = descendants(home.window.decorView)
-                        val direct = all.singleOrNull { it.tag == "task-nav:${destination.name}" && it.isShown }
-                        if (direct != null) check(direct.performClick()) else {
-                            check(all.single { it.tag == "task-tools-menu" && it.isShown }.performClick())
-                            popup = true
-                        }
+            for (destination in TaskDestination.entries.filter { it != TaskDestination.BREW }) {
+                var popup = false
+                test.runOnMainSync {
+                    val all = descendants(home.window.decorView)
+                    val direct = all.singleOrNull { it.tag == "task-nav:${destination.name}" && it.isShown }
+                    if (direct != null) check(direct.performClick()) else {
+                        check(all.single { it.tag == "task-tools-menu" && it.isShown }.performClick())
+                        popup = true
                     }
-                    if (popup) {
-                        val label = home.getString(if (destination == TaskDestination.SCALE) R.string.scale_title else R.string.ui_settings)
-                        val deadline = SystemClock.elapsedRealtime() + 5000
-                        var clicked = false
-                        while (!clicked && SystemClock.elapsedRealtime() < deadline) {
-                            val root = test.uiAutomation.rootInActiveWindow
-                            val nodes = root?.findAccessibilityNodeInfosByText(label).orEmpty()
-                            for (node in nodes) {
-                                var candidate: AccessibilityNodeInfo? = node
-                                while (candidate != null && !candidate.isClickable) candidate = candidate.parent
-                                if (candidate?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) { clicked = true; break }
-                            }
-                            if (!clicked) SystemClock.sleep(50)
+                }
+                if (popup) {
+                    val label = home.getString(if (destination == TaskDestination.SCALE) R.string.scale_title else R.string.ui_settings)
+                    val deadline = SystemClock.elapsedRealtime() + 5000
+                    var clicked = false
+                    while (!clicked && SystemClock.elapsedRealtime() < deadline) {
+                        val root = test.uiAutomation.rootInActiveWindow
+                        for (node in root?.findAccessibilityNodeInfosByText(label).orEmpty()) {
+                            var candidate: AccessibilityNodeInfo? = node
+                            while (candidate != null && !candidate.isClickable) candidate = candidate.parent
+                            if (candidate?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) { clicked = true; break }
                         }
-                        check(clicked) { "Tool menu missing $label" }
+                        if (!clicked) SystemClock.sleep(50)
                     }
-                    val opened = test.waitForMonitorWithTimeout(monitor, 10000)
-                        ?: error("Navigation did not open ${target.simpleName}")
-                    test.runOnMainSync { opened.finish() }
-                    test.waitForIdleSync()
-                } finally { test.removeMonitor(monitor) }
+                    check(clicked) { "Tool menu missing $label" }
+                }
+                test.waitForIdleSync()
+                host.active("root:${destination.name}")
+                check(!home.isFinishing) { "Tab navigation finished MainActivity" }
             }
-            // Return to the top-level brew page through the actual selected main destination.
-            test.runOnMainSync { home.finish() }
+            test.runOnMainSync {
+                check(descendants(home.window.decorView).single { it.tag == "task-nav:BREW" }.performClick())
+            }
             test.waitForIdleSync()
-            val curve = test.startActivitySync(Intent(test.targetContext, CurveActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            val monitor = test.addMonitor(HomeActivity::class.java.name, null, false)
-            try {
-                test.runOnMainSync { descendants(curve.window.decorView).single { it.tag == "task-nav:BREW" }.performClick() }
-                val returned = test.waitForMonitorWithTimeout(monitor, 10000)
-                check(returned is HomeActivity)
-                test.runOnMainSync { returned.finish() }
-            } finally {
-                test.removeMonitor(monitor)
-                test.runOnMainSync { curve.finish() }
-            }
+            host.active("root:BREW")
         } finally { test.runOnMainSync { home.finish() }; test.waitForIdleSync() }
     }
 }

@@ -19,6 +19,7 @@ on_error() {
   adb pull "/sdcard/Android/data/$package/files/idle-accessibility-diagnostic" "$output_dir/" || true
   adb shell settings put system font_scale 1.0 || true
   adb shell wm size 1600x1000 || true
+  adb shell wm density 200 || true
   exit "$status"
 }
 trap on_error ERR
@@ -29,9 +30,11 @@ run_instrumentation() {
 from pathlib import Path
 import subprocess,sys
 output,mode=sys.argv[1:]
-if mode not in ("audio", "language", "pagesLandscape", "pagesWideFont", "idle"):
+if mode not in ("audio", "language", "pagesLandscape", "pagesWideFont", "idle", "navigation"):
     raise SystemExit("Unsupported Mock instrumentation mode")
 command=["adb", "shell", "am", "instrument", "-w"]
+if mode == "navigation":
+    command += ["-e", "mainNavigationChecks", "true"]
 if mode == "idle":
     command += ["-e", "idleEvents", "true"]
 if mode == "language":
@@ -85,45 +88,39 @@ grep -F 'IDLE_ACCESSIBILITY_DIAGNOSTIC_DONE' "$output_dir/idle-accessibility.txt
 adb shell am force-stop "$package"
 adb shell run-as "$package" rm -f shared_prefs/appearance.xml
 adb logcat -c
-adb shell am start -W -n "$package/io.openhoyi.mobile.HomeActivity"
-assert_activity HomeActivity
+adb shell am start -W -n "$package/io.openhoyi.mobile.MainActivity"
+assert_activity MainActivity
 sleep 3
 assert_edges 1 1
 
-# Framework navigation order must not hide the app on readers that have no service binding.
+# The native check asserts active Fragment tags and a single retained host across all six tabs.
+adb shell wm size 1440x720
+adb shell wm density 320
+run_instrumentation "$output_dir/main-navigation.txt" navigation
+grep -F 'MAIN_NAVIGATION_CHECKS_PASSED rounds=20 tabs=6 singleHost=true curveFilterRetained=true serviceContinuous=true manualShell=true noBle=true' "$output_dir/main-navigation.txt" >/dev/null
+adb shell wm size 1600x1000
+adb shell wm density 200
+adb shell am force-stop "$package"
+adb logcat -c
+adb shell am start -W -n "$package/io.openhoyi.mobile.MainActivity"
+assert_activity MainActivity
+sleep 3
+assert_edges 1 1
 tap_control() { python3 scripts/mock_ui_tap.py "$1" --scroll; sleep 2; }
-for item in '曲线 CurveActivity' '历史 HistoryActivity' '豆子 BeanInventoryActivity' '冲煮 HomeActivity'; do
-  read -r label page <<< "$item"
+for label in '曲线' '历史' '豆子' '电子秤' '设置' '冲煮'; do
   tap_control "$label"
-  assert_activity "$page"
+  assert_activity MainActivity
   assert_edges 1 1
 done
-tap_control '查看准备详情 ›'
-tap_control '实时萃取'
-assert_activity ExtractionActivity
-assert_edges 1 1
-# Brew is already selected in Extraction: selecting it must not leave an active cup.
-# Return through the original Activity back stack, retaining the lifecycle assertions.
-adb shell input keyevent KEYCODE_BACK
-assert_activity HomeActivity
-tap_control '查看准备详情 ›'
-tap_control '应用设置'
-assert_activity AppSettingsActivity
-assert_edges 1 1
-tap_control '机器设置'
-assert_activity MachineSettingsActivity
-assert_edges 1 1
-tap_control '冲煮'
-tap_control '查看准备详情 ›'
-tap_control '应用设置'
-assert_activity AppSettingsActivity
+tap_control '设置'
+assert_activity MainActivity
 assert_edges 1 1
 
 # The application theme checkbox calls Activity.recreate(). Require a NEW config-stop callback.
 cp "$output_dir/lifecycle.txt" "$output_dir/before-theme-switch.txt"
 tap_control '深色主题'
 sleep 3
-assert_activity AppSettingsActivity
+assert_activity MainActivity
 adb shell run-as "$package" cat shared_prefs/appearance.xml > "$output_dir/appearance.xml"
 grep 'name="dark" value="true"' "$output_dir/appearance.xml" >/dev/null
 assert_edges 1 1
@@ -131,7 +128,7 @@ python3 - "$output_dir" <<'PYCODE'
 from pathlib import Path
 import json,sys
 root=Path(sys.argv[1])
-marker="recreating:AppSettingsActivity"
+marker="recreating:MainActivity"
 before=(root/"before-theme-switch.txt").read_text().splitlines().count(marker)
 after=(root/"lifecycle.txt").read_text().splitlines().count(marker)
 if after<=before:
@@ -155,20 +152,20 @@ python3 - "$output_dir" <<'PYCODE'
 from pathlib import Path
 import json,sys
 root=Path(sys.argv[1])
-marker="destroyed:AppSettingsActivity:configuration"
+marker="destroyed:MainActivity:configuration"
 before=(root/"before-background-resize.txt").read_text().splitlines().count(marker)
 after=(root/"after-background-resize.txt").read_text().splitlines().count(marker)
 # Android may defer stopped-activity relaunch. Record this limit instead of claiming that path ran.
 (root/"background-resize.json").write_text(json.dumps({"settingsConfigurationDestroyObservedWhileBackground":after>before})+"\n")
 PYCODE
-adb shell am start -W -n "$package/io.openhoyi.mobile.HomeActivity"
+adb shell am start -W -n "$package/io.openhoyi.mobile.MainActivity"
 # Bringing an existing launcher task forward resumes its top page, not its root.
 # Require that page to be retained, then explicitly navigate back to brewing.
-assert_activity AppSettingsActivity
+assert_activity MainActivity
 sleep 3
 assert_edges 2 2
 tap_control '冲煮'
-assert_activity HomeActivity
+assert_activity MainActivity
 assert_edges 2 2
 adb shell input keyevent KEYCODE_HOME
 sleep 3

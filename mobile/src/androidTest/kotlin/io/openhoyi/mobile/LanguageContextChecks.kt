@@ -22,14 +22,13 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
             Thread.sleep(50)
         }
     }
-    private fun service(home: HomeActivity): MobileService? = HomeActivity::class.java
-        .getDeclaredField("service").apply { isAccessible = true }.get(home) as? MobileService
+    private fun service(home: MainActivity): MobileService? = home.currentService
     private fun containsText(view: View, text: String): Boolean {
         if (view is TextView && view.text.toString() == text && view.isShown &&
             view.getGlobalVisibleRect(android.graphics.Rect())) return true
         return view is ViewGroup && (0 until view.childCount).any { containsText(view.getChildAt(it), text) }
     }
-    fun run(): HomeActivity {
+    fun run(): MainActivity {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
         val oldLanguage = app.languagePreferences.current
@@ -37,8 +36,7 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
         val oldLanguageStorage = languagePrefs.all.toMap()
         val appearance = context.getSharedPreferences("appearance", Context.MODE_PRIVATE)
         val oldAppearance = appearance.all.toMap()
-        var home = test.startActivitySync(Intent(context, HomeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
+        var home = MainPageTestHost.launch(test).activity
         test.waitForIdleSync()
         awaitMain { service(home)?.running == true }
         var owner: MobileService? = null
@@ -47,10 +45,10 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
         val preserved = listOf("devices", "curves", "presets", "shot_safety", "machine_write_safety", "shot_history")
             .associateWith { context.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         fun rebuild() {
-            val monitor = test.addMonitor(HomeActivity::class.java.name, null, false)
+            val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
             try {
                 test.runOnMainSync { home.recreate() }
-                home = test.waitForMonitorWithTimeout(monitor, 10000) as? HomeActivity
+                home = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity
                     ?: error("Language Home recreation not observed")
                 test.waitForIdleSync()
                 awaitMain { service(home) != null }

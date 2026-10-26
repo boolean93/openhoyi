@@ -37,12 +37,20 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
             throw failure
         }
     }
+    private fun page(activity: MainActivity): androidx.fragment.app.Fragment =
+        requireNotNull(activity.supportFragmentManager.primaryNavigationFragment).also {
+            check(it.isVisible && !it.isHidden && it.view?.isAttachedToWindow == true)
+        }
     private fun field(owner: Any, name: String) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }
-    private fun invoke(owner: Any, name: String) = owner.javaClass.getDeclaredMethod(name).apply { isAccessible = true }.invoke(owner)
-    private fun successfulFooterGeometry(activity: CurveActivity, fixture: String): String {
+    private fun value(owner: MainActivity, name: String): Any? =
+        if (name == "service") owner.currentService else field(page(owner), name).get(page(owner))
+    private fun invoke(owner: MainActivity, name: String) = page(owner).let {
+        it.javaClass.getDeclaredMethod(name).apply { isAccessible = true }.invoke(it)
+    }
+    private fun successfulFooterGeometry(activity: MainActivity, fixture: String): String {
         check(activity.hasWindowFocus()) { "$fixture footer capture is not the foreground window" }
-        val select = field(activity, "select").get(activity) as Button
-        val parameter = field(activity, "parameterShortcut").get(activity) as Button
+        val select = value(activity, "select") as Button
+        val parameter = value(activity, "parameterShortcut") as Button
         val footer = select.parent as LinearLayout
         val window = Rect()
         activity.window.decorView.getWindowVisibleDisplayFrame(window)
@@ -69,7 +77,7 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
             "density=${activity.resources.configuration.densityDpi} " +
             "screenDp=${activity.resources.configuration.screenWidthDp}x${activity.resources.configuration.screenHeightDp}\n$actions\n"
     }
-    private fun captureSuccessfulFooterWindow(activity: CurveActivity, fixture: String, kind: String) {
+    private fun captureSuccessfulFooterWindow(activity: MainActivity, fixture: String, kind: String) {
         val drawn = java.util.concurrent.CountDownLatch(1)
         onMain { activity.window.decorView.postOnAnimation {
             activity.window.decorView.postOnAnimation { drawn.countDown() }
@@ -109,7 +117,7 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
         }
         failure?.let { throw it }
     }
-    fun curves(activity: CurveActivity, fixture: String, checkLayout: (String) -> Unit) {
+    fun curves(activity: MainActivity, fixture: String, checkLayout: (String) -> Unit) {
         check(BuildConfig.MOCK_MODE && activity.packageName == "io.openhoyi.mobile.mock")
         val library = (activity.application as MobileApplication).curves
         val display = CurveDetailsText(activity)
@@ -121,30 +129,30 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
         val fourStage = CurveFooterFixtures.fourStage(library)
         val unavailable = CurveLibraryItem("language-readonly-fixture", "Read-only UI fixture", "其它",
             activity.getString(R.string.curve_unavailable), null)
-        val show = CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java).apply { isAccessible = true }
+        val show = CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java).apply { isAccessible = true }
         for ((kind, item) in listOf("longFactory" to factory, "captured" to captured, "unavailable" to unavailable,
             "noPressure" to noPressure, "fourStage" to fourStage)) {
-            onMain { show.invoke(activity, item) }
+            onMain { show.invoke(page(activity), item) }
             test.waitForIdleSync()
             checkLayout("$fixture detail=$kind")
             captureFailure(activity, "$fixture detail=$kind") { onMain {
-                val details = field(activity, "details").get(activity) as TextView
-                val availability = field(activity, "availability").get(activity) as TextView
-                val select = field(activity, "select").get(activity) as Button
-                val scroll = field(activity, "detailScroll").get(activity) as ScrollView
+                val details = value(activity, "details") as TextView
+                val availability = value(activity, "availability") as TextView
+                val select = value(activity, "select") as Button
+                val scroll = value(activity, "detailScroll") as ScrollView
                 val allowed = library.canStart(item)
                 check(details.text.toString() == display.render(item, allowed))
                 check(availability.text.toString() == activity.getString(if (allowed) R.string.curve_verified else R.string.curve_unavailable))
                 check(select.isEnabled == allowed && select.text.toString() == activity.getString(if (allowed) R.string.curve_use else R.string.curve_cannot_start))
-                val chart = field(activity, "stageChart").get(activity) as CurveStageView
+                val chart = value(activity, "stageChart") as CurveStageView
                 if (chart.isShown) {
                     check(chart.targets == CurveStageParameters.pressureTargets(item) && chart.height >= HoyiUi.dp(activity, 96)) {
                         "$fixture detail=$kind unusable or incorrect pressure schematic"
                     }
                     check(scroll.isShown && scroll.height > 0)
                 } else {
-                    val fallback = field(activity, "previewFallbackScroll").get(activity) as ScrollView
-                    val text = field(activity, "previewFallback").get(activity) as TextView
+                    val fallback = value(activity, "previewFallbackScroll") as ScrollView
+                    val text = value(activity, "previewFallback") as TextView
                     check(fallback.isShown && fallback.height > 0 && text.text.isNotBlank()) {
                         "$fixture detail=$kind missing explicit preview fallback"
                     }
@@ -167,7 +175,7 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                         "parent=${(select.parent as View).width}x${(select.parent as View).height}"
                 }
                 LanguageUiLayoutChecks.textFits(select, "$fixture detail=$kind")
-                val parameter = field(activity, "parameterShortcut").get(activity) as Button
+                val parameter = value(activity, "parameterShortcut") as Button
                 val footer = select.parent as LinearLayout
                 val geometry = listOf(parameter, select).joinToString("\n") { action ->
                     val bounds = Rect()
@@ -203,9 +211,9 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
             }
         }
     }
-    fun warnings(home: HomeActivity, fixture: String, checkLayout: (String) -> Unit) {
+    fun warnings(home: MainActivity, fixture: String, checkLayout: (String) -> Unit) {
         check(BuildConfig.MOCK_MODE && home.packageName == "io.openhoyi.mobile.mock")
-        val service = field(home, "service").get(home) as MobileService
+        val service = value(home, "service") as MobileService
         onMain { check(field(service, "hub").get(service) == null && field(service, "mock").get(service) != null) }
         val resource = field(service, "manualSafetyResource")
         val original = resource.get(service)
@@ -217,12 +225,12 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                 test.waitForIdleSync()
                 checkLayout("$fixture warning=$id")
                 onMain {
-                    val warning = field(home, "safetyWarning").get(home) as TextView
+                    val warning = value(home, "safetyWarning") as TextView
                     check(warning.isShown && warning.text.toString() == home.getString(id)) {
                         "$fixture warning=$id expected=${home.getString(id)} actual=${warning.text} " +
                             "shown=${warning.isShown} visibility=${warning.visibility} " +
                             "attached=${warning.isAttachedToWindow} homeFocus=${home.hasWindowFocus()} " +
-                            "homeDestroyed=${home.isDestroyed} sameService=${field(home, "service").get(home) === service} " +
+                            "homeDestroyed=${home.isDestroyed} sameService=${value(home, "service") === service} " +
                             "manualResource=${resource.get(service)} shot=${service.shotState} coffee=${service.snapshot.coffeeState} " +
                             "safetyResource=${ShotSafetyAlert.resource(service.shotState, service.snapshot.coffeeState)}"
                     }
@@ -232,9 +240,9 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
             }
         }, { onMain { resource.set(service, original); invoke(home, "render") } })
     }
-    fun cancelStart(activity: ExtractionActivity, fixture: String) {
+    fun cancelStart(activity: MainActivity, fixture: String) {
         check(BuildConfig.MOCK_MODE && activity.packageName == "io.openhoyi.mobile.mock")
-        val service = field(activity, "service").get(activity) as MobileService
+        val service = value(activity, "service") as MobileService
         onMain { check(field(service, "hub").get(service) == null && field(service, "mock").get(service) != null) }
         val prefs = activity.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val original = prefs.all.toMap()

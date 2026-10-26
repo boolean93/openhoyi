@@ -33,7 +33,8 @@ internal class TaskExtractionWorkspace(context: Context, private val visual: Ext
         fun dp(value: Int) = (value * density).toInt()
         val width = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
-        val wide = TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
+        // The live four-metric chart needs the entire time-axis width. Supporting tools scroll below it.
+        val wide = visual == null && TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
             (height / density).toInt()).twoPaneAllowed && width >= dp(624)
         val supportWidth = if (wide) (width * .30f).toInt().coerceIn(dp(280), dp(320)) else width
         footer?.measure(MeasureSpec.makeMeasureSpec(supportWidth, MeasureSpec.EXACTLY),
@@ -41,10 +42,10 @@ internal class TaskExtractionWorkspace(context: Context, private val visual: Ext
         val footerHeight = footer?.measuredHeight ?: 0
         val primaryWidth = if (wide) (width - supportWidth - dp(24)).coerceAtLeast(0) else width
         val freeHeight = (height - if (wide) 0 else footerHeight).coerceAtLeast(0)
-        val toolsMinimum = if (wide) 0 else minOf(dp(48), freeHeight)
+        val toolsMinimum = if (visual != null || wide) 0 else minOf(dp(48), freeHeight)
         val primaryRequired = onPrimarySpaceAvailable?.invoke(primaryWidth, freeHeight - toolsMinimum) ?: 0
-        val toolsHeight = minOf(dp(160), freeHeight / 3, (freeHeight - primaryRequired).coerceAtLeast(0))
-            .coerceAtLeast(toolsMinimum)
+        val toolsHeight = if (visual != null) 0 else
+            minOf(dp(160), freeHeight / 3, (freeHeight - primaryRequired).coerceAtLeast(0)).coerceAtLeast(toolsMinimum)
         orientation = if (wide) HORIZONTAL else VERTICAL
         fun arrange(view: View, wanted: LayoutParams) {
             val current = view.layoutParams as LayoutParams

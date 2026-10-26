@@ -8,7 +8,7 @@ import android.content.Intent
 import android.os.SystemClock
 
 /** Factory checks only: never posts a notification or sends a PendingIntent, and never refreshes BLE. */
-internal class LanguageNotificationChecks(private val test: Instrumentation, private val home: HomeActivity) {
+internal class LanguageNotificationChecks(private val test: Instrumentation, private val home: MainActivity) {
     fun run() {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
@@ -21,7 +21,7 @@ internal class LanguageNotificationChecks(private val test: Instrumentation, pri
         val deadline = SystemClock.elapsedRealtime() + 10000
         while (owner == null) {
             test.runOnMainSync {
-                owner = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }.get(home) as? MobileService
+                owner = home.currentService
             }
             check(owner != null || SystemClock.elapsedRealtime() < deadline) { "Notification factory service unavailable" }
             if (owner == null) Thread.sleep(50)
@@ -63,16 +63,19 @@ internal class LanguageNotificationChecks(private val test: Instrumentation, pri
                 check(direct.channelId == running.channelId && direct.flags == running.flags &&
                     direct.extras.getCharSequence(Notification.EXTRA_TEXT).toString() ==
                         running.extras.getCharSequence(Notification.EXTRA_TEXT).toString())
-                for (destination in listOf(HomeActivity::class.java, ExtractionActivity::class.java))
+                for (openExtraction in listOf(false, true))
                     for (displayOnly in listOf(false, true)) {
-                        val safety = display.safety(warning, destination, "shot_safety", displayOnly)
+                        val safety = display.safety(warning, MainActivity::class.java, "shot_safety", displayOnly, openExtraction)
                         check(safety.channelId == "shot_safety" && safety.category == Notification.CATEGORY_ALARM)
                         check(safety.extras.getCharSequence(Notification.EXTRA_TITLE).toString() == expected.getString(R.string.notification_check_machine))
                         check(safety.extras.getCharSequence(Notification.EXTRA_TEXT).toString() == warning &&
                             safety.extras.getCharSequence(Notification.EXTRA_BIG_TEXT).toString() == warning)
                         check((safety.flags and Notification.FLAG_ONGOING_EVENT) != 0)
                         check(((safety.flags and Notification.FLAG_ONLY_ALERT_ONCE) != 0) == displayOnly)
-                        val expectedOpen = android.app.PendingIntent.getActivity(service, 2, Intent(service, destination),
+                        val expectedIntent = Intent(service, MainActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        if (openExtraction) expectedIntent.putExtra(MainActivity.EXTRA_OPEN_EXTRACTION, true)
+                        val expectedOpen = android.app.PendingIntent.getActivity(service, 2, expectedIntent,
                             android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT)
                         check(safety.contentIntent == expectedOpen && safety.contentIntent.creatorPackage == context.packageName)
                     }

@@ -91,6 +91,7 @@ class ExtractionActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectRoot(TaskDestination.BREW, extraction = true)) return
         referenceId = savedInstanceState?.getString("referenceShotId")
         feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
@@ -265,6 +266,7 @@ class ExtractionActivity : ThemedActivity() {
         render()
     }
     override fun onStart() {
+        if (redirectedRoot) { super.onStart(); return }
         feedbackUi.start()
         super.onStart(); visible = true
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
@@ -272,6 +274,7 @@ class ExtractionActivity : ThemedActivity() {
         if (!BuildConfig.MOCK_MODE) requestSafetyNotificationsOnce()
     }
     override fun onStop() {
+        if (redirectedRoot) { super.onStop(); return }
         feedbackUi.leave(isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         release(); super.onStop()
@@ -337,6 +340,7 @@ class ExtractionActivity : ThemedActivity() {
             .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
     }
     override fun onSaveInstanceState(outState: Bundle) {
+        if (redirectedRoot) { super.onSaveInstanceState(outState); return }
         feedbackUi.save(outState)
         outState.putString("referenceShotId",referenceId)
         super.onSaveInstanceState(outState)

@@ -1,7 +1,6 @@
 package io.openhoyi.mobile
 
 import android.app.Instrumentation
-import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.View
@@ -21,8 +20,8 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
 
     fun run() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
-        val activity = test.startActivitySync(Intent(test.targetContext, ExtractionActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ExtractionActivity
+        val host = MainPageTestHost.launch(test, extraction = true)
+        val activity = host.activity
         try {
             test.waitForIdleSync()
             val directory = File(test.targetContext.getExternalFilesDir(null), "four-metric-chart-checks").apply { mkdirs() }
@@ -39,23 +38,22 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                 }, samples.map { it.copy(elapsedMs = it.elapsedMs * 2) })
             )
             onMain {
-                val actual = ExtractionActivity::class.java.getDeclaredField("chart").apply { isAccessible = true }.get(activity) as View
+                val actual = host.viewField<View>(host.active("extraction"), "chart")
                 check(actual.width > 0 && actual.height > 0)
                 for ((name, points, reference) in cases) {
-                    val probe = ExtractionOverlayView(activity)
+                    val probe = ExtractionOverlayView(activity, ExtractionHistoryVisualStyle(activity))
                     probe.points = points
                     probe.reference = reference
                     probe.measure(View.MeasureSpec.makeMeasureSpec(actual.width, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(actual.height, View.MeasureSpec.EXACTLY))
                     probe.layout(0, 0, actual.width, actual.height)
-                    val expected = if (name == "machine-only") listOf("PRESSURE", "WATER", "TEMPERATURE")
-                        else listOf("PRESSURE", "WATER", "WEIGHT", "TEMPERATURE")
+                    val expected = listOf("PRESSURE", "WATER", "WEIGHT", "TEMPERATURE")
                     val controls = descendants(probe).filter { it.tag?.toString()?.startsWith("chart-metric:") == true }
                     check(controls.map { it.tag } == expected.map { "chart-metric:$it" }) {
                         "$name: expected usable four-metric legend, got ${controls.map { it.tag }}"
                     }
                     for (control in controls) {
-                        check(control.isClickable && control.width >= HoyiUi.dp(activity, 48) && control.height >= HoyiUi.dp(activity, 48))
+                        check(control.width >= HoyiUi.dp(activity, 48) && control.height >= HoyiUi.dp(activity, 48))
                         check(!control.contentDescription.isNullOrBlank())
                         val metric = ChartMetric.valueOf(control.tag.toString().substringAfter(':'))
                         val value = ChartInspection.values(points.last())[metric]
@@ -65,7 +63,11 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                         check((control as android.widget.TextView).text.lineSequence().first().endsWith("$reading ${metric.unit}")) {
                             "$name: legend must show the latest observation, not carry a missing value forward"
                         }
-                        check(control.performClick() && control.isSelected) { "$name: legend cannot focus ${control.tag}" }
+                        if (name == "machine-only" && metric == ChartMetric.WEIGHT) {
+                            check(!control.isEnabled && control.contentDescription.contains(activity.getString(R.string.task_chart_missing_scale))) {
+                                "$name: missing scale reading must remain explicit and cannot focus a nonexistent axis"
+                            }
+                        } else check(control.performClick() && control.isSelected) { "$name: legend cannot focus ${control.tag}" }
                         // Native font weight/selection can request layout; emulate the next real UI frame.
                         probe.measure(View.MeasureSpec.makeMeasureSpec(actual.width, View.MeasureSpec.EXACTLY),
                             View.MeasureSpec.makeMeasureSpec(actual.height, View.MeasureSpec.EXACTLY))
@@ -75,6 +77,27 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                     val bitmap = Bitmap.createBitmap(actual.width, actual.height, Bitmap.Config.ARGB_8888)
                     try {
                         probe.draw(android.graphics.Canvas(bitmap))
+                        val evidence = probe.visualEvidence
+                        val texts = (0 until evidence.length()).map { evidence.getJSONObject(it) }
+                            .filter { it.optString("operation") == "text" }
+                        val unit = texts.single { it.optString("role") == "axis-unit" }
+                        val ticks = texts.filter { it.optString("role") == "axis-tick" }
+                        fun overlaps(a: org.json.JSONObject, b: org.json.JSONObject): Boolean {
+                            val x = a.getJSONArray("glyphBoundsPx"); val y = b.getJSONArray("glyphBoundsPx")
+                            return minOf(x.getDouble(2), y.getDouble(2)) - maxOf(x.getDouble(0), y.getDouble(0)) > 1 &&
+                                minOf(x.getDouble(3), y.getDouble(3)) - maxOf(x.getDouble(1), y.getDouble(1)) > 1
+                        }
+                        check(ticks.none { overlaps(unit, it) }) { "$name: focused axis unit overlaps a tick" }
+                        check(texts.none { it.optString("role") == "time-unit" } &&
+                            texts.any { it.optString("role") == "time-tick" && it.optString("text").endsWith(" s") }) {
+                            "$name: time unit must share the last tick row"
+                        }
+                        if (name == "machine-only") {
+                            check(FourMetricChartProjection.build(points, reference).series.none { it.metric == ChartMetric.WEIGHT })
+                            check((0 until evidence.length()).map { evidence.getJSONObject(it) }.none {
+                                it.optString("operation") == "path" && it.optString("metric") == ChartMetric.WEIGHT.name
+                            }) { "$name: missing weight must have no drawn line" }
+                        }
                         File(directory, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
                 }

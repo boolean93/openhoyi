@@ -350,6 +350,7 @@ class BeanBatchActivity : ThemedActivity() {
             dialog.getButton(which)?.let { style.button(it, primary = which == AlertDialog.BUTTON_POSITIVE,
                 outline = which == AlertDialog.BUTTON_NEGATIVE) }
         }
+        AppDialog.styleShown(dialog)
     }
 }
 

@@ -353,15 +353,14 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         minimumHeight = style.dp(48); minimumWidth = style.dp(48)
         background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(style.selected), null, style.shape(android.graphics.Color.WHITE))
         setOnClickListener {
-            android.widget.PopupMenu(this@renderEmbeddedHistoryPreview, this).apply {
-                menu.add(getString(R.string.history_outcome_title) + " / " + getString(R.string.journal_notes_title)).setOnMenuItemClickListener {
-                    showDetails(entry, curve, permanent, journalFailed, chart.points); true
-                }
-                if (permanent != null) menu.add(getString(R.string.journal_compare)).setOnMenuItemClickListener {
-                    startActivity(Intent(this@renderEmbeddedHistoryPreview, BrewComparisonActivity::class.java).putExtra(BrewComparisonActivity.FIRST_SHOT_ID, entry.id)); true
-                }
-                show()
+            val choices = listOf(getString(R.string.history_outcome_title) + " / " + getString(R.string.journal_notes_title)) +
+                if (permanent != null) listOf(getString(R.string.journal_compare)) else emptyList()
+            val dialog = AppDialog.choices(this@renderEmbeddedHistoryPreview, getString(R.string.ui_full_details), choices) { index ->
+                if (index == 0) showDetails(entry, curve, permanent, journalFailed, chart.points)
+                else startActivity(Intent(this@renderEmbeddedHistoryPreview, BrewComparisonActivity::class.java)
+                    .putExtra(BrewComparisonActivity.FIRST_SHOT_ID, entry.id))
             }
+            (this@renderEmbeddedHistoryPreview as? MainActivity)?.trackDialog(dialog)
         }
     }
     title.addView(more, LinearLayout.LayoutParams(style.dp(48), style.dp(48)).apply { marginStart = style.dp(16) })
@@ -760,11 +759,18 @@ private fun ThemedActivity.showDetails(entry: ShotHistory.Entry, curve: String, 
                 point.machineFlowTenthsMlPerSecond / 10.0,
                 point.scaleFlowHundredths?.let { "%.2f g/s".format(Locale.ROOT, it / 100.0) } ?: "—")
         }
-        beanDetails(getString(R.string.task_history_flow_details),
-            getString(R.string.task_history_flow_columns) + "\n\n" + rows)
+        val text = android.widget.TextView(this).apply {
+            this.text = getString(R.string.task_history_flow_columns) + "\n\n" + rows
+            setTextIsSelectable(true)
+        }
+        val dialog = AppDialog.show(AlertDialog.Builder(this).setTitle(R.string.task_history_flow_details)
+            .setView(ScrollView(this).apply { addView(text) }).setPositiveButton(android.R.string.ok, null).create())
+        (this as? MainActivity)?.trackDialog(dialog)
     }.isEnabled = points.isNotEmpty()
     val viewport = ScrollView(this).apply { addView(content) }
-    AlertDialog.Builder(this).setTitle(curve).setView(viewport).setPositiveButton(android.R.string.ok, null).show()
+    val dialog = AppDialog.show(AlertDialog.Builder(this).setTitle(curve).setView(viewport)
+        .setPositiveButton(android.R.string.ok, null).create())
+    (this as? MainActivity)?.trackDialog(dialog)
 }
 
 private fun ThemedActivity.status(value: ShotHistory.Status) = when (value) {

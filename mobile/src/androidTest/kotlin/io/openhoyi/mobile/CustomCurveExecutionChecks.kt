@@ -78,8 +78,9 @@ internal class CustomCurveExecutionChecks(private val test:Instrumentation) {
         val prefs=context.getSharedPreferences("curves",android.content.Context.MODE_PRIVATE)
         val originalSelection=prefs.getString("selected",null)
         try {
-            val home=start(HomeActivity::class.java)
-            fun owner():MobileService? = HomeActivity::class.java.getDeclaredField("service").apply {isAccessible=true}.get(home) as? MobileService
+            val pages = MainPageTestHost.launch(test)
+            val home = pages.activity.also { opened += it }
+            fun owner():MobileService? = home.currentService
             await {owner()?.running==true}
             val service=requireNotNull(owner())
             fun noBle() {check(MobileService::class.java.getDeclaredField("hub").apply {isAccessible=true}.get(service)==null)}
@@ -97,7 +98,9 @@ internal class CustomCurveExecutionChecks(private val test:Instrumentation) {
             check(app.customCurvesResult.getOrThrow().find(doc.id)==doc)
             check(prefs.getString("selected",null)==originalSelection && app.history.entries==originalHistory)
             check(service.shotState==ExtractionState.IDLE);noBle()
-            val library=start(CurveActivity::class.java)
+            main { if (!import.isDestroyed) import.finish() }
+            val library = home
+            pages.select(TaskDestination.CURVES)
             main {views(root(library)).filterIsInstance<EditText>().single().setText(doc.name)}
             main {
                 val list=views(root(library)).filterIsInstance<ListView>().single()
@@ -105,9 +108,9 @@ internal class CustomCurveExecutionChecks(private val test:Instrumentation) {
                 check(list.performItemClick(list.getChildAt(0),0,list.adapter.getItemId(0)))
             }
             click(library,R.string.curve_use)
-            await {library.isDestroyed}
             check(prefs.getString("selected",null)==doc.id && app.history.entries==originalHistory)
-            val extraction=start(ExtractionActivity::class.java)
+            val extraction = home
+            pages.extraction()
             await {views(root(extraction)).filterIsInstance<TextView>().any {
                 it.text.toString()==extraction.getString(R.string.extraction_start) && it.isEnabled
             }}

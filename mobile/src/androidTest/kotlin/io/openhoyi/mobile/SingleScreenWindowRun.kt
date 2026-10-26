@@ -103,7 +103,25 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
         val curve = app.curves.items.first { it.controlProfile != null || it.factoryCurve != null }
         val document = CustomCurveDocument.fromLibraryItem(curve,
             "draft-00e9bc40-f1d4-40ef-a59a-7f10b0d58870").encode()
-        fun page(type: Class<out Activity>) = Intent(context, type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        fun page(type: Class<out Activity>): Intent {
+            val destination = when (type) {
+                HomeActivity::class.java -> TaskDestination.BREW
+                CurveActivity::class.java -> TaskDestination.CURVES
+                HistoryActivity::class.java -> TaskDestination.HISTORY
+                BeanInventoryActivity::class.java -> TaskDestination.BEANS
+                ScaleActivity::class.java -> TaskDestination.SCALE
+                AppSettingsActivity::class.java -> TaskDestination.SETTINGS
+                else -> null
+            }
+            val root = destination != null || type == ExtractionActivity::class.java
+            return Intent(context, if (root) MainActivity::class.java else type)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or if (root) Intent.FLAG_ACTIVITY_CLEAR_TASK else 0)
+                .apply {
+                    if (root) putExtra("fixturePage", type.simpleName)
+                    destination?.let { putExtra(MainActivity.EXTRA_INITIAL_DESTINATION, it.name) }
+                    if (type == ExtractionActivity::class.java) putExtra(MainActivity.EXTRA_OPEN_EXTRACTION, true)
+                }
+        }
         val pages = listOf(
             page(HomeActivity::class.java), page(ExtractionActivity::class.java), page(CurveActivity::class.java),
             page(HistoryActivity::class.java), page(HistoryDetailActivity::class.java).putExtra("shotId", shotIds[0]),
@@ -132,11 +150,21 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
             }
         for (intent in pages) {
             var activity: Activity? = null
-            val pageName = requireNotNull(intent.component).shortClassName.substringAfterLast('.')
+            val pageName = intent.getStringExtra("fixturePage")
+                ?: requireNotNull(intent.component).shortClassName.substringAfterLast('.')
             val name = "${language.tag}-${if (dark) "dark" else "light"}-$pageName"
             try {
                 activity = test.startActivitySync(intent)
                 test.waitForIdleSync()
+                if (activity is MainActivity) MainPageTestHost(test, activity).active(when (pageName) {
+                    "ExtractionActivity" -> "extraction"
+                    "CurveActivity" -> "root:CURVES"
+                    "HistoryActivity" -> "root:HISTORY"
+                    "BeanInventoryActivity" -> "root:BEANS"
+                    "ScaleActivity" -> "root:SCALE"
+                    "AppSettingsActivity" -> "root:SETTINGS"
+                    else -> "root:BREW"
+                })
                 val deadline = SystemClock.elapsedRealtime() + 10000
                 while (true) {
                     var ready = false
@@ -208,7 +236,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                     main { SingleScreenPageChecks.verify(activity, expectedLegacyShot = expectedLegacyFixture(activity)) }
                 }
                 // Verify the actual populated states too, not just empty previews.
-                if (activity is CurveActivity || activity is HistoryActivity) {
+                if (pageName == "CurveActivity" || pageName == "HistoryActivity") {
                     val stateDirectory = File(directory, "states").apply { mkdirs() }
                     test.uiAutomation.takeScreenshot()?.let { bitmap ->
                         try { File(stateDirectory, "$name-initial.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
@@ -218,7 +246,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                         fun children(view: View): List<View> = listOf(view) +
                             if (view is ViewGroup) (0 until view.childCount).flatMap { children(view.getChildAt(it)) } else emptyList()
                         val views = children(activity.findViewById(android.R.id.content))
-                        if (activity is CurveActivity) {
+                        if (pageName == "CurveActivity") {
                             val list = views.filterIsInstance<ListView>().single()
                             check(list.count > 0)
                             check(list.performItemClick(list.adapter.getView(0, null, list), 0, list.adapter.getItemId(0)))
@@ -229,11 +257,13 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                     awaitDraw(activity)
                     main {
                         SingleScreenPageChecks.verify(activity, expectedLegacyShot = expectedLegacyFixture(activity))
-                        if (activity is CurveActivity) {
-                            val chart = CurveActivity::class.java.getDeclaredField("stageChart").apply { isAccessible = true }.get(activity) as CurveStageView
+                        if (pageName == "CurveActivity") {
+                            val fragment = (activity as MainActivity).supportFragmentManager.primaryNavigationFragment as CurveFragment
+                            val chart = CurveFragment::class.java.getDeclaredField("stageChart").apply { isAccessible = true }.get(fragment) as CurveStageView
                             check(chart.isShown && chart.targets.isNotEmpty()) { "Selected curve has no preview" }
                         } else {
-                            val list = HistoryActivity::class.java.getDeclaredField("historyList").apply { isAccessible = true }.get(activity) as ListView
+                            val fragment = (activity as MainActivity).supportFragmentManager.primaryNavigationFragment as HistoryFragment
+                            val list = HistoryFragment::class.java.getDeclaredField("historyList").apply { isAccessible = true }.get(fragment) as ListView
                             check(list.isShown && list.count >= 2) { "Journal fixture not displayed" }
                         }
                     }
@@ -261,13 +291,12 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                 }
                 if (language == AppLanguage.CHINESE) chineseFormCaptures +=
                     ChineseFormWindowChecks.run(test, activity, directory, name) { awaitDraw(activity) }
-                if (language == AppLanguage.CHINESE && activity is HomeActivity) {
-                    val home = activity
-                    val serviceField = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }
+                if (language == AppLanguage.CHINESE && pageName == "HomeActivity") {
+                    val home = activity as MainActivity
                     val boundDeadline = SystemClock.elapsedRealtime() + 10000
                     while (true) {
                         var bound = false
-                        main { bound = serviceField.get(home) != null }
+                        main { bound = home.currentService != null }
                         if (bound) break
                         check(SystemClock.elapsedRealtime() < boundDeadline) { "$name Mock service not bound for warnings" }
                         Thread.sleep(25)
@@ -307,7 +336,8 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
             var capturePage: Activity? = null
             try {
                 test.sendStatus(0, Bundle().apply { putString("stream", "SINGLE_SCREEN_STATE_START $name\n") })
-                capturePage = test.startActivitySync(page(ScaleActivity::class.java)
+                capturePage = test.startActivitySync(Intent(context, ScaleActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     .addFlags(Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
                     .putExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, true))
                 test.waitForIdleSync()

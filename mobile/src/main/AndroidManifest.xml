@@ -26,7 +26,8 @@
         <activity android:name=".BrewComparisonActivity" android:exported="false" />
         <activity android:name=".LegacyHistoryActivity" android:exported="false" />
         <activity android:name=".LegacyHistoryDetailActivity" android:exported="false" />
-        <activity android:name=".HomeActivity" android:exported="true">
+        <activity android:name=".HomeActivity" android:exported="false" />
+        <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

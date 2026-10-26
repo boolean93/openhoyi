@@ -11,7 +11,7 @@ import android.widget.TextView
 
 /** Measures production components; never attaches them, clicks a control, or changes device state. */
 internal object LanguageUiLayoutChecks {
-    fun components(home: HomeActivity, language: AppLanguage, dark: Boolean) {
+    fun components(home: MainActivity, language: AppLanguage, dark: Boolean) {
         check(BuildConfig.MOCK_MODE && home.packageName == "io.openhoyi.mobile.mock")
         verifyClippingDetection(home)
         val primary = listOf(TaskDestination.BREW, TaskDestination.CURVES, TaskDestination.HISTORY, TaskDestination.BEANS)

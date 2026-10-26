@@ -117,7 +117,7 @@ class BeanEntryActivity : ThemedActivity() {
                     dateDialog?.dismiss()
                     dateDialog = DatePickerDialog(this@BeanEntryActivity, { _, year, month, day ->
                         field.setText(LocalDate.of(year, month + 1, day).toString())
-                    }, initial.year, initial.monthValue - 1, initial.dayOfMonth).apply { show() }
+                    }, initial.year, initial.monthValue - 1, initial.dayOfMonth).apply { AppDialog.show(this) }
                 }
             }
             dateInput.addView(calendar, android.widget.FrameLayout.LayoutParams(HoyiUi.dp(this, 48), HoyiUi.dp(this, 48),

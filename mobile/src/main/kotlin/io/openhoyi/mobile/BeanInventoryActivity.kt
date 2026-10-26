@@ -26,6 +26,7 @@ class BeanInventoryActivity : ThemedActivity() {
     private var backCallback: android.window.OnBackInvokedCallback? = null
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectRoot(TaskDestination.BEANS)) return
         savedScrollY = savedInstanceState?.getInt("listScrollY") ?: 0
         selectedBatchId = savedInstanceState?.getString("selectedBatchId")
         detailRequested = savedInstanceState?.getBoolean("detailRequested") ?: false
@@ -33,16 +34,17 @@ class BeanInventoryActivity : ThemedActivity() {
     private fun rememberList() {
         listScroll?.takeIf { !pendingListRestore && it.isShown && !it.isLayoutRequested }?.let { savedScrollY = it.scrollY }
     }
-    override fun onStop() { rememberList(); super.onStop() }
+    override fun onStop() { if (!redirectedRoot) rememberList(); super.onStop() }
     override fun onSaveInstanceState(outState: Bundle) {
+        if (redirectedRoot) { super.onSaveInstanceState(outState); return }
         rememberList()
         outState.putInt("listScrollY", savedScrollY)
         outState.putString("selectedBatchId", selectedBatchId)
         outState.putBoolean("detailRequested", collection?.detailRequested ?: detailRequested)
         super.onSaveInstanceState(outState)
     }
-    override fun onStart() { super.onStart(); render() }
-    override fun onDestroy() { updateBack(false); super.onDestroy() }
+    override fun onStart() { super.onStart(); if (!redirectedRoot) render() }
+    override fun onDestroy() { if (!redirectedRoot) updateBack(false); super.onDestroy() }
     private fun restoreListWhenReady() {
         val scroll = listScroll ?: return
         if (pendingListRestore && scroll.isShown && scroll.height > 0 && scroll.getChildAt(0).height > 0) {

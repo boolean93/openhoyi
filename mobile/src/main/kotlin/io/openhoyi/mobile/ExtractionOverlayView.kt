@@ -3,6 +3,7 @@ package io.openhoyi.mobile
 import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
@@ -23,7 +24,7 @@ import kotlin.math.ceil
 /** A display-only, shared-time plot. Each metric retains its own physical range. */
 internal class ExtractionOverlayView(context: Context, private val visual: ExtractionHistoryVisualStyle? = null,
     private val embeddedHistory: Boolean = false) : LinearLayout(context) {
-    private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it) }
+    private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it, liveMode = !embeddedHistory) }
     internal val visualEvidence get() = productRenderer?.evidence ?: org.json.JSONArray()
     var points: List<ShotPoint> = emptyList()
         set(value) { field = value; rebuildProjection() }
@@ -52,7 +53,6 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private val buttons = linkedMapOf<ChartMetric, Button>()
     private val legend = LegendLayout(context)
     private var compactMode = false
-    private var showLegendRanges = true
     private val compactNotice = TextView(context).apply {
         tag = "chart-compact-notice"
         textSize = 14f
@@ -118,11 +118,6 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             // A newly necessary notice must not start below an old legend scroll offset.
             if (compact) header.scrollTo(0, 0)
         }
-        val showRanges = compact || !plot.showsAllAxes(MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight)
-        if (showLegendRanges != showRanges) {
-            showLegendRanges = showRanges
-            buttons.forEach { (metric, button) -> updateLegendText(metric, button) }
-        }
         // The notice replaces an unusable plot; only the native header scrolls.
         val cap = if (compact) height else height - plotMinimum
         header.measure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(cap, MeasureSpec.AT_MOST))
@@ -135,7 +130,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         data = FourMetricChartProjection.build(points, reference, previousRanges)
         previousRanges = data.series.associate { it.metric to it.range }
         if (data.series.none { it.metric == selected }) selected = null
-        val metrics = data.series.map { it.metric }
+        val metrics = if (embeddedHistory) data.series.map { it.metric } else ChartMetric.entries
         buttons.keys.filter { it !in metrics }.toList().forEach { metric ->
             legend.removeView(buttons.remove(metric))
         }
@@ -155,9 +150,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                     minWidth = dp(48f).toInt(); minimumWidth = minWidth
                     minHeight = dp(48f).toInt(); minimumHeight = minHeight
                     setPadding(dp(6f).toInt(), dp(3f).toInt(), dp(6f).toInt(), dp(3f).toInt())
-                    compoundDrawablePadding = dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt()
+                    setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null
+                    compoundDrawablePadding = dp(4f).toInt()
                     setCompoundDrawablesRelative(MetricSwatch(metric), null, null, null)
                     setOnClickListener {
+                        if (data.series.none { it.metric == metric }) return@setOnClickListener
                         selected = metric
                         updateSelection()
                         updateDescription()
@@ -188,18 +185,25 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         updateSelection()
         updateDescription()
         plot.isEnabled = points.isNotEmpty()
-        if (plot.width > 0 && showLegendRanges != (compactMode || !plot.showsAllAxes(plot.width))) requestLayout()
         plot.invalidate()
     }
 
     private fun updateLegendText(metric: ChartMetric, button: Button) {
-        val series = data.series.first { it.metric == metric }
+        val series = data.series.firstOrNull { it.metric == metric }
+        if (series == null) {
+            val label = "${metricName(metric)} — ${metric.unit}\n${context.getString(R.string.task_chart_missing_scale)}"
+            if (button.text.toString() != label) button.text = label
+            button.contentDescription = label.replace('\n', ';')
+            button.isEnabled = false
+            return
+        }
+        button.isEnabled = true
         val range = series.range
         val latest = series.current.lastOrNull()?.lastOrNull()
             ?.takeIf { it.elapsedMs == data.observedThroughMs }
         val name = "${metricName(metric)} ${latest?.let { format(it.value) } ?: "—"} ${metric.unit}"
         val fullTitle = "$name\n${format(range.low)}–${format(range.high)} ${metric.unit}"
-        val visibleTitle = if (embeddedHistory) "${metricName(metric)} ${metric.unit}" else if (showLegendRanges) fullTitle else name
+        val visibleTitle = if (embeddedHistory) "${metricName(metric)} ${metric.unit}" else fullTitle
         if (button.text.toString() != visibleTitle) button.text = visibleTitle
         button.contentDescription = fullTitle.replace('\n', ';') + "; " + context.getString(R.string.task_chart_hint)
     }
@@ -265,8 +269,13 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     }
 
     override fun onDetachedFromWindow() {
-        inspectionDialog?.dismiss()
+        dismissInspection()
         super.onDetachedFromWindow()
+    }
+
+    /** Fragment show/hide does not detach this view, so the host closes inspection on pause. */
+    fun dismissInspection() {
+        inspectionDialog?.dismiss()
     }
 
     private fun inspectSample() {
@@ -314,10 +323,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val initial = ChartInspection.nearestIndex(samples, inspectedTime ?: samples.last().elapsedMs)!!
         slider.progress = initial
         show(initial)
-        inspectionDialog = AlertDialog.Builder(context).setTitle(R.string.extraction_chart).setView(body)
-            .setPositiveButton(android.R.string.ok, null).create().also { dialog ->
+        inspectionDialog = AppDialog.show(context, context.getString(R.string.extraction_chart), body,
+            AppDialog.Action(context.getString(android.R.string.ok), onClick = {})).also { dialog ->
                 dialog.setOnDismissListener { inspectionDialog = null }
-                dialog.show()
             }
     }
 
@@ -327,69 +335,72 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         ChartMetric.WEIGHT -> R.string.task_chart_weight
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
     })
-    private fun metricColor(metric: ChartMetric) = visual?.metric(metric) ?: context.getColor(when (metric) {
-        ChartMetric.PRESSURE -> R.color.chart_pressure
-        ChartMetric.WATER -> R.color.task_chart_water
-        ChartMetric.WEIGHT -> R.color.task_chart_weight
-        ChartMetric.TEMPERATURE -> R.color.task_chart_temperature
-    })
-    private fun effect(metric: ChartMetric) = when (metric) {
-        ChartMetric.WATER -> DashPathEffect(floatArrayOf(dp(9f), dp(5f)), 0f)
-        ChartMetric.TEMPERATURE -> DashPathEffect(floatArrayOf(dp(1f), dp(4f)), 0f)
-        else -> null
+    private fun metricColor(metric: ChartMetric): Int {
+        visual?.let { return if (embeddedHistory) it.metric(metric) else it.liveMetric(metric) }
+        val dark = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        return Color.parseColor(when (metric) {
+            ChartMetric.PRESSURE -> if (dark) "#80B4FF" else "#176BD1"
+            ChartMetric.WATER -> if (dark) "#FFAE78" else "#C05A13"
+            ChartMetric.WEIGHT -> if (dark) "#64DEA3" else "#168A55"
+            ChartMetric.TEMPERATURE -> if (dark) "#A994FF" else "#654ACC"
+        })
     }
 
     private inner class MetricSwatch(private val metric: ChartMetric) : Drawable() {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(2f) }
-        init { setBounds(0, 0, dp(32f).toInt(), dp(12f).toInt()) }
+        init { setBounds(0, 0, dp(18f).toInt(), dp(12f).toInt()) }
         override fun draw(canvas: Canvas) {
-            paint.color = metricColor(metric); paint.pathEffect = effect(metric)
+            paint.color = metricColor(metric); paint.pathEffect = null
             canvas.drawLine(bounds.left.toFloat(), bounds.exactCenterY(), bounds.right.toFloat(), bounds.exactCenterY(), paint)
-            if (metric == ChartMetric.WEIGHT) {
-                paint.pathEffect = null; paint.style = Paint.Style.FILL
-                canvas.drawCircle(bounds.exactCenterX(), bounds.exactCenterY(), dp(3f), paint)
-                paint.style = Paint.Style.STROKE
-            }
         }
         override fun setAlpha(alpha: Int) { paint.alpha = alpha }
         override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
         @Deprecated("Deprecated in Android") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
     }
 
-    /** Natural text wrapping, with at most two columns below the wide-window breakpoint. */
+    /** Four readouts stay whole; actual text measurement decides one or two rows. */
     private inner class LegendLayout(context: Context) : ViewGroup(context) {
-        private val gap get() = dp(TaskVisualTokens.RELATED_GAP_DP.toFloat()).toInt()
-        private val twoColumns get() = resources.configuration.screenWidthDp < 840
-
+        private val gap get() = dp(4f).toInt()
+        private var columns = 4
         override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
             val available = MeasureSpec.getSize(widthMeasureSpec)
-            val childWidth = if (twoColumns) ((available - gap) / 2).coerceAtLeast(1) else available
-            var x = 0; var y = 0; var rowHeight = 0; var rowCount = 0
+            val wide = ((available - gap * 3) / 4).coerceAtLeast(1)
+            var singleRowFits = true
+            for (i in 0 until childCount) {
+                val child = getChildAt(i) as Button
+                child.measure(MeasureSpec.makeMeasureSpec(wide, MeasureSpec.EXACTLY),
+                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                if (child.lineCount > 2 || child.measuredHeight > dp(64f)) singleRowFits = false
+            }
+            columns = if (singleRowFits) 4 else 2
+            val childWidth = ((available - gap * (columns - 1)) / columns).coerceAtLeast(1)
+            var rowHeight = 0
+            var totalHeight = 0
             for (i in 0 until childCount) {
                 val child = getChildAt(i)
-                child.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.AT_MOST),
+                child.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
                     MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-                if (rowCount > 0 && (x + child.measuredWidth > available || twoColumns && rowCount == 2)) {
-                    y += rowHeight + gap; x = 0; rowHeight = 0; rowCount = 0
-                }
-                x += child.measuredWidth + gap
                 rowHeight = maxOf(rowHeight, child.measuredHeight)
-                rowCount++
+                if (i % columns == columns - 1 || i == childCount - 1) {
+                    totalHeight += rowHeight + if (i == childCount - 1) 0 else gap
+                    rowHeight = 0
+                }
             }
-            setMeasuredDimension(available, y + rowHeight)
+            setMeasuredDimension(available, totalHeight)
         }
         override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-            var x = 0; var y = 0; var rowHeight = 0; var rowCount = 0
+            var y = 0
             for (i in 0 until childCount) {
                 val child = getChildAt(i)
-                if (rowCount > 0 && (x + child.measuredWidth > width || twoColumns && rowCount == 2)) {
-                    y += rowHeight + gap; x = 0; rowHeight = 0; rowCount = 0
-                }
+                val column = i % columns
+                val x = column * (child.measuredWidth + gap)
                 val childLeft = if (layoutDirection == View.LAYOUT_DIRECTION_RTL) width - x - child.measuredWidth else x
                 child.layout(childLeft, y, childLeft + child.measuredWidth, y + child.measuredHeight)
-                x += child.measuredWidth + gap
-                rowHeight = maxOf(rowHeight, child.measuredHeight)
-                rowCount++
+                if (column == columns - 1 || i == childCount - 1) {
+                    val start = i - column
+                    y += (start..i).maxOf { getChildAt(it).measuredHeight } + gap
+                }
             }
         }
         override fun generateDefaultLayoutParams() = ViewGroup.LayoutParams(-2, -2)
@@ -420,10 +431,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
         private val path = Path()
         fun minimumAxisHeight(): Int {
-            productRenderer?.let { return it.minimumEmbeddedHistoryHeight() }
+            productRenderer?.let { return if (embeddedHistory) it.minimumEmbeddedHistoryHeight() else it.minimumAxisHeight() }
             val fm = labels.fontMetrics
-            // Four lines of axis margins + one tick height and >=8dp tick separation.
-            return ceil((fm.descent - fm.ascent) * 5 + dp(32f)).toInt()
+            return ceil((fm.descent - fm.ascent) * 4.5f + dp(32f)).toInt()
         }
         private fun axisColumns() = data.series.associate { series ->
             val strings = (0..4).map { format(series.range.low + (series.range.high - series.range.low) * it / 4) } + series.metric.unit
@@ -443,24 +453,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             }
             val fm = labels.fontMetrics
             val lineHeight = fm.descent - fm.ascent
-            val columns = axisColumns()
             val outer = dp(5f)
-            val allAxes = showsAllAxes(width)
-            val axes = if (allAxes) data.series else data.series.filter { it.metric == focusMetric }
-            val leftAxes = if (allAxes) axes.take(2) else axes
-            val rightAxes = if (allAxes) axes.drop(2) else emptyList()
-            val left = outer + leftAxes.sumOf { columns.getValue(it.metric).toDouble() }.toFloat()
-            val right = width - outer - rightAxes.sumOf { columns.getValue(it.metric).toDouble() }.toFloat()
-            val top = lineHeight * 1.5f + dp(5f)
-            val bottom = height - lineHeight * 2.5f - dp(9f)
+            val axis = data.series.first { it.metric == focusMetric }
+            val left = outer + axisColumns().getValue(focusMetric)
+            val right = width - outer - dp(5f)
+            val top = lineHeight * 2 + dp(12f)
+            val bottom = height - lineHeight * 1.5f - dp(12f)
             // Parent measurement exposes the native notice instead of a too-short plot.
             // Also reject overlapping ticks if this child is ever drawn independently.
             plotBounds.setEmpty()
             if (right <= left || bottom - top < lineHeight + dp(8f)) return
             plotBounds.set(left, top, right, bottom)
-            val rows = ((bottom - top) / (lineHeight + dp(8f))).toInt().plus(1).coerceIn(2, 5)
+            val rows = ((bottom - top) / (lineHeight + dp(18f))).toInt().plus(1).coerceIn(2, 4)
             labels.textAlign = Paint.Align.LEFT
-            var columnX = outer
+            val columnX = outer
             fun drawAxis(series: MetricChartSeries, x: Float) {
                 labels.color = metricColor(series.metric)
                 labels.textAlign = Paint.Align.LEFT
@@ -472,15 +478,13 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                         x, py - (fm.ascent + fm.descent) / 2, labels)
                 }
             }
-            leftAxes.forEach { drawAxis(it, columnX); columnX += columns.getValue(it.metric) }
-            columnX = right + dp(8f)
-            rightAxes.forEach { drawAxis(it, columnX); columnX += columns.getValue(it.metric) }
+            drawAxis(axis, columnX)
             for (row in 0 until rows) {
                 val py = bottom - (bottom - top) * row / (rows - 1)
                 canvas.drawLine(left, py, right, py, grid)
             }
             labels.color = context.getColor(R.color.chart_label)
-            val zero = "0"; val end = seconds(data.timeEndMs); val middle = seconds(data.timeEndMs / 2)
+            val zero = "0"; val end = seconds(data.timeEndMs) + " s"; val middle = seconds(data.timeEndMs / 2)
             val xMiddle = (left + right) / 2
             val timeY = bottom + lineHeight / 2 + dp(4f) - fm.ascent
             labels.textAlign = Paint.Align.LEFT; canvas.drawText(zero, left, timeY, labels)
@@ -489,19 +493,17 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 xMiddle + labels.measureText(middle) / 2 < right - labels.measureText(end) - dp(8f)) {
                 labels.textAlign = Paint.Align.CENTER; canvas.drawText(middle, xMiddle, timeY, labels)
             }
-            labels.textAlign = Paint.Align.CENTER
-            canvas.drawText(context.getString(R.string.live_time_axis), xMiddle, height - dp(2f) - fm.descent, labels)
             fun x(ms: Long) = left + (right - left) * (ms.toDouble() / data.timeEndMs).toFloat()
             fun y(value: Float, range: ChartRange) = bottom - (bottom - top) * (value - range.low) / (range.high - range.low)
             canvas.save()
             canvas.clipRect(left, top, right, bottom)
             fun drawSeries(series: MetricChartSeries, historic: Boolean) {
                 val segments = if (historic) series.reference else series.current
-                stroke.color = if (historic) context.getColor(R.color.chart_label) else metricColor(series.metric)
-                stroke.alpha = if (historic) 125 else if (selected == null || selected == series.metric) 255 else 210
-                stroke.strokeWidth = dp(if (historic) 1f else if (selected == series.metric) 3f else 2f)
-                stroke.pathEffect = if (historic) null else effect(series.metric)
-                stroke.strokeCap = if (series.metric == ChartMetric.TEMPERATURE) Paint.Cap.ROUND else Paint.Cap.BUTT
+                stroke.color = metricColor(series.metric)
+                stroke.alpha = if (historic) 135 else if (selected == null || selected == series.metric) 255 else 190
+                stroke.strokeWidth = dp(if (historic) 1.5f else 2f)
+                stroke.pathEffect = if (historic) DashPathEffect(floatArrayOf(dp(5f), dp(4f)), 0f) else null
+                stroke.strokeCap = Paint.Cap.ROUND
                 for (segment in segments) {
                     path.reset()
                     segment.forEachIndexed { index, value ->
@@ -509,16 +511,15 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                         else path.lineTo(x(value.elapsedMs), y(value.value, series.range))
                     }
                     canvas.drawPath(path, stroke)
-                    if (segment.size == 1 || !historic && series.metric == ChartMetric.WEIGHT) {
-                        stroke.pathEffect = null; stroke.style = Paint.Style.FILL
-                        segment.forEach { canvas.drawCircle(x(it.elapsedMs), y(it.value, series.range), dp(if (historic) 1.5f else 2.5f), stroke) }
+                    if (segment.size == 1) {
+                        stroke.style = Paint.Style.FILL
+                        val point = segment.first()
+                        canvas.drawCircle(x(point.elapsedMs), y(point.value, series.range), dp(2f), stroke)
                         stroke.style = Paint.Style.STROKE
-                        stroke.pathEffect = if (historic) null else effect(series.metric)
                     }
                 }
             }
-            // One focused historical metric avoids overlaying eight competing traces.
-            data.series.firstOrNull { it.metric == focusMetric }?.let { drawSeries(it, true) }
+            data.series.forEach { drawSeries(it, true) }
             data.series.sortedBy { it.metric == selected }.forEach { drawSeries(it, false) }
             data.observedThroughMs?.let { canvas.drawLine(x(it), top, x(it), bottom, grid) }
             inspectedTime?.let { time ->

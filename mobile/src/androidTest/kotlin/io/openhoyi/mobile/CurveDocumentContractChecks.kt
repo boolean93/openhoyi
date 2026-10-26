@@ -51,7 +51,9 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
         test.waitForIdleSync()
     }
     private fun start(type: Class<out Activity>, extras: (Intent) -> Unit = {}): Activity {
-        val activity = test.startActivitySync(Intent(context, type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).also(extras)).also { opened += it }
+        val activity = test.startActivitySync(Intent(context,
+            if (type == HomeActivity::class.java) MainActivity::class.java else type)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).also(extras)).also { opened += it }
         test.waitForIdleSync()
         awaitMain { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
         return activity
@@ -60,7 +62,7 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
         onMain { if (!activity.isDestroyed) activity.finish() }
         awaitMain { activity.isDestroyed }; opened.remove(activity)
     }
-    private fun owner(home: Activity): MobileService? = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }.get(home) as? MobileService
+    private fun owner(home: Activity): MobileService? = (home as MainActivity).currentService
 
     fun run(): Result {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
@@ -73,6 +75,7 @@ internal class CurveDocumentContractChecks(private val test: Instrumentation) {
             android.content.pm.PermissionInfo.PROTECTION_MASK_BASE == android.content.pm.PermissionInfo.PROTECTION_SIGNATURE)
         check(CustomCurveDocument.MAX_BYTES == CurveFixtureProvider.MAX_FIXTURE_BYTES)
         val home = start(HomeActivity::class.java)
+        MainPageTestHost(test, home as MainActivity).active("root:BREW")
         awaitMain { owner(home)?.running == true }
         val app = context.applicationContext as MobileApplication
         app.history

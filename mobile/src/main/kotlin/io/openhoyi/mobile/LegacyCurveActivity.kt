@@ -206,8 +206,8 @@ class LegacyCurveActivity : ThemedActivity() {
             }
             style.add(detailContent, visual.warning(getString(R.string.legacy_curve_subtitle), "legacy/curve/notice"), 16)
             HoyiUi.button(this, detailContent, getString(R.string.ui_full_details)) {
-                android.app.AlertDialog.Builder(this).setTitle(curve.name).setMessage(detailSummary)
-                    .setPositiveButton(android.R.string.ok, null).show()
+                AppDialog.show(android.app.AlertDialog.Builder(this).setTitle(curve.name).setMessage(detailSummary)
+                    .setPositiveButton(android.R.string.ok, null).create())
             }.also { style.button(it) }
         }
         adapter.notifyDataSetChanged()

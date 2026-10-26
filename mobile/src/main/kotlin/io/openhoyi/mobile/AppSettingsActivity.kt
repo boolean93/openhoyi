@@ -48,6 +48,7 @@ class AppSettingsActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectRoot(TaskDestination.SETTINGS)) return
         val visual=SettingsVisualStyle(this)
         val style=visual.palette
         val body=visual.page(this,R.string.app_settings_title,R.string.app_settings_subtitle,640,"app")
@@ -129,22 +130,26 @@ class AppSettingsActivity : ThemedActivity() {
     }
     override fun onStart() {
         super.onStart()
+        if (redirectedRoot) return
         exportStarted=true
         pendingExportResult?.let {showExportResult(it.first,it.second);pendingExportResult=null}
         feedbackCard.start(); feedbackCard.refresh()
         if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0)
     }
     override fun onPause() {
+        if (redirectedRoot) { super.onPause(); return }
         // Stop when leaving the interactive page, not after the next page finishes drawing.
         feedbackCard.pausePreview()
         super.onPause()
     }
     override fun onStop() {
+        if (redirectedRoot) { super.onStop(); return }
         exportStarted=false;invalidateExportResult()
         feedbackCard.stop(); languageCard.close(); release()
         super.onStop()
     }
     override fun onDestroy() {
+        if (redirectedRoot) { super.onDestroy(); return }
         exportStarted=false;invalidateExportResult()
         if (::feedbackCard.isInitialized) feedbackCard.stop()
         if (::languageCard.isInitialized) languageCard.close()

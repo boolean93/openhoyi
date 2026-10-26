@@ -79,12 +79,13 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
             SystemClock.sleep(25)
         }
     }
-    private fun <T> field(home:HomeActivity,name:String):T {
+    private fun <T> field(home:MainActivity,name:String):T {
         @Suppress("UNCHECKED_CAST")
-        return HomeActivity::class.java.getDeclaredField(name).apply {isAccessible=true}.get(home) as T
+        val fragment = MainPageTestHost(test, home).active("root:BREW") as HomeFragment
+        return HomeFragment::class.java.getDeclaredField(name).apply {isAccessible=true}.get(fragment) as T
     }
-    private fun owner(home:HomeActivity):MobileService?=field(home,"service")
-    private fun ownerState(home:HomeActivity):OwnerState {
+    private fun owner(home:MainActivity):MobileService?=home.currentService
+    private fun ownerState(home:MainActivity):OwnerState {
         val service=requireNotNull(owner(home)) {"Home lost its existing MobileService owner"}
         return OwnerState(System.identityHashCode(service),service.running,service.snapshot.coffeeAt,service.snapshot.weightAt)
     }
@@ -98,7 +99,7 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
     }
     private fun safeText(view:TextView,value:CharSequence?):String =
         if(view.transformationMethod is PasswordTransformationMethod)"[REDACTED]" else value?.toString().orEmpty().take(512)
-    private fun watch(home:HomeActivity) {
+    private fun watch(home:MainActivity) {
         onMain {
             views(home.window.decorView).forEach {(path,view)->
                 if(view !is TextView)return@forEach
@@ -116,7 +117,7 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
         }
         stream("IDLE_DIAGNOSTIC_WATCHERS count=${watcherBindings.size} changedAndSameValueCallbacks=true")
     }
-    private fun dumpNodes(home:HomeActivity,label:String) {
+    private fun dumpNodes(home:MainActivity,label:String) {
         val lines=mutableListOf<String>()
         onMain {
             views(home.window.decorView).forEach {(path,view)->
@@ -125,7 +126,7 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
         }
         lines.chunked(20).forEach {stream(it.joinToString("\n"))}
     }
-    private fun sample(home:HomeActivity,name:String):Window {
+    private fun sample(home:MainActivity,name:String):Window {
         var before:OwnerState?=null;var from=0L
         onMain {before=ownerState(home);from=SystemClock.elapsedRealtime();activeWindow.set(name)}
         // Instrumentation worker only: no accessibility waitForIdle / UIAutomator idle gate.
@@ -161,21 +162,21 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
         val automation=test.uiAutomation
         val info=automation.serviceInfo
         val priorFlags=info.flags
-        var home:HomeActivity?=null
+        var home:MainActivity?=null
         var refreshHandler:Handler?=null
         var refreshRunnable:Runnable?=null
         var paused=false
         var restored=false
         val windows=mutableListOf<Window>()
-        val monitor=test.addMonitor(HomeActivity::class.java.name,null,false)
+        val monitor=test.addMonitor(MainActivity::class.java.name,null,false)
         val app=context.applicationContext as Application
-        val currentHome=AtomicReference<HomeActivity?>(null)
+        val currentHome=AtomicReference<MainActivity?>(null)
         val currentPhase=AtomicReference("not_created")
         val readyLast=AtomicReference<ReadyObservation?>(null)
         val readyChanges=ConcurrentLinkedQueue<ReadyObservation>()
         val callbacks=object:Application.ActivityLifecycleCallbacks {
             private fun track(activity:Activity,phase:String) {
-                if(activity is HomeActivity) {
+                if(activity is MainActivity) {
                     currentHome.set(activity)
                     currentPhase.set(phase)
                     stream("IDLE_DIAGNOSTIC_HOME phase=$phase identity=${System.identityHashCode(activity)}")
@@ -184,11 +185,11 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
             override fun onActivityCreated(activity:Activity,state:Bundle?)=track(activity,"created")
             override fun onActivityStarted(activity:Activity)=track(activity,"started")
             override fun onActivityResumed(activity:Activity)=track(activity,"resumed")
-            override fun onActivityPaused(activity:Activity) {if(activity is HomeActivity && currentHome.get()===activity)currentPhase.set("paused")}
-            override fun onActivityStopped(activity:Activity) {if(activity is HomeActivity && currentHome.get()===activity)currentPhase.set("stopped")}
+            override fun onActivityPaused(activity:Activity) {if(activity is MainActivity && currentHome.get()===activity)currentPhase.set("paused")}
+            override fun onActivityStopped(activity:Activity) {if(activity is MainActivity && currentHome.get()===activity)currentPhase.set("stopped")}
             override fun onActivitySaveInstanceState(activity:Activity,state:Bundle) {}
             override fun onActivityDestroyed(activity:Activity) {
-                if(activity is HomeActivity && currentHome.compareAndSet(activity,null))currentPhase.set("destroyed")
+                if(activity is MainActivity && currentHome.compareAndSet(activity,null))currentPhase.set("destroyed")
             }
         }
         var callbacksRegistered=false
@@ -214,10 +215,10 @@ internal class IdleAccessibilityDiagnostics(private val test:Instrumentation) {
                 events.add(Event(window,SystemClock.elapsedRealtime(),event.eventType,event.contentChangeTypes,sourceClass,text,viewId,bounds,sourceError))
             }
             onMain {
-                context.startActivity(Intent(context,HomeActivity::class.java)
+                context.startActivity(Intent(context,MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
             }
-            home=test.waitForMonitorWithTimeout(monitor,10_000) as? HomeActivity
+            home=test.waitForMonitorWithTimeout(monitor,10_000) as? MainActivity
                 ?: error("Home startup not observed")
             val readyDeadline=SystemClock.elapsedRealtime()+10_000
             fun observeReady():Boolean {

@@ -55,8 +55,16 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
     private fun nodes(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
-    private fun field(owner: Any, name: String): Any? = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)
-    private fun write(owner: Any, name: String, value: Any?) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(owner, value)
+    private fun field(owner: Any, name: String): Any? {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        return target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
+    }
+    private fun write(owner: Any, name: String, value: Any?) {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
+    }
     private fun sha(file: File): String = file.inputStream().use { input ->
         val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(8192)
         while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
@@ -341,7 +349,7 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
             } finally { File(directory,"fixture-isolation.json").writeText(proof.toString(2)) }
         }
     }
-    private fun homeRoutes(activity: HomeActivity, scope: Scope): JSONArray {
+    private fun homeRoutes(activity: MainActivity, scope: Scope): JSONArray {
         val results = JSONArray(); val prefs=context.getSharedPreferences("curves",Context.MODE_PRIVATE)
         val owner=requireNotNull(scope.service)
         val mock=requireNotNull(field(owner,"mock"))
@@ -350,7 +358,8 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
         main {
             val selected=prefs.getString("selected",null)
             val oldState=field(mock,"shotState")
-            fun render() = HomeActivity::class.java.getDeclaredMethod("render").apply { isAccessible=true }.invoke(activity)
+            fun home() = MainPageTestHost(test,activity).active("root:BREW") as HomeFragment
+            fun render() = HomeFragment::class.java.getDeclaredMethod("render").apply { isAccessible=true }.invoke(home())
             try {
                 val readOnly=scope.document.copy(id="draft-00000000-0000-0000-0000-000000000004", controlMode=CustomCurveDocument.ControlMode.FLOW_RAW,
                     stages=listOf(CustomCurveDocument.Stage(60,150)))
@@ -361,19 +370,13 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
                     render()
                     val rows=nodes(root(activity)).filter { it.tag?.toString()?.startsWith("home-recent-curve-")==true && it.isShown }
                     if(state=="active") check(rows.all { !it.isEnabled }) { "Active cup recent choices enabled" }
-                    var dispatched: Intent?=null; var count=0
-                    val monitor=object: Instrumentation.ActivityMonitor() {
-                        override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult { dispatched=Intent(intent); count++; return Instrumentation.ActivityResult(Activity.RESULT_CANCELED,null) }
-                    }
-                    test.addMonitor(monitor)
-                    try {
-                        val action=field(activity,"brewButton") as View
-                        check(action.isEnabled && action.performClick())
-                        val expected=if(state in setOf("active","startable")) ExtractionActivity::class.java.name else CurveActivity::class.java.name
-                        check(count==1 && dispatched?.component?.className==expected) { "Wrong Home route $state: $dispatched" }
-                        results.put(JSONObject().put("state",state).put("destination",expected).put("intercepted",true)
-                            .put("scope","UI_route_branch_only_not_extraction_lifecycle_or_hardware").put("noStartStopShot",true))
-                    } finally { test.removeMonitor(monitor) }
+                    val action=field(activity,"brewButton") as View
+                    check(action.isEnabled && action.performClick())
+                    val expected=if(state in setOf("active","startable")) "extraction" else "root:CURVES"
+                    check(activity.supportFragmentManager.primaryNavigationFragment?.tag==expected) { "Wrong Home route $state" }
+                    results.put(JSONObject().put("state",state).put("destination",expected).put("intercepted",true)
+                        .put("scope","UI_route_branch_only_not_extraction_lifecycle_or_hardware").put("noStartStopShot",true))
+                    activity.select(TaskDestination.BREW)
                 }
             } finally { write(mock,"shotState",oldState); check(prefs.edit().putString("selected",selected).commit()); render() }
         }
@@ -402,12 +405,14 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
             scope=activeScope
             activeScope.install(dark)
             File(directory,"fixture.json").writeText(activeScope.fixture.toString(2))
-            val type=when(page) { "home" -> HomeActivity::class.java; "share" -> CurveShareActivity::class.java; else -> BeanInventoryActivity::class.java }
-            val activity=test.startActivitySync(Intent(context,type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).apply {
-                if(page=="share") putExtra(CurveShareActivity.CURVE_ID,activeScope.document.id)
-            })
+            val activity=when(page) {
+                "home" -> MainPageTestHost.launch(test,TaskDestination.BREW).activity
+                "inventory" -> MainPageTestHost.launch(test,TaskDestination.BEANS).activity
+                else -> test.startActivitySync(Intent(context,CurveShareActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    .putExtra(CurveShareActivity.CURVE_ID,activeScope.document.id))
+            }
             await("real Activity ready") { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
-            if(activity is HomeActivity) await("same scoped Mock owner") {
+            if(page=="home") await("same scoped Mock owner") {
                 activeScope.service=field(activity,"service") as? MobileService; activeScope.service?.running==true
             }
             if(page=="inventory") { main {
@@ -450,9 +455,9 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
                 else -> if(scale==1f) ids.toSet() else emptySet()
             }
             val reached=captureReachable(activity,directory,ids,initialRequired)
-            if(activity is HomeActivity) File(directory,"home-route-business.json").writeText(homeRoutes(activity,activeScope).toString(2))
+            if(page=="home") File(directory,"home-route-business.json").writeText(homeRoutes(activity as MainActivity,activeScope).toString(2))
             if(activity is CurveShareActivity) AdvancedBusinessUiChecks(test).verifyM1ExportContract(activity,activeScope.document,directory)
-            if(activity is BeanInventoryActivity) AdvancedBusinessUiChecks(test).verifyM1InventoryThreeEvents(activity,activeScope.inventory,directory)
+            if(page=="inventory") AdvancedBusinessUiChecks(test).verifyM1InventoryThreeEvents(activity as MainActivity,activeScope.inventory,directory)
             val issues=JSONArray()
             (0 until baseline.length()).forEach { if(baseline.getJSONObject(it).getString("status")=="FAIL") issues.put("baseline:$it") }
             (0 until reached.length()).forEach { if(reached.getJSONObject(it).getString("status")=="FAIL") issues.put("reachability:$it") }

@@ -20,7 +20,8 @@ internal class HomeRecentCurves(private val activity: ThemedActivity, primary: L
         style.divider(block, 0, 0)
         addView(style.text(activity.getString(R.string.curve_sort_recent), TaskProductVisualStyle.section), LinearLayout.LayoutParams(0, -2, 1f))
         style.action(this, activity.getString(R.string.home_visual_more_recipes), "product/home/recent-more", top = 0) {
-            activity.startActivity(android.content.Intent(activity, CurveActivity::class.java))
+            if (activity is MainActivity) activity.select(TaskDestination.CURVES)
+            else activity.startActivity(android.content.Intent(activity, CurveActivity::class.java))
         }.layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = style.dp(16) }
         style.add(block, this)
         style.divider(block, 0, 0)
@@ -76,7 +77,7 @@ internal class HomeRecentCurves(private val activity: ThemedActivity, primary: L
             if (items.isEmpty()) builder.setMessage(empty.text)
             else builder.setItems(items.map { it.name }.toTypedArray()) { _, index -> select(items[index]) }
             dialog?.dismiss()
-            dialog = builder.setNegativeButton(android.R.string.cancel, null).show()
+            dialog = AppDialog.show(builder.setNegativeButton(android.R.string.cancel, null).create())
         }
     }
     private fun select(item: CurveLibraryItem) {

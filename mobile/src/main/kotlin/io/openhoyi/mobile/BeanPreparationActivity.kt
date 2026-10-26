@@ -260,7 +260,7 @@ class BeanPreparationActivity : ScaleOwnerActivity() {
                         dialog?.dismiss(); dialog = null; renderPreparation()
                     }
                 }
-                dialog?.show()
+                dialog?.let(AppDialog::show)
             }
             action(getString(R.string.dose_return)) { finish() }
             return

@@ -34,6 +34,18 @@ internal class ExtractionHistoryVisualStyle(val context: Context) {
         ChartMetric.WEIGHT -> weight
         ChartMetric.TEMPERATURE -> temperature
     }
+    /** The live four-line palette; History keeps its established metric colors. */
+    fun liveMetric(metric: ChartMetric) = pick(when (metric) {
+        ChartMetric.PRESSURE -> "#176BD1"
+        ChartMetric.WATER -> "#C05A13"
+        ChartMetric.WEIGHT -> "#168A55"
+        ChartMetric.TEMPERATURE -> "#654ACC"
+    }, when (metric) {
+        ChartMetric.PRESSURE -> "#80B4FF"
+        ChartMetric.WATER -> "#FFAE78"
+        ChartMetric.WEIGHT -> "#64DEA3"
+        ChartMetric.TEMPERATURE -> "#A994FF"
+    })
     fun choiceAdapter(activity: ThemedActivity, labels: List<String>) = object : android.widget.ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item, labels) {
         private fun present(view: android.view.View, selected: Boolean) = (view as android.widget.TextView).apply {
             palette.apply(this, TaskProductVisualStyle.body)
@@ -61,7 +73,8 @@ internal class ExtractionHistoryVisualStyle(val context: Context) {
 }
 
 /** Independent M5 Paint and actual-draw evidence; consumes the existing validated projection only. */
-internal class ProductHistoryChartRenderer(private val context: Context, private val style: ExtractionHistoryVisualStyle) {
+internal class ProductHistoryChartRenderer(private val context: Context, private val style: ExtractionHistoryVisualStyle,
+    private val liveMode: Boolean = false) {
     private val labels = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         typeface = TaskTypography.face(context, 400); textSize = this@ProductHistoryChartRenderer.style.palette.sp(14); isFakeBoldText = false
         letterSpacingCompat()
@@ -75,7 +88,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         private set
     private fun dp(value: Float) = value * context.resources.displayMetrics.density
     private val line get() = labels.fontMetrics.descent - labels.fontMetrics.ascent
-    fun minimumAxisHeight() = kotlin.math.ceil(line * 5 + dp(48f)).toInt()
+    fun minimumAxisHeight() = kotlin.math.ceil(if (liveMode) line * 4.5f + dp(32f) else line * 5 + dp(48f)).toInt()
     // Non-comparison bounds reserve 1.5 lines + 16dp above and 2.5 lines + 24dp below the real plot.
     fun minimumEmbeddedHistoryHeight() = kotlin.math.ceil(dp(96f) + line * 4 + dp(40f)).toInt()
     fun minimumComparisonHeight(plotMinimumDp: Float = 96f) = kotlin.math.ceil(dp(plotMinimumDp) + line * 3 + dp(24f)).toInt()
@@ -89,12 +102,13 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     fun allAxes(width: Int, data: FourMetricChartData) = width - data.series.sumOf { column(it).toDouble() } - dp(16f) >= dp(96f)
     fun bounds(width: Int, height: Int, data: FourMetricChartData, focused: ChartMetric, comparison: Boolean): RectF {
         val selected = data.series.filter { comparison && it.metric == focused || !comparison }
-        val all = !comparison && allAxes(width, data)
+        val all = !comparison && !liveMode && allAxes(width, data)
         val leftAxes = if (all) selected.filter { it.metric == ChartMetric.TEMPERATURE || it.metric == ChartMetric.PRESSURE } else selected.filter { it.metric == focused }
         val rightAxes = if (all) selected.filter { it.metric == ChartMetric.WEIGHT || it.metric == ChartMetric.WATER } else emptyList()
         val left = dp(8f) + leftAxes.sumOf { column(it).toDouble() }.toFloat()
         val right = width - dp(8f) - rightAxes.sumOf { column(it).toDouble() }.toFloat()
         return if (comparison) RectF(left, line * 1.5f + dp(12f), right, height - line * 1.5f - dp(12f))
+            else if (liveMode) RectF(left, line * 2 + dp(12f), right, height - line * 1.5f - dp(12f))
             else RectF(left, line * 1.5f + dp(16f), right, height - line * 2.5f - dp(24f))
     }
     private data class Label(val text: String, val x: Float, val baseline: Float, val align: Paint.Align, val color: Int, val role: String)
@@ -111,19 +125,21 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         evidence = JSONArray()
         val box = bounds(width, height, data, focused, comparison)
         if (box.width() < dp(96f) || box.height() < line + dp(8f)) return RectF()
-        val all = !comparison && allAxes(width, data)
+        val all = !comparison && !liveMode && allAxes(width, data)
         val series = if (comparison || !all) data.series.filter { it.metric == focused } else data.series
         val leftAxes = if (all) listOf(ChartMetric.TEMPERATURE, ChartMetric.PRESSURE).mapNotNull { m -> series.firstOrNull { it.metric == m } } else series
         val rightAxes = if (all) listOf(ChartMetric.WEIGHT, ChartMetric.WATER).mapNotNull { m -> series.firstOrNull { it.metric == m } } else emptyList()
-        val rows = ((box.height() / (line + dp(8f))).toInt() + 1).coerceIn(2, 5)
+        val rows = ((box.height() / (line + dp(if (liveMode) 18f else 8f))).toInt() + 1)
+            .coerceIn(2, if (liveMode) 4 else 5)
         val texts = mutableListOf<Label>()
         val fm = labels.fontMetrics
         fun planAxis(item: MetricChartSeries, x: Float) {
-            texts += Label(item.metric.unit, x, dp(4f) - fm.ascent, Paint.Align.LEFT, style.metric(item.metric), "axis-unit")
+            val metricInk = if (liveMode) style.liveMetric(item.metric) else style.metric(item.metric)
+            texts += Label(item.metric.unit, x, dp(4f) - fm.ascent, Paint.Align.LEFT, metricInk, "axis-unit")
             for (row in 0 until rows) {
                 val fraction = row.toFloat() / (rows - 1)
                 texts += Label(number(item.range.low + (item.range.high - item.range.low) * fraction), x,
-                    box.bottom - box.height() * fraction - (fm.ascent + fm.descent) / 2, Paint.Align.LEFT, style.metric(item.metric), "axis-tick")
+                    box.bottom - box.height() * fraction - (fm.ascent + fm.descent) / 2, Paint.Align.LEFT, metricInk, "axis-tick")
             }
         }
         var x = dp(8f)
@@ -132,11 +148,11 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         rightAxes.forEach { planAxis(it, x); x += column(it) }
         val timeBaseline = box.bottom + line / 2 + dp(8f) - fm.ascent
         texts += Label("0", box.left, timeBaseline, Paint.Align.LEFT, style.palette.muted, "time-tick")
-        texts += Label(seconds(data.timeEndMs) + if (comparison) " s" else "", box.right, timeBaseline, Paint.Align.RIGHT, style.palette.muted, "time-tick")
+        texts += Label(seconds(data.timeEndMs) + if (comparison || liveMode) " s" else "", box.right, timeBaseline, Paint.Align.RIGHT, style.palette.muted, "time-tick")
         val middle = seconds(data.timeEndMs / 2)
         if (box.width() / 2 - extent(middle) / 2 > maxOf(extent("0"), extent(seconds(data.timeEndMs))) + dp(8f))
             texts += Label(middle, box.centerX(), timeBaseline, Paint.Align.CENTER, style.palette.muted, "time-tick")
-        if (!comparison) texts += Label(context.getString(R.string.live_time_axis), box.centerX(), height - dp(2f) - fm.descent, Paint.Align.CENTER, style.palette.muted, "time-unit")
+        if (!comparison && !liveMode) texts += Label(context.getString(R.string.live_time_axis), box.centerX(), height - dp(2f) - fm.descent, Paint.Align.CENTER, style.palette.muted, "time-unit")
         if (data.observedThroughMs == null && data.series.all { it.reference.isEmpty() }) {
             val empty = context.getString(R.string.chart_empty_title)
             if (extent(empty) <= box.width()) texts += Label(empty, box.centerX(), box.centerY() - (fm.ascent + fm.descent) / 2,
@@ -168,7 +184,8 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
                 .put("visibleSegmentsPx", visible).put("strokeWidthPx", grid.strokeWidth).put("strokeCap", grid.strokeCap.name))
         }
         for (row in 0 until rows) { val y = box.bottom - box.height() * row / (rows - 1); gridLine("h$row", box.left, y, box.right, y) }
-        for (tick in 0..4) { val px = box.left + box.width() * tick / 4; gridLine("v$tick", px, box.top, px, box.bottom) }
+        val verticalDivisions = if (liveMode) 2 else 4
+        for (tick in 0..verticalDivisions) { val px = box.left + box.width() * tick / verticalDivisions; gridLine("v$tick", px, box.top, px, box.bottom) }
         canvas.drawLine(box.left, box.top, box.left, box.bottom, axis)
         evidence.put(JSONObject().put("operation", "line").put("role", "axis").put("endpointsPx", JSONArray(listOf(box.left,box.top,box.left,box.bottom))))
         canvas.drawLine(box.left, box.bottom, box.right, box.bottom, axis)
@@ -179,11 +196,16 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         fun segments(item: MetricChartSeries, historic: Boolean) {
             val values = if (historic) item.reference else item.current
             stroke.reset(); stroke.isAntiAlias = true; stroke.style = Paint.Style.STROKE
-            stroke.color = if (historic && !comparison) style.palette.muted else style.metric(item.metric)
-            stroke.alpha = if (historic && !comparison) 125 else 255
-            stroke.strokeWidth = dp(if (historic && !comparison) 1f else if (selected == item.metric && !comparison) 3f else 2f)
-            stroke.strokeCap = if (item.metric == ChartMetric.TEMPERATURE && !comparison) Paint.Cap.ROUND else Paint.Cap.BUTT
+            stroke.color = if (liveMode) style.liveMetric(item.metric)
+                else if (historic && !comparison) style.palette.muted else style.metric(item.metric)
+            stroke.alpha = if (liveMode && historic) 135 else if (liveMode && selected != null && selected != item.metric) 190
+                else if (historic && !comparison) 125 else 255
+            stroke.strokeWidth = dp(if (liveMode && historic) 1.5f else if (liveMode) 2f
+                else if (historic && !comparison) 1f else if (selected == item.metric && !comparison) 3f else 2f)
+            stroke.strokeCap = if (liveMode || item.metric == ChartMetric.TEMPERATURE && !comparison) Paint.Cap.ROUND else Paint.Cap.BUTT
             val dash = when {
+                liveMode && historic -> floatArrayOf(dp(5f), dp(4f))
+                liveMode -> null
                 comparison && historic -> floatArrayOf(dp(8f), dp(5f))
                 historic -> null
                 item.metric == ChartMetric.WATER && !comparison -> floatArrayOf(dp(9f), dp(5f))
@@ -199,7 +221,17 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
                 evidence.put(JSONObject().put("operation", "path").put("role", "data").put("metric", item.metric.name).put("reference", historic)
                     .put("verticesPx", vertices).put("colorArgb", color(stroke.color)).put("alpha", stroke.alpha)
                     .put("strokeWidthPx", stroke.strokeWidth).put("dashIntervalsPx", dash?.let { JSONArray(it.toList()) } ?: JSONObject.NULL))
-                if (segment.size == 1 || !historic && !comparison && item.metric == ChartMetric.WEIGHT) {
+                if (liveMode && segment.size == 1) {
+                    val value = segment.first()
+                    val savedEffect = stroke.pathEffect
+                    stroke.pathEffect = null; stroke.style = Paint.Style.FILL
+                    canvas.drawCircle(px(value.elapsedMs), py(value.value, item.range), dp(2f), stroke)
+                    evidence.put(JSONObject().put("operation", "circle").put("role", "single-observation")
+                        .put("metric", item.metric.name).put("reference", historic)
+                        .put("centerPx", JSONArray(listOf(px(value.elapsedMs), py(value.value, item.range)))).put("radiusPx", dp(2f)))
+                    stroke.style = Paint.Style.STROKE; stroke.pathEffect = savedEffect
+                }
+                if (!liveMode && (segment.size == 1 || !historic && !comparison && item.metric == ChartMetric.WEIGHT)) {
                     val savedEffect = stroke.pathEffect; stroke.pathEffect = null; stroke.style = Paint.Style.FILL
                     segment.forEach { value -> canvas.drawCircle(px(value.elapsedMs), py(value.value, item.range), dp(2.5f), stroke)
                         evidence.put(JSONObject().put("operation", "circle").put("role", "data").put("metric", item.metric.name)
@@ -210,7 +242,8 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         }
         if (comparison) series.forEach { segments(it,false); segments(it,true) }
         else {
-            data.series.firstOrNull { it.metric == focused }?.let { segments(it,true) }
+            if (liveMode) data.series.forEach { segments(it, true) }
+            else data.series.firstOrNull { it.metric == focused }?.let { segments(it,true) }
             data.series.sortedBy { it.metric == selected }.forEach { segments(it,false) }
         }
         if (!comparison) data.observedThroughMs?.let { time ->

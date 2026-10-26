@@ -235,8 +235,16 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
     private fun nodes(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
-    private fun field(owner: Any, name: String): Any? = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)
-    private fun write(owner: Any, name: String, value: Any?) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(owner, value)
+    private fun field(owner: Any, name: String): Any? {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        return target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
+    }
+    private fun write(owner: Any, name: String, value: Any?) {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
+    }
     private fun sha(file: File): String = file.inputStream().use { input ->
         val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(8192)
         while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
@@ -801,6 +809,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             else -> true
         }
     private fun start(type: Class<out Activity>, id: String?=null): Activity {
+        if(type==HistoryActivity::class.java) return MainPageTestHost.launch(test,TaskDestination.HISTORY).activity
         val intent=Intent(context,type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         id?.let { intent.putExtra("legacyId",it) }
         return test.startActivitySync(intent).also { activity -> await("${type.simpleName} loaded") { ready(activity) } }
@@ -973,9 +982,10 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 deadline=ledger.begin(caseLabel,result==Activity.RESULT_CANCELED)
                 began=true
                 ownedSignal=ledger.signal()
-                val method=activity.javaClass.getDeclaredMethod("onActivityResult",Int::class.javaPrimitiveType,
+                val owner=(activity as? MainActivity)?.let { MainPageTestHost(test,it).active("root:HISTORY") } ?: activity
+                val method=owner.javaClass.getDeclaredMethod("onActivityResult",Int::class.javaPrimitiveType,
                     Int::class.javaPrimitiveType,Intent::class.java).apply { isAccessible=true }
-                method.invoke(activity,request,result,uri?.let { Intent().setData(it) })
+                method.invoke(owner,request,result,uri?.let { Intent().setData(it) })
                 observeReaders()
             }
             drainReaders("activity-result-${activity.javaClass.simpleName}-$request-$result",deadline,
@@ -1006,7 +1016,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         for((id,journal) in listOf(R.string.journal_tab to true,R.string.history_local_tab to false)) {
             val frozen=nativeInvariant(scope)
             val original=stableList(legacy,directory,"source-$journal-before")
-            val monitor=test.addMonitor(HistoryActivity::class.java.name,null,false)
+            val monitor=test.addMonitor(MainActivity::class.java.name,null,false)
             var native=try {
                 click(legacy,id)
                 requireNotNull(test.waitForMonitorWithTimeout(monitor,10000))

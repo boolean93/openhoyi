@@ -1,7 +1,6 @@
 package io.openhoyi.mobile
 
 import android.app.Instrumentation
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.View
@@ -17,10 +16,11 @@ internal class TwoCupChartChecks(private val test: Instrumentation) {
     }
     fun run(expectedFontScale: Float) {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
-        val activity = test.startActivitySync(Intent(test.targetContext, HomeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
+        val host = MainPageTestHost.launch(test)
+        val activity = host.activity
         try {
             test.waitForIdleSync()
+            host.active("root:BREW")
             main {
                 check(kotlin.math.abs(activity.resources.configuration.fontScale - expectedFontScale) < .01f)
                 val first = listOf(0L, 800L, 1600L, 4000L).mapIndexed { index, time ->

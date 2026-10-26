@@ -106,8 +106,9 @@ internal class AppLanguagePreferencesCard(
         chooser.setOnDismissListener { if (dialog === chooser) {dialog = null;dialogError=null};error?.apply {text="";visibility=View.GONE};errorContainer?.visibility=View.GONE }
         dialog = chooser
         dialogError=error
-        chooser.show()
+        AppDialog.show(chooser)
         visual?.dialog(chooser)
+        AppDialog.styleShown(chooser)
     }
     fun close() { dialog?.dismiss(); dialog = null;dialogError=null }
 }

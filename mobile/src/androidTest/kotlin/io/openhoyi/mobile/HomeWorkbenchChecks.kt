@@ -41,8 +41,9 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
         val chosen = app.curves.items.first { CurveStageParameters.pressureTargets(it).isNotEmpty() }
         try {
         main { check(preferences.edit().putString("selected", chosen.id).commit()) }
-        val activity = test.startActivitySync(Intent(context, HomeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
+        val page = MainPageTestHost.launch(test)
+        val activity = page.activity
+        val home = page.active("root:BREW") as HomeFragment
         try {
             check(kotlin.math.abs(activity.resources.configuration.fontScale - expectedFontScale) < .01f) {
                 "Home font scale ${activity.resources.configuration.fontScale} != $expectedFontScale"
@@ -69,8 +70,7 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                 }
             } finally { windowImage.recycle() }
             main {
-                val action = HomeActivity::class.java.getDeclaredField("brewButton").apply { isAccessible = true }
-                    .get(activity) as TextView
+                val action = page.viewField<TextView>(home, "brewButton")
                 val bounds = android.graphics.Rect()
                 val complete = action.isShown && action.getGlobalVisibleRect(bounds) &&
                     bounds.width() == action.width && bounds.height() == action.height
@@ -136,8 +136,7 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                     val recent = workspace.findViewWithTag<View>("home-recent-curves")
                     check(recent.isShown) { "Recent recipes missing from wide preparation view" }
                     val expectedRecent = CurveOrdering.recentUsed(app.curves.items, ledger, 3)
-                    val serviceField = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }
-                    val owner = serviceField.get(activity) as? MobileService
+                    val owner = activity.currentService
                     val state = owner?.shotState
                     expectedRecent.forEachIndexed { index, item ->
                         val row = workspace.findViewWithTag<View>("home-recent-curve-$index")
@@ -153,10 +152,10 @@ internal class HomeWorkbenchChecks(private val test: Instrumentation) {
                     }
                     check(workspace.findViewWithTag<View>("home-recent-curve-0").performClick())
                     check(preferences.getString("selected", null) == expectedRecent.first().id)
-                    check(serviceField.get(activity) === owner && owner?.shotState == state)
+                    check(activity.currentService === owner && owner?.shotState == state)
                     check(stage.targets == CurveStageParameters.pressureTargets(expectedRecent.first()))
                     check(preferences.edit().putString("selected", chosen.id).commit())
-                    HomeActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }.invoke(activity)
+                    HomeFragment::class.java.getDeclaredMethod("render").apply { isAccessible = true }.invoke(home)
                     measure("normal", 360, 640)
                     check(stage.visibility == View.VISIBLE)
                     measure("short-180dp", 360, 180)

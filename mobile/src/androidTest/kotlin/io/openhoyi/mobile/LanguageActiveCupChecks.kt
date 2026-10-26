@@ -20,17 +20,17 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
             Thread.sleep(50)
         }
     }
-    private fun service(screen: ExtractionActivity): MobileService? = ExtractionActivity::class.java
-        .getDeclaredField("service").apply { isAccessible = true }.get(screen) as? MobileService
-    private fun stop(screen: ExtractionActivity): Button = ExtractionActivity::class.java
-        .getDeclaredField("stop").apply { isAccessible = true }.get(screen) as Button
+    private fun service(screen: MainActivity): MobileService? = screen.currentService
+    private fun page(screen: MainActivity): ExtractionFragment =
+        MainPageTestHost(test, screen).active("extraction") as ExtractionFragment
+    private fun stop(screen: MainActivity): Button = MainPageTestHost(test, screen).viewField(page(screen), "stop")
     private fun observedState(owner: MobileService): ExtractionState = MobileService::class.java
         .getDeclaredField("lastShotState").apply { isAccessible = true }.get(owner) as ExtractionState
     private fun cupId(owner: MobileService): String? {
         val series = MobileService::class.java.getDeclaredField("series").apply { isAccessible = true }.get(owner)
         return ShotSeries::class.java.getDeclaredField("id").apply { isAccessible = true }.get(series) as? String
     }
-    private fun captureRunning(screen: ExtractionActivity, owner: MobileService, connected: Boolean) {
+    private fun captureRunning(screen: MainActivity, owner: MobileService, connected: Boolean) {
         awaitMain { (owner.snapshot.coffee as? ExtractionTelemetry)?.elapsedSeconds?.let { it >= 5 } == true &&
             owner.chartPoints.size >= 2 && screen.hasWindowFocus() }
         test.waitForIdleSync()
@@ -44,13 +44,13 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                 points.last().temperatureHundredthsC > 0)
             if (connected) check(points.any { it.weightHundredthsGram != null })
             else check(points.all { it.weightHundredthsGram == null } && owner.snapshot.weight == null && owner.snapshot.weightAt == null)
-            val label = ExtractionActivity::class.java.getDeclaredField("quantityLabel").apply { isAccessible = true }
-                .get(screen) as android.widget.TextView
+            val label = ExtractionFragment::class.java.getDeclaredField("quantityLabel").apply { isAccessible = true }
+                .get(page(screen)) as android.widget.TextView
             check(label.isShown && label.text.toString() == screen.getString(
                 if (connected) R.string.task_extraction_scale else R.string.task_extraction_water))
             check(stop(screen).isShown && stop(screen).isEnabled)
-            val alarm = ExtractionActivity::class.java.getDeclaredField("alarmStatus").apply { isAccessible = true }
-                .get(screen) as android.widget.TextView
+            val alarm = ExtractionFragment::class.java.getDeclaredField("alarmStatus").apply { isAccessible = true }
+                .get(page(screen)) as android.widget.TextView
             check(owner.snapshot.alarmBits == 0 && owner.snapshot.alarmAt?.let {
                 val now = SystemClock.elapsedRealtime()
                 it <= now && now - it <= 1500
@@ -62,8 +62,8 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                 return org.json.JSONObject().put("x", location[0]).put("y", location[1])
                     .put("width", view.width).put("height", view.height).put("visible", view.isShown)
             }
-            val overlay = ExtractionActivity::class.java.getDeclaredField("chart").apply { isAccessible = true }
-                .get(screen) as ExtractionOverlayView
+            val overlay = ExtractionFragment::class.java.getDeclaredField("chart").apply { isAccessible = true }
+                .get(page(screen)) as ExtractionOverlayView
             fun chartChild(name: String) = ExtractionOverlayView::class.java.getDeclaredField(name)
                 .apply { isAccessible = true }.get(overlay) as android.view.View
             val stopBounds = android.graphics.Rect()
@@ -111,18 +111,8 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
         val oldLanguageStorage = languagePrefs.all.toMap()
         val curves = context.getSharedPreferences("curves", Context.MODE_PRIVATE)
         val oldCurves = curves.all.toMap()
-        // Starting instrumentation replaces the app process. Bootstrap its owner here,
-        // not in the shell before am instrument (that service has already been killed).
-        val visualHome = if (visualEvidence) test.startActivitySync(Intent(context, HomeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity else null
-        if (visualHome != null) {
-            awaitMain {
-                (HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }
-                    .get(visualHome) as? MobileService)?.machineSettingsFresh == true
-            }
-        }
-        var screen = test.startActivitySync(Intent(context, ExtractionActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ExtractionActivity
+        // Bootstrap one real host; the active ExtractionFragment owns the attached chart and stop.
+        var screen = MainPageTestHost.launch(test, extraction = true).activity
         test.waitForIdleSync()
         awaitMain { service(screen)?.machineSettingsFresh == true }
         var owner: MobileService? = null
@@ -156,10 +146,10 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                     message = original.snapshot.message
                     check(app.languagePreferences.select(language) != AppLanguagePreference.Selection.SAVE_FAILED)
                 }
-                val monitor = test.addMonitor(ExtractionActivity::class.java.name, null, false)
+                val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
                 try {
                     test.runOnMainSync { screen.recreate() }
-                    screen = test.waitForMonitorWithTimeout(monitor, 10000) as? ExtractionActivity
+                    screen = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity
                         ?: error("Active Extraction recreation not observed")
                     test.waitForIdleSync()
                     awaitMain { service(screen) === original && stop(screen).isEnabled && stop(screen).isShown }
@@ -216,7 +206,6 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                 restoreMockPreferences(languagePrefs, oldLanguageStorage)
                 restoreMockPreferences(curves, oldCurves)
                 screen.finish()
-                visualHome?.finish()
             }
             test.waitForIdleSync()
         }

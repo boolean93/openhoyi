@@ -412,18 +412,7 @@ class MachineSettingsActivity : ThemedActivity() {
         val now = android.os.SystemClock.elapsedRealtime()
         val freshIdle = idle?.sleepStateRaw == 0 &&
             snapshot.coffeeAt?.let { it <= now && now - it <= 1500 } == true
-        val editable = ready && owner?.machineSettingsFresh == true && freshIdle && owner.manualShotActive != true &&
-            owner?.machineControlSafetyMessage == null &&
-            owner?.shotState?.let(ShotGate::active) != true &&
-            owner?.brewPreparationState == BrewPreparation.State.IDLE &&
-            pending !in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK,
-                SettingsWriteTracker.State.UNKNOWN) &&
-            owner?.scheduleWriteState !in setOf(SleepScheduleWriteTracker.State.WRITING,
-                SleepScheduleWriteTracker.State.WAITING_READBACK) &&
-            owner?.cupResetState !in setOf(CupResetTracker.State.WRITING,
-                CupResetTracker.State.WAITING_ZERO) &&
-            owner?.sleepNowState !in setOf(SleepNowTracker.State.WRITING,
-                SleepNowTracker.State.WAITING_ASLEEP, SleepNowTracker.State.UNKNOWN)
+        val editable = MachineSettingsEditGate.allowed(owner, snapshot, now)
         controlButtons.forEach { it.isEnabled = editable }
         cupResetButton.isEnabled = editable && snapshot.settings?.cupCount?.let { it > 0 && it == idle?.cupCount } == true &&
             owner?.cupResetState != CupResetTracker.State.UNKNOWN &&
@@ -459,7 +448,7 @@ class MachineSettingsActivity : ThemedActivity() {
         if (BuildConfig.MOCK_MODE) {
             AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_mock_confirm_title))
                 .setMessage(getString(R.string.machine_settings_mock_confirm_message, settingsPresentation.change(change)))
-                .setPositiveButton(getString(R.string.machine_settings_done), null).show().also { visual.dialog(it) }
+                .setPositiveButton(getString(R.string.machine_settings_done), null).show().also { visual.dialog(it); AppDialog.styleShown(it) }
             return
         }
         AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_confirm_title))
@@ -477,7 +466,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 }
                 render()
             }
-            .setNegativeButton(getString(R.string.machine_settings_cancel), null).show().also { visual.dialog(it) }
+            .setNegativeButton(getString(R.string.machine_settings_cancel), null).show().also { visual.dialog(it); AppDialog.styleShown(it) }
     }
     private fun confirmCupReset() {
         if (BuildConfig.MOCK_MODE) {
@@ -509,11 +498,12 @@ class MachineSettingsActivity : ThemedActivity() {
                             Toast.makeText(this, it, Toast.LENGTH_LONG).show()
                         }
                         render()
-                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show().also { visual.dialog(it) }
+                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show().also { visual.dialog(it); AppDialog.styleShown(it) }
             }
         }
         dialog.show()
         visual.dialog(dialog,viewport)
+        AppDialog.styleShown(dialog)
     }
     private fun chooseStandbyDelay() {
         val values = listOf(15, 30, 60, 120, 0)
@@ -525,7 +515,7 @@ class MachineSettingsActivity : ThemedActivity() {
                 else if (temperature !in 0..100) Toast.makeText(this,
                     getString(R.string.machine_settings_standby_temperature_invalid), Toast.LENGTH_LONG).show()
                 else confirm(MachineSettingChange.StandbyDelay(values[index], temperature))
-            }.show().also { visual.dialog(it) }
+            }.show().also { visual.dialog(it); AppDialog.styleShown(it) }
     }
     private fun editScheduleDay(index: Int, name: String) {
         val baseline = service?.snapshot?.let {
@@ -571,7 +561,7 @@ class MachineSettingsActivity : ThemedActivity() {
                             getString(R.string.machine_settings_schedule_preview_mock),
                             name, getString(if (enabled.isChecked) R.string.machine_settings_preview_enabled
                                 else R.string.setting_off), sh, sm, wh, wm))
-                        .setPositiveButton(getString(R.string.machine_settings_done), null).show().also { visual.dialog(it) }
+                        .setPositiveButton(getString(R.string.machine_settings_done), null).show().also { visual.dialog(it); AppDialog.styleShown(it) }
                     return@setOnClickListener
                 }
                 AlertDialog.Builder(this).setTitle(getString(R.string.machine_settings_schedule_confirm_title))
@@ -584,11 +574,12 @@ class MachineSettingsActivity : ThemedActivity() {
                             Toast.makeText(this, it, Toast.LENGTH_LONG).show()
                         }
                         render()
-                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show().also { visual.dialog(it) }
+                    }.setNegativeButton(getString(R.string.machine_settings_cancel), null).show().also { visual.dialog(it); AppDialog.styleShown(it) }
             }
         }
         dialog.show()
         visual.dialog(dialog,viewport)
+        AppDialog.styleShown(dialog)
     }
     private fun numberInput(parent: LinearLayout, label: String, value: Int): EditText = EditText(this).apply {
         id=View.generateViewId()

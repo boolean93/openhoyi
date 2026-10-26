@@ -77,8 +77,9 @@ internal class ScaleTrendPanel(private val activity: ThemedActivity, primary: Li
         dialog = AlertDialog.Builder(activity).setTitle(R.string.scale_trend_title).setView(android.widget.ScrollView(activity).apply { addView(content) })
             .setNegativeButton(android.R.string.cancel, null).create().also {
                 it.setOnDismissListener { detailPlot = null; detailStatus = null; dialog = null }
-                it.show()
+                AppDialog.show(it)
                 visual?.palette?.let { style->it.window?.setBackgroundDrawable(style.shape(style.surface));style.button(it.getButton(AlertDialog.BUTTON_NEGATIVE),outline=true) }
+                AppDialog.styleShown(it)
             }
     }
     fun dismiss() { dialog?.dismiss(); dialog = null; detailPlot = null; detailStatus = null }

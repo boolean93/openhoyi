@@ -24,11 +24,11 @@
 | 项目 | 状态 | 当前证据/下一步 |
 |---|---|---|
 | 协议计时修复 | 软件通过 | Astra最终审结通过：生产仅删07且保留时序；同地址READY→FAILED→重连两代精确三帧通过。主协调者核对675个JUnit零失败/错误、协议39823 checks、会话93 checks；Mini/Ultra实机待验 |
-| 真Tab迁移 | 开发中 | Sol实现单壳、真Fragment与Controller；六占位页不算完成 |
-| 机器首页常驻控制 | 未开始 | 首页双锅炉/快捷萃取、睡眠秤状态固定操作区 |
-| 大图设计 | 未开始 | 四指标同图参数已定，复用真实投影 |
-| 自动导航与重连 | 未开始 | 新杯ID去重、原设备恢复、主动断开抑制 |
-| 设置弹层统一 | 开发中 | 统一tokens与公共弹窗入口，功能清单逐项迁移 |
+| 真Tab迁移 | 开发中 | 六根及萃取已迁真实Fragment，单壳状态/返回静态符合；一次性确认取消与辅助弹窗离页清理静态闭合；测试已迁真实Fragment且最终统一构建通过，原生保状态运行待验 |
+| 机器首页常驻控制 | 开发中 | 紧凑双锅炉/快捷五槽/48dp壳控制已实现；FAILED重连图标及UNSUPPORTED转设备选择已闭合，720×360实际布局待运行 |
+| 大图设计 | 开发中 | 实际live renderer四指标、独立刻度及几何静态通过；新Main/Fragment入口下原生绘制与图高待验 |
+| 自动导航与重连 | 开发中 | 后端静态审查与101 checks通过，首次秤READY资格已闭合；壳新杯导航仍待原生验收；机器/秤恢复实机待验 |
+| 设置弹层统一 | 开发中 | 二级/辅助弹层及根Fragment接入静态审查通过；最终统一构建通过，长文本/IME原生运行仍待验 |
 | 整体验收 | 未开始 | 下述有界原生场景，硬件项单独标记 |
 
 ## 文件所有权与交接
@@ -83,10 +83,11 @@
 
 ## 批次5：BOOKOO初始化修复
 
-- [ ] 生产只删除初始化 `030A0700000E`，保留其余三帧及500/1000/2000ms。
-- [ ] 协议测试精确断言三帧和时间；adapter拒绝旧07帧。
-- [ ] DeviceSession模拟同地址首连到READY→意外断线→同地址重连到READY，两个generation分别只写预期三帧，通知继续产出重量。不额外补stop/reset/tare。
-- [ ] 更新旧“每帧500ms、共四帧”测试假设，运行两模块check。真实Mini/Ultra连接计时不动且重量不清零留作实机验收。
+- [x] 生产只删除初始化 `030A0700000E`，保留其余三帧及500/1000/2000ms。
+- [x] 协议测试精确断言三帧和时间；adapter拒绝旧07帧。
+- [x] DeviceSession模拟同地址首连到READY→意外断线→同地址重连到READY，两个generation分别只写预期三帧，通知继续产出重量。不额外补stop/reset/tare。
+- [x] 更新旧“每帧500ms、共四帧”测试假设，运行两模块check。
+- [ ] 真实Mini/Ultra连接计时不动且重量不清零的实机验收。
 
 ## 批次6：设置与自有弹层统一
 
@@ -122,3 +123,77 @@ python3 scripts/git_policy.py branch
 ### BOOKOO最终独立审查（2026-10-26）
 
 Astra已阅读生产与同地址断线重连测试diff，批准9个协议/会话文件作为独立修复提交。生产保留500/1000/2000ms三条安全初始化，未引入其他命令；adapter拒绝07。新测试确实经onDisconnected进入FAILED后同地址重连，generation变化，两代outbound精确为三帧，通知恢复READY。其余测试只修正旧四帧/500ms步进假设。测试结果由主协调者核对：675 JUnit零失败零错误、protocol39823 checks、device-session93 checks。软件通过，物理设备效果仍待Mini/Ultra验收。
+
+协议修复已由主协调者独立提交为 `c48dee2`；本条只记录已完成的软件项，不代表已推送或实机通过。
+
+## 后端恢复补充（Astra批准）
+
+最近READY机器原地址与已有加密凭据配合；不记住从未认证成功的候选地址。机器与秤独立退避，自动尝试只走现有连接认证/订阅/只读同步入口；物理断机待现有tick进入OUTCOME_UNKNOWN后，仍受原ShotGate/matchesDevice/凭据失败门禁约束。主动断开抑制不能被foreground重置，只有明确connect/reconnect解除。普通后台关闭窗口；已有前台服务且活动/未知萃取时保持有界恢复，不在后台启动新服务。
+
+`MobileService.manualShotPresentationId: String?` 在已确认活跃手动杯期间稳定，结束/断线为null；壳保存lastPresented再切页。手动杯断线继续abandon、finishSeries(false)，不得拼回旧图。断线后的活动片段不冒充新实体杯：展示ID抑制至观察真实IdleTelemetry，随后新的Started才重新允许新杯导航。未知结果警告与旧记录保留。
+
+## 分批迁移审查记录
+
+初批只读审查已向导航Sol指出：API26–29需insets兼容分支；隐藏Fragment必须释放Activity级返回回调；壳返回优先当前子详情；事务需primaryNavigationFragment与stateSaved保护；系统insets只能由壳应用一次；Home启动服务后必须确保壳能重新绑定。旧instrumentation的Activity假设需改成Main+真实Fragment，不能保留两套顶层导航仅为让旧测试通过。以上为开发中发现，尚未验收关闭。
+
+## 第二轮独立审查（开发中，未放行）
+
+- 后端：600s预算不能从进入App开始后永久失效；稳定READY超过10分钟后物理断链仍必须开启有界恢复episode，连续失败不重置预算。机器与秤都核查。
+- Home前台入口需自然恢复明确记住的机器与秤；当前只自动启动记住秤的服务、机器bindExisting(0)不足。最近READY地址必须真正被恢复入口消费；不新增后台拉起App或跨进程静默认证。主动断开抑制仍优先。
+- 环境暂停与用户主动断开不能混为同一个不可恢复suppressed：蓝牙/权限恢复应允许重新检查原设备，仍受预算、凭据及业务门禁约束。
+- 真实产品大图走ProductHistoryChartRenderer；修改fallback绘图不算完成。图例按自然文本宽度采用4列或2列，自适应英文/放大字体，不能把指标挤入header滚动。无秤保留第四项缺测读数而不画零线；孤立真实采样点仍须可见。
+- AppDialog旧Builder适配必须给实体底板、选项行与自定义正文统一样式；App自建DatePickerDialog不属于系统权限/文件面板排除项。长正文/长按钮/放大字体需原生量测。
+
+当前软件证据由root核对676 JUnit零失败，但这些审查项未关闭，不将编译/JUnit通过当成整体验收通过。
+
+### 视觉三文件复审
+
+已从源码确认liveMode真实产品分支、四色实线与参考虚线、缺秤第四图例且无假曲线、孤立点保留、旧Builder实体底板和choice样式均已接入。仍不放行：live轴单位与最高tick使用相交的垂直预算，时间tick与独立时间单位也相交；且MetricPlot最低高度仍调用history最低高度，使live较低预算失效。下一步修正两处几何预算并接通live最低高度，随后一次真实原生布局量测及截图核验（四指标、720×360、英文/放大字体），不继续只凭静态循环判断。
+
+导航已静态确认此前API/insets/返回/事务主要问题修正；需补show/hide情况下的图表检查弹窗离页关闭，不能仅依赖onDetachedFromWindow。旧根Activity重定向已存在，instrumentation迁移仍在进行。
+
+### 图表最终静态复审与后端最后一项
+
+图表5文件已核：live上缘为2行字体+12dp，时间单位合并末刻度，实时/历史最低高度分流，检查弹窗提供显式dismiss。FourMetricChartChecks读取实际renderer绘制evidence的glyphBounds与path，未发现伪断言；但其入口仍反射重定向后的ExtractionActivity，需随导航测试迁移为MainActivity/ExtractionFragment才能执行。现状态仅构建/静态通过，原生设备运行待验。
+
+后端episode从物理失败开始、环境暂停独立、已记住机器前台入口、凭据上限、认证only写帧与旧世代隔离已静态核实。剩余阻塞：首次无记住秤时foreground(false)，首次READY未更新ReconnectPolicy.hasRememberedScale，故当前前台会话断线无法自动恢复；须只在验证READY后启用资格并补首次配对回归。
+
+新Home测量前静态确认360dp必超高：旧header/锅炉/快捷/五槽/机器行加shell超过可用高度。导航Sol已接受紧凑两行锅炉、合并快捷与五槽、移出冗余header；交互目标仍至少48dp。quick需直达同一启动确认而非多点一次开始；shell仍需短状态/状态点/重连icon和遥测新鲜度；萃取工具须恢复被零高度辅助区隐藏的详情入口。以上均是原需求闭环，不扩大范围。
+
+root统一构建结果：48秒成功；mobile 337项、0失败、1跳过；device-session 676项、0失败；Mock APK及Mock AndroidTest APK均构建成功。后端首次秤READY资格阻塞仍未关闭，视觉仅静态/构建通过、原生待验。设置与全部App弹窗迁移仍未完成，继续保持开发中，不能以本次构建当作完成证据。
+
+### 二级弹层与后端最终独立审查
+
+Astra逐diff核对后批准本批二级/辅助弹层的静态实现：公共show/styleShown不覆盖原onShow/onDismiss与自定义按钮校验；输入控件不重包，机器参数/日程校验和写入确认保留。DatePicker自有弹层接公共外观而保留内部日期控件与原回填/销毁关闭。语言选择失败提示、对话框引用禁重、Bean helper注销生命周期回调、反馈音频清理都未被覆盖。CurveShare和LegacyHistoryDetail经beanShowDialog间接覆盖。MachineSettingsEditGate与抽取前所有条件逐项一致。尚未据此宣称全部App弹层迁移完成，根Fragments由导航所有者继续接入。
+
+首次配对秤恢复P1已闭合：仅observeScaleState(READY)将hasRememberedScale置true，未验证CONNECTING仍false；新增foreground(false)→显式连接→CONNECTING→READY→长期连接后FAILED回归通过。Sol报告device-session 101 checks红绿通过；Astra已确认对应代码与用例，不代称实机成功。
+
+真正待验：本批阶段统一构建；Main+Fragment原生入口测试运行；720×360首页与实时图布局、英文/放大字体图例、弹窗长正文/按钮/IME、Tab状态与两杯一次导航；真实锅炉回读/睡眠唤醒/同地址重连/主动断开不反连/BOOKOO Mini与Ultra连接不计时。Mock不能替代最后一组硬件效果。
+
+### 导航生产主体冻结复审
+
+Astra已核实：Home紧凑双锅炉与快捷五槽上移，低频内容在下方；共享confirmStart路径已接快捷入口；壳通过稳定manualShotPresentationId在前台记住ID后跳转，saved state保存去重ID；主导航返回只询问当前Fragment，不再保留隐藏页Activity级返回拦截。主要根Fragment在onPause停止轮询、移除服务观察、关闭自有弹层，萃取检查图显式dismiss。睡眠按钮使用LiveTelemetry新鲜度，不把未知当清醒。
+
+仍需修的有界项：ExtractionFragment延迟绑定时的一次性启动确认请求离页必须取消；FAILED断线态显示重连icon而非仅×；HistoryDetailContent/beanShowDialog在Main宿主下创建的辅助弹窗要登记壳离页关闭，不能只等Activity销毁。已交导航Sol，不修改生产代码。
+
+### CI与验收状态边界
+
+远端 `c48dee2` 的必需branch-policy、verify、lifecycle、upgrade均pass。该提交尚未包含本次未推送的新导航主体；旧可选视觉检查仍有失败，不能声称“全部CI绿色”。证据位于 `build/task-first-evidence/feedback-redesign-2026-10-26/ci-*-failed.log`：M3焦点/选中/滚动，M4的424/1154/1082 IME，scale Window/display同步，以及form 12项失败。它们作为现有基线状态保留，不据此扩大旧审美矩阵。
+
+本轮有限布局验收仍锁定当前Main+Fragment：720×360与1280×800横屏首页/萃取、英文或放大字体代表场景、关键弹层/IME、Tab状态与手动两杯导航。原生布局尚未执行，静态紧凑重排不等于一屏目标已通过。
+
+### 2026-10-27最终静态收口
+
+已实际确认三项中的核心修复：ExtractionFragment.onPause及普通萃取入口清除未消费启动确认；FAILED现在显示重连icon；HistoryDetailContent三条弹层与Main宿主beanShowDialog均登记壳清理，普通Activity仍保留原销毁清理。最后UNSUPPORTED分支已补：MainActivity.reconnectScale先openScale并return，非READY进入ScaleConnectionActivity，不再尝试旧设备。root已读取对应分支确认；本轮3+1项静态阻塞全部闭合。
+
+抽查MainPageTestHost、MainNavigationChecks、FourMetricChartChecks：新测试进入真实MainActivity，校验primaryNavigationFragment/RESUMED/View attached、零Tab返回栈；萃取测试从实际ExtractionFragment取chart。图表仍核glyph边界/缺秤无假线；导航仍核搜索状态、同服务与同series、手动ID去重。History非零滚动仅在已有非零fixture时检查，不能据静态检查声称全部滚动恢复已验证。测试未运行，不以测试代码存在当通过。
+
+root最新统一构建1分21秒成功：protocol39823 checks、device101 checks、mobile337 JUnit零失败1跳过、session676 JUnit零失败、Mock与Debug APK成功。最后BeanScreenUi登记一行在本次构建之后增加，仍待最终AndroidTest重编译。远端必需CI通过仍对应c48dee2，新导航尚未推送；当前生产静态收口不代表新源码CI或原生布局通过。有限原生与实机待验范围保持不变。
+
+最终冻结记录：生产静态复核已收口，不再扩大审查范围。三组测试冻结后由root统一编译并推送CI；最新BeanScreenUi清理登记和UNSUPPORTED分支纳入该次构建。当前仍只确认上述已发生的本地构建与静态结果，最终源码构建、新提交CI、原生布局/生命周期运行和真实硬件验收均按各自证据更新，不提前标通过。
+
+### 最终统一构建记录（2026-10-27）
+
+root已核对session38861退出码0，`final-integration.log`末尾BUILD SUCCESSFUL，耗时2分34秒，167 tasks（45 executed）。覆盖protocol/session checks、mobile Mock unit、Mock/Debug/AndroidTest APK及lintDebug：协议39823 checks、session101 checks；mobile337 JUnit零失败1跳过、session676 JUnit零失败。该结果覆盖最后冻结的生产与测试改动，取代前文“最终重编译待验”状态。
+
+生产静态阻塞全部闭合，本地最终统一构建通过。新提交CI、原生布局/生命周期实际运行及真实硬件仍待验；远端c48dee2的既有CI不能替代新提交验证，旧可选视觉基线失败记录仍保留。本计划本轮冻结，后续仅据实际验收证据更新。

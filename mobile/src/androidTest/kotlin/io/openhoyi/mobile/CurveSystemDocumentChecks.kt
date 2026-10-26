@@ -66,7 +66,8 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
         check(action.performClick())
     }
     private fun start(type:Class<out Activity>,clearTask:Boolean=false,extras:(Intent)->Unit={}):Activity {
-        val intent=Intent(context,type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).also(extras)
+        val intent=Intent(context,if(type==HomeActivity::class.java) MainActivity::class.java else type)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).also(extras)
         if(clearTask)intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
         return test.startActivitySync(intent).also {activity->
             opened+=activity;awaitMain("${type.simpleName}-ready") {activity.hasWindowFocus() && activity.window.decorView.isLaidOut}
@@ -76,8 +77,7 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
         onMain {if(!activity.isDestroyed)activity.finish()}
         awaitMain("${activity.javaClass.simpleName}-closed") {activity.isDestroyed};opened.remove(activity)
     }
-    private fun owner(home:Activity):MobileService? = HomeActivity::class.java.getDeclaredField("service")
-        .apply {isAccessible=true}.get(home) as? MobileService
+    private fun owner(home:Activity):MobileService? = (home as MainActivity).currentService
     private fun shareUri(share:Activity):Uri?=CurveShareActivity::class.java.getDeclaredField("exportedUri")
         .apply {isAccessible=true}.get(share) as? Uri
     private fun document(share:Activity):CustomCurveDocument=CurveShareActivity::class.java.getDeclaredField("document")
@@ -257,6 +257,7 @@ internal class CurveSystemDocumentChecks(private val test:Instrumentation) {
     fun run(disposableCiEmulator:Boolean):Result {
         emulatorGate(disposableCiEmulator)
         val home=start(HomeActivity::class.java,true)
+        MainPageTestHost(test,home as MainActivity).active("root:BREW")
         awaitMain("single-mock-service") {owner(home)?.running==true}
         val app=context.applicationContext as MobileApplication
         app.history

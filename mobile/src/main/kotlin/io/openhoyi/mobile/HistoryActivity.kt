@@ -35,6 +35,7 @@ class HistoryActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectRoot(TaskDestination.HISTORY)) return
         showJournal = savedInstanceState?.getBoolean("showJournal")
             ?: (intent.getStringExtra(EXTRA_HISTORY_SOURCE) == SOURCE_JOURNAL)
         savedInstanceState?.getParcelable<android.os.Parcelable>("localList")?.let { listStates[false] = it }
@@ -45,6 +46,7 @@ class HistoryActivity : ThemedActivity() {
         buildScreen()
     }
     override fun onSaveInstanceState(outState: Bundle) {
+        if (redirectedRoot) { super.onSaveInstanceState(outState); return }
         super.onSaveInstanceState(outState)
         rememberList()
         outState.putParcelable("localList", listStates[false])
@@ -248,7 +250,7 @@ class HistoryActivity : ThemedActivity() {
             adapter.notifyDataSetChanged()
         }
     }
-    override fun onStart() { super.onStart(); render() }
+    override fun onStart() { super.onStart(); if (!redirectedRoot) render() }
 
     @Deprecated("Platform activity results")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -351,8 +353,8 @@ class HistoryActivity : ThemedActivity() {
     }
     @Deprecated("Platform back callback")
     override fun onBackPressed() { if (compact && collection.detailRequested) showList() else super.onBackPressed() }
-    override fun onStop() { rememberList(); super.onStop() }
-    override fun onDestroy() { updateBack(false); super.onDestroy() }
+    override fun onStop() { if (!redirectedRoot) rememberList(); super.onStop() }
+    override fun onDestroy() { if (!redirectedRoot) updateBack(false); super.onDestroy() }
     private fun status(value: ShotHistory.Status) = when (value) {
         ShotHistory.Status.STARTING -> getString(R.string.extraction_state_starting)
         ShotHistory.Status.RUNNING -> getString(R.string.extraction_state_running)

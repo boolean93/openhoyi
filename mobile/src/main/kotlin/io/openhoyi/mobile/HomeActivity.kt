@@ -113,6 +113,7 @@ class HomeActivity : ThemedActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (redirectRoot(TaskDestination.BREW)) return
         feedbackUi = BrewFeedbackDialog(this, savedInstanceState)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -513,6 +514,7 @@ class HomeActivity : ThemedActivity() {
         render()
     }
     override fun onStart() {
+        if (redirectedRoot) { super.onStart(); return }
         feedbackUi.start()
         super.onStart()
         recentCurves.refresh()
@@ -521,6 +523,7 @@ class HomeActivity : ThemedActivity() {
         handler.post(refresh)
     }
     override fun onStop() {
+        if (redirectedRoot) { super.onStop(); return }
         feedbackUi.leave(isChangingConfigurations)
         visible = false; handler.removeCallbacks(refresh)
         deviceDialog?.dismiss()
@@ -644,6 +647,7 @@ class HomeActivity : ThemedActivity() {
             .setNegativeButton(getString(R.string.machine_settings_cancel), null).show()
     }
     override fun onSaveInstanceState(outState: Bundle) {
+        if (redirectedRoot) { super.onSaveInstanceState(outState); return }
         feedbackUi.save(outState)
         super.onSaveInstanceState(outState)
     }

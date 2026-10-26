@@ -68,8 +68,16 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
     private fun nodes(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
-    private fun field(owner: Any, name: String): Any? = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)
-    private fun write(owner: Any, name: String, value: Any?) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(owner, value)
+    private fun field(owner: Any, name: String): Any? {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        return target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
+    }
+    private fun write(owner: Any, name: String, value: Any?) {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
+    }
     private fun sha(file: File): String = file.inputStream().use { input ->
         val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(8192)
         while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
@@ -531,7 +539,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val bars=insets.getInsets(WindowInsets.Type.systemBars())
         val config=activity.resources.configuration
         val budget=when(activity) {
-            is CurveActivity -> JSONObject(activity.productLayoutEvidence.toString())
+            is MainActivity -> JSONObject((MainPageTestHost(test, activity).active("root:CURVES") as CurveFragment).productLayoutEvidence.toString())
             is CurveImportPreviewActivity -> JSONObject(activity.productLayoutEvidence.toString())
             else -> JSONObject().put("status","unknown").put("reason","Activity_has_no_existing_natural_budget_interface; actual_View_geometry_recorded")
         }
@@ -562,7 +570,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             }).put("nodes",JSONArray(nodes(content).filter { it.tag is String }.map { observation(it) }))
     }
     private fun baselines(activity: Activity): JSONArray = JSONArray((0..1).map { index ->
-        val prefix=if(activity is CurveActivity) "product/curve-library/summary/$index" else "product/import-preview/metric-$index"
+        val prefix=if(activity is MainActivity) "product/curve-library/summary/$index" else "product/import-preview/metric-$index"
         val number=requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/number"))
         val unit=requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/unit"))
         val a=IntArray(2); val b=IntArray(2); number.getLocationOnScreen(a); unit.getLocationOnScreen(b)
@@ -1249,10 +1257,12 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 if(name=="short-pressure" && !(field(page,"compact") as Boolean)) {
                     val decor=page.window.decorView
                     test.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
-                    await("wide short Library original Back finished Activity") { page.isDestroyed }
-                    check(android.view.inspector.WindowInspector.getGlobalWindowViews().none { it===decor || it.windowToken===decor.windowToken })
-                    report.put("originalBackAfterRestore","finished_original_activity")
-                        .put("destroyedActivityIdentity",System.identityHashCode(page))
+                    await("wide short Library Back selected Brew") {
+                        (page as MainActivity).supportFragmentManager.primaryNavigationFragment is HomeFragment
+                    }
+                    check(page.window.decorView===decor && !page.isDestroyed)
+                    report.put("originalBackAfterRestore","selected_brew_in_original_window")
+                        .put("destroyedActivityIdentity",JSONObject.NULL)
                 }
             } catch(failure:Throwable) { error=failure; report.put("status","FAIL").put("failure",failure.stackTraceToString()); throw failure }
             finally {
@@ -1396,7 +1406,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         into.put("detailPanel",routeViewState(field(activity,"detailPanel") as View))
         into.put("detailScroll",routeViewState(field(activity,"detailScroll") as ScrollView))
         into.put("fallbackScroll",routeViewState(field(activity,"previewFallbackScroll") as ScrollView))
-        if(activity is CurveActivity) {
+        if(activity is MainActivity) {
             val assignedId=field(activity,"lastAssignedCurveId")
             val assignedSlot=field(activity,"lastAssignedSlot")
             check(assignedId==null && assignedSlot==null) { "M3 route leaked local slot feedback" }
@@ -1874,7 +1884,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         await("parameter dialog closed") { activity.hasWindowFocus() }
         val returned=stableList(activity,directory,"after-detail-return")
         check(returned.toString()==after.toString()) { "M3 details return changed list/selection" }
-        val monitor=test.addMonitor(CurveActivity::class.java.name,null,false)
+        val monitor=test.addMonitor(MainActivity::class.java.name,null,false)
         try {
             main { activity.recreate() }
             activity=test.waitForMonitorWithTimeout(monitor,10000) ?: error("M3 Curve Activity recreation missing")
@@ -1896,7 +1906,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             check(whole(observation(use)) && use.height>=HoyiUi.dp(activity,48))
             check(use.performClick())
         }
-        await("real use-for-cup callback finished") { activity.isDestroyed }
+        await("real use-for-cup callback finished") {
+            (activity as MainActivity).supportFragmentManager.primaryNavigationFragment is HomeFragment
+        }
         check(preferences.all==beforeUse.toMutableMap().apply { put("selected",chosen.id) }) { "M3 use-for-cup changed unrelated preferences" }
         check(invariant(scope)==frozen && services().isEmpty()) { "M3 library action changed domain data or started service" }
         File(directory,"continuous-list-business.json").writeText(JSONObject().put("beforeSelection",before).put("afterSelection",after)
@@ -1938,6 +1950,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("acceptancePolicy","geometry_stability_only; pending_only_isShown_tree; hidden_nodes_do_not_block; not_waiting_for_visibility_or_business_assertion_success").toString(2)) }
     }
     private fun start(type: Class<out Activity>, document: CustomCurveDocument?=null): Activity {
+        if(type==CurveActivity::class.java) return MainPageTestHost.launch(test,TaskDestination.CURVES).activity
         val intent=Intent(context,type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         document?.let { intent.putExtra(CurveImportPreviewActivity.DOCUMENT,it.encode()) }
         return test.startActivitySync(intent).also { activity -> await("${type.simpleName} ready") {

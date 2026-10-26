@@ -20,13 +20,21 @@ class ScaleVisualStyle internal constructor(context: Context) {
     internal val warning = ExtractionHistoryVisualStyle(context)
     internal fun page(activity: ThemedActivity, title: Int, subtitle: Int): LinearLayout {
         val body = palette.page(activity, activity.getString(title), activity.getString(subtitle))
+        decorate(activity,body,subtitle)
+        return body
+    }
+    internal fun fragmentPage(activity: ThemedActivity, title: Int, subtitle: Int): Pair<LinearLayout,LinearLayout> {
+        val (root,body)=palette.fragmentPage(activity,activity.getString(title),activity.getString(subtitle))
+        decorate(activity,body,subtitle)
+        return root to body
+    }
+    private fun decorate(activity:ThemedActivity,body:LinearLayout,subtitle:Int) {
         val header = (body.tag as BeanPageRegions).header
         val words = (0 until header.childCount).map(header::getChildAt).filterIsInstance<LinearLayout>().first()
         val explanation=activity.getString(subtitle)+(if(BuildConfig.MOCK_MODE) " · "+activity.getString(R.string.scale_mock_notice) else "")
         words.addView(palette.text(explanation, TaskProductVisualStyle.auxiliary, secondary = true),
             LinearLayout.LayoutParams(-1, -2).apply { topMargin = palette.dp(8) })
         (header.layoutParams as LinearLayout.LayoutParams).bottomMargin = palette.dp(16)
-        return body
     }
 }
 

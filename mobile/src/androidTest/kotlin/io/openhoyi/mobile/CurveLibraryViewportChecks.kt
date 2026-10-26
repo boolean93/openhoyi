@@ -18,10 +18,10 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
         failure?.let { throw it }
     }
-    private fun returnIntentRegression(activity: CurveActivity, app: MobileApplication, directory: File) {
-        fun field(name: String) = CurveActivity::class.java.getDeclaredField(name).apply { isAccessible = true }.get(activity)
-        val show = CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java).apply { isAccessible = true }
-        val onStart = CurveActivity::class.java.getDeclaredMethod("onStart").apply { isAccessible = true }
+    private fun returnIntentRegression(activity: MainActivity, fragment: CurveFragment, app: MobileApplication, directory: File) {
+        fun field(name: String) = CurveFragment::class.java.getDeclaredField(name).apply { isAccessible = true }.get(fragment)
+        val show = CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java).apply { isAccessible = true }
+        val refreshPage = CurveFragment::class.java.getDeclaredMethod("onResume").apply { isAccessible = true }
         lateinit var collection: TaskCollectionLayout
         lateinit var list: android.widget.ListView
         lateinit var detail: ScrollView
@@ -46,7 +46,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
         val noPressure = app.curves.items.first { it.factoryCurve != null && CurveStageParameters.pressureTargets(it).isEmpty() }
         fun viewport() = list.firstVisiblePosition to (list.getChildAt(0)?.top ?: 0)
         fun selectedId() = (field("selected") as CurveLibraryItem?)?.id
-        fun refresh() { main { onStart.invoke(activity) }; test.waitForIdleSync() }
+        fun refresh() { main { refreshPage.invoke(fragment) }; test.waitForIdleSync() }
         var detailRange = 0
         var fallbackRange = 0
         var detailBefore = 0
@@ -54,7 +54,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
         var failure: Throwable? = null
         try {
             main {
-                show.invoke(activity, pressure)
+                show.invoke(fragment, pressure)
                 check(collection.browserBody.visibility == View.VISIBLE && collection.detailBody.visibility == View.VISIBLE)
                 collection.detailRequested = false
             }
@@ -66,7 +66,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 check(!collection.detailRequested && selectedId() == pressure.id && viewport() == before) {
                     "Curve return turned visible two-pane detail into requested detail" }
             }
-            main { show.invoke(activity, pressure) }
+            main { show.invoke(fragment, pressure) }
             test.waitForIdleSync()
             main {
                 check(collection.detailRequested)
@@ -81,12 +81,12 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 if (detailRange > 0) check(detail.scrollY == detailBefore) {
                     "Curve return reset nonzero detail preview scroll" }
                 if (detailRange > 0) {
-                    show.invoke(activity, pressure)
+                    show.invoke(fragment, pressure)
                     check(collection.detailRequested && detail.scrollY == 0) {
                         "Explicit Curve selection no longer resets detail preview scroll" }
                 }
             }
-            main { show.invoke(activity, noPressure) }
+            main { show.invoke(fragment, noPressure) }
             test.waitForIdleSync()
             main {
                 fallbackRange = (fallback.getChildAt(0).height - fallback.height).coerceAtLeast(0)
@@ -116,7 +116,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                     fun restore(action: () -> Unit) {
                         try { action() } catch (error: Throwable) { recordCleanup(error) }
                     }
-                    restore { show.invoke(activity, original) }
+                    restore { show.invoke(fragment, original) }
                     restore { collection.detailRequested = originalRequested }
                     restore { detail.scrollTo(0, originalDetailY) }
                     restore { fallback.scrollTo(0, originalFallbackY) }
@@ -133,16 +133,18 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
         val preferences = context.getSharedPreferences("curves", 0)
         val before = preferences.all.toMap()
         val usage = app.curves.items.associate { it.id to app.curveUsageResult.getOrThrow().stats(it.id) }
-        val activity = test.startActivitySync(Intent(context, CurveActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as CurveActivity
+        val page = MainPageTestHost.launch(test, TaskDestination.CURVES)
+        val activity = page.activity
+        val fragment = page.active("root:CURVES") as CurveFragment
         try {
             test.waitForIdleSync()
             main {
                 check(kotlin.math.abs(activity.resources.configuration.fontScale - expectedFontScale) < .01f)
-                fun field(name: String) = CurveActivity::class.java.getDeclaredField(name).apply { isAccessible = true }.get(activity)
+                fun field(name: String) = CurveFragment::class.java.getDeclaredField(name).apply { isAccessible = true }.get(fragment)
                 var chosen = app.curves.items.first { CurveStageParameters.pressureTargets(it).isNotEmpty() }
                 val originalChosen = chosen
-                CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
-                    .apply { isAccessible = true }.invoke(activity, chosen)
+                CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
+                    .apply { isAccessible = true }.invoke(fragment, chosen)
                 val collection = activity.window.decorView.findViewWithTag<TaskCollectionLayout>("task-collection")
                 val chart = field("stageChart") as CurveStageView
                 val fallback = field("previewFallbackScroll") as ScrollView
@@ -261,14 +263,14 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         "noPressure" to app.curves.items.first { it.factoryCurve != null && CurveStageParameters.pressureTargets(it).isEmpty() },
                         "fourStage" to CurveFooterFixtures.fourStage(app.curves))) {
                         chosen = item
-                        CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
-                            .apply { isAccessible = true }.invoke(activity, chosen)
+                        CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
+                            .apply { isAccessible = true }.invoke(fragment, chosen)
                         // Use this CI profile's actual collection space, including the user tablet profiles.
                         measure("footer-$kind-actual-space", oldWidth, oldHeight)
                         check(select.isEnabled == app.curves.canStart(item))
                     }
-                    CurveActivity::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
-                        .apply { isAccessible = true }.invoke(activity, originalChosen)
+                    CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
+                        .apply { isAccessible = true }.invoke(fragment, originalChosen)
                     check(preferences.all == before)
                     check(app.curves.items.associate { it.id to app.curveUsageResult.getOrThrow().stats(it.id) } == usage)
                 } finally {
@@ -278,7 +280,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 }
             }
             test.waitForIdleSync()
-            returnIntentRegression(activity, app, File(context.getExternalFilesDir(null), "curve-library-checks"))
+            returnIntentRegression(activity, fragment, app, File(context.getExternalFilesDir(null), "curve-library-checks"))
             val frames = java.util.concurrent.CountDownLatch(1)
             main {
                 activity.window.decorView.postOnAnimation {

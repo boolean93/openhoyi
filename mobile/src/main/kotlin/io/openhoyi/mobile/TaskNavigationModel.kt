@@ -15,4 +15,6 @@ internal object TaskNavigationModel {
         group(TaskDestination.SETTINGS, "MachineSettings AppSettings")
     }
     fun forPage(simpleName: String): TaskDestination? = pages[simpleName]
+    fun forIndex(index: Int): TaskDestination? = (primary + tools).getOrNull(index)
+    fun indexOf(destination: TaskDestination): Int = (primary + tools).indexOf(destination)
 }

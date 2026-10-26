@@ -74,8 +74,23 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
     private fun nodes(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { nodes(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
-    private fun field(owner: Any, name: String): Any? = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)
-    private fun write(owner: Any, name: String, value: Any?) = owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(owner, value)
+    private fun field(owner: Any, name: String): Any? {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        var type: Class<*>? = target.javaClass
+        while(type != null) {
+            val declaring=type
+            val declared=runCatching {declaring.getDeclaredField(name)}.getOrNull()
+            if(declared != null) return declared.apply {isAccessible=true}.get(target)
+            type=type.superclass
+        }
+        error("Missing field $name on ${target.javaClass.name}")
+    }
+    private fun write(owner: Any, name: String, value: Any?) {
+        val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
+    }
     private fun sha(file: File): String = file.inputStream().use { input ->
         val digest = MessageDigest.getInstance("SHA-256"); val buffer = ByteArray(8192)
         while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
@@ -392,6 +407,14 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                                 check(parentField("owner")==null && parentField("bound")==false && parentField("visible")==false &&
                                     !(parentField("handler") as Handler).hasCallbacks(parentField("refresh") as Runnable)) {"M6 ScaleOwner binding/refresh survived destruction"}
                             }
+                            tracked.filterIsInstance<MainActivity>().forEach { activity ->
+                                val scale=activity.supportFragmentManager.findFragmentByTag("root:SCALE") as? ScaleFragment
+                                    ?: return@forEach
+                                check(field(scale,"owner")==null && field(activity,"bound")==false &&
+                                    !(field(scale,"handler") as Handler).hasCallbacks(field(scale,"refresh") as Runnable)) {
+                                    "M6 Scale Fragment binding/refresh survived destruction"
+                                }
+                            }
                             if(serviceBound) { context.unbindService(serviceConnection); serviceBound=false }
                             val stopped=context.stopService(Intent(context,MobileService::class.java))
                             if(serviceStarted) check(stopped) { "M6 started scoped service stop rejected" }
@@ -516,6 +539,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                 JSONObject().put("class",view.javaClass.name).put("hasWindowFocus",view.hasWindowFocus()).put("nodes",JSONArray(nodes(view).filter {it.tag is String || it is TextView}.map(::observation)))
             }))
             .put("productLayoutEvidence",when(activity) {
+                is MainActivity->JSONObject((MainPageTestHost(test,activity).active("root:SCALE") as ScaleFragment).productLayoutEvidence.toString())
                 is ScaleActivity->JSONObject(activity.productLayoutEvidence.toString())
                 is ScaleConnectionActivity->JSONObject(activity.productLayoutEvidence.toString())
                 else->JSONObject.NULL
@@ -523,6 +547,8 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
     }
     private fun start(type:Class<out Activity>,extras:(Intent)->Unit={}):Activity {
         val intent=Intent(context,type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);extras(intent)
+        if(type==ScaleActivity::class.java && !intent.getBooleanExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE,false))
+            return MainPageTestHost.launch(test,TaskDestination.SCALE).activity
         return test.startActivitySync(intent).also {activity->await("${type.simpleName} actual window ready") {
             activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested
         }}
@@ -539,7 +565,10 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             }}
         } finally {test.removeMonitor(monitor)}
     }
-    private fun render(activity:Activity) {main {activity.javaClass.getDeclaredMethod("renderScale").apply {isAccessible=true}.invoke(activity)}}
+    private fun render(activity:Activity) {main {
+        val owner=(activity as? MainActivity)?.let {MainPageTestHost(test,it).active("root:SCALE")} ?: activity
+        owner.javaClass.getDeclaredMethod("renderScale").apply {isAccessible=true}.invoke(owner)
+    }}
     private fun tagged(activity:Activity,tag:String):View=requireNotNull(root(activity).findViewWithTag<View>(tag)) {"Missing actual semantic target: $tag"}
     private fun reveal(activity:Activity,view:View) {
         main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
@@ -837,7 +866,11 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         val snapshot=service.snapshot
         val content=root(activity);val scroll=tagged(activity,"product/scale/support-scroll") as ScrollView
         val fallback=tagged(activity,"scale-trend-fallback")
-        val trendInline=(activity as ScaleActivity).productLayoutEvidence.getBoolean("trendInline")
+        val trendInline=(when(activity) {
+            is MainActivity -> (MainPageTestHost(test,activity).active("root:SCALE") as ScaleFragment).productLayoutEvidence
+            is ScaleActivity -> activity.productLayoutEvidence
+            else -> error("Unexpected scale owner")
+        }).getBoolean("trendInline")
         fun fixed(tag:String):JSONObject=visibility(tagged(activity,tag))
         val capture=content.findViewWithTag<View>("product/scale/capture")
         return JSONObject().put("activityIdentity",System.identityHashCode(activity))
@@ -1502,7 +1535,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             val active=Scope(directory,page);scope=active;active.prepare();active.install(theme=="dark");active.beginService()
             serviceGuards(active,directory)
             val activity=start(if(page=="scale")ScaleActivity::class.java else ScaleConnectionActivity::class.java)
-            await("page bound to exact scoped owner") {ScaleOwnerActivity::class.java.getDeclaredField("owner").apply {isAccessible=true}.get(activity)===active.ownerService}
+            await("page bound to exact scoped owner") {field(activity,"owner")===active.ownerService}
             if(page=="scale")mainScale(active,activity,directory) else {
                 setCandidates(active,activity,candidates(3));File(directory,"fixture.json").writeText(active.fixture.put("candidateCount",3).toString(2))
             }

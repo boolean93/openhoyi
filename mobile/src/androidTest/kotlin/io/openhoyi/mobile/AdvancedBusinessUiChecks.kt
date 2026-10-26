@@ -28,6 +28,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
     data class Result(val paths: List<String>, val inventoryEvents: Int, val newDrafts: Int)
     private val context get() = test.targetContext
     private val opened = mutableListOf<Activity>()
+    private var rootHost: MainActivity? = null
     private fun onMain(action: () -> Unit) {
         var failure: Throwable? = null
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
@@ -223,19 +224,37 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         })
     }
     private fun start(type: Class<out Activity>, extras: (Intent) -> Unit = {}): Activity {
+        if (type == HomeActivity::class.java) {
+            val activity = MainPageTestHost.launch(test).activity
+            rootHost = activity
+            opened += activity
+            return activity
+        }
+        if (type == BeanInventoryActivity::class.java) {
+            val activity = requireNotNull(rootHost) { "Bean inventory needs the actual MainActivity host" }
+            MainPageTestHost(test, activity).select(TaskDestination.BEANS)
+            return activity
+        }
         val intent = Intent(context, type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).also(extras)
         val activity = test.startActivitySync(intent).also { opened += it }
         test.waitForIdleSync()
         awaitMain { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
         return activity
     }
-    private fun close(activity: Activity) { onMain { if (!activity.isDestroyed) activity.finish() }; awaitMain { activity.isDestroyed }; opened.remove(activity) }
+    private fun close(activity: Activity) {
+        if (activity === rootHost) {
+            MainPageTestHost(test, activity as MainActivity).select(TaskDestination.BREW)
+            return
+        }
+        onMain { if (!activity.isDestroyed) activity.finish() }; awaitMain { activity.isDestroyed }; opened.remove(activity)
+    }
     private fun recreate(activity: Activity): Activity {
         val monitor = test.addMonitor(activity.javaClass.name, null, false)
         try {
             onMain { activity.recreate() }
             val replacement = test.waitForMonitorWithTimeout(monitor, 10000) ?: error("Recreation missing")
             opened.remove(activity); opened += replacement
+            if (activity === rootHost) rootHost = replacement as MainActivity
             test.waitForIdleSync()
             awaitMain { replacement.hasWindowFocus() && root(replacement).isLaidOut && !root(replacement).isLayoutRequested }
             return replacement
@@ -261,7 +280,9 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         }
         test.waitForIdleSync()
     }
-    private fun owner(home: Activity): MobileService? = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }.get(home) as? MobileService
+    private fun owner(home: Activity): MobileService? = (home as? MainActivity)?.currentService
+    private fun inventoryPage(activity: MainActivity): BeanInventoryFragment =
+        MainPageTestHost(test, activity).active("root:BEANS") as BeanInventoryFragment
 
     /** M1 isolated caller owns every store; provider outputs stay in the signature-guarded test APK.
      * Cancellation/failure completion are observed, never inferred from a still-disabled button. */
@@ -360,7 +381,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
     }
 
     /** Separate legal three-event M1 state, after the two-event main image. No refunds or event deletion. */
-    fun verifyM1InventoryThreeEvents(initial: BeanInventoryActivity, inventory: BeanInventory, directory: File): BeanInventoryActivity {
+    fun verifyM1InventoryThreeEvents(initial: MainActivity, inventory: BeanInventory, directory: File): MainActivity {
         val batchId = "m1-three-event-batch"
         inventory.addBatch("m1-three-add", io.openhoyi.bean.BeanBatch(batchId, io.openhoyi.bean.Bean("m1-three-bean", "三流水核验豆"), 100000))
         inventory.consume("m1-three-consume", batchId, 18000)
@@ -371,7 +392,8 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         check(expected.map { it.deltaMg } == listOf(100000L,-18000L,8000L) && expected.last().balanceMg == 90000L)
         var activity = initial
         onMain {
-            BeanInventoryActivity::class.java.getDeclaredMethod("render").apply { isAccessible = true }.invoke(activity)
+            BeanInventoryFragment::class.java.getDeclaredMethod("render").apply { isAccessible = true }
+                .invoke(inventoryPage(activity))
         }
         // render() installs a new TaskPageFrame. Its pageContent is added to the
         // attached hierarchy on the first onMeasure, not synchronously by render.
@@ -483,11 +505,13 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             check(inventory.events()==before && inventory.batches().single { it.batch.id==batchId }.balanceMg==90000L)
         }
         var oldScroll=0
-        onMain { oldScroll=(BeanInventoryActivity::class.java.getDeclaredField("listScroll").apply { isAccessible=true }.get(activity) as? android.widget.ScrollView)?.scrollY ?: 0 }
-        activity=recreate(activity) as BeanInventoryActivity
+        onMain { oldScroll=(BeanInventoryFragment::class.java.getDeclaredField("listScroll").apply { isAccessible=true }
+            .get(inventoryPage(activity)) as? android.widget.ScrollView)?.scrollY ?: 0 }
+        activity=recreate(activity) as MainActivity
         awaitMain {
-            val selected=BeanInventoryActivity::class.java.getDeclaredField("selectedBatchId").apply { isAccessible=true }.get(activity)
-            val scroll=BeanInventoryActivity::class.java.getDeclaredField("listScroll").apply { isAccessible=true }.get(activity) as? android.widget.ScrollView
+            val fragment = inventoryPage(activity)
+            val selected=BeanInventoryFragment::class.java.getDeclaredField("selectedBatchId").apply { isAccessible=true }.get(fragment)
+            val scroll=BeanInventoryFragment::class.java.getDeclaredField("listScroll").apply { isAccessible=true }.get(fragment) as? android.widget.ScrollView
             selected==batchId && scroll?.scrollY==oldScroll
         }
         check(inventory.events()==before && inventory.batches().single { it.batch.id==batchId }.balanceMg==90000L)
@@ -969,17 +993,11 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             val beforeDose = preparation.current()
             val beforeEvents = inventory.events()
             val beforeBalance = balance()
-            val monitor = test.addMonitor(HomeActivity::class.java.name, null, false)
-            val page: Activity
-            try {
-                // NEW_TASK can reuse the existing root task without creating an Activity;
-                // startActivitySync would then wait indefinitely for an instance that never arrives.
-                onMain { returnTo.startActivity(Intent(returnTo, HomeActivity::class.java)) }
-                page = test.waitForMonitorWithTimeout(monitor, 10000)
-                    ?: error("Home dose capture did not create a page: $name")
-                check(page !== home) { "Home dose capture reused the fixture root" }
-                opened += page
-            } finally { test.removeMonitor(monitor) }
+            val page = requireNotNull(rootHost)
+            onMain { returnTo.startActivity(Intent(returnTo, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
+            awaitMain { page.hasWindowFocus() && !page.isDestroyed }
+            MainPageTestHost(test, page).select(TaskDestination.BREW)
             try {
                 awaitMain { page.hasWindowFocus() && owner(page) === service && views(root(page)).filterIsInstance<TextView>().any {
                     it.isShown && it.text.toString() == page.getString(state)
@@ -1005,7 +1023,8 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                     "Viewing the home dose changed preparation or inventory"
                 }
             } finally {
-                close(page)
+                onMain { page.startActivity(Intent(page, returnTo.javaClass)
+                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
                 awaitMain { !returnTo.isDestroyed && returnTo.hasWindowFocus() }
             }
         }

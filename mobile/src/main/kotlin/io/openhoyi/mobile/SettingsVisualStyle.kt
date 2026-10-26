@@ -26,10 +26,21 @@ internal class SettingsVisualStyle(val context:Context) {
     val palette=TaskProductVisualStyle(context)
     val evidence=JSONObject()
     fun page(activity:ThemedActivity,title:Int,subtitle:Int,maxContentDp:Int?=null,pageId:String,persistentScrollIndicator:Boolean=false):LinearLayout {
+        val (root, body) = createPage(activity,title,subtitle,maxContentDp,pageId,persistentScrollIndicator,back=true,applyInsets=true)
+        TaskPageFrame.install(activity,root,palette)
+        activity.window.statusBarColor=palette.page;activity.window.navigationBarColor=palette.surface
+        activity.setContentView(root)
+        return body
+    }
+    fun fragmentPage(activity:ThemedActivity,title:Int,subtitle:Int,maxContentDp:Int?=null,pageId:String):Pair<LinearLayout,LinearLayout> =
+        createPage(activity,title,subtitle,maxContentDp,pageId,false,back=false,applyInsets=false)
+
+    private fun createPage(activity:ThemedActivity,title:Int,subtitle:Int,maxContentDp:Int?,pageId:String,
+        persistentScrollIndicator:Boolean,back:Boolean,applyInsets:Boolean):Pair<LinearLayout,LinearLayout> {
         activity.window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         val root=palette.column("product/settings/$pageId/root").apply {
             setBackgroundColor(palette.page)
-            setOnApplyWindowInsetsListener {view,insets->
+            if(applyInsets)setOnApplyWindowInsetsListener {view,insets->
                 if(Build.VERSION.SDK_INT>=30) {
                     val area=insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime())
                     view.setPadding(area.left,area.top,area.right,area.bottom)
@@ -54,7 +65,7 @@ internal class SettingsVisualStyle(val context:Context) {
         val body=palette.column("product/settings/$pageId/body").apply {setPadding(palette.dp(16),palette.dp(16),palette.dp(16),palette.dp(16))}
         container.addView(body,FrameLayout.LayoutParams(-1,-2,Gravity.CENTER_HORIZONTAL));scroll.addView(container)
         root.addView(scroll,LinearLayout.LayoutParams(-1,0,1f))
-        val header=HoyiUi.header(activity,body,activity.getString(title),back=true)
+        val header=HoyiUi.header(activity,body,activity.getString(title),back=back)
         (header.layoutParams as LinearLayout.LayoutParams).bottomMargin=0
         palette.styleHeader(header);header.isBaselineAligned=false
         (header.getChildAt(0) as? android.widget.ImageView)?.apply {
@@ -66,10 +77,7 @@ internal class SettingsVisualStyle(val context:Context) {
         (0 until words.childCount).map(words::getChildAt).filterIsInstance<TextView>().forEach {it.setPadding(0,0,0,0)}
         words.addView(palette.text(activity.getString(subtitle),TaskProductVisualStyle.auxiliary,secondary=true),
             LinearLayout.LayoutParams(-1,-2).apply {topMargin=palette.dp(8)})
-        TaskPageFrame.install(activity,root,palette)
-        activity.window.statusBarColor=palette.page;activity.window.navigationBarColor=palette.surface
-        activity.setContentView(root)
-        return body
+        return root to body
     }
     fun group(parent:LinearLayout,title:String):LinearLayout {
         palette.add(parent,palette.text(title,TaskProductVisualStyle.section).apply {

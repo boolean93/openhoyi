@@ -219,7 +219,8 @@ internal fun ThemedActivity.beanShowDialog(dialog: AlertDialog, dismissed: () ->
     }
     application.registerActivityLifecycleCallbacks(lifecycle)
     dialog.setOnDismissListener { application.unregisterActivityLifecycleCallbacks(lifecycle); dismissed() }
-    dialog.show()
+    if (this is MainActivity) trackDialog(dialog)
+    AppDialog.show(dialog)
 }
 
 /** Selected names are bounded; opening the native dropdown exposes each complete label. */

@@ -37,8 +37,8 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
             Thread.sleep(25)
         }
     }
-    private fun owner(activity: Activity): MobileService? = activity.javaClass.getDeclaredField("service")
-        .apply { isAccessible = true }.get(activity) as? MobileService
+    private fun owner(activity: Activity): MobileService? = if (activity is MainActivity) activity.currentService else
+        activity.javaClass.getDeclaredField("service").apply { isAccessible = true }.get(activity) as? MobileService
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): LinearLayout =
@@ -57,29 +57,28 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         val oldAppearance = appearance.all.toMap()
         val preserved = listOf("devices", "curves", "presets", "shot_safety", "machine_write_safety", "shot_history", "brew_feedback")
             .associateWith { context.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
-        var home = test.startActivitySync(Intent(context, HomeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
-        test.waitForIdleSync()
+        var home = MainPageTestHost.launch(test).activity
         awaitMain { owner(home)?.running == true && home.window.decorView.isLaidOut }
-        var service: MobileService? = null
-        var message: SnapshotMessage? = null
-        onMain { service = owner(home); message = service!!.snapshot.message; negativeFixture(home) }
-        var currentPage: Activity? = null
+        val service = requireNotNull(owner(home))
+        val message = service.snapshot.message
+        onMain { negativeFixture(home) }
+        var currentPage: MachineSettingsActivity? = null
         val detailChecks = LanguageDetailChecks(test)
         var completed = 0
         var failure: Throwable? = null
         fun rebuildHome() {
-            val monitor = test.addMonitor(HomeActivity::class.java.name, null, false)
+            val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
             try {
                 onMain { home.recreate() }
-                home = test.waitForMonitorWithTimeout(monitor, 10000) as? HomeActivity
-                    ?: error("Page Home recreation not observed")
+                home = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity
+                    ?: error("Main recreation not observed")
                 test.waitForIdleSync()
-                awaitMain { owner(home) != null && home.window.decorView.isLaidOut }
+                awaitMain { owner(home) === service && home.window.decorView.isLaidOut }
+                MainPageTestHost(test, home).active("root:BREW")
             } finally { test.removeMonitor(monitor) }
         }
         fun assertState() = onMain {
-            check(service!!.running && service!!.snapshot.message === message) { "Page navigation changed the service/event" }
+            check(service.running && service.snapshot.message === message) { "Page navigation changed the service/event" }
             preserved.forEach { (name, values) ->
                 check(context.getSharedPreferences(name, Context.MODE_PRIVATE).all == values) { "Page layout changed $name" }
             }
@@ -91,21 +90,30 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     check(appearance.edit().putBoolean("dark", dark).commit())
                 }
                 rebuildHome()
-                onMain { check(owner(home) === service) }
-                val pages = listOf(HomeActivity::class.java, CurveActivity::class.java, ExtractionActivity::class.java,
-                    HistoryActivity::class.java, AppSettingsActivity::class.java, MachineSettingsActivity::class.java)
+                val pages = listOf("Home", "Curve", "Extraction", "History", "AppSettings", "MachineSettings")
                 for (page in pages) {
-                    val fixture = "$profile ${language.tag} dark=$dark page=${page.simpleName}"
+                    val fixture = "$profile ${language.tag} dark=$dark page=$page"
                     android.util.Log.i("OpenHoyiLanguage", "PAGE_START $fixture")
                     test.sendStatus(0, Bundle().apply { putString("stream", "LANGUAGE_PAGE_START $fixture\n") })
-                    var activity = if (page == HomeActivity::class.java) home else {
+                    val activity: Activity = if (page == "MachineSettings") {
                         check(currentPage == null)
-                        test.startActivitySync(Intent(context, page).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).also { currentPage = it }
+                        test.startActivitySync(Intent(context, MachineSettingsActivity::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).also { currentPage = it as MachineSettingsActivity }
+                    } else {
+                        val host = MainPageTestHost(test, home)
+                        when (page) {
+                            "Home" -> host.select(TaskDestination.BREW)
+                            "Curve" -> host.select(TaskDestination.CURVES)
+                            "Extraction" -> host.extraction()
+                            "History" -> host.select(TaskDestination.HISTORY)
+                            "AppSettings" -> host.select(TaskDestination.SETTINGS)
+                        }
+                        home
                     }
                     test.waitForIdleSync()
                     awaitMain {
                         activity.window.decorView.isLaidOut && root(activity).height > 0 && !root(activity).isLayoutRequested &&
-                            (activity !is ExtractionActivity && activity !is MachineSettingsActivity && activity !is AppSettingsActivity || owner(activity) === service)
+                            owner(activity) === service
                     }
                     onMain {
                         val config = activity.resources.configuration
@@ -116,19 +124,17 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                         check(activity.window.decorView.layoutDirection == if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR)
                     }
                     checkPage(activity, fixture)
-                    when (activity) {
-                        is HomeActivity -> detailChecks.warnings(activity, fixture) { checkPage(activity, it) }
-                        is CurveActivity -> detailChecks.curves(activity, fixture) { checkPage(activity, it) }
-                        is ExtractionActivity -> {
-                            val extraction = activity
-                            onMain { TrendChartTextChecks.run(extraction, fixture) }
-                            detailChecks.cancelStart(activity, fixture)
+                    when (page) {
+                        "Home" -> detailChecks.warnings(home, fixture) { checkPage(home, it) }
+                        "Curve" -> detailChecks.curves(home, fixture) { checkPage(home, it) }
+                        "Extraction" -> {
+                            onMain { TrendChartTextChecks.run(home, fixture) }
+                            detailChecks.cancelStart(home, fixture)
                         }
-                    }
-                    if (activity is AppSettingsActivity) {
-                        activity = LanguageSelectorUiChecks(test).run(activity) { currentPage = it }
-                        currentPage = activity
-                        checkPage(activity, "$fixture selectorRestored")
+                        "AppSettings" -> {
+                            home = LanguageSelectorUiChecks(test).run(home) { home = it }
+                            checkPage(home, "$fixture selectorRestored")
+                        }
                     }
                     if (activity is MachineSettingsActivity) {
                         val tabs = MachineSettingsActivity::class.java.getDeclaredField("settingTabs")
@@ -140,7 +146,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                             onMain {
                                 val localTab = tab as TextView
                                 check(localTab.text.toString() == activity.getString(labels[index]))
-                                check(localTab.performClick()) // Only showSettingsSection: no write/confirmation callback.
+                                check(localTab.performClick())
                             }
                             test.waitForIdleSync()
                             checkPage(activity, "$fixture section=$index")
@@ -151,14 +157,9 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     completed++
                     if (currentPage != null) {
                         onMain { activity.finish() }
-                        awaitMain(diagnostic = {
-                            "return from ${activity.javaClass.simpleName}: childDestroyed=${activity.isDestroyed} " +
-                                "homeDestroyed=${home.isDestroyed} homeFinishing=${home.isFinishing} " +
-                                "homeFocus=${home.hasWindowFocus()} homeAttached=${home.window.decorView.isAttachedToWindow} " +
-                                "sameService=${owner(home) === service} serviceRunning=${service?.running} homeTask=${home.taskId}"
-                        }) { activity.isDestroyed && home.hasWindowFocus() && owner(home) === service }
+                        awaitMain { activity.isDestroyed && home.hasWindowFocus() && owner(home) === service }
                         currentPage = null
-                    }
+                    } else if (page != "Home") MainPageTestHost(test, home).select(TaskDestination.BREW)
                 }
             }
             check(completed == 96) { "Page matrix incomplete: $completed" }
@@ -169,14 +170,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     if (failure == null) failure = error else failure!!.addSuppressed(error)
                 }
             }
-            cleanup {
-                val closing = currentPage
-                if (closing != null) {
-                    onMain { closing.finish() }
-                    awaitMain { closing.isDestroyed && home.hasWindowFocus() && owner(home) === service }
-                    currentPage = null
-                }
-            }
+            cleanup { currentPage?.let { page -> onMain { page.finish() }; currentPage = null } }
             cleanup { onMain { check(app.languagePreferences.select(oldLanguage) != AppLanguagePreference.Selection.SAVE_FAILED) } }
             cleanup { onMain { restoreMockPreferences(languagePrefs, oldLanguageStorage) } }
             cleanup { onMain { restoreMockPreferences(appearance, oldAppearance) } }
@@ -245,7 +239,17 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         check(targets.take(4).map { it.tag } == TaskNavigationModel.primary.map { "task-nav:${it.name}" })
         targets.take(4).forEachIndexed { index, item ->
             check(item.isClickable && item.isFocusable && item.width >= HoyiUi.dp(activity, 48) && item.height >= HoyiUi.dp(activity, 48))
-            check(item.isSelected == (TaskNavigationModel.primary[index] == TaskNavigationModel.forPage(activity.javaClass.simpleName)))
+            val selected = if (activity is MainActivity)
+                when (activity.supportFragmentManager.primaryNavigationFragment) {
+                    is HomeFragment, is ExtractionFragment -> TaskDestination.BREW
+                    is CurveFragment -> TaskDestination.CURVES
+                    is HistoryFragment -> TaskDestination.HISTORY
+                    is BeanInventoryFragment -> TaskDestination.BEANS
+                    is ScaleFragment -> TaskDestination.SCALE
+                    is AppSettingsFragment -> TaskDestination.SETTINGS
+                    else -> error("Unknown active task Fragment")
+                } else TaskNavigationModel.forPage(activity.javaClass.simpleName)
+            check(item.isSelected == (TaskNavigationModel.primary[index] == selected))
             fullyVisible(item, fixture)
             val label = descendants(item).filterIsInstance<TextView>().single()
             check(label.text.toString() == activity.getString(labels[index]))
@@ -277,8 +281,9 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                 check(child.height >= HoyiUi.dp(activity, 48))
             }
         }
-        if (activity is ExtractionActivity) {
-            val start = ExtractionActivity::class.java.getDeclaredField("start").apply { isAccessible = true }.get(activity) as Button
+        if (activity is MainActivity && activity.supportFragmentManager.primaryNavigationFragment is ExtractionFragment) {
+            val page = activity.supportFragmentManager.primaryNavigationFragment as ExtractionFragment
+            val start = ExtractionFragment::class.java.getDeclaredField("start").apply { isAccessible = true }.get(page) as Button
             check(start.visibility == View.VISIBLE && start.text.toString() == activity.getString(R.string.extraction_start))
             fullyVisible(start, fixture)
         }

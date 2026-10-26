@@ -112,16 +112,30 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
     private fun views(view: View): List<View> = listOf(view) + if (view is ViewGroup)
         (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()
     private fun children(activity: Activity) = views(activity.findViewById(android.R.id.content))
-    private fun field(activity: Activity, name: String): Any? = activity.javaClass.getDeclaredField(name)
-        .apply { isAccessible = true }.get(activity)
+    private fun field(activity: Activity, name: String): Any? {
+        val owner = (activity as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment ?: activity
+        return owner.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(owner)
+    }
     private fun ready(activity: Activity) {
         test.waitForIdleSync()
         await { activity.hasWindowFocus() && activity.findViewById<ViewGroup>(android.R.id.content)
             .let { it.height > 0 && !it.isLayoutRequested } }
     }
-    private fun open(type: Class<out Activity>): Activity = test.startActivitySync(
-        Intent(context, type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK))
-        .also { opened += it; ready(it) }
+    private fun open(type: Class<out Activity>): Activity {
+        val destination = when (type) {
+            CurveActivity::class.java -> TaskDestination.CURVES
+            HistoryActivity::class.java -> TaskDestination.HISTORY
+            BeanInventoryActivity::class.java -> TaskDestination.BEANS
+            else -> null
+        }
+        val intent = Intent(context, if (destination == null) type else MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_MULTIPLE_TASK)
+        destination?.let { intent.putExtra(MainActivity.EXTRA_INITIAL_DESTINATION, it.name) }
+        return test.startActivitySync(intent).also { activity ->
+            opened += activity; ready(activity)
+            if (destination != null) MainPageTestHost(test, activity as MainActivity).active("root:${destination.name}")
+        }
+    }
     private fun recreate(activity: Activity): Activity {
         val monitor = test.addMonitor(activity.javaClass.name, null, false)
         try {
@@ -358,7 +372,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                 check(service.snapshot.candidates == fixtures && service.snapshot.message === before.message && service.shotState == state)
             }
             evidence += "ScaleConnectionActivity recreate scrollY=$saved gesture=swipe syntheticCandidates=true noScan=true noConnect=true sameOwner=true"
-            detailReturn(activity, HomeActivity::class.java) {
+            detailReturn(activity, MainActivity::class.java) {
                 main { check(children(activity).filterIsInstance<Button>().single {
                     it.text.toString() == activity.getString(R.string.scale_connection_manager) }.performClick()) }
             }
@@ -420,19 +434,19 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             for (type in pages) {
                 try {
                     var activity = open(type)
-                    if (activity is CurveActivity) { curve(activity, evidence); continue }
+                    if (type == CurveActivity::class.java) { curve(activity, evidence); continue }
                     if (activity is ScaleConnectionActivity) { scale(activity, evidence); continue }
-                    if (activity is HistoryActivity) {
+                    if (type == HistoryActivity::class.java) {
                         main { check(children(activity).filterIsInstance<TextView>().single {
                             it.text.toString() == activity.getString(R.string.journal_tab) }.performClick()) }
                     }
-                    if (activity is BeanInventoryActivity || activity is BeanLedgerActivity) {
+                    if (type == BeanInventoryActivity::class.java || activity is BeanLedgerActivity) {
                         val saved = swipeScroll(activity, field(activity, "listScroll") as ScrollView)
                         activity = recreate(activity)
                         await { (field(activity, "listScroll") as ScrollView).scrollY == saved }
                         main { SingleScreenPageChecks.verify(activity) }
                         evidence += "${type.simpleName} recreate scrollY=$saved gesture=swipe"
-                        if (activity is BeanInventoryActivity) {
+                        if (type == BeanInventoryActivity::class.java) {
                             var selectedId: String? = null
                             var selectedMetadata = emptyList<String>()
                             main {
@@ -466,7 +480,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                             await { (field(activity, "listScroll") as ScrollView).let { it.isShown && it.scrollY == saved } }
                         }
                         detailReturn(activity, BeanBatchActivity::class.java) {
-                            if (activity is BeanInventoryActivity) main {
+                            if (type == BeanInventoryActivity::class.java) main {
                                 val scroll = field(activity, "listScroll") as ScrollView
                                 val row = views(scroll).first {
                                     it.tag?.toString()?.startsWith("inventory-batch-") == true &&
@@ -481,7 +495,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                             } else main { activity.startActivity(Intent(activity, BeanBatchActivity::class.java)
                                 .putExtra(BeanBatchActivity.BATCH_ID, BATCH_ID)) }
                         }
-                        if (activity is BeanInventoryActivity) main {
+                        if (type == BeanInventoryActivity::class.java) main {
                             views(activity.window.decorView).filterIsInstance<Button>().singleOrNull {
                                 it.isShown && it.text.toString() == activity.getString(R.string.beans_back_to_list)
                             }?.let { check(it.performClick()) }
@@ -492,9 +506,9 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                     } else {
                         val saved = scrollList(activity)
                         activity = recreate(activity)
-                        if (activity is HistoryActivity) main { check(field(activity, "showJournal") == true) }
+                        if (type == HistoryActivity::class.java) main { check(field(activity, "showJournal") == true) }
                         restored(activity, saved, "recreate")
-                        evidence += "${type.simpleName} recreate position=${saved.position} offset=${saved.offset} gesture=swipe journal=${activity is HistoryActivity}"
+                        evidence += "${type.simpleName} recreate position=${saved.position} offset=${saved.offset} gesture=swipe journal=${type == HistoryActivity::class.java}"
                         if (activity is LegacyCurveActivity) {
                             clickVisible(activity)
                             await { (field(activity, "collection") as TaskCollectionLayout).detailRequested }
@@ -534,7 +548,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
                                 if (back != null) check(back.performClick())
                             }
                             ready(activity)
-                        } else if (activity is HistoryActivity) {
+                        } else if (type == HistoryActivity::class.java) {
                             clickVisible(activity)
                             var selectedTag: Any? = null
                             main {
