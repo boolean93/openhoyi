@@ -115,7 +115,11 @@ internal class ProductVisualMigrationChecks(private val test: Instrumentation) {
         await("real Home details dialog ready") {
             val home=activity.supportFragmentManager.primaryNavigationFragment as? HomeFragment
             dialog=home?.let {field(it,"deviceDialog") as? android.app.AlertDialog}
-            dialog?.isShowing==true && dialog?.window?.decorView?.isLaidOut==true
+            val decor=dialog?.window?.decorView
+            dialog?.isShowing==true && decor!=null && decor.isAttachedToWindow &&
+                decor.windowToken!=null && decor.isHardwareAccelerated && decor.hasWindowFocus() &&
+                decor.isLaidOut && !decor.isLayoutRequested && decor.width>0 && decor.height>0 &&
+                decor.display?.displayId==android.view.Display.DEFAULT_DISPLAY
         }
         return requireNotNull(dialog)
     }

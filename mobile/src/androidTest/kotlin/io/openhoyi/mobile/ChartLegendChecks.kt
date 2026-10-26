@@ -110,7 +110,33 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                         } finally { bitmap.recycle() }
                         chart.points = chart.points.map { it.copy(weightHundredthsGram = null) }
                         layout()
-                        check(descendants(chart).none { it.tag == "chart-metric:WEIGHT" }) { "$fixture manufactured missing scale" }
+                        val missingControls = descendants(chart).filterIsInstance<Button>()
+                            .filter { it.tag?.toString()?.startsWith("chart-metric:") == true }
+                        check(missingControls.map { it.tag } == expected.map { "chart-metric:${it.first}" }) {
+                            "$fixture missing-scale chart lost its four-metric legend"
+                        }
+                        val weight = missingControls.single { it.tag == "chart-metric:WEIGHT" }
+                        val missing = context.getString(R.string.task_chart_missing_scale)
+                        check(!weight.isEnabled && !weight.isSelected &&
+                            weight.text.contains("g") && weight.text.contains(missing) &&
+                            weight.contentDescription.contains("g") && weight.contentDescription.contains(missing)) {
+                            "$fixture missing scale must be explicit and cannot focus a nonexistent axis"
+                        }
+                        LanguageUiLayoutChecks.textFits(weight, "$fixture missing scale")
+                        check(FourMetricChartProjection.build(chart.points, emptyList()).series.none { it.metric == ChartMetric.WEIGHT }) {
+                            "$fixture missing scale generated a weight series"
+                        }
+                        val missingBitmap = Bitmap.createBitmap(plot.width, plot.height, Bitmap.Config.ARGB_8888)
+                        try {
+                            var paths = 0
+                            plot.draw(object : Canvas(missingBitmap) {
+                                override fun drawPath(path: Path, paint: Paint) {
+                                    if (!path.isEmpty) paths++
+                                    super.drawPath(path, paint)
+                                }
+                            })
+                            check(paths == 3) { "$fixture missing scale drew a false weight curve: $paths paths" }
+                        } finally { missingBitmap.recycle() }
                     }
             } catch (error: Throwable) { failure = error }
         }

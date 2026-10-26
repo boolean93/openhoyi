@@ -389,3 +389,17 @@ BrewAudioInstrumentation改为activeCup清理后新建真实Main并由同一宿�
 Astra复核最终diff：三通知suite共享新建的真实Main宿主；stage异常原样抛出并保存，shutdown/stopService、finish、waitForIdleSync分别尽力执行，主线程清理异常捕获回传。已有stage失败时清理错误附为suppressed；无stage失败时仍抛清理首错并附其余错误，不掩盖原失败或吞清理失败。顶层Mock模式及精确Mock包校验保留，清理仅同Mock服务组件，原context/activeCup顺序、通知权限和无BLE断言未改，生产未变。此前唯一静态阻塞闭合。
 
 已读取notification-host-final-build.log：assembleMockAndroidTest BUILD SUCCESSFUL in 34s（74 tasks，4 executed）。本项静态审查及测试APK构建通过，通知阶段实际CI运行仍待；不概括全部CI或硬件通过。计划冻结。
+
+### Product首页详情弹层就绪等待静态审结
+
+独立读取run-40374718381的details-initial-frame-sync.json：失败发生在Explicit Window就绪校验，elapsedMs=109、单次attempt的budget为空、尚无captureArtifacts；5秒取证协议未进入实际帧捕获。此次ProductVisualMigrationChecks仅加强homeDetails原10秒有界条件轮询：真实dialog显示后，decor需attached、有效token、hardware、focus、laidOut、无layout request、正尺寸及默认display。取证调用使用同dialog的decor，主线程业务入口既有路径未改。没有新增固定等待，也没有改5秒截图期限、身份/祖先/变换校验、像素相等或数据/服务门禁。
+
+该最小diff静态通过；准备条件仍可能在下一帧变化，最终由原严格截图校验决定，不能据此宣称Product取证已通过。root另报告StrictVisual四组storageUnchanged=true已通过，此状态与Product弹层待复验分开记录。计划冻结。
+
+### 缺秤图例旧契约修订静态审结
+
+ChartLegendChecks末尾旧断言要求WEIGHT节点消失，与已批准的四指标缺测提示设计冲突。Astra读取新diff：四图例顺序保留；重量按钮禁用且未选中，文本/无障碍描述含g及当前语言缺秤文案并检查textFits；投影不含WEIGHT，实际plot Canvas非空path必须从原四条降为三条。原初始四线、单位/范围、点击焦点、全部语言/宽度/浅深矩阵保持，未以隐藏节点或伪线通过。该修订静态批准，原生运行待复验。
+
+有限检查后续三通知suite未发现依赖旧图表或root可见结构的明确断言，仍使用真实Main的服务、系统通知文本/权限/意图及Mock隔离门禁；这不是通知运行通过结论。root报告b44真实runner已通过核心生命周期、五组audio及language context/activeCup/charts阶段，随后在旧缺秤节点断言失败；只记录已走过范围，不概括整个lifecycle或全部CI通过。与Product弹层准备等待小修一起待提交复验，文档冻结。
+
+Root本地复验：`missing-scale-dialog-test-build.log` AndroidTest构建42秒成功，覆盖Product弹窗就绪与ChartLegend缺秤契约小修；Astra静态通过，实际新CI仍待。生产未改变。
