@@ -1682,7 +1682,26 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             onMain {
                 val field = views(root(invalidImport)).filterIsInstance<EditText>().single()
                 check(field.text.toString() == rawImportDraft && field.hasFocus() &&
-                    field.selectionStart == 3 && field.selectionEnd == 8) { "Import recreation changed raw draft/focus/caret" }
+                    field.selectionStart == 3 && field.selectionEnd == 8) {
+                    val detail = runCatching {
+                        val owner = invalidImport as CurveImportActivity
+                        val diagnostic = org.json.JSONObject()
+                            .put("expectedRaw", rawImportDraft).put("actualRaw", field.text.toString())
+                            .put("expectedStart", 3).put("expectedEnd", 8)
+                            .put("actualStart", field.selectionStart).put("actualEnd", field.selectionEnd)
+                            .put("fieldHasFocus", field.hasFocus()).put("fieldIsLaidOut", field.isLaidOut)
+                            .put("fieldLayoutRequested", field.isLayoutRequested)
+                            .put("rootIsLaidOut", root(owner).isLaidOut).put("rootLayoutRequested", root(owner).isLayoutRequested)
+                            .put("activityHasWindowFocus", owner.hasWindowFocus())
+                            .put("productRestoreEvidence", org.json.JSONObject(owner.productRestoreEvidence.toString()))
+                        val evidence = File(requireNotNull(context.getExternalFilesDir(null)),
+                            "advanced-page-screenshots/business/import-recreation-failure.json")
+                        evidence.parentFile?.mkdirs()
+                        evidence.writeText(diagnostic.toString(2))
+                        diagnostic.toString()
+                    }.getOrElse { "diagnosticFailure=${it.javaClass.simpleName}:${it.message}" }
+                    "Import recreation changed raw draft/focus/caret: $detail"
+                }
                 check(custom.list() == beforeInvalid) { "Import editing or recreation wrote a curve" }
                 // Return to a non-IME geometry before the unchanged invalid-preview scenarios.
                 check((root(invalidImport) as ViewGroup).getChildAt(0).requestFocus())

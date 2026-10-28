@@ -19,7 +19,7 @@
 
 ## 进度
 
-当前已推基线 `6a60f6a`（2026-10-28），其lifecycle run40670166214已整体成功；Astra独立核artifact的720两态、20轮六Tab、audio五组、语言/图表/通知及landscape/wideFont页面标记。当前工作树另有公共按钮状态传播修复，尚待回归，不能借用旧基线PASS。原始高级功能与本轮反馈分别记账；advanced-pages的pages通过、business已推进至复盘末字段可达性失败；库存确认按钮真实灰底问题仍待新生产验证。Legacy两份视觉运行成功，其他严格视觉/硬件不据此通过。
+当前已推基线 `6a60f6a`（2026-10-28），其lifecycle run40670166214已整体成功；Astra独立核artifact的720两态、20轮六Tab、audio五组、语言/图表/通知及landscape/wideFont页面标记。当前工作树另有公共按钮状态传播修复，尚待回归，不能借用旧基线PASS。原始高级功能与本轮反馈分别记账；advanced-pages的pages通过、business已推进至复盘末字段可达性失败；库存确认按钮灰底已由052d117原图与状态回归闭合（详见最新证据），新首错为导入重建草稿/焦点/光标保持。Legacy两份视觉运行成功，其他严格视觉/硬件不据此通过。
 
 ### 原始需求追踪与剩余交付
 
@@ -32,7 +32,7 @@
 | 曲线次数与最近使用排序 | `CurveUsageLedger`同shot去重持久账本；`CurveOrdering`RECENT/MOST_USED；`CurveFragment`搜索分类后排序并记偏好 | **已实现，待当前原生回归**：实际观察计次、失败启动不计、缓存清理仍保留、切Tab/重建排序与筛选恢复；不能以选择/浏览制造次数 |
 | 独立库存、确认投粉扣减 | `bean-core/Inventory.kt`独立整数mg/幂等consume；`BeanPreparation.confirm/associatePending`；入库/批次/流水/准备真实页面 | **已实现，真实操作链路未整体验收**：入库→选批→确认扣一次→取消/重复/重启→余额及流水一致，持久失败/不足不误扣。run40670173535已通过选豆不扣、确认重复/重建扣一次、放弃不退款；business首错已推进复盘末字段不可达，整套未通过。真实称豆取值待实机；备份/归档非本轮默认新增 |
 | 自制曲线编辑、分享、复制/文件导入自己的App | `CustomCurveDocument`/Store、Editor/Share/Import/Preview；当前`MobileApplication`已启用受限自制压力执行，`CustomPressureCurveAdapter`保留执行资格校验 | **已实现，软件/视觉待验**：实际系统选择器/取消/错误格式/预览确认/同名不同ID/重建以及分享不含私人复盘；执行仅受支持子集，不能写“草稿全部不可执行”，也不能宣称任意导入可运行。实际自制压力执行待实机 |
-| 全模块设计图、字体/背景/间距严格视觉 | 21页概念索引+3设置候选、24页严格基线、公共字体/样式均已有；本轮Home/大图/确认代表实图已审 | **真实剩余交付**：已实看当前库存确认主按钮白字灰底，须定位并修可读性；当前产品与设计逐模块对应、未批准差异清单及有限原生样张闭合，尤其曲线编辑/导入/分享、复盘/库存表单IME、秤与设置。旧概念Home/萃取布局被本轮反馈替代，需在既有spec/index引用中明确对应，不能拿旧稿判新首页；不得用新图迁就未经批准偏差。旧严格视觉失败/取证阻塞仍保留，不概括24页通过 |
+| 全模块设计图、字体/背景/间距严格视觉 | 21页概念索引+3设置候选、24页严格基线、公共字体/样式均已有；本轮Home/大图/确认代表实图已审 | **真实剩余交付**：库存确认主按钮白字灰底已修且052d117原图批准；当前产品与设计逐模块对应、未批准差异清单及有限原生样张闭合，尤其曲线编辑/导入/分享、复盘/库存表单IME、秤与设置。旧概念Home/萃取布局被本轮反馈替代，需在既有spec/index引用中明确对应，不能拿旧稿判新首页；不得用新图迁就未经批准偏差。旧严格视觉失败/取证阻塞仍保留，不概括24页通过 |
 
 ### 最新反馈六批
 
@@ -587,3 +587,20 @@ Astra最终复核TaskProductVisualStyle、HoyiUi及AdvancedBusinessUiChecks三�
 ### 公共按钮状态修复本地验证
 
 root核对：Mock单测、Mock/Debug/AndroidTest打包、lintDebug统一构建2分14秒成功；最终测试源码冻结后再次检查AndroidTest，6秒成功且全部74任务up-to-date，确认末次标签全文修订已纳入。两APK各10897资源值、6项字面量往返通过。Astra最终3代码文件静审通过。新公共按钮初始/禁用/重新启用/聚焦状态及History详情真实Dialog流程仍待新CI运行，不借6a60f6a旧生命周期成功宣称新生产已验收。
+
+
+### 052d117投粉按钮视觉闭合与业务推进
+
+Astra实际view_image查看run40673244072/business/advanced-page-screenshots/business/dose-pending-confirmation.png：主确认完整白字青底，取消/返回浅底青字，主次动作与可读性恢复。独立读取同目录button.txt：enabled=true，顶层StateList包含enabled，当前Ripple固定Gradient为#FF087A78，父alpha全1，localDraw样本均为同青色。原白字灰底缺陷在本次所看状态闭合；不外推全部按钮/全部主题状态。
+
+独立读取business-flows.txt：既有入库、选豆不扣、确认重复/重建一次扣减、放弃不退款、复盘重开重建均再次越过；真实按钮状态回归及历史详情Dialog末字段/原图边界检查未失败，随后完成curve-editor-invalid、curve-editor-save-compatible-no-auto-start、curve-copy-parameters-only、curve-paste-preview-save、curve-import-repeat-idempotent、curve-conflict-keep-existing、curve-conflict-save-copy。仅批准这些已有实际链路，不将纯截图当业务通过。
+
+本run仍失败：AdvancedBusinessUiChecks:1684 `Import recreation changed raw draft/focus/caret`，导入重建草稿/焦点/光标的确切原因待Sol定点定位与Astra审查；尚不宣称生产缺陷或测试误报，更不宣称整套business/全CI通过。文档证据更新冻结。
+
+### 导入重建首错最小诊断审查
+
+现有artifact只有raw/focus/caret复合失败，尚无分项实际值。Astra静审新失败分支只记录本测试自有raw、selection、focus、field/root布局、windowFocus与productRestoreEvidence深拷贝，原严格布尔条件、等待及未写曲线检查不变；批准该取证范围，不凭预绘制/IME时序差异猜改生产。收尾要求将诊断构造、路径与写入整体runCatching，保证取证异常不覆盖原Import recreation失败。root正在测试包构建，源码先冻结，收尾应在构建结束后落并复编译；实施终审待闭合。
+
+最终诊断diff已复核：owner cast、JSON构造/深拷贝、外部路径及写入均在同一runCatching；取证失败只附diagnosticFailure，原Import recreation失败前缀与exact条件保留。唯一收尾闭合，静态批准；root最终测试包编译与后续CI取证待结果，生产不变。
+
+导入重建分项取证最终构建：root确认AndroidTest 37秒成功，Astra最终静审通过；仅失败路径记录自有草稿状态，生产仍052d117，原精确断言与等待未变。新CI取证待结果。
