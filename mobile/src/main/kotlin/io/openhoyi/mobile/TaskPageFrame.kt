@@ -34,6 +34,8 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
     private var configuredMode: TaskNavigationMode? = null
     private var allDestinations = false
     private var secondaryPage = false
+    private val railWidthDp get() = if (allDestinations && activity is MainActivity) 104
+        else if (productVisualStyle == null) TaskLayoutPolicy.RAIL_WIDTH_DP else 80
 
     init {
         tag = TAG
@@ -61,7 +63,7 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
         // Measure actual labels at the rail width; font scaling can require the compact tool menu.
         if (fullRailHeight < 0 || measuredFontScale != resources.configuration.fontScale) {
             navigation.render(TaskNavigationMode.RAIL, true)
-            navigation.measure(MeasureSpec.makeMeasureSpec(HoyiUi.dp(activity, if (productVisualStyle == null) 72 else 80), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            navigation.measure(MeasureSpec.makeMeasureSpec(HoyiUi.dp(activity, railWidthDp), MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             fullRailHeight = navigation.measuredHeight
             measuredFontScale = resources.configuration.fontScale
         }
@@ -69,7 +71,8 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
             (policy.toolsInTopBar || policy.navigation == TaskNavigationMode.RAIL && fullRailHeight > height)
         mode = policy.navigation
         toolsInTopBar = compactTools
-        navigation.render(mode, allDestinations || mode == TaskNavigationMode.RAIL && !compactTools)
+        navigation.render(mode, allDestinations || mode == TaskNavigationMode.RAIL && !compactTools,
+            compactRail = allDestinations && height / density <= 360f)
         navigation.visibility = if (secondaryPage) GONE else VISIBLE
         railColumn.visibility = if (secondaryPage) GONE else VISIBLE
         if (configuredMode != mode) {
@@ -80,7 +83,7 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
             orientation = if (mode == TaskNavigationMode.RAIL) HORIZONTAL else VERTICAL
             if (mode == TaskNavigationMode.RAIL) {
                 railScroll.addView(navigation, android.widget.FrameLayout.LayoutParams(-1, -2))
-                addView(railColumn, LayoutParams(HoyiUi.dp(activity, if (productVisualStyle == null) TaskLayoutPolicy.RAIL_WIDTH_DP else 80), -1))
+                addView(railColumn, LayoutParams(HoyiUi.dp(activity, railWidthDp), -1))
                 addView(pageContent, LayoutParams(0, -1, 1f))
             } else {
                 addView(pageContent, LayoutParams(-1, 0, 1f))
@@ -88,7 +91,8 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
             }
         }
         shellStatus?.let { status ->
-            val railStatus = mode == TaskNavigationMode.RAIL && height >= fullRailHeight + HoyiUi.dp(activity, 160)
+            val railStatus = mode == TaskNavigationMode.RAIL && status is TaskShellStatusView &&
+                height >= fullRailHeight + status.requiredRailHeight(HoyiUi.dp(activity, railWidthDp))
             val target = if (railStatus) railColumn else pageContent
             if (status.parent !== target) {
                 (status.parent as? android.view.ViewGroup)?.removeView(status)

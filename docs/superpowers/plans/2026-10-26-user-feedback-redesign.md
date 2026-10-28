@@ -19,7 +19,7 @@
 
 ## 进度
 
-当前已推基线 `6a60f6a`（2026-10-28），其lifecycle run40670166214已整体成功；Astra独立核artifact的720两态、20轮六Tab、audio五组、语言/图表/通知及landscape/wideFont页面标记。当前工作树另有公共按钮状态传播修复，尚待回归，不能借用旧基线PASS。原始高级功能与本轮反馈分别记账；advanced-pages的pages通过、business已推进至复盘末字段可达性失败；库存确认按钮灰底已由052d117原图与状态回归闭合（详见最新证据），新首错为导入重建草稿/焦点/光标保持。Legacy两份视觉运行成功，其他严格视觉/硬件不据此通过。
+当前已推基线 `e4cb494`。其advanced business run40677651271中文浅色18路径已整体通过；Astra独立核成功标记、对应严格断言/持久存储重读及三张代表原图，有限业务验收批准。投粉按钮灰底与导入重建焦点/光标两项生产缺陷均在本链路闭合。此前6a60f6a lifecycle run40670166214整体成功；e4cb494 capture40677640090成功且四张代表图已独立目视批准；root报告verify/upgrade双份通过，生命周期仍运行，可选严格视觉仍失败，分别记账。此结果可交付已验软件链路，不等待所有截图矩阵；全部视觉、外部文件交互、多协议和硬件仍按各自证据验收。
 
 ### 原始需求追踪与剩余交付
 
@@ -28,10 +28,10 @@
 | 秤抽象、多协议、独立专页 | `ScaleProtocolAdapter`统一能力/读数；`ScaleFragment`重量、去皮、本地计时、`ScaleTrendPanel`、连接/设置复用同service | **能力仍有限**：完整connectable仅BOOKOO；Felicita为只读候选，Acaia/DiFluid等为离线解码，不能称多品牌完整兼容。第二协议需型号/端点/帧证据再实现控制；全部型号实机验收另列。现有专页趋势/断线/去皮/计时的当前原生与严格视觉仍待闭合 |
 | 同图压力/注水/秤读数或有效净出液/温度 | `FourMetricChartProjection`、`ExtractionOverlayView`、单轴切换四线；23d2eab中文浅深/有无秤实际网格291.7147dp、宽96.97%、停止完整 | **已实现，有限视觉通过**。缺口/复位/负重/参考/未知状态与长字的原生覆盖需逐项证据；实际传感器与停水待实机。不以外框代网格，不伪造出液/蒸汽温度 |
 | 预设直观与预期效果调研 | 已有[调研](../../research/2026-10-08-advanced-features-research.md)、`CurveStageView`阶段目标、`FactoryCurveCatalog`参数/说明、参考历史入口 | **研究已交付，产品核验待闭合**：用现有代表预设核阶段/水量/结束条件/历史参考可追溯及未知时长降级。不补造完整未来时间线；口感预测原授权可不做，不列必交功能 |
-| 每杯复盘、两杯比较 | `BrewJournal`永久Notes；`BrewReviewActivity`豆/粉量/研磨/感受/下次调整；`BrewComparisonActivity`已有`TwoCupChartView` | **已实现，软件/视觉待验**：本分支保存→重启→历史详情→编辑→对比/导出真实链路、UNKNOWN保留与缺曲线提示。完整批次/配方版本快照当前模型没有，是扩展能力边界，不自动扩大本轮 |
+| 每杯复盘、两杯比较 | `BrewJournal`永久Notes；`BrewReviewActivity`豆/粉量/研磨/感受/下次调整；`BrewComparisonActivity`已有`TwoCupChartView` | **软件链路部分通过**：e4cb494中文浅色复盘保存、磁盘重读、重开/重建与真实历史详情全文可达已通过；两杯对比/导出、UNKNOWN保留与缺曲线提示仍按各自证据待验。完整批次/配方版本快照当前模型没有，是扩展能力边界，不自动扩大本轮 |
 | 曲线次数与最近使用排序 | `CurveUsageLedger`同shot去重持久账本；`CurveOrdering`RECENT/MOST_USED；`CurveFragment`搜索分类后排序并记偏好 | **已实现，待当前原生回归**：实际观察计次、失败启动不计、缓存清理仍保留、切Tab/重建排序与筛选恢复；不能以选择/浏览制造次数 |
-| 独立库存、确认投粉扣减 | `bean-core/Inventory.kt`独立整数mg/幂等consume；`BeanPreparation.confirm/associatePending`；入库/批次/流水/准备真实页面 | **已实现，真实操作链路未整体验收**：入库→选批→确认扣一次→取消/重复/重启→余额及流水一致，持久失败/不足不误扣。run40670173535已通过选豆不扣、确认重复/重建扣一次、放弃不退款；business首错已推进复盘末字段不可达，整套未通过。真实称豆取值待实机；备份/归档非本轮默认新增 |
-| 自制曲线编辑、分享、复制/文件导入自己的App | `CustomCurveDocument`/Store、Editor/Share/Import/Preview；当前`MobileApplication`已启用受限自制压力执行，`CustomPressureCurveAdapter`保留执行资格校验 | **已实现，软件/视觉待验**：实际系统选择器/取消/错误格式/预览确认/同名不同ID/重建以及分享不含私人复盘；执行仅受支持子集，不能写“草稿全部不可执行”，也不能宣称任意导入可运行。实际自制压力执行待实机 |
+| 独立库存、确认投粉扣减 | `bean-core/Inventory.kt`独立整数mg/幂等consume；`BeanPreparation.confirm/associatePending`；入库/批次/流水/准备真实页面 | **已实现，有限业务验收通过**：e4cb494中文浅色入库/调整、选豆不扣、确认重复/重建扣一次、放弃不退款、余额流水及磁盘重读通过；本套18路径整体PASS。其它持久失败/不足条件以各自证据为准。真实称豆取值待实机；备份/归档非本轮默认新增 |
+| 自制曲线编辑、分享、复制/文件导入自己的App | `CustomCurveDocument`/Store、Editor/Share/Import/Preview；当前`MobileApplication`已启用受限自制压力执行，`CustomPressureCurveAdapter`保留执行资格校验 | **已实现，有限业务验收通过**：e4cb494四阶段全字段编辑、未保存/重开重建、磁盘重读、参数复制、粘贴预览保存、重复导入幂等、冲突保留/副本、三类非法输入与原文焦点光标重建已通过。系统文件选择器/文件分享取消等未由这18路径覆盖；执行仅受支持子集，不能写“草稿全部不可执行”，也不能宣称任意导入可运行。实际自制压力执行待实机 |
 | 全模块设计图、字体/背景/间距严格视觉 | 21页概念索引+3设置候选、24页严格基线、公共字体/样式均已有；本轮Home/大图/确认代表实图已审 | **真实剩余交付**：库存确认主按钮白字灰底已修且052d117原图批准；当前产品与设计逐模块对应、未批准差异清单及有限原生样张闭合，尤其曲线编辑/导入/分享、复盘/库存表单IME、秤与设置。旧概念Home/萃取布局被本轮反馈替代，需在既有spec/index引用中明确对应，不能拿旧稿判新首页；不得用新图迁就未经批准偏差。旧严格视觉失败/取证阻塞仍保留，不概括24页通过 |
 
 ### 最新反馈六批
@@ -47,8 +47,8 @@
 
 ### 下一批顺序与完成标准
 
-1. **P0 当前可用性回归收口**：Sol定点修40394600982 lifecycle首错；Astra逐diff独立规格+质量审查。同步修advanced business的真实Home详情弹层取证owner，不动库存业务或放宽noBLE/磁盘/停止门禁。结束条件为现有两套链路实际走完，不能只增加测试或只过编译。
-2. **P1 用户可见交付核验**：优先库存确认扣减、复盘保存/重开/对比、分享导入/系统选择器、曲线使用排序四条现有业务链路。复用已有截图与非零fixture，逐项登记真实结果及剩余产品缺陷；已实现功能不重造。需修生产时给Sol明确文件所有权，测试存在不记PASS。
+1. **已完成本批P0**：原lifecycle首错链已整体通过；e4cb494 advanced business 18路径及FULL_FIELDS已通过，Astra规格/质量与代表原图验收闭合。不得再以旧focus/末字段/导入恢复首错阻塞已验软件交付。
+2. **P1 剩余用户可见交付**：按需求表仅核未覆盖的两杯比较/导出、实际系统文件选择器/分享取消、曲线使用排序等现有链路。已通过的库存确认、复盘保存重开、编辑复制粘贴导入不重造、不无依据重跑。复用既有证据，出现明确差异才交Sol定点修复。
 3. **P1 设计一致性收口**：按前述业务顺序查看现有同状态原图/字体与布局证据；先关闭当前明确差异，再处理秤/设置。设计标准沿本轮spec和24页既有范围，具体页/状态/主题单独批准；不启动无界旧字体实验，也不把取证不同步当已过。
 4. **P2 多协议与实机批次**：把BOOKOO、Felicita只读与其它离线候选分级展示；完整第二型号控制需明确型号和可验证协议证据，不能靠Mock补齐。列出设备验收脚本所需连接/计时/称重/去皮/拨杆/断连/恢复/停止观察，未获设备操作授权时不安装或发命令，不阻塞离线业务与视觉交付。
 
@@ -620,3 +620,46 @@ Astra独立读取run40674921274/business/advanced-page-screenshots/business/impo
 Astra实际复核CurveImportActivity唯一生产diff：onDetach向稳定decor投递单次detachCheck，先撤旧候选；执行先判pending，已reattach只记证据并invalidate继续原恢复，否则原CANCELLED_DETACHED。finish移除候选并置空，stop/destroy仍立即取消，原+当前VTO监听清理、IME单次请求/native结果/稳定draw门禁均未改。与TaskPageFrame同步reparent根因匹配，静态批准；root统一构建及原exact raw/focus/caret实际回归待验，不先标功能修复通过。文档冻结。
 
 导入同步重挂载修复本地验证：root确认Mock单测、Mock/Debug/AndroidTest及lintDebug统一构建2分08秒成功；两APK各10897资源值及6项字面量往返通过。Astra最终生产diff静审通过。现有raw/focus/selection精确重建与后续业务完整运行待新CI，不以构建代替焦点恢复成功。
+
+
+### e4cb494高级业务有限验收批准
+
+Astra独立读取run40677651271/business/business-flows.txt：18条实际路径全部完成，FULL_FIELDS_PASSED包含beanDates=3、notesFields=7、curveFields=12、stages=4、durableStores=3、unsavedRecreation/reopenedRecreation=true；CHECKS_PASSED包含inventoryEvents=3、newDrafts=3、zh-Hans/light、sameService/preservedMachinePrefs/noBle=true。源码核实成功标记在所有原断言及cleanup/invariants之后；三存储用真实文件重新解码并禁止验证写入；导入raw完全一致、focus=true、selection3..8的原exact检查仍保留并已越过。
+
+实际原图验收（同run的advanced-page-screenshots/business）：dose-pending-confirmation.png主确认青底白字完整，次动作分明；history-detail-filled-top-fixture.png四线/单位、读数及复盘/详情入口可读；history-detail-filled-bottom-fixture.png真实Dialog末项“下次调整”全文可见，固定确定按钮清晰。三图仅批准所看中文浅色状态，不冒充真实设备曲线或全部主题。
+
+据此批准本批库存、复盘保存/重开/重建/历史详情、四阶段编辑、参数复制与粘贴导入18路径的有限软件交付。052按钮状态修复及e4导入短暂detach恢复在本链路闭合。外部系统文件选择器、两杯比较、全部严格视觉及硬件另列待验；其它e4 CI仍运行，不能写全CI通过，也不需等待所有矩阵才承认本批业务完成。顶部进度已同步，文档冻结。
+
+
+### e4cb494首页与运行大图中文浅深有限终验
+
+Astra实际view_image以原图复核run40677640090/mock-ui-screenshots的home-light.png、home-dark.png、extraction-running-light.png、extraction-running-dark.png。首页机器连接/双锅炉读数目标、五槽全称与常驻rail完整，主要操作文字可读；运行页四指标颜色、单位、独立范围及时间/秤读数清楚，红色固定停止完整，公共按钮修复未见新的可见回归。深色首页渲染工具曾将快捷字显示为空，但原PNG文字区(770,430)-(930,500)与浅色逐像素相同（diff bbox=None、纯白像素各1367），不能按显示工具现象误报产品缺字。四图按实际状态有限批准。
+
+独立读取active-cup-visual/with-scale与no-scale两份geometry：fontScale1、density2.25，真实dataPlotHeightDp均291.7147、chartWidthFractionOfPage均0.9697479；axesInsidePlot、dataPlotFullyVisible、plotScreenMappingMatches与stopFullyVisible均true。图底1303px、停止顶1321px，间隔18px=8dp，无交叠；原ACTIVE_CUP_VISUAL_PASSED states=2 actualMockStartStop=true/noBle=true。该几何证据不冒充尚未目视的其它状态图片。
+
+本批首页/正常运行中文浅深代表视觉与两状态面积/停止几何验收闭合，可随已通过的18路径软件交付。root报告verify/upgrade双份通过；生命周期尚运行，可选严格视觉仍失败，全部硬件仍待授权实机验收，不称全项目完成。仅更新现计划，文档冻结。
+
+root最终状态核对：生产e4cb494的push lifecycle40677640128整体success，verify/upgrade双份success，business40677651271的18路径success，capture40677640090 success。PR侧重复lifecycle当时仍运行；optional严格视觉仍有失败，硬件待验。上述限具体代码提交，不外推全项目完成。
+
+
+### 2026-10-28用户实机侧栏反馈：下一批设计已定
+
+Astra实际查看installed-mock.png并核TaskNavigationView/TaskShellStatusView/TaskPageFrame：48dp项内1dp、图文2dp、项间0和纯符号设备按钮造成拥挤/含义不明。用户本次实机反馈优先，既有有限图审不代表该问题已满足。已在配套spec新增“实机侧栏修正”，取代80dp密排/纯符号合同。
+
+本批Sol范围为三个壳UI文件与必要本地化/原测试：104dp rail，六项min60dp、24dp图标、图文/项间8dp、14sp文字；设备区明确“咖啡机睡眠+状态”“电子秤+连接状态”“断开秤/连接秤/重新连接/选择秤”。默认导航416dp+设备192dp+分隔12dp=620dp，实机约667dp有余量；具体以实测为准。短高先沿现有顶部设备条fallback，六导航仍需紧凑时仅项内横排48dp点击/8dp间隔，共344dp，不以纯icon或12sp换空间。
+
+不得改协议/业务、增加唤醒命令、解除萃取/写入门禁。实施后以本台实机正常高度浅深与既有720两态检查文字/间距/48dp/固定停止/主图260dp，不扩大新矩阵。此批设计完成，生产开发/原生及实图验收待进行；其余18路径业务交付仍有效。仅spec/plan修改，无源码/构建/提交。
+
+侧栏最终文字/测量修订已与root/Sol同步：净文字宽72dp，正常“咖啡机睡眠/已唤醒”，已睡眠“咖啡机/已睡眠”，其余副行“状态未确认/萃取中禁用/等待确认/结果待确认”；不加“设备”标题。所有设备文案14sp/基准20sp行高，长翻译与大字自然换行增高，min56/48而非固定高度；192dp仅短中文font1预算，位置决策必须使用实测高度。无12sp、无重要文本省略，机身唤醒仅说明不新增操作。root已确认短高项内同排不改变导航方向，Sol已接收三个壳UI文件+必要资源所有权，Astra待diff和实机原图验收。
+
+侧栏首轮静审：104宽限Main、requiredRailHeight实际205dp估算与rail padding/可见margin一致且不改变mode，原服务回调/门禁保留，绿色点状态变化重建span正确。已交Sol有限收尾：Scale前弹性空隙保持至少8dp；睡眠禁用文案覆盖settings UNKNOWN及preparation/safety阻塞；唤醒提示保持机身中性表述。短高边界修正：344dp为扣insets后的frame高度，低于该值仅现有导航区域可滚动访问六项，设备条/停止固定，不为旧小屏挤坏正常平板。生产终审与实机图待收尾后完成，不先记视觉通过。
+
+### Mock v13实机侧栏中文浅色首页验收
+
+Astra实际view_image以原图查看`build/tablet-nav-2026-10-28/mock-v13.png`（Xiaomi2560×1600）。本图六Tab图标/标签及项间有明确留白，底部“咖啡机睡眠/已唤醒”“电子秤/已连接”“断开秤”完整可读；分隔线、无边框状态与描边动作清楚区分导航/设备事实/操作，底部无裁切。首页双锅炉读数目标、启动及五槽全称仍完整。本台中文浅色首页所见状态视觉批准，用户本轮拥挤/纯图标含义不明问题在该状态闭合。
+
+root报告Mock v13构建、337unit及lint通过，实机覆盖安装保留17数据文件；本次Astra只验原图，不将该报告扩为硬件操作验收。尚未由本图验证萃取plot、深色、断连/禁用/重连状态、短高与真实BLE；后续曲线图仅补其对应可见范围。spec/plan更新冻结，未改源码/构建/提交。
+
+补图`build/tablet-nav-2026-10-28/mock-v13-curves.png`亦已实际view_image：切到曲线Tab后选中态正确，六导航及底部设备文字/断开动作仍完整；右侧两阶段目标主图边框、坐标与阶段标签、使用此曲线按钮均在可见范围，未被104dp rail挤裁。本结论只证明本轮侧栏在该页与主图共存，无全曲线库/全部筛选滚动/实际萃取plot验收外推。
+
+本轮root最终验证报告：337tests、0failures/0errors、1skip；assembleMock/Debug/MockAndroidTest及lintDebug成功；两variant APK资源各11017匹配。Mock签名相同、versionCode12→13，安装APK字节hash匹配，17数据文件hash保留。Astra仅将该执行结果按root报告记录，实图目视范围为前述home/curves两图，不写全应用或硬件通过。侧栏本轮设计/静审/所见实机状态验收闭合；文档冻结，交root提交。

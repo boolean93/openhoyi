@@ -889,5 +889,20 @@
   "language_title": "Язык приложения",
   "language_current": "Текущий язык: %1$s · Нажмите, чтобы изменить",
   "language_hint": "Названия кривых и записи пользователя сохраняются в исходном виде.",
-  "language_save_failed": "Не удалось сохранить язык. Повторите попытку."
+  "language_save_failed": "Не удалось сохранить язык. Повторите попытку.",
+  "task_shell_sleep_awake": "Сон кофемашины\nНе спит",
+  "task_shell_sleep_asleep": "Кофемашина\nСпит",
+  "task_shell_sleep_unconfirmed": "Сон кофемашины\nСтатус не подтверждён",
+  "task_shell_sleep_extraction": "Сон кофемашины\nНедоступно при варке",
+  "task_shell_sleep_waiting": "Сон кофемашины\nЖдём подтверждения",
+  "task_shell_sleep_unknown_result": "Сон кофемашины\nРезультат неизвестен",
+  "task_shell_sleep_wake_hint": "Разбудите кофемашину на самой машине",
+  "task_shell_scale_connected": "Подключены",
+  "task_shell_scale_unsupported": "Пока не поддерживаются",
+  "task_shell_scale_connect": "Подключить весы",
+  "task_shell_scale_reconnect": "Подключить снова",
+  "task_shell_scale_select": "Выбрать весы",
+  "task_shell_scale_disconnect": "Отключить весы",
+  "task_shell_sleep_unavailable": "Сон кофемашины\nВременно недоступно",
+  "task_shell_sleep_preparing_reason": "Подготовка к приготовлению ещё идёт"
 }

@@ -889,5 +889,20 @@
   "language_title": "App language",
   "language_current": "Current language: %1$s · Tap to change",
   "language_hint": "Curve names and user records keep their original text.",
-  "language_save_failed": "Could not save the language. Please try again."
+  "language_save_failed": "Could not save the language. Please try again.",
+  "task_shell_sleep_awake": "Machine sleep\nAwake",
+  "task_shell_sleep_asleep": "Machine\nAsleep",
+  "task_shell_sleep_unconfirmed": "Machine sleep\nStatus unconfirmed",
+  "task_shell_sleep_extraction": "Machine sleep\nDisabled during brew",
+  "task_shell_sleep_waiting": "Machine sleep\nAwaiting confirmation",
+  "task_shell_sleep_unknown_result": "Machine sleep\nOutcome unconfirmed",
+  "task_shell_sleep_wake_hint": "Wake the coffee machine on the machine itself",
+  "task_shell_scale_connected": "Connected",
+  "task_shell_scale_unsupported": "Not supported yet",
+  "task_shell_scale_connect": "Connect scale",
+  "task_shell_scale_reconnect": "Reconnect",
+  "task_shell_scale_select": "Choose scale",
+  "task_shell_scale_disconnect": "Disconnect scale",
+  "task_shell_sleep_unavailable": "Machine sleep\nTemporarily unavailable",
+  "task_shell_sleep_preparing_reason": "Brew preparation is still in progress"
 }

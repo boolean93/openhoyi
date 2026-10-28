@@ -10,10 +10,10 @@ import android.widget.*
 internal class TaskNavigationView(private val activity: Activity, private val productVisualStyle: TaskProductVisualStyle? = null,
     private val destinationProvider: () -> TaskDestination? = { TaskNavigationModel.forPage(activity.javaClass.simpleName) },
     private val onDestination: (TaskDestination) -> Unit = { open(activity, it) }) : LinearLayout(activity) {
-    private var rendered: Pair<TaskNavigationMode, Boolean>? = null
+    private var rendered: Triple<TaskNavigationMode, Boolean, Boolean>? = null
     fun refreshSelection() { rendered = null; requestLayout() }
-    fun render(mode: TaskNavigationMode, includeTools: Boolean) {
-        val next = mode to includeTools
+    fun render(mode: TaskNavigationMode, includeTools: Boolean, compactRail: Boolean = false) {
+        val next = Triple(mode, includeTools, compactRail)
         if (rendered == next) return
         rendered = next
         removeAllViews()
@@ -22,16 +22,18 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
         setBackgroundColor(productVisualStyle?.surface ?: activity.getColor(R.color.mobile_surface))
         val styledRail = productVisualStyle != null && mode == TaskNavigationMode.RAIL
         val shellRail = styledRail && activity is MainActivity
-        setPadding(if (styledRail) HoyiUi.dp(activity, if (shellRail) 4 else 8) else 0,
-            if (styledRail) HoyiUi.dp(activity, if (shellRail) 4 else 16) else 0,
-            if (styledRail) HoyiUi.dp(activity, if (shellRail) 4 else 8) else 0,
-            if (styledRail) HoyiUi.dp(activity, if (shellRail) 4 else 8) else 0)
+        val shortRail = shellRail && compactRail
+        setPadding(if (styledRail) HoyiUi.dp(activity, 8) else 0,
+            if (styledRail) HoyiUi.dp(activity, if (shellRail) 8 else 16) else 0,
+            if (styledRail) HoyiUi.dp(activity, 8) else 0,
+            if (styledRail) HoyiUi.dp(activity, 8) else 0)
         if (styledRail && !shellRail) addView(productVisualStyle!!.text("HOYI", TaskProductVisualStyle.action, "product/nav/brand").apply {
             gravity = Gravity.CENTER; minimumHeight = HoyiUi.dp(activity, 32)
         }, LayoutParams(-1, -2).apply { bottomMargin = HoyiUi.dp(activity, 16) })
         val items = TaskNavigationModel.primary + if (includeTools) TaskNavigationModel.tools else emptyList()
         items.forEach { destination ->
             if (mode == TaskNavigationMode.RAIL && destination == TaskDestination.SCALE) {
+                addView(View(activity), LayoutParams(-1, HoyiUi.dp(activity, 8)))
                 addView(View(activity), LayoutParams(-1, 0, 1f))
             }
             val active = destinationProvider() == destination
@@ -39,11 +41,12 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 ?: activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
             val item = LinearLayout(activity).apply {
                 tag = "task-nav:${destination.name}"
-                orientation = VERTICAL
+                orientation = if (shortRail) HORIZONTAL else VERTICAL
                 gravity = Gravity.CENTER
-                minimumHeight = HoyiUi.dp(activity, if (shellRail) 48 else if (styledRail) 64 else 48)
+                minimumHeight = HoyiUi.dp(activity, if (shellRail) if (shortRail) 48 else 60 else if (styledRail) 64 else 48)
                 minimumWidth = HoyiUi.dp(activity, 48)
-                setPadding(0, HoyiUi.dp(activity, if (shellRail) 1 else 4), 0, HoyiUi.dp(activity, if (shellRail) 1 else 4))
+                setPadding(0, HoyiUi.dp(activity, if (shortRail) 0 else 4), 0,
+                    HoyiUi.dp(activity, if (shortRail) 0 else 4))
                 contentDescription = activity.getString(label(destination))
                 isSelected = active
                 isClickable = true
@@ -63,16 +66,27 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 setImageResource(icon(destination)); imageTintList = ColorStateList.valueOf(tint)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
-            item.addView(glyph, LayoutParams(HoyiUi.dp(activity, if (styledRail && !shellRail) 24 else 20),
-                HoyiUi.dp(activity, if (styledRail && !shellRail) 24 else 20)))
+            val glyphSize = HoyiUi.dp(activity, if (styledRail && (!shellRail || !shortRail)) 24 else 20)
+            item.addView(glyph, LayoutParams(glyphSize, glyphSize))
             item.addView(TextView(activity).apply {
                 text = activity.getString(label(destination)); textSize = if (shellRail) 12f else 14f; gravity = Gravity.CENTER
                 productVisualStyle?.apply(this, TaskProductVisualStyle.auxiliary)
+                if (shellRail) {
+                    setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+                    val line = productVisualStyle!!.sp(20).toInt()
+                    if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(line)
+                    else setLineSpacing((line - paint.fontMetricsInt.descent + paint.fontMetricsInt.ascent)
+                        .coerceAtLeast(0).toFloat(), 1f)
+                    minHeight = line
+                }
                 gravity = Gravity.CENTER
                 setTextColor(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LayoutParams(-1, -2).apply { if (styledRail) topMargin = HoyiUi.dp(activity, if (shellRail) 2 else 8) })
+            }, LayoutParams(if (shortRail) -2 else -1, -2).apply {
+                if (shortRail) marginStart = HoyiUi.dp(activity, 8)
+                else if (styledRail) topMargin = HoyiUi.dp(activity, 8)
+            })
             addView(item, if (mode == TaskNavigationMode.RAIL) LayoutParams(-1, -2).apply {
-                if (styledRail && !shellRail && destination != items.first() && destination != TaskDestination.SCALE) topMargin = HoyiUi.dp(activity, 8)
+                if (styledRail && destination != items.first() && destination != TaskDestination.SCALE) topMargin = HoyiUi.dp(activity, 8)
             } else LayoutParams(0, -2, 1f))
         }
     }

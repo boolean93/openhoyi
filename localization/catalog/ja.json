@@ -889,5 +889,20 @@
   "language_title": "アプリの言語",
   "language_current": "現在の言語：%1$s · タップして変更",
   "language_hint": "プロファイル名とユーザーの記録は原文のまま表示されます。",
-  "language_save_failed": "言語を保存できませんでした。もう一度お試しください。"
+  "language_save_failed": "言語を保存できませんでした。もう一度お試しください。",
+  "task_shell_sleep_awake": "マシンのスリープ\n起動中",
+  "task_shell_sleep_asleep": "マシン\nスリープ中",
+  "task_shell_sleep_unconfirmed": "マシンのスリープ\n状態未確認",
+  "task_shell_sleep_extraction": "マシンのスリープ\n抽出中は無効",
+  "task_shell_sleep_waiting": "マシンのスリープ\n確認待ち",
+  "task_shell_sleep_unknown_result": "マシンのスリープ\n結果未確認",
+  "task_shell_sleep_wake_hint": "コーヒーマシン本体で起こしてください",
+  "task_shell_scale_connected": "接続済み",
+  "task_shell_scale_unsupported": "現在非対応",
+  "task_shell_scale_connect": "スケールに接続",
+  "task_shell_scale_reconnect": "再接続",
+  "task_shell_scale_select": "スケールを選択",
+  "task_shell_scale_disconnect": "スケールを切断",
+  "task_shell_sleep_unavailable": "マシンのスリープ\n一時的に使用不可",
+  "task_shell_sleep_preparing_reason": "抽出準備が進行中です"
 }

@@ -889,5 +889,20 @@
   "language_title": "Idioma de la aplicación",
   "language_current": "Idioma actual: %1$s · Toca para cambiar",
   "language_hint": "Los nombres de los perfiles y los registros del usuario conservan su texto original.",
-  "language_save_failed": "No se pudo guardar el idioma. Inténtalo de nuevo."
+  "language_save_failed": "No se pudo guardar el idioma. Inténtalo de nuevo.",
+  "task_shell_sleep_awake": "Reposo de la cafetera\nDespierta",
+  "task_shell_sleep_asleep": "Cafetera\nEn reposo",
+  "task_shell_sleep_unconfirmed": "Reposo de la cafetera\nEstado sin confirmar",
+  "task_shell_sleep_extraction": "Reposo de la cafetera\nNo disponible al extraer",
+  "task_shell_sleep_waiting": "Reposo de la cafetera\nEsperando confirmación",
+  "task_shell_sleep_unknown_result": "Reposo de la cafetera\nResultado sin confirmar",
+  "task_shell_sleep_wake_hint": "Despierta la cafetera desde la propia máquina",
+  "task_shell_scale_connected": "Conectada",
+  "task_shell_scale_unsupported": "Aún no compatible",
+  "task_shell_scale_connect": "Conectar báscula",
+  "task_shell_scale_reconnect": "Reconectar",
+  "task_shell_scale_select": "Elegir báscula",
+  "task_shell_scale_disconnect": "Desconectar báscula",
+  "task_shell_sleep_unavailable": "Reposo de la cafetera\nNo disponible por ahora",
+  "task_shell_sleep_preparing_reason": "La preparación de la extracción sigue en curso"
 }

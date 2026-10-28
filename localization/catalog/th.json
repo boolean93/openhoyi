@@ -889,5 +889,20 @@
   "language_title": "ภาษาของแอป",
   "language_current": "ภาษาปัจจุบัน: %1$s · แตะเพื่อเปลี่ยน",
   "language_hint": "ชื่อโปรไฟล์และบันทึกของผู้ใช้จะคงข้อความเดิมไว้",
-  "language_save_failed": "บันทึกภาษาไม่สำเร็จ โปรดลองอีกครั้ง"
+  "language_save_failed": "บันทึกภาษาไม่สำเร็จ โปรดลองอีกครั้ง",
+  "task_shell_sleep_awake": "พักเครื่องชงกาแฟ\nเครื่องตื่นอยู่",
+  "task_shell_sleep_asleep": "เครื่องชงกาแฟ\nกำลังพัก",
+  "task_shell_sleep_unconfirmed": "พักเครื่องชงกาแฟ\nยังไม่ยืนยันสถานะ",
+  "task_shell_sleep_extraction": "พักเครื่องชงกาแฟ\nใช้ไม่ได้ขณะสกัด",
+  "task_shell_sleep_waiting": "พักเครื่องชงกาแฟ\nรอยืนยัน",
+  "task_shell_sleep_unknown_result": "พักเครื่องชงกาแฟ\nยังไม่ยืนยันผล",
+  "task_shell_sleep_wake_hint": "ปลุกเครื่องชงกาแฟที่ตัวเครื่อง",
+  "task_shell_scale_connected": "เชื่อมต่อแล้ว",
+  "task_shell_scale_unsupported": "ยังไม่รองรับ",
+  "task_shell_scale_connect": "เชื่อมต่อเครื่องชั่ง",
+  "task_shell_scale_reconnect": "เชื่อมต่ออีกครั้ง",
+  "task_shell_scale_select": "เลือกเครื่องชั่ง",
+  "task_shell_scale_disconnect": "ตัดการเชื่อมต่อเครื่องชั่ง",
+  "task_shell_sleep_unavailable": "พักเครื่องชงกาแฟ\nยังใช้งานไม่ได้",
+  "task_shell_sleep_preparing_reason": "กำลังเตรียมการสกัดอยู่"
 }

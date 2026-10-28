@@ -889,5 +889,20 @@
   "language_title": "앱 언어",
   "language_current": "현재 언어: %1$s · 눌러서 변경",
   "language_hint": "프로파일 이름과 사용자 기록은 원문으로 유지됩니다.",
-  "language_save_failed": "언어를 저장하지 못했습니다. 다시 시도해 주세요."
+  "language_save_failed": "언어를 저장하지 못했습니다. 다시 시도해 주세요.",
+  "task_shell_sleep_awake": "머신 절전\n깨어 있음",
+  "task_shell_sleep_asleep": "커피 머신\n절전 중",
+  "task_shell_sleep_unconfirmed": "머신 절전\n상태 미확인",
+  "task_shell_sleep_extraction": "머신 절전\n추출 중 사용 불가",
+  "task_shell_sleep_waiting": "머신 절전\n확인 대기 중",
+  "task_shell_sleep_unknown_result": "머신 절전\n결과 미확인",
+  "task_shell_sleep_wake_hint": "커피 머신 본체에서 깨우세요",
+  "task_shell_scale_connected": "연결됨",
+  "task_shell_scale_unsupported": "현재 지원 안 됨",
+  "task_shell_scale_connect": "저울 연결",
+  "task_shell_scale_reconnect": "다시 연결",
+  "task_shell_scale_select": "저울 선택",
+  "task_shell_scale_disconnect": "저울 연결 해제",
+  "task_shell_sleep_unavailable": "머신 절전\n일시적으로 사용 불가",
+  "task_shell_sleep_preparing_reason": "추출 준비가 아직 진행 중입니다"
 }

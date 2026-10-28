@@ -889,5 +889,20 @@
   "language_title": "لغة التطبيق",
   "language_current": "اللغة الحالية: %1$s · اضغط للتغيير",
   "language_hint": "تبقى أسماء المنحنيات وسجلات المستخدم بلغتها الأصلية.",
-  "language_save_failed": "تعذّر حفظ اللغة. يُرجى المحاولة مرة أخرى."
+  "language_save_failed": "تعذّر حفظ اللغة. يُرجى المحاولة مرة أخرى.",
+  "task_shell_sleep_awake": "سكون آلة القهوة\nمستيقظة",
+  "task_shell_sleep_asleep": "آلة القهوة\nفي وضع السكون",
+  "task_shell_sleep_unconfirmed": "سكون آلة القهوة\nالحالة غير مؤكدة",
+  "task_shell_sleep_extraction": "سكون آلة القهوة\nمعطل أثناء الاستخلاص",
+  "task_shell_sleep_waiting": "سكون آلة القهوة\nبانتظار التأكيد",
+  "task_shell_sleep_unknown_result": "سكون آلة القهوة\nالنتيجة غير مؤكدة",
+  "task_shell_sleep_wake_hint": "أيقظ آلة القهوة من الجهاز نفسه",
+  "task_shell_scale_connected": "متصل",
+  "task_shell_scale_unsupported": "غير مدعوم حاليًا",
+  "task_shell_scale_connect": "توصيل الميزان",
+  "task_shell_scale_reconnect": "إعادة الاتصال",
+  "task_shell_scale_select": "اختيار الميزان",
+  "task_shell_scale_disconnect": "فصل الميزان",
+  "task_shell_sleep_unavailable": "سكون آلة القهوة\nغير متاح مؤقتًا",
+  "task_shell_sleep_preparing_reason": "ما زال تحضير الاستخلاص جاريًا"
 }
