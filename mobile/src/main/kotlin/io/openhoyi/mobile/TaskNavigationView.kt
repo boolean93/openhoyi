@@ -32,6 +32,8 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
         }, LayoutParams(-1, -2).apply { bottomMargin = HoyiUi.dp(activity, 16) })
         val items = TaskNavigationModel.primary + if (includeTools) TaskNavigationModel.tools else emptyList()
         items.forEach { destination ->
+            val labelId = if (activity is MainActivity && destination == TaskDestination.BREW)
+                R.string.task_home_tab else label(destination)
             if (mode == TaskNavigationMode.RAIL && destination == TaskDestination.SCALE) {
                 addView(View(activity), LayoutParams(-1, HoyiUi.dp(activity, 8)))
                 addView(View(activity), LayoutParams(-1, 0, 1f))
@@ -47,7 +49,7 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 minimumWidth = HoyiUi.dp(activity, 48)
                 setPadding(0, HoyiUi.dp(activity, if (shortRail) 0 else 4), 0,
                     HoyiUi.dp(activity, if (shortRail) 0 else 4))
-                contentDescription = activity.getString(label(destination))
+                contentDescription = activity.getString(labelId)
                 isSelected = active
                 isClickable = true
                 isFocusable = true
@@ -69,7 +71,7 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
             val glyphSize = HoyiUi.dp(activity, if (styledRail && (!shellRail || !shortRail)) 24 else 20)
             item.addView(glyph, LayoutParams(glyphSize, glyphSize))
             item.addView(TextView(activity).apply {
-                text = activity.getString(label(destination)); textSize = if (shellRail) 12f else 14f; gravity = Gravity.CENTER
+                text = activity.getString(labelId); textSize = if (shellRail) 12f else 14f; gravity = Gravity.CENTER
                 productVisualStyle?.apply(this, TaskProductVisualStyle.auxiliary)
                 if (shellRail) {
                     setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)

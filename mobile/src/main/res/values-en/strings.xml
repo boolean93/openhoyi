@@ -258,6 +258,7 @@
     <string name="home_alarm_initial">"No machine alarm state received yet"</string>
     <string name="home_bind_failed">"Unable to bind to device service"</string>
     <string name="home_bluetooth_unsupported">"This device does not support Bluetooth"</string>
+    <string name="home_brew_boiler">"Brew boiler"</string>
     <string name="home_brew_pressure">"Brew pressure"</string>
     <string name="home_brew_temperature">"Brew temperature"</string>
     <string name="home_candidate">"%1$s · %2$s"</string>
@@ -360,6 +361,7 @@
     <string name="home_slot_curve">"Slot %1$s · %2$s"</string>
     <string name="home_start_cancel">"Cancel start"</string>
     <string name="home_start_failed">"Start failed: %1$s"</string>
+    <string name="home_steam_boiler">"Steam boiler"</string>
     <string name="home_steam_pressure">"Steam pressure"</string>
     <string name="home_steam_temperature">"Steam temperature"</string>
     <string name="home_stop">"Stop extraction now"</string>
@@ -882,6 +884,7 @@
     <string name="studio_block_settings_missing">"Machine operating mode not received yet"</string>
     <string name="studio_block_temperature_not_ready">"Studio mode temperature below curve target; preheat first"</string>
     <string name="studio_settings_stale">"Machine settings report is stale; wait for a new report"</string>
+    <string name="task_home_tab">"Home"</string>
     <string name="task_shell_scale_connect">"Connect scale"</string>
     <string name="task_shell_scale_connected">"Connected"</string>
     <string name="task_shell_scale_disconnect">"Disconnect scale"</string>

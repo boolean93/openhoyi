@@ -904,5 +904,8 @@
   "task_shell_scale_select": "Выбрать весы",
   "task_shell_scale_disconnect": "Отключить весы",
   "task_shell_sleep_unavailable": "Сон кофемашины\nВременно недоступно",
-  "task_shell_sleep_preparing_reason": "Подготовка к приготовлению ещё идёт"
+  "task_shell_sleep_preparing_reason": "Подготовка к приготовлению ещё идёт",
+  "task_home_tab": "Главная",
+  "home_brew_boiler": "Бойлер заваривания",
+  "home_steam_boiler": "Паровой бойлер"
 }

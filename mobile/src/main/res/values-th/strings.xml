@@ -258,6 +258,7 @@
     <string name="home_alarm_initial">"ยังไม่ได้รับสถานะเตือนของเครื่อง"</string>
     <string name="home_bind_failed">"ผูกบริการอุปกรณ์ไม่ได้"</string>
     <string name="home_bluetooth_unsupported">"อุปกรณ์นี้ไม่รองรับบลูทูธ"</string>
+    <string name="home_brew_boiler">"หม้อต้มชงกาแฟ"</string>
     <string name="home_brew_pressure">"แรงดันชง"</string>
     <string name="home_brew_temperature">"อุณหภูมิชง"</string>
     <string name="home_candidate">"%1$s · %2$s"</string>
@@ -360,6 +361,7 @@
     <string name="home_slot_curve">"ช่อง %1$s · %2$s"</string>
     <string name="home_start_cancel">"ยกเลิกเริ่ม"</string>
     <string name="home_start_failed">"เริ่มไม่สำเร็จ: %1$s"</string>
+    <string name="home_steam_boiler">"หม้อต้มไอน้ำ"</string>
     <string name="home_steam_pressure">"แรงดันไอน้ำ"</string>
     <string name="home_steam_temperature">"อุณหภูมิไอน้ำ"</string>
     <string name="home_stop">"หยุดการสกัดทันที"</string>
@@ -882,6 +884,7 @@
     <string name="studio_block_settings_missing">"ยังไม่ได้รับโหมดการทำงานเครื่อง"</string>
     <string name="studio_block_temperature_not_ready">"โหมดสตูดิโอยังไม่ถึงอุณหภูมิเป้าหมายกราฟ อุ่นก่อน"</string>
     <string name="studio_settings_stale">"รายงานการตั้งค่าเครื่องหมดอายุ รอรายงานใหม่"</string>
+    <string name="task_home_tab">"หน้าหลัก"</string>
     <string name="task_shell_scale_connect">"เชื่อมต่อเครื่องชั่ง"</string>
     <string name="task_shell_scale_connected">"เชื่อมต่อแล้ว"</string>
     <string name="task_shell_scale_disconnect">"ตัดการเชื่อมต่อเครื่องชั่ง"</string>

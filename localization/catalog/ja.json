@@ -904,5 +904,8 @@
   "task_shell_scale_select": "スケールを選択",
   "task_shell_scale_disconnect": "スケールを切断",
   "task_shell_sleep_unavailable": "マシンのスリープ\n一時的に使用不可",
-  "task_shell_sleep_preparing_reason": "抽出準備が進行中です"
+  "task_shell_sleep_preparing_reason": "抽出準備が進行中です",
+  "task_home_tab": "ホーム",
+  "home_brew_boiler": "抽出ボイラー",
+  "home_steam_boiler": "スチームボイラー"
 }

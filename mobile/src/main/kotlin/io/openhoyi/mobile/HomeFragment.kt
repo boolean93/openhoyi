@@ -15,8 +15,11 @@ import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.*
+import android.text.SpannableString
+import android.text.Spanned
 import android.text.InputFilter
 import android.text.InputType
+import android.text.style.RelativeSizeSpan
 import android.view.View
 import android.view.WindowInsets
 import android.widget.*
@@ -56,7 +59,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var coffeeDot: View
     private lateinit var brewTemperature: TextView
     private lateinit var brewBoilerTemperature: TextView
+    private lateinit var brewBoilerPressure: TextView
     private lateinit var steamBoilerTemperature: TextView
+    private lateinit var steamBoilerPressure: TextView
     private lateinit var brewBoilerTarget: TextView
     private lateinit var steamBoilerTarget: TextView
     private lateinit var brewBoilerToggle: Button
@@ -199,6 +204,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { tag = "product/home/service-status" }
         content.removeView(status)
+        if (resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420)
+            content.addView(productStyle.text(getString(R.string.home_machine_title), TaskProductVisualStyle.title,
+                "product/home/title"))
         val machineRow = productStyle.row("product/home/machine-status").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(48)
         }
@@ -207,47 +215,72 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         machineConnect = button(machineRow, getString(R.string.home_connect)) { showDevicePanel() }.apply {
             tag = "product/home/connect"; layoutParams = LinearLayout.LayoutParams(-2, dp(48))
         }
-        val boilerRow = productStyle.row("product/home/boilers")
-        content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): Triple<TextView, TextView, Button> {
+        val spaciousHome = resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
+        val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
+        content.addView(boilerRow, LinearLayout.LayoutParams(-1, if (spaciousHome) dp(360) else -2).apply { topMargin = dp(8) })
+        fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): List<View> {
             val card = productStyle.column("product/home/$tagName").apply {
-                setPadding(dp(8), dp(4), dp(8), dp(4)); background = productStyle.shape(productStyle.surface, true)
+                setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else 4),
+                    dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else 4))
+                background = productStyle.shape(productStyle.surface, true)
             }
-            boilerRow.addView(card, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                if (boilerRow.childCount > 0) marginStart = dp(8)
-            })
+            boilerRow.addBoiler(card)
             val heading = productStyle.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true)
-            val value = productStyle.text("—", TaskProductVisualStyle.Type(23, 700, 32), "product/home/$tagName/temperature")
+            heading.text = getString(if (tagName == "brew-boiler") R.string.home_brew_boiler else R.string.home_steam_boiler)
+            val value = productStyle.text("—", TaskProductVisualStyle.Type(if (spaciousHome) 40 else 19, 700,
+                if (spaciousHome) 48 else 25), "product/home/$tagName/temperature")
+            val pressure = productStyle.text("—", TaskProductVisualStyle.Type(if (spaciousHome) 40 else 19, 700,
+                if (spaciousHome) 48 else 25), "product/home/$tagName/pressure")
             val target = productStyle.text("—", TaskProductVisualStyle.auxiliary, "product/home/$tagName/target", true)
             val toggle = button(card, getString(R.string.setting_on)) { confirmBoilerChange(change()) }.apply {
                 tag = "product/home/$tagName/toggle"; minimumHeight = dp(48)
             }
             val controls = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
-            controls.addView(heading, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) })
-            controls.addView(value, LinearLayout.LayoutParams(0, -2, 1f))
+            controls.addView(heading, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) })
             (toggle.parent as? android.view.ViewGroup)?.removeView(toggle)
             controls.addView(toggle, LinearLayout.LayoutParams(-2, dp(48)))
             card.addView(controls)
+            val readings = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+            fun reading(labelId: Int, field: TextView) {
+                val column = productStyle.column()
+                column.addView(productStyle.text(getString(labelId), TaskProductVisualStyle.auxiliary, secondary = true))
+                column.addView(field)
+                readings.addView(column, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                    if (readings.childCount > 0) marginStart = dp(if (spaciousHome) 16 else 4)
+                })
+            }
+            reading(R.string.home_brew_temperature.takeIf { tagName == "brew-boiler" } ?: R.string.home_steam_temperature, value)
+            reading(R.string.home_brew_pressure.takeIf { tagName == "brew-boiler" } ?: R.string.home_steam_pressure, pressure)
+            card.addView(readings, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (spaciousHome) 4 else 0) })
             productStyle.add(card, target)
-            return Triple(value, target, toggle)
+            return listOf(value, pressure, target, toggle)
         }
         boiler(R.string.home_brew_temperature, "brew-boiler") {
             MachineSettingChange.BrewHeating(!(service?.snapshot?.settings?.brewHeating ?: false))
-        }.let { (value, target, toggle) -> brewBoilerTemperature=value;brewBoilerTarget=target;brewBoilerToggle=toggle }
+        }.let { (value, pressure, target, toggle) -> brewBoilerTemperature=value as TextView; brewBoilerPressure=pressure as TextView;
+            brewBoilerTarget=target as TextView; brewBoilerToggle=toggle as Button }
         boiler(R.string.home_steam_temperature, "steam-boiler") {
             MachineSettingChange.SteamHeating(!(service?.snapshot?.settings?.steamHeating ?: false))
-        }.let { (value, target, toggle) -> steamBoilerTemperature=value;steamBoilerTarget=target;steamBoilerToggle=toggle }
-        quickRow = productStyle.row("product/home/quick-extraction").apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+        }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
+            steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as Button }
+        quickRow = if (spaciousHome) productStyle.column("product/home/quick-extraction")
+            else productStyle.row("product/home/quick-extraction")
+        quickRow.gravity = android.view.Gravity.CENTER_VERTICAL
         content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        if (spaciousHome) quickRow.addView(productStyle.text(getString(R.string.home_quick_curves),
+            TaskProductVisualStyle.section, "product/home/quick-title"))
+        val launchRow = if (spaciousHome) productStyle.row().apply {
+            gravity = android.view.Gravity.CENTER_VERTICAL
+        } else quickRow
         quickRecipeTitle = productStyle.text(getString(R.string.home_curve_missing), TaskProductVisualStyle.action,
-            "product/home/quick-recipe").also { quickRow.addView(it, LinearLayout.LayoutParams(0, -2, 1f)) }
+            "product/home/quick-recipe").also { launchRow.addView(it, LinearLayout.LayoutParams(0, -2, 1f)) }
         quickRecipeTitle.maxLines = 1
         quickRecipeTitle.ellipsize = android.text.TextUtils.TruncateAt.END
         quickRecipeTitle.setOnClickListener {
             AlertDialog.Builder(host).setTitle(getString(R.string.home_current_curve))
                 .setMessage(selectionDetails).setPositiveButton(android.R.string.ok, null).let(::showTransient)
         }
-        quickLaunch = button(quickRow, getString(R.string.home_curve_select), primary = true) {
+        quickLaunch = button(launchRow, getString(R.string.home_curve_select), primary = true) {
             val library = (application as MobileApplication).curves
             val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
             if (service?.let { ShotGate.active(it.shotState) || it.manualShotActive } == true) host.showExtraction()
@@ -255,18 +288,24 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             else host.select(TaskDestination.CURVES)
         }.apply { tag = "product/home/quick-launch"; layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) } }
         val presetRow = productStyle.row("product/home/direct-presets")
-        quickRow.addView(presetRow, LinearLayout.LayoutParams(0, -2, 3f).apply { marginStart = dp(8) })
+        quickRow.addView(presetRow, if (spaciousHome) LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(8)
+        } else LinearLayout.LayoutParams(0, -2, 3f).apply { marginStart = dp(8) })
         directPresetButtons = (1..5).map { slot ->
             button(presetRow, slot.toString()) { host.showExtraction(slot, confirmStart = true) }.apply {
                 tag = "product/home/direct-preset/$slot"
-                minimumHeight = dp(48); maxLines = Int.MAX_VALUE
+                if (spaciousHome) productStyle.button(this, outline = true)
+                minimumHeight = dp(if (spaciousHome) 80 else 48); maxLines = Int.MAX_VALUE
                 ellipsize = null
-                textSize = 11f
+                textSize = if (spaciousHome) 14f else 11f
                 layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
-                    if (slot > 1) marginStart = dp(4)
+                    if (slot > 1) marginStart = dp(if (spaciousHome) 8 else 4)
                 }
             }
         }
+        if (spaciousHome) quickRow.addView(launchRow, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(8)
+        })
         val machineChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         coffeeDot = statusDot(machineChip)
@@ -738,26 +777,15 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             DeviceState.FAILED, DeviceState.UNSUPPORTED -> R.color.mobile_danger
             else -> R.color.mobile_muted
         })
-        when (val frame = liveMachine) {
-            is IdleTelemetry -> {
-                brewTemperature.show("${number(frame.brewTemperatureHundredthsC)} °C")
-                brewBoilerTemperature.show("${number(frame.brewTemperatureHundredthsC)} °C")
-                brewPressure.show("${frame.brewPressureTenthsBar / 10.0} bar")
-                steamTemperature.show("${number(frame.steamTemperatureHundredthsC)} °C")
-                steamBoilerTemperature.show("${number(frame.steamTemperatureHundredthsC)} °C")
-                steamPressure.show("${frame.steamPressureTenthsBar / 10.0} bar")
-            }
-            is ExtractionTelemetry -> {
-                brewTemperature.show("${number(frame.brewTemperatureHundredthsC)} °C")
-                brewBoilerTemperature.show("${number(frame.brewTemperatureHundredthsC)} °C")
-                brewPressure.show("${frame.pressureTenthsBar / 10.0} bar")
-                steamTemperature.show("—")
-                steamBoilerTemperature.show("—")
-                steamPressure.show("—")
-            }
-            else -> listOf(brewTemperature, brewBoilerTemperature, brewPressure, steamTemperature,
-                steamBoilerTemperature, steamPressure).forEach { it.show("—") }
-        }
+        val readings = MachineHomeReadings.from(liveMachine)
+        brewTemperature.show(readings.brewTemperature)
+        brewBoilerTemperature.showMetric(readings.brewTemperature)
+        brewPressure.show(readings.brewPressure)
+        brewBoilerPressure.showMetric(readings.brewPressure)
+        steamTemperature.show(readings.steamTemperature)
+        steamBoilerTemperature.showMetric(readings.steamTemperature)
+        steamPressure.show(readings.steamPressure)
+        steamBoilerPressure.showMetric(readings.steamPressure)
         brewBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.brewTemperatureC?.let { "${it} °C" } ?: "—"))
         steamBoilerTarget.show(getString(R.string.home_target_label) + " " + (s.settings?.steamTemperatureC?.let { "${it} °C" } ?: "—"))
         val boilerEditable = MachineSettingsEditGate.allowed(owner, s, now) && !BuildConfig.MOCK_MODE
@@ -894,6 +922,13 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         DeviceState.UNSUPPORTED -> getString(R.string.home_firmware_readonly); else -> getString(R.string.device_state_connecting)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
+    private fun TextView.showMetric(value: String) {
+        if (text.toString() == value) return
+        val unitStart = value.indexOf(' ')
+        text = if (unitStart < 0) value else SpannableString(value).apply {
+            setSpan(RelativeSizeSpan(0.48f), unitStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
     private fun number(hundredths: Int) = String.format(Locale.ROOT, "%.2f", hundredths / 100.0)
     private fun toast(message: String) = Toast.makeText(host, message, Toast.LENGTH_SHORT).show()
     private fun dp(value: Int) = (resources.displayMetrics.density * value).toInt()

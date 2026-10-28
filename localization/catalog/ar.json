@@ -904,5 +904,8 @@
   "task_shell_scale_select": "اختيار الميزان",
   "task_shell_scale_disconnect": "فصل الميزان",
   "task_shell_sleep_unavailable": "سكون آلة القهوة\nغير متاح مؤقتًا",
-  "task_shell_sleep_preparing_reason": "ما زال تحضير الاستخلاص جاريًا"
+  "task_shell_sleep_preparing_reason": "ما زال تحضير الاستخلاص جاريًا",
+  "task_home_tab": "الرئيسية",
+  "home_brew_boiler": "غلاية التحضير",
+  "home_steam_boiler": "غلاية البخار"
 }

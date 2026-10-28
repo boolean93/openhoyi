@@ -904,5 +904,8 @@
   "task_shell_scale_select": "Elegir báscula",
   "task_shell_scale_disconnect": "Desconectar báscula",
   "task_shell_sleep_unavailable": "Reposo de la cafetera\nNo disponible por ahora",
-  "task_shell_sleep_preparing_reason": "La preparación de la extracción sigue en curso"
+  "task_shell_sleep_preparing_reason": "La preparación de la extracción sigue en curso",
+  "task_home_tab": "Inicio",
+  "home_brew_boiler": "Caldera de extracción",
+  "home_steam_boiler": "Caldera de vapor"
 }

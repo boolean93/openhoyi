@@ -235,7 +235,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
             TaskNavigationMode.RAIL else TaskNavigationMode.BOTTOM
         check(frame.mode == expectedMode) { "$fixture wrong navigation mode" }
         val targets = descendants(frame.navigation).filter { it.tag?.toString()?.startsWith("task-nav:") == true }
-        val labels = listOf(R.string.ui_brew, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)
+        val labels = listOf(R.string.task_home_tab, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)
         check(targets.take(4).map { it.tag } == TaskNavigationModel.primary.map { "task-nav:${it.name}" })
         val content = frame.pageContent
         val contentBounds = Rect().also { check(content.getGlobalVisibleRect(it)) }

@@ -258,6 +258,7 @@
     <string name="home_alarm_initial">"Aún no se ha recibido el estado de alarmas de la máquina"</string>
     <string name="home_bind_failed">"No se puede vincular al servicio de dispositivos"</string>
     <string name="home_bluetooth_unsupported">"Este dispositivo no admite Bluetooth"</string>
+    <string name="home_brew_boiler">"Caldera de extracción"</string>
     <string name="home_brew_pressure">"Presión de extracción"</string>
     <string name="home_brew_temperature">"Temperatura de extracción"</string>
     <string name="home_candidate">"%1$s · %2$s"</string>
@@ -360,6 +361,7 @@
     <string name="home_slot_curve">"Ranura %1$s · %2$s"</string>
     <string name="home_start_cancel">"Cancelar inicio"</string>
     <string name="home_start_failed">"Error al iniciar: %1$s"</string>
+    <string name="home_steam_boiler">"Caldera de vapor"</string>
     <string name="home_steam_pressure">"Presión de vapor"</string>
     <string name="home_steam_temperature">"Temperatura de vapor"</string>
     <string name="home_stop">"Detener la extracción ahora"</string>
@@ -882,6 +884,7 @@
     <string name="studio_block_settings_missing">"Aún no se ha recibido el modo de funcionamiento de la máquina"</string>
     <string name="studio_block_temperature_not_ready">"La temperatura en modo Estudio no ha alcanzado el objetivo de la curva; precaliente primero"</string>
     <string name="studio_settings_stale">"El informe de ajustes de la máquina ha caducado; espere un nuevo informe"</string>
+    <string name="task_home_tab">"Inicio"</string>
     <string name="task_shell_scale_connect">"Conectar báscula"</string>
     <string name="task_shell_scale_connected">"Conectada"</string>
     <string name="task_shell_scale_disconnect">"Desconectar báscula"</string>

@@ -904,5 +904,8 @@
   "task_shell_scale_select": "Choose scale",
   "task_shell_scale_disconnect": "Disconnect scale",
   "task_shell_sleep_unavailable": "Machine sleep\nTemporarily unavailable",
-  "task_shell_sleep_preparing_reason": "Brew preparation is still in progress"
+  "task_shell_sleep_preparing_reason": "Brew preparation is still in progress",
+  "task_home_tab": "Home",
+  "home_brew_boiler": "Brew boiler",
+  "home_steam_boiler": "Steam boiler"
 }

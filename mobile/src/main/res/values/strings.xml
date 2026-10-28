@@ -258,6 +258,9 @@
     <string name="home_scale_initial">"电子秤 · 未连接"</string>
     <string name="home_scan">"扫描并连接设备"</string>
     <string name="home_coffee">"咖啡机"</string>
+    <string name="task_home_tab">"首页"</string>
+    <string name="home_brew_boiler">"冲泡锅炉"</string>
+    <string name="home_steam_boiler">"蒸汽锅炉"</string>
     <string name="home_machine_description">"HOYI 咖啡机外观"</string>
     <string name="home_firmware_initial">"固件版本：等待连接后读取"</string>
     <string name="home_alarm_initial">"尚未收到机器告警状态"</string>

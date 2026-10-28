@@ -258,6 +258,7 @@
     <string name="home_alarm_initial">"머신 경보 상태 미수신"</string>
     <string name="home_bind_failed">"기기 서비스에 바인딩할 수 없습니다"</string>
     <string name="home_bluetooth_unsupported">"이 기기는 블루투스를 지원하지 않습니다"</string>
+    <string name="home_brew_boiler">"추출 보일러"</string>
     <string name="home_brew_pressure">"추출 압력"</string>
     <string name="home_brew_temperature">"추출 온도"</string>
     <string name="home_candidate">"%1$s · %2$s"</string>
@@ -360,6 +361,7 @@
     <string name="home_slot_curve">"슬롯 %1$s · %2$s"</string>
     <string name="home_start_cancel">"시작 취소"</string>
     <string name="home_start_failed">"시작 실패: %1$s"</string>
+    <string name="home_steam_boiler">"스팀 보일러"</string>
     <string name="home_steam_pressure">"스팀 압력"</string>
     <string name="home_steam_temperature">"스팀 온도"</string>
     <string name="home_stop">"추출 즉시 중지"</string>
@@ -882,6 +884,7 @@
     <string name="studio_block_settings_missing">"머신 운전 모드 미수신"</string>
     <string name="studio_block_temperature_not_ready">"스튜디오 모드에서 곡선 목표 온도 미도달, 먼저 예열하세요"</string>
     <string name="studio_settings_stale">"머신 설정 응답이 오래되었습니다. 새 응답을 기다리세요"</string>
+    <string name="task_home_tab">"홈"</string>
     <string name="task_shell_scale_connect">"저울 연결"</string>
     <string name="task_shell_scale_connected">"연결됨"</string>
     <string name="task_shell_scale_disconnect">"저울 연결 해제"</string>

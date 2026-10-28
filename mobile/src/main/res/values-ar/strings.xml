@@ -258,6 +258,7 @@
     <string name="home_alarm_initial">"لم تُستلم حالة إنذارات الآلة بعد"</string>
     <string name="home_bind_failed">"تعذر الارتباط بخدمة الأجهزة"</string>
     <string name="home_bluetooth_unsupported">"هذا الجهاز لا يدعم Bluetooth"</string>
+    <string name="home_brew_boiler">"غلاية التحضير"</string>
     <string name="home_brew_pressure">"ضغط التحضير"</string>
     <string name="home_brew_temperature">"حرارة التحضير"</string>
     <string name="home_candidate">"%1$s · %2$s"</string>
@@ -360,6 +361,7 @@
     <string name="home_slot_curve">"الخانة %1$s · %2$s"</string>
     <string name="home_start_cancel">"إلغاء البدء"</string>
     <string name="home_start_failed">"فشل البدء: %1$s"</string>
+    <string name="home_steam_boiler">"غلاية البخار"</string>
     <string name="home_steam_pressure">"ضغط البخار"</string>
     <string name="home_steam_temperature">"حرارة البخار"</string>
     <string name="home_stop">"أوقف الاستخلاص الآن"</string>
@@ -882,6 +884,7 @@
     <string name="studio_block_settings_missing">"لم يُستلم وضع تشغيل الآلة بعد"</string>
     <string name="studio_block_temperature_not_ready">"في وضع الاستوديو لم تبلغ الحرارة هدف المنحنى؛ سخّن مسبقًا أولًا"</string>
     <string name="studio_settings_stale">"تقرير إعدادات الآلة قديم؛ انتظر تقريرًا جديدًا"</string>
+    <string name="task_home_tab">"الرئيسية"</string>
     <string name="task_shell_scale_connect">"توصيل الميزان"</string>
     <string name="task_shell_scale_connected">"متصل"</string>
     <string name="task_shell_scale_disconnect">"فصل الميزان"</string>

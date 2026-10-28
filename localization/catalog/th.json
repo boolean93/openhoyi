@@ -904,5 +904,8 @@
   "task_shell_scale_select": "เลือกเครื่องชั่ง",
   "task_shell_scale_disconnect": "ตัดการเชื่อมต่อเครื่องชั่ง",
   "task_shell_sleep_unavailable": "พักเครื่องชงกาแฟ\nยังใช้งานไม่ได้",
-  "task_shell_sleep_preparing_reason": "กำลังเตรียมการสกัดอยู่"
+  "task_shell_sleep_preparing_reason": "กำลังเตรียมการสกัดอยู่",
+  "task_home_tab": "หน้าหลัก",
+  "home_brew_boiler": "หม้อต้มชงกาแฟ",
+  "home_steam_boiler": "หม้อต้มไอน้ำ"
 }

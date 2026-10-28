@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "1c80eaa11a59ba9fd873867080d548cb9961bdb333109ff28216b145eb2504aa",
+  "sha256": "9672d2cb231d9efdf906956a6490827434d4fc2b7f791b2da98889fe8a3539d7",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
@@ -907,6 +907,9 @@
     "language_title": "应用语言",
     "language_current": "当前语言：%1$s · 点击切换",
     "language_hint": "曲线名称和用户记录保留原文。",
-    "language_save_failed": "语言保存失败，请重试。"
+    "language_save_failed": "语言保存失败，请重试。",
+    "task_home_tab": "首页",
+    "home_brew_boiler": "冲泡锅炉",
+    "home_steam_boiler": "蒸汽锅炉"
   }
 }

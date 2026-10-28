@@ -258,6 +258,7 @@
     <string name="home_alarm_initial">"Состояние тревог машины ещё не получено"</string>
     <string name="home_bind_failed">"Не удалось привязаться к службе устройств"</string>
     <string name="home_bluetooth_unsupported">"Это устройство не поддерживает Bluetooth"</string>
+    <string name="home_brew_boiler">"Бойлер заваривания"</string>
     <string name="home_brew_pressure">"Давление заваривания"</string>
     <string name="home_brew_temperature">"Температура заваривания"</string>
     <string name="home_candidate">"%1$s · %2$s"</string>
@@ -360,6 +361,7 @@
     <string name="home_slot_curve">"Слот %1$s · %2$s"</string>
     <string name="home_start_cancel">"Отменить запуск"</string>
     <string name="home_start_failed">"Не удалось запустить: %1$s"</string>
+    <string name="home_steam_boiler">"Паровой бойлер"</string>
     <string name="home_steam_pressure">"Давление пара"</string>
     <string name="home_steam_temperature">"Температура пара"</string>
     <string name="home_stop">"Немедленно остановить экстракцию"</string>
@@ -882,6 +884,7 @@
     <string name="studio_block_settings_missing">"Режим работы машины ещё не получен"</string>
     <string name="studio_block_temperature_not_ready">"В режиме студии температура не достигла цели профиля; сначала выполните нагрев"</string>
     <string name="studio_settings_stale">"Ответ с настройками машины устарел; дождитесь нового ответа"</string>
+    <string name="task_home_tab">"Главная"</string>
     <string name="task_shell_scale_connect">"Подключить весы"</string>
     <string name="task_shell_scale_connected">"Подключены"</string>
     <string name="task_shell_scale_disconnect">"Отключить весы"</string>

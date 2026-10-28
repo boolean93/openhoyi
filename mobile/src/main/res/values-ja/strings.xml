@@ -258,6 +258,7 @@
     <string name="home_alarm_initial">"マシン警報状態は未受信"</string>
     <string name="home_bind_failed">"デバイスサービスにバインドできません"</string>
     <string name="home_bluetooth_unsupported">"このデバイスはBluetooth非対応"</string>
+    <string name="home_brew_boiler">"抽出ボイラー"</string>
     <string name="home_brew_pressure">"抽出圧力"</string>
     <string name="home_brew_temperature">"抽出温度"</string>
     <string name="home_candidate">"%1$s · %2$s"</string>
@@ -360,6 +361,7 @@
     <string name="home_slot_curve">"スロット%1$s · %2$s"</string>
     <string name="home_start_cancel">"開始を取消"</string>
     <string name="home_start_failed">"開始失敗：%1$s"</string>
+    <string name="home_steam_boiler">"スチームボイラー"</string>
     <string name="home_steam_pressure">"スチーム圧力"</string>
     <string name="home_steam_temperature">"スチーム温度"</string>
     <string name="home_stop">"抽出を直ちに停止"</string>
@@ -882,6 +884,7 @@
     <string name="studio_block_settings_missing">"マシン運転モード未受信"</string>
     <string name="studio_block_temperature_not_ready">"スタジオモードで曲線目標温度に未到達。先に予熱してください"</string>
     <string name="studio_settings_stale">"マシン設定の応答が古いです。新しい応答を待ってください"</string>
+    <string name="task_home_tab">"ホーム"</string>
     <string name="task_shell_scale_connect">"スケールに接続"</string>
     <string name="task_shell_scale_connected">"接続済み"</string>
     <string name="task_shell_scale_disconnect">"スケールを切断"</string>

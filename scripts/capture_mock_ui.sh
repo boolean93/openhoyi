@@ -87,12 +87,12 @@ tap_nav() {
     assert_activity MainActivity
   fi
   case "$expected" in
-    HomeActivity) tap_control '冲煮' ;;
+    HomeActivity) tap_control '首页' ;;
     CurveActivity) tap_control '曲线' ;;
     HistoryActivity) tap_control '历史' ;;
     BeanInventoryActivity) tap_control '豆子' ;;
     ExtractionActivity)
-      tap_control '冲煮'
+      tap_control '首页'
       # Empty preset slots are disabled, and quick launch opens the curve library.
       # Screenshot instrumentation uses MainActivity's supported Intent route, not a
       # user tap path. It opens preparation without starting or recording a cup.

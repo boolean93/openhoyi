@@ -70,7 +70,7 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
                     check(owner!!.resources.configuration.locales[0] == language.locale)
                     // Settings is now a secondary entry, not a bottom-navigation destination.
                     // Independently verify every actual destination in all three resource contexts.
-                    for (id in listOf(R.string.ui_brew, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)) {
+                    for (id in listOf(R.string.task_home_tab, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)) {
                         val label = expected.getString(id)
                         check(home.getString(id) == label && app.getString(id) == label && owner!!.getString(id) == label)
                         check(containsText(home.window.decorView, label)) {
