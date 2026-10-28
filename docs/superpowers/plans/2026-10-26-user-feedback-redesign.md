@@ -604,3 +604,19 @@ Astra实际view_image查看run40673244072/business/advanced-page-screenshots/bus
 最终诊断diff已复核：owner cast、JSON构造/深拷贝、外部路径及写入均在同一runCatching；取证失败只附diagnosticFailure，原Import recreation失败前缀与exact条件保留。唯一收尾闭合，静态批准；root最终测试包编译与后续CI取证待结果，生产不变。
 
 导入重建分项取证最终构建：root确认AndroidTest 37秒成功，Astra最终静审通过；仅失败路径记录自有草稿状态，生产仍052d117，原精确断言与等待未变。新CI取证待结果。
+
+### 导入重建初次挂载前误取消根因
+
+Astra独立读取run40674921274/business/advanced-page-screenshots/business/import-recreation-failure.json并核CurveImportActivity.restoreRawState：raw预期/实际完全一致，focus=false、selection=0/0；唯一恢复事件CANCELLED_DETACHED发生preDrawSequence=0、fieldAttached=false、windowToken=null、hostHeight=0，恢复尚未进入有效挂载布局即被取消，已证生产缺陷。
+
+最小修复边界：区分首次attach前等待与已attach后的真实detach；前者不取消，后者以及stop/destroy仍取消并清理attach/focus/window/preDraw/animation/lifecycle监听。需核observer更换/merge仍能恢复且正确清理，保原IME单次show、native结果及后续稳定draw门禁。不放宽原正文/焦点/光标测试，不扩大工具或矩阵；Sol实施待独立审查。
+
+根因表述修正：首次有效布局前取消不等于从未attach。Astra进一步核TaskPageFrame：init以BOTTOM先挂pageContent，首次onMeasure转RAIL时removeAllViews并同步addView，host可短暂detach；listener后装导致无host_attached日志不足以判从未挂载。hasEverAttached守卫不能解决该情形，撤回该建议。
+
+批准更小方案仅在onDetach向稳定decor投递下一主线程队列复查：已重新attach则继续，仍detach才取消；stop/destroy保持立即取消。Runnable须有pending guard、去重及finish.removeCallbacks。当前VTO已是根树或会在attach时merge，原finish清理原+当前observer可保留，先不搬注册点。原IME/预绘制与严格测试不变，实施待审。
+
+### 导入短暂detach修复最终静审
+
+Astra实际复核CurveImportActivity唯一生产diff：onDetach向稳定decor投递单次detachCheck，先撤旧候选；执行先判pending，已reattach只记证据并invalidate继续原恢复，否则原CANCELLED_DETACHED。finish移除候选并置空，stop/destroy仍立即取消，原+当前VTO监听清理、IME单次请求/native结果/稳定draw门禁均未改。与TaskPageFrame同步reparent根因匹配，静态批准；root统一构建及原exact raw/focus/caret实际回归待验，不先标功能修复通过。文档冻结。
+
+导入同步重挂载修复本地验证：root确认Mock单测、Mock/Debug/AndroidTest及lintDebug统一构建2分08秒成功；两APK各10897资源值及6项字面量往返通过。Astra最终生产diff静审通过。现有raw/focus/selection精确重建与后续业务完整运行待新CI，不以构建代替焦点恢复成功。

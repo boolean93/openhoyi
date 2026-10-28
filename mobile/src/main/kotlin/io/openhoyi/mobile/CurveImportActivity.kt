@@ -276,11 +276,14 @@ class CurveImportActivity : ThemedActivity() {
         lateinit var windowListener: android.view.ViewTreeObserver.OnWindowFocusChangeListener
         lateinit var attachListener: View.OnAttachStateChangeListener
         lateinit var lifecycle: android.app.Application.ActivityLifecycleCallbacks
+        var detachCheck: Runnable? = null
         fun finish(status: String) {
             if (!pending) return
             sessionEvent(status)
             pending = false
             productRestoreEvidence.put("status", status).put("activeImeAnimationsAtFinish", activeImeAnimations.size)
+            detachCheck?.let { window.decorView.removeCallbacks(it) }
+            detachCheck = null
             if (android.os.Build.VERSION.SDK_INT >= 30) host.setWindowInsetsAnimationCallback(null)
             activeImeAnimations.clear()
             fun remove(from: android.view.ViewTreeObserver) {
@@ -303,7 +306,19 @@ class CurveImportActivity : ThemedActivity() {
         }
         attachListener = object : View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view: View) { sessionEvent("host_attached"); view.invalidate() }
-            override fun onViewDetachedFromWindow(view: View) { finish("CANCELLED_DETACHED") }
+            override fun onViewDetachedFromWindow(view: View) {
+                val decor = window.decorView
+                detachCheck?.let { decor.removeCallbacks(it) }
+                detachCheck = Runnable {
+                    detachCheck = null
+                    if (!pending) return@Runnable
+                    if (host.isAttachedToWindow) {
+                        sessionEvent("host_reattached_after_reparent")
+                        host.invalidate()
+                    } else finish("CANCELLED_DETACHED")
+                }
+                decor.post(requireNotNull(detachCheck))
+            }
         }
         lifecycle = object : android.app.Application.ActivityLifecycleCallbacks {
             override fun onActivityCreated(owner: android.app.Activity, state: Bundle?) = Unit
