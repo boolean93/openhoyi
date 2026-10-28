@@ -907,5 +907,12 @@
   "task_shell_sleep_preparing_reason": "กำลังเตรียมการสกัดอยู่",
   "task_home_tab": "หน้าหลัก",
   "home_brew_boiler": "หม้อต้มชงกาแฟ",
-  "home_steam_boiler": "หม้อต้มไอน้ำ"
+  "home_steam_boiler": "หม้อต้มไอน้ำ",
+  "curve_control_mode_pressure": "แรงดัน · bar",
+  "curve_control_mode_flow": "อัตราการไหล · mL/s",
+  "curve_control_mode_mixed": "แรงดัน bar / อัตราการไหล mL/s",
+  "curve_control_mode_raw": "ยังไม่ยืนยันหน่วยเป้าหมาย",
+  "curve_control_caption_flow": "เป้าหมายแต่ละช่วง · อัตราการไหล mL/s · แกนนอนคือช่วง ไม่ใช่วินาที",
+  "curve_control_caption_mixed": "เป้าหมายแต่ละช่วง · แกนซ้ายแรงดัน bar · แกนขวาอัตราการไหล mL/s · แกนนอนคือช่วง ไม่ใช่วินาที",
+  "curve_control_short_preview": "พื้นที่ไม่พอ โปรดดูเป้าหมายแต่ละช่วง: %1$s เป็นผังช่วง ไม่ใช่การคาดการณ์เวลา"
 }

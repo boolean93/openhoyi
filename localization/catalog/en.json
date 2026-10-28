@@ -907,5 +907,12 @@
   "task_shell_sleep_preparing_reason": "Brew preparation is still in progress",
   "task_home_tab": "Home",
   "home_brew_boiler": "Brew boiler",
-  "home_steam_boiler": "Steam boiler"
+  "home_steam_boiler": "Steam boiler",
+  "curve_control_mode_pressure": "Pressure · bar",
+  "curve_control_mode_flow": "Flow · mL/s",
+  "curve_control_mode_mixed": "Pressure bar / flow mL/s",
+  "curve_control_mode_raw": "Target unit unconfirmed",
+  "curve_control_caption_flow": "Stage targets · flow in mL/s · horizontal axis is stages, not seconds",
+  "curve_control_caption_mixed": "Stage targets · left axis pressure in bar · right axis flow in mL/s · horizontal axis is stages, not seconds",
+  "curve_control_short_preview": "Limited space; see stage targets: %1$s. This is a stage schematic, not a time prediction."
 }

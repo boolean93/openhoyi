@@ -261,6 +261,13 @@
     <string name="task_home_tab">"首页"</string>
     <string name="home_brew_boiler">"冲泡锅炉"</string>
     <string name="home_steam_boiler">"蒸汽锅炉"</string>
+    <string name="curve_control_mode_pressure">"压力 · bar"</string>
+    <string name="curve_control_mode_flow">"流量 · mL/s"</string>
+    <string name="curve_control_mode_mixed">"压力 bar / 流量 mL/s"</string>
+    <string name="curve_control_mode_raw">"目标单位未确认"</string>
+    <string name="curve_control_caption_flow">"阶段目标示意 · 流量单位 mL/s · 横轴为阶段，不是秒"</string>
+    <string name="curve_control_short_preview">"空间不足，改看阶段目标参数：%1$s。阶段示意，不是时间预测。"</string>
+    <string name="curve_control_caption_mixed">"阶段目标示意 · 左轴压力 bar · 右轴流量 mL/s · 横轴为阶段，不是秒"</string>
     <string name="home_machine_description">"HOYI 咖啡机外观"</string>
     <string name="home_firmware_initial">"固件版本：等待连接后读取"</string>
     <string name="home_alarm_initial">"尚未收到机器告警状态"</string>

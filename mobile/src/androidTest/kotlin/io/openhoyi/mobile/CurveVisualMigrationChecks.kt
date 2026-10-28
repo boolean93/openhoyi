@@ -941,7 +941,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             check(whole(required.getJSONObject("product/curve-library/full-parameters")) &&
                 whole(required.getJSONObject("product/curve-library/use"))) { "M3 slot $expectedAssignedSlot footer obscured" }
         }
-        check(!chart.isShown || targets.isNotEmpty()) { "M3 fake pressure path" }
+        val preview=CurveStageParameters.preview(item)
+        check(!chart.isShown || preview.renderable && (if(preview.hasFlow) chart.preview==preview else
+            chart.targets==preview.stages.map { it.target })) { "M3 stage path lacks matching typed targets" }
         return page.put("libraryDisclosure",JSONObject().put("itemId",item.id).put("title",observation(title))
             .put("source",observation(source)).put("availability",observation(availability))
             .put("baseAvailability",baseAvailability).put("visibleFeedbackOwner",feedbackOwner)
@@ -1090,11 +1092,11 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         }.thenBy { it.id }) ?: error("M3 no real factory")
         val captured=original.filter { it.controlProfile?.let(CurveCatalog::validated)==true }.minByOrNull { it.id }
             ?: error("M3 no validated captured curve")
-        val noPressure=factory.filter { CurveStageParameters.pressureTargets(it).isEmpty() }.minByOrNull { it.id }
-            ?: error("M3 factory has no real no-pressure source; fixture capability FAIL")
+        val mixedFlow=factory.filter { CurveStageParameters.preview(it).let { preview -> preview.renderable && preview.mixed } }
+            .minByOrNull { it.id } ?: error("M3 factory has no real mixed-stage source; fixture capability FAIL")
         val readonly=requireNotNull(scope.curves.find(requireNotNull(scope.readonly).id))
         val four=requireNotNull(scope.curves.find(scope.document.id))
-        val cases=listOf("long-factory" to long,"captured" to captured,"no-pressure" to noPressure,
+        val cases=listOf("long-factory" to long,"captured" to captured,"mixed-flow" to mixedFlow,
             "readonly-flow" to readonly,"four-stage-pressure" to four,"short-pressure" to four)
         check(cases.size==6 && original.size==105 && scope.baseLibraryIds.size==103)
         val frozen=invariant(scope); val prefs=context.getSharedPreferences("curves",Context.MODE_PRIVATE).all.toMap()
@@ -1149,17 +1151,34 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 if(name=="short-pressure") check(disclosure.getString("visibleFeedbackOwner")=="fallback" &&
                     disclosure.getString("fallbackText").contains(disclosure.getString("baseAvailability")))
                 val targets=CurveStageParameters.pressureTargets(item)
+                val preview=CurveStageParameters.preview(item)
                 check(disclosure.getJSONArray("actualChartTargets").length()==targets.size)
-                if(targets.isEmpty()) check(!disclosure.getBoolean("chartShown") &&
-                    disclosure.getString("fallbackText").contains(page.getString(R.string.task_curve_library_no_pressure)))
+                if(!preview.renderable) check(!disclosure.getBoolean("chartShown") &&
+                    disclosure.getString("fallbackText").contains(page.getString(if(preview.stages.any {
+                        it.unit==CurveStageParameters.Unit.RAW_UNKNOWN }) R.string.curve_control_mode_raw
+                        else R.string.task_curve_library_no_pressure)))
                 else check(disclosure.getBoolean("chartShown") || disclosure.getString("fallbackText").isNotBlank())
+                if(name=="mixed-flow") {
+                    check(preview.mixed && preview.stages.map { it.unit }.containsAll(listOf(
+                        CurveStageParameters.Unit.PRESSURE_BAR, CurveStageParameters.Unit.FLOW_ML_PER_SECOND)))
+                    if(disclosure.getBoolean("chartShown")) {
+                        val draw=disclosure.getJSONArray("actualDrawOperations")
+                        val units=(0 until draw.length()).map { draw.getJSONObject(it) }.filter {
+                            it.optString("operation")=="stageTarget" }.map { it.getString("unit") }
+                        check(units==preview.stages.map { if(it.unit==CurveStageParameters.Unit.PRESSURE_BAR) "bar" else "mL/s" }) {
+                            "M3 mixed chart did not draw both true quantities: $units"
+                        }
+                    }
+                }
                 if(name=="readonly-flow") check(!disclosure.getBoolean("selectEnabled") && !disclosure.getBoolean("editEnabled") &&
                     !disclosure.getBoolean("assignEnabled") && !disclosure.getBoolean("chartShown") &&
+                    disclosure.getString("fallbackText").contains(page.getString(R.string.curve_control_mode_raw)) &&
+                    preview.stages.all { disclosure.getString("fallbackText").contains(it.target.toString()) } &&
                     disclosure.getJSONObject("availability").getJSONArray("textLineBoxes").toString().contains(page.getString(R.string.profiles_read_only)))
                 File(case,"canvas.json").writeText(JSONObject().put("actualTargets",JSONArray(targets))
                     .put("chartShown",disclosure.getBoolean("chartShown"))
                     .put("drawOperations",disclosure.getJSONArray("actualDrawOperations"))
-                    .put("noPressureMeansNoFakePath",targets.isNotEmpty() || !disclosure.getBoolean("chartShown")).toString(2))
+                    .put("unknownUnitMeansNoFakePath",preview.renderable || !disclosure.getBoolean("chartShown")).toString(2))
                 main { File(case,"baseline-alignment.json").writeText(
                     librarySpecialBaselines(page,libraryFixture(item,scope),disclosure.getString("fallbackText")).toString(2)) }
                 main { TaskTypographyEvidence.capture(page,case) }

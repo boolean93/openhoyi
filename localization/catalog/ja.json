@@ -907,5 +907,12 @@
   "task_shell_sleep_preparing_reason": "抽出準備が進行中です",
   "task_home_tab": "ホーム",
   "home_brew_boiler": "抽出ボイラー",
-  "home_steam_boiler": "スチームボイラー"
+  "home_steam_boiler": "スチームボイラー",
+  "curve_control_mode_pressure": "圧力 · bar",
+  "curve_control_mode_flow": "流量 · mL/s",
+  "curve_control_mode_mixed": "圧力 bar / 流量 mL/s",
+  "curve_control_mode_raw": "目標値の単位は未確認",
+  "curve_control_caption_flow": "段階目標 · 流量 mL/s · 横軸は段階であり秒数ではありません",
+  "curve_control_caption_mixed": "段階目標 · 左軸は圧力 bar · 右軸は流量 mL/s · 横軸は段階であり秒数ではありません",
+  "curve_control_short_preview": "表示領域が足りないため段階目標を表示します：%1$s。時間の予測ではありません。"
 }

@@ -266,10 +266,13 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                 views.title.tag = "product/curve-library/list/${item.id}/name"
                 views.subtitle.tag = "product/curve-library/list/${item.id}/summary"
                 views.subtitle.text = getString(R.string.curve_row_summary, if (item.customDocument != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(host, item.category), if (library.canStart(item)) getString(R.string.home_curve_startable) else getString(R.string.curve_browse_only))
+                val preview = CurveStageParameters.preview(item)
+                views.subtitle.append(" · " + getString(previewModeLabel(preview)))
                 (application as MobileApplication).curveUsageResult.getOrNull()?.let { ledger ->
                     views.subtitle.append(getString(R.string.curve_usage_count, ledger.stats(item.id).count))
                 }
-                views.preview.targets = stageTargets(item)
+                views.preview.preview = preview.takeIf { it.renderable && it.hasFlow }
+                views.preview.targets = if (preview.hasFlow) emptyList() else stageTargets(item)
                 row.isSelected = item.id == selected?.id
                 row.background = android.graphics.drawable.ColorDrawable(if (row.isSelected) productStyle.selected else android.graphics.Color.TRANSPARENT)
                 row.foreground = if (!row.isSelected) null else object : android.graphics.drawable.Drawable() {
@@ -528,20 +531,28 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             lastAssignedSlot = null
         }
         selected = item
-        stageChart.targets = stageTargets(item)
+        val preview = CurveStageParameters.preview(item)
+        stageChart.preview = preview.takeIf { it.renderable && it.hasFlow }
+        stageChart.targets = if (preview.hasFlow) emptyList() else stageTargets(item)
         val draft = item.customDocument
         previewMetrics.present(item)
         previewMetrics.visibility=View.VISIBLE
-        val hasPressureSchematic = stageChart.targets.isNotEmpty()
+        val hasPressureSchematic = stageChart.targets.isNotEmpty() || stageChart.preview != null
         shortPreview = false
         stageChart.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
         detailScroll.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
         previewFallbackScroll.visibility = if (hasPressureSchematic) View.GONE else View.VISIBLE
         previewFallbackScroll.layoutParams = LinearLayout.LayoutParams(-1, -2)
-        previewFallback.text = getString(R.string.task_curve_library_no_pressure)
+        previewFallback.text = previewFallbackText(preview)
         previewSpacer.visibility = if (hasPressureSchematic) View.GONE else View.VISIBLE
         stageCaption.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
-        stageCaption.text = getString(R.string.profiles_stage_caption)
+        stageCaption.text = getString(when {
+            preview.mixed -> R.string.curve_control_caption_mixed
+            preview.hasFlow -> R.string.curve_control_caption_flow
+            else -> R.string.profiles_stage_caption
+        })
+        stageHeading.text = getString(if (preview.hasFlow) R.string.curve_stage_caption
+            else R.string.curve_library_stage_heading)
         collection.detailRequested = requested
         if (resetDetailScroll) detailScroll.scrollTo(0, 0)
         val canStart = library.canStart(item)
@@ -583,7 +594,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private fun updatePreviewSpace(width: Int, height: Int) {
         val item = selected ?: return
         if (!::stageChart.isInitialized) return
-        val hasPressure = stageChart.targets.isNotEmpty()
+        val preview = CurveStageParameters.preview(item)
+        val hasPressure = stageChart.targets.isNotEmpty() || stageChart.preview != null
         val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         val normalToolbar = listOf(detailTitle, directEdit, directShare, detailActions) + if (compact) listOf(detailBack) else emptyList()
         val directWidth = normalToolbar.sumOf { child ->
@@ -635,11 +647,11 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         previewSpacer.visibility = if (!hasPressure && !shortPreview) View.VISIBLE else View.GONE
         val fallbackText = if (shortPreview) listOf(
             item.name, detailCategory.text.toString(), previewMetrics.contentDescription.toString(), availability.text.toString(),
-            if (hasPressure) getString(R.string.profiles_stage_caption) else getString(R.string.task_curve_library_no_pressure),
-            if (hasPressure) getString(R.string.task_curve_library_short_preview,
-                stageChart.targets.mapIndexed { index, value -> getString(R.string.reference_stage,
-                    (index + 1).toString(), String.format(java.util.Locale.ROOT, "%.1f", value / 10.0)) }.joinToString("; ")) else "",
-        ).filter { it.isNotBlank() }.joinToString("\n\n") else getString(R.string.task_curve_library_no_pressure)
+            if (hasPressure) stageCaption.text.toString() else previewFallbackText(preview),
+            if (hasPressure) getString(if (preview.hasFlow) R.string.curve_control_short_preview
+                else R.string.task_curve_library_short_preview,
+                preview.stages.mapIndexed { index, stage -> stageDescription(index, stage) }.joinToString("; ")) else "",
+        ).filter { it.isNotBlank() }.joinToString("\n\n") else previewFallbackText(preview)
         if (previewFallback.text.toString() != fallbackText) previewFallback.text = fallbackText
     }
 
@@ -668,6 +680,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             detailScroll.visibility = View.GONE
             previewFallbackScroll.visibility = View.GONE
             previewSpacer.visibility = View.GONE
+            stageChart.preview = null
             stageChart.targets = emptyList()
             stageChart.visibility = View.GONE
             stageCaption.visibility = View.GONE
@@ -688,7 +701,29 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             shareParameters.visibility = View.GONE
         }
     }
-    private fun stageTargets(item: CurveLibraryItem): List<Int> = CurveStageParameters.pressureTargets(item)
+    private fun stageTargets(item: CurveLibraryItem): List<Int> = CurveStageParameters.preview(item)
+        .takeIf { it.renderable && !it.hasFlow }?.stages?.map { it.target }.orEmpty()
+    private fun previewModeLabel(preview: CurveStageParameters.Preview): Int = when {
+        preview.stages.any { it.unit == CurveStageParameters.Unit.RAW_UNKNOWN } -> R.string.curve_control_mode_raw
+        preview.mixed -> R.string.curve_control_mode_mixed
+        preview.hasFlow -> R.string.curve_control_mode_flow
+        else -> R.string.curve_control_mode_pressure
+    }
+    private fun stageDescription(index: Int, stage: CurveStageParameters.Stage): String {
+        val value = when (stage.unit) {
+            CurveStageParameters.Unit.PRESSURE_BAR -> String.format(java.util.Locale.ROOT, "%.1f bar", stage.target / 10.0)
+            CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> String.format(java.util.Locale.ROOT, "%.1f mL/s", stage.target / 10.0)
+            CurveStageParameters.Unit.RAW_UNKNOWN -> "${stage.target} · ${getString(R.string.curve_control_mode_raw)}"
+        }
+        return getString(R.string.profiles_stage, index + 1) + "：" + value
+    }
+    private fun previewFallbackText(preview: CurveStageParameters.Preview): String =
+        if (preview.stages.isEmpty()) getString(R.string.task_curve_library_no_pressure)
+        else if (!preview.renderable) getString(if (preview.stages.any {
+            it.unit == CurveStageParameters.Unit.RAW_UNKNOWN
+        }) R.string.curve_control_mode_raw else R.string.task_curve_library_no_pressure) + "\n" +
+            preview.stages.mapIndexed(::stageDescription).joinToString("\n")
+        else getString(R.string.task_curve_library_no_pressure)
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putParcelable("listState", curveList.onSaveInstanceState())
         outState.putString("selected", selected?.id)

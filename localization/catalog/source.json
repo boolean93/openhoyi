@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "9672d2cb231d9efdf906956a6490827434d4fc2b7f791b2da98889fe8a3539d7",
+  "sha256": "c0ac4339176fe334c915fc6432c02025851043396f7048eb2ac4a0f0d8befb8f",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
@@ -910,6 +910,13 @@
     "language_save_failed": "语言保存失败，请重试。",
     "task_home_tab": "首页",
     "home_brew_boiler": "冲泡锅炉",
-    "home_steam_boiler": "蒸汽锅炉"
+    "home_steam_boiler": "蒸汽锅炉",
+    "curve_control_mode_pressure": "压力 · bar",
+    "curve_control_mode_flow": "流量 · mL/s",
+    "curve_control_mode_mixed": "压力 bar / 流量 mL/s",
+    "curve_control_mode_raw": "目标单位未确认",
+    "curve_control_caption_flow": "阶段目标示意 · 流量单位 mL/s · 横轴为阶段，不是秒",
+    "curve_control_caption_mixed": "阶段目标示意 · 左轴压力 bar · 右轴流量 mL/s · 横轴为阶段，不是秒",
+    "curve_control_short_preview": "空间不足，改看阶段目标参数：%1$s。阶段示意，不是时间预测。"
   }
 }

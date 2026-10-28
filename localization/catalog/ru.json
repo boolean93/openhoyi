@@ -907,5 +907,12 @@
   "task_shell_sleep_preparing_reason": "Подготовка к приготовлению ещё идёт",
   "task_home_tab": "Главная",
   "home_brew_boiler": "Бойлер заваривания",
-  "home_steam_boiler": "Паровой бойлер"
+  "home_steam_boiler": "Паровой бойлер",
+  "curve_control_mode_pressure": "Давление · bar",
+  "curve_control_mode_flow": "Поток · mL/s",
+  "curve_control_mode_mixed": "Давление bar / поток mL/s",
+  "curve_control_mode_raw": "Единица цели не подтверждена",
+  "curve_control_caption_flow": "Цели этапов · поток в mL/s · горизонтальная ось показывает этапы, не секунды",
+  "curve_control_caption_mixed": "Цели этапов · слева давление в bar · справа поток в mL/s · горизонтальная ось показывает этапы, не секунды",
+  "curve_control_short_preview": "Мало места; см. цели этапов: %1$s. Это схема этапов, а не прогноз по времени."
 }

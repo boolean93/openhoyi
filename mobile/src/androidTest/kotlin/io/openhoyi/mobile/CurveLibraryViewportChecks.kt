@@ -192,6 +192,11 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         }
                     }
                     if (chart.visibility == View.VISIBLE) {
+                        val preview = CurveStageParameters.preview(chosen)
+                        check(preview.renderable && if (preview.hasFlow) chart.preview == preview
+                            else chart.targets == preview.stages.map { it.target }) {
+                            "$name actual stage plot does not match per-stage control targets"
+                        }
                         check(metrics.visibility == View.VISIBLE && metrics.contentDescription.isNotBlank())
                         check(metrics.childCount == 3) { "$name recipe metrics lost a column" }
                         for (columnIndex in 0 until metrics.childCount) {
@@ -232,16 +237,24 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         check(chart.height >= HoyiUi.dp(activity, 96) && ability.visibility == View.VISIBLE && ability.parent != null)
                     } else {
                         check(fallback.visibility == View.VISIBLE && fallback.height > 0)
-                        val targets = CurveStageParameters.pressureTargets(chosen)
-                        if (targets.isEmpty()) {
-                            check(text.text.contains(activity.getString(R.string.task_curve_library_no_pressure)))
+                        val preview = CurveStageParameters.preview(chosen)
+                        if (!preview.renderable) {
+                            val reason = if (preview.stages.any { it.unit == CurveStageParameters.Unit.RAW_UNKNOWN })
+                                R.string.curve_control_mode_raw else R.string.task_curve_library_no_pressure
+                            check(text.text.contains(activity.getString(reason)))
+                            preview.stages.forEach { check(text.text.contains(it.target.toString())) }
                         } else {
                             check(text.text.contains(chosen.name) && text.text.contains(ability.text))
                             check(text.text.contains(metrics.contentDescription))
-                            check(text.text.contains(activity.getString(R.string.profiles_stage_caption)))
-                            targets.forEachIndexed { index, value ->
-                                check(text.text.contains(activity.getString(R.string.reference_stage, (index + 1).toString(),
-                                    String.format(Locale.ROOT, "%.1f", value / 10.0))))
+                            check(text.text.contains(activity.getString(when {
+                                preview.mixed -> R.string.curve_control_caption_mixed
+                                preview.hasFlow -> R.string.curve_control_caption_flow
+                                else -> R.string.profiles_stage_caption
+                            })))
+                            preview.stages.forEachIndexed { index, stage ->
+                                val unit = if (stage.unit == CurveStageParameters.Unit.FLOW_ML_PER_SECOND) "mL/s" else "bar"
+                                check(text.text.contains(activity.getString(R.string.profiles_stage, index + 1)) &&
+                                    text.text.contains(String.format(Locale.ROOT, "%.1f %s", stage.target / 10.0, unit)))
                             }
                         }
                         LanguageUiLayoutChecks.textFits(text, name)

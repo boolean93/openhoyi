@@ -59,6 +59,13 @@
     <string name="curve_category_other">"その他"</string>
     <string name="curve_category_super">"超抽出"</string>
     <string name="curve_choose_slot">"クイックスロットを選択"</string>
+    <string name="curve_control_caption_flow">"段階目標 · 流量 mL/s · 横軸は段階であり秒数ではありません"</string>
+    <string name="curve_control_caption_mixed">"段階目標 · 左軸は圧力 bar · 右軸は流量 mL/s · 横軸は段階であり秒数ではありません"</string>
+    <string name="curve_control_mode_flow">"流量 · mL/s"</string>
+    <string name="curve_control_mode_mixed">"圧力 bar / 流量 mL/s"</string>
+    <string name="curve_control_mode_pressure">"圧力 · bar"</string>
+    <string name="curve_control_mode_raw">"目標値の単位は未確認"</string>
+    <string name="curve_control_short_preview">"表示領域が足りないため段階目標を表示します：%1$s。時間の予測ではありません。"</string>
     <string name="curve_detail_hint">"パラメータと利用可否を確認"</string>
     <string name="curve_detail_initial">"左側の曲線を選択"</string>
     <string name="curve_detail_title">"曲線詳細"</string>

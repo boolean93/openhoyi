@@ -907,5 +907,12 @@
   "task_shell_sleep_preparing_reason": "추출 준비가 아직 진행 중입니다",
   "task_home_tab": "홈",
   "home_brew_boiler": "추출 보일러",
-  "home_steam_boiler": "스팀 보일러"
+  "home_steam_boiler": "스팀 보일러",
+  "curve_control_mode_pressure": "압력 · bar",
+  "curve_control_mode_flow": "유량 · mL/s",
+  "curve_control_mode_mixed": "압력 bar / 유량 mL/s",
+  "curve_control_mode_raw": "목표 단위 미확인",
+  "curve_control_caption_flow": "단계 목표 · 유량 mL/s · 가로축은 시간(초)이 아닌 단계",
+  "curve_control_caption_mixed": "단계 목표 · 왼쪽 축 압력 bar · 오른쪽 축 유량 mL/s · 가로축은 시간(초)이 아닌 단계",
+  "curve_control_short_preview": "공간이 부족하여 단계 목표를 표시합니다: %1$s. 시간 예측이 아닌 단계 도식입니다."
 }

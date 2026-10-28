@@ -11,7 +11,11 @@ internal class CurveStageView(context: Context) : View(context) {
     var productVisualStyle: TaskProductVisualStyle? = null
         set(value) { field = value; productRenderer = value?.let { TaskProductStageRenderer(this, it) }; invalidate() }
     private var productRenderer: TaskProductStageRenderer? = null
-    val productDrawEvidence: org.json.JSONArray get() = productRenderer?.evidence ?: org.json.JSONArray()
+    private val controlRenderer = CurveControlStageRenderer(this)
+    val productDrawEvidence: org.json.JSONArray get() = if (preview?.hasFlow == true)
+        controlRenderer.evidence else productRenderer?.evidence ?: org.json.JSONArray()
+    var preview: CurveStageParameters.Preview? = null
+        set(value) { field = value; invalidate() }
     var targets: List<Int> = emptyList()
         set(value) { field = value; invalidate() }
     var compact: Boolean = false
@@ -24,6 +28,7 @@ internal class CurveStageView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
+        preview?.let { if (it.hasFlow) { controlRenderer.draw(canvas, it, productVisualStyle, compact); return } }
         productRenderer?.let { it.draw(canvas); return }
         val density = resources.displayMetrics.density
         fun dp(value: Float) = value * density

@@ -59,6 +59,13 @@
     <string name="curve_category_other">"Другое"</string>
     <string name="curve_category_super">"Сверхэкстракция"</string>
     <string name="curve_choose_slot">"Выбрать быстрый слот"</string>
+    <string name="curve_control_caption_flow">"Цели этапов · поток в mL/s · горизонтальная ось показывает этапы, не секунды"</string>
+    <string name="curve_control_caption_mixed">"Цели этапов · слева давление в bar · справа поток в mL/s · горизонтальная ось показывает этапы, не секунды"</string>
+    <string name="curve_control_mode_flow">"Поток · mL/s"</string>
+    <string name="curve_control_mode_mixed">"Давление bar / поток mL/s"</string>
+    <string name="curve_control_mode_pressure">"Давление · bar"</string>
+    <string name="curve_control_mode_raw">"Единица цели не подтверждена"</string>
+    <string name="curve_control_short_preview">"Мало места; см. цели этапов: %1$s. Это схема этапов, а не прогноз по времени."</string>
     <string name="curve_detail_hint">"Просмотр параметров и доступности"</string>
     <string name="curve_detail_initial">"Выберите профиль слева"</string>
     <string name="curve_detail_title">"Подробности профиля"</string>

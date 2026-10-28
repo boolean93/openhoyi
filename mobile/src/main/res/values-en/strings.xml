@@ -59,6 +59,13 @@
     <string name="curve_category_other">"Other"</string>
     <string name="curve_category_super">"Super extraction"</string>
     <string name="curve_choose_slot">"Select quick slot"</string>
+    <string name="curve_control_caption_flow">"Stage targets · flow in mL/s · horizontal axis is stages, not seconds"</string>
+    <string name="curve_control_caption_mixed">"Stage targets · left axis pressure in bar · right axis flow in mL/s · horizontal axis is stages, not seconds"</string>
+    <string name="curve_control_mode_flow">"Flow · mL/s"</string>
+    <string name="curve_control_mode_mixed">"Pressure bar / flow mL/s"</string>
+    <string name="curve_control_mode_pressure">"Pressure · bar"</string>
+    <string name="curve_control_mode_raw">"Target unit unconfirmed"</string>
+    <string name="curve_control_short_preview">"Limited space; see stage targets: %1$s. This is a stage schematic, not a time prediction."</string>
     <string name="curve_detail_hint">"View parameters and availability"</string>
     <string name="curve_detail_initial">"Select a curve on the left"</string>
     <string name="curve_detail_title">"Curve details"</string>

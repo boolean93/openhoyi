@@ -907,5 +907,12 @@
   "task_shell_sleep_preparing_reason": "ما زال تحضير الاستخلاص جاريًا",
   "task_home_tab": "الرئيسية",
   "home_brew_boiler": "غلاية التحضير",
-  "home_steam_boiler": "غلاية البخار"
+  "home_steam_boiler": "غلاية البخار",
+  "curve_control_mode_pressure": "الضغط · bar",
+  "curve_control_mode_flow": "التدفق · mL/s",
+  "curve_control_mode_mixed": "الضغط bar / التدفق mL/s",
+  "curve_control_mode_raw": "وحدة الهدف غير مؤكدة",
+  "curve_control_caption_flow": "أهداف المراحل · التدفق mL/s · المحور الأفقي للمراحل وليس للثواني",
+  "curve_control_caption_mixed": "أهداف المراحل · المحور الأيسر للضغط bar · الأيمن للتدفق mL/s · الأفقي للمراحل وليس للثواني",
+  "curve_control_short_preview": "المساحة محدودة؛ راجع أهداف المراحل: %1$s. هذا مخطط مراحل وليس توقعًا زمنيًا."
 }

@@ -162,6 +162,8 @@ assert_activity HomeActivity
 capture home-light
 tap_nav 1 CurveActivity
 capture curves-light
+tap_control 'HOYI Turbo Shot'
+capture curves-mixed-light
 tap_nav 2 ExtractionActivity
 capture extraction-light
 tap_nav 3 HistoryActivity
@@ -177,6 +179,8 @@ adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$out
 grep 'name="dark" value="true"' "$output_dir/theme-pref.xml" >/dev/null
 tap_nav 1 CurveActivity
 capture curves-dark
+tap_control 'HOYI Turbo Shot'
+capture curves-mixed-dark
 tap_nav 2 ExtractionActivity
 capture extraction-dark
 tap_nav 3 HistoryActivity

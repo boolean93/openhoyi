@@ -59,6 +59,13 @@
     <string name="curve_category_other">"기타"</string>
     <string name="curve_category_super">"고추출"</string>
     <string name="curve_choose_slot">"빠른 슬롯 선택"</string>
+    <string name="curve_control_caption_flow">"단계 목표 · 유량 mL/s · 가로축은 시간(초)이 아닌 단계"</string>
+    <string name="curve_control_caption_mixed">"단계 목표 · 왼쪽 축 압력 bar · 오른쪽 축 유량 mL/s · 가로축은 시간(초)이 아닌 단계"</string>
+    <string name="curve_control_mode_flow">"유량 · mL/s"</string>
+    <string name="curve_control_mode_mixed">"압력 bar / 유량 mL/s"</string>
+    <string name="curve_control_mode_pressure">"압력 · bar"</string>
+    <string name="curve_control_mode_raw">"목표 단위 미확인"</string>
+    <string name="curve_control_short_preview">"공간이 부족하여 단계 목표를 표시합니다: %1$s. 시간 예측이 아닌 단계 도식입니다."</string>
     <string name="curve_detail_hint">"매개변수 및 사용 가능 상태 확인"</string>
     <string name="curve_detail_initial">"왼쪽 곡선 선택"</string>
     <string name="curve_detail_title">"곡선 상세"</string>

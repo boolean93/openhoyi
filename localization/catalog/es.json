@@ -907,5 +907,12 @@
   "task_shell_sleep_preparing_reason": "La preparación de la extracción sigue en curso",
   "task_home_tab": "Inicio",
   "home_brew_boiler": "Caldera de extracción",
-  "home_steam_boiler": "Caldera de vapor"
+  "home_steam_boiler": "Caldera de vapor",
+  "curve_control_mode_pressure": "Presión · bar",
+  "curve_control_mode_flow": "Caudal · mL/s",
+  "curve_control_mode_mixed": "Presión bar / caudal mL/s",
+  "curve_control_mode_raw": "Unidad del objetivo sin confirmar",
+  "curve_control_caption_flow": "Objetivos por etapa · caudal en mL/s · el eje horizontal indica etapas, no segundos",
+  "curve_control_caption_mixed": "Objetivos por etapa · eje izquierdo presión en bar · derecho caudal en mL/s · el horizontal indica etapas, no segundos",
+  "curve_control_short_preview": "Espacio insuficiente; consulte los objetivos por etapa: %1$s. Es un esquema por etapas, no una predicción temporal."
 }

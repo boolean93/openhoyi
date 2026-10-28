@@ -59,6 +59,13 @@
     <string name="curve_category_other">"أخرى"</string>
     <string name="curve_category_super">"استخلاص فائق"</string>
     <string name="curve_choose_slot">"اختيار خانة سريعة"</string>
+    <string name="curve_control_caption_flow">"أهداف المراحل · التدفق mL/s · المحور الأفقي للمراحل وليس للثواني"</string>
+    <string name="curve_control_caption_mixed">"أهداف المراحل · المحور الأيسر للضغط bar · الأيمن للتدفق mL/s · الأفقي للمراحل وليس للثواني"</string>
+    <string name="curve_control_mode_flow">"التدفق · mL/s"</string>
+    <string name="curve_control_mode_mixed">"الضغط bar / التدفق mL/s"</string>
+    <string name="curve_control_mode_pressure">"الضغط · bar"</string>
+    <string name="curve_control_mode_raw">"وحدة الهدف غير مؤكدة"</string>
+    <string name="curve_control_short_preview">"المساحة محدودة؛ راجع أهداف المراحل: %1$s. هذا مخطط مراحل وليس توقعًا زمنيًا."</string>
     <string name="curve_detail_hint">"عرض المعلمات وحالة الإتاحة"</string>
     <string name="curve_detail_initial">"اختر منحنى من اليسار"</string>
     <string name="curve_detail_title">"تفاصيل المنحنى"</string>

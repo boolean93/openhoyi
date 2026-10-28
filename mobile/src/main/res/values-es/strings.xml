@@ -59,6 +59,13 @@
     <string name="curve_category_other">"Otras"</string>
     <string name="curve_category_super">"Superextracción"</string>
     <string name="curve_choose_slot">"Seleccionar ranura rápida"</string>
+    <string name="curve_control_caption_flow">"Objetivos por etapa · caudal en mL/s · el eje horizontal indica etapas, no segundos"</string>
+    <string name="curve_control_caption_mixed">"Objetivos por etapa · eje izquierdo presión en bar · derecho caudal en mL/s · el horizontal indica etapas, no segundos"</string>
+    <string name="curve_control_mode_flow">"Caudal · mL/s"</string>
+    <string name="curve_control_mode_mixed">"Presión bar / caudal mL/s"</string>
+    <string name="curve_control_mode_pressure">"Presión · bar"</string>
+    <string name="curve_control_mode_raw">"Unidad del objetivo sin confirmar"</string>
+    <string name="curve_control_short_preview">"Espacio insuficiente; consulte los objetivos por etapa: %1$s. Es un esquema por etapas, no una predicción temporal."</string>
     <string name="curve_detail_hint">"Ver parámetros y disponibilidad"</string>
     <string name="curve_detail_initial">"Seleccione una curva a la izquierda"</string>
     <string name="curve_detail_title">"Detalles de la curva"</string>
