@@ -1,7 +1,6 @@
 package io.openhoyi.mobile
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.app.Instrumentation
 import android.content.Context
 import android.graphics.Bitmap
@@ -254,22 +253,11 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
         val serviceInfo = requireNotNull(automation.serviceInfo)
         val originalFlags = serviceInfo.flags
         val title = activity.getString(R.string.extraction_mock_start_title)
-        var expectedPositive = ""
-        var expectedNegative = ""
-        onMain {
-            // The public native dialog layout applies its theme's real button transformation.
-            // Accessibility exposes displayed (e.g. ALL CAPS) text, not the raw string resource.
-            val probe = AlertDialog.Builder(activity)
-                .setPositiveButton(R.string.extraction_mock_start, null)
-                .setNegativeButton(R.string.machine_settings_cancel, null).create()
-            probe.create() // Create detached content only: never show, attach or click this probe.
-            fun displayed(button: Button): String = button.transformationMethod
-                ?.getTransformation(button.text, button)?.toString() ?: button.text.toString()
-            expectedPositive = displayed(probe.getButton(AlertDialog.BUTTON_POSITIVE))
-            expectedNegative = displayed(probe.getButton(AlertDialog.BUTTON_NEGATIVE))
-            check(expectedPositive.isNotBlank() && expectedNegative.isNotBlank())
-            probe.dismiss()
-        }
+        // AppDialog styles the real buttons with isAllCaps=false. Match the exact translated
+        // text the user sees instead of a detached, unstyled AlertDialog's transformation.
+        val expectedPositive = activity.getString(R.string.extraction_mock_start)
+        val expectedNegative = activity.getString(R.string.machine_settings_cancel)
+        check(expectedPositive.isNotBlank() && expectedNegative.isNotBlank())
         restoreAfter({
             serviceInfo.flags = originalFlags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
             automation.serviceInfo = serviceInfo

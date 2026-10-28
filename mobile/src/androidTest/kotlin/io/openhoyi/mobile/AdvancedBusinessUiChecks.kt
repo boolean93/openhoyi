@@ -48,18 +48,20 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
         if (view is ViewGroup) (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
     /** Capture the already exercised state, not a new fixture or a replacement for assertions. */
-    private fun captureState(activity: Activity, name: String, requiredActions: List<Int>) {
+    private fun captureState(activity: Activity, name: String, requiredActions: List<Int>, targetRoot: View = root(activity)) {
         test.waitForIdleSync()
-        awaitMain { activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested }
+        awaitMain { targetRoot.isAttachedToWindow && targetRoot.hasWindowFocus() &&
+            targetRoot.isLaidOut && !targetRoot.isLayoutRequested }
         onMain {
-            val labels = views(root(activity)).filterIsInstance<TextView>()
+            val labels = views(targetRoot).filterIsInstance<TextView>()
             requiredActions.forEach { id ->
                 check(labels.any { it.isShown && it.isClickable && it.text.toString() == activity.getString(id) }) {
                     "$name missing expected action ${activity.getString(id)}"
                 }
             }
         }
-        awaitUnobscuredContent(activity, name)
+        awaitUnobscuredContent(activity, name, targetRoot)
+        onMain { check(targetRoot.isAttachedToWindow && targetRoot.hasWindowFocus()) { "$name target window lost focus before capture" } }
         val directory = File(requireNotNull(context.getExternalFilesDir(null)), "advanced-page-screenshots/business")
         check(directory.isDirectory || directory.mkdirs())
         val bitmap = requireNotNull(test.uiAutomation.takeScreenshot()) { "$name screenshot missing" }
@@ -68,9 +70,60 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
             }
         } finally { bitmap.recycle() }
+        if (name == "dose-pending-confirmation") {
+            var diagnostic = ""
+            onMain {
+                diagnostic = runCatching {
+                    val button = views(targetRoot).filterIsInstance<Button>().single {
+                        it.isShown && it.text.toString() == activity.getString(R.string.dose_confirm)
+                    }
+                    fun color(value: Int) = String.format(java.util.Locale.ROOT, "#%08X", value)
+                    fun drawable(value: android.graphics.drawable.Drawable?, depth: Int = 0): String {
+                        if (value == null) return "null"
+                        val currentColor = (value as? android.graphics.drawable.GradientDrawable)?.color
+                            ?.getColorForState(value.state, android.graphics.Color.TRANSPARENT)
+                        val detail = "${value.javaClass.simpleName}(state=${value.state.joinToString()},alpha=${value.alpha}," +
+                            "solid=${currentColor?.let(::color)})"
+                        if (depth >= 3) return detail
+                        val children = when (value) {
+                            is android.graphics.drawable.StateListDrawable -> listOf(value.current)
+                            is android.graphics.drawable.LayerDrawable -> (0 until value.numberOfLayers).map(value::getDrawable)
+                            else -> emptyList()
+                        }.filter { it !== value }
+                        return detail + children.joinToString(prefix = "[", postfix = "]") { drawable(it, depth + 1) }
+                    }
+                    val bitmap = android.graphics.Bitmap.createBitmap(button.width, button.height,
+                        android.graphics.Bitmap.Config.ARGB_8888)
+                    val pixels = try {
+                        button.draw(android.graphics.Canvas(bitmap))
+                        val samples = listOf(1 to 2, 1 to 5, 1 to 8, 5 to 5, 8 to 5).map { (x, y) ->
+                            val px = ((button.width - 1) * x / 10).coerceIn(0, button.width - 1)
+                            val py = ((button.height - 1) * y / 10).coerceIn(0, button.height - 1)
+                            "($px,$py)=${color(bitmap.getPixel(px, py))}"
+                        }
+                        val counts = mutableMapOf<Int, Int>()
+                        for (y in 0 until bitmap.height) for (x in 0 until bitmap.width) {
+                            val pixel = bitmap.getPixel(x, y)
+                            counts[pixel] = (counts[pixel] ?: 0) + 1
+                        }
+                        "samples=${samples.joinToString()} topColors=" + counts.entries.sortedByDescending { it.value }
+                            .take(8).joinToString { "${color(it.key)}:${it.value}" }
+                    } finally { bitmap.recycle() }
+                    val parents = generateSequence(button as View?) { it.parent as? View }
+                        .joinToString(" > ") { "${it.javaClass.simpleName}(alpha=${it.alpha},visibility=${it.visibility})" }
+                    "enabled=${button.isEnabled} focused=${button.isFocused} pressed=${button.isPressed} " +
+                        "drawableState=${button.drawableState.joinToString()} " +
+                        "stateEnabled=${android.R.attr.state_enabled in button.drawableState} " +
+                        "currentTextColor=${color(button.currentTextColor)} " +
+                        "backgroundTint=${button.backgroundTintList?.getColorForState(button.drawableState, 0)?.let(::color)}\n" +
+                        "background=${drawable(button.background)}\nparents=$parents\nlocalDraw=$pixels\n"
+                }.getOrElse { "diagnosticFailure=${it.stackTraceToString()}\n" }
+            }
+            File(directory, "$name-button.txt").writeText("postScreenshot=true\n" + diagnostic)
+        }
     }
     /** Read-only: let transient clipboard controls expire; never dismiss UI or alter clipboard data. */
-    private fun awaitUnobscuredContent(activity: Activity, name: String) {
+    private fun awaitUnobscuredContent(activity: Activity, name: String, targetRoot: View) {
         val automation = test.uiAutomation
         val info = automation.serviceInfo
         val originalFlags = info.flags
@@ -80,7 +133,14 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             val deadline = SystemClock.elapsedRealtime() + 15000
             while (true) {
                 val contentBounds = android.graphics.Rect()
-                onMain { check(root(activity).getGlobalVisibleRect(contentBounds)) }
+                onMain {
+                    check(targetRoot.getGlobalVisibleRect(contentBounds))
+                    // GlobalVisibleRect is rooted at this Window's decor; accessibility
+                    // bounds are on screen. Include the real dialog/window offset.
+                    val rootOnScreen = IntArray(2)
+                    targetRoot.rootView.getLocationOnScreen(rootOnScreen)
+                    contentBounds.offset(rootOnScreen[0], rootOnScreen[1])
+                }
                 val overlaps = mutableListOf<String>()
                 fun inspect(node: android.view.accessibility.AccessibilityNodeInfo) {
                     try {
@@ -1027,7 +1087,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                         it.isShown && it.text.toString().contains(beanName)
                     }) { "Home dose lost its bean identity" }
                 }
-                captureState(page, name, emptyList())
+                captureState(page, name, emptyList(), detailRoot)
                 check(preparation.current() == beforeDose && inventory.events() == beforeEvents && balance() == beforeBalance) {
                     "Viewing the home dose changed preparation or inventory"
                 }
