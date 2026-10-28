@@ -663,3 +663,11 @@ root报告Mock v13构建、337unit及lint通过，实机覆盖安装保留17数�
 补图`build/tablet-nav-2026-10-28/mock-v13-curves.png`亦已实际view_image：切到曲线Tab后选中态正确，六导航及底部设备文字/断开动作仍完整；右侧两阶段目标主图边框、坐标与阶段标签、使用此曲线按钮均在可见范围，未被104dp rail挤裁。本结论只证明本轮侧栏在该页与主图共存，无全曲线库/全部筛选滚动/实际萃取plot验收外推。
 
 本轮root最终验证报告：337tests、0failures/0errors、1skip；assembleMock/Debug/MockAndroidTest及lintDebug成功；两variant APK资源各11017匹配。Mock签名相同、versionCode12→13，安装APK字节hash匹配，17数据文件hash保留。Astra仅将该执行结果按root报告记录，实图目视范围为前述home/curves两图，不写全应用或硬件通过。侧栏本轮设计/静审/所见实机状态验收闭合；文档冻结，交root提交。
+
+### Mock桌面图标区分（用户新增小修）
+
+Astra核main ic_mobile.xml为48×48蓝底白杯，Manifest直接引用@drawable/ic_mobile。批准仅新增mobile/src/mock/res/drawable/ic_mobile.xml覆盖：保咖啡轮廓，橙底（建议#B54708）与白色清晰MOCK路径字形双重区分，四周至少5viewport留白，避免启动器裁字；不依赖字体、不仅靠颜色。main图标/Manifest/真实版行为不动。Sol产物待静审；root只构建验证source-set与资源，不要求本轮安装，不发版。仍现feature/task-first-ui→develop PR4，由root按授权提交，不合并。
+
+Mock图标最终静审与有限视觉批准：实际核mock ic_mobile.xml仅同名source-set覆盖，main ic_mobile.xml无diff；#B54708橙底、原白杯、顶部独立路径MOCK均在48viewport内且保留边距。Astra实际view_image查看build/mock-icon-2026-10-28/mock.svg.png，同路径SVG渲染中MOCK清楚、与原蓝底双重区别明显，顶部字标方案批准。该预览非APK/启动器截图，未宣称实机裁剪效果通过；root两变体assemble与最终资源结果待确认，本轮不要求安装。文档冻结。
+
+Mock图标构建核验：root运行`:mobile:assembleMock :mobile:assembleDebug`成功（code14），用aapt2读取两APK实际`res/drawable/ic_mobile.xml`确认Mock为`#B54708`且含MOCK字形、debug仍为`#315A94`原图；证据`build/mock-icon-2026-10-28/verification.json`。本轮未安装、未发布。
