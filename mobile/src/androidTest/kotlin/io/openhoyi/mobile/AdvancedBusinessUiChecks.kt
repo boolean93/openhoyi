@@ -47,6 +47,88 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
     private fun views(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { views(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
+    /** Exercise the native background through a real Button, including later state changes. */
+    private fun checkPrimaryButtonStates(button: Button, fixture: String, enabledColor: Int, disabledColor: Int,
+        disabledTextColor: Int, focusBorderColor: Int) {
+        check(button.width > 0 && button.height > 0 && button.isEnabled) { "$fixture missing enabled button layout" }
+        val background = button.background as? android.graphics.drawable.StateListDrawable
+            ?: error("$fixture background is not stateful at the Button")
+        fun renderedColor(): Int {
+            val bitmap = android.graphics.Bitmap.createBitmap(button.width, button.height,
+                android.graphics.Bitmap.Config.ARGB_8888)
+            return try {
+                button.jumpDrawablesToCurrentState()
+                button.draw(android.graphics.Canvas(bitmap))
+                bitmap.getPixel(button.width / 10, button.height / 5)
+            } finally { bitmap.recycle() }
+        }
+        fun checkState(label: String, color: Int, textColor: Int, ripple: Boolean,
+            checkPixel: Boolean = true, checkFocusBorder: Boolean = false) {
+            val current = background.current
+            check((current is android.graphics.drawable.RippleDrawable) == ripple) {
+                "$fixture $label wrong ripple/disabled branch: ${current?.javaClass?.simpleName}"
+            }
+            val fill = (if (current is android.graphics.drawable.RippleDrawable) current.getDrawable(0) else current)
+                as? android.graphics.drawable.GradientDrawable
+                ?: error("$fixture $label missing native background shape")
+            if (checkFocusBorder) {
+                val bitmap = android.graphics.Bitmap.createBitmap(button.width, button.height,
+                    android.graphics.Bitmap.Config.ARGB_8888)
+                try {
+                    fill.draw(android.graphics.Canvas(bitmap))
+                    check((0 until minOf(button.height / 8,
+                        (4 * button.resources.displayMetrics.density).toInt())).any {
+                        bitmap.getPixel(button.width / 2, it) == focusBorderColor
+                    }) { "$fixture $label focused outline was not drawn" }
+                } finally { bitmap.recycle() }
+            }
+            val pixel = if (checkPixel) renderedColor() else null // Focus feedback may legitimately tint drawn pixels.
+            check(fill.color?.defaultColor == color && (pixel == null || pixel == color) && button.currentTextColor == textColor) {
+                "$fixture $label background/text mismatch: shape=${fill.color?.defaultColor} " +
+                    "draw=$pixel text=${button.currentTextColor} expected=$color/$textColor"
+            }
+        }
+        checkState("initial", enabledColor, android.graphics.Color.WHITE, true)
+        val initial = background.current
+        button.isEnabled = false
+        checkState("disabled", disabledColor, disabledTextColor, false)
+        button.isEnabled = true
+        checkState("reenabled", enabledColor, android.graphics.Color.WHITE, true)
+        check(background.current === initial) { "$fixture reenabled branch changed unexpectedly" }
+        val wasFocusableInTouchMode = button.isFocusableInTouchMode
+        try {
+            button.isFocusableInTouchMode = true
+            check(button.requestFocus() && button.isFocused) { "$fixture could not enter focus state" }
+            checkState("focused", enabledColor, android.graphics.Color.WHITE, true,
+                checkPixel = false, checkFocusBorder = true)
+            check(background.current !== initial) { "$fixture focused branch did not activate" }
+            button.isEnabled = false
+            checkState("disabled after focus", disabledColor, disabledTextColor, false)
+        } finally {
+            button.isEnabled = true
+            button.clearFocus()
+            button.isFocusableInTouchMode = wasFocusableInTouchMode
+        }
+        checkState("focus cleared", enabledColor, android.graphics.Color.WHITE, true)
+    }
+    private fun checkNativePrimaryStyles(activity: Activity) {
+        val fixtureParent = android.widget.LinearLayout(activity)
+        val hoyi = HoyiUi.button(activity, fixtureParent, "Primary", primary = true) {}
+        fixtureParent.measure(View.MeasureSpec.makeMeasureSpec(HoyiUi.dp(activity, 240), View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+        fixtureParent.layout(0, 0, fixtureParent.measuredWidth, fixtureParent.measuredHeight)
+        checkPrimaryButtonStates(hoyi, "HoyiUi primary", activity.getColor(R.color.mobile_primary_button),
+            activity.getColor(R.color.mobile_background), activity.getColor(R.color.mobile_muted),
+            activity.getColor(android.R.color.white))
+        val confirm = views(root(activity)).filterIsInstance<Button>().single {
+            it.isShown && it.text.toString() == activity.getString(R.string.dose_confirm)
+        }
+        checkPrimaryButtonStates(confirm, "TaskProductVisualStyle dose confirm", android.graphics.Color.parseColor("#087A78"),
+            android.graphics.Color.parseColor("#ECEFF1"), android.graphics.Color.parseColor("#8A95A3"),
+            android.graphics.Color.parseColor(if ((activity.resources.configuration.uiMode and
+                android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES)
+                "#3B4B4C" else "#DDE3E7"))
+    }
     /** Capture the already exercised state, not a new fixture or a replacement for assertions. */
     private fun captureState(activity: Activity, name: String, requiredActions: List<Int>, targetRoot: View = root(activity)) {
         test.waitForIdleSync()
@@ -1331,6 +1413,7 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(root(prep).findViewWithTag<TextView>("dose-balance-receipt") == null)
             }
             captureState(prep, "dose-pending-confirmation", listOf(R.string.dose_confirm))
+            onMain { checkNativePrimaryStyles(prep) }
             assertLockedBatchContext(prep, "90")
             captureHomeDose(prep, "home-dose-selected", R.string.task_brew_dose_selected)
             record("dose-select-no-deduction")
@@ -1404,20 +1487,52 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                 check(views(root(detail)).filterIsInstance<ShotChartView>().single().getGlobalVisibleRect(chartBounds))
             }
             captureState(detail, "history-detail-filled-top-fixture", listOf(R.string.journal_review))
+            val expandedFields = listOf(R.string.journal_bean to beanName, R.string.journal_grind to grind,
+                R.string.journal_expectation to expectation, R.string.journal_taste to taste,
+                R.string.journal_next to nextAdjustment).map { (label, value) ->
+                detail.getString(R.string.journal_field_value, detail.getString(label), value)
+            }
+            val expandedLast = expandedFields.last()
             onMain {
-                val last = views(root(detail)).filterIsInstance<TextView>().single { it.text.toString() == nextAdjustment }
+                val disclosure = requireNotNull(root(detail).findViewWithTag<Button>("product/history/details"))
+                check(disclosure.isShown && disclosure.isEnabled && disclosure.isClickable && disclosure.performClick()) {
+                    "History detail notes disclosure is not reachable"
+                }
+            }
+            var detailsRoot: View? = null
+            awaitMain {
+                detailsRoot = android.view.inspector.WindowInspector.getGlobalWindowViews().singleOrNull {
+                    it !== detail.window.decorView && it.hasWindowFocus() &&
+                        views(it).filterIsInstance<TextView>().any { label -> label.text.toString() == expandedLast }
+                }
+                detailsRoot != null
+            }
+            val visibleDetails = requireNotNull(detailsRoot)
+            onMain {
+                val labels = views(visibleDetails).filterIsInstance<TextView>()
+                expandedFields.forEach { value ->
+                    check(labels.any { it.text.toString() == value }) { "Expanded history detail omitted saved review text" }
+                }
+                val last = labels.single { it.text.toString() == expandedLast }
                 last.requestRectangleOnScreen(android.graphics.Rect(0, 0, last.width, last.height), true)
             }
             test.waitForIdleSync()
             onMain {
-                val last = views(root(detail)).filterIsInstance<TextView>().single { it.text.toString() == nextAdjustment }
+                val last = views(visibleDetails).filterIsInstance<TextView>().single { it.text.toString() == expandedLast }
                 val visible = android.graphics.Rect()
                 check(last.getGlobalVisibleRect(visible) && visible.height() == last.height) { "Last review field is not fully reachable" }
                 val afterScroll = android.graphics.Rect()
                 check(views(root(detail)).filterIsInstance<ShotChartView>().single().getGlobalVisibleRect(afterScroll) &&
                     afterScroll == chartBounds) { "Review scrolling moved or resized the history chart" }
             }
-            captureState(detail, "history-detail-filled-bottom-fixture", listOf(R.string.journal_review))
+            captureState(detail, "history-detail-filled-bottom-fixture", listOf(android.R.string.ok), visibleDetails)
+            onMain {
+                val closeDetails = views(visibleDetails).filterIsInstance<Button>().single {
+                    it.isShown && it.text.toString() == detail.getString(android.R.string.ok)
+                }
+                check(closeDetails.performClick()) { "History detail disclosure could not close" }
+            }
+            awaitMain { !visibleDetails.isAttachedToWindow }
             File(requireNotNull(context.getExternalFilesDir(null)), "advanced-page-screenshots/business/history-detail-filled-source.txt")
                 .writeText("synthetic=true shotId=$shotId samples=31 endMs=30000 endWeightHundredths=3600 notesFields=7 noBle=true\n")
             close(detail)

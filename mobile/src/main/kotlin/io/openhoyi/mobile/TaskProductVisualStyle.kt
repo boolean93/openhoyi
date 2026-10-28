@@ -90,12 +90,15 @@ internal class TaskProductVisualStyle(val context: Context) {
         elevation = 0f; stateListAnimator = null; backgroundTintList = null
         setTextColor(ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
             intArrayOf(onDisabled, if (primary) Color.WHITE else accent)))
-        val states = StateListDrawable().apply {
+        fun enabledBackground(fill: Int, border: Boolean) = RippleDrawable(
+            ColorStateList.valueOf(if (primary) 0x33FFFFFF else selected),
+            shape(fill, border), shape(Color.WHITE))
+        background = StateListDrawable().apply {
             addState(intArrayOf(-android.R.attr.state_enabled), shape(disabled))
-            addState(intArrayOf(android.R.attr.state_focused), shape(if (primary) this@TaskProductVisualStyle.primary else selected, true))
-            addState(intArrayOf(), shape(if (primary) this@TaskProductVisualStyle.primary else Color.TRANSPARENT, outline))
+            addState(intArrayOf(android.R.attr.state_focused),
+                enabledBackground(if (primary) this@TaskProductVisualStyle.primary else selected, true))
+            addState(intArrayOf(), enabledBackground(if (primary) this@TaskProductVisualStyle.primary else Color.TRANSPARENT, outline))
         }
-        background = RippleDrawable(ColorStateList.valueOf(if (primary) 0x33FFFFFF else selected), states, shape(Color.WHITE))
     }
     fun action(parent: LinearLayout, value: String, id: String, primary: Boolean = false, outline: Boolean = false,
         top: Int = 8, onClick: () -> Unit): Button = button(Button(context), primary, outline).apply {

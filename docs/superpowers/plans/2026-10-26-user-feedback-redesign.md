@@ -19,7 +19,7 @@
 
 ## 进度
 
-当前基线 `e33ec60`（2026-10-28）。本表同时追踪原始高级功能与本轮六批反馈，不能把“有页面”“CI绿色”或“有概念图”当作完整交付。源码核对为当前工作树；历史证据只证明对应状态，不冒充本提交全量通过。root报告当前verify/upgrade/branch-policy通过，lifecycle仍失败，advanced-pages的pages通过但business失败，Legacy两份视觉运行成功；这些分别记账，不覆盖产品缺口。
+当前已推基线 `6a60f6a`（2026-10-28），其lifecycle run40670166214已整体成功；Astra独立核artifact的720两态、20轮六Tab、audio五组、语言/图表/通知及landscape/wideFont页面标记。当前工作树另有公共按钮状态传播修复，尚待回归，不能借用旧基线PASS。原始高级功能与本轮反馈分别记账；advanced-pages的pages通过、business已推进至复盘末字段可达性失败；库存确认按钮真实灰底问题仍待新生产验证。Legacy两份视觉运行成功，其他严格视觉/硬件不据此通过。
 
 ### 原始需求追踪与剩余交付
 
@@ -30,7 +30,7 @@
 | 预设直观与预期效果调研 | 已有[调研](../../research/2026-10-08-advanced-features-research.md)、`CurveStageView`阶段目标、`FactoryCurveCatalog`参数/说明、参考历史入口 | **研究已交付，产品核验待闭合**：用现有代表预设核阶段/水量/结束条件/历史参考可追溯及未知时长降级。不补造完整未来时间线；口感预测原授权可不做，不列必交功能 |
 | 每杯复盘、两杯比较 | `BrewJournal`永久Notes；`BrewReviewActivity`豆/粉量/研磨/感受/下次调整；`BrewComparisonActivity`已有`TwoCupChartView` | **已实现，软件/视觉待验**：本分支保存→重启→历史详情→编辑→对比/导出真实链路、UNKNOWN保留与缺曲线提示。完整批次/配方版本快照当前模型没有，是扩展能力边界，不自动扩大本轮 |
 | 曲线次数与最近使用排序 | `CurveUsageLedger`同shot去重持久账本；`CurveOrdering`RECENT/MOST_USED；`CurveFragment`搜索分类后排序并记偏好 | **已实现，待当前原生回归**：实际观察计次、失败启动不计、缓存清理仍保留、切Tab/重建排序与筛选恢复；不能以选择/浏览制造次数 |
-| 独立库存、确认投粉扣减 | `bean-core/Inventory.kt`独立整数mg/幂等consume；`BeanPreparation.confirm/associatePending`；入库/批次/流水/准备真实页面 | **已实现，真实操作链路未整体验收**：入库→选批→确认扣一次→取消/重复/重启→余额及流水一致，持久失败/不足不误扣。当前business首错是Home详情弹层focus取证，不是已证库存失败；已有截图不代替链路PASS。真实称豆取值待实机；备份/归档非本轮默认新增 |
+| 独立库存、确认投粉扣减 | `bean-core/Inventory.kt`独立整数mg/幂等consume；`BeanPreparation.confirm/associatePending`；入库/批次/流水/准备真实页面 | **已实现，真实操作链路未整体验收**：入库→选批→确认扣一次→取消/重复/重启→余额及流水一致，持久失败/不足不误扣。run40670173535已通过选豆不扣、确认重复/重建扣一次、放弃不退款；business首错已推进复盘末字段不可达，整套未通过。真实称豆取值待实机；备份/归档非本轮默认新增 |
 | 自制曲线编辑、分享、复制/文件导入自己的App | `CustomCurveDocument`/Store、Editor/Share/Import/Preview；当前`MobileApplication`已启用受限自制压力执行，`CustomPressureCurveAdapter`保留执行资格校验 | **已实现，软件/视觉待验**：实际系统选择器/取消/错误格式/预览确认/同名不同ID/重建以及分享不含私人复盘；执行仅受支持子集，不能写“草稿全部不可执行”，也不能宣称任意导入可运行。实际自制压力执行待实机 |
 | 全模块设计图、字体/背景/间距严格视觉 | 21页概念索引+3设置候选、24页严格基线、公共字体/样式均已有；本轮Home/大图/确认代表实图已审 | **真实剩余交付**：已实看当前库存确认主按钮白字灰底，须定位并修可读性；当前产品与设计逐模块对应、未批准差异清单及有限原生样张闭合，尤其曲线编辑/导入/分享、复盘/库存表单IME、秤与设置。旧概念Home/萃取布局被本轮反馈替代，需在既有spec/index引用中明确对应，不能拿旧稿判新首页；不得用新图迁就未经批准偏差。旧严格视觉失败/取证阻塞仍保留，不概括24页通过 |
 
@@ -43,7 +43,7 @@
 | 3 大图 | 四线同图、固定停止、工具概览、常态说明收起但异常留警示；当前正常平板面积通过 | 严格视觉特殊态/参考/检查弹层按既有范围收口，不能以主图四张替代所有状态 |
 | 4 手动杯与恢复 | 稳定manual ID每杯一次；同址重连、主动抑制、凭据与原门禁、无业务重放已实现 | 软件已有策略/核心导航证明，真实拨杆两杯、断机/断秤/睡眠恢复与主动断开不反连仍实机待验 |
 | 5 BOOKOO自动计时 | 初始化只删CMD07，首连/重连精确三帧软件回归通过 | Mini/Ultra实际连接计时不启动、重量不清零待实机；不追加未知stop/reset |
-| 6 设置和自有弹窗 | 根/二级/DatePicker接公共AppDialog；三组设置与原参数/门禁保留 | 当前lifecycle正在修默认AlertDialog与真实公共样式契约；所有代表弹层长文/输入错误/重建/离页清理须有限原生验收，非全体视觉通过 |
+| 6 设置和自有弹窗 | 根/二级/DatePicker接公共AppDialog；三组设置与原参数/门禁保留 | 6a60f6a的lifecycle及真实公共弹窗文本契约已通过；所有代表弹层长文/输入错误/重建/离页清理须有限原生验收，非全体视觉通过 |
 
 ### 下一批顺序与完成标准
 
@@ -548,3 +548,42 @@ root确认LanguageDetail/AdvancedBusiness两测试修订的AndroidTest编译39�
 ### 当前弹窗契约与投粉按钮取证构建
 
 root核对：两处弹窗测试修复AndroidTest构建39秒成功；追加原截图后的投粉按钮状态诊断后，AndroidTest构建44秒成功，git diff检查与分支策略通过。Astra独立静审通过。新CI运行结果待验，白字灰底按钮尚未定位根因/修复，不能记视觉通过。
+
+
+### 2026-10-28高级页面中文浅深代表图复核
+
+Astra实际以原图查看run40394610603/pages/advanced-page-screenshots/landscape中zh-Hans-light/dark的BeanInventoryActivity、BrewReviewActivity、CurveShareActivity、CurveImportActivity，共8图；对照现有concept index库存v3/复盘v3/分享v1/导入v2，不以布局测试PASS替代目视判断。
+
+本组未发现需要新增生产修改的明确视觉问题。库存余量、真实流水、使用当前批次及次要详情入口首屏可读；源码库存主动作携EXTRA_BATCH_ID，准备页接收该值，不需重复选豆。复盘豆款/粉量/研磨及三块笔记、取消/保存均在首屏，浅深文字层级明确。分享参数摘要与分享文本/复制/导出/已导出文件分享主次清楚；导入保显式粘贴/文件与原文输入，空态预览禁用符合既有设计。两页没有把高频操作藏入滚动或附加菜单。
+
+此为所看8个展示状态的有限可读性与操作布局批准，不代表已点击完成分享导入、复盘保存重开、库存扣减，也不覆盖键盘、错误/冲突态或全模块严格视觉。dose-pending-confirmation白字灰底仍单独待诊断，未在本批重复立项；不据此扩大风格改版。root报告6a60f6a已提交、普通push进行中，最新AndroidTest44秒成功及policy通过；新CI待验。仅计划更新，文档冻结。
+
+
+### 代表图精确状态与新业务证据（run40670173535）
+
+前项8图精确文件为run40394610603/pages/advanced-page-screenshots/landscape/下的`zh-Hans-light-BeanInventoryActivity.png`、`zh-Hans-dark-BeanInventoryActivity.png`（单批次250g列表选中及详情，对应库存v3）；`zh-Hans-light-BrewReviewActivity.png`、`zh-Hans-dark-BrewReviewActivity.png`（已有豆款/18g/研磨与三项笔记表单，对应复盘v3）；`zh-Hans-light-CurveShareActivity.png`、`zh-Hans-dark-CurveShareActivity.png`（已载两阶段曲线、未导出文件，对应分享v1）；`zh-Hans-light-CurveImportActivity.png`、`zh-Hans-dark-CurveImportActivity.png`（空输入、预览禁用，对应导入v2）。该批准不外推其它状态。
+
+Astra独立读取run40670173535/business/business-flows.txt：实际完成entry-invalid-four、entry-save、entry-mode-draft-recreate-cancel、adjust-cancel、adjust-confirm-preview、dose-invalid-no-write、dose-select-no-deduction、dose-confirm-repeat-recreate、dose-discard-no-refund、journal-edit-reopen-recreate。首错随后为AdvancedBusinessUiChecks:1415 `Last review field is not fully reachable`；因此选豆不扣、确认重复/重建扣一次、放弃不退款及复盘编辑重开重建已获得本run原生链路证据，整套业务验收仍未通过，末字段可达性待定点定位。
+
+独立读取同run的advanced-page-screenshots/business/dose-pending-confirmation-button.txt：postScreenshot=true；按钮enabled=true、Ripple含state_enabled，内层StateListDrawable.state为空且当前Gradient为#FFECEFF1；所有父alpha=1，localDraw也为灰底白字。根因范围已收窄至公共背景drawable状态传播，不是业务禁用或只发生于窗口截图。公共修复待Sol方案/代码；必须保留业务enabled/禁重，覆盖初始启用与启用→禁用→启用及焦点状态，不允许以强制enabled、单改字色掩盖。末字段问题与按钮串行处理，不扩矩阵。文档更新冻结，生产尚未批准修复。
+
+方案审结：Astra实际核TaskProductVisualStyle.button与HoyiUi.button均为Ripple包StateList结构，批准仅两公共入口改顶层StateList（disabled→focused→default），启用分支各自包装固定形状Ripple，保原色/边框/danger/字号/尺寸/监听器且不共享可变drawable。回归须含真实Button初始启用、启用往返与focus进入/退出，禁用优先于focus。这不证明具体SDK/ROM原因；实施diff与运行待审，不能先标按钮修复通过。
+
+
+### 6a60f6a生命周期通过与公共按钮新修复审查边界
+
+Astra独立读取run40670166214/mock-lifecycle：main-navigation含720×360 idle/running真实PASS及20轮六Tab同service/manualShell；audio五组PASS；language-instrumentation含同杯、三类图表、秤趋势、ChartLegend64fixtures、通知工厂/发布/刷新及服务门禁PASS；landscape与wideFont各96页面fixtures、5设置sections、detail dialogs、selector与trend文字PASS。root确认此run整体success。此为6a60f6a旧生产的运行证据，不覆盖工作树新公共按钮修复。
+
+两生产文件已静审符合批准方案，状态顺序、每分支独立Ripple/shape、原配色边框尺寸及监听器保留。新增按钮回归尚有绘制口径需调整：focus的Ripple合法叠加高亮，不应将其像素强判为基础fill；纯填色检查须避文字，焦点态仍严查真实分支/shape色/字色，焦点退出后检查像素须处理drawable动画。已交测试owner有限修正，未运行构建、未批准新生产运行通过。
+
+### 公共按钮状态与历史真实详情最终静审
+
+Astra最终复核TaskProductVisualStyle、HoyiUi及AdvancedBusinessUiChecks三代码文件：两公共按钮顶层selector按批准状态顺序工作，配色/边框/尺寸/业务listener不变。测试通过真实Button启用/禁用及focus切换，不覆写background.state；焦点态检查实际分支、基础色与绘出的原outline，避开Ripple高亮误判；非焦点像素取远离居中文字位置并jump到当前drawable状态。原pending窗口PNG及诊断先于回归操作，未受回归干预。
+
+历史复盘末字段改由真实product/history/details按钮打开既有Dialog；以当前聚焦窗口定位真实journalNotes字段，滚动末字段并保留完整高度断言，底层chartBounds必须等值，截图跟随真实Dialog，最后点击OK关闭。已核生产showDetails确包含这些笔记；不删字段、不把隐藏节点当可见、不改库存/幂等/noBle。三文件静态批准，root开始统一full构建，构建及新生产CI/实际按钮颜色仍待验；文档冻结。
+
+最终落盘补核：Dialog内journalField使用journal_field_value合成“标签: 值”，测试expandedFields/expandedLast已按同资源生成完整文本再定位/滚动；原页面纯value来源断言仍保留。Astra实际核最新代码与journalField实现一致，批准以此最终全文版本为准。
+
+### 公共按钮状态修复本地验证
+
+root核对：Mock单测、Mock/Debug/AndroidTest打包、lintDebug统一构建2分14秒成功；最终测试源码冻结后再次检查AndroidTest，6秒成功且全部74任务up-to-date，确认末次标签全文修订已纳入。两APK各10897资源值、6项字面量往返通过。Astra最终3代码文件静审通过。新公共按钮初始/禁用/重新启用/聚焦状态及History详情真实Dialog流程仍待新CI运行，不借6a60f6a旧生命周期成功宣称新生产已验收。

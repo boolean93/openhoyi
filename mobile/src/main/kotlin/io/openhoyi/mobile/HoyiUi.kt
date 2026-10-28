@@ -93,21 +93,24 @@ internal object HoyiUi {
         elevation = 0f
         stateListAnimator = null
         backgroundTintList = null
-        val states = StateListDrawable().apply {
-            addState(intArrayOf(-android.R.attr.state_enabled),
-                shape(activity, R.color.mobile_background, TaskVisualTokens.CONTROL_RADIUS_DP, R.color.mobile_border))
-            addState(intArrayOf(android.R.attr.state_focused), shape(activity,
-                if (primary) R.color.mobile_primary_button else R.color.mobile_surface, TaskVisualTokens.CONTROL_RADIUS_DP,
-                if (primary) android.R.color.white else if (danger) R.color.mobile_danger else R.color.mobile_accent))
-            addState(intArrayOf(), shape(activity,
-                if (primary) R.color.mobile_primary_button else R.color.mobile_surface, TaskVisualTokens.CONTROL_RADIUS_DP,
-                if (primary) null else if (danger) R.color.mobile_danger else R.color.mobile_border))
-        }
         val feedback = ColorStateList(arrayOf(intArrayOf(-android.R.attr.state_enabled), intArrayOf()),
             intArrayOf(android.graphics.Color.TRANSPARENT,
                 if (primary) 0x33FFFFFF else activity.getColor(R.color.mobile_accent_soft)))
-        background = android.graphics.drawable.RippleDrawable(feedback, states,
+        fun enabledBackground(focused: Boolean) = android.graphics.drawable.RippleDrawable(feedback,
+            shape(activity, if (primary) R.color.mobile_primary_button else R.color.mobile_surface,
+                TaskVisualTokens.CONTROL_RADIUS_DP,
+                if (focused) {
+                    if (primary) android.R.color.white else if (danger) R.color.mobile_danger else R.color.mobile_accent
+                } else {
+                    if (primary) null else if (danger) R.color.mobile_danger else R.color.mobile_border
+                }),
             shape(activity, android.R.color.white, TaskVisualTokens.CONTROL_RADIUS_DP))
+        background = StateListDrawable().apply {
+            addState(intArrayOf(-android.R.attr.state_enabled),
+                shape(activity, R.color.mobile_background, TaskVisualTokens.CONTROL_RADIUS_DP, R.color.mobile_border))
+            addState(intArrayOf(android.R.attr.state_focused), enabledBackground(true))
+            addState(intArrayOf(), enabledBackground(false))
+        }
         // Explicit spacing avoids platform Button padding inflating the bundled CJK face.
         // Keep wrap-content height so large fonts and translated labels can grow.
         setPadding(dp(activity, TaskVisualTokens.GROUP_GAP_DP), dp(activity, TaskVisualTokens.RELATED_GAP_DP),
