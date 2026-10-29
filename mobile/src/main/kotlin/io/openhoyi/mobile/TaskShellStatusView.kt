@@ -2,9 +2,16 @@ package io.openhoyi.mobile
 
 import android.bluetooth.BluetoothAdapter
 import android.content.Context
+import android.content.res.ColorStateList
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.RippleDrawable
+import android.graphics.drawable.StateListDrawable
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.text.style.ReplacementSpan
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -55,7 +62,11 @@ internal class TaskShellStatusView(
             .coerceAtLeast(0).toFloat(), 1f)
         isSingleLine = false; maxLines = Int.MAX_VALUE; ellipsize = null
         gravity = Gravity.CENTER; minHeight = style.dp(48); minimumHeight = style.dp(48)
-        compoundDrawablePadding = style.dp(8)
+        background = StateListDrawable().apply {
+            addState(intArrayOf(-android.R.attr.state_enabled), style.shape(style.disabled, true, 8))
+            addState(intArrayOf(), RippleDrawable(ColorStateList.valueOf(style.selected),
+                style.shape(style.surface, true, 8), style.shape(android.graphics.Color.WHITE, radius = 8)))
+        }
         setPadding(style.dp(4), style.dp(4), style.dp(4), style.dp(4))
     }
     private val sleep = action("task-shell-sleep", onSleep)
@@ -72,13 +83,34 @@ internal class TaskShellStatusView(
         setBackgroundColor(style.surface)
         coffeeGroup.addView(coffeeName, LayoutParams(-1, -2))
         coffeeGroup.addView(coffeeStatus, LayoutParams(-1, -2))
-        coffeeGroup.addView(sleep, LayoutParams(-1, -2))
+        coffeeGroup.addView(sleep, actionParams())
         scaleGroup.addView(scaleName, LayoutParams(-1, -2))
         scaleGroup.addView(scaleStatus, LayoutParams(-1, -2))
-        scaleGroup.addView(reconnect, LayoutParams(-1, -2))
-        scaleGroup.addView(disconnect, LayoutParams(-1, -2))
+        scaleGroup.addView(reconnect, actionParams())
+        scaleGroup.addView(disconnect, actionParams())
         renderMode(TaskNavigationMode.BOTTOM)
         present(null)
+    }
+
+    private fun actionParams() = LayoutParams(-1, -2).apply {
+        marginStart = style.dp(4); marginEnd = style.dp(4); topMargin = style.dp(4)
+    }
+
+    /** Inline icon follows the same centered line layout as its label, including RTL/wrapping. */
+    private inner class ActionIconSpan(private val button: Button, private val drawable: Drawable) : ReplacementSpan() {
+        override fun getSize(paint: Paint, text: CharSequence, start: Int, end: Int,
+            fm: Paint.FontMetricsInt?): Int = style.dp(28)
+
+        override fun draw(canvas: Canvas, text: CharSequence, start: Int, end: Int, x: Float,
+            top: Int, y: Int, bottom: Int, paint: Paint) {
+            val metrics = paint.fontMetricsInt
+            val center = y + (metrics.ascent + metrics.descent) / 2f
+            canvas.save()
+            canvas.translate(x + if (button.layoutDirection == View.LAYOUT_DIRECTION_RTL) style.dp(8) else 0,
+                center - style.dp(20) / 2f)
+            drawable.draw(canvas)
+            canvas.restore()
+        }
     }
 
     private fun icon(button: Button, kind: String) {
@@ -86,12 +118,21 @@ internal class TaskShellStatusView(
             button === disconnect && disconnectIcon == kind) return
         val drawable = HomeVisualIcon.drawable(host, kind, button.currentTextColor,
             currentTint = { button.currentTextColor }).apply { setBounds(0, 0, style.dp(20), style.dp(20)) }
-        button.setCompoundDrawablesRelative(drawable, null, null, null)
+        val label = button.text.toString().removePrefix("\uFFFC")
+        button.text = SpannableString("\uFFFC$label").apply {
+            setSpan(ActionIconSpan(button, drawable), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
         if (button === sleep) sleepIcon = kind
         if (button === reconnect) reconnectIcon = kind
         if (button === disconnect) disconnectIcon = kind
     }
-    private fun Button.label(value: String) { if (text.toString() != value) text = value }
+    private fun Button.label(value: String) {
+        if (text.toString().removePrefix("\uFFFC") == value) return
+        val span = (text as? Spanned)?.getSpans(0, text.length, ActionIconSpan::class.java)?.firstOrNull()
+        text = if (span == null) value else SpannableString("\uFFFC$value").apply {
+            setSpan(span, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+    }
     private fun Button.describe(value: String) {
         if (contentDescription?.toString() != value) contentDescription = value
         if (tooltipText?.toString() != value) tooltipText = value

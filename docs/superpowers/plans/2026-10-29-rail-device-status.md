@@ -61,3 +61,17 @@ root可revert本轮显示层/只读暴露变更并构建更高versionCode同签�
 Astra已读 `TaskShellDeviceStatus.kt` / Test、`TaskShellStatusView.kt`、新增glyph及文案。规格与质量无状态/设备命令阻塞：未知结果不被新鲜醒/睡值掩盖，stale无睡眠事实；主动抑制只作用于真实DISCONNECTED显示。现睡眠安全gate不变，连接阶段禁重复重试，prefs只读，无新命令。图标按kind缓存、相同文本不重设，模式变化才重挂层级，真实组高参与fallback。新增4个单测针对UNKNOWN优先级、连接阶段、主动抑制和缺失事实，尚不预记构建结果。
 
 精确布局预算纠正：当前组最低96dp，rail外距/分隔/间距共37dp，设备区最低229dp，非草案估算213dp；常规导航约416dp，合约645dp，本台实际是否保持rail仍以图为准。两个待实图点：compound drawable从4dp起点绘制，动作图文是否视觉居中/8dp间隔需检查；连接中glyph是静态回转弧，禁用语义已明确但不冒称动画spinner。构建冻结中未改生产；不以静审代视觉/硬件验收。
+
+## v26 实图首验：需修，不作视觉通过
+
+Astra实际查看 `build/rail-device-status-2026-10-29/light.png`：两个设备归属与事实可读，但动作图标贴左、文字偏右；透明动作底与设备组同色，状态和操作缺少清晰边界。对应静审疑点得到真实图确认。
+
+Sol下一包定点修：动作独立surface底（浅色白、深色对应surface），8dp圆角/轻边界；左右margin4dp、上margin4dp，保48dp最小命中及长文本自然高。20dp图标+8dp间距+实际文字作为整体居中，依赖真实Layout边缘而非固定猜字宽，兼顾RTL/多行；kind缓存不变。组高真实测量自动纳入新增margin，不压字或动作高度。v27再验浅深及可达禁用/重试状态。
+
+root报告v26构建/lint/资源通过，354单测零failure、1skip，同签名安装及17数据文件保持；提交6f2cb91尚未push。软件通过不覆盖上述视觉缺陷，不外推硬件。
+
+## v27 定点修复静审（实图待验）
+
+动作改独立surface/disabled底、8dp圆角、左右/上4dp margin；20dp图形与8dp间距通过28dp ReplacementSpan进入同一居中文字行，消除compoundDrawable贴左问题。文本变化复用span、kind变化才重建图形，无障碍描述独立不含占位符。状态和命令逻辑未动，静审可进入本台浅深实图。
+
+getSize未额外修改字体metrics，依赖现20sp行高/48dp按钮承载20dp图形；多行及RTL/混合文字未实图验证，不外推。本轮不操作真实机器/秤取证，不装辅助测试包；UNKNOWN等以单测/静审证据记录，正常态原图另记。
