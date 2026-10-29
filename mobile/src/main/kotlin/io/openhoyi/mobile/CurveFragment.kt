@@ -351,6 +351,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             isVerticalScrollBarEnabled = false
             addView(LinearLayout(host).apply {
                 orientation = LinearLayout.VERTICAL
+                setPadding(dp(16), dp(16), dp(16), dp(16))
                 addView(recipePlan, LinearLayout.LayoutParams(-1, -2))
             }, FrameLayout.LayoutParams(-1, -2))
             background = productStyle.shape(productStyle.surface, true)

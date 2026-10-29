@@ -106,3 +106,14 @@ root最终确认`build-v20.log` SUCCESS 2m17：350tests零failure/零error、1sk
 已完成本轮实现、静审、有限实图及软件验收；未执行的原生矩阵/硬件保留边界。文档冻结，交root普通提交/push PR4，不预记合并或发布。
 
 root补充最终localization Python 22 tests及git policy 8 tests通过。剩余未勾交付步骤是root尚待执行提交/push，不是Sol待实现。
+
+
+## v21 详情内边距小修与有限验收
+
+用户指出右侧详情贴边。本轮继续 `feature/task-first-ui → develop` / PR4，不发版；只在 `CurveFragment.detailScroll` 的内容 wrapper 增加四边 16dp padding。标题、阶段卡、水量标签与分配带、条件和建议对齐同一内缘；卡内字号/间距、列表、顶部摘要、固定动作及所有业务门禁不变。回退仅撤销该显示层一行，不改用户数据或协议。
+
+- [x] 静审：生产 diff 仅 wrapper 的 `setPadding(dp(16), dp(16), dp(16), dp(16))`，不叠加卡内 padding，不改变滚动或动作回调。
+- [x] 实图：Astra实际查看 `build/curve-padding-2026-10-29/turbo-light.png`、`turbo-bottom-light.png`、`turbo-dark.png`。浅深首屏标题、两阶段卡与分配带均有一致左右留白，顶部不再贴圆角；浅色滚到底后建议全文及底部留白可见。固定“查看全部参数”与“使用此曲线”保持完整，列表仍六完整项。本台中文 Turbo 所见范围通过。
+- [x] root报告 Mock/Debug 构建及 lint 成功（1m45），v21同签名递增覆盖安装、APK hash一致，17数据文件hash保持。本轮未重新运行350单测，不作为本轮新增通过证据；未外推其它配方/字体/硬件。
+
+本轮文档冻结，可由root普通提交/push至原PR4；未预记CI、合并或发布。
