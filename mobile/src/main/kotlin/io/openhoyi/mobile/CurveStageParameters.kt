@@ -6,16 +6,33 @@ internal object CurveStageParameters {
     data class Stage(val target: Int, val unit: Unit)
     data class Preview(val stages: List<Stage>) {
         val renderable: Boolean get() = stages.isNotEmpty() && stages.all { stage -> when (stage.unit) {
-            Unit.PRESSURE_BAR -> stage.target in 0..120
+            Unit.PRESSURE_BAR -> stage.target in 0..255
             Unit.FLOW_ML_PER_SECOND -> stage.target in 0..255
             Unit.RAW_UNKNOWN -> false
         } }
         val mixed: Boolean get() = stages.map { it.unit }.distinct().size > 1
         val hasFlow: Boolean get() = stages.any { it.unit == Unit.FLOW_ML_PER_SECOND }
         val hasPressure: Boolean get() = stages.any { it.unit == Unit.PRESSURE_BAR }
+        val pressureAxisMax: Float get() {
+            val max = stages.filter { it.unit == Unit.PRESSURE_BAR }.maxOfOrNull { it.target } ?: 0
+            return listOf(12f, 16f, 20f, 30f).first { max / 10f <= it }
+        }
         val flowAxisMax: Float get() {
             val max = stages.filter { it.unit == Unit.FLOW_ML_PER_SECOND }.maxOfOrNull { it.target } ?: 0
             return listOf(6f, 10f, 20f, 30f).first { max / 10f <= it }
+        }
+    }
+    data class SharedScale(val pressureMaxBar: Float, val flowMaxMlPerSecond: Float) {
+        companion object {
+            fun from(items: List<CurveLibraryItem>): SharedScale {
+                val stages = items.flatMap { preview(it).stages }
+                val pressure = stages.filter { it.unit == Unit.PRESSURE_BAR && it.target in 0..255 }
+                    .maxOfOrNull { it.target } ?: 0
+                val flow = stages.filter { it.unit == Unit.FLOW_ML_PER_SECOND && it.target in 0..255 }
+                    .maxOfOrNull { it.target } ?: 0
+                return SharedScale(listOf(12f, 16f, 20f, 30f).first { pressure / 10f <= it },
+                    listOf(6f, 10f, 20f, 30f).first { flow / 10f <= it })
+            }
         }
     }
 

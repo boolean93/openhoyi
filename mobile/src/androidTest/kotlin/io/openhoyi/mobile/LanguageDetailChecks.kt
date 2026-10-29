@@ -143,25 +143,32 @@ internal class LanguageDetailChecks(private val test: Instrumentation) {
                 check(details.text.toString() == display.render(item, allowed))
                 check(availability.text.toString() == activity.getString(if (allowed) R.string.curve_verified else R.string.curve_unavailable))
                 check(select.isEnabled == allowed && select.text.toString() == activity.getString(if (allowed) R.string.curve_use else R.string.curve_cannot_start))
-                val chart = value(activity, "stageChart") as CurveStageView
-                if (chart.isShown) {
-                    check(chart.targets == CurveStageParameters.pressureTargets(item) && chart.height >= HoyiUi.dp(activity, 96)) {
-                        "$fixture detail=$kind unusable or incorrect pressure schematic"
-                    }
-                    check(scroll.isShown && scroll.height > 0)
+                val plan = value(activity, "recipePlan") as CurveRecipePlanView
+                if (scroll.isShown) {
+                    val preview = CurveStageParameters.preview(item)
+                    check(plan.isShown && preview.stages.isNotEmpty() &&
+                        (0 until preview.stages.size).all { index ->
+                            plan.findViewWithTag<View>("product/curve-library/stage/${index + 1}")?.isShown == true
+                        }) { "$fixture detail=$kind stage cards do not match real stages" }
+                    check(scroll.height > 0)
                 } else {
                     val fallback = value(activity, "previewFallbackScroll") as ScrollView
                     val text = value(activity, "previewFallback") as TextView
                     check(fallback.isShown && fallback.height > 0 && text.text.isNotBlank()) {
                         "$fixture detail=$kind missing explicit preview fallback"
                     }
-                    if (CurveStageParameters.pressureTargets(item).isEmpty()) {
-                        check(text.text.contains(activity.getString(R.string.task_curve_library_no_pressure)))
-                    } else {
-                        CurveStageParameters.pressureTargets(item).forEachIndexed { index, target ->
-                            check(text.text.contains(activity.getString(R.string.reference_stage, (index + 1).toString(),
-                                String.format(java.util.Locale.ROOT, "%.1f", target / 10.0))))
+                    val preview = CurveStageParameters.preview(item)
+                    if (preview.stages.isEmpty()) check(text.text.contains(activity.getString(R.string.task_curve_library_no_pressure)))
+                    preview.stages.forEachIndexed { index, stage ->
+                        val target = if (stage.unit == CurveStageParameters.Unit.RAW_UNKNOWN) stage.target.toString()
+                            else String.format(java.util.Locale.ROOT, "%.1f", stage.target / 10.0)
+                        val unit = when (stage.unit) {
+                            CurveStageParameters.Unit.PRESSURE_BAR -> "bar"
+                            CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> "mL/s"
+                            CurveStageParameters.Unit.RAW_UNKNOWN -> activity.getString(R.string.curve_control_mode_raw)
                         }
+                        check(text.text.contains(target) && text.text.contains(unit) &&
+                            text.text.contains(activity.getString(R.string.profiles_stage, index + 1)))
                     }
                     LanguageUiLayoutChecks.textFits(text, "$fixture detail=$kind explicit fallback")
                 }

@@ -5,12 +5,16 @@ import android.view.View
 import android.widget.LinearLayout
 
 /** Stable list/detail regions. Measurement never changes selection, search or preferences. */
-internal class TaskCollectionLayout(context: Context, private val browserFraction: Float = .4f) : LinearLayout(context) {
+internal class TaskCollectionLayout(context: Context, private val browserFraction: Float = .4f,
+    private val retainTwoPaneDuringIme: Boolean = false) : LinearLayout(context) {
     val browserBody = LinearLayout(context).apply { orientation = VERTICAL }
     val detailBody = LinearLayout(context).apply { orientation = VERTICAL }
     private var twoPane: Boolean? = null
     var onPresentationChanged: ((twoPane: Boolean, detailVisible: Boolean) -> Unit)? = null
     var onDetailSpaceAvailable: ((width: Int, height: Int) -> Unit)? = null
+    var onImeVisibilityChanged: ((Boolean) -> Unit)? = null
+    private var measuredImeVisible: Boolean? = null
+    private var imeCallbackPosted = false
     var detailRequested = false
         set(value) {
             if (field == value) return
@@ -37,8 +41,21 @@ internal class TaskCollectionLayout(context: Context, private val browserFractio
         fun dp(value: Int) = (value * density).toInt()
         val width = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+        val imeVisible = retainTwoPaneDuringIme && android.os.Build.VERSION.SDK_INT >= 30 &&
+            rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) == true
+        if (retainTwoPaneDuringIme && measuredImeVisible != imeVisible) {
+            measuredImeVisible = imeVisible
+            if (!imeCallbackPosted) {
+                imeCallbackPosted = true
+                post {
+                    imeCallbackPosted = false
+                    measuredImeVisible?.let { onImeVisibilityChanged?.invoke(it) }
+                }
+            }
+        }
+        val policyHeight = if (imeVisible) maxOf((height / density).toInt(), 360) else (height / density).toInt()
         val split = TaskLayoutPolicy.decide(resources.configuration.screenWidthDp.coerceAtLeast(1),
-            (height / density).toInt()).twoPaneAllowed && width >= dp(320 + 280 + 24)
+            policyHeight).twoPaneAllowed && width >= dp(320 + 280 + 24)
         val browserWidth = if (split) (width * browserFraction).toInt().coerceIn(dp(320), width - dp(280 + 24)) else width
         val changed = twoPane != split
         twoPane = split

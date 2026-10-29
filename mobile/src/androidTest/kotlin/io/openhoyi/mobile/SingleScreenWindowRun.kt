@@ -259,8 +259,12 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                         SingleScreenPageChecks.verify(activity, expectedLegacyShot = expectedLegacyFixture(activity))
                         if (pageName == "CurveActivity") {
                             val fragment = (activity as MainActivity).supportFragmentManager.primaryNavigationFragment as CurveFragment
-                            val chart = CurveFragment::class.java.getDeclaredField("stageChart").apply { isAccessible = true }.get(fragment) as CurveStageView
-                            check(chart.isShown && chart.targets.isNotEmpty()) { "Selected curve has no preview" }
+                            val plan = CurveFragment::class.java.getDeclaredField("recipePlan").apply { isAccessible = true }.get(fragment) as CurveRecipePlanView
+                            val selected = CurveFragment::class.java.getDeclaredField("selected").apply { isAccessible = true }.get(fragment) as CurveLibraryItem
+                            val stages = CurveStageParameters.preview(selected).stages
+                            check(plan.isShown && stages.isNotEmpty() && (1..stages.size).all {
+                                plan.findViewWithTag<View>("product/curve-library/stage/$it")?.isShown == true
+                            }) { "Selected curve has no visible stage-card preview" }
                         } else {
                             val fragment = (activity as MainActivity).supportFragmentManager.primaryNavigationFragment as HistoryFragment
                             val list = HistoryFragment::class.java.getDeclaredField("historyList").apply { isAccessible = true }.get(fragment) as ListView

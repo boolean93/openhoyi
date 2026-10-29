@@ -7,8 +7,11 @@ import java.util.Locale
 
 /** Read-only recipe values, not live telemetry or a start eligibility decision. */
 internal class CurvePreviewMetrics(private val activity:ThemedActivity,
-    private val productVisualStyle: TaskProductVisualStyle? = null):LinearLayout(activity) {
-    private val titles=listOf(R.string.curve_preview_temperature,R.string.curve_preview_weight,R.string.curve_preview_stages)
+    private val productVisualStyle: TaskProductVisualStyle? = null,
+    private val waterSummary: Boolean = false):LinearLayout(activity) {
+    private val titles=listOf(R.string.curve_preview_temperature,
+        if (waterSummary) R.string.curve_plan_total_water else R.string.curve_preview_weight,
+        R.string.curve_preview_stages)
     private val values:List<TextView>
     private val units = mutableListOf<TextView>()
     init {
@@ -33,7 +36,8 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity,
                     if (index == 2) 0 else HoyiUi.dp(activity,16), 0)
                 productVisualStyle.add(column, productVisualStyle.text(activity.getString(title),
                     TaskProductVisualStyle.auxiliary, "product/curve-library/summary/$index/label", true))
-                val quantity = productVisualStyle.quantity("—", if (index == 0) "°C" else if (index == 1) "g" else null,
+                val quantity = productVisualStyle.quantity("—", if (index == 0) "°C" else if (index == 1)
+                    if (waterSummary) "mL" else "g" else null,
                     TaskProductVisualStyle.shareMetric, "product/curve-library/summary/$index")
                 productVisualStyle.add(column, quantity, 8)
                 if (index < 2) units += quantity.getChildAt(1) as TextView
@@ -60,16 +64,19 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity,
         val draft=item.customDocument
         val factory=item.factoryCurve
         val captured=item.controlProfile
+        val waterLimit = if (waterSummary) CurveRecipePlan.from(item).totalWaterLimitMl else null
         val temperature=draft?.temperatureC ?: factory?.temperatureC ?: captured?.temperatureC
         val weight=draft?.targetHundredthsGram ?: factory?.weightTenthsGram?.times(10) ?: captured?.targetHundredthsGram
         val stages=draft?.stages?.size ?: factory?.segmentCount ?: captured?.parameters?.segmentCount
         val formatted=listOf(temperature?.let { "$it °C" } ?: "—",
-            weight?.let { if(it==0) activity.getString(R.string.curve_details_no_weight)
-                else String.format(Locale.getDefault(),"%.2f g",it/100.0) } ?: "—",
+            if (waterSummary) waterLimit?.let { "$it mL" } ?: "—" else
+                weight?.let { if(it==0) activity.getString(R.string.curve_details_no_weight)
+                    else String.format(Locale.getDefault(),"%.2f g",it/100.0) } ?: "—",
             stages?.toString() ?: "—")
         values.zip(formatted).forEachIndexed { index, (view,value) ->
             val unit = when {
                 index == 0 && temperature != null -> "°C"
+                index == 1 && waterSummary -> if (waterLimit != null) "mL" else null
                 index == 1 && weight != null && weight != 0 -> "g"
                 else -> null
             }
@@ -77,8 +84,9 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity,
             else {
                 view.text = when (index) {
                     0 -> temperature?.toString() ?: "—"
-                    1 -> weight?.let { if (it == 0) activity.getString(R.string.curve_details_no_weight)
-                        else String.format(Locale.getDefault(), "%.2f", it / 100.0) } ?: "—"
+                    1 -> if (waterSummary) waterLimit?.toString() ?: "—" else
+                        weight?.let { if (it == 0) activity.getString(R.string.curve_details_no_weight)
+                            else String.format(Locale.getDefault(), "%.2f", it / 100.0) } ?: "—"
                     else -> stages?.toString() ?: "—"
                 }
                 units.getOrNull(index)?.visibility = if (unit == null) android.view.View.GONE else android.view.View.VISIBLE

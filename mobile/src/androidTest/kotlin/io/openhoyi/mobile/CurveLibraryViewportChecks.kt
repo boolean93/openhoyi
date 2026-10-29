@@ -5,6 +5,10 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.view.View
+import android.view.WindowInsets
+import android.view.inputmethod.InputMethodManager
+import android.content.Context
+import android.os.SystemClock
 import android.widget.Button
 import android.widget.ScrollView
 import android.widget.TextView
@@ -17,6 +21,78 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
         var failure: Throwable? = null
         test.runOnMainSync { try { action() } catch (error: Throwable) { failure = error } }
         failure?.let { throw it }
+    }
+    private fun imeSearchRegression(activity: MainActivity, fragment: CurveFragment, app: MobileApplication) {
+        if (activity.resources.configuration.screenWidthDp < 840) return
+        fun field(name: String) = CurveFragment::class.java.getDeclaredField(name).apply { isAccessible = true }.get(fragment)
+        val show = CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java).apply { isAccessible = true }
+        val search = field("search") as android.widget.EditText
+        val collection = field("collection") as TaskCollectionLayout
+        val list = field("curveList") as android.widget.ListView
+        val sort = activity.window.decorView.findViewWithTag<View>("product/curve-library/sort")
+        val filter = activity.window.decorView.findViewWithTag<View>("product/curve-library/filter")
+        val count = activity.window.decorView.findViewWithTag<View>("product/curve-library/count")
+        val original = field("selected") as CurveLibraryItem?
+        val originalQuery = search.text.toString()
+        val selected = app.curves.items.first { it.factoryCurve != null && it.name.length >= 5 }
+        val input = activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        fun ime(visible: Boolean) {
+            val deadline = SystemClock.elapsedRealtime() + 5000
+            while (SystemClock.elapsedRealtime() < deadline) {
+                var state = false
+                main { state = activity.window.decorView.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) == true }
+                if (state == visible) return
+                test.waitForIdleSync(); SystemClock.sleep(20)
+            }
+            error("Curve library IME visibility did not become $visible")
+        }
+        try {
+            main {
+                show.invoke(fragment, selected)
+                search.setText(selected.name.take(2))
+                search.setSelection(search.length())
+                check(search.requestFocus())
+                input.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT)
+            }
+            ime(true)
+            test.waitForIdleSync()
+            main {
+                val fullResult = (0 until list.childCount).mapNotNull(list::getChildAt)
+                    .any { it.top >= 0 && it.bottom <= list.height && it.isShown }
+                check(sort.visibility == View.GONE && filter.visibility == View.GONE && count.visibility == View.GONE &&
+                    list.height >= HoyiUi.dp(activity, 64) && fullResult) {
+                    "IME search did not leave a complete curve result visible" }
+            }
+            for (query in listOf(selected.name.take(3), selected.name.take(5))) {
+                main {
+                    search.setText(query); search.setSelection(query.length - 1)
+                    check(search.hasFocus() && search.selectionStart == query.length - 1 &&
+                        collection.browserBody.isShown && collection.detailBody.isShown &&
+                        (field("selected") as CurveLibraryItem).id == selected.id &&
+                        list.count == CurveSearch.filter(app.curves.items, CurveCategoryFilter.ALL, query).size) {
+                        "IME search changed curve two-pane state, focus, caret, selection, or live result"
+                    }
+                }
+            }
+            main { input.hideSoftInputFromWindow(search.windowToken, 0) }
+            ime(false)
+            test.waitForIdleSync()
+            main { check(sort.visibility == View.VISIBLE && filter.visibility == View.VISIBLE && count.visibility == View.VISIBLE) }
+            main { input.showSoftInput(search, InputMethodManager.SHOW_IMPLICIT) }
+            ime(true)
+            main {
+                check(search.text.toString() == selected.name.take(5) && search.selectionStart == selected.name.take(5).length - 1 &&
+                    search.hasFocus() && collection.browserBody.isShown && collection.detailBody.isShown &&
+                    (field("selected") as CurveLibraryItem).id == selected.id)
+            }
+        } finally {
+            main {
+                input.hideSoftInputFromWindow(search.windowToken, 0)
+                search.setText(originalQuery); search.clearFocus()
+                original?.let { show.invoke(fragment, it) }
+            }
+            test.waitForIdleSync()
+        }
     }
     private fun returnIntentRegression(activity: MainActivity, fragment: CurveFragment, app: MobileApplication, directory: File) {
         fun field(name: String) = CurveFragment::class.java.getDeclaredField(name).apply { isAccessible = true }.get(fragment)
@@ -43,7 +119,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
         val pressure = app.curves.items.filter { CurveStageParameters.pressureTargets(it).isNotEmpty() }
             .maxByOrNull { CurveDetailsText(activity).render(it, app.curves.canStart(it)).length }
             ?: error("No pressure curve for return-intent regression")
-        val noPressure = app.curves.items.first { it.factoryCurve != null && CurveStageParameters.pressureTargets(it).isEmpty() }
+        val mixed = app.curves.items.first { it.factoryCurve != null && CurveStageParameters.preview(it).mixed }
         fun viewport() = list.firstVisiblePosition to (list.getChildAt(0)?.top ?: 0)
         fun selectedId() = (field("selected") as CurveLibraryItem?)?.id
         fun refresh() { main { refreshPage.invoke(fragment) }; test.waitForIdleSync() }
@@ -86,23 +162,23 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         "Explicit Curve selection no longer resets detail preview scroll" }
                 }
             }
-            main { show.invoke(fragment, noPressure) }
+            main { show.invoke(fragment, mixed) }
             test.waitForIdleSync()
             main {
-                fallbackRange = (fallback.getChildAt(0).height - fallback.height).coerceAtLeast(0)
-                if (fallbackRange > 0) { fallback.scrollTo(0, fallbackRange); check(fallback.scrollY > 0) }
-                fallbackBefore = fallback.scrollY
+                fallbackRange = (detail.getChildAt(0).height - detail.height).coerceAtLeast(0)
+                if (fallbackRange > 0) { detail.scrollTo(0, fallbackRange); check(detail.scrollY > 0) }
+                fallbackBefore = detail.scrollY
                 before = viewport()
             }
             refresh()
             main {
-                check(collection.detailRequested && selectedId() == noPressure.id && viewport() == before)
-                if (fallbackRange > 0) check(fallback.scrollY == fallbackBefore) {
-                    "Curve return reset nonzero fallback preview scroll" }
+                check(collection.detailRequested && selectedId() == mixed.id && viewport() == before)
+                if (fallbackRange > 0) check(detail.scrollY == fallbackBefore) {
+                    "Curve return reset nonzero mixed-stage card scroll" }
             }
             File(directory, "return-intent-regression.txt").writeText(
                 "twoPaneFalseAndTruePreserved=true explicitShowRequested=true detailNonzeroCovered=${detailRange > 0} " +
-                    "fallbackNonzeroCovered=${fallbackRange > 0} detailRangePx=$detailRange fallbackRangePx=$fallbackRange\n")
+                    "mixedDetailNonzeroCovered=${fallbackRange > 0} detailRangePx=$detailRange mixedDetailRangePx=$fallbackRange\n")
         } catch (error: Throwable) {
             failure = error
             throw error
@@ -146,7 +222,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
                     .apply { isAccessible = true }.invoke(fragment, chosen)
                 val collection = activity.window.decorView.findViewWithTag<TaskCollectionLayout>("task-collection")
-                val chart = field("stageChart") as CurveStageView
+                val plan = field("recipePlan") as CurveRecipePlanView
                 val fallback = field("previewFallbackScroll") as ScrollView
                 val text = field("previewFallback") as TextView
                 val metrics = field("previewMetrics") as CurvePreviewMetrics
@@ -191,11 +267,12 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                             "$name detail control/fallback clipped: ${child.javaClass.simpleName} ${child.top}..${child.bottom}/${collection.detailBody.height}"
                         }
                     }
-                    if (chart.visibility == View.VISIBLE) {
+                    if (plan.isShown) {
                         val preview = CurveStageParameters.preview(chosen)
-                        check(preview.renderable && if (preview.hasFlow) chart.preview == preview
-                            else chart.targets == preview.stages.map { it.target }) {
-                            "$name actual stage plot does not match per-stage control targets"
+                        check(preview.stages.isNotEmpty() && (1..preview.stages.size).all {
+                            plan.findViewWithTag<View>("product/curve-library/stage/$it")?.isShown == true
+                        }) {
+                            "$name actual stage cards do not match per-stage control targets"
                         }
                         check(metrics.visibility == View.VISIBLE && metrics.contentDescription.isNotBlank())
                         check(metrics.childCount == 3) { "$name recipe metrics lost a column" }
@@ -234,7 +311,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                                 }
                             }
                         }
-                        check(chart.height >= HoyiUi.dp(activity, 96) && ability.visibility == View.VISIBLE && ability.parent != null)
+                        check(plan.height > 0 && ability.visibility == View.VISIBLE && ability.parent != null)
                     } else {
                         check(fallback.visibility == View.VISIBLE && fallback.height > 0)
                         val preview = CurveStageParameters.preview(chosen)
@@ -269,9 +346,9 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 }
                 try {
                     val compactWidth = HoyiUi.dp(activity, 360)
-                    measure("normal", compactWidth, HoyiUi.dp(activity, 640)); check(chart.visibility == View.VISIBLE)
+                    measure("normal", compactWidth, HoyiUi.dp(activity, 640)); check(plan.isShown)
                     measure("short-180dp", compactWidth, HoyiUi.dp(activity, 180))
-                    measure("recovered", compactWidth, HoyiUi.dp(activity, 640)); check(chart.visibility == View.VISIBLE)
+                    measure("recovered", compactWidth, HoyiUi.dp(activity, 640)); check(plan.isShown)
                     for ((kind, item) in listOf(
                         "noPressure" to app.curves.items.first { it.factoryCurve != null && CurveStageParameters.pressureTargets(it).isEmpty() },
                         "fourStage" to CurveFooterFixtures.fourStage(app.curves))) {
@@ -294,6 +371,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
             }
             test.waitForIdleSync()
             returnIntentRegression(activity, fragment, app, File(context.getExternalFilesDir(null), "curve-library-checks"))
+            imeSearchRegression(activity, fragment, app)
             val frames = java.util.concurrent.CountDownLatch(1)
             main {
                 activity.window.decorView.postOnAnimation {

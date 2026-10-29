@@ -157,12 +157,22 @@ internal object SingleScreenPageChecks {
                         .apply { isAccessible = true }.get(active) as TextView
                     check(text.text.isNotBlank())
                     LanguageUiLayoutChecks.textFits(text, "$fixture local stage fallback")
+                } else if (viewport === CurveFragment::class.java.getDeclaredField("detailScroll")
+                        .apply { isAccessible = true }.get(active) as ScrollView) {
+                    val plan = CurveFragment::class.java.getDeclaredField("recipePlan")
+                        .apply { isAccessible = true }.get(active) as CurveRecipePlanView
+                    val selected = CurveFragment::class.java.getDeclaredField("selected")
+                        .apply { isAccessible = true }.get(active) as? CurveLibraryItem
+                    if (selected != null && viewport.isShown) check(plan.isShown &&
+                        (1..CurveStageParameters.preview(selected).stages.size).all {
+                            plan.findViewWithTag<View>("product/curve-library/stage/$it") != null
+                        }) { "$fixture local recipe stage cards missing" }
                 } else check(viewport.childCount == 0 || viewport.getChildAt(0).height <= viewport.height - viewport.paddingTop - viewport.paddingBottom) {
                     "$fixture normal graphical preview unexpectedly scrolls"
                 }
             }
         }
-        views.filter { it is TwoCupChartView || it is ShotChartView || it is CurveStageView || it is ExtractionOverlayView || it is LegacyShotChartView }.forEach { chart ->
+        views.filter { it.isShown && (it is TwoCupChartView || it is ShotChartView || it is CurveStageView || it is ExtractionOverlayView || it is LegacyShotChartView) }.forEach { chart ->
             visibleFully(chart)
             check(chart.height >= HoyiUi.dp(activity, 96)) { "$fixture chart lost its usable viewport: ${chart.height}" }
             if (chart is ExtractionOverlayView && HoyiUi.wide(activity)) check(chart.height >= content.height * .4f) {

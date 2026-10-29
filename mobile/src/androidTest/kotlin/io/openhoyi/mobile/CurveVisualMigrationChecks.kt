@@ -594,9 +594,11 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val unit=requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/unit"))
         val a=IntArray(2); val b=IntArray(2); number.getLocationOnScreen(a); unit.getLocationOnScreen(b)
         val delta=a[1]+number.baseline-b[1]-unit.baseline
+        val absentWaterUnit=activity is MainActivity && index==1 && unit.visibility==View.GONE
         JSONObject().put("numberId",number.tag).put("unitId",unit.tag).put("deltaPx",delta)
             .put("numberBaselineScreenPx",a[1]+number.baseline).put("unitBaselineScreenPx",b[1]+unit.baseline)
-            .put("status",if(number.isShown && unit.isShown && number.baseline>=0 && unit.baseline>=0 && delta==0)
+            .put("status",if(absentWaterUnit && number.isShown && number.text.toString()=="—")
+                "NOT_APPLICABLE_MODEL_NULL_WATER_UNIT" else if(number.isShown && unit.isShown && number.baseline>=0 && unit.baseline>=0 && delta==0)
                 "PASS_LAYOUT_ONLY_NOT_VISUAL_ACCEPTANCE" else "FAIL")
     })
     private fun librarySpecialBaselines(activity: Activity, fixture: JSONObject, fallbackText: String): JSONArray =
@@ -830,12 +832,10 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
     private fun libraryFixture(item: CurveLibraryItem, scope: Scope,
         displayContext: Context = AppLanguageContext.wrap(context,app.languagePreferences.current)): JSONObject {
         val copyable=runCatching { CustomCurveDocument.fromLibraryItem(item) }.getOrNull()
-        val weight=item.customDocument?.targetHundredthsGram ?: item.factoryCurve?.weightTenthsGram?.times(10)
-            ?: item.controlProfile?.targetHundredthsGram
+        val waterLimit=item.factoryCurve?.flowMl ?: item.controlProfile?.maximumWaterMl
         val temperature=item.customDocument?.temperatureC ?: item.factoryCurve?.temperatureC ?: item.controlProfile?.temperatureC
         val stages=item.customDocument?.stages?.size ?: item.factoryCurve?.segmentCount ?: item.controlProfile?.parameters?.segmentCount
-        val values=listOf(temperature?.toString() ?: "—",weight?.let { if(it==0) displayContext.getString(R.string.curve_details_no_weight)
-            else String.format(java.util.Locale.getDefault(),"%.2f",it/100.0) } ?: "—",stages?.toString() ?: "—")
+        val values=listOf(temperature?.toString() ?: "—",waterLimit?.toString() ?: "—",stages?.toString() ?: "—")
         return JSONObject().put("id",item.id).put("name",item.name).put("category",item.category)
             .put("source",when { item.factoryCurve!=null -> "factory"; item.controlProfile!=null -> "captured";
                 item.customDocument!=null -> "owned-draft"; else -> "unknown" })
@@ -843,10 +843,45 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("capturedModel",item.controlProfile?.toString() ?: JSONObject.NULL)
             .put("customDocument",item.customDocument?.toJson() ?: JSONObject.NULL)
             .put("targets",JSONArray(CurveStageParameters.pressureTargets(item)))
-            .put("metricUnits",JSONArray(listOf("°C",if(weight==null || weight==0) JSONObject.NULL else "g",JSONObject.NULL)))
+            .put("metricUnits",JSONArray(listOf("°C",if(waterLimit==null) JSONObject.NULL else "mL",JSONObject.NULL)))
             .put("metricValues",JSONArray(values))
             .put("canStart",scope.curves.canStart(item)).put("copyable",copyable!=null)
             .put("slotEligible",item.factoryCurve!=null && scope.curves.canStart(item))
+    }
+    /** Draw the real 96×40 list view and verify each physical unit has painted pixels in its own stage slot. */
+    private fun librarySparklineEvidence(activity: Activity, preview: CurveStageParameters.Preview): JSONArray {
+        val sparkline=nodes(root(activity)).filterIsInstance<CurveLibrarySparklineView>()
+            .firstOrNull { it.preview==preview && it.isShown } ?: return JSONArray()
+        check(sparkline.width>0 && sparkline.height>0)
+        val bitmap=android.graphics.Bitmap.createBitmap(sparkline.width,sparkline.height,android.graphics.Bitmap.Config.ARGB_8888)
+        try {
+            sparkline.draw(android.graphics.Canvas(bitmap))
+            val style=TaskProductVisualStyle(activity)
+            val result=JSONArray()
+            preview.stages.forEachIndexed { index, stage ->
+                val expected=when(stage.unit) {
+                    CurveStageParameters.Unit.PRESSURE_BAR -> style.pressure
+                    CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> style.accent
+                    CurveStageParameters.Unit.RAW_UNKNOWN -> return@forEachIndexed
+                }
+                val left=sparkline.width*index/preview.stages.size
+                val right=sparkline.width*(index+1)/preview.stages.size
+                var pixels=0
+                for(x in left until right) for(y in 0 until sparkline.height)
+                    if(bitmap.getPixel(x,y)==expected) pixels++
+                check(pixels>0) { "Library sparkline did not paint stage ${index+1} in its true unit" }
+                result.put(JSONObject().put("operation","stageTarget")
+                    .put("unit",if(stage.unit==CurveStageParameters.Unit.PRESSURE_BAR) "bar" else "mL/s")
+                    .put("targetTenths",stage.target).put("pixelCount",pixels))
+            }
+            if(!preview.renderable) {
+                check(result.length()==0)
+                for(x in 0 until bitmap.width) for(y in 0 until bitmap.height)
+                    check(bitmap.getPixel(x,y)==android.graphics.Color.TRANSPARENT) {
+                        "Unknown raw target painted a physical sparkline" }
+            }
+            return result
+        } finally { bitmap.recycle() }
     }
     private fun libraryDisclosureState(activity: Activity, item: CurveLibraryItem, scope: Scope,
         diagnosticFile: File? = null, expectedAssignedSlot: Int? = null): JSONObject {
@@ -864,7 +899,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val source=field(activity,"detailCategory") as TextView
         val availability=field(activity,"availability") as TextView
         val details=field(activity,"details") as TextView
-        val chart=field(activity,"stageChart") as CurveStageView
+        val plan=field(activity,"recipePlan") as CurveRecipePlanView
         val fallback=field(activity,"previewFallback") as TextView
         val fallbackScroll=field(activity,"previewFallbackScroll") as ScrollView
         val fallbackLines=JSONArray()
@@ -887,9 +922,43 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         line.bottom<=viewport.bottom && layout.getEllipsisCount(index)==0))
             }
         }
-        val targets=CurveStageParameters.pressureTargets(item)
+        val preview=CurveStageParameters.preview(item)
+        val recipe=CurveRecipePlan.from(item)
+        val stageCards=JSONArray()
+        preview.stages.forEachIndexed { index, stage ->
+            val card=requireNotNull(plan.findViewWithTag<ViewGroup>("product/curve-library/stage/${index+1}"))
+            val lines=nodes(card).filterIsInstance<TextView>().joinToString(" ") { it.text.toString() }
+            val target=if(stage.unit==CurveStageParameters.Unit.RAW_UNKNOWN) stage.target.toString()
+                else String.format(java.util.Locale.ROOT,"%.1f",stage.target/10.0)
+            val unit=when(stage.unit) {
+                CurveStageParameters.Unit.PRESSURE_BAR -> "bar"
+                CurveStageParameters.Unit.FLOW_ML_PER_SECOND -> "mL/s"
+                CurveStageParameters.Unit.RAW_UNKNOWN -> activity.getString(R.string.curve_control_mode_raw)
+            }
+            check(lines.contains(target) && lines.contains(unit)) { "Library stage ${index+1} lost real target/unit: $lines" }
+            val water=recipe.stageWaterTenthsMl.getOrNull(index)
+            val waterText=water?.let { if(it%10==0) "${it/10} mL" else
+                String.format(java.util.Locale.ROOT,"%.1f mL",it/10.0) } ?: "—"
+            check(lines.contains(waterText)) { "Library stage ${index+1} lost real assigned water: $lines" }
+            stageCards.put(JSONObject().put("index",index+1).put("targetTenths",stage.target)
+                .put("unit",unit).put("waterTenthsMl",water ?: JSONObject.NULL).put("shown",card.isShown))
+        }
+        val allocation=plan.findViewWithTag<View>("product/curve-library/water-allocation")
+        check((allocation!=null)==(recipe.assignedWaterTenthsMl>0 &&
+            recipe.stageWaterTenthsMl.size==preview.stages.size)) {
+            "Library water allocation visibility does not match real stage water" }
+        if(allocation!=null) recipe.stageWaterTenthsMl.forEachIndexed { index, water ->
+            val waterText=if(water%10==0) "${water/10} mL" else
+                String.format(java.util.Locale.ROOT,"%.1f mL",water/10.0)
+            val expected=activity.getString(R.string.curve_plan_stage_water_label,
+                index+1,waterText,String.format(java.util.Locale.ROOT,"%.1f",
+                    water*100.0/recipe.assignedWaterTenthsMl))
+            check(nodes(plan).filterIsInstance<TextView>().any { it.text.toString()==expected }) {
+                "Library stage ${index+1} water percentage is not rounded to one decimal: $expected" }
+        }
+        val draw=librarySparklineEvidence(activity,preview)
         val fixture=libraryFixture(item,scope,activity)
-        val expectedLabels=listOf(R.string.curve_preview_temperature,R.string.curve_preview_weight,R.string.curve_preview_stages)
+        val expectedLabels=listOf(R.string.curve_preview_temperature,R.string.curve_plan_total_water,R.string.curve_preview_stages)
         val summaryRows=(0..2).map { index ->
             val label=requireNotNull(root(activity).findViewWithTag<TextView>("product/curve-library/summary/$index/label"))
             val number=requireNotNull(root(activity).findViewWithTag<TextView>("product/curve-library/summary/$index/number"))
@@ -922,7 +991,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             " · "+activity.getString(R.string.curve_slot_assigned_latest,it.toString()) } ?: "")
         val expectedDetails=if(item.customDocument!=null) (activity as ThemedActivity).profileSummary(item.customDocument)
             else CurveDetailsText(activity).render(item,scope.curves.canStart(item))
-        check(title.text.toString()==item.name && chart.targets==targets &&
+        check(title.text.toString()==item.name &&
             source.text.toString()==expectedSource && availability.text.toString()==expectedAvailability &&
             details.text.toString()==expectedDetails && (field(activity,"selected") as CurveLibraryItem)==item)
         check((field(activity,"select") as Button).isEnabled==scope.curves.canStart(item))
@@ -941,17 +1010,18 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             check(whole(required.getJSONObject("product/curve-library/full-parameters")) &&
                 whole(required.getJSONObject("product/curve-library/use"))) { "M3 slot $expectedAssignedSlot footer obscured" }
         }
-        val preview=CurveStageParameters.preview(item)
-        check(!chart.isShown || preview.renderable && (if(preview.hasFlow) chart.preview==preview else
-            chart.targets==preview.stages.map { it.target })) { "M3 stage path lacks matching typed targets" }
+        val browserShown=(field(activity,"collection") as TaskCollectionLayout).browserBody.isShown
+        check(draw.length()==if(preview.renderable && browserShown) preview.stages.size else 0) {
+            "M3 list sparkline lacks real typed stage pixels" }
         return page.put("libraryDisclosure",JSONObject().put("itemId",item.id).put("title",observation(title))
             .put("source",observation(source)).put("availability",observation(availability))
             .put("baseAvailability",baseAvailability).put("visibleFeedbackOwner",feedbackOwner)
             .put("latestAssignedSlot",expectedAssignedSlot ?: JSONObject.NULL)
             .put("details",details.text.toString()).put("common",required)
             .put("metricValues",fixture.getJSONArray("metricValues")).put("metricUnits",fixture.getJSONArray("metricUnits"))
-            .put("actualChartTargets",JSONArray(chart.targets)).put("chartShown",chart.isShown)
-            .put("actualDrawOperations",chart.productDrawEvidence)
+            .put("actualStageCards",stageCards).put("chartShown",plan.isShown && preview.renderable)
+            .put("stageCardsShown",plan.isShown).put("fallbackShown",fallback.isShown)
+            .put("actualDrawOperations",draw)
             .put("fallback",observation(fallback)).put("fallbackText",fallback.text.toString())
             .put("fallbackLines",fallbackLines)
             .put("selectEnabled",(field(activity,"select") as Button).isEnabled)
@@ -1152,11 +1222,11 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     disclosure.getString("fallbackText").contains(disclosure.getString("baseAvailability")))
                 val targets=CurveStageParameters.pressureTargets(item)
                 val preview=CurveStageParameters.preview(item)
-                check(disclosure.getJSONArray("actualChartTargets").length()==targets.size)
+                check(disclosure.getJSONArray("actualStageCards").length()==preview.stages.size)
                 if(!preview.renderable) check(!disclosure.getBoolean("chartShown") &&
-                    disclosure.getString("fallbackText").contains(page.getString(if(preview.stages.any {
-                        it.unit==CurveStageParameters.Unit.RAW_UNKNOWN }) R.string.curve_control_mode_raw
-                        else R.string.task_curve_library_no_pressure)))
+                    (disclosure.getBoolean("stageCardsShown") || disclosure.getString("fallbackText").contains(
+                        page.getString(if(preview.stages.any { it.unit==CurveStageParameters.Unit.RAW_UNKNOWN })
+                            R.string.curve_control_mode_raw else R.string.task_curve_library_no_pressure))))
                 else check(disclosure.getBoolean("chartShown") || disclosure.getString("fallbackText").isNotBlank())
                 if(name=="mixed-flow") {
                     check(preview.mixed && preview.stages.map { it.unit }.containsAll(listOf(
@@ -1172,8 +1242,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                 }
                 if(name=="readonly-flow") check(!disclosure.getBoolean("selectEnabled") && !disclosure.getBoolean("editEnabled") &&
                     !disclosure.getBoolean("assignEnabled") && !disclosure.getBoolean("chartShown") &&
-                    disclosure.getString("fallbackText").contains(page.getString(R.string.curve_control_mode_raw)) &&
-                    preview.stages.all { disclosure.getString("fallbackText").contains(it.target.toString()) } &&
+                    (disclosure.getBoolean("stageCardsShown") || disclosure.getString("fallbackText").contains(page.getString(R.string.curve_control_mode_raw))) &&
+                    preview.stages.all { stage -> disclosure.getJSONArray("actualStageCards").toString().contains(stage.target.toString()) } &&
                     disclosure.getJSONObject("availability").getJSONArray("textLineBoxes").toString().contains(page.getString(R.string.profiles_read_only)))
                 File(case,"canvas.json").writeText(JSONObject().put("actualTargets",JSONArray(targets))
                     .put("chartShown",disclosure.getBoolean("chartShown"))
@@ -1217,7 +1287,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                         }
                     }
                 }
-                if(!disclosure.getBoolean("chartShown")) {
+                if(disclosure.getBoolean("fallbackShown")) {
                     val fallback=field(page,"previewFallback") as TextView
                     val first=disclosure.getJSONArray("fallbackLines")
                     check(first.length()>0 && disclosure.getString("fallbackText").isNotBlank())
@@ -2450,11 +2520,26 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
                     }
                 } else {
                     val pairs=baselines(activity); File(directory,"baseline-alignment.json").writeText(pairs.toString(2))
-                    val chart=nodes(root(activity)).filterIsInstance<CurveStageView>().single { it.productDrawEvidence.length()>0 }
-                    File(directory,"canvas.json").writeText(JSONObject().put("targets",JSONArray(chart.targets))
-                        .put("actualDrawOperations",chart.productDrawEvidence).toString(2))
-                    check(chart.targets==if(page=="library") active.document.stages.map { it.target } else active.incoming.stages.map { it.target })
-                    check(chart.isShown && chart.height>=HoyiUi.dp(activity,160)) { "M3 main pressure fixture chart missing or under 160dp" }
+                    if(page=="library") {
+                        val selected=field(activity,"selected") as CurveLibraryItem
+                        val plan=field(activity,"recipePlan") as CurveRecipePlanView
+                        val preview=CurveStageParameters.preview(selected)
+                        val visibleSparkline=nodes(root(activity)).filterIsInstance<CurveLibrarySparklineView>()
+                            .firstOrNull { it.isShown && it.preview.renderable }
+                        val draw=visibleSparkline?.let { librarySparklineEvidence(activity,it.preview) } ?: JSONArray()
+                        File(directory,"canvas.json").writeText(JSONObject().put("stageTargets",JSONArray(preview.stages.map { it.target }))
+                            .put("actualDrawOperations",draw).toString(2))
+                        check(preview.stages.map { it.target }==active.document.stages.map { it.target } &&
+                            plan.isShown && plan.height>=HoyiUi.dp(activity,160) &&
+                            draw.length()==visibleSparkline?.preview?.stages?.size) {
+                            "M3 main library stage cards or real list sparkline missing" }
+                    } else {
+                        val chart=nodes(root(activity)).filterIsInstance<CurveStageView>().single { it.productDrawEvidence.length()>0 }
+                        File(directory,"canvas.json").writeText(JSONObject().put("targets",JSONArray(chart.targets))
+                            .put("actualDrawOperations",chart.productDrawEvidence).toString(2))
+                        check(chart.targets==active.incoming.stages.map { it.target })
+                        check(chart.isShown && chart.height>=HoyiUi.dp(activity,160)) { "M3 main pressure fixture chart missing or under 160dp" }
+                    }
                     (0 until pairs.length()).forEach { check(pairs.getJSONObject(it).getString("status")!="FAIL") }
                     if(page=="library") {
                         check(list(activity).count==active.curves.items.size && list(activity).count==104)

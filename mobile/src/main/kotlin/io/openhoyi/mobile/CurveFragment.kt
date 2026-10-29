@@ -2,12 +2,10 @@ package io.openhoyi.mobile
 
 import android.app.AlertDialog
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
-import android.view.WindowInsets
 import android.widget.*
 
 /** Library browsing and selection are local only; no BLE command is sent here. */
@@ -21,7 +19,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private fun getColor(id:Int)=requireContext().getColor(id)
     private fun getSharedPreferences(name:String,mode:Int)=host.getSharedPreferences(name,mode)
     private val MODE_PRIVATE=android.content.Context.MODE_PRIVATE
-    private data class RowViews(val title: TextView, val subtitle: TextView, val preview: CurveStageView)
+    private data class RowViews(val title: TextView, val subtitle: TextView, val preview: CurveLibrarySparklineView)
     private lateinit var productStyle: TaskProductVisualStyle
     private lateinit var detailIdentity: LinearLayout
     val productLayoutEvidence = org.json.JSONObject()
@@ -39,7 +37,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private lateinit var curveList: ListView
     private lateinit var search: EditText
     private lateinit var resultCount: TextView
-    private lateinit var stageChart: CurveStageView
+    private lateinit var recipePlan: CurveRecipePlanView
+    private lateinit var usageDetails: TextView
     private lateinit var stageCaption: TextView
     private lateinit var browserPane: LinearLayout
     private lateinit var detailPanel: LinearLayout
@@ -63,6 +62,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private var category = CurveCategoryFilter.ALL
     private var sortMode = CurveSortMode.RECENT
     private var visibleItems = emptyList<CurveLibraryItem>()
+    private var sharedSparklineScale = CurveStageParameters.SharedScale(12f, 6f)
     private var selected: CurveLibraryItem? = null
     private var lastAssignedCurveId: String? = null
     private var lastAssignedSlot: Int? = null
@@ -85,13 +85,13 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         }
         val body = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(16), dp(16), dp(16))
+            setPadding(dp(16), dp(8), dp(16), dp(8))
         }
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         val pageHeader = HoyiUi.header(host, body, getString(R.string.curve_title))
         pageHeader.tag = "product/curve-library/header"
         productStyle.styleHeader(pageHeader)
-        (pageHeader.layoutParams as LinearLayout.LayoutParams).bottomMargin = dp(16)
+        (pageHeader.layoutParams as LinearLayout.LayoutParams).bottomMargin = dp(8)
         pageHeader.foreground = object : android.graphics.drawable.Drawable() {
             private val paint = android.graphics.Paint().apply { color = productStyle.border; strokeWidth = resources.displayMetrics.density }
             override fun draw(canvas: android.graphics.Canvas) { canvas.drawLine(0f, bounds.bottom - paint.strokeWidth / 2, bounds.right.toFloat(), bounds.bottom - paint.strokeWidth / 2, paint) }
@@ -99,7 +99,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
             @Deprecated("Drawable opacity") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
         }
-        collection = TaskCollectionLayout(host, browserFraction = .34f)
+        collection = TaskCollectionLayout(host, browserFraction = .34f, retainTwoPaneDuringIme = true)
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f))
         compact = resources.configuration.screenWidthDp < 840
         browserPane = collection.browserBody
@@ -180,7 +180,9 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             HoyiUi.label(host, browser, getString(R.string.curve_usage_unavailable), 14, muted = true)
                 .apply { productStyle.apply(this, TaskProductVisualStyle.auxiliary, true) }
         val categories = CurveCategoryFilter.entries
-        val filter = HorizontalScrollView(host).apply { isHorizontalScrollBarEnabled = false }
+        val filter = HorizontalScrollView(host).apply {
+            isHorizontalScrollBarEnabled = false; tag = "product/curve-library/filter"
+        }
         val filterRow = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
         filter.addView(filterRow)
         browser.addView(filter, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
@@ -236,15 +238,12 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                 val row = convertView as? LinearLayout ?: LinearLayout(host).apply {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = android.view.Gravity.CENTER_VERTICAL
-                    minimumHeight = dp(76)
-                    setPadding(dp(16), dp(8), dp(16), dp(8))
-                    val thumbnail = CurveStageView(host).apply {
-                        compact = true
-                        pressureColor = true
-                        background = productStyle.shape(productStyle.surface, true, 8)
+                    minimumHeight = dp(64)
+                    setPadding(dp(16), dp(6), dp(16), dp(6))
+                    val thumbnail = CurveLibrarySparklineView(host, productStyle).apply {
                         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                     }
-                    addView(thumbnail, LinearLayout.LayoutParams(dp(78), dp(48)).apply { marginEnd = dp(8) })
+                    addView(thumbnail, LinearLayout.LayoutParams(dp(96), dp(40)).apply { marginEnd = dp(8) })
                     val words = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
                     addView(words, LinearLayout.LayoutParams(0, -2, 1f))
                     val title = HoyiUi.label(host, words, "", 16, true).apply {
@@ -254,7 +253,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                     }
                     val subtitle = HoyiUi.label(host, words, "", 14, muted = true).apply {
                         productStyle.apply(this, TaskProductVisualStyle.auxiliary, true)
-                        setPadding(0, dp(8), 0, 0)
+                        setPadding(0, dp(4), 0, 0)
                     }
                     addView(HomeVisualIcon(host, "chevron", productStyle.muted),
                         LinearLayout.LayoutParams(dp(16), dp(16)).apply { marginStart = dp(8) })
@@ -265,14 +264,14 @@ class CurveFragment : androidx.fragment.app.Fragment() {
                 views.title.text = item.name
                 views.title.tag = "product/curve-library/list/${item.id}/name"
                 views.subtitle.tag = "product/curve-library/list/${item.id}/summary"
-                views.subtitle.text = getString(R.string.curve_row_summary, if (item.customDocument != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(host, item.category), if (library.canStart(item)) getString(R.string.home_curve_startable) else getString(R.string.curve_browse_only))
                 val preview = CurveStageParameters.preview(item)
-                views.subtitle.append(" · " + getString(previewModeLabel(preview)))
-                (application as MobileApplication).curveUsageResult.getOrNull()?.let { ledger ->
-                    views.subtitle.append(getString(R.string.curve_usage_count, ledger.stats(item.id).count))
-                }
-                views.preview.preview = preview.takeIf { it.renderable && it.hasFlow }
-                views.preview.targets = if (preview.hasFlow) emptyList() else stageTargets(item)
+                views.subtitle.text = getString(previewModeLabel(preview))
+                views.preview.preview = preview
+                views.preview.scale = sharedSparklineScale
+                row.contentDescription = item.name + " · " + views.subtitle.text + " · " +
+                    getString(R.string.curve_row_summary,
+                        if (item.customDocument != null) getString(R.string.profiles_category) else CurveCategoryFilter.display(host, item.category),
+                        if (library.canStart(item)) getString(R.string.home_curve_startable) else getString(R.string.curve_browse_only))
                 row.isSelected = item.id == selected?.id
                 row.background = android.graphics.drawable.ColorDrawable(if (row.isSelected) productStyle.selected else android.graphics.Color.TRANSPARENT)
                 row.foreground = if (!row.isSelected) null else object : android.graphics.drawable.Drawable() {
@@ -333,24 +332,27 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             productStyle.apply(this, TaskProductVisualStyle.auxiliary)
             tag = "product/curve-library/availability"; visibility = View.GONE
         }
-        previewMetrics = CurvePreviewMetrics(host, productStyle).apply { visibility=View.GONE; tag="curve-preview-metrics" }
+        previewMetrics = CurvePreviewMetrics(host, productStyle, waterSummary = true).apply {
+            visibility=View.GONE; tag="curve-preview-metrics" }
         detailPane.addView(previewMetrics,LinearLayout.LayoutParams(-1,-2))
+        usageDetails = productStyle.text("", TaskProductVisualStyle.auxiliary,
+            "product/curve-library/usage-count", true)
+        detailPane.addView(usageDetails, LinearLayout.LayoutParams(-1, -2))
         stageHeading = HoyiUi.label(host, detailPane, getString(R.string.curve_library_stage_heading),
             TaskVisualTokens.SECTION_SP, true).apply {
             productStyle.apply(this, TaskProductVisualStyle.section)
             visibility = View.GONE
             setPadding(0, dp(8), 0, 0)
         }
-        stageChart = CurveStageView(host).apply {
-            productVisualStyle = productStyle; pressureColor = true; visibility = View.GONE
-            tag = "product/curve-library/chart"
-        }
-        // Kept as a bounded, non-overflowing viewport for existing layout selectors.
+        recipePlan = CurveRecipePlanView(host, productStyle)
         detailScroll = ScrollView(host).apply {
-            isFillViewport = true
+            isFillViewport = false
             visibility = View.GONE
             isVerticalScrollBarEnabled = false
-            addView(stageChart, FrameLayout.LayoutParams(-1, -1))
+            addView(LinearLayout(host).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(recipePlan, LinearLayout.LayoutParams(-1, -2))
+            }, FrameLayout.LayoutParams(-1, -2))
             background = productStyle.shape(productStyle.surface, true)
         }
         detailPane.addView(detailScroll, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
@@ -397,7 +399,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             isEnabled = false; visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { topMargin = dp(6) }
         }
-        val parameterDetails = HoyiUi.button(host, secondary, getString(R.string.curve_detail_title)) { showParameterDetails() }
+        val parameterDetails = HoyiUi.button(host, secondary, getString(R.string.curve_plan_all_parameters)) { showParameterDetails() }
         directEdit = HoyiUi.button(host, detailToolbar, getString(R.string.profiles_edit)) { editDraft.performClick() }.apply {
             productStyle.button(this); HomeVisualIcon.buttonIcon(this, "edit"); visibility = View.GONE
             layoutParams = LinearLayout.LayoutParams(-2, -2)
@@ -458,6 +460,13 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         initialId?.let(library::find)?.takeIf { it in visibleItems }?.let { item ->
             show(item)
             if (compact && savedInstanceState?.getBoolean("detailVisible") != true) showBrowser()
+        }
+        // The collection already reads IME insets during resize; apply chrome changes after measure.
+        collection.onImeVisibilityChanged = { visible ->
+            val controlVisibility = if (visible) View.GONE else View.VISIBLE
+            sort.visibility = controlVisibility
+            filter.visibility = controlVisibility
+            resultCount.visibility = controlVisibility
         }
         return root
     }
@@ -531,21 +540,22 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             lastAssignedSlot = null
         }
         selected = item
+        recipePlan.present(item)
         val preview = CurveStageParameters.preview(item)
-        stageChart.preview = preview.takeIf { it.renderable && it.hasFlow }
-        stageChart.targets = if (preview.hasFlow) emptyList() else stageTargets(item)
         val draft = item.customDocument
         previewMetrics.present(item)
+        usageDetails.text = (application as MobileApplication).curveUsageResult.getOrNull()?.let {
+            getString(R.string.curve_usage_count, it.stats(item.id).count)
+        } ?: getString(R.string.curve_usage_unavailable)
         previewMetrics.visibility=View.VISIBLE
-        val hasPressureSchematic = stageChart.targets.isNotEmpty() || stageChart.preview != null
+        val hasPressureSchematic = preview.stages.isNotEmpty()
         shortPreview = false
-        stageChart.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
         detailScroll.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
         previewFallbackScroll.visibility = if (hasPressureSchematic) View.GONE else View.VISIBLE
         previewFallbackScroll.layoutParams = LinearLayout.LayoutParams(-1, -2)
         previewFallback.text = previewFallbackText(preview)
         previewSpacer.visibility = if (hasPressureSchematic) View.GONE else View.VISIBLE
-        stageCaption.visibility = if (hasPressureSchematic) View.VISIBLE else View.GONE
+        stageCaption.visibility = View.GONE
         stageCaption.text = getString(when {
             preview.mixed -> R.string.curve_control_caption_mixed
             preview.hasFlow -> R.string.curve_control_caption_flow
@@ -593,9 +603,9 @@ class CurveFragment : androidx.fragment.app.Fragment() {
 
     private fun updatePreviewSpace(width: Int, height: Int) {
         val item = selected ?: return
-        if (!::stageChart.isInitialized) return
+        if (!::recipePlan.isInitialized) return
         val preview = CurveStageParameters.preview(item)
-        val hasPressure = stageChart.targets.isNotEmpty() || stageChart.preview != null
+        val hasPressure = preview.stages.isNotEmpty()
         val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
         val normalToolbar = listOf(detailTitle, directEdit, directShare, detailActions) + if (compact) listOf(detailBack) else emptyList()
         val directWidth = normalToolbar.sumOf { child ->
@@ -616,8 +626,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         // Measure the full normal presentation, even when its metadata is currently in fallback.
         // Otherwise hiding metadata would make the next measure flip back into a too-short plot.
         val actionHeight = naturalHeightOf(detailToolbar) + naturalHeightOf(selectionDock)
-        val metadataHeight = listOf(detailIdentity, previewMetrics).sumOf(::naturalHeightOf) +
-            if (hasPressure) naturalHeightOf(stageCaption) + naturalHeightOf(stageHeading) else 0
+        val metadataHeight = listOf(detailIdentity, previewMetrics, usageDetails).sumOf(::naturalHeightOf)
         val contentMinimum = if (hasPressure) dp(160) + dp(8)
             else {
                 rawReasonMeasure.measure(exactWidth, naturalHeight)
@@ -628,13 +637,12 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             .put("toolbarNaturalWidthPx", directWidth).put("directActions", direct)
             .put("actionNaturalHeightPx", actionHeight).put("metadataNaturalHeightPx", metadataHeight)
             .put("contentMinimumPx", contentMinimum).put("shortPreview", shortPreview)
-        listOf(detailIdentity, previewMetrics).forEach {
+        listOf(detailIdentity, previewMetrics, usageDetails).forEach {
             it.visibility = if (shortPreview) View.GONE else View.VISIBLE
         }
-        stageCaption.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
-        stageHeading.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
+        stageCaption.visibility = View.GONE
+        stageHeading.visibility = View.GONE
         detailScroll.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
-        stageChart.visibility = if (hasPressure && !shortPreview) View.VISIBLE else View.GONE
         val fallback = shortPreview || !hasPressure
         previewFallbackScroll.visibility = if (fallback) View.VISIBLE else View.GONE
         availability.accessibilityLiveRegion = if (shortPreview) View.ACCESSIBILITY_LIVE_REGION_NONE else View.ACCESSIBILITY_LIVE_REGION_POLITE
@@ -647,10 +655,14 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         previewSpacer.visibility = if (!hasPressure && !shortPreview) View.VISIBLE else View.GONE
         val fallbackText = if (shortPreview) listOf(
             item.name, detailCategory.text.toString(), previewMetrics.contentDescription.toString(), availability.text.toString(),
-            if (hasPressure) stageCaption.text.toString() else previewFallbackText(preview),
+            if (hasPressure) getString(R.string.curve_plan_title) else previewFallbackText(preview),
             if (hasPressure) getString(if (preview.hasFlow) R.string.curve_control_short_preview
                 else R.string.task_curve_library_short_preview,
-                preview.stages.mapIndexed { index, stage -> stageDescription(index, stage) }.joinToString("; ")) else "",
+                preview.stages.mapIndexed { index, stage ->
+                    val water = CurveRecipePlan.from(item).stageWaterTenthsMl.getOrNull(index)
+                    stageDescription(index, stage) + " · " + getString(R.string.curve_plan_stage_water) + " " +
+                        (water?.let { if (it % 10 == 0) "${it / 10} mL" else String.format(java.util.Locale.ROOT, "%.1f mL", it / 10.0) } ?: "—")
+                }.joinToString("; ")) else "",
         ).filter { it.isNotBlank() }.joinToString("\n\n") else previewFallbackText(preview)
         if (previewFallback.text.toString() != fallbackText) previewFallback.text = fallbackText
     }
@@ -664,6 +676,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
 
     private fun refreshList() {
         if (!::adapter.isInitialized || !::search.isInitialized) return
+        sharedSparklineScale = CurveStageParameters.SharedScale.from(library.items)
         val viewport = curveList.onSaveInstanceState()
         val filtered = CurveSearch.filter(library.items, category, search.text.toString())
         val ledger = (application as MobileApplication).curveUsageResult.getOrNull()
@@ -680,9 +693,6 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             detailScroll.visibility = View.GONE
             previewFallbackScroll.visibility = View.GONE
             previewSpacer.visibility = View.GONE
-            stageChart.preview = null
-            stageChart.targets = emptyList()
-            stageChart.visibility = View.GONE
             stageCaption.visibility = View.GONE
             detailTitle.text = getString(R.string.curve_detail_initial)
             detailTitle.visibility = View.VISIBLE
@@ -701,8 +711,6 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             shareParameters.visibility = View.GONE
         }
     }
-    private fun stageTargets(item: CurveLibraryItem): List<Int> = CurveStageParameters.preview(item)
-        .takeIf { it.renderable && !it.hasFlow }?.stages?.map { it.target }.orEmpty()
     private fun previewModeLabel(preview: CurveStageParameters.Preview): Int = when {
         preview.stages.any { it.unit == CurveStageParameters.Unit.RAW_UNKNOWN } -> R.string.curve_control_mode_raw
         preview.mixed -> R.string.curve_control_mode_mixed
