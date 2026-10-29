@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "a2f7dea978a91ff8035226bb7d32e8b161d90288e333bc4e3d39409e63555f9f",
+  "sha256": "965f919596910d0b1ccb3170ff358e36a58f26e5c08f73279251198f2981933a",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
@@ -558,7 +558,7 @@
     "curve_title": "曲线库",
     "curve_subtitle": "搜索、预览并选用曲线",
     "curve_back": "返回曲线列表",
-    "curve_search_hint": "搜索曲线名称",
+    "curve_search_hint": "搜索曲线",
     "curve_legacy": "旧版导入曲线",
     "curve_legacy_description": "查看旧版导入曲线，只读",
     "curve_browse_only": "仅浏览",
@@ -937,6 +937,7 @@
     "curve_plan_end_water": "按总水量上限结束",
     "curve_plan_end_weight_conditional": "有秤时按目标杯重；无秤时按总水量上限",
     "curve_plan_first_stage_setting": "首段时长设置（不代表实际耗时）",
-    "curve_plan_stage_water_label": "%1$d 段 · %2$s · %3$s%%"
+    "curve_plan_stage_water_label": "%1$d 段 · %2$s · %3$s%%",
+    "curve_new_short": "新建"
   }
 }

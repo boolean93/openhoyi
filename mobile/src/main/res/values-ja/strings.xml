@@ -80,6 +80,7 @@
     <string name="curve_import_legacy">"旧版曲線ライブラリJSONを取込"</string>
     <string name="curve_legacy">"旧版インポート曲線"</string>
     <string name="curve_legacy_description">"旧版インポート曲線を閲覧、読取専用"</string>
+    <string name="curve_new_short">"新規"</string>
     <string name="curve_plan_advice">"抽出のヒント"</string>
     <string name="curve_plan_all_parameters">"すべてのパラメータを見る"</string>
     <string name="curve_plan_allocation_unavailable">"各段の湯量が不足しているため配分を表示できません"</string>

@@ -934,5 +934,6 @@
   "curve_plan_end_water": "Ends at total water limit",
   "curve_plan_end_weight_conditional": "With scale: target cup weight; without scale: total water limit",
   "curve_plan_first_stage_setting": "First-stage duration setting (not elapsed time)",
-  "curve_plan_stage_water_label": "Stage %1$d · %2$s · %3$s%%"
+  "curve_plan_stage_water_label": "Stage %1$d · %2$s · %3$s%%",
+  "curve_new_short": "New"
 }

@@ -934,5 +934,6 @@
   "curve_plan_end_water": "총 물량 한도에 도달하면 종료",
   "curve_plan_end_weight_conditional": "저울 연결 시 목표 무게, 미연결 시 총 물량 한도",
   "curve_plan_first_stage_setting": "첫 단계 시간 설정(실제 경과 시간이 아님)",
-  "curve_plan_stage_water_label": "%1$d단계 · %2$s · %3$s%%"
+  "curve_plan_stage_water_label": "%1$d단계 · %2$s · %3$s%%",
+  "curve_new_short": "새로 만들기"
 }

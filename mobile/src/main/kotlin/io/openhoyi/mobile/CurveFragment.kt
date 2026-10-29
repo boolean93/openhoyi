@@ -88,17 +88,6 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             setPadding(dp(16), dp(8), dp(16), dp(8))
         }
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
-        val pageHeader = HoyiUi.header(host, body, getString(R.string.curve_title))
-        pageHeader.tag = "product/curve-library/header"
-        productStyle.styleHeader(pageHeader)
-        (pageHeader.layoutParams as LinearLayout.LayoutParams).bottomMargin = dp(8)
-        pageHeader.foreground = object : android.graphics.drawable.Drawable() {
-            private val paint = android.graphics.Paint().apply { color = productStyle.border; strokeWidth = resources.displayMetrics.density }
-            override fun draw(canvas: android.graphics.Canvas) { canvas.drawLine(0f, bounds.bottom - paint.strokeWidth / 2, bounds.right.toFloat(), bounds.bottom - paint.strokeWidth / 2, paint) }
-            override fun setAlpha(alpha: Int) { paint.alpha = alpha }
-            override fun setColorFilter(filter: android.graphics.ColorFilter?) { paint.colorFilter = filter }
-            @Deprecated("Drawable opacity") override fun getOpacity() = android.graphics.PixelFormat.TRANSLUCENT
-        }
         collection = TaskCollectionLayout(host, browserFraction = .34f, retainTwoPaneDuringIme = true)
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f))
         compact = resources.configuration.screenWidthDp < 840
@@ -135,26 +124,51 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             detailBack.visibility = if (compact) View.VISIBLE else View.GONE
             if (compact && detailVisible) registerDetailBack() else unregisterDetailBack()
         }
-        val searchTools = LinearLayout(host).apply {
-            orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL
+        val searchTools = object : LinearLayout(host) {
+            private var stacked = false
+            init { orientation = HORIZONTAL; isBaselineAligned = false; gravity = android.view.Gravity.CENTER_VERTICAL }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                if (childCount == 2) {
+                    val actions = getChildAt(1)
+                    actions.measure(MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED),
+                        MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                    val narrow = MeasureSpec.getSize(widthMeasureSpec) - actions.measuredWidth - dp(8) < dp(120)
+                    if (stacked != narrow) {
+                        stacked = narrow
+                        orientation = if (stacked) VERTICAL else HORIZONTAL
+                        getChildAt(0).layoutParams = if (stacked) LayoutParams(-1, -2) else LayoutParams(0, -2, 1f)
+                        actions.layoutParams = LayoutParams(-2, -2).apply {
+                            if (stacked) topMargin = dp(8) else marginStart = dp(8)
+                        }
+                    }
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
         }
         browser.addView(searchTools, LinearLayout.LayoutParams(-1, -2))
         search = EditText(host).apply {
             hint = getString(R.string.curve_search_hint)
+            contentDescription = getString(R.string.curve_search_hint) + " · " + getString(R.string.profiles_name)
             setSingleLine(true)
             TaskProductFormStyle(host).input(this, "curve-library", "search")
             setCompoundDrawablesRelativeWithIntrinsicBounds(HomeVisualIcon.drawable(host, "search", productStyle.muted), null, null, null)
             compoundDrawablePadding = dp(8)
         }
         searchTools.addView(search, LinearLayout.LayoutParams(0, -2, 1f))
+        val searchActions = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+            isBaselineAligned = false
+        }
+        searchTools.addView(searchActions, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
         val customAvailable = (application as MobileApplication).customCurvesResult.isSuccess
         val creation = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL }
-        val newCurve = HoyiUi.button(host, pageHeader, getString(R.string.profiles_new)) {
+        val newCurve = HoyiUi.button(host, searchActions, getString(R.string.curve_new_short)) {
             startActivity(Intent(host, CurveEditorActivity::class.java))
         }.apply {
-            isEnabled = customAvailable; productStyle.button(this); HomeVisualIcon.buttonIcon(this, "new"); maxWidth = dp(200)
+            isEnabled = customAvailable; productStyle.button(this); HomeVisualIcon.buttonIcon(this, "new")
+            contentDescription = getString(R.string.profiles_new)
             tag = "product/curve-library/new"
-            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(16) }
+            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) }
         }
         val importCurve = HoyiUi.button(host, creation, getString(R.string.profiles_import)) {
             startActivity(Intent(host, CurveImportActivity::class.java))
@@ -217,12 +231,12 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         val legacy = HoyiUi.button(host, creation, getString(R.string.curve_legacy)) {
             startActivity(Intent(host, LegacyCurveActivity::class.java))
         }.apply { productStyle.button(this); contentDescription = getString(R.string.curve_legacy_description) }
-        HoyiUi.button(host, searchTools, getString(R.string.task_curve_library_manage)) {
-            showActions(searchTools.findViewWithTag("curve-library-management"), listOf(newCurve, importCurve, legacy))
+        HoyiUi.button(host, searchActions, getString(R.string.task_curve_library_manage)) {
+            showActions(searchActions.findViewWithTag("curve-library-management"), listOf(newCurve, importCurve, legacy))
         }.apply {
             tag = "curve-library-management"
             productStyle.button(this)
-            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) }
+            layoutParams = LinearLayout.LayoutParams(-2, -2)
         }
         resultCount = HoyiUi.label(host, browser, "", 14, muted = true).apply {
             productStyle.apply(this, TaskProductVisualStyle.auxiliary, true)
@@ -597,7 +611,9 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     /** Original actions and capability gates remain on stable buttons; menus only expose them. */
     private fun showActions(anchor: View, actions: List<Button>) {
         val visible = actions.filter { it.visibility != View.GONE }
-        transientDialogs += AppDialog.choices(host, getString(R.string.task_tools), visible.map { it.text }) { index ->
+        transientDialogs += AppDialog.choices(host, getString(R.string.task_tools), visible.map {
+            if (it.tag == "product/curve-library/new") getString(R.string.profiles_new) else it.text
+        }) { index ->
             visible.getOrNull(index)?.takeIf { it.isEnabled }?.performClick()
         }
     }

@@ -80,6 +80,7 @@
     <string name="curve_import_legacy">"Importar biblioteca de curvas antigua en JSON"</string>
     <string name="curve_legacy">"Curvas antiguas importadas"</string>
     <string name="curve_legacy_description">"Ver curvas antiguas importadas, solo lectura"</string>
+    <string name="curve_new_short">"Crear"</string>
     <string name="curve_plan_advice">"Consejos de preparación"</string>
     <string name="curve_plan_all_parameters">"Ver todos los parámetros"</string>
     <string name="curve_plan_allocation_unavailable">"Sin cantidades de agua por etapa; no se puede mostrar la distribución"</string>

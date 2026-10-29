@@ -217,6 +217,20 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
             main {
                 check(kotlin.math.abs(activity.resources.configuration.fontScale - expectedFontScale) < .01f)
                 fun field(name: String) = CurveFragment::class.java.getDeclaredField(name).apply { isAccessible = true }.get(fragment)
+                val root = activity.window.decorView
+                val newCurve = requireNotNull(root.findViewWithTag<Button>("product/curve-library/new"))
+                val manage = requireNotNull(root.findViewWithTag<Button>("curve-library-management"))
+                val search = field("search") as android.widget.EditText
+                check(search.hint.toString() == activity.getString(R.string.curve_search_hint) &&
+                    search.contentDescription.toString().contains(activity.getString(R.string.profiles_name)))
+                check(root.findViewWithTag<View>("product/curve-library/header") == null &&
+                    newCurve.isShown && newCurve.isClickable && newCurve.height >= HoyiUi.dp(activity, 48) &&
+                    newCurve.text.toString() == activity.getString(R.string.curve_new_short) &&
+                    newCurve.contentDescription == activity.getString(R.string.profiles_new) &&
+                    newCurve.isEnabled == (app.customCurvesResult.isSuccess) &&
+                    manage.isShown && manage.height >= HoyiUi.dp(activity, 48) &&
+                    newCurve.parent === manage.parent && (newCurve.parent as View).parent === search.parent) {
+                    "Curve library lost the direct accessible create action beside search" }
                 var chosen = app.curves.items.first { CurveStageParameters.pressureTargets(it).isNotEmpty() }
                 val originalChosen = chosen
                 CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)

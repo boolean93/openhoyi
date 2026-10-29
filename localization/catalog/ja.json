@@ -934,5 +934,6 @@
   "curve_plan_end_water": "総湯量上限で終了",
   "curve_plan_end_weight_conditional": "秤接続時は目標重量、未接続時は総湯量上限",
   "curve_plan_first_stage_setting": "第1段の時間設定（実際の経過時間ではありません）",
-  "curve_plan_stage_water_label": "第%1$d段 · %2$s · %3$s%%"
+  "curve_plan_stage_water_label": "第%1$d段 · %2$s · %3$s%%",
+  "curve_new_short": "新規"
 }

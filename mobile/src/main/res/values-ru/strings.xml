@@ -80,6 +80,7 @@
     <string name="curve_import_legacy">"Импорт библиотеки профилей старой версии JSON"</string>
     <string name="curve_legacy">"Профили, импортированные из старой версии"</string>
     <string name="curve_legacy_description">"Просмотр импортированных профилей старой версии, только чтение"</string>
+    <string name="curve_new_short">"Создать"</string>
     <string name="curve_plan_advice">"Советы по приготовлению"</string>
     <string name="curve_plan_all_parameters">"Все параметры"</string>
     <string name="curve_plan_allocation_unavailable">"Нет данных об объёме воды по этапам; распределение недоступно"</string>

@@ -80,6 +80,7 @@
     <string name="curve_import_legacy">"นำเข้าคลังกราฟรุ่นเก่า JSON"</string>
     <string name="curve_legacy">"กราฟนำเข้ารุ่นเก่า"</string>
     <string name="curve_legacy_description">"ดูกราฟนำเข้ารุ่นเก่า อ่านอย่างเดียว"</string>
+    <string name="curve_new_short">"สร้าง"</string>
     <string name="curve_plan_advice">"คำแนะนำการชง"</string>
     <string name="curve_plan_all_parameters">"ดูพารามิเตอร์ทั้งหมด"</string>
     <string name="curve_plan_allocation_unavailable">"ไม่มีปริมาณน้ำแต่ละช่วง จึงแสดงสัดส่วนไม่ได้"</string>

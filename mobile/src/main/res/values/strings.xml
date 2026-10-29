@@ -269,6 +269,7 @@
     <string name="curve_control_short_preview">"空间不足，改看阶段目标参数：%1$s。阶段示意，不是时间预测。"</string>
     <string name="curve_control_caption_mixed">"阶段目标示意 · 左轴压力 bar · 右轴流量 mL/s · 横轴为阶段，不是秒"</string>
     <string name="curve_plan_title">"萃取方案"</string>
+    <string name="curve_new_short">"新建"</string>
     <string name="curve_plan_pressure_control">"压力控制"</string>
     <string name="curve_plan_flow_control">"流量控制"</string>
     <string name="curve_plan_stage_water">"阶段注水量"</string>
@@ -585,7 +586,7 @@
     <string name="curve_title">"曲线库"</string>
     <string name="curve_subtitle">"搜索、预览并选用曲线"</string>
     <string name="curve_back">"返回曲线列表"</string>
-    <string name="curve_search_hint">"搜索曲线名称"</string>
+    <string name="curve_search_hint">"搜索曲线"</string>
     <string name="curve_legacy">"旧版导入曲线"</string>
     <string name="curve_legacy_description">"查看旧版导入曲线，只读"</string>
     <string name="curve_browse_only">"仅浏览"</string>

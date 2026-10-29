@@ -80,6 +80,7 @@
     <string name="curve_import_legacy">"استيراد مكتبة منحنيات الإصدار القديم بصيغة JSON"</string>
     <string name="curve_legacy">"منحنيات مستوردة من الإصدار القديم"</string>
     <string name="curve_legacy_description">"عرض منحنيات الإصدار القديم المستوردة، قراءة فقط"</string>
+    <string name="curve_new_short">"إنشاء"</string>
     <string name="curve_plan_advice">"نصائح التحضير"</string>
     <string name="curve_plan_all_parameters">"عرض كل المعلمات"</string>
     <string name="curve_plan_allocation_unavailable">"كميات ماء المراحل غير متاحة؛ لا يمكن رسم التوزيع"</string>

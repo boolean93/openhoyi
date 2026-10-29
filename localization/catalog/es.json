@@ -934,5 +934,6 @@
   "curve_plan_end_water": "Termina al alcanzar el límite total de agua",
   "curve_plan_end_weight_conditional": "Con báscula: peso objetivo; sin báscula: límite total de agua",
   "curve_plan_first_stage_setting": "Duración configurada de la primera etapa (no tiempo transcurrido)",
-  "curve_plan_stage_water_label": "Etapa %1$d · %2$s · %3$s%%"
+  "curve_plan_stage_water_label": "Etapa %1$d · %2$s · %3$s%%",
+  "curve_new_short": "Crear"
 }

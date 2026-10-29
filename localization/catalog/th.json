@@ -934,5 +934,6 @@
   "curve_plan_end_water": "สิ้นสุดเมื่อถึงขีดจำกัดน้ำรวม",
   "curve_plan_end_weight_conditional": "มีเครื่องชั่ง: น้ำหนักเป้าหมาย ไม่มี: ขีดจำกัดน้ำรวม",
   "curve_plan_first_stage_setting": "เวลาที่ตั้งช่วงแรก (ไม่ใช่เวลาจริง)",
-  "curve_plan_stage_water_label": "ช่วง %1$d · %2$s · %3$s%%"
+  "curve_plan_stage_water_label": "ช่วง %1$d · %2$s · %3$s%%",
+  "curve_new_short": "สร้าง"
 }

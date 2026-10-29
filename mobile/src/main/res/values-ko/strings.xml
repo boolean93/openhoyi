@@ -80,6 +80,7 @@
     <string name="curve_import_legacy">"이전 곡선 라이브러리 JSON 가져오기"</string>
     <string name="curve_legacy">"이전 가져온 곡선"</string>
     <string name="curve_legacy_description">"이전 가져온 곡선 보기, 읽기 전용"</string>
+    <string name="curve_new_short">"새로 만들기"</string>
     <string name="curve_plan_advice">"추출 조언"</string>
     <string name="curve_plan_all_parameters">"전체 매개변수 보기"</string>
     <string name="curve_plan_allocation_unavailable">"단계별 물량이 없어 배분을 표시할 수 없습니다"</string>

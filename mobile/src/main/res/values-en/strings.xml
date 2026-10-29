@@ -80,6 +80,7 @@
     <string name="curve_import_legacy">"Import legacy curve library JSON"</string>
     <string name="curve_legacy">"Imported legacy curves"</string>
     <string name="curve_legacy_description">"View imported legacy curves, read-only"</string>
+    <string name="curve_new_short">"New"</string>
     <string name="curve_plan_advice">"Brewing advice"</string>
     <string name="curve_plan_all_parameters">"View all parameters"</string>
     <string name="curve_plan_allocation_unavailable">"Stage water amounts unavailable; allocation cannot be drawn"</string>
