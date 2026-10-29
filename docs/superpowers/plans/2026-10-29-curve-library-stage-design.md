@@ -144,3 +144,25 @@ Astra实际查看 `build/curve-header-2026-10-29/turbo-light.png`、`turbo-dark.
 Astra实际查看 `build/curve-header-2026-10-29/v23-turbo-light.png` 与 `v23-turbo-dark.png`：“搜索曲线”全文有右侧留白，新建/管理清晰，浅深均七条列表可读，右侧闷蒸/结束/杯重及固定动作完整。中文短提示贴边问题闭合，本轮顶部压缩在本台所见范围通过；IME沿v22已验范围，不外推其它字体/语言/设备。
 
 root报告v23同签名递增安装、APK hash一致、17数据文件保持；350tests零failure/零error、1skip，两variant各11265资源值匹配、6roundtrip及22localization tests通过。root随后确认 `build-v23.log` SUCCESS 2m15，Mock/Debug/AndroidTest编译及lint全部通过；AndroidTest仅编译，不冒称原生实跑。设计文档冻结，root可在最终构建确认后按原PR4提交推送，不含合并或发版。
+
+
+## v24 使用次数与摘要纵向整理（本台有限验收通过）
+
+用户要求使用次数不再孤立占行，并继续回收详情纵向空白。沿原分支与PR4，仅曲线详情显示层；不改ledger、计数/排序、执行门禁或其它页面，不发版。
+
+- [x] 正常平板身份行排列“分类　使用 N 次　可用性说明”。分类与次数同组，现辅助字号/灰色不变，16dp间距，次数无前导孤立点；保usage tag及真实ledger绑定。availability保原颜色与完整语义。按真实宽度测量，不够时availability移下行（8dp间距），不将次数另造第三行、不缩字或省略重要文案。
+- [x] ledger失败保原完整不可用文字，不显示0；空选择不保留旧次数。更新metadataHeight/短高visibility计算，usage已包含在identity内，不重复计高；短预览/全部参数继续可达次数或失败语义。
+- [x] 仅CurvePreviewMetrics的waterSummary实例上下padding16→8dp，标题/数值gap8和字号、左右分列间距保持。竖分隔线端点同步8dp，其它实例仍16dp。右侧方案wrapper四边16dp不动。
+- [x] 独立静审后root构建/本台浅深图验证：正常至少回收次数独立行+16dp，分类/次数/可用性完整，指标和阶段内容无裁切，固定动作保持；仅原代表场景，不扩矩阵。
+
+回退只撤显示层及必要独立文案；用户数据、未知设备结果均不动。
+
+v24冻结diff静审无阻塞。仅成功计数显示去固定资源前缀“ · ”，失败全文不变；原ledger和业务门禁未动。新增原生断言覆盖真实计数、所属身份组、摘要8dp以及短预览保留usage，未删除原断言。当前构建尚进行，同排实际宽度/基线与回收高度仍待本台实图，不预记通过。
+
+### v24 最终有限实图与冻结
+
+Astra实际查看 `build/curve-density-2026-10-29/pressure-light.png`、`turbo-light.png`、`turbo-dark.png`。采集曲线1显示“使用1次”、Turbo显示“使用0次”，均与分类、可用性同排对齐，无孤立前导点；可用性全文完整，浅深字色可读。相比v23 Turbo图，方案区域明显上移，首段时长设置也进入首屏；阶段值、水量和固定动作完整，原16dp方案内距及七条列表可读范围保持。本台所见正常中文两配方/浅深范围通过。
+
+root确认完整构建SUCCESS 2m16，350tests零failure/零error、1skip，Mock/Debug/AndroidTest编译及lint通过；v24同包同签名递增安装/hash一致，17数据文件保持。原生测试未实跑；空选择/搜索切换的新增人工检查尚由root进行，ledger失败长文案/多语言大字没有本轮实图，不外推通过。文档冻结，交root按原PR4提交，不预记合并或发布。
+
+root补验：`build/curve-density-2026-10-29/empty-search.png`实际空搜索结果无残留次数；清除搜索并重选Turbo后的`final-light.png`正确恢复0次与原详情。两APK各11265资源值匹配、6项字面量往返通过。该检查不覆盖ledger损坏/错误长文案。

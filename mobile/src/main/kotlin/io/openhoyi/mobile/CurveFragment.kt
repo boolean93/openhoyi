@@ -323,15 +323,30 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             ellipsize = android.text.TextUtils.TruncateAt.END
             tag = "full-text-details"
         }
+        val identityFacts = LinearLayout(host).apply { isBaselineAligned = false }
         detailIdentity = object : LinearLayout(host) {
             init { isBaselineAligned = false; tag = "product/curve-library/identity" }
             override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
                 val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-                detailCategory.measure(natural, natural); availability.measure(natural, natural)
-                val inline = availability.visibility == View.GONE || detailCategory.measuredWidth + availability.measuredWidth + dp(16) <= MeasureSpec.getSize(widthMeasureSpec)
+                val availableWidth = MeasureSpec.getSize(widthMeasureSpec)
+                detailCategory.measure(natural, natural)
+                usageDetails.measure(natural, natural)
+                availability.measure(natural, natural)
+                val factsInline = usageDetails.visibility == View.GONE ||
+                    detailCategory.measuredWidth + usageDetails.measuredWidth + dp(16) <= availableWidth
+                identityFacts.orientation = if (factsInline) HORIZONTAL else VERTICAL
+                (detailCategory.layoutParams as LayoutParams).width = if (factsInline) -2 else -1
+                (usageDetails.layoutParams as LayoutParams).apply {
+                    width = if (factsInline) -2 else -1
+                    marginStart = if (factsInline && usageDetails.visibility == View.VISIBLE) dp(16) else 0
+                    topMargin = if (factsInline) 0 else dp(8)
+                }
+                identityFacts.measure(MeasureSpec.makeMeasureSpec(availableWidth, MeasureSpec.AT_MOST), natural)
+                val inline = availability.visibility == View.GONE ||
+                    identityFacts.measuredWidth + availability.measuredWidth + dp(16) <= availableWidth
                 orientation = if (inline) HORIZONTAL else VERTICAL
                 val direction = this.layoutDirection
-                (detailCategory.layoutParams as LayoutParams).width = if (inline) -2 else -1
+                (identityFacts.layoutParams as LayoutParams).width = if (inline) -2 else -1
                 (availability.layoutParams as LayoutParams).apply {
                     width = if (inline) -2 else -1; marginStart = if (inline) dp(16) else 0
                     marginEnd = 0; topMargin = if (inline) 0 else dp(8); resolveLayoutDirection(direction)
@@ -340,8 +355,12 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             }
         }
         detailPane.addView(detailIdentity, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
-        detailCategory = HoyiUi.label(host, detailIdentity, getString(R.string.curve_detail_hint), 14, muted = true)
+        detailIdentity.addView(identityFacts, LinearLayout.LayoutParams(-2, -2))
+        detailCategory = HoyiUi.label(host, identityFacts, getString(R.string.curve_detail_hint), 14, muted = true)
             .apply { productStyle.apply(this, TaskProductVisualStyle.auxiliary, true) }
+        usageDetails = productStyle.text("", TaskProductVisualStyle.auxiliary,
+            "product/curve-library/usage-count", true).apply { visibility = View.GONE }
+        identityFacts.addView(usageDetails, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(16) })
         availability = HoyiUi.label(host, detailIdentity, "", 14, true).apply {
             productStyle.apply(this, TaskProductVisualStyle.auxiliary)
             tag = "product/curve-library/availability"; visibility = View.GONE
@@ -349,9 +368,6 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         previewMetrics = CurvePreviewMetrics(host, productStyle, waterSummary = true).apply {
             visibility=View.GONE; tag="curve-preview-metrics" }
         detailPane.addView(previewMetrics,LinearLayout.LayoutParams(-1,-2))
-        usageDetails = productStyle.text("", TaskProductVisualStyle.auxiliary,
-            "product/curve-library/usage-count", true)
-        detailPane.addView(usageDetails, LinearLayout.LayoutParams(-1, -2))
         stageHeading = HoyiUi.label(host, detailPane, getString(R.string.curve_library_stage_heading),
             TaskVisualTokens.SECTION_SP, true).apply {
             productStyle.apply(this, TaskProductVisualStyle.section)
@@ -560,8 +576,9 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         val draft = item.customDocument
         previewMetrics.present(item)
         usageDetails.text = (application as MobileApplication).curveUsageResult.getOrNull()?.let {
-            getString(R.string.curve_usage_count, it.stats(item.id).count)
+            getString(R.string.curve_usage_count, it.stats(item.id).count).removePrefix(" · ")
         } ?: getString(R.string.curve_usage_unavailable)
+        usageDetails.visibility = View.VISIBLE
         previewMetrics.visibility=View.VISIBLE
         val hasPressureSchematic = preview.stages.isNotEmpty()
         shortPreview = false
@@ -643,7 +660,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         // Measure the full normal presentation, even when its metadata is currently in fallback.
         // Otherwise hiding metadata would make the next measure flip back into a too-short plot.
         val actionHeight = naturalHeightOf(detailToolbar) + naturalHeightOf(selectionDock)
-        val metadataHeight = listOf(detailIdentity, previewMetrics, usageDetails).sumOf(::naturalHeightOf)
+        val metadataHeight = listOf(detailIdentity, previewMetrics).sumOf(::naturalHeightOf)
         val contentMinimum = if (hasPressure) dp(160) + dp(8)
             else {
                 rawReasonMeasure.measure(exactWidth, naturalHeight)
@@ -654,7 +671,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             .put("toolbarNaturalWidthPx", directWidth).put("directActions", direct)
             .put("actionNaturalHeightPx", actionHeight).put("metadataNaturalHeightPx", metadataHeight)
             .put("contentMinimumPx", contentMinimum).put("shortPreview", shortPreview)
-        listOf(detailIdentity, previewMetrics, usageDetails).forEach {
+        listOf(detailIdentity, previewMetrics).forEach {
             it.visibility = if (shortPreview) View.GONE else View.VISIBLE
         }
         stageCaption.visibility = View.GONE
@@ -671,7 +688,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             previewFallbackScroll.layoutParams = LinearLayout.LayoutParams(-1, fallbackHeight, fallbackWeight)
         previewSpacer.visibility = if (!hasPressure && !shortPreview) View.VISIBLE else View.GONE
         val fallbackText = if (shortPreview) listOf(
-            item.name, detailCategory.text.toString(), previewMetrics.contentDescription.toString(), availability.text.toString(),
+            item.name, detailCategory.text.toString(), usageDetails.text.toString(),
+            previewMetrics.contentDescription.toString(), availability.text.toString(),
             if (hasPressure) getString(R.string.curve_plan_title) else previewFallbackText(preview),
             if (hasPressure) getString(if (preview.hasFlow) R.string.curve_control_short_preview
                 else R.string.task_curve_library_short_preview,
@@ -687,7 +705,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private fun showParameterDetails() {
         val item = selected ?: return
         AlertDialog.Builder(host).setTitle(item.name)
-            .setMessage(item.name + "\n\n" + details.text.toString() + "\n\n" + availability.text.toString())
+            .setMessage(item.name + "\n\n" + details.text.toString() + "\n\n" +
+                usageDetails.text.toString() + "\n\n" + availability.text.toString())
             .setPositiveButton(android.R.string.ok, null).let(::showTransient)
     }
 
@@ -716,6 +735,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             detailIdentity.visibility = View.VISIBLE
             detailCategory.visibility = View.VISIBLE
             detailCategory.text = getString(R.string.curve_detail_hint)
+            usageDetails.text = ""
+            usageDetails.visibility = View.GONE
             previewMetrics.visibility = View.GONE
             details.text = ""
             availability.visibility = View.GONE

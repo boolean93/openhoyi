@@ -17,7 +17,8 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity,
     init {
         setWillNotDraw(false)
         orientation=HORIZONTAL
-        setPadding(0,HoyiUi.dp(activity,16),0,HoyiUi.dp(activity,16))
+        val verticalInset = if (waterSummary) 8 else 16
+        setPadding(0,HoyiUi.dp(activity,verticalInset),0,HoyiUi.dp(activity,verticalInset))
         values=titles.map { title ->
             val column=LinearLayout(activity).apply { orientation=VERTICAL }
             addView(column,LayoutParams(0,-2,1f))
@@ -57,7 +58,9 @@ internal class CurvePreviewMetrics(private val activity:ThemedActivity,
         if (productVisualStyle != null) for (index in 1..2) {
             val column = getChildAt(index)
             val x = if (layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL) column.right.toFloat() else column.left.toFloat()
-            canvas.drawLine(x, HoyiUi.dp(activity,16).toFloat(), x, (height - HoyiUi.dp(activity,16)).toFloat(), paint)
+            val verticalInset = if (waterSummary) 8 else 16
+            canvas.drawLine(x, HoyiUi.dp(activity,verticalInset).toFloat(),
+                x, (height - HoyiUi.dp(activity,verticalInset)).toFloat(), paint)
         }
     }
     fun present(item:CurveLibraryItem) {
