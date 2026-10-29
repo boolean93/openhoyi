@@ -1,6 +1,6 @@
 # 侧栏设备状态与操作设计草案
 
-状态：用户已批准设计并明确要求开发（“行就这么开发一下吧”）。Sol实施，Astra独立审查与实图验收；尚未完成实现验收。本轮沿 `feature/task-first-ui → develop` / PR4，不提交、不构建、不发版。保留他人改动。依据当前 `TaskShellStatusView.kt`、`MainActivity.kt`、`MobileService.kt` 与实际 `build/curve-icons-2026-10-29/turbo-light.png`。
+状态：用户已批准设计并明确要求开发（“行就这么开发一下吧”）。Sol实施，Astra独立审查与实图验收；v27实现、静审与本台正常态浅深有限实图已通过；未覆盖边界见执行计划。本轮沿 `feature/task-first-ui → develop` / PR4，不提交、不构建、不发版。保留他人改动。依据当前 `TaskShellStatusView.kt`、`MainActivity.kt`、`MobileService.kt` 与实际 `build/curve-icons-2026-10-29/turbo-light.png`。
 
 ## 问题与推荐
 
@@ -59,3 +59,5 @@
 参考稿：`docs/ui/device-status/2026-10-29-rail-device-status-proposal.png`。Astra已实际查看生成原图：设备归属、只读状态与邻近动作清楚，已连接/未连接/连接中概念区分正确，可提交用户审阅。两字动作图标与文字同排，在88dp内宽可容纳；“机身唤醒”仅禁用说明，不承诺App唤醒。
 
 生成图为概念表达，不作为104dp/48dp精确测量、字体、对比度或运行验收；近景有双层浅底，实现时应收敛为轻设备组+单一动作命中，不照抄额外嵌套边框。连接中示意无重复重试正确，但睡眠未知/失败等未画状态仍以状态表为准。用户已认可该稿，进入计划执行；概念图仍不等于实现验收。
+
+实现验收补记：v27正常态动作已采用独立surface底和行内图文居中；浅深首页/曲线代表图由Astra实际查看，结果及未覆盖状态记录在配套执行计划，概念稿不取代运行证据。
