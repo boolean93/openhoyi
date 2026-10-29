@@ -166,3 +166,25 @@ Astra实际查看 `build/curve-density-2026-10-29/pressure-light.png`、`turbo-l
 root确认完整构建SUCCESS 2m16，350tests零failure/零error、1skip，Mock/Debug/AndroidTest编译及lint通过；v24同包同签名递增安装/hash一致，17数据文件保持。原生测试未实跑；空选择/搜索切换的新增人工检查尚由root进行，ledger失败长文案/多语言大字没有本轮实图，不外推通过。文档冻结，交root按原PR4提交，不预记合并或发布。
 
 root补验：`build/curve-density-2026-10-29/empty-search.png`实际空搜索结果无残留次数；清除搜索并重选Turbo后的`final-light.png`正确恢复0次与原详情。两APK各11265资源值匹配、6项字面量往返通过。该检查不覆盖ledger损坏/错误长文案。
+
+
+## v25 曲线库次级操作纯图标（本台有限验收通过）
+
+用户明确要求新增/管理/分享/编辑使用纯图标，覆盖此前v22“新建必须带短文字”的设计约束。沿原feature分支/PR4，不发版；仅曲线库五个次级动作及所需共享图标helper，不改变全局buttonIcon默认行为或业务门禁。
+
+- [x] 搜索行新增、管理；详情行编辑、分享、更多：24dp图形居中，48×48dp点击区，组内gap8。new圆加号、manage滑杆、edit铅笔、share连点、more省略号；透明常态，原accent/disabled/ripple/focus不变。
+- [x] 完整本地化contentDescription与tooltip；编辑随实际“编辑/另存参数草稿”更新语义。去掉动态text重赋值，不能切条目后重新出现文字。菜单用原完整标签，不因按钮text清空产生空菜单项；保tag、callback、enabled及可用性计算。
+- [x] 使用此曲线、全部参数、开始/停止、导航与返回继续保文字。现有BeanBatchActivity同类编辑可后续套规范，本轮不扩大库存二级流程；旧CurveActivity不通过全局helper副作用被动变更。
+- [x] 独立静审后root构建安装v25；本台浅深原图核居中/间距、标题与搜索获得空间、disabled可辨；实际点管理/更多验证菜单文案与原入口，长按tooltip和无障碍名核对。原生断言按真实语义/图标/48dp迁移，不删除可用性或业务门禁。
+
+回退只撤本轮图标显示及调用变更，数据/协议不动；不以Mock代硬件验收。
+
+v25冻结diff静审无阻塞：局部iconOnly清文字并使用无横移的24dp drawable，48dp盒/12dp padding，动态编辑只更新无障碍名与tooltip，原门禁不变；新建菜单明确读取原完整资源，其余菜单源按钮仍保文字。测试替换旧短文字合同为图形/尺寸/完整语义，保启用与业务断言。构建正在进行，居中/disabled/tooltip及实际菜单仍待本台。
+
+### v25 最终有限实图与冻结
+
+Astra实际查看 `build/curve-icons-2026-10-29/` 下 `pressure-light.png`、`turbo-light.png`、`turbo-dark.png`、`management-menu.png`、`share-tooltip.png`：五个图标居中、间隔清楚，搜索和标题获得横向空间；采集配方编辑为启用青色，Turbo编辑为禁用灰色，浅深可辨。管理菜单完整保留新建/导入/旧版导入文字，分享长按提示实际显示“分享参数”；未执行外发。关键使用曲线/全部参数及导航文字保留。
+
+独立读取 `icon-bounds.json`：五个目标均108×108px，在本台density2.25为48×48dp，完整语义名齐全，Turbo另存参数草稿enabled=false，其余四项true。当前证据覆盖所见状态，不将节点尺寸等同所有交互或完整TalkBack实测。
+
+root报告完整构建SUCCESS 2m14，350tests零failure/零error、1skip，两variant各11265资源值及6roundtrip通过；原生AndroidTest仅编译、未实跑。v25同签名安装hash一致、17数据文件保持。本轮静审与上述中文浅深/菜单/提示有限验收通过，文档冻结，交root普通提交原PR4；不预记CI、合并、发版或硬件通过。

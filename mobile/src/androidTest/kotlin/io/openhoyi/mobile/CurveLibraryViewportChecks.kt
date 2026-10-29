@@ -221,20 +221,32 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                 val newCurve = requireNotNull(root.findViewWithTag<Button>("product/curve-library/new"))
                 val manage = requireNotNull(root.findViewWithTag<Button>("curve-library-management"))
                 val search = field("search") as android.widget.EditText
+                fun iconAction(button: Button, label: CharSequence) =
+                    button.text.isEmpty() && button.contentDescription == label && button.tooltipText == label &&
+                        button.layoutParams.width == HoyiUi.dp(activity, 48) &&
+                        button.layoutParams.height == HoyiUi.dp(activity, 48) &&
+                        button.compoundDrawablesRelative[0]?.intrinsicWidth == HoyiUi.dp(activity, 24)
                 check(search.hint.toString() == activity.getString(R.string.curve_search_hint) &&
                     search.contentDescription.toString().contains(activity.getString(R.string.profiles_name)))
                 check(root.findViewWithTag<View>("product/curve-library/header") == null &&
                     newCurve.isShown && newCurve.isClickable && newCurve.height >= HoyiUi.dp(activity, 48) &&
-                    newCurve.text.toString() == activity.getString(R.string.curve_new_short) &&
-                    newCurve.contentDescription == activity.getString(R.string.profiles_new) &&
+                    iconAction(newCurve, activity.getString(R.string.profiles_new)) &&
                     newCurve.isEnabled == (app.customCurvesResult.isSuccess) &&
                     manage.isShown && manage.height >= HoyiUi.dp(activity, 48) &&
+                    iconAction(manage, activity.getString(R.string.task_curve_library_manage)) &&
                     newCurve.parent === manage.parent && (newCurve.parent as View).parent === search.parent) {
                     "Curve library lost the direct accessible create action beside search" }
                 var chosen = app.curves.items.first { CurveStageParameters.pressureTargets(it).isNotEmpty() }
                 val originalChosen = chosen
                 CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
                     .apply { isAccessible = true }.invoke(fragment, chosen)
+                val directEdit = field("directEdit") as Button
+                val directShare = field("directShare") as Button
+                val detailActions = field("detailActions") as Button
+                check(iconAction(directEdit, (field("editDraft") as Button).text) &&
+                    iconAction(directShare, activity.getString(R.string.profiles_share)) &&
+                    iconAction(detailActions, activity.getString(R.string.task_curve_library_actions))) {
+                    "Curve detail icon actions lost labels or 48dp target" }
                 val collection = activity.window.decorView.findViewWithTag<TaskCollectionLayout>("task-collection")
                 val usage = requireNotNull(activity.window.decorView.findViewWithTag<TextView>("product/curve-library/usage-count"))
                 val identity = requireNotNull(activity.window.decorView.findViewWithTag<View>("product/curve-library/identity"))
@@ -378,6 +390,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         chosen = item
                         CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
                             .apply { isAccessible = true }.invoke(fragment, chosen)
+                        check(iconAction(directEdit, (field("editDraft") as Button).text))
                         // Use this CI profile's actual collection space, including the user tablet profiles.
                         measure("footer-$kind-actual-space", oldWidth, oldHeight)
                         check(select.isEnabled == app.curves.canStart(item))

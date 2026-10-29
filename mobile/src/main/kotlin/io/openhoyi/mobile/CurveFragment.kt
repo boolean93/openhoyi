@@ -72,6 +72,20 @@ class CurveFragment : androidx.fragment.app.Fragment() {
     private val curveDetailsText by lazy { CurveDetailsText(host) }
     private val library get() = (application as MobileApplication).curves
 
+    private fun iconOnly(button: Button, kind: String, label: CharSequence) {
+        productStyle.button(button)
+        button.text = ""
+        button.contentDescription = label
+        button.tooltipText = label
+        button.setPadding(dp(12), dp(12), dp(12), dp(12))
+        button.compoundDrawablePadding = 0
+        button.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            HomeVisualIcon.drawable(button.context, kind, button.currentTextColor,
+                currentTint = { button.currentTextColor }), null, null, null)
+        button.minimumWidth = dp(48)
+        button.minWidth = dp(48)
+    }
+
     override fun onCreateView(inflater: android.view.LayoutInflater, container: android.view.ViewGroup?, savedInstanceState: Bundle?): View {
         productStyle = TaskProductVisualStyle(host)
         category = CurveCategoryFilter.restore(savedInstanceState?.getString("category"))
@@ -165,10 +179,9 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         val newCurve = HoyiUi.button(host, searchActions, getString(R.string.curve_new_short)) {
             startActivity(Intent(host, CurveEditorActivity::class.java))
         }.apply {
-            isEnabled = customAvailable; productStyle.button(this); HomeVisualIcon.buttonIcon(this, "new")
-            contentDescription = getString(R.string.profiles_new)
+            isEnabled = customAvailable; iconOnly(this, "new", getString(R.string.profiles_new))
             tag = "product/curve-library/new"
-            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = dp(8) }
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginEnd = dp(8) }
         }
         val importCurve = HoyiUi.button(host, creation, getString(R.string.profiles_import)) {
             startActivity(Intent(host, CurveImportActivity::class.java))
@@ -235,8 +248,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
             showActions(searchActions.findViewWithTag("curve-library-management"), listOf(newCurve, importCurve, legacy))
         }.apply {
             tag = "curve-library-management"
-            productStyle.button(this)
-            layoutParams = LinearLayout.LayoutParams(-2, -2)
+            iconOnly(this, "manage", getString(R.string.task_curve_library_manage))
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48))
         }
         resultCount = HoyiUi.label(host, browser, "", 14, muted = true).apply {
             productStyle.apply(this, TaskProductVisualStyle.auxiliary, true)
@@ -432,20 +445,20 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         }
         val parameterDetails = HoyiUi.button(host, secondary, getString(R.string.curve_plan_all_parameters)) { showParameterDetails() }
         directEdit = HoyiUi.button(host, detailToolbar, getString(R.string.profiles_edit)) { editDraft.performClick() }.apply {
-            productStyle.button(this); HomeVisualIcon.buttonIcon(this, "edit"); visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(-2, -2)
+            iconOnly(this, "edit", getString(R.string.profiles_edit)); visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(8) }
         }
         directShare = HoyiUi.button(host, detailToolbar, getString(R.string.profiles_share)) { shareParameters.performClick() }.apply {
-            productStyle.button(this); HomeVisualIcon.buttonIcon(this, "share"); visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(-2, -2)
+            iconOnly(this, "share", getString(R.string.profiles_share)); visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(8) }
         }
         detailActions = HoyiUi.button(host, detailToolbar, getString(R.string.task_curve_library_actions)) {
             showActions(detailActions, listOf(parameterDetails, shareParameters, editDraft, assignPreset))
         }.apply {
-            productStyle.button(this); HomeVisualIcon.buttonIcon(this, "more")
+            iconOnly(this, "more", getString(R.string.task_curve_library_actions))
             tag = "curve-detail-actions"
             visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(-2, -2)
+            layoutParams = LinearLayout.LayoutParams(dp(48), dp(48)).apply { marginStart = dp(8) }
         }
         selectionDock = TaskActionDock(host, edgeInsetDp = 0, fullWidthContent = true).apply {
             tag = "product/curve-library/dock"; setPadding(0, 0, 0, 0)
@@ -609,7 +622,8 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         editDraft.isEnabled = (application as MobileApplication).customCurvesResult.isSuccess && copyable?.controlMode == CustomCurveDocument.ControlMode.PRESSURE
         shareParameters.visibility = View.VISIBLE
         shareParameters.isEnabled = copyable != null
-        directEdit.text = editDraft.text
+        directEdit.contentDescription = editDraft.text
+        directEdit.tooltipText = editDraft.text
         directEdit.isEnabled = editDraft.isEnabled
         directShare.isEnabled = shareParameters.isEnabled
         availability.setTextColor(if (canStart) productStyle.accent else productStyle.muted)
