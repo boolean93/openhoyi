@@ -102,6 +102,27 @@ internal class HomeVisualIcon(context: Context, private val kind: String, privat
             "edit" -> { canvas.drawPath(Path().apply { moveTo(4f,16f); lineTo(16f,4f); lineTo(20f,8f); lineTo(8f,20f); lineTo(3f,21f); close() },paint); line(13f,7f,17f,11f) }
             "manage" -> { line(3f,6f,21f,6f); line(3f,12f,21f,12f); line(3f,18f,21f,18f)
                 canvas.drawCircle(9f,6f,2f,paint); canvas.drawCircle(16f,12f,2f,paint); canvas.drawCircle(7f,18f,2f,paint) }
+            "moon" -> canvas.drawPath(Path().apply {
+                moveTo(19f, 16f)
+                cubicTo(8f, 19f, 4f, 10f, 10f, 3f)
+                cubicTo(1f, 5f, 1f, 17f, 9f, 21f)
+                cubicTo(13f, 23f, 18f, 20f, 19f, 16f)
+                close()
+            }, paint)
+            "disconnect" -> {
+                // Two open chain halves, separated at the break.
+                canvas.save(); canvas.rotate(-45f, 12f, 12f)
+                canvas.drawArc(RectF(7f, 1f, 17f, 12f), 0f, -270f, false, paint)
+                canvas.drawArc(RectF(7f, 12f, 17f, 23f), 180f, -270f, false, paint)
+                canvas.restore()
+                line(3f, 8f, 6f, 8f); line(18f, 16f, 21f, 16f)
+            }
+            "retry" -> { canvas.drawArc(RectF(4f,4f,20f,20f),-50f,300f,false,paint)
+                line(18f,3f,20f,8f); line(20f,8f,15f,8f) }
+            "select" -> { canvas.drawRoundRect(RectF(3f,3f,21f,21f),2f,2f,paint)
+                line(7f,8f,17f,8f); line(7f,12f,17f,12f); line(7f,16f,14f,16f) }
+            "progress" -> { canvas.drawArc(RectF(4f,4f,20f,20f),-90f,230f,false,paint)
+                line(19f,14f,20f,19f); line(20f,19f,15f,19f) }
             "more" -> { canvas.drawCircle(5f,12f,1.5f,paint); canvas.drawCircle(12f,12f,1.5f,paint); canvas.drawCircle(19f,12f,1.5f,paint) }
             "search" -> { canvas.drawCircle(10f,10f,7f,paint); line(15f,15f,22f,22f) }
             "statusDot" -> { paint.style = Paint.Style.FILL; canvas.drawCircle(12f, 12f, 11f, paint) }

@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "965f919596910d0b1ccb3170ff358e36a58f26e5c08f73279251198f2981933a",
+  "sha256": "98898894fa4ef3e4ab7fa3fac7981624a5551726bb86ad178bd77f2966f16709",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
@@ -938,6 +938,22 @@
     "curve_plan_end_weight_conditional": "有秤时按目标杯重；无秤时按总水量上限",
     "curve_plan_first_stage_setting": "首段时长设置（不代表实际耗时）",
     "curve_plan_stage_water_label": "%1$d 段 · %2$s · %3$s%%",
-    "curve_new_short": "新建"
+    "curve_new_short": "新建",
+    "task_shell_machine_awake": "已唤醒",
+    "task_shell_machine_asleep": "已睡眠",
+    "task_shell_machine_unconfirmed": "状态未确认",
+    "task_shell_machine_extraction": "萃取中",
+    "task_shell_machine_sleeping": "正在休眠",
+    "task_shell_machine_setting": "设置处理中",
+    "task_shell_machine_unknown": "结果待确认",
+    "task_shell_machine_unavailable": "暂不可用",
+    "task_shell_action_sleep": "睡眠",
+    "task_shell_action_wake_on_machine": "机身唤醒",
+    "task_shell_action_disconnect": "断开",
+    "task_shell_action_retry": "重试",
+    "task_shell_action_connect": "连接",
+    "task_shell_action_select": "选择",
+    "task_shell_action_connecting": "连接中",
+    "task_shell_scale_manually_disconnected": "已断开"
   }
 }

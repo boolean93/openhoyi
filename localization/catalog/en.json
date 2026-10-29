@@ -935,5 +935,21 @@
   "curve_plan_end_weight_conditional": "With scale: target cup weight; without scale: total water limit",
   "curve_plan_first_stage_setting": "First-stage duration setting (not elapsed time)",
   "curve_plan_stage_water_label": "Stage %1$d · %2$s · %3$s%%",
-  "curve_new_short": "New"
+  "curve_new_short": "New",
+  "task_shell_machine_awake": "Awake",
+  "task_shell_machine_asleep": "Asleep",
+  "task_shell_machine_unconfirmed": "Status unconfirmed",
+  "task_shell_machine_extraction": "Brewing",
+  "task_shell_machine_sleeping": "Going to sleep",
+  "task_shell_machine_setting": "Settings in progress",
+  "task_shell_machine_unknown": "Outcome unconfirmed",
+  "task_shell_machine_unavailable": "Unavailable",
+  "task_shell_action_sleep": "Sleep",
+  "task_shell_action_wake_on_machine": "Wake on machine",
+  "task_shell_action_disconnect": "Disconnect",
+  "task_shell_action_retry": "Retry",
+  "task_shell_action_connect": "Connect",
+  "task_shell_action_select": "Choose",
+  "task_shell_action_connecting": "Connecting",
+  "task_shell_scale_manually_disconnected": "Disconnected manually"
 }

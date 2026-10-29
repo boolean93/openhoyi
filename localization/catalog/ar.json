@@ -935,5 +935,21 @@
   "curve_plan_end_weight_conditional": "مع الميزان: وزن الكوب المستهدف؛ بدونه: حد الماء الإجمالي",
   "curve_plan_first_stage_setting": "إعداد مدة المرحلة الأولى (ليس الوقت الفعلي)",
   "curve_plan_stage_water_label": "المرحلة %1$d · %2$s · %3$s%%",
-  "curve_new_short": "إنشاء"
+  "curve_new_short": "إنشاء",
+  "task_shell_machine_awake": "مستيقظة",
+  "task_shell_machine_asleep": "في وضع السكون",
+  "task_shell_machine_unconfirmed": "الحالة غير مؤكدة",
+  "task_shell_machine_extraction": "جارٍ الاستخلاص",
+  "task_shell_machine_sleeping": "جارٍ الدخول في السكون",
+  "task_shell_machine_setting": "الإعدادات قيد التنفيذ",
+  "task_shell_machine_unknown": "النتيجة غير مؤكدة",
+  "task_shell_machine_unavailable": "غير متاح",
+  "task_shell_action_sleep": "سكون",
+  "task_shell_action_wake_on_machine": "الإيقاظ من الجهاز",
+  "task_shell_action_disconnect": "فصل",
+  "task_shell_action_retry": "إعادة المحاولة",
+  "task_shell_action_connect": "توصيل",
+  "task_shell_action_select": "اختيار",
+  "task_shell_action_connecting": "جارٍ الاتصال",
+  "task_shell_scale_manually_disconnected": "فُصل يدويًا"
 }

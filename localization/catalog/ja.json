@@ -935,5 +935,21 @@
   "curve_plan_end_weight_conditional": "秤接続時は目標重量、未接続時は総湯量上限",
   "curve_plan_first_stage_setting": "第1段の時間設定（実際の経過時間ではありません）",
   "curve_plan_stage_water_label": "第%1$d段 · %2$s · %3$s%%",
-  "curve_new_short": "新規"
+  "curve_new_short": "新規",
+  "task_shell_machine_awake": "起動中",
+  "task_shell_machine_asleep": "スリープ中",
+  "task_shell_machine_unconfirmed": "状態未確認",
+  "task_shell_machine_extraction": "抽出中",
+  "task_shell_machine_sleeping": "スリープ移行中",
+  "task_shell_machine_setting": "設定中",
+  "task_shell_machine_unknown": "結果未確認",
+  "task_shell_machine_unavailable": "一時的に使用不可",
+  "task_shell_action_sleep": "スリープ",
+  "task_shell_action_wake_on_machine": "本体で起動",
+  "task_shell_action_disconnect": "切断",
+  "task_shell_action_retry": "再試行",
+  "task_shell_action_connect": "接続",
+  "task_shell_action_select": "選択",
+  "task_shell_action_connecting": "接続中",
+  "task_shell_scale_manually_disconnected": "手動で切断済み"
 }

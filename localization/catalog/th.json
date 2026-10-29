@@ -935,5 +935,21 @@
   "curve_plan_end_weight_conditional": "มีเครื่องชั่ง: น้ำหนักเป้าหมาย ไม่มี: ขีดจำกัดน้ำรวม",
   "curve_plan_first_stage_setting": "เวลาที่ตั้งช่วงแรก (ไม่ใช่เวลาจริง)",
   "curve_plan_stage_water_label": "ช่วง %1$d · %2$s · %3$s%%",
-  "curve_new_short": "สร้าง"
+  "curve_new_short": "สร้าง",
+  "task_shell_machine_awake": "เครื่องตื่นอยู่",
+  "task_shell_machine_asleep": "กำลังพัก",
+  "task_shell_machine_unconfirmed": "ยังไม่ยืนยันสถานะ",
+  "task_shell_machine_extraction": "กำลังสกัด",
+  "task_shell_machine_sleeping": "กำลังเข้าสู่โหมดพัก",
+  "task_shell_machine_setting": "กำลังตั้งค่า",
+  "task_shell_machine_unknown": "ยังไม่ยืนยันผล",
+  "task_shell_machine_unavailable": "ยังใช้งานไม่ได้",
+  "task_shell_action_sleep": "พัก",
+  "task_shell_action_wake_on_machine": "ปลุกที่เครื่อง",
+  "task_shell_action_disconnect": "ตัดการเชื่อมต่อ",
+  "task_shell_action_retry": "ลองอีกครั้ง",
+  "task_shell_action_connect": "เชื่อมต่อ",
+  "task_shell_action_select": "เลือก",
+  "task_shell_action_connecting": "กำลังเชื่อมต่อ",
+  "task_shell_scale_manually_disconnected": "ตัดการเชื่อมต่อแล้ว"
 }

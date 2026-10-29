@@ -935,5 +935,21 @@
   "curve_plan_end_weight_conditional": "С весами: целевой вес; без весов: общий лимит воды",
   "curve_plan_first_stage_setting": "Настройка длительности первого этапа (не фактическое время)",
   "curve_plan_stage_water_label": "Этап %1$d · %2$s · %3$s%%",
-  "curve_new_short": "Создать"
+  "curve_new_short": "Создать",
+  "task_shell_machine_awake": "Не спит",
+  "task_shell_machine_asleep": "Спит",
+  "task_shell_machine_unconfirmed": "Статус не подтверждён",
+  "task_shell_machine_extraction": "Приготовление",
+  "task_shell_machine_sleeping": "Переход в сон",
+  "task_shell_machine_setting": "Настройка",
+  "task_shell_machine_unknown": "Результат неизвестен",
+  "task_shell_machine_unavailable": "Недоступно",
+  "task_shell_action_sleep": "Сон",
+  "task_shell_action_wake_on_machine": "Разбудить на машине",
+  "task_shell_action_disconnect": "Отключить",
+  "task_shell_action_retry": "Повторить",
+  "task_shell_action_connect": "Подключить",
+  "task_shell_action_select": "Выбрать",
+  "task_shell_action_connecting": "Подключение",
+  "task_shell_scale_manually_disconnected": "Отключено вручную"
 }

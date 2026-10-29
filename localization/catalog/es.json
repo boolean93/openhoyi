@@ -935,5 +935,21 @@
   "curve_plan_end_weight_conditional": "Con báscula: peso objetivo; sin báscula: límite total de agua",
   "curve_plan_first_stage_setting": "Duración configurada de la primera etapa (no tiempo transcurrido)",
   "curve_plan_stage_water_label": "Etapa %1$d · %2$s · %3$s%%",
-  "curve_new_short": "Crear"
+  "curve_new_short": "Crear",
+  "task_shell_machine_awake": "Despierta",
+  "task_shell_machine_asleep": "En reposo",
+  "task_shell_machine_unconfirmed": "Estado sin confirmar",
+  "task_shell_machine_extraction": "Extrayendo",
+  "task_shell_machine_sleeping": "Entrando en reposo",
+  "task_shell_machine_setting": "Configurando",
+  "task_shell_machine_unknown": "Resultado sin confirmar",
+  "task_shell_machine_unavailable": "No disponible",
+  "task_shell_action_sleep": "Reposo",
+  "task_shell_action_wake_on_machine": "Despertar en la cafetera",
+  "task_shell_action_disconnect": "Desconectar",
+  "task_shell_action_retry": "Reintentar",
+  "task_shell_action_connect": "Conectar",
+  "task_shell_action_select": "Elegir",
+  "task_shell_action_connecting": "Conectando",
+  "task_shell_scale_manually_disconnected": "Desconectada manualmente"
 }
