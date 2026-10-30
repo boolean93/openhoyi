@@ -232,11 +232,9 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         list.adapter = adapter
         collection = TaskCollectionLayout(host)
         body.addView(collection, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8) })
-        // Source controls belong to the record browser, not above the selected chart.
-        listOf(sources, count).forEach { control ->
-            body.removeView(control)
-            collection.browserBody.addView(control, LinearLayout.LayoutParams(-1, -2))
-        }
+        // Source tabs belong to the browser; count stays in the compact page tools row.
+        body.removeView(sources)
+        collection.browserBody.addView(sources, LinearLayout.LayoutParams(-1, -2))
         val back = style.button(HoyiUi.button(host, collection.detailBody, getString(R.string.history_back_to_list)) { showList() })
         collection.onPresentationChanged = { split, visible ->
             compact = !split

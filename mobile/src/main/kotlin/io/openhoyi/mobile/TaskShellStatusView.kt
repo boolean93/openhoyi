@@ -138,24 +138,51 @@ internal class TaskShellStatusView(
         if (tooltipText?.toString() != value) tooltipText = value
     }
 
-    /** Measure current real text at the 104dp rail's 88dp inner width. */
+    /** Rail eligibility must be independent of the currently attached fallback arrangement. */
     fun requiredRailHeight(width: Int): Int {
         val inner = (width - style.dp(16)).coerceAtLeast(0)
-        val widthSpec = MeasureSpec.makeMeasureSpec(inner, MeasureSpec.EXACTLY)
         val heightSpec = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
-        coffeeGroup.measure(widthSpec, heightSpec)
-        scaleGroup.measure(widthSpec, heightSpec)
-        return style.dp(12 + 8 + 8) + style.dp(1) + coffeeGroup.measuredHeight +
-            style.dp(8) + scaleGroup.measuredHeight
+        fun natural(view: View, available: Int): Int {
+            view.measure(MeasureSpec.makeMeasureSpec(available.coerceAtLeast(0), MeasureSpec.EXACTLY), heightSpec)
+            return view.measuredHeight
+        }
+        fun groupHeight(name: TextView, status: TextView, vararg actions: Button): Int =
+            style.dp(8) + natural(name, inner) + natural(status, inner) + style.dp(4) +
+                (actions.filter { it.visibility != GONE }.maxOfOrNull { natural(it, inner - style.dp(8)) } ?: 0)
+        return style.dp(29 + 8) + groupHeight(coffeeName, coffeeStatus, sleep) +
+            groupHeight(scaleName, scaleStatus, reconnect, disconnect)
+    }
+
+    private fun arrangeGroup(group: LinearLayout, name: TextView, status: TextView, vararg actions: Button) {
+        // Reparent only on a presentation transition; the labels and action instances stay stable.
+        listOf(name, status, *actions).forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        group.removeAllViews()
+        val rail = mode == TaskNavigationMode.RAIL
+        group.orientation = if (rail) VERTICAL else HORIZONTAL
+        group.gravity = Gravity.CENTER_VERTICAL
+        if (rail) {
+            group.addView(name, LayoutParams(-1, -2))
+            group.addView(status, LayoutParams(-1, -2))
+            actions.forEach { group.addView(it, actionParams()) }
+        } else {
+            val facts = LinearLayout(host).apply {
+                orientation = VERTICAL; setPadding(style.dp(8), 0, style.dp(8), 0)
+            }
+            facts.addView(name, LayoutParams(-1, -2)); facts.addView(status, LayoutParams(-1, -2))
+            group.addView(facts, LayoutParams(0, -2, 1f))
+            actions.forEach { group.addView(it, LayoutParams(-2, -2).apply { marginEnd = style.dp(4) }) }
+        }
     }
 
     fun renderMode(next: TaskNavigationMode) {
         if (mode == next) return
         mode = next; removeAllViews()
+        arrangeGroup(coffeeGroup, coffeeName, coffeeStatus, sleep)
+        arrangeGroup(scaleGroup, scaleName, scaleStatus, reconnect, disconnect)
         orientation = if (next == TaskNavigationMode.RAIL) VERTICAL else HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
-        setPadding(style.dp(8), if (next == TaskNavigationMode.RAIL) style.dp(12) else style.dp(8),
-            style.dp(8), style.dp(8))
+        setPadding(style.dp(8), if (next == TaskNavigationMode.RAIL) style.dp(12) else style.dp(4),
+            style.dp(8), if (next == TaskNavigationMode.RAIL) style.dp(8) else style.dp(4))
         if (next == TaskNavigationMode.RAIL) {
             addView(divider, LayoutParams(-1, style.dp(1)))
             addView(coffeeGroup, LayoutParams(-1, -2).apply { topMargin = style.dp(8) })
@@ -164,6 +191,46 @@ internal class TaskShellStatusView(
             addView(coffeeGroup, LayoutParams(0, -2, 1f))
             addView(scaleGroup, LayoutParams(0, -2, 1f).apply { marginStart = style.dp(8) })
         }
+    }
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if (mode == TaskNavigationMode.BOTTOM) {
+            val available = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
+            val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+            fun wanted(name: TextView, status: TextView, vararg actions: Button): Int {
+                name.measure(natural, natural); status.measure(natural, natural)
+                val actionWidth = actions.filter { it.visibility != GONE }.maxOfOrNull { button ->
+                    // A prior fallback width cap must not influence the next presentation decision.
+                    val previousMaxWidth = button.maxWidth
+                    try {
+                        if (previousMaxWidth != Int.MAX_VALUE) button.maxWidth = Int.MAX_VALUE
+                        button.measure(natural, natural)
+                        button.measuredWidth.coerceAtLeast(style.dp(80))
+                    } finally {
+                        if (button.maxWidth != previousMaxWidth) button.maxWidth = previousMaxWidth
+                    }
+                } ?: 0
+                return maxOf(name.measuredWidth, status.measuredWidth) + actionWidth + style.dp(20)
+            }
+            val stacked = wanted(coffeeName, coffeeStatus, sleep) + wanted(scaleName, scaleStatus, reconnect, disconnect) + style.dp(8) > available
+            val next = if (stacked) VERTICAL else HORIZONTAL
+            if (orientation != next) orientation = next
+            listOf(coffeeGroup, scaleGroup).forEachIndexed { index, group ->
+                val old = group.layoutParams as LayoutParams
+                val width = if (stacked) -1 else 0
+                val weight = if (stacked) 0f else 1f
+                val start = if (!stacked && index == 1) style.dp(8) else 0
+                val top = if (stacked && index == 1) style.dp(4) else 0
+                if (old.width != width || old.weight != weight || old.marginStart != start || old.topMargin != top)
+                    group.layoutParams = LayoutParams(width, -2, weight).apply { marginStart = start; topMargin = top }
+                val actionCap = (if (stacked) available else (available - style.dp(8)) / 2) / 2
+                listOf(sleep, reconnect, disconnect).filter { it.parent === group }.forEach { button ->
+                    val cap = actionCap.coerceAtLeast(style.dp(48))
+                    if (button.maxWidth != cap) button.maxWidth = cap
+                }
+            }
+        } else listOf(sleep, reconnect, disconnect).forEach { if (it.maxWidth != Int.MAX_VALUE) it.maxWidth = Int.MAX_VALUE }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec)
     }
 
     fun present(owner: MobileService?) {

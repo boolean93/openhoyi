@@ -45,7 +45,13 @@ jobs:
           profile: pixel_7_pro
           ram-size: 2048M
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_extraction_history_visual_migration.sh
+          # Establish a deterministic baseline on this fresh disposable emulator.
+          # The capture script still verifies exact setting presence/value restoration.
+          script: |
+            test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1
+            adb shell settings put system font_scale 1.0
+            adb shell settings get system font_scale
+            bash scripts/check_extraction_history_visual_migration.sh
       - name: Upload real extraction and history evidence
         if: always()
         uses: actions/upload-artifact@v6

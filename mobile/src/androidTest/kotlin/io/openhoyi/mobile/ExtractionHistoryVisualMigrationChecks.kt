@@ -616,8 +616,14 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     val number = requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/number"))
                     val unit = requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/unit"))
                     check(unit.text.toString() == expectedUnits[index] && number.parent === unit.parent)
-                    check(kotlin.math.abs(number.textSize / activity.resources.displayMetrics.scaledDensity - 24f) < .1f)
-                    check(kotlin.math.abs(unit.textSize / activity.resources.displayMetrics.scaledDensity - 14f) < .1f)
+                    // Android 14 scales SP nonlinearly: validate the same native conversion used by TextView.
+                    val metrics = activity.resources.displayMetrics
+                    val numberPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 24f, metrics)
+                    val unitPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 14f, metrics)
+                    check(kotlin.math.abs(number.textSize - numberPx) < .1f) {
+                        "$metric number must use native 24sp: actual=${number.textSize}px expected=${numberPx}px" }
+                    check(kotlin.math.abs(unit.textSize - unitPx) < .1f) {
+                        "$metric unit must use native 14sp: actual=${unit.textSize}px expected=${unitPx}px" }
                     val numberOrigin = IntArray(2); val unitOrigin = IntArray(2)
                     number.getLocationOnScreen(numberOrigin); unit.getLocationOnScreen(unitOrigin)
                     check(numberOrigin[1] + number.baseline == unitOrigin[1] + unit.baseline)

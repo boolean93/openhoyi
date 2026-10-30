@@ -106,6 +106,30 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                         File(directory, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
                 }
+                val shellProbe = TaskShellStatusView(activity, {}, {}, {}, {})
+                val railWidth = HoyiUi.dp(activity, 104)
+                val railBudget = shellProbe.requiredRailHeight(railWidth)
+                shellProbe.renderMode(TaskNavigationMode.BOTTOM)
+                shellProbe.measure(View.MeasureSpec.makeMeasureSpec(actual.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                shellProbe.layout(0, 0, actual.width, shellProbe.measuredHeight)
+                check(shellProbe.requiredRailHeight(railWidth) == railBudget) {
+                    "Fallback measurement changed rail eligibility and can oscillate presentations" }
+                shellProbe.requestLayout()
+                shellProbe.measure(View.MeasureSpec.makeMeasureSpec(actual.width, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                shellProbe.layout(0, 0, actual.width, shellProbe.measuredHeight)
+                for (tag in listOf("task-shell-coffee-name", "task-shell-coffee-status", "task-shell-scale-name", "task-shell-scale")) {
+                    val fact = requireNotNull(shellProbe.findViewWithTag<android.widget.TextView>(tag))
+                    check(!fact.isClickable && !fact.isFocusable)
+                    LanguageUiLayoutChecks.textFits(fact, "compact shell $tag")
+                }
+                for (tag in listOf("task-shell-sleep", "task-shell-scale-reconnect")) {
+                    val action = requireNotNull(shellProbe.findViewWithTag<android.widget.Button>(tag))
+                    check(action.height >= HoyiUi.dp(activity, 48))
+                }
+                shellProbe.renderMode(TaskNavigationMode.RAIL)
+                check(shellProbe.requiredRailHeight(railWidth) == railBudget)
                 val lifecycleProbe = ExtractionOverlayView(activity, ExtractionHistoryVisualStyle(activity))
                 lifecycleProbe.traceIdentity = "old-cup"
                 lifecycleProbe.points = listOf(samples.first(), samples.last().copy(elapsedMs = 90_000))

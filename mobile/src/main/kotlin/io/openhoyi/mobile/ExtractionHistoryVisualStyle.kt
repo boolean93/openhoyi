@@ -115,7 +115,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         val left = dp(8f) + leftAxes.sumOf { column(it).toDouble() }.toFloat()
         val right = width - dp(8f) - rightAxes.sumOf { column(it).toDouble() }.toFloat()
         return if (comparison) RectF(left, line * 1.5f + dp(12f), right, height - line * 1.5f - dp(12f))
-            else if (liveMode) RectF(left, line * 2 + dp(12f), right, height - line * 1.5f - dp(12f))
+            else if (liveMode) RectF(left, line * 1.5f + dp(8f), right, height - line * 1.5f - dp(12f))
             else RectF(left, line * 1.5f + dp(16f), right, height - line * 2.5f - dp(24f))
     }
     private data class Label(val text: String, val x: Float, val baseline: Float, val align: Paint.Align, val color: Int, val role: String)

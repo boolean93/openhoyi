@@ -79,7 +79,7 @@ tap_control() {
 }
 
 tap_nav() {
-  local expected="$2"
+  local expected="$1"
   # Detail/settings Activities no longer carry the task rail. Return to the retained
   # MainActivity before selecting another root, preserving the current Mock process.
   if ! adb shell dumpsys activity activities | grep 'topResumedActivity=.*io.openhoyi.mobile.MainActivity' >/dev/null; then
@@ -101,9 +101,7 @@ tap_nav() {
         -n io.openhoyi.mobile.mock/io.openhoyi.mobile.MainActivity \
         --ez io.openhoyi.mobile.open_extraction true >/dev/null
       sleep 2
-      adb shell rm -f /data/local/tmp/openhoyi-extraction.xml
-      adb shell uiautomator dump /data/local/tmp/openhoyi-extraction.xml >/dev/null
-      adb shell cat /data/local/tmp/openhoyi-extraction.xml | grep 'text="实时萃取"' >/dev/null
+      assert_page ExtractionActivity extraction-route
       ;;
     AppSettingsActivity)
       tap_control '设置'
@@ -118,11 +116,44 @@ tap_nav() {
 }
 
 
+# MainActivity hosts every root Fragment. Activity identity alone cannot prove a route.
+# Save the actual hierarchy with each screenshot and require page-specific content.
+assert_page() {
+  python3 - "$1" "$output_dir/$2.xml" <<'PYASSERT'
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+sys.path.insert(0, 'scripts')
+from mock_ui_tap import ensure_mock, read_hierarchy
+ensure_mock()
+xml = read_hierarchy()
+Path(sys.argv[2]).write_text(xml, encoding='utf-8')
+root = ET.fromstring(xml)
+labels = {value for node in root.iter('node') for value in
+          (node.get('text', ''), node.get('content-desc', '')) if value}
+markers = {
+    'HomeActivity': {'冲泡锅炉'},
+    'CurveActivity': {'搜索曲线', '搜索曲线 · 曲线名称'},
+    'ExtractionActivity': {'开始萃取', '立即停止', '开始模拟'},
+    'HistoryActivity': {'本机记录'},
+    'AppSettingsActivity': {'深色主题'},
+    'MachineSettingsActivity': {'机器设置'},
+    'HistoryDetailActivity': {'模拟萃取详情'},
+}
+expected = markers[sys.argv[1]]
+# EditText exposes its hint on some Android versions as text and on others as hint.
+if sys.argv[1] == 'CurveActivity':
+    labels.update(node.get('hint', '') for node in root.iter('node'))
+if not labels.intersection(expected):
+    raise SystemExit(f'Wrong visible page: {sys.argv[1]}; expected one of {sorted(expected)}; hierarchy: {sys.argv[2]}')
+PYASSERT
+}
+
 toggle_theme() {
-  tap_nav 0 AppSettingsActivity
+  tap_nav AppSettingsActivity
   tap_control '深色主题'
   assert_activity AppSettingsActivity
-  tap_nav 0 HomeActivity
+  tap_nav HomeActivity
 }
 
 capture() {
@@ -133,11 +164,13 @@ capture() {
     extraction-*|portrait-extraction-*) expected=ExtractionActivity ;;
     history-detail-*|portrait-history-detail-*) expected=HistoryDetailActivity ;;
     history-*|portrait-history-*) expected=HistoryActivity ;;
+    app-settings-*) expected=AppSettingsActivity ;;
     settings-*|portrait-settings-*) expected=MachineSettingsActivity ;;
     *) echo "Unknown screenshot name: $name" >&2; return 1 ;;
   esac
   sleep 2
   assert_activity "$expected"
+  assert_page "$expected" "$name"
   adb exec-out screencap -p > "$path"
   assert_activity "$expected"
   python3 - "$path" "$name" <<'PY'
@@ -160,35 +193,44 @@ PY
 
 assert_activity HomeActivity
 capture home-light
-tap_nav 1 CurveActivity
+tap_nav CurveActivity
 capture curves-light
-tap_control 'HOYI Turbo Shot'
-capture curves-mixed-light
-tap_nav 2 ExtractionActivity
+# Captured profiles are guaranteed by CurveCatalog; legacy factory names are not fixtures.
+tap_control '已采集验证'
+tap_control '采集曲线 3'
+capture curves-selected-light
+tap_nav ExtractionActivity
 capture extraction-light
-tap_nav 3 HistoryActivity
+tap_nav HistoryActivity
 capture history-empty-light
-tap_nav 4 MachineSettingsActivity
+tap_nav AppSettingsActivity
+capture app-settings-light
+tap_nav MachineSettingsActivity
 capture settings-light
 
-tap_nav 0 HomeActivity
+tap_nav HomeActivity
 toggle_theme
 sleep 5
 capture home-dark
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/theme-pref.xml"
 grep 'name="dark" value="true"' "$output_dir/theme-pref.xml" >/dev/null
-tap_nav 1 CurveActivity
+tap_nav CurveActivity
 capture curves-dark
-tap_control 'HOYI Turbo Shot'
-capture curves-mixed-dark
-tap_nav 2 ExtractionActivity
+# Captured profiles are guaranteed by CurveCatalog; legacy factory names are not fixtures.
+tap_control '已采集验证'
+tap_control '采集曲线 3'
+capture curves-selected-dark
+tap_nav ExtractionActivity
 capture extraction-dark
-tap_nav 3 HistoryActivity
+tap_nav HistoryActivity
 capture history-empty-dark
-tap_nav 4 MachineSettingsActivity
+tap_nav AppSettingsActivity
+capture app-settings-dark
+tap_nav MachineSettingsActivity
 capture settings-dark
 
-tap_nav 1 CurveActivity
+tap_nav CurveActivity
+tap_control '已采集验证'
 tap_control '采集曲线 2'
 sleep 2
 capture curve-detail-dark
@@ -196,9 +238,9 @@ tap_control '使用此曲线'
 sleep 2
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/curves.xml > "$output_dir/selected-curve.xml"
 grep 'name="selected">capture-2<' "$output_dir/selected-curve.xml" >/dev/null
-tap_nav 0 HomeActivity
+tap_nav HomeActivity
 capture home-selected-dark
-tap_nav 2 ExtractionActivity
+tap_nav ExtractionActivity
 capture extraction-ready-dark
 tap_control '开始萃取'
 sleep 2
@@ -210,7 +252,7 @@ adb logcat -d -s OpenHoyiMobile:I | grep 'Mock 萃取已开始' > "$output_dir/s
 capture extraction-running-dark
 sleep 34
 capture extraction-ended-dark
-tap_nav 3 HistoryActivity
+tap_nav HistoryActivity
 capture history-list-dark
 tap_control '采集曲线 2'
 assert_activity HistoryActivity
@@ -227,7 +269,7 @@ assert_activity MainActivity
 toggle_theme
 adb shell run-as io.openhoyi.mobile.mock cat shared_prefs/appearance.xml > "$output_dir/light-theme-pref.xml"
 grep 'name="dark" value="false"' "$output_dir/light-theme-pref.xml" >/dev/null
-tap_nav 2 ExtractionActivity
+tap_nav ExtractionActivity
 capture extraction-ready-light
 tap_control '开始萃取'
 capture extraction-confirm-light

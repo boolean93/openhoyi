@@ -92,3 +92,13 @@
 已核新杯时间轴二次重置及真实 View 回归、图例线型同步、真实指标节点读数测试、pageBody 宽度门禁；readiness 的原危险颜色/UNKNOWN 背景/chooseCurve 可见条件完整恢复。五根标题和曲线普通直达（slot 7、confirmStart=false）未改业务门禁；16 项矩阵保留，特殊缺秤状态仍要求第四缺测指标存在。Hermite 原端点/分段与历史默认分支保持。
 
 剩一项状态一致性收尾已交 root：`unavailableLiveMetrics` 只更新可见 tile，plot 的读屏 `task_chart_latest` 仍使用旧样本；需 live 统一缺测规则、setter 同步更新描述，并保持原记录。统一构建进行中，尚无本轮运行/视觉通过结论。
+
+### 首轮 CI 原图失败与有界修复（2026-10-31）
+
+首版 `e05d0b3` 的 CI 中文浅色 fontScale=1.3 原图已实际查看，路径 `build/extraction-clarity-2026-10-30/ci/extraction-history-visual-tablet-user-landscape/raw-device/e05d0b302b7b96b037a30304066d0090969d2d40/tablet-user-landscape-light-font-1.3/extraction/window.png`。四项名称、数值、单位、量程完整且数字/单位基线一致，停止按钮 56dp 完整；但**视觉不通过**：geometry 中 plot View 高 400px，真实数据区 y149.5008..281.1244，仅 131.6236px / 2.25 = **58.50dp**。顶部 fallback 每组 257px=114.22dp，轴布局另消耗约119.28dp，趋势被压为横条。此证据不验证普通字号、深色、其它根页面或曲线直达。
+
+批准修复限两处：TaskShellStatusView 的 BOTTOM 设备组改只读名字/状态两行＋独立至少48dp动作横排，两组横排，真实宽不足才上下排列；104dp rail 不改。requiredRailHeight 按独立竖排预算测量，避免当前模式影响判断。live 轴顶部由 line×2+12dp 改 line×1.5+8dp，历史/comparison 不变，真实字形不得相撞。预计先回收到约126–135dp，不提前声称180dp；大字原96dp门槛、普通260dp门槛不降。状态/动作不隐藏、字号不缩、安全提示保留。
+
+新 delta 静审未见设备命令或回调改变。需收口的测量确定性提醒：BOTTOM 自然宽度判定不得受上一次按钮 maxWidth 截断值影响；以独立自然宽确定换行，避免长翻译阈值附近布局依赖历史。正式构建进行中，平板重新在线后的新图待提供，不标视觉完成。
+
+CI 字号环境决定：仅在新建临时 Android14 模拟器 workflow 的检查启动前初始化 font_scale=1.0，之后测试采样其真实存在值并严格恢复；检查脚本的键存在性/逐值校验与失败码不变。不用于真实设备，不把此前系统自动重建1.0导致原缺键无法恢复的失败改称通过。
