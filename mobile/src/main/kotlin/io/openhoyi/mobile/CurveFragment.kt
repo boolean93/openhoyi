@@ -482,7 +482,7 @@ class CurveFragment : androidx.fragment.app.Fragment() {
         select = HoyiUi.button(host, footer, getString(R.string.curve_use), primary = true) {
             selected?.let { item ->
                 getSharedPreferences("curves", MODE_PRIVATE).edit().putString("selected", item.id).apply()
-                host.select(TaskDestination.BREW)
+                host.showExtraction(slot = 7, confirmStart = false)
             }
         }.apply {
             productStyle.button(this, primary = true); HomeVisualIcon.buttonIcon(this, "back", atEnd = true)

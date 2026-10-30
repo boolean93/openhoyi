@@ -101,6 +101,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var cancelPrepare: Button
     private lateinit var pageHeader: LinearLayout
     private lateinit var pageBody: LinearLayout
+    private lateinit var compactIdentity: TextView
     private lateinit var headerWords: LinearLayout
     private var headerSubtitle: TextView? = null
     private lateinit var supportReadings: LinearLayout
@@ -132,7 +133,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else null)
         style.styleHeader(pageHeader)
         headerWords = pageHeader.getChildAt(0) as LinearLayout
-        headerSubtitle = headerWords.getChildAt(1) as? TextView
+        headerWords.removeAllViews()
+        headerSubtitle = null
+        compactIdentity = style.text("", TaskProductVisualStyle.Type(14, 500, 20), "product/extraction/identity")
+        headerWords.addView(compactIdentity, LinearLayout.LayoutParams(-1, -2))
+        if (BuildConfig.MOCK_MODE) pageHeader.addView(style.text("Mock", TaskProductVisualStyle.auxiliary,
+            "product/extraction/mode", true).apply { contentDescription = getString(R.string.extraction_mock_subtitle) })
+        pageHeader.minimumHeight = dp(48)
         (pageHeader.layoutParams as LinearLayout.LayoutParams).bottomMargin = dp(8)
         // Secondary prose remains available in a details dialog, not in the plot's height budget.
         val details = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
@@ -147,14 +154,6 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         stageTargets = text(details, "", 13)
         readiness = text(content, getString(R.string.extraction_waiting_service), 14, true).apply {
             accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-        }
-        if (!compactChrome) {
-            // Keep guidance visible alongside the title on a tablet. Compact running
-            // layouts hide the header, so their guidance must remain outside it.
-            content.removeView(readiness)
-            pageHeader.addView(readiness, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                marginStart = dp(16)
-            })
         }
         val workspace = TaskExtractionWorkspace(host, visual)
         content.addView(workspace, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = 0 })
@@ -171,7 +170,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         sidePanel.addView(recipeSummary, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8); bottomMargin = dp(8) })
         deviceSummary = text(sidePanel, getString(R.string.extraction_devices_initial), 14)
         val metrics = TaskLiveReadouts(host, visual)
-        plotColumn.addView(metrics, LinearLayout.LayoutParams(-1, -2))
+        // Replaced by the chart's single four-metric strip; detached legacy readouts remain details inputs.
         fun reading(label: String, quantity: Boolean = false): TextView {
             val cell = style.column("product/extraction/" + if (quantity) "quantity-cell" else "elapsed-cell").apply {
                 orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL
@@ -212,17 +211,15 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             minimumWidth = dp(48); minimumHeight = dp(48)
             setOnClickListener { showTools() }
         }
-        chartHost.addView(chartTools, FrameLayout.LayoutParams(-2, -2, android.view.Gravity.TOP or android.view.Gravity.END))
+        pageHeader.addView(chartTools, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
         plotColumn.addView(chartHost, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8); bottomMargin = 0 })
         workspace.onPrimarySpaceAvailable = { width, height ->
-            val exactWidth = View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY)
-            val naturalHeight = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-            metrics.measure(exactWidth, naturalHeight)
+            // Metric strip is measured inside the chart, not as a second readout tier.
             // Reserve real plot space before allocating the locally scrollable tools.
             // Font scaling grows this budget; no plot/text minimum is lowered.
-            val chartHeight = maxOf((dp(180) * resources.configuration.fontScale).toInt(),
+            val chartHeight = maxOf((dp(260) * resources.configuration.fontScale).toInt(),
                 (height * .55f).toInt())
-            metrics.measuredHeight + chartHeight + dp(8)
+            chartHeight + dp(8)
         }
         val toolbar = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
         sidePanel.addView(toolbar)
@@ -398,33 +395,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val active=owner?.manualShotActive==true || state in setOf(ExtractionState.STARTING,
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
         chart.compactRunningExplanation = active
-        pageHeader.visibility = if (active && compactChrome) View.GONE else View.VISIBLE
-        val compactRunning = active && !compactChrome
-        val wordsOrientation = if (compactRunning) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
-        if (headerWords.orientation != wordsOrientation) {
-            headerWords.orientation = wordsOrientation
-            (headerWords.getChildAt(0).layoutParams as LinearLayout.LayoutParams).apply {
-                width = if (compactRunning) -2 else -1
-                weight = 0f
-                headerWords.getChildAt(0).layoutParams = this
-            }
-            headerSubtitle?.apply {
-                (layoutParams as LinearLayout.LayoutParams).also { params ->
-                    params.width = if (compactRunning) 0 else -1
-                    params.weight = if (compactRunning) 1f else 0f
-                    layoutParams = params
-                }
-                setPadding(if (compactRunning) dp(8) else 0, if (compactRunning) 0 else dp(4), 0, 0)
-                maxLines = if (compactRunning) 1 else Int.MAX_VALUE
-                ellipsize = if (compactRunning) android.text.TextUtils.TruncateAt.END else null
-            }
-        }
-        val headerParams = pageHeader.layoutParams as LinearLayout.LayoutParams
-        val headerGap = if (compactRunning) 0 else dp(8)
-        if (headerParams.bottomMargin != headerGap) {
-            headerParams.bottomMargin = headerGap
-            pageHeader.layoutParams = headerParams
-        }
+        pageHeader.visibility = View.VISIBLE
         val chartParams = chartHost.layoutParams as LinearLayout.LayoutParams
         val chartGap = if (active) 0 else dp(8)
         if (chartParams.topMargin != chartGap) {
@@ -472,6 +443,12 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val displayCurveName = recipe?.name ?: displayCurve?.name ?: getString(if (observedCup) {
             if (owner?.chartCurveId == "manual") R.string.extraction_manual_label else R.string.profiles_missing
         } else R.string.extraction_unselected)
+        val elapsed = (LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt,
+            MobileMonotonicClock.elapsedRealtime()) as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.elapsedSeconds
+        val elapsedText = elapsed?.let { String.format(Locale.ROOT, "%02d:%02d", it / 60, it % 60) } ?: "—"
+        compactIdentity.show("$displayCurveName ｜ ${shotLabel(state)} ｜ ${getString(R.string.task_extraction_elapsed)} $elapsedText")
+        compactIdentity.contentDescription = compactIdentity.text.toString() +
+            if (BuildConfig.MOCK_MODE) " · " + getString(R.string.extraction_mock_subtitle) else ""
         curveSummary.show(getString(R.string.extraction_curve_summary, displayCurveName,
             if (observedCup) "" else slotLabel))
         val cupNotes = if (observedCup) owner?.chartTraceIdentity?.let {
@@ -557,6 +534,10 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         }))
         val scale = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, now)?.hundredthsGram
             ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)?.weightHundredthsGram
+        chart.unavailableLiveMetrics = buildSet {
+            if (frame == null) addAll(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.TEMPERATURE))
+            if (scale == null) add(ChartMetric.WEIGHT)
+        }
         // Connected but stale scales stay explicitly unknown; no cup/tare evidence is inferred.
         val scaleQuantity = scale != null || snapshot.scaleState == DeviceState.READY
         quantityLabel.show(getString(if (scaleQuantity) R.string.task_extraction_scale else R.string.task_extraction_water))

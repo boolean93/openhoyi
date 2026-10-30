@@ -148,10 +148,15 @@ internal class LanguageActiveCupChecks(private val test: Instrumentation) {
                 points.last().temperatureHundredthsC > 0)
             if (connected) check(points.any { it.weightHundredthsGram != null })
             else check(points.all { it.weightHundredthsGram == null } && owner.snapshot.weight == null && owner.snapshot.weightAt == null)
-            val label = ExtractionFragment::class.java.getDeclaredField("quantityLabel").apply { isAccessible = true }
-                .get(page(screen)) as android.widget.TextView
-            check(label.isShown && label.text.toString() == screen.getString(
-                if (connected) R.string.task_extraction_scale else R.string.task_extraction_water))
+            val label = requireNotNull(screen.window.decorView.findViewWithTag<android.widget.TextView>(
+                "product/extraction/metric/WEIGHT/name"))
+            val scaleNumber = requireNotNull(screen.window.decorView.findViewWithTag<android.widget.TextView>(
+                "product/extraction/metric/WEIGHT/number"))
+            val scaleUnit = requireNotNull(screen.window.decorView.findViewWithTag<android.widget.TextView>(
+                "product/extraction/metric/WEIGHT/unit"))
+            check(label.isShown && label.text.toString() == screen.getString(R.string.task_extraction_scale))
+            check(scaleNumber.isShown && scaleUnit.isShown && scaleUnit.text.toString() == "g")
+            check((scaleNumber.text.toString() != "—") == connected)
             check(stop(screen).isShown && stop(screen).isEnabled)
             val alarm = ExtractionFragment::class.java.getDeclaredField("alarmStatus").apply { isAccessible = true }
                 .get(page(screen)) as android.widget.TextView

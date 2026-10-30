@@ -37,9 +37,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             inspectionDialog?.dismiss()
             inspectedTime = null
             previousRanges = emptyMap()
+            liveTimeEnd = 30_000L
             rebuildProjection()
             // The Activity sets identity before replacing points; do not retain the old cup range.
             previousRanges = emptyMap()
+            liveTimeEnd = 30_000L
         }
     var referenceLabel: String? = null
         set(value) { if (field != value) { field = value; updateDescription() } }
@@ -57,6 +59,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var selected: ChartMetric? = null
     private val focusMetric get() = selected ?: ChartMetric.PRESSURE
     private val buttons = linkedMapOf<ChartMetric, Button>()
+    private val liveTiles = linkedMapOf<ChartMetric, android.widget.FrameLayout>()
+    private val liveValues = linkedMapOf<ChartMetric, Pair<TextView, TextView>>()
+    private val liveRanges = linkedMapOf<ChartMetric, TextView>()
+    private val liveChart get() = visual != null && !embeddedHistory
+    private var liveTimeEnd = 30_000L
+    var unavailableLiveMetrics: Set<ChartMetric> = emptySet()
+        set(value) {
+            if (field == value) return
+            field = value
+            if (liveChart) {
+                buttons.forEach { (metric, button) -> updateLegendText(metric, button) }
+                updateDescription()
+            }
+        }
     private val legend = LegendLayout(context)
     private var compactMode = false
     private val compactNotice = TextView(context).apply {
@@ -134,6 +150,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     private fun rebuildProjection() {
         data = FourMetricChartProjection.build(points, reference, previousRanges)
+        if (liveChart) {
+            liveTimeEnd = maxOf(liveTimeEnd, LiveChartGeometry.timeEnd(data.timeEndMs))
+            data = data.copy(timeEndMs = liveTimeEnd)
+        }
         previousRanges = data.series.associate { it.metric to it.range }
         if (data.series.none { it.metric == selected }) selected = null
         val metrics = if (embeddedHistory) data.series.map { it.metric } else ChartMetric.entries
@@ -166,7 +186,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                         updateDescription()
                         plot.invalidate()
                     }
-                }.also { legend.addView(it) }
+                }.also { button ->
+                    if (liveChart) addLiveTile(metric, button) else legend.addView(button)
+                }
             }
             // Stable instances preserve accessibility focus while samples arrive.
             visual?.palette?.let { style ->
@@ -179,9 +201,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         // Weight may appear after the temperature button was created.
         metrics.forEachIndexed { index, metric ->
             val button = buttons.getValue(metric)
-            if (legend.indexOfChild(button) != index) {
-                legend.removeView(button)
-                legend.addView(button, index)
+            val tile = liveTiles[metric] ?: button
+            if (legend.indexOfChild(tile) != index) {
+                legend.removeView(tile)
+                legend.addView(tile, index)
             }
         }
         if (inspectedTime != null && points.none { it.elapsedMs == inspectedTime }) {
@@ -194,8 +217,53 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         plot.invalidate()
     }
 
+    private fun displayUnit(metric: ChartMetric) = if (liveChart && metric == ChartMetric.WATER) "mL" else metric.unit
+
+    private fun addLiveTile(metric: ChartMetric, button: Button) {
+        val palette = requireNotNull(visual).palette
+        val tile = android.widget.FrameLayout(context)
+        val body = LinearLayout(context).apply {
+            orientation = VERTICAL; setPadding(dp(8f).toInt(), dp(4f).toInt(), dp(8f).toInt(), dp(4f).toInt())
+            importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        }
+        val name = palette.text(if (metric == ChartMetric.WEIGHT) context.getString(R.string.task_extraction_scale)
+            else metricName(metric), TaskProductVisualStyle.Type(14, 400, 20), "product/extraction/metric/$metric/name")
+        name.setTextColor(metricColor(metric)); name.setCompoundDrawablesRelative(MetricSwatch(metric), null, null, null)
+        name.compoundDrawablePadding = dp(4f).toInt()
+        body.addView(name)
+        val quantity = LinearLayout(context).apply { orientation = HORIZONTAL; isBaselineAligned = true }
+        val number = palette.text("—", TaskProductVisualStyle.Type(24, 500, 32), "product/extraction/metric/$metric/number")
+        val unit = palette.text(displayUnit(metric), TaskProductVisualStyle.Type(14, 400, 20), "product/extraction/metric/$metric/unit")
+        number.setTextColor(metricColor(metric)); unit.setTextColor(metricColor(metric))
+        quantity.addView(number); quantity.addView(unit, LayoutParams(-2, -2).apply { marginStart = dp(4f).toInt() })
+        body.addView(quantity)
+        val range = palette.text("", TaskProductVisualStyle.Type(12, 400, 18), "chart-range:$metric", true)
+        body.addView(range)
+        button.setCompoundDrawablesRelative(null, null, null, null)
+        button.text = ""; button.setPadding(0, 0, 0, 0)
+        tile.addView(body, android.widget.FrameLayout.LayoutParams(-1, -2))
+        tile.addView(button, android.widget.FrameLayout.LayoutParams(-1, -1))
+        liveTiles[metric] = tile; liveValues[metric] = number to unit; liveRanges[metric] = range
+        legend.addView(tile)
+    }
+
     private fun updateLegendText(metric: ChartMetric, button: Button) {
         val series = data.series.firstOrNull { it.metric == metric }
+        if (liveChart) {
+            val latest = series?.current?.lastOrNull()?.lastOrNull()?.takeIf {
+                it.elapsedMs == data.observedThroughMs && metric !in unavailableLiveMetrics }
+            val value = latest?.let { format(it.value) } ?: "—"
+            val range = series?.range?.let { "${format(it.low)}–${format(it.high)} ${displayUnit(metric)}" }
+                ?: context.getString(R.string.task_chart_missing_scale)
+            liveValues[metric]?.first?.let { if (it.text.toString() != value) it.text = value }
+            liveRanges[metric]?.let { if (it.text.toString() != range) it.text = range }
+            val name = if (metric == ChartMetric.WEIGHT) context.getString(R.string.task_extraction_scale) else metricName(metric)
+            button.contentDescription = "$name $value ${displayUnit(metric)}; $range; " +
+                (if (metric == ChartMetric.WEIGHT && latest == null) context.getString(R.string.task_chart_missing_scale) + "; " else "") +
+                context.getString(R.string.task_chart_hint)
+            button.isEnabled = series != null && (metric != ChartMetric.WEIGHT || latest != null)
+            return
+        }
         if (series == null) {
             val label = "${metricName(metric)} — ${metric.unit}\n${context.getString(R.string.task_chart_missing_scale)}"
             if (button.text.toString() != label) button.text = label
@@ -235,6 +303,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val focused = focusMetric == metric
             if (button.isSelected != focused) {
                 button.isSelected = focused
+                liveTiles[metric]?.background = requireNotNull(visual).palette.shape(
+                    if (focused) requireNotNull(visual).palette.selected else android.graphics.Color.TRANSPARENT,
+                    radius = 8)
                 button.typeface = TaskTypography.face(context, if (visual != null) 400 else if (focused) 700 else 400)
             }
         }
@@ -263,16 +334,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         fullExplanation = notes.joinToString(" · ")
         val compact = compactRunningExplanation && visual != null && !embeddedHistory
         val warnings = notes.drop(1)
-        val inline = if (compact) warnings.joinToString(" · ") else fullExplanation
+        val inline = if (liveChart) (listOf(context.getString(R.string.task_chart_hint)) + warnings).joinToString(" · ")
+            else if (compact) warnings.joinToString(" · ") else fullExplanation
         if (explanation.text.toString() != inline) explanation.text = inline
-        explanation.visibility = if (compact && warnings.isEmpty()) GONE else VISIBLE
+        explanation.visibility = if (!liveChart && compact && warnings.isEmpty()) GONE else VISIBLE
         plot.contentDescription = (notes + context.getString(R.string.task_chart_inspect_hint) + context.getString(R.string.task_chart_hint) +
-            context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit) +
+            context.getString(R.string.task_chart_independent, metricName(focusMetric), displayUnit(focusMetric)) +
             referenceNotes + data.series.map { series ->
             val latest = series.current.lastOrNull()?.lastOrNull()
-                ?.takeIf { it.elapsedMs == data.observedThroughMs }
-            context.getString(R.string.task_chart_latest, metricName(series.metric),
-                latest?.let { format(it.value) } ?: "—", series.metric.unit)
+                ?.takeIf { it.elapsedMs == data.observedThroughMs &&
+                    (!liveChart || series.metric !in unavailableLiveMetrics) }
+            val name = if (liveChart && series.metric == ChartMetric.WEIGHT)
+                context.getString(R.string.task_extraction_scale) else metricName(series.metric)
+            context.getString(R.string.task_chart_latest, name,
+                latest?.let { format(it.value) } ?: "—", displayUnit(series.metric))
         }).joinToString("; ")
         // Do not group the native clickable legend into one accessibility node.
         contentDescription = null
@@ -361,7 +436,13 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(2f) }
         init { setBounds(0, 0, dp(18f).toInt(), dp(12f).toInt()) }
         override fun draw(canvas: Canvas) {
-            paint.color = metricColor(metric); paint.pathEffect = null
+            paint.color = metricColor(metric)
+            paint.strokeCap = Paint.Cap.ROUND
+            paint.pathEffect = if (!liveChart) null else when (metric) {
+                ChartMetric.WATER -> DashPathEffect(floatArrayOf(dp(9f), dp(5f)), 0f)
+                ChartMetric.TEMPERATURE -> DashPathEffect(floatArrayOf(dp(1f), dp(4f)), 0f)
+                else -> null
+            }
             canvas.drawLine(bounds.left.toFloat(), bounds.exactCenterY(), bounds.right.toFloat(), bounds.exactCenterY(), paint)
         }
         override fun setAlpha(alpha: Int) { paint.alpha = alpha }
@@ -378,10 +459,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val wide = ((available - gap * 3) / 4).coerceAtLeast(1)
             var singleRowFits = true
             for (i in 0 until childCount) {
-                val child = getChildAt(i) as Button
+                val child = getChildAt(i)
                 child.measure(MeasureSpec.makeMeasureSpec(wide, MeasureSpec.EXACTLY),
                     MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-                if (child.lineCount > 2 || child.measuredHeight > dp(64f)) singleRowFits = false
+                if (if (child is Button) child.lineCount > 2 || child.measuredHeight > dp(64f)
+                    else child.measuredHeight > dp(96f)) singleRowFits = false
             }
             columns = if (singleRowFits) 4 else 2
             val childWidth = ((available - gap * (columns - 1)) / columns).coerceAtLeast(1)

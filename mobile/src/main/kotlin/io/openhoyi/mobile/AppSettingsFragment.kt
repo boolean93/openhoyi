@@ -49,7 +49,15 @@ class AppSettingsFragment : Fragment() {
         val visual = SettingsVisualStyle(activity)
         val style = visual.palette
         val (root, body) = visual.fragmentPage(activity, R.string.app_settings_title, R.string.app_settings_subtitle, 640, "app")
+        // Keep the shared tools host while the navigation tab names this root page.
+        val header = body.getChildAt(0) as LinearLayout
+        header.removeViewAt(0)
+        header.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+        header.minimumHeight = 0
+        header.setPadding(0, 0, 0, 0)
+        (header.layoutParams as LinearLayout.LayoutParams).apply { topMargin = 0; bottomMargin = 0 }
         val machine = settingsGroup(activity, body, getString(R.string.machine_settings_title), visual)
+        (body.getChildAt(1).layoutParams as LinearLayout.LayoutParams).topMargin = 0
         HoyiUi.button(activity, machine, getString(R.string.app_settings_machine)) {
             startActivity(Intent(activity, MachineSettingsActivity::class.java))
         }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL; visual.action(this, icon = "chevron", atEnd = true) }

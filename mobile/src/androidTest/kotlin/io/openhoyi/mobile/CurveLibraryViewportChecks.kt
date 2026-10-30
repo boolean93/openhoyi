@@ -202,6 +202,49 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
             cleanupFailure?.let { if (failure == null) throw it else failure!!.addSuppressed(it) }
         }
     }
+    private fun useCurveOpensPreparation(page: MainPageTestHost, fragment: CurveFragment, app: MobileApplication) {
+        val activity = page.activity
+        val preferences = activity.getSharedPreferences("curves", Context.MODE_PRIVATE)
+        val hadSelection = preferences.contains("selected")
+        val previousSelection = preferences.getString("selected", null)
+        fun field(owner: Any, name: String) = owner.javaClass.getDeclaredField(name)
+            .apply { isAccessible = true }.get(owner)
+        val chosen = app.curves.items.first { app.curves.canStart(it) }
+        val owner = activity.currentService
+        val shotBefore = owner?.shotState
+        val traceBefore = owner?.chartTraceIdentity
+        try {
+            main {
+                CurveFragment::class.java.getDeclaredMethod("show", CurveLibraryItem::class.java)
+                    .apply { isAccessible = true }.invoke(fragment, chosen)
+                val use = activity.window.decorView.findViewWithTag<Button>("product/curve-library/use")
+                check(use.isEnabled && use.performClick())
+            }
+            test.waitForIdleSync()
+            main {
+                val extraction = page.active("extraction") as ExtractionFragment
+                check(preferences.getString("selected", null) == chosen.id)
+                val selected = ExtractionFragment::class.java.getDeclaredMethod("selected")
+                    .apply { isAccessible = true }.invoke(extraction) as CurveLibraryItem
+                check(selected.id == chosen.id && field(extraction, "presetSlot") == 7)
+                check(field(activity, "pendingStartConfirmation") == false &&
+                    field(extraction, "startConfirmationRequested") == false)
+                check(activity.currentService === owner && owner?.shotState == shotBefore &&
+                    owner?.chartTraceIdentity == traceBefore) { "Using a curve started or replaced a shot" }
+                check((field(extraction, "transientDialogs") as Collection<*>).isEmpty()) {
+                    "Using a curve opened a start confirmation instead of preparation" }
+            }
+        } finally {
+            main {
+                preferences.edit().apply {
+                    if (hadSelection) putString("selected", previousSelection) else remove("selected")
+                }.commit().also { check(it) }
+                activity.select(TaskDestination.CURVES)
+            }
+            test.waitForIdleSync()
+        }
+    }
+
     fun run(expectedFontScale: Float) {
         val context = test.targetContext
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
@@ -431,6 +474,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
             } finally { window.recycle() }
             File(directory, "selected-window.txt").writeText(
                 "actualWindow=true restoredAfterSyntheticViewport=true fontScale=$expectedFontScale preferencesUnchanged=true usageUnchanged=true noBle=true\n")
+            useCurveOpensPreparation(page, fragment, app)
         } finally { main { activity.finish() }; test.waitForIdleSync() }
     }
 }

@@ -77,44 +77,14 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
             tag = "product/inventory/header"; gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false
             foreground = inventoryRules(bottom = true)
         }
-        (header.getChildAt(0) as? LinearLayout)?.let { oldWords ->
-            val title = oldWords.getChildAt(0) as TextView
-            val wordsParams = oldWords.layoutParams
-            oldWords.removeView(title)
-            header.removeView(oldWords)
+        (header.getChildAt(0) as? LinearLayout)?.let { words ->
+            words.removeAllViews()
             val count = batches.map { it.batch.bean.id }.distinct().size
             val total = BeanQuantity.formatGrams(batches.sumOf { it.balanceMg })
-            val summary = productStyle.text("$count · $total g", TaskProductVisualStyle.auxiliary,
-                "product/inventory/header-summary", true)
-            title.tag = "product/inventory/header-title"
-            val words = object : LinearLayout(host) {
-                init {
-                    tag = "product/inventory/header-words"; gravity = Gravity.CENTER_VERTICAL; isBaselineAligned = false
-                    addView(title, LayoutParams(-2, -2))
-                    addView(summary, LayoutParams(-2, -2).apply { marginStart = productStyle.dp(16) })
-                }
-                override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-                    val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-                    title.measure(natural, natural); summary.measure(natural, natural)
-                    val available = (View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
-                    val stacked = View.MeasureSpec.getMode(widthMeasureSpec) != View.MeasureSpec.UNSPECIFIED &&
-                        title.measuredWidth + productStyle.dp(16) + summary.measuredWidth > available
-                    orientation = if (stacked) VERTICAL else HORIZONTAL
-                    // The title came from a vertical container whose default child
-                    // width was MATCH_PARENT. Never carry that width into a row.
-                    (title.layoutParams as LayoutParams).apply {
-                        width = if (stacked) -1 else -2; height = -2; weight = 0f
-                    }
-                    (summary.layoutParams as LayoutParams).apply {
-                        width = -2; height = -2; weight = 0f
-                        marginStart = if (stacked) 0 else productStyle.dp(16)
-                        topMargin = if (stacked) productStyle.dp(8) else 0
-                    }
-                    super.onMeasure(widthMeasureSpec, heightMeasureSpec)
-                }
-            }
-            header.addView(words, 0, wordsParams)
+            words.addView(productStyle.text("$count · $total g", TaskProductVisualStyle.auxiliary,
+                "product/inventory/header-summary", true), LinearLayout.LayoutParams(-1, -2))
         }
+        (header.layoutParams as LinearLayout.LayoutParams).bottomMargin = 0
         if (batches.isEmpty()) {
             val dock=TaskActionDock(host,edgeInsetDp=0)
             host.beanActions(body).addView(dock,LinearLayout.LayoutParams(-1,-2))

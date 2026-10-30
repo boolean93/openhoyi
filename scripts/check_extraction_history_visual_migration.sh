@@ -79,7 +79,7 @@ for product_theme in light dark; do
   # not a persistence-queue ACK. Strict key presence/value restoration below remains mandatory.
   for font_scale in 1.3 1.0; do
     adb shell settings put system font_scale "$font_scale"
-    for extraction_history_page in history history-detail comparison extraction; do
+    for extraction_history_page in extraction history history-detail comparison; do
       adb shell am force-stop "$package"
       python3 - "$output_dir/$product_theme-$font_scale-$extraction_history_page-result.txt" "$source_sha" "$source_dirty" "$apk_sha" "$product_theme" "$font_scale" "$extraction_history_page" <<'RUN_PY'
 from pathlib import Path
@@ -619,7 +619,7 @@ for path in manifests:
         three_metric_cases={'STARTING','no_scale','stale_scale','no_service_ready','missing_samples'}
         for case in special['cases']:
             name=case['case'];target=folder/'special-states'/name
-            metrics=['pressure','water']+([] if name in three_metric_cases else ['weight'])+['temperature']
+            metrics=['pressure','water','weight','temperature']
             header=require_chart_header(target,metrics,action='start' if name in ('manual','no_service_ready') else 'stop')
             assert case['chartHeaderReachability']==header
             assert case['supportReachability']==require_special_support(target,name)

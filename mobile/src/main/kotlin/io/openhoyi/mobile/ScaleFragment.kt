@@ -54,6 +54,14 @@ class ScaleFragment : Fragment() {
         val visual = ScaleVisualStyle(host)
         val style = visual.palette
         val (root,body)=visual.fragmentPage(host,R.string.scale_title,R.string.scale_subtitle)
+        val header = (body.tag as BeanPageRegions).header
+        (header.getChildAt(0) as? LinearLayout)?.let { words ->
+            words.removeAllViews()
+            if (BuildConfig.MOCK_MODE) words.addView(style.text(getString(R.string.scale_mock_notice),
+                TaskProductVisualStyle.auxiliary, secondary = true), LinearLayout.LayoutParams(-1, -2))
+        }
+        header.gravity = android.view.Gravity.END or android.view.Gravity.CENTER_VERTICAL
+        (header.layoutParams as LinearLayout.LayoutParams).bottomMargin = 0
         guard=style.text("",TaskProductVisualStyle.auxiliary,"product/scale/guard",true).also { style.add(body,it) }
         val workspace=ScaleVisualWorkspace(host,visual)
         productLayoutEvidence.put("workspace",workspace.productLayoutEvidence)

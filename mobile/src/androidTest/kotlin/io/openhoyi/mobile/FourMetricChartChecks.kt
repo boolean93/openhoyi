@@ -60,10 +60,15 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                         val reading = value?.let { java.util.Locale.ROOT.let { locale ->
                             String.format(locale, "%.1f", it)
                         } } ?: "—"
-                        check((control as android.widget.TextView).text.lineSequence().first().endsWith("$reading ${metric.unit}")) {
-                            "$name: legend must show the latest observation, not carry a missing value forward"
+                        val number = requireNotNull(probe.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/number"))
+                        val unit = requireNotNull(probe.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/unit"))
+                        check(number.text.toString() == reading && unit.text.toString() ==
+                            if (metric == ChartMetric.WATER) "mL" else metric.unit) {
+                            "$name: atomic legend must show latest observation and physical unit"
                         }
-                        if (name == "machine-only" && metric == ChartMetric.WEIGHT) {
+                        LanguageUiLayoutChecks.textFits(number, "$name current metric")
+                        LanguageUiLayoutChecks.textFits(unit, "$name current unit")
+                        if (value == null && metric == ChartMetric.WEIGHT) {
                             check(!control.isEnabled && control.contentDescription.contains(activity.getString(R.string.task_chart_missing_scale))) {
                                 "$name: missing scale reading must remain explicit and cannot focus a nonexistent axis"
                             }
@@ -101,6 +106,43 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                         File(directory, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
                     } finally { bitmap.recycle() }
                 }
+                val lifecycleProbe = ExtractionOverlayView(activity, ExtractionHistoryVisualStyle(activity))
+                lifecycleProbe.traceIdentity = "old-cup"
+                lifecycleProbe.points = listOf(samples.first(), samples.last().copy(elapsedMs = 90_000))
+                fun axisEnd() = (ExtractionOverlayView::class.java.getDeclaredField("data")
+                    .apply { isAccessible = true }.get(lifecycleProbe) as FourMetricChartData).timeEndMs
+                check(axisEnd() == 90_000L)
+                lifecycleProbe.traceIdentity = "new-cup"
+                lifecycleProbe.points = samples.take(2)
+                check(axisEnd() == 30_000L) { "New cup retained the previous cup time budget" }
+                val liveNumber = requireNotNull(lifecycleProbe.findViewWithTag<android.widget.TextView>(
+                    "product/extraction/metric/PRESSURE/number"))
+                check(liveNumber.text.toString() != "—")
+                val observations = lifecycleProbe.points.toList()
+                val livePlot = requireNotNull(lifecycleProbe.findViewWithTag<View>("chart-plot"))
+                val latestBefore = livePlot.contentDescription.toString()
+                lifecycleProbe.unavailableLiveMetrics = ChartMetric.entries.toSet()
+                ChartMetric.entries.forEach { metric ->
+                    val nameId = when (metric) {
+                        ChartMetric.PRESSURE -> R.string.task_chart_pressure
+                        ChartMetric.WATER -> R.string.task_chart_water
+                        ChartMetric.WEIGHT -> R.string.task_extraction_scale
+                        ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
+                    }
+                    val unit = if (metric == ChartMetric.WATER) "mL" else metric.unit
+                    val missingLatest = activity.getString(R.string.task_chart_latest, activity.getString(nameId), "—", unit)
+                    check(livePlot.contentDescription.toString().contains(missingLatest)) {
+                        "Lost freshness retained a spoken current value for $metric"
+                    }
+                    val number = requireNotNull(lifecycleProbe.findViewWithTag<android.widget.TextView>(
+                        "product/extraction/metric/$metric/number"))
+                    check(number.text.toString() == "—")
+                }
+                check(liveNumber.text.toString() == "—" && lifecycleProbe.points == observations) {
+                    "Lost freshness retained a current value or changed recorded points" }
+                lifecycleProbe.unavailableLiveMetrics = emptySet()
+                check(liveNumber.text.toString() != "—" && lifecycleProbe.points == observations &&
+                    livePlot.contentDescription.toString() == latestBefore)
                 val configuration = android.content.res.Configuration(activity.resources.configuration).apply { fontScale = 1.3f }
                 val compactContext = android.view.ContextThemeWrapper(activity.createConfigurationContext(configuration), R.style.MobileTheme)
                 val compact = ExtractionOverlayView(compactContext).apply { points = samples }

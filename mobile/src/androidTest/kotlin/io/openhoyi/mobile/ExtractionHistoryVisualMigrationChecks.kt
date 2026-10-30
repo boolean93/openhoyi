@@ -607,8 +607,29 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 check(chart.visualEvidence.length()>0) { "M5 live main chart must have actual Canvas evidence" }
                 val stop=root(activity).findViewWithTag<View>("product/extraction/stop")
                 check(stop.isEnabled && stop.isShown && stop.height>=HoyiUi.dp(activity,56) && whole(observation(stop))) { "M5 actual running stop action not complete/fixed" }
-                listOf("product/extraction/elapsed/number","product/extraction/quantity/number").forEach { tag ->
+                ChartMetric.entries.map { "product/extraction/metric/$it/number" }.forEach { tag ->
                     val value=requireNotNull(root(activity).findViewWithTag<TextView>(tag)); check(value.text.toString()!="—" && whole(observation(value)))
+                }
+                val expectedUnits = listOf("bar", "mL", "g", "°C")
+                ChartMetric.entries.forEachIndexed { index, metric ->
+                    val prefix = "product/extraction/metric/$metric"
+                    val number = requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/number"))
+                    val unit = requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/unit"))
+                    check(unit.text.toString() == expectedUnits[index] && number.parent === unit.parent)
+                    check(kotlin.math.abs(number.textSize / activity.resources.displayMetrics.scaledDensity - 24f) < .1f)
+                    check(kotlin.math.abs(unit.textSize / activity.resources.displayMetrics.scaledDensity - 14f) < .1f)
+                    val numberOrigin = IntArray(2); val unitOrigin = IntArray(2)
+                    number.getLocationOnScreen(numberOrigin); unit.getLocationOnScreen(unitOrigin)
+                    check(numberOrigin[1] + number.baseline == unitOrigin[1] + unit.baseline)
+                }
+                check(root(activity).findViewWithTag<View>("product/extraction/elapsed/number") == null &&
+                    root(activity).findViewWithTag<View>("product/extraction/quantity/number") == null)
+                val currentPaths = (0 until chart.visualEvidence.length()).map { chart.visualEvidence.getJSONObject(it) }
+                    .filter { it.optString("operation") == "path" && !it.optBoolean("reference") }
+                check(currentPaths.map { it.getString("metric") }.toSet() == ChartMetric.entries.map { it.name }.toSet())
+                currentPaths.forEach { path ->
+                    check(path.getString("interpolation") == "monotone-hermite")
+                    check(path.getJSONArray("cubicControlsPx").length() == path.getJSONArray("verticesPx").length() - 1)
                 }
                 File(directory,"extraction-business.json").writeText(JSONObject().put("actualMockStart",true).put("running",true)
                     .put("lastSampleElapsedMs",owner.chartPoints.last().elapsedMs).put("samples",pointRecords(owner.chartPoints))
@@ -1206,8 +1227,12 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("actualPlotHeightDp",bounds.height()/density).put("visiblePlotHeightDp",visible.height()/density)
             .put("axisInk",JSONArray(inks)).put("actualSampleCount",chart.points.size)
         WindowProofStreamingWriter.writeStrict(evidence,File(folder,"extraction-plot-budget.json"))
-        check(bounds.height()/density>=96f && visible.height()/density>=96f) {
-            "M5 Extraction real Canvas plot / visible intersection <96dp: $evidence" }
+        val normalChinese = activity.resources.configuration.fontScale == 1f &&
+            activity.resources.configuration.locales[0].language == "zh"
+        val minimumPlot = if (normalChinese) 260f else 96f
+        check(bounds.height()/density>=minimumPlot && visible.height()/density>=minimumPlot &&
+            (!normalChinese || bounds.width() >= (field(activity, "pageBody") as View).width * .70f)) {
+            "M5 Extraction real plot misses height/width budget ($minimumPlot dp): $evidence" }
         check(inks.isNotEmpty() && inks.all {it.getBoolean("completeInVisiblePlotView")}) {
             "M5 Extraction axis glyph clipped: $evidence" }
         return evidence
@@ -1449,9 +1474,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         check(tools[0].second !== tools[1].second && tools[0].second.parent===tools[1].second.parent)
         check(tools.all { (_,view) -> view.isShown && view.isAttachedToWindow && view.isClickable })
-        val mode=nodes(root(activity)).filterIsInstance<TextView>().single {
-            it.text.toString()==activity.getString(R.string.extraction_mock_subtitle) && it.isShown
-        }
+        val mode=requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/mode"))
+        check(mode.contentDescription == activity.getString(R.string.extraction_mock_subtitle))
         check(mode !in nodes(scroll) && whole(screenObservation(mode))) {
             "M5 current RUNNING mode subtitle is not complete in its actual header location"
         }

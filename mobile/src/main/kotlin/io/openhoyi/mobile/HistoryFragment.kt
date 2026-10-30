@@ -81,7 +81,12 @@ class HistoryFragment : androidx.fragment.app.Fragment() {
         val (root,body) = style.fragmentPage(host, getString(R.string.home_history))
         pageHost.removeAllViews();pageHost.addView(root)
         val header = (body.tag as BeanPageRegions).header
-        count = style.text("", TaskProductVisualStyle.auxiliary, "product/history/count", true).also { style.add(body, it, 8) }
+        header.removeViewAt(0)
+        header.minimumHeight = dp(48)
+        (header.layoutParams as LinearLayout.LayoutParams).bottomMargin = 0
+        count = style.text("", TaskProductVisualStyle.auxiliary, "product/history/count", true).also {
+            header.addView(it, 0, LinearLayout.LayoutParams(0, -2, 1f))
+        }
         val sourcesIndex = body.childCount
         HoyiUi.tabs(host, body, listOf(getString(R.string.history_local_tab), getString(R.string.journal_tab), getString(R.string.history_legacy_tab)), selected = if (showJournal) 1 else 0) {
             if (it == 2) startActivity(Intent(host, LegacyHistoryActivity::class.java))

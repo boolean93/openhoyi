@@ -204,9 +204,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         status = text(content, getString(R.string.home_not_connected_initial), 17, true).apply { tag = "product/home/service-status" }
         content.removeView(status)
-        if (resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420)
-            content.addView(productStyle.text(getString(R.string.home_machine_title), TaskProductVisualStyle.title,
-                "product/home/title"))
         val machineRow = productStyle.row("product/home/machine-status").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL; minimumHeight = dp(48)
         }
