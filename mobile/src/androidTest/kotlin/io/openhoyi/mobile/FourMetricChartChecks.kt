@@ -169,6 +169,23 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                     livePlot.contentDescription.toString() == latestBefore)
                 val configuration = android.content.res.Configuration(activity.resources.configuration).apply { fontScale = 1.3f }
                 val compactContext = android.view.ContextThemeWrapper(activity.createConfigurationContext(configuration), R.style.MobileTheme)
+                val enlargedLive = ExtractionOverlayView(compactContext, ExtractionHistoryVisualStyle(compactContext)).apply { points = samples }
+                fun layoutEnlarged(widthDp: Int) {
+                    val width = HoyiUi.dp(activity, widthDp)
+                    enlargedLive.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(HoyiUi.dp(activity, 500), View.MeasureSpec.EXACTLY))
+                    enlargedLive.layout(0, 0, width, enlargedLive.measuredHeight)
+                }
+                val liveLegend = ExtractionOverlayView::class.java.getDeclaredField("legend")
+                    .apply { isAccessible = true }.get(enlargedLive) as ViewGroup
+                layoutEnlarged(940)
+                check((0 until liveLegend.childCount).map { liveLegend.getChildAt(it).top }.distinct().size == 1) {
+                    "Font 1.3 must retain one metric row when all four natural content widths fit" }
+                descendants(liveLegend).filterIsInstance<android.widget.TextView>().filter { it.text.isNotBlank() }
+                    .forEach { LanguageUiLayoutChecks.textFits(it, "font1.3 single metric row") }
+                layoutEnlarged(200)
+                check(liveLegend.getChildAt(2).top > liveLegend.getChildAt(0).top) {
+                    "Narrow metrics must still wrap when natural text widths do not fit" }
                 val compact = ExtractionOverlayView(compactContext).apply { points = samples }
                 val compactWidth = (320 * compact.resources.displayMetrics.density).toInt()
                 val compactHeight = (100 * compact.resources.displayMetrics.density).toInt()

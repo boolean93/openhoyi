@@ -458,12 +458,27 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val available = MeasureSpec.getSize(widthMeasureSpec)
             val wide = ((available - gap * 3) / 4).coerceAtLeast(1)
             var singleRowFits = true
+            fun wholeSingleLine(view: View): Boolean = when (view) {
+                is TextView -> view.layout?.let { layout ->
+                    layout.lineCount <= 1 && (0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 }
+                } ?: false
+                is ViewGroup -> (0 until view.childCount).all { wholeSingleLine(view.getChildAt(it)) }
+                else -> true
+            }
             for (i in 0 until childCount) {
                 val child = getChildAt(i)
-                child.measure(MeasureSpec.makeMeasureSpec(wide, MeasureSpec.EXACTLY),
-                    MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
-                if (if (child is Button) child.lineCount > 2 || child.measuredHeight > dp(64f)
-                    else child.measuredHeight > dp(96f)) singleRowFits = false
+                if (liveChart) {
+                    // Font scaling grows height normally. Only horizontal content fit decides wrapping.
+                    // The body's natural width includes the name/swatch, atomic number+unit, range and padding.
+                    val body = (child as android.widget.FrameLayout).getChildAt(0)
+                    val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+                    body.measure(natural, natural)
+                    if (body.measuredWidth > wide || !wholeSingleLine(body)) singleRowFits = false
+                } else {
+                    child.measure(MeasureSpec.makeMeasureSpec(wide, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                    if ((child as Button).lineCount > 2 || child.measuredHeight > dp(64f)) singleRowFits = false
+                }
             }
             columns = if (singleRowFits) 4 else 2
             val childWidth = ((available - gap * (columns - 1)) / columns).coerceAtLeast(1)
