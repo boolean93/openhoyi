@@ -447,6 +447,8 @@
     <string name="legacy_history_unavailable">"이전 기록 사용 불가"</string>
     <string name="legacy_history_unnamed">"이름 없는 곡선"</string>
     <string name="legacy_import_error">"가져오기 실패: %1$s, 기존 데이터 변경 안 됨"</string>
+    <string name="live_pressure_pause">"일시 정지"</string>
+    <string name="live_pressure_pause_explanation">"정지 구간의 압력선은 영점 기준선으로 표시되며, 실제 측정 압력이 0이라는 뜻은 아닙니다."</string>
     <string name="machine_recovery_brew_wait">"예열 또는 취소 결과 미확인. 원래 머신이 아직 예열 중인지 확인하세요. 취소 명령 전송 후 깨어 있는 대기 응답을 받고 직접 확인할 수 있습니다."</string>
     <string name="machine_recovery_cup_reset">"이전 잔 수 초기화 미확인. 원래 머신에 연결하고 설정 및 대기 잔 수를 확인한 뒤 알림을 지우세요."</string>
     <string name="machine_recovery_setting">"이전 머신 설정 미확인. 원래 머신에 연결하고 현재 설정을 확인한 뒤 알림을 지우세요."</string>

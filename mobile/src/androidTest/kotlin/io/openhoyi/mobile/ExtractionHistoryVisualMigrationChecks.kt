@@ -118,7 +118,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         JSONObject().put("elapsedMs",point.elapsedMs).put("pressureTenthsBar",point.pressureTenthsBar)
             .put("machineFlowTenthsMlPerSecond",point.machineFlowTenthsMlPerSecond).put("waterTenthsMl",point.waterTenthsMl)
             .put("temperatureHundredthsC",point.temperatureHundredthsC).put("weightHundredthsGram",point.weightHundredthsGram ?: JSONObject.NULL)
-            .put("scaleFlowHundredths",point.scaleFlowHundredths ?: JSONObject.NULL).put("brewing",point.brewing ?: JSONObject.NULL)
+            .put("scaleFlowHundredths",point.scaleFlowHundredths ?: JSONObject.NULL).put("brewing",point.brewing ?: JSONObject.NULL).put("statusBits",point.statusBits ?: JSONObject.NULL)
     })
     private fun textLineBox(text: TextView): JSONObject {
         val box = Rect(); val point = IntArray(2); text.getLocationOnScreen(point)
@@ -589,7 +589,12 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 val frame=ExtractionTelemetry(slot,(elapsed/1000).toInt(),90,water,9300,100,64,0,ByteFrame(byteArrayOf()))
                 owner.offerMockExtractionFrame(clockOwner,frame)
                 check(owner.mockExtractionOfferedFrameSerial==serial+1)
+                val appended = owner.chartPoints.drop(before)
+                check(appended.all { it.statusBits == 64 }) {
+                    "Actual offerMockExtractionFrame points must preserve the raw status byte, not infer it from brewing"
+                }
                 record=JSONObject().put("serial",serial+1).put("ownedMonotonicMs",MobileMonotonicClock.elapsedRealtime())
+                    .put("offeredStatusBits",64).put("appendedStatusBits",JSONArray(appended.map { it.statusBits }))
                     .put("elapsedMs",elapsed).put("waterTenthsMl",water).put("pointsBefore",before)
                     .put("pointsAfter",owner.chartPoints.size).put("actualNewPoints",owner.chartPoints.size-before)
             }
@@ -605,11 +610,25 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 val chart=field(activity,"chart") as ExtractionOverlayView
                 check(chart.traceIdentity==owner.chartTraceIdentity && chart.points==ExtractionReference.align(owner.chartPoints).points && chart.reference.isEmpty())
                 check(chart.visualEvidence.length()>0) { "M5 live main chart must have actual Canvas evidence" }
+                val header = requireNotNull(root(activity).findViewWithTag<View>("product/extraction/header"))
+                val identity = requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/identity"))
+                val clock = requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/clock"))
+                val inlineGuidance = requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/inline-guidance"))
+                check(header.parent === chart.parent && header.height >= HoyiUi.dp(activity, 48) && observation(header).getBoolean("complete")) {
+                    "Live header must share the chart chrome budget, not consume another page row" }
+                check(identity.text.isNotBlank() && clock.text.contains("00:24") && whole(observation(clock)))
+                check(inlineGuidance.text.toString() == activity.getString(R.string.extraction_running_guidance) &&
+                    whole(observation(inlineGuidance)) && (field(activity, "readiness") as View).visibility == View.GONE) {
+                    "Normal running guidance must remain complete in compact chrome without a duplicate full-width row" }
                 val stop=root(activity).findViewWithTag<View>("product/extraction/stop")
                 check(stop.isEnabled && stop.isShown && stop.height>=HoyiUi.dp(activity,56) && whole(observation(stop))) { "M5 actual running stop action not complete/fixed" }
                 ChartMetric.entries.map { "product/extraction/metric/$it/number" }.forEach { tag ->
                     val value=requireNotNull(root(activity).findViewWithTag<TextView>(tag)); check(value.text.toString()!="—" && whole(observation(value)))
                 }
+                val gauge = requireNotNull(root(activity).findViewWithTag<View>("product/extraction/pressure-gauge"))
+                val pressureNumber = requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/metric/PRESSURE/number"))
+                check(gauge is ViewGroup && gauge.findViewWithTag<TextView>("product/extraction/metric/PRESSURE/number") === pressureNumber &&
+                    whole(observation(gauge))) { "Actual live pressure belongs to the compact dial, with one canonical number" }
                 val expectedUnits = listOf("bar", "mL", "g", "°C")
                 ChartMetric.entries.forEachIndexed { index, metric ->
                     val prefix = "product/extraction/metric/$metric"
@@ -1480,10 +1499,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         check(tools[0].second !== tools[1].second && tools[0].second.parent===tools[1].second.parent)
         check(tools.all { (_,view) -> view.isShown && view.isAttachedToWindow && view.isClickable })
-        val mode=requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/mode"))
-        check(mode.contentDescription == activity.getString(R.string.extraction_mock_subtitle))
+        val mode=requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/clock"))
+        check(mode.contentDescription == mode.text.toString() + " · " + activity.getString(R.string.extraction_mock_subtitle))
         check(mode !in nodes(scroll) && whole(screenObservation(mode))) {
-            "M5 current RUNNING mode subtitle is not complete in its actual header location"
+            "M5 current RUNNING clock must retain complete Mock semantics in its actual header location"
         }
         val initial=JSONArray(tools.map { (name,view) ->
             JSONObject().put("semanticKey",name).put("layout",screenObservation(view))

@@ -951,5 +951,7 @@
   "task_shell_action_connect": "توصيل",
   "task_shell_action_select": "اختيار",
   "task_shell_action_connecting": "جارٍ الاتصال",
-  "task_shell_scale_manually_disconnected": "فُصل يدويًا"
+  "task_shell_scale_manually_disconnected": "فُصل يدويًا",
+  "live_pressure_pause": "توقف مؤقت",
+  "live_pressure_pause_explanation": "يستخدم منحنى الضغط خط أساس صفريًا أثناء التوقف المؤقت؛ ولا يعني ذلك أن الضغط المقاس يساوي صفرًا."
 }

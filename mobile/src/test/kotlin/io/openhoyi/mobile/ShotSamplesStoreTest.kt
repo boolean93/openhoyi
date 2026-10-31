@@ -8,6 +8,25 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class ShotSamplesStoreTest {
+    @Test fun v4RoundTripsOnlyObservedStatusAndRejectsInvalidBits() {
+        val dir = Files.createTempDirectory("status-samples").toFile()
+        try {
+            val store = ShotSamplesStore(dir)
+            val points = listOf(ShotPoint(0,90,10,0,9300,null,brewing=true,statusBits=64),
+                ShotPoint(500,77,10,5,9300,null,brewing=false,statusBits=0),
+                ShotPoint(1000,66,10,10,9300,null,brewing=false))
+            store.save("status",points)
+            assertEquals("# openhoyi-shot-points-v4",dir.resolve("samples-status.tsv").readLines().first())
+            assertEquals(points,store.load("status")); assertEquals(77,store.load("status")[1].pressureTenthsBar)
+            val file = dir.resolve("samples-bad.tsv")
+            for (bad in listOf("-1","256","paused")) {
+                file.writeText("# openhoyi-shot-points-v4\n0\t90\t10\t0\t9300\t\t\ttrue\t$bad\n")
+                assertThrows(IOException::class.java) { store.load("bad") }
+            }
+            dir.resolve("samples-old3.tsv").writeText("# openhoyi-shot-points-v3\n0\t90\t10\t0\t9300\t\t\tfalse\n")
+            assertNull(store.load("old3").single().statusBits)
+        } finally { dir.deleteRecursively() }
+    }
     @Test fun recentOrphanedSamplesSurviveMissingHistoryIndexButExpiredOnesArePruned() {
         val dir = Files.createTempDirectory("openhoyi-samples").toFile()
         try {

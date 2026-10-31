@@ -447,6 +447,8 @@
     <string name="legacy_history_unavailable">"Legacy record unavailable"</string>
     <string name="legacy_history_unnamed">"Unnamed curve"</string>
     <string name="legacy_import_error">"Import failed: %1$s; existing data unchanged"</string>
+    <string name="live_pressure_pause">"Paused"</string>
+    <string name="live_pressure_pause_explanation">"The pressure trace uses a zero baseline for the pause phase; this is not a measured zero pressure."</string>
     <string name="machine_recovery_brew_wait">"Preheat or cancel outcome not confirmed. Check whether the original coffee machine is still preheating; you can send a cancel command, then manually confirm after the machine reports awake standby."</string>
     <string name="machine_recovery_cup_reset">"Previous cup count reset not confirmed. Connect the original coffee machine and check settings and standby cup counts before clearing the reminder."</string>
     <string name="machine_recovery_setting">"Previous machine setting change not confirmed. Connect the original coffee machine and check current settings before clearing the reminder."</string>

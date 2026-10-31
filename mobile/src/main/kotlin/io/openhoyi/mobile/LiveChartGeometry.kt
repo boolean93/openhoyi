@@ -33,4 +33,31 @@ internal object LiveChartGeometry {
                 ChartValue(b.elapsedMs - third.toLong(), (b.value - third * tangent[i + 1]).toFloat()), b)
         }
     }
+    /** A transient Canvas anchor only; never a stored observation or a control input. */
+    fun visiblePoint(segment: List<ChartValue>, through: Long, pauseTimes: Set<Long> = emptySet()): ChartValue? {
+        val first = segment.firstOrNull() ?: return null
+        if (through < first.elapsedMs) return null
+        if (through >= segment.last().elapsedMs) return segment.last()
+        val index = segment.indexOfLast { it.elapsedMs <= through }
+        val start = segment[index]; val end = segment[index+1]
+        if ((start.elapsedMs in pauseTimes) != (end.elapsedMs in pauseTimes)) return ChartValue(through,start.value)
+        val c = cubics(segment)[index]
+        val t = (through-start.elapsedMs).toDouble()/(end.elapsedMs-start.elapsedMs)
+        val u = 1-t
+        return ChartValue(through,(u*u*u*c.start.value+3*u*u*t*c.control1.value+3*u*t*t*c.control2.value+t*t*t*c.end.value).toFloat())
+    }
+
+    /** Sorted screen-space centers; null is an explicit compact fallback, never overlapping labels. */
+    fun labelCenters(preferred: List<Float>, top: Float, bottom: Float, spacing: Float): List<Float>? {
+        require(top <= bottom && spacing >= 0 && preferred.all { it.isFinite() })
+        require(preferred.zipWithNext().all { (a,b) -> a <= b })
+        if (preferred.isEmpty()) return emptyList()
+        if ((preferred.size-1)*spacing > bottom-top) return null
+        val placed = preferred.map { it.coerceIn(top,bottom) }.toMutableList()
+        for (i in 1..placed.lastIndex) placed[i] = maxOf(placed[i],placed[i-1]+spacing)
+        placed[placed.lastIndex] = minOf(placed.last(),bottom)
+        for (i in placed.lastIndex-1 downTo 0) placed[i] = minOf(placed[i],placed[i+1]-spacing)
+        return placed
+    }
+
 }

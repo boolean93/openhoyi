@@ -951,5 +951,7 @@
   "task_shell_action_connect": "Connect",
   "task_shell_action_select": "Choose",
   "task_shell_action_connecting": "Connecting",
-  "task_shell_scale_manually_disconnected": "Disconnected manually"
+  "task_shell_scale_manually_disconnected": "Disconnected manually",
+  "live_pressure_pause": "Paused",
+  "live_pressure_pause_explanation": "The pressure trace uses a zero baseline for the pause phase; this is not a measured zero pressure."
 }

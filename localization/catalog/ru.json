@@ -951,5 +951,7 @@
   "task_shell_action_connect": "Подключить",
   "task_shell_action_select": "Выбрать",
   "task_shell_action_connecting": "Подключение",
-  "task_shell_scale_manually_disconnected": "Отключено вручную"
+  "task_shell_scale_manually_disconnected": "Отключено вручную",
+  "live_pressure_pause": "Пауза",
+  "live_pressure_pause_explanation": "Во время паузы линия давления показана на нулевой базе; это не измеренное нулевое давление."
 }

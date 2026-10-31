@@ -43,6 +43,15 @@ class LiveChartGeometryTest {
         assertEquals(2, projection.series.first { it.metric==ChartMetric.WEIGHT }.current.size)
         assertEquals(original, points)
     }
+    @Test fun labelsAtBothExtremesMoveInwardWithoutColliding() {
+        for (targets in listOf(listOf(0f,0f,100f,100f),listOf(0f,0f,0f,0f),listOf(100f,100f,100f,100f))) {
+            val centers = requireNotNull(LiveChartGeometry.labelCenters(targets,10f,90f,20f))
+            assertTrue(centers.first() >= 10f && centers.last() <= 90f)
+            assertTrue(centers.zipWithNext().all { (a,b) -> b-a >= 20f })
+        }
+        assertEquals(listOf(10f,30f,70f,90f),LiveChartGeometry.labelCenters(listOf(0f,0f,100f,100f),10f,90f,20f))
+        assertNull(LiveChartGeometry.labelCenters(listOf(0f,0f,100f,100f),10f,60f,20f))
+    }
     @Test fun timeBudgetIsStableWithinThirtySecondBlocksAndIncludesLongReferences() {
         assertEquals(30000L, LiveChartGeometry.timeEnd(0))
         assertEquals(30000L, LiveChartGeometry.timeEnd(24600))

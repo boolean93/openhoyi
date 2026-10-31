@@ -13,18 +13,20 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
     fun save(id: String, points: List<ShotPoint>) {
         val target = file(id)
         require(points.size <= ShotSeries.MAX_POINTS)
-        require(points.all { it.elapsedMs >= 0 })
+        require(points.all { it.elapsedMs >= 0 && (it.statusBits == null || it.statusBits in 0..255) })
         require(points.zipWithNext().all { (a, b) -> a.elapsedMs < b.elapsedMs })
         if (!directory.isDirectory && !directory.mkdirs()) error("Cannot create sample directory")
         val temporary = File.createTempFile("samples-", ".tmp", directory)
         try {
             temporary.bufferedWriter(Charsets.UTF_8).use { writer ->
-                writer.appendLine(HEADER_V3)
+                val withStatus = points.any { it.statusBits != null }
+                writer.appendLine(if (withStatus) HEADER_V4 else HEADER_V3)
                 points.forEach { point ->
-                    writer.appendLine(listOf(point.elapsedMs, point.pressureTenthsBar,
+                    val fields = listOf(point.elapsedMs, point.pressureTenthsBar,
                         point.machineFlowTenthsMlPerSecond, point.waterTenthsMl,
                         point.temperatureHundredthsC, point.weightHundredthsGram ?: "",
-                        point.scaleFlowHundredths ?: "", point.brewing?.toString() ?: "").joinToString("\t"))
+                        point.scaleFlowHundredths ?: "", point.brewing?.toString() ?: "")
+                    writer.appendLine((if (withStatus) fields + (point.statusBits ?: "") else fields).joinToString("\t"))
                 }
             }
             try {
@@ -45,6 +47,7 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
             HEADER_V1 -> 6
             HEADER_V2 -> 7
             HEADER_V3 -> 8
+            HEADER_V4 -> 9
             else -> throw IOException("Invalid shot samples header")
         }
         if (lines.size > ShotSeries.MAX_POINTS + 1)
@@ -64,9 +67,13 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
                 "false" -> false
                 else -> throw IOException("Invalid shot sample brewing evidence")
             }
+            val status = fields.getOrNull(8)?.takeIf(String::isNotEmpty)?.let {
+                it.toIntOrNull()?.takeIf { value -> value in 0..255 }
+                    ?: throw IOException("Invalid shot sample status bits")
+            }
             try {
                 ShotPoint(numbers[0], Math.toIntExact(numbers[1]), Math.toIntExact(numbers[2]),
-                    Math.toIntExact(numbers[3]), Math.toIntExact(numbers[4]), weight, scaleFlow, brewing)
+                    Math.toIntExact(numbers[3]), Math.toIntExact(numbers[4]), weight, scaleFlow, brewing, status)
             } catch (_: ArithmeticException) { throw IOException("Shot sample value outside integer range") }
         }
         if (points.any { it.elapsedMs < 0 } ||
@@ -97,6 +104,7 @@ class ShotSamplesStore(private val directory: File, private val now: () -> Long 
         private const val HEADER_V1 = "# openhoyi-shot-points-v1"
         private const val HEADER_V2 = "# openhoyi-shot-points-v2"
         private const val HEADER_V3 = "# openhoyi-shot-points-v3"
+        private const val HEADER_V4 = "# openhoyi-shot-points-v4"
         private val ID_PATTERN = Regex("[A-Za-z0-9-]{1,64}")
         private val FILE_PATTERN = Regex("samples-[A-Za-z0-9-]{1,64}\\.tsv")
     }

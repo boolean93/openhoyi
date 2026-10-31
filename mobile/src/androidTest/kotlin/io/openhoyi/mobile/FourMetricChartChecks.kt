@@ -29,7 +29,12 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                 ShotPoint(index * 800L, if (index < 5) index * 18 else 90 - (index - 5),
                     999, index * 18, 9300 + index * 2, index * 120, 999, true)
             }
+            val pauseSamples = samples.mapIndexed { index,point ->
+                if (index in 8..14) point.copy(brewing=false,statusBits=0,pressureTenthsBar=73)
+                else point.copy(brewing=true,statusBits=64)
+            }
             val cases = listOf(
+                Triple("preinfusion-pause",pauseSamples,emptyList()),
                 Triple("machine-only", samples.map { it.copy(weightHundredthsGram = null) }, emptyList()),
                 Triple("four-metrics", samples, emptyList()),
                 Triple("gaps-and-reference", samples.filterIndexed { index, _ -> index !in 12..16 }.mapIndexed { index, point ->
@@ -41,7 +46,7 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                 val actual = host.viewField<View>(host.active("extraction"), "chart")
                 check(actual.width > 0 && actual.height > 0)
                 for ((name, points, reference) in cases) {
-                    val probe = ExtractionOverlayView(activity, ExtractionHistoryVisualStyle(activity))
+                    val probe = ExtractionOverlayView(activity, ExtractionHistoryVisualStyle(activity)).apply { liveCompactChrome = true }
                     probe.points = points
                     probe.reference = reference
                     probe.measure(View.MeasureSpec.makeMeasureSpec(actual.width, View.MeasureSpec.EXACTLY),
@@ -96,6 +101,25 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                         check(texts.none { it.optString("role") == "time-unit" } &&
                             texts.any { it.optString("role") == "time-tick" && it.optString("text").endsWith(" s") }) {
                             "$name: time unit must share the last tick row"
+                        }
+                        if (name == "preinfusion-pause") {
+                            val phase = FourMetricChartProjection.build(points,reference,livePauseBaseline=true)
+                            check(phase.pauseBaselineMs == (8..14).map { it*800L }.toSet())
+                            check(points.slice(8..14).all { it.pressureTenthsBar==73 })
+                            val ops = (0 until evidence.length()).map { evidence.getJSONObject(it) }
+                            check(ops.any { it.optString("operation")=="phase-zero-baseline" })
+                            check(ops.any { it.optString("operation")=="gradient-area" && it.optString("metric")=="PRESSURE" })
+                            check(ops.filter { it.optString("role")=="endpoint-name" }.size == 4)
+                            val labels = ops.filter { it.optString("role")=="endpoint-name" }.map { it.getJSONArray("glyphBoundsPx") }
+                            labels.forEachIndexed { i,a -> labels.drop(i+1).forEach { b ->
+                                check(minOf(a.getDouble(2),b.getDouble(2)) <= maxOf(a.getDouble(0),b.getDouble(0)) ||
+                                    minOf(a.getDouble(3),b.getDouble(3)) <= maxOf(a.getDouble(1),b.getDouble(1))) {
+                                    "Tail labels overlap" }
+                            } }
+                            val wait = points.map { if (it.brewing==false) it.copy(statusBits=32) else it }
+                            check(FourMetricChartProjection.pauseBaselines(wait).isEmpty())
+                            val gap = listOf(points.first(),points[8].copy(elapsedMs=2000))
+                            check(FourMetricChartProjection.pauseBaselines(gap).isEmpty())
                         }
                         if (name == "machine-only") {
                             check(FourMetricChartProjection.build(points, reference).series.none { it.metric == ChartMetric.WEIGHT })

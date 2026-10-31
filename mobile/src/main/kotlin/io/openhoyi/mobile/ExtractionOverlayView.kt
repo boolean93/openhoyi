@@ -27,13 +27,22 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it, liveMode = !embeddedHistory) }
     internal val visualEvidence get() = productRenderer?.evidence ?: org.json.JSONArray()
     var points: List<ShotPoint> = emptyList()
-        set(value) { field = value; rebuildProjection() }
+        set(value) {
+            val old = field
+            val oldAxis = renderTimeEnd
+            stopRenderTransition()
+            field = value; rebuildProjection()
+            if (liveChart && old.isNotEmpty() && value.size > old.size && value.take(old.size) == old &&
+                value.last().elapsedMs-old.last().elapsedMs <= 1500 && ChartMetric.PRESSURE !in unavailableLiveMetrics)
+                startRenderTransition(old.last().elapsedMs,oldAxis)
+        }
     var reference: List<ShotPoint> = emptyList()
         set(value) { field = value; rebuildProjection() }
     var traceIdentity: String? = null
         set(value) {
             if (field == value) return
             field = value
+            stopRenderTransition()
             inspectionDialog?.dismiss()
             inspectedTime = null
             previousRanges = emptyMap()
@@ -64,11 +73,41 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private val liveRanges = linkedMapOf<ChartMetric, TextView>()
     private val liveChart get() = visual != null && !embeddedHistory
     private var liveTimeEnd = 30_000L
+    private var renderTimeEnd = 30_000L
+    private var revealThroughMs: Long? = null
+    private var renderAnimator: android.animation.ValueAnimator? = null
+    private fun stopRenderTransition() {
+        renderAnimator?.cancel(); renderAnimator = null
+        revealThroughMs = null; renderTimeEnd = data.timeEndMs
+    }
+    private fun startRenderTransition(oldObserved: Long, oldAxis: Long) {
+        val target = data.observedThroughMs ?: return
+        val endAxis = data.timeEndMs
+        renderAnimator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
+            duration = 180
+            interpolator = android.view.animation.LinearInterpolator()
+            addUpdateListener { animation ->
+                val fraction = animation.animatedValue as Float
+                revealThroughMs = oldObserved + ((target-oldObserved)*fraction).toLong()
+                renderTimeEnd = oldAxis + ((endAxis-oldAxis)*fraction).toLong()
+                plot.postInvalidateOnAnimation()
+            }
+            addListener(object: android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (renderAnimator === animation) {
+                        renderAnimator = null; revealThroughMs = null; renderTimeEnd = endAxis; plot.invalidate()
+                    }
+                }
+            })
+            start()
+        }
+    }
     var unavailableLiveMetrics: Set<ChartMetric> = emptySet()
         set(value) {
             if (field == value) return
             field = value
             if (liveChart) {
+                stopRenderTransition(); plot.invalidate()
                 buttons.forEach { (metric, button) -> updateLegendText(metric, button) }
                 updateDescription()
             }
@@ -113,6 +152,44 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         addView(headerContent, ViewGroup.LayoutParams(-1, -2))
     }
     private val plot = MetricPlot(context).apply { tag = "chart-plot" }
+    private val compactTop = android.widget.FrameLayout(context)
+    private var gauge: LivePressureGauge? = null
+    var liveHeaderHeightPx: Int = dp(48f).toInt()
+        set(value) {
+            val next = value.coerceAtLeast(dp(48f).toInt())
+            if (field != next) { field = next; requestLayout() }
+        }
+    var liveCompactChrome: Boolean = false
+        set(value) {
+            if (field == value || !liveChart) return
+            field = value
+            configureLiveChrome()
+            requestLayout()
+        }
+    private fun configureLiveChrome() {
+        if (!liveCompactChrome) return
+        removeView(header)
+        headerContent.setPadding(0,liveHeaderHeightPx,0,0)
+        compactTop.addView(header, android.widget.FrameLayout.LayoutParams(-1,-1).apply { marginEnd = dp(112f).toInt() })
+        val pressure = requireNotNull(liveValues[ChartMetric.PRESSURE])
+        gauge = LivePressureGauge(context,requireNotNull(visual),pressure.first,pressure.second).also {
+            compactTop.addView(it,android.widget.FrameLayout.LayoutParams(dp(96f).toInt(),dp(96f).toInt(),android.view.Gravity.TOP or android.view.Gravity.END))
+        }
+        addView(compactTop,0,LayoutParams(-1,dp(96f).toInt()))
+        liveTiles.forEach { (metric,tile) ->
+            val body = tile.getChildAt(0) as LinearLayout
+            body.orientation = HORIZONTAL; body.gravity = android.view.Gravity.CENTER_VERTICAL
+            body.setPadding(dp(4f).toInt(),0,dp(4f).toInt(),0)
+            val name = body.getChildAt(0) as TextView
+            name.compoundDrawablePadding = dp(3f).toInt()
+            val quantity = body.getChildAt(1) as LinearLayout
+            quantity.layoutParams = LayoutParams(-2,-2).apply { marginStart = dp(6f).toInt() }
+            quantity.visibility = if (metric == ChartMetric.PRESSURE) GONE else VISIBLE
+            liveRanges[metric]?.visibility = GONE
+        }
+        rebuildProjection()
+    }
+
 
     init {
         orientation = VERTICAL
@@ -131,6 +208,17 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
+        if (liveCompactChrome) {
+            if (headerContent.paddingTop != liveHeaderHeightPx) headerContent.setPadding(0,liveHeaderHeightPx,0,0)
+            val innerWidth = (MeasureSpec.getSize(widthMeasureSpec)-dp(112f).toInt()).coerceAtLeast(0)
+            header.measure(MeasureSpec.makeMeasureSpec(innerWidth,MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED))
+            val chromeHeight = maxOf(dp(96f).toInt(),header.measuredHeight,liveHeaderHeightPx+dp(48f).toInt())
+            if (compactTop.layoutParams.height != chromeHeight) compactTop.layoutParams.height = chromeHeight
+            header.layoutParams.height = chromeHeight
+            super.onMeasure(widthMeasureSpec,heightMeasureSpec)
+            return
+        }
         val plotMinimum = plot.minimumAxisHeight()
         val compact = height < plotMinimum + dp(48f).toInt()
         if (compact != compactMode) {
@@ -149,11 +237,12 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     }
 
     private fun rebuildProjection() {
-        data = FourMetricChartProjection.build(points, reference, previousRanges)
+        data = FourMetricChartProjection.build(points, reference, previousRanges, livePauseBaseline = liveChart)
         if (liveChart) {
             liveTimeEnd = maxOf(liveTimeEnd, LiveChartGeometry.timeEnd(data.timeEndMs))
             data = data.copy(timeEndMs = liveTimeEnd)
         }
+        renderTimeEnd = data.timeEndMs
         previousRanges = data.series.associate { it.metric to it.range }
         if (data.series.none { it.metric == selected }) selected = null
         val metrics = if (embeddedHistory) data.series.map { it.metric } else ChartMetric.entries
@@ -252,13 +341,17 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         if (liveChart) {
             val latest = series?.current?.lastOrNull()?.lastOrNull()?.takeIf {
                 it.elapsedMs == data.observedThroughMs && metric !in unavailableLiveMetrics }
-            val value = latest?.let { format(it.value) } ?: "—"
+            val paused = metric == ChartMetric.PRESSURE && latest != null && latest.elapsedMs in data.pauseBaselineMs
+            val value = if (paused) "—" else latest?.let { format(it.value) } ?: "—"
+            if (metric == ChartMetric.PRESSURE) gauge?.present(if (paused) null else latest?.value,
+                series?.range?.high ?: 12f,paused)
             val range = series?.range?.let { "${format(it.low)}–${format(it.high)} ${displayUnit(metric)}" }
                 ?: context.getString(R.string.task_chart_missing_scale)
             liveValues[metric]?.first?.let { if (it.text.toString() != value) it.text = value }
             liveRanges[metric]?.let { if (it.text.toString() != range) it.text = range }
             val name = if (metric == ChartMetric.WEIGHT) context.getString(R.string.task_extraction_scale) else metricName(metric)
             button.contentDescription = "$name $value ${displayUnit(metric)}; $range; " +
+                (if (paused) context.getString(R.string.live_pressure_pause_explanation) + "; " else "") +
                 (if (metric == ChartMetric.WEIGHT && latest == null) context.getString(R.string.task_chart_missing_scale) + "; " else "") +
                 context.getString(R.string.task_chart_hint)
             button.isEnabled = series != null && (metric != ChartMetric.WEIGHT || latest != null)
@@ -333,11 +426,12 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         if (hasGaps()) notes += context.getString(R.string.task_chart_gap)
         fullExplanation = notes.joinToString(" · ")
         val compact = compactRunningExplanation && visual != null && !embeddedHistory
+        if (liveChart && data.pauseBaselineMs.isNotEmpty()) notes += context.getString(R.string.live_pressure_pause_explanation)
         val warnings = notes.drop(1)
         val inline = if (liveChart) (listOf(context.getString(R.string.task_chart_hint)) + warnings).joinToString(" · ")
             else if (compact) warnings.joinToString(" · ") else fullExplanation
         if (explanation.text.toString() != inline) explanation.text = inline
-        explanation.visibility = if (!liveChart && compact && warnings.isEmpty()) GONE else VISIBLE
+        explanation.visibility = if (liveCompactChrome || !liveChart && compact && warnings.isEmpty()) GONE else VISIBLE
         plot.contentDescription = (notes + context.getString(R.string.task_chart_inspect_hint) + context.getString(R.string.task_chart_hint) +
             context.getString(R.string.task_chart_independent, metricName(focusMetric), displayUnit(focusMetric)) +
             referenceNotes + data.series.map { series ->
@@ -347,7 +441,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val name = if (liveChart && series.metric == ChartMetric.WEIGHT)
                 context.getString(R.string.task_extraction_scale) else metricName(series.metric)
             context.getString(R.string.task_chart_latest, name,
-                latest?.let { format(it.value) } ?: "—", displayUnit(series.metric))
+                if (liveChart && series.metric == ChartMetric.PRESSURE && latest?.elapsedMs in data.pauseBaselineMs) "—"
+                    else latest?.let { format(it.value) } ?: "—", displayUnit(series.metric))
         }).joinToString("; ")
         // Do not group the native clickable legend into one accessibility node.
         contentDescription = null
@@ -360,6 +455,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     /** Fragment show/hide does not detach this view, so the host closes inspection on pause. */
     fun dismissInspection() {
+        stopRenderTransition()
         inspectionDialog?.dismiss()
     }
 
@@ -458,7 +554,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val available = MeasureSpec.getSize(widthMeasureSpec)
             val wide = ((available - gap * 3) / 4).coerceAtLeast(1)
             var singleRowFits = true
-            fun wholeSingleLine(view: View): Boolean = when (view) {
+            fun wholeSingleLine(view: View): Boolean = if (view.visibility == GONE) true else when (view) {
                 is TextView -> view.layout?.let { layout ->
                     layout.lineCount <= 1 && (0 until layout.lineCount).all { layout.getEllipsisCount(it) == 0 }
                 } ?: false
@@ -557,7 +653,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             productRenderer?.let {
-                plotBounds.set(it.draw(canvas, width, height, data, focusMetric, selected, false, inspectedTime))
+                val rendered = if (liveChart) data.copy(timeEndMs = renderTimeEnd.coerceAtLeast(1)) else data
+                plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
+                    if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet()))
                 return
             }
             val fm = labels.fontMetrics

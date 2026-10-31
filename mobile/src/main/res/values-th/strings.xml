@@ -447,6 +447,8 @@
     <string name="legacy_history_unavailable">"บันทึกรุ่นเก่าใช้ไม่ได้"</string>
     <string name="legacy_history_unnamed">"กราฟไม่มีชื่อ"</string>
     <string name="legacy_import_error">"นำเข้าไม่สำเร็จ: %1$s ข้อมูลเดิมไม่เปลี่ยน"</string>
+    <string name="live_pressure_pause">"หยุดชั่วคราว"</string>
+    <string name="live_pressure_pause_explanation">"เส้นความดันในช่วงหยุดใช้เส้นฐานศูนย์ ไม่ได้หมายความว่าความดันที่วัดได้เป็นศูนย์"</string>
     <string name="machine_recovery_brew_wait">"ผลการอุ่นหรือยกเลิกยังไม่ยืนยัน ตรวจเครื่องเดิมว่ายังอุ่นไหม ส่งยกเลิกได้ รอรายงานว่าตื่นสแตนด์บายแล้วให้ผู้ใช้ยืนยัน"</string>
     <string name="machine_recovery_cup_reset">"ยังไม่ยืนยันการรีเซ็ตแก้วครั้งก่อน เชื่อมต่อเครื่องเดิม ตรวจจำนวนแก้วในค่าตั้งและสแตนด์บายก่อนล้างเตือน"</string>
     <string name="machine_recovery_setting">"ยังไม่ยืนยันการตั้งค่าครั้งก่อน เชื่อมต่อเครื่องเดิม ตรวจค่าปัจจุบันก่อนล้างเตือน"</string>

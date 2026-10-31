@@ -951,5 +951,7 @@
   "task_shell_action_connect": "Conectar",
   "task_shell_action_select": "Elegir",
   "task_shell_action_connecting": "Conectando",
-  "task_shell_scale_manually_disconnected": "Desconectada manualmente"
+  "task_shell_scale_manually_disconnected": "Desconectada manualmente",
+  "live_pressure_pause": "Pausa",
+  "live_pressure_pause_explanation": "Durante la pausa, la curva de presión usa una base cero; no indica una presión medida de cero."
 }

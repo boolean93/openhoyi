@@ -951,5 +951,7 @@
   "task_shell_action_connect": "接続",
   "task_shell_action_select": "選択",
   "task_shell_action_connecting": "接続中",
-  "task_shell_scale_manually_disconnected": "手動で切断済み"
+  "task_shell_scale_manually_disconnected": "手動で切断済み",
+  "live_pressure_pause": "一時停止",
+  "live_pressure_pause_explanation": "停止区間の圧力線はゼロ基準線で表示します。実測圧力がゼロという意味ではありません。"
 }

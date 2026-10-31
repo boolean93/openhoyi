@@ -447,6 +447,8 @@
     <string name="legacy_history_unavailable">"Запись старой версии недоступна"</string>
     <string name="legacy_history_unnamed">"Профиль без названия"</string>
     <string name="legacy_import_error">"Импорт не удался: %1$s; исходные данные не изменены"</string>
+    <string name="live_pressure_pause">"Пауза"</string>
+    <string name="live_pressure_pause_explanation">"Во время паузы линия давления показана на нулевой базе; это не измеренное нулевое давление."</string>
     <string name="machine_recovery_brew_wait">"Результат нагрева или отмены не подтверждён. Проверьте, нагревается ли та же кофемашина. Можно отправить отмену; после ответа о бодрствующем ожидании подтвердите вручную."</string>
     <string name="machine_recovery_cup_reset">"Предыдущий сброс числа чашек не подтверждён. Подключите ту же кофемашину и проверьте счётчики в настройках и данных ожидания перед удалением уведомления."</string>
     <string name="machine_recovery_setting">"Предыдущее изменение настроек не подтверждено. Подключите ту же кофемашину и проверьте текущие настройки перед удалением уведомления."</string>

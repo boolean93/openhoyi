@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "98898894fa4ef3e4ab7fa3fac7981624a5551726bb86ad178bd77f2966f16709",
+  "sha256": "88d76b8b97ee8ed5f5283a3081dc8c0de477f81e12035f6f81748c6c0338c7be",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
@@ -954,6 +954,8 @@
     "task_shell_action_connect": "连接",
     "task_shell_action_select": "选择",
     "task_shell_action_connecting": "连接中",
-    "task_shell_scale_manually_disconnected": "已断开"
+    "task_shell_scale_manually_disconnected": "已断开",
+    "live_pressure_pause": "暂停",
+    "live_pressure_pause_explanation": "暂停阶段的压力线显示为零基线，不表示实测压力为零"
   }
 }

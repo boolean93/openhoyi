@@ -447,6 +447,8 @@
     <string name="legacy_history_unavailable">"Registro antiguo no disponible"</string>
     <string name="legacy_history_unnamed">"Curva sin nombre"</string>
     <string name="legacy_import_error">"Error de importación: %1$s; los datos existentes no han cambiado"</string>
+    <string name="live_pressure_pause">"Pausa"</string>
+    <string name="live_pressure_pause_explanation">"Durante la pausa, la curva de presión usa una base cero; no indica una presión medida de cero."</string>
     <string name="machine_recovery_brew_wait">"Resultado de precalentamiento o cancelación no confirmado. Compruebe si la cafetera original sigue precalentando; puede enviar un comando de cancelación y confirmar manualmente cuando la máquina informe de espera activa."</string>
     <string name="machine_recovery_cup_reset">"El restablecimiento anterior del contador de tazas no se confirmó. Conecte la cafetera original y compruebe los contadores de los ajustes y de los datos de espera antes de borrar el aviso."</string>
     <string name="machine_recovery_setting">"El cambio anterior de ajustes de la máquina no se confirmó. Conecte la cafetera original y compruebe los ajustes actuales antes de borrar el aviso."</string>

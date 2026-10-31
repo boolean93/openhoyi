@@ -25,6 +25,7 @@ internal data class FourMetricChartData(
     val timeEndMs: Long,
     val waterResetsMs: List<Long>,
     val referenceWaterResetsMs: List<Long>,
+    val pauseBaselineMs: Set<Long> = emptySet(),
 )
 
 /** Display-only projection: no interpolation, sampling changes, or inferred cup tare. */
@@ -38,11 +39,12 @@ internal object FourMetricChartProjection {
         points: List<ShotPoint>,
         reference: List<ShotPoint>,
         previousRanges: Map<ChartMetric, ChartRange> = emptyMap(),
+        livePauseBaseline: Boolean = false,
     ): FourMetricChartData {
         validate(points)
         validate(reference)
         val series = ChartMetric.entries.mapNotNull { metric ->
-            val current = segments(points, metric)
+            val current = segments(points, metric, livePauseBaseline)
             val historic = segments(reference, metric)
             if (metric == ChartMetric.WEIGHT && current.isEmpty() && historic.isEmpty()) {
                 return@mapNotNull null
@@ -68,6 +70,7 @@ internal object FourMetricChartProjection {
             maxOf(1000L, points.lastOrNull()?.elapsedMs ?: 0L, reference.lastOrNull()?.elapsedMs ?: 0L),
             resets(points),
             resets(reference),
+            if (livePauseBaseline) pauseBaselines(points) else emptySet(),
         )
     }
 
@@ -90,12 +93,31 @@ internal object FourMetricChartProjection {
         ChartMetric.TEMPERATURE -> point.temperatureHundredthsC / 100f
     }
 
-    private fun segments(samples: List<ShotPoint>, metric: ChartMetric): List<List<ChartValue>> {
+    /** A zero here is a confirmed closed-valve phase baseline, not a measured pressure. */
+    fun pauseBaselines(samples: List<ShotPoint>): Set<Long> {
+        val result = linkedSetOf<Long>()
+        var activeCup = false
+        var previous: ShotPoint? = null
+        for (point in samples) {
+            val adjacent = previous?.let { point.elapsedMs - it.elapsedMs in 1..1500 } == true
+            if (!adjacent) activeCup = false
+            val bits = point.statusBits
+            if (activeCup && adjacent && bits != null && bits and 64 == 0 && bits and 32 == 0 && point.brewing == false)
+                result += point.elapsedMs
+            if (point.brewing == true) activeCup = true
+            else if (point.elapsedMs !in result) activeCup = false
+            previous = point
+        }
+        return result
+    }
+
+    private fun segments(samples: List<ShotPoint>, metric: ChartMetric, livePauseBaseline: Boolean = false): List<List<ChartValue>> {
         val result = mutableListOf<MutableList<ChartValue>>()
         var previous: ShotPoint? = null
         var active: MutableList<ChartValue>? = null
+        val pauses = if (livePauseBaseline && metric == ChartMetric.PRESSURE) pauseBaselines(samples) else emptySet()
         for (point in samples) {
-            val actual = value(point, metric)
+            val actual = if (point.elapsedMs in pauses) 0f else value(point, metric)
             if (actual == null) {
                 active = null
                 previous = point

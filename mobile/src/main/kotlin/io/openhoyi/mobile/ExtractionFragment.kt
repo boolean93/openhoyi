@@ -101,9 +101,10 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var cancelPrepare: Button
     private lateinit var pageHeader: LinearLayout
     private lateinit var pageBody: LinearLayout
+    private lateinit var compactClock: TextView
+    private lateinit var compactGuidance: TextView
     private lateinit var compactIdentity: TextView
     private lateinit var headerWords: LinearLayout
-    private var headerSubtitle: TextView? = null
     private lateinit var supportReadings: LinearLayout
     private lateinit var chartHost: FrameLayout
     private lateinit var liveHeading: TextView
@@ -132,15 +133,35 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         pageHeader = HoyiUi.header(host, content, getString(R.string.extraction_title),
             if (BuildConfig.MOCK_MODE) getString(R.string.extraction_mock_subtitle) else null)
         style.styleHeader(pageHeader)
-        headerWords = pageHeader.getChildAt(0) as LinearLayout
-        headerWords.removeAllViews()
-        headerSubtitle = null
-        compactIdentity = style.text("", TaskProductVisualStyle.Type(14, 500, 20), "product/extraction/identity")
-        headerWords.addView(compactIdentity, LinearLayout.LayoutParams(-1, -2))
-        if (BuildConfig.MOCK_MODE) pageHeader.addView(style.text("Mock", TaskProductVisualStyle.auxiliary,
-            "product/extraction/mode", true).apply { contentDescription = getString(R.string.extraction_mock_subtitle) })
+        pageHeader.removeViewAt(0)
+        compactIdentity = style.text("", TaskProductVisualStyle.Type(14, 500, 20), "product/extraction/identity").apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        compactClock = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/clock")
+        compactGuidance = style.text("", TaskProductVisualStyle.auxiliary, "product/extraction/inline-guidance", true)
+        headerWords = object : LinearLayout(host) {
+            init { gravity = android.view.Gravity.CENTER_VERTICAL; isBaselineAligned = false }
+            override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+                val natural = View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+                compactClock.measure(natural, natural); compactGuidance.measure(natural, natural)
+                val available = View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight
+                val stacked = available < dp(112) + compactClock.measuredWidth + compactGuidance.measuredWidth + dp(16)
+                orientation = if (stacked) VERTICAL else HORIZONTAL
+                listOf(compactIdentity, compactClock, compactGuidance).forEachIndexed { index, child ->
+                    val width = if (stacked) -1 else if (index == 0) 0 else -2
+                    val weight = if (!stacked && index == 0) 1f else 0f
+                    val gap = if (!stacked && index > 0) dp(8) else 0
+                    val current = child.layoutParams as LayoutParams
+                    if (current.width != width || current.weight != weight || current.marginStart != gap)
+                        child.layoutParams = LayoutParams(width, -2, weight).apply { marginStart = gap }
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            }
+        }
+        listOf(compactIdentity, compactClock, compactGuidance).forEach { headerWords.addView(it) }
+        pageHeader.addView(headerWords, 0, LinearLayout.LayoutParams(0, -2, 1f))
         pageHeader.minimumHeight = dp(48)
-        (pageHeader.layoutParams as LinearLayout.LayoutParams).bottomMargin = dp(8)
+        pageHeader.tag = "product/extraction/header"
         // Secondary prose remains available in a details dialog, not in the plot's height budget.
         val details = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
         overviewHeading = HoyiUi.label(host, details, getString(R.string.extraction_overview), 17, true)
@@ -202,8 +223,15 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         temperatureValue = supportReading(R.string.task_chart_temperature, "product/extraction/temperature")
         flowValue = text(details, "", 14)
         chartHost = FrameLayout(host).apply { tag = "product/extraction/chart-host" }
-        chart = ExtractionOverlayView(host, visual).apply { tag = "product/extraction/chart"; background = style.shape(style.surface) }
+        chart = ExtractionOverlayView(host, visual).apply {
+            tag = "product/extraction/chart"; background = style.shape(style.surface)
+            liveCompactChrome = true
+        }
         chartHost.addView(chart, FrameLayout.LayoutParams(-1, -1))
+        // One shared 96dp budget: identity above metrics, pressure dial on their right.
+        content.removeView(pageHeader)
+        chartHost.addView(pageHeader, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.TOP).apply { marginEnd = dp(112) })
+        pageHeader.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> chart.liveHeaderHeightPx = pageHeader.height }
         val chartTools = Button(host).apply {
             text = getString(R.string.task_tools); contentDescription = text
             tag = "product/extraction/chart-tools"
@@ -212,14 +240,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             setOnClickListener { showTools() }
         }
         pageHeader.addView(chartTools, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
-        plotColumn.addView(chartHost, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = dp(8); bottomMargin = 0 })
-        workspace.onPrimarySpaceAvailable = { width, height ->
-            // Metric strip is measured inside the chart, not as a second readout tier.
-            // Reserve real plot space before allocating the locally scrollable tools.
-            // Font scaling grows this budget; no plot/text minimum is lowered.
-            val chartHeight = maxOf((dp(260) * resources.configuration.fontScale).toInt(),
-                (height * .55f).toInt())
-            chartHeight + dp(8)
+        plotColumn.addView(chartHost, LinearLayout.LayoutParams(-1, 0, 1f))
+        workspace.onPrimarySpaceAvailable = { _, height ->
+            maxOf((dp(260) * resources.configuration.fontScale).toInt(), (height * .70f).toInt())
         }
         val toolbar = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
         sidePanel.addView(toolbar)
@@ -242,7 +265,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         sidePanel.addView(preparationTools, LinearLayout.LayoutParams(-1, -2))
         referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }
         detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
-            val info = listOf(curveSummary, deviceSummary, shotSummary, live, flowValue, weightTarget, traceCurve, stageTargets, referenceStatus)
+            val info = listOf(curveSummary, deviceSummary, readiness, shotSummary, live, flowValue, weightTarget, traceCurve, stageTargets, referenceStatus)
                 .map { it.text.toString() }.filter { it.isNotBlank() }.joinToString("\n\n") +
                 "\n\n" + recipeSummary.text + "\n\n" + chart.overviewExplanation() +
                 "\n\n" + getString(R.string.live_cup_flow_source)
@@ -396,12 +419,6 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             ExtractionState.RUNNING,ExtractionState.STOP_REQUESTED)
         chart.compactRunningExplanation = active
         pageHeader.visibility = View.VISIBLE
-        val chartParams = chartHost.layoutParams as LinearLayout.LayoutParams
-        val chartGap = if (active) 0 else dp(8)
-        if (chartParams.topMargin != chartGap) {
-            chartParams.topMargin = chartGap
-            chartHost.layoutParams = chartParams
-        }
         val edge = dp(if (active) 8 else 16)
         if (pageBody.paddingTop != edge) pageBody.setPadding(dp(16), edge, dp(16), edge)
         supportReadings.visibility = if (active) View.GONE else View.VISIBLE
@@ -446,9 +463,6 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val elapsed = (LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt,
             MobileMonotonicClock.elapsedRealtime()) as? ExtractionTelemetry)?.takeUnless { it.brewWait }?.elapsedSeconds
         val elapsedText = elapsed?.let { String.format(Locale.ROOT, "%02d:%02d", it / 60, it % 60) } ?: "—"
-        compactIdentity.show("$displayCurveName ｜ ${shotLabel(state)} ｜ ${getString(R.string.task_extraction_elapsed)} $elapsedText")
-        compactIdentity.contentDescription = compactIdentity.text.toString() +
-            if (BuildConfig.MOCK_MODE) " · " + getString(R.string.extraction_mock_subtitle) else ""
         curveSummary.show(getString(R.string.extraction_curve_summary, displayCurveName,
             if (observedCup) "" else slotLabel))
         val cupNotes = if (observedCup) owner?.chartTraceIdentity?.let {
@@ -475,6 +489,22 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             else -> owner?.machineControlSafetyMessage ?: blocked ?: studioBlocked ?: getString(R.string.extraction_ready_guidance)
         }
         readiness.show(guidance + unknownAdvice)
+        // Only ordinary, complete guidance shares the compact chrome. Every warning keeps its full row.
+        val inlineGuidance = owner?.manualShotActive != true && owner?.scalePreflight != true &&
+            unknownAdvice.isEmpty() && owner?.machineControlSafetyMessage == null &&
+            preparation == BrewPreparation.State.IDLE && !settingBusy && !sleepBusy &&
+            (state == ExtractionState.RUNNING || state == ExtractionState.ENDED_OBSERVED ||
+                state == ExtractionState.IDLE && blocked == null && studioBlocked == null)
+        compactIdentity.show(displayCurveName)
+        compactIdentity.contentDescription = displayCurveName
+        compactClock.show((if (inlineGuidance) "" else shotLabel(state) + " · ") + elapsedText +
+            if (BuildConfig.MOCK_MODE) " · Mock" else "")
+        compactClock.contentDescription = compactClock.text.toString() +
+            if (BuildConfig.MOCK_MODE) " · " + getString(R.string.extraction_mock_subtitle) else ""
+        compactGuidance.show(if (inlineGuidance) guidance else "")
+        compactGuidance.visibility = if (inlineGuidance) View.VISIBLE else View.GONE
+        readiness.visibility = if (inlineGuidance) View.GONE else View.VISIBLE
+        compactIdentity.setOnLongClickListener { detailsButton.performClick(); true }
         readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
             (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)))
             R.color.mobile_danger else R.color.mobile_text))

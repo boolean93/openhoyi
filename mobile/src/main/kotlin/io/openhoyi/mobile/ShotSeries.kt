@@ -13,6 +13,8 @@ data class ShotPoint(
     val scaleFlowHundredths: Int? = null,
     /** Null is legacy/unknown evidence; false is an observed non-brewing machine phase. */
     val brewing: Boolean? = null,
+    /** Original phase bits; null for legacy records, never inferred from brewing. */
+    val statusBits: Int? = null,
 )
 
 class ShotSeries {
@@ -60,7 +62,7 @@ class ShotSeries {
         }
         val point = ShotPoint(elapsed, frame.pressureTenthsBar, frame.flowTenthsMlPerSecond,
             frame.totalWaterTenthsMl, frame.brewTemperatureHundredthsC, freshWeight,
-            scaleFlowHundredths.takeIf { freshWeight != null }, frame.valveOpen && !frame.brewWait)
+            scaleFlowHundredths.takeIf { freshWeight != null }, frame.valveOpen && !frame.brewWait, frame.statusBits)
         if (last != null && elapsed - last.elapsedMs < minimumGapMs) {
             recorded[recorded.lastIndex] = point
             return

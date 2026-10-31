@@ -447,6 +447,8 @@
     <string name="legacy_history_unavailable">"سجل الإصدار القديم غير متاح"</string>
     <string name="legacy_history_unnamed">"منحنى بلا اسم"</string>
     <string name="legacy_import_error">"فشل الاستيراد: %1$s؛ لم تتغير البيانات الأصلية"</string>
+    <string name="live_pressure_pause">"توقف مؤقت"</string>
+    <string name="live_pressure_pause_explanation">"يستخدم منحنى الضغط خط أساس صفريًا أثناء التوقف المؤقت؛ ولا يعني ذلك أن الضغط المقاس يساوي صفرًا."</string>
     <string name="machine_recovery_brew_wait">"لم تتأكد نتيجة التسخين المسبق أو إلغائه. تحقق مما إذا كانت آلة القهوة الأصلية لا تزال تسخن مسبقًا؛ يمكنك إرسال الإلغاء، ثم التأكيد يدويًا بعد إبلاغ الآلة باستعداد مستيقظ."</string>
     <string name="machine_recovery_cup_reset">"لم تتأكد إعادة ضبط عدد الأكواب السابقة. اتصل بآلة القهوة الأصلية وراجع العدد في الإعدادات وبيانات الاستعداد قبل مسح التنبيه."</string>
     <string name="machine_recovery_setting">"لم يتأكد تعديل إعدادات الآلة السابق. اتصل بآلة القهوة الأصلية وراجع الإعدادات الحالية قبل مسح التنبيه."</string>
