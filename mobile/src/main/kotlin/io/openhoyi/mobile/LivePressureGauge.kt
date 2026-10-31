@@ -31,7 +31,7 @@ internal class LivePressureGauge(context: Context, private val visual: Extractio
         visual.palette.apply(unit,TaskProductVisualStyle.Type(12,400,18),true)
         number.setTextColor(visual.liveMetric(ChartMetric.PRESSURE)); unit.setTextColor(visual.liveMetric(ChartMetric.PRESSURE))
         quantity.apply {
-            orientation = LinearLayout.HORIZONTAL; isBaselineAligned = true; gravity = Gravity.CENTER
+            orientation = LinearLayout.HORIZONTAL; isBaselineAligned = true; gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
         }
         (number.parent as? android.view.ViewGroup)?.removeView(number)

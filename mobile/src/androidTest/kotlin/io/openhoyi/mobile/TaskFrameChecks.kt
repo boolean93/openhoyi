@@ -78,15 +78,26 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             "protocol-support" to activity.getString(R.string.scale_offline_evidence)
         ) else listOf(
             "app-info" to BuildConfig.APPLICATION_ID,
+            "diagnostic-state" to activity.getString(R.string.settings_diagnostics_devices),
             "diagnostics" to activity.getString(R.string.app_settings_export)
         )
+        fun targetFor(name: String, label: String): android.widget.TextView {
+            val tag = when (name) {
+                "diagnostic-state" -> "product/settings/app/diagnostic-state"
+                "diagnostics" -> "product/settings/app/export/action"
+                else -> null
+            }
+            return descendants(scroll).filterIsInstance<android.widget.TextView>().single {
+                if (tag != null) it.tag == tag else it.text.toString() == label
+            }.also {
+                check(it.text.isNotBlank()) { "Empty settings target $name" }
+                if (name == "diagnostics") check(it is android.widget.Button && it.isClickable && it.isEnabled)
+            }
+        }
         try {
             for ((name, label) in targets) {
                 main {
-                    val target = descendants(scroll).filterIsInstance<android.widget.TextView>().single {
-                        it.text.toString() == label && (name != "diagnostics" ||
-                            it is android.widget.Button && it.isClickable && it.isEnabled)
-                    }
+                    val target = targetFor(name, label)
                     if (machineSettings) {
                         val content = scroll.getChildAt(0) as ViewGroup
                         val group = steamGroup()
@@ -105,11 +116,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 fun recordGeometry(phase: String) = main {
                     val visibleWindow = Rect()
                     activity.window.decorView.getWindowVisibleDisplayFrame(visibleWindow)
-                    val geometryLabels = if (name == "diagnostics")
-                        listOf(label, activity.getString(R.string.settings_diagnostics_devices)) else listOf(label)
-                    val lines = (if (machineSettings) steamGroup() else descendants(scroll).filterIsInstance<android.widget.TextView>().filter {
-                        it.text.toString() in geometryLabels
-                    }).map { view ->
+                    val lines = (if (machineSettings) steamGroup() else listOf(targetFor(name, label))).map { view ->
                         val bounds = Rect()
                         view.getGlobalVisibleRect(bounds)
                         "${view.javaClass.simpleName} text=${view.text} visible=$bounds size=${view.width}x${view.height}"
@@ -131,16 +138,12 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 recordGeometry("after-capture")
                 main {
                     val labels = descendants(scroll).filterIsInstance<android.widget.TextView>()
-                    val required = if (name == "diagnostics")
-                        listOf(activity.getString(R.string.settings_diagnostics_devices), label) else listOf(label)
-                    required.forEach { text ->
-                        val target = labels.single { it.text.toString() == text }
-                        val visible = Rect()
-                        check(target.getGlobalVisibleRect(visible) && visible.width() == target.width && visible.height() == target.height) {
-                            "Settings content is not fully reachable: $text"
-                        }
-                        LanguageUiLayoutChecks.textFits(target, "settings/$name")
+                    val target = targetFor(name, label)
+                    val visible = Rect()
+                    check(target.getGlobalVisibleRect(visible) && visible.width() == target.width && visible.height() == target.height) {
+                        "Settings content is not fully reachable: $name text=${target.text}"
                     }
+                    LanguageUiLayoutChecks.textFits(target, "settings/$name")
                     if (machineSettings) {
                         val steamViews = steamGroup().take(2)
                         check(steamViews.size == 2) { "Missing steam temperature label/input" }

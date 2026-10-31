@@ -198,13 +198,13 @@ class AppSettingsFragment : Fragment() {
         infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
         infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
         val diagnostics = sections.getValue("maintenance")
-        diagnosticState=style.text("",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(diagnostics,it,16)}
+        diagnosticState=style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/diagnostic-state",secondary=true).also {style.add(diagnostics,it,16)}
         style.add(diagnostics, style.text(getString(R.string.app_settings_export_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         HoyiUi.button(activity, diagnostics, getString(R.string.app_settings_export)) {
             exportGeneration++
             exportStatus?.visibility = View.GONE
             export.launch("openhoyi-diagnostics-${System.currentTimeMillis()}.zip")
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL; visual.action(this, icon = "export", atEnd = true) }
+        }.apply { tag = "product/settings/app/export/action"; asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL; visual.action(this, icon = "export", atEnd = true) }
         exportStatus = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/export/result").apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }.also { style.add(diagnostics, it, 8) }
