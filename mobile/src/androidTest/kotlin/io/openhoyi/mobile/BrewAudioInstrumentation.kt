@@ -35,6 +35,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var fourMetricChartChecks = false
     private var taskFrameChecks = false
     private var mainNavigationChecks = false
+    private var settingsNavigationOnly = false
     private var singleScreenChecks = false
     private var customExecution = false
     private var systemDocuments = false
@@ -63,7 +64,8 @@ class BrewAudioInstrumentation : Instrumentation() {
         homeWorkbenchChecks = arguments?.getString("homeWorkbenchChecks") == "true"
         fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
-        mainNavigationChecks = arguments?.getString("mainNavigationChecks") == "true"
+        mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings")
+        settingsNavigationOnly = arguments?.getString("mainNavigationChecks") == "settings"
         singleScreenChecks = arguments?.getString("singleScreenChecks") == "true"
         customExecution = arguments?.getString("customExecution") == "true"
         systemDocuments = arguments?.getString("systemDocuments") == "true"
@@ -174,7 +176,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 return
             }
             if (mainNavigationChecks) {
-                MainNavigationChecks(this).run()
+                if (settingsNavigationOnly) MainNavigationChecks(this).runSettingsOnly() else MainNavigationChecks(this).run()
                 report.putString("stream", "MAIN_NAVIGATION_CHECKS_PASSED rounds=20 tabs=6 singleHost=true curveFilterRetained=true serviceContinuous=true manualShell=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)
                 return

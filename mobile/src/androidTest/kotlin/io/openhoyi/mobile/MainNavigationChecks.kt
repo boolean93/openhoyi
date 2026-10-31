@@ -108,6 +108,54 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         } finally { test.runOnMainSync { activity.finish() }; test.waitForIdleSync() }
     }
 
+    /** Bounded, non-extracting settings regression for a user's Mock tablet. */
+    fun runSettingsOnly() {
+        check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
+        test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_NAVIGATION_START boundedLaunch=true noExtraction=true\n") })
+        val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
+        var activity: MainActivity? = null
+        val prefs = test.targetContext.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)
+        val originalPrecision = prefs.getBoolean("one_decimal", false)
+        try {
+            test.runOnMainSync {
+                test.targetContext.startActivity(android.content.Intent(test.targetContext, MainActivity::class.java)
+                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                    .putExtra(MainActivity.EXTRA_INITIAL_DESTINATION, TaskDestination.SETTINGS.name))
+            }
+            activity = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity
+                ?: error("Settings Activity launch timed out after 10s")
+            val page = requireNotNull(activity)
+            test.waitForIdleSync()
+            test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_NAVIGATION_LAUNCHED\n") })
+            test.runOnMainSync {
+                val settings = page.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
+                val root = requireNotNull(settings.view)
+                val toggle = descendants(root).single { it.tag == "settings-section:machine" }
+                val summary = descendants(root).single { it.tag == "settings-machine-summary" }
+                val input = descendants(root).filterIsInstance<EditText>().first()
+                val originalDraft = input.text.toString()
+                input.setText("94")
+                toggle.performClick(); check(summary.isShown)
+                toggle.performClick(); check(input.text.toString() == "94")
+                val precision = descendants(root).filterIsInstance<android.widget.Switch>()
+                    .single { it.tag == "product/settings/scale/precision" }
+                precision.performClick()
+                check(prefs.getBoolean("one_decimal", false) == !originalPrecision)
+                page.openScaleFromSettings(); page.showExtraction()
+                page.onBackPressedDispatcher.onBackPressed()
+                check(page.supportFragmentManager.primaryNavigationFragment is ScaleFragment)
+                page.onBackPressedDispatcher.onBackPressed()
+                check(page.supportFragmentManager.primaryNavigationFragment is AppSettingsFragment)
+                input.setText(originalDraft)
+            }
+            test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_NAVIGATION_PASSED foldDraft=true collapsedStatus=true precisionSaved=true overlayFirst=true scaleOrigin=true noExtraction=true\n") })
+        } finally {
+            prefs.edit().putBoolean("one_decimal", originalPrecision).commit()
+            test.removeMonitor(monitor)
+            activity?.let { page -> test.runOnMainSync { page.finish() } }
+        }
+    }
+
     fun run() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
         startupAndRestore(TaskDestination.BREW)
