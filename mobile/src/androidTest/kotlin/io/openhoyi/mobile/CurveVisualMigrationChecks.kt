@@ -552,13 +552,20 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             } finally { File(directory,"fixture-isolation.json").writeText(proof.toString(2)) }
         }
     }
-    private fun geometry(activity: Activity): JSONObject {
+    private fun geometry(activity: Activity, diagnosticDestination: Boolean = false): JSONObject {
         val content=root(activity); val origin=IntArray(2); content.getLocationOnScreen(origin)
         val insets=requireNotNull(content.rootWindowInsets)
         val bars=insets.getInsets(WindowInsets.Type.systemBars())
         val config=activity.resources.configuration
         val budget=when(activity) {
-            is MainActivity -> JSONObject((MainPageTestHost(test, activity).active("root:CURVES") as CurveFragment).productLayoutEvidence.toString())
+            is MainActivity -> {
+                val current = activity.supportFragmentManager.primaryNavigationFragment
+                if (diagnosticDestination && current !is CurveFragment) JSONObject()
+                    .put("status", "DIAGNOSTIC_ONLY")
+                    .put("activeFragment", current?.tag ?: JSONObject.NULL)
+                    .put("reason", "failure_destination_is_not_curve_library; actual_window_geometry_retained")
+                else JSONObject((MainPageTestHost(test, activity).active("root:CURVES") as CurveFragment).productLayoutEvidence.toString())
+            }
             is CurveImportPreviewActivity -> JSONObject(activity.productLayoutEvidence.toString())
             else -> JSONObject().put("status","unknown").put("reason","Activity_has_no_existing_natural_budget_interface; actual_View_geometry_recorded")
         }
@@ -2016,7 +2023,15 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             check(use.performClick())
         }
         await("real use-for-cup callback finished") {
-            (activity as MainActivity).supportFragmentManager.primaryNavigationFragment is HomeFragment
+            (activity as MainActivity).supportFragmentManager.primaryNavigationFragment is ExtractionFragment
+        }
+        main {
+            val extraction = MainPageTestHost(test, activity as MainActivity).active("extraction") as ExtractionFragment
+            check(field(extraction, "presetSlot") == 7) { "M3 use-for-cup did not open current-curve slot 7" }
+            check(activity.hasWindowFocus() && android.view.inspector.WindowInspector.getGlobalWindowViews()
+                .none { it !== activity.window.decorView && it.hasWindowFocus() }) {
+                "M3 use-for-cup unexpectedly opened start confirmation"
+            }
         }
         check(preferences.all==beforeUse.toMutableMap().apply { put("selected",chosen.id) }) { "M3 use-for-cup changed unrelated preferences" }
         check(invariant(scope)==frozen && scope.singleReadOnlyService()) { "M3 library action changed domain data or single read-only service" }
@@ -2028,11 +2043,11 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
     }
     private fun diagnostic(activity: Activity, folder: File) {
         check(folder.isDirectory || folder.mkdirs())
-        lateinit var before: JSONObject; main { before=geometry(activity); TaskTypographyEvidence.capture(activity,folder) }
+        lateinit var before: JSONObject; main { before=geometry(activity, diagnosticDestination = true); TaskTypographyEvidence.capture(activity,folder) }
         val bitmap=requireNotNull(test.uiAutomation.takeScreenshot())
         try { File(folder,"window.png").outputStream().use { check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)) } }
         finally { bitmap.recycle() }
-        lateinit var after: JSONObject; main { after=geometry(activity) }
+        lateinit var after: JSONObject; main { after=geometry(activity, diagnosticDestination = true) }
         File(folder,"geometry.json").writeText(JSONObject().put("before",before).put("after",after)
             .put("geometryUnchanged",before.toString()==after.toString()).put("sameCompositorFrameProven",false)
             .put("protocol","unsynchronized_IME_diagnostic_not_main_protocol2").toString(2))

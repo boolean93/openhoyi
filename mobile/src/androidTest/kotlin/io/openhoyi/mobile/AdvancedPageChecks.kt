@@ -181,6 +181,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
                     test.sendStatus(0, Bundle().apply { putString("stream", "ADVANCED_PAGE_START $fixture\n") })
                     val rootDestination = when {
                         intent.component?.className == BeanInventoryActivity::class.java.name -> TaskDestination.BEANS
+                        intent.component?.className == AppSettingsActivity::class.java.name -> TaskDestination.SETTINGS
                         intent.component?.className == ScaleActivity::class.java.name &&
                             !intent.getBooleanExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, false) -> TaskDestination.SCALE
                         else -> null
