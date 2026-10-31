@@ -52,14 +52,13 @@ final class WindowGeometryJsonEquality {
             return true;
         }
         if (value.getClass() == Byte.class || value.getClass() == Short.class ||
-            value.getClass() == Integer.class || value.getClass() == Long.class ||
-            value.getClass() == Float.class || value.getClass() == Double.class) {
-            try {
-                JSONObject.numberToString((Number) value);
-                return true;
-            } catch (JSONException invalidNumber) {
-                return false;
-            }
+            value.getClass() == Integer.class || value.getClass() == Long.class) return true;
+        // These exact primitive wrappers have no custom serialization. Android's
+        // numberToString rejects precisely nonfinite doubles; avoid formatting
+        // every safe number during the complete-tree validation pass.
+        if (value.getClass() == Float.class || value.getClass() == Double.class) {
+            double number = ((Number) value).doubleValue();
+            return !Double.isNaN(number) && !Double.isInfinite(number);
         }
         return false;
     }
@@ -89,6 +88,9 @@ final class WindowGeometryJsonEquality {
             return true;
         }
         if (left instanceof Number) {
+            // Equal exact wrappers necessarily produce equal Android JSON text.
+            // Unequal/cross-type numbers still use the oracle (including -0).
+            if (left.getClass() == right.getClass() && left.equals(right)) return true;
             // Android's numberToString, not numeric or Double equality, defines the old text.
             return JSONObject.numberToString((Number) left).equals(JSONObject.numberToString((Number) right));
         }

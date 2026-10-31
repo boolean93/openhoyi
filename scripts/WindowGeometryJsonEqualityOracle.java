@@ -110,6 +110,22 @@ public final class WindowGeometryJsonEqualityOracle {
         pair("number-double-min",object("v",Double.MIN_VALUE),object("v",Double.MIN_VALUE),true);
         pair("number-float-max",object("v",Float.MAX_VALUE),object("v",Float.MAX_VALUE),true);
         pair("number-scientific",object("v",1e30d),object("v",1e30d),true);
+        java.util.Random random = new java.util.Random(20261031L);
+        for (int index = 0; index < 1000; index++) {
+            long bits = random.nextLong();
+            double number = Double.longBitsToDouble(bits);
+            float fraction = Float.intBitsToFloat((int) bits);
+            if (Double.isFinite(number)) {
+                pair("random-double-same", object("v", number), object("v", number), true);
+                pair("random-double-changed", object("v", number), object("v", Math.nextUp(number)), null);
+            }
+            if (Float.isFinite(fraction)) {
+                pair("random-float-same", object("v", fraction), object("v", fraction), true);
+                pair("random-float-double", object("v", fraction), object("v", (double) fraction), null);
+            }
+            pair("random-long-same", object("v", bits), object("v", bits), true);
+            pair("random-int-long", object("v", (int) bits), object("v", (long) (int) bits), true);
+        }
         pair("number-vs-string",object("v",1),object("v","1"),false);
         pair("boolean-vs-string",object("v",true),object("v","true"),false);
         for (String value : Arrays.asList("\"", "/", "\\", "\t\b\n\r\f\u0001", "中文", "\uD83D\uDE00", "\uD800")) {

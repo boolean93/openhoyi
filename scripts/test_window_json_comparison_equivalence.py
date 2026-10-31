@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Compile unchanged Android 34 org.json sources and compare the production Java helper."""
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -28,7 +29,12 @@ def stub(base, package, name, source):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    scale_candidates = list((ROOT / "build/task-first-evidence/ci-7082e04-scale-push/raw/raw-device")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--scale-proof", type=Path)
+    parser.add_argument("--settings-archive", type=Path, default=SETTINGS_ZIP)
+    parser.add_argument("--settings-page", choices=["app", "machine", "scale"], default="machine")
+    args = parser.parse_args()
+    scale_candidates = [args.scale_proof] if args.scale_proof else list((ROOT / "build/task-first-evidence/ci-7082e04-scale-push/raw/raw-device")
                             .rglob("scale/window-frame-sync.json"))
     assert len(scale_candidates) == 1, scale_candidates
     scale_proof = scale_candidates[0]
@@ -49,16 +55,16 @@ def main():
                         str(ROOT / "mobile/src/androidTest/java/io/openhoyi/mobile/WindowGeometryJsonEquality.java"),
                         str(ROOT / "scripts/WindowGeometryJsonEqualityOracle.java")], check=True)
         paths = []
-        with zipfile.ZipFile(SETTINGS_ZIP) as archive:
+        with zipfile.ZipFile(args.settings_archive) as archive:
             selected = [name for name in archive.namelist() if name.startswith("raw-device/")
-                        and name.endswith("/machine/window-frame-sync.json")
+                        and name.endswith(f"/{args.settings_page}/window-frame-sync.json")
                         and "landscape-light-font-1.3" in name]
             assert len(selected) == 1, selected
             data = archive.read(selected[0])
             entry = tmp / "settings.json"
             entry.write_bytes(data)
             paths.append(entry)
-            entries.append({"source": str(SETTINGS_ZIP), "sourceSha256": sha(SETTINGS_ZIP.read_bytes()),
+            entries.append({"source": str(args.settings_archive), "sourceSha256": sha(args.settings_archive.read_bytes()),
                             "entry": selected[0], "entrySha256": sha(data)})
         scale = scale_proof.read_bytes()
         paths.append(scale_proof)
