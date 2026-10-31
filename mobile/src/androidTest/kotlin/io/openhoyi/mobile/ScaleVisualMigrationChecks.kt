@@ -165,7 +165,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         val texts = nodes(view).filterIsInstance<TextView>().map { text ->
             val textVisibility=visibility(text)
             val layout = text.layout
-            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", textVisibility.getBoolean("complete")).put("visibility",textVisibility)
+            JSONObject().put("semanticId", text.tag).put("text", text.text.toString()).put("fullViewVisible", textVisibility.getBoolean("complete")).put("visibility",textVisibility)
                 .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
                 .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
                 .put("layoutHeightPx", layout?.height ?: JSONObject.NULL)

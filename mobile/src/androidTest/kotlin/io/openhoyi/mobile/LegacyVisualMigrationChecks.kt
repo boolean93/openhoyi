@@ -314,7 +314,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         val texts = nodes(view).filterIsInstance<TextView>().map { text ->
             val textVisibility=visibility(text)
             val layout = text.layout
-            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", textVisibility.getBoolean("complete"))
+            JSONObject().put("semanticId", text.tag).put("text", text.text.toString()).put("fullViewVisible", textVisibility.getBoolean("complete"))
                 .put("visibility",textVisibility)
                 .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
                 .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
@@ -881,7 +881,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
             val id=number.tag.toString().removeSuffix("/number")
             val unit=nodes(root(activity)).filterIsInstance<TextView>().singleOrNull { it.tag=="$id/unit" }
             fun baseline(view: TextView): Int { val origin=IntArray(2); view.getLocationOnScreen(origin); return origin[1]+view.baseline }
-            JSONObject().put("id",id).put("number",number.text).put("unit",unit?.text ?: JSONObject.NULL)
+            JSONObject().put("id",id).put("number",number.text.toString()).put("unit",unit?.text?.toString() ?: JSONObject.NULL)
                 .put("numberBaselinePx",baseline(number)).put("unitBaselinePx",unit?.let(::baseline) ?: JSONObject.NULL)
                 .put("numberVisible",visibility(number)).put("unitVisible",unit?.let(::visibility) ?: JSONObject.NULL)
                 .put("status",if(unit==null) "NO_UNIT" else if(baseline(number)==baseline(unit)) "PASS_BASELINE_ONLY" else "FAIL")
@@ -1202,7 +1202,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
         fun disclosureTarget(text:TextView):JSONObject {
             val lines=textLinesVisible(text)
             return JSONObject().put("viewIdentity",System.identityHashCode(text)).put("tag",text.tag ?: JSONObject.NULL)
-                .put("text",text.text).put("lineCount",requireNotNull(text.layout).lineCount)
+                .put("text",text.text.toString()).put("lineCount",requireNotNull(text.layout).lineCount)
                 .put("visibleLines",JSONArray(lines.map {it.first}))
                 .put("lineScreenRects",JSONArray(lines.map {JSONObject().put("line",it.first).put("rectPx",it.second)}))
                 .put("viewportScreenRectPx",visibility(scroll).getJSONArray("visibleRectPx"))
@@ -1312,7 +1312,7 @@ internal class LegacyVisualMigrationChecks(private val test: Instrumentation) {
                 if(fits) check(stages.length()>0 && (0 until stages.length()).any {stages.getJSONObject(it).getBoolean("whole")})
                 if(key=="full-details") check(text.isClickable && text.isEnabled && text.height>=HoyiUi.dp(activity,48))
                 seen.put(JSONObject().put("semanticKey",key).put("tag",text.tag ?: JSONObject.NULL)
-                    .put("text",text.text).put("lineCount",layout.lineCount).put("coveredLines",JSONArray(covered.sorted()))
+                    .put("text",text.text.toString()).put("lineCount",layout.lineCount).put("coveredLines",JSONArray(covered.sorted()))
                     .put("fitsViewport",fits).put("wholeWhenFits",if(fits) true else JSONObject.NULL).put("stages",stages))
                 check(field(activity,"selectedIndex")==selected && field(activity,"selectedFingerprint")==fingerprint)
             }

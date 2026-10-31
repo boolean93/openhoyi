@@ -98,7 +98,7 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         val texts = nodes(view).filterIsInstance<TextView>().map { text ->
             val textVisibility=visibility(text)
             val layout = text.layout
-            JSONObject().put("semanticId", text.tag).put("text", text.text).put("fullViewVisible", textVisibility.getBoolean("complete"))
+            JSONObject().put("semanticId", text.tag).put("text", text.text.toString()).put("fullViewVisible", textVisibility.getBoolean("complete"))
                 .put("visibility",textVisibility)
                 .put("layoutPresent", layout != null).put("lineCount", layout?.lineCount ?: 0)
                 .put("ellipsisCount", layout?.let { (0 until it.lineCount).sumOf(it::getEllipsisCount) } ?: JSONObject.NULL)
@@ -524,7 +524,7 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         main {
             val window=requireNotNull(dialog(activity).window).decorView
             val text=nodes(window).filterIsInstance<TextView>().filter { it.isShown }.map { view ->
-                JSONObject().put("class",view.javaClass.name).put("tag",view.tag).put("text",view.text)
+                JSONObject().put("class",view.javaClass.name).put("tag",view.tag).put("text",view.text.toString())
                     .put("textSizePx",view.textSize).put("weight",view.typeface?.weight).put("fakeBold",view.paint.isFakeBoldText)
                     .put("letterSpacingEm",view.letterSpacing).put("includeFontPadding",view.includeFontPadding)
                     .put("actualLayout",TaskTypographyEvidence.actualTextLayout(view))
