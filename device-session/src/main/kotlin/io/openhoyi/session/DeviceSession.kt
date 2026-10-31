@@ -239,6 +239,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     }
     private fun canControlWithFreshSettings():Boolean =
         canControlFromIdle() && SettingsFreshness.isFresh(lastSettingsAtMs,clock())
+    private fun canControlWithBrewSettings():Boolean = canControlFromIdle() &&
+        BrewSettingsEvidence.isAvailable(state==DeviceState.READY,lastSettings!=null,lastSettingsAtMs,clock())
     private fun canCancelBrewWait():Boolean {
         val idle=lastIdle ?: return false
         val observedAt=lastIdleAtMs ?: return false
@@ -255,7 +257,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 runCatching {customPressureStartPermit(parameters)}.getOrDefault(false)) }
     }
     private fun canStartExtraction(parameters:StartParameters):Boolean {
-        if(!canControlWithFreshSettings()) return false
+        if(!canControlWithBrewSettings()) return false
         val settings=lastSettings ?: return false
         if(settings.flags and 0x04 == 0) return true
         val idle=lastIdle ?: return false
@@ -328,7 +330,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         send(command,DeviceRole.COFFEE,beforeDispatch={beforeDispatch() && canControlFromIdle()},callback=callback)
     }
     private fun canStartPreheat():Boolean =
-        canControlWithFreshSettings() && lastSettings?.flags?.and(0x04) == 0x04
+        canControlWithBrewSettings() && lastSettings?.flags?.and(0x04) == 0x04
     private fun canWriteSetting(change: MachineSettingChange): Boolean =
         canControlWithFreshSettings() && when(change) {
             is MachineSettingChange.StandbyDelay -> lastSettings?.standbyTemperatureC == change.temperatureC

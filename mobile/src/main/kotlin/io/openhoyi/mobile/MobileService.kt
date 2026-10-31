@@ -47,6 +47,7 @@ import io.openhoyi.session.ExtractionState
 import io.openhoyi.session.OperationResult
 import io.openhoyi.session.TelemetryFreshness
 import io.openhoyi.session.SettingsFreshness
+import io.openhoyi.session.BrewSettingsEvidence
 import io.openhoyi.session.ScaleReadingPolicy
 import io.openhoyi.session.SleepScheduleFreshness
 import io.openhoyi.trace.TraceStore
@@ -356,6 +357,9 @@ class MobileService : Service() {
         else hub?.coffeeFirmware
     val machineSettingsFresh: Boolean get() = snapshot.settings != null &&
         SettingsFreshness.isFresh(snapshot.settingsAt, MobileMonotonicClock.elapsedRealtime())
+    val machineBrewSettingsAvailable: Boolean get() = BrewSettingsEvidence.isAvailable(
+        snapshot.coffeeState == DeviceState.READY, snapshot.settings != null,
+        snapshot.settingsAt, MobileMonotonicClock.elapsedRealtime())
     val sleepScheduleFresh: Boolean get() = SleepScheduleFreshness.isFresh(
         snapshot.sleepFirst, snapshot.sleepFirstAt, snapshot.sleepSecond, snapshot.sleepSecondAt,
         MobileMonotonicClock.elapsedRealtime())
@@ -1200,12 +1204,12 @@ class MobileService : Service() {
         val frame = snapshot.coffee as? IdleTelemetry ?: return null
         val settings = snapshot.settings ?: return null
         val now = MobileMonotonicClock.elapsedRealtime()
-        if (snapshot.coffeeState != DeviceState.READY || !machineSettingsFresh ||
+        if (snapshot.coffeeState != DeviceState.READY || !machineBrewSettingsAvailable ||
             !TelemetryFreshness.isFresh(snapshot.coffeeAt, now)) return null
         return BrewPreparation.correctedTemperature(frame.brewTemperatureHundredthsC,
             settings.brewCompensationTenthsC)
     }
-    fun studioStartBlock(profile: CurveProfile): String? = if (!machineSettingsFresh)
+    fun studioStartBlock(profile: CurveProfile): String? = if (!machineBrewSettingsAvailable)
         getString(R.string.studio_settings_stale) else studioStartGate.block(
         snapshot.settings, currentCorrectedBrewTemperature(), profile, brewPreparation)
     fun prepareBrew(profileId: String, expectedScaleMode: Boolean?, slot: Int): String? {
@@ -1240,7 +1244,7 @@ class MobileService : Service() {
         if (settingWriteState in setOf(SettingsWriteTracker.State.WRITING, SettingsWriteTracker.State.WAITING_READBACK))
             return getString(R.string.service_write_setting_waiting)
         val settings = snapshot.settings ?: return getString(R.string.settings_missing)
-        if (!machineSettingsFresh) return getString(R.string.service_shot_preheat_settings_stale)
+        if (!machineBrewSettingsAvailable) return getString(R.string.service_shot_preheat_settings_stale)
         if (settings.flags and 0x04 == 0) return getString(R.string.service_shot_preheat_cafe_mode)
         val profile = selectedCurve(profileId, slot)
         if (profile != null && profile.scaleMode != expectedScaleMode) return getString(R.string.service_shot_scale_changed)

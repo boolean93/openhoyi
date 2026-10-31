@@ -454,7 +454,7 @@ class ExtractionActivity : ThemedActivity() {
                 })
         // Only fresh, non-actionable idle prose may live with the supporting details.
         // Writing, temperature wait, cancellation, failures and unknown outcomes stay fixed.
-        val normalPreparation = snapshot.settings != null && owner?.machineSettingsFresh == true &&
+        val normalPreparation = snapshot.settings != null && owner?.machineBrewSettingsAvailable == true &&
             owner.machineControlSafetyMessage == null && preparation == BrewPreparation.State.IDLE &&
             (!studio || temperatureReady)
         preparationSummary.show(preparationStatus.text.toString())
@@ -533,7 +533,7 @@ class ExtractionActivity : ThemedActivity() {
             else getString(R.string.reference_raw)
         }.orEmpty())
         prepare.isEnabled = owner?.running == true && owner.machineControlSafetyMessage == null &&
-            blocked == null && owner.machineSettingsFresh && studio && !temperatureReady &&
+            blocked == null && owner.machineBrewSettingsAvailable && studio && !temperatureReady &&
             !settingBusy && !sleepBusy &&
             preparation == BrewPreparation.State.IDLE
         cancelPrepare.isEnabled = owner?.running == true && owner?.manualShotActive != true &&
