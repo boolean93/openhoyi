@@ -637,12 +637,14 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     check(unit.text.toString() == expectedUnits[index] && number.parent === unit.parent)
                     // Android 14 scales SP nonlinearly: validate the same native conversion used by TextView.
                     val metrics = activity.resources.displayMetrics
-                    val numberPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 24f, metrics)
-                    val unitPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, 14f, metrics)
+                    val numberSp = if (metric == ChartMetric.PRESSURE) 20f else 24f
+                    val unitSp = if (metric == ChartMetric.PRESSURE) 12f else 14f
+                    val numberPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, numberSp, metrics)
+                    val unitPx = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP, unitSp, metrics)
                     check(kotlin.math.abs(number.textSize - numberPx) < .1f) {
-                        "$metric number must use native 24sp: actual=${number.textSize}px expected=${numberPx}px" }
+                        "$metric number must use native ${numberSp}sp: actual=${number.textSize}px expected=${numberPx}px" }
                     check(kotlin.math.abs(unit.textSize - unitPx) < .1f) {
-                        "$metric unit must use native 14sp: actual=${unit.textSize}px expected=${unitPx}px" }
+                        "$metric unit must use native ${unitSp}sp: actual=${unit.textSize}px expected=${unitPx}px" }
                     val numberOrigin = IntArray(2); val unitOrigin = IntArray(2)
                     number.getLocationOnScreen(numberOrigin); unit.getLocationOnScreen(unitOrigin)
                     check(numberOrigin[1] + number.baseline == unitOrigin[1] + unit.baseline)

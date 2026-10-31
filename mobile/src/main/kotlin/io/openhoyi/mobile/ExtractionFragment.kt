@@ -230,7 +230,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         chartHost.addView(chart, FrameLayout.LayoutParams(-1, -1))
         // One shared 96dp budget: identity above metrics, pressure dial on their right.
         content.removeView(pageHeader)
-        chartHost.addView(pageHeader, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.TOP).apply { marginEnd = dp(112) })
+        chartHost.addView(pageHeader, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.TOP).apply { marginEnd = dp(128) })
         pageHeader.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> chart.liveHeaderHeightPx = pageHeader.height }
         val chartTools = Button(host).apply {
             text = getString(R.string.task_tools); contentDescription = text
