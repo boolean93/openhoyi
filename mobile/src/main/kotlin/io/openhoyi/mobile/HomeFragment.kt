@@ -132,7 +132,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             setBackgroundColor(productStyle.page)
         }
         val shortHome = resources.configuration.screenHeightDp <= 420
-        val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(if (shortHome) 2 else 8), dp(16), dp(if (shortHome) 2 else 8)) }
+        val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(if (shortHome) 1 else 8), dp(16), dp(if (shortHome) 1 else 8)) }
         root.addView(ScrollView(host).apply {
             tag = "product/home/page-scroll"
             isFillViewport = false
@@ -143,6 +143,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             isAllCaps = false
             textSize = 18f
             minHeight = dp(56)
+            if (shortHome) {
+                minimumHeight = dp(56)
+                includeFontPadding = false
+                setPadding(dp(16), dp(8), dp(16), dp(8))
+            }
             setTextColor(getColor(android.R.color.white))
             background = HoyiUi.shape(host, R.color.mobile_stop_button, 12)
             visibility = View.GONE
