@@ -93,7 +93,7 @@ class AppSettingsFragment : Fragment() {
         val activity = requireActivity() as MainActivity
         val visual = SettingsVisualStyle(activity)
         val style = visual.palette
-        val (root, body) = visual.fragmentPage(activity, R.string.app_settings_title, R.string.app_settings_subtitle, 640, "app")
+        val (root, body) = visual.fragmentPage(activity, R.string.app_settings_title, R.string.app_settings_subtitle, 960, "app")
         // Keep the shared tools host while the navigation tab names this root page.
         val header = body.getChildAt(0) as LinearLayout
         header.removeViewAt(0)

@@ -96,7 +96,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         detailsExpanded = savedInstanceState?.getBoolean("settingsExpanded") ?: false
         selectedSettingsSection = savedInstanceState?.getInt("settingsSection") ?: 0
         val style=visual.palette
-        text(body, if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_mock_disclaimer)
+        if (!embedded) text(body, if (BuildConfig.MOCK_MODE) getString(R.string.machine_settings_mock_disclaimer)
             else getString(R.string.machine_settings_real_disclaimer), 14).apply {
             val warning=ExtractionHistoryVisualStyle(this@MachineSettingsControls)
             setTextColor(warning.warningInk);setPadding(dp(16),dp(16),dp(16),dp(16))
@@ -288,11 +288,21 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             overview.visibility = View.GONE
             tabsScroll.visibility = View.GONE
             settingSections.forEachIndexed { index, section -> section.visibility = if (index < 2) View.VISIBLE else View.GONE }
-            listOf(R.string.machine_settings_tab_standby, R.string.machine_settings_tab_schedule, R.string.machine_settings_tab_maintenance).forEachIndexed { index, label ->
-                action(body, getString(label)) {
-                    host.startActivity(Intent(host, MachineSettingsActivity::class.java).putExtra("section", index + 2))
-                }
+            writeCard.visibility = View.GONE // Status remains outside the collapsible editor.
+            val functionButtons = listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton)
+            functionButtons.forEach { functionsCard.removeView(it) }
+            functionButtons.chunked(2).forEach { pair ->
+                val row = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
+                pair.forEach { button -> row.addView(button, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }) }
+                functionsCard.addView(row, LinearLayout.LayoutParams(-1, -2))
             }
+            controlsPane.removeView(temperatureSection); controlsPane.removeView(functionsSection)
+            controlsPane.addView(SettingsColumns(host, style, temperatureSection, functionsSection, org.json.JSONObject()), 0,
+                LinearLayout.LayoutParams(-1, -2))
+            val advanced = listOf(R.string.machine_settings_tab_standby, R.string.machine_settings_tab_schedule, R.string.machine_settings_tab_maintenance)
+                .joinToString(" · ") { getString(it) }
+            action(body, advanced) { host.startActivity(Intent(host, MachineSettingsActivity::class.java).putExtra("section", 2)) }
+
         } else showSettingsSection(savedInstanceState?.getInt("settingsSection") ?: host.intent.getIntExtra("section", 0))
         render()
     }
