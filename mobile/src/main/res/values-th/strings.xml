@@ -357,7 +357,7 @@
     <string name="home_scale_disconnect">"ตัดการเชื่อมต่อเครื่องชั่ง"</string>
     <string name="home_scale_initial">"ตาชั่ง · ไม่ได้เชื่อมต่อ"</string>
     <string name="home_scale_status">"ตาชั่ง · %1$s%2$s"</string>
-    <string name="home_scan">"สแกนและเชื่อมต่ออุปกรณ์"</string>
+    <string name="home_scan">เริ่มสแกน</string>
     <string name="home_scan_service_hint">"แตะสแกนเพื่อเริ่มบริการอุปกรณ์"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"ยืนยันข้อมูลอ่านกลับแล้ว"</string>

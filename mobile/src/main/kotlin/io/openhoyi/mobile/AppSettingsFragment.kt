@@ -206,6 +206,7 @@ class AppSettingsFragment : Fragment() {
         exportStatus = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/export/result").apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }.also { style.add(diagnostics, it, 8) }
+        deviceControls?.addShutdown(diagnostics)
         pendingSection?.let { root.navigate(it); pendingSection=null }
         return root
     }

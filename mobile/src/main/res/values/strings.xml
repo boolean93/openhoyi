@@ -256,7 +256,7 @@
     <string name="home_not_connected_initial">"尚未连接"</string>
     <string name="home_coffee_initial">"咖啡机 · 未连接"</string>
     <string name="home_scale_initial">"电子秤 · 未连接"</string>
-    <string name="home_scan">"扫描并连接设备"</string>
+    <string name="home_scan">开始扫描</string>
     <string name="home_coffee">"咖啡机"</string>
     <string name="task_home_tab">"首页"</string>
     <string name="home_brew_boiler">"冲泡锅炉"</string>

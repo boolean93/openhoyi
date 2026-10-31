@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "9a11ea06adfb73dd7e51e7fd12821ba6414275b3b2ea322439b9a02292e16015",
+  "sha256": "311626624cf3bec32aeb834d51d0736941fb325a86fc10290c3a8d9924d7d519",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
@@ -259,7 +259,7 @@
     "home_not_connected_initial": "尚未连接",
     "home_coffee_initial": "咖啡机 · 未连接",
     "home_scale_initial": "电子秤 · 未连接",
-    "home_scan": "扫描并连接设备",
+    "home_scan": "开始扫描",
     "home_coffee": "咖啡机",
     "home_machine_description": "HOYI 咖啡机外观",
     "home_firmware_initial": "固件版本：等待连接后读取",

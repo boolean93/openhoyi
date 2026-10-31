@@ -256,7 +256,7 @@
   "home_not_connected_initial": "まだ未接続",
   "home_coffee_initial": "コーヒーマシン · 未接続",
   "home_scale_initial": "スケール · 未接続",
-  "home_scan": "デバイスを検索して接続",
+  "home_scan": "スキャンを開始",
   "home_coffee": "コーヒーマシン",
   "home_machine_description": "HOYIコーヒーマシンの外観",
   "home_firmware_initial": "ファームウェア：接続後の読み込み待ち",

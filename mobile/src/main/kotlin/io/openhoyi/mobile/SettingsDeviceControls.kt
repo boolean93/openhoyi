@@ -43,7 +43,11 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             HoyiUi.button(host,actions,host.getString(label)) {
                 if(connectedActionAllowed())owner?.disconnect(role) else error(host.getString(R.string.scale_active_guard))
             }.apply {visual.action(this,outline=true);disconnectActions+=this}
-            (0 until actions.childCount).forEach { actions.getChildAt(it).layoutParams.width = android.view.ViewGroup.LayoutParams.WRAP_CONTENT }
+            (0 until actions.childCount).forEach { index ->
+                (actions.getChildAt(index).layoutParams as LinearLayout.LayoutParams).apply {
+                    width=android.view.ViewGroup.LayoutParams.WRAP_CONTENT;topMargin=0;bottomMargin=0;marginEnd=if(index<actions.childCount-1)style.dp(8) else 0
+                }
+            }
             style.add(card,visual.pair(words,actions,"settings/devices/${role.name}"))
         }
         visual.divider(card)
@@ -51,15 +55,17 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         val scanWords=style.text(host.getString(R.string.home_device_connection),TaskProductVisualStyle.body)
         (scan.parent as android.view.ViewGroup).removeView(scan)
         style.add(card,visual.pair(scanWords,scan,"settings/devices/scan"))
-        HoyiUi.button(host,card,host.getString(R.string.home_shutdown)) {
+        message=style.text("",TaskProductVisualStyle.auxiliary,"settings/devices/message",true).apply {accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE}
+        style.add(card,message,8)
+        candidates=style.column("settings/devices/candidates");style.add(card,candidates,8)
+    }
+    fun addShutdown(body:LinearLayout) {
+        HoyiUi.button(host,body,host.getString(R.string.home_shutdown)) {
             val service=owner
             if(service==null || !allowed()){error(host.getString(R.string.home_shutdown_busy));return@button}
             service.shutdown()
             if(service.running)error(host.getString(R.string.home_shutdown_busy)) else host.releaseServiceBinding()
-        }.apply {asTaskTextAction();minimumHeight=style.dp(48)}
-        message=style.text("",TaskProductVisualStyle.auxiliary,"settings/devices/message",true).apply {accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE}
-        style.add(card,message,8)
-        candidates=style.column("settings/devices/candidates");style.add(card,candidates,8)
+        }.apply {asTaskTextAction();minimumHeight=style.dp(48);disconnectActions+=this}
     }
     fun error(value:String) {errorChanged(true);localError=value;if(::message.isInitialized)message.text=value}
     fun scan() {
@@ -94,6 +100,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             text.text="$identity · ${state?.let {DeviceStatusText.label(host,it)} ?: "—"}"
         }
         message.text=localError ?: snapshot?.messageForDisplay {id,args->host.getString(id,*args)}.orEmpty()
+        message.visibility=if(message.text.isNullOrEmpty())View.GONE else View.VISIBLE
         val values=snapshot?.candidates.orEmpty().filter {roleFilter==null || it.candidateRole==roleFilter}.sortedBy {it.candidateRole.name}
         val key=values.toString()+allowed()
         if(key==rendered)return

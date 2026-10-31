@@ -357,7 +357,7 @@
     <string name="home_scale_disconnect">"저울 연결 해제"</string>
     <string name="home_scale_initial">"저울 · 연결 안 됨"</string>
     <string name="home_scale_status">"저울 · %1$s%2$s"</string>
-    <string name="home_scan">"기기 검색 및 연결"</string>
+    <string name="home_scan">스캔 시작</string>
     <string name="home_scan_service_hint">"검색을 눌러 기기 서비스 시작"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"읽기 응답 확인됨"</string>

@@ -256,7 +256,7 @@
   "home_not_connected_initial": "아직 연결 안 됨",
   "home_coffee_initial": "커피 머신 · 연결 안 됨",
   "home_scale_initial": "저울 · 연결 안 됨",
-  "home_scan": "기기 검색 및 연결",
+  "home_scan": "스캔 시작",
   "home_coffee": "커피 머신",
   "home_machine_description": "HOYI 커피 머신 외관",
   "home_firmware_initial": "펌웨어 버전: 연결 후 읽기 대기",

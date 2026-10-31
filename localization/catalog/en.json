@@ -256,7 +256,7 @@
   "home_not_connected_initial": "Not connected yet",
   "home_coffee_initial": "Coffee machine · Disconnected",
   "home_scale_initial": "Scale · Disconnected",
-  "home_scan": "Scan and connect devices",
+  "home_scan": "Start scan",
   "home_coffee": "Coffee machine",
   "home_machine_description": "HOYI coffee machine appearance",
   "home_firmware_initial": "Firmware version: waiting to read after connection",

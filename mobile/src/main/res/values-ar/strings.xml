@@ -357,7 +357,7 @@
     <string name="home_scale_disconnect">"قطع الاتصال بالميزان"</string>
     <string name="home_scale_initial">"الميزان · غير متصل"</string>
     <string name="home_scale_status">"الميزان · %1$s%2$s"</string>
-    <string name="home_scan">"البحث عن الأجهزة والاتصال بها"</string>
+    <string name="home_scan">بدء المسح</string>
     <string name="home_scan_service_hint">"اضغط على البحث لبدء خدمة الأجهزة"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"تأكدت النتيجة بالقراءة"</string>

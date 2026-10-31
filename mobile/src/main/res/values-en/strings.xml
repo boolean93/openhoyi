@@ -357,7 +357,7 @@
     <string name="home_scale_disconnect">"Disconnect scale"</string>
     <string name="home_scale_initial">"Scale · Disconnected"</string>
     <string name="home_scale_status">"Scale · %1$s%2$s"</string>
-    <string name="home_scan">"Scan and connect devices"</string>
+    <string name="home_scan">Start scan</string>
     <string name="home_scan_service_hint">"Tap Scan to start the device service"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"Confirmed by readback"</string>

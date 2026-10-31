@@ -256,7 +256,7 @@
   "home_not_connected_initial": "Aún sin conexión",
   "home_coffee_initial": "Cafetera · Desconectada",
   "home_scale_initial": "Báscula · Desconectada",
-  "home_scan": "Buscar y conectar dispositivos",
+  "home_scan": "Iniciar búsqueda",
   "home_coffee": "Cafetera",
   "home_machine_description": "Aspecto de la cafetera HOYI",
   "home_firmware_initial": "Versión del firmware: pendiente de lectura tras conectar",
