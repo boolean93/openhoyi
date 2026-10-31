@@ -194,7 +194,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
             BrewReviewActivity::class.java, LegacyHistoryActivity::class.java, LegacyHistoryDetailActivity::class.java,
             BeanInventoryActivity::class.java, BeanEntryActivity::class.java, BeanBatchActivity::class.java,
             BeanLedgerActivity::class.java, BeanPreparationActivity::class.java,
-            ScaleActivity::class.java, ScaleConnectionActivity::class.java, ScaleSettingsActivity::class.java,
+            ScaleActivity::class.java, DeviceConnectionActivity::class.java, ScaleSettingsActivity::class.java,
             MachineSettingsActivity::class.java, AppSettingsActivity::class.java
         )
         val directory = File(test.targetContext.getExternalFilesDir(null), "task-frame-checks").apply { mkdirs() }

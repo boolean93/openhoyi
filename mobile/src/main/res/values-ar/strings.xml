@@ -955,4 +955,5 @@
     <string name="ui_home">"الرئيسية"</string>
     <string name="ui_settings">"الإعدادات"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
+    <string name="device_remembered_identity">الجهاز المحفوظ: %1$s</string>
 </resources>

@@ -982,4 +982,5 @@
     <string name="language_save_failed">"语言保存失败，请重试。"</string>
     <string name="live_pressure_pause">暂停</string>
     <string name="live_pressure_pause_explanation">暂停阶段的压力线显示为零基线，不表示实测压力为零</string>
+    <string name="device_remembered_identity">已记设备：%1$s</string>
 </resources>

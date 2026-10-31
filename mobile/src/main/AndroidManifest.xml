@@ -13,6 +13,7 @@
         <activity android:name=".MachineSettingsActivity" android:exported="false" />
         <activity android:name=".AppSettingsActivity" android:exported="false" />
         <activity android:name=".ScaleActivity" android:exported="false" />
+        <activity android:name=".DeviceConnectionActivity" android:exported="false" />
         <activity android:name=".ScaleConnectionActivity" android:exported="false" />
         <activity android:name=".ScaleSettingsActivity" android:exported="false" />
         <activity android:name=".HistoryActivity" android:exported="false" />

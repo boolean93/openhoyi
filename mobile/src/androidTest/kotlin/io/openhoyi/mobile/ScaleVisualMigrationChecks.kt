@@ -549,7 +549,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             .put("productLayoutEvidence",when(activity) {
                 is MainActivity->JSONObject((MainPageTestHost(test,activity).active("root:SCALE") as ScaleFragment).productLayoutEvidence.toString())
                 is ScaleActivity->JSONObject(activity.productLayoutEvidence.toString())
-                is ScaleConnectionActivity->JSONObject(activity.productLayoutEvidence.toString())
+                is DeviceConnectionActivity->JSONObject(activity.productLayoutEvidence.toString())
                 else->JSONObject.NULL
             })
     }
@@ -1379,8 +1379,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         main {
             check(scope.ownerService.snapshot.candidates==values && !scope.ownerService.snapshot.scanning)
             val actual=nodes(field(activity,"rows") as View).filter {it.tag?.toString()?.endsWith("/connect")==true}
-            check(actual.size==values.size && actual.all {!it.isEnabled && it is Button})
-            check(!(field(activity,"scan") as Button).isEnabled)
+            check(actual.size==values.size && actual.all { it is Button })
         }
     }
     private fun swipe(view:View,afterUp:(()->Unit)?=null) {
@@ -1449,24 +1448,37 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             val refs=captureRefs(pageRoot,captureFolder)
             proofs.put(JSONObject().put("case",name).put("geometryRef",refs.getJSONObject("geometryRef"))
                 .put("frameSyncRef",refs.getJSONObject("frameSyncRef")));persist(false)}
-        val original=candidates(3)
-        for(candidate in original) {
-            val tag="product/scale-connection/candidate/${candidate.address}"
-            listOf("name","address","rssi").forEach {reveal(activity,tagged(activity,"$tag/$it"))}
-            if(candidate.scaleProtocolId==io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
-                reveal(activity,tagged(activity,"$tag/restriction"))
+        val legacyMonitor = test.addMonitor(DeviceConnectionActivity::class.java.name, null, false)
+        var redirected: Activity? = null
+        try {
+            main { activity.startActivity(Intent(activity, ScaleConnectionActivity::class.java)) }
+            redirected = requireNotNull(test.waitForMonitorWithTimeout(legacyMonitor, 10000))
+            await("legacy entry forwards to connection manager") { redirected!!.hasWindowFocus() }
+            main { (redirected!! as DeviceConnectionActivity).onBackPressedDispatcher.onBackPressed() }
+            await("legacy back returns to original page without duplicate legacy window") { activity.hasWindowFocus() }
+            state("legacy-entry-return")
+        } finally { test.removeMonitor(legacyMonitor); redirected?.let { if (!it.isDestroyed) main { it.finish() } } }
+        fun checkCandidates(values: List<io.openhoyi.bluetooth.DiscoveredDevice>) {
+            values.forEach { candidate ->
+                val row = tagged(activity, "product/devices/candidate/${candidate.address}/connect") as Button
+                reveal(activity, row)
+                main {
+                    check(row.text.contains(candidate.advertisedName) && row.text.contains(candidate.address))
+                    check(row.text.contains(activity.getString(R.string.scale_title)))
+                    if (candidate.scaleProtocolId == io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
+                        check(row.text.contains(activity.getString(R.string.scale_read_only_live)))
+                }
+            }
         }
-        state("main-three-rows-reachable")
+        checkCandidates(candidates(3)); state("main-three-rows-reachable")
         setCandidates(scope,activity,emptyList());state("empty")
-        setCandidates(scope,activity,candidates(3,true))
-        for(candidate in candidates(3,true))reveal(activity,tagged(activity,"product/scale-connection/candidate/${candidate.address}/name"))
-        state("long-name")
+        setCandidates(scope,activity,candidates(3,true));checkCandidates(candidates(3,true));state("long-name")
         setCandidates(scope,activity,candidates(40))
-        var scroll=field(activity,"candidateScroll") as ScrollView
+        var scroll=tagged(activity,"product/settings/devices/scroll") as ScrollView
         main {check(scroll.canScrollVertically(1))}
         val beforeFolder=File(folder,"forty-gesture").apply {check(isDirectory || mkdirs())}
         val scrollbarSamples=JSONArray();val scrollbarLimit=32
-        val scrollbarDiagnostic=JSONObject().put("viewTag","product/scale-connection/candidate-scroll")
+        val scrollbarDiagnostic=JSONObject().put("viewTag","product/settings/devices/scroll")
             .put("sampleLimit",scrollbarLimit).put("samples",scrollbarSamples)
             .put("sdkInt",Build.VERSION.SDK_INT).put("hardware",Build.HARDWARE)
             .put("device",Build.DEVICE).put("model",Build.MODEL)
@@ -1508,7 +1520,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         preRecreateRefs=captureRefs(pageRoot,beforeFolder);persist(false)
         main {check(scroll.scrollY==saved)}
         activity=recreate(activity);render(activity);frames.committedFrame(root(activity))
-        scroll=field(activity,"candidateScroll") as ScrollView
+        scroll=tagged(activity,"product/settings/devices/scroll") as ScrollView
         main {check(scroll.scrollY==saved);check(nodes(field(activity,"rows") as View).filterIsInstance<Button>().size==40)}
         state("forty-recreated")
         val monitor=test.addMonitor(ScaleSettingsActivity::class.java.name,null,false)
@@ -1546,7 +1558,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         try {
             val active=Scope(directory,page);scope=active;active.prepare();active.install(theme=="dark");active.beginService()
             serviceGuards(active,directory)
-            val activity=start(if(page=="scale")ScaleActivity::class.java else ScaleConnectionActivity::class.java)
+            val activity=start(if(page=="scale")ScaleActivity::class.java else DeviceConnectionActivity::class.java)
             await("page bound to exact scoped owner") {field(activity,"owner")===active.ownerService}
             if(page=="scale")mainScale(active,activity,directory) else {
                 setCandidates(active,activity,candidates(3));File(directory,"fixture.json").writeText(active.fixture.put("candidateCount",3).toString(2))

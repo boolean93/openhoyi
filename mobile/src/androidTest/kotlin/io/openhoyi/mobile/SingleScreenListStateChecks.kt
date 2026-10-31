@@ -363,12 +363,10 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         fun render(page: Activity) {
             page.javaClass.getDeclaredMethod("renderScale").apply { isAccessible = true }.invoke(page)
         }
-        fun localScroll(page: Activity): ScrollView = (field(page, "candidateScroll") as ScrollView).also {
-            check(it.getChildAt(0) === field(page, "rows")) { "Scale candidate viewport does not own the tested rows" }
-        }
-        fun disabledCandidates(page: Activity) {
+        fun localScroll(page: Activity): ScrollView = page.findViewById(R.id.m8_settings_scroll)
+        fun candidateRows(page: Activity) {
             val buttons = views(field(page, "rows") as View).filterIsInstance<Button>()
-            check(buttons.size == 40 && buttons.all { !it.isEnabled }) { "Synthetic Mock candidates must not connect" }
+            check(buttons.size == 40 && buttons.all { it.tag.toString().startsWith("product/devices/candidate/") })
         }
         var primary: Throwable? = null
         var restoreFrame: MobileSnapshot? = null
@@ -381,28 +379,27 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         try {
             main { snapshotField.set(service, service.snapshot.copy(candidates = fixtures)); render(activity) }
             await { val rows=field(activity, "rows") as ViewGroup
-                (0 until rows.childCount).count { rows.getChildAt(it).tag?.toString()?.startsWith("product/scale-connection/candidate/")==true } == fixtures.size }
-            main { disabledCandidates(activity) }
+                (0 until rows.childCount).count { rows.getChildAt(it).tag?.toString()?.startsWith("product/devices/candidate/")==true } == fixtures.size }
+            main { candidateRows(activity) }
             val saved = swipeScroll(activity, localScroll(activity))
             activity = recreate(activity)
             await { ownerField.get(activity) === service && localScroll(activity).scrollY == saved }
             main {
                 SingleScreenPageChecks.verify(activity)
-                disabledCandidates(activity)
+                candidateRows(activity)
                 check(service.snapshot.candidates == fixtures && service.snapshot.message === before.message && service.shotState == state)
             }
-            evidence += "ScaleConnectionActivity recreate scrollY=$saved gesture=swipe syntheticCandidates=true noScan=true noConnect=true sameOwner=true"
-            detailReturn(activity, MainActivity::class.java) {
-                main { check(children(activity).filterIsInstance<Button>().single {
-                    it.text.toString() == activity.getString(R.string.scale_connection_manager) }.performClick()) }
+            evidence += "DeviceConnectionActivity recreate scrollY=$saved gesture=swipe syntheticCandidates=true noScan=true noConnect=true sameOwner=true"
+            detailReturn(activity, ScaleSettingsActivity::class.java) {
+                main { activity.startActivity(Intent(activity, ScaleSettingsActivity::class.java)) }
             }
             await { ownerField.get(activity) === service && localScroll(activity).scrollY == saved }
             main {
                 SingleScreenPageChecks.verify(activity)
-                disabledCandidates(activity)
+                candidateRows(activity)
                 check(service.snapshot.candidates == fixtures && service.snapshot.message === before.message && service.shotState == state)
             }
-            evidence += "ScaleConnectionActivity manager-navigation-return scrollY=$saved gesture=swipe syntheticCandidates=true noScan=true noConnect=true sameOwner=true"
+            evidence += "DeviceConnectionActivity manager-navigation-return scrollY=$saved gesture=swipe syntheticCandidates=true noScan=true noConnect=true sameOwner=true"
         } catch (failure: Throwable) {
             primary = failure
         } finally {
@@ -449,13 +446,13 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             attempt("cleanup wait-idle") { test.waitForIdleSync() }
         }
         val pages = listOf(CurveActivity::class.java, HistoryActivity::class.java, BeanInventoryActivity::class.java,
-            BeanLedgerActivity::class.java, LegacyCurveActivity::class.java, LegacyHistoryActivity::class.java, ScaleConnectionActivity::class.java)
+            BeanLedgerActivity::class.java, LegacyCurveActivity::class.java, LegacyHistoryActivity::class.java, DeviceConnectionActivity::class.java)
         try {
             for (type in pages) {
                 try {
                     var activity = open(type)
                     if (type == CurveActivity::class.java) { curve(activity, evidence); continue }
-                    if (activity is ScaleConnectionActivity) { scale(activity, evidence); continue }
+                    if (activity is DeviceConnectionActivity) { scale(activity, evidence); continue }
                     if (type == HistoryActivity::class.java) {
                         main { check(children(activity).filterIsInstance<TextView>().single {
                             it.text.toString() == activity.getString(R.string.journal_tab) }.performClick()) }

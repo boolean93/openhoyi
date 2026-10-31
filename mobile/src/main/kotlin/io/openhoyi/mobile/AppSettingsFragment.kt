@@ -23,12 +23,57 @@ class AppSettingsFragment : Fragment() {
             .edit().putBoolean("dark", value).commit()
     }
     private var updatingTheme = false
+    private var machineControls: MachineSettingsControls? = null
+    private val expanded = mutableMapOf<String, Boolean>()
+    private var machineState: Bundle? = null
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        expanded.forEach { (key, value) -> outState.putBoolean("expanded:$key", value) }
+        machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
+        outState.putBundle("machineControls", machineState)
+    }
+    private fun group(activity: MainActivity, body: LinearLayout, title: String, visual: SettingsVisualStyle, key: String, open: Boolean = false): LinearLayout {
+        val shell = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        body.addView(shell, LinearLayout.LayoutParams(-1, -2))
+        val content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+        val toggle = HoyiUi.button(activity, shell, title) {}.apply {
+            minimumHeight = visual.palette.dp(56)
+            gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            tag = "settings-section:$key"
+        }
+        shell.addView(content, LinearLayout.LayoutParams(-1, -2))
+        fun refresh() {
+            val showing = expanded[key] ?: open
+            content.visibility = if (showing) View.VISIBLE else View.GONE
+            toggle.text = "$title  ${if (showing) "⌃" else "⌄"}"
+            toggle.isSelected = showing
+        }
+        toggle.setOnClickListener { expanded[key] = !(expanded[key] ?: open); refresh() }
+        refresh()
+        return content
+    }
     private var feedbackCard: BrewFeedbackPreferencesCard? = null
     private var languageCard: AppLanguagePreferencesCard? = null
     private var exportStatus: TextView? = null
     private var exportGeneration = 0L
     private var service: MobileService? = null
-    private val serviceObserver: (MobileService?) -> Unit = { service = it }
+    private val refreshHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val refreshCapabilities = object : Runnable {
+        override fun run() { serviceObserver(service); refreshHandler.postDelayed(this, 500) }
+    }
+    private var scaleCapabilities: TextView? = null
+    private val serviceObserver: (MobileService?) -> Unit = {
+        service = it
+        val snapshot = it?.snapshot
+        val actual = snapshot?.scaleCapabilities?.takeIf { snapshot.scaleState == io.openhoyi.session.DeviceState.READY && !BuildConfig.MOCK_MODE }
+        scaleCapabilities?.text = if (actual == null) getString(R.string.scale_capability_no_device) else
+            listOf(R.string.scale_capability_weight to actual.weight, R.string.scale_capability_tare to actual.tare,
+                R.string.scale_capability_flow to actual.deviceFlow, R.string.scale_capability_battery to actual.battery,
+                R.string.scale_capability_timer to actual.deviceTimer).joinToString("\n") { (label, available) ->
+                getString(R.string.scale_capability_format, getString(label), getString(if (!available) R.string.scale_capability_no
+                    else if (snapshot.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY) R.string.scale_capability_read_only else R.string.scale_capability_yes))
+            }
+    }
     private val export = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
             val generation = ++exportGeneration
@@ -56,20 +101,37 @@ class AppSettingsFragment : Fragment() {
         header.minimumHeight = 0
         header.setPadding(0, 0, 0, 0)
         (header.layoutParams as LinearLayout.LayoutParams).apply { topMargin = 0; bottomMargin = 0 }
-        val machine = settingsGroup(activity, body, getString(R.string.machine_settings_title), visual)
-        (body.getChildAt(1).layoutParams as LinearLayout.LayoutParams).topMargin = 0
-        HoyiUi.button(activity, machine, getString(R.string.app_settings_machine)) {
-            startActivity(Intent(activity, MachineSettingsActivity::class.java))
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL; visual.action(this, icon = "chevron", atEnd = true) }
-        val scale = settingsGroup(activity, body, getString(R.string.scale_title), visual)
-        HoyiUi.button(activity, scale, getString(R.string.scale_title)) {
-            activity.select(TaskDestination.SCALE)
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL; visual.action(this, icon = "chevron", atEnd = true) }
-        settingsDivider(activity, scale, visual)
-        HoyiUi.button(activity, scale, getString(R.string.ui_settings)) {
+        listOf("machine", "scale", "appearance", "feedback", "info", "diagnostics").forEach { key ->
+            if (state?.containsKey("expanded:$key") == true) expanded[key] = state.getBoolean("expanded:$key")
+        }
+        machineState = state?.getBundle("machineControls") ?: machineState
+        HoyiUi.button(activity, body, getString(R.string.home_visual_panel_title)) {
+            startActivity(Intent(activity, DeviceConnectionActivity::class.java))
+        }.apply { minimumHeight = style.dp(48); asTaskTextAction() }
+        val machine = group(activity, body, getString(R.string.machine_settings_title), visual, "machine", true)
+        val machineSummary = style.text("", TaskProductVisualStyle.auxiliary, "settings-machine-summary", true)
+        (machine.parent as LinearLayout).addView(machineSummary, 1)
+        machineControls = MachineSettingsControls(activity).also {
+            it.statusChanged = { value -> machineSummary.text = value }
+            it.create(machine, machineState, embedded = true)
+        }
+        val scale = group(activity, body, getString(R.string.scale_title), visual, "scale", true)
+        scaleCapabilities = style.text(getString(R.string.scale_capability_no_device), TaskProductVisualStyle.auxiliary, secondary = true)
+            .also { (scale.parent as LinearLayout).addView(it, 1) }
+        val prefs = activity.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)
+        scale.addView(Switch(activity).apply {
+            text = getString(R.string.scale_precision_short)
+            isChecked = prefs.getBoolean("one_decimal", false)
+            visual.switch(this, 48)
+            tag = "product/settings/scale/precision"
+            setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("one_decimal", checked).apply() }
+        })
+        style.add(scale, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
+        HoyiUi.button(activity, scale, getString(R.string.scale_title)) { activity.openScaleFromSettings() }
+        HoyiUi.button(activity, scale, getString(R.string.scale_capabilities_title)) {
             startActivity(Intent(activity, ScaleSettingsActivity::class.java))
-        }.apply { asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL; visual.action(this, icon = "chevron", atEnd = true) }
-        val theme = settingsGroup(activity, body, getString(R.string.settings_appearance_language), visual)
+        }
+        val theme = group(activity, body, getString(R.string.settings_appearance_language), visual, "appearance")
         val appearance = activity.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE)
         themeError = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/theme/error").apply {
             setTextColor(activity.getColor(R.color.mobile_danger)); visibility = View.GONE
@@ -107,8 +169,8 @@ class AppSettingsFragment : Fragment() {
         languageCard = AppLanguagePreferencesCard(activity, theme, embedded = true, visual = visual) {
             service?.refreshNotificationDisplay(); activity.recreate()
         }
-        feedbackCard = BrewFeedbackPreferencesCard(activity, body, visual)
-        val info = settingsGroup(activity, body, getString(R.string.application_info), visual)
+        feedbackCard = BrewFeedbackPreferencesCard(activity, group(activity, body, getString(R.string.feedback_enabled), visual, "feedback"), visual)
+        val info = group(activity, body, getString(R.string.application_info), visual, "info")
         fun infoRow(key: String, label: Int, value: String) {
             if (info.childCount > 0) settingsDivider(activity, info, visual)
             val pair = visual.pair(
@@ -121,7 +183,7 @@ class AppSettingsFragment : Fragment() {
         infoRow("version", R.string.settings_info_version, getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
         infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
         infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
-        val diagnostics = settingsGroup(activity, body, getString(R.string.settings_diagnostics_devices), visual)
+        val diagnostics = group(activity, body, getString(R.string.settings_diagnostics_devices), visual, "diagnostics")
         style.add(diagnostics, style.text(getString(R.string.app_settings_export_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         HoyiUi.button(activity, diagnostics, getString(R.string.app_settings_export)) {
             exportGeneration++
@@ -137,9 +199,13 @@ class AppSettingsFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         (requireActivity() as MainActivity).observeService(serviceObserver)
+        refreshHandler.post(refreshCapabilities)
+        machineControls?.start()
         feedbackCard?.start(); feedbackCard?.refresh()
     }
     override fun onPause() {
+        refreshHandler.removeCallbacks(refreshCapabilities)
+        machineControls?.stop()
         feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close()
         (requireActivity() as MainActivity).removeServiceObserver(serviceObserver)
         service = null
@@ -151,6 +217,8 @@ class AppSettingsFragment : Fragment() {
     }
     override fun onDestroyView() {
         feedbackCard?.stop(); languageCard?.close()
+        machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
+        machineControls = null
         feedbackCard = null; languageCard = null; exportStatus = null
         super.onDestroyView()
     }

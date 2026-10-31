@@ -177,6 +177,7 @@ class MainActivity : ThemedActivity() {
             ?: intent.getBooleanExtra(EXTRA_OPEN_EXTRACTION, false)
         extractionSlot = savedInstanceState?.getInt(STATE_EXTRACTION_SLOT)
             ?: intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7)
+        scaleSettingsReturn = savedInstanceState?.getBoolean("settingsScaleReturn") ?: false
         lastPresentedManualShotId = savedInstanceState?.getString(STATE_MANUAL_SHOT_ID)
         val style = TaskProductVisualStyle(this)
         val root = LinearLayout(this).apply {
@@ -243,8 +244,14 @@ class MainActivity : ThemedActivity() {
         TaskDestination.SETTINGS -> AppSettingsFragment()
     }
 
+    private var scaleSettingsReturn = false
+    internal fun openScaleFromSettings() {
+        select(TaskDestination.SCALE)
+        scaleSettingsReturn = true
+    }
     internal fun select(next: TaskDestination) {
         if (next == destination && !extractionVisible) return
+        scaleSettingsReturn = false
         dismissTransientDialogs()
         destination = next
         extractionVisible = false
@@ -291,6 +298,7 @@ class MainActivity : ThemedActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("settingsScaleReturn", scaleSettingsReturn)
         outState.putString(STATE_DESTINATION, destination.name)
         outState.putInt(STATE_PAGE_ID, pageId)
         outState.putBoolean(STATE_EXTRACTION, extractionVisible)
@@ -329,6 +337,7 @@ class MainActivity : ThemedActivity() {
             else -> false
         }
         if (consumed) return
+        if (!extractionVisible && scaleSettingsReturn && destination == TaskDestination.SCALE) { select(TaskDestination.SETTINGS); return }
         if (extractionVisible) { extractionVisible = false; showCurrent() }
         else if (destination != TaskDestination.BREW) select(TaskDestination.BREW)
         else finish()

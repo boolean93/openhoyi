@@ -220,6 +220,25 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 awaitPage(activity, "extraction")
             } finally { test.runOnMainSync { manual.ended() } }
             MainPageTestHost(test, activity).select(TaskDestination.SETTINGS)
+            test.runOnMainSync {
+                val settings = activity.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
+                val root = requireNotNull(settings.view)
+                val machineToggle = descendants(root).single { it.tag == "settings-section:machine" }
+                val machineSummary = descendants(root).single { it.tag == "settings-machine-summary" }
+                val inputs = descendants(root).filterIsInstance<EditText>()
+                check(inputs.isNotEmpty())
+                inputs.first().setText("94")
+                machineToggle.performClick()
+                check(machineSummary.isShown) { "Collapsed machine must retain connection/readback/write feedback" }
+                machineToggle.performClick()
+                check(inputs.first().text.toString() == "94") { "Folding discarded unsent draft" }
+                activity.openScaleFromSettings()
+                activity.showExtraction()
+                activity.onBackPressedDispatcher.onBackPressed()
+                check(activity.supportFragmentManager.primaryNavigationFragment is ScaleFragment) { "Back must dismiss overlay first" }
+                activity.onBackPressedDispatcher.onBackPressed()
+                check(activity.supportFragmentManager.primaryNavigationFragment is AppSettingsFragment) { "Scale tool must return to settings origin" }
+            }
             val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
             try {
                 test.runOnMainSync { activity.recreate() }

@@ -69,12 +69,20 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         MainPageTestHost(test,activity).active("root:SETTINGS") as AppSettingsFragment
     private fun field(owner: Any, name: String): Any? {
         val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
-        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        val controller = (owner as? MachineSettingsActivity)?.let { activity ->
+            activity.javaClass.getDeclaredField("controls").apply { isAccessible = true }.get(activity)
+        }
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess }
+            ?: controller?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
         return target.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(target)
     }
     private fun write(owner: Any, name: String, value: Any?) {
         val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
-        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
+        val controller = (owner as? MachineSettingsActivity)?.let { activity ->
+            activity.javaClass.getDeclaredField("controls").apply { isAccessible = true }.get(activity)
+        }
+        val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess }
+            ?: controller?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
         target.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(target, value)
     }
     private fun sha(file: File): String = file.inputStream().use { input ->

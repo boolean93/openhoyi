@@ -955,4 +955,5 @@
     <string name="ui_home">"Главная"</string>
     <string name="ui_settings">"Настройки"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
+    <string name="device_remembered_identity">Сохранённое устройство: %1$s</string>
 </resources>

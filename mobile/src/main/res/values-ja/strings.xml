@@ -955,4 +955,5 @@
     <string name="ui_home">"ホーム"</string>
     <string name="ui_settings">"設定"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
+    <string name="device_remembered_identity">記憶済みデバイス：%1$s</string>
 </resources>

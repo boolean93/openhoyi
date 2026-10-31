@@ -953,5 +953,6 @@
   "task_shell_action_connecting": "Подключение",
   "task_shell_scale_manually_disconnected": "Отключено вручную",
   "live_pressure_pause": "Пауза",
-  "live_pressure_pause_explanation": "Во время паузы линия давления показана на нулевой базе; это не измеренное нулевое давление."
+  "live_pressure_pause_explanation": "Во время паузы линия давления показана на нулевой базе; это не измеренное нулевое давление.",
+  "device_remembered_identity": "Сохранённое устройство: %1$s"
 }

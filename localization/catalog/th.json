@@ -953,5 +953,6 @@
   "task_shell_action_connecting": "กำลังเชื่อมต่อ",
   "task_shell_scale_manually_disconnected": "ตัดการเชื่อมต่อแล้ว",
   "live_pressure_pause": "หยุดชั่วคราว",
-  "live_pressure_pause_explanation": "เส้นความดันในช่วงหยุดใช้เส้นฐานศูนย์ ไม่ได้หมายความว่าความดันที่วัดได้เป็นศูนย์"
+  "live_pressure_pause_explanation": "เส้นความดันในช่วงหยุดใช้เส้นฐานศูนย์ ไม่ได้หมายความว่าความดันที่วัดได้เป็นศูนย์",
+  "device_remembered_identity": "อุปกรณ์ที่บันทึกไว้: %1$s"
 }

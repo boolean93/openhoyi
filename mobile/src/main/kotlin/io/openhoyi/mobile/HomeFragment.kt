@@ -546,15 +546,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
     }
     private fun showDevicePanel() {
-        if (deviceDialog?.isShowing == true) return
-        (devicePanel.parent as? android.view.ViewGroup)?.removeView(devicePanel)
-        val scroll = ScrollView(host).apply { addView(devicePanel) }
-        deviceDialog = AlertDialog.Builder(host).setTitle(getString(R.string.home_visual_panel_title))
-            .setView(scroll).setPositiveButton(android.R.string.ok, null).create().also { dialog ->
-                dialog.setOnDismissListener { (devicePanel.parent as? android.view.ViewGroup)?.removeView(devicePanel); deviceDialog = null }
-                AppDialog.show(dialog)
-            }
-        render()
+        startActivity(Intent(host, DeviceConnectionActivity::class.java))
     }
     override fun onResume() {
         super.onResume()

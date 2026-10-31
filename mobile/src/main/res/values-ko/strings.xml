@@ -955,4 +955,5 @@
     <string name="ui_home">"홈"</string>
     <string name="ui_settings">"설정"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
+    <string name="device_remembered_identity">저장된 기기: %1$s</string>
 </resources>

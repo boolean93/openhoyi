@@ -955,4 +955,5 @@
     <string name="ui_home">"หน้าหลัก"</string>
     <string name="ui_settings">"การตั้งค่า"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
+    <string name="device_remembered_identity">อุปกรณ์ที่บันทึกไว้: %1$s</string>
 </resources>

@@ -154,7 +154,7 @@ class ScaleFragment : Fragment() {
         }
         battery=deviceRow(R.string.scale_device_battery_label,"product/scale/battery")
         deviceStatus=deviceRow(R.string.scale_device_status_label,"product/scale/device-status")
-        connectionButton=toolLink(device,getString(R.string.scale_connect)) {startActivity(Intent(host,ScaleConnectionActivity::class.java))}.apply {
+        connectionButton=toolLink(device,getString(R.string.scale_connect)) {startActivity(Intent(host,DeviceConnectionActivity::class.java))}.apply {
             style.button(this);HomeVisualIcon.buttonIcon(this,"chevron",atEnd=true);tag="product/scale/connect"
             layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=style.dp(16)}
         }
