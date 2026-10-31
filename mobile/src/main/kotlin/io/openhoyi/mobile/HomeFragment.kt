@@ -131,7 +131,8 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(productStyle.page)
         }
-        val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(8), dp(16), dp(8)) }
+        val shortHome = resources.configuration.screenHeightDp <= 420
+        val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(16), dp(if (shortHome) 2 else 8), dp(16), dp(if (shortHome) 2 else 8)) }
         root.addView(ScrollView(host).apply {
             tag = "product/home/page-scroll"
             isFillViewport = false
@@ -148,7 +149,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             setOnClickListener { service?.stopShot(); render() }
         }
         root.addView(emergencyStop, LinearLayout.LayoutParams(-1, -2).apply {
-            setMargins(dp(24), dp(4), dp(24), dp(12))
+            setMargins(dp(24), dp(4), dp(24), dp(if (shortHome) 4 else 12))
         })
         safetyWarning = text(content, "", 17, true).apply {
             setTextColor(getColor(R.color.mobile_danger)); visibility = View.GONE
@@ -214,11 +215,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         val spaciousHome = resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
         val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
-        content.addView(boilerRow, LinearLayout.LayoutParams(-1, if (spaciousHome) dp(360) else -2).apply { topMargin = dp(8) })
+        content.addView(boilerRow, LinearLayout.LayoutParams(-1, if (spaciousHome) dp(360) else -2).apply { topMargin = dp(if (shortHome) 4 else 8) })
         fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): List<View> {
             val card = productStyle.column("product/home/$tagName").apply {
-                setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else 4),
-                    dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else 4))
+                setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else if (shortHome) 2 else 4),
+                    dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else if (shortHome) 2 else 4))
                 background = productStyle.shape(productStyle.surface, true)
             }
             boilerRow.addBoiler(card)
@@ -239,9 +240,14 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             card.addView(controls)
             val readings = productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
             fun reading(labelId: Int, field: TextView) {
-                val column = productStyle.column()
-                column.addView(productStyle.text(getString(labelId), TaskProductVisualStyle.auxiliary, secondary = true))
-                column.addView(field)
+                val column = if (shortHome) productStyle.row().apply { gravity = android.view.Gravity.CENTER_VERTICAL }
+                    else productStyle.column()
+                val label = productStyle.text(getString(labelId), TaskProductVisualStyle.auxiliary, secondary = true)
+                if (shortHome) {
+                    field.id = View.generateViewId(); label.labelFor = field.id
+                    column.addView(label, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(4) })
+                    column.addView(field, LinearLayout.LayoutParams(-2, -2))
+                } else { column.addView(label); column.addView(field) }
                 readings.addView(column, LinearLayout.LayoutParams(0, -2, 1f).apply {
                     if (readings.childCount > 0) marginStart = dp(if (spaciousHome) 16 else 4)
                 })
@@ -263,7 +269,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         quickRow = if (spaciousHome) productStyle.column("product/home/quick-extraction")
             else productStyle.row("product/home/quick-extraction")
         quickRow.gravity = android.view.Gravity.CENTER_VERTICAL
-        content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 4 else 8) })
         if (spaciousHome) quickRow.addView(productStyle.text(getString(R.string.home_quick_curves),
             TaskProductVisualStyle.section, "product/home/quick-title"))
         val launchRow = if (spaciousHome) productStyle.row().apply {
@@ -295,6 +301,17 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 minimumHeight = dp(if (spaciousHome) 80 else 48); maxLines = Int.MAX_VALUE
                 ellipsize = null
                 textSize = if (spaciousHome) 14f else 11f
+                if (shortHome) {
+                    // Keep two readable lines at the existing 11sp instead of inheriting
+                    // the 24sp action line height. Full recipe remains in accessibility
+                    // and in the existing confirmation before any extraction starts.
+                    val buttonColors = textColors
+                    val buttonGravity = gravity
+                    productStyle.apply(this, TaskProductVisualStyle.Type(11, 500, 16))
+                    setTextColor(buttonColors); gravity = buttonGravity
+                    minHeight = dp(48); minimumHeight = dp(48)
+                    maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
+                }
                 layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
                     if (slot > 1) marginStart = dp(if (spaciousHome) 8 else 4)
                 }
