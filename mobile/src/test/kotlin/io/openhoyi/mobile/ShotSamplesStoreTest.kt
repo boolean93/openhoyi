@@ -8,6 +8,25 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class ShotSamplesStoreTest {
+    @Test fun v4RoundTripsOnlyObservedStatusAndRejectsInvalidBits() {
+        val dir = Files.createTempDirectory("status-samples").toFile()
+        try {
+            val store = ShotSamplesStore(dir)
+            val points = listOf(ShotPoint(0,90,10,0,9300,null,brewing=true,statusBits=64),
+                ShotPoint(500,77,10,5,9300,null,brewing=false,statusBits=0),
+                ShotPoint(1000,66,10,10,9300,null,brewing=false))
+            store.save("status",points)
+            assertEquals("# openhoyi-shot-points-v4",dir.resolve("samples-status.tsv").readLines().first())
+            assertEquals(points,store.load("status")); assertEquals(77,store.load("status")[1].pressureTenthsBar)
+            val file = dir.resolve("samples-bad.tsv")
+            for (bad in listOf("-1","256","paused")) {
+                file.writeText("# openhoyi-shot-points-v4\n0\t90\t10\t0\t9300\t\t\ttrue\t$bad\n")
+                assertThrows(IOException::class.java) { store.load("bad") }
+            }
+            dir.resolve("samples-old3.tsv").writeText("# openhoyi-shot-points-v3\n0\t90\t10\t0\t9300\t\t\tfalse\n")
+            assertNull(store.load("old3").single().statusBits)
+        } finally { dir.deleteRecursively() }
+    }
     @Test fun recentOrphanedSamplesSurviveMissingHistoryIndexButExpiredOnesArePruned() {
         val dir = Files.createTempDirectory("openhoyi-samples").toFile()
         try {
@@ -92,4 +111,30 @@ class ShotSamplesStoreTest {
             assertTrue(repository.load("shot-1").isEmpty())
         } finally { parent.delete() }
     }
+    @Test fun v3RoundTripsKnownPhaseAndLegacyVersionsKeepUnknownPhase() {
+        val dir=Files.createTempDirectory("phase-samples").toFile()
+        try {
+            val store=ShotSamplesStore(dir)
+            val points=listOf(ShotPoint(0,90,20,0,9200,0,brewing=false),
+                ShotPoint(500,90,20,0,9200,100,brewing=true),
+                ShotPoint(1000,90,20,0,9200,200))
+            store.save("phase",points)
+            assertEquals("# openhoyi-shot-points-v3",dir.resolve("samples-phase.tsv").readLines().first())
+            assertEquals(points,store.load("phase"))
+            dir.resolve("samples-old1.tsv").writeText("# openhoyi-shot-points-v1\n100\t90\t20\t0\t9200\t100\n")
+            dir.resolve("samples-old2.tsv").writeText("# openhoyi-shot-points-v2\n100\t90\t20\t0\t9200\t100\t5\n")
+            assertNull(store.load("old1").single().brewing);assertNull(store.load("old2").single().brewing)
+        } finally {dir.deleteRecursively()}
+    }
+    @Test fun v3RejectsGuessedOrMalformedPhaseAndScaleFlow() {
+        val dir=Files.createTempDirectory("invalid-phase-samples").toFile()
+        try {
+            val file=dir.resolve("samples-bad.tsv");val store=ShotSamplesStore(dir)
+            file.writeText("# openhoyi-shot-points-v3\n0\t90\t20\t0\t9200\t100\t5\tbrewing\n")
+            assertThrows(IOException::class.java) {store.load("bad")}
+            file.writeText("# openhoyi-shot-points-v3\n0\t90\t20\t0\t9200\t100\tbad\ttrue\n")
+            assertThrows(IOException::class.java) {store.load("bad")}
+        } finally {dir.deleteRecursively()}
+    }
+
 }

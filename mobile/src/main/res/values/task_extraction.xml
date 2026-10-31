@@ -1,0 +1,9 @@
+<resources>
+    <string name="task_extraction_elapsed">时间</string>
+    <string name="task_extraction_scale">秤读数</string>
+    <string name="task_extraction_water">累计注水</string>
+    <string name="task_extraction_pressure">压力 %1$s bar</string>
+    <string name="task_extraction_temperature">机器温度 %1$s °C</string>
+    <string name="task_extraction_supporting">本杯与工具</string>
+    <string name="task_extraction_flow">杯流速（估算）%1$s g/s</string>
+</resources>

@@ -61,6 +61,10 @@ class MachineAlarms(private val resolve: (Int, Array<out Any>) -> String) {
         return Banner(text(R.string.alarm_banner, heading, rows(alarms)), blocking)
     }
 
+    /** Collapse only a fresh, explicit all-clear during a cup; this never grants control. */
+    fun showExtractionStatus(active: Boolean, bits: Int?, receivedAt: Long?, now: Long): Boolean =
+        !(active && bits == 0 && receivedAt != null && receivedAt <= now && now - receivedAt <= 1500)
+
     fun describe(bits: Int?, receivedAt: Long?, now: Long): String {
         if (bits == null) return text(R.string.home_alarm_initial)
         val fresh = receivedAt != null && receivedAt <= now && now - receivedAt <= 1500

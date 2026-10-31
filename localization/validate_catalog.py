@@ -26,8 +26,8 @@ def decode_json(text):
 
 
 def arguments(text):
-    tokens = FORMAT.findall(text)
-    if "%" in FORMAT.sub("", text):
+    tokens = FORMAT.findall(text) + ["%%"] * text.count("%%")
+    if "%" in FORMAT.sub("", text).replace("%%", ""):
         raise ValueError("unknown format")
     return Counter(tokens)
 

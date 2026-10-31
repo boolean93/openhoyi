@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_visual_import_scope">Sin confirmación, no se guarda nada ni se inicia la extracción.</string>
+    <string name="curve_visual_library_scope">Solo se guarda en la biblioteca de curvas. No se inicia la extracción.</string>
+    <string name="curve_visual_preview_parameters">Vista previa y todos los parámetros · Etapas: %1$d</string>
+</resources>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_machine_title">Кофемашина</string>
+    <string name="home_target_label">Цель</string>
+    <string name="home_slot_unconfigured">Не задано</string>
+    <string name="home_visual_details">Детали подготовки</string>
+    <string name="home_visual_show_details">Детали подготовки ›</string>
+    <string name="home_visual_change">Сменить</string>
+    <string name="home_visual_edit">Изменить</string>
+    <string name="home_visual_pressure_mode">Режим давления</string>
+    <string name="home_visual_flow_mode">Режим потока (исходный)</string>
+    <string name="home_visual_unknown_mode">Режим неизвестен</string>
+    <string name="home_visual_stage_mode">Этапы: %1$s · %2$s</string>
+    <string name="home_visual_stage_count">Этапы: %1$s</string>
+    <string name="home_visual_open_device_status">Состояние %1$s, открыть управление подключением</string>
+    <string name="home_visual_more_recipes">Другие рецепты ›</string>
+    <string name="home_visual_panel_title">Подготовка и устройства</string>
+    <string name="home_visual_bean_label">Кофейные зёрна</string>
+</resources>

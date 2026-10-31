@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_comparison_swap">Поменять чашки</string>
+    <string name="task_comparison_metric">Показатель сравнения</string>
+    <string name="task_comparison_choose_cup">Выбрать запись</string>
+    <string name="task_comparison_missing_selection">Выбранная запись недоступна; выберите другую</string>
+    <string name="task_comparison_pressure">Давление · bar</string>
+    <string name="task_comparison_water">Накопленная вода машины · ml</string>
+    <string name="task_comparison_weight">Сырые показания весов · g</string>
+    <string name="task_comparison_temperature">Сырая температура машины · °C</string>
+    <string name="task_comparison_observed_origin">Отсчёт от первого наблюдаемого образца экстракции, не от подтверждённого фактического старта</string>
+    <string name="task_comparison_record_origin">Отсчёт от первого доступного образца записи; фактический старт неизвестен</string>
+    <string name="task_comparison_no_aligned_samples">Нет образцов экстракции для совмещения</string>
+    <string name="task_comparison_no_weight">%1$s: нет сырых образцов весов для совмещения</string>
+    <string name="task_comparison_no_weight_both">Нет сырых образцов весов для сравнения; кривая веса не создаётся</string>
+    <string name="task_comparison_short_chart">Мало места для графика. Увеличьте окно; подробности записи доступны при прокрутке ниже</string>
+    <string name="task_comparison_scale">Общая шкала для двух чашек · %1$s</string>
+</resources>

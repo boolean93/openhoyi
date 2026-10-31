@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_visual_import_scope">Nothing is saved and extraction will not start without confirmation.</string>
+    <string name="curve_visual_library_scope">Saves only to the curve library. Extraction will not start.</string>
+    <string name="curve_visual_preview_parameters">Stage preview and all parameters · Stages: %1$d</string>
+</resources>

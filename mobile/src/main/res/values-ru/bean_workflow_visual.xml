@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bean_workflow_selection">Для этой чашки</string>
+    <string name="bean_workflow_preview">Остаток после подтверждения</string>
+    <string name="bean_workflow_receipt">Записанное списание</string>
+</resources>

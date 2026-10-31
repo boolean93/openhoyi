@@ -1,0 +1,64 @@
+name: Verify extraction and history visual migration UI
+
+on:
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  extraction-history-visual:
+    runs-on: ubuntu-latest
+    # Independent M5 four-page / 16-profile matrix; internal protocol / fixture budgets are unchanged.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Build isolated Mock
+        run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify real Extraction, History, HistoryDetail and Comparison pages
+        env:
+          PRODUCT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          profile: pixel_7_pro
+          ram-size: 2048M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          # Establish a deterministic baseline on this fresh disposable emulator.
+          # The capture script still verifies exact setting presence/value restoration.
+          script: |
+            test "$(adb shell getprop ro.kernel.qemu | tr -d '\r')" = 1
+            adb shell settings put system font_scale 1.0
+            adb shell settings get system font_scale
+            bash scripts/check_extraction_history_visual_migration.sh
+      - name: Upload real extraction and history evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: extraction-history-visual-tablet-user-landscape
+          path: build/task-first-evidence/extraction-history-visual-migration/
+          if-no-files-found: warn
+          retention-days: 7

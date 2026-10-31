@@ -81,7 +81,7 @@ internal class BrewFeedbackDialog(private val activity: Activity, saved: Bundle?
             }
         }
         try {
-            created.show()
+            AppDialog.show(created)
             if (autoplay) {
                 if (BuildConfig.MOCK_MODE) Log.i("OpenHoyiFeedback", "dialog.autoplay:${result.shotId}")
                 audio.play(result.level, variant)

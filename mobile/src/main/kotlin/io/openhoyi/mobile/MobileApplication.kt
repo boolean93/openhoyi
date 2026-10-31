@@ -53,7 +53,7 @@ class MobileApplication : Application() {
         }
             .onFailure { logs.record("factory.wire_proof_failed", mapOf("type" to it.javaClass.simpleName)) }
             .getOrNull()
-        CurveLibrary(factory, proof)
+        CurveLibrary(factory, proof, draftsProvider = { customCurvesResult.getOrNull()?.items().orEmpty() }, enableCustomPressureExecution = true)
     }
     val samples: ShotSamplesRepository by lazy {
         ShotSamplesRepository(File(filesDir, "shot_samples")) { error ->
@@ -67,9 +67,106 @@ class MobileApplication : Application() {
             override fun write(value: String) {
                 check(prefs.edit().putString("entries_v1", value).commit()) { "Cannot save shot history" }
             }
-        }).also { samples.prune(it.entries.map(ShotHistory.Entry::id).toSet()) }
+        }, onObservedUse = { entry ->
+            runCatching { curveUsageResult.getOrThrow().record(entry.id, entry.curveId, entry.startedAtMs) }
+                .onFailure { logs.record("curve.usage_unavailable", mapOf("type" to it.javaClass.simpleName)) }
+        }, onEntryChanged = { entry ->
+            val result = runCatching {
+                val journal = journalStoreResult.getOrThrow()
+                journal.observe(entry.journalObservation())
+            }
+            if (result.isSuccess && entry.curveId != "manual") {
+                runCatching {
+                    val journal = journalStoreResult.getOrThrow()
+                    val preparation = beanPreparationResult.getOrThrow()
+                    if (preparation.current()?.shotId == entry.id) {
+                        preparation.associatePending(journal, beanInventoryResult.getOrThrow())
+                    }
+                }.onFailure { error ->
+                    runCatching { logs.record("bean.journal_association_pending", mapOf("type" to error.javaClass.simpleName)) }
+                }
+            }
+            journalObservationFailure = result.exceptionOrNull()
+            result.onFailure { error ->
+                runCatching { logs.record("journal.observation_unavailable", mapOf("type" to error.javaClass.simpleName)) }
+            }
+        }).also { recent ->
+            runCatching { journalStoreResult.getOrThrow().reconcileRecent(recent.entries.map { it.journalObservation() }) }
+                .onSuccess {
+                    journalObservationFailure = null
+                    recoverBeanAssociation(journalStoreResult.getOrThrow())
+                }
+                .onFailure { error ->
+                    journalObservationFailure = error
+                    runCatching { logs.record("journal.reconcile_pending", mapOf("type" to error.javaClass.simpleName)) }
+                }
+            samples.prune(recent.entries.map(ShotHistory.Entry::id).toSet())
+        }
     }
     val legacyHistory: LegacyHistoryStore by lazy { LegacyHistoryStore(File(filesDir, "legacy_history.json")) }
+    internal val customCurvesResult by lazy {
+        runCatching {
+            val atomic = AtomicDocumentStorage(File(filesDir, "custom_curves_v1.json").toPath())
+            CustomCurveStore(object : CustomCurveStore.Storage {
+                override fun read(): String? = atomic.read()?.toString(Charsets.UTF_8)
+                override fun write(value: String) = atomic.write(value.toByteArray(Charsets.UTF_8))
+            })
+        }
+    }
+    internal val curveUsageResult by lazy {
+        runCatching {
+            val atomic = AtomicDocumentStorage(File(filesDir, "curve_usage_v1.tsv").toPath())
+            CurveUsageLedger(object : CurveUsageLedger.Storage {
+                override fun read(): String = atomic.read()?.toString(Charsets.UTF_8) ?: ""
+                override fun write(value: String) = atomic.write(value.toByteArray(Charsets.UTF_8))
+            })
+        }
+    }
+    internal val beanInventoryResult by lazy {
+        runCatching {
+            val atomic = AtomicDocumentStorage(File(filesDir, "bean_inventory_v1.bin").toPath())
+            io.openhoyi.bean.BeanInventory(object : io.openhoyi.bean.InventoryStorage {
+                override fun read(): ByteArray? = atomic.read()
+                override fun write(bytes: ByteArray) = atomic.write(bytes)
+            })
+        }
+    }
+    internal val beanPreparationResult by lazy {
+        runCatching {
+            val atomic = AtomicDocumentStorage(File(filesDir, "bean_preparation_v1.json").toPath())
+            BeanPreparation(object : BeanPreparation.Storage {
+                override fun read(): String? = atomic.read()?.toString(Charsets.UTF_8)
+                override fun write(value: String) = atomic.write(value.toByteArray(Charsets.UTF_8))
+            })
+        }
+    }
+    @Volatile private var journalObservationFailure: Throwable? = null
+    private val journalStoreResult by lazy {
+        runCatching {
+            val atomic = AtomicDocumentStorage(File(filesDir, "brew_journal_v1.json").toPath())
+            BrewJournal(object : BrewJournal.Storage {
+                override fun read(): String? = atomic.read()?.toString(Charsets.UTF_8)
+                override fun write(value: String) = atomic.write(value.toByteArray(Charsets.UTF_8))
+            })
+        }
+    }
+    internal val journalResult: Result<BrewJournal>
+        get() = journalObservationFailure?.let { Result.failure(it) } ?: journalStoreResult
+    internal fun reconcileJournal(): Result<BrewJournal> = runCatching {
+        val journal = journalStoreResult.getOrThrow()
+        journal.reconcileRecent(history.entries.map { it.journalObservation() })
+        journalObservationFailure = null
+        recoverBeanAssociation(journal)
+        journal
+    }.onFailure { journalObservationFailure = it }
+    private fun recoverBeanAssociation(journal: BrewJournal) {
+        runCatching {
+            beanPreparationResult.getOrThrow().associatePending(journal, beanInventoryResult.getOrThrow())
+        }.onFailure { error ->
+            runCatching { logs.record("bean.journal_association_pending", mapOf("type" to error.javaClass.simpleName)) }
+        }
+    }
+
     val legacyCurves: LegacyCurveStore by lazy { LegacyCurveStore(File(filesDir, "legacy_curves.json")) }
     fun importLegacyHistory(uri: Uri) {
         Thread({
@@ -81,14 +178,16 @@ class MobileApplication : Application() {
                 mapOf("result" to result.fold({ "${it.added} added, ${it.total} total" },
                     { it.javaClass.simpleName })))
             Handler(Looper.getMainLooper()).post {
-                Toast.makeText(this, result.fold(
+                val toast = Toast.makeText(this, result.fold(
                     { getString(R.string.legacy_history_import_result, it.added.toString(), it.total.toString()) },
                     { getString(R.string.legacy_import_error, it.message ?: it.javaClass.simpleName) }),
-                    Toast.LENGTH_LONG).show()
+                    Toast.LENGTH_LONG)
+                LegacyImportToastObservation.beforeShow(toast, "legacy-history-import")
+                toast.show()
             }
         }, "legacy-history-import").start()
     }
-    fun export(uri: Uri) {
+    fun export(uri: Uri, onResult: ((String, Boolean) -> Unit)? = null) {
         logs.record("ui.export")
         try {
             logs.export({ contentResolver.openOutputStream(uri, "wt") ?: error("No output stream") }) { error ->
@@ -98,11 +197,14 @@ class MobileApplication : Application() {
                     // Keep diagnostic log text stable; resolve the UI text using current resources.
                     val displayMessage = if (error == null) getString(R.string.export_trace_success)
                         else getString(R.string.export_trace_failed, error.javaClass.simpleName)
-                    Toast.makeText(this, displayMessage, Toast.LENGTH_LONG).show()
+                    if(onResult==null)Toast.makeText(this, displayMessage, Toast.LENGTH_LONG).show()
+                    else onResult(displayMessage,error!=null)
                 }
             }
         } catch (error: RuntimeException) {
-            Toast.makeText(this, getString(R.string.export_trace_not_started, error.javaClass.simpleName), Toast.LENGTH_LONG).show()
+            val displayMessage=getString(R.string.export_trace_not_started, error.javaClass.simpleName)
+            if(onResult==null)Toast.makeText(this, displayMessage, Toast.LENGTH_LONG).show()
+            else Handler(Looper.getMainLooper()).post {onResult(displayMessage,true)}
         }
     }
     fun exportHistory(uri: Uri) {

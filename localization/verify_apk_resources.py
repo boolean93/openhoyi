@@ -6,8 +6,53 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 import validate_catalog as validator
 import android_resources as converter
+
+# These strings are supplied by AndroidX, not by the app catalogs:
+# startup-runtime:1.1.1 marks androidx_startup translatable=false;
+# core:1.8.0 supplies localized notification overflow text.
+DEPENDENCY_STRING_DEFAULTS = {
+    "androidx_startup": "androidx.startup",
+    "status_bar_notification_info_overflow": "999+",
+}
+
+
+def extend_resources(source, catalogs, res_root):
+    """Include split feature resources without relaxing exact compiled checks."""
+    def read(directory):
+        result = {}
+        for path in sorted(directory.glob("*.xml")):
+            if path.name == "strings.xml":
+                continue
+            try:
+                root = ET.parse(path).getroot()
+            except ET.ParseError as error:
+                raise ValueError(f"invalid resource XML: {path}") from error
+            for node in root.findall("string"):
+                key = node.attrib.get("name")
+                if not key or key in result or key in source:
+                    raise ValueError(f"duplicate or invalid feature resource: {key}")
+                value = "".join(node.itertext())
+                if value.startswith('"') and value.endswith('"'):
+                    value = value[1:-1]
+                escapes = {"n": "\n", "t": "\t", "r": "\r"}
+                value = re.sub(r"\\(u[0-9a-fA-F]{4}|.)", lambda match:
+                    chr(int(match[1][1:], 16)) if match[1].startswith("u")
+                    else escapes.get(match[1], match[1]), value)
+                result[key] = value
+        return result
+
+    extra = read(res_root / "values")
+    combined = {}
+    for tag in validator.LANGUAGES:
+        translated = read(res_root / f"values-{tag}")
+        errors = validator.validate(extra, translated)
+        if errors:
+            raise ValueError(f"feature resources {tag}: {', '.join(errors)}")
+        combined[tag] = {**catalogs[tag], **translated}
+    return {**source, **extra}, combined
 
 
 def parse_dump(text):
@@ -48,8 +93,16 @@ def parse_dump(text):
 
 
 def verify(table, source, catalogs, brand):
-    if table.keys() != source.keys():
-        raise ValueError("compiled string keys differ from source")
+    missing = source.keys() - table.keys()
+    unexpected = table.keys() - source.keys() - DEPENDENCY_STRING_DEFAULTS.keys()
+    if missing or unexpected:
+        raise ValueError(f"compiled string keys differ from source: missing={sorted(missing)}, unexpected={sorted(unexpected)}")
+    for key in table.keys() - source.keys():
+        compiled = table[key]
+        if compiled.get("") != DEPENDENCY_STRING_DEFAULTS[key] or not all(compiled.values()):
+            raise ValueError(f"compiled dependency resource mismatch: {key}")
+        if key == "androidx_startup" and set(compiled) != {""}:
+            raise ValueError(f"compiled dependency resource mismatch: {key}")
     count = 0
     for key, original in source.items():
         expected = {"": brand if key == "app_name" else original}
@@ -96,6 +149,7 @@ def main():
             raise ValueError("translation catalogs are invalid")
         source = validator.source_catalog(directory / "source.json")
         catalogs = {tag: validator.decode_json((directory / f"{tag}.json").read_text()) for tag in validator.LANGUAGES}
+        source, catalogs = extend_resources(source, catalogs, validator.ROOT / "mobile/src/main/res")
         result = {"literalRoundTrips": verify_literal_encoding(args.aapt2, args.android_jar)}
         for name, apk, brand in [("alpha", args.alpha, "OpenHOYI Alpha"), ("mock", args.mock, "HOYI Mock")]:
             dump = subprocess.run([str(args.aapt2), "dump", "resources", str(apk)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode("utf-8")

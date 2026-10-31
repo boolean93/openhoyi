@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_chart_inspect_hint">グラフを選択して実際のサンプルを確認。スライダーや矢印キーで移動できます</string>
+    <string name="task_chart_sample_time">今回のサンプル · %1$s 秒</string>
+    <string name="task_chart_missing_scale">この時刻の秤の値は未記録</string>
+    <string name="task_chart_not_brewing">この時刻は抽出中ではありません</string>
+</resources>

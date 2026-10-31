@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_visual_readonly">بيانات قديمة · للقراءة فقط</string>
+    <string name="legacy_visual_pressure">الضغط (bar)</string>
+    <string name="legacy_visual_flow">تدفق الآلة (ml/s)</string>
+    <string name="legacy_visual_notice">العينات القديمة للقراءة فقط؛ لا تتوفر حرارة أصلية أو كمية ماء تراكمية أو وزن ميزان أو تأكيد توقف.</string>
+</resources>

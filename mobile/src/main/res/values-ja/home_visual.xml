@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_machine_title">マシン</string>
+    <string name="home_target_label">目標</string>
+    <string name="home_slot_unconfigured">未設定</string>
+    <string name="home_visual_details">準備の詳細</string>
+    <string name="home_visual_show_details">準備の詳細を表示 ›</string>
+    <string name="home_visual_change">変更</string>
+    <string name="home_visual_edit">編集</string>
+    <string name="home_visual_pressure_mode">圧力モード</string>
+    <string name="home_visual_flow_mode">流量モード（生の値）</string>
+    <string name="home_visual_unknown_mode">モード不明</string>
+    <string name="home_visual_stage_mode">%1$s 段階 · %2$s</string>
+    <string name="home_visual_stage_count">%1$s 段階</string>
+    <string name="home_visual_open_device_status">%1$sの状態、接続操作を開く</string>
+    <string name="home_visual_more_recipes">他のレシピ ›</string>
+    <string name="home_visual_panel_title">準備と機器の詳細</string>
+    <string name="home_visual_bean_label">コーヒー豆</string>
+</resources>

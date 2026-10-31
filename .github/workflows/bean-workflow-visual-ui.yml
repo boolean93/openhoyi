@@ -1,0 +1,66 @@
+name: Verify bean workflow visual migration UI
+
+on:
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  bean-workflow-visual:
+    runs-on: ubuntu-latest
+    # Independent M4 three-page / 12-profile matrix; internal protocol / fixture budgets are unchanged.
+    timeout-minutes: 45
+    env:
+      CI_DISPOSABLE_AVD: font-scale-bean-${{ github.run_id }}-${{ github.run_attempt }}-bean-workflow-visual
+      BEAN_SNAPSHOT_SERIAL: emulator-5554
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Build isolated Mock
+        run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+      - name: Offline snapshot transaction contracts
+        run: python3 -m unittest discover -s scripts -p 'test_*snapshot_scope*.py'
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify real bean preparation, batch and ledger workflows
+        env:
+          PRODUCT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          avd-name: ${{ env.CI_DISPOSABLE_AVD }}
+          force-avd-creation: true
+          emulator-port: 5554
+          profile: pixel_7_pro
+          ram-size: 2048M
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          script: python3 scripts/ci_font_scale_snapshot_scope.py run --profile bean
+      - name: Upload real bean workflow evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: bean-workflow-visual-tablet-user-landscape
+          path: build/task-first-evidence/bean-workflow-visual-migration/
+          if-no-files-found: warn
+          retention-days: 7

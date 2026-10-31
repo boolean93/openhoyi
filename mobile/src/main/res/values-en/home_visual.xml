@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_machine_title">Machine</string>
+    <string name="home_target_label">Target</string>
+    <string name="home_slot_unconfigured">Unassigned</string>
+    <string name="home_visual_details">Preparation details</string>
+    <string name="home_visual_show_details">View preparation details ›</string>
+    <string name="home_visual_change">Change</string>
+    <string name="home_visual_edit">Edit</string>
+    <string name="home_visual_pressure_mode">Pressure mode</string>
+    <string name="home_visual_flow_mode">Flow mode (raw)</string>
+    <string name="home_visual_unknown_mode">Unknown mode</string>
+    <string name="home_visual_stage_mode">%1$s stages · %2$s</string>
+    <string name="home_visual_stage_count">%1$s stages</string>
+    <string name="home_visual_open_device_status">%1$s status, open connection controls</string>
+    <string name="home_visual_more_recipes">More recipes ›</string>
+    <string name="home_visual_panel_title">Preparation and device details</string>
+    <string name="home_visual_bean_label">Coffee beans</string>
+</resources>

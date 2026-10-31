@@ -128,7 +128,10 @@ object BookooCodec {
         val flow=((u(11) shl 8) or u(12)) * if(u(10)==45)-1 else 1
         return DecodeResult.Valid(BookooSample(weight,flow,u(6),u(10),raw))
     }
-    fun initializationCommands(): List<TimedCommand> = listOf("030A02000308","030A0300141E","030A0700000E","030A08010000").mapIndexed { i,h -> TimedCommand((i+1)*500L,frameHex(h)) }
+    fun initializationCommands(): List<TimedCommand> = listOf(
+        TimedCommand(500L,frameHex("030A02000308")),
+        TimedCommand(1000L,frameHex("030A0300141E")),
+        TimedCommand(2000L,frameHex("030A08010000")))
     fun tare(): EncodedCommand = EncodedCommand(frameHex("030A01000008"))
 }
 internal fun frameHex(hex:String)=ByteFrame(hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray())

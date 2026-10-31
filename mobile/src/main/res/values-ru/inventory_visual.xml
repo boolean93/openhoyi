@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="inventory_visual_in_stock">Кофейные зёрна в наличии</string>
+    <string name="inventory_visual_consumption_hint">Запас уменьшается только после подтверждения дозы для этой чашки.</string>
+</resources>

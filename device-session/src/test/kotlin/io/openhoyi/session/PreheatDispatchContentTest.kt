@@ -77,9 +77,9 @@ class PreheatDispatchContentTest(private val target:Int) {
         q.f.session.onNotification(q.f.session.generation,KnownGatt.coffeeNotify,bytes)
         q.release(target==0);assertEquals(1,q.guardCalls)
     }
-    @Test fun expiredSettingsBlockNewPreheatButFreshIdleStillAllowsCancel() {
+    @Test fun oldConnectionSettingsAllowPreheatAndCancelWhenIdleIsFresh() {
         val q=Queued();q.f.idle(SettingsFreshness.MAX_AGE_MS+1)
-        q.release(target==0);assertEquals(1,q.guardCalls)
+        q.release(true);assertEquals(1,q.guardCalls)
     }
     @Test fun settingsRemainEligibleAtInclusiveAgeBoundary() {
         val q=Queued();q.f.idle(SettingsFreshness.MAX_AGE_MS)

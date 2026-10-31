@@ -1,0 +1,7 @@
+<resources>
+    <string name="task_curve_library_manage">จัดการ</string>
+    <string name="task_curve_library_actions">การทำงานของเส้นโค้ง</string>
+    <string name="task_curve_library_no_pressure">แหล่งนี้ไม่มีขั้นตอนแรงดันที่ใช้ได้ โปรดดูพารามิเตอร์ต้นฉบับแทนกราฟแรงดัน</string>
+    <string name="task_curve_library_short_preview">พื้นที่กราฟไม่พอ พารามิเตอร์ขั้นแรงดัน: %1$s เป็นแผนภาพขั้นตอน ไม่ใช่การคาดการณ์เวลา</string>
+    <string name="curve_library_stage_heading">แรงดันเป้าหมายแต่ละช่วง</string>
+</resources>

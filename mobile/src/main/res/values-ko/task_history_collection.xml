@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_back_to_list">기록 목록으로 돌아가기</string>
+    <string name="history_select_record">추출을 선택해 그래프와 메모 보기</string>
+</resources>

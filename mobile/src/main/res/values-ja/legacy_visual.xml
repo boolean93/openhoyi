@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_visual_readonly">旧版・読み取り専用</string>
+    <string name="legacy_visual_pressure">圧力（bar）</string>
+    <string name="legacy_visual_flow">マシン水流（ml/s）</string>
+    <string name="legacy_visual_notice">旧版サンプルは閲覧専用です。ネイティブ温度、累積注水量、秤重量、終了確認はありません。</string>
+</resources>

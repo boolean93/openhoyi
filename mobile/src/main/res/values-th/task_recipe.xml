@@ -1,0 +1,5 @@
+<resources>
+    <string name="task_recipe_temperature">อุณหภูมิสูตร</string>
+    <string name="task_recipe_target">น้ำหนักเป้าหมาย</string>
+    <string name="task_recipe_dose">ปริมาณที่บันทึก</string>
+</resources>

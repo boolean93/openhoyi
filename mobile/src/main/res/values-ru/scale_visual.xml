@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="m6_nearby_scales">Весы поблизости</string>
+  <string name="m6_scale_candidate_count">Найдено кандидатов: %1$d</string>
+  <string name="m6_app_timer">Таймер приложения</string>
+</resources>

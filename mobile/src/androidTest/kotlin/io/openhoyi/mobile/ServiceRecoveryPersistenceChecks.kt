@@ -9,7 +9,6 @@ import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
-import io.openhoyi.bluetooth.AndroidDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
@@ -97,7 +96,7 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                         field(instance, "machineWriteRecovery\$delegate").set(instance, lazyOf(recovery))
                         val owner = NativeDeviceHub(context)
                         hub = owner
-                        val devices = listOf("coffee", "scale").map { field(owner, it).get(owner) as AndroidDevice }
+                        val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
                         val drivers = listOf(Driver(), Driver())
                         devices.zip(drivers).forEach { (device, driver) ->
                             val queue = field(device.session, "queue").get(device.session) as GattQueue
@@ -279,7 +278,7 @@ internal class ServiceRecoveryPersistenceChecks(private val test: Instrumentatio
                     } catch (error: Throwable) { failure = error }
                     finally {
                         hub?.let { owner ->
-                            listOf("coffee", "scale").forEach { name -> runCatching { (field(owner, name).get(owner) as AndroidDevice).close() } }
+                            listOf("coffee", "scale").forEach { name -> runCatching { hubDevice(owner, name).close() } }
                             runCatching { owner.scanner.close() }
                             (field(owner, "handler").get(owner) as Handler).removeCallbacks(field(owner, "ticker").get(owner) as Runnable)
                         }

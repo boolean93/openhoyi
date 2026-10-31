@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_visual_import_scope">Без подтверждения ничего не сохраняется и экстракция не запускается.</string>
+    <string name="curve_visual_library_scope">Сохранение только в библиотеку кривых, без запуска экстракции.</string>
+    <string name="curve_visual_preview_parameters">Предпросмотр и все параметры · Этапов: %1$d</string>
+</resources>

@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_comparison_swap">交换两杯</string>
+    <string name="task_comparison_metric">对比指标</string>
+    <string name="task_comparison_choose_cup">选择记录</string>
+    <string name="task_comparison_missing_selection">所选记录不可用，请重新选择</string>
+    <string name="task_comparison_pressure">压力 · bar</string>
+    <string name="task_comparison_water">机器累计注水 · ml</string>
+    <string name="task_comparison_weight">原始秤读数 · g</string>
+    <string name="task_comparison_temperature">原始机器温度 · °C</string>
+    <string name="task_comparison_observed_origin">对齐：首次观测到萃取的采样；不是已验证的真实启动时刻</string>
+    <string name="task_comparison_record_origin">对齐：记录中的首个可用采样；真实萃取起点未知</string>
+    <string name="task_comparison_no_aligned_samples">没有可对齐的萃取采样</string>
+    <string name="task_comparison_no_weight">%1$s：没有可对齐的原始秤采样</string>
+    <string name="task_comparison_no_weight_both">没有可用于对比的原始秤采样，不生成重量曲线</string>
+    <string name="task_comparison_short_chart">图表空间不足，请调大窗口；记录详情仍可在下方滚动查看</string>
+    <string name="task_comparison_scale">两杯共用量程 · %1$s</string>
+</resources>

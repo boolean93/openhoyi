@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bean_workflow_selection">Esta taza</string>
+    <string name="bean_workflow_preview">Cambio de existencias tras confirmar</string>
+    <string name="bean_workflow_receipt">Consumo registrado</string>
+</resources>

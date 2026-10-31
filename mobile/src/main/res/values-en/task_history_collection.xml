@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="history_back_to_list">Back to history</string>
+    <string name="history_select_record">Select a shot to view its chart and notes</string>
+</resources>

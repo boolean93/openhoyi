@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="m6_nearby_scales">Básculas cercanas</string>
+  <string name="m6_scale_candidate_count">%1$d candidatos encontrados</string>
+  <string name="m6_app_timer">Temporizador de la app</string>
+</resources>

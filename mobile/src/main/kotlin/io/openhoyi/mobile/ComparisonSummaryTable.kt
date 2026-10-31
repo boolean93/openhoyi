@@ -1,0 +1,126 @@
+package io.openhoyi.mobile
+
+import android.text.TextUtils
+import android.view.Gravity
+import android.widget.LinearLayout
+import android.widget.TextView
+import java.util.Locale
+
+/** Observed outcome values, not estimates from chart alignment or interpolation. */
+internal class ComparisonSummaryTable(private val activity: ThemedActivity, private val visual: ExtractionHistoryVisualStyle? = null) : LinearLayout(activity) {
+    private val headers = mutableListOf<TextView>()
+    private val values = List(2) { mutableListOf<TextView>() }
+    private val labels = listOf(R.string.history_duration, R.string.history_end_scale, R.string.journal_taste)
+    init {
+        orientation = VERTICAL
+        tag = "comparison-summary-table"
+        fun row() = LinearLayout(activity).apply {
+            visual?.palette?.let { style ->
+                if (this@ComparisonSummaryTable.childCount > 0) {
+                    this@ComparisonSummaryTable.addView(android.view.View(activity).apply {
+                        setBackgroundColor(style.border)
+                    }, LayoutParams(-1, dp(1)))
+                }
+            }
+            orientation = HORIZONTAL; isBaselineAligned = false
+            this@ComparisonSummaryTable.addView(this, LayoutParams(-1, -2))
+        }
+        fun cell(parent: LinearLayout, value: String, index: Int, heading: Boolean) =
+            HoyiUi.label(activity, parent, value, if (heading) 14 else 16, muted = heading).apply {
+                layoutParams = LayoutParams(0, -1, if (index == 0) .7f else 1f)
+                gravity = Gravity.CENTER_VERTICAL or if (index == 0) Gravity.START else Gravity.CENTER_HORIZONTAL
+                setPadding(dp(8), dp(4), dp(8), dp(4))
+                visual?.palette?.let { style ->
+                    style.apply(this, if (heading) TaskProductVisualStyle.auxiliary.copy(weight = 500) else TaskProductVisualStyle.body, heading)
+                    setPadding(dp(8), dp(4), dp(8), dp(4))
+                }
+                background = HoyiUi.shape(activity, if (heading) R.color.mobile_background else R.color.mobile_surface,
+                    0, R.color.mobile_border)
+            }
+        val header = row()
+        cell(header, "", 0, true)
+        repeat(2) { headers += cell(header, "", it + 1, true) }
+        labels.forEachIndexed { rowIndex, label ->
+            val line = row().apply { tag = "comparison-summary-row-$rowIndex" }
+            cell(line, activity.getString(label), 0, true)
+            repeat(2) { column ->
+                values[column] += cell(line, "—", column + 1, false).apply {
+                    if (rowIndex == 2) {
+                        tag = "full-text-details"
+                        maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+                        minimumHeight = dp(48)
+                        background = android.graphics.drawable.RippleDrawable(
+                            android.content.res.ColorStateList.valueOf(activity.getColor(R.color.mobile_accent_soft)),
+                            android.graphics.drawable.StateListDrawable().apply {
+                                addState(intArrayOf(android.R.attr.state_focused), HoyiUi.shape(activity,
+                                    R.color.mobile_surface, 0, R.color.mobile_accent))
+                                addState(intArrayOf(), HoyiUi.shape(activity, R.color.mobile_surface, 0, R.color.mobile_border))
+                            }, null)
+                    }
+                }
+            }
+        }
+        visual?.palette?.let { style ->
+            for (i in 0 until childCount) {
+                val line = getChildAt(i) as? LinearLayout ?: continue
+                for (j in 0 until line.childCount) {
+                    val cell = line.getChildAt(j)
+                    cell.background = if (cell.tag != "full-text-details") style.shape(style.surface, false, 0) else
+                        android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(style.selected),
+                            android.graphics.drawable.StateListDrawable().apply {
+                                addState(intArrayOf(-android.R.attr.state_enabled), style.shape(style.surface, false, 0))
+                                addState(intArrayOf(android.R.attr.state_focused), android.graphics.drawable.GradientDrawable().apply {
+                                    setColor(style.surface); setStroke(dp(1), style.accent)
+                                })
+                                addState(intArrayOf(), style.shape(style.surface, false, 0))
+                            }, null)
+                }
+            }
+        }
+    }
+    fun update(column: Int, entry: BrewJournal.Entry?) {
+        headers[column].text = activity.getString(if (column == 0) R.string.journal_first else R.string.journal_second) +
+            " · " + (entry?.observation?.let { activity.journalDate(it.startedAtMs) } ?: "—")
+        val observation = entry?.observation
+        val contents = listOf(
+            observation?.elapsedMs?.let { activity.getString(R.string.history_duration_value, "%.1f".format(Locale.ROOT, it / 1000.0)) } ?: "—",
+            observation?.weightHundredthsGram?.let { "%.2f g".format(Locale.ROOT, it / 100.0) } ?: "—",
+            entry?.notes?.taste?.takeIf { it.isNotBlank() } ?: "—")
+        values[column].forEachIndexed { index, view ->
+            if (visual != null && index < 2) {
+                // Actual native span runs retain one TextView baseline and the original full value.
+                view.text = android.text.SpannableString(contents[index]).apply {
+                    val unitStart = Regex("^[+-]?[0-9]+(?:\\.[0-9]+)?\\s*").find(toString())?.value?.length ?: 0
+                    if (unitStart > 0 && unitStart < length) {
+                        setSpan(object : android.text.style.MetricAffectingSpan() {
+                            override fun updateMeasureState(paint: android.text.TextPaint) {
+                                paint.textSize = visual.palette.sp(14)
+                                paint.typeface = TaskTypography.face(activity, 400)
+                            }
+                            override fun updateDrawState(paint: android.text.TextPaint) = updateMeasureState(paint)
+                        }, unitStart, length, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
+                }
+            } else if (view.text.toString() != contents[index]) view.text = contents[index]
+            view.contentDescription = activity.getString(labels[index]) + " · " + contents[index]
+        }
+        values[column][2].apply {
+            setOnClickListener { activity.beanDetails(activity.getString(R.string.journal_taste), contents[2]) }
+            isClickable = !entry?.notes?.taste.isNullOrBlank()
+            isFocusable = isClickable
+            tooltipText = contents[2]
+            visual?.palette?.let { style ->
+                background = if (!isClickable || !isEnabled) style.shape(style.surface, false, 0) else
+                    android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(style.selected),
+                        android.graphics.drawable.StateListDrawable().apply {
+                            addState(intArrayOf(-android.R.attr.state_enabled), style.shape(style.surface, false, 0))
+                            addState(intArrayOf(android.R.attr.state_focused), android.graphics.drawable.GradientDrawable().apply {
+                                setColor(style.surface); setStroke(dp(1), style.accent)
+                            })
+                            addState(intArrayOf(), style.shape(style.surface, false, 0))
+                        }, null)
+            }
+        }
+    }
+    private fun dp(value: Int) = HoyiUi.dp(activity, value)
+}
