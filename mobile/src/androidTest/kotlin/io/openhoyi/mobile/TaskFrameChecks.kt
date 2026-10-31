@@ -49,7 +49,7 @@ internal class TaskFrameChecks(private val test: Instrumentation) {
                 MainPageTestHost(test, activity).active("root:SETTINGS").requireView()
                 else page
             val pageId = if (machineSettings) "machine" else if (scaleSettings) "scale" else "app"
-            scroll = requireNotNull(pageRoot.findViewWithTag<android.widget.ScrollView>("product/settings/$pageId/scroll")) {
+            scroll = requireNotNull(pageRoot.findViewWithTag<android.widget.ScrollView>(if (activity is MainActivity) "settings/document/scroll" else "product/settings/$pageId/scroll")) {
                 "${activity.javaClass.simpleName}: active settings scroll missing"
             }
             check(scroll.isShown && scroll.isAttachedToWindow) {

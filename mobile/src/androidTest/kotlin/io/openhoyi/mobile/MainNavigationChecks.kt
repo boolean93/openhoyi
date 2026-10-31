@@ -32,7 +32,8 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             return
         }
         val home = host.select(TaskDestination.BREW) as HomeFragment
-        test.runOnMainSync {
+        var geometryFailure: Throwable? = null
+        test.runOnMainSync { try {
             val root = requireNotNull(home.view)
             val viewport = Rect()
             check(root.getGlobalVisibleRect(viewport) && !viewport.isEmpty)
@@ -43,10 +44,18 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                     "Missing actual Home view product/home/$name"
                 }
                 val visible = Rect()
-                check(view.isShown && view.getGlobalVisibleRect(visible) &&
+                val shown = view.isShown
+                val globalVisible = view.getGlobalVisibleRect(visible)
+                check(shown && globalVisible &&
                     visible.width() == view.width && visible.height() == view.height &&
                     visible.top >= viewport.top && visible.bottom <= viewport.bottom) {
-                    "720x360 Home $name outside page viewport: $visible viewport=$viewport view=${view.width}x${view.height}"
+                    val ancestors = generateSequence(view as View?) { it.parent as? View }.joinToString { ancestor ->
+                        val rect = Rect(); val visibleResult = ancestor.getGlobalVisibleRect(rect)
+                        val location = IntArray(2); ancestor.getLocationOnScreen(location)
+                        val clipping = (ancestor as? ViewGroup)?.let { "clipChildren=${it.clipChildren},clipPadding=${it.clipToPadding}" }
+                        "${ancestor.javaClass.simpleName}(tag=${ancestor.tag},visibility=${ancestor.visibility},bounds=${ancestor.left}/${ancestor.top}/${ancestor.right}/${ancestor.bottom},padding=${ancestor.paddingLeft}/${ancestor.paddingTop}/${ancestor.paddingRight}/${ancestor.paddingBottom},scroll=${ancestor.scrollX}/${ancestor.scrollY},screen=${location.toList()},global=$visibleResult:$rect,$clipping)"
+                    }
+                    "720x360 Home $name outside page viewport: $visible viewport=$viewport view=${view.width}x${view.height} shown=$shown globalVisible=$globalVisible attached=${view.isAttachedToWindow} ancestors=$ancestors"
                 }
                 visible
             }
@@ -62,7 +71,8 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                     "Active Home action overlaps $name"
                 }
             }
-        }
+        } catch (failure: Throwable) { geometryFailure = failure } }
+        geometryFailure?.let { throw it }
         test.sendStatus(0, Bundle().apply { putString("stream", "MAIN_HOME_720_GEOMETRY_PASS $geometry\n") })
     }
 

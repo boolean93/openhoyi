@@ -711,7 +711,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
     private fun reachability(activity:Activity,folder:File,domain:String="main",subtree:View?=null):JSONObject {
         check(folder.isDirectory || folder.mkdirs())
         val page=when(activity) {is MainActivity->"app";is MachineSettingsActivity->"machine";else->"scale"}
-        val source=subtree ?: requireNotNull(root(activity).findViewWithTag<ScrollView>("product/settings/$page/scroll"))
+        val source=subtree ?: requireNotNull(root(activity).findViewWithTag<ScrollView>(if(activity is MainActivity) "settings/document/scroll" else "product/settings/$page/scroll"))
         val targets=stableTextTargets(activity,source)
         check(targets.isNotEmpty())
         val scrolls=mutableListOf<Pair<String,View>>()
@@ -991,13 +991,11 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         main {val preview=tagged(activity,"product/settings/app/feedback/preview");check(whole(observation(preview)) && preview.isEnabled && preview.isClickable);check(preview.performClick());check(!((field(card,"audioOwner") as Lazy<*>).value as BrewFeedbackAudio).playing)}
         state("feedback-preview-start-stop")
         click(activity,"product/settings/app/feedback/preview")
-        val monitor=test.addMonitor(MachineSettingsActivity::class.java.name,null,false)
-        try {
-            click(activity,"product/settings/app/machine")
-            val next=requireNotNull(test.waitForMonitorWithTimeout(monitor,10000));await("real machine settings navigation ready") {ready(next)}
-            main {check(!((field(card,"audioOwner") as Lazy<*>).value as BrewFeedbackAudio).playing);check(!(field(scope.feedback,"observers") as Map<*,*>).containsKey(card));next.finish()}
-            await("real app return ready") {ready(activity)}
-        } finally {test.removeMonitor(monitor)}
+        // Leaving the inline document now uses the real primary destination, not a removed settings launcher.
+        MainPageTestHost(test,activity).select(TaskDestination.BREW)
+        main {check(!((field(card,"audioOwner") as Lazy<*>).value as BrewFeedbackAudio).playing);check(!(field(scope.feedback,"observers") as Map<*,*>).containsKey(card))}
+        MainPageTestHost(test,activity).select(TaskDestination.SETTINGS)
+        await("real settings document return ready") {ready(activity)}
         state("feedback-preview-leave-stopped")
         appExport(scope,activity,folder)
         listOf("saf-cancel","saf-failure","saf-owned-success").forEach {cases.put(JSONObject().put("case",it).put("acceptanceStatus","PASS_BUSINESS_ONLY_NOT_VISUAL_ACCEPTANCE"))}
