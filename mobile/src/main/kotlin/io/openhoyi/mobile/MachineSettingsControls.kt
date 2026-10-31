@@ -501,8 +501,9 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             val text=when {
                 documentMode && snapshot.settings==null->getString(R.string.settings_unknown)
                 documentMode->getString(value)
-                format==R.string.setting_toggle_status->getString(format,getString(label),getString(value))
-                else->getString(format,getString(value))
+                format==R.string.setting_water_supply_status->getString(R.string.setting_water_supply_status,getString(value))
+                format==R.string.setting_run_mode_status->getString(R.string.setting_run_mode_status,getString(value))
+                else->getString(R.string.setting_toggle_status,getString(label),getString(value))
             }
             button.update(text)
         }
