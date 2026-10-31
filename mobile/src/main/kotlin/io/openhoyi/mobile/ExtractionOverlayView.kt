@@ -180,7 +180,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val body = tile.getChildAt(0) as LinearLayout
             body.orientation = HORIZONTAL; body.gravity = android.view.Gravity.CENTER_VERTICAL
             body.setPadding(dp(4f).toInt(),0,dp(4f).toInt(),0)
+            body.layoutParams = android.widget.FrameLayout.LayoutParams(-1,-2,android.view.Gravity.CENTER_VERTICAL)
             val name = body.getChildAt(0) as TextView
+            // Vertical LinearLayout gave this label MATCH_PARENT width; it must not consume a horizontal row.
+            name.layoutParams = LayoutParams(-2,-2)
             name.compoundDrawablePadding = dp(3f).toInt()
             val quantity = body.getChildAt(1) as LinearLayout
             quantity.layoutParams = LayoutParams(-2,-2).apply { marginStart = dp(6f).toInt() }

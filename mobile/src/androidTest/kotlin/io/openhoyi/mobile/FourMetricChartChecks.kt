@@ -193,7 +193,9 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                     livePlot.contentDescription.toString() == latestBefore)
                 val configuration = android.content.res.Configuration(activity.resources.configuration).apply { fontScale = 1.3f }
                 val compactContext = android.view.ContextThemeWrapper(activity.createConfigurationContext(configuration), R.style.MobileTheme)
-                val enlargedLive = ExtractionOverlayView(compactContext, ExtractionHistoryVisualStyle(compactContext)).apply { points = samples }
+                val enlargedLive = ExtractionOverlayView(compactContext, ExtractionHistoryVisualStyle(compactContext)).apply {
+                    liveCompactChrome = true; points = samples
+                }
                 fun layoutEnlarged(widthDp: Int) {
                     val width = HoyiUi.dp(activity, widthDp)
                     enlargedLive.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
@@ -205,7 +207,19 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                 layoutEnlarged(940)
                 check((0 until liveLegend.childCount).map { liveLegend.getChildAt(it).top }.distinct().size == 1) {
                     "Font 1.3 must retain one metric row when all four natural content widths fit" }
-                descendants(liveLegend).filterIsInstance<android.widget.TextView>().filter { it.text.isNotBlank() }
+                check(enlargedLive.getChildAt(0).height == HoyiUi.dp(activity,96)) {
+                    "Wide compact header and metric strip must share the 96dp budget" }
+                ChartMetric.entries.filter { it != ChartMetric.PRESSURE }.forEach { metric ->
+                    val number = requireNotNull(enlargedLive.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/number"))
+                    val unit = requireNotNull(enlargedLive.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/unit"))
+                    val name = requireNotNull(enlargedLive.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/name"))
+                    val cell = number.parent as ViewGroup
+                    val body = cell.parent as ViewGroup
+                    check(name.layoutParams.width == ViewGroup.LayoutParams.WRAP_CONTENT && number.width > 0 && unit.width > 0)
+                    check(name.right <= cell.left && cell.right <= body.width && number.right <= cell.width && unit.right <= cell.width) {
+                        "Compact horizontal name swallowed or clipped $metric current value/unit" }
+                }
+                descendants(liveLegend).filterIsInstance<android.widget.TextView>().filter { it.text.isNotBlank() && it.visibility != View.GONE }
                     .forEach { LanguageUiLayoutChecks.textFits(it, "font1.3 single metric row") }
                 layoutEnlarged(200)
                 check(liveLegend.getChildAt(2).top > liveLegend.getChildAt(0).top) {
