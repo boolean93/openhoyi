@@ -105,7 +105,7 @@ class AppSettingsFragment : Fragment() {
             if (state?.containsKey("expanded:$key") == true) expanded[key] = state.getBoolean("expanded:$key")
         }
         machineState = state?.getBundle("machineControls") ?: machineState
-        HoyiUi.button(activity, body, getString(R.string.home_visual_panel_title)) {
+        HoyiUi.button(activity, body, getString(R.string.home_device_connection)) {
             startActivity(Intent(activity, DeviceConnectionActivity::class.java))
         }.apply { minimumHeight = style.dp(48); asTaskTextAction() }
         val machine = group(activity, body, getString(R.string.machine_settings_title), visual, "machine", true)

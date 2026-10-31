@@ -106,7 +106,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         val overview = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val controlsPane = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val columnsEvidence=org.json.JSONObject();productLayoutEvidence.put("columns",columnsEvidence)
-        body.addView(SettingsColumns(this,style,overview,controlsPane,columnsEvidence),LinearLayout.LayoutParams(-1,-2))
+        if (embedded) body.addView(controlsPane, LinearLayout.LayoutParams(-1,-2))
+        else body.addView(SettingsColumns(this,style,overview,controlsPane,columnsEvidence),LinearLayout.LayoutParams(-1,-2))
         val summaryCard = card(overview, getString(R.string.machine_settings_connection_title))
         connectionState = text(summaryCard, getString(R.string.machine_settings_disconnected), 16).apply {tag="product/settings/machine/connection"}
         val settingsCard = card(overview, getString(R.string.machine_settings_readback_title))

@@ -27,7 +27,7 @@ class DeviceConnectionActivity : ScaleOwnerActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         restoreScrollY = savedInstanceState?.getInt("devicesScrollY")
-        val body = visual.page(this, R.string.home_visual_panel_title, R.string.scale_connection_subtitle, pageId = "devices")
+        val body = visual.page(this, R.string.home_device_connection, R.string.scale_connection_subtitle, pageId = "devices")
         status = HoyiUi.label(this, body, "", 16)
         HoyiUi.button(this, body, getString(R.string.home_scan)) { scanDevices() }
         HoyiUi.button(this, body, getString(R.string.home_coffee_disconnect)) {
