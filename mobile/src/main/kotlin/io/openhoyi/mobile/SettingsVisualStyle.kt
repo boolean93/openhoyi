@@ -172,14 +172,17 @@ internal class SettingsPairLayout(context:Context,private val style:TaskProductV
 }
 
 internal class SettingsColumns(context:Context,private val style:TaskProductVisualStyle,val first:View,val second:View,
-    private val evidence:JSONObject):ViewGroup(context) {
+    private val evidence:JSONObject, private val firstFraction:Float=.4f,
+    private val minimumFirstWidth:(()->Int)?=null, private val minimumSecondWidth:(()->Int)?=null):ViewGroup(context) {
     private var split=false
     init {addView(first);addView(second)}
     override fun generateDefaultLayoutParams()=LayoutParams(-1,-2)
     override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
         val width=MeasureSpec.getSize(widthMeasureSpec);val gap=style.dp(24)
-        split=width>=style.dp(280+400+24)
-        val firstWidth=if(split)((width-gap)*.4f).toInt() else width
+        val firstRequired=minimumFirstWidth?.invoke() ?: style.dp(280)
+        val secondRequired=minimumSecondWidth?.invoke() ?: style.dp(400)
+        split=width>=firstRequired+secondRequired+gap
+        val firstWidth=if(split)((width-gap)*firstFraction).toInt().coerceIn(firstRequired,width-gap-secondRequired) else width
         val secondWidth=if(split)width-gap-firstWidth else width
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
         first.measure(MeasureSpec.makeMeasureSpec(firstWidth,MeasureSpec.EXACTLY),free)
@@ -204,6 +207,13 @@ internal class SettingsTemperatureRow(context:Context,private val style:TaskProd
     init {setPadding(style.dp(16),style.dp(16),style.dp(16),style.dp(16));background=style.shape(style.surface,true);addView(words);addView(quantity);addView(action)}
     override fun generateDefaultLayoutParams()=LayoutParams(-2,-2)
     private fun force(view:View) {view.forceLayout();if(view is ViewGroup)(0 until view.childCount).forEach {force(view.getChildAt(it))}}
+    fun minimumInlineWidthPx():Int {
+        val shown=if(input.text.isNullOrEmpty())input.hint?.toString().orEmpty() else input.text.toString()
+        input.layoutParams.width=maxOf(style.dp(96),ceil(input.paint.measureText(shown)).toInt()+input.compoundPaddingLeft+input.compoundPaddingRight)
+        val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)
+        listOf(words,quantity,action).forEach { force(it);it.measure(free,free) }
+        return words.measuredWidth+quantity.measuredWidth+action.measuredWidth+style.dp(32)+paddingLeft+paddingRight
+    }
     override fun onMeasure(widthMeasureSpec:Int,heightMeasureSpec:Int) {
         val width=MeasureSpec.getSize(widthMeasureSpec);val available=(width-paddingLeft-paddingRight).coerceAtLeast(0)
         val free=MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED)

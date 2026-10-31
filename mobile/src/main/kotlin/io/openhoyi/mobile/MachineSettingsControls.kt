@@ -78,6 +78,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private var selectedSettingsSection = 0
     private val settingSections = mutableListOf<LinearLayout>()
     private val settingTabs = mutableListOf<TextView>()
+    private val temperatureRows = mutableListOf<SettingsTemperatureRow>()
     private val controlButtons = mutableListOf<Button>()
     private val scheduleButtons = mutableListOf<Button>()
     private val connection = object : ServiceConnection {
@@ -289,16 +290,13 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             tabsScroll.visibility = View.GONE
             settingSections.forEachIndexed { index, section -> section.visibility = if (index < 2) View.VISIBLE else View.GONE }
             writeCard.visibility = View.GONE // Status remains outside the collapsible editor.
-            val functionButtons = listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton)
-            functionButtons.forEach { functionsCard.removeView(it) }
-            functionButtons.chunked(2).forEach { pair ->
-                val row = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; isBaselineAligned = false }
-                pair.forEach { button -> row.addView(button, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(8) }) }
-                functionsCard.addView(row, LinearLayout.LayoutParams(-1, -2))
-            }
             controlsPane.removeView(temperatureSection); controlsPane.removeView(functionsSection)
-            controlsPane.addView(SettingsColumns(host, style, temperatureSection, functionsSection, org.json.JSONObject()), 0,
-                LinearLayout.LayoutParams(-1, -2))
+            controlsPane.addView(SettingsColumns(host, style, temperatureSection, functionsSection, org.json.JSONObject(),
+                firstFraction=.62f,
+                minimumFirstWidth={ temperatureRows.take(3).maxOf { it.minimumInlineWidthPx() } + controls.paddingLeft + controls.paddingRight },
+                minimumSecondWidth={ listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton)
+                    .maxOf { kotlin.math.ceil(it.paint.measureText(it.text.toString())).toInt() + it.compoundPaddingLeft + it.compoundPaddingRight }
+                    + functionsCard.paddingLeft + functionsCard.paddingRight }), 0, LinearLayout.LayoutParams(-1, -2))
             val advanced = listOf(R.string.machine_settings_tab_standby, R.string.machine_settings_tab_schedule, R.string.machine_settings_tab_maintenance)
                 .joinToString(" · ") { getString(it) }
             action(body, advanced) { host.startActivity(Intent(host, MachineSettingsActivity::class.java).putExtra("section", 2)) }
@@ -358,7 +356,13 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     }
     private fun render() {
         try { renderContent() } finally {
-            if (::connectionState.isInitialized && ::writeStatus.isInitialized) statusChanged(listOf(connectionState.text, settingsOverview.text, writeStatus.text).joinToString("\n"))
+            if (::connectionState.isInitialized && ::writeStatus.isInitialized) {
+                val snapshot = service?.snapshot
+                val freshness = getString(if(snapshot?.settings == null) R.string.machine_settings_readback_missing
+                    else if(snapshot.coffeeState == DeviceState.READY && service?.machineSettingsFresh == true) R.string.machine_settings_readback_current
+                    else R.string.machine_settings_readback_stale)
+                statusChanged("${connectionState.text} · $freshness\n${writeStatus.text}")
+            }
         }
     }
     private fun renderContent() {
@@ -662,6 +666,7 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             val rowEvidence=org.json.JSONObject();productLayoutEvidence.put(keys[index],rowEvidence)
             val row=SettingsTemperatureRow(this,visual.palette,words,quantity,input,button,rowEvidence)
                 .apply {tag="product/settings/machine/${keys[index]}/row"}
+            temperatureRows += row
             parent.addView(row,inputIndex-1,LinearLayout.LayoutParams(-1,-2).apply {topMargin=dp(8)})
         }
     }

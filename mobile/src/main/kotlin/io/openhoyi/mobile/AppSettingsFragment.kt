@@ -107,7 +107,7 @@ class AppSettingsFragment : Fragment() {
         machineState = state?.getBundle("machineControls") ?: machineState
         HoyiUi.button(activity, body, getString(R.string.home_device_connection)) {
             startActivity(Intent(activity, DeviceConnectionActivity::class.java))
-        }.apply { minimumHeight = style.dp(48); asTaskTextAction() }
+        }.apply { minimumHeight = style.dp(48); asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
         val machine = group(activity, body, getString(R.string.machine_settings_title), visual, "machine", true)
         val machineSummary = style.text("", TaskProductVisualStyle.auxiliary, "settings-machine-summary", true)
         (machine.parent as LinearLayout).addView(machineSummary, 1)
