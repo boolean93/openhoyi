@@ -154,11 +154,11 @@ class ScaleFragment : Fragment() {
         }
         battery=deviceRow(R.string.scale_device_battery_label,"product/scale/battery")
         deviceStatus=deviceRow(R.string.scale_device_status_label,"product/scale/device-status")
-        connectionButton=toolLink(device,getString(R.string.scale_connect)) {startActivity(Intent(host,DeviceConnectionActivity::class.java))}.apply {
+        connectionButton=toolLink(device,getString(R.string.scale_connect)) {host.openSettingsSection("devices")}.apply {
             style.button(this);HomeVisualIcon.buttonIcon(this,"chevron",atEnd=true);tag="product/scale/connect"
             layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=style.dp(16)}
         }
-        toolLink(device,getString(R.string.scale_settings)) {startActivity(Intent(host,ScaleSettingsActivity::class.java))}.apply {
+        toolLink(device,getString(R.string.scale_settings)) {host.openSettingsSection("scale")}.apply {
             style.button(this);HomeVisualIcon.buttonIcon(this,"chevron",atEnd=true);tag="product/scale/settings"
             layoutParams=LinearLayout.LayoutParams(-1,-2).apply {topMargin=style.dp(8)}
         }

@@ -983,4 +983,9 @@
     <string name="live_pressure_pause">暂停</string>
     <string name="live_pressure_pause_explanation">暂停阶段的压力线显示为零基线，不表示实测压力为零</string>
     <string name="device_remembered_identity">已记设备：%1$s</string>
+    <string name="settings_section_machine">机器参数</string>
+    <string name="settings_section_schedule">待机与计划</string>
+    <string name="settings_section_feedback">萃取反馈</string>
+    <string name="settings_section_maintenance">维护与诊断</string>
+    <string name="settings_section_about">关于</string>
 </resources>

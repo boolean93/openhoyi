@@ -178,6 +178,7 @@ class MainActivity : ThemedActivity() {
         extractionSlot = savedInstanceState?.getInt(STATE_EXTRACTION_SLOT)
             ?: intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7)
         scaleSettingsReturn = savedInstanceState?.getBoolean("settingsScaleReturn") ?: false
+        settingsOrigin=savedInstanceState?.getString("settingsOrigin")?.let { runCatching {TaskDestination.valueOf(it)}.getOrNull() }
         lastPresentedManualShotId = savedInstanceState?.getString(STATE_MANUAL_SHOT_ID)
         val style = TaskProductVisualStyle(this)
         val root = LinearLayout(this).apply {
@@ -207,7 +208,10 @@ class MainActivity : ThemedActivity() {
             override fun handleOnBackPressed() { navigateBack() }
         })
         showCurrent()
-        if (savedInstanceState == null) routeHistorySource(intent)
+        if (savedInstanceState == null) {
+            routeHistorySource(intent)
+            intent.getStringExtra("settingsSection")?.let(::openSettingsSection)
+        }
     }
 
     override fun onStart() {
@@ -244,7 +248,14 @@ class MainActivity : ThemedActivity() {
         TaskDestination.SETTINGS -> AppSettingsFragment()
     }
 
+    private var settingsOrigin:TaskDestination?=null
     private var scaleSettingsReturn = false
+    internal fun openSettingsSection(key: String) {
+        val origin=destination.takeIf {it!=TaskDestination.SETTINGS}
+        select(TaskDestination.SETTINGS)
+        if(origin!=null)settingsOrigin=origin
+        (supportFragmentManager.primaryNavigationFragment as? AppSettingsFragment)?.openSection(key)
+    }
     internal fun openScaleFromSettings() {
         select(TaskDestination.SCALE)
         scaleSettingsReturn = true
@@ -252,6 +263,7 @@ class MainActivity : ThemedActivity() {
     internal fun select(next: TaskDestination) {
         if (next == destination && !extractionVisible) return
         scaleSettingsReturn = false
+        settingsOrigin = null
         dismissTransientDialogs()
         destination = next
         extractionVisible = false
@@ -298,6 +310,7 @@ class MainActivity : ThemedActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("settingsOrigin",settingsOrigin?.name)
         outState.putBoolean("settingsScaleReturn", scaleSettingsReturn)
         outState.putString(STATE_DESTINATION, destination.name)
         outState.putInt(STATE_PAGE_ID, pageId)
@@ -313,10 +326,11 @@ class MainActivity : ThemedActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (intent.getBooleanExtra(EXTRA_OPEN_EXTRACTION, false)) showExtraction(intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7))
-        else intent.getStringExtra(EXTRA_INITIAL_DESTINATION)?.let { name ->
+        else if(!intent.hasExtra("settingsSection")) intent.getStringExtra(EXTRA_INITIAL_DESTINATION)?.let { name ->
             runCatching { TaskDestination.valueOf(name) }.getOrNull()?.let(::select)
         }
         routeHistorySource(intent)
+        intent.getStringExtra("settingsSection")?.let(::openSettingsSection)
     }
 
     private fun routeHistorySource(intent: Intent) {
@@ -339,6 +353,7 @@ class MainActivity : ThemedActivity() {
         if (consumed) return
         if (!extractionVisible && scaleSettingsReturn && destination == TaskDestination.SCALE) { select(TaskDestination.SETTINGS); return }
         if (extractionVisible) { extractionVisible = false; showCurrent() }
+        else if(destination==TaskDestination.SETTINGS && settingsOrigin!=null) select(requireNotNull(settingsOrigin))
         else if (destination != TaskDestination.BREW) select(TaskDestination.BREW)
         else finish()
     }

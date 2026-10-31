@@ -126,6 +126,7 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             CurveActivity::class.java -> TaskDestination.CURVES
             HistoryActivity::class.java -> TaskDestination.HISTORY
             BeanInventoryActivity::class.java -> TaskDestination.BEANS
+            AppSettingsActivity::class.java -> TaskDestination.SETTINGS
             else -> null
         }
         val intent = Intent(context, if (destination == null) type else MainActivity::class.java)
@@ -344,9 +345,14 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
     }
     private fun scale(initial: Activity, evidence: MutableList<String>) {
         var activity = initial
-        val ownerField = ScaleOwnerActivity::class.java.getDeclaredField("owner").apply { isAccessible = true }
-        await { ownerField.get(activity) != null }
-        val service = ownerField.get(activity) as MobileService
+        fun owner(page:Activity)=(page as MainActivity).currentService
+        fun controls(page:Activity):SettingsDeviceControls {
+            val fragment=(page as MainActivity).supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
+            return fragment.javaClass.getDeclaredField("deviceControls").apply {isAccessible=true}.get(fragment) as SettingsDeviceControls
+        }
+        fun rows(page:Activity)=controls(page).javaClass.getDeclaredField("candidates").apply {isAccessible=true}.get(controls(page)) as ViewGroup
+        await { owner(activity) != null }
+        val service = owner(activity) as MobileService
         val snapshotField = MobileService::class.java.getDeclaredField("snapshot").apply { isAccessible = true }
         var original: MobileSnapshot? = null
         val state = service.shotState
@@ -361,11 +367,11 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             "02:00:00:00:10:${index.toString(16).padStart(2, '0')}", "UI-only synthetic scale $index", -50,
             DeviceRole.BOOKOO) }
         fun render(page: Activity) {
-            page.javaClass.getDeclaredMethod("renderScale").apply { isAccessible = true }.invoke(page)
+            controls(page).render(owner(page))
         }
         fun localScroll(page: Activity): ScrollView = page.findViewById(R.id.m8_settings_scroll)
         fun candidateRows(page: Activity) {
-            val buttons = views(field(page, "rows") as View).filterIsInstance<Button>()
+            val buttons = views(rows(page) as View).filterIsInstance<Button>()
             check(buttons.size == 40 && buttons.all { it.tag.toString().startsWith("product/devices/candidate/") })
         }
         var primary: Throwable? = null
@@ -378,28 +384,28 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         }
         try {
             main { snapshotField.set(service, service.snapshot.copy(candidates = fixtures)); render(activity) }
-            await { val rows=field(activity, "rows") as ViewGroup
+            await { val rows=rows(activity)
                 (0 until rows.childCount).count { rows.getChildAt(it).tag?.toString()?.startsWith("product/devices/candidate/")==true } == fixtures.size }
             main { candidateRows(activity) }
             val saved = swipeScroll(activity, localScroll(activity))
             activity = recreate(activity)
-            await { ownerField.get(activity) === service && localScroll(activity).scrollY == saved }
+            await { owner(activity) === service && localScroll(activity).scrollY == saved }
             main {
                 SingleScreenPageChecks.verify(activity)
                 candidateRows(activity)
                 check(service.snapshot.candidates == fixtures && service.snapshot.message === before.message && service.shotState == state)
             }
-            evidence += "DeviceConnectionActivity recreate scrollY=$saved gesture=swipe syntheticCandidates=true noScan=true noConnect=true sameOwner=true"
+            evidence += "SettingsDocument recreate scrollY=$saved gesture=swipe syntheticCandidates=true noScan=true noConnect=true sameOwner=true"
             detailReturn(activity, ScaleSettingsActivity::class.java) {
                 main { activity.startActivity(Intent(activity, ScaleSettingsActivity::class.java)) }
             }
-            await { ownerField.get(activity) === service && localScroll(activity).scrollY == saved }
+            await { owner(activity) === service && localScroll(activity).scrollY == saved }
             main {
                 SingleScreenPageChecks.verify(activity)
                 candidateRows(activity)
                 check(service.snapshot.candidates == fixtures && service.snapshot.message === before.message && service.shotState == state)
             }
-            evidence += "DeviceConnectionActivity manager-navigation-return scrollY=$saved gesture=swipe syntheticCandidates=true noScan=true noConnect=true sameOwner=true"
+            evidence += "SettingsDocument tool-navigation-return scrollY=$saved gesture=swipe syntheticCandidates=true noScan=true noConnect=true sameOwner=true"
         } catch (failure: Throwable) {
             primary = failure
         } finally {
@@ -446,13 +452,13 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
             attempt("cleanup wait-idle") { test.waitForIdleSync() }
         }
         val pages = listOf(CurveActivity::class.java, HistoryActivity::class.java, BeanInventoryActivity::class.java,
-            BeanLedgerActivity::class.java, LegacyCurveActivity::class.java, LegacyHistoryActivity::class.java, DeviceConnectionActivity::class.java)
+            BeanLedgerActivity::class.java, LegacyCurveActivity::class.java, LegacyHistoryActivity::class.java, AppSettingsActivity::class.java)
         try {
             for (type in pages) {
                 try {
                     var activity = open(type)
                     if (type == CurveActivity::class.java) { curve(activity, evidence); continue }
-                    if (activity is DeviceConnectionActivity) { scale(activity, evidence); continue }
+                    if (type == AppSettingsActivity::class.java) { scale(activity, evidence); continue }
                     if (type == HistoryActivity::class.java) {
                         main { check(children(activity).filterIsInstance<TextView>().single {
                             it.text.toString() == activity.getString(R.string.journal_tab) }.performClick()) }

@@ -130,13 +130,14 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             test.runOnMainSync {
                 val settings = page.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
                 val root = requireNotNull(settings.view)
-                val toggle = descendants(root).single { it.tag == "settings-section:machine" }
+                val machineIndex = descendants(root).single { it.tag == "settings/index/machine" }
+                val scaleIndex = descendants(root).single { it.tag == "settings/index/scale" }
                 val summary = descendants(root).single { it.tag == "settings-machine-summary" }
                 val input = descendants(root).filterIsInstance<EditText>().first()
                 val originalDraft = input.text.toString()
                 input.setText("94")
-                toggle.performClick(); check(summary.isShown)
-                toggle.performClick(); check(input.text.toString() == "94")
+                scaleIndex.performClick(); check(summary.isAttachedToWindow)
+                machineIndex.performClick(); check(input.text.toString() == "94")
                 val precision = descendants(root).filterIsInstance<android.widget.Switch>()
                     .single { it.tag == "product/settings/scale/precision" }
                 precision.performClick()
@@ -148,7 +149,7 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 check(page.supportFragmentManager.primaryNavigationFragment is AppSettingsFragment)
                 input.setText(originalDraft)
             }
-            test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_NAVIGATION_PASSED foldDraft=true collapsedStatus=true precisionSaved=true overlayFirst=true scaleOrigin=true noExtraction=true\n") })
+            test.sendStatus(0, Bundle().apply { putString("stream", "SETTINGS_NAVIGATION_PASSED anchorDraft=true persistentStatus=true precisionSaved=true overlayFirst=true scaleOrigin=true noExtraction=true\n") })
         } finally {
             prefs.edit().putBoolean("one_decimal", originalPrecision).commit()
             test.removeMonitor(monitor)
@@ -271,15 +272,16 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             test.runOnMainSync {
                 val settings = activity.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
                 val root = requireNotNull(settings.view)
-                val machineToggle = descendants(root).single { it.tag == "settings-section:machine" }
+                val machineIndex = descendants(root).single { it.tag == "settings/index/machine" }
+                val scaleIndex = descendants(root).single { it.tag == "settings/index/scale" }
                 val machineSummary = descendants(root).single { it.tag == "settings-machine-summary" }
                 val inputs = descendants(root).filterIsInstance<EditText>()
                 check(inputs.isNotEmpty())
                 inputs.first().setText("94")
-                machineToggle.performClick()
-                check(machineSummary.isShown) { "Collapsed machine must retain connection/readback/write feedback" }
-                machineToggle.performClick()
-                check(inputs.first().text.toString() == "94") { "Folding discarded unsent draft" }
+                scaleIndex.performClick()
+                check(machineSummary.isAttachedToWindow) { "Document must retain connection/readback/write feedback" }
+                machineIndex.performClick()
+                check(inputs.first().text.toString() == "94") { "Anchor navigation discarded unsent draft" }
                 activity.openScaleFromSettings()
                 activity.showExtraction()
                 activity.onBackPressedDispatcher.onBackPressed()

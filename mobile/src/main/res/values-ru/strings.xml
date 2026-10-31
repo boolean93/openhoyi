@@ -956,4 +956,9 @@
     <string name="ui_settings">"Настройки"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
     <string name="device_remembered_identity">Сохранённое устройство: %1$s</string>
+    <string name="settings_section_machine">Параметры машины</string>
+    <string name="settings_section_schedule">Ожидание и расписание</string>
+    <string name="settings_section_feedback">Отклик после приготовления</string>
+    <string name="settings_section_maintenance">Обслуживание и диагностика</string>
+    <string name="settings_section_about">О приложении</string>
 </resources>

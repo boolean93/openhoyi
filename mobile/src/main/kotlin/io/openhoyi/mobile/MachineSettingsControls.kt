@@ -43,6 +43,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
     private lateinit var steamTemperatureUnit:TextView
     private val settingsPresentation by lazy { MachineSettingsPresentation(this) }
     private data class ScheduleCard(val heading: TextView, val period: TextView)
+    private var leverModeValue:TextView?=null
+    private var documentMode = false
     var statusChanged: (String) -> Unit = {}
     private val dialogs = mutableListOf<AlertDialog>()
     private var service: MobileService? = null
@@ -93,7 +95,8 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         override fun run() { render(); if (visible) handler.postDelayed(this, 500) }
     }
 
-    fun create(body: LinearLayout, savedInstanceState: Bundle?, embedded: Boolean = false) {
+    fun create(body: LinearLayout, savedInstanceState: Bundle?, embedded: Boolean = false, documentSections: Map<String, LinearLayout>? = null) {
+        documentMode = documentSections != null
         detailsExpanded = savedInstanceState?.getBoolean("settingsExpanded") ?: false
         selectedSettingsSection = savedInstanceState?.getInt("settingsSection") ?: 0
         val style=visual.palette
@@ -285,7 +288,34 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             savedInstanceState?.getString("machineDraft$index")?.let { input.setText(it) }
             input.tag = savedInstanceState?.getString("machineReadback$index")
         }
-        if (embedded) {
+        if (documentSections != null) {
+            body.removeView(controlsPane)
+            overview.visibility = View.GONE
+            temperatureSection.removeView(controls); functionsSection.removeView(functionsCard)
+            controls.removeViewAt(0)
+            controls.getChildAt(controls.childCount-1).visibility = View.GONE
+            temperatureRows.take(3).forEach { row -> row.background=null; row.setPadding(0,dp(8),0,dp(8)); (row.layoutParams as LinearLayout.LayoutParams).topMargin=0 }
+            body.addView(controls,LinearLayout.LayoutParams(-1,-2))
+            val pairs=listOf(brewHeatingButton to R.string.setting_brew_heating,steamHeatingButton to R.string.setting_steam_heating,
+                lightButton to R.string.setting_light,waterSupplyButton to R.string.machine_settings_supply_label,runModeButton to R.string.machine_settings_run_mode_label)
+            pairs.forEach {(button,label)->
+                functionsCard.removeView(button);button.asTaskTextAction();button.gravity=Gravity.END or Gravity.CENTER_VERTICAL
+                visual.palette.add(functionsCard,visual.pair(visual.palette.text(getString(label),TaskProductVisualStyle.body),button,"settings/machine/function/$label"));visual.divider(functionsCard)
+            }
+            leverModeValue=text(functionsCard,getString(R.string.settings_lever_missing),14)
+            val lever=action(functionsCard,getString(R.string.home_lever_button)) {
+                if(BuildConfig.MOCK_MODE){Toast.makeText(host,R.string.home_lever_mock,Toast.LENGTH_SHORT).show();return@action}
+                val modes=listOf(MachineSettingChange.LeverMode(false,false),MachineSettingChange.LeverMode(true,false),MachineSettingChange.LeverMode(true,true))
+                val dialog=AlertDialog.Builder(host).setTitle(R.string.home_lever_choose_title)
+                    .setItems(arrayOf(getString(R.string.home_lever_manual),getString(R.string.home_lever_pressure),getString(R.string.home_lever_flow))) {_,index->confirm(modes[index])}.create()
+                dialogs+=dialog;AppDialog.show(dialog)
+            }
+            controlButtons+=lever
+            body.addView(functionsCard,LinearLayout.LayoutParams(-1,-2))
+            listOf(settingsToggle,settings).forEach { view -> (view.parent as? android.view.ViewGroup)?.removeView(view); body.addView(view) }
+            listOf(standbySection,sleepSection).forEach { section -> controlsPane.removeView(section);section.visibility=View.VISIBLE;documentSections.getValue("schedule").addView(section) }
+            controlsPane.removeView(maintenanceSection);maintenanceSection.visibility=View.VISIBLE;documentSections.getValue("maintenance").addView(maintenanceSection)
+        } else         if (embedded) {
             overview.visibility = View.GONE
             tabsScroll.visibility = View.GONE
             settingSections.forEachIndexed { index, section -> section.visibility = if (index < 2) View.VISIBLE else View.GONE }
@@ -482,6 +512,17 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         runModeButton.text = getString(R.string.setting_run_mode_status,
             getString(if (snapshot.settings?.flags?.and(0x04) == 0x04)
                 R.string.setting_run_studio else R.string.setting_run_cafe))
+        leverModeValue?.text=settingsPresentation.leverMode(snapshot.settings)
+        if(documentMode && snapshot.settings != null) {
+            brewHeatingButton.setText(if(snapshot.settings?.brewHeating==true)R.string.setting_on else R.string.setting_off)
+            steamHeatingButton.setText(if(snapshot.settings?.steamHeating==true)R.string.setting_on else R.string.setting_off)
+            lightButton.setText(if(snapshot.settings?.flags?.and(0x08)==0x08)R.string.setting_on else R.string.setting_off)
+            waterSupplyButton.setText(if(snapshot.settings?.flags?.and(0x02)==0x02)R.string.setting_water_piped else R.string.setting_water_tank)
+            runModeButton.setText(if(snapshot.settings?.flags?.and(0x04)==0x04)R.string.setting_run_studio else R.string.setting_run_cafe)
+        }
+        if(documentMode && snapshot.settings == null) {
+            listOf(brewHeatingButton,steamHeatingButton,lightButton,waterSupplyButton,runModeButton).forEach {it.setText(R.string.settings_unknown)}
+        }
         sleepScheduleButton.setText(when (snapshot.settings?.flags?.and(0x01)) {
             1 -> R.string.setting_sleep_schedule_on
             0 -> R.string.setting_sleep_schedule_off

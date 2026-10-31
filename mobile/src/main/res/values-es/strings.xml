@@ -956,4 +956,9 @@
     <string name="ui_settings">"Ajustes"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
     <string name="device_remembered_identity">Dispositivo guardado: %1$s</string>
+    <string name="settings_section_machine">Parámetros de la máquina</string>
+    <string name="settings_section_schedule">Espera y horarios</string>
+    <string name="settings_section_feedback">Comentarios de preparación</string>
+    <string name="settings_section_maintenance">Mantenimiento y diagnóstico</string>
+    <string name="settings_section_about">Acerca de</string>
 </resources>

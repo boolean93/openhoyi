@@ -954,5 +954,10 @@
   "task_shell_scale_manually_disconnected": "Disconnected manually",
   "live_pressure_pause": "Paused",
   "live_pressure_pause_explanation": "The pressure trace uses a zero baseline for the pause phase; this is not a measured zero pressure.",
-  "device_remembered_identity": "Remembered device: %1$s"
+  "device_remembered_identity": "Remembered device: %1$s",
+  "settings_section_machine": "Machine parameters",
+  "settings_section_schedule": "Standby and schedules",
+  "settings_section_feedback": "Brew feedback",
+  "settings_section_maintenance": "Maintenance and diagnostics",
+  "settings_section_about": "About"
 }

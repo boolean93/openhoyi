@@ -116,7 +116,7 @@ internal class AdvancedPageChecks(private val test: Instrumentation) {
             page(BeanEntryActivity::class.java),
             page(BeanLedgerActivity::class.java).putExtra(BeanBatchActivity.BATCH_ID, batch.id),
             page(BeanPreparationActivity::class.java),
-            page(ScaleActivity::class.java), page(DeviceConnectionActivity::class.java), page(ScaleSettingsActivity::class.java),
+            page(ScaleActivity::class.java), page(AppSettingsActivity::class.java), page(ScaleSettingsActivity::class.java),
             page(ScaleActivity::class.java).putExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE, true),
             page(BrewReviewActivity::class.java).putExtra(BrewReviewActivity.SHOT_ID, observations[0].id),
             page(BrewComparisonActivity::class.java).putExtra(BrewComparisonActivity.FIRST_SHOT_ID, observations[0].id)

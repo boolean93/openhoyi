@@ -956,4 +956,9 @@
     <string name="ui_settings">"設定"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
     <string name="device_remembered_identity">記憶済みデバイス：%1$s</string>
+    <string name="settings_section_machine">マシン設定</string>
+    <string name="settings_section_schedule">待機とスケジュール</string>
+    <string name="settings_section_feedback">抽出フィードバック</string>
+    <string name="settings_section_maintenance">メンテナンスと診断</string>
+    <string name="settings_section_about">アプリについて</string>
 </resources>

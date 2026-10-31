@@ -956,4 +956,9 @@
     <string name="ui_settings">"การตั้งค่า"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
     <string name="device_remembered_identity">อุปกรณ์ที่บันทึกไว้: %1$s</string>
+    <string name="settings_section_machine">พารามิเตอร์เครื่อง</string>
+    <string name="settings_section_schedule">สแตนด์บายและกำหนดเวลา</string>
+    <string name="settings_section_feedback">ผลตอบรับการชง</string>
+    <string name="settings_section_maintenance">การบำรุงรักษาและการวินิจฉัย</string>
+    <string name="settings_section_about">เกี่ยวกับ</string>
 </resources>

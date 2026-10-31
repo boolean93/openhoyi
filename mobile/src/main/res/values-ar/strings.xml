@@ -956,4 +956,9 @@
     <string name="ui_settings">"الإعدادات"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
     <string name="device_remembered_identity">الجهاز المحفوظ: %1$s</string>
+    <string name="settings_section_machine">إعدادات الآلة</string>
+    <string name="settings_section_schedule">الاستعداد والجداول</string>
+    <string name="settings_section_feedback">تعليقات التحضير</string>
+    <string name="settings_section_maintenance">الصيانة والتشخيص</string>
+    <string name="settings_section_about">حول</string>
 </resources>

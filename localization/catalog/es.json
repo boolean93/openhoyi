@@ -954,5 +954,10 @@
   "task_shell_scale_manually_disconnected": "Desconectada manualmente",
   "live_pressure_pause": "Pausa",
   "live_pressure_pause_explanation": "Durante la pausa, la curva de presión usa una base cero; no indica una presión medida de cero.",
-  "device_remembered_identity": "Dispositivo guardado: %1$s"
+  "device_remembered_identity": "Dispositivo guardado: %1$s",
+  "settings_section_machine": "Parámetros de la máquina",
+  "settings_section_schedule": "Espera y horarios",
+  "settings_section_feedback": "Comentarios de preparación",
+  "settings_section_maintenance": "Mantenimiento y diagnóstico",
+  "settings_section_about": "Acerca de"
 }

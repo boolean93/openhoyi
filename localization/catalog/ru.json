@@ -954,5 +954,10 @@
   "task_shell_scale_manually_disconnected": "Отключено вручную",
   "live_pressure_pause": "Пауза",
   "live_pressure_pause_explanation": "Во время паузы линия давления показана на нулевой базе; это не измеренное нулевое давление.",
-  "device_remembered_identity": "Сохранённое устройство: %1$s"
+  "device_remembered_identity": "Сохранённое устройство: %1$s",
+  "settings_section_machine": "Параметры машины",
+  "settings_section_schedule": "Ожидание и расписание",
+  "settings_section_feedback": "Отклик после приготовления",
+  "settings_section_maintenance": "Обслуживание и диагностика",
+  "settings_section_about": "О приложении"
 }

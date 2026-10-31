@@ -954,5 +954,10 @@
   "task_shell_scale_manually_disconnected": "فُصل يدويًا",
   "live_pressure_pause": "توقف مؤقت",
   "live_pressure_pause_explanation": "يستخدم منحنى الضغط خط أساس صفريًا أثناء التوقف المؤقت؛ ولا يعني ذلك أن الضغط المقاس يساوي صفرًا.",
-  "device_remembered_identity": "الجهاز المحفوظ: %1$s"
+  "device_remembered_identity": "الجهاز المحفوظ: %1$s",
+  "settings_section_machine": "إعدادات الآلة",
+  "settings_section_schedule": "الاستعداد والجداول",
+  "settings_section_feedback": "تعليقات التحضير",
+  "settings_section_maintenance": "الصيانة والتشخيص",
+  "settings_section_about": "حول"
 }

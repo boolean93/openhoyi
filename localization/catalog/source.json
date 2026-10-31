@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "36b3ac715028c8396cb20a63f7d84c2d040e22081d37faf59d60cdd38d364d25",
+  "sha256": "9a11ea06adfb73dd7e51e7fd12821ba6414275b3b2ea322439b9a02292e16015",
   "strings": {
     "app_name": "OpenHOYI Alpha",
     "theme_dark_mode": "深色模式",
@@ -957,6 +957,11 @@
     "task_shell_scale_manually_disconnected": "已断开",
     "live_pressure_pause": "暂停",
     "live_pressure_pause_explanation": "暂停阶段的压力线显示为零基线，不表示实测压力为零",
-    "device_remembered_identity": "已记设备：%1$s"
+    "device_remembered_identity": "已记设备：%1$s",
+    "settings_section_machine": "机器参数",
+    "settings_section_schedule": "待机与计划",
+    "settings_section_feedback": "萃取反馈",
+    "settings_section_maintenance": "维护与诊断",
+    "settings_section_about": "关于"
   }
 }

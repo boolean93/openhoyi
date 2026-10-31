@@ -956,4 +956,9 @@
     <string name="ui_settings">"설정"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
     <string name="device_remembered_identity">저장된 기기: %1$s</string>
+    <string name="settings_section_machine">머신 설정</string>
+    <string name="settings_section_schedule">대기 및 일정</string>
+    <string name="settings_section_feedback">추출 피드백</string>
+    <string name="settings_section_maintenance">유지보수 및 진단</string>
+    <string name="settings_section_about">정보</string>
 </resources>

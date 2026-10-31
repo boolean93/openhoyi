@@ -76,6 +76,13 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
     private fun root(activity: Activity): View = activity.findViewById(android.R.id.content)
     private fun field(owner: Any, name: String): Any? {
         val page = (owner as? MainActivity)?.supportFragmentManager?.primaryNavigationFragment
+        if(owner is MainActivity && page is AppSettingsFragment) {
+            if(name=="owner")return owner.currentService
+            if(name=="rows") {
+                val controls=page.javaClass.getDeclaredField("deviceControls").apply {isAccessible=true}.get(page) as SettingsDeviceControls
+                return controls.javaClass.getDeclaredField("candidates").apply {isAccessible=true}.get(controls)
+            }
+        }
         val target = page?.takeIf { runCatching { it.javaClass.getDeclaredField(name) }.isSuccess } ?: owner
         var type: Class<*>? = target.javaClass
         while(type != null) {
@@ -547,9 +554,8 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                 JSONObject().put("class",view.javaClass.name).put("hasWindowFocus",view.hasWindowFocus()).put("nodes",JSONArray(nodes(view).filter {it.tag is String || it is TextView}.map(::observation)))
             }))
             .put("productLayoutEvidence",when(activity) {
-                is MainActivity->JSONObject((MainPageTestHost(test,activity).active("root:SCALE") as ScaleFragment).productLayoutEvidence.toString())
+                is MainActivity->(activity.supportFragmentManager.primaryNavigationFragment as? ScaleFragment)?.let {JSONObject(it.productLayoutEvidence.toString())} ?: JSONObject.NULL
                 is ScaleActivity->JSONObject(activity.productLayoutEvidence.toString())
-                is DeviceConnectionActivity->JSONObject(activity.productLayoutEvidence.toString())
                 else->JSONObject.NULL
             })
     }
@@ -557,6 +563,9 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         val intent=Intent(context,type).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);extras(intent)
         if(type==ScaleActivity::class.java && !intent.getBooleanExtra(ScaleActivity.EXTRA_CAPTURE_BEAN_DOSE,false))
             return MainPageTestHost.launch(test,TaskDestination.SCALE).activity
+        if(type==DeviceConnectionActivity::class.java) return MainPageTestHost.launch(test,TaskDestination.SETTINGS).activity.also { page ->
+            main {page.openSettingsSection("devices")};test.waitForIdleSync()
+        }
         return test.startActivitySync(intent).also {activity->await("${type.simpleName} actual window ready") {
             activity.hasWindowFocus() && root(activity).isLaidOut && !root(activity).isLayoutRequested
         }}
@@ -574,6 +583,12 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         } finally {test.removeMonitor(monitor)}
     }
     private fun render(activity:Activity) {main {
+        if(activity is MainActivity && activity.supportFragmentManager.primaryNavigationFragment is AppSettingsFragment) {
+            val page=activity.supportFragmentManager.primaryNavigationFragment as AppSettingsFragment
+            val controls=page.javaClass.getDeclaredField("deviceControls").apply {isAccessible=true}.get(page) as SettingsDeviceControls
+            controls.render(activity.currentService)
+            return@main
+        }
         val owner=(activity as? MainActivity)?.let {MainPageTestHost(test,it).active("root:SCALE")} ?: activity
         owner.javaClass.getDeclaredMethod("renderScale").apply {isAccessible=true}.invoke(owner)
     }}
@@ -1448,25 +1463,23 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             val refs=captureRefs(pageRoot,captureFolder)
             proofs.put(JSONObject().put("case",name).put("geometryRef",refs.getJSONObject("geometryRef"))
                 .put("frameSyncRef",refs.getJSONObject("frameSyncRef")));persist(false)}
-        val legacyMonitor = test.addMonitor(DeviceConnectionActivity::class.java.name, null, false)
-        var redirected: Activity? = null
-        try {
-            main { activity.startActivity(Intent(activity, ScaleConnectionActivity::class.java)) }
-            redirected = requireNotNull(test.waitForMonitorWithTimeout(legacyMonitor, 10000))
-            await("legacy entry forwards to connection manager") { redirected!!.hasWindowFocus() }
-            main { (redirected!! as DeviceConnectionActivity).onBackPressedDispatcher.onBackPressed() }
-            await("legacy back returns to original page without duplicate legacy window") { activity.hasWindowFocus() }
-            state("legacy-entry-return")
-        } finally { test.removeMonitor(legacyMonitor); redirected?.let { if (!it.isDestroyed) main { it.finish() } } }
+        val host=activity as MainActivity
+        val beforeOwner=host.currentService
+        main {host.startActivity(Intent(host,ScaleConnectionActivity::class.java))}
+        await("legacy route returns to same settings host") {host.hasWindowFocus() && host.supportFragmentManager.primaryNavigationFragment is AppSettingsFragment}
+        main {check(host.currentService===beforeOwner);host.onBackPressedDispatcher.onBackPressed()}
+        await("legacy route adds no extra page stack") {host.supportFragmentManager.primaryNavigationFragment is HomeFragment}
+        main {host.openSettingsSection("devices")};test.waitForIdleSync()
+        state("legacy-route-single-host")
         fun checkCandidates(values: List<io.openhoyi.bluetooth.DiscoveredDevice>) {
             values.forEach { candidate ->
                 val row = tagged(activity, "product/devices/candidate/${candidate.address}/connect") as Button
                 reveal(activity, row)
                 main {
-                    check(row.text.contains(candidate.advertisedName) && row.text.contains(candidate.address))
-                    check(row.text.contains(activity.getString(R.string.scale_title)))
+                    val text=nodes(row.parent as View).filterIsInstance<TextView>().joinToString(" ") {it.text}
+                    check(text.contains(candidate.advertisedName) && text.contains(candidate.address))
                     if (candidate.scaleProtocolId == io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
-                        check(row.text.contains(activity.getString(R.string.scale_read_only_live)))
+                        check(text.contains(activity.getString(R.string.scale_read_only_live)))
                 }
             }
         }
@@ -1474,11 +1487,11 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         setCandidates(scope,activity,emptyList());state("empty")
         setCandidates(scope,activity,candidates(3,true));checkCandidates(candidates(3,true));state("long-name")
         setCandidates(scope,activity,candidates(40))
-        var scroll=tagged(activity,"product/settings/devices/scroll") as ScrollView
+        var scroll=tagged(activity,"settings/document/scroll") as ScrollView
         main {check(scroll.canScrollVertically(1))}
         val beforeFolder=File(folder,"forty-gesture").apply {check(isDirectory || mkdirs())}
         val scrollbarSamples=JSONArray();val scrollbarLimit=32
-        val scrollbarDiagnostic=JSONObject().put("viewTag","product/settings/devices/scroll")
+        val scrollbarDiagnostic=JSONObject().put("viewTag","settings/document/scroll")
             .put("sampleLimit",scrollbarLimit).put("samples",scrollbarSamples)
             .put("sdkInt",Build.VERSION.SDK_INT).put("hardware",Build.HARDWARE)
             .put("device",Build.DEVICE).put("model",Build.MODEL)
@@ -1520,7 +1533,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         preRecreateRefs=captureRefs(pageRoot,beforeFolder);persist(false)
         main {check(scroll.scrollY==saved)}
         activity=recreate(activity);render(activity);frames.committedFrame(root(activity))
-        scroll=tagged(activity,"product/settings/devices/scroll") as ScrollView
+        scroll=tagged(activity,"settings/document/scroll") as ScrollView
         main {check(scroll.scrollY==saved);check(nodes(field(activity,"rows") as View).filterIsInstance<Button>().size==40)}
         state("forty-recreated")
         val monitor=test.addMonitor(ScaleSettingsActivity::class.java.name,null,false)

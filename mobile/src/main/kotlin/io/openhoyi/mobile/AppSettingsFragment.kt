@@ -24,37 +24,26 @@ class AppSettingsFragment : Fragment() {
     }
     private var updatingTheme = false
     private var machineControls: MachineSettingsControls? = null
-    private val expanded = mutableMapOf<String, Boolean>()
+    private var document: SettingsDocumentLayout? = null
+    private var documentState: Bundle? = null
+    private var pendingSection: String? = null
     private var machineState: Bundle? = null
+    private var deviceControls: SettingsDeviceControls? = null
+    private var diagnosticState: TextView? = null
+    private val permissions = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (result.isNotEmpty() && result.values.all { it }) deviceControls?.scan()
+        else deviceControls?.error(getString(R.string.home_permission_required))
+    }
+    private val bluetooth = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) deviceControls?.scan()
+        else deviceControls?.error(getString(R.string.home_permission_required))
+    }
+    fun openSection(key: String) { val current=document;if(current==null)pendingSection=key else current.navigate(key) }
     override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        expanded.forEach { (key, value) -> outState.putBoolean("expanded:$key", value) }
+        document?.save(outState)
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
         outState.putBundle("machineControls", machineState)
-    }
-    private fun group(activity: MainActivity, body: LinearLayout, title: String, visual: SettingsVisualStyle, key: String, open: Boolean = false, summary: TextView? = null): LinearLayout {
-        val shell = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-        body.addView(shell, LinearLayout.LayoutParams(-1, -2))
-        val content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
-        val toggle = HoyiUi.button(activity, shell, title) {}.apply {
-            minimumHeight = visual.palette.dp(56)
-            gravity = Gravity.START or Gravity.CENTER_VERTICAL
-            tag = "settings-section:$key"
-        }
-        shell.addView(content, LinearLayout.LayoutParams(-1, -2))
-        fun refresh() {
-            val showing = expanded[key] ?: open
-            content.visibility = if (showing) View.VISIBLE else View.GONE
-            toggle.text = "$title  ${if (showing) "⌃" else "⌄"}"
-            toggle.isSelected = showing
-            summary?.let { view ->
-                (view.parent as? ViewGroup)?.removeView(view)
-                if (showing) content.addView(view, minOf(1, content.childCount)) else shell.addView(view, 1)
-            }
-        }
-        toggle.setOnClickListener { expanded[key] = !(expanded[key] ?: open); refresh() }
-        refresh()
-        return content
+        super.onSaveInstanceState(outState)
     }
     private var feedbackCard: BrewFeedbackPreferencesCard? = null
     private var languageCard: AppLanguagePreferencesCard? = null
@@ -68,6 +57,22 @@ class AppSettingsFragment : Fragment() {
     private var scaleCapabilities: TextView? = null
     private val serviceObserver: (MobileService?) -> Unit = {
         service = it
+        deviceControls?.render(it)
+        fun badge(state:String?):String?=when(state) {
+            "UNKNOWN"->getString(R.string.task_shell_machine_unknown)
+            "FAILED"->getString(R.string.home_setting_failed)
+            "WRITING"->getString(R.string.home_setting_writing)
+            "WAITING_READBACK","WAITING_ZERO"->getString(R.string.home_setting_waiting)
+            else->null
+        }
+        document?.setStatus("machine",badge(it?.settingWriteState?.name))
+        document?.setStatus("schedule",badge(it?.scheduleWriteState?.name))
+        document?.setStatus("maintenance",badge(it?.cupResetState?.name))
+        val current = it?.snapshot
+        diagnosticState?.text = listOf(
+            FirmwarePresentation(requireContext()).describe(it?.coffeeFirmware, current?.coffeeState ?: io.openhoyi.session.DeviceState.DISCONNECTED, BuildConfig.MOCK_MODE),
+            MachineAlarms(requireContext()).describe(current?.alarmBits, current?.alarmAt, android.os.SystemClock.elapsedRealtime())
+        ).joinToString("\n")
         val snapshot = it?.snapshot
         val actual = snapshot?.scaleCapabilities?.takeIf { snapshot.scaleState == io.openhoyi.session.DeviceState.READY && !BuildConfig.MOCK_MODE }
         scaleCapabilities?.text = if (actual == null) getString(R.string.scale_capability_no_device) else
@@ -97,30 +102,31 @@ class AppSettingsFragment : Fragment() {
         val activity = requireActivity() as MainActivity
         val visual = SettingsVisualStyle(activity)
         val style = visual.palette
-        val (root, body) = visual.fragmentPage(activity, R.string.app_settings_title, R.string.app_settings_subtitle, 960, "app")
-        // Keep the shared tools host while the navigation tab names this root page.
-        val header = body.getChildAt(0) as LinearLayout
-        header.removeViewAt(0)
-        header.gravity = Gravity.END or Gravity.CENTER_VERTICAL
-        header.minimumHeight = 0
-        header.setPadding(0, 0, 0, 0)
-        (header.layoutParams as LinearLayout.LayoutParams).apply { topMargin = 0; bottomMargin = 0 }
-        listOf("machine", "scale", "appearance", "feedback", "info", "diagnostics").forEach { key ->
-            if (state?.containsKey("expanded:$key") == true) expanded[key] = state.getBoolean("expanded:$key")
+        val root = SettingsDocumentLayout(activity, state ?: documentState).also { document=it }
+        val sections = linkedMapOf(
+            "devices" to root.section("devices", getString(R.string.home_device_connection)),
+            "machine" to root.section("machine", getString(R.string.settings_section_machine)),
+            "schedule" to root.section("schedule", getString(R.string.settings_section_schedule)),
+            "scale" to root.section("scale", getString(R.string.scale_title)),
+            "appearance" to root.section("appearance", getString(R.string.settings_appearance_language)),
+            "feedback" to root.section("feedback", getString(R.string.settings_section_feedback)),
+            "maintenance" to root.section("maintenance", getString(R.string.settings_section_maintenance)),
+            "about" to root.section("about", getString(R.string.settings_section_about)))
+        deviceControls = SettingsDeviceControls(activity, visual, { permissions.launch(it) }, {
+            bluetooth.launch(Intent(android.bluetooth.BluetoothAdapter.ACTION_REQUEST_ENABLE))
+        }).also { controls ->
+            controls.errorChanged={ failed->document?.setStatus("devices",if(failed)getString(R.string.settings_state_unknown) else null) }
+            controls.create(sections.getValue("devices"))
         }
         machineState = state?.getBundle("machineControls") ?: machineState
-        HoyiUi.button(activity, body, getString(R.string.home_device_connection)) {
-            startActivity(Intent(activity, DeviceConnectionActivity::class.java))
-        }.apply { minimumHeight = style.dp(48); asTaskTextAction(); gravity = Gravity.START or Gravity.CENTER_VERTICAL }
-        val machine = group(activity, body, getString(R.string.machine_settings_title), visual, "machine", true)
-        val machineSummary = style.text("", TaskProductVisualStyle.auxiliary, "settings-machine-summary", true)
-        (machine.parent as LinearLayout).addView(machineSummary, 1)
-        machineControls = MachineSettingsControls(activity).also {
-            it.statusChanged = { value -> machineSummary.text = value }
-            it.create(machine, machineState, embedded = true)
+        val machine = sections.getValue("machine")
+        val machineSummary=style.text("",TaskProductVisualStyle.auxiliary,"settings-machine-summary",true).also {style.add(machine,it,8)}
+        machineControls=MachineSettingsControls(activity).also {
+            it.statusChanged={ value->machineSummary.text=value }
+            it.create(machine,machineState,embedded=true,documentSections=sections)
         }
-        scaleCapabilities = style.text(getString(R.string.scale_capability_no_device), TaskProductVisualStyle.auxiliary, secondary = true)
-        val scale = group(activity, body, getString(R.string.scale_title), visual, "scale", true, scaleCapabilities)
+        val scale=sections.getValue("scale")
+        scaleCapabilities=style.text(getString(R.string.scale_capability_no_device),TaskProductVisualStyle.auxiliary,secondary=true)
         val prefs = activity.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)
         scale.addView(Switch(activity).apply {
             text = getString(R.string.scale_precision_short)
@@ -129,13 +135,15 @@ class AppSettingsFragment : Fragment() {
             tag = "product/settings/scale/precision"
             setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("one_decimal", checked).apply() }
         })
-        scaleCapabilities?.let { scale.removeView(it); scale.addView(it, 1) }
+        scaleCapabilities?.let { scale.addView(it) }
         style.add(scale, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         HoyiUi.button(activity, scale, getString(R.string.scale_title)) { activity.openScaleFromSettings() }
-        HoyiUi.button(activity, scale, getString(R.string.scale_capabilities_title)) {
-            startActivity(Intent(activity, ScaleSettingsActivity::class.java))
+        listOf(R.string.scale_timer_title to R.string.scale_timer_help, R.string.scale_operation_limits to R.string.scale_active_guard,
+            R.string.scale_protocol_support to R.string.scale_offline_evidence).forEach { (title, detail) ->
+            style.add(scale,style.text(getString(title),TaskProductVisualStyle.action),16)
+            style.add(scale,style.text(getString(detail),TaskProductVisualStyle.auxiliary,secondary=true),8)
         }
-        val theme = group(activity, body, getString(R.string.settings_appearance_language), visual, "appearance")
+        val theme = sections.getValue("appearance")
         val appearance = activity.getSharedPreferences("appearance", android.content.Context.MODE_PRIVATE)
         themeError = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/theme/error").apply {
             setTextColor(activity.getColor(R.color.mobile_danger)); visibility = View.GONE
@@ -173,8 +181,8 @@ class AppSettingsFragment : Fragment() {
         languageCard = AppLanguagePreferencesCard(activity, theme, embedded = true, visual = visual) {
             service?.refreshNotificationDisplay(); activity.recreate()
         }
-        feedbackCard = BrewFeedbackPreferencesCard(activity, group(activity, body, getString(R.string.feedback_enabled), visual, "feedback"), visual)
-        val info = group(activity, body, getString(R.string.application_info), visual, "info")
+        feedbackCard = BrewFeedbackPreferencesCard(activity, sections.getValue("feedback"), visual)
+        val info = sections.getValue("about")
         fun infoRow(key: String, label: Int, value: String) {
             if (info.childCount > 0) settingsDivider(activity, info, visual)
             val pair = visual.pair(
@@ -187,7 +195,8 @@ class AppSettingsFragment : Fragment() {
         infoRow("version", R.string.settings_info_version, getString(R.string.settings_info_version_value, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE))
         infoRow("mode", R.string.settings_info_mode, getString(if (BuildConfig.MOCK_MODE) R.string.application_mode_mock else R.string.application_mode_alpha))
         infoRow("package", R.string.settings_info_package, BuildConfig.APPLICATION_ID)
-        val diagnostics = group(activity, body, getString(R.string.settings_diagnostics_devices), visual, "diagnostics")
+        val diagnostics = sections.getValue("maintenance")
+        diagnosticState=style.text("",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(diagnostics,it,16)}
         style.add(diagnostics, style.text(getString(R.string.app_settings_export_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         HoyiUi.button(activity, diagnostics, getString(R.string.app_settings_export)) {
             exportGeneration++
@@ -197,6 +206,7 @@ class AppSettingsFragment : Fragment() {
         exportStatus = style.text("", TaskProductVisualStyle.auxiliary, "product/settings/app/export/result").apply {
             visibility = View.GONE; accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         }.also { style.add(diagnostics, it, 8) }
+        pendingSection?.let { root.navigate(it); pendingSection=null }
         return root
     }
 
@@ -209,6 +219,7 @@ class AppSettingsFragment : Fragment() {
     }
     override fun onPause() {
         refreshHandler.removeCallbacks(refreshCapabilities)
+        deviceControls?.close()
         machineControls?.stop()
         feedbackCard?.pausePreview(); feedbackCard?.stop(); languageCard?.close()
         (requireActivity() as MainActivity).removeServiceObserver(serviceObserver)
@@ -222,6 +233,8 @@ class AppSettingsFragment : Fragment() {
     override fun onDestroyView() {
         feedbackCard?.stop(); languageCard?.close()
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
+        documentState=Bundle().also { document?.save(it) }
+        document=null; deviceControls?.close(); deviceControls=null
         machineControls = null
         feedbackCard = null; languageCard = null; exportStatus = null
         super.onDestroyView()

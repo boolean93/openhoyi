@@ -133,7 +133,7 @@ internal class SingleScreenWindowRun(private val test: Instrumentation) {
                 .putExtra(BrewComparisonActivity.SECOND_SHOT_ID, shotIds[1]),
             page(CurveEditorActivity::class.java), page(CurveShareActivity::class.java).putExtra(CurveShareActivity.CURVE_ID, curve.id),
             page(CurveImportActivity::class.java), page(CurveImportPreviewActivity::class.java).putExtra(CurveImportPreviewActivity.DOCUMENT, document),
-            page(ScaleActivity::class.java), page(DeviceConnectionActivity::class.java),
+            page(ScaleActivity::class.java), page(AppSettingsActivity::class.java),
             page(LegacyCurveActivity::class.java), page(LegacyHistoryActivity::class.java), page(LegacyHistoryDetailActivity::class.java).putExtra("legacyId", legacyId),
         )
         check(pages.size == 21)

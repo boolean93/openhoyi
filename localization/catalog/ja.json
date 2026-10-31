@@ -954,5 +954,10 @@
   "task_shell_scale_manually_disconnected": "手動で切断済み",
   "live_pressure_pause": "一時停止",
   "live_pressure_pause_explanation": "停止区間の圧力線はゼロ基準線で表示します。実測圧力がゼロという意味ではありません。",
-  "device_remembered_identity": "記憶済みデバイス：%1$s"
+  "device_remembered_identity": "記憶済みデバイス：%1$s",
+  "settings_section_machine": "マシン設定",
+  "settings_section_schedule": "待機とスケジュール",
+  "settings_section_feedback": "抽出フィードバック",
+  "settings_section_maintenance": "メンテナンスと診断",
+  "settings_section_about": "アプリについて"
 }

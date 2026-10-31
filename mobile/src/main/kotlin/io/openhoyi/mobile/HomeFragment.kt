@@ -546,7 +546,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             }
     }
     private fun showDevicePanel() {
-        startActivity(Intent(host, DeviceConnectionActivity::class.java))
+        host.openSettingsSection("devices")
     }
     override fun onResume() {
         super.onResume()

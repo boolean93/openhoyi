@@ -954,5 +954,10 @@
   "task_shell_scale_manually_disconnected": "수동 연결 해제",
   "live_pressure_pause": "일시 정지",
   "live_pressure_pause_explanation": "정지 구간의 압력선은 영점 기준선으로 표시되며, 실제 측정 압력이 0이라는 뜻은 아닙니다.",
-  "device_remembered_identity": "저장된 기기: %1$s"
+  "device_remembered_identity": "저장된 기기: %1$s",
+  "settings_section_machine": "머신 설정",
+  "settings_section_schedule": "대기 및 일정",
+  "settings_section_feedback": "추출 피드백",
+  "settings_section_maintenance": "유지보수 및 진단",
+  "settings_section_about": "정보"
 }
