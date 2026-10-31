@@ -170,10 +170,10 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         if (!liveCompactChrome) return
         removeView(header)
         headerContent.setPadding(0,liveHeaderHeightPx,0,0)
-        compactTop.addView(header, android.widget.FrameLayout.LayoutParams(-1,-1).apply { marginEnd = dp(112f).toInt() })
+        compactTop.addView(header, android.widget.FrameLayout.LayoutParams(-1,-1).apply { marginEnd = dp(128f).toInt() })
         val pressure = requireNotNull(liveValues[ChartMetric.PRESSURE])
         gauge = LivePressureGauge(context,requireNotNull(visual),pressure.first,pressure.second).also {
-            compactTop.addView(it,android.widget.FrameLayout.LayoutParams(dp(96f).toInt(),dp(96f).toInt(),android.view.Gravity.TOP or android.view.Gravity.END))
+            compactTop.addView(it,android.widget.FrameLayout.LayoutParams(dp(112f).toInt(),dp(96f).toInt(),android.view.Gravity.TOP or android.view.Gravity.END))
         }
         addView(compactTop,0,LayoutParams(-1,dp(96f).toInt()))
         liveTiles.forEach { (metric,tile) ->
@@ -213,7 +213,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
         if (liveCompactChrome) {
             if (headerContent.paddingTop != liveHeaderHeightPx) headerContent.setPadding(0,liveHeaderHeightPx,0,0)
-            val innerWidth = (MeasureSpec.getSize(widthMeasureSpec)-dp(112f).toInt()).coerceAtLeast(0)
+            val innerWidth = (MeasureSpec.getSize(widthMeasureSpec)-dp(128f).toInt()).coerceAtLeast(0)
             header.measure(MeasureSpec.makeMeasureSpec(innerWidth,MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED))
             val chromeHeight = maxOf(dp(96f).toInt(),header.measuredHeight,liveHeaderHeightPx+dp(48f).toInt())

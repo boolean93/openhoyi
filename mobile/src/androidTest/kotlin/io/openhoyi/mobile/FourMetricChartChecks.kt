@@ -221,6 +221,31 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                 }
                 descendants(liveLegend).filterIsInstance<android.widget.TextView>().filter { it.text.isNotBlank() && it.visibility != View.GONE }
                     .forEach { LanguageUiLayoutChecks.textFits(it, "font1.3 single metric row") }
+                val liveGauge = requireNotNull(enlargedLive.findViewWithTag<LivePressureGauge>("product/extraction/pressure-gauge"))
+                val gaugeBitmap = Bitmap.createBitmap(liveGauge.width,liveGauge.height,Bitmap.Config.ARGB_8888)
+                try {
+                    check(liveGauge.width==HoyiUi.dp(activity,112) && liveGauge.height==HoyiUi.dp(activity,96))
+                    liveGauge.draw(android.graphics.Canvas(gaugeBitmap))
+                    val glyphs = (0 until liveGauge.drawingEvidence.length()).map { liveGauge.drawingEvidence.getJSONObject(it) }
+                    val ticks = glyphs.filter { it.getString("role")=="tick" }
+                    check(ticks.size==3 && ticks.map { it.getString("text") }==listOf("0","6","12"))
+                    val values = glyphs.filter { it.getString("role") in setOf("number","unit") }
+                    fun bounds(item: org.json.JSONObject): android.graphics.RectF {
+                        val b=item.getJSONArray("boundsPx")
+                        return android.graphics.RectF(b.getDouble(0).toFloat(),b.getDouble(1).toFloat(),b.getDouble(2).toFloat(),b.getDouble(3).toFloat())
+                    }
+                    glyphs.forEach { item ->
+                        val b=bounds(item)
+                        check(b.left>=0 && b.top>=0 && b.right<=liveGauge.width && b.bottom<=liveGauge.height) {
+                            "Gauge native glyph outside 112x96 at font1.3: $item" }
+                    }
+                    ticks.forEach { tick -> values.forEach { value ->
+                        check(!android.graphics.RectF.intersects(bounds(tick),bounds(value))) {
+                            "Gauge tick overlaps actual value glyph at font1.3: $tick / $value" }
+                    } }
+                    File(directory,"gauge-proportions-font1.3.png").outputStream().use {
+                        check(gaugeBitmap.compress(Bitmap.CompressFormat.PNG,100,it)) }
+                } finally { gaugeBitmap.recycle() }
                 layoutEnlarged(200)
                 check(liveLegend.getChildAt(2).top > liveLegend.getChildAt(0).top) {
                     "Narrow metrics must still wrap when natural text widths do not fit" }
