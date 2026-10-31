@@ -114,6 +114,7 @@
     <string name="curve_verified">"✓ 電文検証通過、抽出に使用可能"</string>
     <string name="curve_view_legacy">"旧版曲線"</string>
     <string name="device_initial_message">"機器はまだ接続されていません"</string>
+    <string name="device_remembered_identity">"記憶済みデバイス：%1$s"</string>
     <string name="device_state_connecting">"接続中"</string>
     <string name="device_state_disconnected">"未接続"</string>
     <string name="device_state_discovering">"サービスを検索中"</string>
@@ -357,7 +358,7 @@
     <string name="home_scale_disconnect">"秤を切断"</string>
     <string name="home_scale_initial">"スケール · 未接続"</string>
     <string name="home_scale_status">"スケール · %1$s%2$s"</string>
-    <string name="home_scan">スキャンを開始</string>
+    <string name="home_scan">"スキャンを開始"</string>
     <string name="home_scan_service_hint">"検索をタップしてデバイスサービスを開始"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"読み戻し確認済み"</string>
@@ -888,6 +889,11 @@
     <string name="settings_schedule_mask">"日別有効ビット  %1$s（日曜～土曜はbit7–bit1）"</string>
     <string name="settings_schedule_missing">"スリープ予定は未受信"</string>
     <string name="settings_schedule_second_missing">"後半3日は未受信"</string>
+    <string name="settings_section_about">"アプリについて"</string>
+    <string name="settings_section_feedback">"抽出フィードバック"</string>
+    <string name="settings_section_machine">"マシン設定"</string>
+    <string name="settings_section_maintenance">"メンテナンスと診断"</string>
+    <string name="settings_section_schedule">"待機とスケジュール"</string>
     <string name="settings_state_unknown">"状態不明"</string>
     <string name="settings_time_missing">"時刻の読み戻し未受信"</string>
     <string name="settings_two_hours">"2時間"</string>
@@ -955,10 +961,4 @@
     <string name="ui_home">"ホーム"</string>
     <string name="ui_settings">"設定"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
-    <string name="device_remembered_identity">記憶済みデバイス：%1$s</string>
-    <string name="settings_section_machine">マシン設定</string>
-    <string name="settings_section_schedule">待機とスケジュール</string>
-    <string name="settings_section_feedback">抽出フィードバック</string>
-    <string name="settings_section_maintenance">メンテナンスと診断</string>
-    <string name="settings_section_about">アプリについて</string>
 </resources>

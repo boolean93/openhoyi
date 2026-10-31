@@ -114,6 +114,7 @@
     <string name="curve_verified">"✓ Verificación del paquete superada; disponible para extracción"</string>
     <string name="curve_view_legacy">"Curvas antiguas"</string>
     <string name="device_initial_message">"Todavía no hay ningún dispositivo conectado"</string>
+    <string name="device_remembered_identity">"Dispositivo guardado: %1$s"</string>
     <string name="device_state_connecting">"Conectando"</string>
     <string name="device_state_disconnected">"Desconectado"</string>
     <string name="device_state_discovering">"Buscando servicios"</string>
@@ -357,7 +358,7 @@
     <string name="home_scale_disconnect">"Desconectar báscula"</string>
     <string name="home_scale_initial">"Báscula · Desconectada"</string>
     <string name="home_scale_status">"Báscula · %1$s%2$s"</string>
-    <string name="home_scan">Iniciar búsqueda</string>
+    <string name="home_scan">"Iniciar búsqueda"</string>
     <string name="home_scan_service_hint">"Pulsa Buscar para iniciar el servicio de dispositivos"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"Confirmado mediante lectura"</string>
@@ -888,6 +889,11 @@
     <string name="settings_schedule_mask">"Bits de activación diaria  %1$s (de domingo a sábado: bit7–bit1)"</string>
     <string name="settings_schedule_missing">"Aún no se ha recibido el horario de reposo"</string>
     <string name="settings_schedule_second_missing">"Aún no se han recibido los últimos 3 días"</string>
+    <string name="settings_section_about">"Acerca de"</string>
+    <string name="settings_section_feedback">"Comentarios de preparación"</string>
+    <string name="settings_section_machine">"Parámetros de la máquina"</string>
+    <string name="settings_section_maintenance">"Mantenimiento y diagnóstico"</string>
+    <string name="settings_section_schedule">"Espera y horarios"</string>
     <string name="settings_state_unknown">"Estado desconocido"</string>
     <string name="settings_time_missing">"Aún no se han leído las horas"</string>
     <string name="settings_two_hours">"2 horas"</string>
@@ -955,10 +961,4 @@
     <string name="ui_home">"Inicio"</string>
     <string name="ui_settings">"Ajustes"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
-    <string name="device_remembered_identity">Dispositivo guardado: %1$s</string>
-    <string name="settings_section_machine">Parámetros de la máquina</string>
-    <string name="settings_section_schedule">Espera y horarios</string>
-    <string name="settings_section_feedback">Comentarios de preparación</string>
-    <string name="settings_section_maintenance">Mantenimiento y diagnóstico</string>
-    <string name="settings_section_about">Acerca de</string>
 </resources>

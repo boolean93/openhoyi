@@ -114,6 +114,7 @@
     <string name="curve_verified">"✓ Проверка сообщения пройдена, доступен для экстракции"</string>
     <string name="curve_view_legacy">"Профили старой версии"</string>
     <string name="device_initial_message">"Устройство ещё не подключено"</string>
+    <string name="device_remembered_identity">"Сохранённое устройство: %1$s"</string>
     <string name="device_state_connecting">"Подключение"</string>
     <string name="device_state_disconnected">"Не подключено"</string>
     <string name="device_state_discovering">"Поиск сервисов"</string>
@@ -357,7 +358,7 @@
     <string name="home_scale_disconnect">"Отключить весы"</string>
     <string name="home_scale_initial">"Весы · Не подключены"</string>
     <string name="home_scale_status">"Весы · %1$s%2$s"</string>
-    <string name="home_scan">Начать поиск</string>
+    <string name="home_scan">"Начать поиск"</string>
     <string name="home_scan_service_hint">"Нажмите «Поиск», чтобы запустить службу устройств"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"Подтверждено чтением"</string>
@@ -888,6 +889,11 @@
     <string name="settings_schedule_mask">"Биты включения дней  %1$s (воскресенье–суббота: bit7–bit1)"</string>
     <string name="settings_schedule_missing">"Расписание сна ещё не получено"</string>
     <string name="settings_schedule_second_missing">"Последние 3 дня ещё не получены"</string>
+    <string name="settings_section_about">"О приложении"</string>
+    <string name="settings_section_feedback">"Отклик после приготовления"</string>
+    <string name="settings_section_machine">"Параметры машины"</string>
+    <string name="settings_section_maintenance">"Обслуживание и диагностика"</string>
+    <string name="settings_section_schedule">"Ожидание и расписание"</string>
     <string name="settings_state_unknown">"Состояние неизвестно"</string>
     <string name="settings_time_missing">"Время ещё не прочитано"</string>
     <string name="settings_two_hours">"2 часа"</string>
@@ -955,10 +961,4 @@
     <string name="ui_home">"Главная"</string>
     <string name="ui_settings">"Настройки"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
-    <string name="device_remembered_identity">Сохранённое устройство: %1$s</string>
-    <string name="settings_section_machine">Параметры машины</string>
-    <string name="settings_section_schedule">Ожидание и расписание</string>
-    <string name="settings_section_feedback">Отклик после приготовления</string>
-    <string name="settings_section_maintenance">Обслуживание и диагностика</string>
-    <string name="settings_section_about">О приложении</string>
 </resources>

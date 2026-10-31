@@ -114,6 +114,7 @@
     <string name="curve_verified">"✓ ผ่านการตรวจข้อความแล้ว ใช้สกัดได้"</string>
     <string name="curve_view_legacy">"กราฟรุ่นเก่า"</string>
     <string name="device_initial_message">"ยังไม่ได้เชื่อมต่ออุปกรณ์"</string>
+    <string name="device_remembered_identity">"อุปกรณ์ที่บันทึกไว้: %1$s"</string>
     <string name="device_state_connecting">"กำลังเชื่อมต่อ"</string>
     <string name="device_state_disconnected">"ไม่ได้เชื่อมต่อ"</string>
     <string name="device_state_discovering">"กำลังค้นหาบริการ"</string>
@@ -357,7 +358,7 @@
     <string name="home_scale_disconnect">"ตัดการเชื่อมต่อเครื่องชั่ง"</string>
     <string name="home_scale_initial">"ตาชั่ง · ไม่ได้เชื่อมต่อ"</string>
     <string name="home_scale_status">"ตาชั่ง · %1$s%2$s"</string>
-    <string name="home_scan">เริ่มสแกน</string>
+    <string name="home_scan">"เริ่มสแกน"</string>
     <string name="home_scan_service_hint">"แตะสแกนเพื่อเริ่มบริการอุปกรณ์"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"ยืนยันข้อมูลอ่านกลับแล้ว"</string>
@@ -888,6 +889,11 @@
     <string name="settings_schedule_mask">"บิตเปิดใช้รายวัน  %1$s (อาทิตย์ถึงเสาร์ตรงกับ bit7–bit1)"</string>
     <string name="settings_schedule_missing">"ยังไม่ได้รับตารางพัก"</string>
     <string name="settings_schedule_second_missing">"ยังไม่ได้รับ 3 วันหลัง"</string>
+    <string name="settings_section_about">"เกี่ยวกับ"</string>
+    <string name="settings_section_feedback">"ผลตอบรับการชง"</string>
+    <string name="settings_section_machine">"พารามิเตอร์เครื่อง"</string>
+    <string name="settings_section_maintenance">"การบำรุงรักษาและการวินิจฉัย"</string>
+    <string name="settings_section_schedule">"สแตนด์บายและกำหนดเวลา"</string>
     <string name="settings_state_unknown">"ไม่ทราบสถานะ"</string>
     <string name="settings_time_missing">"ยังไม่ได้อ่านเวลากลับ"</string>
     <string name="settings_two_hours">"2 ชั่วโมง"</string>
@@ -955,10 +961,4 @@
     <string name="ui_home">"หน้าหลัก"</string>
     <string name="ui_settings">"การตั้งค่า"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
-    <string name="device_remembered_identity">อุปกรณ์ที่บันทึกไว้: %1$s</string>
-    <string name="settings_section_machine">พารามิเตอร์เครื่อง</string>
-    <string name="settings_section_schedule">สแตนด์บายและกำหนดเวลา</string>
-    <string name="settings_section_feedback">ผลตอบรับการชง</string>
-    <string name="settings_section_maintenance">การบำรุงรักษาและการวินิจฉัย</string>
-    <string name="settings_section_about">เกี่ยวกับ</string>
 </resources>

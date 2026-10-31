@@ -114,6 +114,7 @@
     <string name="curve_verified">"✓ اجتاز التحقق من الرسالة، متاح للاستخلاص"</string>
     <string name="curve_view_legacy">"منحنيات الإصدار القديم"</string>
     <string name="device_initial_message">"لم يتم توصيل جهاز بعد"</string>
+    <string name="device_remembered_identity">"الجهاز المحفوظ: %1$s"</string>
     <string name="device_state_connecting">"جارٍ الاتصال"</string>
     <string name="device_state_disconnected">"غير متصل"</string>
     <string name="device_state_discovering">"جارٍ اكتشاف الخدمات"</string>
@@ -357,7 +358,7 @@
     <string name="home_scale_disconnect">"قطع الاتصال بالميزان"</string>
     <string name="home_scale_initial">"الميزان · غير متصل"</string>
     <string name="home_scale_status">"الميزان · %1$s%2$s"</string>
-    <string name="home_scan">بدء المسح</string>
+    <string name="home_scan">"بدء المسح"</string>
     <string name="home_scan_service_hint">"اضغط على البحث لبدء خدمة الأجهزة"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"تأكدت النتيجة بالقراءة"</string>
@@ -888,6 +889,11 @@
     <string name="settings_schedule_mask">"بتات تفعيل الأيام  %1$s (الأحد إلى السبت تقابل bit7–bit1)"</string>
     <string name="settings_schedule_missing">"لم يُستلم جدول السكون بعد"</string>
     <string name="settings_schedule_second_missing">"لم تُستلم الأيام الـ 3 الأخيرة بعد"</string>
+    <string name="settings_section_about">"حول"</string>
+    <string name="settings_section_feedback">"تعليقات التحضير"</string>
+    <string name="settings_section_machine">"إعدادات الآلة"</string>
+    <string name="settings_section_maintenance">"الصيانة والتشخيص"</string>
+    <string name="settings_section_schedule">"الاستعداد والجداول"</string>
     <string name="settings_state_unknown">"الحالة غير معروفة"</string>
     <string name="settings_time_missing">"لم يُقرأ الوقت بعد"</string>
     <string name="settings_two_hours">"2 ساعة"</string>
@@ -955,10 +961,4 @@
     <string name="ui_home">"الرئيسية"</string>
     <string name="ui_settings">"الإعدادات"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
-    <string name="device_remembered_identity">الجهاز المحفوظ: %1$s</string>
-    <string name="settings_section_machine">إعدادات الآلة</string>
-    <string name="settings_section_schedule">الاستعداد والجداول</string>
-    <string name="settings_section_feedback">تعليقات التحضير</string>
-    <string name="settings_section_maintenance">الصيانة والتشخيص</string>
-    <string name="settings_section_about">حول</string>
 </resources>

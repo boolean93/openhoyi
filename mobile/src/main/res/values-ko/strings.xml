@@ -114,6 +114,7 @@
     <string name="curve_verified">"✓ 메시지 검증 통과, 추출에 사용 가능"</string>
     <string name="curve_view_legacy">"이전 곡선"</string>
     <string name="device_initial_message">"아직 연결된 기기가 없습니다"</string>
+    <string name="device_remembered_identity">"저장된 기기: %1$s"</string>
     <string name="device_state_connecting">"연결 중"</string>
     <string name="device_state_disconnected">"연결 안 됨"</string>
     <string name="device_state_discovering">"서비스 검색 중"</string>
@@ -357,7 +358,7 @@
     <string name="home_scale_disconnect">"저울 연결 해제"</string>
     <string name="home_scale_initial">"저울 · 연결 안 됨"</string>
     <string name="home_scale_status">"저울 · %1$s%2$s"</string>
-    <string name="home_scan">스캔 시작</string>
+    <string name="home_scan">"스캔 시작"</string>
     <string name="home_scan_service_hint">"검색을 눌러 기기 서비스 시작"</string>
     <string name="home_selected_curve">"%1$s · %2$s"</string>
     <string name="home_setting_confirmed">"읽기 응답 확인됨"</string>
@@ -888,6 +889,11 @@
     <string name="settings_schedule_mask">"요일별 사용 비트  %1$s (일요일부터 토요일은 bit7–bit1)"</string>
     <string name="settings_schedule_missing">"수면 일정 미수신"</string>
     <string name="settings_schedule_second_missing">"뒤 3일 미수신"</string>
+    <string name="settings_section_about">"정보"</string>
+    <string name="settings_section_feedback">"추출 피드백"</string>
+    <string name="settings_section_machine">"머신 설정"</string>
+    <string name="settings_section_maintenance">"유지보수 및 진단"</string>
+    <string name="settings_section_schedule">"대기 및 일정"</string>
     <string name="settings_state_unknown">"상태 알 수 없음"</string>
     <string name="settings_time_missing">"시간 읽기 응답 미수신"</string>
     <string name="settings_two_hours">"2시간"</string>
@@ -955,10 +961,4 @@
     <string name="ui_home">"홈"</string>
     <string name="ui_settings">"설정"</string>
     <string name="ui_tab_description">"%1$s%2$s"</string>
-    <string name="device_remembered_identity">저장된 기기: %1$s</string>
-    <string name="settings_section_machine">머신 설정</string>
-    <string name="settings_section_schedule">대기 및 일정</string>
-    <string name="settings_section_feedback">추출 피드백</string>
-    <string name="settings_section_maintenance">유지보수 및 진단</string>
-    <string name="settings_section_about">정보</string>
 </resources>

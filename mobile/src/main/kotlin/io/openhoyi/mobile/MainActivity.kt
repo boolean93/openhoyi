@@ -175,6 +175,7 @@ class MainActivity : ThemedActivity() {
         pageId = savedInstanceState?.getInt(STATE_PAGE_ID) ?: pageId
         extractionVisible = savedInstanceState?.getBoolean(STATE_EXTRACTION)
             ?: intent.getBooleanExtra(EXTRA_OPEN_EXTRACTION, false)
+        extractionOrigin=savedInstanceState?.getString("extractionOrigin")?.let {runCatching {TaskDestination.valueOf(it)}.getOrNull()}
         extractionSlot = savedInstanceState?.getInt(STATE_EXTRACTION_SLOT)
             ?: intent.getIntExtra(PresetSlots.EXTRA_SLOT, 7)
         scaleSettingsReturn = savedInstanceState?.getBoolean("settingsScaleReturn") ?: false
@@ -248,6 +249,7 @@ class MainActivity : ThemedActivity() {
         TaskDestination.SETTINGS -> AppSettingsFragment()
     }
 
+    private var extractionOrigin:TaskDestination?=null
     private var settingsOrigin:TaskDestination?=null
     private var scaleSettingsReturn = false
     internal fun openSettingsSection(key: String) {
@@ -264,6 +266,7 @@ class MainActivity : ThemedActivity() {
         if (next == destination && !extractionVisible) return
         scaleSettingsReturn = false
         settingsOrigin = null
+        extractionOrigin = null
         dismissTransientDialogs()
         destination = next
         extractionVisible = false
@@ -272,6 +275,7 @@ class MainActivity : ThemedActivity() {
     }
 
     fun showExtraction(slot: Int = 7, confirmStart: Boolean = false) {
+        if(!extractionVisible)extractionOrigin=destination
         dismissTransientDialogs()
         destination = TaskDestination.BREW
         extractionSlot = slot
@@ -310,6 +314,7 @@ class MainActivity : ThemedActivity() {
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString("extractionOrigin",extractionOrigin?.name)
         outState.putString("settingsOrigin",settingsOrigin?.name)
         outState.putBoolean("settingsScaleReturn", scaleSettingsReturn)
         outState.putString(STATE_DESTINATION, destination.name)
@@ -352,7 +357,7 @@ class MainActivity : ThemedActivity() {
         }
         if (consumed) return
         if (!extractionVisible && scaleSettingsReturn && destination == TaskDestination.SCALE) { select(TaskDestination.SETTINGS); return }
-        if (extractionVisible) { extractionVisible = false; showCurrent() }
+        if (extractionVisible) { extractionVisible = false; destination=extractionOrigin ?: TaskDestination.BREW; extractionOrigin=null; showCurrent() }
         else if(destination==TaskDestination.SETTINGS && settingsOrigin!=null) select(requireNotNull(settingsOrigin))
         else if (destination != TaskDestination.BREW) select(TaskDestination.BREW)
         else finish()
