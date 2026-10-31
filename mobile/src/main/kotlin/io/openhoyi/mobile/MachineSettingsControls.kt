@@ -290,6 +290,12 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
             tabsScroll.visibility = View.GONE
             settingSections.forEachIndexed { index, section -> section.visibility = if (index < 2) View.VISIBLE else View.GONE }
             writeCard.visibility = View.GONE // Status remains outside the collapsible editor.
+            temperatureRows.take(3).forEach { row -> row.setPadding(row.paddingLeft, dp(4), row.paddingRight, dp(4)) }
+            listOf(controls, functionsCard).forEach { card -> card.setPadding(dp(8), dp(8), dp(8), dp(8)) }
+            controls.getChildAt(controls.childCount - 1).visibility = View.GONE
+            listOf(brewHeatingButton, steamHeatingButton, lightButton, waterSupplyButton, runModeButton).forEach {
+                (it.layoutParams as LinearLayout.LayoutParams).topMargin = dp(4)
+            }
             controlsPane.removeView(temperatureSection); controlsPane.removeView(functionsSection)
             controlsPane.addView(SettingsColumns(host, style, temperatureSection, functionsSection, org.json.JSONObject(),
                 firstFraction=.62f,
@@ -299,7 +305,10 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
                     + functionsCard.paddingLeft + functionsCard.paddingRight }), 0, LinearLayout.LayoutParams(-1, -2))
             val advanced = listOf(R.string.machine_settings_tab_standby, R.string.machine_settings_tab_schedule, R.string.machine_settings_tab_maintenance)
                 .joinToString(" · ") { getString(it) }
-            action(body, advanced) { host.startActivity(Intent(host, MachineSettingsActivity::class.java).putExtra("section", 2)) }
+            action(body, advanced) { host.startActivity(Intent(host, MachineSettingsActivity::class.java).putExtra("section", 2)) }.apply {
+                minimumHeight = dp(48)
+                (layoutParams as LinearLayout.LayoutParams).topMargin = dp(4)
+            }
 
         } else showSettingsSection(savedInstanceState?.getInt("settingsSection") ?: host.intent.getIntExtra("section", 0))
         render()

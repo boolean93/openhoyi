@@ -32,7 +32,7 @@ class AppSettingsFragment : Fragment() {
         machineControls?.let { controls -> machineState = Bundle().also { controls.save(it) } }
         outState.putBundle("machineControls", machineState)
     }
-    private fun group(activity: MainActivity, body: LinearLayout, title: String, visual: SettingsVisualStyle, key: String, open: Boolean = false): LinearLayout {
+    private fun group(activity: MainActivity, body: LinearLayout, title: String, visual: SettingsVisualStyle, key: String, open: Boolean = false, summary: TextView? = null): LinearLayout {
         val shell = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         body.addView(shell, LinearLayout.LayoutParams(-1, -2))
         val content = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -47,6 +47,10 @@ class AppSettingsFragment : Fragment() {
             content.visibility = if (showing) View.VISIBLE else View.GONE
             toggle.text = "$title  ${if (showing) "⌃" else "⌄"}"
             toggle.isSelected = showing
+            summary?.let { view ->
+                (view.parent as? ViewGroup)?.removeView(view)
+                if (showing) content.addView(view, minOf(1, content.childCount)) else shell.addView(view, 1)
+            }
         }
         toggle.setOnClickListener { expanded[key] = !(expanded[key] ?: open); refresh() }
         refresh()
@@ -115,9 +119,8 @@ class AppSettingsFragment : Fragment() {
             it.statusChanged = { value -> machineSummary.text = value }
             it.create(machine, machineState, embedded = true)
         }
-        val scale = group(activity, body, getString(R.string.scale_title), visual, "scale", true)
         scaleCapabilities = style.text(getString(R.string.scale_capability_no_device), TaskProductVisualStyle.auxiliary, secondary = true)
-            .also { (scale.parent as LinearLayout).addView(it, 1) }
+        val scale = group(activity, body, getString(R.string.scale_title), visual, "scale", true, scaleCapabilities)
         val prefs = activity.getSharedPreferences("scale_tool", android.content.Context.MODE_PRIVATE)
         scale.addView(Switch(activity).apply {
             text = getString(R.string.scale_precision_short)
@@ -126,6 +129,7 @@ class AppSettingsFragment : Fragment() {
             tag = "product/settings/scale/precision"
             setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean("one_decimal", checked).apply() }
         })
+        scaleCapabilities?.let { scale.removeView(it); scale.addView(it, 1) }
         style.add(scale, style.text(getString(R.string.scale_precision_off_hint), TaskProductVisualStyle.auxiliary, secondary = true))
         HoyiUi.button(activity, scale, getString(R.string.scale_title)) { activity.openScaleFromSettings() }
         HoyiUi.button(activity, scale, getString(R.string.scale_capabilities_title)) {
