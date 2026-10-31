@@ -2610,10 +2610,10 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         } catch(error: Throwable) {
             failure=error; manifest.put("failure",error.stackTraceToString()).put("layoutStatus","FAIL")
             scope?.activeActivity()?.let { owner -> try {
-                lateinit var before: JSONObject; main { before=geometry(owner) }
+                lateinit var before: JSONObject; main { before=geometry(owner, diagnosticDestination = true) }
                 val bitmap=requireNotNull(test.uiAutomation.takeScreenshot())
                 try { File(directory,"failure-context.png").outputStream().use { check(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)) } } finally { bitmap.recycle() }
-                lateinit var after: JSONObject; main { after=geometry(owner) }
+                lateinit var after: JSONObject; main { after=geometry(owner, diagnosticDestination = true) }
                 File(directory,"failure-context-geometry.json").writeText(JSONObject().put("before",before).put("after",after)
                     .put("geometryUnchanged",before.toString()==after.toString()).put("sameCompositorFrameProven",false).toString(2))
             } catch(captureFailure: Throwable) { error.addSuppressed(captureFailure) } }
