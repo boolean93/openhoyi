@@ -497,37 +497,26 @@ internal class MachineSettingsControls(private val host: ThemedActivity, supplie
         sleepScheduleButton.isEnabled = editable &&
             (snapshot.settings?.flags?.and(0x01) == 1 ||
                 owner?.sleepScheduleFresh == true)
-        brewHeatingButton.text = getString(R.string.setting_toggle_status,
-            getString(R.string.setting_brew_heating),
-            getString(if (snapshot.settings?.brewHeating == true) R.string.setting_on else R.string.setting_off))
-        steamHeatingButton.text = getString(R.string.setting_toggle_status,
-            getString(R.string.setting_steam_heating),
-            getString(if (snapshot.settings?.steamHeating == true) R.string.setting_on else R.string.setting_off))
-        lightButton.text = getString(R.string.setting_toggle_status,
-            getString(R.string.setting_light),
-            getString(if (snapshot.settings?.flags?.and(0x08) == 0x08) R.string.setting_on else R.string.setting_off))
-        waterSupplyButton.text = getString(R.string.setting_water_supply_status,
-            getString(if (snapshot.settings?.flags?.and(0x02) == 0x02)
-                R.string.setting_water_piped else R.string.setting_water_tank))
-        runModeButton.text = getString(R.string.setting_run_mode_status,
-            getString(if (snapshot.settings?.flags?.and(0x04) == 0x04)
-                R.string.setting_run_studio else R.string.setting_run_cafe))
-        leverModeValue?.text=settingsPresentation.leverMode(snapshot.settings)
-        if(documentMode && snapshot.settings != null) {
-            brewHeatingButton.setText(if(snapshot.settings?.brewHeating==true)R.string.setting_on else R.string.setting_off)
-            steamHeatingButton.setText(if(snapshot.settings?.steamHeating==true)R.string.setting_on else R.string.setting_off)
-            lightButton.setText(if(snapshot.settings?.flags?.and(0x08)==0x08)R.string.setting_on else R.string.setting_off)
-            waterSupplyButton.setText(if(snapshot.settings?.flags?.and(0x02)==0x02)R.string.setting_water_piped else R.string.setting_water_tank)
-            runModeButton.setText(if(snapshot.settings?.flags?.and(0x04)==0x04)R.string.setting_run_studio else R.string.setting_run_cafe)
+        fun status(button:Button,label:Int,value:Int,format:Int=R.string.setting_toggle_status) {
+            val text=when {
+                documentMode && snapshot.settings==null->getString(R.string.settings_unknown)
+                documentMode->getString(value)
+                format==R.string.setting_toggle_status->getString(format,getString(label),getString(value))
+                else->getString(format,getString(value))
+            }
+            button.update(text)
         }
-        if(documentMode && snapshot.settings == null) {
-            listOf(brewHeatingButton,steamHeatingButton,lightButton,waterSupplyButton,runModeButton).forEach {it.setText(R.string.settings_unknown)}
-        }
-        sleepScheduleButton.setText(when (snapshot.settings?.flags?.and(0x01)) {
-            1 -> R.string.setting_sleep_schedule_on
-            0 -> R.string.setting_sleep_schedule_off
-            else -> R.string.setting_sleep_schedule_unknown
-        })
+        status(brewHeatingButton,R.string.setting_brew_heating,if(snapshot.settings?.brewHeating==true)R.string.setting_on else R.string.setting_off)
+        status(steamHeatingButton,R.string.setting_steam_heating,if(snapshot.settings?.steamHeating==true)R.string.setting_on else R.string.setting_off)
+        status(lightButton,R.string.setting_light,if(snapshot.settings?.flags?.and(0x08)==0x08)R.string.setting_on else R.string.setting_off)
+        status(waterSupplyButton,R.string.machine_settings_supply_label,if(snapshot.settings?.flags?.and(0x02)==0x02)R.string.setting_water_piped else R.string.setting_water_tank,R.string.setting_water_supply_status)
+        status(runModeButton,R.string.machine_settings_run_mode_label,if(snapshot.settings?.flags?.and(0x04)==0x04)R.string.setting_run_studio else R.string.setting_run_cafe,R.string.setting_run_mode_status)
+        leverModeValue?.update(settingsPresentation.leverMode(snapshot.settings))
+        sleepScheduleButton.update(getString(when(snapshot.settings?.flags?.and(0x01)) {
+            1->R.string.setting_sleep_schedule_on
+            0->R.string.setting_sleep_schedule_off
+            else->R.string.setting_sleep_schedule_unknown
+        }))
     }
     private fun confirm(change: MachineSettingChange) {
         if (BuildConfig.MOCK_MODE) {

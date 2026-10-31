@@ -97,9 +97,11 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
         states.forEach {(role,text)->
             val state=if(role==DeviceRole.COFFEE)snapshot?.coffeeState else snapshot?.scaleState
             val identity=if(BuildConfig.MOCK_MODE)host.getString(R.string.application_mode_mock) else host.getString(R.string.device_remembered_identity,prefs.getString(if(role==DeviceRole.COFFEE)"coffee" else "scale","—"))
-            text.text="$identity · ${state?.let {DeviceStatusText.label(host,it)} ?: "—"}"
+            val value="$identity · ${state?.let {DeviceStatusText.label(host,it)} ?: "—"}"
+            if(text.text.toString()!=value)text.text=value
         }
-        message.text=localError ?: snapshot?.messageForDisplay {id,args->host.getString(id,*args)}.orEmpty()
+        val display=localError ?: snapshot?.messageForDisplay {id,args->host.getString(id,*args)}.orEmpty()
+        if(message.text.toString()!=display)message.text=display
         message.visibility=if(message.text.isNullOrEmpty())View.GONE else View.VISIBLE
         val values=snapshot?.candidates.orEmpty().filter {roleFilter==null || it.candidateRole==roleFilter}.sortedBy {it.candidateRole.name}
         val key=values.toString()+allowed()

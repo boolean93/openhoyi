@@ -69,19 +69,21 @@ class AppSettingsFragment : Fragment() {
         document?.setStatus("schedule",badge(it?.scheduleWriteState?.name))
         document?.setStatus("maintenance",badge(it?.cupResetState?.name))
         val current = it?.snapshot
-        diagnosticState?.text = listOf(
+        val diagnosticText = listOf(
             FirmwarePresentation(requireContext()).describe(it?.coffeeFirmware, current?.coffeeState ?: io.openhoyi.session.DeviceState.DISCONNECTED, BuildConfig.MOCK_MODE),
             MachineAlarms(requireContext()).describe(current?.alarmBits, current?.alarmAt, android.os.SystemClock.elapsedRealtime())
         ).joinToString("\n")
+        diagnosticState?.let { view -> if(view.text.toString()!=diagnosticText)view.text=diagnosticText }
         val snapshot = it?.snapshot
         val actual = snapshot?.scaleCapabilities?.takeIf { snapshot.scaleState == io.openhoyi.session.DeviceState.READY && !BuildConfig.MOCK_MODE }
-        scaleCapabilities?.text = if (actual == null) getString(R.string.scale_capability_no_device) else
+        val capabilitiesText = if (actual == null) getString(R.string.scale_capability_no_device) else
             listOf(R.string.scale_capability_weight to actual.weight, R.string.scale_capability_tare to actual.tare,
                 R.string.scale_capability_flow to actual.deviceFlow, R.string.scale_capability_battery to actual.battery,
                 R.string.scale_capability_timer to actual.deviceTimer).joinToString("\n") { (label, available) ->
                 getString(R.string.scale_capability_format, getString(label), getString(if (!available) R.string.scale_capability_no
                     else if (snapshot.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY) R.string.scale_capability_read_only else R.string.scale_capability_yes))
             }
+        scaleCapabilities?.let {view->if(view.text.toString()!=capabilitiesText)view.text=capabilitiesText}
     }
     private val export = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) {
@@ -122,7 +124,7 @@ class AppSettingsFragment : Fragment() {
         val machine = sections.getValue("machine")
         val machineSummary=style.text("",TaskProductVisualStyle.auxiliary,"settings-machine-summary",true).also {style.add(machine,it,8)}
         machineControls=MachineSettingsControls(activity).also {
-            it.statusChanged={ value->machineSummary.text=value }
+            it.statusChanged={ value->if(machineSummary.text.toString()!=value)machineSummary.text=value }
             it.create(machine,machineState,embedded=true,documentSections=sections)
         }
         val scale=sections.getValue("scale")
