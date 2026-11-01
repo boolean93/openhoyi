@@ -266,21 +266,42 @@ internal class SettingsDialogViewport(context:Context):ScrollView(context) {
     }
 }
 
+internal data class SettingsDialogHeightLayer(val decorationPx:Int,val minimumHeightPx:Int)
+
+/** Inner-to-outer native wrappers. Minimum height is a max constraint, never extra padding. */
+internal data class SettingsDialogNaturalChrome(
+    val fixedPanelHeightPx:Int,
+    val nativeButtonReservePx:Int,
+    val bodyWrappers:List<SettingsDialogHeightLayer>,
+    val parentAndDecorWrappers:List<SettingsDialogHeightLayer>,
+)
+
 internal data class SettingsDialogBodyBudget(
     val nonBodyNonButtonChromePx:Int,
     val nativeButtonReservePx:Int,
     val bodyMaximumHeightPx:Int,
     val minimumEditorBudgetSatisfiable:Boolean,
+    val nativeConstraintsSatisfiable:Boolean,
 )
 
-/** Measured height only: a collapsed native panel cannot erase its independently measured reserve. */
-internal fun settingsDialogBodyBudget(safeHeightPx:Int,decorHeightPx:Int,bodyHeightPx:Int,
-    actualButtonPanelHeightPx:Int,nativeButtonReservePx:Int?,minimumEditorHeightPx:Int):SettingsDialogBodyBudget? {
-    if(nativeButtonReservePx==null)return null // Unknown native structure is never guessed as zero chrome.
-    require(listOf(safeHeightPx,decorHeightPx,bodyHeightPx,actualButtonPanelHeightPx,nativeButtonReservePx,minimumEditorHeightPx).all {it>=0})
-    val chrome=(decorHeightPx.toLong()-bodyHeightPx-actualButtonPanelHeightPx).coerceAtLeast(0).toInt()
-    val maximum=(safeHeightPx.toLong()-chrome-nativeButtonReservePx).coerceAtLeast(0).toInt()
-    return SettingsDialogBodyBudget(chrome,nativeButtonReservePx,maximum,maximum>=minimumEditorHeightPx)
+/** Independent natural chrome only: body height, scroll and unused decor space are not inputs. */
+internal fun settingsDialogBodyBudget(safeHeightPx:Int,chrome:SettingsDialogNaturalChrome?,
+    minimumEditorHeightPx:Int):SettingsDialogBodyBudget? {
+    if(chrome==null)return null
+    val layers=chrome.bodyWrappers+chrome.parentAndDecorWrappers
+    require(listOf(safeHeightPx,chrome.fixedPanelHeightPx,chrome.nativeButtonReservePx,minimumEditorHeightPx).all {it>=0})
+    require(chrome.fixedPanelHeightPx>=chrome.nativeButtonReservePx)
+    require(layers.all {it.decorationPx>=0 && it.minimumHeightPx>=0})
+    fun wrap(height:Long,wrappers:List<SettingsDialogHeightLayer>)=wrappers.fold(height) {inner,layer->
+        maxOf(inner+layer.decorationPx,layer.minimumHeightPx.toLong())
+    }
+    val fixed=chrome.fixedPanelHeightPx.toLong()+layers.sumOf {it.decorationPx.toLong()}
+    val nativeRequired=wrap(chrome.fixedPanelHeightPx+wrap(0L,chrome.bodyWrappers),chrome.parentAndDecorWrappers)
+    val minimumRequired=wrap(chrome.fixedPanelHeightPx+wrap(minimumEditorHeightPx.toLong(),chrome.bodyWrappers),
+        chrome.parentAndDecorWrappers)
+    return SettingsDialogBodyBudget((fixed-chrome.nativeButtonReservePx).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+        chrome.nativeButtonReservePx,if(nativeRequired<=safeHeightPx)(safeHeightPx-fixed).coerceIn(0,Int.MAX_VALUE.toLong()).toInt() else 0,
+        minimumRequired<=safeHeightPx,nativeRequired<=safeHeightPx)
 }
 
 /** M8 native-window budget; no input/focus/IME request or app/domain state mutation. */
@@ -289,9 +310,13 @@ private class SettingsDialogLayoutObserver(private val dialog:AlertDialog,privat
     private var callback:android.view.ViewTreeObserver.OnPreDrawListener?=null
     private var key:List<Any?>?=null
     private var nativeButtonReservePx:Int?=null
+    private var topNaturalPx=0
+    private var contentNaturalPx=0
+
     fun bind() {
         val decor=requireNotNull(dialog.window).decorView
-        val panel=dialog.findViewById<ViewGroup>(decor.resources.getIdentifier("buttonPanel","id","android"))
+        fun native(name:String)=dialog.findViewById<View>(decor.resources.getIdentifier(name,"id","android"))
+        val panel=native("buttonPanel") as? ViewGroup
         val originalMinimum=panel?.minimumHeight ?: 0
         val attached=object:View.OnAttachStateChangeListener {
             override fun onViewAttachedToWindow(view:View)=Unit
@@ -306,36 +331,156 @@ private class SettingsDialogLayoutObserver(private val dialog:AlertDialog,privat
             return JSONArray(listOf(origin[0],origin[1],origin[0]+view.width,origin[1]+view.height))
         }
         fun force(view:View) {view.forceLayout();if(view is ViewGroup)(0 until view.childCount).forEach {force(view.getChildAt(it))}}
+        fun foregroundPadding(view:View):Rect=Rect().also {view.foreground?.getPadding(it)}
+        fun minimum(view:View)=maxOf(view.minimumHeight,view.background?.minimumHeight ?: 0,
+            if(view is FrameLayout)view.foreground?.minimumHeight ?: 0 else 0)
+        fun children(group:ViewGroup)=(0 until group.childCount).map(group::getChildAt).filter {it.visibility!=View.GONE}
+        fun margins(view:View):List<Int> {
+            val lp=view.layoutParams as? ViewGroup.MarginLayoutParams
+            return listOf(lp?.leftMargin ?: 0,lp?.topMargin ?: 0,lp?.rightMargin ?: 0,lp?.bottomMargin ?: 0)
+        }
+        fun verticalMargins(view:View)=margins(view).let {it[1]+it[3]}
+        fun viewRecord(view:View)=JSONObject().put("viewIdentity",System.identityHashCode(view)).put("class",view.javaClass.name)
+            .put("resourceId",if(view.id==View.NO_ID)JSONObject.NULL else runCatching {view.resources.getResourceName(view.id)}.getOrDefault(view.id.toString()))
+            .put("parentIdentity",(view.parent as? View)?.let(System::identityHashCode) ?: JSONObject.NULL)
+            .put("rectScreenPx",rectangle(view)).put("measuredWidthPx",view.measuredWidth).put("measuredHeightPx",view.measuredHeight)
+            .put("paddingPx",JSONArray(listOf(view.paddingLeft,view.paddingTop,view.paddingRight,view.paddingBottom)))
+            .put("marginsPx",JSONArray(margins(view))).put("minimumHeightPx",minimum(view)).put("visibility",view.visibility)
+            .put("layoutWidth",view.layoutParams?.width ?: JSONObject.NULL).put("layoutHeight",view.layoutParams?.height ?: JSONObject.NULL)
+            .put("foregroundPaddingPx",foregroundPadding(view).let {JSONArray(listOf(it.left,it.top,it.right,it.bottom))})
+            .put("layoutDirection",view.layoutDirection).put("weight",(view.layoutParams as? LinearLayout.LayoutParams)?.weight ?: JSONObject.NULL)
+        // Immutable values only. Excludes measured height, body, cap and scroll (the former feedback loop).
+        fun signature(view:View,descend:Boolean=true,minimumOverride:Int?=null):List<Any?> {
+            val lp=view.layoutParams
+            val result=mutableListOf<Any?>(System.identityHashCode(view),view.javaClass.name,view.id,view.visibility,view.layoutDirection,
+                view.paddingLeft,view.paddingTop,view.paddingRight,view.paddingBottom,minimumOverride ?: minimum(view),view.minimumWidth,
+                view.background?.minimumHeight,view.foreground?.minimumHeight,foregroundPadding(view).toString(),
+                lp?.width,lp?.height,margins(view),(lp as? LinearLayout.LayoutParams)?.weight,(lp as? LinearLayout.LayoutParams)?.gravity,
+                (lp as? FrameLayout.LayoutParams)?.gravity)
+            if(view is LinearLayout)result.addAll(listOf(view.orientation,view.gravity,view.showDividers,view.dividerDrawable?.intrinsicHeight))
+            if(view is TextView)result.addAll(listOf(view.text?.toString(),view.hint?.toString(),view.textSize,view.typeface,
+                view.paint.flags,view.textScaleX,view.paint.textSkewX,view.letterSpacing,view.fontFeatureSettings,view.fontVariationSettings,
+                view.includeFontPadding,view.maxLines,view.minLines,view.lineSpacingExtra,view.lineSpacingMultiplier,view.breakStrategy,
+                view.hyphenationFrequency,view.compoundPaddingLeft,view.compoundPaddingRight,view.compoundPaddingTop,view.compoundPaddingBottom))
+            if(descend && view is ViewGroup)for(i in 0 until view.childCount)result.add(signature(view.getChildAt(i)))
+            return result
+        }
+        fun dividers(group:LinearLayout,count:Int):Int {
+            if(count==0)return 0
+            val height=(group.dividerDrawable?.intrinsicHeight ?: 0).coerceAtLeast(0)
+            val mode=group.showDividers
+            return height*((if(mode and LinearLayout.SHOW_DIVIDER_BEGINNING!=0)1 else 0)+
+                (if(mode and LinearLayout.SHOW_DIVIDER_MIDDLE!=0)count-1 else 0)+(if(mode and LinearLayout.SHOW_DIVIDER_END!=0)1 else 0))
+        }
+        fun layer(group:ViewGroup,child:View,extra:Int=0)=SettingsDialogHeightLayer(
+            group.paddingTop+group.paddingBottom+verticalMargins(child)+extra,minimum(group))
+        fun validHeight(view:View)=view.layoutParams?.height?.let {it==ViewGroup.LayoutParams.MATCH_PARENT || it==ViewGroup.LayoutParams.WRAP_CONTENT}==true
+        fun widthSpec(parent:ViewGroup,child:View):Int {
+            val m=margins(child)
+            return ViewGroup.getChildMeasureSpec(View.MeasureSpec.makeMeasureSpec(parent.width,View.MeasureSpec.EXACTLY),
+                parent.paddingLeft+parent.paddingRight+m[0]+m[2],child.layoutParams.width)
+        }
         callback=android.view.ViewTreeObserver.OnPreDrawListener {
             val window=dialog.window
             if(window==null || !dialog.isShowing || !decor.isAttachedToWindow)true else {
                 val positive=dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 val negative=dialog.getButton(AlertDialog.BUTTON_NEGATIVE)
+                val neutral=dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
                 val bar=panel?.takeIf {it.childCount==1}?.getChildAt(0)
-                val supported=bar?.javaClass?.name=="com.android.internal.widget.ButtonBarLayout" &&
-                    listOfNotNull(positive,negative).all {it.parent===bar}
-                evidence.put("nativeButtonPanelStructureSupported",supported)
-                    .put("buttonPanelClass",panel?.javaClass?.name ?: JSONObject.NULL)
-                    .put("buttonPanelMinimumPx",panel?.minimumHeight ?: JSONObject.NULL)
-                    .put("buttonPanelMeasuredHeightPx",panel?.measuredHeight ?: JSONObject.NULL)
+                val supportedBar=bar?.javaClass?.name=="com.android.internal.widget.ButtonBarLayout" &&
+                    panel?.visibility!=View.GONE && listOfNotNull(positive,negative,neutral).any {it.visibility==View.VISIBLE} &&
+                    listOfNotNull(positive,negative,neutral).all {it.parent===bar}
+                val parent=native("parentPanel") as? LinearLayout
+                val top=native("topPanel")
+                val content=native("contentPanel")
+                val custom=native("customPanel") as? FrameLayout
+                val wrappers=mutableListOf<Pair<ViewGroup,View>>() // body -> customPanel
+                val outers=mutableListOf<Pair<ViewGroup,View>>() // parentPanel -> decor
+                var reason:String?=null
+                fun reject(message:String) {if(reason==null)reason=message}
+                if(body!=null) {
+                    if(parent?.javaClass?.name!="com.android.internal.widget.AlertDialogLayout" || parent.orientation!=LinearLayout.VERTICAL)
+                        reject("unsupported_native_parent_panel")
+                    if(custom==null || parent==null || custom.parent!==parent || custom.visibility==View.GONE)reject("missing_owned_custom_panel")
+                    if(parent!=null) {
+                        val expected=listOfNotNull(top,content,custom,panel).filter {it.visibility!=View.GONE}
+                        if(children(parent)!=expected || expected.any {it.parent!==parent})reject("unexpected_native_panel_children_or_order")
+                        if(expected.any {it.layoutParams.height!=ViewGroup.LayoutParams.WRAP_CONTENT || ((it.layoutParams as? LinearLayout.LayoutParams)?.weight ?: 0f)!=0f})
+                            reject("unsupported_native_panel_height_constraint")
+                    }
+                    var child:View=body
+                    while(child!==custom && reason==null) {
+                        val group=child.parent as? FrameLayout
+                        if(group==null || group.javaClass!=FrameLayout::class.java || children(group)!=listOf(child) || !validHeight(child)) {
+                            reject("unsupported_body_wrapper_chain");break
+                        }
+                        wrappers.add(group to child);child=group
+                    }
+                    if(child!==custom)reject("body_not_owned_by_custom_panel")
+                    if(parent!=null) {
+                        child=parent
+                        while(child!==decor && reason==null) {
+                            val group=child.parent as? ViewGroup
+                            val known=group!=null && (group.javaClass==FrameLayout::class.java || group.javaClass==LinearLayout::class.java ||
+                                (group===decor && group.javaClass.name=="com.android.internal.policy.DecorView"))
+                            val overlays=if(group===decor)listOf("statusBarBackground","navigationBarBackground").map {decor.resources.getIdentifier(it,"id","android")} else emptyList()
+                            val actual=group?.let(::children)?.filterNot {it.id!=0 && it.id in overlays}
+                            if(!known || actual!=listOf(child) || !validHeight(child) ||
+                                (group is LinearLayout && (group.orientation!=LinearLayout.VERTICAL ||
+                                    ((child.layoutParams as? LinearLayout.LayoutParams)?.weight ?: 0f)!=0f))) {
+                                reject("unsupported_parent_to_decor_chain");break
+                            }
+                            outers.add(requireNotNull(group) to child);child=group
+                        }
+                        if(child!==decor)reject("parent_panel_not_owned_by_decor")
+                    }
+                    if((wrappers+outers).any {(group,_)->group is FrameLayout && foregroundPadding(group)!=Rect()})
+                        reject("unsupported_frame_foreground_insets")
+                    if((wrappers+outers).any {(group,child)->margins(child).any {it<0} || minimum(group)<0})
+                        reject("unsupported_negative_native_decoration")
+                    if(wrappers.any {it.first.width<=0} || outers.any {it.first.width<=0} || parent?.width==0)
+                        reject("native_width_not_ready")
+                }
+                if(!supportedBar || panel==null || bar==null || panel.width<=0)reject("unsupported_native_button_panel")
+                val structural=JSONObject().put("parentPanel",parent?.let(::viewRecord) ?: JSONObject.NULL)
+                    .put("topPanel",top?.let(::viewRecord) ?: JSONObject.NULL).put("contentPanel",content?.let(::viewRecord) ?: JSONObject.NULL)
+                    .put("customPanel",custom?.let(::viewRecord) ?: JSONObject.NULL).put("buttonPanel",panel?.let(::viewRecord) ?: JSONObject.NULL)
+                    .put("bodyWrapperChain",JSONArray(wrappers.map {viewRecord(it.first)}))
+                    .put("parentToDecorChain",JSONArray(outers.map {viewRecord(it.first)}))
+                evidence.put("naturalChromeSchema",2).put("nativeStructure",structural)
+                    .put("nativeStructureUncertifiedReason",reason ?: JSONObject.NULL)
+                    .put("windowIdentity",System.identityHashCode(window)).put("decorIdentity",System.identityHashCode(decor))
+                    .put("windowToken",decor.windowToken?.toString() ?: JSONObject.NULL)
+                    .put("windowOwnerClass",dialog.context.javaClass.name).put("bodyIdentity",body?.let(System::identityHashCode) ?: JSONObject.NULL)
+                    .put("nativeButtonPanelStructureSupported",supportedBar).put("buttonPanelClass",panel?.javaClass?.name ?: JSONObject.NULL)
+                    .put("buttonPanelMinimumPx",panel?.minimumHeight ?: JSONObject.NULL).put("buttonPanelMeasuredHeightPx",panel?.measuredHeight ?: JSONObject.NULL)
                     .put("buttonPanelRectScreenPx",rectangle(panel)).put("buttonBarClass",bar?.javaClass?.name ?: JSONObject.NULL)
-                if(supported && panel!=null && bar!=null && panel.width>0) {
-                    val measureKey=listOf(panel.width,decor.resources.configuration.fontScale,positive?.text?.toString(),negative?.text?.toString(),
-                        positive?.textSize,negative?.textSize,positive?.typeface,negative?.typeface,positive?.minimumHeight,negative?.minimumHeight)
+                if(reason==null && panel!=null && bar!=null) {
+                    val measureKey=listOf(decor.resources.configuration.toString(),decor.layoutDirection,panel.width,
+                        signature(panel,false,originalMinimum),signature(bar),top?.let {signature(it)},content?.let {signature(it)},parent?.width,
+                        parent?.let {signature(it,false)},
+                        wrappers.map {signature(it.first,false)},outers.map {signature(it.first,false)})
                     if(key!=measureKey) {
-                        val params=bar.layoutParams
-                        val margins=params as? ViewGroup.MarginLayoutParams
-                        val horizontal=panel.paddingLeft+panel.paddingRight+(margins?.leftMargin ?: 0)+(margins?.rightMargin ?: 0)
-                        val vertical=panel.paddingTop+panel.paddingBottom+(margins?.topMargin ?: 0)+(margins?.bottomMargin ?: 0)
-                        val widthSpec=ViewGroup.getChildMeasureSpec(View.MeasureSpec.makeMeasureSpec(panel.width,View.MeasureSpec.EXACTLY),horizontal,params.width)
-                        force(bar);bar.measure(widthSpec,View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED))
-                        val natural=bar.measuredHeight
-                        panel.minimumHeight=maxOf(originalMinimum,natural+vertical)
-                        nativeButtonReservePx=panel.minimumHeight
-                        evidence.put("nativeBarNaturalHeightPx",natural).put("reservedButtonPanelMinimumPx",panel.minimumHeight)
+                        fun natural(view:View?,owner:ViewGroup?):Int {
+                            if(view==null || view.visibility==View.GONE)return 0
+                            if(owner==null)return 0
+                            force(view);view.measure(widthSpec(owner,view),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED))
+                            return view.measuredHeight
+                        }
+                        val naturalBar=natural(bar,panel)
+                        nativeButtonReservePx=maxOf(originalMinimum,panel.background?.minimumHeight ?: 0,
+                            naturalBar+panel.paddingTop+panel.paddingBottom+verticalMargins(bar))
+                        panel.minimumHeight=requireNotNull(nativeButtonReservePx)
+                        topNaturalPx=natural(top,parent);contentNaturalPx=natural(content,parent)
+                        evidence.put("nativeBarNaturalHeightPx",naturalBar).put("reservedButtonPanelMinimumPx",panel.minimumHeight)
+                            .put("topPanelNaturalHeightPx",topNaturalPx).put("contentPanelNaturalHeightPx",contentNaturalPx)
+                            .put("naturalMeasurementKey",measureKey.toString())
+                            .put("naturalPanelWidthPx",parent?.width ?: JSONObject.NULL).put("naturalPanelLayoutDirection",parent?.layoutDirection ?: JSONObject.NULL)
                             .put("nativeBarBudgetSource","actual_width_UNSPEC_native_bar_plus_actual_parent_padding_and_margins")
                         key=measureKey
-                        force(bar);var ancestor:View?=panel
+                        // Natural measurement replaces measured dimensions temporarily; restore normal native layout before drawing.
+                        listOfNotNull(top,content,bar).forEach(::force)
+                        var ancestor:View?=panel
                         while(ancestor!=null) {ancestor.forceLayout();ancestor=ancestor.parent as? View}
                         panel.requestLayout()
                         return@OnPreDrawListener false
@@ -345,27 +490,36 @@ private class SettingsDialogLayoutObserver(private val dialog:AlertDialog,privat
                 val origin=IntArray(2);decor.getLocationOnScreen(origin)
                 val safe=Rect(origin[0],origin[1],origin[0]+decor.width,origin[1]+decor.height)
                 if(!safe.intersect(frame))safe.setEmpty()
-                val chrome=body?.let {(decor.height-it.height).coerceAtLeast(0)}
-                val budget=body?.let {settingsDialogBodyBudget(safe.height(),decor.height,it.height,panel?.height ?: 0,
-                    nativeButtonReservePx.takeIf {supported},(52*decor.resources.displayMetrics.density).toInt())}
+                val naturalChrome=if(body!=null && reason==null && parent!=null && custom!=null && panel!=null && nativeButtonReservePx!=null) {
+                    val fixed=topNaturalPx+contentNaturalPx+requireNotNull(nativeButtonReservePx)+
+                        listOfNotNull(top,content,panel).filter {it.visibility!=View.GONE}.sumOf(::verticalMargins)
+                    val bodyLayers=wrappers.map {(group,child)->layer(group,child)}
+                    val outerLayers=listOf(layer(parent,custom,dividers(parent,children(parent).size)))+
+                        outers.map {(group,child)->layer(group,child,if(group is LinearLayout)dividers(group,1) else 0)}
+                    evidence.put("fixedPanelHeightPx",fixed).put("bodyWrapperConstraints",JSONArray(bodyLayers.map {
+                        JSONObject().put("decorationPx",it.decorationPx).put("minimumHeightPx",it.minimumHeightPx)}))
+                        .put("parentAndDecorConstraints",JSONArray(outerLayers.map {
+                            JSONObject().put("decorationPx",it.decorationPx).put("minimumHeightPx",it.minimumHeightPx)}))
+                    SettingsDialogNaturalChrome(fixed,requireNotNull(nativeButtonReservePx),bodyLayers,outerLayers)
+                } else null
+                val budget=settingsDialogBodyBudget(safe.height(),naturalChrome,(52*decor.resources.displayMetrics.density).toInt())
                 val cap=budget?.bodyMaximumHeightPx
                 evidence.put("softInputMode",window.attributes.softInputMode).put("availableFrameScreenPx",JSONArray(listOf(frame.left,frame.top,frame.right,frame.bottom)))
                     .put("frameSemantics","actual_getWindowVisibleDisplayFrame_screen_coordinates")
                     .put("decorRectScreenPx",rectangle(decor)).put("bodyViewportRectScreenPx",rectangle(body))
-                    .put("bodyNaturalHeightPx",body?.getChildAt(0)?.measuredHeight ?: JSONObject.NULL).put("actualChromePx",chrome ?: JSONObject.NULL)
+                    .put("bodyNaturalHeightPx",body?.getChildAt(0)?.measuredHeight ?: JSONObject.NULL)
                     .put("safeIntersectionScreenPx",JSONArray(listOf(safe.left,safe.top,safe.right,safe.bottom))).put("safeHeightPx",safe.height())
                     .put("actualButtonPanelHeightPx",panel?.height ?: JSONObject.NULL)
                     .put("nonBodyNonButtonChromePx",budget?.nonBodyNonButtonChromePx ?: JSONObject.NULL)
                     .put("nativeButtonReservePx",budget?.nativeButtonReservePx ?: JSONObject.NULL)
-                    .put("bodyBudgetSource",if(budget==null)"UNCERTIFIED_NATIVE_STRUCTURE_NO_BUDGET_ASSUMED"
-                        else "actual_decor_visible_frame_intersection_minus_nonbody_nonbutton_chrome_and_measured_native_button_reserve")
+                    .put("bodyBudgetSource",if(budget==null)"UNCERTIFIED_NATIVE_STRUCTURE_NO_BUDGET_ASSUMED" else "independent_natural_panels_and_actual_wrapper_constraints")
                     .put("bodyMaximumHeightPx",cap ?: JSONObject.NULL)
                     .put("minimumEditorBudgetSatisfiable",budget?.minimumEditorBudgetSatisfiable ?: JSONObject.NULL)
-                    .put("titleRectScreenPx",rectangle(dialog.findViewById<View>(decor.resources.getIdentifier("alertTitle","id","android"))))
-                    .put("positiveRectScreenPx",rectangle(positive)).put("negativeRectScreenPx",rectangle(negative))
+                    .put("nativeConstraintsSatisfiable",budget?.nativeConstraintsSatisfiable ?: JSONObject.NULL)
+                    .put("titleRectScreenPx",rectangle(native("alertTitle"))).put("positiveRectScreenPx",rectangle(positive)).put("negativeRectScreenPx",rectangle(negative))
                     .put("positiveMeasuredHeightPx",positive?.measuredHeight ?: JSONObject.NULL).put("negativeMeasuredHeightPx",negative?.measuredHeight ?: JSONObject.NULL)
                     .put("imeVisible",if(Build.VERSION.SDK_INT>=30)decor.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) ?: JSONObject.NULL else JSONObject.NULL)
-                if(body!=null && cap!=null && decor.height>0 && body.maximumHeightPx!=cap) {
+                if(body!=null && body.maximumHeightPx!=cap) {
                     body.maximumHeightPx=cap;body.requestLayout();false
                 } else true
             }
