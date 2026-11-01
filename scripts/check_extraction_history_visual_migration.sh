@@ -228,6 +228,37 @@ def require_extraction_plot(folder):
     assert len(plots)==1 and abs((plots[0][3]-plots[0][1])/(geometry['densityDpi']/160)-evidence['actualPlotHeightDp'])<0.01
     return evidence
 
+def require_reference_tools_route(folder,route,index=None,eligible_count=None):
+    menu=route['menu']
+    assert menu['schema']=='ACTUAL_REFERENCE_TOOLS_ROUTE_V1'
+    assert menu['sourceEnabled'] and menu['entryEnabled'] and menu['noHiddenSourceClick']
+    assert menu['sourceText']==menu['entryText'] and menu['entryText']
+    assert menu['entry']['semanticId']=='product/extraction/tool/reference-choice' and menu['entry']['complete']
+    require_text_layout(menu['entry'])
+    assert menu['density']>0 and min(menu['entryWidthPx'],menu['entryHeightPx'])>=48*menu['density']
+    for key in ('windowIdentity','decorIdentity','tokenIdentity','ownerActivityIdentity','sourceIdentity'):assert menu[key]>0
+    assert route['ownerActivityIdentity']==menu['ownerActivityIdentity'] and route['toolsDismissedByProduct']
+    assert route['chooserWindowIdentity']>0 and route['chooserWindowIdentity']!=menu['windowIdentity']
+    assert route['chooserDecorIdentity']>0 and route['chooserDecorIdentity']!=menu['decorIdentity'] and route['chooserTokenIdentity']>0
+    relative=Path(route['menuProofPath']);assert not relative.is_absolute() and '..' not in relative.parts
+    proof_file=folder/relative
+    assert require_proof(proof_file)==route['menuFrameSync']
+    assert json.loads((proof_file.parent/'geometry.json').read_text())==menu
+    frame=route['menuFrameSync']
+    assert frame['captureWindowKind']=='EXPLICIT_WINDOW' and frame['mappingMode']=='MEASURED_WINDOW_BUFFER_TRANSLATION'
+    attempt=frame['attempts'][frame['acceptedAttempt']-1]
+    assert menu==attempt['geometryBefore']['target']==attempt['geometryAfter']['target']
+    assert abs(menu['density']-json.loads((folder/'geometry.json').read_text())['densityDpi']/160)<0.001
+    if index is not None:
+        assert route['index']==index and route['expectedEligibleCount']==eligible_count
+        assert route['listCount']==eligible_count+1 and 0<=index<route['listCount']
+        assert len(route['itemLabels'])==route['listCount'] and all(route['itemLabels'])
+        assert route['itemLabels'][0]==route['offLabel'] and route['offLabel']
+        assert route['selectedRow']['complete'];require_text_layout(route['selectedRow'])
+        assert route['density']==menu['density'] and min(route['selectedRowWidthPx'],route['selectedRowHeightPx'])>=48*route['density']
+    return menu
+
+
 def require_chart_header(folder,metrics,caption=False,action='stop'):
     reach=json.loads((folder/'chart-header-reachability.json').read_text())
     location=reach['explanationLocation'];assert location in ('header','overview')
@@ -727,6 +758,11 @@ for path in manifests:
             if name=='historical_reference_toggle':
                 assert case['referenceToggleActualSavedJournal'] and case['selectionAndScrollRestored'] and case['currentCupAndJournalUnchanged']
                 assert case['referenceOnCount']>0
+                eligible=case['eligibleReferenceIds'];assert eligible and len(eligible)==len(set(eligible))
+                assert case['selectedReferenceId'] in eligible
+                routes=case['referenceChooserSelections'];assert len(routes)==2
+                for route,index in zip(routes,(eligible.index(case['selectedReferenceId'])+1,0)):
+                    require_reference_tools_route(target,route,index,len(eligible))
                 for phase in ('on','off','restored'):
                     require_proof(target/'states'/f'extraction-reference-{phase}'/'window-frame-sync.json')
                 for phase,field in (('on','referenceOnChartHeaderReachability'),('off','referenceOffChartHeaderReachability'),
@@ -737,6 +773,7 @@ for path in manifests:
                     assert (case[field]['initialState']['referenceId'] is not None)==(phase=='on')
             if name=='journal_unavailable':
                 assert case['actualJournalResultFailed'] and case['chooserOnlyOffNoFakeRecord']
+                require_reference_tools_route(target,case['journalUnavailableReferenceTools'])
                 dialog=target/'states/extraction-journal-unavailable-dialog'
                 dialog_frame=require_proof(dialog/'window-frame-sync.json')
                 actual=json.loads((dialog/'geometry.json').read_text())
