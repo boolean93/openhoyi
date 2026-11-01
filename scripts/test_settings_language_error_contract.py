@@ -107,6 +107,39 @@ class LanguageErrorContract(unittest.TestCase):
         self.assertIn('.put("text",owner.getString(R.string.language_save_failed))', source)
         self.assertIn('.put("resourceLocale",owner.resources.configuration.locales.toLanguageTags())', source)
 
+    def test_null_focus_and_unique_real_control_focus_are_valid(self):
+        self.validate()
+        control = self.safe['controls'][0]
+        control['roles'].append('focused')
+        self.safe['focusedControlIdentity'] = control['viewIdentity']
+        self.validate()
+
+    def test_existing_focus_and_owner_gates_reject_invalid_current_targets(self):
+        changes = {
+            'null_with_focused': lambda t, s: s['controls'][0]['roles'].append('focused'),
+            'id_without_focused': lambda t, s: s.update(focusedControlIdentity=1),
+            'wrong_focused_id': lambda t, s: (s['controls'][0]['roles'].append('focused'),
+                                              s.update(focusedControlIdentity=99)),
+            'hidden_focused': lambda t, s: (s['controls'][0]['roles'].append('focused'),
+                                            s['controls'][0].update(isShown=False),
+                                            s.update(focusedControlIdentity=1)),
+            'duplicate_control': lambda t, s: s['controls'].append(copy.deepcopy(s['controls'][0])),
+            'duplicate_button': lambda t, s: s['buttonRoles'][0].update(role='negative'),
+            'wrong_negative_identity': lambda t, s: s['buttonRoles'][1].update(identity=99),
+            'ime': lambda t, s: t.update(imeVisible=True),
+            'edit_text': lambda t, s: s['controls'][0].update(isEditText=True),
+            'lost_window_focus': lambda t, s: s.update(decorHasWindowFocus=False),
+            'wrong_owner': lambda t, s: s.update(ownerMatches=False),
+            'wrong_window': lambda t, s: s.update(windowIdentity=99),
+            'wrong_decor': lambda t, s: s.update(decorIdentity=99),
+        }
+        for name, change in changes.items():
+            with self.subTest(mutation=name):
+                self.target, self.safe, self.proof = fixture()
+                change(self.target, self.safe)
+                with self.assertRaises(AssertionError):
+                    self.validate()
+
     def test_accepted_before_after_and_saved_geometry_remain_bound(self):
         with tempfile.TemporaryDirectory() as directory:
             folder = Path(directory) / 'app/special-states/language-write-rejected'

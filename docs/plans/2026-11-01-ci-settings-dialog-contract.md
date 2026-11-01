@@ -19,3 +19,5 @@
 `test_settings_language_error_contract.py` 4 tests 通过（22 种错误变体及 accepted-before/after/saved 绑定），`bash -n`、`git diff --check` 通过。`:mobile:compileMockAndroidTestKotlin` BUILD SUCCESSFUL（30s）。自包含 settings 测试共24通过；旧归档套件因固定 ZIP 未提供而 setup 失败，没有跳过或宣称完整归档回放成功。旧2ef几何仅提供故障定位，缺新的资源期望字段，不能等同新源码 CI。
 
 Astra `/root/settings_failure_review` 只读独审通过，复核了安全区外、零面积、重复身份负例及原门禁保留。真实 CI、视觉验收仍待 parent 调度；未 push。
+
+旧归档还有语义边界：ci-3a78c4c target 早于错误 TextView 和资源期望字段契约，即使补回 ZIP 也不能作为当前 host 全通过证据。窄适配原归档测试为明确拒绝旧 target/旧 app fullbody；保留原 protocol、四图和窗口身份回放。合法 null-focus/唯一真实控件 focus 及原错误focus/owner反例由显式标注的当前 synthetic fixture 验证，避免缺资源字段让所有负例提前失败。

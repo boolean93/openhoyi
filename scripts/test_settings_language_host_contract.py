@@ -117,9 +117,10 @@ class SettingsLanguageHostContract(unittest.TestCase):
         self.assertEqual(proof['acceptedAttempt'], 1)
         self.assertEqual(len(proof['captureArtifacts']), 4)
 
-    def test_original_null_control_focus_is_accepted(self):
+    def test_old_target_without_error_resource_contract_is_rejected(self):
         self.assertIsNone(self.safe()['focusedControlIdentity'])
-        self.validate_dialog()
+        with self.assertRaisesRegex(AssertionError, 'Language dialog actual text class contract mismatch'):
+            self.validate_dialog()
 
     def test_artifact_mutations_are_rejected(self):
         original = self.proof()
@@ -177,13 +178,14 @@ class SettingsLanguageHostContract(unittest.TestCase):
                     self.require_protocol()
 
     def test_real_unique_focused_control_is_accepted(self):
-        accepted = copy.deepcopy(self.accepted())
-        safe = copy.deepcopy(self.safe())
+        # Explicit synthetic current-contract fixture, not a mutation presented as old CI evidence.
+        from test_settings_language_error_contract import fixture
+        accepted, safe, proof = fixture()
         control = safe['controls'][0]
         control['roles'].append('focused')
         safe['focusedControlIdentity'] = control['viewIdentity']
         accepted['safeControls'] = safe
-        self.validate_dialog(accepted, safe)
+        self.functions['validate_language_dialog_target'](accepted, safe, proof)
 
     def test_inconsistent_focus_identity_and_ownership_are_rejected(self):
         changes = {
@@ -207,14 +209,14 @@ class SettingsLanguageHostContract(unittest.TestCase):
         }
         for name, change in changes.items():
             with self.subTest(name=name):
-                accepted = copy.deepcopy(self.accepted())
-                safe = copy.deepcopy(self.safe())
+                from test_settings_language_error_contract import fixture
+                accepted, safe, proof = fixture()
                 change(accepted, safe)
                 accepted['safeControls'] = safe
                 with self.assertRaises(AssertionError):
-                    self.validate_dialog(accepted, safe)
+                    self.functions['validate_language_dialog_target'](accepted, safe, proof)
 
-    def test_entire_app_original_verify_body_passes_offline(self):
+    def test_old_app_verify_body_is_not_current_contract_evidence(self):
         source = SOURCE.read_text().split("<<'VERIFY_PY'\n", 1)[1].split('\nVERIFY_PY', 1)[0]
         tree = ast.parse(source)
         start = next(i for i, node in enumerate(tree.body) if isinstance(node, ast.Assign)
@@ -236,9 +238,11 @@ class SettingsLanguageHostContract(unittest.TestCase):
             definitions = ast.Module(body=tree.body[start:stop], type_ignores=[])
             exec(compile(definitions, str(SOURCE), 'exec'), namespace)
             namespace.update(path=path, folder=path.parent, m=json.loads(path.read_text()))
-            exec(compile(ast.Module(body=body, type_ignores=[]), str(SOURCE), 'exec'), namespace)
-            self.assertEqual(namespace['seen'], {('app', 'tablet-user-landscape-light-font-1.3')})
-            self.assertGreater(namespace['protocol_count'], 0)
+            # This archive predates the error TextView/resource expectation contract.
+            # Original protocol/four-image checks remain separate above; do not inject new
+            # target fields and claim that the untouched historical app passes today's gate.
+            with self.assertRaisesRegex(AssertionError, 'Language dialog actual text class contract mismatch'):
+                exec(compile(ast.Module(body=body, type_ignores=[]), str(SOURCE), 'exec'), namespace)
 
 
 if __name__ == '__main__':

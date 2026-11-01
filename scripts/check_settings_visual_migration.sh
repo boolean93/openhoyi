@@ -371,7 +371,7 @@ def validate_language_dialog_target(accepted,safe,proof):
     assert accepted['imeVisible'] is False
     text_classes={text['actualTypography']['class'] for node in accepted['nodes'] for text in node['textLineBoxes']}
     assert text_classes=={'android.widget.Button','android.widget.CheckedTextView',
-        'com.android.internal.widget.DialogTitle','android.widget.TextView'}
+        'com.android.internal.widget.DialogTitle','android.widget.TextView'}, 'Language dialog actual text class contract mismatch'
     error_tag='product/settings/app/language/error'
     errors=[node for node in accepted['nodes'] if node.get('semanticId')==error_tag]
     assert len(errors)==1
