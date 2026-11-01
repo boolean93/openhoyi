@@ -10,6 +10,11 @@ source_dirty=false
 profile="${1:-tablet-user-landscape}"
 [[ "$profile" == tablet-user-landscape ]] || { echo 'Only the frozen tablet-user-landscape profile is supported' >&2; exit 1; }
 output_dir="${2:-$PWD/build/task-first-evidence/settings-visual-migration}"
+scope="${3:-full}"
+case "$scope" in
+  full|light-1.3|light-1.0|dark-1.3|dark-1.0) ;;
+  *) echo 'Unknown fixed settings matrix scope' >&2; exit 1 ;;
+esac
 mkdir -p "$output_dir"
 record_capacity() {
   # Diagnostic only: no app files, screenshot timing, or matrix outcome depends on this probe.
@@ -66,6 +71,12 @@ apk_sha=$(python3 - <<'PY'
 import hashlib
 from pathlib import Path
 print(hashlib.sha256(Path('mobile/build/outputs/apk/mock/mobile-mock.apk').read_bytes()).hexdigest())
+PY
+)
+test_apk_sha=$(python3 - <<'PY'
+import hashlib
+from pathlib import Path
+print(hashlib.sha256(Path('mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk').read_bytes()).hexdigest())
 PY
 )
 # Snapshot key presence AND value. `settings get` prints null for absence and cannot prove presence.
@@ -139,6 +150,11 @@ FONT_RESTORE_PY
     if (( exit_status == 0 )); then exit_status=1; fi
   fi
   adb shell am get-config > "$output_dir/font-scale-global-config-after-restore.txt" || true
+  python3 - "$output_dir/runner-exit.json" "$exit_status" <<'EXIT_RECORD_PY'
+import json,sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({'exitStatus':int(sys.argv[2])},indent=2)+'\n')
+EXIT_RECORD_PY
   return "$exit_status"
 }
 trap 'original_exit=$?; trap - EXIT; if collect "$original_exit"; then exit 0; else exit "$?"; fi' EXIT
@@ -150,14 +166,16 @@ adb shell settings put system user_rotation 0
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 matrix_gate=scripts/settings_matrix_isolation.py
-python3 "$matrix_gate" init --output "$output_dir" --source "$source_sha" --apk "$apk_sha"
+python3 "$matrix_gate" init --output "$output_dir" --source "$source_sha" --apk "$apk_sha" --test-apk "$test_apk_sha" --scope "$scope"
 matrix_initialized=true
 record_capacity pre-matrix none none none 0 || true
 for product_theme in light dark; do
+  if [[ "$scope" != full && "$scope" != "$product_theme-"* ]]; then continue; fi
   if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
-  # End with three real 1.0 pages; this removes delete's explicit 1.3 -> default-1.0 transition,
-  # not a persistence-queue ACK. Strict key presence/value restoration below remains mandatory.
+  # Full mode retains its original 1.3 -> 1.0 order. Each shard still restores
+  # the exact original key presence/value; a 1.3-only restore is never assumed safe.
   for font_scale in 1.3 1.0; do
+    if [[ "$scope" != full && "$scope" != "$product_theme-$font_scale" ]]; then continue; fi
     adb shell settings put system font_scale "$font_scale"
     for settings_page in app machine scale-settings; do
       result_file="$output_dir/$product_theme-$font_scale-$settings_page-result.txt"
@@ -165,10 +183,10 @@ for product_theme in light dark; do
         break 3
       fi
       adb shell am force-stop "$package"
-      if python3 - "$result_file" "$source_sha" "$source_dirty" "$apk_sha" "$product_theme" "$font_scale" "$settings_page" <<'RUN_PY'
+      if python3 - "$result_file" "$source_sha" "$source_dirty" "$apk_sha" "$test_apk_sha" "$product_theme" "$font_scale" "$settings_page" <<'RUN_PY'
 from pathlib import Path
 import json, os, subprocess, sys
-result_path, source, dirty, apk, theme, scale, page = sys.argv[1:]
+result_path, source, dirty, apk, test_apk, theme, scale, page = sys.argv[1:]
 def fresh_process_absent(probe):
     # Exact remote marker proves pidof actually ran. Unknown status, output, stderr or transport failure is not absence.
     return probe.returncode == 0 and probe.stdout.replace('\r\n','\n') == 'FRESH_PIDOF_STATUS=1\nFRESH_PIDOF_OUTPUT=\n' and probe.stderr == ''
@@ -196,7 +214,8 @@ assert hashlib.sha256((Path('docs/research/task-first-ui-concepts')/reference_na
 command = ['adb','shell','am','instrument','-w']
 for key,value in {'settingsVisualMigration':'true','disposableCiEmulator':'true','freshProcessVerified':'true',
     'settingsPage':page,'referencePngSha256':reference_sha,'sourceSha':source,'headSha':os.environ.get('PRODUCT_PR_HEAD_SHA',source),
-    'sourceDirty':dirty,'apkSha':apk,'sampleTheme':theme,'expectedFontScale':scale,
+    'sourceDirty':dirty,'apkSha':apk,'testApkSha':test_apk,'ciRunAttempt':os.environ.get('GITHUB_RUN_ATTEMPT','unknown'),
+    'sampleTheme':theme,'expectedFontScale':scale,
     'ciRun':os.environ['GITHUB_RUN_ID'],'ciJob':os.environ['GITHUB_JOB']}.items():
     command += ['-e',key,value]
 command += ['io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation']
@@ -224,14 +243,19 @@ done
 if python3 - "$output_dir/$source_sha" "$output_dir/matrix-ledger.json" <<'VERIFY_PY'
 from pathlib import Path
 import hashlib,json,struct,sys
-root=Path(sys.argv[1]); ledger=json.loads(Path(sys.argv[2]).read_text()); sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
+sys.path.insert(0,'scripts')
+from settings_matrix_isolation import expected, load
+root=Path(sys.argv[1]); ledger=load(Path(sys.argv[2]).parent); sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
+frozen=expected(root.name,ledger.get('scope','full')); expected_count=len(frozen)
+frozen_keys={(cell['page'],cell['profile']) for cell in frozen}
 manifests=sorted(root.glob('*/*/manifest.json'))
-assert len(ledger['cells'])==12
-assert len(manifests)==12 or ledger['unsafeStop'] is not None, f'Expected 12 real M8 configurations, got {len(manifests)}'
+assert len(ledger['cells'])==expected_count
+assert len(manifests)==expected_count or ledger['unsafeStop'] is not None, f'Expected {expected_count} real M8 configurations, got {len(manifests)}'
+assert {(path.parent.name,path.parent.parent.name) for path in manifests}<=frozen_keys
 assert all(cell['status'] in ('PASS_CAPTURED_PENDING_FULL_VERIFY','FAILED_ISOLATED_CONTINUED',
     'FAILED_UNSAFE_STOP','NOT_RUN_UNSAFE_PREDECESSOR') for cell in ledger['cells'])
 success={(cell['page'],cell['profile']) for cell in ledger['cells'] if cell['status']=='PASS_CAPTURED_PENDING_FULL_VERIFY'}
-assert len({(cell['page'],cell['profile']) for cell in ledger['cells']})==12
+assert {(cell['page'],cell['profile']) for cell in ledger['cells']}==frozen_keys
 seen=set(); pending=[]; protocol_count=0
 references={
 'app':'f2022d5eb60b798a722d30f01933028a63f14a342958400c74fcdc25a7c1a899',
@@ -242,7 +266,8 @@ required={
 'feedback-preview-leave-stopped','saf-cancel','saf-failure','saf-owned-success','theme-success-recreated','hardware-audio-output'} |
 {'language-'+tag for tag in ('zh-Hans','en','ru','th','ar','ja','ko','es')},
 'machine':{'section-'+str(index) for index in range(5)} | {'section-recreated','invalid-brew','invalid-compensation',
-'invalid-steam','legal-input-mock-preview','temperature-native-ime','schedule-draft-native-ime','schedule-cancel-no-write','device-confirmed-unknown-recovery','no-service-disabled'},
+'invalid-steam','legal-input-mock-preview','temperature-native-ime','schedule-editor-collapsed','schedule-editor-expanded',
+'schedule-draft-native-ime','schedule-cancel-no-write','device-confirmed-unknown-recovery','no-service-disabled'},
 'scale-settings':{'precision-recreated','real-scale-no-data','ready-nonmock-hardware-capabilities'}}
 def validate_measured_window_attempt(proof,attempt):
     assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000
@@ -265,7 +290,7 @@ def validate_measured_window_attempt(proof,attempt):
     assert attempt['measuredWindowLayerSizePx']==size
     assert attempt['layer-before']['sizePx']==size==attempt['layer-after']['sizePx']
     assert 0<=roi[0]<roi[2]<=size[0] and 0<=roi[1]<roi[3]<=size[1]
-    assert before['target']==after['target']
+    assert before==after
     for geometry in (before,after):
         assert geometry['mappingMode']==proof['mappingMode']
 
@@ -285,8 +310,10 @@ def require_protocol(path, kind=None):
     assert attempt['windowLayerMatch'] and attempt['displayStable']
     for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'):assert attempt[key]['count']==0,(path,key)
     source=attempt['windowSourceRectPx']; screen=attempt['displayAppRectPx']
-    measured=(path.parent.name=='language-write-rejected' and path.parent.parent.name=='special-states'
-        and path.parent.parent.parent.name=='app')
+    measured=(path.parent.parent.name=='special-states' and (
+        (path.parent.parent.parent.name=='app' and path.parent.name=='language-write-rejected') or
+        (path.parent.parent.parent.name=='machine' and path.parent.name in {
+            'legal-input-mock-preview','schedule-draft-native-ime','schedule-cancel-no-write'})))
     if measured:
         assert proof['captureWindowKind']=='EXPLICIT_WINDOW' and proof['mappingMode']=='MEASURED_WINDOW_BUFFER_TRANSLATION'
         validate_measured_window_attempt(proof,attempt)
@@ -371,7 +398,29 @@ def validate_language_dialog_target(accepted,safe,proof):
     assert accepted['imeVisible'] is False
     text_classes={text['actualTypography']['class'] for node in accepted['nodes'] for text in node['textLineBoxes']}
     assert text_classes=={'android.widget.Button','android.widget.CheckedTextView',
-        'com.android.internal.widget.DialogTitle'}
+        'com.android.internal.widget.DialogTitle','android.widget.TextView'}, 'Language dialog actual text class contract mismatch'
+    error_tag='product/settings/app/language/error'
+    errors=[node for node in accepted['nodes'] if node.get('semanticId')==error_tag]
+    assert len(errors)==1
+    error=errors[0];require_whole(error)
+    assert error['viewIdentity']>0 and error['visibleRectPx']==error['rectPx']
+    assert sum(node['viewIdentity']==error['viewIdentity'] for node in accepted['nodes'])==1
+    left,top,right,bottom=safe['safeRectScreenPx'];x,y,r,b=error['rectPx']
+    assert left<=x<r<=right and top<=y<b<=bottom
+    assert len(error['textLineBoxes'])==1
+    error_text=error['textLineBoxes'][0];typography=error_text['actualTypography']
+    assert typography['class']=='android.widget.TextView'
+    assert typography['tag']==error_text['semanticId']==error_tag
+    expectation=accepted['languageErrorExpectation']
+    assert expectation['resourceName']=='language_save_failed'
+    assert isinstance(accepted['locale'],str) and accepted['locale']
+    assert expectation['resourceLocale']==accepted['locale']
+    assert isinstance(expectation['text'],str) and expectation['text']
+    assert error_text['text']==typography['text']==expectation['text']
+    for node in accepted['nodes']:
+        for text in node['textLineBoxes']:
+            if text['actualTypography']['class']=='android.widget.TextView':
+                assert node is error and text is error_text
     assert safe['dialogIdentity']>0 and safe['ownerActivityIdentity']>0
     assert safe['windowIdentity']==proof['windowIdentity'] and safe['decorIdentity']==proof['decorIdentity']
     assert all(safe[key] is True for key in ('callbackIsDialog','dialogWindowIsWindow','ownerMatches',
@@ -418,6 +467,87 @@ def validate_language_dialog_target(accepted,safe,proof):
     else:
         assert len(focused)==1
         assert safe['focusedControlIdentity']==focused[0]['viewIdentity']
+
+def validate_weekly_editor_route(collapsed_proof,expanded_proof,manifest):
+    assert manifest['mockMode'] is True and manifest['page']=='machine'
+    assert manifest['ownedMachineServiceIdentity']>0 and manifest['ownedMockRuntimeIdentity']>0
+    routes=[]
+    for proof,expanded in ((collapsed_proof,False),(expanded_proof,True)):
+        assert proof['captureWindowKind']=='ACTIVITY' and proof['accepted'] and proof['timeoutMs']==5000
+        attempt=proof['attempts'][proof['acceptedAttempt']-1]
+        assert attempt['geometryBefore']==attempt['geometryAfter']
+        accepted=attempt['geometryBefore']['target'];route=accepted['weeklyEditorRoute'];routes.append(route)
+        assert route['contract']=='ACTUAL_WEEKLY_EDITOR_ROUTE_V1'
+        assert route['ownerActivityIdentity']>0 and route['cardIdentity']>0 and route['editorIdentity']>0
+        for key in ('windowIdentity','decorIdentity','windowTokenIdentity','rootIdentity'):
+            assert route[key]==proof[key] and route[key]>0
+        assert route['locale']==accepted['locale'] and isinstance(route['locale'],str) and route['locale']
+        assert accepted['densityDpi']==360 and route['density']==accepted['densityDpi']/160
+        assert route['editResource']=='machine_settings_schedule_edit' and route['collapseResource']=='machine_settings_schedule_collapse'
+        assert route['dayLabelResource']=='machine_settings_edit_sleep_day'
+        assert route['dayNameResources']==['machine_settings_'+day for day in ('sunday','monday','tuesday','wednesday','thursday','friday','saturday')]
+        assert all(isinstance(route[key],str) and route[key] for key in ('editLabel','collapseLabel'))
+        assert route['editLabel']!=route['collapseLabel']
+        assert route['toggleParentIdentity']==route['editorParentIdentity']==route['cardIdentity']
+        assert route['editorVisibility']==(0 if expanded else 8) and route['editorShown'] is expanded
+        if expanded: assert route['editorLayoutRequested'] is False
+        days=route['days'];labels=route['expectedDayLabels']
+        assert len(days)==len(labels)==7 and len({day['viewIdentity'] for day in days})==7
+        assert len(set(labels))==7 and all(isinstance(label,str) and label for label in labels)
+        for index,day in enumerate(days):
+            assert day['index']==index and day['viewIdentity']>0 and day['parentIdentity']==route['editorIdentity']
+            assert day['tokenIdentity']==proof['windowTokenIdentity'] and day['rootViewIdentity']==proof['decorIdentity']
+            assert day['text']==labels[index] and day['isShown'] is expanded
+            matches=[node for node in accepted['nodes'] if node['viewIdentity']==day['viewIdentity']]
+            assert len(matches)==1 and len(matches[0]['textLineBoxes'])==1
+            text=matches[0]['textLineBoxes'][0]
+            assert text['text']==text['actualTypography']['text']==labels[index]
+            assert text['actualTypography']['class']=='android.widget.Button'
+            x,y,r,b=matches[0]['rectPx'];assert r-x==day['widthPx'] and b-y==day['heightPx']
+            if expanded: assert day['widthPx']>=int(48*route['density']) and day['heightPx']>=int(48*route['density'])
+        toggle=route['toggle'];first=route['firstDay']
+        assert toggle['viewIdentity'] not in {day['viewIdentity'] for day in days}
+        assert first['viewIdentity']==days[0]['viewIdentity']
+        for actual in (toggle,first):
+            matches=[node for node in accepted['nodes'] if node['viewIdentity']==actual['viewIdentity']]
+            assert len(matches)==1 and matches[0]==actual
+            assert len(actual['textLineBoxes'])==1
+            text=actual['textLineBoxes'][0]
+            assert text['actualTypography']['class']=='android.widget.Button'
+            assert text['text']==text['actualTypography']['text']
+        assert toggle['textLineBoxes'][0]['text']==route['collapseLabel' if expanded else 'editLabel']
+        assert first['textLineBoxes'][0]['text']==labels[0]
+        for actual in ((toggle,first) if expanded else (toggle,)):
+            require_whole(actual)
+            x,y,r,b=actual['rectPx'];assert r-x>=int(48*route['density']) and b-y>=int(48*route['density'])
+            assert actual['visibleRectPx']==actual['rectPx']
+            ox,oy=accepted['appOriginPx'];width,height=accepted['appSizePx']
+            assert ox<=x<r<=ox+width and oy<=y<b<=oy+height
+        state=route['scheduleState']
+        assert state.get('source')=='OWNED_MOCK_SERVICE_TYPED_SLEEP_PART_V1', 'Missing typed Mock schedule provenance'
+        assert state['mockMode'] is True and state['packageName']=='io.openhoyi.mobile.mock'
+        assert state['ownerServiceClass']=='io.openhoyi.mobile.MobileService' and state['mockRuntimeClass']=='io.openhoyi.mobile.MockDeviceRuntime'
+        assert state['ownerServiceIdentity']==manifest['ownedMachineServiceIdentity'] and state['mockRuntimeIdentity']==manifest['ownedMockRuntimeIdentity']
+        assert state['state']=='IDLE' and state['pendingIsNull'] is True
+        for key,index,count in (('firstReadback',0,4),('secondReadback',4,3)):
+            value=state[key]
+            assert isinstance(value,dict) and set(value)=={'firstDaySundayIndex','enabledBits','days','raw'}
+            assert type(value['firstDaySundayIndex']) is int and value['firstDaySundayIndex']==index
+            assert value['raw']==[], 'Mock empty raw is explicit metadata, never fabricated wire'
+            if index==0: assert type(value['enabledBits']) is int and 0<=value['enabledBits']<=255
+            else: assert value['enabledBits'] is None
+            assert isinstance(value['days'],list) and len(value['days'])==count
+            for day in value['days']:
+                assert set(day)=={'sleepHour','sleepMinute','wakeHour','wakeMinute'}
+                assert all(type(day[field]) is int and 0<=day[field]<limit for field,limit in
+                    (('sleepHour',24),('sleepMinute',60),('wakeHour',24),('wakeMinute',60)))
+    before,after=routes
+    for key in ('ownerActivityIdentity','windowIdentity','decorIdentity','windowTokenIdentity','rootIdentity',
+                'cardIdentity','editorIdentity','toggleParentIdentity','editorParentIdentity','locale','density',
+                'editLabel','collapseLabel','expectedDayLabels','scheduleState'):
+        assert before[key]==after[key]
+    assert before['toggle']['viewIdentity']==after['toggle']['viewIdentity']
+    assert [day['viewIdentity'] for day in before['days']]==[day['viewIdentity'] for day in after['days']]
 
 def require_state(folder,kind):
     assert (folder/'window.png').is_file() and (folder/'geometry.json').is_file(),folder
@@ -494,6 +624,9 @@ for path in manifests:
     cell_key={'page':m['page'],'profile':m['profile']}
     try:
         assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
+        if ledger.get('scope','full')!='full':
+            assert all(m.get(key)==ledger[key] for key in ('headSha','ciRun','ciRunAttempt','ciJob','apkSha256','testApkSha256'))
+            assert m['sourceDirty']=='false'
         assert m['visualAcceptance']=='ASTRA_PENDING'
         assert m['layoutStatus']==m['overallStatus']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE'
         assert m['isolationStatus']=='PASS_ISOLATION_ONLY'
@@ -542,6 +675,8 @@ for path in manifests:
         require_reach(folder/'main-reachability',m['page'],'main')
         if m['page']=='machine':
             for index in range(5):require_reach(folder/'special-states'/('section-'+str(index))/'reachable','machine','section-'+str(index))
+            validate_weekly_editor_route(*[require_protocol(folder/'special-states'/name/'window-frame-sync.json','ACTIVITY')
+                for name in ('schedule-editor-collapsed','schedule-editor-expanded')],m)
         if m['page']=='scale-settings':require_reach(folder/'special-states/all-instructions','scale-settings','all-instructions')
         if m['page']=='app':
             for tag in ('zh-Hans','en','ru','th','ar','ja','ko','es'):
@@ -564,13 +699,13 @@ for path in manifests:
 (root.parent/'matrix-verification.json').write_text(json.dumps({'results':verification_results,
     'errors':verification_errors},indent=2)+'\n')
 assert seen==success and not verification_errors, verification_errors
-if len(success)!=12 or len(manifests)!=12 or ledger['unsafeStop'] is not None:
-    print(f'SETTINGS_VISUAL_MIGRATION_PARTIAL successes={len(success)} failed={12-len(success)}; original failures retained')
+if len(success)!=expected_count or len(manifests)!=expected_count or ledger['unsafeStop'] is not None:
+    print(f'SETTINGS_VISUAL_MIGRATION_PARTIAL successes={len(success)} failed={expected_count-len(success)}; original failures retained')
     raise SystemExit(1)
-(root/'capture-summary.json').write_text(json.dumps({'realConfigurations':12,'sourceSha':root.name,'visualAcceptance':'ASTRA_PENDING',
+(root/'capture-summary.json').write_text(json.dumps({'realConfigurations':expected_count,'scope':ledger.get('scope','full'),'sourceSha':root.name,'visualAcceptance':'ASTRA_PENDING',
 'protocol2AcceptedProofCount':protocol_count,'specialStatesCountedAsMainConfigurations':False,'pendingStrictSpecialEvidence':pending,
 'allVisualItemsClosed':False},indent=2)+'\n')
-print('SETTINGS_VISUAL_MIGRATION_RETAINED configurations=12 actualActivities=true visualAcceptance=ASTRA_PENDING')
+print(f'SETTINGS_VISUAL_MIGRATION_RETAINED configurations={expected_count} actualActivities=true visualAcceptance=ASTRA_PENDING')
 VERIFY_PY
 then verify_exit=0; else verify_exit=$?; fi
 python3 "$matrix_gate" finalize --output "$output_dir" --verify-exit "$verify_exit"

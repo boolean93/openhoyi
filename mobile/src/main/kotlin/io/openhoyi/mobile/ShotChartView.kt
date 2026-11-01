@@ -5,10 +5,13 @@ import android.widget.FrameLayout
 
 /** Historical samples use the same physical units, independent ranges and gaps as the live plot. */
 class ShotChartView(context: Context) : FrameLayout(context) {
-    internal constructor(context: Context, visual: ExtractionHistoryVisualStyle, embeddedHistory: Boolean = false) : this(context) {
-        removeView(chart); chart = ExtractionOverlayView(context, visual, embeddedHistory); addView(chart, LayoutParams(-1, -1))
+    internal constructor(context: Context, visual: ExtractionHistoryVisualStyle, embeddedHistory: Boolean = false, standalonePlotMinimumDp: Float? = null) : this(context) {
+        removeView(chart); chart = ExtractionOverlayView(context, visual, embeddedHistory, standalonePlotMinimumDp); addView(chart, LayoutParams(-1, -1))
     }
     private var chart = ExtractionOverlayView(context)
+    internal val standalonePlotMinimumHeightPx get() = chart.standalonePlotMinimumHeightPx
+    internal val standaloneHeaderMinimumHeightPx get() = chart.standaloneHeaderMinimumHeightPx
+    internal val plotRendererMode get() = chart.plotRendererMode
     internal val visualEvidence get() = chart.visualEvidence
     internal val embeddedExplanationView get() = chart.embeddedExplanationView
     private var revision = 0L

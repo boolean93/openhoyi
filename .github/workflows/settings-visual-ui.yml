@@ -12,10 +12,12 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  PRODUCT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
-  settings-visual:
+  settings-build:
     runs-on: ubuntu-latest
-    # Independent M8 three-page / 12-profile matrix; internal protocol / fixture budgets are unchanged.
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -31,6 +33,44 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Build isolated Mock
         run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+      - name: Verify fixed-scope host contracts
+        run: PYTHONPATH=scripts python3 -m unittest test_settings_matrix_isolation test_settings_shard_gate test_settings_language_error_contract test_settings_measured_dialog_contract test_settings_weekly_editor_route test_settings_observation_reuse_contract test_settings_shared_frame_reachability
+      - name: Bind the single APK and test APK build
+        run: python3 scripts/settings_shard_gate.py build --bundle build/settings-apk-bundle
+      - name: Upload the single APK batch
+        uses: actions/upload-artifact@v6
+        with:
+          name: settings-apks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/settings-apk-bundle/
+          if-no-files-found: error
+          retention-days: 7
+
+  settings-cell:
+    needs: settings-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Four independent disposable AVDs increase total runner resources; no per-job/cell/frame budget increase.
+    strategy:
+      fail-fast: false
+      matrix:
+        scope: [light-1.3, light-1.0, dark-1.3, dark-1.0]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: settings-apks-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/settings-apk-bundle
+      - name: Verify APK batch before emulator installation
+        run: python3 scripts/settings_shard_gate.py verify-build --bundle build/settings-apk-bundle
       - name: Record host capacity before AVD
         run: |
           capacity=build/task-first-evidence/settings-visual-migration/capacity/pre-avd
@@ -52,8 +92,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Verify real AppSettings, MachineSettings and ScaleSettings pages
-        env:
-          PRODUCT_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        id: capture
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -63,12 +102,90 @@ jobs:
           ram-size: 2048M
           disk-size: 16G
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
-          script: bash scripts/check_settings_visual_migration.sh tablet-user-landscape build/task-first-evidence/settings-visual-migration
+          script: bash scripts/check_settings_visual_migration.sh tablet-user-landscape build/task-first-evidence/settings-visual-migration ${{ matrix.scope }}
+      - name: Freeze original evidence after capture and EXIT cleanup
+        if: always()
+        run: python3 scripts/settings_shard_gate.py freeze --evidence build/task-first-evidence/settings-visual-migration --gate build/settings-gates/${{ matrix.scope }} --scope ${{ matrix.scope }}
       - name: Upload real settings evidence
+        if: always()
+        id: evidence
+        uses: actions/upload-artifact@v6
+        with:
+          name: settings-evidence-${{ matrix.scope }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/task-first-evidence/settings-visual-migration/
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 7
+      - name: Bind uploaded evidence to original verification and restore records
+        if: always()
+        env:
+          EVIDENCE_ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id }}
+          EVIDENCE_ARTIFACT_DIGEST: ${{ steps.evidence.outputs.artifact-digest }}
+          EVIDENCE_ARTIFACT_URL: ${{ steps.evidence.outputs.artifact-url }}
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+          UPLOAD_OUTCOME: ${{ steps.evidence.outcome }}
+        run: |
+          python3 scripts/settings_shard_gate.py receipt \
+            --evidence build/task-first-evidence/settings-visual-migration \
+            --gate build/settings-gates/${{ matrix.scope }} --scope ${{ matrix.scope }} \
+            --bundle build/settings-apk-bundle \
+            --artifact-id "$EVIDENCE_ARTIFACT_ID" --artifact-digest "$EVIDENCE_ARTIFACT_DIGEST" \
+            --artifact-url "$EVIDENCE_ARTIFACT_URL" \
+            --capture-outcome "$CAPTURE_OUTCOME" --upload-outcome "$UPLOAD_OUTCOME"
+      - name: Upload small gate records outside the frozen evidence tree
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: settings-visual-tablet-user-landscape
-          path: build/task-first-evidence/settings-visual-migration/
-          if-no-files-found: warn
+          name: settings-gate-${{ matrix.scope }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/settings-gates/${{ matrix.scope }}/
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 7
+
+  # Keep the original required check name; missing/failed/cancelled workers always fail this strict 12-cell gate.
+  settings-visual:
+    needs: [settings-build, settings-cell]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: always()
+        with:
+          name: settings-gate-light-1.3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/settings-gates/light-1.3
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: always()
+        with:
+          name: settings-gate-light-1.0-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/settings-gates/light-1.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: always()
+        with:
+          name: settings-gate-dark-1.3-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/settings-gates/dark-1.3
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        if: always()
+        with:
+          name: settings-gate-dark-1.0-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/settings-gates/dark-1.0
+      - name: Require four preserved workers and all twelve original full verifications
+        if: always()
+        env:
+          BUILD_RESULT: ${{ needs.settings-build.result }}
+          WORKERS_RESULT: ${{ needs.settings-cell.result }}
+        run: |
+          python3 scripts/settings_shard_gate.py aggregate \
+            --gates build/settings-gates --output build/settings-aggregate \
+            --build-result "$BUILD_RESULT" --workers-result "$WORKERS_RESULT"
+      - name: Upload strict matrix result and evidence artifact references
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: settings-aggregate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/settings-aggregate/
+          if-no-files-found: error
           retention-days: 7

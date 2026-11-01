@@ -1229,7 +1229,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     }
     private fun captureTarget(activity: Activity): JSONObject {
         val pairs=baselinePairs(activity)
-        return geometry(activity).put("typographyEvidence",TaskTypographyEvidence.snapshot(activity))
+        return geometry(activity).apply {if(activity is HistoryDetailActivity)put("standaloneHeader",standaloneHeaderSnapshot(activity))}
+            .put("typographyEvidence",TaskTypographyEvidence.snapshot(activity))
             .put("baselinePairs",pairs).put("baselinePairCount",pairs.length())
             .put("baselinePairIds",JSONArray((0 until pairs.length()).map {pairs.getJSONObject(it).getString("semanticId")}))
     }
@@ -1490,7 +1491,128 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         File(folder,"comparison-business.json").writeText(JSONObject().put("cases",cases).put("swapRecreateIdsAndMetric",true)
             .put("placeholderClearsIdentityAndProjection",true).put("journalUnchanged",true).put("completed",true).toString(2))
     }
+    private fun <T> historyMainValue(block:()->T):T {
+        var value:Any?=null
+        main {value=block()}
+        @Suppress("UNCHECKED_CAST") return value as T
+    }
+    private fun standaloneHeaderSnapshot(activity: Activity): JSONObject {
+        val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
+        val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val headerVisibility=historyVisibility(header)
+        val viewport=headerVisibility.getJSONArray("visibleRectPx")
+        val texts=visibleTextViews(header).filter {it.text.isNotEmpty()}
+        return JSONObject().put("headerIdentity",System.identityHashCode(header)).put("viewport",viewport)
+            .put("headerVisibility",headerVisibility).put("scrollPx",JSONArray(listOf(header.scrollX,header.scrollY)))
+            .put("texts",JSONArray(texts.map { text ->
+                val layout=requireNotNull(text.layout);val location=IntArray(2);text.getLocationOnScreen(location)
+                val visibility=historyVisibility(text);val clip=visibility.getJSONArray("visibleRectPx")
+                JSONObject().put("identity",System.identityHashCode(text)).put("semanticId",text.tag ?: JSONObject.NULL)
+                    .put("text",text.text.toString()).put("lineCount",layout.lineCount).put("visibility",visibility)
+                    .put("lineCoordinateSource","TextView.getLineBounds + native_Layout_horizontal_advance + actual_ancestor_clip")
+                    .put("rows",JSONArray((0 until layout.lineCount).map { line ->
+                        val left=location[0]+text.compoundPaddingLeft+layout.getLineLeft(line)-text.scrollX
+                        val right=location[0]+text.compoundPaddingLeft+layout.getLineRight(line)-text.scrollX
+                        val native=Rect();text.getLineBounds(line,native)
+                        val top=location[1]+native.top-text.scrollY
+                        val bottom=location[1]+native.bottom-text.scrollY
+                        JSONObject().put("line",line).put("start",layout.getLineStart(line)).put("end",layout.getLineEnd(line))
+                            .put("ellipsisCount",layout.getEllipsisCount(line)).put("rectPx",JSONArray(listOf(left,top,right,bottom)))
+                            .put("complete",visibility.getBoolean("screenMappingVerified") && layout.getEllipsisCount(line)==0 &&
+                                left>=maxOf(viewport.getInt(0),clip.getInt(0)) && right<=minOf(viewport.getInt(2),clip.getInt(2)) &&
+                                top>=maxOf(viewport.getInt(1),clip.getInt(1)) && bottom<=minOf(viewport.getInt(3),clip.getInt(3)))
+                    }))
+            })).put("controls",JSONArray(ChartMetric.entries.map { metric ->
+                val button=requireNotNull(chart.findViewWithTag<Button>("chart-metric:$metric"))
+                JSONObject().put("identity",System.identityHashCode(button)).put("semanticId",button.tag)
+                    .put("widthDp",button.width/activity.resources.displayMetrics.density)
+                    .put("heightDp",button.height/activity.resources.displayMetrics.density).put("visibility",historyVisibility(button))
+                    .put("layout",screenObservation(button))
+            }))
+    }
+    private fun standaloneHeaderReachability(activity: Activity, scope:Scope, folder:File) {
+        val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
+        val overlay=chart.getChildAt(0) as ExtractionOverlayView
+        val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val savedX=header.scrollX;val savedY=header.scrollY;val focus=activity.currentFocus
+        fun state()=JSONObject().put("shotId",activity.intent.getStringExtra("shotId"))
+            .put("points",pointRecords(chart.points)).put("reference",pointRecords(overlay.reference))
+            .put("selected",field(overlay,"selected") ?: JSONObject.NULL).put("trace",overlay.traceIdentity)
+            .put("journal",scope.journal.exportJson()).put("focusIdentity",activity.currentFocus?.let {System.identityHashCode(it)} ?: JSONObject.NULL)
+        val initial=capture(activity,File(folder,"states/detail-header-initial")).target.getJSONObject("standaloneHeader")
+        val before=historyMainValue {state()};val pages=JSONArray();var failure:Throwable?=null
+        fun page() {
+            val relative="states/detail-header-${pages.length()}"
+            val frame=capture(activity,File(folder,relative))
+            main {check(state().toString()==before.toString() && activity.currentFocus===focus)}
+            pages.put(JSONObject().put("snapshot",frame.target.getJSONObject("standaloneHeader"))
+                .put("proof","$relative/window-frame-sync.json"))
+        }
+        try {
+            var y=0
+            while(true) {
+                main {header.scrollTo(savedX,y)};frames.committedFrame(root(activity))
+                page()
+                val maximum=(header.getChildAt(0).height-header.height+header.paddingTop+header.paddingBottom).coerceAtLeast(0)
+                if(y>=maximum)break
+                y=minOf(maximum,y+maxOf(1,header.height/2))
+            }
+            // Exact native reveals cover atomic controls/lines that straddle the sweep steps.
+            ChartMetric.entries.forEachIndexed { index,metric ->
+                val covered=(0 until pages.length()).any { pages.getJSONObject(it).getJSONObject("snapshot")
+                    .getJSONArray("controls").getJSONObject(index).getJSONObject("layout").getBoolean("complete") }
+                if(!covered) {
+                    val button=requireNotNull(chart.findViewWithTag<Button>("chart-metric:$metric"))
+                    main {button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
+                    frames.committedFrame(root(activity));page()
+                }
+            }
+            val originalTexts=visibleTextViews(header).filter {it.text.isNotEmpty()}
+            originalTexts.forEachIndexed { index,text ->
+                val count=initial.getJSONArray("texts").getJSONObject(index).getInt("lineCount")
+                for(line in 0 until count) {
+                    val covered=(0 until pages.length()).any { pages.getJSONObject(it).getJSONObject("snapshot")
+                        .getJSONArray("texts").getJSONObject(index).getJSONArray("rows").getJSONObject(line).getBoolean("complete") }
+                    if(!covered) {
+                        main {val bounds=Rect();text.getLineBounds(line,bounds)
+                            text.requestRectangleOnScreen(Rect(0,bounds.top,text.width,bounds.bottom),true)}
+                        frames.committedFrame(root(activity));page()
+                    }
+                }
+            }
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            try {main {header.scrollTo(savedX,savedY)};frames.committedFrame(root(activity))
+                main {check(header.scrollX==savedX && header.scrollY==savedY && activity.currentFocus===focus)
+                    check(state().toString()==before.toString())}}
+            catch(restore:Throwable) {if(failure!=null)failure.addSuppressed(restore) else throw restore}
+        }
+        val restored=capture(activity,File(folder,"states/detail-header-restored"))
+        val texts=initial.getJSONArray("texts")
+        for(index in 0 until texts.length()) {
+            val original=texts.getJSONObject(index);val covered=mutableSetOf<Int>()
+            for(page in 0 until pages.length()) {
+                val current=pages.getJSONObject(page).getJSONObject("snapshot").getJSONArray("texts").getJSONObject(index)
+                check(current.getInt("identity")==original.getInt("identity") && current.getString("text")==original.getString("text") &&
+                    current.getInt("lineCount")==original.getInt("lineCount"))
+                val rows=current.getJSONArray("rows")
+                for(row in 0 until rows.length())if(rows.getJSONObject(row).getBoolean("complete"))covered.add(row)
+            }
+            check(covered==(0 until original.getInt("lineCount")).toSet()) {"M5 Detail original header text not fully reachable: $original"}
+        }
+        for(index in 0 until initial.getJSONArray("controls").length()) {
+            check((0 until pages.length()).any { page ->
+                val control=pages.getJSONObject(page).getJSONObject("snapshot").getJSONArray("controls").getJSONObject(index)
+                control.getDouble("widthDp")>=48 && control.getDouble("heightDp")>=48 && control.getJSONObject("layout").getBoolean("complete")
+            }) {"M5 Detail original 48dp metric control not fully reachable"}
+        }
+        WindowProofStreamingWriter.writeStrict(JSONObject().put("schema","STANDALONE_NATIVE_HEADER_REACH_V1")
+            .put("initial",initial).put("pages",pages).put("restored",restored.target.getJSONObject("standaloneHeader"))
+            .put("beforeState",before).put("afterState",historyMainValue {state()})
+            .put("restoredProof","states/detail-header-restored/window-frame-sync.json").put("completed",true),File(folder,"standalone-header-reachability.json"))
+    }
     private fun detailReachability(activity: Activity, scope:Scope, folder: File) {
+        standaloneHeaderReachability(activity,scope,folder)
         val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
         val savedX=scroll.scrollX;val savedY=scroll.scrollY
         val id=activity.intent.getStringExtra("shotId");val journal=scope.journal.exportJson()
@@ -1811,6 +1933,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("realShotSamplesStoreSaveAndLoad",true).toString(2))
         val cases=JSONArray()
         val summary=JSONObject().put("sourceSha",source).put("profile",profile).put("page","extraction")
+            .put("caseStorageSchema","M5_EXTRACTION_CASE_REFS_V1").put("completed",false)
             .put("synthetic",true).put("hardwareMeasurement",false).put("realProductActivity",true)
             .put("visualAcceptance","ASTRA_PENDING")
             .put("expectedCases",JSONArray(extractionPendingSpecialCases))
@@ -1826,7 +1949,6 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     .put("declaredShotId",extractionScenarioShotIds.getValue(case))
                     .put("synthetic",true).put("hardwareMeasurement",false).put("realProductActivity",true)
                     .put("visualAcceptance","ASTRA_PENDING")
-                cases.put(proof)
                 var failure: Throwable?=null
                 try {
                     scope.prepare();scope.install(theme=="dark")
@@ -1974,13 +2096,26 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
                         proof.put("status","FAIL").put("cleanupFailure",error.stackTraceToString())
                     }
-                    try { WindowProofStreamingWriter.writeStrict(proof,File(caseFolder,"case.json"));persist() }
+                    try {
+                        val original=File(caseFolder,"case.json")
+                        WindowProofStreamingWriter.writeStrict(proof,original)
+                        check(original.isFile && original.length()>0)
+                        // Only small immutable metadata survives this iteration. The complete
+                        // original proof remains atomically published for all host assertions.
+                        cases.put(JSONObject().put("ordinal",cases.length()+1).put("case",case)
+                            .put("path","$case/case.json").put("sizeBytes",original.length()).put("sha256",sha(original))
+                            .put("status",proof.getString("status")).put("sourceSha",source).put("profile",profile)
+                            .put("declaredShotId",extractionScenarioShotIds.getValue(case)))
+                        persist()
+                    }
                     catch(error: Throwable) {
                         if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
                     }
                 }
                 failure?.let {throw it}
             }
+            check(cases.length()==extractionPendingSpecialCases.size &&
+                (0 until cases.length()).all {cases.getJSONObject(it).getString("status")=="PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE"})
             summary.put("completed",true).put("actualAdditionalActivityCaptures",cases.length())
             return summary
         } catch(error: Throwable) { primaryFailure=error;throw error }
@@ -1991,9 +2126,60 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             }
         }
     }
+    private fun referenceChooserFromTools(activity:Activity, folder:File, owned:MutableSet<AlertDialog>,
+        unchanged:()->Unit):Pair<AlertDialog,JSONObject> {
+        val source=field(activity,"referenceChoice") as Button
+        val launcher=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/chart-tools"))
+        var menu:AlertDialog?=null
+        main {
+            check(activity.hasWindowFocus() && whole(screenObservation(launcher)) && launcher.isEnabled)
+            check((field(activity,"toolsDialog") as? AlertDialog)?.isShowing!=true)
+            unchanged();check(launcher.performClick())
+            menu=requireNotNull(field(activity,"toolsDialog") as? AlertDialog)
+            owned+=requireNotNull(menu)
+        }
+        val tools=requireNotNull(menu)
+        await("actual reference tools menu owned and focused") {
+            field(activity,"toolsDialog")===tools && tools.isShowing && focusedJournalDialog(activity)===tools
+        }
+        val window=requireNotNull(tools.window);val decor=window.decorView
+        val entry=nodes(decor).filter {it.tag=="product/extraction/tool/reference-choice"}.single() as Button
+        fun menuState():JSONObject {
+            check(focusedJournalDialog(activity)===tools && entry.windowToken===decor.windowToken)
+            check(source.isEnabled && entry.isEnabled==source.isEnabled && entry.text.toString()==source.text.toString())
+            val density=activity.resources.displayMetrics.density
+            check(entry.isShown && whole(screenObservation(entry)) && entry.width>=48*density && entry.height>=48*density)
+            unchanged()
+            return JSONObject().put("schema","ACTUAL_REFERENCE_TOOLS_ROUTE_V1")
+                .put("windowIdentity",System.identityHashCode(window)).put("decorIdentity",System.identityHashCode(decor))
+                .put("tokenIdentity",System.identityHashCode(decor.windowToken)).put("ownerActivityIdentity",System.identityHashCode(activity))
+                .put("sourceIdentity",System.identityHashCode(source)).put("sourceText",source.text.toString())
+                .put("sourceEnabled",source.isEnabled).put("entry",screenObservation(entry)).put("entryEnabled",entry.isEnabled)
+                .put("entryText",entry.text.toString()).put("entryWidthPx",entry.width).put("entryHeightPx",entry.height)
+                .put("density",density).put("noHiddenSourceClick",true)
+        }
+        main {entry.requestRectangleOnScreen(Rect(0,0,entry.width,entry.height),true)}
+        frames.committedFrame(decor)
+        check(folder.isDirectory || folder.mkdirs())
+        val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(folder,"window.png")) {menuState()}
+        WindowProofStreamingWriter.writeStrict(frame.target,File(folder,"geometry.json"))
+        check(frame.proof.getInt("protocolVersion")==2 && frame.proof.getBoolean("accepted"))
+        main {menuState();check(entry.performClick())}
+        var chooser:AlertDialog?=null
+        await("actual reference chooser owned and focused after tools action") {
+            chooser=focusedJournalDialog(activity,tools)
+            chooser?.let {owned+=it}
+            chooser!=null && chooser!==tools && !tools.isShowing
+        }
+        val actual=requireNotNull(chooser);main {owned+=actual;unchanged()}
+        return actual to JSONObject().put("menu",frame.target).put("menuFrameSync",frame.proof)
+            .put("chooserWindowIdentity",System.identityHashCode(requireNotNull(actual.window)))
+            .put("chooserDecorIdentity",System.identityHashCode(requireNotNull(actual.window).decorView))
+            .put("chooserTokenIdentity",System.identityHashCode(requireNotNull(actual.window).decorView.windowToken))
+            .put("ownerActivityIdentity",System.identityHashCode(activity)).put("toolsDismissedByProduct",!tools.isShowing)
+    }
     private fun extractionReferenceToggle(activity: Activity, scope: Scope, folder: File, proof: JSONObject) {
         val owner=requireNotNull(field(activity,"service") as? MobileService)
-        val button=field(activity,"referenceChoice") as Button
         val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
         val beforeScroll=scroll.scrollX to scroll.scrollY
         val beforeJournal=scope.journal.exportJson()
@@ -2004,19 +2190,65 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val chosenIndex=eligible.indexOfFirst {scope.expectedSamples(it.observation.id).isNotEmpty()}
         check(chosenIndex>=0)
         val selected=eligible[chosenIndex].observation.id
+        val ownedDialogs=linkedSetOf<AlertDialog>()
+        val selections=JSONArray()
+        proof.put("referenceChooserSelections",selections).put("eligibleReferenceIds",JSONArray(eligible.map {it.observation.id}))
+        fun unchangedCup() {
+            check(field(activity,"service")===owner && owner.chartTraceIdentity==trace && owner.chartPoints==points)
+            check(scope.journal.exportJson()==beforeJournal && stop.isShown &&
+                observation(stop).getJSONArray("rectPx").toString()==stopRect)
+        }
         fun select(index: Int) {
-            main {button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
-            frames.committedFrame(root(activity))
-            main {check(whole(screenObservation(button)) && button.isEnabled);check(button.performClick())}
-            test.waitForIdleSync()
-            main {
-                val dialog=android.view.inspector.WindowInspector.getGlobalWindowViews().single {it !== activity.window.decorView}
-                val list=nodes(dialog).filterIsInstance<ListView>().single()
-                check(list.count==eligible.size+1 && index in 0 until list.count)
-                check(list.performItemClick(requireNotNull(list.getChildAt(index)),index,list.adapter.getItemId(index)))
+            val (dialog,route)=referenceChooserFromTools(activity,File(folder,"states/reference-menu-for-index-$index"),ownedDialogs) {unchangedCup()}
+            val window=requireNotNull(dialog.window);val decor=window.decorView
+            val token=requireNotNull(decor.windowToken);val chooserOwner=dialog.ownerActivity
+            fun chooserIdentity() {
+                check(dialog.isShowing && dialog.window===window && window.decorView===decor &&
+                    window.callback===dialog && decor.isAttachedToWindow && decor.windowToken===token &&
+                    dialog.ownerActivity===chooserOwner) {"M5 reference chooser Window identity changed"}
             }
+            lateinit var list:ListView
+            main {
+                chooserIdentity();check(focusedJournalDialog(activity)===dialog)
+                list=nodes(decor).filterIsInstance<ListView>().single()
+                check(list.count==eligible.size+1 && index in 0 until list.count)
+                val labels=listOf(activity.getString(R.string.reference_off))+eligible.map {
+                    (activity as ThemedActivity).journalDate(it.observation.startedAtMs) }
+                check((0 until list.count).map {list.adapter.getItem(it).toString()}==labels)
+                route.put("itemLabels",JSONArray(labels)).put("offLabel",labels.first())
+                check(list.adapter.isEnabled(index));list.setSelection(index)
+            }
+            await("actual saved reference row complete and reachable") {
+                chooserIdentity()
+                val focused=focusedJournalDialog(activity)
+                check(focused==null || focused===dialog) {"M5 reference chooser focus moved to another owned Dialog"}
+                // setSelection requests a layout. A not-yet-settled Window is readiness,
+                // while a different focused owner remains an invariant failure above.
+                if(focused!==dialog)return@await false
+                val row=list.getChildAt(index-list.firstVisiblePosition)
+                row?.let {it.isShown && !it.isLayoutRequested && whole(screenObservation(it))}==true
+            }
+            main {
+                chooserIdentity();check(focusedJournalDialog(activity)===dialog)
+                val actual=requireNotNull(list.getChildAt(index-list.firstVisiblePosition))
+                val density=activity.resources.displayMetrics.density
+                check(actual.isShown && !actual.isLayoutRequested && whole(screenObservation(actual)))
+                check(actual.windowToken===token && list.adapter.isEnabled(index) && actual.isEnabled &&
+                    actual.width>=48*density && actual.height>=48*density)
+                unchangedCup()
+                val label=list.adapter.getItem(index).toString()
+                check(nodes(actual).filterIsInstance<TextView>().any {it.text.toString()==label})
+                route.put("menuProofPath","states/reference-menu-for-index-$index/window-frame-sync.json")
+                    .put("index",index).put("listCount",list.count).put("expectedEligibleCount",eligible.size)
+                    .put("selectedRow",screenObservation(actual)).put("selectedRowWidthPx",actual.width)
+                    .put("selectedRowHeightPx",actual.height).put("density",density)
+                selections.put(route)
+                check(list.performItemClick(actual,index,list.adapter.getItemId(index)))
+            }
+            await("actual reference chooser closed and host focused") { !dialog.isShowing && activity.hasWindowFocus() }
             test.waitForIdleSync()
         }
+        var failure:Throwable?=null
         try {
             select(chosenIndex+1)
             await("real saved historical reference selected") {
@@ -2040,15 +2272,19 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             proof.put("referenceOffChartHeaderReachability",extractionChartHeaderReachability(activity,scope,
                 File(folder,"states/extraction-reference-off"),off))
             proof.put("referenceOffFrameSync",off.proof)
-        } finally {
-            main {scroll.scrollTo(beforeScroll.first,beforeScroll.second)}
-            frames.committedFrame(root(activity))
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            try {
+                main {ownedDialogs.forEach {if(it.isShowing)it.dismiss()};scroll.scrollTo(beforeScroll.first,beforeScroll.second)}
+                frames.committedFrame(root(activity))
+            } catch(error:Throwable) {if(failure==null)throw error else if(failure!==error)failure!!.addSuppressed(error)}
         }
         val restored=capture(activity,File(folder,"states/extraction-reference-restored"))
         proof.put("referenceRestoredChartHeaderReachability",extractionChartHeaderReachability(activity,scope,
             File(folder,"states/extraction-reference-restored"),restored))
         main {
-            check(scroll.scrollX==beforeScroll.first && scroll.scrollY==beforeScroll.second)
+            check(scroll.scrollX==beforeScroll.first && scroll.scrollY==beforeScroll.second &&
+                activity.hasWindowFocus() && ownedDialogs.none {it.isShowing})
             check(owner.chartTraceIdentity==trace && owner.chartPoints==points && field(activity,"referenceId")==null)
             check((field(activity,"chart") as ExtractionOverlayView).reference.isEmpty())
             check(stop.isShown && observation(stop).getJSONArray("rectPx").toString()==stopRect)
@@ -2057,23 +2293,25 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         proof.put("referenceToggleActualSavedJournal",true).put("selectionAndScrollRestored",true)
             .put("currentCupAndJournalUnchanged",true)
     }
-    private fun focusedJournalDialog(activity: Activity): AlertDialog? {
-        val foreign=android.view.inspector.WindowInspector.getGlobalWindowViews().filter {it!==activity.window.decorView}
-        check(foreign.size<=1) {"M5 ambiguous journal chooser Window"}
-        val decor=foreign.singleOrNull() ?: return null
-        if(!decor.isAttachedToWindow || !decor.isLaidOut || !decor.hasWindowFocus() || decor.isLayoutRequested) return null
-        val window=decor.javaClass.getDeclaredField("mWindow").apply {isAccessible=true}.get(decor) as android.view.Window
-        check(window.decorView===decor)
-        val dialog=window.callback as AlertDialog
-        var owner:Context=dialog.context
-        while(owner is ContextWrapper && owner!==activity) owner=owner.baseContext
-        check(dialog.window===window && dialog.isShowing &&
-            (dialog.ownerActivity===activity || owner===activity) && decor.windowToken!=null) {
-            "M5 journal chooser Window is not owned by current Activity" }
-        return dialog
+    private fun focusedJournalDialog(activity: Activity, excluded:AlertDialog?=null): AlertDialog? {
+        val focused=android.view.inspector.WindowInspector.getGlobalWindowViews().filter {
+            it!==activity.window.decorView && it.isAttachedToWindow && it.isLaidOut && it.hasWindowFocus() && !it.isLayoutRequested
+        }
+        val owned=focused.mapNotNull {decor ->
+            val window=decor.javaClass.getDeclaredField("mWindow").apply {isAccessible=true}.get(decor) as android.view.Window
+            check(window.decorView===decor)
+            val dialog=window.callback as? AlertDialog ?: error("M5 focused chooser Window callback is not a Dialog")
+            var owner:Context=dialog.context
+            while(owner is ContextWrapper && owner!==activity) owner=owner.baseContext
+            check(dialog.window===window && dialog.isShowing &&
+                (dialog.ownerActivity===activity || owner===activity) && decor.windowToken!=null) {
+                "M5 journal chooser Window is not owned by current Activity" }
+            dialog.takeUnless {it===excluded}
+        }
+        check(owned.size<=1) {"M5 ambiguous focused owned journal chooser Window"}
+        return owned.singleOrNull()
     }
     private fun extractionJournalUnavailable(activity: Activity, scope: Scope, folder: File, proof: JSONObject) {
-        val button=field(activity,"referenceChoice") as Button
         val support=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
         val chart=field(activity,"chart") as ExtractionOverlayView
         val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
@@ -2124,14 +2362,12 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         fun unchanged(requireActionWhole:Boolean):JSONObject=activityState(requireActionWhole).also {
             check(it.toString()==initialState.toString()) {"M5 journal chooser changed Activity model or fixed action"}
         }
+        val ownedDialogs=linkedSetOf<AlertDialog>()
         var dialog:AlertDialog?=null;var failure:Throwable?=null
         try {
-            main {check(button.isEnabled);button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
-            frames.committedFrame(root(activity))
-            main {check(whole(screenObservation(button)));proof.put("journalUnavailableBeforeDialogState",unchanged(true));check(button.performClick())}
-            await("unique focused real journal chooser") {
-                dialog=focusedJournalDialog(activity);dialog!=null
-            }
+            main {proof.put("journalUnavailableBeforeDialogState",unchanged(true))}
+            val opened=referenceChooserFromTools(activity,File(folder,"states/journal-unavailable-reference-menu"),ownedDialogs) {unchanged(false)}
+            dialog=opened.first;proof.put("journalUnavailableReferenceTools",opened.second.put("menuProofPath","states/journal-unavailable-reference-menu/window-frame-sync.json"))
             val actual=requireNotNull(dialog);val window=requireNotNull(actual.window);val decor=window.decorView
             val list=nodes(decor).filterIsInstance<ListView>().single()
             val title=nodes(decor).filterIsInstance<TextView>().single {it.text.toString()==activity.getString(R.string.reference_choose)}
@@ -2182,7 +2418,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             main {check(focusedJournalDialog(activity)===actual &&
                 list.performItemClick(off,0,list.adapter.getItemId(0)))}
             await("journal chooser closed after original off item") {
-                android.view.inspector.WindowInspector.getGlobalWindowViews().none {it!==activity.window.decorView} && activity.hasWindowFocus()
+                ownedDialogs.none {it.isShowing} && activity.hasWindowFocus()
             }
             val frame=capture(activity,File(folder,"states/extraction-journal-unavailable-choice"))
             main {proof.put("journalUnavailableChoiceState",unchanged(true))}
@@ -2190,11 +2426,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         } catch(error:Throwable) {failure=error}
         finally {
             try {
-                main {dialog?.takeIf {it.isShowing}?.dismiss()
+                main {ownedDialogs.forEach {if(it.isShowing)it.dismiss()}
                     support.scrollTo(supportX,supportY);header.scrollTo(headerX,headerY)}
                 frames.committedFrame(root(activity))
                 val restored=capture(activity,File(folder,"states/extraction-journal-unavailable-restored"))
-                main {check(android.view.inspector.WindowInspector.getGlobalWindowViews().none {it!==activity.window.decorView} &&
+                main {check(activity.hasWindowFocus() && ownedDialogs.none {it.isShowing} &&
                     support.scrollX==supportX && support.scrollY==supportY)
                     proof.put("journalUnavailableRestoredState",unchanged(true))}
                 proof.put("journalUnavailableRestoredFrameSync",restored.proof)

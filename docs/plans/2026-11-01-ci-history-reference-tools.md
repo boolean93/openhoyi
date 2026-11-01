@@ -1,0 +1,19 @@
+# M5 真实历史参考入口迁移
+
+- 需求与范围：迁移确定失效的隐藏support-scroll参考按钮操作；只改测试，使用真实chart-tools→当前toolsDialog→reference-choice→真实chooser。保原参考on/off、eligible/index、实际saved samples对齐、trace/points、stop位置、journal及scroll恢复；不恢复旧UI、不直接点隐藏source。
+- 来源分支/基线提交：develop `35798d22e1dcbe2dd404bdbc744ffd486c0c8e50`（PR6已合并、postmerge四required及capture全SUCCESS）；现有本地CLI小提交335af83保留。现有branch正常merge基线后为804f723，未新建分支/force。
+- 工作分支：按授权继续`fix/ci-page-service`，保Scale两草稿原字节、不混v46/安装。
+- PR目标：新的后续PR→develop；PR6已关闭，不直接push develop。
+- 改动文件与步骤：ExtractionHistoryVisualMigrationChecks增加真实菜单helper；菜单源语义仅对照text/enabled，不直接performClick；实际菜单Button要求whole/48dp/正确owner/window/token及原protocol2截图。chooser按实际focus/callback/owner识别，不能假设进程只有一个foreign window。两个确定同因场景historical_reference_toggle与journal_unavailable共用该helper；未删后者，避免下一轮才暴露同一旧入口。
+- 验证保持：选择行真实adapter position/eligible+off count/visible whole/48dp/enabled/token后performItemClick；保原on/off/restored原截图、header、原始points、traceId、journal、stoprect及滚动值。异常保真并只dismiss本测试持有dialog，最终Main实际恢复焦点。host verifier增加新route证据校验，原字段/矩阵数量/原质量门不删。
+- 推送与合并：本地编译/相关回归→Astra独审→本块独立commit→root普通push/新PR→精确head真实M5及原required验证；无admin/保护改变。
+- 验证证据：JDK17 `./gradlew --offline --no-daemon :mobile:compileMockAndroidTestKotlin`本地成功（28s，47 tasks，日志`settings-evidence/ci-diagnosis/history-reference-tools-reviewed-compile.log`在workspace）。独立host回归共31项通过：reference route 8、existing extraction tools 9、legacy history axis 6、git policy 8；分支策略、`bash -n`与`git diff --check`通过（日志`settings-evidence/ci-diagnosis/history-reference-tools-targeted-tests.log`）。route负例覆盖owner/window/token、hidden/disabled/48dp、item index/count、frame拒绝/种类/映射/前后geometry/真实density。只记录本机离线验证，不代表真实窗口验收。Astra（`/root/settings_failure_review`）独审四文件及实际`ExtractionFragment.showTools/chooseReference`、`MainPageTestHost`与cleanup/host合同，独立复跑route 8项通过，未发现阻断提交问题；运行端真实window协议采证已保留，后续可进一步交叉绑定host menu identity与frame顶层identity（非阻断建议）。Native真实工具和chooser窗口、参考on/off业务完整验收必须新CI，不以静态或旧2ef结果替代。
+- 扩展回归限制：额外`test_*contract.py` discovery运行43项，其中9失败及1 setup error均因旧artifact缺失（`ci-a47c870-{scale,legacy}` raw、`ci-3a78c4c/settings-artifact.zip`），日志`settings-evidence/ci-diagnosis/history-reference-tools-host-contracts.log`。未删、改、跳过这些测试；本次相关31项已单独完整通过。
+- 协议与设备风险：不改生产/Tracker/Mock频率/命令/单位/参数；不扫描连接BLE、不用户设备、只CI fixture。原dialog采集的surfaceInsets等不支持条件继续fail，不为此降低协议或改产品阴影。
+- 发布：不发版、不打安装包、不设备安装。
+- 回退：仅回退该测试迁移，保业务及未知记录；不删除branch/worktree/历史。
+- 未完成与阻塞：真实新head M5待CI；M1四用户面迁移和system-image cache仅分别规划，不混本提交。
+
+- PR7真实CI反馈：head `7b7562ddb4e0621679d1b442d2acc688f4caa096`、PR checkout `2c41403569934e4306f07ddbb8c22e144db68e39`，M5 run `41287253036` / job `124790952440`（artifact `13075348889`）在light/font1.3的`historical_reference_toggle`首错2082。原始菜单已通过protocol2/完整可见/enabled/48dp，同帧target一致；20个eligible和chooser labels已核，但`referenceChooserSelections=[]`、未选历史行，故不能宣称on/off、points或完整16配置通过。清理isolation与font_scale原值恢复均PASS。workspace原始小证据在`settings-evidence/ci-diagnosis/history-7b7562d/raw/`，摘要`m5-failure-summary.json`，range网络读取793685B（原archive97720057B）。
+- CI反馈最小修复：原2082把`focusedJournalDialog`尚未返回稳定窗口的null当即时错误；前序`setSelection`触发布局可能是诱因，但失败时chooser状态未单独采样，不能把该因果说成实测。Astra要求冻结已确认chooser的dialog/window/decor/token/owner；每次poll先硬验showing/attached/callback与身份不变，再让null只继续原10s有界等待，别的focused dialog或helper原owner/callback/多焦点错误立即失败。点击前同主线程重新取`index-firstVisiblePosition`行，复核焦点、adapter enabled、whole/48dp/token，所有原eligible/on-off/samples/trace/journal/stop/恢复与矩阵门不变。
+- 二次验证与提交：相关31项host回归及branch/bash-n/diff-check再次通过；JDK17 `:mobile:compileMockAndroidTestKotlin`再次成功（27s，47 tasks），日志`settings-evidence/ci-diagnosis/history-7b7562d/history-row-readiness-compile.log`、`history-row-readiness-tests.log`；Astra（`/root/settings_failure_review`）二次独审通过，并独立复跑8route tests与两文件diff-check通过、核对27s编译日志；静态修复只处理wait/invariant混淆风险，不证明7b失败时瞬态布局因果。仅本Kotlin及本plan单独追加提交，root待settings独立块就绪后协调一次普通push；不为本次失败改超时、重试、窗口协议或产品，不覆盖旧CI失败证据。真实新head M5仍待CI，PR7此时不可merge。
