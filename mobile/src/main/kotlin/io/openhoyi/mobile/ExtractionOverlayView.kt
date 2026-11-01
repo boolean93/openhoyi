@@ -80,12 +80,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     var compactRunningExplanation = false
         set(value) { if (field != value) { field = value; updateDescription() } }
     private var fullExplanation = ""
-    fun overviewExplanation(): String = listOf(fullExplanation, explanation.text.toString(),
+    fun overviewExplanation(): String {
+        if (liveCompactChrome) return listOfNotNull(
+            data.observedThroughMs?.let { context.getString(R.string.task_chart_summary_observed,seconds(it)) } ?: context.getString(R.string.live_chart_no_data),
+            referenceLabel?.takeIf { reference.isNotEmpty() },
+            context.getString(R.string.legacy_detail_missing_heading).takeIf { hasGaps() },
+            context.getString(R.string.live_pressure_pause_explanation).takeIf { data.pauseBaselineMs.isNotEmpty() },
+        ).joinToString("\n")
+        return listOf(fullExplanation, explanation.text.toString(),
         context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit),
         context.getString(R.string.live_pressure_pause_explanation).takeIf { data.pauseBaselineMs.isNotEmpty() }.orEmpty())
         .filter { it.isNotBlank() }.distinct().let { blocks ->
             blocks.filter { block -> blocks.none { other -> other.length > block.length && block in other } }
         }.joinToString("\n")
+    }
 
     private var inspectedTime: Long? = null
     private var inspectionDialog: AlertDialog? = null
@@ -253,7 +261,6 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val narrow = available - dp(128f) < requiredColumn * 2 + dp(8f)
             val topInset = if (narrow) maxOf(liveHeaderHeightPx,dp(96f).toInt()) else liveHeaderHeightPx
             if (headerContent.paddingTop != topInset) headerContent.setPadding(0,topInset,0,0)
-            (header.layoutParams as android.widget.FrameLayout.LayoutParams).marginEnd = if (narrow) 0 else dp(128f).toInt()
             liveTiles.values.forEach { tile ->
                 val body = tile.getChildAt(0) as LinearLayout
                 body.orientation = if (narrow) VERTICAL else HORIZONTAL
@@ -261,11 +268,13 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 (body.getChildAt(1).layoutParams as LayoutParams).marginStart = if (narrow) 0 else dp(6f).toInt()
             }
             val innerWidth = (available - if (narrow) 0 else dp(128f).toInt()).coerceAtLeast(0)
-            header.measure(MeasureSpec.makeMeasureSpec(innerWidth,MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED))
-            val chromeHeight = maxOf(dp(96f).toInt(),header.measuredHeight,liveHeaderHeightPx+dp(48f).toInt())
+            // Use the same explicit width in the natural-content pass and FrameLayout's final
+            // pass. Relative end margins can retain a resolved physical margin after rotation.
+            headerContent.measure(MeasureSpec.makeMeasureSpec(innerWidth,MeasureSpec.EXACTLY), natural)
+            val chromeHeight = maxOf(dp(96f).toInt(),headerContent.measuredHeight,liveHeaderHeightPx+dp(48f).toInt())
+            header.layoutParams = android.widget.FrameLayout.LayoutParams(innerWidth,chromeHeight,
+                android.view.Gravity.TOP or android.view.Gravity.START)
             if (compactTop.layoutParams.height != chromeHeight) compactTop.layoutParams.height = chromeHeight
-            header.layoutParams.height = chromeHeight
             super.onMeasure(widthMeasureSpec,heightMeasureSpec)
             return
         }
@@ -380,6 +389,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val quantity = LinearLayout(context).apply { orientation = HORIZONTAL; isBaselineAligned = true }
         val number = palette.text("—", TaskProductVisualStyle.Type(24, 500, 32), "product/extraction/metric/$metric/number")
         val unit = palette.text(displayUnit(metric), TaskProductVisualStyle.Type(14, 400, 20), "product/extraction/metric/$metric/unit")
+        number.setSingleLine(true); unit.setSingleLine(true)
         number.setTextColor(metricColor(metric)); unit.setTextColor(metricColor(metric))
         quantity.addView(number); quantity.addView(unit, LayoutParams(-2, -2).apply { marginStart = dp(4f).toInt() })
         body.addView(quantity)
@@ -473,7 +483,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 ?: context.getString(R.string.task_chart_summary_waiting),
         )
         val referenceNotes = if (reference.isNotEmpty()) listOfNotNull(
-            referenceLabel?.takeIf { it.isNotBlank() }, context.getString(R.string.task_chart_reference, metricName(focusMetric)),
+            referenceLabel?.takeIf { it.isNotBlank() },
+            context.getString(R.string.task_chart_reference, metricName(focusMetric)).takeUnless { liveCompactChrome },
         ) else emptyList()
         val referenceText = referenceNotes.joinToString(" · ")
         if (referenceCaption.text.toString() != referenceText) referenceCaption.text = referenceText
@@ -639,7 +650,16 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             var totalHeight = 0
             for (i in 0 until childCount) {
                 val child = getChildAt(i)
-                child.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+                if (liveChart) {
+                    // FrameLayout's MATCH_PARENT second pass can narrow the body after its
+                    // wrap-content height was chosen. Measure the final column first instead.
+                    val body = (child as android.widget.FrameLayout).getChildAt(0)
+                    body.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                    val tileHeight = maxOf(dp(48f).toInt(), body.measuredHeight)
+                    child.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(tileHeight, MeasureSpec.EXACTLY))
+                } else child.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
                     MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
                 rowHeight = maxOf(rowHeight, child.measuredHeight)
                 if (i % columns == columns - 1 || i == childCount - 1) {
@@ -712,7 +732,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             productRenderer?.let {
                 val rendered = if (liveChart) data.copy(timeEndMs = renderTimeEnd.coerceAtLeast(1)) else data
                 plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
-                    if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet()))
+                    if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet(), simpleLivePresentation=liveCompactChrome))
                 return
             }
             val fm = labels.fontMetrics

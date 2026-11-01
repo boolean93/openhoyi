@@ -146,7 +146,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     private fun color(value: Int) = String.format(Locale.ROOT, "#%08X", value)
     fun draw(canvas: Canvas, width: Int, height: Int, data: FourMetricChartData, focused: ChartMetric,
         selected: ChartMetric?, comparison: Boolean, inspectedTime: Long? = null,
-        revealThroughMs: Long? = null, unavailableMetrics: Set<ChartMetric> = emptySet()): RectF {
+        revealThroughMs: Long? = null, unavailableMetrics: Set<ChartMetric> = emptySet(), simpleLivePresentation: Boolean = false): RectF {
         evidence = JSONArray()
         if (liveMode && data.pauseBaselineMs.isNotEmpty()) evidence.put(JSONObject()
             .put("operation","phase-zero-baseline").put("timesMs",JSONArray(data.pauseBaselineMs.toList()))
@@ -177,14 +177,20 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         x = box.right + dp(8f)
         rightAxes.forEach { planAxis(it, x); x += column(it, compactAxes) }
         val timeBaseline = box.bottom + line / 2 + dp(8f) - fm.ascent
-        texts += Label("0", box.left, timeBaseline, Paint.Align.LEFT, style.palette.muted, "time-tick")
-        texts += Label(seconds(timeEnd) + if (comparison || liveMode) " s" else "", box.right, timeBaseline, Paint.Align.RIGHT, style.palette.muted, "time-tick")
-        val middle = seconds(timeEnd / 2)
-        if (box.width() / 2 - extent(middle) / 2 > maxOf(extent("0"), extent(seconds(timeEnd))) + dp(8f))
-            texts += Label(middle, box.centerX(), timeBaseline, Paint.Align.CENTER, style.palette.muted, "time-tick")
+        val startTick = Label("0", box.left, timeBaseline, Paint.Align.LEFT, style.palette.muted, "time-tick")
+        val endTick = Label(seconds(timeEnd) + if (comparison || liveMode) " s" else "", box.right,
+            timeBaseline, Paint.Align.RIGHT, style.palette.muted, "time-tick")
+        val middleTick = Label(seconds(timeEnd / 2), box.centerX(), timeBaseline,
+            Paint.Align.CENTER, style.palette.muted, "time-tick")
+        texts += startTick
+        texts += endTick
+        // Test the exact glyphs that will be drawn, including the end tick's unit.
+        val middleGlyph = glyph(middleTick)
+        if (middleGlyph.left - glyph(startTick).right >= dp(8f) &&
+            glyph(endTick).left - middleGlyph.right >= dp(8f)) texts += middleTick
         if (!comparison && !liveMode) texts += Label(context.getString(R.string.live_time_axis), box.centerX(), height - dp(2f) - fm.descent, Paint.Align.CENTER, style.palette.muted, "time-unit")
         if (data.observedThroughMs == null && data.series.all { it.reference.isEmpty() }) {
-            val empty = context.getString(R.string.chart_empty_title)
+            val empty = context.getString(if(simpleLivePresentation) R.string.live_chart_no_data else R.string.chart_empty_title)
             if (extent(empty) <= box.width()) texts += Label(empty, box.centerX(), box.centerY() - (fm.ascent + fm.descent) / 2,
                 Paint.Align.CENTER, style.palette.muted, "empty-notice")
         }

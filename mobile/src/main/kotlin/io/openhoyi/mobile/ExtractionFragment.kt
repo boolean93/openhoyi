@@ -84,6 +84,13 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var notificationStatus: TextView
     private lateinit var alarmStatus: TextView
     private lateinit var chart: ExtractionOverlayView
+    internal data class StatusNotice(val signal: ExtractionStatusPresentation.Signal,val detail: String)
+    private var statusNotices: List<StatusNotice> = emptyList()
+    private val statusTransitions = ExtractionStatusPresentation.Transitions()
+    private var statusDetailsText: TextView? = null
+    private var statusDetailsDialog: AlertDialog? = null
+    private var statusMenuButton: Button? = null
+    private lateinit var chartToolsButton: Button
     private var toolsDialog: AlertDialog? = null
     private val toolsMenuButtons = linkedMapOf<Button, Button>()
     private val transientDialogs = mutableListOf<AlertDialog>()
@@ -233,13 +240,27 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         content.removeView(pageHeader)
         chartHost.addView(pageHeader, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.TOP).apply { marginEnd = dp(128) })
         pageHeader.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> chart.liveHeaderHeightPx = pageHeader.height }
-        val chartTools = Button(host).apply {
+        val chartTools = object : Button(host) {
+            private val badge = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                if (statusNotices.isEmpty()) return
+                val cx=width-dp(6).toFloat(); val cy=dp(6).toFloat()
+                badge.style=android.graphics.Paint.Style.FILL
+                badge.color=if(statusNotices.first().signal.severity==ExtractionStatusPresentation.Severity.CRITICAL) visual.stop else visual.warningInk
+                canvas.drawCircle(cx,cy,dp(6).toFloat(),badge)
+                badge.color=android.graphics.Color.WHITE; badge.strokeWidth=dp(1).toFloat().coerceAtLeast(1f)
+                canvas.drawLine(cx,cy-dp(3),cx,cy+dp(1),badge)
+                canvas.drawCircle(cx,cy+dp(3),dp(1).toFloat(),badge)
+            }
+        }.apply {
             text = getString(R.string.task_tools); contentDescription = text
             tag = "product/extraction/chart-tools"
             style.button(this, outline = true)
             minimumWidth = dp(48); minimumHeight = dp(48)
             setOnClickListener { showTools() }
         }
+        chartToolsButton=chartTools
         pageHeader.addView(chartTools, LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) })
         plotColumn.addView(chartHost, LinearLayout.LayoutParams(-1, 0, 1f))
         workspace.onPrimarySpaceAvailable = { _, height ->
@@ -306,6 +327,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             style.apply(it, TaskProductVisualStyle.auxiliary, true)
         }
         listOf(readiness, preparationStatus, notificationStatus, alarmStatus).forEach {
+            it.visibility=View.GONE
             style.apply(it, TaskProductVisualStyle.auxiliary)
             it.setPadding(dp(8), dp(8), dp(8), dp(8))
         }
@@ -327,6 +349,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         visible=false;handler.removeCallbacks(refresh)
         if (::chart.isInitialized) chart.dismissInspection()
         toolsDialog?.dismiss();toolsDialog=null
+        statusDetailsDialog?.dismiss();statusDetailsDialog=null
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
         host.removeServiceObserver(serviceObserver);service=null;super.onPause()
     }
@@ -357,6 +380,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             "choose-beans" to chooseBeans, "reference-choice" to referenceChoice, "overview" to detailsButton,
             "prepare" to prepare, "cancel-prepare" to cancelPrepare)
         toolsMenuButtons.clear()
+        statusMenuButton=HoyiUi.button(host,body,statusMenuTitle()) {
+            toolsDialog?.dismiss(); showStatusDetails()
+        }.apply { tag="product/extraction/tool/status" }
         sources.forEach { (key, source) ->
             val menu = HoyiUi.button(host, body, source.text.toString()) {
                 render()
@@ -372,13 +398,15 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             AppDialog.Action(getString(android.R.string.ok)) {}, null)
         toolsDialog = dialog
         dialog.setOnDismissListener {
-            if (toolsDialog === dialog) { toolsDialog = null; toolsMenuButtons.clear() }
+            if (toolsDialog === dialog) { toolsDialog = null; toolsMenuButtons.clear(); statusMenuButton=null }
         }
     }
-    private fun notificationsAllowed(): Boolean = BuildConfig.MOCK_MODE || Build.VERSION.SDK_INT < 33 ||
-        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+    private fun notificationsAllowed(): Boolean = BuildConfig.MOCK_MODE ||
+        host.getSystemService(android.app.NotificationManager::class.java)?.areNotificationsEnabled()==true &&
+        (Build.VERSION.SDK_INT < 33 || checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED)
     private fun requestSafetyNotificationsOnce() {
-        if (notificationsAllowed()) return
+        if (notificationsAllowed() || Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) return
         val prefs = getSharedPreferences("safety", MODE_PRIVATE)
         if (prefs.getBoolean("asked_for_notifications", false)) return
         prefs.edit().putBoolean("asked_for_notifications", true).apply()
@@ -532,9 +560,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             if (BuildConfig.MOCK_MODE) " · Mock" else "")
         compactClock.contentDescription = compactClock.text.toString() +
             if (BuildConfig.MOCK_MODE) " · " + getString(R.string.extraction_mock_subtitle) else ""
-        compactGuidance.show(if (inlineGuidance) guidance else "")
-        compactGuidance.visibility = if (inlineGuidance) View.VISIBLE else View.GONE
-        readiness.visibility = if (inlineGuidance) View.GONE else View.VISIBLE
+        compactGuidance.show("")
+        compactGuidance.visibility = View.GONE
         compactIdentity.setOnLongClickListener { detailsButton.performClick(); true }
         readiness.setTextColor(getColor(if (state == ExtractionState.OUTCOME_UNKNOWN ||
             (state == ExtractionState.IDLE && (blocked != null || studioBlocked != null)))
@@ -577,15 +604,11 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             (!studio || temperatureReady)
         preparationSummary.show(preparationStatus.text.toString())
         preparationSummary.visibility = if (normalPreparation) View.VISIBLE else View.GONE
-        preparationStatus.visibility = if (normalPreparation) View.GONE else View.VISIBLE
         notificationStatus.show(if (BuildConfig.MOCK_MODE || notificationsAllowed()) "" else
             getString(R.string.extraction_notification_warning))
-        notificationStatus.visibility = if (notificationStatus.text.isEmpty()) View.GONE else View.VISIBLE
         alarmStatus.show(machineAlarms.describe(snapshot.alarmBits, snapshot.alarmAt,
             MobileMonotonicClock.elapsedRealtime()))
         val now = MobileMonotonicClock.elapsedRealtime()
-        alarmStatus.visibility = if (machineAlarms.showExtractionStatus(active, snapshot.alarmBits, snapshot.alarmAt, now))
-            View.VISIBLE else View.GONE
         val frame = LiveTelemetry.machine(snapshot.coffee, snapshot.coffeeState, snapshot.coffeeAt, now)
         elapsedValue.show(if (frame is ExtractionTelemetry && !frame.brewWait) "${frame.elapsedSeconds} s" else "—")
         pressureValue.show(getString(R.string.task_extraction_pressure, when (frame) {
@@ -677,7 +700,68 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
+        val facts=ExtractionStatusPresentation.Facts(state,active,owner?.running==true,blocked!=null || studioBlocked!=null,
+            owner?.manualShotActive==true,owner?.scalePreflight==true,preparation,!normalPreparation,
+            snapshot.alarmBits,snapshot.alarmAt,now,!owner?.machineControlSafetyMessage.isNullOrBlank(),!owner?.manualSafetyMessage.isNullOrBlank(),
+            settingBusy || sleepBusy,owner?.settingWriteState==SettingsWriteTracker.State.UNKNOWN || owner?.sleepNowState==SleepNowTracker.State.UNKNOWN,
+            notificationStatus.text.isNotBlank(),frame!=null,
+            (profile?.targetHundredthsGram ?: 0)>0 || rawPoints.any { it.weightHundredthsGram!=null } || snapshot.scaleState==DeviceState.READY,
+            LiveTelemetry.scale(snapshot.scaleObservation,snapshot.scaleState,now)!=null || LiveTelemetry.scale(snapshot.weight,snapshot.scaleState,snapshot.weightAt,now)!=null)
+        val notices=ExtractionStatusPresentation.signals(facts).map { signal ->
+            val detail=when(signal.kind) {
+                ExtractionStatusPresentation.Kind.GUIDANCE -> readiness.text.toString()
+                ExtractionStatusPresentation.Kind.PREPARATION -> preparationStatus.text.toString()
+                ExtractionStatusPresentation.Kind.ALARM -> alarmStatus.text.toString()
+                ExtractionStatusPresentation.Kind.MACHINE_SAFETY -> owner?.machineControlSafetyMessage.orEmpty()
+                ExtractionStatusPresentation.Kind.MANUAL_SAFETY -> owner?.manualSafetyMessage.orEmpty()
+                ExtractionStatusPresentation.Kind.WRITE -> listOfNotNull(
+                    if(settingBusy) getString(when(owner?.settingWriteState) {
+                        SettingsWriteTracker.State.WRITING -> R.string.machine_settings_setting_writing
+                        SettingsWriteTracker.State.UNKNOWN -> R.string.machine_settings_setting_unknown
+                        else -> R.string.machine_settings_setting_waiting
+                    }) else null,
+                    if(sleepBusy) getString(R.string.home_sleep_button) + getString(when(owner?.sleepNowState) {
+                        SleepNowTracker.State.WRITING -> R.string.home_sleep_writing_suffix
+                        SleepNowTracker.State.UNKNOWN -> R.string.home_sleep_unknown_suffix
+                        else -> R.string.home_sleep_waiting_suffix
+                    }) else null,
+                ).joinToString("\n")
+                ExtractionStatusPresentation.Kind.NOTIFICATION -> notificationStatus.text.toString()
+                ExtractionStatusPresentation.Kind.MACHINE_DATA -> getString(R.string.home_coffee_status,DeviceStatusText.label(host,snapshot.coffeeState),"") + " · " + getString(R.string.live_chart_no_data)
+                ExtractionStatusPresentation.Kind.SCALE_DATA -> getString(R.string.extraction_stop_scale)
+            }
+            StatusNotice(signal,detail)
+        }.filter { it.detail.isNotBlank() }
+        presentStatusNotices(notices)
+        listOf(readiness,preparationStatus,notificationStatus,alarmStatus).forEach { it.visibility=View.GONE }
+        val feedback=if(visible && owner?.running==true) statusTransitions.observe(state,notices.map { it.signal }) else ExtractionStatusPresentation.Transitions.Feedback(false,false)
+        if(visible && feedback.announceCritical) chartToolsButton.announceForAccessibility(statusSummary())
+        if(visible && feedback.completed) toast(getString(R.string.extraction_ended_guidance))
         syncToolsMenu()
+    }
+    private fun statusMenuTitle() = getString(R.string.home_live_status) + " (" + statusNotices.size + ")"
+    private fun statusSummary() = if(statusNotices.isEmpty()) getString(R.string.task_tools) else
+        getString(R.string.task_tools) + " · " + statusMenuTitle() + " · " + statusNotices.first().detail.lineSequence().first()
+    private fun statusDetails() = if(statusNotices.isEmpty()) alarmStatus.text.toString() else statusNotices.mapIndexed { i,notice -> "${i+1}. ${notice.detail}" }.joinToString("\n\n")
+    private fun presentStatusNotices(notices: List<StatusNotice>) {
+        val badgeChanged=statusNotices.isEmpty()!=notices.isEmpty() || statusNotices.firstOrNull()?.signal?.severity!=notices.firstOrNull()?.signal?.severity
+        statusNotices=notices
+        val summary=statusSummary()
+        if(chartToolsButton.contentDescription?.toString()!=summary) chartToolsButton.contentDescription=summary
+        if(badgeChanged) chartToolsButton.invalidate()
+        statusMenuButton?.let { if(it.text.toString()!=statusMenuTitle()) it.text=statusMenuTitle() }
+        statusDetailsText?.let { if(it.text.toString()!=statusDetails()) it.text=statusDetails() }
+    }
+    private fun showStatusDetails() {
+        val text=TextView(host).apply {
+            tag="product/extraction/status-details"
+            style.apply(this,TaskProductVisualStyle.auxiliary)
+            setPadding(dp(8),dp(8),dp(8),dp(8)); this.text=statusDetails()
+        }
+        statusDetailsText=text
+        val dialog=AppDialog.show(host,getString(R.string.home_live_status),text,AppDialog.Action(getString(android.R.string.ok)) {},null)
+        statusDetailsDialog=dialog
+        dialog.setOnDismissListener { if(statusDetailsText===text) statusDetailsText=null; if(statusDetailsDialog===dialog) statusDetailsDialog=null }
     }
     private fun TextView.show(value: String) {
         val group = readoutGroups[this]
@@ -720,9 +804,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         referenceId=if(available) id else null
         chart.reference=if(available) requireNotNull(timeline).points else emptyList()
         val source = if (available) getString(R.string.reference_source,
-            host.journalDate(requireNotNull(record).observation.startedAtMs),
-            getString(if (requireNotNull(timeline).observedOrigin) R.string.reference_align_observed else R.string.reference_align_recorded)) else null
-        referenceStatus.show(if (source != null) getString(R.string.reference_legend) + "\n" + source
+            host.journalDate(requireNotNull(record).observation.startedAtMs), "").trim() else null
+        referenceStatus.show(if (source != null) source
             else getString(if (id == null) R.string.reference_off else R.string.reference_unavailable))
         chart.referenceLabel = source
     }
