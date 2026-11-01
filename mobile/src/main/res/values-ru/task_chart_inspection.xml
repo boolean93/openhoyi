@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_chart_inspect_hint">Выберите график для просмотра реальных отсчётов; используйте ползунок или стрелки</string>
+    <string name="task_chart_sample_time">Отсчёт текущего приготовления · %1$s с</string>
+    <string name="task_chart_missing_scale">В этот момент показание весов не записано</string>
+    <string name="task_chart_not_brewing">В этот момент экстракция не выполнялась</string>
+</resources>

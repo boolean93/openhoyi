@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_detail_samples_heading">ข้อมูลตัวอย่างย้อนหลัง</string>
+    <string name="legacy_detail_source_heading">แหล่งข้อมูล</string>
+    <string name="legacy_detail_source_body">บันทึกเก่าที่นำเข้า: แรงดัน (bar) และน้ำไหลจากเครื่อง (ml/s)</string>
+    <string name="legacy_detail_missing_heading">ข้อมูลที่ขาดหาย</string>
+    <string name="legacy_detail_missing_body">อุณหภูมิเครื่อง: ไม่มีข้อมูล\nปริมาณน้ำสะสม: ไม่มีข้อมูล\nน้ำหนักตาชั่งเนทีฟ: ไม่มีข้อมูล\nการยืนยันสิ้นสุดแบบเนทีฟ: ไม่มีข้อมูล</string>
+    <string name="legacy_detail_limits_heading">ข้อจำกัดในการตีความ</string>
+    <string name="legacy_detail_limits_body">เก็บ wFlow/wTrend ดิบไว้แล้ว การปรับเรียบและเส้นฐานแบบเก่าไม่เท่ากับน้ำหนักหรืออัตราไหลตาชั่งเนทีฟ บันทึกนี้พิสูจน์ไม่ได้ว่าเครื่องหยุดจริง</string>
+</resources>

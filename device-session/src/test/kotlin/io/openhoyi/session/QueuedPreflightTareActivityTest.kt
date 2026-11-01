@@ -34,7 +34,7 @@ class QueuedPreflightTareActivityTest {
                 CharacteristicInfo(KnownGatt.bookooWrite,true,false,false,false),
                 CharacteristicInfo(KnownGatt.bookooNotify,false,false,true,false))))
             completeScale()
-            repeat(4){coffee.now+=501;scale.tick();completeScale()}
+            for(command in BookooCodec.initializationCommands()){coffee.now=command.delayMs+1;scale.tick();completeScale()}
             notifyWeight(false)
             assertEquals(DeviceState.READY,scale.state)
             idle(coffee.now)

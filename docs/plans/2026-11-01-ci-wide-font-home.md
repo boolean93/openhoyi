@@ -1,0 +1,8 @@
+# Preserve natural boiler height at wide font
+
+- Scope: lifecycle5c run41261298102 artifact13065338739 passed landscape96fixtures then failed wideFont zh-Hans light Home: target93C layout34px available29px. Spacious Home fixed360dp gives two equal cards176dp; large-font natural content exceeds it. Let the host wrap and measure both cards at the actual55% width, allocating equal heights from the taller natural card with original360dp minimum. Compact/short path, fonts, actions and assertions unchanged.
+- Settings follow-up: run41261301741 passed language choices then failed stale product/settings/app/export tag. Actual AppSettingsFragment uses product/settings/app/export/action; update only that test target, keeping SAF cancellation/failure/success and provider checks.
+- Source: develop-derived feature/task-first-ui head5c04687564ae1f47baea10e9d0d2e42ec43cc127; isolated fix/ci-page-service; PR4 to develop. Parent handles normal push/merge after review and CI. No push here.
+- Verification: :mobile:compileMockAndroidTestKotlin --offline --no-daemon BUILD SUCCESSFUL in1m3s (3 executed,44 up-to-date), branch policy and diff checks pass. Independent resume_review inspection found no measurement blocker; actual wideFont CI remains required. Both5c push and PR lifecycle fail identically target layout34px available29px; PR artifact13065523670. 7170 return-focus timeout did not recur in either5c landscape and is not altered without proof.
+- Protocol/device/release: no wire/state/safety/signing/version changes, no release/install/ADB/data clearing. Product layout change means parent must rebuild both pending APKs before installation.
+- Rollback: revert fix commit, preserve records and shared history. See ../git-workflow.md.

@@ -5,6 +5,17 @@ import org.junit.Test
 
 class MachineAlarmsTest {
     private val alarms = MachineAlarms(DefaultStringResources::resolve)
+    @Test fun runningStatusOnlyCollapsesFreshExplicitlyClearAlarms() {
+        assertFalse(alarms.showExtractionStatus(true, 0, 1000, 2500))
+        assertTrue(alarms.showExtractionStatus(false, 0, 1000, 2000))
+        assertTrue(alarms.showExtractionStatus(true, null, 1000, 2000))
+        assertTrue(alarms.showExtractionStatus(true, 0, null, 2000))
+        assertTrue(alarms.showExtractionStatus(true, 0, 1000, 2501))
+        assertTrue(alarms.showExtractionStatus(true, 0, 2001, 2000))
+        for (bits in 1..0xFFFF) assertTrue("Alarm $bits must remain visible",
+            alarms.showExtractionStatus(true, bits, 1000, 2000))
+    }
+
     @Test fun structuredRejectionKeepsAllAlarmPermissionsWithoutResolvingDisplay() {
         val noDisplay = MachineAlarms { _, _ -> error("Building rejection must not resolve display") }
         for (bits in 0..0xFFFF) {

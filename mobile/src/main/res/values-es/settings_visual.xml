@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="m8_brew_label">Temperatura de extracción</string>
+    <string name="m8_compensation_label">Compensación de temperatura</string>
+    <string name="m8_steam_label">Temperatura del vapor</string>
+    <string name="m8_standby_label">Temperatura en espera</string>
+    <string name="m8_brew_range">Intervalo: 75–105 °C</string>
+    <string name="m8_compensation_range">Intervalo: 0–5 °C</string>
+    <string name="m8_steam_range">Intervalo: 110–145 °C</string>
+    <string name="m8_standby_range">Intervalo: 0–100 °C</string>
+</resources>

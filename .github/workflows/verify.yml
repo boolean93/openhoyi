@@ -21,6 +21,7 @@ jobs:
           python3 -m unittest discover -s scripts -p test_git_policy.py
           python3 -m unittest discover -s scripts -p test_apk_distribution.py
           python3 -m unittest discover -s scripts -p test_mock_upgrade.py
+          python3 -m unittest discover -s scripts -p test_mock_ui_tap.py
           python3 -m unittest discover -s localization/tests
           python3 localization/validate_catalog.py
           python3 localization/android_resources.py --check
@@ -35,6 +36,7 @@ jobs:
       - name: Verify protocol, session, transport, and apps
         run: |
           ./gradlew --no-daemon --console=plain \
+            :bean-core:test \
             :protocol-core:check \
             :device-session:check \
             :trace-core:test \

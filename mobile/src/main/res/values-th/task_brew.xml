@@ -1,0 +1,24 @@
+<resources>
+    <string name="task_brew_title">เตรียมชง</string>
+    <string name="task_brew_machine_readings">ค่าที่อ่านจากเครื่อง</string>
+    <string name="task_brew_preview_note">เป้าหมายแต่ละช่วง ไม่ใช่การคาดการณ์เวลา</string>
+    <string name="task_brew_cup_summary">แก้วนี้</string>
+    <string name="task_brew_no_pressure_preview">ไม่มีเป้าหมายแรงดันที่ตรวจสอบแล้ว แตะชื่อสูตรเพื่อดูรายละเอียด</string>
+    <string name="task_brew_live_state">ดูสถานะสด</string>
+    <string name="task_brew_temperature">อุณหภูมิที่แก้ไข %1$s °C · เป้าหมาย %2$s °C</string>
+    <string name="task_brew_dose_unavailable">ไม่สามารถอ่านบันทึกเมล็ดกาแฟ</string>
+    <string name="task_brew_dose_missing">ยังไม่ได้เลือกเมล็ดสำหรับแก้วนี้</string>
+    <string name="task_brew_dose_association">บันทึกแก้วก่อนหน้ารอเชื่อมโยง เปิดเพื่อจัดการ</string>
+    <string name="task_brew_dose_previous">เมล็ดที่ใช้ครั้งก่อน</string>
+    <string name="task_brew_dose_pending">ต้องตรวจสอบผลการหักใช้</string>
+    <string name="task_brew_dose_conflict">ต้องตรวจสอบบันทึกสต็อก</string>
+    <string name="task_brew_dose_confirmed">ยืนยันเมล็ดแล้ว</string>
+    <string name="task_brew_dose_selected">เมล็ดรอการยืนยัน</string>
+    <string name="task_brew_dose_entry">ดูหรือแก้ไขเมล็ด</string>
+    <string name="task_brew_usage_unavailable">ไม่สามารถอ่านประวัติการใช้</string>
+    <string name="task_brew_usage_empty">ยังไม่มีประวัติการใช้</string>
+    <string name="task_brew_usage">ใช้ %1$s ครั้ง · ล่าสุด %2$s</string>
+    <string name="task_brew_history_entry">ดูประวัติทั้งหมด</string>
+    <string name="task_brew_curve_unknown">สูตรปัจจุบันไม่พร้อมใช้งาน</string>
+    <string name="task_brew_compact_preview">พื้นที่จำกัด แสดงเป้าหมายทุกช่วงเป็นข้อความ</string>
+</resources>

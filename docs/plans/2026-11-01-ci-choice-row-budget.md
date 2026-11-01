@@ -1,0 +1,9 @@
+# Preserve caller choice-row minimums
+
+- Scope: fix AppDialog styling erasing a caller's larger choice-row minimum. Language adapter requests 52dp; shared styling overwrote View.minimumHeight to 48dp and TextView.minHeight to the typography line height. Preserve max(original View minimum, original TextView minimum, shared 48dp floor) after typography.
+- Source/branch: develop-derived task-first baseline b8bfff8 plus local 7170f2f; fix/ci-page-service. Parent controls normal push/PR #4 to develop; no push/merge here.
+- Evidence: settings run41176081078 artifact13033319857, light-1.3-app-result.txt chooseLanguage line904. Bounded compressed ZIP 458027873 bytes; only language-write-rejected window.png, geometry.json and dialog-typography.json extracted. Its successful re-bound rows measure117px (52dp at density2.25), showing the adapter's original budget; source shows initial shared styling overwrites it before selection. Prior combined assertion cannot identify which predicate failed; split messages retain every original predicate for next execution.
+- Changes: honor caller minimum in shared styleChoices; improve existing language row assertion diagnostics. No threshold, timeout, callback, matrix or language behavior changes.
+- Verification: :mobile:compileMockAndroidTestKotlin --offline --no-daemon BUILD SUCCESSFUL in57s (3 executed,44 up-to-date); git diff --check and git_policy.py branch pass. Independent read-only review by resume_review found preserved original minima, unchanged52dp/full-visibility/dispatch/recreation assertions and no semantic blocker. Full runtime settings visual and shared dialog matrices remain CI acceptance; no physical device/ADB actions during installation.
+- Protocol/device/release: no protocol/state/signing/version changes, no release/install/data clearing.
+- Rollback: revert this commit; preserve data. See ../git-workflow.md.

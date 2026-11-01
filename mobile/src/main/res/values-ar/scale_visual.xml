@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="m6_nearby_scales">الموازين القريبة</string>
+  <string name="m6_scale_candidate_count">تم العثور على %1$d أجهزة محتملة</string>
+  <string name="m6_app_timer">مؤقت التطبيق</string>
+</resources>

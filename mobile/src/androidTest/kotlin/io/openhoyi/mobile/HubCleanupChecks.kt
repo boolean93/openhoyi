@@ -4,7 +4,6 @@ import android.app.Instrumentation
 import android.content.Context
 import android.content.ContextWrapper
 import android.os.Handler
-import io.openhoyi.bluetooth.AndroidDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.session.*
 import java.time.LocalDateTime
@@ -48,8 +47,8 @@ internal class HubCleanupChecks(private val test: Instrumentation) {
                             throw if (role == DeviceRole.COFFEE) coffeeError else scaleError
                     })
                     try {
-                        val coffee = field(hub, "coffee").get(hub) as AndroidDevice
-                        val scale = field(hub, "scale").get(hub) as AndroidDevice
+                        val coffee = hubDevice(hub, "coffee")
+                        val scale = hubDevice(hub, "scale")
                         val drivers = listOf(Driver(), Driver())
                         for ((device, driver) in listOf(coffee, scale).zip(drivers)) {
                             val queue = field(device.session, "queue").get(device.session) as GattQueue
@@ -78,8 +77,8 @@ internal class HubCleanupChecks(private val test: Instrumentation) {
                     } finally {
                         armed = false
                         // RED must also release every detached task before leaving this main-looper turn.
-                        runCatching { (field(hub, "coffee").get(hub) as AndroidDevice).close() }
-                        runCatching { (field(hub, "scale").get(hub) as AndroidDevice).close() }
+                        runCatching { hubDevice(hub, "coffee").close() }
+                        runCatching { hubDevice(hub, "scale").close() }
                         runCatching { hub.scanner.close() }
                         val handler = field(hub, "handler").get(hub) as Handler
                         handler.removeCallbacks(field(hub, "ticker").get(hub) as Runnable)

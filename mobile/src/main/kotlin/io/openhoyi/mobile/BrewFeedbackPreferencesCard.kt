@@ -4,10 +4,12 @@ import android.app.Activity
 import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.Toast
+import android.widget.TextView
+import android.view.View
 import kotlin.random.Random
 
 /** App-local controls stay usable while disconnected and never enter machine controlButtons. */
-internal class BrewFeedbackPreferencesCard(private val activity: Activity, parent: LinearLayout) {
+internal class BrewFeedbackPreferencesCard(private val activity: Activity, parent: LinearLayout, private val visual: SettingsVisualStyle? = null) {
     private val prefs = (activity.application as MobileApplication).feedbackPreferences
     private val audioOwner = lazy { BrewFeedbackAudio(AndroidBrewFeedbackAudio(activity.applicationContext)) }
     private val audio by audioOwner
@@ -15,11 +17,14 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
     private var updating = false
     val enabledSwitch: Switch
     private val preview: android.widget.Button
+    internal var errorStatus: TextView? = null
+        private set
     init {
-        val card = HoyiUi.card(activity, parent, activity.getString(R.string.feedback_preferences_title))
+        val card = settingsGroup(activity, parent, activity.getString(R.string.feedback_enabled), visual)
         enabledSwitch = Switch(activity).apply {
-            text = activity.getString(R.string.feedback_enabled)
-            textSize = 17f
+            text = activity.getString(R.string.settings_enable_feedback)
+            textSize = TaskVisualTokens.BODY_SP.toFloat()
+            typeface = TaskTypography.face(activity, 400)
             setTextColor(activity.getColor(R.color.mobile_text))
             minHeight = HoyiUi.dp(activity, 56)
             isChecked = prefs.enabled
@@ -28,19 +33,38 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
                 if (!updating) {
                     if (!prefs.setEnabled(checked)) {
                         refresh()
-                        runCatching { Toast.makeText(activity, R.string.feedback_save_failed, Toast.LENGTH_SHORT).show() }
-                    } else if (!checked) stopAudio()
+                        if (visual==null) runCatching { Toast.makeText(activity, R.string.feedback_save_failed, Toast.LENGTH_SHORT).show() }
+                        else errorStatus?.apply {text=activity.getString(R.string.feedback_save_failed);visibility=View.VISIBLE}
+                    } else {
+                        clearError()
+                        if (!checked) stopAudio()
+                    }
                 }
             }
         }
-        HoyiUi.label(activity, card, activity.getString(R.string.feedback_enabled_description), 14, muted = true)
+        visual?.let {it.switch(enabledSwitch);enabledSwitch.tag="product/settings/app/feedback/toggle"}
+        HoyiUi.label(activity, card, activity.getString(R.string.feedback_enabled_description), 14, muted = true).also {label->
+            visual?.palette?.apply {apply(label,TaskProductVisualStyle.auxiliary,true);label.setPadding(0,dp(8),0,0)}
+        }
+        errorStatus=visual?.palette?.let {style->
+            style.text("",TaskProductVisualStyle.auxiliary,"product/settings/app/feedback/error").apply {
+                setTextColor(activity.getColor(R.color.mobile_danger));visibility=View.GONE
+                accessibilityLiveRegion=View.ACCESSIBILITY_LIVE_REGION_POLITE
+            }.also {style.add(card,it,8)}
+        }
+        settingsDivider(activity, card, visual)
         preview = HoyiUi.button(activity, card, activity.getString(R.string.feedback_preview)) {
             try {
                 if (audio.playing) audio.stop() else audio.play(BrewFeedbackClips.Level.BRAVO, Random.nextInt(4))
             } catch (_: RuntimeException) { stopAudio() }
             refresh()
+        }.apply {
+            asTaskTextAction(); gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+            visual?.action(this);visual?.let {tag="product/settings/app/feedback/preview"}
         }
-        HoyiUi.label(activity, card, activity.getString(R.string.feedback_preview_description), 13, muted = true)
+        HoyiUi.label(activity, card, activity.getString(R.string.feedback_preview_description), TaskVisualTokens.SUPPORTING_SP, muted = true).also {label->
+            visual?.palette?.apply {apply(label,TaskProductVisualStyle.auxiliary,true);label.setPadding(0,dp(8),0,0)}
+        }
     }
     fun refresh() {
         updating = true
@@ -51,5 +75,7 @@ internal class BrewFeedbackPreferencesCard(private val activity: Activity, paren
         finally { updating = false }
     }
     fun start() { prefs.observe(this) { enabled -> if (!enabled) stopAudio(); refresh() } }
-    fun stop() { prefs.unobserve(this); stopAudio() }
+    fun pausePreview() { stopAudio(); refresh() }
+    private fun clearError() {errorStatus?.apply {text="";visibility=View.GONE}}
+    fun stop() { prefs.unobserve(this); stopAudio();clearError() }
 }

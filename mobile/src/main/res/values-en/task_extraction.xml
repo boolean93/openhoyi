@@ -1,0 +1,9 @@
+<resources>
+    <string name="task_extraction_elapsed">Elapsed</string>
+    <string name="task_extraction_scale">Scale reading</string>
+    <string name="task_extraction_water">Total water</string>
+    <string name="task_extraction_pressure">Pressure %1$s bar</string>
+    <string name="task_extraction_temperature">Machine temp %1$s °C</string>
+    <string name="task_extraction_supporting">Cup and tools</string>
+    <string name="task_extraction_flow">Cup flow (estimated) %1$s g/s</string>
+</resources>

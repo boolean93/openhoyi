@@ -9,7 +9,6 @@ import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
-import io.openhoyi.bluetooth.AndroidDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
@@ -101,7 +100,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                         val owner = NativeDeviceHub(context)
                         hub = owner
                         field(instance, "hub").set(instance, owner)
-                        val devices = listOf("coffee", "scale").map { field(owner, it).get(owner) as AndroidDevice }
+                        val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
                         val queues = devices.map { field(it.session, "queue").get(it.session) as GattQueue }
                         val calls = mutableListOf<Triple<Long, Long, GattOperation>>()
                         val recordsAtDispatch = mutableListOf<Map<String, *>>()
@@ -332,7 +331,7 @@ internal class ServiceOrdinaryDispatchChecks(private val test: Instrumentation) 
                             }
                         }
                         hub?.let { owner ->
-                            listOf("coffee", "scale").forEach { name -> cleaned { (field(owner, name).get(owner) as AndroidDevice).close() } }
+                            listOf("coffee", "scale").forEach { name -> cleaned { hubDevice(owner, name).close() } }
                             cleaned { owner.scanner.close() }
                             cleaned { (field(owner, "handler").get(owner) as Handler).removeCallbacks(field(owner, "ticker").get(owner) as Runnable) }
                         }

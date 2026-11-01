@@ -1,0 +1,24 @@
+<resources>
+    <string name="task_brew_title">Preparar café</string>
+    <string name="task_brew_machine_readings">Lecturas de la máquina</string>
+    <string name="task_brew_preview_note">Objetivos por etapa, no predicción temporal</string>
+    <string name="task_brew_cup_summary">Esta taza</string>
+    <string name="task_brew_no_pressure_preview">Sin objetivos de presión verificados. Toca la receta para ver detalles.</string>
+    <string name="task_brew_live_state">Ver estado en vivo</string>
+    <string name="task_brew_temperature">Temperatura corregida %1$s °C · Objetivo %2$s °C</string>
+    <string name="task_brew_dose_unavailable">Registro de café no disponible</string>
+    <string name="task_brew_dose_missing">Sin café seleccionado para esta taza</string>
+    <string name="task_brew_dose_association">Falta asociar la taza anterior; abrir para resolver</string>
+    <string name="task_brew_dose_previous">Café de la taza anterior</string>
+    <string name="task_brew_dose_pending">Revisar resultado del consumo</string>
+    <string name="task_brew_dose_conflict">Revisar registro de inventario</string>
+    <string name="task_brew_dose_confirmed">Café confirmado</string>
+    <string name="task_brew_dose_selected">Café pendiente de confirmar</string>
+    <string name="task_brew_dose_entry">Ver o editar café</string>
+    <string name="task_brew_usage_unavailable">Registro de uso no disponible</string>
+    <string name="task_brew_usage_empty">Sin usos registrados</string>
+    <string name="task_brew_usage">Usada %1$s veces · Última %2$s</string>
+    <string name="task_brew_history_entry">Ver historial completo</string>
+    <string name="task_brew_curve_unknown">Receta actual no disponible</string>
+    <string name="task_brew_compact_preview">Espacio limitado: objetivos completos de las etapas en texto</string>
+</resources>

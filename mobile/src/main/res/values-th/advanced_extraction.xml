@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="live_pressure_chart">แรงดันสกัด · bar</string>
+    <string name="live_cup_flow_chart">อัตราการไหลลงแก้ว · g/s</string>
+    <string name="live_cup_flow_source">ประเมินจากการเปลี่ยนแปลงน้ำหนักบนเครื่องชั่ง ใช้ดูเป็นข้อมูลอ้างอิงเท่านั้น</string>
+    <string name="live_cup_flow_metric">อัตราการไหลลงแก้ว (ค่าประเมิน)</string>
+    <string name="live_chart_no_data">ยังไม่มีข้อมูล</string>
+    <string name="live_time_axis">เวลา · s</string>
+    <string name="ui_brew">ชงกาแฟ</string>
+</resources>

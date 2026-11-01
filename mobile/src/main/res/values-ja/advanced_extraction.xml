@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="live_pressure_chart">抽出圧力 · bar</string>
+    <string name="live_cup_flow_chart">カップへの流量 · g/s</string>
+    <string name="live_cup_flow_source">秤の重量変化から推定した参考値です</string>
+    <string name="live_cup_flow_metric">カップへの流量（推定）</string>
+    <string name="live_chart_no_data">データがまだありません</string>
+    <string name="live_time_axis">時間 · s</string>
+    <string name="ui_brew">抽出</string>
+</resources>

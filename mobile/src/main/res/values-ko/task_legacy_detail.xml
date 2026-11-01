@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_detail_samples_heading">과거 샘플</string>
+    <string name="legacy_detail_source_heading">데이터 출처</string>
+    <string name="legacy_detail_source_body">가져온 이전 기록: 압력(bar)과 머신 물 유량(ml/s).</string>
+    <string name="legacy_detail_missing_heading">누락된 데이터</string>
+    <string name="legacy_detail_missing_body">머신 온도: 없음\n누적 물량: 없음\n네이티브 저울 무게: 없음\n네이티브 종료 확인: 없음</string>
+    <string name="legacy_detail_limits_heading">해석상의 제한</string>
+    <string name="legacy_detail_limits_body">원시 wFlow/wTrend는 보존됩니다. 이전 평활화와 기준선 처리는 네이티브 저울 무게나 유량과 같지 않습니다. 이 기록은 머신의 실제 중지를 증명하지 못합니다.</string>
+</resources>

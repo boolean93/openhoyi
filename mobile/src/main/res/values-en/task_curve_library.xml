@@ -1,0 +1,7 @@
+<resources>
+    <string name="task_curve_library_manage">Manage</string>
+    <string name="task_curve_library_actions">Curve actions</string>
+    <string name="task_curve_library_no_pressure">No pressure stages are available from this source. View its raw parameters instead.</string>
+    <string name="task_curve_library_short_preview">Not enough plot space. Pressure stage parameters: %1$s. Stage schematic, not a time prediction.</string>
+    <string name="curve_library_stage_heading">Stage pressure targets</string>
+</resources>

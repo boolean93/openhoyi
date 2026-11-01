@@ -7,7 +7,7 @@ import android.content.Context
 import android.os.SystemClock
 
 /** Real Android posting in the isolated Mock UID; never dispatches a notification action. */
-internal class LanguageNotificationPostingChecks(private val test: Instrumentation, private val home: HomeActivity) {
+internal class LanguageNotificationPostingChecks(private val test: Instrumentation, private val home: MainActivity) {
     private fun awaitCondition(checkState: () -> Boolean) {
         val deadline = SystemClock.elapsedRealtime() + 5000
         while (!checkState()) {
@@ -26,7 +26,7 @@ internal class LanguageNotificationPostingChecks(private val test: Instrumentati
         var service: MobileService? = null
         awaitCondition {
             test.runOnMainSync {
-                service = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }.get(home) as? MobileService
+                service = home.currentService
             }
             service != null
         }
@@ -60,7 +60,7 @@ internal class LanguageNotificationPostingChecks(private val test: Instrumentati
                     actionText = expected.getString(R.string.notification_disconnect)
                     message = owner.snapshot.message
                     manager.notify(tag, connectionId, display.connection(null, "connections"))
-                    manager.notify(tag, safetyId, display.safety(warning, ExtractionActivity::class.java, "shot_safety", true))
+                    manager.notify(tag, safetyId, display.safety(warning, MainActivity::class.java, "shot_safety", true, true))
                 }
                 awaitCondition {
                     val posted = manager.activeNotifications.filter { it.tag == tag }

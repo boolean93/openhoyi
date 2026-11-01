@@ -1,0 +1,9 @@
+<resources>
+    <string name="live_pressure_chart">萃取压力 · bar</string>
+    <string name="live_cup_flow_chart">杯中流速 · g/s</string>
+    <string name="live_cup_flow_source">根据秤重变化估算，仅供查看</string>
+    <string name="live_cup_flow_metric">杯中流速（估算）</string>
+    <string name="live_chart_no_data">尚无数据</string>
+    <string name="live_time_axis">时间 · s</string>
+    <string name="ui_brew">冲煮</string>
+</resources>

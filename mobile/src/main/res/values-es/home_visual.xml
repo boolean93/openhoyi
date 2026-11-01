@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_machine_title">Máquina</string>
+    <string name="home_target_label">Objetivo</string>
+    <string name="home_slot_unconfigured">Sin asignar</string>
+    <string name="home_visual_details">Detalles de preparación</string>
+    <string name="home_visual_show_details">Ver detalles de preparación ›</string>
+    <string name="home_visual_change">Cambiar</string>
+    <string name="home_visual_edit">Editar</string>
+    <string name="home_visual_pressure_mode">Modo de presión</string>
+    <string name="home_visual_flow_mode">Modo de flujo (valor bruto)</string>
+    <string name="home_visual_unknown_mode">Modo desconocido</string>
+    <string name="home_visual_stage_mode">%1$s etapas · %2$s</string>
+    <string name="home_visual_stage_count">%1$s etapas</string>
+    <string name="home_visual_open_device_status">Estado de %1$s, abrir controles de conexión</string>
+    <string name="home_visual_more_recipes">Más recetas ›</string>
+    <string name="home_visual_panel_title">Preparación y dispositivos</string>
+    <string name="home_visual_bean_label">Café en grano</string>
+</resources>

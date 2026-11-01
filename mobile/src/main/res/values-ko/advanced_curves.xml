@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_sort_recent">최근 사용순</string>
+    <string name="curve_sort_most_used">사용 횟수순</string>
+    <string name="curve_usage_count">" · %1$d회 사용"</string>
+    <string name="curve_usage_unavailable">사용 기록을 일시적으로 사용할 수 없습니다. 원본 파일은 보존되었습니다.</string>
+</resources>

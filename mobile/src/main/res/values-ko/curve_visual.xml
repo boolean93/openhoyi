@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_visual_import_scope">확인 전에는 저장하거나 추출을 시작하지 않습니다.</string>
+    <string name="curve_visual_library_scope">곡선 라이브러리에만 저장하며 추출을 시작하지 않습니다.</string>
+    <string name="curve_visual_preview_parameters">단계 미리보기 및 전체 매개변수 · %1$d 단계</string>
+</resources>

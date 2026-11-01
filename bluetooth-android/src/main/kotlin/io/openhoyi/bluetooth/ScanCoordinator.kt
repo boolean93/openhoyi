@@ -13,7 +13,8 @@ import android.os.Handler
 import android.os.Looper
 import io.openhoyi.session.DeviceRole
 
-data class DiscoveredDevice(val address:String,val advertisedName:String,val rssi:Int,val candidateRole:DeviceRole)
+data class DiscoveredDevice(val address:String,val advertisedName:String,val rssi:Int,val candidateRole:DeviceRole,
+    val scaleProtocolId:String?=if(candidateRole==DeviceRole.BOOKOO)io.openhoyi.session.BookooScaleProtocolAdapter.id else null)
 /** A single application/service-owned coordinator scans both device roles. Names are candidates, never protocol proof. */
 class ScanCoordinator(context:Context):AutoCloseable {
     private val context=context.applicationContext
@@ -44,8 +45,9 @@ class ScanCoordinator(context:Context):AutoCloseable {
             override fun onScanResult(callbackType:Int,result:ScanResult){handler.post {
                 if(gen!=generation||running==null)return@post
                 val name=result.scanRecord?.deviceName?:return@post
-                val role=when{ name.contains("HOYI",true)->DeviceRole.COFFEE;name.contains("BOOKOO",true)->DeviceRole.BOOKOO;else->return@post }
-                try{onDevice(DiscoveredDevice(result.device.address,name,result.rssi,role))}catch(_:SecurityException){finish("scan permission revoked")}
+                val protocolId=ScaleAdvertisementClassifier.protocolId(name)
+                val role=when{ name.contains("HOYI",true)->DeviceRole.COFFEE;protocolId!=null->DeviceRole.BOOKOO;else->return@post }
+                try{onDevice(DiscoveredDevice(result.device.address,name,result.rssi,role,if(role==DeviceRole.BOOKOO)protocolId else null))}catch(_:SecurityException){finish("scan permission revoked")}
             }}
             override fun onScanFailed(errorCode:Int){handler.post {finish("scan failed: $errorCode")}}
         }

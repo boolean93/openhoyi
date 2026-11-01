@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_sort_recent">Недавно использованные</string>
+    <string name="curve_sort_most_used">Количество использований</string>
+    <string name="curve_usage_count">" · Использований: %1$d"</string>
+    <string name="curve_usage_unavailable">История использования временно недоступна. Исходный файл сохранён.</string>
+</resources>

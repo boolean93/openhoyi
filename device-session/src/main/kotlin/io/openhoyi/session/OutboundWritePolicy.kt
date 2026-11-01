@@ -6,11 +6,10 @@ import java.time.LocalDateTime
 /** Wire-format boundary only. Authentication, freshness and captured-start authorization remain
  * DeviceSession responsibilities. Never invents, repairs, retries or logs payloads. */
 object OutboundWritePolicy {
-    fun permits(role:DeviceRole,operation:GattOperation.Write):Boolean {
+    fun permits(role:DeviceRole,operation:GattOperation.Write,
+        scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter):Boolean {
         val bytes=operation.bytes
-        if(role==DeviceRole.BOOKOO) return operation.endpoint==KnownGatt.bookooWrite &&
-            (BookooCodec.initializationCommands().any { it.frame.toByteArray().contentEquals(bytes) } ||
-                BookooCodec.tare().frame.toByteArray().contentEquals(bytes))
+        if(role==DeviceRole.BOOKOO) return scaleAdapter.transportVerified && scaleAdapter.permitsWrite(operation)
         if(operation.endpoint!=KnownGatt.coffeeWrite || bytes.isEmpty())return false
         return runCatching { coffee(bytes) }.getOrDefault(false)
     }

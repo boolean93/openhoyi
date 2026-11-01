@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_sort_recent">最近使用した順</string>
+    <string name="curve_sort_most_used">使用回数順</string>
+    <string name="curve_usage_count">" · 使用 %1$d 回"</string>
+    <string name="curve_usage_unavailable">使用履歴は一時的に利用できません。元のファイルは保持されています。</string>
+</resources>

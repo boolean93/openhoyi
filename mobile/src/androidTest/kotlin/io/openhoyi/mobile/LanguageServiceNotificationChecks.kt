@@ -14,7 +14,7 @@ import android.content.res.Resources
 import android.os.SystemClock
 
 /** Tests original Service methods on a detached object, never the live BLE/Mock owner. */
-internal class LanguageServiceNotificationChecks(private val test: Instrumentation, private val home: HomeActivity) {
+internal class LanguageServiceNotificationChecks(private val test: Instrumentation, private val home: MainActivity) {
     private class DisplayContext(base: Context, private val app: MobileApplication) : ContextWrapper(base) {
         var lookups = 0
         var failLookup = false
@@ -83,7 +83,7 @@ internal class LanguageServiceNotificationChecks(private val test: Instrumentati
         var failure: Throwable? = null
         try {
             onMain {
-                owner = HomeActivity::class.java.getDeclaredField("service").apply { isAccessible = true }.get(home) as MobileService
+                owner = requireNotNull(home.currentService)
                 liveMock = field("mock").get(owner)
                 ownerAvailable = true
                 check(liveMock != null && field("hub").get(owner) == null)

@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.Handler
-import io.openhoyi.bluetooth.AndroidDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
@@ -31,6 +30,8 @@ internal class ServiceStandaloneTareDispatchChecks(private val test:Instrumentat
         for(mode in modes) {
             val id=UUID.randomUUID().toString()
             val folder=File(app.cacheDir,"service-standalone-tare-$id")
+            // Both the asynchronous journal and durable tare marker use this fixture directory.
+            check(folder.mkdirs() || folder.isDirectory) { "Cannot initialize tare fixture directory" }
             val journal=TraceStore(folder)
             val prefs=mutableMapOf<String,Map<String,*>>()
             var systemCalls=0
@@ -86,10 +87,10 @@ internal class ServiceStandaloneTareDispatchChecks(private val test:Instrumentat
                         val hub=NativeDeviceHub(context,tareStorage=guardedStorage);owner=hub;
                         if(restored) {
                             check(hub.scaleTareState==StandaloneTare.State.UNKNOWN)
-                            check(!(field(hub,"scaleControl").get(hub) as ScaleSessionControl).startAllowed)
+                            check(!(field(hub,"scaleControl").get(hub) as ScaleControl).startAllowed)
                         }
                         field(instance,"hub").set(instance,hub)
-                        val scale=(field(hub,"scale").get(hub) as AndroidDevice).session
+                        val scale=hubDevice(hub, "scale").session
                         val queue=field(scale,"queue").get(scale) as GattQueue
                         val calls=mutableListOf<Triple<Long,Long,GattOperation>>()
                         field(queue,"driver").set(queue,GuardedGattDriver(DeviceRole.BOOKOO,object:GattDriver {
@@ -105,7 +106,9 @@ internal class ServiceStandaloneTareDispatchChecks(private val test:Instrumentat
                         check(hub.scaleAddress=="AA:BB:CC:DD:EE:03")
                         queue.enqueue(GattOperation.Discover,5000) { };val blocker=calls.single();barriers++
                         check(instance.tareScale()==null)
-                        check(hub.scaleTareState==StandaloneTare.State.WRITING && calls.size==1)
+                        check(hub.scaleTareState==StandaloneTare.State.WRITING && calls.size==1) {
+                            "Before dispatch mutation: mode=$mode state=${hub.scaleTareState} calls=${calls.size} marker=${marker.isFile}"
+                        }
                         check(storage.read() && StandaloneTare(storage) { 0L }.state==StandaloneTare.State.UNKNOWN)
                         when(mode) {
                             "MANUAL"->field(field(instance,"passiveShot").get(instance)!!,"active").setBoolean(field(instance,"passiveShot").get(instance),true)
@@ -163,7 +166,7 @@ internal class ServiceStandaloneTareDispatchChecks(private val test:Instrumentat
                             if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
                         } }
                         owner?.let { hub->
-                            listOf("coffee","scale").forEach { name->cleaned { (field(hub,name).get(hub) as AndroidDevice).close() } }
+                            listOf("coffee","scale").forEach { name->cleaned { hubDevice(hub, name).close() } }
                             cleaned { hub.scanner.close() }
                             cleaned { (field(hub,"handler").get(hub) as Handler).removeCallbacks(field(hub,"ticker").get(hub) as Runnable) }
                         }

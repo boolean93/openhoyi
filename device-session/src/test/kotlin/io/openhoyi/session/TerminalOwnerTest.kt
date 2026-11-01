@@ -38,7 +38,8 @@ class TerminalOwnerTest {
                 session.onNotification(session.generation, KnownGatt.coffeeNotify, hex("830113FD5C007D0F350019006E"))
                 session.onNotification(session.generation, KnownGatt.coffeeNotify, hex("400024BF2F1C770B00000000000000190321AF"))
             } else {
-                repeat(BookooCodec.initializationCommands().size) { now += 500; session.tick(); complete() }
+                val initAt=now
+                for(command in BookooCodec.initializationCommands()) { now=initAt+command.delayMs; session.tick(); complete() }
                 session.onNotification(session.generation, KnownGatt.bookooNotify,
                     hex("030B000000012D007A3A2D03424600C803010084"))
             }

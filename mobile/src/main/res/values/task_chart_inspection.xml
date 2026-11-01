@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_chart_inspect_hint">点击图表查看实际采样点；可用滑块或方向键逐点查看</string>
+    <string name="task_chart_sample_time">本杯采样 · %1$s 秒</string>
+    <string name="task_chart_missing_scale">未记录该时刻的秤读数</string>
+    <string name="task_chart_not_brewing">该时刻未处于萃取状态</string>
+</resources>

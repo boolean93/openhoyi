@@ -1,0 +1,5 @@
+<resources>
+    <string name="task_recipe_temperature">레시피 온도</string>
+    <string name="task_recipe_target">목표 무게</string>
+    <string name="task_recipe_dose">기록된 도징량</string>
+</resources>

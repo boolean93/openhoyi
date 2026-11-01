@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="inventory_visual_in_stock">在庫のコーヒー豆</string>
+    <string name="inventory_visual_consumption_hint">この一杯の使用量を確定してから在庫を差し引きます。</string>
+</resources>
