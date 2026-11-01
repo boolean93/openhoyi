@@ -74,3 +74,8 @@ class ActiveTreeTest(unittest.TestCase):
         with patch.dict(tap.os.environ, {'MOCK_HIERARCHY_BACKEND': 'active-tree'}), patch.object(tap, 'read_active_hierarchy', side_effect=ValueError('native window changed')), patch.object(tap, 'read_uiautomator_hierarchy') as static:
             with self.assertRaisesRegex(ValueError, 'native window changed'): tap.read_hierarchy()
             static.assert_not_called()
+
+    def test_invalid_cli_backend_fails_before_foreground_read(self):
+        with patch.dict(tap.os.environ, {'MOCK_HIERARCHY_BACKEND': 'unknown'}), patch.object(tap.sys, 'argv', ['mock_ui_tap.py', 'X']), patch.object(tap, 'ensure_mock') as foreground, patch.object(tap, 'adb') as adb:
+            with self.assertRaises(ValueError): tap.main()
+            foreground.assert_not_called(); adb.assert_not_called()

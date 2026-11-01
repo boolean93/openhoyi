@@ -248,8 +248,15 @@ def read_uiautomator_hierarchy():
         raise ValueError(f'Mock hierarchy was not written; dump output: {result}; read error: {error.stderr}') from error
 
 
-def read_hierarchy():
+def hierarchy_backend():
     backend = os.environ.get('MOCK_HIERARCHY_BACKEND', 'uiautomator')
+    if backend not in ('uiautomator', 'active-tree'):
+        raise ValueError('Unknown Mock hierarchy backend: ' + backend)
+    return backend
+
+
+def read_hierarchy():
+    backend = hierarchy_backend()
     if backend == 'uiautomator':
         return read_uiautomator_hierarchy()
     if backend == 'active-tree':
@@ -305,6 +312,7 @@ def main():
     parser.add_argument('--scroll', action='store_true')
     parser.add_argument('--diagnostics-dir')
     args = parser.parse_args()
+    hierarchy_backend()  # Reject invalid CLI configuration before even the foreground read.
     # Reordered activities retain their scroll position. Search upwards first,
     # then downwards, so header controls remain reachable after a tool visit.
     directions = (["up"] * 6 + ["down"] * 12) if args.scroll else []
