@@ -220,7 +220,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         val spaciousHome = resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
         val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
-        content.addView(boilerRow, LinearLayout.LayoutParams(-1, if (spaciousHome) dp(360) else -2).apply { topMargin = dp(if (shortHome) 4 else 8) })
+        content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 4 else 8) })
         fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): List<View> {
             val card = productStyle.column("product/home/$tagName").apply {
                 setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else if (shortHome) 2 else 4),

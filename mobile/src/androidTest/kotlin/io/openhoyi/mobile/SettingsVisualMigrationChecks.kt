@@ -930,7 +930,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 override fun onStartActivity(intent:Intent):Instrumentation.ActivityResult {observed=Intent(intent);calls++;return Instrumentation.ActivityResult(code,uri?.let {Intent().setData(it).addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)})}
             }
             test.addMonitor(monitor)
-            try {click(activity,"product/settings/app/export");main {
+            try {click(activity,"product/settings/app/export/action");main {
                 val intent=requireNotNull(observed);check(calls==1 && intent.action==Intent.ACTION_CREATE_DOCUMENT && intent.type=="application/zip" && intent.categories==setOf(Intent.CATEGORY_OPENABLE))
                 check(intent.component==null && intent.`package`==null && intent.getStringExtra(Intent.EXTRA_TITLE)?.startsWith("openhoyi-diagnostics-")==true)
             }} finally {test.removeMonitor(monitor)}

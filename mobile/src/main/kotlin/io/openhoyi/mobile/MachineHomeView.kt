@@ -30,6 +30,31 @@ internal class MachineHomeView(context: Context, private val spacious: Boolean) 
             if (spacious) 55f else 0f))
     }
 
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        if (!spacious || MeasureSpec.getMode(heightMeasureSpec) == MeasureSpec.EXACTLY) {
+            super.onMeasure(widthMeasureSpec, heightMeasureSpec)
+            return
+        }
+        // The image keeps its normal 360dp presence, while real boiler text may
+        // need more space at large font scales. Both equal-height cards must fit
+        // the taller card's natural content before the weighted layout runs.
+        val availableWidth = (MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight - dp(16)).coerceAtLeast(0)
+        val cardWidth = availableWidth * 55 / 100
+        var naturalCardHeight = 0
+        var verticalMargins = 0
+        for (index in 0 until boilers.childCount) {
+            val card = boilers.getChildAt(index)
+            val params = card.layoutParams as LayoutParams
+            card.measure(MeasureSpec.makeMeasureSpec((cardWidth - params.leftMargin - params.rightMargin).coerceAtLeast(0), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+            naturalCardHeight = maxOf(naturalCardHeight, card.measuredHeight)
+            verticalMargins += params.topMargin + params.bottomMargin
+        }
+        val desiredHeight = maxOf(dp(360), naturalCardHeight * boilers.childCount + verticalMargins + paddingTop + paddingBottom)
+        val measuredHeight = resolveSize(desiredHeight, heightMeasureSpec)
+        super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY))
+    }
+
     fun addBoiler(card: View) {
         boilers.addView(card, if (spacious) LayoutParams(-1, 0, 1f).apply {
             if (boilers.childCount > 0) topMargin = dp(8)
