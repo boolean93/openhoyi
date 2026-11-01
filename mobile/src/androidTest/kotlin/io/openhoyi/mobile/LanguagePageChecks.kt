@@ -37,8 +37,16 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
             Thread.sleep(25)
         }
     }
-    private fun owner(activity: Activity): MobileService? = if (activity is MainActivity) activity.currentService else
-        activity.javaClass.getDeclaredField("service").apply { isAccessible = true }.get(activity) as? MobileService
+    private fun machineField(activity: MachineSettingsActivity, name: String): Any? {
+        val controls = MachineSettingsActivity::class.java.getDeclaredField("controls")
+            .apply { isAccessible = true }.get(activity)
+        return controls.javaClass.getDeclaredField(name).apply { isAccessible = true }.get(controls)
+    }
+    private fun owner(activity: Activity): MobileService? = when (activity) {
+        is MainActivity -> activity.currentService
+        is MachineSettingsActivity -> machineField(activity, "service") as? MobileService
+        else -> error("Unexpected page owner: ${activity.javaClass.simpleName}")
+    }
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
     private fun root(activity: Activity): LinearLayout =
@@ -137,8 +145,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                         }
                     }
                     if (activity is MachineSettingsActivity) {
-                        val tabs = MachineSettingsActivity::class.java.getDeclaredField("settingTabs")
-                            .apply { isAccessible = true }.get(activity) as List<*>
+                        val tabs = machineField(activity, "settingTabs") as List<*>
                         val labels = listOf(R.string.machine_settings_tab_temperature, R.string.machine_settings_tab_functions,
                             R.string.machine_settings_tab_standby, R.string.machine_settings_tab_schedule, R.string.machine_settings_tab_maintenance)
                         check(tabs.size == labels.size)
