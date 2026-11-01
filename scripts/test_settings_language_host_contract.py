@@ -234,6 +234,7 @@ class SettingsLanguageHostContract(unittest.TestCase):
             path = ArchivePath(archive, names, CELL.rsplit('/special-states/', 1)[0] + '/manifest.json')
             namespace = {'json': json, 'sha': lambda item: hashlib.sha256(item.read_bytes()).hexdigest(),
                          'root': root, 'seen': set(), 'pending': [], 'protocol_count': 0,
+                         'ledger': {'scope': 'full'},
                          'struct': __import__('struct')}
             definitions = ast.Module(body=tree.body[start:stop], type_ignores=[])
             exec(compile(definitions, str(SOURCE), 'exec'), namespace)

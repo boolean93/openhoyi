@@ -10,6 +10,11 @@ source_dirty=false
 profile="${1:-tablet-user-landscape}"
 [[ "$profile" == tablet-user-landscape ]] || { echo 'Only the frozen tablet-user-landscape profile is supported' >&2; exit 1; }
 output_dir="${2:-$PWD/build/task-first-evidence/settings-visual-migration}"
+scope="${3:-full}"
+case "$scope" in
+  full|light-1.3|light-1.0|dark-1.3|dark-1.0) ;;
+  *) echo 'Unknown fixed settings matrix scope' >&2; exit 1 ;;
+esac
 mkdir -p "$output_dir"
 record_capacity() {
   # Diagnostic only: no app files, screenshot timing, or matrix outcome depends on this probe.
@@ -66,6 +71,12 @@ apk_sha=$(python3 - <<'PY'
 import hashlib
 from pathlib import Path
 print(hashlib.sha256(Path('mobile/build/outputs/apk/mock/mobile-mock.apk').read_bytes()).hexdigest())
+PY
+)
+test_apk_sha=$(python3 - <<'PY'
+import hashlib
+from pathlib import Path
+print(hashlib.sha256(Path('mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk').read_bytes()).hexdigest())
 PY
 )
 # Snapshot key presence AND value. `settings get` prints null for absence and cannot prove presence.
@@ -139,6 +150,11 @@ FONT_RESTORE_PY
     if (( exit_status == 0 )); then exit_status=1; fi
   fi
   adb shell am get-config > "$output_dir/font-scale-global-config-after-restore.txt" || true
+  python3 - "$output_dir/runner-exit.json" "$exit_status" <<'EXIT_RECORD_PY'
+import json,sys
+from pathlib import Path
+Path(sys.argv[1]).write_text(json.dumps({'exitStatus':int(sys.argv[2])},indent=2)+'\n')
+EXIT_RECORD_PY
   return "$exit_status"
 }
 trap 'original_exit=$?; trap - EXIT; if collect "$original_exit"; then exit 0; else exit "$?"; fi' EXIT
@@ -150,14 +166,16 @@ adb shell settings put system user_rotation 0
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 matrix_gate=scripts/settings_matrix_isolation.py
-python3 "$matrix_gate" init --output "$output_dir" --source "$source_sha" --apk "$apk_sha"
+python3 "$matrix_gate" init --output "$output_dir" --source "$source_sha" --apk "$apk_sha" --test-apk "$test_apk_sha" --scope "$scope"
 matrix_initialized=true
 record_capacity pre-matrix none none none 0 || true
 for product_theme in light dark; do
+  if [[ "$scope" != full && "$scope" != "$product_theme-"* ]]; then continue; fi
   if [[ "$product_theme" == dark ]]; then adb shell cmd uimode night yes; else adb shell cmd uimode night no; fi
-  # End with three real 1.0 pages; this removes delete's explicit 1.3 -> default-1.0 transition,
-  # not a persistence-queue ACK. Strict key presence/value restoration below remains mandatory.
+  # Full mode retains its original 1.3 -> 1.0 order. Each shard still restores
+  # the exact original key presence/value; a 1.3-only restore is never assumed safe.
   for font_scale in 1.3 1.0; do
+    if [[ "$scope" != full && "$scope" != "$product_theme-$font_scale" ]]; then continue; fi
     adb shell settings put system font_scale "$font_scale"
     for settings_page in app machine scale-settings; do
       result_file="$output_dir/$product_theme-$font_scale-$settings_page-result.txt"
@@ -165,10 +183,10 @@ for product_theme in light dark; do
         break 3
       fi
       adb shell am force-stop "$package"
-      if python3 - "$result_file" "$source_sha" "$source_dirty" "$apk_sha" "$product_theme" "$font_scale" "$settings_page" <<'RUN_PY'
+      if python3 - "$result_file" "$source_sha" "$source_dirty" "$apk_sha" "$test_apk_sha" "$product_theme" "$font_scale" "$settings_page" <<'RUN_PY'
 from pathlib import Path
 import json, os, subprocess, sys
-result_path, source, dirty, apk, theme, scale, page = sys.argv[1:]
+result_path, source, dirty, apk, test_apk, theme, scale, page = sys.argv[1:]
 def fresh_process_absent(probe):
     # Exact remote marker proves pidof actually ran. Unknown status, output, stderr or transport failure is not absence.
     return probe.returncode == 0 and probe.stdout.replace('\r\n','\n') == 'FRESH_PIDOF_STATUS=1\nFRESH_PIDOF_OUTPUT=\n' and probe.stderr == ''
@@ -196,7 +214,8 @@ assert hashlib.sha256((Path('docs/research/task-first-ui-concepts')/reference_na
 command = ['adb','shell','am','instrument','-w']
 for key,value in {'settingsVisualMigration':'true','disposableCiEmulator':'true','freshProcessVerified':'true',
     'settingsPage':page,'referencePngSha256':reference_sha,'sourceSha':source,'headSha':os.environ.get('PRODUCT_PR_HEAD_SHA',source),
-    'sourceDirty':dirty,'apkSha':apk,'sampleTheme':theme,'expectedFontScale':scale,
+    'sourceDirty':dirty,'apkSha':apk,'testApkSha':test_apk,'ciRunAttempt':os.environ.get('GITHUB_RUN_ATTEMPT','unknown'),
+    'sampleTheme':theme,'expectedFontScale':scale,
     'ciRun':os.environ['GITHUB_RUN_ID'],'ciJob':os.environ['GITHUB_JOB']}.items():
     command += ['-e',key,value]
 command += ['io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation']
@@ -224,14 +243,19 @@ done
 if python3 - "$output_dir/$source_sha" "$output_dir/matrix-ledger.json" <<'VERIFY_PY'
 from pathlib import Path
 import hashlib,json,struct,sys
-root=Path(sys.argv[1]); ledger=json.loads(Path(sys.argv[2]).read_text()); sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
+sys.path.insert(0,'scripts')
+from settings_matrix_isolation import expected, load
+root=Path(sys.argv[1]); ledger=load(Path(sys.argv[2]).parent); sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
+frozen=expected(root.name,ledger.get('scope','full')); expected_count=len(frozen)
+frozen_keys={(cell['page'],cell['profile']) for cell in frozen}
 manifests=sorted(root.glob('*/*/manifest.json'))
-assert len(ledger['cells'])==12
-assert len(manifests)==12 or ledger['unsafeStop'] is not None, f'Expected 12 real M8 configurations, got {len(manifests)}'
+assert len(ledger['cells'])==expected_count
+assert len(manifests)==expected_count or ledger['unsafeStop'] is not None, f'Expected {expected_count} real M8 configurations, got {len(manifests)}'
+assert {(path.parent.name,path.parent.parent.name) for path in manifests}<=frozen_keys
 assert all(cell['status'] in ('PASS_CAPTURED_PENDING_FULL_VERIFY','FAILED_ISOLATED_CONTINUED',
     'FAILED_UNSAFE_STOP','NOT_RUN_UNSAFE_PREDECESSOR') for cell in ledger['cells'])
 success={(cell['page'],cell['profile']) for cell in ledger['cells'] if cell['status']=='PASS_CAPTURED_PENDING_FULL_VERIFY'}
-assert len({(cell['page'],cell['profile']) for cell in ledger['cells']})==12
+assert {(cell['page'],cell['profile']) for cell in ledger['cells']}==frozen_keys
 seen=set(); pending=[]; protocol_count=0
 references={
 'app':'f2022d5eb60b798a722d30f01933028a63f14a342958400c74fcdc25a7c1a899',
@@ -518,6 +542,9 @@ for path in manifests:
     cell_key={'page':m['page'],'profile':m['profile']}
     try:
         assert m['sourceSha']==root.name and m['realProductActivity'] and not m['specimenOnly']
+        if ledger.get('scope','full')!='full':
+            assert all(m.get(key)==ledger[key] for key in ('headSha','ciRun','ciRunAttempt','ciJob','apkSha256','testApkSha256'))
+            assert m['sourceDirty']=='false'
         assert m['visualAcceptance']=='ASTRA_PENDING'
         assert m['layoutStatus']==m['overallStatus']=='PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE'
         assert m['isolationStatus']=='PASS_ISOLATION_ONLY'
@@ -588,13 +615,13 @@ for path in manifests:
 (root.parent/'matrix-verification.json').write_text(json.dumps({'results':verification_results,
     'errors':verification_errors},indent=2)+'\n')
 assert seen==success and not verification_errors, verification_errors
-if len(success)!=12 or len(manifests)!=12 or ledger['unsafeStop'] is not None:
-    print(f'SETTINGS_VISUAL_MIGRATION_PARTIAL successes={len(success)} failed={12-len(success)}; original failures retained')
+if len(success)!=expected_count or len(manifests)!=expected_count or ledger['unsafeStop'] is not None:
+    print(f'SETTINGS_VISUAL_MIGRATION_PARTIAL successes={len(success)} failed={expected_count-len(success)}; original failures retained')
     raise SystemExit(1)
-(root/'capture-summary.json').write_text(json.dumps({'realConfigurations':12,'sourceSha':root.name,'visualAcceptance':'ASTRA_PENDING',
+(root/'capture-summary.json').write_text(json.dumps({'realConfigurations':expected_count,'scope':ledger.get('scope','full'),'sourceSha':root.name,'visualAcceptance':'ASTRA_PENDING',
 'protocol2AcceptedProofCount':protocol_count,'specialStatesCountedAsMainConfigurations':False,'pendingStrictSpecialEvidence':pending,
 'allVisualItemsClosed':False},indent=2)+'\n')
-print('SETTINGS_VISUAL_MIGRATION_RETAINED configurations=12 actualActivities=true visualAcceptance=ASTRA_PENDING')
+print(f'SETTINGS_VISUAL_MIGRATION_RETAINED configurations={expected_count} actualActivities=true visualAcceptance=ASTRA_PENDING')
 VERIFY_PY
 then verify_exit=0; else verify_exit=$?; fi
 python3 "$matrix_gate" finalize --output "$output_dir" --verify-exit "$verify_exit"
