@@ -834,16 +834,22 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         while(ownerContext is android.content.ContextWrapper && ownerContext !is Activity)ownerContext=ownerContext.baseContext
         val owner=dialog.ownerActivity ?: ownerContext as Activity
         check(window.callback===dialog && (dialog.ownerActivity===owner || ownerContext===owner))
-        val languageRejected=folder.name=="language-write-rejected"
+        val specialState=folder.parentFile?.name=="special-states"
+        val page=folder.parentFile?.parentFile?.name
+        val languageRejected=specialState && page=="app" && folder.name=="language-write-rejected"
+        val machineMeasured=specialState && page=="machine" && folder.name in setOf(
+            "legal-input-mock-preview","schedule-draft-native-ime","schedule-cancel-no-write")
         if(languageRejected)check(owner is MainActivity)
-        val frame=if(languageRejected)
+        if(machineMeasured)check(owner is MachineSettingsActivity)
+        val frame=if(languageRejected || machineMeasured)
             frames.screenshotMeasuredWindowBufferTranslation(window,window.decorView,File(folder,"window.png")) {
-                dialogGeometry(window,dialog,owner)
+                if(languageRejected)dialogGeometry(window,dialog,owner)
                     .put("locale",owner.resources.configuration.locales.toLanguageTags())
                     .put("languageErrorExpectation",JSONObject()
                         .put("resourceName","language_save_failed")
                         .put("resourceLocale",owner.resources.configuration.locales.toLanguageTags())
                         .put("text",owner.getString(R.string.language_save_failed)))
+                else dialogGeometry(window)
             }
         else frames.screenshot(window,window.decorView,File(folder,"window.png")) {dialogGeometry(window)}
         File(folder,"geometry.json").writeText(frame.target.toString(2))

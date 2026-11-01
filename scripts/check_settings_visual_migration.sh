@@ -265,7 +265,7 @@ def validate_measured_window_attempt(proof,attempt):
     assert attempt['measuredWindowLayerSizePx']==size
     assert attempt['layer-before']['sizePx']==size==attempt['layer-after']['sizePx']
     assert 0<=roi[0]<roi[2]<=size[0] and 0<=roi[1]<roi[3]<=size[1]
-    assert before['target']==after['target']
+    assert before==after
     for geometry in (before,after):
         assert geometry['mappingMode']==proof['mappingMode']
 
@@ -285,8 +285,10 @@ def require_protocol(path, kind=None):
     assert attempt['windowLayerMatch'] and attempt['displayStable']
     for key in ('S1_W1','S1_W2','S1_S2','D1_D2_app'):assert attempt[key]['count']==0,(path,key)
     source=attempt['windowSourceRectPx']; screen=attempt['displayAppRectPx']
-    measured=(path.parent.name=='language-write-rejected' and path.parent.parent.name=='special-states'
-        and path.parent.parent.parent.name=='app')
+    measured=(path.parent.parent.name=='special-states' and (
+        (path.parent.parent.parent.name=='app' and path.parent.name=='language-write-rejected') or
+        (path.parent.parent.parent.name=='machine' and path.parent.name in {
+            'legal-input-mock-preview','schedule-draft-native-ime','schedule-cancel-no-write'})))
     if measured:
         assert proof['captureWindowKind']=='EXPLICIT_WINDOW' and proof['mappingMode']=='MEASURED_WINDOW_BUFFER_TRANSLATION'
         validate_measured_window_attempt(proof,attempt)
