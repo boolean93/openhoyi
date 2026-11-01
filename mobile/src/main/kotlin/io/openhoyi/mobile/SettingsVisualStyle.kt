@@ -266,11 +266,29 @@ internal class SettingsDialogViewport(context:Context):ScrollView(context) {
     }
 }
 
+internal data class SettingsDialogBodyBudget(
+    val nonBodyNonButtonChromePx:Int,
+    val nativeButtonReservePx:Int,
+    val bodyMaximumHeightPx:Int,
+    val minimumEditorBudgetSatisfiable:Boolean,
+)
+
+/** Measured height only: a collapsed native panel cannot erase its independently measured reserve. */
+internal fun settingsDialogBodyBudget(safeHeightPx:Int,decorHeightPx:Int,bodyHeightPx:Int,
+    actualButtonPanelHeightPx:Int,nativeButtonReservePx:Int?,minimumEditorHeightPx:Int):SettingsDialogBodyBudget? {
+    if(nativeButtonReservePx==null)return null // Unknown native structure is never guessed as zero chrome.
+    require(listOf(safeHeightPx,decorHeightPx,bodyHeightPx,actualButtonPanelHeightPx,nativeButtonReservePx,minimumEditorHeightPx).all {it>=0})
+    val chrome=(decorHeightPx.toLong()-bodyHeightPx-actualButtonPanelHeightPx).coerceAtLeast(0).toInt()
+    val maximum=(safeHeightPx.toLong()-chrome-nativeButtonReservePx).coerceAtLeast(0).toInt()
+    return SettingsDialogBodyBudget(chrome,nativeButtonReservePx,maximum,maximum>=minimumEditorHeightPx)
+}
+
 /** M8 native-window budget; no input/focus/IME request or app/domain state mutation. */
 private class SettingsDialogLayoutObserver(private val dialog:AlertDialog,private val body:SettingsDialogViewport?,private val evidence:JSONObject) {
     private var tree:android.view.ViewTreeObserver?=null
     private var callback:android.view.ViewTreeObserver.OnPreDrawListener?=null
     private var key:List<Any?>?=null
+    private var nativeButtonReservePx:Int?=null
     fun bind() {
         val decor=requireNotNull(dialog.window).decorView
         val panel=dialog.findViewById<ViewGroup>(decor.resources.getIdentifier("buttonPanel","id","android"))
@@ -313,6 +331,7 @@ private class SettingsDialogLayoutObserver(private val dialog:AlertDialog,privat
                         force(bar);bar.measure(widthSpec,View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED))
                         val natural=bar.measuredHeight
                         panel.minimumHeight=maxOf(originalMinimum,natural+vertical)
+                        nativeButtonReservePx=panel.minimumHeight
                         evidence.put("nativeBarNaturalHeightPx",natural).put("reservedButtonPanelMinimumPx",panel.minimumHeight)
                             .put("nativeBarBudgetSource","actual_width_UNSPEC_native_bar_plus_actual_parent_padding_and_margins")
                         key=measureKey
@@ -323,19 +342,30 @@ private class SettingsDialogLayoutObserver(private val dialog:AlertDialog,privat
                     }
                 }
                 val frame=Rect();decor.getWindowVisibleDisplayFrame(frame)
+                val origin=IntArray(2);decor.getLocationOnScreen(origin)
+                val safe=Rect(origin[0],origin[1],origin[0]+decor.width,origin[1]+decor.height)
+                if(!safe.intersect(frame))safe.setEmpty()
                 val chrome=body?.let {(decor.height-it.height).coerceAtLeast(0)}
-                val cap=chrome?.let {(frame.height()-it).coerceAtLeast(0)}
+                val budget=body?.let {settingsDialogBodyBudget(safe.height(),decor.height,it.height,panel?.height ?: 0,
+                    nativeButtonReservePx.takeIf {supported},(52*decor.resources.displayMetrics.density).toInt())}
+                val cap=budget?.bodyMaximumHeightPx
                 evidence.put("softInputMode",window.attributes.softInputMode).put("availableFrameScreenPx",JSONArray(listOf(frame.left,frame.top,frame.right,frame.bottom)))
                     .put("frameSemantics","actual_getWindowVisibleDisplayFrame_screen_coordinates")
                     .put("decorRectScreenPx",rectangle(decor)).put("bodyViewportRectScreenPx",rectangle(body))
                     .put("bodyNaturalHeightPx",body?.getChildAt(0)?.measuredHeight ?: JSONObject.NULL).put("actualChromePx",chrome ?: JSONObject.NULL)
+                    .put("safeIntersectionScreenPx",JSONArray(listOf(safe.left,safe.top,safe.right,safe.bottom))).put("safeHeightPx",safe.height())
+                    .put("actualButtonPanelHeightPx",panel?.height ?: JSONObject.NULL)
+                    .put("nonBodyNonButtonChromePx",budget?.nonBodyNonButtonChromePx ?: JSONObject.NULL)
+                    .put("nativeButtonReservePx",budget?.nativeButtonReservePx ?: JSONObject.NULL)
+                    .put("bodyBudgetSource",if(budget==null)"UNCERTIFIED_NATIVE_STRUCTURE_NO_BUDGET_ASSUMED"
+                        else "actual_decor_visible_frame_intersection_minus_nonbody_nonbutton_chrome_and_measured_native_button_reserve")
                     .put("bodyMaximumHeightPx",cap ?: JSONObject.NULL)
-                    .put("minimumEditorBudgetSatisfiable",cap?.let {it>=(52*decor.resources.displayMetrics.density).toInt()} ?: JSONObject.NULL)
+                    .put("minimumEditorBudgetSatisfiable",budget?.minimumEditorBudgetSatisfiable ?: JSONObject.NULL)
                     .put("titleRectScreenPx",rectangle(dialog.findViewById<View>(decor.resources.getIdentifier("alertTitle","id","android"))))
                     .put("positiveRectScreenPx",rectangle(positive)).put("negativeRectScreenPx",rectangle(negative))
                     .put("positiveMeasuredHeightPx",positive?.measuredHeight ?: JSONObject.NULL).put("negativeMeasuredHeightPx",negative?.measuredHeight ?: JSONObject.NULL)
                     .put("imeVisible",if(Build.VERSION.SDK_INT>=30)decor.rootWindowInsets?.isVisible(WindowInsets.Type.ime()) ?: JSONObject.NULL else JSONObject.NULL)
-                if(body!=null && cap!=null && frame.height()>0 && decor.height>0 && body.maximumHeightPx!=cap) {
+                if(body!=null && cap!=null && decor.height>0 && body.maximumHeightPx!=cap) {
                     body.maximumHeightPx=cap;body.requestLayout();false
                 } else true
             }
