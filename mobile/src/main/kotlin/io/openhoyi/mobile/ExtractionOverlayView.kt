@@ -23,8 +23,22 @@ import kotlin.math.ceil
 
 /** A display-only, shared-time plot. Each metric retains its own physical range. */
 internal class ExtractionOverlayView(context: Context, private val visual: ExtractionHistoryVisualStyle? = null,
-    private val embeddedHistory: Boolean = false) : LinearLayout(context) {
+    private val embeddedHistory: Boolean = false, private val standalonePlotMinimumDp: Float? = null) : LinearLayout(context) {
     private val productRenderer = visual?.let { ProductHistoryChartRenderer(context, it, liveMode = !embeddedHistory) }
+    internal val standalonePlotMinimumHeightPx get() = standalonePlotMinimumDp?.let {
+        requireNotNull(productRenderer).minimumHeightForPlot(it)
+    }
+    internal val standaloneHeaderMinimumHeightPx: Int? get() = standalonePlotMinimumDp?.let {
+        // Real whole controls and individual original text lines must remain revealable in the native scroll.
+        fun lineHeight(view: View): Int = when(view) {
+            is TextView -> view.layout?.let { layout -> (0 until layout.lineCount).maxOfOrNull {
+                layout.getLineBottom(it)-layout.getLineTop(it) } } ?: 0
+            is ViewGroup -> (0 until view.childCount).maxOfOrNull { lineHeight(view.getChildAt(it)) } ?: 0
+            else -> 0
+        }
+        maxOf(ceil(dp(48f)).toInt(), buttons.values.maxOfOrNull { it.measuredHeight } ?: 0, lineHeight(headerContent))
+    }
+    internal val plotRendererMode get() = productRenderer?.plotRendererMode
     internal val visualEvidence get() = productRenderer?.evidence ?: org.json.JSONArray()
     var points: List<ShotPoint> = emptyList()
         set(value) {
@@ -263,8 +277,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             super.onMeasure(widthMeasureSpec,heightMeasureSpec)
             return
         }
+        if (standalonePlotMinimumDp != null) header.measure(widthMeasureSpec,
+            MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
         val plotMinimum = plot.minimumAxisHeight()
-        val compact = height < plotMinimum + dp(48f).toInt()
+        val headerMinimum = standaloneHeaderMinimumHeightPx ?: dp(48f).toInt()
+        val compact = height < plotMinimum + headerMinimum
         if (compact != compactMode) {
             compactMode = compact
             compactNotice.visibility = if (compact) VISIBLE else GONE
@@ -694,7 +711,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         private val path = Path()
         fun minimumAxisHeight(): Int {
             val fm = labels.fontMetrics
-            val dynamic = productRenderer?.let {
+            val dynamic = standalonePlotMinimumHeightPx ?: productRenderer?.let {
                 if (embeddedHistory) it.minimumEmbeddedHistoryHeight() else it.minimumAxisHeight()
             } ?: ceil((fm.descent - fm.ascent) * 4.5f + dp(32f)).toInt()
             return if (embeddedHistory) dynamic else maxOf(dynamic, ceil(dp(96f)).toInt())

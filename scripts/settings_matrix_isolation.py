@@ -12,6 +12,8 @@ import sys
 PAGES = ('app', 'machine', 'scale-settings')
 THEMES = ('light', 'dark')
 SCALES = ('1.3', '1.0')
+SHARDS = tuple(f'{theme}-{scale}' for theme in THEMES for scale in SCALES)
+SCOPES = ('full',) + SHARDS
 PACKAGE = 'io.openhoyi.mobile.mock'
 SUCCESS_MARKER = 'SETTINGS_VISUAL_MIGRATION_CAPTURED fixtures=1 realActivities=true visualAcceptance=ASTRA_PENDING noBle=true isolationVerified=true'
 COMMON_TRUE = ('businessDiskByteUnchanged', 'typedPreferencesRestored',
@@ -80,11 +82,13 @@ def identity(source, apk):
     return {'serial': 'emulator-5554', 'properties': props, 'sourceSha': source, 'apkSha256': apk}
 
 
-def expected(source):
+def expected(source, scope='full'):
+    need(scope in SCOPES, 'unknown fixed matrix scope')
     return [{'key': f'{source}/{page}/{theme}/{scale}/tablet-user-landscape-{theme}-font-{scale}',
              'sourceSha': source, 'page': page, 'theme': theme, 'fontScale': scale,
              'profile': f'tablet-user-landscape-{theme}-font-{scale}', 'status': 'NOT_RUN'}
-            for theme in THEMES for scale in SCALES for page in PAGES]
+            for theme in THEMES for scale in SCALES for page in PAGES
+            if scope == 'full' or scope == f'{theme}-{scale}']
 
 
 def ledger_path(out):
@@ -93,8 +97,9 @@ def ledger_path(out):
 
 def load(out):
     data = json.loads(ledger_path(out).read_text())
-    need(len(data['cells']) == 12, 'invalid fixed matrix size')
-    for cell, frozen in zip(data['cells'], expected(data['sourceSha'])):
+    frozen_cells = expected(data['sourceSha'], data.get('scope', 'full'))
+    need(len(data['cells']) == len(frozen_cells), 'invalid fixed matrix size')
+    for cell, frozen in zip(data['cells'], frozen_cells):
         need(all(cell.get(name) == value for name, value in frozen.items() if name != 'status'),
              'matrix order/key/metadata changed')
     return data
@@ -125,10 +130,22 @@ def init(args):
     need(not ledger_path(out).exists() and not (out / 'matrix-verification.json').exists(),
          'existing matrix ledger/verification; no replay')
     need(re.fullmatch(r'[0-9a-f]{40}', args.source) is not None, 'invalid source')
+    scope = getattr(args, 'scope', 'full')
+    test_apk = getattr(args, 'test_apk', None)
+    head = os.environ.get('PRODUCT_PR_HEAD_SHA', args.source)
+    attempt = os.environ.get('GITHUB_RUN_ATTEMPT', 'unknown')
+    if scope != 'full':
+        need(re.fullmatch(r'[0-9a-f]{64}', test_apk or '') is not None, 'missing test APK identity')
+        need(re.fullmatch(r'[0-9a-f]{40}', head) is not None and
+             re.fullmatch(r'[1-9][0-9]*', attempt) is not None, 'missing head/run attempt identity')
     baseline = identity(args.source, args.apk)
+    if test_apk is not None:
+        need(sha('mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk') == test_apk,
+             'test APK changed')
     data = {'sourceSha': args.source, 'apkSha256': args.apk, 'ciRun': os.environ['GITHUB_RUN_ID'],
+            'scope': scope, 'headSha': head, 'ciRunAttempt': attempt, 'testApkSha256': test_apk,
             'ciJob': os.environ['GITHUB_JOB'], 'deviceIdentity': baseline,
-            'cells': expected(args.source), 'firstFailureExitStatus': None, 'unsafeStop': None}
+            'cells': expected(args.source, scope), 'firstFailureExitStatus': None, 'unsafeStop': None}
     write(ledger_path(out), data)
 
 
@@ -153,6 +170,7 @@ def before(args):
     try:
         check_turn(data, cell)
         need(identity(data['sourceSha'], data['apkSha256']) == data['deviceIdentity'], 'device/source/APK identity changed')
+        check_test_apk(data)
         need(not profile_dir(args.output, cell).exists(), 'host cell already present')
         old = adb('-s', 'emulator-5554', 'shell', 'test -e ' + remote_dir(cell))
         need(old.stderr == '' and old.returncode == 1, 'device cell scope exists or unknown')
@@ -250,6 +268,7 @@ def after(args):
         data['firstFailureExitStatus'] = args.exit_status
     try:
         need(identity(data['sourceSha'], data['apkSha256']) == data['deviceIdentity'], 'device/source/APK identity changed')
+        check_test_apk(data)
         result = Path(args.result)
         need(result.is_file(), 'instrumentation result missing')
         run_record = result.with_suffix('.run.json')
@@ -268,6 +287,11 @@ def after(args):
         need(manifest.get('sourceSha') == cell['sourceSha'] and manifest.get('profile') == cell['profile'] and
              manifest.get('page') == cell['page'] and manifest.get('ciRun') == data['ciRun'] and manifest.get('ciJob') == data['ciJob'] and
              manifest.get('apkSha256') == data['apkSha256'], 'manifest run/APK owner mismatch')
+        if data.get('scope', 'full') != 'full':
+            need(manifest.get('headSha') == data['headSha'] and
+                 manifest.get('ciRunAttempt') == data['ciRunAttempt'] and
+                 manifest.get('testApkSha256') == data['testApkSha256'] and
+                 manifest.get('sourceDirty') == 'false', 'manifest head/attempt/test APK/clean source mismatch')
         previous_pids = {other.get('manifestPid') for other in data['cells'] if other is not cell and
                          other['status'] in ('PASS_CAPTURED_PENDING_FULL_VERIFY', 'FAILED_ISOLATED_CONTINUED')}
         need(manifest.get('pid') not in previous_pids, 'old process PID reused; distinct launched process unknown')
@@ -324,7 +348,7 @@ def finalize(args):
         for cell in pending:
             cell['status'] = 'FAILED_ORIGINAL_FULL_VERIFY_UNRESOLVED'
             cell['originalSuccessGates'] = 'NOT_REACHED_ORIGINAL_FULL_VERIFY'
-    need(args.verify_exit != 0 or (len(data['cells']) == 12 and all(
+    need(args.verify_exit != 0 or (len(data['cells']) == len(expected(data['sourceSha'], data.get('scope', 'full'))) and all(
          cell['status'] == 'PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE' for cell in data['cells']) and
          data['unsafeStop'] is None and data['firstFailureExitStatus'] is None),
          'VERIFY success conflicts with fixed matrix ledger')
@@ -370,6 +394,12 @@ def select_exit(args):
         print(fallback)
 
 
+def check_test_apk(data):
+    if data.get('testApkSha256') is not None:
+        need(sha('mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk') == data['testApkSha256'],
+             'test APK changed')
+
+
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
     sub = p.add_subparsers(dest='action', required=True)
@@ -379,6 +409,8 @@ if __name__ == '__main__':
         if action == 'init':
             command.add_argument('--source', required=True)
             command.add_argument('--apk', required=True)
+            command.add_argument('--test-apk')
+            command.add_argument('--scope', choices=SCOPES, default='full')
         if action in ('before', 'after'):
             command.add_argument('--page', required=True, choices=PAGES)
             command.add_argument('--theme', required=True, choices=THEMES)

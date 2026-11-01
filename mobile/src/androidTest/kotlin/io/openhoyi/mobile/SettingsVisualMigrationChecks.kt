@@ -644,10 +644,11 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
         frames.committedFrame(root(activity));main {check(whole(observation(view))) {"M8 target not completely reachable: ${view.tag}/${(view as? TextView)?.text}"}}
     }
-    private fun click(activity:Activity,view:View) {
+    private fun click(activity:Activity,view:View,beforeClick:(()->Unit)?=null) {
         reveal(activity,view)
         main {
             check(view.isShown && view.isEnabled && view.isClickable && view.width>=HoyiUi.dp(activity,48) && view.height>=HoyiUi.dp(activity,48))
+            beforeClick?.invoke()
             val precision=view.tag=="product/settings/scale/precision"
             val toggleTag=view.tag in setOf("product/settings/app/theme/toggle", "product/settings/app/feedback/toggle",
                 "product/settings/scale/precision")
@@ -662,9 +663,11 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         }
     }
     private fun click(activity:Activity,tag:String)=click(activity,tagged(activity,tag))
-    private fun capture(activity:Activity,folder:File):NativeWindowFrameEvidence.CapturedFrame {
+    private fun capture(activity:Activity,folder:File,weeklyEditorObservation:(()->JSONObject)?=null):NativeWindowFrameEvidence.CapturedFrame {
         check(folder.isDirectory || folder.mkdirs())
-        val captured=frames.screenshot(activity,root(activity),File(folder,"window.png")) {geometry(activity)}
+        val captured=frames.screenshot(activity,root(activity),File(folder,"window.png")) {
+            geometry(activity).apply {weeklyEditorObservation?.let {put("weeklyEditorRoute",it())}}
+        }
         File(folder,"geometry.json").writeText(captured.target.toString(2))
         main {
             if(activity.resources.configuration.locales[0].language=="zh")TaskTypographyEvidence.capture(activity,folder)
@@ -834,11 +837,22 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         while(ownerContext is android.content.ContextWrapper && ownerContext !is Activity)ownerContext=ownerContext.baseContext
         val owner=dialog.ownerActivity ?: ownerContext as Activity
         check(window.callback===dialog && (dialog.ownerActivity===owner || ownerContext===owner))
-        val languageRejected=folder.name=="language-write-rejected"
+        val specialState=folder.parentFile?.name=="special-states"
+        val page=folder.parentFile?.parentFile?.name
+        val languageRejected=specialState && page=="app" && folder.name=="language-write-rejected"
+        val machineMeasured=specialState && page=="machine" && folder.name in setOf(
+            "legal-input-mock-preview","schedule-draft-native-ime","schedule-cancel-no-write")
         if(languageRejected)check(owner is MainActivity)
-        val frame=if(languageRejected)
+        if(machineMeasured)check(owner is MachineSettingsActivity)
+        val frame=if(languageRejected || machineMeasured)
             frames.screenshotMeasuredWindowBufferTranslation(window,window.decorView,File(folder,"window.png")) {
-                dialogGeometry(window,dialog,owner)
+                if(languageRejected)dialogGeometry(window,dialog,owner)
+                    .put("locale",owner.resources.configuration.locales.toLanguageTags())
+                    .put("languageErrorExpectation",JSONObject()
+                        .put("resourceName","language_save_failed")
+                        .put("resourceLocale",owner.resources.configuration.locales.toLanguageTags())
+                        .put("text",owner.getString(R.string.language_save_failed)))
+                else dialogGeometry(window)
             }
         else frames.screenshot(window,window.decorView,File(folder,"window.png")) {dialogGeometry(window)}
         File(folder,"geometry.json").writeText(frame.target.toString(2))
@@ -1104,8 +1118,95 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         cases.put(JSONObject().put("case","temperature-native-ime").put("acceptanceStatus","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE"))
         section(3)
         @Suppress("UNCHECKED_CAST")
-        val day=(field(activity,"scheduleButtons") as List<Button>).first()
-        click(activity,day);val schedule=requireDialog(activity)
+        val days=(field(activity,"scheduleButtons") as List<Button>).toList()
+        val routeActivity=activity;val scheduleOwner=scope.ownerService
+        lateinit var routeWindow:android.view.Window;lateinit var routeDecor:View;lateinit var routeToken:IBinder
+        lateinit var editor:ViewGroup;lateinit var card:ViewGroup;lateinit var toggle:Button
+        lateinit var editLabel:String;lateinit var collapseLabel:String;lateinit var dayLabels:List<String>
+        fun scheduleState():JSONObject {
+            check(Looper.myLooper()==Looper.getMainLooper() && scope.ownerService===scheduleOwner && field(activity,"service")===scheduleOwner)
+            val runtime=field(scheduleOwner,"mock")
+            check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock" && runtime is MockDeviceRuntime)
+            val snapshot=scheduleOwner.snapshot
+            check(io.openhoyi.protocol.WeeklySleepSchedule.fromReadback(snapshot.sleepFirst,snapshot.sleepSecond)!=null)
+            fun fragment(value:io.openhoyi.protocol.SleepPart?):JSONObject {
+                val actual=requireNotNull(value);val raw=actual.raw.toByteArray()
+                check(raw.isEmpty()) {"Owned Mock runtime changed its explicit empty-raw snapshot contract"}
+                return JSONObject().put("firstDaySundayIndex",actual.firstDaySundayIndex)
+                    .put("enabledBits",actual.enabledBits ?: JSONObject.NULL)
+                    .put("days",JSONArray(actual.days.map {day->JSONObject().put("sleepHour",day.sleepHour).put("sleepMinute",day.sleepMinute)
+                        .put("wakeHour",day.wakeHour).put("wakeMinute",day.wakeMinute)}))
+                    .put("raw",JSONArray(raw.map {it.toInt() and 255}))
+            }
+            check(scheduleOwner.scheduleWriteState==io.openhoyi.session.SleepScheduleWriteTracker.State.IDLE && scheduleOwner.pendingSchedule==null)
+            return JSONObject().put("ownerServiceIdentity",System.identityHashCode(scheduleOwner))
+                .put("source","OWNED_MOCK_SERVICE_TYPED_SLEEP_PART_V1").put("mockMode",BuildConfig.MOCK_MODE)
+                .put("packageName",context.packageName).put("ownerServiceClass",scheduleOwner.javaClass.name)
+                .put("mockRuntimeClass",runtime.javaClass.name).put("mockRuntimeIdentity",System.identityHashCode(runtime))
+                .put("state",scheduleOwner.scheduleWriteState.name).put("pendingIsNull",scheduleOwner.pendingSchedule==null)
+                .put("firstReadback",fragment(snapshot.sleepFirst)).put("secondReadback",fragment(snapshot.sleepSecond))
+        }
+        lateinit var scheduleBefore:JSONObject
+        main {
+            routeWindow=activity.window;routeDecor=routeWindow.decorView;routeToken=requireNotNull(routeDecor.windowToken)
+            scheduleBefore=scheduleState()
+            check(days.size==7 && days.distinctBy(System::identityHashCode).size==7)
+            editor=days.first().parent as ViewGroup;card=editor.parent as ViewGroup
+            editLabel=activity.getString(R.string.machine_settings_schedule_edit)
+            collapseLabel=activity.getString(R.string.machine_settings_schedule_collapse)
+            dayLabels=listOf(R.string.machine_settings_sunday,R.string.machine_settings_monday,
+                R.string.machine_settings_tuesday,R.string.machine_settings_wednesday,R.string.machine_settings_thursday,
+                R.string.machine_settings_friday,R.string.machine_settings_saturday).map {
+                activity.getString(R.string.machine_settings_edit_sleep_day,activity.getString(it)) }
+            check(editor.visibility==View.GONE && editor.childCount==7)
+            toggle=nodes(card).filterIsInstance<Button>().single {it.parent===card && it.text.toString()==editLabel}
+        }
+        fun weeklyEditorObservation():JSONObject {
+            check(Looper.myLooper()==Looper.getMainLooper())
+            val decor=activity.window.decorView;val token=requireNotNull(decor.windowToken)
+            check(activity===routeActivity && activity.window===routeWindow && decor===routeDecor && token===routeToken)
+            check(ready(activity) && root(activity).windowToken===token && toggle.parent===card && editor.parent===card)
+            check(nodes(root(activity)).count {it===toggle}==1 && editor.childCount==7)
+            val dayRecords=JSONArray(days.mapIndexed {index,button->
+                check(button.parent===editor && editor.getChildAt(index)===button && button.rootView===decor &&
+                    button.windowToken===token && button.text.toString()==dayLabels[index])
+                JSONObject().put("index",index).put("viewIdentity",System.identityHashCode(button))
+                    .put("parentIdentity",System.identityHashCode(button.parent)).put("tokenIdentity",System.identityHashCode(button.windowToken))
+                    .put("rootViewIdentity",System.identityHashCode(button.rootView)).put("text",button.text.toString())
+                    .put("isShown",button.isShown).put("widthPx",button.width).put("heightPx",button.height)
+            })
+            check(toggle.rootView===decor && toggle.windowToken===token && toggle.isShown && toggle.isEnabled && toggle.isClickable)
+            val scheduleNow=scheduleState();check(scheduleNow.toString()==scheduleBefore.toString())
+            return JSONObject().put("contract","ACTUAL_WEEKLY_EDITOR_ROUTE_V1")
+                .put("ownerActivityIdentity",System.identityHashCode(activity)).put("windowIdentity",System.identityHashCode(activity.window))
+                .put("decorIdentity",System.identityHashCode(decor)).put("windowTokenIdentity",System.identityHashCode(token))
+                .put("rootIdentity",System.identityHashCode(root(activity))).put("cardIdentity",System.identityHashCode(card))
+                .put("editorIdentity",System.identityHashCode(editor)).put("toggleParentIdentity",System.identityHashCode(toggle.parent))
+                .put("editorParentIdentity",System.identityHashCode(editor.parent)).put("editorVisibility",editor.visibility)
+                .put("editorShown",editor.isShown).put("editorLayoutRequested",editor.isLayoutRequested)
+                .put("density",activity.resources.displayMetrics.density).put("locale",activity.resources.configuration.locales.toLanguageTags())
+                .put("editResource","machine_settings_schedule_edit").put("editLabel",editLabel)
+                .put("collapseResource","machine_settings_schedule_collapse").put("collapseLabel",collapseLabel)
+                .put("dayLabelResource","machine_settings_edit_sleep_day")
+                .put("dayNameResources",JSONArray(listOf("machine_settings_sunday","machine_settings_monday","machine_settings_tuesday",
+                    "machine_settings_wednesday","machine_settings_thursday","machine_settings_friday","machine_settings_saturday")))
+                .put("expectedDayLabels",JSONArray(dayLabels)).put("days",dayRecords).put("toggle",observation(toggle))
+                .put("firstDay",observation(days.first())).put("scheduleState",scheduleNow)
+        }
+        reveal(activity,toggle)
+        capture(activity,File(folder,"schedule-editor-collapsed"),::weeklyEditorObservation)
+        cases.put(JSONObject().put("case","schedule-editor-collapsed").put("acceptanceStatus","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE"))
+        click(activity,toggle) {weeklyEditorObservation()}
+        await("real weekly schedule editor expanded and laid out") {
+            ready(activity) && editor.visibility==View.VISIBLE && editor.isShown && editor.isLaidOut && !editor.isLayoutRequested &&
+                toggle.text.toString()==collapseLabel && days.all {it.isShown && it.isLaidOut && !it.isLayoutRequested && it.height>=HoyiUi.dp(activity,48)}
+        }
+        val day=days.first()
+        reveal(activity,day)
+        main {check(whole(observation(toggle)) && whole(observation(day)))}
+        capture(activity,File(folder,"schedule-editor-expanded"),::weeklyEditorObservation)
+        cases.put(JSONObject().put("case","schedule-editor-expanded").put("acceptanceStatus","PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE"))
+        click(activity,day) {weeklyEditorObservation()};val schedule=requireDialog(activity)
         val editors=nodes(requireNotNull(schedule.window).decorView).filterIsInstance<android.widget.EditText>();check(editors.size==4)
         val draft=editors.map {it.text.toString()}
         val last=editors.last()
@@ -1117,7 +1218,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         dismiss(schedule,activity)
         main {(activity.getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(root(activity).windowToken,0)}
         await("native IME hidden after schedule cancellation") {root(activity).rootWindowInsets?.isVisible(WindowInsets.Type.ime())==false && ready(activity)}
-        click(activity,day);val reopened=requireDialog(activity)
+        click(activity,day) {weeklyEditorObservation()};val reopened=requireDialog(activity)
         main {check(nodes(requireNotNull(reopened.window).decorView).filterIsInstance<android.widget.EditText>().map {it.text.toString()}==draft)}
         captureDialog(reopened,File(folder,"schedule-cancel-no-write"));dismiss(reopened,activity)
         cases.put(JSONObject().put("case","schedule-cancel-no-write").put("acceptanceStatus","PASS_BUSINESS_ONLY_NOT_HARDWARE"))
@@ -1171,7 +1272,9 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         val reference=when(page) {"app"->"f2022d5eb60b798a722d30f01933028a63f14a342958400c74fcdc25a7c1a899";"machine"->"ccb438958aae1cb9a6e88bec1c2fdd5ffafd4a18d385ff63a0e9024c68f6c60d";else->"f87b9cf3d260a3b01bd9d88e83fa2a5cb40d8e1d456de37b8c579515a8eec36f"}
         check(arguments.getString("referencePngSha256")==reference)
         val manifest=JSONObject().put("sourceSha",source).put("headSha",arguments.getString("headSha"))
+            .put("mockMode",BuildConfig.MOCK_MODE)
             .put("sourceDirty",arguments.getString("sourceDirty")).put("apkSha256",arguments.getString("apkSha"))
+            .put("testApkSha256",arguments.getString("testApkSha")).put("ciRunAttempt",arguments.getString("ciRunAttempt"))
             .put("ciRun",arguments.getString("ciRun")).put("ciJob",arguments.getString("ciJob"))
             .put("referenceDesignPngSha256",reference).put("profile",profile).put("page",page)
             .put("realProductActivity",true).put("specimenOnly",false).put("visualAcceptance","ASTRA_PENDING")
@@ -1180,7 +1283,14 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         try {
             main {syntheticObservationEquivalence()}
             val active=Scope(directory,page);scope=active;active.prepare();active.install(theme=="dark")
-            if(page=="machine")active.beginService()
+            if(page=="machine") {
+                active.beginService()
+                main {
+                    val runtime=field(active.ownerService,"mock");check(BuildConfig.MOCK_MODE && runtime is MockDeviceRuntime)
+                    manifest.put("ownedMachineServiceIdentity",System.identityHashCode(active.ownerService))
+                        .put("ownedMockRuntimeIdentity",System.identityHashCode(runtime))
+                }
+            }
             val activity=start(when(page) {"app"->AppSettingsActivity::class.java;"machine"->MachineSettingsActivity::class.java;else->ScaleSettingsActivity::class.java})
             if(activity is MachineSettingsActivity)await("actual Machine binding to exact isolated Service") {field(activity,"service")===active.ownerService}
             else if(activity is MainActivity) active.observeRootService(activity)

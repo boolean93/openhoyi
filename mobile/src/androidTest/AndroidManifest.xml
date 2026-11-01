@@ -11,6 +11,12 @@
         android:name="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE"
         android:protectionLevel="signature" />
     <uses-permission android:name="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE" />
+    <!-- AGP configures the first declaration from testInstrumentationRunner. -->
+    <instrumentation android:name="io.openhoyi.mobile.BrewAudioInstrumentation"
+        android:targetPackage="io.openhoyi.mobile.mock" android:functionalTest="false" />
+    <!-- No Activity and no Mock target: observing a running cup must not restart it. -->
+    <instrumentation android:name="io.openhoyi.mobile.MockHierarchyInstrumentation"
+        android:targetPackage="io.openhoyi.mobile.mock.test" android:functionalTest="false" />
     <application>
         <provider
             android:name="io.openhoyi.mobile.CurveFixtureProvider"
