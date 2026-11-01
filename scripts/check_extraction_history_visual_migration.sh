@@ -475,6 +475,77 @@ def expected_history_legend(current,reference):
     has_weight=any(point['weightHundredthsGram'] is not None for point in current+reference)
     return ['chart-metric:PRESSURE','chart-metric:WATER']+(['chart-metric:WEIGHT'] if has_weight else [])+['chart-metric:TEMPERATURE']
 
+def require_embedded_metrics_budget(budget,nodes):
+    arrangement=budget['metricsArrangement']
+    assert arrangement['schema']=='EMBEDDED_HISTORY_MEASURED_METRICS_V1'
+    width=arrangement['availableWidthPx'];default=arrangement['defaultGapPx'];compact=arrangement['compactGapPx']
+    assert type(width) is int and width>0 and default>compact>0
+    assert len(arrangement['cellIdentities'])==len(set(arrangement['cellIdentities']))==3
+    assert all(type(identity) is int and identity>0 for identity in arrangement['cellIdentities'])
+    original=arrangement['original'];selected=arrangement['selected'];candidates=arrangement['candidates']
+    insufficient=budget['verticalMinimumContentPx']>budget['contentViewportPx']
+    assert arrangement['budgetInsufficient']==insufficient
+    native_modes={}
+    def full(candidate):
+        mask=candidate['inlineMask'];resolved=candidate['resolvedInlineMask'];gap=candidate['gapPx']
+        assert type(mask) is int and 0<=mask<8 and type(resolved) is int and 0<=resolved<8
+        assert gap in (default,compact)
+        for field in ('naturalWidthsPx','naturalHeightsPx','measuredWidthsPx','measuredHeightsPx'):
+            assert len(candidate[field])==3 and all(type(n) is int and n>=0 for n in candidate[field])
+        for index,(w,h) in enumerate(zip(candidate['naturalWidthsPx'],candidate['naturalHeightsPx'])):
+            key=(index,bool(mask & (1<<index)))
+            assert native_modes.setdefault(key,(w,h))==(w,h), 'Candidate changed native text dimensions'
+        total=sum(candidate['naturalWidthsPx'])+gap*2
+        assert candidate['totalNaturalWidthPx']==total
+        complete=(total<=width and candidate['measuredWidthsPx']==candidate['naturalWidthsPx'] and
+            candidate['measuredHeightsPx']==candidate['naturalHeightsPx'] and mask==resolved and
+            candidate['measuredHeightPx']==max(candidate['naturalHeightsPx']))
+        assert candidate['completeSingleRow']==complete
+        return complete
+    assert original['inlineMask']==original['resolvedInlineMask']==0 and original['gapPx']==default
+    for candidate in [original,*candidates,selected]:full(candidate)
+    def best(gap):
+        qualified=[c for c in candidates if c['gapPx']==gap and c['completeSingleRow'] and c['measuredHeightPx']<original['measuredHeightPx']]
+        return min(qualified,key=lambda c:(c['measuredHeightPx'],bin(c['inlineMask']).count('1'),c['inlineMask'])) if qualified else None
+    if not insufficient:
+        assert candidates==[];expected=original;reason='budget_sufficient'
+    else:
+        assert len(candidates) in (8,16)
+        assert [(c['gapPx'],c['inlineMask']) for c in candidates]==[(gap,mask) for gap in ([default] if len(candidates)==8 else [default,compact]) for mask in range(8)]
+        expected=best(default)
+        if expected is not None:
+            assert len(candidates)==8;reason='original_spacing_shorter'
+        else:
+            assert len(candidates)==16;expected=best(compact)
+            reason='compact_spacing_shorter' if expected is not None else 'no_complete_shorter_candidate'
+            if expected is None:expected=original
+    assert selected==expected and arrangement['selectionReason']==reason
+    assert budget['metricsResolvedHeightPx']==selected['measuredHeightPx']
+    assert budget['metricsInline']==(selected['resolvedInlineMask']==7)
+    # Bind the chosen measurement to the actual same-frame view tree, including RTL gaps.
+    tags=['product/history/metrics','product/history/elapsed/cell','product/history/weight/cell','product/history/sampled-water/cell']
+    actual=[]
+    for tag in tags:
+        matches=[node for node in nodes if node.get('semanticId')==tag]
+        assert len(matches)==1, ('Missing/duplicate measured metric view',tag)
+        actual.append(matches[0])
+    flow=actual[0]['rectPx']
+    assert flow[2]-flow[0]==width and flow[3]-flow[1]==selected['measuredHeightPx']
+    cells=[node['rectPx'] for node in actual[1:]]
+    for index,box in enumerate(cells):
+        assert box[2]-box[0]==selected['measuredWidthsPx'][index]
+        assert box[3]-box[1]==selected['measuredHeightsPx'][index]
+        assert flow[0]<=box[0]<=box[2]<=flow[2] and flow[1]<=box[1]<=box[3]<=flow[3]
+    assert arrangement['layoutDirection'] in (0,1)
+    if selected['completeSingleRow']:
+        for node in actual:require_text_layout(node)
+        assert all(box[1]==flow[1] for box in cells)
+        for previous,current in zip(cells,cells[1:]):
+            assert (current[0]-previous[2] if arrangement['layoutDirection']==0 else previous[0]-current[2])==selected['gapPx']
+    if insufficient:
+        assert budget['metricsInlineNaturalWidthPx']==sum(native_modes[(index,True)][0] for index in range(3))+default*2
+    return arrangement
+
 def require_embedded_header(evidence,expected_warning):
     budget=evidence['budget']
     for key in ('firstScreenMinimumBeforePx','firstScreenMinimumResolvedPx','firstScreenBudgetSatisfiable',
@@ -506,6 +577,7 @@ def require_history_special(folder,window,empty_expected,current,reference,expec
     assert evidence['samePermanentProducerView'] and evidence['externalSiblingAfterChart'] and evidence['sameProjectionSamplingDescription']
     budget=evidence['budget'];assert budget['minimumPlotDp']==96
     require_embedded_header(evidence,expected_warning)
+    require_embedded_metrics_budget(budget,window['nodes'])
     assert budget['explanationPlacement']=='same_permanent_producer_view_after_complete_chart_before_notes'
     if evidence['actualPlotHeightDp'] is None:
         assert empty_expected and evidence['actualSampleCount']==0
@@ -573,6 +645,7 @@ for path in manifests:
         assert preview['samePermanentProducerView'] and preview['externalSiblingAfterChart'] and preview['sameProjectionSamplingDescription']
         budget=preview['budget']
         require_embedded_header(preview,False)
+        require_embedded_metrics_budget(budget,m['window']['nodes'])
         for name in ('availableHeightPx','fixedFooterNaturalPx','contentViewportPx','headerAndMetricsNaturalPx',
             'chartNativeHeaderNaturalPx','chartActualPaintAxisMinimumPx','chartMinimumPx','chartMarginsPx','fullNaturalPx',
             'chartLegendNaturalPx','externalExplanationNaturalPx','externalExplanationTopMarginPx','chartOverlayPaddingPx'):

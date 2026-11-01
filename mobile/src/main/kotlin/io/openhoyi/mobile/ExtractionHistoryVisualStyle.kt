@@ -371,7 +371,12 @@ internal class HistoryQuantity(context: Context, private val style: ExtractionHi
 }
 
 /** Natural-width display groups; they wrap as whole groups, never by breaking a number from its unit. */
-internal class HistoryVisualFlow(context: Context, private val gap: Int, private val rowGap: Int = gap) : android.view.ViewGroup(context) {
+internal class HistoryVisualFlow(context: Context, gap: Int, private val rowGap: Int = gap) : android.view.ViewGroup(context) {
+    var horizontalGapPx = gap
+        set(value) {
+            require(value >= 0)
+            if (field != value) { field = value; forceLayout() }
+        }
     override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val available = MeasureSpec.getSize(widthMeasureSpec)
@@ -380,7 +385,7 @@ internal class HistoryVisualFlow(context: Context, private val gap: Int, private
             val view = getChildAt(index); if (view.visibility == GONE) continue
             view.measure(MeasureSpec.makeMeasureSpec(available, MeasureSpec.AT_MOST), MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
             if (x > 0 && x + view.measuredWidth > available) { y += row + rowGap; x = 0; row = 0 }
-            x += view.measuredWidth + gap; row = maxOf(row, view.measuredHeight)
+            x += view.measuredWidth + horizontalGapPx; row = maxOf(row, view.measuredHeight)
         }
         setMeasuredDimension(resolveSize(available, widthMeasureSpec), resolveSize(y + row, heightMeasureSpec))
     }
@@ -391,7 +396,7 @@ internal class HistoryVisualFlow(context: Context, private val gap: Int, private
             if (x > 0 && x + view.measuredWidth > width) { y += row + rowGap; x = 0; row = 0 }
             val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) width - x - view.measuredWidth else x
             view.layout(left, y, left + view.measuredWidth, y + view.measuredHeight)
-            x += view.measuredWidth + gap; row = maxOf(row, view.measuredHeight)
+            x += view.measuredWidth + horizontalGapPx; row = maxOf(row, view.measuredHeight)
         }
     }
 }

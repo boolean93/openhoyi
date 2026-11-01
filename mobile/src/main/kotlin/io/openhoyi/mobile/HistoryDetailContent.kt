@@ -379,7 +379,7 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
         TaskProductVisualStyle.auxiliary, "product/history/warning").apply { setTextColor(visual.warningInk) } else null
     val header = EmbeddedHistoryHeader(this, title, identity, titleSpacer, more, meta, warning, style.dp(16), style.dp(8))
     style.add(preview.content, header)
-    val metrics = HistoryVisualFlow(this, style.dp(24), style.dp(8)).apply { tag = "product/history/metrics" }
+    val metrics = preview.metrics
     style.add(preview.content, metrics, 16)
     fun metric(label: Int, number: String, unit: String?, id: String, prominent: Boolean = true): HistoryQuantity {
         val labelView = style.text(getString(label), TaskProductVisualStyle.auxiliary, "$id/label", true)
@@ -562,6 +562,7 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
     private val style = visual.palette
     val content = EmbeddedHistoryContent(context)
     val metricCells = mutableListOf<EmbeddedHistoryMetricCell>()
+    val metrics = HistoryVisualFlow(context, style.dp(24), style.dp(8)).apply { tag = "product/history/metrics" }
     val footer = style.column("product/history/preview-footer").apply { setPadding(0, style.dp(16), 0, 0) }
     val productLayoutEvidence = org.json.JSONObject()
     private val viewport = ScrollView(context).apply { tag = "product/history/preview-scroll"; addView(content) }
@@ -591,6 +592,7 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
         }
         val previewHeader = content.getChildAt(0) as EmbeddedHistoryHeader
         previewHeader.inlineWarning = false
+        metrics.horizontalGapPx = style.dp(24)
         metricCells.forEach { it.inline = false }
         val verticalChrome = measureChrome()
         val overlay = chart.getChildAt(0) as LinearLayout
@@ -603,9 +605,43 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
         val chartMargins = chartParams.topMargin + chartParams.bottomMargin
         val available = (height - footer.measuredHeight).coerceAtLeast(0)
         val verticalMinimum = verticalChrome + chartMargins + chartMinimum
-        val inlineWidth = metricCells.sumOf { it.inlineNaturalWidth() } + style.dp(24) * (metricCells.size - 1).coerceAtLeast(0)
-        val inlineMetrics = verticalMinimum > available && inlineWidth <= width
-        metricCells.forEach { it.inline = inlineMetrics }
+        val defaultGap = style.dp(24); val compactGap = style.dp(16)
+        val naturalSizes = metricCells.map { cell -> listOf(cell.naturalSize(false), cell.naturalSize(true)) }
+        val inlineWidth = naturalSizes.sumOf { it[1].first } + defaultGap * (metricCells.size - 1).coerceAtLeast(0)
+        fun measureMetrics(mask: Int, gap: Int): HistoryMetricArrangement {
+            metricCells.forEachIndexed { index, cell -> cell.inline = (mask and (1 shl index)) != 0; cell.forceLayout() }
+            metrics.horizontalGapPx = gap
+            metrics.forceLayout(); metrics.measure(exact, natural)
+            val sizes = naturalSizes.mapIndexed { index, modes -> modes[if ((mask and (1 shl index)) != 0) 1 else 0] }
+            val resolved = metricCells.withIndex().fold(0) { bits, (index, cell) ->
+                if (cell.resolvedInline) bits or (1 shl index) else bits }
+            return HistoryMetricArrangement(mask, gap, sizes.map { it.first }, sizes.map { it.second },
+                metricCells.map { it.measuredWidth }, metricCells.map { it.measuredHeight }, resolved, metrics.measuredHeight)
+        }
+        val originalMetrics = measureMetrics(0, defaultGap)
+        val candidates = mutableListOf<HistoryMetricArrangement>()
+        val metricsBudgetInsufficient = verticalMinimum > available
+        if (metricsBudgetInsufficient) {
+            for (mask in 0 until (1 shl metricCells.size)) candidates += measureMetrics(mask, defaultGap)
+            if (selectHistoryMetricArrangement(true, width, originalMetrics, candidates, compactGap).arrangement === originalMetrics)
+                for (mask in 0 until (1 shl metricCells.size)) candidates += measureMetrics(mask, compactGap)
+        }
+        val metricsSelection = selectHistoryMetricArrangement(metricsBudgetInsufficient, width, originalMetrics, candidates, compactGap)
+        val selectedMetrics = measureMetrics(metricsSelection.arrangement.inlineMask, metricsSelection.arrangement.gapPx)
+        val inlineMetrics = selectedMetrics.resolvedInlineMask == (1 shl metricCells.size) - 1
+        fun metricEvidence(value: HistoryMetricArrangement) = org.json.JSONObject()
+            .put("inlineMask", value.inlineMask).put("gapPx", value.gapPx)
+            .put("naturalWidthsPx", org.json.JSONArray(value.naturalWidthsPx)).put("naturalHeightsPx", org.json.JSONArray(value.naturalHeightsPx))
+            .put("measuredWidthsPx", org.json.JSONArray(value.measuredWidthsPx)).put("measuredHeightsPx", org.json.JSONArray(value.measuredHeightsPx))
+            .put("resolvedInlineMask", value.resolvedInlineMask).put("measuredHeightPx", value.measuredHeightPx)
+            .put("totalNaturalWidthPx", value.totalNaturalWidthPx).put("completeSingleRow", value.completeSingleRow(width))
+        val metricsEvidence = org.json.JSONObject().put("schema", "EMBEDDED_HISTORY_MEASURED_METRICS_V1")
+            .put("budgetInsufficient", metricsBudgetInsufficient).put("availableWidthPx", width)
+            .put("defaultGapPx", defaultGap).put("compactGapPx", compactGap).put("layoutDirection", metrics.layoutDirection)
+            .put("cellIdentities", org.json.JSONArray(metricCells.map { System.identityHashCode(it) }))
+            .put("original", metricEvidence(originalMetrics))
+            .put("candidates", org.json.JSONArray(candidates.map { metricEvidence(it) }))
+            .put("selected", metricEvidence(selectedMetrics)).put("selectionReason", metricsSelection.reason)
         measureChrome()
         fun firstScreenMinimum(): Int {
             var beforeChart = 0
@@ -641,6 +677,7 @@ private class EmbeddedHistoryPreview(context: android.content.Context, visual: E
             .put("titleWarningInlineCondition", mergeWarning).put("titleWarningInlineResolved", previewHeader.resolvedInline)
             .put("verticalChromeNaturalPx", verticalChrome).put("verticalMinimumContentPx", verticalMinimum)
             .put("metricsInlineNaturalWidthPx", inlineWidth).put("metricsInline", inlineMetrics)
+            .put("metricsArrangement", metricsEvidence).put("metricsResolvedHeightPx", metrics.measuredHeight)
             .put("chartNativeHeaderNaturalPx", headerHeight).put("chartActualPaintAxisMinimumPx", axisMinimum)
             .put("chartLegendNaturalPx", chart.findViewWithTag<android.view.View>("product/history/chart-legend").measuredHeight)
             .put("externalExplanationNaturalPx", requireNotNull(chart.embeddedExplanationView).measuredHeight)
@@ -719,14 +756,16 @@ private class EmbeddedHistoryMetricCell(context: android.content.Context, privat
     private val label: android.widget.TextView, private val quantity: HistoryQuantity) : android.view.ViewGroup(context) {
     var inline = false
         set(value) { if (field != value) { field = value; forceLayout() } }
-    private var resolvedInline = false
+    var resolvedInline = false; private set
     init { addView(label); addView(quantity) }
     override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
-    fun inlineNaturalWidth(): Int {
+    fun inlineNaturalWidth(): Int = naturalSize(true).first
+    fun naturalSize(inlineMode: Boolean): Pair<Int, Int> {
         val free = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
         label.forceLayout(); quantity.forceLayout()
         label.measure(free, free); quantity.measure(free, free)
-        val result = label.measuredWidth + gap + quantity.measuredWidth
+        val result = if (inlineMode) (label.measuredWidth + gap + quantity.measuredWidth) to maxOf(label.measuredHeight, quantity.measuredHeight)
+            else maxOf(label.measuredWidth, quantity.measuredWidth) to (label.measuredHeight + gap + quantity.measuredHeight)
         label.forceLayout(); quantity.forceLayout(); forceLayout()
         return result
     }
