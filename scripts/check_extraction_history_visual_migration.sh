@@ -433,6 +433,7 @@ def require_reach(folder,page,expected_warning=False):
         assert all(x['visibility']['complete'] for x in reach['targets'])
         phases=[f'history-preview-{x}' for x in ('chart-reachable','explanation-reachable','note-0-reachable','note-1-reachable','restored')]
     elif page=='history-detail':
+        require_standalone_header(folder)
         reach=json.loads((folder/'detail-business.json').read_text())
         assert reach['completed'] and reach['savedNotesReachable'] and reach['exactScrollRestored']
         assert reach['initialScrollPx']==reach['restoredScrollPx'] and reach['shotIdUnchanged'] and reach['journalUnchanged'] and reach['fixedEditComplete']
@@ -590,12 +591,97 @@ def require_history_special(folder,window,empty_expected,current,reference,expec
     assert [action['observation']['semanticId'] for action in evidence['legendActions']]==expected_history_legend(current,reference)
     assert all(x['screenVisibility']['complete'] and x['heightPx']>=108 for x in evidence['legendActions'])
 
+def require_standalone_header(folder):
+    report=json.loads((folder/'standalone-header-reachability.json').read_text())
+    assert report['schema']=='STANDALONE_NATIVE_HEADER_REACH_V1' and report['completed']
+    assert report['beforeState']==report['afterState']
+    initial=report['initial']; restored=report['restored']
+    assert initial==restored and len(initial['texts'])>=17
+    assert len({t['identity'] for t in initial['texts']})==len(initial['texts'])
+    expected=['chart-metric:'+metric for metric in ('PRESSURE','WATER','WEIGHT','TEMPERATURE')]
+    assert [c['semanticId'] for c in initial['controls']]==expected
+    assert len({c['identity'] for c in initial['controls']})==4
+    tags={t['semanticId'] for t in initial['texts']}
+    for metric in ('PRESSURE','WATER','WEIGHT','TEMPERATURE'):
+        assert {f'product/extraction/metric/{metric}/{part}' for part in ('name','number','unit')} <= tags
+        assert 'chart-range:'+metric in tags
+    def accepted(relative,snapshot):
+        assert relative.startswith('states/detail-header-') and relative.endswith('/window-frame-sync.json')
+        assert '..' not in Path(relative).parts and not Path(relative).is_absolute()
+        proof=require_proof(folder/relative)
+        assert proof['captureWindowKind']=='ACTIVITY'
+        attempt=proof['attempts'][proof['acceptedAttempt']-1]
+        target=attempt['geometryBefore']['target']
+        assert target==attempt['geometryAfter']['target']
+        assert target['standaloneHeader']==snapshot
+        plot=target['standaloneHistoryPlot']
+        if plot['plotPresent']:assert plot['actualPlotHeightDp']>=96 and plot['visiblePlotHeightDp']>=96
+        else:assert plot['emptySamples'] and plot['actualSampleCount']==0
+        assert json.loads((folder/relative).with_name('geometry.json').read_text())==target
+        density=target['densityDpi']/160
+        assert target['densityDpi']==360
+        for text in snapshot['texts']:
+            matches=[n for n in target['nodes'] if n.get('semanticId')==text['semanticId'] and
+                     n['rectPx']==text['visibility']['rectPx'] and len(n['textLineBoxes'])==1 and n['textLineBoxes'][0]['text']==text['text']]
+            assert len(matches)==1
+            actual=matches[0]['textLineBoxes'][0]
+            assert actual['lineCount']==text['lineCount'] and actual['ellipsisCount']==0
+        for control in snapshot['controls']:
+            matches=[n for n in target['nodes'] if n.get('semanticId')==control['semanticId']]
+            assert len(matches)==1 and matches[0]['rectPx']==control['layout']['rectPx']==control['visibility']['rectPx']
+            actual=matches[0];left,top,right,bottom=actual['rectPx']
+            assert abs(control['widthDp']-(right-left)/density)<0.001
+            assert abs(control['heightDp']-(bottom-top)/density)<0.001
+            assert right-left>=48*density and bottom-top>=48*density
+        return target
+    accepted('states/detail-header-initial/window-frame-sync.json',initial)
+    assert report['restoredProof']=='states/detail-header-restored/window-frame-sync.json'
+    accepted(report['restoredProof'],restored)
+    coverage=[set() for _ in initial['texts']];controls=set()
+    assert report['pages']
+    for page in report['pages']:
+        current=page['snapshot'];accepted(page['proof'],current)
+        assert current['headerIdentity']==initial['headerIdentity']
+        assert len(current['texts'])==len(initial['texts']) and len(current['controls'])==4
+        viewport=current['viewport']
+        assert current['headerVisibility']['complete'] and current['headerVisibility']['screenMappingVerified']
+        assert viewport==current['headerVisibility']['visibleRectPx']
+        assert viewport[2]>viewport[0] and viewport[3]>viewport[1]
+        for index,(before,text) in enumerate(zip(initial['texts'],current['texts'])):
+            assert all(text[k]==before[k] for k in ('identity','semanticId','text','lineCount'))
+            assert text['text'] and text['lineCount']>0 and len(text['rows'])==text['lineCount']
+            assert text['lineCoordinateSource']=='TextView.getLineBounds + native_Layout_horizontal_advance + actual_ancestor_clip'
+            clip=text['visibility']['visibleRectPx']
+            assert [r['line'] for r in text['rows']]==list(range(text['lineCount']))
+            assert [(r['start'],r['end']) for r in text['rows']]==[(r['start'],r['end']) for r in before['rows']]
+            assert text['rows'][0]['start']==0 and text['rows'][-1]['end']==len(text['text'].encode('utf-16-le'))//2
+            for row in text['rows']:
+                assert row['ellipsisCount']==0
+                left,top,right,bottom=row['rectPx']
+                complete=text['visibility']['screenMappingVerified'] and max(viewport[0],clip[0])<=left<=right<=min(viewport[2],clip[2]) and max(viewport[1],clip[1])<=top<bottom<=min(viewport[3],clip[3])
+                assert row['complete']==complete
+                if complete:coverage[index].add(row['line'])
+        for index,control in enumerate(current['controls']):
+            assert all(control[k]==initial['controls'][index][k] for k in ('identity','semanticId','widthDp','heightDp'))
+            assert control['widthDp']>=48 and control['heightDp']>=48
+            assert control['layout']['complete']==control['visibility']['complete']
+            if control['layout']['complete']:
+                assert control['visibility']['screenMappingVerified']
+                left,top,right,bottom=control['layout']['rectPx']
+                assert viewport[0]<=left<right<=viewport[2] and viewport[1]<=top<bottom<=viewport[3]
+                controls.add(index)
+    assert all(lines==set(range(text['lineCount'])) for lines,text in zip(coverage,initial['texts']))
+    assert controls==set(range(4))
+
 def require_standalone(folder,window,empty_expected):
     evidence=window['standaloneHistoryPlot']
     assert json.loads((folder/'standalone-history-plot.json').read_text())==evidence
     assert evidence['budgetSource']=='deep_copy_existing_StandaloneHistoryPlot.productLayoutEvidence'
     budget=evidence['budget']
     assert budget['minimumPlotDp']==96
+    assert budget['standalonePlotFloorOptIn'] and budget['actualRendererMode']=='LIVE'
+    assert budget['headerScrollPreservesNaturalContent']
+    assert budget['chartBudgetSource']=='native_scroll_atomic_header + same_actual_renderer_plot_96dp'
     for key in ('availableHeightPx','availableWidthPx','verticalChromeNaturalPx','resolvedChromeNaturalPx',
                 'metricsInlineNaturalWidthPx','chartNativeHeaderNaturalPx','chartActualPaintAxisMinimumPx','chartMinimumPx','primaryBudgetSatisfiable'):
         assert key in budget,(folder,key)

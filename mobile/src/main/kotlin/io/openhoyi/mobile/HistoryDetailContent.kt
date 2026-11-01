@@ -265,7 +265,7 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
         if (entry.weightHundredthsGram != null) "g" else null, "product/history/weight")
     // This is a sample observation, not an inferred final outcome or stored new field.
     val sampledWater = metric(R.string.m5_last_sample_water, "—", null, "product/history/sampled-water", false)
-    val chart = ShotChartView(this, visual).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
+    val chart = ShotChartView(this, visual, standalonePlotMinimumDp = 96f).apply { tag = "product/history/chart"; contentDescription = getString(R.string.extraction_chart) }
     plot.chart = chart
     plot.addView(chart, LinearLayout.LayoutParams(-1, 0, 1f).apply { topMargin = style.dp(16) })
     val chartStatus = style.text(getString(R.string.history_loading_samples), TaskProductVisualStyle.auxiliary, "product/history/chart-status", true)
@@ -441,7 +441,6 @@ private fun ThemedActivity.renderEmbeddedHistoryPreview(body: LinearLayout, entr
 /** Standalone History alone recovers metric whitespace when the real 96dp plot budget requires it. */
 private class StandaloneHistoryPlot(context: android.content.Context, visual: ExtractionHistoryVisualStyle) : LinearLayout(context) {
     private val style = visual.palette
-    private val renderer = ProductHistoryChartRenderer(context, visual)
     val metricCells = mutableListOf<EmbeddedHistoryMetricCell>()
     lateinit var chart: ShotChartView
     val productLayoutEvidence = org.json.JSONObject()
@@ -468,8 +467,9 @@ private class StandaloneHistoryPlot(context: android.content.Context, visual: Ex
         val header = (overlay.getChildAt(0) as ScrollView).getChildAt(0)
         header.forceLayout(); header.measure(exact, natural)
         val headerHeight = header.measuredHeight
-        val axesAndPlot = renderer.minimumEmbeddedHistoryHeight()
-        val chartMinimum = maxOf(headerHeight, style.dp(48)) + axesAndPlot + overlay.paddingTop + overlay.paddingBottom
+        val axesAndPlot = requireNotNull(chart.standalonePlotMinimumHeightPx)
+        val headerMinimum = requireNotNull(chart.standaloneHeaderMinimumHeightPx)
+        val chartMinimum = headerMinimum + axesAndPlot + overlay.paddingTop + overlay.paddingBottom
         val params = chart.layoutParams as LayoutParams
         val chartMargins = params.topMargin + params.bottomMargin
         val inlineWidth = metricCells.sumOf { it.inlineNaturalWidth() } + style.dp(24) * (metricCells.size - 1).coerceAtLeast(0)
@@ -482,8 +482,10 @@ private class StandaloneHistoryPlot(context: android.content.Context, visual: Ex
             .put("chartNativeHeaderNaturalPx", headerHeight).put("chartActualPaintAxisMinimumPx", axesAndPlot)
             .put("chartOverlayPaddingPx", overlay.paddingTop + overlay.paddingBottom).put("chartMarginsPx", chartMargins)
             .put("chartMinimumPx", chartMinimum).put("minimumPlotDp", 96)
+            .put("standalonePlotFloorOptIn", true).put("actualRendererMode", chart.plotRendererMode)
+            .put("minimumHeaderViewportPx", headerMinimum).put("headerScrollPreservesNaturalContent", true)
             .put("primaryBudgetSatisfiable", resolvedChrome + chartMargins + chartMinimum <= height)
-            .put("chartBudgetSource", "native_overlay_header + real_plot_96dp + renderer_bounds_actual_axis_bands")
+            .put("chartBudgetSource", "native_scroll_atomic_header + same_actual_renderer_plot_96dp")
         fun invalidateMeasure(view: android.view.View) {
             view.forceLayout()
             if (view is android.view.ViewGroup) (0 until view.childCount).forEach { invalidateMeasure(view.getChildAt(it)) }

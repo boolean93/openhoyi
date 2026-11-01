@@ -92,6 +92,9 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     // Non-comparison bounds reserve 1.5 lines + 16dp above and 2.5 lines + 24dp below the real plot.
     fun minimumEmbeddedHistoryHeight() = kotlin.math.ceil(dp(96f) + line * 4 + dp(40f)).toInt()
     fun minimumComparisonHeight(plotMinimumDp: Float = 96f) = kotlin.math.ceil(dp(plotMinimumDp) + line * 3 + dp(24f)).toInt()
+    fun minimumHeightForPlot(plotMinimumDp: Float) = HistoryPlotBudget.minimumHeight(line,
+        context.resources.displayMetrics.density, liveMode, plotMinimumDp)
+    val plotRendererMode get() = if (liveMode) "LIVE" else "HISTORICAL"
     private fun number(value: Float) = String.format(Locale.ROOT, "%.1f", value)
     private fun axisNumber(value: Float) = if (value == value.toLong().toFloat()) value.toLong().toString() else number(value)
     private fun seconds(value: Long) = String.format(Locale.ROOT, "%.1f", value / 1000.0)
@@ -125,8 +128,8 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         val tailWidth = 0f // Live endpoint names live in the persistent metric tiles.
         val right = width - dp(8f) - rightAxes.sumOf { column(it, compactAxes).toDouble() }.toFloat() - tailWidth
         return if (comparison) RectF(left, line * 1.5f + dp(12f), right, height - line * 1.5f - dp(12f))
-            else if (liveMode) RectF(left, line * 1.5f + dp(8f), right, height - line * 1.5f - dp(12f))
-            else RectF(left, line * 1.5f + dp(16f), right, height - line * 2.5f - dp(24f))
+            else RectF(left, HistoryPlotBudget.top(line, context.resources.displayMetrics.density, liveMode),
+                right, height - HistoryPlotBudget.bottom(line, context.resources.displayMetrics.density, liveMode))
     }
     private data class Label(val text: String, val x: Float, val baseline: Float, val align: Paint.Align, val color: Int, val role: String, val sizeSp: Int = 14, val metric: ChartMetric? = null)
     private fun glyph(label: Label): RectF {

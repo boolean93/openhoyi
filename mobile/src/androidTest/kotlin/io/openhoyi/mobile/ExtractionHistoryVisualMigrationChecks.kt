@@ -1229,7 +1229,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     }
     private fun captureTarget(activity: Activity): JSONObject {
         val pairs=baselinePairs(activity)
-        return geometry(activity).put("typographyEvidence",TaskTypographyEvidence.snapshot(activity))
+        return geometry(activity).apply {if(activity is HistoryDetailActivity)put("standaloneHeader",standaloneHeaderSnapshot(activity))}
+            .put("typographyEvidence",TaskTypographyEvidence.snapshot(activity))
             .put("baselinePairs",pairs).put("baselinePairCount",pairs.length())
             .put("baselinePairIds",JSONArray((0 until pairs.length()).map {pairs.getJSONObject(it).getString("semanticId")}))
     }
@@ -1490,7 +1491,128 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         File(folder,"comparison-business.json").writeText(JSONObject().put("cases",cases).put("swapRecreateIdsAndMetric",true)
             .put("placeholderClearsIdentityAndProjection",true).put("journalUnchanged",true).put("completed",true).toString(2))
     }
+    private fun <T> historyMainValue(block:()->T):T {
+        var value:Any?=null
+        main {value=block()}
+        @Suppress("UNCHECKED_CAST") return value as T
+    }
+    private fun standaloneHeaderSnapshot(activity: Activity): JSONObject {
+        val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
+        val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val headerVisibility=historyVisibility(header)
+        val viewport=headerVisibility.getJSONArray("visibleRectPx")
+        val texts=visibleTextViews(header).filter {it.text.isNotEmpty()}
+        return JSONObject().put("headerIdentity",System.identityHashCode(header)).put("viewport",viewport)
+            .put("headerVisibility",headerVisibility).put("scrollPx",JSONArray(listOf(header.scrollX,header.scrollY)))
+            .put("texts",JSONArray(texts.map { text ->
+                val layout=requireNotNull(text.layout);val location=IntArray(2);text.getLocationOnScreen(location)
+                val visibility=historyVisibility(text);val clip=visibility.getJSONArray("visibleRectPx")
+                JSONObject().put("identity",System.identityHashCode(text)).put("semanticId",text.tag ?: JSONObject.NULL)
+                    .put("text",text.text.toString()).put("lineCount",layout.lineCount).put("visibility",visibility)
+                    .put("lineCoordinateSource","TextView.getLineBounds + native_Layout_horizontal_advance + actual_ancestor_clip")
+                    .put("rows",JSONArray((0 until layout.lineCount).map { line ->
+                        val left=location[0]+text.compoundPaddingLeft+layout.getLineLeft(line)-text.scrollX
+                        val right=location[0]+text.compoundPaddingLeft+layout.getLineRight(line)-text.scrollX
+                        val native=Rect();text.getLineBounds(line,native)
+                        val top=location[1]+native.top-text.scrollY
+                        val bottom=location[1]+native.bottom-text.scrollY
+                        JSONObject().put("line",line).put("start",layout.getLineStart(line)).put("end",layout.getLineEnd(line))
+                            .put("ellipsisCount",layout.getEllipsisCount(line)).put("rectPx",JSONArray(listOf(left,top,right,bottom)))
+                            .put("complete",visibility.getBoolean("screenMappingVerified") && layout.getEllipsisCount(line)==0 &&
+                                left>=maxOf(viewport.getInt(0),clip.getInt(0)) && right<=minOf(viewport.getInt(2),clip.getInt(2)) &&
+                                top>=maxOf(viewport.getInt(1),clip.getInt(1)) && bottom<=minOf(viewport.getInt(3),clip.getInt(3)))
+                    }))
+            })).put("controls",JSONArray(ChartMetric.entries.map { metric ->
+                val button=requireNotNull(chart.findViewWithTag<Button>("chart-metric:$metric"))
+                JSONObject().put("identity",System.identityHashCode(button)).put("semanticId",button.tag)
+                    .put("widthDp",button.width/activity.resources.displayMetrics.density)
+                    .put("heightDp",button.height/activity.resources.displayMetrics.density).put("visibility",historyVisibility(button))
+                    .put("layout",screenObservation(button))
+            }))
+    }
+    private fun standaloneHeaderReachability(activity: Activity, scope:Scope, folder:File) {
+        val chart=requireNotNull(root(activity).findViewWithTag<ShotChartView>("product/history/chart"))
+        val overlay=chart.getChildAt(0) as ExtractionOverlayView
+        val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val savedX=header.scrollX;val savedY=header.scrollY;val focus=activity.currentFocus
+        fun state()=JSONObject().put("shotId",activity.intent.getStringExtra("shotId"))
+            .put("points",pointRecords(chart.points)).put("reference",pointRecords(overlay.reference))
+            .put("selected",field(overlay,"selected") ?: JSONObject.NULL).put("trace",overlay.traceIdentity)
+            .put("journal",scope.journal.exportJson()).put("focusIdentity",activity.currentFocus?.let {System.identityHashCode(it)} ?: JSONObject.NULL)
+        val initial=capture(activity,File(folder,"states/detail-header-initial")).target.getJSONObject("standaloneHeader")
+        val before=historyMainValue {state()};val pages=JSONArray();var failure:Throwable?=null
+        fun page() {
+            val relative="states/detail-header-${pages.length()}"
+            val frame=capture(activity,File(folder,relative))
+            main {check(state().toString()==before.toString() && activity.currentFocus===focus)}
+            pages.put(JSONObject().put("snapshot",frame.target.getJSONObject("standaloneHeader"))
+                .put("proof","$relative/window-frame-sync.json"))
+        }
+        try {
+            var y=0
+            while(true) {
+                main {header.scrollTo(savedX,y)};frames.committedFrame(root(activity))
+                page()
+                val maximum=(header.getChildAt(0).height-header.height+header.paddingTop+header.paddingBottom).coerceAtLeast(0)
+                if(y>=maximum)break
+                y=minOf(maximum,y+maxOf(1,header.height/2))
+            }
+            // Exact native reveals cover atomic controls/lines that straddle the sweep steps.
+            ChartMetric.entries.forEachIndexed { index,metric ->
+                val covered=(0 until pages.length()).any { pages.getJSONObject(it).getJSONObject("snapshot")
+                    .getJSONArray("controls").getJSONObject(index).getJSONObject("layout").getBoolean("complete") }
+                if(!covered) {
+                    val button=requireNotNull(chart.findViewWithTag<Button>("chart-metric:$metric"))
+                    main {button.requestRectangleOnScreen(Rect(0,0,button.width,button.height),true)}
+                    frames.committedFrame(root(activity));page()
+                }
+            }
+            val originalTexts=visibleTextViews(header).filter {it.text.isNotEmpty()}
+            originalTexts.forEachIndexed { index,text ->
+                val count=initial.getJSONArray("texts").getJSONObject(index).getInt("lineCount")
+                for(line in 0 until count) {
+                    val covered=(0 until pages.length()).any { pages.getJSONObject(it).getJSONObject("snapshot")
+                        .getJSONArray("texts").getJSONObject(index).getJSONArray("rows").getJSONObject(line).getBoolean("complete") }
+                    if(!covered) {
+                        main {val bounds=Rect();text.getLineBounds(line,bounds)
+                            text.requestRectangleOnScreen(Rect(0,bounds.top,text.width,bounds.bottom),true)}
+                        frames.committedFrame(root(activity));page()
+                    }
+                }
+            }
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            try {main {header.scrollTo(savedX,savedY)};frames.committedFrame(root(activity))
+                main {check(header.scrollX==savedX && header.scrollY==savedY && activity.currentFocus===focus)
+                    check(state().toString()==before.toString())}}
+            catch(restore:Throwable) {if(failure!=null)failure.addSuppressed(restore) else throw restore}
+        }
+        val restored=capture(activity,File(folder,"states/detail-header-restored"))
+        val texts=initial.getJSONArray("texts")
+        for(index in 0 until texts.length()) {
+            val original=texts.getJSONObject(index);val covered=mutableSetOf<Int>()
+            for(page in 0 until pages.length()) {
+                val current=pages.getJSONObject(page).getJSONObject("snapshot").getJSONArray("texts").getJSONObject(index)
+                check(current.getInt("identity")==original.getInt("identity") && current.getString("text")==original.getString("text") &&
+                    current.getInt("lineCount")==original.getInt("lineCount"))
+                val rows=current.getJSONArray("rows")
+                for(row in 0 until rows.length())if(rows.getJSONObject(row).getBoolean("complete"))covered.add(row)
+            }
+            check(covered==(0 until original.getInt("lineCount")).toSet()) {"M5 Detail original header text not fully reachable: $original"}
+        }
+        for(index in 0 until initial.getJSONArray("controls").length()) {
+            check((0 until pages.length()).any { page ->
+                val control=pages.getJSONObject(page).getJSONObject("snapshot").getJSONArray("controls").getJSONObject(index)
+                control.getDouble("widthDp")>=48 && control.getDouble("heightDp")>=48 && control.getJSONObject("layout").getBoolean("complete")
+            }) {"M5 Detail original 48dp metric control not fully reachable"}
+        }
+        WindowProofStreamingWriter.writeStrict(JSONObject().put("schema","STANDALONE_NATIVE_HEADER_REACH_V1")
+            .put("initial",initial).put("pages",pages).put("restored",restored.target.getJSONObject("standaloneHeader"))
+            .put("beforeState",before).put("afterState",historyMainValue {state()})
+            .put("restoredProof","states/detail-header-restored/window-frame-sync.json").put("completed",true),File(folder,"standalone-header-reachability.json"))
+    }
     private fun detailReachability(activity: Activity, scope:Scope, folder: File) {
+        standaloneHeaderReachability(activity,scope,folder)
         val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
         val savedX=scroll.scrollX;val savedY=scroll.scrollY
         val id=activity.intent.getStringExtra("shotId");val journal=scope.journal.exportJson()
