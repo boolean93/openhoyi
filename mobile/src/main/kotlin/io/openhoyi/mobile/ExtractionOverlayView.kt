@@ -66,9 +66,12 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     var compactRunningExplanation = false
         set(value) { if (field != value) { field = value; updateDescription() } }
     private var fullExplanation = ""
-    fun overviewExplanation(): String = listOf(fullExplanation,
-        context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit))
-        .filter { it.isNotBlank() }.joinToString("\n")
+    fun overviewExplanation(): String = listOf(fullExplanation, explanation.text.toString(),
+        context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit),
+        context.getString(R.string.live_pressure_pause_explanation).takeIf { data.pauseBaselineMs.isNotEmpty() }.orEmpty())
+        .filter { it.isNotBlank() }.distinct().let { blocks ->
+            blocks.filter { block -> blocks.none { other -> other.length > block.length && block in other } }
+        }.joinToString("\n")
 
     private var inspectedTime: Long? = null
     private var inspectionDialog: AlertDialog? = null
