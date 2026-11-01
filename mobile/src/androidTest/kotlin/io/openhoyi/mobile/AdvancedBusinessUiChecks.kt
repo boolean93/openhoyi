@@ -1184,8 +1184,13 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
                     val tag=if(confirmed)"dose-balance-receipt" else "dose-balance-preview"
                     val receipt=requireNotNull(root(actual).findViewWithTag<TextView>(tag))
                     check(receipt.text.toString()==actual.getString(if(confirmed)R.string.dose_balance_receipt else R.string.dose_balance_preview,"90","72"))
-                    check(preparation.current()==beforeDose && inventory.events()==beforeEvents && balance()==beforeBalance &&
-                        owner(page)===service) {"Viewing the reachable dose changed preparation/inventory/service"}
+                    check(preparation.current()==beforeDose) {"Viewing the reachable dose changed the saved preparation"}
+                    check(inventory.events()==beforeEvents) {"Viewing the reachable dose changed inventory events"}
+                    check(balance()==beforeBalance) {"Viewing the reachable dose changed inventory balance"}
+                    val foregroundOwner=ScaleOwnerActivity::class.java.getDeclaredField("owner").apply {isAccessible=true}.get(actual)
+                    check(foregroundOwner===service && requireNotNull(service).running && service!!.snapshot.message===message) {
+                        "Foreground preparation lost the original running service/event"
+                    }
                 }
             } catch(error:Throwable) {failure=error;throw error}
             finally {
