@@ -19,3 +19,9 @@
 - PR6 exact `730721ad8620cb8773eb71673d4851da332a0e2e`：capture run41277479694 在 home-light/curves-light 两次真实树及PNG成功后，05:41:12 新连接立即 activeRoot 为空；同源 lifecycle push run41277479789 在首次 selector 05:40:05 失败。失败时 Main topResumed/mCurrentFocus 正确，尚未进入两杯连续性验收，不能称runtime通过。
 - 最小修正仅初始窗口readiness：先注册事件通知，再设置service flags，通过公共getWindows建立真实interactive window元数据；只有初始root为null时，在host传入的剩余原30秒预算内等待实际accessibility事件并再次查询。generation避免丢通知；不等全局idle、不固定sleep、不重启App/杯、不重跑已开始/失败的capture。非null root立即保原包/窗口/完整遍历校验；serialization后的root仍只读一次比对，不重试掩盖变化。XML保留就绪等待/查询次数/实际window信息。
 - 本地30项host契约PASS，新增remaining budget参数门；原选择/页面/PNG/30秒deadline均不变。Android首次连接与两杯真实连续性仍须新exact head CI，不把编译当运行验收。
+
+## 4e7e252 第二轮与正尺寸初始root
+
+- exact4e7 capture run41278328568：静态图越过上轮curves-light，直到settings-dark后下一selector在05:56:35报`Empty Mock root bounds`，Main仍topResumed/focused。没有两杯验收，不能merge。原异常未标before/after，故不能凭错误文本断定阶段。
+- 最小追加：初始readiness除nonnull还要求真实Mock root可见且与真实display交集正尺寸，归还未就绪node后只等真实accessibility事件，仍消耗原host30s；外包/未知window立即原失败、不等待。所有正bounds/完整树/after同窗及单次after读取保留。每个失败输出确切阶段和当前root/window原始元数据，以区分初连未就绪与序列化期间变更；不接受空树、不跨失败重采。
+- 本轮共享producer及三个consumer传输已实际运行，仍等待完整矩阵。该capture追加不在矩阵完成前push，以保留同一轮净耗时证据。

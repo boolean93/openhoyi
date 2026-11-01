@@ -29,8 +29,8 @@ public final class MockHierarchyInstrumentation extends Instrumentation {
     private final Object readiness=new Object();
     private long eventGeneration;
     private int rootQueries;
-    private String lastWindows="";
-    private AccessibilityNodeInfo awaitInitialRoot(UiAutomation automation,long deadline)throws Exception {
+    private String lastWindows="",lastRoot="unqueried";
+    private AccessibilityNodeInfo awaitInitialRoot(UiAutomation automation,long deadline,Rect display)throws Exception {
         while(true){
             long generation;synchronized(readiness){generation=eventGeneration;}
             // Public window enumeration establishes interactive-window tracking after setServiceInfo.
@@ -40,10 +40,18 @@ public final class MockHierarchyInstrumentation extends Instrumentation {
             finally{for(AccessibilityWindowInfo window:windows)window.recycle();}
             lastWindows=state.toString();rootQueries++;
             AccessibilityNodeInfo value=automation.getRootInActiveWindow();
-            if(value!=null)return value;
+            lastRoot="null";
+            if(value!=null){
+                Rect raw=new Rect();value.getBoundsInScreen(raw);Rect clipped=new Rect(raw);
+                lastRoot=describe(value);
+                // Foreign/unknown ownership is an error, never a readiness retry.
+                if(!MOCK.contentEquals(value.getPackageName())||value.getWindowId()<0)return value;
+                if(value.isVisibleToUser()&&clipped.intersect(display)&&clipped.width()>0&&clipped.height()>0)return value;
+                value.recycle();
+            }
             synchronized(readiness){
                 long remaining=deadline-SystemClock.elapsedRealtime();
-                require(remaining>0,"Initial active root unavailable within original request budget; windows="+lastWindows+" queries="+rootQueries);
+                require(remaining>0,"Initial visible positive Mock root unavailable within original request budget; root="+lastRoot+" windows="+lastWindows+" queries="+rootQueries);
                 if(generation==eventGeneration)readiness.wait(remaining);
             }
         }
@@ -57,12 +65,16 @@ public final class MockHierarchyInstrumentation extends Instrumentation {
         return out.toString();
     }
     private static String bounds(Rect r){return "["+r.left+","+r.top+"]["+r.right+","+r.bottom+"]";}
+    private static String describe(AccessibilityNodeInfo node){
+        if(node==null)return "null";Rect raw=new Rect();node.getBoundsInScreen(raw);
+        return "package="+text(node.getPackageName())+" id="+node.getWindowId()+" class="+text(node.getClassName())+" visible="+node.isVisibleToUser()+" bounds="+bounds(raw);
+    }
     private static final class Window {
         final int id;final Rect bounds;final String type;
         Window(AccessibilityNodeInfo root,Rect display) {
             require(root!=null,"No active root");require(MOCK.contentEquals(root.getPackageName()),"Active root is not isolated Mock");
             id=root.getWindowId();require(id>=0,"Unknown active window ID");type=text(root.getClassName());
-            bounds=new Rect();root.getBoundsInScreen(bounds);require(bounds.intersect(display)&&bounds.width()>0&&bounds.height()>0,"Empty Mock root bounds");
+            bounds=new Rect();root.getBoundsInScreen(bounds);require(bounds.intersect(display)&&bounds.width()>0&&bounds.height()>0,"Empty Mock root bounds actual="+bounds(bounds)+" display="+bounds(display));
         }
         boolean same(Window other){return id==other.id&&bounds.equals(other.bounds)&&type.equals(other.type);}
     }
@@ -87,39 +99,39 @@ public final class MockHierarchyInstrumentation extends Instrumentation {
         xml.endTag("","node");
     }
     @Override public void onStart() {
-        Bundle result=new Bundle();File temporary=null;AccessibilityNodeInfo root=null,after=null;UiAutomation automation=null;
+        Bundle result=new Bundle();File temporary=null;AccessibilityNodeInfo root=null,after=null;UiAutomation automation=null;String stage="create";
         try {
             require(SELF.equals(getContext().getPackageName())&&SELF.equals(getTargetContext().getPackageName()),"Collector must target only itself");
             String nonce=arguments.getString("nonce","");require(UUID.fromString(nonce).toString().equals(nonce),"Invalid capture nonce");
             long budget=Long.parseLong(arguments.getString("budgetMs",""));require(budget>0&&budget<=30000,"Invalid remaining request budget");
             long readyStarted=SystemClock.elapsedRealtime(),deadline=readyStarted+budget;
-            automation=getUiAutomation();
+            stage="connect";automation=getUiAutomation();
             automation.setOnAccessibilityEventListener(event->{synchronized(readiness){eventGeneration++;readiness.notifyAll();}});
             AccessibilityServiceInfo info=automation.getServiceInfo();
             info.flags|=AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS|AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS|AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS;
             automation.setServiceInfo(info);
             Point size=new Point();((WindowManager)getContext().getSystemService(android.content.Context.WINDOW_SERVICE)).getDefaultDisplay().getRealSize(size);
             Rect display=new Rect(0,0,size.x,size.y);long started=SystemClock.elapsedRealtimeNanos();
-            root=awaitInitialRoot(automation,deadline);Window before=new Window(root,display);
+            stage="initial-root-readiness";root=awaitInitialRoot(automation,deadline,display);stage="before-window";Window before=new Window(root,display);
             ByteArrayOutputStream bytes=new ByteArrayOutputStream();XmlSerializer xml=Xml.newSerializer();xml.setOutput(bytes,"UTF-8");xml.startDocument("UTF-8",true);
             xml.startTag("","hierarchy");xml.attribute("","schema","mock-active-tree-v1");xml.attribute("","nonce",nonce);
             xml.attribute("","package",MOCK);xml.attribute("","window-id",Integer.toString(before.id));xml.attribute("","bounds",bounds(before.bounds));
             xml.attribute("","started-elapsed-nanos",Long.toString(started));
             xml.attribute("","initial-root-wait-ms",Long.toString(SystemClock.elapsedRealtime()-readyStarted));
-            xml.attribute("","initial-root-queries",Integer.toString(rootQueries));xml.attribute("","initial-windows",lastWindows);
-            write(xml,root,0,before.bounds,before.id);require(nodes>1,"Empty app tree");
-            after=automation.getRootInActiveWindow();Window next=new Window(after,display);require(before.same(next),"Active window changed during capture");
+            xml.attribute("","initial-root-queries",Integer.toString(rootQueries));xml.attribute("","initial-root",lastRoot);xml.attribute("","initial-windows",lastWindows);
+            stage="serialize-real-tree";write(xml,root,0,before.bounds,before.id);require(nodes>1,"Empty app tree");
+            stage="after-window";after=automation.getRootInActiveWindow();lastRoot=describe(after);Window next=new Window(after,display);require(before.same(next),"Active window changed during capture");
             xml.startTag("","capture");xml.attribute("","complete","true");xml.attribute("","nodes",Integer.toString(nodes));
             xml.attribute("","window-id",Integer.toString(next.id));xml.attribute("","bounds",bounds(next.bounds));
             xml.attribute("","finished-elapsed-nanos",Long.toString(SystemClock.elapsedRealtimeNanos()));xml.endTag("","capture");
             xml.endTag("","hierarchy");xml.endDocument();xml.flush();
-            File dir=new File(getContext().getFilesDir(),"mock-hierarchy");require(dir.isDirectory()||dir.mkdirs(),"Cannot create owned capture directory");
+            stage="atomic-publication";File dir=new File(getContext().getFilesDir(),"mock-hierarchy");require(dir.isDirectory()||dir.mkdirs(),"Cannot create owned capture directory");
             File destination=new File(dir,nonce+".xml");require(!destination.exists(),"Nonce file already exists");
             temporary=File.createTempFile("capture-", ".owned",dir);
             try(FileOutputStream output=new FileOutputStream(temporary)){bytes.writeTo(output);output.getFD().sync();}
             Files.move(temporary.toPath(),destination.toPath(),StandardCopyOption.ATOMIC_MOVE);temporary=null;
             result.putString("stream","MOCK_ACTIVE_TREE_CAPTURED nonce="+nonce+" nodes="+nodes+" window="+before.id+"\n");finish(Activity.RESULT_OK,result);
-        }catch(Throwable error){result.putString("stream","MOCK_ACTIVE_TREE_FAILED "+error.toString()+"\n");finish(Activity.RESULT_CANCELED,result);}
+        }catch(Throwable error){result.putString("stream","MOCK_ACTIVE_TREE_FAILED stage="+stage+" root="+lastRoot+" windows="+lastWindows+" "+error.toString()+"\n");finish(Activity.RESULT_CANCELED,result);}
         finally{if(automation!=null)automation.setOnAccessibilityEventListener(null);if(root!=null)root.recycle();if(after!=null&&after!=root)after.recycle();if(temporary!=null)temporary.delete();}
     }
 }
