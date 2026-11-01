@@ -227,8 +227,26 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val height = (MeasureSpec.getSize(heightMeasureSpec) - paddingTop - paddingBottom).coerceAtLeast(0)
         if (liveCompactChrome) {
-            if (headerContent.paddingTop != liveHeaderHeightPx) headerContent.setPadding(0,liveHeaderHeightPx,0,0)
-            val innerWidth = (MeasureSpec.getSize(widthMeasureSpec)-dp(128f).toInt()).coerceAtLeast(0)
+            val available = MeasureSpec.getSize(widthMeasureSpec)
+            val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+            val requiredColumn = liveTiles.values.maxOf { tile ->
+                val body = tile.getChildAt(0) as LinearLayout
+                val name = body.getChildAt(0)
+                val quantity = body.getChildAt(1)
+                name.measure(natural,natural); quantity.measure(natural,natural)
+                name.measuredWidth + (if (quantity.visibility == GONE) 0 else quantity.measuredWidth + dp(6f).toInt()) + dp(8f).toInt()
+            }
+            val narrow = available - dp(128f) < requiredColumn * 2 + dp(8f)
+            val topInset = if (narrow) maxOf(liveHeaderHeightPx,dp(96f).toInt()) else liveHeaderHeightPx
+            if (headerContent.paddingTop != topInset) headerContent.setPadding(0,topInset,0,0)
+            (header.layoutParams as android.widget.FrameLayout.LayoutParams).marginEnd = if (narrow) 0 else dp(128f).toInt()
+            liveTiles.values.forEach { tile ->
+                val body = tile.getChildAt(0) as LinearLayout
+                body.orientation = if (narrow) VERTICAL else HORIZONTAL
+                body.gravity = if (narrow) android.view.Gravity.START else android.view.Gravity.CENTER_VERTICAL
+                (body.getChildAt(1).layoutParams as LayoutParams).marginStart = if (narrow) 0 else dp(6f).toInt()
+            }
+            val innerWidth = (available - if (narrow) 0 else dp(128f).toInt()).coerceAtLeast(0)
             header.measure(MeasureSpec.makeMeasureSpec(innerWidth,MeasureSpec.EXACTLY),
                 MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED))
             val chromeHeight = maxOf(dp(96f).toInt(),header.measuredHeight,liveHeaderHeightPx+dp(48f).toInt())

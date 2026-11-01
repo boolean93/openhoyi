@@ -26,6 +26,8 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
             test.waitForIdleSync()
             LiveChartTimingChecks(test).run(activity)
             val directory = File(test.targetContext.getExternalFilesDir(null), "four-metric-chart-checks").apply { mkdirs() }
+            LiveMotionReplayChecks(test).run(activity,host.viewField<View>(host.active("extraction"),"chart"),directory)
+            LiveNarrowChartChecks(test).run(activity,directory)
             val samples = (0..30).map { index ->
                 ShotPoint(index * 800L, if (index < 5) index * 18 else 90 - (index - 5),
                     999, index * 18, 9300 + index * 2, index * 120, 999, true)
