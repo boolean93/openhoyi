@@ -1811,6 +1811,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("realShotSamplesStoreSaveAndLoad",true).toString(2))
         val cases=JSONArray()
         val summary=JSONObject().put("sourceSha",source).put("profile",profile).put("page","extraction")
+            .put("caseStorageSchema","M5_EXTRACTION_CASE_REFS_V1").put("completed",false)
             .put("synthetic",true).put("hardwareMeasurement",false).put("realProductActivity",true)
             .put("visualAcceptance","ASTRA_PENDING")
             .put("expectedCases",JSONArray(extractionPendingSpecialCases))
@@ -1826,7 +1827,6 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     .put("declaredShotId",extractionScenarioShotIds.getValue(case))
                     .put("synthetic",true).put("hardwareMeasurement",false).put("realProductActivity",true)
                     .put("visualAcceptance","ASTRA_PENDING")
-                cases.put(proof)
                 var failure: Throwable?=null
                 try {
                     scope.prepare();scope.install(theme=="dark")
@@ -1974,13 +1974,26 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
                         proof.put("status","FAIL").put("cleanupFailure",error.stackTraceToString())
                     }
-                    try { WindowProofStreamingWriter.writeStrict(proof,File(caseFolder,"case.json"));persist() }
+                    try {
+                        val original=File(caseFolder,"case.json")
+                        WindowProofStreamingWriter.writeStrict(proof,original)
+                        check(original.isFile && original.length()>0)
+                        // Only small immutable metadata survives this iteration. The complete
+                        // original proof remains atomically published for all host assertions.
+                        cases.put(JSONObject().put("ordinal",cases.length()+1).put("case",case)
+                            .put("path","$case/case.json").put("sizeBytes",original.length()).put("sha256",sha(original))
+                            .put("status",proof.getString("status")).put("sourceSha",source).put("profile",profile)
+                            .put("declaredShotId",extractionScenarioShotIds.getValue(case)))
+                        persist()
+                    }
                     catch(error: Throwable) {
                         if(failure==null)failure=error else if(failure!==error)failure!!.addSuppressed(error)
                     }
                 }
                 failure?.let {throw it}
             }
+            check(cases.length()==extractionPendingSpecialCases.size &&
+                (0 until cases.length()).all {cases.getJSONObject(it).getString("status")=="PASS_MECHANICAL_ONLY_NOT_VISUAL_ACCEPTANCE"})
             summary.put("completed",true).put("actualAdditionalActivityCaptures",cases.length())
             return summary
         } catch(error: Throwable) { primaryFailure=error;throw error }

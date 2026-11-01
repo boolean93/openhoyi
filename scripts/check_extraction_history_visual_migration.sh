@@ -131,6 +131,7 @@ adb pull "/sdcard/Android/data/$package/files/extraction-history-visual-migratio
 python3 - "$output_dir/$source_sha" <<'VERIFY_PY'
 from pathlib import Path
 import hashlib, json, re, struct, sys
+from scripts.extraction_case_refs import iter_extraction_cases
 root = Path(sys.argv[1])
 sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 manifests = sorted(root.glob('*/*/manifest.json'))
@@ -690,7 +691,8 @@ for path in manifests:
         states={'STARTING':'STARTING','STOP_REQUESTED':'STOP_REQUESTED','UNKNOWN_live':'OUTCOME_UNKNOWN',
             'no_service_ready':'IDLE','manual':'IDLE'}
         three_metric_cases={'STARTING','no_scale','stale_scale','no_service_ready','missing_samples'}
-        for case in special['cases']:
+        for case in iter_extraction_cases(folder/'special-states',special,m['sourceSha'],m['profile'],
+                extraction_special_names,extraction_scenario_ids,root):
             name=case['case'];target=folder/'special-states'/name
             metrics=['pressure','water','weight','temperature']
             header=require_chart_header(target,metrics,action='start' if name in ('manual','no_service_ready') else 'stop')
@@ -815,6 +817,7 @@ for path in manifests:
                 assert case['journalUnavailableRestoredFrameSync']==require_proof(restored/'window-frame-sync.json')
                 assert case['journalUnavailableInitialScrollPx']==case['journalUnavailableRestoredScrollPx']
             extraction_special_captures+=1
+            del case
     assert 'noBackupFilesDir' in isolation and isolation['noBackupFilesDir'] in isolation['businessDiskRoots']
     assert (folder/'baseline-alignment.json').is_file()
     history_pending=['STARTING','STOP_REQUESTED','UNKNOWN_live','no_scale','stale_scale',
