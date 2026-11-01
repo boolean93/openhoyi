@@ -298,7 +298,9 @@ private fun ThemedActivity.renderProductHistoryDetail(body: LinearLayout, shotId
         } else note(R.string.journal_taste, n.taste, false)
     } else style.add(notesBody, style.text(getString(if (app.journalResult.isFailure) R.string.journal_unavailable else R.string.journal_migrate_hint), TaskProductVisualStyle.auxiliary), 8)
     val actions = style.column("product/history/actions").apply { if (!standalone) orientation = LinearLayout.HORIZONTAL }
-    if (workspace != null) workspace.setFooter(actions) else style.add(body, actions, 8)
+    if (workspace != null) workspace.setFooter(EmbeddedHistoryActionsRow(this, style, actions,
+        rowTag = "product/history/standalone-footer-row").apply { setPadding(0, style.dp(8), 0, 0) })
+    else style.add(body, actions, 8)
     fun action(title: String, id: String, primary: Boolean = false, glyph: String? = null, click: () -> Unit) {
         style.action(actions, title, id, primary = primary, top = 8, onClick = click).apply {
             if (!standalone) layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply { marginStart = style.dp(8) }
@@ -667,18 +669,23 @@ private class EmbeddedHistoryContent(context: android.content.Context) : LinearL
 }
 
 /** Native fixed actions remain complete and wrap only as whole controls. */
+internal fun historyActionsNaturalWidth(widths:List<Int>, gap:Int):Int =
+    widths.sum() + gap * (widths.size - 1).coerceAtLeast(0)
+
 private class EmbeddedHistoryActionsRow(context: android.content.Context, private val style: TaskProductVisualStyle,
-    private val actions: LinearLayout) : android.view.ViewGroup(context) {
+    private val actions: LinearLayout, rowTag:String = "product/history/preview-footer-row") : android.view.ViewGroup(context) {
+    val productLayoutEvidence = org.json.JSONObject()
     override fun generateDefaultLayoutParams() = LayoutParams(-2, -2)
-    init { tag = "product/history/preview-footer-row"; addView(actions) }
+    init { tag = rowTag; addView(actions) }
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        val available = android.view.View.MeasureSpec.getSize(widthMeasureSpec)
+        val available = (android.view.View.MeasureSpec.getSize(widthMeasureSpec) - paddingLeft - paddingRight).coerceAtLeast(0)
         val natural = android.view.View.MeasureSpec.makeMeasureSpec(0, android.view.View.MeasureSpec.UNSPECIFIED)
-        var actionsWidth = 0
+        val widths = mutableListOf<Int>()
         for (index in 0 until actions.childCount) {
             val child = actions.getChildAt(index); child.forceLayout(); child.measure(natural, natural)
-            actionsWidth += child.measuredWidth + if (index > 0) style.dp(16) else 0
+            widths += child.measuredWidth
         }
+        val actionsWidth = historyActionsNaturalWidth(widths,style.dp(16))
         val inline = actionsWidth <= available
         actions.orientation = if (inline) LinearLayout.HORIZONTAL else LinearLayout.VERTICAL
         for (index in 0 until actions.childCount) {
@@ -693,11 +700,17 @@ private class EmbeddedHistoryActionsRow(context: android.content.Context, privat
         actions.forceLayout()
         actions.measure(android.view.View.MeasureSpec.makeMeasureSpec(if (inline) actionsWidth else available,
             android.view.View.MeasureSpec.EXACTLY), natural)
-        setMeasuredDimension(available, resolveSize(actions.measuredHeight, heightMeasureSpec))
+        val resolvedHeight = actions.measuredHeight + paddingTop + paddingBottom
+        productLayoutEvidence.put("availableWidthPx",available).put("naturalActionWidthsPx",org.json.JSONArray(widths))
+            .put("naturalActionsWidthPx",actionsWidth).put("gapPx",style.dp(16)).put("inline",inline)
+            .put("actionsHeightPx",actions.measuredHeight).put("footerHeightPx",resolvedHeight)
+            .put("layoutDirection",layoutDirection).put("actionCount",actions.childCount)
+        setMeasuredDimension(resolveSize(available + paddingLeft + paddingRight,widthMeasureSpec), resolveSize(resolvedHeight, heightMeasureSpec))
+        productLayoutEvidence.put("measuredFooterHeightPx",measuredHeight)
     }
     override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) 0 else width - actions.measuredWidth
-        actions.layout(left, 0, left + actions.measuredWidth, actions.measuredHeight)
+        val left = if (layoutDirection == LAYOUT_DIRECTION_RTL) paddingLeft else width - paddingRight - actions.measuredWidth
+        actions.layout(left, paddingTop, left + actions.measuredWidth, paddingTop + actions.measuredHeight)
     }
 }
 

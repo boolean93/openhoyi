@@ -41,6 +41,27 @@ adb shell settings put system user_rotation 0
 adb shell settings put secure show_ime_with_hard_keyboard 1
 adb install -r mobile/build/outputs/apk/mock/mobile-mock.apk
 adb install -r mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
+# Add the focused regression without replacing or skipping the original 336-page matrix.
+history_footer_exit=0
+if [[ "$profile" == tablet-large-font ]]; then
+  if python3 - "$output_dir/history-footer-instrumentation.txt" <<'FOOTER_PY'
+from pathlib import Path
+import json, os, subprocess, sys
+source=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+event=json.loads(Path(os.environ['GITHUB_EVENT_PATH']).read_text()) if os.environ.get('GITHUB_EVENT_PATH') else {}
+head=event.get('pull_request',{}).get('head',{}).get('sha') or os.environ.get('GITHUB_SHA') or source
+command=['adb','shell','am','instrument','-w','-e','historyFooterChecks','true','-e','disposableCiEmulator','true',
+         '-e','sourceSha',source,'-e','headSha',head,'io.openhoyi.mobile.mock.test/io.openhoyi.mobile.BrewAudioInstrumentation']
+path=Path(sys.argv[1])
+with path.open('w') as output:
+    result=subprocess.run(command,stdout=output,stderr=subprocess.STDOUT,timeout=300)
+marker='HISTORY_FOOTER_FOCUSED_PASSED nativeCases=12 originalFailures=10 canvasMinimumDp=96 wideFraction=0.4 syntheticNarrowFooterDp=320 noBle=true'
+if result.returncode or marker not in path.read_text():
+    print(path.read_text())
+    raise SystemExit('Focused History footer regression failed; original full matrix still runs')
+FOOTER_PY
+  then history_footer_exit=0; else history_footer_exit=$?; fi
+fi
 python3 - "$output_dir/instrumentation.txt" <<'CHECK_PY'
 from pathlib import Path
 import subprocess,sys
@@ -95,3 +116,8 @@ for path in paths+states+forms+extra+safety+restored+collection_details:
         raise SystemExit(f'Empty screenshot: {path}')
 print(f'Validated 336 pages, 64 initial/populated captures, {len(forms)} Chinese form states, 2 scale dose captures and 6 full warning captures')
 CHECK_PY
+
+if (( history_footer_exit != 0 )); then
+  echo "Focused History footer failed; original matrix completed independently" >&2
+  exit "$history_footer_exit"
+fi

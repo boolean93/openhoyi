@@ -37,6 +37,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var mainNavigationChecks = false
     private var settingsNavigationOnly = false
     private var singleScreenChecks = false
+    private var historyFooterArguments: Bundle? = null
     private var customExecution = false
     private var systemDocuments = false
     private var disposableCiEmulator = false
@@ -67,6 +68,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings")
         settingsNavigationOnly = arguments?.getString("mainNavigationChecks") == "settings"
         singleScreenChecks = arguments?.getString("singleScreenChecks") == "true"
+        historyFooterArguments = arguments?.takeIf {it.getString("historyFooterChecks")=="true"}?.let(::Bundle)
         customExecution = arguments?.getString("customExecution") == "true"
         systemDocuments = arguments?.getString("systemDocuments") == "true"
         disposableCiEmulator = arguments?.getString("disposableCiEmulator") == "true"
@@ -179,6 +181,13 @@ class BrewAudioInstrumentation : Instrumentation() {
                 if (settingsNavigationOnly) MainNavigationChecks(this).runSettingsOnly() else MainNavigationChecks(this).run()
                 report.putString("stream", "MAIN_NAVIGATION_CHECKS_PASSED rounds=20 tabs=6 singleHost=true curveFilterRetained=true serviceContinuous=true manualShell=true noBle=true\n")
                 finish(Activity.RESULT_OK, report)
+                return
+            }
+            historyFooterArguments?.let { args ->
+                check(disposableCiEmulator) { "History footer fixtures require a disposable emulator" }
+                HistoryFooterChecks(this).run(args)
+                report.putString("stream", "HISTORY_FOOTER_FOCUSED_COMPLETED noBle=true\n")
+                finish(Activity.RESULT_OK,report)
                 return
             }
             if (singleScreenChecks) {
@@ -415,7 +424,7 @@ class BrewAudioInstrumentation : Instrumentation() {
                 "LOCAL_FEEDBACK_EXIT_CHECKS_PASSED previewDisabled=true previewPageExit=true extractionPageExit=true noBackfill=true\n")
             finish(Activity.RESULT_OK, report)
         } catch (error: Throwable) {
-            report.putString("stream", "${if (formVisualArguments != null) "FORM_VISUAL_MIGRATION_FAILED" else if (productVisualArguments != null) "PRODUCT_VISUAL_MIGRATION_FAILED" else if (curveLibraryChecks) "CURVE_LIBRARY_VIEWPORT_CHECKS_FAILED" else if (twoCupChartChecks) "TWO_CUP_CHART_CHECKS_FAILED" else if (homeWorkbenchChecks) "HOME_WORKBENCH_CHECKS_FAILED" else if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (mainNavigationChecks) "MAIN_NAVIGATION_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
+            report.putString("stream", "${if (formVisualArguments != null) "FORM_VISUAL_MIGRATION_FAILED" else if (productVisualArguments != null) "PRODUCT_VISUAL_MIGRATION_FAILED" else if (curveLibraryChecks) "CURVE_LIBRARY_VIEWPORT_CHECKS_FAILED" else if (twoCupChartChecks) "TWO_CUP_CHART_CHECKS_FAILED" else if (homeWorkbenchChecks) "HOME_WORKBENCH_CHECKS_FAILED" else if (fourMetricChartChecks) "FOUR_METRIC_CHART_CHECKS_FAILED" else if (taskFrameChecks) "TASK_FRAME_CHECKS_FAILED" else if (mainNavigationChecks) "MAIN_NAVIGATION_CHECKS_FAILED" else if (singleScreenChecks) "SINGLE_SCREEN_WINDOW_CHECKS_FAILED" else if (historyFooterArguments != null) "HISTORY_FOOTER_FOCUSED_FAILED" else if (customExecution) "CUSTOM_CURVE_EXECUTION_CHECKS_FAILED" else if (documentContracts) "CURVE_DOCUMENT_CONTRACT_CHECKS_FAILED" else if (idleEvents) "IDLE_ACCESSIBILITY_DIAGNOSTIC_FAILED" else if (upgradeChecks != null) "MOCK_UPGRADE_CHECKS_FAILED" else if (advancedFlows) "ADVANCED_BUSINESS_UI_CHECKS_FAILED" else if (advancedPageProfile != null) "ADVANCED_PAGE_CHECKS_FAILED" else if (pageProfile != null) "LANGUAGE_PAGE_CHECKS_FAILED" else if (languageChecks) "LANGUAGE_CHECKS_FAILED" else "LOCAL_AUDIO_CHECKS_FAILED"} ${error.stackTraceToString()}\n")
             finish(Activity.RESULT_CANCELED, report)
         }
     }
