@@ -173,12 +173,12 @@ def validate_hierarchy(xml, nonce):
     return root
 
 
-def read_hierarchy():
+def read_active_hierarchy():
     # One 30-second total request, real accessibility tree, no global-idle requirement.
     nonce = str(uuid.uuid4())
     relative = 'files/mock-hierarchy/' + nonce + '.xml'
     deadline = time.monotonic() + 30
-    record = {'nonce': nonce, 'runner': TREE_RUNNER, 'scope': 'REAL_ACTIVE_TREE_INTERVAL_NOT_ATOMIC_SCREENSHOT'}
+    record = {'backend': 'active-tree', 'nonce': nonce, 'runner': TREE_RUNNER, 'scope': 'REAL_ACTIVE_TREE_INTERVAL_NOT_ATOMIC_SCREENSHOT'}
     xml = None
     failure = None
     def remaining():
@@ -235,6 +235,66 @@ def read_hierarchy():
                 except OSError as diagnostic:
                     if failure is None: raise
                     print(f'Hierarchy evidence write failed after original failure: {diagnostic}', file=sys.stderr)
+
+
+def read_uiautomator_hierarchy():
+    # The validated static navigation backend: never reuse a dump when no new file was written.
+    path = '/data/local/tmp/openhoyi-mock-ui.xml'
+    adb('shell', 'rm', '-f', path)
+    result = adb('shell', 'uiautomator', 'dump', path, include_stderr=True)
+    try:
+        return adb('shell', 'cat', path)
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f'Mock hierarchy was not written; dump output: {result}; read error: {error.stderr}') from error
+
+
+def read_hierarchy():
+    backend = os.environ.get('MOCK_HIERARCHY_BACKEND', 'uiautomator')
+    if backend == 'uiautomator':
+        return read_uiautomator_hierarchy()
+    if backend == 'active-tree':
+        return read_active_hierarchy()
+    raise ValueError('Unknown Mock hierarchy backend: ' + backend)
+
+
+def require_mock_page(xml, page, capture_name='', observed_shot=None):
+    root = ET.fromstring(xml)
+    labels = {value for node in root.iter('node') for value in
+              (node.get('text', ''), node.get('content-desc', '')) if value}
+    markers = {
+        'HomeActivity': {'冲泡锅炉'},
+        'CurveActivity': {'搜索曲线', '搜索曲线 · 曲线名称'},
+        'ExtractionActivity': {'开始萃取', '立即停止萃取', '开始模拟'},
+        'HistoryActivity': {'本机记录'},
+        'AppSettingsActivity': {'深色主题'},
+        'MachineSettingsActivity': {'机器参数'},
+        'HistoryDetailActivity': {'模拟萃取详情'},
+    }
+    if page == 'CurveActivity':
+        labels.update(node.get('hint', '') for node in root.iter('node'))
+    if not labels.intersection(markers[page]):
+        raise ValueError(f'Wrong visible page: {page}; expected one of {sorted(markers[page])}')
+    proof = {'page': page, 'capture': capture_name,
+             'backend': os.environ.get('MOCK_HIERARCHY_BACKEND', 'uiautomator')}
+    if capture_name.startswith('extraction-running-'):
+        stop = '立即停止萃取'
+        buttons = [n for n in root.iter('node') if n.get('class') == 'android.widget.Button'
+                   and stop in (n.get('text'), n.get('content-desc'))]
+        if (page != 'ExtractionActivity' or len(buttons) != 1
+                or any(buttons[0].get(k) != 'true' for k in ('enabled', 'clickable', 'visible-to-user'))):
+            raise ValueError('Running extraction requires its unique visible enabled stop action')
+        center = find_target(xml, stop, node_class='android.widget.Button')
+        if center is None or not {'正在萃取，请守在机器旁', '采集曲线 2'} <= labels:
+            raise ValueError('Running extraction stop action/context is not reachable')
+        clocks = [value for value in labels if re.fullmatch(r'\d{2}:\d{2} · Mock · 模拟模式 · 不发送蓝牙命令', value)]
+        if len(clocks) != 1:
+            raise ValueError('Running extraction requires the actual Mock cup clock')
+        if (not observed_shot or observed_shot.get('status') != 'RUNNING'
+                or observed_shot.get('curve') != 'capture-2' or observed_shot.get('observedRunning') is not True):
+            raise ValueError('Running extraction requires the observed live capture-2 cup')
+        proof.update(stopAction=dict(buttons[0].attrib), reachableCenter=list(center),
+                     mockClock=clocks[0], observedShot=observed_shot)
+    return proof
 
 
 def main():

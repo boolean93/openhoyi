@@ -3,6 +3,8 @@ set -Eeuo pipefail
 
 output_dir="$PWD/build/mock-ui-screenshots"
 mkdir -p "$output_dir"
+# Active telemetry has no global accessibility idle guarantee; never fall back silently.
+export MOCK_HIERARCHY_BACKEND=active-tree
 export MOCK_HIERARCHY_EVIDENCE_DIR="$output_dir/hierarchy-requests"
 apk="mobile/build/outputs/apk/mock/mobile-mock.apk"
 test -s "$apk"
@@ -129,33 +131,24 @@ tap_nav() {
 # MainActivity hosts every root Fragment. Activity identity alone cannot prove a route.
 # Save the actual hierarchy with each screenshot and require page-specific content.
 assert_page() {
-  python3 - "$1" "$output_dir/$2.xml" <<'PYASSERT'
-import sys
-import xml.etree.ElementTree as ET
+  python3 - "$1" "$output_dir/$2.xml" "$2" "$output_dir" <<'PYASSERT'
+import json, sys
 from pathlib import Path
 sys.path.insert(0, 'scripts')
-from mock_ui_tap import ensure_mock, read_hierarchy
+from mock_ui_tap import ensure_mock, read_hierarchy, require_mock_page
 ensure_mock()
 xml = read_hierarchy()
 Path(sys.argv[2]).write_text(xml, encoding='utf-8')
-root = ET.fromstring(xml)
-labels = {value for node in root.iter('node') for value in
-          (node.get('text', ''), node.get('content-desc', '')) if value}
-markers = {
-    'HomeActivity': {'冲泡锅炉'},
-    'CurveActivity': {'搜索曲线', '搜索曲线 · 曲线名称'},
-    'ExtractionActivity': {'开始萃取', '立即停止', '开始模拟'},
-    'HistoryActivity': {'本机记录'},
-    'AppSettingsActivity': {'深色主题'},
-    'MachineSettingsActivity': {'机器参数'},
-    'HistoryDetailActivity': {'模拟萃取详情'},
-}
-expected = markers[sys.argv[1]]
-# EditText exposes its hint on some Android versions as text and on others as hint.
-if sys.argv[1] == 'CurveActivity':
-    labels.update(node.get('hint', '') for node in root.iter('node'))
-if not labels.intersection(expected):
-    raise SystemExit(f'Wrong visible page: {sys.argv[1]}; expected one of {sorted(expected)}; hierarchy: {sys.argv[2]}')
+observed = None
+if sys.argv[3].startswith('extraction-running-'):
+    theme = sys.argv[3].rsplit('-', 1)[1]
+    observed = json.loads((Path(sys.argv[4]) / ('continuity-' + theme) / 'before.json').read_text())['shot']
+try:
+    proof = require_mock_page(xml, sys.argv[1], sys.argv[3], observed)
+except ValueError as error:
+    raise SystemExit(f'{error}; hierarchy: {sys.argv[2]}') from error
+Path(sys.argv[2]).with_suffix('.page-proof.json').write_text(json.dumps(proof, ensure_ascii=False, indent=2) + '\n')
+
 PYASSERT
 }
 

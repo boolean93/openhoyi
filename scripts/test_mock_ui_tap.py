@@ -113,19 +113,14 @@ class MockUiTapTest(unittest.TestCase):
                 adb_call.assert_not_called()
 
     def test_zero_exit_without_dump_is_not_success_or_stale_data(self):
-        # Preserve the original missing-file/stale-data gate on the new real-tree protocol.
-        import uuid
-        nonce = '12345678-1234-1234-1234-123456789012'
         error = subprocess.CalledProcessError(1, ['adb'], stderr='No such file')
-        with patch('mock_ui_tap.ensure_mock', return_value='mock'), \
-                patch('mock_ui_tap.uuid.uuid4', return_value=uuid.UUID(nonce)), \
-                patch('mock_ui_tap.adb', side_effect=['42', '', 'MOCK_ACTIVE_TREE_CAPTURED nonce=' + nonce + ' nodes=2', error, '']) as calls:
+        with patch.dict('mock_ui_tap.os.environ', {}, clear=True), \
+                patch('mock_ui_tap.adb', side_effect=['', 'ERROR: could not get idle state', error]) as calls:
             with self.assertRaisesRegex(ValueError, 'hierarchy was not written') as failed:
                 read_hierarchy()
             self.assertIs(error, failed.exception.__cause__)
-            self.assertEqual(('shell', 'run-as', 'io.openhoyi.mobile.mock.test', 'rm', '-f',
-                'files/mock-hierarchy/' + nonce + '.xml'), calls.call_args_list[1].args)
-            self.assertEqual(calls.call_args_list[1].args, calls.call_args_list[-1].args)
+            self.assertEqual(('shell', 'rm', '-f', '/data/local/tmp/openhoyi-mock-ui.xml'), calls.call_args_list[0].args)
+            self.assertEqual(('shell', 'uiautomator', 'dump', '/data/local/tmp/openhoyi-mock-ui.xml'), calls.call_args_list[1].args)
     def test_list_label_taps_its_row_not_the_list_center(self):
         xml = '<hierarchy><node class="android.widget.ListView" clickable="true" enabled="true" bounds="[0,0][100,500]"><node bounds="[0,20][100,80]"><node text="Shot" /></node></node></hierarchy>'
         self.assertEqual((50, 50), find_target(xml, 'Shot'))
@@ -187,6 +182,7 @@ class MockUiTapTest(unittest.TestCase):
             if args[:4]==('shell','run-as','io.openhoyi.mobile.mock.test','cat'):return xml
             self.fail(f'unexpected adb call: {args}')
         with tempfile.TemporaryDirectory() as directory,patch('mock_ui_tap.adb',side_effect=fake_adb),\
+            patch.dict('mock_ui_tap.os.environ',{'MOCK_HIERARCHY_BACKEND':'active-tree'}),\
             patch('mock_ui_tap.uuid.uuid4',return_value=uuid.UUID(nonce)),\
             patch.object(sys,'argv',['mock_ui_tap.py','查看详情','--scroll','--diagnostics-dir',directory]):
             with self.assertRaisesRegex(ValueError,'ambiguous Mock control: 查看详情'):
