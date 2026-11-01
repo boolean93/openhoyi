@@ -74,6 +74,21 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
         val message = service.snapshot.message
         onMain { negativeFixture(home) }
         var currentPage: MachineSettingsActivity? = null
+        val parentTaskId = home.taskId
+        var lastResumedHome: MainActivity? = home
+        var parentTrackerRegistered = false
+        val parentTracker = object : android.app.Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: Activity) {
+                if (activity is MainActivity && activity.taskId == parentTaskId && !activity.isDestroyed && !activity.isFinishing)
+                    lastResumedHome = activity
+            }
+            override fun onActivityCreated(activity: Activity, state: Bundle?) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, state: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        }
         val detailChecks = LanguageDetailChecks(test)
         var completed = 0
         var failure: Throwable? = null
@@ -95,6 +110,7 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
             }
         }
         try {
+            onMain { app.registerActivityLifecycleCallbacks(parentTracker); parentTrackerRegistered = true }
             for (language in AppLanguage.entries) for (dark in listOf(false, true)) {
                 onMain {
                     check(app.languagePreferences.select(language) != AppLanguagePreference.Selection.SAVE_FAILED)
@@ -106,8 +122,11 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     val fixture = "$profile ${language.tag} dark=$dark page=$page"
                     android.util.Log.i("OpenHoyiLanguage", "PAGE_START $fixture")
                     test.sendStatus(0, Bundle().apply { putString("stream", "LANGUAGE_PAGE_START $fixture\n") })
+                    var returnParentTag: String? = null
                     val activity: Activity = if (page == "MachineSettings") {
                         check(currentPage == null)
+                        onMain { check(home.taskId == parentTaskId)
+                            returnParentTag = requireNotNull(home.supportFragmentManager.primaryNavigationFragment?.tag) }
                         test.startActivitySync(Intent(context, MachineSettingsActivity::class.java)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)).also { currentPage = it as MachineSettingsActivity }
                     } else {
@@ -170,7 +189,21 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                         try {
                             awaitMain(diagnostic = {
                                 "$fixture return destroyed=${activity.isDestroyed} homeFocus=${home.hasWindowFocus()} sameService=${owner(home) === service} homeDestroyed=${home.isDestroyed}"
-                            }) { activity.isDestroyed && home.hasWindowFocus() && owner(home) === service }
+                            }) {
+                                val replacement = lastResumedHome
+                                if (home.isDestroyed && replacement != null && replacement !== home &&
+                                    replacement.taskId == parentTaskId && !replacement.isDestroyed && !replacement.isFinishing &&
+                                    replacement.lifecycle.currentState == androidx.lifecycle.Lifecycle.State.RESUMED &&
+                                    replacement.hasWindowFocus() && replacement.window.decorView.isLaidOut &&
+                                    !replacement.window.decorView.isLayoutRequested && owner(replacement) === service &&
+                                    replacement.resources.configuration.locales[0] == language.locale && HoyiUi.dark(replacement) == dark &&
+                                    replacement.supportFragmentManager.primaryNavigationFragment?.tag == returnParentTag) {
+                                    test.sendStatus(0, Bundle().apply { putString("stream",
+                                        "LANGUAGE_PARENT_SYSTEM_RECREATION task=$parentTaskId old=${System.identityHashCode(home)} new=${System.identityHashCode(replacement)} sameService=true tag=$returnParentTag\n") })
+                                    home = replacement
+                                }
+                                activity.isDestroyed && home.hasWindowFocus() && owner(home) === service
+                            }
                         } catch (error: Throwable) {
                             // Capture the failed state before the outer finally recreates Home.
                             // Diagnostic errors are suppressed onto, never replace, the check failure.
@@ -222,6 +255,17 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                             }
                             throw error
                         }
+                        onMain {
+                            check(home.taskId == parentTaskId && !home.isDestroyed && !home.isFinishing &&
+                                home.resources.configuration.locales[0] == language.locale && HoyiUi.dark(home) == dark &&
+                                home.resources.configuration.screenWidthDp == expectedWidth &&
+                                kotlin.math.abs(home.resources.configuration.fontScale - expectedScale) < .001f &&
+                                home.window.decorView.layoutDirection == if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR)
+                            MainPageTestHost(test, home).active(requireNotNull(returnParentTag))
+                            check(home.javaClass.getDeclaredField("bound").apply { isAccessible = true }.getBoolean(home))
+                        }
+                        checkPage(home, "$fixture returned actual Home")
+                        assertState()
                         currentPage = null
                     } else if (page != "Home") MainPageTestHost(test, home).select(TaskDestination.BREW)
                 }
@@ -234,6 +278,9 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     if (failure == null) failure = error else failure!!.addSuppressed(error)
                 }
             }
+            cleanup { onMain {
+                if (parentTrackerRegistered) { app.unregisterActivityLifecycleCallbacks(parentTracker); parentTrackerRegistered = false }
+            } }
             cleanup { currentPage?.let { page -> onMain { page.finish() }; currentPage = null } }
             cleanup { onMain { check(app.languagePreferences.select(oldLanguage) != AppLanguagePreference.Selection.SAVE_FAILED) } }
             cleanup { onMain { restoreMockPreferences(languagePrefs, oldLanguageStorage) } }

@@ -85,6 +85,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
     private lateinit var alarmStatus: TextView
     private lateinit var chart: ExtractionOverlayView
     private var toolsDialog: AlertDialog? = null
+    private val toolsMenuButtons = linkedMapOf<Button, Button>()
     private val transientDialogs = mutableListOf<AlertDialog>()
     private fun showTransient(builder: AlertDialog.Builder) {
         transientDialogs += AppDialog.show(builder.create())
@@ -265,7 +266,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         sidePanel.addView(preparationTools, LinearLayout.LayoutParams(-1, -2))
         referenceChoice = compact(referenceTools, getString(R.string.reference_choose)) { chooseReference() }
         detailsButton = compact(referenceTools, getString(R.string.extraction_overview)) {
-            val info = listOf(curveSummary, deviceSummary, readiness, shotSummary, live, flowValue, weightTarget, traceCurve, stageTargets, referenceStatus)
+            val info = listOf(curveSummary, deviceSummary, preparationSummary, readiness, shotSummary, live, flowValue, weightTarget, traceCurve, stageTargets, referenceStatus)
                 .map { it.text.toString() }.filter { it.isNotBlank() }.joinToString("\n\n") +
                 "\n\n" + recipeSummary.text + "\n\n" + chart.overviewExplanation() +
                 "\n\n" + getString(R.string.live_cup_flow_source)
@@ -329,20 +330,50 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         transientDialogs.forEach { it.dismiss() }; transientDialogs.clear()
         host.removeServiceObserver(serviceObserver);service=null;super.onPause()
     }
+    private fun toolVisible(source: View): Boolean {
+        val body = sourceBodyForTools()
+        var current: View? = source
+        while (current != null) {
+            if (current.visibility != View.VISIBLE) return false
+            if (current === body) return true
+            current = current.parent as? View
+        }
+        return false
+    }
+    private fun sourceBodyForTools(): View = requireNotNull(chooseCurve.parent?.parent as? View)
+    private fun syncToolsMenu() {
+        toolsMenuButtons.forEach { (source, menu) ->
+            menu.text = source.text
+            menu.contentDescription = source.contentDescription
+            menu.isEnabled = source.isEnabled
+            menu.visibility = if (toolVisible(source)) View.VISIBLE else View.GONE
+        }
+    }
     private fun showTools() {
+        render()
         if (toolsDialog?.isShowing == true) return
         val body = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
-        HoyiUi.button(host, body, getString(R.string.extraction_choose_curve)) { host.select(TaskDestination.CURVES) }
-        HoyiUi.button(host, body, getString(R.string.extraction_connect_devices)) { host.select(TaskDestination.BREW) }
-        HoyiUi.button(host, body, getString(R.string.dose_title)) { startActivity(Intent(host, BeanPreparationActivity::class.java)) }
-        HoyiUi.button(host, body, getString(R.string.reference_choose)) { chooseReference() }
-        HoyiUi.button(host, body, getString(R.string.extraction_overview)) { detailsButton.performClick() }
-        HoyiUi.button(host, body, getString(R.string.extraction_prepare_button)) { confirmPrepare() }.isEnabled = prepare.isEnabled
-        HoyiUi.button(host, body, getString(R.string.extraction_cancel_prepare)) {
-            service?.cancelBrewPreparation()?.let(::toast);render()
-        }.isEnabled = cancelPrepare.isEnabled
-        toolsDialog = AppDialog.show(host, getString(R.string.task_tools), body,
+        val sources = linkedMapOf("choose-curve" to chooseCurve, "connect-devices" to connectDevices,
+            "choose-beans" to chooseBeans, "reference-choice" to referenceChoice, "overview" to detailsButton,
+            "prepare" to prepare, "cancel-prepare" to cancelPrepare)
+        toolsMenuButtons.clear()
+        sources.forEach { (key, source) ->
+            val menu = HoyiUi.button(host, body, source.text.toString()) {
+                render()
+                if (toolVisible(source) && source.isEnabled) {
+                    toolsDialog?.dismiss()
+                    source.performClick()
+                }
+            }.apply { tag = "product/extraction/tool/$key" }
+            toolsMenuButtons[source] = menu
+        }
+        syncToolsMenu()
+        val dialog = AppDialog.show(host, getString(R.string.task_tools), body,
             AppDialog.Action(getString(android.R.string.ok)) {}, null)
+        toolsDialog = dialog
+        dialog.setOnDismissListener {
+            if (toolsDialog === dialog) { toolsDialog = null; toolsMenuButtons.clear() }
+        }
     }
     private fun notificationsAllowed(): Boolean = BuildConfig.MOCK_MODE || Build.VERSION.SDK_INT < 33 ||
         checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
@@ -646,6 +677,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         stop.visibility = if (stopAction.visible) View.VISIBLE else View.GONE
         start.visibility = if (stopAction.visible) View.GONE else View.VISIBLE
         stop.show(if (owner?.scalePreflight == true) getString(R.string.home_start_cancel) else getString(stopAction.labelResource))
+        syncToolsMenu()
     }
     private fun TextView.show(value: String) {
         val group = readoutGroups[this]

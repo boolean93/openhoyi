@@ -345,8 +345,10 @@ state_kinds={
 'scale-settings':{'precision-recreated':'ACTIVITY','real-scale-no-data':'ACTIVITY'}}
 state_kinds['app']['language-write-rejected']='EXPLICIT_WINDOW'
 state_kinds['machine'].update({name:'EXPLICIT_WINDOW' for name in ('legal-input-mock-preview','schedule-draft-native-ime','schedule-cancel-no-write')})
-core_app={'product/settings/app/theme/toggle','product/settings/app/language/current','product/settings/app/feedback/toggle','product/settings/app/feedback/preview','product/settings/app/export','product/settings/app/machine'} | {
-'product/settings/app/info/'+key+'/'+part for key in ('name','version','mode','package') for part in ('label','value')}
+core_app={'product/settings/app/theme/toggle','product/settings/app/language/current','product/settings/app/feedback/toggle','product/settings/app/feedback/preview','product/settings/app/export/action','product/settings/app/diagnostic-state','product/settings/scale/precision'} | {
+'product/settings/app/info/'+key+'/'+part for key in ('name','version','mode','package') for part in ('label','value')} | {
+'product/settings/machine/'+key+'/'+part for key in ('brew','compensation','steam','standby') for part in ('unit','action')} | {
+'product/settings/machine/field/'+key for key in ('brew','compensation','steam','standby')}
 core_machine={'product/settings/machine/connection','product/settings/machine/write-status'} | {
 'product/settings/machine/readback/'+key+'/'+part for key in ('brew','steam','run-mode','supply') for part in ('label','number')} | {
 'product/settings/machine/readback/'+key+'/unit' for key in ('brew','steam')} | {

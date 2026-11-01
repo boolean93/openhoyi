@@ -46,6 +46,9 @@ internal class TaskExtractionWorkspace(context: Context, private val visual: Ext
         val primaryRequired = onPrimarySpaceAvailable?.invoke(primaryWidth, freeHeight - toolsMinimum) ?: 0
         val toolsHeight = if (visual != null) 0 else
             minOf(dp(160), freeHeight / 3, (freeHeight - primaryRequired).coerceAtLeast(0)).coerceAtLeast(toolsMinimum)
+        // The visual chart exposes these actions through its fixed tools button.
+        // A zero-height legacy tools viewport is unused, not a visible scroll area.
+        tools.visibility = if (if (wide) height > footerHeight else toolsHeight > 0) View.VISIBLE else View.GONE
         orientation = if (wide) HORIZONTAL else VERTICAL
         fun arrange(view: View, wanted: LayoutParams) {
             val current = view.layoutParams as LayoutParams

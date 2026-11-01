@@ -699,6 +699,7 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
         lateinit var workspace:View; lateinit var secondary:View; lateinit var actions:LinearLayout
         lateinit var baseline:JSONObject
         var originalDecorHeight=0; var originalScrollX=0; var originalScrollY=0
+        var requestedWindowWidth=0; var requestedAppHeight=0
         var originalSelectionStart=0; var originalSelectionEnd=0
         lateinit var originalBatchId:String; lateinit var originalEventId:String
         val businessBefore=JSONObject().put("balanceMg",balance(scope))
@@ -740,12 +741,24 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
                 check(requireNotNull(root(page).rootWindowInsets).isVisible(WindowInsets.Type.ime()))
                 check(input.isFocused && input.text.toString()=="18" && originalSelectionStart==0 && originalSelectionEnd==1)
                 check(workspace.height>=424 && originalDecorHeight>0 && original.width==page.window.attributes.width)
-                val candidate=originalDecorHeight-(workspace.height-424)
-                report.put("candidateWindowHeightPx",candidate)
-                check(candidate>0) { "M4 424px window candidate has nonpositive height" }
-                val resize=workspace.height!=424
-                if(resize) page.window.setLayout(original.width,candidate)
-                report.put("resizeRequested",resize)
+                val content=root(page)
+                val origin=IntArray(2); content.getLocationInWindow(origin)
+                val visible=Rect(); content.getWindowVisibleDisplayFrame(visible)
+                val fixedChrome=content.height-workspace.height
+                requestedAppHeight=424+fixedChrome
+                requestedWindowWidth=1154*2+(content.width-workspace.width)
+                val candidate=requestedAppHeight+origin[1]
+                report.put("candidateWindowHeightPx",candidate).put("candidateWindowWidthPx",requestedWindowWidth)
+                    .put("requestedAppHeightPx",requestedAppHeight).put("fixedChromeHeightPx",fixedChrome)
+                    .put("contentOriginInWindowPx",JSONArray(origin.toList())).put("originalVisibleFramePx",rect(visible))
+                    .put("fixturePolicy","one_measured_top_anchored_window_no_iterative_resize")
+                check(candidate>0 && origin[1]>=0 && fixedChrome>=0 && requestedWindowWidth>0 &&
+                    candidate<=visible.bottom) { "M4 measured candidate must fit above the actual IME boundary" }
+                page.window.attributes=android.view.WindowManager.LayoutParams().apply {
+                    copyFrom(original); width=requestedWindowWidth; height=candidate
+                    gravity=android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL; x=0; y=0
+                }
+                report.put("resizeRequested",true)
             }
             stableWindow(page,directory,"preparation-amount-IME-424")
             main {
@@ -764,7 +777,7 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
                     budget.getBoolean("workspaceWidthFirstSplit") &&
                     requireNotNull(root(page).rootWindowInsets).isVisible(WindowInsets.Type.ime()) &&
                     page.resources.configuration.densityDpi==report.getInt("originalDensityDpi") &&
-                    page.window.attributes.width==original.width) {
+                    page.window.attributes.width==requestedWindowWidth && root(page).height==requestedAppHeight && input.isFocused) {
                     "M4 controlled candidate did not reproduce actual 424px/1154px/1082px IME window"
                 }
                 report.put("windowReproductionQualified",true)

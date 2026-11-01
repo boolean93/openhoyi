@@ -616,7 +616,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         }
         val captured=if (measuredShort) frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {observed()}
             else frames.screenshot(activity,root(activity),File(folder,"window.png")) {observed()}
-        File(folder,"geometry.json").writeText(captured.target.toString(2))
+        WindowProofStreamingWriter.writeStrict(captured.target,File(folder,"geometry.json"))
         main {
             TaskTypographyEvidence.capture(activity,folder)
             val pairs=JSONArray()
@@ -684,7 +684,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         check(folder.isDirectory || folder.mkdirs())
         val target=window.decorView
         val captured=frames.screenshotMeasuredWindowBufferTranslation(window,target,File(folder,"window.png")) {targetWindowGeometry(window,target)}
-        File(folder,"geometry.json").writeText(captured.target.toString(2))
+        WindowProofStreamingWriter.writeStrict(captured.target,File(folder,"geometry.json"))
         check(captured.proof.getInt("protocolVersion")==2 && captured.proof.getBoolean("accepted") &&
             captured.proof.getString("mappingMode")=="MEASURED_WINDOW_BUFFER_TRANSLATION")
         return captured

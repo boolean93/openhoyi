@@ -134,13 +134,14 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
             }) } ?: JSONObject.NULL)
     }
+    private fun visibleTextViews(view: View): List<TextView> = nodes(view).filterIsInstance<TextView>().filter { text ->
+        generateSequence<View>(text) { it.parent as? View }.all { it.visibility == View.VISIBLE }
+    }
     private fun observation(view: View, textCache: IdentityHashMap<TextView,JSONObject>? = null): JSONObject {
         val origin = IntArray(2); view.getLocationOnScreen(origin)
         val full = Rect(origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)
         val visible = Rect(); val shown = view.getGlobalVisibleRect(visible)
-        val texts = nodes(view).filterIsInstance<TextView>().filter { text ->
-            generateSequence<View>(text) { it.parent as? View }.all { it.visibility == View.VISIBLE }
-        }.map { text ->
+        val texts = visibleTextViews(view).map { text ->
             if(textCache==null) textLineBox(text)
             else textCache[text] ?: textLineBox(text).also { textCache[text]=it }
         }
@@ -199,6 +200,13 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             !originalBytes.contentEquals(changedReused.toString(2).toByteArray(Charsets.UTF_8)) &&
             originalText=="第一行\n第二行" && cache[first]?.getString("text")==originalText &&
             changedCache[first]?.getString("text")=="更新\n下一行" && changedCache.size==3)
+        val phase=TextView(context).apply { text=""; visibility=View.GONE }
+        inner.addView(phase)
+        check(phase !in visibleTextViews(outer))
+        phase.visibility=View.VISIBLE; layout()
+        check(phase in visibleTextViews(outer) && visibleTextViews(outer).size==3)
+        check(observation(outer).getJSONArray("textLineBoxes").length()==3)
+        check(screenObservation(outer).getJSONArray("textLineBoxes").length()==3)
     }
     private inner class Scope(private val directory: File, private val page: String) {
         private val delegateNames = listOf("feedbackPreferences", "logs", "curves", "samples", "history", "customCurvesResult",
@@ -1076,7 +1084,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     }
     private fun screenObservation(view:View):JSONObject {
         val result=observation(view).put("complete",historyVisibility(view).getBoolean("complete"))
-        val texts=nodes(view).filterIsInstance<TextView>()
+        val texts=visibleTextViews(view)
         val lines=result.getJSONArray("textLineBoxes")
         check(texts.size==lines.length())
         texts.forEachIndexed {index,text -> lines.getJSONObject(index).put("fullViewVisible",historyVisibility(text).getBoolean("complete")) }
@@ -1511,69 +1519,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             .put("fixedEditComplete",true).put("notesSource","actual_BrewJournal_Notes").put("noEditOrSaveInvoked",true).put("completed",true).toString(2))
     }
     private fun extractionReachability(activity: Activity, folder: File) {
-        val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
-        val savedX=scroll.scrollX;val savedY=scroll.scrollY
-        check(savedX==0 && savedY==0) { "M5 fresh RUNNING support viewport must retain its initial scroll" }
-        val owner=requireNotNull(field(activity,"service") as? MobileService)
-        val trace=owner.chartTraceIdentity;val curve=owner.chartCurveId
-        val shot=owner.shotState;val points=owner.chartPoints.toList()
-        val reference=field(activity,"referenceId");val referenceCurve=field(activity,"referenceCurveId")
-        val chart=field(activity,"chart") as ExtractionOverlayView
-        val chartReference=chart.reference.toList()
-        val stop=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/stop"))
-        val fixedRect=observation(stop).getJSONArray("rectPx").toString()
-        val tools=listOf("reference-choice" to R.string.reference_choose,
-            "overview" to R.string.extraction_overview).map { (name,label) ->
-            name to nodes(scroll).filterIsInstance<Button>().single {it.text.toString()==activity.getString(label)}
-        }
-        check(tools[0].second !== tools[1].second && tools[0].second.parent===tools[1].second.parent)
-        check(tools.all { (_,view) -> view.isShown && view.isAttachedToWindow && view.isClickable })
-        val mode=requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/clock"))
-        check(mode.contentDescription == mode.text.toString() + " · " + activity.getString(R.string.extraction_mock_subtitle))
-        check(mode !in nodes(scroll) && whole(screenObservation(mode))) {
-            "M5 current RUNNING clock must retain complete Mock semantics in its actual header location"
-        }
-        val initial=JSONArray(tools.map { (name,view) ->
-            JSONObject().put("semanticKey",name).put("layout",screenObservation(view))
-        })
-        val reached=JSONArray()
-        fun unchanged() {
-            check(owner.shotState==shot && owner.chartTraceIdentity==trace && owner.chartCurveId==curve && owner.chartPoints==points)
-            check(field(activity,"service")===owner && field(activity,"referenceId")==reference &&
-                field(activity,"referenceCurveId")==referenceCurve && chart.reference==chartReference)
-            check(stop.isShown && stop.isEnabled && whole(screenObservation(stop)) &&
-                observation(stop).getJSONArray("rectPx").toString()==fixedRect)
-            check(whole(screenObservation(mode)))
-        }
-        main { unchanged() }
-        try {
-            tools.forEach { (name,view) ->
-                main { view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true) }
-                frames.committedFrame(root(activity))
-                capture(activity,File(folder,"states/extraction-$name-reachable"))
-                main {
-                    check(whole(screenObservation(view))) { "M5 RUNNING tool not fully reachable: $name" }
-                    unchanged()
-                    reached.put(JSONObject().put("semanticKey",name).put("layout",screenObservation(view))
-                        .put("scrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY))))
-                }
-            }
-        } finally {
-            main { scroll.scrollTo(savedX,savedY) }
-            frames.committedFrame(root(activity))
-            main { check(scroll.scrollX==savedX && scroll.scrollY==savedY);unchanged() }
-        }
-        capture(activity,File(folder,"states/extraction-tools-restored"))
-        main { check(scroll.scrollX==savedX && scroll.scrollY==savedY);unchanged() }
-        File(folder,"extraction-reachability.json").writeText(JSONObject()
-            .put("targetKeys",JSONArray(tools.map {it.first})).put("initialTargets",initial).put("reached",reached)
-            .put("initialScrollPx",JSONArray(listOf(savedX,savedY)))
-            .put("restoredScrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
-            .put("exactScrollRestored",true).put("traceIdentity",trace)
-            .put("referenceId",reference ?: JSONObject.NULL).put("referenceCurveId",referenceCurve ?: JSONObject.NULL)
-            .put("shotState",shot.name).put("fixedStopRectPx",JSONObject().put("rect",fixedRect))
-            .put("modeSubtitle",screenObservation(mode)).put("modeLocation","header_outside_support_scroll_in_current_version")
-            .put("noToolClicks",true).put("modelAndSelectionUnchanged",true).put("completed",true).toString(2))
+        val report=extractionToolsReachability(activity,folder,"RUNNING",listOf("reference-choice","overview"))
+        WindowProofStreamingWriter.writeStrict(report,File(folder,"extraction-reachability.json"))
     }
     private fun extractionSpecialSupportReachability(activity: Activity, scope: Scope, folder: File, case: String): JSONObject {
         val expected=when(case) {
@@ -1582,136 +1529,194 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             "no_service_ready"->listOf("connect-devices","choose-beans","reference-choice","overview","prepare","cancel-prepare")
             else->listOf("reference-choice","overview")
         }
-        val scroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
-        val chart=requireNotNull(field(activity,"chart") as? ExtractionOverlayView)
-        val header=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val journal=scope.journal.exportJson()
+        return extractionToolsReachability(activity,folder,case,expected).also {
+            check(scope.journal.exportJson()==journal)
+            WindowProofStreamingWriter.writeStrict(it,File(folder,"extraction-support-reachability.json"))
+        }
+    }
+    private fun extractionToolsReachability(activity: Activity, folder: File, case: String, expected: List<String>): JSONObject {
         val owner=requireNotNull(field(activity,"service") as? MobileService)
+        val chart=field(activity,"chart") as ExtractionOverlayView
+        val sourceBody= requireNotNull((field(activity,"chooseCurve") as Button).parent?.parent as? View)
+        val sourceScroll=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
+        val chartHeader=requireNotNull(chart.findViewWithTag<ScrollView>("product/extraction/chart-header"))
+        val plot=requireNotNull(chart.findViewWithTag<View>("chart-plot"))
+        val sources=linkedMapOf("choose-curve" to field(activity,"chooseCurve") as Button,
+            "connect-devices" to field(activity,"connectDevices") as Button,"choose-beans" to field(activity,"chooseBeans") as Button,
+            "reference-choice" to field(activity,"referenceChoice") as Button,"overview" to field(activity,"detailsButton") as Button,
+            "prepare" to field(activity,"prepare") as Button,"cancel-prepare" to field(activity,"cancelPrepare") as Button)
+        fun semanticVisible(view:View):Boolean {
+            var current:View?=view
+            while(current!=null) {
+                if(current.visibility!=View.VISIBLE)return false
+                if(current===sourceBody)return true
+                current=current.parent as? View
+            }
+            return false
+        }
         val start=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/start"))
         val stop=requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/stop"))
-        val choice=field(activity,"referenceChoice") as Button
-        val overview=nodes(requireNotNull(choice.parent as? View)).filterIsInstance<Button>()
-            .single {it!==choice && it.text.toString()==activity.getString(R.string.extraction_overview)}
-        val all=linkedMapOf("connect-devices" to field(activity,"connectDevices") as Button,
-            "choose-beans" to field(activity,"chooseBeans") as Button,
-            "reference-choice" to choice,"overview" to overview,
-            "prepare" to field(activity,"prepare") as Button,
-            "cancel-prepare" to field(activity,"cancelPrepare") as Button)
-        val chooseCurve=field(activity,"chooseCurve") as Button
-        val preparationTools=field(activity,"preparationTools") as View
-        fun expectedEnabled(key:String)=key!="prepare" && key!="cancel-prepare" &&
-            !(case=="manual" && key=="reference-choice")
-        check(chooseCurve.visibility==View.GONE && all.keys.toList().filter {all.getValue(it).isShown}==expected &&
-            all.all {(key,view)->view.isEnabled==expectedEnabled(key)} &&
-            all.values.distinct().size==all.size && all.values.all {it.isAttachedToWindow && it in nodes(scroll)}) {
-            "M5 Extraction special support targets mismatch: $case" }
-        val saved=JSONArray(listOf(scroll.scrollX,scroll.scrollY));val headerSaved=JSONArray(listOf(header.scrollX,header.scrollY))
-        val visibleAction=if(StopActionPresentation.describe(owner.shotState,owner.snapshot.coffeeState,owner.running).visible)stop else start
-        val density=activity.resources.displayMetrics.density
-        val state: () -> JSONObject = {
-            check(field(activity,"service")===owner && field(activity,"chart")===chart &&
-                root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll")===scroll &&
-                chart.findViewWithTag<ScrollView>("product/extraction/chart-header")===header &&
-                all.all {(key,view)->key=="overview" || field(activity,when(key) {
-                    "connect-devices"->"connectDevices";"choose-beans"->"chooseBeans";"reference-choice"->"referenceChoice"
-                    "prepare"->"prepare";else->"cancelPrepare"})===view})
-            check(chooseCurve.visibility==View.GONE &&
-                all.keys.filter {all.getValue(it).isShown}==expected &&
-                all.all {(key,view)->view.isEnabled==expectedEnabled(key)})
+        val action=if(stop.isShown)stop else start
+        val clock=requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/clock"))
+        val scrollSaved=JSONArray(listOf(sourceScroll.scrollX,sourceScroll.scrollY))
+        fun state():JSONObject {
+            check(field(activity,"service")===owner && field(activity,"chart")===chart)
             val stopPolicy=StopActionPresentation.describe(owner.shotState,owner.snapshot.coffeeState,owner.running)
             check(stop.isEnabled==stopPolicy.enabled && (stop.visibility==View.VISIBLE)==stopPolicy.visible &&
-                (start.visibility==View.VISIBLE)==!stopPolicy.visible && whole(screenObservation(visibleAction)))
-            val plot=requireNotNull(chart.findViewWithTag<View>("chart-plot"))
-            JSONObject().put("serviceIdentity",System.identityHashCode(owner))
-                .put("chartIdentity",System.identityHashCode(chart)).put("supportIdentity",System.identityHashCode(scroll))
-                .put("headerIdentity",System.identityHashCode(header)).put("headerScrollPx",JSONArray(listOf(header.scrollX,header.scrollY)))
-                .put("plotRectPx",observation(plot).getJSONArray("rectPx"))
-                .put("shotState",owner.shotState.name).put("manualShotActive",owner.manualShotActive)
-                .put("traceIdentity",owner.chartTraceIdentity ?: JSONObject.NULL).put("curveId",owner.chartCurveId ?: JSONObject.NULL)
-                .put("ownerPoints",pointRecords(owner.chartPoints))
+                (start.visibility==View.VISIBLE)==!stopPolicy.visible && whole(screenObservation(action)))
+            if(case=="RUNNING")check(stop.isShown && stop.isEnabled)
+            check(clock !in nodes(sourceScroll) && whole(screenObservation(clock)))
+            check(chart.traceIdentity==owner.chartTraceIdentity && chart.findViewWithTag<ScrollView>("product/extraction/chart-header")===chartHeader)
+            return JSONObject().put("serviceIdentity",System.identityHashCode(owner)).put("shotState",owner.shotState.name)
+                .put("manualShotActive",owner.manualShotActive).put("traceIdentity",owner.chartTraceIdentity ?: JSONObject.NULL)
+                .put("curveId",owner.chartCurveId ?: JSONObject.NULL).put("ownerPoints",pointRecords(owner.chartPoints))
                 .put("pendingStartId",owner.mockExtractionPendingStartId ?: JSONObject.NULL)
                 .put("pendingStopId",owner.mockExtractionPendingStopId ?: JSONObject.NULL)
-                .put("preparationToolsVisibility",preparationTools.visibility)
-                .put("preparationToolsEffectiveShown",preparationTools.isShown)
-                .put("toolStates",JSONArray(all.map {(key,view)->JSONObject().put("semanticKey",key)
-                    .put("identity",System.identityHashCode(view)).put("visibility",view.visibility)
-                    .put("effectiveShown",view.isShown).put("parentVisibility",(view.parent as View).visibility)
-                    .put("enabled",view.isEnabled).put("text",view.text.toString())}))
-                .put("chartTraceIdentity",chart.traceIdentity ?: JSONObject.NULL)
                 .put("chartPoints",pointRecords(chart.points)).put("chartReference",pointRecords(chart.reference))
                 .put("referenceId",field(activity,"referenceId") ?: JSONObject.NULL)
                 .put("referenceCurveId",field(activity,"referenceCurveId") ?: JSONObject.NULL)
-                .put("journalExport",scope.journal.exportJson()).put("journalResultFailed",app.journalResult.isFailure)
-                .put("fixedAction",JSONObject().put("semanticId",visibleAction.tag).put("rectPx",observation(visibleAction).getJSONArray("rectPx"))
-                    .put("text",visibleAction.text.toString()).put("enabled",visibleAction.isEnabled)
+                .put("journalExport",app.journalResult.getOrNull()?.exportJson() ?: JSONObject.NULL)
+                .put("journalResultFailed",app.journalResult.isFailure)
+                .put("fixedAction",screenObservation(action).put("enabled",action.isEnabled).put("text",action.text.toString())
                     .put("startVisibility",start.visibility).put("startEnabled",start.isEnabled)
                     .put("stopVisibility",stop.visibility).put("stopEnabled",stop.isEnabled))
+                .put("headerIdentity",System.identityHashCode(chartHeader)).put("headerScrollPx",JSONArray(listOf(chartHeader.scrollX,chartHeader.scrollY)))
+                .put("plotRectPx",observation(plot).getJSONArray("rectPx")).put("chartTraceIdentity",chart.traceIdentity ?: JSONObject.NULL)
+                .put("preparationToolsVisibility",(field(activity,"preparationTools") as View).visibility)
+                .put("preparationToolsSemanticVisible",semanticVisible(field(activity,"preparationTools") as View))
+                .put("clock",screenObservation(clock)).put("clockLocation","header_outside_support_scroll")
+                .put("sourceTools",JSONArray(sources.map {(key,view)->JSONObject().put("semanticKey",key)
+                    .put("identity",System.identityHashCode(view)).put("semanticVisible",semanticVisible(view))
+                    .put("enabled",view.isEnabled).put("text",view.text.toString())}))
         }
-        fun target(key:String,view:View):JSONObject {
-            check(view.isAttachedToWindow && view in nodes(scroll))
-            val result=JSONObject().put("semanticKey",key).put("identity",System.identityHashCode(view))
-                .put("layout",screenObservation(view))
-            if(view is Button) {
-                check(view.width/density>=48f && view.height/density>=48f)
-                result.put("widthPx",view.width).put("heightPx",view.height).put("density",density)
-                    .put("enabled",view.isEnabled).put("text",view.text.toString())
+        lateinit var baseline:JSONObject
+        val summarySources=listOf("device-summary" to field(activity,"deviceSummary") as TextView,
+            "preparation-summary" to field(activity,"preparationSummary") as TextView).filter {it.second.text.isNotBlank()}
+        main {
+            check(sourceScroll.visibility==View.GONE && sources.keys.filter {semanticVisible(sources.getValue(it))}==expected)
+            check(sources.all {(key,view)-> key=="choose-curve" || view.isEnabled==(key!="prepare" && key!="cancel-prepare" &&
+                !(case=="manual" && key=="reference-choice"))})
+            baseline=state()
+            check(clock.contentDescription==clock.text.toString()+" · "+activity.getString(R.string.extraction_mock_subtitle))
+        }
+        val report=JSONObject().put("schema","ACTUAL_CHART_TOOLS_DIALOG_V1").put("case",case)
+            .put("targetKeys",JSONArray(expected)).put("initialState",baseline).put("initialScrollPx",scrollSaved)
+            .put("sourceSummaries",JSONArray(summarySources.map {(key,view)->JSONObject().put("semanticKey",key)
+                .put("sourceIdentity",System.identityHashCode(view)).put("text",view.text.toString())}))
+            .put("sourceToolCount",sources.size).put("noMachineToolClicks",true)
+        var tools:AlertDialog?=null;var overview:AlertDialog?=null;var failure:Throwable?=null
+        fun unchanged() {check(state().toString()==baseline.toString()) {"Chart tools changed service/chart/journal/fixed actions"}}
+        fun captureDialog(dialog:AlertDialog,phase:File, extra:(()->JSONObject)?=null):NativeWindowFrameEvidence.CapturedFrame {
+            check(phase.isDirectory || phase.mkdirs())
+            val window=requireNotNull(dialog.window);val decor=window.decorView
+            val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(phase,"window.png")) {
+                unchanged()
+                JSONObject().put("windowIdentity",System.identityHashCode(window)).put("decorIdentity",System.identityHashCode(decor))
+                    .put("ownerActivityIdentity",System.identityHashCode(activity)).put("ownerState",state())
+                    .put("nodes",JSONArray(nodes(decor).filter {it.tag is String || it is TextView}.map(::screenObservation)))
+                    .apply { extra?.let { put("overview",it()) } }
             }
-            return result
+            WindowProofStreamingWriter.writeStrict(frame.target,File(phase,"geometry.json"))
+            check(frame.proof.getBoolean("accepted") && frame.proof.getInt("protocolVersion")==2)
+            return frame
         }
-        val baseline=state()
-        check(headerSaved.toString()==baseline.getJSONArray("headerScrollPx").toString())
-        val tools=expected.map {it to all.getValue(it)}
-        val initial=JSONArray(tools.map {(key,view)->target(key,view)})
-        val textViews=listOf("device-summary" to field(activity,"deviceSummary") as TextView,
-            "preparation-summary" to field(activity,"preparationSummary") as TextView)
-            .filter {(_,view)->view.visibility==View.VISIBLE}
-        val initialText=JSONArray(textViews.map {(key,view)->target(key,view)})
-        val reached=JSONArray();val reachedText=JSONArray()
         try {
-            for ((key,view) in tools) {
+            main {check(requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/chart-tools")).performClick())}
+            await("actual chart tools dialog focused") {tools=field(activity,"toolsDialog") as? AlertDialog
+                tools?.isShowing==true && tools?.window?.decorView?.hasWindowFocus()==true && !requireNotNull(tools?.window).decorView.isLayoutRequested}
+            val dialog=requireNotNull(tools);val decor=requireNotNull(dialog.window).decorView
+            val menu=sources.mapValues {(key,_) -> requireNotNull(decor.findViewWithTag<Button>("product/extraction/tool/$key"))}
+            main {
+                check(menu.keys.filter {menu.getValue(it).isShown}==expected)
+                sources.forEach {(key,source)->val copy=menu.getValue(key)
+                    check(copy.text.toString()==source.text.toString() && copy.isEnabled==source.isEnabled && copy.isShown==semanticVisible(source))}
+                report.put("menuStates",JSONArray(sources.map {(key,source)->val copy=menu.getValue(key)
+                    JSONObject().put("semanticKey",key).put("sourceIdentity",System.identityHashCode(source))
+                        .put("menuIdentity",System.identityHashCode(copy)).put("text",copy.text.toString())
+                        .put("enabled",copy.isEnabled).put("shown",copy.isShown)}))
+                unchanged()
+            }
+            val reached=arrayOfNulls<JSONObject>(expected.size)
+            for((index,key) in expected.withIndex()) {
+                if(reached[index]!=null)continue
+                val view=menu.getValue(key)
                 main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
-                frames.committedFrame(root(activity))
-                val phase=File(folder,"states/extraction-support-$key-reachable")
-                val frame=capture(activity,phase)
+                frames.committedFrame(decor)
+                val phase=File(folder,"states/extraction-tool-$key-reachable")
+                val frame=captureDialog(dialog,phase)
                 main {
-                    val record=target(key,view)
-                    check(whole(record.getJSONObject("layout"))) {"M5 Extraction special support tool clipped: $case/$key"}
-                    val current=state();check(current.toString()==baseline.toString())
-                    reached.put(record.put("state",current).put("scrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
-                        .put("frameSync",frame.proof))
-                }
-            }
-            for (index in textViews.indices) {
-                val (key,view)=textViews[index]
-                if(!whole(initialText.getJSONObject(index).getJSONObject("layout"))) {
-                    main {view.requestRectangleOnScreen(Rect(0,0,view.width,view.height),true)}
-                    frames.committedFrame(root(activity))
-                    val phase=File(folder,"states/extraction-support-$key-reachable")
-                    val frame=capture(activity,phase)
-                    main {
-                        val record=target(key,view)
-                        check(whole(record.getJSONObject("layout"))) {"M5 Extraction special support text clipped: $case/$key"}
-                        val current=state();check(current.toString()==baseline.toString())
-                        reachedText.put(record.put("state",current).put("scrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
-                            .put("frameSync",frame.proof))
+                    for((candidateIndex,candidateKey) in expected.withIndex()) {
+                        if(reached[candidateIndex]!=null)continue
+                        val candidate=menu.getValue(candidateKey)
+                        val observed=frame.target.getJSONArray("nodes").let { all->(0 until all.length()).map {all.getJSONObject(it)} }
+                            .single {it.optString("semanticId")=="product/extraction/tool/$candidateKey"}
+                        if(!whole(observed))continue
+                        val density=activity.resources.displayMetrics.density
+                        check(candidate.width>=48*density && candidate.height>=48*density)
+                        reached[candidateIndex]=JSONObject().put("semanticKey",candidateKey).put("identity",System.identityHashCode(candidate))
+                            .put("enabled",candidate.isEnabled).put("text",candidate.text.toString()).put("layout",observed)
+                            .put("widthPx",candidate.width).put("heightPx",candidate.height).put("density",density)
+                            .put("proof",phase.relativeTo(folder).path+"/window-frame-sync.json")
                     }
+                    check(reached[index]!=null);unchanged()
                 }
             }
-        } finally {
-            main {scroll.scrollTo(saved.getInt(0),saved.getInt(1))}
-            frames.committedFrame(root(activity))
-        }
-        val restored=capture(activity,File(folder,"states/extraction-support-restored"))
-        val finalState=state()
-        check(scroll.scrollX==saved.getInt(0) && scroll.scrollY==saved.getInt(1) &&
-            finalState.toString()==baseline.toString())
-        return JSONObject().put("case",case).put("targetKeys",JSONArray(expected)).put("initialTargets",initial)
-            .put("reached",reached).put("initialText",initialText).put("reachedText",reachedText)
-            .put("initialState",baseline).put("restoredState",finalState)
-            .put("initialScrollPx",saved).put("restoredScrollPx",JSONArray(listOf(scroll.scrollX,scroll.scrollY)))
-            .put("restoredFrameSync",restored.proof).put("chooseCurveVisibility",chooseCurve.visibility)
-            .put("noToolClicks",true).put("completed",true).also {
-                WindowProofStreamingWriter.writeStrict(it,File(folder,"extraction-support-reachability.json"))
+            report.put("reached",JSONArray(reached.map {requireNotNull(it)}))
+            main {check(menu.getValue("overview").performClick())}
+            await("real read-only overview focused") {overview=focusedJournalDialog(activity);overview!=null && overview!==tools}
+            val details=requireNotNull(overview);val message=requireNotNull(details.findViewById<TextView>(android.R.id.message))
+            val scroll=nodes(requireNotNull(details.window).decorView).filterIsInstance<ScrollView>().single {message in nodes(it)}
+            val saved=scroll.scrollY;val text=message.text.toString();val lineCount=requireNotNull(message.layout).lineCount
+            check(summarySources.all {(_,source)->source.text.toString() in text})
+            val covered=linkedSetOf<Int>();val pages=JSONArray()
+            fun overviewState():JSONObject {
+                check(message.text.toString()==text && message.layout.lineCount==lineCount)
+                val viewport=historyVisibility(scroll).getJSONArray("visibleRectPx")
+                val loc=IntArray(2);message.getLocationOnScreen(loc);val layout=message.layout
+                val rows=JSONArray()
+                for(line in 0 until lineCount) {
+                    val left=loc[0]+message.compoundPaddingLeft+layout.getLineLeft(line)-message.scrollX
+                    val right=loc[0]+message.compoundPaddingLeft+layout.getLineRight(line)-message.scrollX
+                    val top=loc[1]+message.compoundPaddingTop+layout.getLineTop(line)-message.scrollY
+                    val bottom=loc[1]+message.compoundPaddingTop+layout.getLineBottom(line)-message.scrollY
+                    val complete=layout.getEllipsisCount(line)==0 && left>=viewport.getInt(0) && right<=viewport.getInt(2) &&
+                        top>=viewport.getInt(1) && bottom<=viewport.getInt(3)
+                    rows.put(JSONObject().put("line",line).put("complete",complete).put("rectPx",JSONArray(listOf(left,top,right,bottom)))
+                        .put("start",layout.getLineStart(line)).put("end",layout.getLineEnd(line)).put("ellipsisCount",layout.getEllipsisCount(line)))
+                }
+                return JSONObject().put("text",text).put("lineCount",lineCount).put("rows",rows)
+                    .put("viewport",viewport).put("scrollY",scroll.scrollY)
             }
+            var y=0
+            while(true) {
+                main {scroll.scrollTo(0,y)};frames.committedFrame(requireNotNull(details.window).decorView)
+                val phase=File(folder,"states/extraction-overview-lines-${pages.length()}")
+                val frame=captureDialog(details,phase) { overviewState() }
+                val observed=frame.target.getJSONObject("overview")
+                val rows=observed.getJSONArray("rows")
+                for(index in 0 until rows.length()) rows.getJSONObject(index).let { if(it.getBoolean("complete"))covered.add(it.getInt("line")) }
+                pages.put(JSONObject(observed.toString()).put("proof",phase.relativeTo(folder).path+"/window-frame-sync.json"))
+                main { unchanged() }
+                val maximum=(scroll.getChildAt(0).height-scroll.height+scroll.paddingTop+scroll.paddingBottom).coerceAtLeast(0)
+                if(y>=maximum)break
+                y=minOf(maximum,y+maxOf(1,scroll.height/2))
+            }
+            check(covered.size==lineCount && covered== (0 until lineCount).toSet()) {"Overview text lines not fully reachable"}
+            main {scroll.scrollTo(0,saved)};frames.committedFrame(requireNotNull(details.window).decorView)
+            main {check(scroll.scrollY==saved);details.dismiss()};frames.committedFrame(root(activity))
+            report.put("overview",JSONObject().put("text",text).put("lineCount",lineCount).put("pages",pages)
+                .put("coveredLines",JSONArray(covered.sorted())).put("sourceSummariesPresent",true).put("scrollRestored",true))
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            try {main {overview?.dismiss();tools?.dismiss()};frames.committedFrame(root(activity));main {unchanged()}}
+            catch(restore:Throwable) {if(failure!=null)failure.addSuppressed(restore) else throw restore}
+        }
+        val restored=capture(activity,File(folder,"states/extraction-tools-restored"))
+        main {unchanged();check(sourceScroll.scrollX==scrollSaved.getInt(0) && sourceScroll.scrollY==scrollSaved.getInt(1))}
+        return report.put("restoredState",state()).put("restoredScrollPx",JSONArray(listOf(sourceScroll.scrollX,sourceScroll.scrollY)))
+            .put("restoredProof","states/extraction-tools-restored/window-frame-sync.json").put("restoredFrameSync",restored.proof)
+            .put("exactScrollRestored",true).put("completed",true)
     }
     private fun extractionSpecialStates(folder: File, theme: String, source: String, profile: String): JSONObject {
         check(extractionScenarioShotIds.keys.toList()==extractionPendingSpecialCases &&

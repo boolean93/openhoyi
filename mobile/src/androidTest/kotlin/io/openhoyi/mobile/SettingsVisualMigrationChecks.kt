@@ -691,9 +691,14 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         main {File(folder,"geometry.json").writeText(geometry(activity).put("sameCompositorFrameProven",false).toString(2))}
     }
     private fun stableTextTargets(activity:Activity,subtree:View):List<Pair<String,TextView>> {
-        val editors=if(activity is MachineSettingsActivity)mapOf(
-            field(activity,"brewInput") to "brew",field(activity,"compensationInput") to "compensation",
-            field(activity,"steamInput") to "steam",field(activity,"standbyTemperatureInput") to "standby") else emptyMap()
+        val machineOwner = when (activity) {
+            is MachineSettingsActivity -> activity
+            is MainActivity -> requireNotNull(field(appPage(activity),"machineControls"))
+            else -> null
+        }
+        val editors=machineOwner?.let { owner -> mapOf(
+            field(owner,"brewInput") to "brew",field(owner,"compensationInput") to "compensation",
+            field(owner,"steamInput") to "steam",field(owner,"standbyTemperatureInput") to "standby") } ?: emptyMap()
         val all=mutableListOf<Pair<String,TextView>>()
         fun visit(view:View,path:String) {
             if(!view.isShown)return
@@ -723,20 +728,38 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         fun scrollState()=JSONArray(scrolls.map {(id,view)->JSONObject().put("id",id).put("x",view.scrollX).put("y",view.scrollY)})
         lateinit var before:JSONArray;main {before=scrollState()}
         val saved=scrolls.map {(_,view)->view.scrollX to view.scrollY}
+        val accepted = arrayOfNulls<JSONObject>(targets.size)
+        var captures = 0
         val reached=JSONArray();val document=JSONObject().put("domain",domain).put("page",page)
+            .put("proofReusePolicy","only_targets_whole_in_the_same_accepted_frame_no_cross_state_reuse")
             .put("allActualBodyTargets",JSONArray(targets.map {(id,view)->JSONObject().put("id",id).put("viewIdentity",System.identityHashCode(view)).put("text",view.text.toString())}))
             .put("coreTargets",JSONArray(targets.map {it.first}.filter {it.startsWith("product/settings/")})).put("beforeScroll",before).put("targets",reached)
         var failure:Throwable?=null
         try {
             for((index,pair) in targets.withIndex()) {
+                if (accepted[index] != null) continue
                 val (id,view)=pair;reveal(activity,view)
-                val frame=capture(activity,File(folder,"target-$index"))
+                val frame=capture(activity,File(folder,"target-$index")); captures++
                 val all=frame.target.getJSONArray("nodes")
-                val actual=(0 until all.length()).map {all.getJSONObject(it)}.single {it.getInt("viewIdentity")==System.identityHashCode(view)}
+                val observed=(0 until all.length()).map {all.getJSONObject(it)}
+                val actual=observed.single {it.getInt("viewIdentity")==System.identityHashCode(view)}
                 check(whole(actual)) {"Accepted frame did not contain complete target: $id"}
-                reached.put(JSONObject().put("id",id).put("viewIdentity",System.identityHashCode(view)).put("acceptedActualTarget",actual)
-                    .put("proof","target-$index/window-frame-sync.json").put("window","target-$index/window.png").put("geometry","target-$index/geometry.json"))
+                // This immutable accepted frame certifies every simultaneous fully
+                // visible target. No observation or proof is reused after a scroll
+                // or state change; each record points to its exact frame geometry.
+                for ((candidateIndex,candidate) in targets.withIndex()) {
+                    if (accepted[candidateIndex] != null) continue
+                    val (candidateId,candidateView)=candidate
+                    val matches=observed.filter {it.getInt("viewIdentity")==System.identityHashCode(candidateView)}
+                    check(matches.size==1) {"Accepted frame must retain each actual target identity: $candidateId"}
+                    val observedTarget=matches.single()
+                    if (!whole(observedTarget)) continue
+                    accepted[candidateIndex]=JSONObject().put("id",candidateId).put("viewIdentity",System.identityHashCode(candidateView))
+                        .put("acceptedActualTarget",observedTarget).put("proof","target-$index/window-frame-sync.json")
+                        .put("window","target-$index/window.png").put("geometry","target-$index/geometry.json")
+                }
             }
+            check(accepted.all { it != null }) { "Not every actual text target has an accepted frame" }
             document.put("completed",true)
         } catch(error:Throwable) {failure=error;document.put("completed",false).put("failure",error.stackTraceToString());throw error}
         finally {
@@ -745,7 +768,11 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
                 frames.committedFrame(root(activity));main {val restored=scrollState();document.put("restoredScroll",restored);check(restored.toString()==before.toString())}
                 capture(activity,File(folder,"restored"));document.put("restoreProof","restored/window-frame-sync.json").put("exactScrollRestored",true)
             } catch(other:Throwable) {document.put("exactScrollRestored",false).put("restoreFailure",other.stackTraceToString());if(failure==null)throw other else failure.addSuppressed(other)}
-            finally {File(folder,"reachability.json").writeText(document.toString(2))}
+            finally {
+                accepted.filterNotNull().forEach { reached.put(it) }
+                document.put("acceptedFrameCount",captures)
+                File(folder,"reachability.json").writeText(document.toString(2))
+            }
         }
         return document
     }

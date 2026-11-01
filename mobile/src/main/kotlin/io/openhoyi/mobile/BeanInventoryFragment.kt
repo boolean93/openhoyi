@@ -215,7 +215,7 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
                 contentDescription = getString(R.string.batch_remaining_ratio) + " " + text
             })
             productStyle.add(metadata, progress)
-            productStyle.divider(metadata, 4, 4)
+            productStyle.divider(metadata, 2, 2)
             val dates = productStyle.row("product/inventory/dates")
             listOf(R.string.beans_purchased to item.batch.purchasedOn, R.string.beans_roasted to item.batch.roastedOn,
                 R.string.beans_opened to item.batch.openedOn).forEachIndexed { index, (label, date) ->
@@ -234,7 +234,7 @@ class BeanInventoryFragment : androidx.fragment.app.Fragment() {
                 } }
             })
             productStyle.add(metadata, dates)
-            productStyle.divider(metadata, 4, 4)
+            productStyle.divider(metadata, 2, 2)
             productStyle.add(metadata, productStyle.text(getString(R.string.batch_recent_events), TaskProductVisualStyle.section))
             val ledgerHeadings = productStyle.row("product/inventory/events/header").apply {
                 setBackgroundColor(productStyle.disabled); foreground = inventoryRules(bottom = true)

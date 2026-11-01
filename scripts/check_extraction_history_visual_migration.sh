@@ -272,62 +272,96 @@ def require_chart_header(folder,metrics,caption=False,action='stop'):
     fixed_geometry(folder/'states/chart-header-restored')
     return reach
 
+def require_tools_report(folder, filename, name, expected):
+    reach=json.loads((folder/filename).read_text())
+    assert reach['schema']=='ACTUAL_CHART_TOOLS_DIALOG_V1' and reach['completed'] and reach['case']==name
+    assert reach['noMachineToolClicks'] and reach['sourceToolCount']==7
+    assert reach['targetKeys']==expected and [x['semanticKey'] for x in reach['reached']]==expected
+    assert reach['initialState']==reach['restoredState'] and reach['exactScrollRestored']
+    assert reach['initialScrollPx']==reach['restoredScrollPx']
+    state=reach['initialState']; source=state['sourceTools'];menu=reach['menuStates']
+    keys=['choose-curve','connect-devices','choose-beans','reference-choice','overview','prepare','cancel-prepare']
+    assert [x['semanticKey'] for x in source]==[x['semanticKey'] for x in menu]==keys
+    assert [x['semanticKey'] for x in source if x['semanticVisible']]==expected
+    assert [x['semanticKey'] for x in menu if x['shown']]==expected
+    for original,copy in zip(source,menu):
+        assert copy['sourceIdentity']==original['identity'] and copy['menuIdentity']!=original['identity']
+        assert copy['text']==original['text'] and copy['enabled']==original['enabled']
+        assert copy['shown']==original['semanticVisible']
+        if original['semanticKey']!='choose-curve':
+            assert original['enabled']==(original['semanticKey'] not in ('prepare','cancel-prepare') and
+                not (name=='manual' and original['semanticKey']=='reference-choice'))
+    assert state['headerIdentity']>0 and len(state['headerScrollPx'])==2 and len(state['plotRectPx'])==4
+    assert state['chartTraceIdentity']==state['traceIdentity']
+    assert state['clockLocation']=='header_outside_support_scroll';require_text_layout(state['clock'])
+    fixed=state['fixedAction'];require_text_layout(fixed)
+    stop=name not in ('manual','no_service_ready')
+    assert fixed['semanticId']==f"product/extraction/{'stop' if stop else 'start'}"
+    assert (fixed['stopVisibility']==0)==stop and (fixed['startVisibility']==0)==(not stop)
+    if name=='RUNNING':
+        assert state['shotState']=='RUNNING' and fixed['enabled'] and fixed['stopEnabled']
+        assert reach['initialScrollPx']==reach['restoredScrollPx']==[0,0]
+    else:
+        assert state['preparationToolsVisibility']==(0 if name in ('UNKNOWN_live','manual','no_service_ready') else 8)
+        assert state['preparationToolsSemanticVisible']==(name in ('UNKNOWN_live','manual','no_service_ready'))
+        assert state['journalResultFailed']==(name=='journal_unavailable')
+    baseline=json.loads((folder/'geometry.json').read_text())
+    actual=[x for x in baseline['nodes'] if x.get('semanticId')==fixed['semanticId']]
+    assert len(actual)==1 and actual[0]['rectPx']==fixed['rectPx'] and actual[0]['complete']
+    def dialog_proof(relative):
+        path=folder/relative
+        assert relative.startswith('states/extraction-') and '..' not in Path(relative).parts
+        proof=require_proof(path);assert proof['captureWindowKind']=='EXPLICIT_WINDOW'
+        assert proof['mappingMode']=='MEASURED_WINDOW_BUFFER_TRANSLATION'
+        observed=json.loads((path.parent/'geometry.json').read_text())
+        attempt=proof['attempts'][proof['acceptedAttempt']-1]
+        assert observed==attempt['geometryBefore']['target']==attempt['geometryAfter']['target']
+        assert observed['ownerState']==state
+        return observed
+    density=baseline['densityDpi']/160
+    for target in reach['reached']:
+        assert abs(target['density']-density)<0.001
+        copied=next(x for x in menu if x['semanticKey']==target['semanticKey'])
+        assert target['identity']==copied['menuIdentity'] and target['text']==copied['text'] and target['enabled']==copied['enabled']
+        assert target['widthPx']>=48*target['density'] and target['heightPx']>=48*target['density']
+        observed=dialog_proof(target['proof'])
+        matches=[x for x in observed['nodes'] if x.get('semanticId')=='product/extraction/tool/'+target['semanticKey']]
+        assert len(matches)==1 and matches[0]==target['layout'];require_text_layout(target['layout'])
+    summaries=reach['sourceSummaries']
+    assert [x['semanticKey'] for x in summaries] in (['device-summary'],['device-summary','preparation-summary'])
+    overview=reach['overview'];assert overview['sourceSummariesPresent'] and overview['scrollRestored']
+    assert all(x['text'] and x['text'] in overview['text'] and x['sourceIdentity']>0 for x in summaries)
+    count=overview['lineCount'];assert count>0 and overview['coveredLines']==list(range(count))
+    covered=set();offsets=None
+    for page in overview['pages']:
+        observed=dialog_proof(page['proof'])['overview']
+        assert {key:value for key,value in page.items() if key!='proof'}==observed
+        assert page['text']==overview['text'] and page['lineCount']==count and len(page['rows'])==count
+        current=[(r['start'],r['end']) for r in page['rows']]
+        if offsets is None:offsets=current
+        assert current==offsets and current[0][0]==0 and current[-1][1]==len(overview['text'].encode('utf-16-le'))//2
+        assert all(a[1]==b[0] for a,b in zip(current,current[1:]))
+        assert [r['line'] for r in page['rows']]==list(range(count))
+        left,top,right,bottom=page['viewport']
+        for row in page['rows']:
+            if row['complete']:
+                l,t,r,b=row['rectPx'];assert left<=l<=r<=right and top<=t<b<=bottom and row['ellipsisCount']==0
+                covered.add(row['line'])
+    assert covered==set(range(count))
+    assert reach['restoredProof']=='states/extraction-tools-restored/window-frame-sync.json'
+    restored=require_proof(folder/reach['restoredProof']);assert restored['captureWindowKind']=='ACTIVITY'
+    assert restored==reach['restoredFrameSync']
+    restored_geometry=json.loads((folder/'states/extraction-tools-restored/geometry.json').read_text())
+    restored_fixed=[x for x in restored_geometry['nodes'] if x.get('semanticId')==fixed['semanticId']]
+    assert len(restored_fixed)==1 and restored_fixed[0]['rectPx']==fixed['rectPx'] and restored_fixed[0]['complete']
+    return reach
+
 def require_special_support(folder,name):
     basic=['reference-choice','overview']
     expected={'UNKNOWN_live':['choose-beans',*basic,'prepare','cancel-prepare'],
         'manual':basic+['prepare','cancel-prepare'],
         'no_service_ready':['connect-devices','choose-beans',*basic,'prepare','cancel-prepare']}.get(name,basic)
-    reach=json.loads((folder/'extraction-support-reachability.json').read_text())
-    assert reach['completed'] and reach['case']==name and reach['noToolClicks']
-    assert reach['targetKeys']==expected and [x['semanticKey'] for x in reach['initialTargets']]==expected
-    assert [x['semanticKey'] for x in reach['reached']]==expected and reach['chooseCurveVisibility']==8
-    assert reach['initialScrollPx']==reach['restoredScrollPx'] and reach['initialState']==reach['restoredState']
-    state=reach['initialState']; assert len(state['headerScrollPx'])==2
-    assert [x['semanticKey'] for x in state['toolStates']]==['connect-devices','choose-beans','reference-choice',
-        'overview','prepare','cancel-prepare']
-    assert [x['semanticKey'] for x in state['toolStates'] if x['effectiveShown']]==expected
-    assert state['preparationToolsVisibility']==(0 if name in ('UNKNOWN_live','manual','no_service_ready') else 8)
-    assert state['preparationToolsEffectiveShown']==(name in ('UNKNOWN_live','manual','no_service_ready'))
-    assert all(x['visibility'] in (0,8) and x['parentVisibility'] in (0,8) for x in state['toolStates'])
-    assert all(x['enabled']==(x['semanticKey'] not in ('prepare','cancel-prepare') and
-        not (name=='manual' and x['semanticKey']=='reference-choice')) for x in state['toolStates'])
-    assert state['fixedAction']['semanticId']==f"product/extraction/{'start' if name in ('manual','no_service_ready') else 'stop'}"
-    assert state['chartTraceIdentity']==state['traceIdentity']
-    assert state['journalResultFailed']==(name=='journal_unavailable')
-    def fixed_geometry(phase):
-        observed=json.loads((phase/'geometry.json').read_text())
-        fixed=state['fixedAction']; matches=[x for x in observed['nodes'] if x.get('semanticId')==fixed['semanticId']]
-        assert len(matches)==1 and matches[0]['rectPx']==fixed['rectPx'] and matches[0]['complete']
-    fixed_geometry(folder)
-    density=json.loads((folder/'geometry.json').read_text())['densityDpi']/160
-    for first,reached in zip(reach['initialTargets'],reach['reached']):
-        assert first['identity']==reached['identity'] and first['enabled']==reached['enabled'] and first['text']==reached['text']
-        for target in (first,reached):
-            assert abs(target['density']-density)<0.001 and target['widthPx']>=48*density and target['heightPx']>=48*density
-        phase=folder/'states'/f"extraction-support-{reached['semanticKey']}-reachable"
-        assert reached['frameSync']==require_proof(phase/'window-frame-sync.json')
-        assert reached['state']==state and len(reached['scrollPx'])==2
-        require_text_layout(reached['layout']);fixed_geometry(phase)
-    text=reach['initialText'];assert [x['semanticKey'] for x in text] in (["device-summary"],["device-summary","preparation-summary"])
-    def complete_text(layout):
-        return layout['complete'] and all(line['fullViewVisible'] and line['layoutPresent'] and line['lineCount']>0 and
-            line['ellipsisCount']==0 and line['layoutHeightPx']<=line['contentHeightPx'] and
-            all(row['leftPx']>=0 and row['rightPx']<=line['contentWidthPx'] for row in line['horizontalLayoutLines'])
-            for line in layout['textLineBoxes'])
-    clipped=[x['semanticKey'] for x in text if not complete_text(x['layout'])]
-    assert [x['semanticKey'] for x in reach['reachedText']]==clipped
-    for reached in reach['reachedText']:
-        first=next(x for x in text if x['semanticKey']==reached['semanticKey'])
-        assert first['identity']==reached['identity'] and reached['state']==state
-        original_lines=first['layout']['textLineBoxes'];reached_lines=reached['layout']['textLineBoxes']
-        assert len(original_lines)==len(reached_lines) and all(a['text']==b['text'] for a,b in zip(original_lines,reached_lines))
-        phase=folder/'states'/f"extraction-support-{reached['semanticKey']}-reachable"
-        assert reached['frameSync']==require_proof(phase/'window-frame-sync.json')
-        require_text_layout(reached['layout']);fixed_geometry(phase)
-    restored=folder/'states/extraction-support-restored'
-    assert reach['restoredFrameSync']==require_proof(restored/'window-frame-sync.json')
-    fixed_geometry(restored)
-    return reach
+    return require_tools_report(folder,'extraction-support-reachability.json',name,expected)
 
 def require_text_layout(layout,skip_taste=False):
     assert layout['complete']
@@ -583,21 +617,8 @@ for path in manifests:
         assert isolation['serviceHubClosed'] and isolation['extractionActivityUnboundAndRefreshRemoved']
         assert isolation['originalVisibilityObserversPreserved'] and isolation['serviceOriginalLazyIdentityAndInitializedRestored']
         assert isolation['mockClockRemovedAfterAllOwnersDrained']
-        reach=json.loads((folder/'extraction-reachability.json').read_text())
-        assert reach['completed'] and reach['targetKeys']==['reference-choice','overview']
-        assert [target['semanticKey'] for target in reach['initialTargets']]==reach['targetKeys']
-        assert [target['semanticKey'] for target in reach['reached']]==reach['targetKeys']
-        assert reach['initialScrollPx']==reach['restoredScrollPx']==[0,0] and reach['exactScrollRestored']
-        assert reach['traceIdentity']=='m5-live-shot' and reach['shotState']=='RUNNING'
-        assert reach['noToolClicks'] and reach['modelAndSelectionUnchanged']
-        assert reach['modeLocation']=='header_outside_support_scroll_in_current_version'
-        assert reach['modeSubtitle']['complete']
-        for target in reach['reached']:
-            assert target['layout']['complete'] and target['layout']['textLineBoxes']
-            assert all(line['fullViewVisible'] and line['layoutPresent'] and line['lineCount']>0 and line['ellipsisCount']==0 and
-                line['layoutHeightPx']<=line['contentHeightPx'] for line in target['layout']['textLineBoxes'])
-        for phase in ('reference-choice-reachable','overview-reachable','tools-restored'):
-            require_proof(folder/'states'/f'extraction-{phase}'/'window-frame-sync.json')
+        reach=require_tools_report(folder,'extraction-reachability.json','RUNNING',['reference-choice','overview'])
+        assert reach['initialState']['traceIdentity']=='m5-live-shot'
         special=json.loads((folder/'special-states/manifest.json').read_text())
         assert m['extractionSpecialStates']==special and special['completed']
         assert special['sourceSha']==m['sourceSha'] and special['profile']==m['profile'] and special['page']=='extraction'
