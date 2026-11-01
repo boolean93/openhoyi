@@ -13,3 +13,7 @@
 - 发布：不发版、不打安装包、不设备安装。
 - 回退：仅回退该测试迁移，保业务及未知记录；不删除branch/worktree/历史。
 - 未完成与阻塞：真实新head M5待CI；M1四用户面迁移和system-image cache仅分别规划，不混本提交。
+
+- PR7真实CI反馈：head `7b7562ddb4e0621679d1b442d2acc688f4caa096`、PR checkout `2c41403569934e4306f07ddbb8c22e144db68e39`，M5 run `41287253036` / job `124790952440`（artifact `13075348889`）在light/font1.3的`historical_reference_toggle`首错2082。原始菜单已通过protocol2/完整可见/enabled/48dp，同帧target一致；20个eligible和chooser labels已核，但`referenceChooserSelections=[]`、未选历史行，故不能宣称on/off、points或完整16配置通过。清理isolation与font_scale原值恢复均PASS。workspace原始小证据在`settings-evidence/ci-diagnosis/history-7b7562d/raw/`，摘要`m5-failure-summary.json`，range网络读取793685B（原archive97720057B）。
+- CI反馈最小修复：原2082把`focusedJournalDialog`尚未返回稳定窗口的null当即时错误；前序`setSelection`触发布局可能是诱因，但失败时chooser状态未单独采样，不能把该因果说成实测。Astra要求冻结已确认chooser的dialog/window/decor/token/owner；每次poll先硬验showing/attached/callback与身份不变，再让null只继续原10s有界等待，别的focused dialog或helper原owner/callback/多焦点错误立即失败。点击前同主线程重新取`index-firstVisiblePosition`行，复核焦点、adapter enabled、whole/48dp/token，所有原eligible/on-off/samples/trace/journal/stop/恢复与矩阵门不变。
+- 二次验证与提交：相关31项host回归及branch/bash-n/diff-check再次通过；JDK17 `:mobile:compileMockAndroidTestKotlin`再次成功（27s，47 tasks），日志`settings-evidence/ci-diagnosis/history-7b7562d/history-row-readiness-compile.log`、`history-row-readiness-tests.log`；Astra（`/root/settings_failure_review`）二次独审通过，并独立复跑8route tests与两文件diff-check通过、核对27s编译日志；静态修复只处理wait/invariant混淆风险，不证明7b失败时瞬态布局因果。仅本Kotlin及本plan单独追加提交，root待settings独立块就绪后协调一次普通push；不为本次失败改超时、重试、窗口协议或产品，不覆盖旧CI失败证据。真实新head M5仍待CI，PR7此时不可merge。

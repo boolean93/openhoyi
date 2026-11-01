@@ -2065,10 +2065,16 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         }
         fun select(index: Int) {
             val (dialog,route)=referenceChooserFromTools(activity,File(folder,"states/reference-menu-for-index-$index"),ownedDialogs) {unchangedCup()}
-            val decor=requireNotNull(dialog.window).decorView
+            val window=requireNotNull(dialog.window);val decor=window.decorView
+            val token=requireNotNull(decor.windowToken);val chooserOwner=dialog.ownerActivity
+            fun chooserIdentity() {
+                check(dialog.isShowing && dialog.window===window && window.decorView===decor &&
+                    window.callback===dialog && decor.isAttachedToWindow && decor.windowToken===token &&
+                    dialog.ownerActivity===chooserOwner) {"M5 reference chooser Window identity changed"}
+            }
             lateinit var list:ListView
             main {
-                check(focusedJournalDialog(activity)===dialog)
+                chooserIdentity();check(focusedJournalDialog(activity)===dialog)
                 list=nodes(decor).filterIsInstance<ListView>().single()
                 check(list.count==eligible.size+1 && index in 0 until list.count)
                 val labels=listOf(activity.getString(R.string.reference_off))+eligible.map {
@@ -2077,15 +2083,22 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 route.put("itemLabels",JSONArray(labels)).put("offLabel",labels.first())
                 check(list.adapter.isEnabled(index));list.setSelection(index)
             }
-            var row:View?=null
             await("actual saved reference row complete and reachable") {
-                check(focusedJournalDialog(activity)===dialog)
-                row=list.getChildAt(index-list.firstVisiblePosition)
+                chooserIdentity()
+                val focused=focusedJournalDialog(activity)
+                check(focused==null || focused===dialog) {"M5 reference chooser focus moved to another owned Dialog"}
+                // setSelection requests a layout. A not-yet-settled Window is readiness,
+                // while a different focused owner remains an invariant failure above.
+                if(focused!==dialog)return@await false
+                val row=list.getChildAt(index-list.firstVisiblePosition)
                 row?.let {it.isShown && !it.isLayoutRequested && whole(screenObservation(it))}==true
             }
             main {
-                val actual=requireNotNull(row);val density=activity.resources.displayMetrics.density
-                check(actual.windowToken===decor.windowToken && actual.isEnabled &&
+                chooserIdentity();check(focusedJournalDialog(activity)===dialog)
+                val actual=requireNotNull(list.getChildAt(index-list.firstVisiblePosition))
+                val density=activity.resources.displayMetrics.density
+                check(actual.isShown && !actual.isLayoutRequested && whole(screenObservation(actual)))
+                check(actual.windowToken===token && list.adapter.isEnabled(index) && actual.isEnabled &&
                     actual.width>=48*density && actual.height>=48*density)
                 unchangedCup()
                 val label=list.adapter.getItem(index).toString()
