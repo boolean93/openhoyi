@@ -85,7 +85,10 @@ class AppSettingsFragment : Fragment() {
             }
         scaleCapabilities?.let {view->if(view.text.toString()!=capabilitiesText)view.text=capabilitiesText}
     }
-    private val export = registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+    private val export = registerForActivityResult(object : ActivityResultContracts.CreateDocument("application/zip") {
+        override fun createIntent(context: android.content.Context, input: String): Intent =
+            super.createIntent(context, input).addCategory(Intent.CATEGORY_OPENABLE)
+    }) { uri ->
         if (uri != null) {
             val generation = ++exportGeneration
             (requireActivity().application as MobileApplication).export(uri) { message, failed ->
