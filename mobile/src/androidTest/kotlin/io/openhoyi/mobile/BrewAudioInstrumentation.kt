@@ -33,6 +33,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var expectedHomeFontScale = 1f
     private var homeWorkbenchChecks = false
     private var fourMetricChartChecks = false
+    private var liveStatusChromeChecks = false
     private var taskFrameChecks = false
     private var mainNavigationChecks = false
     private var settingsNavigationOnly = false
@@ -64,6 +65,7 @@ class BrewAudioInstrumentation : Instrumentation() {
         expectedHomeFontScale = arguments?.getString("expectedFontScale")?.toFloatOrNull() ?: 1f
         homeWorkbenchChecks = arguments?.getString("homeWorkbenchChecks") == "true"
         fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
+        liveStatusChromeChecks = arguments?.getString("liveStatusChromeChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
         mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings")
         settingsNavigationOnly = arguments?.getString("mainNavigationChecks") == "settings"
@@ -163,6 +165,12 @@ class BrewAudioInstrumentation : Instrumentation() {
                 report.putString("stream", "HOME_WORKBENCH_CHECKS_PASSED selectedAction=true devicesAnchor=true returnedHome=true sameService=true dataUnchanged=true noBle=true fontScale=$expectedHomeFontScale\n" +
                     "SCALE_TREND_PANEL_CHECKS_PASSED fixtures=4 shortEntry=true recovery=true empty=true dialogStatus=true dialogDismiss=true componentOnly=true fontScale=$expectedHomeFontScale\n")
                 finish(Activity.RESULT_OK, report)
+                return
+            }
+            if (liveStatusChromeChecks) {
+                LiveStatusChromeChecks(this).run()
+                report.putString("stream","LIVE_STATUS_CHROME_CHECKS_PASSED normal=true syntheticCritical=true reopened=2 noBle=true noBusinessWrites=true\n")
+                finish(Activity.RESULT_OK,report)
                 return
             }
             if (fourMetricChartChecks) {

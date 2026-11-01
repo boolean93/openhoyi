@@ -665,7 +665,7 @@ class ExtractionActivity : ThemedActivity() {
         chart.reference=if(available) requireNotNull(timeline).points else emptyList()
         val source = if (available) getString(R.string.reference_source,
             journalDate(requireNotNull(record).observation.startedAtMs),
-            getString(if (requireNotNull(timeline).observedOrigin) R.string.reference_align_observed else R.string.reference_align_recorded)) else null
+            "").trim() else null
         referenceStatus.show(if (source != null) getString(R.string.reference_legend) + "\n" + source
             else getString(if (id == null) R.string.reference_off else R.string.reference_unavailable))
         chart.referenceLabel = source

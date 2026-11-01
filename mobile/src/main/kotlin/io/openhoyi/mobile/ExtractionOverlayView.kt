@@ -66,12 +66,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     var compactRunningExplanation = false
         set(value) { if (field != value) { field = value; updateDescription() } }
     private var fullExplanation = ""
-    fun overviewExplanation(): String = listOf(fullExplanation, explanation.text.toString(),
+    fun overviewExplanation(): String {
+        if (liveCompactChrome) return listOfNotNull(
+            data.observedThroughMs?.let { context.getString(R.string.task_chart_summary_observed,seconds(it)) } ?: context.getString(R.string.live_chart_no_data),
+            referenceLabel?.takeIf { reference.isNotEmpty() },
+            context.getString(R.string.legacy_detail_missing_heading).takeIf { hasGaps() },
+            context.getString(R.string.live_pressure_pause_explanation).takeIf { data.pauseBaselineMs.isNotEmpty() },
+        ).joinToString("\n")
+        return listOf(fullExplanation, explanation.text.toString(),
         context.getString(R.string.task_chart_independent, metricName(focusMetric), focusMetric.unit),
         context.getString(R.string.live_pressure_pause_explanation).takeIf { data.pauseBaselineMs.isNotEmpty() }.orEmpty())
         .filter { it.isNotBlank() }.distinct().let { blocks ->
             blocks.filter { block -> blocks.none { other -> other.length > block.length && block in other } }
         }.joinToString("\n")
+    }
 
     private var inspectedTime: Long? = null
     private var inspectionDialog: AlertDialog? = null
@@ -456,7 +464,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 ?: context.getString(R.string.task_chart_summary_waiting),
         )
         val referenceNotes = if (reference.isNotEmpty()) listOfNotNull(
-            referenceLabel?.takeIf { it.isNotBlank() }, context.getString(R.string.task_chart_reference, metricName(focusMetric)),
+            referenceLabel?.takeIf { it.isNotBlank() },
+            context.getString(R.string.task_chart_reference, metricName(focusMetric)).takeUnless { liveCompactChrome },
         ) else emptyList()
         val referenceText = referenceNotes.joinToString(" · ")
         if (referenceCaption.text.toString() != referenceText) referenceCaption.text = referenceText
@@ -695,7 +704,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             productRenderer?.let {
                 val rendered = if (liveChart) data.copy(timeEndMs = renderTimeEnd.coerceAtLeast(1)) else data
                 plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
-                    if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet()))
+                    if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet(), simpleLivePresentation=liveCompactChrome))
                 return
             }
             val fm = labels.fontMetrics
