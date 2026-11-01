@@ -261,7 +261,6 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val narrow = available - dp(128f) < requiredColumn * 2 + dp(8f)
             val topInset = if (narrow) maxOf(liveHeaderHeightPx,dp(96f).toInt()) else liveHeaderHeightPx
             if (headerContent.paddingTop != topInset) headerContent.setPadding(0,topInset,0,0)
-            (header.layoutParams as android.widget.FrameLayout.LayoutParams).marginEnd = if (narrow) 0 else dp(128f).toInt()
             liveTiles.values.forEach { tile ->
                 val body = tile.getChildAt(0) as LinearLayout
                 body.orientation = if (narrow) VERTICAL else HORIZONTAL
@@ -269,11 +268,13 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 (body.getChildAt(1).layoutParams as LayoutParams).marginStart = if (narrow) 0 else dp(6f).toInt()
             }
             val innerWidth = (available - if (narrow) 0 else dp(128f).toInt()).coerceAtLeast(0)
-            header.measure(MeasureSpec.makeMeasureSpec(innerWidth,MeasureSpec.EXACTLY),
-                MeasureSpec.makeMeasureSpec(0,MeasureSpec.UNSPECIFIED))
-            val chromeHeight = maxOf(dp(96f).toInt(),header.measuredHeight,liveHeaderHeightPx+dp(48f).toInt())
+            // Use the same explicit width in the natural-content pass and FrameLayout's final
+            // pass. Relative end margins can retain a resolved physical margin after rotation.
+            headerContent.measure(MeasureSpec.makeMeasureSpec(innerWidth,MeasureSpec.EXACTLY), natural)
+            val chromeHeight = maxOf(dp(96f).toInt(),headerContent.measuredHeight,liveHeaderHeightPx+dp(48f).toInt())
+            header.layoutParams = android.widget.FrameLayout.LayoutParams(innerWidth,chromeHeight,
+                android.view.Gravity.TOP or android.view.Gravity.START)
             if (compactTop.layoutParams.height != chromeHeight) compactTop.layoutParams.height = chromeHeight
-            header.layoutParams.height = chromeHeight
             super.onMeasure(widthMeasureSpec,heightMeasureSpec)
             return
         }
