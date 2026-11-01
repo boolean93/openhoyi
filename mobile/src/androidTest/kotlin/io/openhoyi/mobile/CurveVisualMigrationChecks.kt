@@ -1043,7 +1043,9 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         val listBefore=listState(activity).toString()
         val details=field(activity,"details") as TextView
         val availability=field(activity,"availability") as TextView
-        val expected=item.name+"\n\n"+details.text.toString()+"\n\n"+availability.text.toString()
+        val usage=field(activity,"usageDetails") as TextView
+        check(usage.text.isNotBlank()) { "Library details lost usage information: ${item.id}" }
+        val expected=item.name+"\n\n"+details.text.toString()+"\n\n"+usage.text.toString()+"\n\n"+availability.text.toString()
         val formatter=if(item.customDocument!=null) (activity as ThemedActivity).profileSummary(item.customDocument)
             else CurveDetailsText(activity).render(item,scope.curves.canStart(item))
         check(details.text.toString()==formatter && selectedBefore==item)

@@ -105,6 +105,7 @@ tap_nav() {
       ;;
     AppSettingsActivity)
       tap_control '设置'
+      tap_control '外观与语言'
       ;;
     MachineSettingsActivity)
       tap_control '设置'

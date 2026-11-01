@@ -15,6 +15,7 @@ on_error() {
   adb logcat -d -s AndroidRuntime:E OpenHoyiMobile:I OpenHoyiLanguage:I > "$output_dir/errors.txt" || true
   adb shell dumpsys activity activities > "$output_dir/activities.txt" || true
   adb pull "/sdcard/Android/data/$package/files/language-detail-failures" "$output_dir/" || true
+  adb pull "/sdcard/Android/data/$package/files/language-page-return-failures" "$output_dir/" || true
   adb pull "/sdcard/Android/data/$package/files/language-detail-success" "$output_dir/" || true
   adb pull "/sdcard/Android/data/$package/files/idle-accessibility-diagnostic" "$output_dir/" || true
   adb shell settings put system font_scale 1.0 || true

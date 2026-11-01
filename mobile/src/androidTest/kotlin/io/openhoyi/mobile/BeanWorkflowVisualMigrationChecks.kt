@@ -69,6 +69,7 @@ internal class BeanWorkflowVisualMigrationChecks(private val test: Instrumentati
     }
     private fun businessDisk(): Map<String, String> = listOf("files", "shared_prefs", "databases").flatMap { name ->
         File(context.applicationInfo.dataDir, name).walkTopDown().filter { it.isFile &&
+            !(name == "files" && it.parentFile == File(context.applicationInfo.dataDir, "files") && it.name == "profileInstalled") &&
             !(name == "shared_prefs" && it.name in setOf("appearance.xml", "appearance.xml.bak", "curves.xml", "curves.xml.bak")) }
             .map { it.relativeTo(File(context.applicationInfo.dataDir)).path to sha(it) }.toList()
     }.toMap()

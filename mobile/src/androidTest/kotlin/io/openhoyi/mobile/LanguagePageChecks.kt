@@ -31,8 +31,11 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
             if (ready) return
             if (SystemClock.elapsedRealtime() >= deadline) {
                 var detail = ""
-                onMain { detail = diagnostic() }
-                error("Page condition timed out: $detail")
+                var diagnosticFailure: Throwable? = null
+                try { onMain { detail = diagnostic() } } catch (error: Throwable) { diagnosticFailure = error }
+                throw IllegalStateException("Page condition timed out: $detail").apply {
+                    diagnosticFailure?.let { addSuppressed(it) }
+                }
             }
             Thread.sleep(25)
         }
@@ -164,7 +167,61 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                     completed++
                     if (currentPage != null) {
                         onMain { activity.finish() }
-                        awaitMain { activity.isDestroyed && home.hasWindowFocus() && owner(home) === service }
+                        try {
+                            awaitMain(diagnostic = {
+                                "$fixture return destroyed=${activity.isDestroyed} homeFocus=${home.hasWindowFocus()} sameService=${owner(home) === service} homeDestroyed=${home.isDestroyed}"
+                            }) { activity.isDestroyed && home.hasWindowFocus() && owner(home) === service }
+                        } catch (error: Throwable) {
+                            // Capture the failed state before the outer finally recreates Home.
+                            // Diagnostic errors are suppressed onto, never replace, the check failure.
+                            var directory: java.io.File? = null
+                            fun evidence(action: () -> Unit) {
+                                try { action() } catch (diagnostic: Throwable) { error.addSuppressed(diagnostic) }
+                            }
+                            evidence {
+                                directory = java.io.File(requireNotNull(context.getExternalFilesDir(null)), "language-page-return-failures")
+                                check(requireNotNull(directory).isDirectory || requireNotNull(directory).mkdirs())
+                            }
+                            evidence { onMain {
+                                val machine = activity as MachineSettingsActivity
+                                val windows = android.view.inspector.WindowInspector.getGlobalWindowViews()
+                                val report = org.json.JSONObject().put("fixture",fixture)
+                                    .put("machineDestroyed",machine.isDestroyed).put("machineFinishing",machine.isFinishing)
+                                    .put("machineFocus",machine.hasWindowFocus()).put("machineTaskId",machine.taskId)
+                                    .put("controllerVisible",machineField(machine,"visible"))
+                                    .put("controllerBound",machineField(machine,"bound"))
+                                    .put("controllerServiceSame",machineField(machine,"service") === service)
+                                    .put("controllerRefreshPending",(machineField(machine,"handler") as android.os.Handler)
+                                        .hasCallbacks(machineField(machine,"refresh") as Runnable))
+                                    .put("homeDestroyed",home.isDestroyed).put("homeFinishing",home.isFinishing)
+                                    .put("homeFocus",home.hasWindowFocus()).put("homeTaskId",home.taskId)
+                                    .put("homeLifecycle",home.lifecycle.currentState.name)
+                                    .put("homeServiceSame",owner(home) === service).put("serviceRunning",service.running)
+                                    .put("homeLocale",home.resources.configuration.locales.toLanguageTags())
+                                    .put("preferredLanguage",app.languagePreferences.current.tag)
+                                    .put("homeDark",HoyiUi.dark(home)).put("preferredDark",appearance.getBoolean("dark",false))
+                                    .put("activeFragment",home.supportFragmentManager.primaryNavigationFragment?.javaClass?.simpleName)
+                                    .put("windows",org.json.JSONArray(windows.map { view ->
+                                        val params = view.layoutParams as? android.view.WindowManager.LayoutParams
+                                        org.json.JSONObject().put("class",view.javaClass.name).put("focus",view.hasWindowFocus())
+                                            .put("shown",view.isShown).put("attached",view.isAttachedToWindow)
+                                            .put("width",view.width).put("height",view.height).put("type",params?.type)
+                                            .put("title",params?.title?.toString())
+                                    }))
+                                java.io.File(requireNotNull(directory),"return-state.json").writeText(report.toString(2))
+                            } }
+                            evidence {
+                                val screenshot = requireNotNull(test.uiAutomation.takeScreenshot())
+                                try { java.io.File(requireNotNull(directory),"window.png").outputStream().use {
+                                    check(screenshot.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it))
+                                } } finally { screenshot.recycle() }
+                            }
+                            evidence {
+                                android.os.ParcelFileDescriptor.AutoCloseInputStream(test.uiAutomation.executeShellCommand("dumpsys activity activities"))
+                                    .use { input -> java.io.File(requireNotNull(directory),"activities.txt").outputStream().use { input.copyTo(it) } }
+                            }
+                            throw error
+                        }
                         currentPage = null
                     } else if (page != "Home") MainPageTestHost(test, home).select(TaskDestination.BREW)
                 }

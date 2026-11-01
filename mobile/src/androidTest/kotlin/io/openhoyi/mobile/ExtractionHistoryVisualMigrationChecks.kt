@@ -138,7 +138,9 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val origin = IntArray(2); view.getLocationOnScreen(origin)
         val full = Rect(origin[0], origin[1], origin[0] + view.width, origin[1] + view.height)
         val visible = Rect(); val shown = view.getGlobalVisibleRect(visible)
-        val texts = nodes(view).filterIsInstance<TextView>().map { text ->
+        val texts = nodes(view).filterIsInstance<TextView>().filter { text ->
+            generateSequence<View>(text) { it.parent as? View }.all { it.visibility == View.VISIBLE }
+        }.map { text ->
             if(textCache==null) textLineBox(text)
             else textCache[text] ?: textLineBox(text).also { textCache[text]=it }
         }
@@ -629,6 +631,31 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 val pressureNumber = requireNotNull(root(activity).findViewWithTag<TextView>("product/extraction/metric/PRESSURE/number"))
                 check(gauge is ViewGroup && gauge.findViewWithTag<TextView>("product/extraction/metric/PRESSURE/number") === pressureNumber &&
                     whole(observation(gauge))) { "Actual live pressure belongs to the compact dial, with one canonical number" }
+                val liveGauge = gauge as LivePressureGauge
+                val phase = field(liveGauge,"phaseLabel") as TextView
+                check(phase.visibility == View.GONE && phase.text.isEmpty()) { "Running gauge must not show a pause phase" }
+                val pressure = field(liveGauge,"pressure") as Float?
+                val maximum = field(liveGauge,"maximum") as Float
+                fun layoutGauge() {
+                    liveGauge.measure(View.MeasureSpec.makeMeasureSpec(liveGauge.width,View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(liveGauge.height,View.MeasureSpec.EXACTLY))
+                    liveGauge.layout(liveGauge.left,liveGauge.top,liveGauge.right,liveGauge.bottom)
+                }
+                // Synchronous display-only transition; no service/session mutation or
+                // substitute for the separately captured real running window.
+                var phaseFailure: Throwable? = null
+                try {
+                    liveGauge.present(pressure,maximum,true); layoutGauge()
+                    check(phase.isShown && phase.text.toString()==activity.getString(R.string.live_pressure_pause) &&
+                        liveGauge.contentDescription.contains(activity.getString(R.string.live_pressure_pause_explanation)) &&
+                        whole(observation(phase)) && whole(observation(liveGauge))) {
+                        "Visible pause phase must keep its full text and explanatory accessibility label"
+                    }
+                } catch (error: Throwable) { phaseFailure=error; throw error }
+                finally {
+                    try { liveGauge.present(pressure,maximum,false); layoutGauge() }
+                    catch (restore: Throwable) { if (phaseFailure!=null) phaseFailure.addSuppressed(restore) else throw restore }
+                }
                 val expectedUnits = listOf("bar", "mL", "g", "°C")
                 ChartMetric.entries.forEachIndexed { index, metric ->
                     val prefix = "product/extraction/metric/$metric"

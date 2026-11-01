@@ -295,6 +295,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             else if (item != null && library.canStart(item)) host.showExtraction(confirmStart = true)
             else host.select(TaskDestination.CURVES)
         }.apply { tag = "product/home/quick-launch"; layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) } }
+        if (spaciousHome) quickRow.addView(launchRow, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(8)
+        })
         val presetRow = productStyle.row("product/home/direct-presets")
         quickRow.addView(presetRow, if (spaciousHome) LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(8)
@@ -322,9 +325,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                 }
             }
         }
-        if (spaciousHome) quickRow.addView(launchRow, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(8)
-        })
         val machineChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         coffeeDot = statusDot(machineChip)
