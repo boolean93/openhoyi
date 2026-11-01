@@ -34,7 +34,7 @@ jobs:
       - name: Build isolated Mock
         run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
       - name: Verify fixed-scope host contracts
-        run: PYTHONPATH=scripts python3 -m unittest test_settings_matrix_isolation test_settings_shard_gate test_settings_language_error_contract test_settings_measured_dialog_contract test_settings_observation_reuse_contract test_settings_shared_frame_reachability
+        run: PYTHONPATH=scripts python3 -m unittest test_settings_matrix_isolation test_settings_shard_gate test_settings_language_error_contract test_settings_measured_dialog_contract test_settings_weekly_editor_route test_settings_observation_reuse_contract test_settings_shared_frame_reachability
       - name: Bind the single APK and test APK build
         run: python3 scripts/settings_shard_gate.py build --bundle build/settings-apk-bundle
       - name: Upload the single APK batch

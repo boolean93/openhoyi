@@ -266,7 +266,8 @@ required={
 'feedback-preview-leave-stopped','saf-cancel','saf-failure','saf-owned-success','theme-success-recreated','hardware-audio-output'} |
 {'language-'+tag for tag in ('zh-Hans','en','ru','th','ar','ja','ko','es')},
 'machine':{'section-'+str(index) for index in range(5)} | {'section-recreated','invalid-brew','invalid-compensation',
-'invalid-steam','legal-input-mock-preview','temperature-native-ime','schedule-draft-native-ime','schedule-cancel-no-write','device-confirmed-unknown-recovery','no-service-disabled'},
+'invalid-steam','legal-input-mock-preview','temperature-native-ime','schedule-editor-collapsed','schedule-editor-expanded',
+'schedule-draft-native-ime','schedule-cancel-no-write','device-confirmed-unknown-recovery','no-service-disabled'},
 'scale-settings':{'precision-recreated','real-scale-no-data','ready-nonmock-hardware-capabilities'}}
 def validate_measured_window_attempt(proof,attempt):
     assert proof['protocolVersion']==2 and proof['accepted'] and proof['timeoutMs']==5000
@@ -467,6 +468,73 @@ def validate_language_dialog_target(accepted,safe,proof):
         assert len(focused)==1
         assert safe['focusedControlIdentity']==focused[0]['viewIdentity']
 
+def validate_weekly_editor_route(collapsed_proof,expanded_proof):
+    routes=[]
+    for proof,expanded in ((collapsed_proof,False),(expanded_proof,True)):
+        assert proof['captureWindowKind']=='ACTIVITY' and proof['accepted'] and proof['timeoutMs']==5000
+        attempt=proof['attempts'][proof['acceptedAttempt']-1]
+        assert attempt['geometryBefore']==attempt['geometryAfter']
+        accepted=attempt['geometryBefore']['target'];route=accepted['weeklyEditorRoute'];routes.append(route)
+        assert route['contract']=='ACTUAL_WEEKLY_EDITOR_ROUTE_V1'
+        assert route['ownerActivityIdentity']>0 and route['cardIdentity']>0 and route['editorIdentity']>0
+        for key in ('windowIdentity','decorIdentity','windowTokenIdentity','rootIdentity'):
+            assert route[key]==proof[key] and route[key]>0
+        assert route['locale']==accepted['locale'] and isinstance(route['locale'],str) and route['locale']
+        assert accepted['densityDpi']==360 and route['density']==accepted['densityDpi']/160
+        assert route['editResource']=='machine_settings_schedule_edit' and route['collapseResource']=='machine_settings_schedule_collapse'
+        assert route['dayLabelResource']=='machine_settings_edit_sleep_day'
+        assert route['dayNameResources']==['machine_settings_'+day for day in ('sunday','monday','tuesday','wednesday','thursday','friday','saturday')]
+        assert all(isinstance(route[key],str) and route[key] for key in ('editLabel','collapseLabel'))
+        assert route['editLabel']!=route['collapseLabel']
+        assert route['toggleParentIdentity']==route['editorParentIdentity']==route['cardIdentity']
+        assert route['editorVisibility']==(0 if expanded else 8) and route['editorShown'] is expanded
+        if expanded: assert route['editorLayoutRequested'] is False
+        days=route['days'];labels=route['expectedDayLabels']
+        assert len(days)==len(labels)==7 and len({day['viewIdentity'] for day in days})==7
+        assert len(set(labels))==7 and all(isinstance(label,str) and label for label in labels)
+        for index,day in enumerate(days):
+            assert day['index']==index and day['viewIdentity']>0 and day['parentIdentity']==route['editorIdentity']
+            assert day['tokenIdentity']==proof['windowTokenIdentity'] and day['rootViewIdentity']==proof['decorIdentity']
+            assert day['text']==labels[index] and day['isShown'] is expanded
+            matches=[node for node in accepted['nodes'] if node['viewIdentity']==day['viewIdentity']]
+            assert len(matches)==1 and len(matches[0]['textLineBoxes'])==1
+            text=matches[0]['textLineBoxes'][0]
+            assert text['text']==text['actualTypography']['text']==labels[index]
+            assert text['actualTypography']['class']=='android.widget.Button'
+            x,y,r,b=matches[0]['rectPx'];assert r-x==day['widthPx'] and b-y==day['heightPx']
+            if expanded: assert day['widthPx']>=int(48*route['density']) and day['heightPx']>=int(48*route['density'])
+        toggle=route['toggle'];first=route['firstDay']
+        assert toggle['viewIdentity'] not in {day['viewIdentity'] for day in days}
+        assert first['viewIdentity']==days[0]['viewIdentity']
+        for actual in (toggle,first):
+            matches=[node for node in accepted['nodes'] if node['viewIdentity']==actual['viewIdentity']]
+            assert len(matches)==1 and matches[0]==actual
+            assert len(actual['textLineBoxes'])==1
+            text=actual['textLineBoxes'][0]
+            assert text['actualTypography']['class']=='android.widget.Button'
+            assert text['text']==text['actualTypography']['text']
+        assert toggle['textLineBoxes'][0]['text']==route['collapseLabel' if expanded else 'editLabel']
+        assert first['textLineBoxes'][0]['text']==labels[0]
+        for actual in ((toggle,first) if expanded else (toggle,)):
+            require_whole(actual)
+            x,y,r,b=actual['rectPx'];assert r-x>=int(48*route['density']) and b-y>=int(48*route['density'])
+            assert actual['visibleRectPx']==actual['rectPx']
+            ox,oy=accepted['appOriginPx'];width,height=accepted['appSizePx']
+            assert ox<=x<r<=ox+width and oy<=y<b<=oy+height
+        state=route['scheduleState']
+        assert state['ownerServiceIdentity']>0 and state['state']=='IDLE' and state['pendingIsNull'] is True
+        for key,length,header in (('firstReadback',20,0x40),('secondReadback',15,0x80)):
+            value=state[key]
+            assert value is None or (isinstance(value,list) and len(value)==length and value[:2]==[0x83,header]
+                and all(type(byte) is int and 0<=byte<=255 for byte in value))
+    before,after=routes
+    for key in ('ownerActivityIdentity','windowIdentity','decorIdentity','windowTokenIdentity','rootIdentity',
+                'cardIdentity','editorIdentity','toggleParentIdentity','editorParentIdentity','locale','density',
+                'editLabel','collapseLabel','expectedDayLabels','scheduleState'):
+        assert before[key]==after[key]
+    assert before['toggle']['viewIdentity']==after['toggle']['viewIdentity']
+    assert [day['viewIdentity'] for day in before['days']]==[day['viewIdentity'] for day in after['days']]
+
 def require_state(folder,kind):
     assert (folder/'window.png').is_file() and (folder/'geometry.json').is_file(),folder
     proof=require_protocol(folder/'window-frame-sync.json',kind)
@@ -593,6 +661,8 @@ for path in manifests:
         require_reach(folder/'main-reachability',m['page'],'main')
         if m['page']=='machine':
             for index in range(5):require_reach(folder/'special-states'/('section-'+str(index))/'reachable','machine','section-'+str(index))
+            validate_weekly_editor_route(*[require_protocol(folder/'special-states'/name/'window-frame-sync.json','ACTIVITY')
+                for name in ('schedule-editor-collapsed','schedule-editor-expanded')])
         if m['page']=='scale-settings':require_reach(folder/'special-states/all-instructions','scale-settings','all-instructions')
         if m['page']=='app':
             for tag in ('zh-Hans','en','ru','th','ar','ja','ko','es'):
