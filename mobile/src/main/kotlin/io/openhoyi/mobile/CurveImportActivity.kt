@@ -310,12 +310,14 @@ class CurveImportActivity : ThemedActivity() {
             val insets = callbackRoot.rootWindowInsets ?: return null
             if (editor != null && (!editor.isAttachedToWindow || !editor.hasFocus() || !editor.hasWindowFocus() ||
                     editor.windowToken == null || !restoreReadiness.connectionReady(inputMethod.isActive(editor)))) return null
-            val ime = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(android.view.WindowInsets.Type.ime()) else null
+            val ime = if (android.os.Build.VERSION.SDK_INT >= 30)
+                insets.getInsets(android.view.WindowInsets.Type.ime()).let { listOf(it.left, it.top, it.right, it.bottom) }
+                else emptyList()
             return listOf(identity(callbackRoot), identity(host.rootView), identity(editor), identity(editor?.windowToken),
                 identity(callbackRoot.windowToken), callbackRoot.width, callbackRoot.height, host.width, host.height,
                 text.width, text.height, text.layout?.height, formScroll?.width, formScroll?.height,
                 if (android.os.Build.VERSION.SDK_INT >= 30) insets.isVisible(android.view.WindowInsets.Type.ime()) else null,
-                ime?.left, ime?.top, ime?.right, ime?.bottom).joinToString("|")
+                ime).joinToString("|")
         }
         lateinit var focusListener: android.view.ViewTreeObserver.OnGlobalFocusChangeListener
         lateinit var windowListener: android.view.ViewTreeObserver.OnWindowFocusChangeListener
