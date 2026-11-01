@@ -13,6 +13,8 @@ import android.view.WindowManager;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import org.xmlpull.v1.XmlSerializer;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -30,23 +32,37 @@ public final class MockHierarchyInstrumentation extends Instrumentation {
     private long eventGeneration;
     private int rootQueries;
     private String lastWindows="",lastRoot="unqueried";
+    private static final class WindowMetadata {
+        final Map<Integer,Integer> activeApplications=new HashMap<>();
+        final String description;
+        WindowMetadata(List<AccessibilityWindowInfo> windows){
+            StringBuilder state=new StringBuilder();
+            try{for(AccessibilityWindowInfo window:windows){
+                Rect region=new Rect();window.getBoundsInScreen(region);
+                state.append(window.getId()).append(":").append(window.getType()).append(":active=").append(window.isActive()).append(":focused=").append(window.isFocused()).append(":region=").append(bounds(region)).append(";");
+                // WindowInfo describes the touchable region, not necessarily the root layout bounds.
+                // Associate identity/type/active status; do not equate either rectangle or require focus.
+                if(window.getType()==AccessibilityWindowInfo.TYPE_APPLICATION&&window.isActive()&&!region.isEmpty())
+                    activeApplications.put(window.getId(),activeApplications.getOrDefault(window.getId(),0)+1);
+            }}finally{for(AccessibilityWindowInfo window:windows)window.recycle();}
+            description=state.toString();
+        }
+    }
     private AccessibilityNodeInfo awaitInitialRoot(UiAutomation automation,long deadline,Rect display)throws Exception {
         while(true){
             long generation;synchronized(readiness){generation=eventGeneration;}
             // Public window enumeration establishes interactive-window tracking after setServiceInfo.
             // It observes real windows; it does not inject input or wait for event-stream idle.
-            List<AccessibilityWindowInfo> windows=automation.getWindows();StringBuilder state=new StringBuilder();
-            try{for(AccessibilityWindowInfo window:windows)state.append(window.getId()).append(":").append(window.getType()).append(":active=").append(window.isActive()).append(":focused=").append(window.isFocused()).append(";");}
-            finally{for(AccessibilityWindowInfo window:windows)window.recycle();}
-            lastWindows=state.toString();rootQueries++;
+            WindowMetadata metadata=new WindowMetadata(automation.getWindows());
+            lastWindows=metadata.description;rootQueries++;
             AccessibilityNodeInfo value=automation.getRootInActiveWindow();
             lastRoot="null";
             if(value!=null){
                 Rect raw=new Rect();value.getBoundsInScreen(raw);Rect clipped=new Rect(raw);
-                lastRoot=describe(value);
+                lastRoot=describe(value,display);
                 // Foreign/unknown ownership is an error, never a readiness retry.
                 if(!MOCK.contentEquals(value.getPackageName())||value.getWindowId()<0)return value;
-                if(value.isVisibleToUser()&&clipped.intersect(display)&&clipped.width()>0&&clipped.height()>0)return value;
+                if(value.isVisibleToUser()&&clipped.intersect(display)&&clipped.width()>0&&clipped.height()>0&&metadata.activeApplications.getOrDefault(value.getWindowId(),0)==1)return value;
                 value.recycle();
             }
             synchronized(readiness){
@@ -65,9 +81,9 @@ public final class MockHierarchyInstrumentation extends Instrumentation {
         return out.toString();
     }
     private static String bounds(Rect r){return "["+r.left+","+r.top+"]["+r.right+","+r.bottom+"]";}
-    private static String describe(AccessibilityNodeInfo node){
-        if(node==null)return "null";Rect raw=new Rect();node.getBoundsInScreen(raw);
-        return "package="+text(node.getPackageName())+" id="+node.getWindowId()+" class="+text(node.getClassName())+" visible="+node.isVisibleToUser()+" bounds="+bounds(raw);
+    private static String describe(AccessibilityNodeInfo node,Rect display){
+        if(node==null)return "null";Rect raw=new Rect();node.getBoundsInScreen(raw);Rect clipped=new Rect(raw);if(!clipped.intersect(display))clipped.setEmpty();
+        return "package="+text(node.getPackageName())+" id="+node.getWindowId()+" class="+text(node.getClassName())+" visible="+node.isVisibleToUser()+" rawBounds="+bounds(raw)+" clippedBounds="+bounds(clipped);
     }
     private static final class Window {
         final int id;final Rect bounds;final String type;
@@ -99,7 +115,7 @@ public final class MockHierarchyInstrumentation extends Instrumentation {
         xml.endTag("","node");
     }
     @Override public void onStart() {
-        Bundle result=new Bundle();File temporary=null;AccessibilityNodeInfo root=null,after=null;UiAutomation automation=null;String stage="create";
+        Bundle result=new Bundle();File temporary=null;AccessibilityNodeInfo root=null,after=null;UiAutomation automation=null;String stage="create",initialRoot="unqueried",beforeRoot="unqueried",beforeWindows="unqueried",afterRoot="unqueried",afterWindows="unqueried";
         try {
             require(SELF.equals(getContext().getPackageName())&&SELF.equals(getTargetContext().getPackageName()),"Collector must target only itself");
             String nonce=arguments.getString("nonce","");require(UUID.fromString(nonce).toString().equals(nonce),"Invalid capture nonce");
@@ -112,15 +128,15 @@ public final class MockHierarchyInstrumentation extends Instrumentation {
             automation.setServiceInfo(info);
             Point size=new Point();((WindowManager)getContext().getSystemService(android.content.Context.WINDOW_SERVICE)).getDefaultDisplay().getRealSize(size);
             Rect display=new Rect(0,0,size.x,size.y);long started=SystemClock.elapsedRealtimeNanos();
-            stage="initial-root-readiness";root=awaitInitialRoot(automation,deadline,display);stage="before-window";Window before=new Window(root,display);
+            stage="initial-root-readiness";root=awaitInitialRoot(automation,deadline,display);initialRoot=lastRoot;stage="before-window";beforeRoot=describe(root,display);beforeWindows=lastWindows;Window before=new Window(root,display);
             ByteArrayOutputStream bytes=new ByteArrayOutputStream();XmlSerializer xml=Xml.newSerializer();xml.setOutput(bytes,"UTF-8");xml.startDocument("UTF-8",true);
             xml.startTag("","hierarchy");xml.attribute("","schema","mock-active-tree-v1");xml.attribute("","nonce",nonce);
             xml.attribute("","package",MOCK);xml.attribute("","window-id",Integer.toString(before.id));xml.attribute("","bounds",bounds(before.bounds));
             xml.attribute("","started-elapsed-nanos",Long.toString(started));
             xml.attribute("","initial-root-wait-ms",Long.toString(SystemClock.elapsedRealtime()-readyStarted));
-            xml.attribute("","initial-root-queries",Integer.toString(rootQueries));xml.attribute("","initial-root",lastRoot);xml.attribute("","initial-windows",lastWindows);
+            xml.attribute("","initial-root-queries",Integer.toString(rootQueries));xml.attribute("","initial-root",initialRoot);xml.attribute("","before-root",beforeRoot);xml.attribute("","initial-windows",lastWindows);
             stage="serialize-real-tree";write(xml,root,0,before.bounds,before.id);require(nodes>1,"Empty app tree");
-            stage="after-window";after=automation.getRootInActiveWindow();lastRoot=describe(after);Window next=new Window(after,display);require(before.same(next),"Active window changed during capture");
+            stage="after-window";after=automation.getRootInActiveWindow();afterRoot=describe(after,display);afterWindows=new WindowMetadata(automation.getWindows()).description;Window next=new Window(after,display);require(before.same(next),"Active window changed during capture");
             xml.startTag("","capture");xml.attribute("","complete","true");xml.attribute("","nodes",Integer.toString(nodes));
             xml.attribute("","window-id",Integer.toString(next.id));xml.attribute("","bounds",bounds(next.bounds));
             xml.attribute("","finished-elapsed-nanos",Long.toString(SystemClock.elapsedRealtimeNanos()));xml.endTag("","capture");
@@ -131,7 +147,7 @@ public final class MockHierarchyInstrumentation extends Instrumentation {
             try(FileOutputStream output=new FileOutputStream(temporary)){bytes.writeTo(output);output.getFD().sync();}
             Files.move(temporary.toPath(),destination.toPath(),StandardCopyOption.ATOMIC_MOVE);temporary=null;
             result.putString("stream","MOCK_ACTIVE_TREE_CAPTURED nonce="+nonce+" nodes="+nodes+" window="+before.id+"\n");finish(Activity.RESULT_OK,result);
-        }catch(Throwable error){result.putString("stream","MOCK_ACTIVE_TREE_FAILED stage="+stage+" root="+lastRoot+" windows="+lastWindows+" "+error.toString()+"\n");finish(Activity.RESULT_CANCELED,result);}
+        }catch(Throwable error){result.putString("stream","MOCK_ACTIVE_TREE_FAILED stage="+stage+" initialRoot="+initialRoot+" beforeRoot="+beforeRoot+" beforeWindows="+beforeWindows+" afterRoot="+afterRoot+" afterWindows="+afterWindows+" readinessRoot="+lastRoot+" readinessWindows="+lastWindows+" "+error.toString()+"\n");finish(Activity.RESULT_CANCELED,result);}
         finally{if(automation!=null)automation.setOnAccessibilityEventListener(null);if(root!=null)root.recycle();if(after!=null&&after!=root)after.recycle();if(temporary!=null)temporary.delete();}
     }
 }
