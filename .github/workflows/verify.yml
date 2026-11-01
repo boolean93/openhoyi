@@ -2,6 +2,8 @@ name: Verify native app
 
 on:
   push:
+    branches: [main, develop, 'release/**', 'hotfix/**']
+    tags: ['**']
   pull_request:
   workflow_dispatch:
 
