@@ -7,6 +7,9 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
+import uuid
+import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -107,26 +110,130 @@ def save_ambiguity_diagnostics(directory, xml, error, selector, contains, attemp
     return folder
 
 
-def adb(*args, include_stderr=False):
-    result = subprocess.run(['adb', *args], check=True, capture_output=True, text=True, timeout=30)
+def adb(*args, include_stderr=False, timeout=30):
+    result = subprocess.run(['adb', *args], check=True, capture_output=True, text=True, timeout=timeout)
     return result.stdout + (result.stderr if include_stderr else '')
 
 
-def ensure_mock():
-    state = adb('shell', 'dumpsys', 'activity', 'activities')
+def ensure_mock(timeout=30):
+    state = adb('shell', 'dumpsys', 'activity', 'activities', timeout=timeout)
     if not re.search(r'topResumedActivity=.*\b' + re.escape(PACKAGE) + r'/', state):
         raise ValueError('foreground activity is not isolated Mock')
     return state
 
 
+TEST_PACKAGE = 'io.openhoyi.mobile.mock.test'
+TREE_RUNNER = TEST_PACKAGE + '/io.openhoyi.mobile.MockHierarchyInstrumentation'
+
+
+def validate_runner_manifest(xml):
+    root = ET.fromstring(xml)
+    android = '{http://schemas.android.com/apk/res/android}'
+    expected = {'io.openhoyi.mobile.BrewAudioInstrumentation': PACKAGE,
+                'io.openhoyi.mobile.MockHierarchyInstrumentation': TEST_PACKAGE}
+    entries = root.findall('instrumentation')
+    actual = {n.get(android + 'name'): n.get(android + 'targetPackage') for n in entries}
+    app = root.find('application')
+    if (root.get('package') != TEST_PACKAGE or len(entries) != 2 or actual != expected
+            or app is None or app.get(android + 'debuggable') != 'true'
+            or app.findall('activity') or app.findall('activity-alias')):
+        raise ValueError('Packaged test runners/targets/application contract differs')
+    return actual
+
+
+def validate_installed_runners(text):
+    entries = re.findall(r'^instrumentation:' + re.escape(TEST_PACKAGE) + r'/([^ ]+) \(target=([^)]*)\)$', text, re.MULTILINE)
+    expected = {'io.openhoyi.mobile.BrewAudioInstrumentation': PACKAGE,
+                'io.openhoyi.mobile.MockHierarchyInstrumentation': TEST_PACKAGE}
+    if len(entries) != 2 or dict(entries) != expected:
+        raise ValueError('Installed runner targets do not match isolated Mock/self contract')
+    return dict(entries)
+
+
+def validate_hierarchy(xml, nonce):
+    root = ET.fromstring(xml)
+    if (root.tag != 'hierarchy' or root.get('schema') != 'mock-active-tree-v1'
+            or root.get('nonce') != nonce or root.get('package') != PACKAGE):
+        raise ValueError('Missing/stale capture identity')
+    nodes = list(root.iter('node'))
+    completed = root.findall('capture')
+    if len(completed) != 1 or len(nodes) < 2:
+        raise ValueError('Empty/incomplete real hierarchy')
+    done = completed[0]
+    if (done.get('complete') != 'true' or int(done.get('nodes', '-1')) != len(nodes)
+            or root.get('window-id') != done.get('window-id') or int(root.get('window-id', '-1')) < 0
+            or root.get('bounds') != done.get('bounds')
+            or not 0 < int(root.get('started-elapsed-nanos', '0')) <= int(done.get('finished-elapsed-nanos', '0'))):
+        raise ValueError('Capture window/completion changed or unknown')
+    bounds = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', root.get('bounds', ''))
+    if not bounds or not (int(bounds[3]) > int(bounds[1]) and int(bounds[4]) > int(bounds[2])):
+        raise ValueError('Empty real window bounds')
+    if any(node.get('package') != PACKAGE or not node.get('class') for node in nodes):
+        raise ValueError('Foreign/unknown package or class in tree')
+    return root
+
+
 def read_hierarchy():
-    # Never reuse an old dump if the platform reports success without writing one.
-    adb('shell', 'rm', '-f', '/data/local/tmp/openhoyi-mock-ui.xml')
-    result = adb('shell', 'uiautomator', 'dump', '/data/local/tmp/openhoyi-mock-ui.xml', include_stderr=True)
+    # One 30-second total request, real accessibility tree, no global-idle requirement.
+    nonce = str(uuid.uuid4())
+    relative = 'files/mock-hierarchy/' + nonce + '.xml'
+    deadline = time.monotonic() + 30
+    record = {'nonce': nonce, 'runner': TREE_RUNNER, 'scope': 'REAL_ACTIVE_TREE_INTERVAL_NOT_ATOMIC_SCREENSHOT'}
+    xml = None
+    failure = None
+    def remaining():
+        left = deadline - time.monotonic()
+        if left <= 0: raise TimeoutError('Active hierarchy exceeded original 30-second budget')
+        return left
+    def pid():
+        value = adb('shell', 'pidof', PACKAGE, timeout=remaining()).strip()
+        if not re.fullmatch(r'[1-9]\d*', value): raise ValueError('Unknown/ambiguous Mock PID')
+        return value
     try:
-        return adb('shell', 'cat', '/data/local/tmp/openhoyi-mock-ui.xml')
-    except subprocess.CalledProcessError as error:
-        raise ValueError(f'Mock hierarchy was not written; dump output: {result}; read error: {error.stderr}') from error
+        ensure_mock(timeout=remaining())
+        record['pidBefore'] = pid()
+        adb('shell', 'run-as', TEST_PACKAGE, 'rm', '-f', relative, timeout=remaining())
+        output = adb('shell', 'am', 'instrument', '-w', '-e', 'nonce', nonce, TREE_RUNNER,
+                     include_stderr=True, timeout=remaining())
+        record['instrumentation'] = output
+        if 'MOCK_ACTIVE_TREE_CAPTURED nonce=' + nonce + ' ' not in output:
+            raise ValueError('Real active-tree collector failed: ' + output)
+        try:
+            xml = adb('shell', 'run-as', TEST_PACKAGE, 'cat', relative, timeout=remaining())
+        except subprocess.CalledProcessError as error:
+            raise ValueError(f'Mock hierarchy was not written for fresh nonce {nonce}: {error.stderr}') from error
+        root = validate_hierarchy(xml, nonce)
+        record['windowId'] = root.get('window-id')
+        record['pidAfter'] = pid()
+        ensure_mock(timeout=remaining())
+        if record['pidBefore'] != record['pidAfter']:
+            raise ValueError('Mock process changed during self-target capture')
+        record['status'] = 'COMPLETE_REAL_TREE_SAME_MOCK_PID'
+        return xml
+    except BaseException as error:
+        failure = error
+        record.update(status='FAIL', failure=repr(error))
+        raise
+    finally:
+        try:
+            adb('shell', 'run-as', TEST_PACKAGE, 'rm', '-f', relative, timeout=remaining())
+            record['ownedFileRemoved'] = True
+        except Exception as cleanup:
+            record['cleanupFailure'] = repr(cleanup)
+            if failure is None:
+                failure = cleanup
+                record['status'] = 'FAIL_OWNED_CLEANUP'
+                raise
+        finally:
+            directory = os.environ.get('MOCK_HIERARCHY_EVIDENCE_DIR')
+            if directory:
+                try:
+                    destination = Path(directory); destination.mkdir(parents=True, exist_ok=True)
+                    if xml is not None: (destination / (nonce + '.xml')).write_text(xml, encoding='utf-8')
+                    (destination / (nonce + '.json')).write_text(json.dumps(record, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+                except OSError as diagnostic:
+                    if failure is None: raise
+                    print(f'Hierarchy evidence write failed after original failure: {diagnostic}', file=sys.stderr)
 
 
 def main():

@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 output_dir="$PWD/build/mock-ui-screenshots"
 mkdir -p "$output_dir"
+export MOCK_HIERARCHY_EVIDENCE_DIR="$output_dir/hierarchy-requests"
 apk="mobile/build/outputs/apk/mock/mobile-mock.apk"
 test -s "$apk"
 
@@ -42,6 +43,14 @@ adb install -r "$apk"
 test_apk=mobile/build/outputs/apk/androidTest/mock/mobile-mock-androidTest.apk
 test -s "$test_apk"
 adb install -r "$test_apk"
+adb shell pm list instrumentation > "$output_dir/installed-instrumentation.txt"
+python3 - "$output_dir/installed-instrumentation.txt" <<'RUNNERS'
+from pathlib import Path
+import sys
+sys.path.insert(0,'scripts')
+from mock_ui_tap import validate_installed_runners
+validate_installed_runners(Path(sys.argv[1]).read_text())
+RUNNERS
 python3 - "$output_dir/idle-accessibility.txt" <<'PY'
 from pathlib import Path
 import subprocess,sys
@@ -250,9 +259,12 @@ adb logcat -c
 tap_control '开始模拟'
 sleep 3
 adb logcat -d -s OpenHoyiMobile:I | grep 'Mock 萃取已开始' > "$output_dir/shot-start-log.txt"
+python3 scripts/mock_capture_continuity.py before dark "$output_dir"
 capture extraction-running-dark
+python3 scripts/mock_capture_continuity.py after dark "$output_dir"
 sleep 34
 capture extraction-ended-dark
+python3 scripts/mock_capture_continuity.py ended dark "$output_dir"
 tap_nav HistoryActivity
 capture history-list-dark
 tap_control '采集曲线 2'
@@ -278,9 +290,12 @@ adb logcat -c
 tap_control '开始模拟'
 sleep 3
 adb logcat -d -s OpenHoyiMobile:I | grep 'Mock 萃取已开始' > "$output_dir/shot-start-light-log.txt"
+python3 scripts/mock_capture_continuity.py before light "$output_dir"
 capture extraction-running-light
+python3 scripts/mock_capture_continuity.py after light "$output_dir"
 sleep 34
 capture extraction-ended-light
+python3 scripts/mock_capture_continuity.py ended light "$output_dir"
 
 # Portrait capture retired by the user on 2026-10-16; landscape flows above remain.
 

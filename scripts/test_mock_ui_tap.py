@@ -113,11 +113,19 @@ class MockUiTapTest(unittest.TestCase):
                 adb_call.assert_not_called()
 
     def test_zero_exit_without_dump_is_not_success_or_stale_data(self):
+        # Preserve the original missing-file/stale-data gate on the new real-tree protocol.
+        import uuid
+        nonce = '12345678-1234-1234-1234-123456789012'
         error = subprocess.CalledProcessError(1, ['adb'], stderr='No such file')
-        with patch('mock_ui_tap.adb', side_effect=['', 'ERROR: idle timeout', error]) as calls:
-            with self.assertRaisesRegex(ValueError, 'idle timeout'):
+        with patch('mock_ui_tap.ensure_mock', return_value='mock'), \
+                patch('mock_ui_tap.uuid.uuid4', return_value=uuid.UUID(nonce)), \
+                patch('mock_ui_tap.adb', side_effect=['42', '', 'MOCK_ACTIVE_TREE_CAPTURED nonce=' + nonce + ' nodes=2', error, '']) as calls:
+            with self.assertRaisesRegex(ValueError, 'hierarchy was not written') as failed:
                 read_hierarchy()
-            self.assertEqual(('shell', 'rm', '-f', '/data/local/tmp/openhoyi-mock-ui.xml'), calls.call_args_list[0].args)
+            self.assertIs(error, failed.exception.__cause__)
+            self.assertEqual(('shell', 'run-as', 'io.openhoyi.mobile.mock.test', 'rm', '-f',
+                'files/mock-hierarchy/' + nonce + '.xml'), calls.call_args_list[1].args)
+            self.assertEqual(calls.call_args_list[1].args, calls.call_args_list[-1].args)
     def test_list_label_taps_its_row_not_the_list_center(self):
         xml = '<hierarchy><node class="android.widget.ListView" clickable="true" enabled="true" bounds="[0,0][100,500]"><node bounds="[0,20][100,80]"><node text="Shot" /></node></node></hierarchy>'
         self.assertEqual((50, 50), find_target(xml, 'Shot'))
@@ -162,17 +170,24 @@ class MockUiTapTest(unittest.TestCase):
         self.assertEqual((50,50),find_target(xml,'Shot'))
 
     def test_main_saves_original_xml_and_never_calls_adb_after_ambiguity(self):
-        xml='<hierarchy>\n<node text="查看详情" clickable="true" enabled="true" bounds="[0,0][50,50]"/>\n<node content-desc="查看详情" clickable="true" enabled="true" bounds="[0,60][50,100]"/>\n</hierarchy>'
+        import uuid
+        nonce='12345678-1234-1234-1234-123456789012'
+        xml=(f'<hierarchy schema="mock-active-tree-v1" nonce="{nonce}" package="io.openhoyi.mobile.mock" window-id="7" bounds="[0,0][100,100]" started-elapsed-nanos="10">\n'
+            '<node package="io.openhoyi.mobile.mock" class="android.widget.FrameLayout"><node package="io.openhoyi.mobile.mock" class="android.widget.Button" text="查看详情" clickable="true" enabled="true" bounds="[0,0][50,50]"/>\n'
+            '<node package="io.openhoyi.mobile.mock" class="android.widget.Button" content-desc="查看详情" clickable="true" enabled="true" bounds="[0,60][50,100]"/></node>\n'
+            '<capture complete="true" nodes="3" window-id="7" bounds="[0,0][100,100]" finished-elapsed-nanos="20"/></hierarchy>')
         foreground='topResumedActivity=ActivityRecord{1 io.openhoyi.mobile.mock/io.openhoyi.mobile.HistoryActivity}'
         calls=[]
         def fake_adb(*args,**kwargs):
             calls.append(args)
             if args[:3]==('shell','dumpsys','activity'):return foreground
-            if args[:3]==('shell','rm','-f'):return ''
-            if args[:3]==('shell','uiautomator','dump'):return 'UI hierarchy dumped'
-            if args[:2]==('shell','cat'):return xml
+            if args[:2]==('shell','pidof'):return '42'
+            if args[:4]==('shell','run-as','io.openhoyi.mobile.mock.test','rm'):return ''
+            if args[:3]==('shell','am','instrument'):return 'MOCK_ACTIVE_TREE_CAPTURED nonce='+nonce+' nodes=3'
+            if args[:4]==('shell','run-as','io.openhoyi.mobile.mock.test','cat'):return xml
             self.fail(f'unexpected adb call: {args}')
         with tempfile.TemporaryDirectory() as directory,patch('mock_ui_tap.adb',side_effect=fake_adb),\
+            patch('mock_ui_tap.uuid.uuid4',return_value=uuid.UUID(nonce)),\
             patch.object(sys,'argv',['mock_ui_tap.py','查看详情','--scroll','--diagnostics-dir',directory]):
             with self.assertRaisesRegex(ValueError,'ambiguous Mock control: 查看详情'):
                 main()
@@ -185,7 +200,8 @@ class MockUiTapTest(unittest.TestCase):
             self.assertEqual(0,record['attempt'])
             self.assertEqual([],record['completedScrollDirections'])
             self.assertEqual('NO_TAP_AFTER_AMBIGUITY',record['outcome'])
-            self.assertEqual(4,len(calls))
+            self.assertEqual(9,len(calls))  # Only foreground/PID/read/owned cleanup; no tap or scroll.
+            self.assertTrue(all(call[:2] != ('shell','input') for call in calls))
 
     def test_diagnostic_write_failure_preserves_ambiguity(self):
         xml='<hierarchy><node text="X" clickable="true" enabled="true" bounds="[0,0][50,50]"/><node text="X" clickable="true" enabled="true" bounds="[0,60][50,100]"/></hierarchy>'
