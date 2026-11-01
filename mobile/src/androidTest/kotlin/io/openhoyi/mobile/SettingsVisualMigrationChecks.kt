@@ -1125,12 +1125,26 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         lateinit var editLabel:String;lateinit var collapseLabel:String;lateinit var dayLabels:List<String>
         fun scheduleState():JSONObject {
             check(Looper.myLooper()==Looper.getMainLooper() && scope.ownerService===scheduleOwner && field(activity,"service")===scheduleOwner)
+            val runtime=field(scheduleOwner,"mock")
+            check(BuildConfig.MOCK_MODE && context.packageName=="io.openhoyi.mobile.mock" && runtime is MockDeviceRuntime)
             val snapshot=scheduleOwner.snapshot
-            fun bytes(value:io.openhoyi.protocol.SleepPart?):Any=value?.raw?.toByteArray()?.let {JSONArray(it.map {byte->byte.toInt() and 255})} ?: JSONObject.NULL
+            check(io.openhoyi.protocol.WeeklySleepSchedule.fromReadback(snapshot.sleepFirst,snapshot.sleepSecond)!=null)
+            fun fragment(value:io.openhoyi.protocol.SleepPart?):JSONObject {
+                val actual=requireNotNull(value);val raw=actual.raw.toByteArray()
+                check(raw.isEmpty()) {"Owned Mock runtime changed its explicit empty-raw snapshot contract"}
+                return JSONObject().put("firstDaySundayIndex",actual.firstDaySundayIndex)
+                    .put("enabledBits",actual.enabledBits ?: JSONObject.NULL)
+                    .put("days",JSONArray(actual.days.map {day->JSONObject().put("sleepHour",day.sleepHour).put("sleepMinute",day.sleepMinute)
+                        .put("wakeHour",day.wakeHour).put("wakeMinute",day.wakeMinute)}))
+                    .put("raw",JSONArray(raw.map {it.toInt() and 255}))
+            }
             check(scheduleOwner.scheduleWriteState==io.openhoyi.session.SleepScheduleWriteTracker.State.IDLE && scheduleOwner.pendingSchedule==null)
             return JSONObject().put("ownerServiceIdentity",System.identityHashCode(scheduleOwner))
+                .put("source","OWNED_MOCK_SERVICE_TYPED_SLEEP_PART_V1").put("mockMode",BuildConfig.MOCK_MODE)
+                .put("packageName",context.packageName).put("ownerServiceClass",scheduleOwner.javaClass.name)
+                .put("mockRuntimeClass",runtime.javaClass.name).put("mockRuntimeIdentity",System.identityHashCode(runtime))
                 .put("state",scheduleOwner.scheduleWriteState.name).put("pendingIsNull",scheduleOwner.pendingSchedule==null)
-                .put("firstReadback",bytes(snapshot.sleepFirst)).put("secondReadback",bytes(snapshot.sleepSecond))
+                .put("firstReadback",fragment(snapshot.sleepFirst)).put("secondReadback",fragment(snapshot.sleepSecond))
         }
         lateinit var scheduleBefore:JSONObject
         main {
@@ -1258,6 +1272,7 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         val reference=when(page) {"app"->"f2022d5eb60b798a722d30f01933028a63f14a342958400c74fcdc25a7c1a899";"machine"->"ccb438958aae1cb9a6e88bec1c2fdd5ffafd4a18d385ff63a0e9024c68f6c60d";else->"f87b9cf3d260a3b01bd9d88e83fa2a5cb40d8e1d456de37b8c579515a8eec36f"}
         check(arguments.getString("referencePngSha256")==reference)
         val manifest=JSONObject().put("sourceSha",source).put("headSha",arguments.getString("headSha"))
+            .put("mockMode",BuildConfig.MOCK_MODE)
             .put("sourceDirty",arguments.getString("sourceDirty")).put("apkSha256",arguments.getString("apkSha"))
             .put("testApkSha256",arguments.getString("testApkSha")).put("ciRunAttempt",arguments.getString("ciRunAttempt"))
             .put("ciRun",arguments.getString("ciRun")).put("ciJob",arguments.getString("ciJob"))
@@ -1268,7 +1283,14 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         try {
             main {syntheticObservationEquivalence()}
             val active=Scope(directory,page);scope=active;active.prepare();active.install(theme=="dark")
-            if(page=="machine")active.beginService()
+            if(page=="machine") {
+                active.beginService()
+                main {
+                    val runtime=field(active.ownerService,"mock");check(BuildConfig.MOCK_MODE && runtime is MockDeviceRuntime)
+                    manifest.put("ownedMachineServiceIdentity",System.identityHashCode(active.ownerService))
+                        .put("ownedMockRuntimeIdentity",System.identityHashCode(runtime))
+                }
+            }
             val activity=start(when(page) {"app"->AppSettingsActivity::class.java;"machine"->MachineSettingsActivity::class.java;else->ScaleSettingsActivity::class.java})
             if(activity is MachineSettingsActivity)await("actual Machine binding to exact isolated Service") {field(activity,"service")===active.ownerService}
             else if(activity is MainActivity) active.observeRootService(activity)

@@ -6,6 +6,13 @@ import unittest
 from test_settings_language_error_contract import node
 from test_settings_language_host_contract import verifier_functions
 
+MANIFEST = {'mockMode': True, 'page': 'machine', 'ownedMachineServiceIdentity': 8, 'ownedMockRuntimeIdentity': 88}
+
+
+def fragment(index):
+    return {'firstDaySundayIndex': index, 'enabledBits': 254 if index==0 else None,
+            'days': [{'sleepHour': 23, 'sleepMinute': 0, 'wakeHour': 7, 'wakeMinute': 0}
+                     for _ in range(4 if index==0 else 3)], 'raw': []}
 
 def fixture(expanded, locale='zh-Hans'):
     labels = [f'编辑 {day} 的睡眠/唤醒时间' for day in ('周日', '周一', '周二', '周三', '周四', '周五', '周六')]
@@ -33,7 +40,9 @@ def fixture(expanded, locale='zh-Hans'):
              'dayNameResources': ['machine_settings_'+day for day in ('sunday','monday','tuesday','wednesday','thursday','friday','saturday')],
              'expectedDayLabels': labels, 'days': days, 'toggle': copy.deepcopy(toggle), 'firstDay': copy.deepcopy(nodes[1]),
              'scheduleState': {'ownerServiceIdentity': 8, 'state': 'IDLE', 'pendingIsNull': True,
-                               'firstReadback': None, 'secondReadback': None}}
+                'source': 'OWNED_MOCK_SERVICE_TYPED_SLEEP_PART_V1', 'mockMode': True, 'packageName': 'io.openhoyi.mobile.mock',
+                'ownerServiceClass': 'io.openhoyi.mobile.MobileService', 'mockRuntimeClass': 'io.openhoyi.mobile.MockDeviceRuntime',
+                'mockRuntimeIdentity': 88, 'firstReadback': fragment(0), 'secondReadback': fragment(4)}}
     target = {'weeklyEditorRoute': route, 'locale': locale, 'densityDpi': 360,
               'appOriginPx': [0, 0], 'appSizePx': [600, 500], 'nodes': nodes}
     before = {'target': target}
@@ -48,24 +57,57 @@ def target(proof):
 
 class WeeklyEditorRouteContract(unittest.TestCase):
     def setUp(self):
-        self.validate = verifier_functions()['validate_weekly_editor_route']
+        self.function = verifier_functions()['validate_weekly_editor_route']
+        self.validate = lambda before,after: self.function(before,after,MANIFEST)
 
     def test_real_collapsed_to_expanded_route_accepts_only_first_day_full_frame(self):
         for locale in ('zh-Hans', 'en'):
             with self.subTest(locale=locale):
                 self.validate(fixture(False, locale), fixture(True, locale))
 
-    def test_real_wire_readback_bytes_must_stay_identical_across_route(self):
+    def test_complete_typed_mock_values_stay_identical_even_when_raw_is_empty(self):
         collapsed, expanded = fixture(False), fixture(True)
-        for proof in (collapsed, expanded):
-            state=target(proof)['weeklyEditorRoute']['scheduleState']
-            state.update(firstReadback=[0x83,0x40,0]+[0]*17, secondReadback=[0x83,0x80]+[0]*13)
-            proof['attempts'][0]['geometryAfter']=copy.deepcopy(proof['attempts'][0]['geometryBefore'])
         self.validate(collapsed, expanded)
-        target(expanded)['weeklyEditorRoute']['scheduleState']['firstReadback'][3]=1
+        target(expanded)['weeklyEditorRoute']['scheduleState']['firstReadback']['days'][0]['sleepMinute']=1
         expanded['attempts'][0]['geometryAfter']=copy.deepcopy(expanded['attempts'][0]['geometryBefore'])
         with self.assertRaises(AssertionError):
             self.validate(collapsed, expanded)
+
+    def test_old_raw_only_mock_record_is_rejected_without_inventing_typed_fields(self):
+        collapsed,expanded=fixture(False),fixture(True)
+        state=target(expanded)['weeklyEditorRoute']['scheduleState']
+        state.clear();state.update(ownerServiceIdentity=8,state='IDLE',pendingIsNull=True,firstReadback=[],secondReadback=[])
+        expanded['attempts'][0]['geometryAfter']=copy.deepcopy(expanded['attempts'][0]['geometryBefore'])
+        with self.assertRaisesRegex(AssertionError,'Missing typed Mock schedule provenance'):
+            self.validate(collapsed,expanded)
+
+    def test_mock_source_owner_and_typed_fragment_structure_fail_closed(self):
+        changes={
+            'real_build':lambda s:s.update(mockMode=False),
+            'wrong_package':lambda s:s.update(packageName='io.openhoyi.mobile'),
+            'wrong_runtime':lambda s:s.update(mockRuntimeClass='other'),
+            'old_runtime':lambda s:s.update(mockRuntimeIdentity=89),
+            'wrong_first_index':lambda s:s['firstReadback'].update(firstDaySundayIndex=1),
+            'wrong_tail_index':lambda s:s['secondReadback'].update(firstDaySundayIndex=0),
+            'invalid_enabled':lambda s:s['firstReadback'].update(enabledBits=256),
+            'tail_enabled':lambda s:s['secondReadback'].update(enabledBits=0),
+            'missing_day':lambda s:s['firstReadback']['days'].pop(),
+            'extra_day':lambda s:s['secondReadback']['days'].append(copy.deepcopy(s['secondReadback']['days'][0])),
+            'invalid_hour':lambda s:s['firstReadback']['days'][0].update(sleepHour=24),
+            'invalid_minute':lambda s:s['secondReadback']['days'][0].update(wakeMinute=60),
+            'negative_time':lambda s:s['secondReadback']['days'][0].update(wakeHour=-1),
+            'fabricated_wire':lambda s:s['firstReadback'].update(raw=[0x83,0x40]+[0]*18),
+        }
+        for name,change in changes.items():
+            before,after=fixture(False),fixture(True)
+            change(target(after)['weeklyEditorRoute']['scheduleState'])
+            after['attempts'][0]['geometryAfter']=copy.deepcopy(after['attempts'][0]['geometryBefore'])
+            with self.subTest(mutation=name),self.assertRaises(AssertionError):
+                self.validate(before,after)
+        for key,value in [('mockMode',False),('ownedMachineServiceIdentity',99),('ownedMockRuntimeIdentity',99)]:
+            owner=dict(MANIFEST);owner[key]=value
+            with self.subTest(manifest=key),self.assertRaises(AssertionError):
+                self.function(fixture(False),fixture(True),owner)
 
     def test_contract_mutations_are_rejected_after_matching_before_after_geometry(self):
         changes = {

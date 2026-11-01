@@ -468,7 +468,9 @@ def validate_language_dialog_target(accepted,safe,proof):
         assert len(focused)==1
         assert safe['focusedControlIdentity']==focused[0]['viewIdentity']
 
-def validate_weekly_editor_route(collapsed_proof,expanded_proof):
+def validate_weekly_editor_route(collapsed_proof,expanded_proof,manifest):
+    assert manifest['mockMode'] is True and manifest['page']=='machine'
+    assert manifest['ownedMachineServiceIdentity']>0 and manifest['ownedMockRuntimeIdentity']>0
     routes=[]
     for proof,expanded in ((collapsed_proof,False),(expanded_proof,True)):
         assert proof['captureWindowKind']=='ACTIVITY' and proof['accepted'] and proof['timeoutMs']==5000
@@ -522,11 +524,23 @@ def validate_weekly_editor_route(collapsed_proof,expanded_proof):
             ox,oy=accepted['appOriginPx'];width,height=accepted['appSizePx']
             assert ox<=x<r<=ox+width and oy<=y<b<=oy+height
         state=route['scheduleState']
-        assert state['ownerServiceIdentity']>0 and state['state']=='IDLE' and state['pendingIsNull'] is True
-        for key,length,header in (('firstReadback',20,0x40),('secondReadback',15,0x80)):
+        assert state.get('source')=='OWNED_MOCK_SERVICE_TYPED_SLEEP_PART_V1', 'Missing typed Mock schedule provenance'
+        assert state['mockMode'] is True and state['packageName']=='io.openhoyi.mobile.mock'
+        assert state['ownerServiceClass']=='io.openhoyi.mobile.MobileService' and state['mockRuntimeClass']=='io.openhoyi.mobile.MockDeviceRuntime'
+        assert state['ownerServiceIdentity']==manifest['ownedMachineServiceIdentity'] and state['mockRuntimeIdentity']==manifest['ownedMockRuntimeIdentity']
+        assert state['state']=='IDLE' and state['pendingIsNull'] is True
+        for key,index,count in (('firstReadback',0,4),('secondReadback',4,3)):
             value=state[key]
-            assert value is None or (isinstance(value,list) and len(value)==length and value[:2]==[0x83,header]
-                and all(type(byte) is int and 0<=byte<=255 for byte in value))
+            assert isinstance(value,dict) and set(value)=={'firstDaySundayIndex','enabledBits','days','raw'}
+            assert type(value['firstDaySundayIndex']) is int and value['firstDaySundayIndex']==index
+            assert value['raw']==[], 'Mock empty raw is explicit metadata, never fabricated wire'
+            if index==0: assert type(value['enabledBits']) is int and 0<=value['enabledBits']<=255
+            else: assert value['enabledBits'] is None
+            assert isinstance(value['days'],list) and len(value['days'])==count
+            for day in value['days']:
+                assert set(day)=={'sleepHour','sleepMinute','wakeHour','wakeMinute'}
+                assert all(type(day[field]) is int and 0<=day[field]<limit for field,limit in
+                    (('sleepHour',24),('sleepMinute',60),('wakeHour',24),('wakeMinute',60)))
     before,after=routes
     for key in ('ownerActivityIdentity','windowIdentity','decorIdentity','windowTokenIdentity','rootIdentity',
                 'cardIdentity','editorIdentity','toggleParentIdentity','editorParentIdentity','locale','density',
@@ -662,7 +676,7 @@ for path in manifests:
         if m['page']=='machine':
             for index in range(5):require_reach(folder/'special-states'/('section-'+str(index))/'reachable','machine','section-'+str(index))
             validate_weekly_editor_route(*[require_protocol(folder/'special-states'/name/'window-frame-sync.json','ACTIVITY')
-                for name in ('schedule-editor-collapsed','schedule-editor-expanded')])
+                for name in ('schedule-editor-collapsed','schedule-editor-expanded')],m)
         if m['page']=='scale-settings':require_reach(folder/'special-states/all-instructions','scale-settings','all-instructions')
         if m['page']=='app':
             for tag in ('zh-Hans','en','ru','th','ar','ja','ko','es'):
