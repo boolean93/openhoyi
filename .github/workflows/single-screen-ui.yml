@@ -8,14 +8,28 @@ on:
 permissions:
   contents: read
 
+env:
+  CI_REPOSITORY: ${{ github.repository }}
+  CI_EVENT_NAME: ${{ github.event_name }}
+  CI_REF: ${{ github.ref }}
+  CI_RUN_ID: ${{ github.run_id }}
+  CI_WORKFLOW_REF: ${{ github.workflow_ref }}
+  CI_WORKFLOW_SHA: ${{ github.workflow_sha }}
+  CI_EXPECTED_SHA: ${{ github.sha }}
+  CI_PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+  CI_PR_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+  CI_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+  CI_PR_MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha || '' }}
+
 jobs:
-  single-screen:
+  build-mock:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        profile: [tablet-user-landscape, tablet-landscape, tablet-large-font]
+    timeout-minutes: 15
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      resolved-sha: ${{ steps.manifest.outputs.resolved-sha }}
+      manifest-sha: ${{ steps.manifest.outputs.manifest-sha }}
+      producer-attempt: ${{ steps.manifest.outputs.producer-attempt }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -28,8 +42,76 @@ jobs:
       - uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
-      - name: Build isolated Mock windows
+      - name: Verify shared transport contracts
+        run: python3 -m unittest discover -s scripts -p 'test_shared_mock_artifact.py'
+      - name: Build isolated Mock windows once
         run: ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+      - name: Verify and manifest the exact APK pair
+        id: manifest
+        run: python3 scripts/shared_mock_artifact.py produce --directory build/shared-mock-pair --producer-attempt "$GITHUB_RUN_ATTEMPT"
+      - name: Upload immutable same-run APK pair
+        id: upload
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: single-screen-mock-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/shared-mock-pair/
+          if-no-files-found: error
+          retention-days: 3
+  single-screen:
+    needs: build-mock
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [tablet-user-landscape, tablet-landscape, tablet-large-font]
+    steps:
+      - name: Require the successful exact producer
+        env:
+          PRODUCER_RESULT: ${{ needs.build-mock.result }}
+          ARTIFACT_ID: ${{ needs.build-mock.outputs.artifact-id }}
+          RESOLVED_SHA: ${{ needs.build-mock.outputs.resolved-sha }}
+          MANIFEST_SHA: ${{ needs.build-mock.outputs.manifest-sha }}
+          PRODUCER_ATTEMPT: ${{ needs.build-mock.outputs.producer-attempt }}
+        run: |
+          test "$PRODUCER_RESULT" = success
+          [[ "$ARTIFACT_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ "$RESOLVED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$RESOLVED_SHA" = "$CI_EXPECTED_SHA"
+          [[ "$MANIFEST_SHA" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$PRODUCER_ATTEMPT" =~ ^[1-9][0-9]*$ ]]
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.build-mock.outputs.resolved-sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Require empty artifact staging
+        run: test ! -e build/shared-mock-download
+      - name: Download only the immutable producer artifact ID
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          artifact-ids: ${{ needs.build-mock.outputs.artifact-id }}
+          path: build/shared-mock-download
+          merge-multiple: true
+      - name: Verify exact source, APK pair, signatures and runners before installation
+        env:
+          CI_ARTIFACT_ID: ${{ needs.build-mock.outputs.artifact-id }}
+          PRODUCER_ATTEMPT: ${{ needs.build-mock.outputs.producer-attempt }}
+          PRODUCER_RESULT: ${{ needs.build-mock.result }}
+          MANIFEST_SHA: ${{ needs.build-mock.outputs.manifest-sha }}
+          RESOLVED_SHA: ${{ needs.build-mock.outputs.resolved-sha }}
+        run: >-
+          python3 scripts/shared_mock_artifact.py consume --directory build/shared-mock-download
+          --producer-attempt "$PRODUCER_ATTEMPT" --producer-result "$PRODUCER_RESULT"
+          --manifest-sha "$MANIFEST_SHA" --resolved-sha "$RESOLVED_SHA"
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
