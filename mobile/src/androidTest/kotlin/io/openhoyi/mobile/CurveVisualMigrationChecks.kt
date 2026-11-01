@@ -719,7 +719,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             .put("proof",relative("window-frame-sync.json")).put("proofSha256",sha(File(folder,"window-frame-sync.json")))
     }
     private data class SlotPopup(val root:View,val list:ListView,val token:IBinder,val displayId:Int,
-        val choices:List<String>)
+        val choices:List<String>,val window:android.view.Window,val ownerActivity:Activity)
     private fun slotPopup(activity:Activity, list:ListView, expected:List<String>):SlotPopup {
         val inspectors=android.view.inspector.WindowInspector.getGlobalWindowViews()
         val ancestors=generateSequence(list as View) { it.parent as? View }.toList()
@@ -727,12 +727,18 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         check(roots.size==1) { "M3 original slot menu has no unique Inspector root" }
         val popup=roots.single();val token=requireNotNull(popup.windowToken)
         check(popup!==activity.window.decorView && popup.isAttachedToWindow &&
-            popup.javaClass.name=="android.widget.PopupWindow\$PopupDecorView" &&
+            popup.javaClass.name=="com.android.internal.policy.DecorView" &&
             list.rootView===popup && list.isAttachedToWindow && list.windowToken===token &&
             list.display?.displayId==popup.display?.displayId &&
             (0 until list.adapter.count).map {list.adapter.getItem(it).toString()}==expected) {
             "M3 original slot menu root/token/items changed" }
-        return SlotPopup(popup,list,token,requireNotNull(popup.display).displayId,expected)
+        val window=popup.javaClass.getDeclaredField("mWindow").apply {isAccessible=true}.get(popup) as android.view.Window
+        val dialog=window.callback as? AlertDialog ?: error("Original actions menu is not the real AlertDialog")
+        var owner:Context=dialog.context
+        while(owner is ContextWrapper && owner!==activity)owner=owner.baseContext
+        check(window.decorView===popup && dialog.window===window && dialog.isShowing && dialog.listView===list &&
+            (dialog.ownerActivity===activity || owner===activity)) {"Original action menu owner/window/list changed"}
+        return SlotPopup(popup,list,token,requireNotNull(popup.display).displayId,expected,window,activity)
     }
     private fun slotRootState(view:View):JSONObject=JSONObject()
         .put("class",view.javaClass.name).put("identity",System.identityHashCode(view))
@@ -742,6 +748,8 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
         .put("displayId",view.display?.displayId ?: JSONObject.NULL)
     private fun slotPopupState(popup:SlotPopup):JSONObject=slotRootState(popup.root)
         .put("listIdentity",System.identityHashCode(popup.list))
+        .put("menuKind","ALERT_DIALOG").put("windowIdentity",System.identityHashCode(popup.window))
+        .put("ownerActivityIdentity",System.identityHashCode(popup.ownerActivity))
         .put("listTokenIdentity",System.identityHashCode(popup.token))
         .put("choices",JSONArray(popup.choices))
     private fun libraryWindowDialog(activity: Activity, popup:SlotPopup?=null,
@@ -775,7 +783,7 @@ internal class CurveVisualMigrationChecks(private val test: Instrumentation) {
             var popupPresent=false
             for(decor in roots) {
                 if(popup!=null && decor===popup.root) {
-                    check(decor.javaClass.name=="android.widget.PopupWindow\$PopupDecorView" &&
+                    check(decor.javaClass.name=="com.android.internal.policy.DecorView" && decor===popup.window.decorView &&
                         decor.windowToken===popup.token && decor.display?.displayId==popup.displayId &&
                         popup.list.rootView===decor && popup.list.windowToken===popup.token) {
                         "M3 original slot Popup identity/token changed" }

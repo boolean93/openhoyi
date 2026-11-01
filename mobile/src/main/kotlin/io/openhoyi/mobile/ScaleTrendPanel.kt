@@ -45,11 +45,15 @@ internal class ScaleTrendPanel(private val activity: ThemedActivity, primary: Li
         }
     }
     private fun dp(value: Int) = HoyiUi.dp(activity, value)
-    fun fit(width: Int, available: Int): Int {
+    fun requiredHeight(width: Int): Int {
         block.measure(View.MeasureSpec.makeMeasureSpec(width.coerceAtLeast(0), View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
         val margin=if(visual==null)0 else (block.layoutParams as LinearLayout.LayoutParams).topMargin
-        val required=block.measuredHeight+margin
+        return block.measuredHeight+margin
+    }
+    fun fit(width: Int, available: Int): Int {
+        val required=requiredHeight(width)
+        val margin=required-block.measuredHeight
         val inline = required <= available
         block.visibility = if (inline) View.VISIBLE else View.GONE
         fallback.visibility = if (inline) View.GONE else View.VISIBLE

@@ -110,14 +110,15 @@ class ScaleFragment : Fragment() {
             val verticalReadingHeight=natural(reading)
             val tareHeight=tare.measuredHeight+params.topMargin+params.bottomMargin
             val explanationHeight=natural(tareStatus)
-            reading.requestInline(verticalReadingHeight+tareHeight+explanationHeight>height)
+            val trendRequired=trend.requiredHeight(width)
+            reading.requestInline(verticalReadingHeight+tareHeight+explanationHeight+trendRequired>height)
             val readingHeight=natural(reading)
             val required=readingHeight+tareHeight+explanationHeight
             val trendHeight=trend.fit(width,height-required)
             productLayoutEvidence.put("readingNaturalPx",readingHeight).put("tareNaturalPx",tareHeight)
                 .put("readingVerticalNaturalPx",verticalReadingHeight).put("readingLayout",reading.productLayoutEvidence)
                 .put("readingAndControlsBudgetSatisfiable",required<=height)
-                .put("tareExplanationNaturalPx",explanationHeight).put("trendNaturalPx",trendHeight)
+                .put("tareExplanationNaturalPx",explanationHeight).put("trendRequiredNaturalPx",trendRequired).put("trendNaturalPx",trendHeight)
                 .put("trendInline",trendHeight>0).put("trendBudget",trend.productLayoutEvidence)
             required+trendHeight
         }

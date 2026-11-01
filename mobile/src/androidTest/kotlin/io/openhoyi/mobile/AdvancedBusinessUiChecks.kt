@@ -1132,51 +1132,75 @@ internal class AdvancedBusinessUiChecks(private val test: Instrumentation) {
             }
         }
         fun captureHomeDose(returnTo: Activity, name: String, state: Int) {
-            val beforeDose = preparation.current()
-            val beforeEvents = inventory.events()
-            val beforeBalance = balance()
-            val page = requireNotNull(rootHost)
-            onMain { returnTo.startActivity(Intent(returnTo, MainActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
-            awaitMain { page.hasWindowFocus() && !page.isDestroyed }
-            MainPageTestHost(test, page).select(TaskDestination.BREW)
-            var details: android.app.AlertDialog? = null
+            val beforeDose=requireNotNull(preparation.current())
+            val beforeEvents=inventory.events();val beforeBalance=balance()
+            val page=requireNotNull(rootHost)
+            val confirmed=state==R.string.task_brew_dose_confirmed
+            check(beforeDose.eventId==preparation.current()?.eventId && beforeDose.batchId==batchId &&
+                beforeDose.amountMg==18000L && beforeDose.confirmed==confirmed)
+            onMain {returnTo.startActivity(Intent(returnTo,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))}
+            awaitMain {page.hasWindowFocus() && !page.isDestroyed}
+            MainPageTestHost(test,page).select(TaskDestination.BREW)
+            onMain {check(requireNotNull(root(page).findViewWithTag<View>("task-nav:BEANS")).performClick())}
+            test.waitForIdleSync()
+            awaitMain {page.supportFragmentManager.primaryNavigationFragment is BeanInventoryFragment}
+            onMain {
+                val row=requireNotNull(root(page).findViewWithTag<View>("inventory-batch-$batchId"))
+                row.requestRectangleOnScreen(android.graphics.Rect(0,0,row.width,row.height),true)
+            }
+            test.waitForIdleSync()
+            onMain {check(requireNotNull(root(page).findViewWithTag<View>("inventory-batch-$batchId")).performClick())}
+            test.waitForIdleSync()
+            val monitor=test.addMonitor(BeanPreparationActivity::class.java.name,null,false)
+            var inspected:BeanPreparationActivity?=null
+            var failure:Throwable?=null
             try {
-                onMain {
-                    val homeFragment = MainPageTestHost(test, page).active("root:BREW") as HomeFragment
-                    check(root(page).findViewWithTag<View>("product/home/connect").performClick())
-                    details = HomeFragment::class.java.getDeclaredField("deviceDialog")
-                        .apply { isAccessible = true }.get(homeFragment) as? android.app.AlertDialog
-                    check(details?.isShowing == true) { "Home details did not open from the visible connect action" }
-                }
-                val detailRoot = requireNotNull(details?.window).decorView
-                awaitMain { details?.isShowing == true && owner(page) === service && views(detailRoot).filterIsInstance<TextView>().any {
-                    it.isShown && it.text.toString() == page.getString(state)
-                } }
-                onMain {
-                    val quantity = detailRoot.findViewWithTag<TextView>("home-dose-quantity")
-                    val unit = detailRoot.findViewWithTag<TextView>("product/home/dose/unit")
-                    check(quantity.isShown && quantity.text.toString() == "18" && unit.isShown && unit.text.toString() == "g") {
-                        "Home did not display the selected 18 g dose"
+                onMain {val use=requireNotNull(root(page).findViewWithTag<View>("product/inventory/use"))
+                    use.requestRectangleOnScreen(android.graphics.Rect(0,0,use.width,use.height),true)}
+                test.waitForIdleSync()
+                onMain {check(requireNotNull(root(page).findViewWithTag<View>("product/inventory/use")).performClick())}
+                val actual=test.waitForMonitorWithTimeout(monitor,10000) as? BeanPreparationActivity
+                    ?: error("Actual Home→Beans→Use route did not open preparation")
+                inspected=actual;opened+=actual
+                awaitMain {actual.hasWindowFocus() && root(actual).isLaidOut &&
+                    ScaleOwnerActivity::class.java.getDeclaredField("owner").apply {isAccessible=true}.get(actual)===service}
+                val summary=actual.getString(R.string.dose_summary,beanName,actual.beanBatchNumber(inventory,requireNotNull(batchId)),"18")
+                val status=if(confirmed)actual.getString(R.string.dose_confirmed,"18") else actual.getString(R.string.dose_saved)
+                for((key,text) in listOf("summary" to summary,"state" to status)) {
+                    lateinit var target:TextView
+                    onMain {target=views(root(actual)).filterIsInstance<TextView>().single {it.text.toString()==text}
+                        target.requestRectangleOnScreen(android.graphics.Rect(0,0,target.width,target.height),true)}
+                    test.waitForIdleSync()
+                    onMain {
+                        val bounds=android.graphics.Rect()
+                        check(target.isShown && target.getGlobalVisibleRect(bounds) && bounds.width()==target.width && bounds.height()==target.height) {
+                            "Actual reachable dose $key is clipped" }
+                        LanguageUiLayoutChecks.textFits(target,"reachable dose $key")
                     }
-                    val numberOrigin = IntArray(2); quantity.getLocationOnScreen(numberOrigin)
-                    val unitOrigin = IntArray(2); unit.getLocationOnScreen(unitOrigin)
-                    check(quantity.baseline >= 0 && unit.baseline >= 0 &&
-                        numberOrigin[1] + quantity.baseline == unitOrigin[1] + unit.baseline) {
-                        "Home dose number and unit do not share their actual TextView baseline"
+                    captureState(actual,"$name-$key",emptyList())
+                }
+                assertLockedBatchContext(actual,if(confirmed)"72" else "90")
+                onMain {
+                    val tag=if(confirmed)"dose-balance-receipt" else "dose-balance-preview"
+                    val receipt=requireNotNull(root(actual).findViewWithTag<TextView>(tag))
+                    check(receipt.text.toString()==actual.getString(if(confirmed)R.string.dose_balance_receipt else R.string.dose_balance_preview,"90","72"))
+                    check(preparation.current()==beforeDose && inventory.events()==beforeEvents && balance()==beforeBalance &&
+                        owner(page)===service) {"Viewing the reachable dose changed preparation/inventory/service"}
+                }
+            } catch(error:Throwable) {failure=error;throw error}
+            finally {
+                var restoreFailure:Throwable?=null
+                fun cleanup(action:()->Unit) {
+                    try {action()} catch(error:Throwable) {
+                        val primary=failure ?: restoreFailure
+                        if(primary==null)restoreFailure=error else if(primary!==error)primary.addSuppressed(error)
                     }
-                    check(views(detailRoot).filterIsInstance<TextView>().any {
-                        it.isShown && it.text.toString().contains(beanName)
-                    }) { "Home dose lost its bean identity" }
                 }
-                captureState(page, name, emptyList(), detailRoot)
-                check(preparation.current() == beforeDose && inventory.events() == beforeEvents && balance() == beforeBalance) {
-                    "Viewing the home dose changed preparation or inventory"
-                }
-            } finally {
-                onMain { details?.dismiss(); page.startActivity(Intent(page, returnTo.javaClass)
-                    .addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)) }
-                awaitMain { !returnTo.isDestroyed && returnTo.hasWindowFocus() }
+                cleanup {test.removeMonitor(monitor)}
+                cleanup {inspected?.let {close(it)}}
+                cleanup {onMain {page.startActivity(Intent(page,returnTo.javaClass).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))}}
+                cleanup {awaitMain {!returnTo.isDestroyed && returnTo.hasWindowFocus()}}
+                if(failure==null)restoreFailure?.let {throw it}
             }
         }
         fun invariants() = onMain {

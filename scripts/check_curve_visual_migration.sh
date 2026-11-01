@@ -253,13 +253,16 @@ def require_details(scope, case_folder, report, item_id):
     assert initial_ranges[0][0]==0 and initial_ranges[-1][1]==len(report['expectedMessage'])
     assert all(initial_ranges[i][1]==initial_ranges[i+1][0] for i in range(len(initial_ranges)-1))
     assert ''.join(row[2] for row in initial_ranges)==report['expectedMessage']
-POPUP_DECOR='android.widget.PopupWindow$PopupDecorView'
+POPUP_DECOR='com.android.internal.policy.DecorView'  # actual AppDialog actions menu
 DIALOG_DECOR='com.android.internal.policy.DecorView'
 def classify_slot_transition(observed, original, activity_identity):
     roots=observed['foreignRoots']
     assert len({root['identity'] for root in roots})==len(roots)
     old=observed['originalPopup']
     assert old['class']==original['class']==POPUP_DECOR
+    assert old['menuKind']==original['menuKind']=='ALERT_DIALOG'
+    assert old['windowIdentity']==original['windowIdentity']!=0
+    assert old['ownerActivityIdentity']==original['ownerActivityIdentity']==activity_identity
     assert old['identity']==original['identity'] and old['listIdentity']==original['listIdentity']
     assert old['choices']==original['choices']
     popup=[root for root in roots if root['identity']==original['identity']]
@@ -302,6 +305,8 @@ def require_slot_transition(scope, step, chooser=None):
     assert transition['slot']==slot and transition['menu']==step['menu']
     original=transition['originalPopupBeforeClick']
     assert original['class']==POPUP_DECOR and original['attached']
+    assert original['menuKind']=='ALERT_DIALOG' and original['windowIdentity']!=0
+    assert original['ownerActivityIdentity']==transition['activityIdentity']
     assert original['identity']!=0 and original['listIdentity']!=0
     assert original['tokenIdentity']==original['listTokenIdentity'] and original['tokenIdentity']!=0
     assert original['displayId']==0 and original['choices']==step['menu']

@@ -229,8 +229,10 @@ def require_extraction_plot(folder):
     return evidence
 
 def require_chart_header(folder,metrics,caption=False,action='stop'):
-    expected=[f'legend-{name}' for name in metrics]+['explanation']+(['reference-caption'] if caption else [])
     reach=json.loads((folder/'chart-header-reachability.json').read_text())
+    location=reach['explanationLocation'];assert location in ('header','overview')
+    expected=[f'legend-{name}' for name in metrics]+(['explanation'] if location=='header' else [])+(['reference-caption'] if caption else [])
+    assert reach['explanationVisibility']==(0 if location=='header' else 8)
     assert reach['completed'] and reach['targetKeys']==expected
     assert [x['semanticKey'] for x in reach['initialTargets']]==expected
     assert [x['semanticKey'] for x in reach['reached']]==expected
@@ -270,7 +272,42 @@ def require_chart_header(folder,metrics,caption=False,action='stop'):
         require_text_layout(reached['layout'])
     require_extraction_plot(folder/'states/chart-header-restored')
     fixed_geometry(folder/'states/chart-header-restored')
+    if location=='overview':
+        overview=reach['overview'];assert reach['explanationText'] in overview['text']
+        require_overview_proof(folder,overview,state)
+    else:assert reach['overview'] is None
     return reach
+
+def require_dialog_state(folder,relative,state):
+    path=folder/relative
+    assert relative.startswith('states/extraction-') and '..' not in Path(relative).parts
+    proof=require_proof(path);assert proof['captureWindowKind']=='EXPLICIT_WINDOW'
+    assert proof['mappingMode']=='MEASURED_WINDOW_BUFFER_TRANSLATION'
+    observed=json.loads((path.parent/'geometry.json').read_text())
+    attempt=proof['attempts'][proof['acceptedAttempt']-1]
+    assert observed==attempt['geometryBefore']['target']==attempt['geometryAfter']['target']
+    assert observed['ownerState']==state
+    return observed
+
+def require_overview_proof(folder,overview,state):
+    assert overview['scrollRestored'] and overview['chartExplanation'] in overview['text']
+    count=overview['lineCount'];assert count>0 and overview['coveredLines']==list(range(count))
+    covered=set();offsets=None
+    for page in overview['pages']:
+        observed=require_dialog_state(folder,page['proof'],state)['overview']
+        assert {key:value for key,value in page.items() if key!='proof'}==observed
+        assert page['text']==overview['text'] and page['chartExplanation']==overview['chartExplanation'] and page['lineCount']==count and len(page['rows'])==count
+        current=[(r['start'],r['end']) for r in page['rows']]
+        if offsets is None:offsets=current
+        assert current==offsets and current[0][0]==0 and current[-1][1]==len(overview['text'].encode('utf-16-le'))//2
+        assert all(a[1]==b[0] for a,b in zip(current,current[1:]))
+        assert [r['line'] for r in page['rows']]==list(range(count))
+        left,top,right,bottom=page['viewport']
+        for row in page['rows']:
+            if row['complete']:
+                l,t,r,b=row['rectPx'];assert left<=l<=r<=right and top<=t<b<=bottom and row['ellipsisCount']==0
+                covered.add(row['line'])
+    assert covered==set(range(count))
 
 def require_tools_report(folder, filename, name, expected):
     reach=json.loads((folder/filename).read_text())
@@ -331,23 +368,7 @@ def require_tools_report(folder, filename, name, expected):
     assert [x['semanticKey'] for x in summaries] in (['device-summary'],['device-summary','preparation-summary'])
     overview=reach['overview'];assert overview['sourceSummariesPresent'] and overview['scrollRestored']
     assert all(x['text'] and x['text'] in overview['text'] and x['sourceIdentity']>0 for x in summaries)
-    count=overview['lineCount'];assert count>0 and overview['coveredLines']==list(range(count))
-    covered=set();offsets=None
-    for page in overview['pages']:
-        observed=dialog_proof(page['proof'])['overview']
-        assert {key:value for key,value in page.items() if key!='proof'}==observed
-        assert page['text']==overview['text'] and page['lineCount']==count and len(page['rows'])==count
-        current=[(r['start'],r['end']) for r in page['rows']]
-        if offsets is None:offsets=current
-        assert current==offsets and current[0][0]==0 and current[-1][1]==len(overview['text'].encode('utf-16-le'))//2
-        assert all(a[1]==b[0] for a,b in zip(current,current[1:]))
-        assert [r['line'] for r in page['rows']]==list(range(count))
-        left,top,right,bottom=page['viewport']
-        for row in page['rows']:
-            if row['complete']:
-                l,t,r,b=row['rectPx'];assert left<=l<=r<=right and top<=t<b<=bottom and row['ellipsisCount']==0
-                covered.add(row['line'])
-    assert covered==set(range(count))
+    require_overview_proof(folder,overview,state)
     assert reach['restoredProof']=='states/extraction-tools-restored/window-frame-sync.json'
     restored=require_proof(folder/reach['restoredProof']);assert restored['captureWindowKind']=='ACTIVITY'
     assert restored==reach['restoredFrameSync']
