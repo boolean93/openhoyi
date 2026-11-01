@@ -28,13 +28,14 @@ internal class LiveMotionReplayChecks(private val test: Instrumentation) {
         var recording=true
         var latest=0L
         val decor=activity.window.decorView as ViewGroup
+        lateinit var container: android.widget.FrameLayout
         try {
             main {
                 view=ExtractionOverlayView(activity,ExtractionHistoryVisualStyle(activity)).apply { liveCompactChrome=true }
                 val location=IntArray(2); actual.getLocationInWindow(location)
-                view.measure(View.MeasureSpec.makeMeasureSpec(actual.width,View.MeasureSpec.EXACTLY),View.MeasureSpec.makeMeasureSpec(actual.height,View.MeasureSpec.EXACTLY))
-                view.layout(location[0],location[1],location[0]+actual.width,location[1]+actual.height)
-                decor.overlay.add(view)
+                container=android.widget.FrameLayout(activity)
+                container.addView(view,android.widget.FrameLayout.LayoutParams(actual.width,actual.height).apply { leftMargin=location[0]; topMargin=location[1] })
+                decor.addView(container,ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,ViewGroup.LayoutParams.MATCH_PARENT))
                 callback=Choreographer.FrameCallback { at ->
                     if(recording) {
                         val reveal=view.javaClass.getDeclaredField("revealThroughMs").apply { isAccessible=true }.get(view) as Long? ?: latest
@@ -50,7 +51,7 @@ internal class LiveMotionReplayChecks(private val test: Instrumentation) {
             }
             android.os.SystemClock.sleep(550)
         } finally {
-            main { recording=false; Choreographer.getInstance().removeFrameCallback(callback); decor.overlay.remove(view) }
+            main { recording=false; Choreographer.getInstance().removeFrameCallback(callback); decor.removeView(container) }
             File(directory,"attached-real-replay-motion.json").writeText(JSONObject().put("sampleId",fixture.getString("id")).put("displayOnly",true).put("rawPointsUnchanged",true).put("frames",frames).toString())
         }
         for(i in 0 until frames.length()) check(frames.getJSONObject(i).getLong("revealMs")<=frames.getJSONObject(i).getLong("latestReceivedMs"))
