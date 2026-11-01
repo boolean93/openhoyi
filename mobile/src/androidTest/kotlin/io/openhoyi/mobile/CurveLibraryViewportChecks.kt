@@ -400,16 +400,24 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                         } else {
                             check(text.text.contains(chosen.name) && text.text.contains(ability.text))
                             check(text.text.contains(metrics.contentDescription))
-                            check(text.text.contains(activity.getString(when {
-                                preview.mixed -> R.string.curve_control_caption_mixed
-                                preview.hasFlow -> R.string.curve_control_caption_flow
-                                else -> R.string.profiles_stage_caption
-                            })))
-                            preview.stages.forEachIndexed { index, stage ->
+                            check(text.text.contains((field("detailCategory") as TextView).text))
+                            check(text.text.contains((field("usageDetails") as TextView).text))
+                            check(text.text.contains(activity.getString(R.string.curve_plan_title)))
+                            val waterByStage = CurveRecipePlan.from(chosen).stageWaterTenthsMl
+                            val stages = preview.stages.mapIndexed { index, stage ->
                                 val unit = if (stage.unit == CurveStageParameters.Unit.FLOW_ML_PER_SECOND) "mL/s" else "bar"
-                                check(text.text.contains(activity.getString(R.string.profiles_stage, index + 1)) &&
-                                    text.text.contains(String.format(Locale.ROOT, "%.1f %s", stage.target / 10.0, unit)))
+                                val target = String.format(Locale.ROOT, "%.1f %s", stage.target / 10.0, unit)
+                                val water = waterByStage.getOrNull(index)?.let {
+                                    if (it % 10 == 0) "${it / 10} mL" else String.format(Locale.ROOT, "%.1f mL", it / 10.0)
+                                } ?: "—"
+                                val line = activity.getString(R.string.profiles_stage, index + 1) + "：" + target +
+                                    " · " + activity.getString(R.string.curve_plan_stage_water) + " " + water
+                                check(text.text.contains(line)) { "Short curve summary lost stage target or water: $line" }
+                                line
                             }
+                            check(text.text.contains(activity.getString(if (preview.hasFlow)
+                                R.string.curve_control_short_preview else R.string.task_curve_library_short_preview,
+                                stages.joinToString("; "))))
                         }
                         LanguageUiLayoutChecks.textFits(text, name)
                         val maximum = (fallback.getChildAt(0).height - fallback.height).coerceAtLeast(0)

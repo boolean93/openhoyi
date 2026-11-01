@@ -60,7 +60,7 @@ sleep 15
 assert_activity() {
   local expected="$1" attempt
   case "$expected" in
-    HomeActivity|CurveActivity|HistoryActivity|BeanInventoryActivity|ExtractionActivity|AppSettingsActivity)
+    HomeActivity|CurveActivity|HistoryActivity|BeanInventoryActivity|ExtractionActivity|AppSettingsActivity|MachineSettingsActivity)
       expected=MainActivity ;;
   esac
   for attempt in 1 2 3 4 5; do
@@ -109,7 +109,7 @@ tap_nav() {
       ;;
     MachineSettingsActivity)
       tap_control '设置'
-      tap_control '机器设置'
+      tap_control '机器参数'
       ;;
     *) echo "Unsupported Mock route: $expected" >&2; return 1 ;;
   esac
@@ -138,7 +138,7 @@ markers = {
     'ExtractionActivity': {'开始萃取', '立即停止', '开始模拟'},
     'HistoryActivity': {'本机记录'},
     'AppSettingsActivity': {'深色主题'},
-    'MachineSettingsActivity': {'机器设置'},
+    'MachineSettingsActivity': {'机器参数'},
     'HistoryDetailActivity': {'模拟萃取详情'},
 }
 expected = markers[sys.argv[1]]

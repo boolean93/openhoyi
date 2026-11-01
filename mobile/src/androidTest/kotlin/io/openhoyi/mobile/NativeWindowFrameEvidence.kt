@@ -159,6 +159,11 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
         observe: () -> JSONObject = { JSONObject() }): CapturedFrame =
         screenshotWindow(activity.window, root, file, observe, activity, OriginMode.DEFAULT)
 
+    /** Observe native scroll feedback without changing its visibility or the protocol budget. */
+    fun screenshotAfterScrollFeedback(activity: android.app.Activity, root: View, file: File,
+        feedback: () -> JSONObject, observe: () -> JSONObject): CapturedFrame =
+        screenshotWindow(activity.window, root, file, observe, activity, OriginMode.DEFAULT, feedback)
+
     fun screenshotMeasuredShortActivity(activity: android.app.Activity, root: View, file: File,
         observe: () -> JSONObject): CapturedFrame =
         screenshotWindow(activity.window, root, file, observe, activity, OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW)
@@ -174,11 +179,12 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
 
     /** Both public entries share this exact protocol, deadline, comparisons and failure retention. */
     private fun screenshotWindow(window: Window, root: View, file: File, observe: () -> JSONObject,
-        activity: android.app.Activity?, originMode: OriginMode): CapturedFrame {
+        activity: android.app.Activity?, originMode: OriginMode, scrollFeedback: (() -> JSONObject)? = null): CapturedFrame {
         check((originMode != OriginMode.MEASURED_SHORT_ACTIVITY_WINDOW || activity != null) &&
             (originMode != OriginMode.MEASURED_WINDOW_BUFFER_TRANSLATION || activity == null))
         val started = SystemClock.elapsedRealtime()
         val deadline = started + 5000
+        var feedbackReadiness: JSONObject? = null
         val attempts = JSONArray()
         val artifacts = JSONArray()
         val captureTimings = mutableListOf<LongArray>()
@@ -239,6 +245,7 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
                 .put("wholeDisplayUiAutomation", true).put("displayComparisonRegion", "entire_measured_app_rect")
                 .put("pixelComparison", "each_equivalent_domain_all_app_pixels_no_tolerance_no_mask")
                 .put("crossDomainComparison", "DIAGNOSTIC_ONLY_PIPELINES_NOT_EQUIVALENT")
+                .put("scrollFeedbackReadiness", feedbackReadiness ?: JSONObject.NULL)
                 .put("captureArtifacts", artifacts).put("elapsedMs", SystemClock.elapsedRealtime() - started)
                 .put("timingDiagnosticFile", timingFile.name)
                 .put("acceptedAttempt", if (accepted) attempts.length() else JSONObject.NULL)
@@ -259,6 +266,18 @@ internal class NativeWindowFrameEvidence(private val test: Instrumentation) {
         try {
             check(Build.VERSION.SDK_INT >= 34) { "Window-layer bridge requires public UiAutomation.takeScreenshot(Window), API 34" }
             while (SystemClock.elapsedRealtime() < deadline) {
+                if (scrollFeedback != null) {
+                    while (SystemClock.elapsedRealtime() < deadline) {
+                        lateinit var sample: JSONObject
+                        main { sample = scrollFeedback() }
+                        val now = SystemClock.elapsedRealtime()
+                        feedbackReadiness = sample.put("captureStartedElapsedMs", started)
+                            .put("checkedElapsedMs", now).put("remainingMs", deadline - now)
+                        if (now >= sample.getLong("lastScrollElapsedMs") + sample.getLong("delayMs") + sample.getLong("fadeMs")) break
+                        Thread.sleep(minOf(16L, (deadline - now).coerceAtLeast(1)))
+                    }
+                    if (SystemClock.elapsedRealtime() >= deadline) break
+                }
                 val attempt = JSONObject()
                 attempts.put(attempt)
                 currentTiming = LongArray(Timing.names.size * 2).also { captureTimings.add(it) }

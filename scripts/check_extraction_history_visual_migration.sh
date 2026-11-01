@@ -689,6 +689,10 @@ for path in manifests:
             assert fixture['declaredShotId']==extraction_scenario_ids[name]
             assert fixture['offeredMachineFrames']==case['offeredMachineFrames']
             assert fixture['operationInputs']==case['operationInputs']
+            if name=='no_service_ready':
+                assert fixture['serviceSetup']==case['serviceSetup']=={
+                    'kind':'fixture_idle_owner_shutdown_after_actual_host_bound',
+                    'synthetic':True,'idleBeforeShutdown':True,'sameBoundOwner':True}
             operations=case['operationInputs']
             expected_operations=[] if name in ('manual','no_service_ready') else ['start_requested']
             if name not in ('manual','no_service_ready','STARTING'):expected_operations.append('start_completed')

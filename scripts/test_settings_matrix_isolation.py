@@ -44,7 +44,8 @@ class GateTest(unittest.TestCase):
         folder = gate.profile_dir(self.root, cell)
         folder.mkdir(parents=True)
         iso = {key: True for key in gate.COMMON_TRUE}
-        iso.update({'status': 'PASS_ISOLATION_ONLY', 'noServiceWasStartedForThisPage': True,
+        iso.update({'status': 'PASS_ISOLATION_ONLY', 'noServiceWasStartedForThisPage': False,
+                    'singleReadOnlyRootServiceObserved': True, 'actualServiceDestroyed': True,
                     'ownedAsyncReaderCount': 0, 'activityDestroyedCount': 1,
                     'clipboard': 'NOT_READ_OR_WRITTEN', 'providerLifecycle': [],
                     'expectedActualExportFailures': 0,
@@ -85,6 +86,21 @@ class GateTest(unittest.TestCase):
         self.assertEqual(7, data['firstFailureExitStatus'])
         with self.assertRaises(gate.Unsafe):
             gate.finalize(arguments(output=self.root, verify_exit=0))
+
+    def test_inline_root_service_evidence_is_required(self):
+        self.fixture(self.first)
+        folder = gate.profile_dir(self.root, self.first)
+        path = folder / 'fixture-isolation.json'
+        valid = json.loads(path.read_text())
+        gate.check_isolation(folder, 'app')
+        for key, bad in (('singleReadOnlyRootServiceObserved', False),
+                         ('actualServiceDestroyed', False),
+                         ('noServiceWasStartedForThisPage', True)):
+            with self.subTest(key=key):
+                path.write_text(json.dumps({**valid, key: bad}))
+                with self.assertRaises(gate.Unsafe):
+                    gate.check_isolation(folder, 'app')
+        path.write_text(json.dumps(valid))
 
     def test_missing_isolation_field_stops_remaining(self):
         self.start(self.first)
