@@ -18,13 +18,17 @@ def rows(xml):
         raise ValueError('Missing durable shot history')
     result = []
     for line in value.text.splitlines():
+        # Android's SharedPreferences serializer can indent after the terminal newline.
+        # This is XML formatting, not a history row; nonblank unknown rows still fail.
+        if not line.strip():
+            continue
         fields = line.split('\t')
-        if len(fields) != 10:
+        if len(fields) not in (8, 9, 10):
             raise ValueError('Unexpected shot history schema')
         decode = lambda s: base64.urlsafe_b64decode(s + '=' * (-len(s) % 4)).decode()
         result.append({'id': decode(fields[0]), 'curve': decode(fields[1]),
                        'startedAtMs': int(fields[2]), 'status': fields[5],
-                       'observedRunning': fields[9] == 'true'})
+                       'observedRunning': len(fields) == 10 and fields[9] == 'true'})
     return result
 
 

@@ -30,3 +30,18 @@ class ContinuityTest(unittest.TestCase):
                                     ([3000, 31750], 2000, 8500), ([0, 8000], 2000, 8500)]:
             with self.subTest(times=times), self.assertRaises(ValueError):
                 continuity.sample_span(samples(times), lower, upper)
+
+    def test_android_shared_preferences_indent_is_not_a_record(self):
+        enc = lambda s: base64.urlsafe_b64encode(s.encode()).decode().rstrip('=')
+        fields = [enc('current'), enc('capture-2'), '1000', '', '', 'RUNNING', '', '', '7', 'true']
+        xml = '<map>\n    <string name="entries_v1">' + '&#9;'.join(fields) + '&#10;    </string>\n</map>'
+        records = continuity.rows(xml)
+        self.assertEqual(1, len(records))
+        self.assertEqual('current', records[0]['id'])
+        self.assertTrue(records[0]['observedRunning'])
+        for count in (8, 9):
+            old = '<map><string name="entries_v1">' + '&#9;'.join(fields[:count]) + '&#10;    </string></map>'
+            self.assertFalse(continuity.rows(old)[0]['observedRunning'])
+        for bad in ('not-a-row', '&#9;bad', 'unknown nonblank schema'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                continuity.rows(xml.replace('&#10;    </string>', '&#10;' + bad + '&#10;    </string>'))

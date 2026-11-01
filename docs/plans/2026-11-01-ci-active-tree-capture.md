@@ -25,3 +25,10 @@
 - exact4e7 capture run41278328568：静态图越过上轮curves-light，直到settings-dark后下一selector在05:56:35报`Empty Mock root bounds`，Main仍topResumed/focused。没有两杯验收，不能merge。原异常未标before/after，故不能凭错误文本断定阶段。
 - 最小追加：初始readiness除nonnull还要求真实Mock root可见且与真实display交集正尺寸，归还未就绪node后只等真实accessibility事件，仍消耗原host30s；外包/未知window立即原失败、不等待。所有正bounds/完整树/after同窗及单次after读取保留。每个失败输出确切阶段和当前root/window原始元数据，以区分初连未就绪与序列化期间变更；不接受空树、不跨失败重采。
 - 本轮共享producer及三个consumer传输已实际运行，仍等待完整矩阵。该capture追加不在矩阵完成前push，以保留同一轮净耗时证据。
+
+## b1659d3 真实历史XML格式
+
+- exactb165 manual capture run41279643363越过root初连与全部静态/选中/准备/确认页，真实Mock开始后，连续性脚本在解析history时失败，尚未采运行图/两杯。
+- 精确`continuity-dark/before-history.xml`只有一条10列RUNNING、capture-2、observed=true记录；Android SharedPreferences serializer在末尾`&#10;`后输出4空格再关闭string。ET保留其text，splitlines产生额外纯空白行。原host把格式空白当成未知业务schema；不是应用写坏数据，也不是已证实断杯。
+- 最小正修忽略纯空白格式行；非空未知行继续fail，不跳过未知业务。已知合法8/9/10列按生产ShotHistory.decode兼容，旧列默认observedRunning=false；真实新杯仍必须唯一RUNNING/capture-2/observed=true，身份/owner/PID/结束/样本跨区间门完全不改。增加真实escaped-tab/newline/缩进正例及非空坏行反例，避免裸放宽。
+- 不写/删任何历史记录；只host parser与契约测试/本计划。原paths内capture入口脚本也未改，helper未来仅变更仍需既定dispatch；本次host continuity-only同样需手动原workflow验证，保触发范围不变。
