@@ -371,6 +371,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val quantity = LinearLayout(context).apply { orientation = HORIZONTAL; isBaselineAligned = true }
         val number = palette.text("—", TaskProductVisualStyle.Type(24, 500, 32), "product/extraction/metric/$metric/number")
         val unit = palette.text(displayUnit(metric), TaskProductVisualStyle.Type(14, 400, 20), "product/extraction/metric/$metric/unit")
+        number.setSingleLine(true); unit.setSingleLine(true)
         number.setTextColor(metricColor(metric)); unit.setTextColor(metricColor(metric))
         quantity.addView(number); quantity.addView(unit, LayoutParams(-2, -2).apply { marginStart = dp(4f).toInt() })
         body.addView(quantity)
@@ -631,7 +632,16 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             var totalHeight = 0
             for (i in 0 until childCount) {
                 val child = getChildAt(i)
-                child.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+                if (liveChart) {
+                    // FrameLayout's MATCH_PARENT second pass can narrow the body after its
+                    // wrap-content height was chosen. Measure the final column first instead.
+                    val body = (child as android.widget.FrameLayout).getChildAt(0)
+                    body.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
+                    val tileHeight = maxOf(dp(48f).toInt(), body.measuredHeight)
+                    child.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
+                        MeasureSpec.makeMeasureSpec(tileHeight, MeasureSpec.EXACTLY))
+                } else child.measure(MeasureSpec.makeMeasureSpec(childWidth, MeasureSpec.EXACTLY),
                     MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED))
                 rowHeight = maxOf(rowHeight, child.measuredHeight)
                 if (i % columns == columns - 1 || i == childCount - 1) {

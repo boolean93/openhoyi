@@ -70,6 +70,15 @@ internal class LiveNarrowChartChecks(private val test: Instrumentation) {
                                 check(minOf(a.getDouble(2),b.getDouble(2))<=maxOf(a.getDouble(0),b.getDouble(0)) || minOf(a.getDouble(3),b.getDouble(3))<=maxOf(a.getDouble(1),b.getDouble(1)))
                             }
                         }
+                        val timeTicks = ops.filter { it.optString("role") == "time-tick" }
+                            .sortedBy { it.getJSONArray("glyphBoundsPx").getDouble(0) }
+                        check(timeTicks.size >= 2)
+                        timeTicks.zipWithNext().forEach { (left, right) ->
+                            check(right.getJSONArray("glyphBoundsPx").getDouble(0) -
+                                left.getJSONArray("glyphBoundsPx").getDouble(2) >= 8 * density) {
+                                "Time labels overlap or lack the required 8dp gap"
+                            }
+                        }
                         if(missingScale) {
                             check(ops.none { it.optString("operation")=="path" && it.optString("metric")==ChartMetric.WEIGHT.name })
                             check(chart.findViewWithTag<android.widget.TextView>("product/extraction/metric/WEIGHT/number").text.toString()=="—")
