@@ -839,6 +839,11 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         val frame=if(languageRejected)
             frames.screenshotMeasuredWindowBufferTranslation(window,window.decorView,File(folder,"window.png")) {
                 dialogGeometry(window,dialog,owner)
+                    .put("locale",owner.resources.configuration.locales.toLanguageTags())
+                    .put("languageErrorExpectation",JSONObject()
+                        .put("resourceName","language_save_failed")
+                        .put("resourceLocale",owner.resources.configuration.locales.toLanguageTags())
+                        .put("text",owner.getString(R.string.language_save_failed)))
             }
         else frames.screenshot(window,window.decorView,File(folder,"window.png")) {dialogGeometry(window)}
         File(folder,"geometry.json").writeText(frame.target.toString(2))

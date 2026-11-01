@@ -371,7 +371,29 @@ def validate_language_dialog_target(accepted,safe,proof):
     assert accepted['imeVisible'] is False
     text_classes={text['actualTypography']['class'] for node in accepted['nodes'] for text in node['textLineBoxes']}
     assert text_classes=={'android.widget.Button','android.widget.CheckedTextView',
-        'com.android.internal.widget.DialogTitle'}
+        'com.android.internal.widget.DialogTitle','android.widget.TextView'}
+    error_tag='product/settings/app/language/error'
+    errors=[node for node in accepted['nodes'] if node.get('semanticId')==error_tag]
+    assert len(errors)==1
+    error=errors[0];require_whole(error)
+    assert error['viewIdentity']>0 and error['visibleRectPx']==error['rectPx']
+    assert sum(node['viewIdentity']==error['viewIdentity'] for node in accepted['nodes'])==1
+    left,top,right,bottom=safe['safeRectScreenPx'];x,y,r,b=error['rectPx']
+    assert left<=x<r<=right and top<=y<b<=bottom
+    assert len(error['textLineBoxes'])==1
+    error_text=error['textLineBoxes'][0];typography=error_text['actualTypography']
+    assert typography['class']=='android.widget.TextView'
+    assert typography['tag']==error_text['semanticId']==error_tag
+    expectation=accepted['languageErrorExpectation']
+    assert expectation['resourceName']=='language_save_failed'
+    assert isinstance(accepted['locale'],str) and accepted['locale']
+    assert expectation['resourceLocale']==accepted['locale']
+    assert isinstance(expectation['text'],str) and expectation['text']
+    assert error_text['text']==typography['text']==expectation['text']
+    for node in accepted['nodes']:
+        for text in node['textLineBoxes']:
+            if text['actualTypography']['class']=='android.widget.TextView':
+                assert node is error and text is error_text
     assert safe['dialogIdentity']>0 and safe['ownerActivityIdentity']>0
     assert safe['windowIdentity']==proof['windowIdentity'] and safe['decorIdentity']==proof['decorIdentity']
     assert all(safe[key] is True for key in ('callbackIsDialog','dialogWindowIsWindow','ownerMatches',
