@@ -901,7 +901,18 @@ internal class SettingsVisualMigrationChecks(private val test: Instrumentation) 
         val monitor=test.addMonitor(MainActivity::class.java.name,null,false)
         try {
             main {chooser.listView.setSelection(index)};frames.committedFrame(requireNotNull(chooser.window).decorView)
-            main {val row=chooser.listView.getChildAt(index-chooser.listView.firstVisiblePosition);check(row!=null && whole(observation(row)) && row.height>=HoyiUi.dp(activity,52));check(chooser.listView.performItemClick(row,index,chooser.listView.adapter.getItemId(index)))}
+            main {
+                val row=requireNotNull(chooser.listView.getChildAt(index-chooser.listView.firstVisiblePosition)) {
+                    "Language row missing: ${language.tag} index=$index first=${chooser.listView.firstVisiblePosition}"
+                }
+                check(whole(observation(row))) { "Language row clipped: ${language.tag} ${observation(row)}" }
+                check(row.height>=HoyiUi.dp(activity,52)) {
+                    "Language row below 52dp: ${language.tag} height=${row.height} required=${HoyiUi.dp(activity,52)} minimum=${row.minimumHeight} textMinimum=${(row as? TextView)?.minHeight}"
+                }
+                check(chooser.listView.performItemClick(row,index,chooser.listView.adapter.getItemId(index))) {
+                    "Language row did not dispatch: ${language.tag}"
+                }
+            }
             return if(changes)requireNotNull(test.waitForMonitorWithTimeout(monitor,10000)).let {replacement->
                 await("selected language real recreated context") {ready(replacement) && app.languagePreferences.current==language && replacement.resources.configuration.locales[0].language==language.locale.language}
                 replacement as MainActivity

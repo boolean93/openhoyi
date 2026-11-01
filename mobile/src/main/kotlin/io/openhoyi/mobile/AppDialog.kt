@@ -152,9 +152,13 @@ internal object AppDialog {
             for (index in 0 until choices.childCount) {
                 val row = choices.getChildAt(index)
                 if (!styled.add(row)) continue
-                row.minimumHeight = style.dp(48)
+                // Typography resets TextView.minHeight to its line height. Keep the
+                // caller's choice-row budget (for example the 52dp language rows).
+                val minimum = maxOf(row.minimumHeight, (row as? TextView)?.minHeight ?: 0, style.dp(48))
+                row.minimumHeight = minimum
                 if (row is TextView) {
                     style.apply(row, TaskProductVisualStyle.body)
+                    row.minHeight = minimum
                     row.setSingleLine(false); row.maxLines = Int.MAX_VALUE; row.ellipsize = null
                     row.setPadding(style.dp(16), style.dp(8), style.dp(16), style.dp(8))
                 } else styleBody(row, style)
