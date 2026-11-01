@@ -291,12 +291,12 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                     iconAction(detailActions, activity.getString(R.string.task_curve_library_actions))) {
                     "Curve detail icon actions lost labels or 48dp target" }
                 val collection = activity.window.decorView.findViewWithTag<TaskCollectionLayout>("task-collection")
-                val usage = requireNotNull(activity.window.decorView.findViewWithTag<TextView>("product/curve-library/usage-count"))
+                val usageCount = requireNotNull(activity.window.decorView.findViewWithTag<TextView>("product/curve-library/usage-count"))
                 val identity = requireNotNull(activity.window.decorView.findViewWithTag<View>("product/curve-library/identity"))
-                check((usage.parent as View).parent === identity &&
-                    usage.text.toString() == activity.getString(R.string.curve_usage_count,
+                check((usageCount.parent as View).parent === identity &&
+                    usageCount.text.toString() == activity.getString(R.string.curve_usage_count,
                         app.curveUsageResult.getOrThrow().stats(chosen.id).count).removePrefix(" · ") &&
-                    !usage.text.startsWith(" · ")) { "Curve usage lost its real count or compact identity position" }
+                    !usageCount.text.startsWith(" · ")) { "Curve usage lost its real count or compact identity position" }
                 val plan = field("recipePlan") as CurveRecipePlanView
                 val fallback = field("previewFallbackScroll") as ScrollView
                 val text = field("previewFallback") as TextView
@@ -433,7 +433,7 @@ internal class CurveLibraryViewportChecks(private val test: Instrumentation) {
                     val compactWidth = HoyiUi.dp(activity, 360)
                     measure("normal", compactWidth, HoyiUi.dp(activity, 640)); check(plan.isShown)
                     measure("short-180dp", compactWidth, HoyiUi.dp(activity, 180))
-                    check(text.text.contains(usage.text)) { "Short curve summary lost usage status" }
+                    check(text.text.contains(usageCount.text)) { "Short curve summary lost usage status" }
                     measure("recovered", compactWidth, HoyiUi.dp(activity, 640)); check(plan.isShown)
                     for ((kind, item) in listOf(
                         "noPressure" to app.curves.items.first { it.factoryCurve != null && CurveStageParameters.pressureTargets(it).isEmpty() },
