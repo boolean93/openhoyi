@@ -16,7 +16,7 @@ class ActualToolsDialogContract(unittest.TestCase):
         self.folder = Path(self.temp.name)
         source = SOURCE.read_text().split("<<'VERIFY_PY'\n", 1)[1].split('\nVERIFY_PY', 1)[0]
         functions = [n for n in ast.parse(source).body if isinstance(n, ast.FunctionDef)
-                     and n.name in ('require_proof', 'require_text_layout', 'require_tools_report')]
+                     and n.name in ('require_proof', 'require_text_layout', 'require_tools_report', 'require_dialog_state', 'require_overview_proof')]
         self.ns = {'json': json, 'Path': Path}
         exec(compile(ast.Module(body=functions, type_ignores=[]), str(SOURCE), 'exec'), self.ns)
         keys = ['choose-curve', 'connect-devices', 'choose-beans', 'reference-choice', 'overview', 'prepare', 'cancel-prepare']
@@ -34,7 +34,7 @@ class ActualToolsDialogContract(unittest.TestCase):
         self.state = state
         self.baseline = {'densityDpi': 360, 'nodes': [fixed]}
         self.dialog = {'ownerState': state, 'nodes': [self.layout('product/extraction/tool/' + key) for key in self.expected]}
-        self.overview_state = dict(text='device ready', lineCount=1, viewport=[0, 0, 100, 100], scrollY=0,
+        self.overview_state = dict(text='device ready', chartExplanation='device ready', lineCount=1, viewport=[0, 0, 100, 100], scrollY=0,
                                    rows=[dict(line=0, complete=True, rectPx=[0, 0, 80, 20],
                                               start=0, end=12, ellipsisCount=0)])
         self.overview_geometry = {'ownerState': state, 'nodes': [], 'overview': self.overview_state}
@@ -47,7 +47,7 @@ class ActualToolsDialogContract(unittest.TestCase):
                                          layout=self.dialog['nodes'][index], proof='states/extraction-tools/window-frame-sync.json')
                                     for index, key in enumerate(self.expected)],
                            sourceSummaries=[dict(semanticKey='device-summary', sourceIdentity=50, text='device ready')],
-                           overview=dict(text='device ready', lineCount=1, coveredLines=[0], scrollRestored=True,
+                           overview=dict(text='device ready', chartExplanation='device ready', lineCount=1, coveredLines=[0], scrollRestored=True,
                                          sourceSummariesPresent=True, pages=[dict(self.overview_state,
                                              proof='states/extraction-overview/window-frame-sync.json')]),
                            restoredProof='states/extraction-tools-restored/window-frame-sync.json')
@@ -105,6 +105,15 @@ class ActualToolsDialogContract(unittest.TestCase):
 
     def test_missing_overview_line_fails(self):
         self.report['overview']['coveredLines'] = []
+        with self.assertRaises(AssertionError): self.verify()
+
+    def test_chart_explanation_cannot_be_omitted(self):
+        self.report['overview']['chartExplanation'] = 'missing explanation'
+        with self.assertRaises(AssertionError): self.verify()
+
+    def test_overview_cannot_reuse_another_owner_state(self):
+        self.overview_geometry['ownerState'] = copy.deepcopy(self.state)
+        self.overview_geometry['ownerState']['traceIdentity'] = 'another-cup'
         with self.assertRaises(AssertionError): self.verify()
 
     def test_partial_overview_line_fails(self):

@@ -1309,10 +1309,10 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
         val targets=nodes(legend).filterIsInstance<Button>().filter {it.visibility==View.VISIBLE}.map {button ->
             val metric=(button.tag as String).removePrefix("chart-metric:").lowercase(java.util.Locale.ROOT)
             "legend-$metric" to (button as View)
-        } + listOf("explanation" to (explanation as View)) +
+        } + (if(explanation.visibility==View.VISIBLE) listOf("explanation" to (explanation as View)) else emptyList()) +
             (if(caption.visibility==View.VISIBLE && caption.text.isNotEmpty())
                 listOf("reference-caption" to (caption as View)) else emptyList())
-        check(targets.size in 4..6 && targets.map {it.first}.distinct().size==targets.size)
+        check(targets.size in 3..6 && targets.map {it.first}.distinct().size==targets.size)
         val savedX=header.scrollX;val savedY=header.scrollY
         val owner=requireNotNull(field(activity,"service") as? MobileService)
         val support=requireNotNull(root(activity).findViewWithTag<ScrollView>("product/extraction/support-scroll"))
@@ -1404,7 +1404,14 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             val plot=requireExtractionPlot(activity,File(folder,"states/chart-header-restored"),requireNotNull(restored))
             check(plot.getJSONArray("canvasPlotBoundsScreenPx").toString()==plotRect)
         }
+        val relocatedOverview = if(explanation.visibility!=View.VISIBLE)
+            extractionOverviewReachability(activity,folder,chart,listOf(explanation.text.toString())) {
+                unchangedState().also {check(it.toString()==initialState.toString())}
+            } else null
         return JSONObject().put("targetKeys",JSONArray(targets.map {it.first})).put("initialTargets",initialTargets)
+            .put("explanationLocation",if(relocatedOverview==null)"header" else "overview")
+            .put("explanationVisibility",explanation.visibility).put("explanationText",explanation.text.toString())
+            .put("overview",relocatedOverview ?: JSONObject.NULL)
             .put("reached",reached).put("initialState",initialState).put("restoredState",requireNotNull(restoredState))
             .put("initialScrollPx",JSONArray(listOf(savedX,savedY)))
             .put("restoredScrollPx",JSONArray(listOf(header.scrollX,header.scrollY)))
@@ -1663,12 +1670,78 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 }
             }
             report.put("reached",JSONArray(reached.map {requireNotNull(it)}))
-            main {check(menu.getValue("overview").performClick())}
+            report.put("overview",extractionOverviewReachability(activity,folder,chart,
+                summarySources.map {it.second.text.toString()}) {unchanged();state()})
+        } catch(error:Throwable) {failure=error;throw error}
+        finally {
+            try {main {overview?.dismiss();tools?.dismiss()};frames.committedFrame(root(activity));main {unchanged()}}
+            catch(restore:Throwable) {if(failure!=null)failure.addSuppressed(restore) else throw restore}
+        }
+        val restored=capture(activity,File(folder,"states/extraction-tools-restored"))
+        main {unchanged();check(sourceScroll.scrollX==scrollSaved.getInt(0) && sourceScroll.scrollY==scrollSaved.getInt(1))}
+        return report.put("restoredState",state()).put("restoredScrollPx",JSONArray(listOf(sourceScroll.scrollX,sourceScroll.scrollY)))
+            .put("restoredProof","states/extraction-tools-restored/window-frame-sync.json").put("restoredFrameSync",restored.proof)
+            .put("exactScrollRestored",true).put("completed",true)
+    }
+    private val overviewProofCache=java.util.WeakHashMap<Activity,MutableMap<String,Pair<String,File>>>()
+    private fun extractionOverviewReachability(activity:Activity,folder:File,chart:ExtractionOverlayView,
+        summaryTexts:List<String>,ownerState:()->JSONObject):JSONObject {
+        lateinit var baseline:String;lateinit var key:String
+        main {
+            baseline=ownerState().toString()
+            val config=activity.resources.configuration
+            key=baseline+"|"+System.identityHashCode(chart)+"|"+root(activity).width+"x"+root(activity).height+
+                "|"+config.locales.toLanguageTags()+"|"+config.fontScale+"|"+config.densityDpi+"|"+config.orientation+
+                "|"+config.screenWidthDp+"x"+config.screenHeightDp+"|"+root(activity).layoutDirection+"|"+HoyiUi.dark(activity)+"|"+
+                chart.overviewExplanation()+"|"+summaryTexts.toString()
+        }
+        val proofPrefix="extraction-overview-"+MessageDigest.getInstance("SHA-256").digest(key.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }.take(16)
+        fun checkedState():JSONObject {
+            check(Looper.myLooper()===Looper.getMainLooper())
+            return ownerState().also {check(it.toString()==baseline) {"Read-only overview changed owner state"}}
+        }
+        overviewProofCache[activity]?.get(key)?.let {(text,source)->
+            val cached=JSONObject(text)
+            val pages=cached.getJSONArray("pages")
+            for(index in 0 until pages.length()) {
+                val relative=pages.getJSONObject(index).getString("proof").substringBeforeLast('/')
+                val from=File(source,relative);val to=File(folder,relative)
+                if(from.canonicalPath!=to.canonicalPath) {check(from.isDirectory);check(from.copyRecursively(to,overwrite=false))}
+            }
+            main {checkedState()}
+            return cached.put("reusedExactOwnerAndChartState",true)
+        }
+        var tools:AlertDialog?=null;var overview:AlertDialog?=null;var failure:Throwable?=null
+        var completed:JSONObject?=null
+        fun captureOverviewDialog(dialog:AlertDialog,phase:File,extra:()->JSONObject):NativeWindowFrameEvidence.CapturedFrame {
+            check(phase.isDirectory || phase.mkdirs())
+            val window=requireNotNull(dialog.window);val decor=window.decorView
+            val frame=frames.screenshotMeasuredWindowBufferTranslation(window,decor,File(phase,"window.png")) {
+                JSONObject().put("windowIdentity",System.identityHashCode(window)).put("decorIdentity",System.identityHashCode(decor))
+                    .put("ownerActivityIdentity",System.identityHashCode(activity)).put("ownerState",checkedState())
+                    .put("nodes",JSONArray(nodes(decor).filter {it.tag is String || it is TextView}.map(::screenObservation)))
+                    .put("overview",extra())
+            }
+            WindowProofStreamingWriter.writeStrict(frame.target,File(phase,"geometry.json"))
+            check(frame.proof.getBoolean("accepted") && frame.proof.getInt("protocolVersion")==2)
+            return frame
+        }
+        try {
+            main {if((field(activity,"toolsDialog") as? AlertDialog)?.isShowing!=true)
+                check(requireNotNull(root(activity).findViewWithTag<Button>("product/extraction/chart-tools")).performClick())}
+            await("actual overview tools entry focused") {tools=field(activity,"toolsDialog") as? AlertDialog
+                tools?.isShowing==true && tools?.window?.decorView?.hasWindowFocus()==true &&
+                    !requireNotNull(tools?.window).decorView.isLayoutRequested}
+            val entry=requireNotNull(requireNotNull(tools?.window).decorView.findViewWithTag<Button>("product/extraction/tool/overview"))
+            main {entry.requestRectangleOnScreen(Rect(0,0,entry.width,entry.height),true)}
+            frames.committedFrame(requireNotNull(tools?.window).decorView)
+            main {check(whole(screenObservation(entry)) && entry.isEnabled && entry.performClick())}
             await("real read-only overview focused") {overview=focusedJournalDialog(activity);overview!=null && overview!==tools}
             val details=requireNotNull(overview);val message=requireNotNull(details.findViewById<TextView>(android.R.id.message))
             val scroll=nodes(requireNotNull(details.window).decorView).filterIsInstance<ScrollView>().single {message in nodes(it)}
             val saved=scroll.scrollY;val text=message.text.toString();val lineCount=requireNotNull(message.layout).lineCount
-            check(summarySources.all {(_,source)->source.text.toString() in text})
+            check(summaryTexts.all { it in text } && chart.overviewExplanation() in text)
             val covered=linkedSetOf<Int>();val pages=JSONArray()
             fun overviewState():JSONObject {
                 check(message.text.toString()==text && message.layout.lineCount==lineCount)
@@ -1685,19 +1758,19 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     rows.put(JSONObject().put("line",line).put("complete",complete).put("rectPx",JSONArray(listOf(left,top,right,bottom)))
                         .put("start",layout.getLineStart(line)).put("end",layout.getLineEnd(line)).put("ellipsisCount",layout.getEllipsisCount(line)))
                 }
-                return JSONObject().put("text",text).put("lineCount",lineCount).put("rows",rows)
+                return JSONObject().put("text",text).put("chartExplanation",chart.overviewExplanation()).put("lineCount",lineCount).put("rows",rows)
                     .put("viewport",viewport).put("scrollY",scroll.scrollY)
             }
             var y=0
             while(true) {
                 main {scroll.scrollTo(0,y)};frames.committedFrame(requireNotNull(details.window).decorView)
-                val phase=File(folder,"states/extraction-overview-lines-${pages.length()}")
-                val frame=captureDialog(details,phase) { overviewState() }
+                val phase=File(folder,"states/$proofPrefix-lines-${pages.length()}")
+                val frame=captureOverviewDialog(details,phase) { overviewState() }
                 val observed=frame.target.getJSONObject("overview")
                 val rows=observed.getJSONArray("rows")
                 for(index in 0 until rows.length()) rows.getJSONObject(index).let { if(it.getBoolean("complete"))covered.add(it.getInt("line")) }
                 pages.put(JSONObject(observed.toString()).put("proof",phase.relativeTo(folder).path+"/window-frame-sync.json"))
-                main { unchanged() }
+                main { checkedState() }
                 val maximum=(scroll.getChildAt(0).height-scroll.height+scroll.paddingTop+scroll.paddingBottom).coerceAtLeast(0)
                 if(y>=maximum)break
                 y=minOf(maximum,y+maxOf(1,scroll.height/2))
@@ -1705,18 +1778,18 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
             check(covered.size==lineCount && covered== (0 until lineCount).toSet()) {"Overview text lines not fully reachable"}
             main {scroll.scrollTo(0,saved)};frames.committedFrame(requireNotNull(details.window).decorView)
             main {check(scroll.scrollY==saved);details.dismiss()};frames.committedFrame(root(activity))
-            report.put("overview",JSONObject().put("text",text).put("lineCount",lineCount).put("pages",pages)
-                .put("coveredLines",JSONArray(covered.sorted())).put("sourceSummariesPresent",true).put("scrollRestored",true))
+            completed=JSONObject().put("text",text).put("lineCount",lineCount).put("pages",pages)
+                .put("coveredLines",JSONArray(covered.sorted())).put("sourceSummariesPresent",true).put("scrollRestored",true)
+                .put("chartExplanation",chart.overviewExplanation())
+
         } catch(error:Throwable) {failure=error;throw error}
         finally {
-            try {main {overview?.dismiss();tools?.dismiss()};frames.committedFrame(root(activity));main {unchanged()}}
+            try {main {overview?.dismiss();tools?.dismiss()};frames.committedFrame(root(activity));main {checkedState()}}
             catch(restore:Throwable) {if(failure!=null)failure.addSuppressed(restore) else throw restore}
         }
-        val restored=capture(activity,File(folder,"states/extraction-tools-restored"))
-        main {unchanged();check(sourceScroll.scrollX==scrollSaved.getInt(0) && sourceScroll.scrollY==scrollSaved.getInt(1))}
-        return report.put("restoredState",state()).put("restoredScrollPx",JSONArray(listOf(sourceScroll.scrollX,sourceScroll.scrollY)))
-            .put("restoredProof","states/extraction-tools-restored/window-frame-sync.json").put("restoredFrameSync",restored.proof)
-            .put("exactScrollRestored",true).put("completed",true)
+        val result=requireNotNull(completed)
+        overviewProofCache.getOrPut(activity) { linkedMapOf() }[key]=result.toString() to folder
+        return result
     }
     private fun extractionSpecialStates(folder: File, theme: String, source: String, profile: String): JSONObject {
         check(extractionScenarioShotIds.keys.toList()==extractionPendingSpecialCases &&

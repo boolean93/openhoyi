@@ -384,8 +384,11 @@ internal class SingleScreenListStateChecks(private val test: Instrumentation) {
         }
         try {
             main { snapshotField.set(service, service.snapshot.copy(candidates = fixtures)); render(activity) }
-            await { val rows=rows(activity)
-                (0 until rows.childCount).count { rows.getChildAt(it).tag?.toString()?.startsWith("product/devices/candidate/")==true } == fixtures.size }
+            await {
+                val actual=rows(activity).let { rows -> (0 until rows.childCount).mapNotNull { rows.getChildAt(it).tag as? String }
+                    .filter { it.startsWith("settings/devices/candidate/") } }
+                actual.size==fixtures.size && actual.toSet()==fixtures.map {"settings/devices/candidate/${it.address}"}.toSet()
+            }
             main { candidateRows(activity) }
             val saved = swipeScroll(activity, localScroll(activity))
             activity = recreate(activity)

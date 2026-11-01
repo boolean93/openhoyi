@@ -158,7 +158,7 @@ class BrewAudioInstrumentation : Instrumentation() {
             }
             if (homeWorkbenchChecks) {
                 HomeWorkbenchChecks(this).run(expectedHomeFontScale)
-                report.putString("stream", "HOME_WORKBENCH_CHECKS_PASSED fixtures=4 shortHeight=true recovery=true recentSelection=true readOnly=true noBle=true fontScale=$expectedHomeFontScale\n" +
+                report.putString("stream", "HOME_WORKBENCH_CHECKS_PASSED selectedAction=true devicesAnchor=true returnedHome=true sameService=true dataUnchanged=true noBle=true fontScale=$expectedHomeFontScale\n" +
                     "SCALE_TREND_PANEL_CHECKS_PASSED fixtures=4 shortEntry=true recovery=true empty=true dialogStatus=true dialogDismiss=true componentOnly=true fontScale=$expectedHomeFontScale\n")
                 finish(Activity.RESULT_OK, report)
                 return
