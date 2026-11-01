@@ -180,7 +180,9 @@ def check_isolation(folder, page):
     for name in COMMON_TRUE + (MACHINE_TRUE if page == 'machine' else ()):
         need(iso.get(name) is True, 'missing/false isolation ' + name)
     if page != 'machine':
-        need(iso.get('noServiceWasStartedForThisPage') is True, 'non-machine service started/unknown')
+        # Inline app/scale documents share the real MainActivity read-only owner.
+        need(iso.get('singleReadOnlyRootServiceObserved') is True, 'root read-only service scope unknown')
+        need(iso.get('actualServiceDestroyed') is True, 'root service destruction unknown')
     need(iso.get('ownedAsyncReaderCount') == 0 and iso.get('activityDestroyedCount', 0) > 0,
          'reader/activity cleanup unknown')
     need(iso.get('clipboard') == 'NOT_READ_OR_WRITTEN', 'clipboard touched/unknown')
@@ -197,8 +199,7 @@ def check_isolation(folder, page):
     trace = iso.get('scopedTraceStatusAfterTermination', '').split()
     need(trace and trace[0] == 'closed' and 'dropped=0' in trace and
          'errors=' + str(iso['expectedActualExportFailures']) in trace, 'trace writer/stop unknown')
-    if page == 'machine':
-        need(iso.get('noServiceWasStartedForThisPage') is False, 'machine service scope unknown')
+    need(iso.get('noServiceWasStartedForThisPage') is False, 'actual settings service scope unknown')
     return manifest, iso
 
 

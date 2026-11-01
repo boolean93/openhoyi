@@ -604,7 +604,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
     }
     private fun capture(activity:Activity,folder:File, measuredShort:Boolean=false,
         supportService:MobileService?=null, disclosure:Pair<String,TextView>?=null,
-        captureObserve:(()->Unit)?=null):NativeWindowFrameEvidence.CapturedFrame {
+        captureObserve:(()->Unit)?=null, scrollFeedback:(()->JSONObject)?=null):NativeWindowFrameEvidence.CapturedFrame {
         check(folder.isDirectory || folder.mkdirs())
         fun observed():JSONObject {
             val target=geometry(activity).apply {
@@ -615,6 +615,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             return target
         }
         val captured=if (measuredShort) frames.screenshotMeasuredShortActivity(activity,root(activity),File(folder,"window.png")) {observed()}
+            else if(scrollFeedback!=null) frames.screenshotAfterScrollFeedback(activity,root(activity),File(folder,"window.png"),scrollFeedback) {observed()}
             else frames.screenshot(activity,root(activity),File(folder,"window.png")) {observed()}
         WindowProofStreamingWriter.writeStrict(captured.target,File(folder,"geometry.json"))
         main {
@@ -1459,7 +1460,7 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             .put("preRecreateRefs",preRecreateRefs ?: JSONObject.NULL)
             .put("exactRecreateAndReturnScroll",completed).put("noScanNoConnect",true)
             .put("completed",completed).put("visualAcceptance","ASTRA_PENDING").toString(2))}
-        fun state(name:String) {val captureFolder=File(folder,name);capture(activity,captureFolder)
+        fun state(name:String,feedback:(()->JSONObject)?=null) {val captureFolder=File(folder,name);capture(activity,captureFolder,scrollFeedback=feedback)
             val refs=captureRefs(pageRoot,captureFolder)
             proofs.put(JSONObject().put("case",name).put("geometryRef",refs.getJSONObject("geometryRef"))
                 .put("frameSyncRef",refs.getJSONObject("frameSyncRef")));persist(false)}
@@ -1469,8 +1470,27 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         await("legacy route returns to same settings host") {host.hasWindowFocus() && host.supportFragmentManager.primaryNavigationFragment is AppSettingsFragment}
         main {check(host.currentService===beforeOwner);host.onBackPressedDispatcher.onBackPressed()}
         await("legacy route adds no extra page stack") {host.supportFragmentManager.primaryNavigationFragment is HomeFragment}
-        main {host.openSettingsSection("devices")};test.waitForIdleSync()
-        state("legacy-route-single-host")
+        lateinit var documentScroll:ScrollView
+        var lastScrollElapsed=android.os.SystemClock.elapsedRealtime()
+        val scrollObserver=android.view.ViewTreeObserver.OnScrollChangedListener {
+            lastScrollElapsed=android.os.SystemClock.elapsedRealtime()
+        }
+        var observingScroll=false
+        try {
+            main {
+                documentScroll=tagged(host,"settings/document/scroll") as ScrollView
+                documentScroll.viewTreeObserver.addOnScrollChangedListener(scrollObserver)
+                observingScroll=true
+                host.openSettingsSection("devices")
+            }
+            test.waitForIdleSync()
+            state("legacy-route-single-host") {
+                JSONObject().put("viewIdentity",System.identityHashCode(documentScroll)).put("viewTag",documentScroll.tag)
+                    .put("lastScrollElapsedMs",lastScrollElapsed)
+                    .put("delayMs",documentScroll.scrollBarDefaultDelayBeforeFade)
+                    .put("fadeMs",documentScroll.scrollBarFadeDuration)
+            }
+        } finally {main {if(observingScroll) documentScroll.viewTreeObserver.removeOnScrollChangedListener(scrollObserver)}}
         fun checkCandidates(values: List<io.openhoyi.bluetooth.DiscoveredDevice>) {
             values.forEach { candidate ->
                 val row = tagged(activity, "product/devices/candidate/${candidate.address}/connect") as Button

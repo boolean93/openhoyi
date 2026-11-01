@@ -15,7 +15,12 @@ import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 
 class CurveImportActivity : ThemedActivity() {
-    companion object { private const val OPEN = 62 }
+    companion object {
+        private const val OPEN = 62
+        private val restoreAnimationOwners = java.util.WeakHashMap<View, Any>()
+    }
+    private var cancelRawRestore: (() -> Unit)? = null
+    private var rawRestoreCancelOwner: Any? = null
     private lateinit var text: EditText
     private lateinit var error: TextView
     private var formScroll: android.widget.ScrollView? = null
@@ -35,7 +40,15 @@ class CurveImportActivity : ThemedActivity() {
             workspace.addView(it, LinearLayout.LayoutParams(-1, -2).apply { topMargin = style.dp(16) })
         }
         val editor = beanWorkspace(workspace).apply { tag = "bean-full-field" }
-        text = beanInput(editor, R.string.profiles_json).apply {
+        text = beanInput(editor, R.string.profiles_json, editorFactory = {
+            object : EditText(this) {
+                override fun onKeyPreIme(keyCode: Int, event: android.view.KeyEvent): Boolean {
+                    if (keyCode == android.view.KeyEvent.KEYCODE_BACK && event.action == android.view.KeyEvent.ACTION_DOWN)
+                        cancelRawRestore?.invoke()
+                    return super.onKeyPreIme(keyCode, event)
+                }
+            }
+        }).apply {
             setHint(R.string.profiles_import_placeholder)
             style.input(this, "curve-import", "raw")
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
@@ -228,6 +241,16 @@ class CurveImportActivity : ThemedActivity() {
             }
         }
     }
+    override fun dispatchTouchEvent(event: android.view.MotionEvent): Boolean {
+        if (event.actionMasked == android.view.MotionEvent.ACTION_DOWN) cancelRawRestore?.invoke()
+        return super.dispatchTouchEvent(event)
+    }
+    @Deprecated("Delegates unchanged Back behavior after cancelling pending restoration")
+    override fun onBackPressed() {
+        cancelRawRestore?.invoke()
+        super.onBackPressed()
+    }
+
     private fun restoreRawState(state: Bundle?, host: View) {
         if (state == null) return
         val field = text.takeIf { state.getBoolean("textFocused") }
@@ -236,6 +259,9 @@ class CurveImportActivity : ThemedActivity() {
             .put("savedRawFocused", state.getBoolean("textFocused")).put("requestedIme", false)
             .put("status", "WAITING_FOR_NATIVE_WINDOW")
         val observer = host.viewTreeObserver
+        val callbackRoot = window.decorView
+        val callbackOwner = Any()
+        restoreAnimationOwners[callbackRoot] = callbackOwner
         var pending = true
         var focusRestored = false
         var hadWindowFocus = false
@@ -268,33 +294,78 @@ class CurveImportActivity : ThemedActivity() {
                 .put("imeVisible", if (android.os.Build.VERSION.SDK_INT >= 30) host.rootWindowInsets?.isVisible(android.view.WindowInsets.Type.ime()) ?: org.json.JSONObject.NULL else org.json.JSONObject.NULL)
                 .put("hostHeightPx", host.height).put("hostLayoutRequested", host.isLayoutRequested))
         }
-        val activeImeAnimations = mutableSetOf<android.view.WindowInsetsAnimation>()
+        val restoreReadiness = RawImportRestoreReadiness(savedIme == true)
+        val activeImeAnimations = restoreReadiness.animations
         val animationEvents = org.json.JSONArray()
         productRestoreEvidence.put("imeAnimationEvents", animationEvents)
         lateinit var drawListener: android.view.ViewTreeObserver.OnPreDrawListener
+        lateinit var committedDrawListener: android.view.ViewTreeObserver.OnDrawListener
+        fun resetCandidate() = restoreReadiness.reset()
+        fun nativeCandidate(): String? {
+            val editor = field
+            if (!restoreReadiness.ownsNativeWindow(!isDestroyed && restoreAnimationOwners[callbackRoot] === callbackOwner) ||
+                !host.isAttachedToWindow || !callbackRoot.isAttachedToWindow || !hasWindowFocus() ||
+                !host.isLaidOut || host.isLayoutRequested || callbackRoot.isLayoutRequested ||
+                listOfNotNull(text, formScroll).any { it.isLayoutRequested } || activeImeAnimations.isNotEmpty()) return null
+            val insets = callbackRoot.rootWindowInsets ?: return null
+            if (editor != null && (!editor.isAttachedToWindow || !editor.hasFocus() || !editor.hasWindowFocus() ||
+                    editor.windowToken == null || !restoreReadiness.connectionReady(inputMethod.isActive(editor)))) return null
+            val ime = if (android.os.Build.VERSION.SDK_INT >= 30) insets.getInsets(android.view.WindowInsets.Type.ime()) else null
+            return listOf(identity(callbackRoot), identity(host.rootView), identity(editor), identity(editor?.windowToken),
+                identity(callbackRoot.windowToken), callbackRoot.width, callbackRoot.height, host.width, host.height,
+                text.width, text.height, text.layout?.height, formScroll?.width, formScroll?.height,
+                if (android.os.Build.VERSION.SDK_INT >= 30) insets.isVisible(android.view.WindowInsets.Type.ime()) else null,
+                ime?.left, ime?.top, ime?.right, ime?.bottom).joinToString("|")
+        }
         lateinit var focusListener: android.view.ViewTreeObserver.OnGlobalFocusChangeListener
         lateinit var windowListener: android.view.ViewTreeObserver.OnWindowFocusChangeListener
         lateinit var attachListener: View.OnAttachStateChangeListener
         lateinit var lifecycle: android.app.Application.ActivityLifecycleCallbacks
+        lateinit var editListener: android.text.TextWatcher
         var detachCheck: Runnable? = null
         fun finish(status: String) {
             if (!pending) return
             sessionEvent(status)
             pending = false
+            restoreReadiness.cancel()
             productRestoreEvidence.put("status", status).put("activeImeAnimationsAtFinish", activeImeAnimations.size)
             detachCheck?.let { window.decorView.removeCallbacks(it) }
             detachCheck = null
-            if (android.os.Build.VERSION.SDK_INT >= 30) host.setWindowInsetsAnimationCallback(null)
+            if (restoreAnimationOwners[callbackRoot] === callbackOwner) {
+                restoreAnimationOwners.remove(callbackRoot)
+                if (android.os.Build.VERSION.SDK_INT >= 30) callbackRoot.setWindowInsetsAnimationCallback(null)
+            }
+            if (rawRestoreCancelOwner === callbackOwner) {
+                rawRestoreCancelOwner = null
+                cancelRawRestore = null
+            }
             activeImeAnimations.clear()
             fun remove(from: android.view.ViewTreeObserver) {
                 if (!from.isAlive) return
-                from.removeOnPreDrawListener(drawListener); from.removeOnGlobalFocusChangeListener(focusListener)
+                from.removeOnPreDrawListener(drawListener); from.removeOnDrawListener(committedDrawListener); from.removeOnGlobalFocusChangeListener(focusListener)
                 from.removeOnWindowFocusChangeListener(windowListener)
             }
             remove(observer)
             if (host.viewTreeObserver !== observer) remove(host.viewTreeObserver)
             host.removeOnAttachStateChangeListener(attachListener)
+            text.removeTextChangedListener(editListener)
             this@CurveImportActivity.application.unregisterActivityLifecycleCallbacks(lifecycle)
+        }
+        editListener = object : android.text.TextWatcher {
+            override fun beforeTextChanged(value: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(value: CharSequence?, start: Int, before: Int, count: Int) {
+                if (value?.toString() != state.getString("text").orEmpty()) finish("CANCELLED_RAW_EDITED")
+            }
+            override fun afterTextChanged(value: android.text.Editable?) = Unit
+        }
+        rawRestoreCancelOwner = callbackOwner
+        cancelRawRestore = { finish("CANCELLED_USER_INTERACTION") }
+        committedDrawListener = android.view.ViewTreeObserver.OnDrawListener {
+            if (pending) {
+                val needsDraw = restoreReadiness.drawn(nativeCandidate())
+                productRestoreEvidence.put("stableNativeDrawCount", restoreReadiness.drawCount)
+                if (needsDraw) host.postInvalidateOnAnimation()
+            }
         }
         focusListener = android.view.ViewTreeObserver.OnGlobalFocusChangeListener { _, next ->
             if (focusRestored && field != null && next !== field) finish("CANCELLED_FOCUS_CHANGED")
@@ -331,6 +402,9 @@ class CurveImportActivity : ThemedActivity() {
         }
         drawListener = android.view.ViewTreeObserver.OnPreDrawListener {
             preDrawSequence++
+            if (pending && (isDestroyed || restoreAnimationOwners[callbackRoot] !== callbackOwner))
+                finish("CANCELLED_REPLACED_NATIVE_OWNER")
+            val stableNativeDraws = restoreReadiness.preDraw(nativeCandidate())
             if (pending && host.isAttachedToWindow && this@CurveImportActivity.hasWindowFocus() && host.isLaidOut &&
                 !host.isLayoutRequested && listOfNotNull(text, formScroll).none { it.isLayoutRequested }) {
                 hadWindowFocus = true
@@ -348,11 +422,12 @@ class CurveImportActivity : ThemedActivity() {
                         focusRestored = true
                     }
                 }
-                if (pending && savedIme == true && field != null && focusRestored && !showRequested) {
+                if (pending && stableNativeDraws && savedIme == true && field != null && focusRestored && !showRequested) {
                     val active = inputMethod.isActive(field)
                     productRestoreEvidence.put("inputMethodActiveBeforeRequest", active)
                     if (active && field.hasFocus() && field.hasWindowFocus() && field.windowToken != null) {
                         showRequested = true
+                        resetCandidate()
                         productRestoreEvidence.put("requestedIme", true).put("requestCount", 1)
                             .put("requestMethod", "InputMethodManager.showSoftInput(field,0,ResultReceiver)")
                         sessionEvent("show_request", true)
@@ -361,6 +436,7 @@ class CurveImportActivity : ThemedActivity() {
                                 sessionEvent("show_result_observed", result = code)
                                 if (!pending) return
                                 resultCode = code; resultPreDrawSequence = preDrawSequence
+                                restoreReadiness.nativeResult()
                                 productRestoreEvidence.put("imeResultCode", code).put("imeResultAtPreDrawSequence", resultPreDrawSequence)
                                 sessionEvent("show_result", result = code)
                                 if (code != android.view.inputmethod.InputMethodManager.RESULT_SHOWN &&
@@ -381,7 +457,7 @@ class CurveImportActivity : ThemedActivity() {
                 // An inherited visible inset is not confirmation for this new editor.
                 // Wait for its active native input connection, one processed show request,
                 // then a later real draw after any observed animation and pending layout.
-                if (pending && activeImeAnimations.isEmpty() && (savedIme != true || (resultCode in setOf(android.view.inputmethod.InputMethodManager.RESULT_SHOWN,
+                if (pending && stableNativeDraws && activeImeAnimations.isEmpty() && (savedIme != true || (resultCode in setOf(android.view.inputmethod.InputMethodManager.RESULT_SHOWN,
                         android.view.inputmethod.InputMethodManager.RESULT_UNCHANGED_SHOWN) && preDrawSequence > resultPreDrawSequence &&
                         observedIme == true && field != null && inputMethod.isActive(field))) && !host.isLayoutRequested &&
                     listOfNotNull(text, formScroll).none { it.isLayoutRequested }) {
@@ -412,10 +488,12 @@ class CurveImportActivity : ThemedActivity() {
         }
         this@CurveImportActivity.application.registerActivityLifecycleCallbacks(lifecycle)
         host.addOnAttachStateChangeListener(attachListener)
+        text.addTextChangedListener(editListener)
         observer.addOnWindowFocusChangeListener(windowListener)
         observer.addOnGlobalFocusChangeListener(focusListener)
         observer.addOnPreDrawListener(drawListener)
-        if (android.os.Build.VERSION.SDK_INT >= 30) host.setWindowInsetsAnimationCallback(
+        observer.addOnDrawListener(committedDrawListener)
+        if (android.os.Build.VERSION.SDK_INT >= 30) callbackRoot.setWindowInsetsAnimationCallback(
             object : android.view.WindowInsetsAnimation.Callback(android.view.WindowInsetsAnimation.Callback.DISPATCH_MODE_CONTINUE_ON_SUBTREE) {
                 private fun ime(animation: android.view.WindowInsetsAnimation) =
                     animation.typeMask and android.view.WindowInsets.Type.ime() != 0
@@ -424,23 +502,24 @@ class CurveImportActivity : ThemedActivity() {
                         .put("activeImeAnimations", activeImeAnimations.size))
                 }
                 override fun onPrepare(animation: android.view.WindowInsetsAnimation) {
-                    if (pending && ime(animation)) { activeImeAnimations.add(animation); event("prepare") }
+                    if (pending && restoreAnimationOwners[callbackRoot] === callbackOwner && ime(animation)) { restoreReadiness.animationPrepared(animation); event("prepare") }
                 }
                 override fun onStart(animation: android.view.WindowInsetsAnimation,
                     bounds: android.view.WindowInsetsAnimation.Bounds): android.view.WindowInsetsAnimation.Bounds {
-                    if (pending && ime(animation)) { activeImeAnimations.add(animation); event("start") }
+                    if (pending && restoreAnimationOwners[callbackRoot] === callbackOwner && ime(animation)) { restoreReadiness.animationPrepared(animation); event("start") }
                     return bounds
                 }
                 override fun onProgress(insets: android.view.WindowInsets,
                     runningAnimations: MutableList<android.view.WindowInsetsAnimation>): android.view.WindowInsets {
-                    if (pending) runningAnimations.filter(::ime).forEach { animation ->
-                        if (activeImeAnimations.add(animation)) event("observed_running")
+                    if (pending && restoreAnimationOwners[callbackRoot] === callbackOwner) {
+                        val running = runningAnimations.filter(::ime).toSet()
+                        if (restoreReadiness.runningAnimations(running)) event("running_set_changed")
                     }
                     return insets
                 }
                 override fun onEnd(animation: android.view.WindowInsetsAnimation) {
-                    if (pending && ime(animation)) {
-                        activeImeAnimations.remove(animation); event("end")
+                    if (pending && restoreAnimationOwners[callbackRoot] === callbackOwner && ime(animation)) {
+                        restoreReadiness.animationEnded(animation); event("end")
                         // Invalidate schedules the next real draw; this callback never applies scroll.
                         host.invalidate()
                     }

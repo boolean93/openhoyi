@@ -451,12 +451,12 @@ internal fun ThemedActivity.beanBatchNumber(inventory: BeanInventory, batchId: S
     else java.text.NumberFormat.getIntegerInstance(resources.configuration.locales[0]).format(index + 1)
 }
 
-internal fun ThemedActivity.beanInput(parent: LinearLayout, label: Int, numeric: Boolean = false, emphasizeLabel: Boolean = false): EditText {
+internal fun ThemedActivity.beanInput(parent: LinearLayout, label: Int, numeric: Boolean = false, emphasizeLabel: Boolean = false, editorFactory: (() -> EditText)? = null): EditText {
     val target = beanFieldCell(parent)
     val title = HoyiUi.label(this, target, getString(label), if (emphasizeLabel) 16 else 15, bold = emphasizeLabel, muted = !emphasizeLabel).apply {
         setPadding(0, HoyiUi.dp(this@beanInput, 8), 0, HoyiUi.dp(this@beanInput, 6))
     }
-    return EditText(this).apply {
+    return (editorFactory?.invoke() ?: EditText(this)).apply {
         id = android.view.View.generateViewId()
         title.labelFor = id
         textSize = 18f

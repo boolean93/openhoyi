@@ -1910,6 +1910,24 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                         field(activity,"service")===owner && field(activity,"bound")==true &&
                             (field(activity,"chart") as ExtractionOverlayView).traceIdentity==owner.chartTraceIdentity
                     }
+                    if(case=="no_service_ready") {
+                        // The real Main host starts Mock onStart. Stop that existing idle owner
+                        // after the host is bound, using the production shutdown path.
+                        main {
+                            check(owner.running && owner.shotState==ExtractionState.IDLE && owner.chartPoints.isEmpty())
+                            owner.shutdown()
+                        }
+                        await("actual bound Mock owner stopped and disconnected") {
+                            field(activity,"service")===owner && field(activity,"bound")==true && !owner.running &&
+                                owner.shotState==ExtractionState.IDLE && owner.snapshot.coffeeState==DeviceState.DISCONNECTED &&
+                                owner.chartPoints.isEmpty() &&
+                                (field(activity,"connectDevices") as View).visibility==View.VISIBLE
+                        }
+                        val setup=JSONObject().put("kind","fixture_idle_owner_shutdown_after_actual_host_bound")
+                            .put("synthetic",true).put("idleBeforeShutdown",true).put("sameBoundOwner",true)
+                        proof.put("serviceSetup",setup)
+                        File(caseFolder,"fixture.json").writeText(scope.fixture.put("serviceSetup",setup).toString(2))
+                    }
                     val frame=capture(activity,caseFolder)
                     proof.put("chartHeaderReachability",extractionChartHeaderReachability(activity,scope,caseFolder,frame))
                     proof.put("supportReachability",extractionSpecialSupportReachability(activity,scope,caseFolder,case))
