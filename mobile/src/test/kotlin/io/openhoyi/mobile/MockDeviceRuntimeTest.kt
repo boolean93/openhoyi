@@ -16,6 +16,55 @@ import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class MockDeviceRuntimeTest {
+    @Test fun subsecondMockPointsReachSeriesAndShapePreservingGeometryWithoutSecondBuckets() {
+        val runtime = MockDeviceRuntime { "" }; runtime.start(0)
+        val series = ShotSeries(); series.begin("synthetic-cadence-check",0)
+        for (at in 0L..8000L step 250L) {
+            val snapshot = runtime.sample(at)
+            series.machine(snapshot.coffee as ExtractionTelemetry,at,snapshot.weight!!.weightHundredthsGram,at)
+        }
+        val points=series.points
+        assertEquals(33,points.size)
+        assertTrue(points.zipWithNext().all { (a,b) -> b.elapsedMs-a.elapsedMs==250L && b.pressureTenthsBar>a.pressureTenthsBar && b.waterTenthsMl>a.waterTenthsMl && b.weightHundredthsGram!!>a.weightHundredthsGram!! })
+        val values=points.map { ChartValue(it.elapsedMs,it.pressureTenthsBar/10f) }
+        assertEquals(values.zipWithNext(),LiveChartGeometry.cubics(values).map { it.start to it.end })
+    }
+    @Test fun quarterSecondSamplesChangeValuesWhileWireClockStaysIntegral() {
+        val runtime = MockDeviceRuntime { "" }; runtime.start(10_000)
+        val snapshots = listOf(0L,250L,500L,750L,1000L).map { runtime.sample(10_000+it) }
+        val frames = snapshots.map { it.coffee as ExtractionTelemetry }
+        assertEquals(listOf(0,2,5,7,10),frames.map { it.pressureTenthsBar })
+        assertEquals(listOf(0,1,3,4,6),frames.map { it.totalWaterTenthsMl })
+        assertEquals(listOf(0,17,35,52,70),snapshots.map { it.weight!!.weightHundredthsGram })
+        assertEquals(listOf(0,0,0,0,1),frames.map { it.elapsedSeconds })
+        assertEquals(listOf(10_000L,10_250L,10_500L,10_750L,11_000L),snapshots.map { it.coffeeAt })
+    }
+    @Test fun quantizationKeepsPhaseBoundaryCapAndEveryIntegerSecondValue() {
+        val runtime = MockDeviceRuntime { "" }; runtime.start(1000)
+        val before = runtime.sample(4999).coffee as ExtractionTelemetry
+        val boundary = runtime.sample(5000).coffee as ExtractionTelemetry
+        assertEquals(8,before.flowTenthsMlPerSecond); assertEquals(20,boundary.flowTenthsMlPerSecond)
+        for (second in 4..31) {
+            val sample = runtime.sample(1000+second*1000L); val frame = sample.coffee as ExtractionTelemetry
+            assertEquals(minOf(second*10,90),frame.pressureTenthsBar)
+            assertEquals(second*6,frame.totalWaterTenthsMl)
+            assertEquals(second*70,sample.weight!!.weightHundredthsGram)
+        }
+        assertEquals(ExtractionState.ENDED_OBSERVED,runtime.sample(33_000).let { runtime.shotState })
+        assertEquals(2240,runtime.sample(Long.MAX_VALUE).weight!!.weightHundredthsGram)
+    }
+    @Test fun stoppingFreezesLatestFractionalWeightAndNewCupResetsProgress() {
+        val runtime = MockDeviceRuntime { "" }; runtime.start(1000)
+        assertEquals(0,(runtime.sample(999).coffee as ExtractionTelemetry).pressureTenthsBar)
+        val last = runtime.sample(2250)
+        assertEquals(87,last.weight!!.weightHundredthsGram)
+        runtime.stop()
+        assertTrue(runtime.sample(9000).coffee is IdleTelemetry)
+        assertEquals(87,runtime.sample(9000).weight!!.weightHundredthsGram)
+        runtime.start(10_000)
+        assertEquals(0,runtime.sample(10_000).weight!!.weightHundredthsGram)
+    }
+
     @Test fun disconnectedScaleHasNoWeightEvidenceWhileMachineKeepsSampling() {
         val runtime = MockDeviceRuntime { "" }
         runtime.scaleConnected = false

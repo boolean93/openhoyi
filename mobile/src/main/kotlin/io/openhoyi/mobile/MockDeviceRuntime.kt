@@ -42,7 +42,7 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
     var shotState = ExtractionState.IDLE
         private set
     private var startedAtMs = 0L
-    private var lastShotElapsed = 0
+    private var lastShotElapsedMs = 0L
     private var activeSlot = 1
 
     fun start(now: Long, slot: Int = 1) {
@@ -51,12 +51,12 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
         activeSlot = if (slot == 7) 8 else slot
         shotState = ExtractionState.RUNNING
         startedAtMs = now
-        lastShotElapsed = 0
+        lastShotElapsedMs = 0L
         idleWeightHundredths = 0
     }
 
     fun stop() {
-        idleWeightHundredths = lastShotElapsed * 70
+        idleWeightHundredths = (lastShotElapsedMs * 70 / 1000).toInt()
         shotState = ExtractionState.ENDED_OBSERVED
     }
 
@@ -156,15 +156,18 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
 
     fun sample(now: Long): MobileSnapshot {
         advanceTemperature(now)
-        val elapsed = if (shotState == ExtractionState.RUNNING) ((now - startedAtMs) / 1000).toInt().coerceAtLeast(0) else 0
+        // Synthetic value progress follows milliseconds; only the wire's elapsed-seconds field is integral.
+        // Keep the existing 250ms Mock callback schedule and protocol-unit quantization.
+        val elapsedMs = if (shotState == ExtractionState.RUNNING) (now - startedAtMs).coerceIn(0L, 32_000L) else 0L
+        val elapsed = (elapsedMs / 1000).toInt()
         if (shotState == ExtractionState.RUNNING) {
-            lastShotElapsed = elapsed.coerceAtMost(32)
-            if (elapsed >= 32) stop()
+            lastShotElapsedMs = elapsedMs
+            if (elapsedMs >= 32_000L) stop()
         }
         val extracting = shotState == ExtractionState.RUNNING
         val coffee = if (extracting) ExtractionTelemetry(
-            slotOrPhase = activeSlot, elapsedSeconds = elapsed, pressureTenthsBar = (elapsed * 10).coerceAtMost(90),
-            totalWaterTenthsMl = elapsed * 6, brewTemperatureHundredthsC = brewTemperatureHundredths,
+            slotOrPhase = activeSlot, elapsedSeconds = elapsed, pressureTenthsBar = (elapsedMs * 10 / 1000).toInt().coerceAtMost(90),
+            totalWaterTenthsMl = (elapsedMs * 6 / 1000).toInt(), brewTemperatureHundredthsC = brewTemperatureHundredths,
             flowTenthsMlPerSecond = if (elapsed < 4) 8 else 20,
             statusBits = 64, manualStageRaw = 0, raw = emptyFrame,
         ) else IdleTelemetry(
@@ -180,7 +183,7 @@ internal class MockDeviceRuntime(private val text: (Int) -> String) {
                 bits or if (day.enabled) (0x80 shr index) else 0
             }, schedule.days.take(4).map(WeeklySleepDay::time), emptyFrame),
             sleepSecond = SleepPart(4, null, schedule.days.drop(4).map(WeeklySleepDay::time), emptyFrame),
-            weight = if (scaleConnected) BookooSample(if (extracting) elapsed * 70 else idleWeightHundredths,
+            weight = if (scaleConnected) BookooSample(if (extracting) (elapsedMs * 70 / 1000).toInt() else idleWeightHundredths,
                 if (extracting) 70 else 0,
                 43, 43, emptyFrame) else null, weightAt = now.takeIf { scaleConnected },
             message = SnapshotMessage.resource(ResourceMessage(R.string.mock_runtime_sample_notice)) { id, _ -> text(id) },

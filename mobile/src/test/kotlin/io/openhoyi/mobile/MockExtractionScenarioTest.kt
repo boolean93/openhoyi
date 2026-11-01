@@ -57,6 +57,16 @@ class MockExtractionScenarioTest {
         assertEquals(0L,f.scenario.offeredFrameSerial)
         assertTrue(f.frames.isEmpty())
     }
+    @Test fun explicitClosedValvePauseIsNotReplacedBySyntheticTickSamples() {
+        val f=Fixture(); f.scenario.install(f.owner); f.running()
+        f.now+=250
+        val paused=f.frame(1,3).copy(statusBits=0)
+        f.scenario.offerCoffeeFrame(f.owner,paused)
+        repeat(4) { f.now+=250; f.scenario.tick(f.owner) }
+        assertEquals(listOf(paused),f.frames)
+        assertEquals(1L,f.scenario.offeredFrameSerial)
+        assertFalse(f.frames.single().valveOpen)
+    }
     @Test fun onlyExplicitOrderedFramesAreDeliveredAndWaterCanReset() {
         val f=Fixture();f.scenario.install(f.owner);f.running()
         listOf(10 to 20,11 to 25,12 to 3).forEach { (elapsed,water) ->
