@@ -13,3 +13,9 @@
 - 发布：不发版、不安装用户设备，不混 v45/曲线分支。
 - 回退：仅回退该采集提交；所有业务及未知记录保留，不卸载/清数据。
 - 未完成与阻塞：真实 Android CI 运行待执行；原路径过滤的 helper-only 缺口明确保留待另行决定。
+
+## 730721a 首轮运行与初连修正
+
+- PR6 exact `730721ad8620cb8773eb71673d4851da332a0e2e`：capture run41277479694 在 home-light/curves-light 两次真实树及PNG成功后，05:41:12 新连接立即 activeRoot 为空；同源 lifecycle push run41277479789 在首次 selector 05:40:05 失败。失败时 Main topResumed/mCurrentFocus 正确，尚未进入两杯连续性验收，不能称runtime通过。
+- 最小修正仅初始窗口readiness：先注册事件通知，再设置service flags，通过公共getWindows建立真实interactive window元数据；只有初始root为null时，在host传入的剩余原30秒预算内等待实际accessibility事件并再次查询。generation避免丢通知；不等全局idle、不固定sleep、不重启App/杯、不重跑已开始/失败的capture。非null root立即保原包/窗口/完整遍历校验；serialization后的root仍只读一次比对，不重试掩盖变化。XML保留就绪等待/查询次数/实际window信息。
+- 本地30项host契约PASS，新增remaining budget参数门；原选择/页面/PNG/30秒deadline均不变。Android首次连接与两杯真实连续性仍须新exact head CI，不把编译当运行验收。

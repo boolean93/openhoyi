@@ -193,7 +193,8 @@ def read_hierarchy():
         ensure_mock(timeout=remaining())
         record['pidBefore'] = pid()
         adb('shell', 'run-as', TEST_PACKAGE, 'rm', '-f', relative, timeout=remaining())
-        output = adb('shell', 'am', 'instrument', '-w', '-e', 'nonce', nonce, TREE_RUNNER,
+        output = adb('shell', 'am', 'instrument', '-w', '-e', 'nonce', nonce,
+                     '-e', 'budgetMs', str(max(1, int(remaining() * 1000))), TREE_RUNNER,
                      include_stderr=True, timeout=remaining())
         record['instrumentation'] = output
         if 'MOCK_ACTIVE_TREE_CAPTURED nonce=' + nonce + ' ' not in output:

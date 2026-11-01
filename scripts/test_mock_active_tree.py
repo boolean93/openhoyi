@@ -33,6 +33,9 @@ class ActiveTreeTest(unittest.TestCase):
         xml,adb=self.call(['42','','MOCK_ACTIVE_TREE_CAPTURED nonce='+NONCE+' nodes=2 window=7',tree(),'42',''])
         self.assertEqual(tree(),xml)
         self.assertIn(tap.TREE_RUNNER,adb.call_args_list[2].args)
+        command=adb.call_args_list[2].args
+        budget=int(command[command.index('budgetMs')+1])
+        self.assertTrue(0<budget<=30000)
         self.assertTrue(all('uiautomator' not in call.args for call in adb.call_args_list))
         self.assertEqual(('shell','run-as',tap.TEST_PACKAGE,'rm','-f','files/mock-hierarchy/'+NONCE+'.xml'),adb.call_args_list[1].args)
         self.assertTrue(all(0<call.kwargs['timeout']<=30 for call in adb.call_args_list))
