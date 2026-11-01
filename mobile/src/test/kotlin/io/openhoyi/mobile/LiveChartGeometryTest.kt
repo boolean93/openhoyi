@@ -4,6 +4,20 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LiveChartGeometryTest {
+    @Test fun continuousDomainIncludesReferenceCrossesThirtyWithoutBucketAndDoesNotShrink() {
+        assertEquals(30_000L, LiveChartGeometry.continuousTimeEnd(0, 1_000))
+        assertEquals(30_001L, LiveChartGeometry.continuousTimeEnd(30_000, 30_001))
+        assertEquals(75_321L, LiveChartGeometry.continuousTimeEnd(30_000, 75_321))
+        assertEquals(75_321L, LiveChartGeometry.continuousTimeEnd(75_321, 32_000))
+        assertEquals(30_000L, LiveChartGeometry.continuousTimeEnd(0, 2_000))
+    }
+    @Test fun revealUsesActualCadenceWithBoundedRecoveryAfterLongGap() {
+        assertEquals(196L, LiveChartGeometry.revealDuration(196))
+        assertEquals(250L, LiveChartGeometry.revealDuration(250))
+        assertEquals(80L, LiveChartGeometry.revealDuration(0))
+        assertEquals(500L, LiveChartGeometry.revealDuration(5_000))
+    }
+
     private fun value(c: LiveChartGeometry.Cubic, t: Double): Double {
         val u = 1 - t
         return u*u*u*c.start.value + 3*u*u*t*c.control1.value + 3*u*t*t*c.control2.value + t*t*t*c.end.value

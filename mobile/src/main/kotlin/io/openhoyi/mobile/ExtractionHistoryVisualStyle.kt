@@ -93,6 +93,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
     fun minimumEmbeddedHistoryHeight() = kotlin.math.ceil(dp(96f) + line * 4 + dp(40f)).toInt()
     fun minimumComparisonHeight(plotMinimumDp: Float = 96f) = kotlin.math.ceil(dp(plotMinimumDp) + line * 3 + dp(24f)).toInt()
     private fun number(value: Float) = String.format(Locale.ROOT, "%.1f", value)
+    private fun axisNumber(value: Float) = if (value == value.toLong().toFloat()) value.toLong().toString() else number(value)
     private fun seconds(value: Long) = String.format(Locale.ROOT, "%.1f", value / 1000.0)
     private fun extent(text: String): Float { labels.getTextBounds(text, 0, text.length, ink)
         return maxOf(labels.measureText(text), ink.right.toFloat()) - minOf(0f, ink.left.toFloat()) }
@@ -109,23 +110,25 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         ChartMetric.WEIGHT -> R.string.task_extraction_scale
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
     }) + " · " + displayUnit(metric)
-    private fun column(series: MetricChartSeries): Float = ((0..4).map {
-        number(series.range.low + (series.range.high - series.range.low) * it / 4)
-    } + if (liveMode) displayUnit(series.metric) else axisTitle(series.metric)).maxOf(::extent) + dp(if (liveMode) 12f else 16f)
+    private fun column(series: MetricChartSeries, compact: Boolean = false): Float = ((0..4).map {
+        (if (liveMode) axisNumber(series.range.low + (series.range.high - series.range.low) * it / 4) else number(series.range.low + (series.range.high - series.range.low) * it / 4))
+    } + (if (compact) displayUnit(series.metric) else axisTitle(series.metric))).maxOf(::extent) + dp(if (liveMode) 12f else 16f)
+    private fun compactAxes(width: Int, data: FourMetricChartData) = liveMode && width - data.series.sumOf { column(it).toDouble() } - dp(24f) < dp(96f)
     fun allAxes(width: Int, data: FourMetricChartData) = width - data.series.sumOf { column(it).toDouble() } - dp(16f) >= dp(96f)
     fun bounds(width: Int, height: Int, data: FourMetricChartData, focused: ChartMetric, comparison: Boolean): RectF {
+        val compactAxes = compactAxes(width, data)
         val selected = data.series.filter { comparison && it.metric == focused || !comparison }
-        val all = !comparison && !liveMode && allAxes(width, data)
+        val all = !comparison && (liveMode || allAxes(width, data))
         val leftAxes = if (all) selected.filter { it.metric == ChartMetric.TEMPERATURE || it.metric == ChartMetric.PRESSURE } else selected.filter { it.metric == focused }
         val rightAxes = if (all) selected.filter { it.metric == ChartMetric.WEIGHT || it.metric == ChartMetric.WATER } else emptyList()
-        val left = dp(8f) + leftAxes.sumOf { column(it).toDouble() }.toFloat()
-        val tailWidth = if (liveMode) ChartMetric.entries.maxOf { extent(metricName(it)) } + dp(12f) else 0f
-        val right = width - dp(8f) - rightAxes.sumOf { column(it).toDouble() }.toFloat() - tailWidth
+        val left = dp(8f) + leftAxes.sumOf { column(it, compactAxes).toDouble() }.toFloat()
+        val tailWidth = 0f // Live endpoint names live in the persistent metric tiles.
+        val right = width - dp(8f) - rightAxes.sumOf { column(it, compactAxes).toDouble() }.toFloat() - tailWidth
         return if (comparison) RectF(left, line * 1.5f + dp(12f), right, height - line * 1.5f - dp(12f))
             else if (liveMode) RectF(left, line * 1.5f + dp(8f), right, height - line * 1.5f - dp(12f))
             else RectF(left, line * 1.5f + dp(16f), right, height - line * 2.5f - dp(24f))
     }
-    private data class Label(val text: String, val x: Float, val baseline: Float, val align: Paint.Align, val color: Int, val role: String, val sizeSp: Int = 14)
+    private data class Label(val text: String, val x: Float, val baseline: Float, val align: Paint.Align, val color: Int, val role: String, val sizeSp: Int = 14, val metric: ChartMetric? = null)
     private fun glyph(label: Label): RectF {
         val oldSize = labels.textSize
         labels.textSize = style.palette.sp(label.sizeSp)
@@ -145,30 +148,31 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         if (liveMode && data.pauseBaselineMs.isNotEmpty()) evidence.put(JSONObject()
             .put("operation","phase-zero-baseline").put("timesMs",JSONArray(data.pauseBaselineMs.toList()))
             .put("meaning","closed-valve pause phase, not measured zero pressure"))
+        val compactAxes = compactAxes(width, data)
         val timeEnd = data.timeEndMs
         val box = bounds(width, height, data, focused, comparison)
         if (box.width() < dp(96f) || box.height() < line + dp(8f)) return RectF()
-        val all = !comparison && !liveMode && allAxes(width, data)
+        val all = !comparison && (liveMode || allAxes(width, data))
         val series = if (comparison || !all) data.series.filter { it.metric == focused } else data.series
         val leftAxes = if (all) listOf(ChartMetric.TEMPERATURE, ChartMetric.PRESSURE).mapNotNull { m -> series.firstOrNull { it.metric == m } } else series
         val rightAxes = if (all) listOf(ChartMetric.WEIGHT, ChartMetric.WATER).mapNotNull { m -> series.firstOrNull { it.metric == m } } else emptyList()
         val rows = ((box.height() / (line + dp(if (liveMode) 18f else 8f))).toInt() + 1)
-            .coerceIn(2, if (liveMode) 4 else 5)
+            .coerceIn(2, if (liveMode) 3 else 5)
         val texts = mutableListOf<Label>()
         val fm = labels.fontMetrics
         fun planAxis(item: MetricChartSeries, x: Float) {
             val metricInk = if (liveMode) style.liveMetric(item.metric) else style.metric(item.metric)
-            texts += Label(axisTitle(item.metric), x, dp(4f) - fm.ascent, Paint.Align.LEFT, metricInk, "axis-unit")
+            texts += Label(if (compactAxes) displayUnit(item.metric) else axisTitle(item.metric), x, dp(4f) - fm.ascent, Paint.Align.LEFT, metricInk, "axis-unit", metric = item.metric)
             for (row in 0 until rows) {
                 val fraction = row.toFloat() / (rows - 1)
-                texts += Label(number(item.range.low + (item.range.high - item.range.low) * fraction), x,
-                    box.bottom - box.height() * fraction - (fm.ascent + fm.descent) / 2, Paint.Align.LEFT, metricInk, "axis-tick")
+                texts += Label(if (liveMode) axisNumber(item.range.low + (item.range.high - item.range.low) * fraction) else number(item.range.low + (item.range.high - item.range.low) * fraction), x,
+                    box.bottom - box.height() * fraction - (fm.ascent + fm.descent) / 2, Paint.Align.LEFT, metricInk, "axis-tick", metric = item.metric)
             }
         }
         var x = dp(8f)
-        leftAxes.forEach { planAxis(it, x); x += column(it) }
+        leftAxes.forEach { planAxis(it, x); x += column(it, compactAxes) }
         x = box.right + dp(8f)
-        rightAxes.forEach { planAxis(it, x); x += column(it) }
+        rightAxes.forEach { planAxis(it, x); x += column(it, compactAxes) }
         val timeBaseline = box.bottom + line / 2 + dp(8f) - fm.ascent
         texts += Label("0", box.left, timeBaseline, Paint.Align.LEFT, style.palette.muted, "time-tick")
         texts += Label(seconds(timeEnd) + if (comparison || liveMode) " s" else "", box.right, timeBaseline, Paint.Align.RIGHT, style.palette.muted, "time-tick")
@@ -326,44 +330,14 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         }
         inspectedTime?.let { time -> canvas.drawLine(px(time), box.top, px(time), box.bottom, axis)
             evidence.put(JSONObject().put("operation", "line").put("role", "inspection").put("endpointsPx", JSONArray(listOf(px(time),box.top,px(time),box.bottom)))) }
-        if (liveMode) {
-            val tails = data.series.filter { it.metric !in unavailableMetrics }.mapNotNull { item ->
-                val segment = item.current.lastOrNull().orEmpty()
-                segment.lastOrNull()?.takeIf { it.elapsedMs == data.observedThroughMs }?.let { last ->
-                    val point = LiveChartGeometry.visiblePoint(segment,revealThroughMs ?: last.elapsedMs,
-                        if (item.metric == ChartMetric.PRESSURE) data.pauseBaselineMs else emptySet())
-                    point?.let { item to it }
-                }
-            }
-            val tailPaint = Paint(labels).apply { textSize = this@ProductHistoryChartRenderer.style.palette.sp(12) }
-            val tailFm = tailPaint.fontMetrics
-            val tailLine = tailFm.descent-tailFm.ascent
-            val sortedTails = tails.sortedBy { (item,point) -> py(point.value,item.range) }
-            val positions = LiveChartGeometry.labelCenters(sortedTails.map { (item,point) -> py(point.value,item.range) },
-                box.top+tailLine/2,box.bottom-tailLine/2,tailLine+dp(3f))
-            if (positions == null) {
-                texts += Label(context.getString(R.string.task_chart_compact_notice),box.centerX(),
-                    box.top+tailLine-tailFm.descent,Paint.Align.CENTER,style.palette.muted,"endpoint-compact",12)
-                evidence.put(JSONObject().put("operation","endpoint-label-compact").put("reason","insufficient_height"))
-            }
-            sortedTails.forEachIndexed { index, (item,point) ->
-                val y = positions?.get(index) ?: return@forEachIndexed
-                val x = px(point.elapsedMs)+dp(8f)
-                axis.color = style.liveMetric(item.metric); axis.strokeWidth = dp(1f)
-                canvas.drawLine(px(point.elapsedMs),py(point.value,item.range),x,y,axis)
-                val name = if (item.metric == ChartMetric.PRESSURE && data.pauseBaselineMs.any { pause ->
-                        pause <= point.elapsedMs && item.current.flatten().lastOrNull { it.elapsedMs <= point.elapsedMs }?.elapsedMs == pause })
-                    context.getString(R.string.live_pressure_pause) else metricName(item.metric)
-                texts += Label(name,x,y-(tailFm.ascent+tailFm.descent)/2,Paint.Align.LEFT,style.liveMetric(item.metric),"endpoint-name",12)
-            }
-        }
+        // Live endpoint names and values remain in the persistent metric tiles.
         canvas.restore()
         texts.forEachIndexed { index, text ->
             labels.textSize = style.palette.sp(text.sizeSp)
             val textFm = labels.fontMetrics
             labels.color = text.color; labels.textAlign = text.align; labels.alpha = 255; labels.pathEffect = null
             canvas.drawText(text.text, text.x, text.baseline, labels)
-            evidence.put(JSONObject().put("operation", "text").put("role", text.role).put("text", text.text).put("textIndex",index)
+            evidence.put(JSONObject().put("operation", "text").put("role", text.role).put("text", text.text).put("textIndex",index).put("metric",text.metric?.name ?: JSONObject.NULL)
                 .put("positionPx", JSONArray(listOf(text.x,text.baseline))).put("glyphBoundsPx",rect(glyph(text)))
                 .put("textSizePx",labels.textSize).put("weight",400).put("fontAssetSha256",if (context.resources.configuration.locales[0].language == "zh") TaskProductVisualStyle.FONT_SHA else JSONObject.NULL)
                 .put("colorArgb",color(labels.color)).put("alpha",labels.alpha).put("fakeBold",labels.isFakeBoldText)

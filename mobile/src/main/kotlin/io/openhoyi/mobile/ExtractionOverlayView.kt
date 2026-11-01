@@ -28,16 +28,23 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     internal val visualEvidence get() = productRenderer?.evidence ?: org.json.JSONArray()
     var points: List<ShotPoint> = emptyList()
         set(value) {
+            if (field == value) return
             val old = field
             val oldAxis = renderTimeEnd
+            val oldReveal = revealThroughMs ?: old.lastOrNull()?.elapsedMs
+            val now = android.os.SystemClock.elapsedRealtime()
+            val updateGap = lastPointUpdateAt?.let { now - it } ?: 250L
+            if (value != old) lastPointUpdateAt = now
             stopRenderTransition()
             field = value; rebuildProjection()
             if (liveChart && old.isNotEmpty() && value.size > old.size && value.take(old.size) == old &&
-                value.last().elapsedMs-old.last().elapsedMs <= 1500 && ChartMetric.PRESSURE !in unavailableLiveMetrics)
-                startRenderTransition(old.last().elapsedMs,oldAxis)
+                value.last().elapsedMs-old.last().elapsedMs <= 1500 &&
+                value.drop(old.size).all { it.brewing == old.last().brewing && it.statusBits == old.last().statusBits } &&
+                ChartMetric.PRESSURE !in unavailableLiveMetrics)
+                startRenderTransition(oldReveal ?: old.last().elapsedMs,oldAxis, updateGap)
         }
     var reference: List<ShotPoint> = emptyList()
-        set(value) { field = value; rebuildProjection() }
+        set(value) { if (field == value) return; stopRenderTransition(); field = value; rebuildProjection() }
     var traceIdentity: String? = null
         set(value) {
             if (field == value) return
@@ -46,10 +53,12 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             inspectionDialog?.dismiss()
             inspectedTime = null
             previousRanges = emptyMap()
+            lastPointUpdateAt = null
             liveTimeEnd = 30_000L
             rebuildProjection()
             // The Activity sets identity before replacing points; do not retain the old cup range.
             previousRanges = emptyMap()
+            lastPointUpdateAt = null
             liveTimeEnd = 30_000L
         }
     var referenceLabel: String? = null
@@ -75,16 +84,19 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var liveTimeEnd = 30_000L
     private var renderTimeEnd = 30_000L
     private var revealThroughMs: Long? = null
+    private var lastPointUpdateAt: Long? = null
     private var renderAnimator: android.animation.ValueAnimator? = null
     private fun stopRenderTransition() {
         renderAnimator?.cancel(); renderAnimator = null
         revealThroughMs = null; renderTimeEnd = data.timeEndMs
     }
-    private fun startRenderTransition(oldObserved: Long, oldAxis: Long) {
+    private fun startRenderTransition(oldObserved: Long, oldAxis: Long, updateGap: Long) {
         val target = data.observedThroughMs ?: return
         val endAxis = data.timeEndMs
+        revealThroughMs = oldObserved
+        renderTimeEnd = oldAxis
         renderAnimator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
-            duration = 180
+            duration = LiveChartGeometry.revealDuration(updateGap)
             interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener { animation ->
                 val fraction = animation.animatedValue as Float
@@ -242,7 +254,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private fun rebuildProjection() {
         data = FourMetricChartProjection.build(points, reference, previousRanges, livePauseBaseline = liveChart)
         if (liveChart) {
-            liveTimeEnd = maxOf(liveTimeEnd, LiveChartGeometry.timeEnd(data.timeEndMs))
+            liveTimeEnd = LiveChartGeometry.continuousTimeEnd(liveTimeEnd, data.timeEndMs)
+            if (data.series.none { it.metric == ChartMetric.WEIGHT }) {
+                val range = previousRanges[ChartMetric.WEIGHT] ?: ChartRange(0f, 50f)
+                data = data.copy(series = data.series + MetricChartSeries(ChartMetric.WEIGHT, emptyList(), emptyList(), range))
+            }
             data = data.copy(timeEndMs = liveTimeEnd)
         }
         renderTimeEnd = data.timeEndMs
@@ -621,7 +637,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (event.actionMasked == MotionEvent.ACTION_UP && plotBounds.contains(event.x, event.y) && points.isNotEmpty()) {
                 val fraction = ((event.x - plotBounds.left) / plotBounds.width()).coerceIn(0f, 1f)
-                val time = (fraction.toDouble() * data.timeEndMs).toLong()
+                val time = (fraction.toDouble() * (if (liveChart) renderTimeEnd else data.timeEndMs)).toLong()
                 inspectedTime = ChartInspection.nearestIndex(points, time)?.let { points[it].elapsedMs }
             }
             return super.onTouchEvent(event)

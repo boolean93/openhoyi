@@ -24,6 +24,7 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
         val activity = host.activity
         try {
             test.waitForIdleSync()
+            LiveChartTimingChecks(test).run(activity)
             val directory = File(test.targetContext.getExternalFilesDir(null), "four-metric-chart-checks").apply { mkdirs() }
             val samples = (0..30).map { index ->
                 ShotPoint(index * 800L, if (index < 5) index * 18 else 90 - (index - 5),
@@ -33,7 +34,20 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                 if (index in 8..14) point.copy(brewing=false,statusBits=0,pressureTenthsBar=73)
                 else point.copy(brewing=true,statusBits=64)
             }
-            val cases = listOf(
+            val replay = org.json.JSONArray(test.context.assets.open("live-curve-real-replay.json").bufferedReader().use { it.readText() })
+            val realCases = (0 until replay.length()).map { index ->
+                val item = replay.getJSONObject(index)
+                val rows = item.getJSONArray("rows")
+                val points = (0 until rows.length()).map { rowIndex ->
+                    val r = rows.getJSONArray(rowIndex)
+                    fun optional(i: Int) = r.optString(i).toIntOrNull()
+                    ShotPoint(r.getString(0).toLong(),r.getString(1).toInt(),r.getString(2).toInt(),
+                        r.getString(3).toInt(),r.getString(4).toInt(),optional(5),optional(6),
+                        r.optString(7).toBooleanStrictOrNull(),optional(8))
+                }
+                Triple("real-replay-${item.getString("id")}", points, emptyList<ShotPoint>())
+            }
+            val cases = realCases + listOf(
                 Triple("preinfusion-pause",pauseSamples,emptyList()),
                 Triple("machine-only", samples.map { it.copy(weightHundredthsGram = null) }, emptyList()),
                 Triple("four-metrics", samples, emptyList()),
@@ -57,6 +71,33 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                     check(controls.map { it.tag } == expected.map { "chart-metric:$it" }) {
                         "$name: expected usable four-metric legend, got ${controls.map { it.tag }}"
                     }
+                    // Verify all scales before any metric selection changes emphasis.
+                    val initialBitmap = Bitmap.createBitmap(actual.width, actual.height, Bitmap.Config.ARGB_8888)
+                    try {
+                        probe.draw(android.graphics.Canvas(initialBitmap))
+                        val plotView = requireNotNull(probe.findViewWithTag<View>("chart-plot"))
+                        val ops = (0 until probe.visualEvidence.length()).map { probe.visualEvidence.getJSONObject(it) }
+                        val plot = ops.single { it.optString("operation") == "plot" }.getJSONArray("boundsPx")
+                        check(plot.getDouble(2) - plot.getDouble(0) >= HoyiUi.dp(activity,96))
+                        val glyphs = ops.filter { it.optString("role") in setOf("axis-unit","axis-tick") }
+                        glyphs.forEachIndexed { index, label ->
+                            val a = label.getJSONArray("glyphBoundsPx")
+                            check(a.getDouble(0) >= 0 && a.getDouble(1) >= 0 && a.getDouble(2) <= plotView.width && a.getDouble(3) <= plotView.height)
+                            glyphs.drop(index+1).forEach { other ->
+                                val b = other.getJSONArray("glyphBoundsPx")
+                                check(minOf(a.getDouble(2),b.getDouble(2)) <= maxOf(a.getDouble(0),b.getDouble(0)) ||
+                                    minOf(a.getDouble(3),b.getDouble(3)) <= maxOf(a.getDouble(1),b.getDouble(1))) { "$name: permanent axis glyph collision" }
+                            }
+                        }
+                        for (metric in ChartMetric.entries) {
+                            check(ops.count { it.optString("role") == "axis-unit" && it.optString("metric") == metric.name } == 1)
+                            val metricTicks = ops.filter { it.optString("role") == "axis-tick" && it.optString("metric") == metric.name }
+                            check(metricTicks.size >= 2)
+                            val projection = FourMetricChartProjection.build(points,reference)
+                            val range = projection.series.firstOrNull { it.metric == metric }?.range ?: ChartRange(0f,50f)
+                            check(metricTicks.map { it.getString("text").toFloat() }.let { it.minOrNull() == range.low && it.maxOrNull() == range.high })
+                        }
+                    } finally { initialBitmap.recycle() }
                     for (control in controls) {
                         check(control.width >= HoyiUi.dp(activity, 48) && control.height >= HoyiUi.dp(activity, 48))
                         check(!control.contentDescription.isNullOrBlank())
@@ -65,6 +106,15 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                         val reading = value?.let { java.util.Locale.ROOT.let { locale ->
                             String.format(locale, "%.1f", it)
                         } } ?: "—"
+                        val tileName = requireNotNull(probe.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/name"))
+                        LanguageUiLayoutChecks.textFits(tileName,"$name metric name")
+                        check(tileName.visibility == View.VISIBLE && tileName.width > 0 && tileName.height > 0)
+                        check(tileName.text.toString() == if (metric == ChartMetric.WEIGHT) activity.getString(R.string.task_extraction_scale) else when(metric) {
+                            ChartMetric.PRESSURE -> activity.getString(R.string.task_chart_pressure)
+                            ChartMetric.WATER -> activity.getString(R.string.task_chart_water)
+                            ChartMetric.TEMPERATURE -> activity.getString(R.string.task_chart_temperature)
+                            else -> error("unreachable")
+                        })
                         val number = requireNotNull(probe.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/number"))
                         val unit = requireNotNull(probe.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/unit"))
                         check(number.text.toString() == reading && unit.text.toString() ==
@@ -90,14 +140,22 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                         val evidence = probe.visualEvidence
                         val texts = (0 until evidence.length()).map { evidence.getJSONObject(it) }
                             .filter { it.optString("operation") == "text" }
-                        val unit = texts.single { it.optString("role") == "axis-unit" }
+                        val axisUnits = texts.filter { it.optString("role") == "axis-unit" }
+                        check(axisUnits.size == 4) { "$name: all four physical axes must remain visible" }
                         val ticks = texts.filter { it.optString("role") == "axis-tick" }
                         fun overlaps(a: org.json.JSONObject, b: org.json.JSONObject): Boolean {
                             val x = a.getJSONArray("glyphBoundsPx"); val y = b.getJSONArray("glyphBoundsPx")
                             return minOf(x.getDouble(2), y.getDouble(2)) - maxOf(x.getDouble(0), y.getDouble(0)) > 1 &&
                                 minOf(x.getDouble(3), y.getDouble(3)) - maxOf(x.getDouble(1), y.getDouble(1)) > 1
                         }
-                        check(ticks.none { overlaps(unit, it) }) { "$name: focused axis unit overlaps a tick" }
+                        check((axisUnits + ticks).all { label ->
+                            val bounds = label.getJSONArray("glyphBoundsPx")
+                            bounds.getDouble(0) >= 0 && bounds.getDouble(2) <= actual.width
+                        }) { "$name: axis glyph clipped horizontally" }
+                        axisUnits.forEachIndexed { index, label ->
+                            check(axisUnits.drop(index + 1).none { overlaps(label, it) }) { "$name: axis units overlap" }
+                        }
+                        check(axisUnits.all { axisUnit -> ticks.none { overlaps(axisUnit, it) } }) { "$name: focused axis unit overlaps a tick" }
                         check(texts.none { it.optString("role") == "time-unit" } &&
                             texts.any { it.optString("role") == "time-tick" && it.optString("text").endsWith(" s") }) {
                             "$name: time unit must share the last tick row"
@@ -109,13 +167,11 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                             val ops = (0 until evidence.length()).map { evidence.getJSONObject(it) }
                             check(ops.any { it.optString("operation")=="phase-zero-baseline" })
                             check(ops.any { it.optString("operation")=="gradient-area" && it.optString("metric")=="PRESSURE" })
-                            check(ops.filter { it.optString("role")=="endpoint-name" }.size == 4)
-                            val labels = ops.filter { it.optString("role")=="endpoint-name" }.map { it.getJSONArray("glyphBoundsPx") }
-                            labels.forEachIndexed { i,a -> labels.drop(i+1).forEach { b ->
-                                check(minOf(a.getDouble(2),b.getDouble(2)) <= maxOf(a.getDouble(0),b.getDouble(0)) ||
-                                    minOf(a.getDouble(3),b.getDouble(3)) <= maxOf(a.getDouble(1),b.getDouble(1))) {
-                                    "Tail labels overlap" }
-                            } }
+                            check(ops.none { it.optString("role")=="endpoint-name" })
+                            check(axisUnits.size == 4 && ticks.size >= 8)
+                            // Endpoint identity/readings remain in the four visible metric tiles,
+                            // checked above; pause phase stays explicit in visible gauge semantics.
+                            check(probe.overviewExplanation().contains(activity.getString(R.string.live_pressure_pause_explanation)))
                             val wait = points.map { if (it.brewing==false) it.copy(statusBits=32) else it }
                             check(FourMetricChartProjection.pauseBaselines(wait).isEmpty())
                             val gap = listOf(points.first(),points[8].copy(elapsedMs=2000))
