@@ -576,7 +576,13 @@ class BrewAudioInstrumentation : Instrumentation() {
             check(autoplayCount() == beforeRecreation) { "Recreation replayed feedback" }
             runOnMainSync {
                 val result = requireNotNull(owner.get()!!.brewFeedbackResult)
-                check(result.machineSeconds > 14 && result.earlyWaterTenthsMl <= 60)
+                // Mock values advance within the wire's integral 10-second bucket:
+                // floor(10_999 ms * 6 tenths-mL/s / 1000) = 65, not the old stepped 60.
+                val mockTenSecondWireBucketMaxWaterTenthsMl = 65
+                check(result.machineSeconds > 14) { "Mock feedback ended before the existing duration gate: ${result.machineSeconds}" }
+                check(result.earlyWaterTenthsMl <= mockTenSecondWireBucketMaxWaterTenthsMl) {
+                    "Mock feedback early water exceeds its 10-second wire bucket: ${result.earlyWaterTenthsMl}"
+                }
                 check(result.level == BrewFeedbackClips.Level.LOW_FLOW)
                 check(owner.get()!!.startShot("capture-2", null, 7) == null)
                 check(owner.get()!!.brewFeedbackResult == null)
