@@ -1,6 +1,6 @@
 # HOYI 高级功能页面设计示意
 
-使用内置 ImageGen 生成 **28 张独立设计图**，基于 [高级功能调研报告](../../research/2026-10-08-advanced-features-research.md)。
+使用内置 ImageGen 生成 **28 张独立设计图**，基于 [高级功能调研报告](../../../../../research/2026-10-08-advanced-features-research.md)。
 
 **[打开按模块浏览的图片总览](gallery.html)** · [页面清单与提示词](manifest.json) · [检查记录](verification.json)
 
