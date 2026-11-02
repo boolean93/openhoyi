@@ -16,6 +16,8 @@
 
 历史 app-service.js 未整包导入，保留本地源：`/Users/boolean93/workspace/hoyi_app/hoyi-project/app/assets/apps/__UNI__7D80DAB/www/app-service.js`，SHA256 `1451bddc95735fdc86b071aef98d9d5b88add12b0b3612c66f666faca7572ddc`。
 
-native-validation-2026-09-23 三份原始 JSONL 含 session/owner 标识，仅保留本地，不公开原日志；本轮未制作脱敏副本。local.properties 仅留本地。
+native-validation-2026-09-23 三份原始 JSONL 含 session/owner 标识，主资料副本保存在 `<HOYI工作区>/openhoyi-local-materials/native-validation-2026-09-23/`，即本机 `hoyi_app` 工作区内与 `openhoyi-native` 原生仓库同级的资料目录；其他克隆或工作树的上一级不一定有资料。资料不入 Git、不随仓库克隆；缺少时需向资料持有者取得，或独立复制到自己的资料目录。原生仓库中 git 忽略的 `captures/native-validation-2026-09-23/` 暂保留为兼容副本。
+
+不公开原日志；本轮未制作脱敏副本，也未完成完整载荷的公开发布审查。原采集器的认证脱敏标记不构成安全发布保证。SDK 路径继续保存在仅留本地的 `local.properties`。
 
 未单独归档的 native-protocol 文件与当前 docs/native-protocol 同名文件字节一致，已由当前仓库承接。
