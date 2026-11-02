@@ -1,0 +1,24 @@
+<resources>
+    <string name="task_brew_title">تحضير القهوة</string>
+    <string name="task_brew_machine_readings">قراءات الآلة</string>
+    <string name="task_brew_preview_note">أهداف المراحل، وليست توقعًا زمنيًا</string>
+    <string name="task_brew_cup_summary">هذا الكوب</string>
+    <string name="task_brew_no_pressure_preview">لا توجد أهداف ضغط موثقة. اضغط اسم الوصفة للتفاصيل.</string>
+    <string name="task_brew_live_state">عرض الحالة المباشرة</string>
+    <string name="task_brew_temperature">الحرارة المصححة %1$s °C · الهدف %2$s °C</string>
+    <string name="task_brew_dose_unavailable">سجل البن غير متاح</string>
+    <string name="task_brew_dose_missing">لم يتم اختيار بن لهذا الكوب</string>
+    <string name="task_brew_dose_association">سجل الكوب السابق بانتظار الربط؛ افتحه للمعالجة</string>
+    <string name="task_brew_dose_previous">البن المستخدم سابقًا</string>
+    <string name="task_brew_dose_pending">نتيجة الاستهلاك تحتاج مراجعة</string>
+    <string name="task_brew_dose_conflict">سجل المخزون يحتاج مراجعة</string>
+    <string name="task_brew_dose_confirmed">تم تأكيد البن</string>
+    <string name="task_brew_dose_selected">البن بانتظار التأكيد</string>
+    <string name="task_brew_dose_entry">عرض البن أو تعديله</string>
+    <string name="task_brew_usage_unavailable">سجل الاستخدام غير متاح</string>
+    <string name="task_brew_usage_empty">لا توجد استخدامات مسجلة</string>
+    <string name="task_brew_usage">استُخدمت %1$s مرة · آخر استخدام %2$s</string>
+    <string name="task_brew_history_entry">عرض السجل الكامل</string>
+    <string name="task_brew_curve_unknown">الوصفة الحالية غير متاحة</string>
+    <string name="task_brew_compact_preview">المساحة محدودة: أهداف المراحل كاملة كنص</string>
+</resources>

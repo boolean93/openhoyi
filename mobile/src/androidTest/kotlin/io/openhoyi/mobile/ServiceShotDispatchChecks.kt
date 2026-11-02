@@ -9,7 +9,6 @@ import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
-import io.openhoyi.bluetooth.AndroidDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
@@ -27,7 +26,13 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
 
     fun run()=runChecks(false)
     fun runCompletion()=runChecks(true)
-    private fun runChecks(completion:Boolean) {
+    fun runCustom(document:CustomCurveDocument) {
+        val app=test.targetContext.applicationContext as MobileApplication
+        val store=app.customCurvesResult.getOrThrow()
+        check(store.find(document.id)==document) {"Only this CI run's saved recipe may be exercised"}
+        try {runChecks(false,document)} finally {store.save(document)}
+    }
+    private fun runChecks(completion:Boolean,custom:CustomCurveDocument?=null) {
         val app = test.targetContext.applicationContext as MobileApplication
         check(BuildConfig.MOCK_MODE && app.packageName == "io.openhoyi.mobile.mock")
         val address = "AA:BB:CC:DD:EE:01"
@@ -60,7 +65,13 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
             }
             var outerFailure:Throwable?=null
             try {
-                val selected=CurveCatalog.profiles[if(window=="FLOW_START")1 else 2]
+                val selected=if(custom==null) CurveCatalog.profiles[if(window=="FLOW_START")1 else 2] else {
+                    app.customCurvesResult.getOrThrow().save(custom.copy(targetHundredthsGram=if(window=="FLOW_START")0 else custom.targetHundredthsGram))
+                    requireNotNull(app.curves.resolve(custom.id,true,7)).also {
+                        check(it.parameters.pressureLogic.not() && it.parameters.variableFlowLogic.not())
+                        check(CoffeeCommands.start(it.parameters).frame.hex() !in app.curves.legacyVerifiedStartFrames)
+                    }
+                }
                 check(app.curves.resolve(selected.id,true,7)==selected && app.curves.validated(selected))
                 val curvePrefs=app.getSharedPreferences(fixtures.getValue("curves"),Context.MODE_PRIVATE)
                 check(curvePrefs.edit().putString("selected",selected.id).commit())
@@ -78,11 +89,18 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                                 .apply { isAccessible=true }.invoke(instance,context)
                             Service::class.java.getDeclaredField("mApplication").apply { isAccessible=true }.set(instance,app)
                             field(instance,"logs").set(instance,journal);field(instance,"mock").set(instance,null)
+                            field(instance,"history").set(instance,detachedShotHistory())
                             check(!field(instance,"running").getBoolean(instance))
                         }
-                        val instance=attach();val owner=NativeDeviceHub(context);hub=owner
+                        val instance=attach()
+                        val receiveScale = MobileService::class.java.getDeclaredMethod("onScaleObservation", ScaleObservation::class.java)
+                            .apply { isAccessible = true }
+                        val owner=NativeDeviceHub(context,onScaleObservation={ observation -> receiveScale.invoke(instance, observation) },
+                            customPressureStartPermit={parameters ->
+                            custom!=null && app.curves.permitsCustomPressureStart(curvePrefs.getString("selected",null),parameters)
+                        });hub=owner
                         field(instance,"hub").set(instance,owner)
-                        val devices=listOf("coffee","scale").map { field(owner,it).get(owner) as AndroidDevice }
+                        val devices=listOf("coffee","scale").map { hubDevice(owner, it) }
                         val sessions=devices.map { it.session }
                         val queues=sessions.map { field(it,"queue").get(it) as GattQueue }
                         val calls=List(2) { mutableListOf<Triple<Long,Long,GattOperation>>() }
@@ -121,6 +139,13 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                             sessions[1].onNotification(sessions[1].generation,KnownGatt.bookooNotify,bytes)
                             now=SystemClock.elapsedRealtime()
                             field(instance,"snapshot").set(instance,instance.snapshot.copy(weightAt=now))
+                            val observation = requireNotNull(instance.snapshot.scaleObservation)
+                            val trend = instance.scaleTrendAt(now)
+                            check(trend.isNotEmpty()) { "Decoded scale notification did not reach trend history" }
+                            check(trend.last().atMs == observation.receivedAtMs &&
+                                trend.last().hundredthsGram == observation.hundredthsGram &&
+                                trend.last().evidence == observation.evidence)
+                            check(trend.map { it.atMs }.distinct().size == trend.size)
                         }
                         zero()
                         val machine=recovery(instance)
@@ -144,6 +169,11 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         field(instance,"snapshot").set(instance,instance.snapshot.copy(coffeeAt=now,weightAt=now))
                         check(instance.startShot(selected.id,selected.scaleMode,7)==null) { "$window/$mode initial request rejected" }
                         check(owner.extraction.state==ExtractionState.STARTING)
+                        val recipe = requireNotNull(instance.activeShotRecipe?.forTrace(instance.chartTraceIdentity))
+                        check(recipe.name == selected.name && recipe.temperatureC == selected.temperatureC &&
+                            recipe.targetHundredthsGram == selected.targetHundredthsGram) {
+                            "$window/$mode accepted request lost its recipe snapshot"
+                        }
                         check(shotPrefs.getBoolean("unresolved_shot",false) && shotPrefs.getString("unresolved_shot_address",null)==address)
                         if(preheat)check(preparation.state==BrewPreparation.State.IDLE && machine.kind==MachineWriteRecoveryState.Kind.BREW_WAIT)
                         if(window=="WEIGHT_START") {
@@ -172,7 +202,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                         }
                         val allowed=completion || mode=="ALLOW" || mode=="PREHEAT_ALLOW"
                         // Session's original eligibility remains intact: product-only injections must drive rejection.
-                        check(sessions[0].captureStartContext(selected.parameters)!=null)
+                        check((sessions[0].captureStartContext(selected.parameters)!=null)==(custom==null || mode!="CURVE"))
                         val expectedShot=shotPrefs.all.toMap();val expectedMachine=prefs.all.toMap()
                         complete(index,blocker)
                         if(allowed && window=="TARE") {
@@ -238,7 +268,7 @@ internal class ServiceShotDispatchChecks(private val test: Instrumentation) {
                             }
                         }
                         hub?.let { owner->
-                            listOf("coffee","scale").forEach { name->cleaned { (field(owner,name).get(owner) as AndroidDevice).close() } }
+                            listOf("coffee","scale").forEach { name->cleaned { hubDevice(owner, name).close() } }
                             cleaned { owner.scanner.close() }
                             cleaned { (field(owner,"handler").get(owner) as Handler).removeCallbacks(field(owner,"ticker").get(owner) as Runnable) }
                         }

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_history_flow_details">Muestras de caudal (avanzado)</string>
+    <string name="task_history_flow_columns">Tiempo transcurrido · Caudal de agua de la máquina · Caudal derivado de la báscula; — indica falta de muestra</string>
+</resources>

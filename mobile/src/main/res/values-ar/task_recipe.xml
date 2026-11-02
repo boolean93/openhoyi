@@ -1,0 +1,5 @@
+<resources>
+    <string name="task_recipe_temperature">حرارة الوصفة</string>
+    <string name="task_recipe_target">الوزن المستهدف</string>
+    <string name="task_recipe_dose">الجرعة المسجلة</string>
+</resources>

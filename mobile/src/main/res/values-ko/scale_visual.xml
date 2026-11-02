@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="m6_nearby_scales">주변 저울</string>
+  <string name="m6_scale_candidate_count">후보 %1$d개 발견</string>
+  <string name="m6_app_timer">앱 타이머</string>
+</resources>

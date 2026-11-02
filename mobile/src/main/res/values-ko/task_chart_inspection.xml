@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_chart_inspect_hint">그래프를 선택해 실제 샘플을 확인하세요. 슬라이더나 방향키로 이동할 수 있습니다</string>
+    <string name="task_chart_sample_time">이번 추출 샘플 · %1$s 초</string>
+    <string name="task_chart_missing_scale">이 시점의 저울 측정값이 기록되지 않음</string>
+    <string name="task_chart_not_brewing">이 시점에는 추출 중이 아니었음</string>
+</resources>

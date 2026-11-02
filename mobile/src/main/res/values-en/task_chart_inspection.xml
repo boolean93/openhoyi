@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_chart_inspect_hint">Select the chart to inspect actual samples; use the slider or arrow keys to step through them</string>
+    <string name="task_chart_sample_time">Current shot sample · %1$s s</string>
+    <string name="task_chart_missing_scale">No scale reading recorded at this time</string>
+    <string name="task_chart_not_brewing">Not brewing at this time</string>
+</resources>

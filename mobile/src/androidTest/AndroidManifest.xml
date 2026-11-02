@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Test-only visibility for verifying the actual system picker identity. -->
+    <queries>
+        <package android:name="com.android.documentsui" />
+        <package android:name="com.google.android.documentsui" />
+        <package android:name="com.android.providers.downloads" />
+        <package android:name="com.android.externalstorage" />
+    </queries>
+    <permission
+        android:name="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE"
+        android:protectionLevel="signature" />
+    <uses-permission android:name="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE" />
+    <!-- AGP configures the first declaration from testInstrumentationRunner. -->
+    <instrumentation android:name="io.openhoyi.mobile.BrewAudioInstrumentation"
+        android:targetPackage="io.openhoyi.mobile.mock" android:functionalTest="false" />
+    <!-- No Activity and no Mock target: observing a running cup must not restart it. -->
+    <instrumentation android:name="io.openhoyi.mobile.MockHierarchyInstrumentation"
+        android:targetPackage="io.openhoyi.mobile.mock.test" android:functionalTest="false" />
+    <application>
+        <provider
+            android:name="io.openhoyi.mobile.CurveFixtureProvider"
+            android:authorities="io.openhoyi.mobile.mock.test.curve-fixtures"
+            android:exported="true"
+            android:grantUriPermissions="false"
+            android:readPermission="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE"
+            android:writePermission="io.openhoyi.mobile.mock.test.permission.CURVE_FIXTURE" />
+    </application>
+</manifest>

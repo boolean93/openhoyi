@@ -1,5 +1,7 @@
 package io.openhoyi.session
 
+import io.openhoyi.protocol.ScaleObservation
+import io.openhoyi.protocol.ScaleCapabilities
 import io.openhoyi.protocol.StartParameters
 import io.openhoyi.protocol.CoffeeCommands
 import io.openhoyi.protocol.HoyiMessage
@@ -15,7 +17,13 @@ interface CoffeeControl {
     fun start(parameters:StartParameters,beforeDispatch:()->Boolean,done:(OperationResult)->Unit)
     fun stop(done:(OperationResult)->Unit)
 }
-interface ScaleControl {val ready:Boolean;val startAllowed:Boolean;fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit)}
+interface ScaleControl {
+    val ready:Boolean
+    val startAllowed:Boolean
+    // Compatibility default for existing control implementations; live session overrides with evidence.
+    val capabilities:ScaleCapabilities get()=ScaleCapabilities(tare=true,validatedWeightControl=true)
+    fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit)
+}
 class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
     init{require(session.role==DeviceRole.COFFEE)}
     private data class StopOwner(val address:String,val slot:Int)
@@ -47,11 +55,12 @@ class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
 }
 class ScaleSessionControl(private val session:DeviceSession,private val tareState:StandaloneTare,
     private val sampleSerial:()->Long):ScaleControl {
+    override val capabilities get()=session.scaleCapabilities
     override val startAllowed get()=!tareState.unresolved
     init{require(session.role==DeviceRole.BOOKOO)}
-    override val ready get()=session.state==DeviceState.READY
+    override val ready get()=session.state==DeviceState.READY && capabilities.weight
     override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit) {
-        if(!ready){done(OperationResult.Failed("scale not ready"));return}
+        if(!ready || !capabilities.tare){done(OperationResult.Failed("scale not ready or tare unavailable"));return}
         val token=tareState.begin()
         if(token==null){done(OperationResult.Failed("tare already pending"));return}
         session.tare(beforeDispatch) { result->
@@ -93,7 +102,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         if(targetHundredthsGram !in 0..600_000 || compensationHundredthsGram !in -10_000..10_000 || (targetHundredthsGram>0 && compensationHundredthsGram>=targetHundredthsGram))return false
         val now=clock();val sample=latest
         if(!coffee.ready || !scale.startAllowed)return false
-        if(targetHundredthsGram>0&&(!scale.ready||sample==null||!ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,now)))return false
+        if(targetHundredthsGram>0&&(!scale.capabilities.validatedWeightControl || !scale.capabilities.tare || !scale.ready||sample==null||!ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,now)))return false
         if(!coffee.prepareStart(parameters))return false
         val id=++serial
         clearStopIdleEvidence()
@@ -126,7 +135,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         coffee.start(parameters,{
             val sample=latest
             permitted(beforeDispatch) && id==serial && state==ExtractionState.STARTING && lastActiveFrame==null && coffee.ready && scale.startAllowed &&
-                (target==0 || (scale.ready && sample!=null &&
+                (target==0 || (scale.capabilities.validatedWeightControl && scale.capabilities.tare && scale.ready && sample!=null &&
                     ScaleReadingPolicy.isFresh(sample.hundredthsGram,sample.receivedAtMs,clock())))
         }){result ->
             if(id!=serial)return@start
@@ -142,6 +151,11 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
     private fun abortPreflight(reason:StopReason){
         if(state!=ExtractionState.STARTING)return
         pendingStart=null;preflightTareWrittenAt=null;stopReason=reason;state=ExtractionState.IDLE
+    }
+    /** Generic live input; offline decode evidence is never an extraction observation. */
+    fun weight(observation:ScaleObservation) {
+        if(!observation.eligibleForControl)return
+        weight(WeightReading(observation.hundredthsGram,observation.receivedAtMs))
     }
     fun weight(reading:WeightReading) {
         val now=clock()
@@ -179,7 +193,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         val now=clock()
         // Flow-only profiles retain the observed legacy tare timing; weight-target profiles
         // complete tare before any machine start frame is sent.
-        if(target==0&&!postStartTareSent&&scale.ready&&now-started>=1500){
+        if(target==0&&!postStartTareSent&&scale.capabilities.tare&&scale.ready&&now-started>=1500){
             postStartTareSent=true
             val tareShot=serial
             scale.tare({tareShot==serial && state==ExtractionState.RUNNING && coffee.ready}) { }

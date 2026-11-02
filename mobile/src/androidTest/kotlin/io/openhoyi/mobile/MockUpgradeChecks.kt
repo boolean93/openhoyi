@@ -6,6 +6,10 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Process
+import android.os.Bundle
+import io.openhoyi.bean.Bean
+import io.openhoyi.bean.BeanBatch
+import java.time.LocalDate
 import io.openhoyi.session.ExtractionState
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
@@ -17,7 +21,7 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
     private val app get() = test.targetContext.applicationContext as MobileApplication
     private val address = "AA:BB:CC:DD:EE:01"
     private val preferenceNames = listOf("appearance", "app_language", "brew_feedback", "curves", "presets",
-        "devices", "coffee_credentials", "coffee_credential_failures", "shot_safety", "machine_write_safety", "shot_history", "safety", "scale_tare_safety")
+        "devices", "scale_tool", "coffee_credentials", "coffee_credential_failures", "shot_safety", "machine_write_safety", "shot_history", "safety", "scale_tare_safety")
     private val manifest get() = File(app.filesDir, "upgrade-fixture.json")
     private fun prefs(name: String) = app.getSharedPreferences(name, Context.MODE_PRIVATE)
     private fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes)
@@ -58,7 +62,10 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
         check(app.feedbackPreferences.setEnabled(true))
         check(prefs("curves").edit().putString("selected", "factory-v3-001").commit())
         check(prefs("presets").edit().putString("slot_1", "factory-v3-002").commit())
-        check(prefs("devices").edit().putString("scale", "AA:BB:CC:DD:EE:02").commit())
+        check(prefs("devices").edit().putString("scale", "AA:BB:CC:DD:EE:02")
+            .putString("scaleProtocol", io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id).commit())
+        check(prefs("scale_tool").edit().putBoolean("one_decimal", true).commit())
+        check(prefs("curves").edit().putString("sort", CurveSortMode.MOST_USED.name).commit())
         check(io.openhoyi.bluetooth.SharedPreferenceTareStorage(app).write(true))
         check(prefs("safety").edit().putBoolean("asked_for_notifications", true).commit())
         check(CoffeeCredentialStore(app).save(address, "123456")) { "Fixture credential could not be stored" }
@@ -84,11 +91,77 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
             .writeText("# openhoyi-shot-points-v1\n0\t10\t20\t0\t9100\t0\n1000\t60\t30\t40\t9100\t3570\n")
         app.legacyCurves.import(ByteArrayInputStream("""{"format":"openhoyi-legacy-curves-v1","factoryVersion":3,"items":[{"name":"Upgrade fixture","category":"mine","factory":false,"temp":93,"flow":70,"weight":360,"seg":2,"press1":9,"flow1":30,"press2":6,"flow2":40,"futureField":true}]}""".toByteArray()))
         app.legacyHistory.import(ByteArrayInputStream("""{"version":1,"items":[{"id":"upgrade-legacy","createdAt":$now,"durationSec":18,"chartSlot":6,"profileName":"Upgrade fixture","points":{"t":[0,1],"press":[0,2],"flow":[0,1],"wFlow":[0,1],"wTrend":[0,1]}}]}""".toByteArray()))
-        manifest.writeText(JSONObject().put("schema", 1).put("uid", Process.myUid())
+        val advancedAt = now - 40L * 24 * 60 * 60 * 1000
+        seedAdvanced(advancedAt)
+        check(fileDigests().keys.containsAll(advancedFiles))
+        manifest.writeText(JSONObject().put("schema", 1).put("uid", Process.myUid()).put("advancedAt", advancedAt)
             .put("preferences", JSONObject(preferenceDigests())).put("files", JSONObject(fileDigests()))
             .put("historyShape", historyShape()).toString())
-        android.util.Log.i("OpenHoyiUpgrade", "SEED preferences=13 encryptedCredential=true filesPreservedFixture=true pendingSafety=true")
+        android.util.Log.i("OpenHoyiUpgrade", "SEED preferences=14 encryptedCredential=true filesPreservedFixture=true pendingSafety=true")
     }
+    private val advancedFiles = setOf("bean_inventory_v1.bin", "bean_preparation_v1.json",
+        "brew_journal_v1.json", "custom_curves_v1.json", "curve_usage_v1.tsv")
+    private val advancedBatch get() = BeanBatch("upgrade-batch", Bean("upgrade-bean", "Upgrade coffee"), 250000,
+        LocalDate.of(2026, 9, 1), LocalDate.of(2026, 8, 28), LocalDate.of(2026, 9, 2))
+    private val advancedNotes get() = BrewJournal.Notes("upgrade-bean", "Upgrade coffee", 18000,
+        "E6 12", "Tracked as expected", "Sweet", "Slightly coarser")
+    private val advancedDraft get() = CustomCurveDocument("draft-00000000-0000-4000-8000-000000000001",
+        "Upgrade local recipe", 93, 3600, CustomCurveDocument.ControlMode.FLOW_RAW,
+        listOf(CustomCurveDocument.Stage(30, 100), CustomCurveDocument.Stage(90, 400)))
+    private fun advancedMarker(phase:String) = test.sendStatus(0, Bundle().apply {
+        putString("stream", "MOCK_UPGRADE_ADVANCED_${phase}_PASSED stores=5 protocolPair=true readOnlyDraft=true doseIdempotent=true\n")
+    })
+    private fun seedAdvanced(at:Long) {
+        val inventory=app.beanInventoryResult.getOrThrow()
+        inventory.addBatch("upgrade-add",advancedBatch)
+        val preparation=app.beanPreparationResult.getOrThrow()
+        preparation.select("upgrade-dose",advancedBatch.id,advancedBatch.bean.id,advancedBatch.bean.name,18000)
+        val confirmed=preparation.confirm(inventory)
+        check(preparation.confirm(inventory)==confirmed && inventory.events().size==2)
+        inventory.adjust("upgrade-adjust",advancedBatch.id,-1000,"Measured remainder")
+        val journal=app.journalResult.getOrThrow()
+        journal.observe(BrewJournal.Observation("upgrade-permanent","factory-v3-001",at,at+30000,
+            30000,"ENDED",null,3600))
+        journal.edit("upgrade-permanent",advancedNotes)
+        check(preparation.claim("upgrade-permanent")!=null)
+        preparation.associatePending(journal,inventory)
+        check(app.curveUsageResult.getOrThrow().record("upgrade-permanent","factory-v3-001",at))
+        app.customCurvesResult.getOrThrow().save(advancedDraft)
+        verifyAdvanced(at, "SEED")
+    }
+    private fun verifyAdvanced(at:Long,phase:String="VERIFY") {
+        val before=advancedFiles.associateWith {digest(File(app.filesDir,it).readBytes())}
+        val inventory=app.beanInventoryResult.getOrThrow()
+        check(inventory.batches().single().let {it.batch==advancedBatch && it.balanceMg==231000L})
+        val events=inventory.events()
+        check(events.size==3 && events.map {it.eventId}==listOf("upgrade-add","upgrade-dose","upgrade-adjust"))
+        check(inventory.consume("upgrade-dose",advancedBatch.id,18000)==events[1])
+        check(inventory.events()==events && inventory.batches().single().balanceMg==231000L)
+        val preparation=app.beanPreparationResult.getOrThrow()
+        check(preparation.verifyConfirmed(inventory)==BeanPreparation.Dose("upgrade-dose",advancedBatch.id,
+            advancedBatch.bean.id,advancedBatch.bean.name,18000,true,true,"upgrade-permanent",true))
+        check(runCatching {preparation.select("upgrade-dose",advancedBatch.id,advancedBatch.bean.id,advancedBatch.bean.name,18000)}.isFailure)
+        val entry=requireNotNull(app.journalResult.getOrThrow().find("upgrade-permanent"))
+        check(entry.notes==advancedNotes && entry.observation.startedAtMs==at && entry.observation.status=="ENDED")
+        val ledger=app.curveUsageResult.getOrThrow()
+        check(ledger.stats("factory-v3-001")==CurveUsageStats(1,at))
+        check(!ledger.record("upgrade-permanent","factory-v3-001",at))
+        val custom=app.customCurvesResult.getOrThrow()
+        check(custom.find(advancedDraft.id)==advancedDraft)
+        check(custom.importDocument(advancedDraft).status==CustomCurveStore.ImportStatus.ALREADY_EXISTS)
+        val item=requireNotNull(app.curves.find(advancedDraft.id))
+        check(!app.curves.canStart(item) && app.curves.resolve(item.id,true)==null)
+        check(prefs("curves").getString("sort",null)==CurveSortMode.MOST_USED.name)
+        check(prefs("scale_tool").getBoolean("one_decimal",false))
+        val selected=io.openhoyi.session.ScaleSelectionPolicy.remembered(prefs("devices").getString("scale",null),
+            prefs("devices").getString("scaleProtocol",null))
+        check(selected==io.openhoyi.session.ScaleSelection("AA:BB:CC:DD:EE:02",io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id))
+        check(before==advancedFiles.associateWith {digest(File(app.filesDir,it).readBytes())}) {
+            "Advanced readback or idempotent retry rewrote persisted data"
+        }
+        advancedMarker(phase)
+    }
+
     private fun verify() {
         check(manifest.isFile) { "Upgrade seed manifest is missing" }
         val expected = JSONObject(manifest.readText())
@@ -142,6 +215,7 @@ internal class MockUpgradeChecks(private val test: Instrumentation) {
                 check(subject.machineControlSafetyMessage != null && subject.machineWriteSafetyMessage != null)
             } finally { mockField.set(subject, originalMock) }
         }
+        verifyAdvanced(expected.getLong("advancedAt"))
         check(prefs("shot_safety").getBoolean("unresolved_shot", false))
         check(prefs("machine_write_safety").getString("pending_kind", null) == "SETTING")
         check(File(app.noBackupFilesDir,"pending_shot.json").isFile && File(app.noBackupFilesDir,"pending_machine_write.json").isFile)

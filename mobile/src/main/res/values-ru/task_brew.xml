@@ -1,0 +1,24 @@
+<resources>
+    <string name="task_brew_title">Подготовка кофе</string>
+    <string name="task_brew_machine_readings">Показания машины</string>
+    <string name="task_brew_preview_note">Цели этапов, не прогноз времени</string>
+    <string name="task_brew_cup_summary">Эта чашка</string>
+    <string name="task_brew_no_pressure_preview">Нет проверенных целей давления. Нажмите название рецепта для подробностей.</string>
+    <string name="task_brew_live_state">Текущий статус</string>
+    <string name="task_brew_temperature">Скорректированная температура %1$s °C · Цель %2$s °C</string>
+    <string name="task_brew_dose_unavailable">Запись о зерне недоступна</string>
+    <string name="task_brew_dose_missing">Зерно для этой чашки не выбрано</string>
+    <string name="task_brew_dose_association">Запись прошлой чашки требует привязки; откройте для проверки</string>
+    <string name="task_brew_dose_previous">Зерно прошлой чашки</string>
+    <string name="task_brew_dose_pending">Требуется проверка списания</string>
+    <string name="task_brew_dose_conflict">Требуется проверка записи склада</string>
+    <string name="task_brew_dose_confirmed">Зерно подтверждено</string>
+    <string name="task_brew_dose_selected">Зерно ожидает подтверждения</string>
+    <string name="task_brew_dose_entry">Просмотр или изменение зерна</string>
+    <string name="task_brew_usage_unavailable">История использования недоступна</string>
+    <string name="task_brew_usage_empty">Нет записей использования</string>
+    <string name="task_brew_usage">Использовано %1$s раз · Последний %2$s</string>
+    <string name="task_brew_history_entry">Полная история</string>
+    <string name="task_brew_curve_unknown">Текущий рецепт недоступен</string>
+    <string name="task_brew_compact_preview">Мало места: все цели этапов показаны текстом</string>
+</resources>

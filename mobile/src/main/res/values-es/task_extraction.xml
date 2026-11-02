@@ -1,0 +1,9 @@
+<resources>
+    <string name="task_extraction_elapsed">Tiempo</string>
+    <string name="task_extraction_scale">Lectura de báscula</string>
+    <string name="task_extraction_water">Agua acumulada</string>
+    <string name="task_extraction_pressure">Presión %1$s bar</string>
+    <string name="task_extraction_temperature">Temp. máquina %1$s °C</string>
+    <string name="task_extraction_supporting">Taza y herramientas</string>
+    <string name="task_extraction_flow">Flujo en taza (estimado) %1$s g/s</string>
+</resources>

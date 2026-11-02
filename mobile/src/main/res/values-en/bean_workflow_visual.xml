@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bean_workflow_selection">This cup</string>
+    <string name="bean_workflow_preview">Stock change after confirmation</string>
+    <string name="bean_workflow_receipt">Recorded stock consumption</string>
+</resources>

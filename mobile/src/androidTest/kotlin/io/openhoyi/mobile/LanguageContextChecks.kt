@@ -22,14 +22,13 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
             Thread.sleep(50)
         }
     }
-    private fun service(home: HomeActivity): MobileService? = HomeActivity::class.java
-        .getDeclaredField("service").apply { isAccessible = true }.get(home) as? MobileService
+    private fun service(home: MainActivity): MobileService? = home.currentService
     private fun containsText(view: View, text: String): Boolean {
         if (view is TextView && view.text.toString() == text && view.isShown &&
             view.getGlobalVisibleRect(android.graphics.Rect())) return true
         return view is ViewGroup && (0 until view.childCount).any { containsText(view.getChildAt(it), text) }
     }
-    fun run(): HomeActivity {
+    fun run(): MainActivity {
         check(BuildConfig.MOCK_MODE && context.packageName == "io.openhoyi.mobile.mock")
         val app = context.applicationContext as MobileApplication
         val oldLanguage = app.languagePreferences.current
@@ -37,8 +36,7 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
         val oldLanguageStorage = languagePrefs.all.toMap()
         val appearance = context.getSharedPreferences("appearance", Context.MODE_PRIVATE)
         val oldAppearance = appearance.all.toMap()
-        var home = test.startActivitySync(Intent(context, HomeActivity::class.java)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as HomeActivity
+        var home = MainPageTestHost.launch(test).activity
         test.waitForIdleSync()
         awaitMain { service(home)?.running == true }
         var owner: MobileService? = null
@@ -47,10 +45,10 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
         val preserved = listOf("devices", "curves", "presets", "shot_safety", "machine_write_safety", "shot_history")
             .associateWith { context.getSharedPreferences(it, Context.MODE_PRIVATE).all.toMap() }
         fun rebuild() {
-            val monitor = test.addMonitor(HomeActivity::class.java.name, null, false)
+            val monitor = test.addMonitor(MainActivity::class.java.name, null, false)
             try {
                 test.runOnMainSync { home.recreate() }
-                home = test.waitForMonitorWithTimeout(monitor, 10000) as? HomeActivity
+                home = test.waitForMonitorWithTimeout(monitor, 10000) as? MainActivity
                     ?: error("Language Home recreation not observed")
                 test.waitForIdleSync()
                 awaitMain { service(home) != null }
@@ -67,13 +65,25 @@ internal class LanguageContextChecks(private val test: Instrumentation) {
                     // Resolve the expected Android resource independently from the production context wrapper.
                     val config = Configuration(context.resources.configuration).apply { setLocale(language.locale) }
                     val expected = context.createConfigurationContext(config)
-                    val label = expected.getString(R.string.ui_settings)
                     check(home.resources.configuration.locales[0] == language.locale)
                     check(app.resources.configuration.locales[0] == language.locale)
                     check(owner!!.resources.configuration.locales[0] == language.locale)
-                    check(home.getString(R.string.ui_settings) == label && app.getString(R.string.ui_settings) == label &&
-                        owner!!.getString(R.string.ui_settings) == label)
-                    check(containsText(home.window.decorView, label)) { "Visible Home navigation did not use ${language.tag}" }
+                    // Settings is now a secondary entry, not a bottom-navigation destination.
+                    // Independently verify every actual destination in all three resource contexts.
+                    for (id in listOf(R.string.task_home_tab, R.string.ui_curves, R.string.ui_history, R.string.ui_beans)) {
+                        val label = expected.getString(id)
+                        check(home.getString(id) == label && app.getString(id) == label && owner!!.getString(id) == label)
+                        check(containsText(home.window.decorView, label)) {
+                            "Visible Home navigation did not use ${language.tag}: $label"
+                        }
+                    }
+                    val frame = home.window.decorView.findViewWithTag<View>(TaskPageFrame.TAG) as TaskPageFrame
+                    for (destination in listOf(TaskDestination.BREW, TaskDestination.CURVES, TaskDestination.HISTORY, TaskDestination.BEANS)) {
+                        val item = requireNotNull(frame.navigation.findViewWithTag<View>("task-nav:${destination.name}"))
+                        check(item.isSelected == (destination == TaskDestination.BREW)) {
+                            "${language.tag} dark=$dark real Home selected state incorrect: ${destination.name}"
+                        }
+                    }
                     val expectedDirection = if (language.rightToLeft) View.LAYOUT_DIRECTION_RTL else View.LAYOUT_DIRECTION_LTR
                     check(home.window.decorView.layoutDirection == expectedDirection)
                     check((home.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==

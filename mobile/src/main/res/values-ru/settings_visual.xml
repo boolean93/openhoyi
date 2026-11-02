@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="m8_brew_label">Температура заваривания</string>
+    <string name="m8_compensation_label">Температурная компенсация</string>
+    <string name="m8_steam_label">Температура пара</string>
+    <string name="m8_standby_label">Температура ожидания</string>
+    <string name="m8_brew_range">Диапазон: 75–105 °C</string>
+    <string name="m8_compensation_range">Диапазон: 0–5 °C</string>
+    <string name="m8_steam_range">Диапазон: 110–145 °C</string>
+    <string name="m8_standby_range">Диапазон: 0–100 °C</string>
+</resources>

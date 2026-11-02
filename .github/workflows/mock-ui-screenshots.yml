@@ -1,12 +1,6 @@
 name: Capture Mock UI
 
 on:
-  push:
-    branches: [main, develop, 'feature/**', 'fix/**', 'chore/**', 'docs/**', 'release/**', 'hotfix/**']
-    paths:
-      - '.github/workflows/mock-ui-screenshots.yml'
-      - 'scripts/capture_mock_ui.sh'
-      - 'mobile/src/main/**'
   workflow_dispatch:
 
 permissions:
@@ -29,7 +23,15 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Build isolated Mock APK
-        run: ./gradlew :mobile:assembleMock --no-daemon --console=plain
+        run: |
+          ./gradlew :mobile:assembleMock :mobile:assembleMockAndroidTest --no-daemon --console=plain
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, 'scripts')
+          from mock_ui_tap import validate_runner_manifest
+          validate_runner_manifest(Path('mobile/build/intermediates/packaged_manifests/mockAndroidTest/processMockAndroidTestManifest/AndroidManifest.xml').read_text())
+          PY
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

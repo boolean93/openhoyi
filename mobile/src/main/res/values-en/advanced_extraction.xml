@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="live_pressure_chart">Extraction pressure · bar</string>
+    <string name="live_cup_flow_chart">Flow into cup · g/s</string>
+    <string name="live_cup_flow_source">Estimated from changes in scale weight, for reference only</string>
+    <string name="live_cup_flow_metric">Flow into cup (estimated)</string>
+    <string name="live_chart_no_data">No data yet</string>
+    <string name="live_time_axis">Time · s</string>
+    <string name="ui_brew">Brew</string>
+</resources>

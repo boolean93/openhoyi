@@ -2,7 +2,7 @@ name: Verify Mock lifecycle
 
 on:
   push:
-    branches: [main, develop, 'feature/**', 'fix/**', 'chore/**', 'docs/**', 'release/**', 'hotfix/**']
+    branches: [main, develop, 'release/**', 'hotfix/**']
   pull_request:
     branches: [main, develop]
   workflow_dispatch:

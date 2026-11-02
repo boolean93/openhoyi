@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_visual_import_scope">หากยังไม่ยืนยัน จะไม่บันทึกหรือเริ่มการสกัด</string>
+    <string name="curve_visual_library_scope">บันทึกลงคลังเส้นโค้งเท่านั้น ไม่เริ่มการสกัด</string>
+    <string name="curve_visual_preview_parameters">ตัวอย่างช่วงและพารามิเตอร์ทั้งหมด · %1$d ช่วง</string>
+</resources>

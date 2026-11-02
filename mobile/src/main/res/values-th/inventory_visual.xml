@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="inventory_visual_in_stock">เมล็ดกาแฟในสต็อก</string>
+    <string name="inventory_visual_consumption_hint">สต็อกจะถูกหักหลังยืนยันปริมาณสำหรับแก้วนี้เท่านั้น</string>
+</resources>

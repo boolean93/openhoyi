@@ -61,7 +61,8 @@ fun policyChecks():Int {
         check(r.shouldAttempt(100,scaleReady=false));r.attemptFinished(100)
         check(!r.shouldAttempt(101,scaleReady=false));check(r.shouldAttempt(5100,scaleReady=false))
         r.manualDisconnect();check(!r.shouldAttempt(9000,scaleReady=false))
-        r.foreground(10000,true);check(r.shouldAttempt(10000,scaleReady=false))
+        r.foreground(10000,true);check(!r.shouldAttempt(10000,scaleReady=false))
+        r.explicitConnect();check(r.shouldAttempt(10000,scaleReady=false))
         check(!r.shouldAttempt(610000,scaleReady=false))
     }
     case("remembered scale retries after a terminal disconnect instead of remaining in flight") {
@@ -73,11 +74,24 @@ fun policyChecks():Int {
         check(!r.shouldAttempt(5199,false))
         check(r.shouldAttempt(5200,false))
     }
+    case("first verified scale connection enables recovery after physical failure") {
+        val r=ReconnectPolicy();r.foreground(0,hasRememberedScale=false)
+        r.explicitConnect(100)
+        check(!r.recoveryEnabled)
+        check(!r.shouldAttempt(100,false))
+        r.observeScaleState(200,DeviceState.CONNECTING)
+        check(!r.recoveryEnabled)
+        r.observeScaleState(300,DeviceState.READY)
+        check(r.recoveryEnabled)
+        r.observeScaleState(700_000,DeviceState.FAILED)
+        check(r.shouldAttempt(700_000,false))
+    }
     case("successful scale reconnect resets failure backoff but avoids immediate flapping") {
         val r=ReconnectPolicy();r.foreground(100,true)
         check(r.shouldAttempt(100,false));r.observeScaleState(200,DeviceState.FAILED)
         check(r.shouldAttempt(5200,false));r.observeScaleState(5300,DeviceState.READY)
         check(!r.shouldAttempt(5301,false))
+        r.observeScaleState(10300,DeviceState.FAILED)
         check(r.shouldAttempt(10300,false));r.observeScaleState(10400,DeviceState.FAILED)
         check(r.shouldAttempt(15400,false))
     }
@@ -86,6 +100,89 @@ fun policyChecks():Int {
         check(r.shouldAttempt(100,false))
         r.observeScaleState(200,DeviceState.UNSUPPORTED)
         check(!r.shouldAttempt(10000,false))
+    }
+    case("manual scale disconnect remains suppressed across foreground transitions") {
+        val r=ReconnectPolicy();r.foreground(100,true)
+        r.manualDisconnect();r.background();r.foreground(200,true)
+        check(!r.shouldAttempt(200,false))
+        r.explicitConnect();check(r.shouldAttempt(200,false))
+    }
+    case("coffee recovery only retries failed original connection and respects explicit intent") {
+        val r=CoffeeReconnectPolicy();r.foreground(100)
+        r.rememberReady("AA:BB:CC:DD:EE:01",100)
+        check(r.shouldAttempt(100)==null)
+        r.connectionFailed(200)
+        check(r.shouldAttempt(200)=="AA:BB:CC:DD:EE:01")
+        r.connectionFailed(300)
+        check(r.shouldAttempt(5299)==null)
+        check(r.shouldAttempt(5300)=="AA:BB:CC:DD:EE:01")
+        r.manualDisconnect();r.background();r.foreground(6000)
+        check(r.shouldAttempt(6000)==null)
+        r.explicitConnect("AA:BB:CC:DD:EE:01");r.rememberReady("AA:BB:CC:DD:EE:01",6000);r.connectionFailed(6100)
+        check(r.shouldAttempt(6100)=="AA:BB:CC:DD:EE:01")
+        r.disable();check(r.shouldAttempt(7000)==null)
+    }
+    case("coffee recovery pauses in background and never follows a different manual address") {
+        val r=CoffeeReconnectPolicy();r.foreground(100)
+        r.rememberReady("AA:BB:CC:DD:EE:01",100);r.connectionFailed(200)
+        r.background();check(r.shouldAttempt(200)==null)
+        r.foreground(300);check(r.shouldAttempt(300)=="AA:BB:CC:DD:EE:01")
+        r.explicitConnect("AA:BB:CC:DD:EE:02")
+        r.connectionFailed(400);check(r.shouldAttempt(400)==null)
+        r.rememberReady("AA:BB:CC:DD:EE:02",500);r.connectionFailed(600)
+        check(r.shouldAttempt(600)=="AA:BB:CC:DD:EE:02")
+    }
+    case("coffee physical failure after long ready opens one bounded episode") {
+        val r=CoffeeReconnectPolicy();r.foreground(0)
+        r.rememberReady("AA:BB:CC:DD:EE:01",0)
+        r.connectionFailed(700_000)
+        check(r.shouldAttempt(700_000)=="AA:BB:CC:DD:EE:01")
+        r.connectionFailed(700_100)
+        r.background();r.foreground(1_300_100)
+        check(r.shouldAttempt(1_300_100)==null)
+        r.rememberReady("AA:BB:CC:DD:EE:01",1_300_200)
+        r.connectionFailed(2_000_000)
+        check(r.shouldAttempt(2_000_000)=="AA:BB:CC:DD:EE:01")
+    }
+    case("scale physical failure after long ready opens one bounded episode") {
+        val r=ReconnectPolicy();r.foreground(0,true)
+        check(r.shouldAttempt(0,false));r.observeScaleState(100,DeviceState.READY)
+        r.observeScaleState(700_000,DeviceState.FAILED)
+        check(r.shouldAttempt(700_000,false))
+        r.observeScaleState(700_100,DeviceState.FAILED)
+        r.background();r.foreground(1_300_100,true)
+        check(!r.shouldAttempt(1_300_100,false))
+        r.observeScaleState(1_300_200,DeviceState.READY)
+        r.observeScaleState(2_000_000,DeviceState.FAILED)
+        check(r.shouldAttempt(2_000_000,false))
+    }
+    case("environment pause never becomes manual suppression or extends an episode") {
+        val coffee=CoffeeReconnectPolicy();coffee.foreground(0)
+        coffee.rememberReady("AA:BB:CC:DD:EE:01",0);coffee.connectionFailed(100)
+        coffee.environmentUnavailable();check(coffee.shouldAttempt(100)==null)
+        coffee.environmentAvailable();check(coffee.shouldAttempt(200)=="AA:BB:CC:DD:EE:01")
+        coffee.connectionFailed(300);coffee.environmentUnavailable();coffee.environmentAvailable()
+        check(coffee.shouldAttempt(600_100)==null)
+        val scale=ReconnectPolicy();scale.foreground(0,true)
+        scale.environmentUnavailable();check(!scale.shouldAttempt(0,false))
+        scale.environmentAvailable();check(scale.shouldAttempt(1,false))
+    }
+    case("coffee hub callback dispatches only original address and stops after credential refusal") {
+        val r=CoffeeReconnectPolicy();r.foreground(0)
+        r.ensureKnown("AA:BB:CC:DD:EE:01",0)
+        val calls=mutableListOf<String>()
+        check(r.dispatch(0,false,true){calls+=it;true}==CoffeeReconnectPolicy.Dispatch.NONE)
+        check(r.dispatch(0,true,false){calls+=it;true}==CoffeeReconnectPolicy.Dispatch.UNAVAILABLE)
+        check(calls.isEmpty())
+        check(r.dispatch(1,true,true){calls+=it;false}==CoffeeReconnectPolicy.Dispatch.REJECTED)
+        check(calls==listOf("AA:BB:CC:DD:EE:01"))
+        check(r.dispatch(2,true,true){calls+=it;true}==CoffeeReconnectPolicy.Dispatch.NONE)
+        r.disable() // service credential gate reached its limit
+        check(r.dispatch(6_000,true,true){calls+=it;true}==CoffeeReconnectPolicy.Dispatch.NONE)
+        r.explicitConnect("AA:BB:CC:DD:EE:02")
+        r.rememberReady("AA:BB:CC:DD:EE:02",7_000);r.connectionFailed(8_000)
+        check(r.dispatch(8_000,true,true){calls+=it;true}==CoffeeReconnectPolicy.Dispatch.STARTED)
+        check(calls.last()=="AA:BB:CC:DD:EE:02")
     }
     return n
 }

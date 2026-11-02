@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_history_flow_details">عينات التدفق (متقدم)</string>
+    <string name="task_history_flow_columns">الوقت المنقضي · تدفق ماء الجهاز · التدفق المشتق من الميزان؛ — يعني عدم وجود عينة</string>
+</resources>

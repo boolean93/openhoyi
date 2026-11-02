@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import javax.crypto.spec.SecretKeySpec
 import io.openhoyi.session.DeviceState
+import io.openhoyi.session.CoffeeReconnectPolicy
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -64,5 +65,24 @@ class CoffeeCredentialTest {
         assertFalse(CoffeeCredentialRetryGate(store = store).mayUse(address))
         resumed.succeeded(address)
         assertTrue(CoffeeCredentialRetryGate(store = store).mayUse(address))
+    }
+    @Test fun automaticCallbackStopsAfterRememberedCredentialFailureLimit() {
+        val address="AA:BB:CC:DD:EE:01"
+        val credential=CoffeeCredentialRetryGate()
+        val reconnect=CoffeeReconnectPolicy()
+        reconnect.foreground(0);reconnect.ensureKnown(address,0)
+        var calls=0
+        fun attempt(now:Long):CoffeeReconnectPolicy.Dispatch = reconnect.dispatch(now,true,true) { requested ->
+            assertEquals(address,requested)
+            if(!credential.mayUse(requested)) {reconnect.disable();false}
+            else {calls++;true}
+        }
+        assertEquals(CoffeeReconnectPolicy.Dispatch.STARTED,attempt(0))
+        credential.connectionState(address,DeviceState.FAILED,true);reconnect.connectionFailed(100)
+        assertEquals(CoffeeReconnectPolicy.Dispatch.STARTED,attempt(5100))
+        credential.connectionState(address,DeviceState.FAILED,true);reconnect.connectionFailed(5200)
+        assertEquals(CoffeeReconnectPolicy.Dispatch.REJECTED,attempt(15200))
+        assertEquals(CoffeeReconnectPolicy.Dispatch.NONE,attempt(45200))
+        assertEquals(2,calls)
     }
 }

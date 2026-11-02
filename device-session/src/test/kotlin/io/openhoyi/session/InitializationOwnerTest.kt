@@ -109,8 +109,9 @@ class InitializationOwnerTest {
             }
         }
         f.connect("old"); f.complete(); f.complete(discovery = true); f.complete()
+        val initAt=f.now
         for (command in BookooCodec.initializationCommands()) {
-            f.now += 500; f.session.tick()
+            f.now=initAt+command.delayMs; f.session.tick()
             val write = f.calls.last().third as GattOperation.Write
             assertArrayEquals(command.frame.toByteArray(), write.bytes)
             f.complete()

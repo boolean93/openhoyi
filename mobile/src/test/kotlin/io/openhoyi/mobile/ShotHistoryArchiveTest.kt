@@ -57,4 +57,21 @@ class ShotHistoryArchiveTest {
         assertTrue("history.csv" in files)
         assertTrue("shots/0002.tsv" in files)
     }
+    @Test fun archivePreservesRawPreheatPointsAndNullableBrewingEvidence() {
+        val output=ByteArrayOutputStream()
+        val entry=ShotHistory.Entry("phase","curve",0,null,null,ShotHistory.Status.UNKNOWN,null,null)
+        val points=listOf(ShotPoint(0,900,20,0,9200,0,brewing=false),
+            ShotPoint(500,90,20,0,9200,100,brewing=true),ShotPoint(1000,80,20,0,9200,200))
+        ShotHistoryArchive.write(listOf(entry),{points},output)
+        var exported=""
+        ZipInputStream(ByteArrayInputStream(output.toByteArray())).use {zip->
+            while(true) {val file=zip.nextEntry ?: break;val content=zip.readBytes().toString(Charsets.UTF_8)
+                if(file.name=="shots/0001.tsv")exported=content}
+        }
+        val rows=exported.lines().filter {it.isNotEmpty()}
+        assertTrue(rows.first().endsWith("\tbrewing"));assertEquals(4,rows.size)
+        assertTrue(rows[1].endsWith("\tfalse"));assertTrue(rows[2].endsWith("\ttrue"));assertTrue(rows[3].endsWith("\t"))
+        assertTrue(rows[1].startsWith("0\t900\t"))
+    }
+
 }

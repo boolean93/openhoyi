@@ -1,0 +1,7 @@
+# Preserve complete overview and openable export documents
+
+- Scope: ExtractionOverlayView.overviewExplanation getter only includes existing full explanation, currently hidden inline explanation, independent-axis text and any observed pause explanation. Drop exact duplicate blocks and blocks already fully contained in another; retain complete original wording. Do not restore hidden prose into the live chart.
+- Export: current AppSettingsFragment CreateDocument contract adds CATEGORY_OPENABLE to the super Intent, preserving CREATE_DOCUMENT/application-zip/title/result flow. Actual cached androidx.activity1.8.1 CreateDocument bytecode has no addCategory; aaab settings job124727200962 fails the unchanged category assertion961 after reaching export inabout5m15s, having passed prior600s reachability bottleneck.
+- Source: develop-derived feature/task-first-ui aaab3cec187df29fad3808e2a0490f71dbb77f65; isolated fix/ci-page-service; PR4 to develop. Parent controls normal push and coordinates getter-only integration with curve owner; no push here.
+- Validation: independent resume_review approved both production regions; :mobile:compileMockAndroidTestKotlin --offline --no-daemon BUILD SUCCESSFUL in1m5s (3 executed44 up-to-date); diff/branch checks pass. Runtime SAF cancellation/failure/success and complete overview line proofs remain CI requirements.
+- Protocol/device/release: no wire commands, ledger, signing or versions changed, no release/install/ADB. Rollback by reverting commit without removing records. See ../git-workflow.md.

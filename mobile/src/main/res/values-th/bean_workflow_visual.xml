@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bean_workflow_selection">ตัวเลือกสำหรับแก้วนี้</string>
+    <string name="bean_workflow_preview">การเปลี่ยนแปลงสต็อกหลังยืนยัน</string>
+    <string name="bean_workflow_receipt">รายการตัดสต็อกที่บันทึกแล้ว</string>
+</resources>

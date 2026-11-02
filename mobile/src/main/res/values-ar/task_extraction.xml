@@ -1,0 +1,9 @@
+<resources>
+    <string name="task_extraction_elapsed">الوقت</string>
+    <string name="task_extraction_scale">قراءة الميزان</string>
+    <string name="task_extraction_water">الماء المتراكم</string>
+    <string name="task_extraction_pressure">الضغط %1$s bar</string>
+    <string name="task_extraction_temperature">حرارة الآلة %1$s °C</string>
+    <string name="task_extraction_supporting">الكوب والأدوات</string>
+    <string name="task_extraction_flow">تدفق الكوب (تقديري) %1$s g/s</string>
+</resources>

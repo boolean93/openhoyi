@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_machine_title">เครื่องชง</string>
+    <string name="home_target_label">เป้าหมาย</string>
+    <string name="home_slot_unconfigured">ยังไม่ตั้งค่า</string>
+    <string name="home_visual_details">รายละเอียดการเตรียม</string>
+    <string name="home_visual_show_details">ดูรายละเอียดการเตรียม ›</string>
+    <string name="home_visual_change">เปลี่ยน</string>
+    <string name="home_visual_edit">แก้ไข</string>
+    <string name="home_visual_pressure_mode">โหมดแรงดัน</string>
+    <string name="home_visual_flow_mode">โหมดการไหล (ค่าดิบ)</string>
+    <string name="home_visual_unknown_mode">ไม่ทราบโหมด</string>
+    <string name="home_visual_stage_mode">%1$s ช่วง · %2$s</string>
+    <string name="home_visual_stage_count">%1$s ช่วง</string>
+    <string name="home_visual_open_device_status">สถานะ%1$s เปิดการควบคุมการเชื่อมต่อ</string>
+    <string name="home_visual_more_recipes">สูตรเพิ่มเติม ›</string>
+    <string name="home_visual_panel_title">รายละเอียดการเตรียมและอุปกรณ์</string>
+    <string name="home_visual_bean_label">เมล็ดกาแฟ</string>
+</resources>

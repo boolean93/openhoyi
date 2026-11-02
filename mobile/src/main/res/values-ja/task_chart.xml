@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_chart_pressure">圧力</string>
+    <string name="task_chart_water">累積注水量</string>
+    <string name="task_chart_weight">スケール読取値</string>
+    <string name="task_chart_temperature">温度</string>
+    <string name="task_chart_hint">指標を選ぶと対応する目盛を表示</string>
+    <string name="task_chart_independent">各指標は独立範囲；目盛：%1$s · %2$s</string>
+    <string name="task_chart_observed">この一杯の採取済み：%1$s s まで</string>
+    <string name="task_chart_waiting">この一杯のサンプルを待機中</string>
+    <string name="task_chart_reference">灰色の細線：%1$sの過去の参照、今回の予測ではありません</string>
+    <string name="task_chart_water_reset">注水カウンターをリセット、区間を分けて表示</string>
+    <string name="task_chart_gap">サンプル欠落、区間を分けて表示</string>
+    <string name="task_chart_latest">%1$s、直近のサンプル値 %2$s %3$s</string>
+    <string name="task_chart_compact_notice">グラフの表示領域が足りません。ウィンドウを広げてください。</string>
+    <string name="task_chart_summary_observed">各指標は独立範囲 · この一杯の採取済み：%1$s s まで</string>
+    <string name="task_chart_summary_waiting">各指標は独立範囲 · この一杯のサンプル待ち</string>
+</resources>

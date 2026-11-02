@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_chart_inspect_hint">Selecciona la gráfica para ver muestras reales; usa el deslizador o las flechas para recorrerlas</string>
+    <string name="task_chart_sample_time">Muestra de esta extracción · %1$s s</string>
+    <string name="task_chart_missing_scale">No hay lectura de báscula en este instante</string>
+    <string name="task_chart_not_brewing">No se estaba extrayendo en este instante</string>
+</resources>

@@ -9,7 +9,6 @@ import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.Handler
 import android.os.SystemClock
-import io.openhoyi.bluetooth.AndroidDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.protocol.*
 import io.openhoyi.session.*
@@ -91,7 +90,7 @@ internal class ServiceWriteWatchdogChecks(private val test: Instrumentation) {
                         val owner = NativeDeviceHub(context)
                         hub = owner
                         field(instance, "hub").set(instance, owner)
-                        val devices = listOf("coffee", "scale").map { field(owner, it).get(owner) as AndroidDevice }
+                        val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
                         val queues = devices.map { field(it.session, "queue").get(it.session) as GattQueue }
                         val calls = mutableListOf<Triple<Long, Long, GattOperation>>()
                         val recordsAtDispatch = mutableListOf<Map<String, *>>()
@@ -264,7 +263,7 @@ internal class ServiceWriteWatchdogChecks(private val test: Instrumentation) {
                     } catch (error: Throwable) { failure = error }
                     finally {
                         hub?.let { owner ->
-                            listOf("coffee", "scale").forEach { name -> runCatching { (field(owner, name).get(owner) as AndroidDevice).close() } }
+                            listOf("coffee", "scale").forEach { name -> runCatching { hubDevice(owner, name).close() } }
                             runCatching { owner.scanner.close() }
                             (field(owner, "handler").get(owner) as Handler).removeCallbacks(field(owner, "ticker").get(owner) as Runnable)
                         }

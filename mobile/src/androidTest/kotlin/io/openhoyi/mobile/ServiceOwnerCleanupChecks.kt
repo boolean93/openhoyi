@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.Handler
-import io.openhoyi.bluetooth.AndroidDevice
 import io.openhoyi.bluetooth.NativeDeviceHub
 import io.openhoyi.session.*
 import io.openhoyi.trace.TraceStore
@@ -86,7 +85,7 @@ internal class ServiceOwnerCleanupChecks(private val test: Instrumentation) {
                             throw IllegalStateException("Intentional detached owner close failure")
                     })
                     hub = owner
-                    val devices = listOf("coffee", "scale").map { field(owner, it).get(owner) as AndroidDevice }
+                    val devices = listOf("coffee", "scale").map { hubDevice(owner, it) }
                     val drivers = listOf(Driver(), Driver())
                     devices.zip(drivers).forEach { (device, driver) ->
                         val queue = field(device.session, "queue").get(device.session) as GattQueue
@@ -130,7 +129,7 @@ internal class ServiceOwnerCleanupChecks(private val test: Instrumentation) {
                 finally {
                     armed = false
                     hub?.let { owner ->
-                        listOf("coffee", "scale").forEach { name -> runCatching { (field(owner, name).get(owner) as AndroidDevice).close() } }
+                        listOf("coffee", "scale").forEach { name -> runCatching { hubDevice(owner, name).close() } }
                         runCatching { owner.scanner.close() }
                         (field(owner, "handler").get(owner) as Handler).removeCallbacks(field(owner, "ticker").get(owner) as Runnable)
                     }

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bean_workflow_selection">이번 잔 선택</string>
+    <string name="bean_workflow_preview">확인 후 재고 변화</string>
+    <string name="bean_workflow_receipt">기록된 재고 차감</string>
+</resources>

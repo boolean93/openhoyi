@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_comparison_swap">二杯を入れ替え</string>
+    <string name="task_comparison_metric">比較する指標</string>
+    <string name="task_comparison_choose_cup">記録を選択</string>
+    <string name="task_comparison_missing_selection">選択した記録がありません。選び直してください</string>
+    <string name="task_comparison_pressure">圧力 · bar</string>
+    <string name="task_comparison_water">マシン累積注水量 · ml</string>
+    <string name="task_comparison_weight">秤の生の測定値 · g</string>
+    <string name="task_comparison_temperature">マシンの生の温度 · °C</string>
+    <string name="task_comparison_observed_origin">最初に抽出を観測したサンプルで整列。実際の開始時刻を保証しません</string>
+    <string name="task_comparison_record_origin">記録内の最初の有効サンプルで整列。実際の抽出開始は不明です</string>
+    <string name="task_comparison_no_aligned_samples">整列できる抽出サンプルがありません</string>
+    <string name="task_comparison_no_weight">%1$s：整列できる秤の生サンプルがありません</string>
+    <string name="task_comparison_no_weight_both">比較に使える秤の生サンプルがないため、重量曲線は生成しません</string>
+    <string name="task_comparison_short_chart">グラフ領域が不足しています。ウィンドウを広げてください。記録詳細は下部をスクロールして確認できます</string>
+    <string name="task_comparison_scale">二杯に共通のスケール · %1$s</string>
+</resources>

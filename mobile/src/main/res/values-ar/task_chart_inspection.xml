@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_chart_inspect_hint">اختر الرسم لعرض العينات الفعلية؛ استخدم شريط التمرير أو مفاتيح الأسهم للتنقل</string>
+    <string name="task_chart_sample_time">عينة الاستخلاص الحالي · %1$s ث</string>
+    <string name="task_chart_missing_scale">لم تُسجل قراءة للميزان في هذه اللحظة</string>
+    <string name="task_chart_not_brewing">لم يكن الاستخلاص جاريًا في هذه اللحظة</string>
+</resources>

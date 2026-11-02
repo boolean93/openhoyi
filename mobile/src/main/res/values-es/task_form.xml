@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_form_jump">Ir a la sección</string>
+    <string name="task_form_optional_iso_dates">Fechas opcionales; formato YYYY-MM-DD</string>
+    <string name="task_form_stage_caption">Esquema de objetivos por etapa, no una predicción temporal</string>
+    <string name="task_form_basic">Información básica</string>
+    <string name="task_form_targets">Objetivos de extracción</string>
+    <string name="task_form_bean_identity">Información del café</string>
+    <string name="task_form_stock">Entrada de existencias</string>
+    <string name="task_form_dates">Fechas (opcionales)</string>
+    <string name="task_form_new_batch_notice">Al guardar se añade un nuevo lote al inventario.</string>
+</resources>

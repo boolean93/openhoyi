@@ -1,0 +1,168 @@
+{
+  "kind": "static-source-contract-inventory-not-runtime-proof",
+  "sourceCommit": "ed01de0f1b6f6449257e3480053340a9bb75b160",
+  "pageCount": 21,
+  "sourceFilesMatchPinnedCommit": true,
+  "files": [
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/HomeActivity.kt",
+      "sha256": "6e8c42f94abeff1221e53b9590d43a7e9af8c87260fa600fb41cb8989f67500d",
+      "lines": 644
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/ExtractionActivity.kt",
+      "sha256": "87cf37231f945de957b4585ad9e91ac0e7b511a44f249d494a7594779222dcb3",
+      "lines": 524
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/CurveActivity.kt",
+      "sha256": "a0b1a2614bd5e03c9481b7da1527e482d0fe3810c246e9f593412fa37b2f8bf7",
+      "lines": 439
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/HistoryActivity.kt",
+      "sha256": "82f469ce998fc6a8744a7cbe6817c01983402d6921a3704aaa5ea1eb0b9191bc",
+      "lines": 245
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/HistoryDetailActivity.kt",
+      "sha256": "68a7c71852301b8f1ce303677b7c372d0930665ff38c89be58dd19027734aca9",
+      "lines": 158
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/BrewComparisonActivity.kt",
+      "sha256": "9f5d56ea401ab2eed08c0237840c931f09c1dcd9bf9a91680019a25d867113d0",
+      "lines": 104
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/BeanInventoryActivity.kt",
+      "sha256": "70e7e956f7eb8561841a4d13aa14d68b4a92549f5ea09537019278d72c322c21",
+      "lines": 144
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/BeanEntryActivity.kt",
+      "sha256": "0a14e9153b532ac944365096d3b8d5fa32d993d9d1cd3a88511c02c1c458769d",
+      "lines": 98
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/BeanBatchActivity.kt",
+      "sha256": "c556b2a3487db7be564fb4fa3a1494f112698ea7a06414088a9a85a03140e62f",
+      "lines": 131
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/BeanLedgerActivity.kt",
+      "sha256": "e39835c20b3e3f933be751b3681c2b1412fb0a094fcb41cdeb13e0e4175779f2",
+      "lines": 40
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/BeanPreparationActivity.kt",
+      "sha256": "b4ecf923aa10918426c7f13698eadc3fd1fd0b82dab33ff2bcd7ceb82230d326",
+      "lines": 200
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/BrewReviewActivity.kt",
+      "sha256": "e1a7da7ce32869d783d5d25d61901c9ce97a2fe3104babb426c630922af3c32b",
+      "lines": 143
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/CurveEditorActivity.kt",
+      "sha256": "b4210e770d4e73b2831daa89e77b57f50bbcdc87c5f6447b789867a524af4f0e",
+      "lines": 91
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/CurveShareActivity.kt",
+      "sha256": "a539b3018d72e457f0e6a158a237938a631be4790a317633686e350065436d50",
+      "lines": 120
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/CurveImportActivity.kt",
+      "sha256": "c38ffdfe57e4cc060a1b424e4c389570e5ba9da9705018e02d56eeb47037c1ad",
+      "lines": 83
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/CurveImportPreviewActivity.kt",
+      "sha256": "7b4306ff1b26e97d26e95c859abcf578b3c2a2f96ce91f25aadd5f7c4a235d7e",
+      "lines": 49
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/ScaleActivity.kt",
+      "sha256": "a30b4cbb6c38de1d4e869e5f4ee7bd7f61d5350e46ccb6846abbbc9cd057c09d",
+      "lines": 201
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/ScaleConnectionActivity.kt",
+      "sha256": "f97f99df9a927655efd8b35f905927a7980857e62552e27d89f4d96486c79cf9",
+      "lines": 104
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/LegacyCurveActivity.kt",
+      "sha256": "e2b6b6f530253ed72c8e245fe7faa3ae68ad723dc97a644e6df5be6c29a56ba3",
+      "lines": 197
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/LegacyHistoryActivity.kt",
+      "sha256": "cbcb7bf20fc130761015c7998a2e89f781850f90c074c4cb478e9ce906eff92c",
+      "lines": 148
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/LegacyHistoryDetailActivity.kt",
+      "sha256": "041528052e6002bb894b4d3a323dc6ec8e314d66ddd2c22865f66c3c6fa25268",
+      "lines": 92
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/ShotSeries.kt",
+      "sha256": "4ef0c3855d6fd40618d8e9994c64896f5c975ed54a1e2134bdc222b7bc9561d3",
+      "lines": 86
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/StopActionPresentation.kt",
+      "sha256": "f94427032fe4576dc151dfe8fb743989f213bef225088410b5323694bad6f8e8",
+      "lines": 22
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/ShotGate.kt",
+      "sha256": "da147e437e9f2d5e6d91a1285871a1e0fe1f797c8cbe9ffd2bdcb01d140987d5",
+      "lines": 47
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/ExtractionReference.kt",
+      "sha256": "f147a7a40aab6a4eff5a1e44e3ad5e9c49f93ec60e88788e1ca292775a25714e",
+      "lines": 14
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/BrewFeedbackDialog.kt",
+      "sha256": "c259ef9c1be1db11321ea7d02191d998d3b288a54b8b3bbe0e44c43a6649e875",
+      "lines": 95
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/BrewJournal.kt",
+      "sha256": "fc11d7eca4395828bc953202677b2ec40871e275887fb564286812a93c9802ed",
+      "lines": 193
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/CustomCurveDocument.kt",
+      "sha256": "feac6398d309b82f0b49fdb8741167e39b1b9386f7a332f3534b8ca1d7f7550c",
+      "lines": 125
+    },
+    {
+      "path": "mobile/src/main/kotlin/io/openhoyi/mobile/CustomCurveStore.kt",
+      "sha256": "d115018fbbb4df3bde3634fad9a8f86052352b9e29fe75cd62ef9d0901d6fc4a",
+      "lines": 64
+    },
+    {
+      "path": "bean-core/src/main/kotlin/io/openhoyi/bean/Inventory.kt",
+      "sha256": "b89b85b88a59caab57080cba15a2d170a28e713b65b7cdd94f3b0c9a8a7bba2c",
+      "lines": 214
+    },
+    {
+      "path": "device-session/src/main/kotlin/io/openhoyi/session/ExtractionController.kt",
+      "sha256": "d9854a3f856d742a6e7d9b1a1a3f8cc62e842f45cc240fdbe06de3a39ef739bd",
+      "lines": 261
+    },
+    {
+      "path": "protocol-core/src/main/kotlin/io/openhoyi/protocol/Protocol.kt",
+      "sha256": "cf2f29a606a8fab03da30982a97b5560af1f63a51b9168f5463f8a3ee431b3a7",
+      "lines": 134
+    }
+  ]
+}

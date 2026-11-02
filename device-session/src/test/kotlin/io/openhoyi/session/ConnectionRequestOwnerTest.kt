@@ -30,7 +30,8 @@ class ConnectionRequestOwnerTest {
         }
         fun readyScale() {
             connect("old"); complete(); complete(true); complete()
-            repeat(BookooCodec.initializationCommands().size) { now += 500; session.tick(); complete() }
+            val initAt=now
+            for(command in BookooCodec.initializationCommands()) { now=initAt+command.delayMs; session.tick(); complete() }
             session.onNotification(session.generation, KnownGatt.bookooNotify,
                 "030B000000012D007A3A2D03424600C803010084".chunked(2).map { it.toInt(16).toByte() }.toByteArray())
             assertEquals(DeviceState.READY,session.state)

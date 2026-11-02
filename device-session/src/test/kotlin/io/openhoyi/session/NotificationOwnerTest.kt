@@ -46,7 +46,10 @@ class NotificationOwnerTest {
         fun synchronize() {
             complete(); complete(true); complete()
             if (role == DeviceRole.COFFEE) complete()
-            else repeat(BookooCodec.initializationCommands().size) { now += 500; session.tick(); complete() }
+            else {
+                val initAt=now
+                for(command in BookooCodec.initializationCommands()) { now=initAt+command.delayMs; session.tick(); complete() }
+            }
             assertEquals(DeviceState.SYNCHRONIZING, session.state)
         }
         fun notify(replacement: Boolean = false) = session.onNotification(session.generation, endpoint, packet(replacement))

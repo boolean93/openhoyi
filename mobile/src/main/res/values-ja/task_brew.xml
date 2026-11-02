@@ -1,0 +1,24 @@
+<resources>
+    <string name="task_brew_title">抽出の準備</string>
+    <string name="task_brew_machine_readings">マシン測定値</string>
+    <string name="task_brew_preview_note">段階目標の模式図。時間予測ではありません</string>
+    <string name="task_brew_cup_summary">この一杯</string>
+    <string name="task_brew_no_pressure_preview">検証済みの圧力目標はありません。レシピ名から詳細を確認できます。</string>
+    <string name="task_brew_live_state">リアルタイム状態を見る</string>
+    <string name="task_brew_temperature">補正済み温度 %1$s °C · 目標 %2$s °C</string>
+    <string name="task_brew_dose_unavailable">豆の記録を利用できません</string>
+    <string name="task_brew_dose_missing">この一杯の豆は未選択です</string>
+    <string name="task_brew_dose_association">前回の記録の関連付けが必要です</string>
+    <string name="task_brew_dose_previous">前回使用した豆</string>
+    <string name="task_brew_dose_pending">消費結果の確認が必要です</string>
+    <string name="task_brew_dose_conflict">在庫記録の確認が必要です</string>
+    <string name="task_brew_dose_confirmed">豆を確認済み</string>
+    <string name="task_brew_dose_selected">豆の確認待ち</string>
+    <string name="task_brew_dose_entry">豆を表示・変更</string>
+    <string name="task_brew_usage_unavailable">使用記録を利用できません</string>
+    <string name="task_brew_usage_empty">使用記録はありません</string>
+    <string name="task_brew_usage">使用 %1$s 回 · 前回 %2$s</string>
+    <string name="task_brew_history_entry">全記録を見る</string>
+    <string name="task_brew_curve_unknown">現在のレシピを利用できません</string>
+    <string name="task_brew_compact_preview">表示領域が狭いため、全段階の目標を文字で表示</string>
+</resources>

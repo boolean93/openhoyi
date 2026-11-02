@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="curve_visual_import_scope">لن يتم الحفظ أو بدء الاستخلاص دون تأكيد.</string>
+    <string name="curve_visual_library_scope">الحفظ في مكتبة المنحنيات فقط، دون بدء الاستخلاص.</string>
+    <string name="curve_visual_preview_parameters">معاينة المراحل والمعلمات الكاملة · عدد المراحل: %1$d</string>
+</resources>

@@ -1,0 +1,5 @@
+<resources>
+    <string name="legacy_curve_select_hint">اختر منحنى لعرض معلماته</string>
+    <string name="legacy_curve_water_label">حجم الماء</string>
+    <string name="legacy_curve_metadata">%1$s · %2$s · الموضع الأصلي %3$d</string>
+</resources>

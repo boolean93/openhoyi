@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_visual_readonly">Datos antiguos · solo lectura</string>
+    <string name="legacy_visual_pressure">Presión (bar)</string>
+    <string name="legacy_visual_flow">Flujo de máquina (ml/s)</string>
+    <string name="legacy_visual_notice">Muestras antiguas de solo lectura: sin temperatura nativa, agua acumulada, peso de báscula ni confirmación de parada.</string>
+</resources>

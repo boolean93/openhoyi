@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_comparison_swap">Swap cups</string>
+    <string name="task_comparison_metric">Comparison metric</string>
+    <string name="task_comparison_choose_cup">Choose a record</string>
+    <string name="task_comparison_missing_selection">Selected record unavailable; choose again</string>
+    <string name="task_comparison_pressure">Pressure · bar</string>
+    <string name="task_comparison_water">Machine cumulative water · ml</string>
+    <string name="task_comparison_weight">Raw scale reading · g</string>
+    <string name="task_comparison_temperature">Raw machine temperature · °C</string>
+    <string name="task_comparison_observed_origin">Aligned to first observed brewing sample, not a verified actual start</string>
+    <string name="task_comparison_record_origin">Aligned to first available recorded sample; actual brew start unknown</string>
+    <string name="task_comparison_no_aligned_samples">No alignable brewing samples</string>
+    <string name="task_comparison_no_weight">%1$s: no alignable raw scale samples</string>
+    <string name="task_comparison_no_weight_both">No raw scale samples available for comparison; no weight curve is generated</string>
+    <string name="task_comparison_short_chart">Not enough chart space. Enlarge the window; record details remain scrollable below</string>
+    <string name="task_comparison_scale">Shared scale for both cups · %1$s</string>
+</resources>

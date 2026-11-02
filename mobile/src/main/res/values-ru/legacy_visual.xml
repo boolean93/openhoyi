@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_visual_readonly">Старые данные · только чтение</string>
+    <string name="legacy_visual_pressure">Давление (bar)</string>
+    <string name="legacy_visual_flow">Поток машины (ml/s)</string>
+    <string name="legacy_visual_notice">Старые образцы доступны только для чтения: нет исходной температуры, накопленного объёма воды, веса и подтверждения остановки.</string>
+</resources>

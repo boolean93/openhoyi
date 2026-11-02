@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_history_flow_details">流量の詳細（高度）</string>
+    <string name="task_history_flow_columns">経過時間 · マシン水流量 · 秤から算出した流量；— は測定値なし</string>
+</resources>

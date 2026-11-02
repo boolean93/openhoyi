@@ -11,7 +11,8 @@ import android.content.Intent
 /** Pure Android display construction using the owner's live resources. No posting or control calls. */
 internal class MobileNotificationDisplay(private val context: Context) {
     fun connection(warning: String?, channel: String): Notification {
-        val open = PendingIntent.getActivity(context, 0, Intent(context, HomeActivity::class.java),
+        val open = PendingIntent.getActivity(context, 0, Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val stop = PendingIntent.getService(context, 1, Intent(context, MobileService::class.java).setAction(MobileService.STOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -27,8 +28,11 @@ internal class MobileNotificationDisplay(private val context: Context) {
         manager.createNotificationChannel(NotificationChannel(connection, context.getString(R.string.home_device_connection), NotificationManager.IMPORTANCE_LOW))
         manager.createNotificationChannel(NotificationChannel(safety, context.getString(R.string.notification_safety_channel), NotificationManager.IMPORTANCE_HIGH))
     }
-    fun safety(warning: String, destination: Class<out Activity>, channel: String, displayOnly: Boolean): Notification {
-        val open = PendingIntent.getActivity(context, 2, Intent(context, destination),
+    fun safety(warning: String, destination: Class<out Activity>, channel: String, displayOnly: Boolean,
+        openExtraction: Boolean = false): Notification {
+        val route = Intent(context, destination).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        if (openExtraction) route.putExtra(MainActivity.EXTRA_OPEN_EXTRACTION, true)
+        val open = PendingIntent.getActivity(context, 2, route,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Builder(context, channel)
             .setSmallIcon(android.R.drawable.stat_sys_warning)

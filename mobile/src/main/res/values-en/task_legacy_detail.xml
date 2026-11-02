@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_detail_samples_heading">Historical samples</string>
+    <string name="legacy_detail_source_heading">Data source</string>
+    <string name="legacy_detail_source_body">Imported legacy record: pressure (bar) and machine water flow (ml/s).</string>
+    <string name="legacy_detail_missing_heading">Missing data</string>
+    <string name="legacy_detail_missing_body">Machine temperature: unavailable\nCumulative water: unavailable\nNative scale weight: unavailable\nNative end confirmation: unavailable</string>
+    <string name="legacy_detail_limits_heading">Interpretation limits</string>
+    <string name="legacy_detail_limits_body">Raw wFlow/wTrend are retained. Legacy smoothing and baseline processing are not equivalent to native scale weight or flow. This record cannot prove that the machine stopped.</string>
+</resources>

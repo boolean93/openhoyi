@@ -1,0 +1,9 @@
+<resources>
+    <string name="task_extraction_elapsed">経過時間</string>
+    <string name="task_extraction_scale">スケール読取値</string>
+    <string name="task_extraction_water">累積注水量</string>
+    <string name="task_extraction_pressure">圧力 %1$s bar</string>
+    <string name="task_extraction_temperature">マシン温度 %1$s °C</string>
+    <string name="task_extraction_supporting">一杯の情報とツール</string>
+    <string name="task_extraction_flow">カップ流量（推定）%1$s g/s</string>
+</resources>

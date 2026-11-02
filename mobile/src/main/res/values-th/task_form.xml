@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="task_form_jump">ไปยังส่วน</string>
+    <string name="task_form_optional_iso_dates">วันที่ไม่บังคับ ใช้รูปแบบ YYYY-MM-DD</string>
+    <string name="task_form_stage_caption">แผนภาพเป้าหมายแต่ละขั้น ไม่ใช่การคาดการณ์เวลา</string>
+    <string name="task_form_basic">ข้อมูลพื้นฐาน</string>
+    <string name="task_form_targets">เป้าหมายการสกัด</string>
+    <string name="task_form_bean_identity">ข้อมูลเมล็ดกาแฟ</string>
+    <string name="task_form_stock">รับเข้าสต็อก</string>
+    <string name="task_form_dates">วันที่ (ไม่บังคับ)</string>
+    <string name="task_form_new_batch_notice">เมื่อบันทึกจะเพิ่มล็อตใหม่ในคลัง</string>
+</resources>

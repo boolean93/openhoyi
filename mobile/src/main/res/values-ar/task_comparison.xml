@@ -1,0 +1,17 @@
+<resources>
+    <string name="task_comparison_swap">تبديل الكوبين</string>
+    <string name="task_comparison_metric">مؤشر المقارنة</string>
+    <string name="task_comparison_choose_cup">اختيار سجل</string>
+    <string name="task_comparison_missing_selection">السجل المحدد غير متاح؛ اختر مجددًا</string>
+    <string name="task_comparison_pressure">الضغط · bar</string>
+    <string name="task_comparison_water">ماء الآلة التراكمي · ml</string>
+    <string name="task_comparison_weight">قراءة الميزان الخام · g</string>
+    <string name="task_comparison_temperature">حرارة الآلة الخام · °C</string>
+    <string name="task_comparison_observed_origin">المحاذاة لأول عينة استخلاص مرصودة، وليست بداية فعلية مؤكدة</string>
+    <string name="task_comparison_record_origin">المحاذاة لأول عينة مسجلة متاحة؛ بداية الاستخلاص الفعلية مجهولة</string>
+    <string name="task_comparison_no_aligned_samples">لا توجد عينات استخلاص قابلة للمحاذاة</string>
+    <string name="task_comparison_no_weight">%1$s: لا توجد عينات ميزان خام قابلة للمحاذاة</string>
+    <string name="task_comparison_no_weight_both">لا توجد عينات ميزان خام متاحة للمقارنة؛ لن يُنشأ منحنى وزن</string>
+    <string name="task_comparison_short_chart">مساحة الرسم غير كافية. كبّر النافذة؛ يمكن تمرير تفاصيل السجل بالأسفل</string>
+    <string name="task_comparison_scale">مقياس مشترك للكوبين · %1$s</string>
+</resources>

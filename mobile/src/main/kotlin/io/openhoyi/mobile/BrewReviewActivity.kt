@@ -1,0 +1,282 @@
+package io.openhoyi.mobile
+
+import android.os.Bundle
+import android.text.InputFilter
+import android.text.InputType
+import android.view.View
+import android.widget.AdapterView
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.Spinner
+import io.openhoyi.bean.Bean
+import java.math.BigDecimal
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+class BrewReviewActivity : ThemedActivity() {
+    companion object { const val SHOT_ID = "shotId" }
+    private val fields = linkedMapOf<String, EditText>()
+    private var selectedBeanId: String? = null
+    private var section = 0
+    private var form: TaskReviewSections? = null
+    val productHeaderLayoutEvidence = org.json.JSONObject()
+
+    /** Permanent children: resize changes measurement/placement, never the input or header tree. */
+    private inner class ReviewHeaderLayout(
+        private val style: TaskProductFormStyle,
+        private val back: View,
+        private val words: LinearLayout,
+        private val outcome: ObservationFlow,
+        private val tools: List<View>
+    ) : android.view.ViewGroup(this@BrewReviewActivity) {
+        private var stacked = false
+        private var firstRowHeight = 0
+        init { addView(back); addView(words); addView(outcome); tools.forEach(::addView) }
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+            val available = MeasureSpec.getSize(widthMeasureSpec)
+            // Preserve the original explicit 48dp return control, not drawable intrinsic size.
+            back.measure(MeasureSpec.makeMeasureSpec(style.dp(48), MeasureSpec.EXACTLY),
+                MeasureSpec.makeMeasureSpec(style.dp(48), MeasureSpec.EXACTLY))
+            (listOf(words) + tools).filter { it.visibility != GONE }.forEach { it.measure(natural, natural) }
+            outcome.measure(natural, natural)
+            val wordsNatural = words.measuredWidth
+            val outcomeNatural = outcome.measuredWidth
+            val controlWidth = back.measuredWidth + style.dp(12) + tools.filter { it.visibility != GONE }.sumOf { it.measuredWidth }
+            stacked = controlWidth + wordsNatural + style.dp(16) + outcomeNatural > available
+            val wordsWidth = (available - controlWidth - if (stacked) 0 else outcomeNatural + style.dp(16)).coerceAtLeast(1)
+            words.measure(MeasureSpec.makeMeasureSpec(wordsWidth, MeasureSpec.EXACTLY), natural)
+            outcome.measure(MeasureSpec.makeMeasureSpec(if (stacked) available else outcomeNatural, MeasureSpec.EXACTLY), natural)
+            firstRowHeight = (listOf(back, words) + tools).filter { it.visibility != GONE }.maxOf { it.measuredHeight }
+            if (!stacked) firstRowHeight = maxOf(firstRowHeight, outcome.measuredHeight)
+            val height = firstRowHeight + if (stacked) style.dp(8) + outcome.measuredHeight else 0
+            setMeasuredDimension(resolveSize(available, widthMeasureSpec), resolveSize(height, heightMeasureSpec))
+            productHeaderLayoutEvidence.put("availableWidthPx", available).put("wordsNaturalWidthPx", wordsNatural)
+                .put("outcomeNaturalWidthPx", outcomeNatural).put("controlsWidthPx", controlWidth)
+                .put("stacked", stacked).put("firstRowHeightPx", firstRowHeight).put("headerHeightPx", height)
+                .put("outcomeRows", outcome.rowCount)
+        }
+        override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+            val rtl = layoutDirection == View.LAYOUT_DIRECTION_RTL
+            var start = 0
+            fun place(view: View, y: Int) {
+                if (view.visibility == GONE) return
+                val x = if (rtl) width - start - view.measuredWidth else start
+                view.layout(x, y, x + view.measuredWidth, y + view.measuredHeight)
+                start += view.measuredWidth
+            }
+            place(back, (firstRowHeight - back.measuredHeight) / 2); start += style.dp(12)
+            place(words, (firstRowHeight - words.measuredHeight) / 2)
+            if (!stacked) { start += style.dp(16); place(outcome, (firstRowHeight - outcome.measuredHeight) / 2) }
+            tools.forEach { place(it, (firstRowHeight - it.measuredHeight) / 2) }
+            if (stacked) { start = 0; place(outcome, firstRowHeight + style.dp(8)) }
+        }
+    }
+
+    /** Whole metric/status groups flow at natural width; labels can wrap inside a group. */
+    private inner class ObservationFlow(private val style: TaskProductFormStyle) : LinearLayout(this@BrewReviewActivity) {
+        private val rows = mutableListOf<List<View>>()
+        val rowCount get() = rows.size
+        init { tag = "product/form/review/observation"; isBaselineAligned = false }
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            val unlimited = MeasureSpec.getMode(widthMeasureSpec) == MeasureSpec.UNSPECIFIED
+            val widthLimit = if (unlimited) Int.MAX_VALUE else MeasureSpec.getSize(widthMeasureSpec)
+            val natural = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
+            val visible = (0 until childCount).map(::getChildAt).filter { it.visibility != GONE }
+            rows.clear()
+            var row = mutableListOf<View>(); var used = 0
+            visible.forEach { child ->
+                child.measure(if (unlimited) natural else MeasureSpec.makeMeasureSpec(widthLimit, MeasureSpec.AT_MOST), natural)
+                val gap = if (row.isEmpty()) 0 else style.dp(16)
+                if (row.isNotEmpty() && used + gap + child.measuredWidth > widthLimit) {
+                    rows += row; row = mutableListOf(); used = 0
+                }
+                if (row.isNotEmpty()) used += style.dp(16)
+                row += child; used += child.measuredWidth
+            }
+            if (row.isNotEmpty()) rows += row
+            val width = rows.maxOfOrNull { group -> group.sumOf { it.measuredWidth } + style.dp(16) * (group.size - 1) } ?: 0
+            val height = rows.sumOf { group -> group.maxOf { it.measuredHeight } } + style.dp(8) * (rows.size - 1).coerceAtLeast(0)
+            setMeasuredDimension(resolveSize(width, widthMeasureSpec), resolveSize(height, heightMeasureSpec))
+        }
+        override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+            var y = 0
+            rows.forEach { row ->
+                val rowHeight = row.maxOf { it.measuredHeight }; var start = 0
+                row.forEach { child ->
+                    val x = if (layoutDirection == View.LAYOUT_DIRECTION_RTL) width - start - child.measuredWidth else start
+                    val childTop = y + (rowHeight - child.measuredHeight) / 2
+                    child.layout(x, childTop, x + child.measuredWidth, childTop + child.measuredHeight)
+                    start += child.measuredWidth + style.dp(16)
+                }
+                y += rowHeight + style.dp(8)
+            }
+        }
+    }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        val style = TaskProductFormStyle(this)
+        val body = style.visual.page(this, getString(R.string.journal_title), getString(R.string.journal_subtitle))
+        val app = application as MobileApplication
+        val journal = journal(body) ?: return
+        val id = intent.getStringExtra(SHOT_ID)
+        val entry = id?.let(journal::find)
+        if (entry == null) { HoyiUi.label(this, body, getString(R.string.journal_missing), 17); return }
+        val observation = entry.observation
+        val header = (body.tag as BeanPageRegions).header
+        val words = header.getChildAt(1) as LinearLayout
+        style.visual.add(words, style.visual.text(journalCurve(observation.curveId) + " · " + journalDate(observation.startedAtMs),
+            TaskProductVisualStyle.auxiliary, "full-text-details", true), 8)
+        val outcome = ObservationFlow(style)
+        listOf(Triple(R.string.journal_elapsed, observation.elapsedMs?.let { BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString() },
+                getString(R.string.journal_seconds, "").trim()),
+            Triple(R.string.history_end_scale, observation.weightHundredthsGram?.let { BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString() },
+                getString(R.string.journal_grams, "").trim())).forEachIndexed { index, (label, value, unit) ->
+            val cell = style.visual.column()
+            outcome.addView(cell, LinearLayout.LayoutParams(-2, -2))
+            style.visual.add(cell, style.visual.quantity(value ?: "—", if (value == null) null else unit,
+                TaskProductVisualStyle.shareMetric, "product/form/review/observed-$index"))
+            style.visual.add(cell, style.visual.text(getString(label), TaskProductVisualStyle.auxiliary, secondary = true))
+        }
+        outcome.addView(style.visual.text(journalStatus(observation.status), TaskProductVisualStyle.auxiliary.copy(weight = 500),
+            "product/form/review/observed-status").apply {
+            setTextColor(if (observation.status == "UNKNOWN") getColor(R.color.mobile_danger) else style.visual.accent)
+        })
+        val back = header.getChildAt(0)
+        val tools = (2 until header.childCount).map(header::getChildAt)
+        header.removeAllViews()
+        header.orientation = LinearLayout.VERTICAL
+        header.addView(ReviewHeaderLayout(style, back, words, outcome, tools), LinearLayout.LayoutParams(-1, -2))
+        if (observation.status == "UNKNOWN") style.visual.add(body, style.visual.text(getString(R.string.history_unknown_warning),
+            TaskProductVisualStyle.auxiliary).apply { setTextColor(getColor(R.color.mobile_danger)) })
+        style.visual.divider(body, 0, 8)
+        section = savedInstanceState?.getInt("section") ?: 0
+        val sections = TaskReviewSections(this, body, listOf(R.string.journal_bean, R.string.journal_grind, R.string.journal_expectation, R.string.journal_taste, R.string.journal_next).map(::getString), section, style) { section = it }
+        form = sections
+        val card = sections.panels[0]
+        val previousBean = entry.notes.beanId?.let { Bean(it, requireNotNull(entry.notes.beanName)) }
+        val beans = (listOfNotNull(previousBean) + app.beanInventoryResult.getOrNull()?.batches().orEmpty().map { it.batch.bean }).distinctBy { it.id }
+        selectedBeanId = if (savedInstanceState == null) entry.notes.beanId else savedInstanceState.getString("selectedBeanId")
+        val beanLabel = style.label(HoyiUi.label(this, card, getString(R.string.journal_bean), 14))
+        val select = Spinner(this).apply {
+            this.id=android.view.View.generateViewId()
+            beanLabel.labelFor=this.id
+            adapter = style.choiceAdapter(listOf(getString(R.string.journal_no_bean)) + beans.map { it.name })
+            minimumHeight = HoyiUi.dp(this@BrewReviewActivity, 52)
+            contentDescription = getString(R.string.journal_bean)
+            card.addView(this)
+        }
+        select.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedBeanId = beans.getOrNull(position - 1)?.id }
+        }
+        select.setSelection(beans.indexOfFirst { it.id == selectedBeanId }.let { if (it < 0) 0 else it + 1 })
+        fun field(key: String, label: Int, initial: String, numeric: Boolean = false) = beanInput(sections.panels[when (key) { "grind" -> 1; "expectation" -> 2; "taste" -> 3; "next" -> 4; else -> 0 }].apply { tag = "bean-full-field" }, label, numeric, emphasizeLabel=true).also {
+            fields[key] = it
+            style.input(it, "review", key)
+            val parent = it.parent as LinearLayout
+            val labelView = (0 until parent.childCount).map { index -> parent.getChildAt(index) }
+                .filterIsInstance<android.widget.TextView>().single { labelView -> labelView.labelFor == it.id }
+            style.label(labelView)
+            (labelView.layoutParams as LinearLayout.LayoutParams).topMargin = if (key == "dose") style.dp(16) else 0
+            if (!numeric) { it.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE; it.setSingleLine(false); it.minLines = 2; it.gravity = android.view.Gravity.TOP; it.layoutParams = (it.layoutParams as LinearLayout.LayoutParams).apply { height = style.twoLineMinimum(it); weight = 0f }; it.filters = arrayOf(InputFilter.LengthFilter(16000)) }
+            it.setText(savedInstanceState?.getString(key) ?: initial)
+            val length = it.text.length
+            it.setSelection((savedInstanceState?.getInt("selectionStart:$key", 0) ?: 0).coerceIn(0, length),
+                (savedInstanceState?.getInt("selectionEnd:$key", 0) ?: 0).coerceIn(0, length))
+        }
+        val dose = field("dose", R.string.journal_dose, entry.notes.doseMg?.let(BeanQuantity::formatGrams).orEmpty(), true)
+        style.unit(dose, "g", "review", "dose")
+        val grind = field("grind", R.string.journal_grind, entry.notes.grind)
+        HoyiUi.button(this, sections.panels[1], getString(R.string.journal_detail)) {
+            beanDetails(journalCurve(entry.observation.curveId), journalObservationText(entry.observation))
+        }.apply { style.visual.button(this); HomeVisualIcon.buttonIcon(this, "history") }
+        val expectation = field("expectation", R.string.journal_expectation, entry.notes.curveExpectation)
+        val taste = field("taste", R.string.journal_taste, entry.notes.taste)
+        val next = field("next", R.string.journal_next, entry.notes.nextAdjustment)
+        sections.fitMultiline(listOf(grind, expectation, taste, next))
+        sections.restore(savedInstanceState, fields)
+        val error = style.error(beanError(body))
+        val footer = beanActions(body)
+        val actionRow = style.visual.row()
+        style.visual.action(actionRow, getString(R.string.beans_cancel), "product/form/review/cancel", top = 0) { finish() }
+            .layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginEnd = style.dp(8) }
+        val save = style.visual.action(actionRow, getString(R.string.journal_save), "product/form/review/save", primary = true, top = 0) {}
+        save.layoutParams = LinearLayout.LayoutParams(-2, -2)
+        val notice = style.visual.text(getString(R.string.journal_subtitle), TaskProductVisualStyle.auxiliary, "review-save-scope", true)
+        footer.addView(style.footer(notice, actionRow, "review", topRule = true), LinearLayout.LayoutParams(-1, -2))
+        save.setOnClickListener {
+            val available = app.journalResult.getOrNull()
+            if (available == null) { error.setText(R.string.journal_unavailable); save.isEnabled = false; return@setOnClickListener }
+            val doseMg = runCatching { dose.text.toString().trim().takeIf { it.isNotEmpty() }?.let {
+                BeanQuantity.parseGrams(it).also { mg -> require(mg > 0) }
+            } }.getOrElse { sections.jumpTo(0); error.setText(R.string.journal_bad_dose); return@setOnClickListener }
+            val bean = beans.find { it.id == selectedBeanId }
+            val notes = BrewJournal.Notes(bean?.id, bean?.name, doseMg, grind.text.toString().trim(),
+                expectation.text.toString().trim(), taste.text.toString().trim(), next.text.toString().trim())
+            save.isEnabled = false
+            if (runCatching { available.edit(entry.observation.id, notes) }.isSuccess) finish()
+            else { error.setText(R.string.journal_save_failed); save.isEnabled = true }
+        }
+    }
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("selectedBeanId", selectedBeanId)
+        outState.putInt("section", section)
+        form?.save(outState, fields)
+        fields.forEach { (key, field) ->
+            outState.putString(key, field.text.toString())
+            outState.putInt("selectionStart:$key", field.selectionStart)
+            outState.putInt("selectionEnd:$key", field.selectionEnd)
+        }
+    }
+}
+
+internal fun ShotHistory.Entry.journalObservation() = BrewJournal.Observation(id, curveId, startedAtMs, endedAtMs, elapsedMs, status.name, reason, weightHundredthsGram)
+internal fun BrewJournal.Observation.historySummary() = ShotHistory.Entry(id, curveId, startedAtMs, endedAtMs, elapsedMs, ShotHistory.Status.valueOf(status), reason, weightHundredthsGram)
+internal fun ThemedActivity.journal(body: LinearLayout): BrewJournal? = (application as MobileApplication).journalResult.getOrNull().also {
+    if (it == null) HoyiUi.label(this, HoyiUi.card(this, body), getString(R.string.journal_unavailable), 17, true)
+}
+internal fun ThemedActivity.journalStatus(value: String): String = getString(when (value) {
+    "STARTING" -> R.string.extraction_state_starting
+    "RUNNING" -> R.string.extraction_state_running
+    "STOP_REQUESTED" -> R.string.history_status_stop_requested
+    "ENDED" -> R.string.history_status_ended
+    "NOT_STARTED" -> R.string.history_status_not_started
+    else -> R.string.extraction_state_unknown
+})
+internal fun ThemedActivity.journalDate(value: Long): String = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(value))
+internal fun ThemedActivity.journalCurve(id: String): String = if (id == "manual") getString(R.string.extraction_manual_label)
+    else runCatching { (application as MobileApplication).curves.find(id)?.name }.getOrNull() ?: id
+internal fun ThemedActivity.journalField(parent: LinearLayout, label: Int, value: String?) {
+    HoyiUi.label(this, parent, getString(R.string.journal_field_value, getString(label), value?.takeIf { it.isNotEmpty() } ?: getString(R.string.journal_optional)), 16)
+        .setPadding(0, HoyiUi.dp(this, 10), 0, 0)
+}
+internal fun ThemedActivity.journalSummary(parent: LinearLayout, shot: BrewJournal.Observation): LinearLayout {
+    val card = HoyiUi.card(this, parent, journalCurve(shot.curveId))
+    journalField(card, R.string.journal_state, journalStatus(shot.status))
+    journalField(card, R.string.journal_started, journalDate(shot.startedAtMs))
+    journalField(card, R.string.journal_ended, shot.endedAtMs?.let { journalDate(it) })
+    journalField(card, R.string.journal_elapsed, shot.elapsedMs?.let { getString(R.string.journal_seconds, BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString()) })
+    journalField(card, R.string.journal_weight, shot.weightHundredthsGram?.let { getString(R.string.journal_grams, BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString()) })
+    if (shot.status == "UNKNOWN") HoyiUi.label(this, card, getString(R.string.history_unknown_warning), 15, true)
+    return card
+}
+internal fun ThemedActivity.journalNotes(parent: LinearLayout, notes: BrewJournal.Notes) {
+    journalField(parent, R.string.journal_bean, notes.beanName)
+    journalField(parent, R.string.journal_dose, notes.doseMg?.let { getString(R.string.journal_grams, BeanQuantity.formatGrams(it)) })
+    journalField(parent, R.string.journal_grind, notes.grind)
+    journalField(parent, R.string.journal_expectation, notes.curveExpectation)
+    journalField(parent, R.string.journal_taste, notes.taste)
+    journalField(parent, R.string.journal_next, notes.nextAdjustment)
+}
+
+internal fun ThemedActivity.journalObservationText(shot: BrewJournal.Observation): String = buildString {
+    append(getString(R.string.journal_state)).append(": ").append(journalStatus(shot.status))
+    append("\n").append(getString(R.string.journal_started)).append(": ").append(journalDate(shot.startedAtMs))
+    append("\n").append(getString(R.string.journal_ended)).append(": ").append(shot.endedAtMs?.let { journalDate(it) } ?: getString(R.string.journal_optional))
+    append("\n").append(getString(R.string.journal_elapsed)).append(": ").append(shot.elapsedMs?.let { getString(R.string.journal_seconds, BigDecimal.valueOf(it, 3).stripTrailingZeros().toPlainString()) } ?: getString(R.string.journal_optional))
+    append("\n").append(getString(R.string.journal_weight)).append(": ").append(shot.weightHundredthsGram?.let { getString(R.string.journal_grams, BigDecimal.valueOf(it.toLong(), 2).stripTrailingZeros().toPlainString()) } ?: getString(R.string.journal_optional))
+    if (shot.status == "UNKNOWN") append("\n").append(getString(R.string.history_unknown_warning))
+}

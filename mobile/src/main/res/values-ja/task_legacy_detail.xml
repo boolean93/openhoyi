@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="legacy_detail_samples_heading">履歴サンプル</string>
+    <string name="legacy_detail_source_heading">データソース</string>
+    <string name="legacy_detail_source_body">旧版のインポート記録：圧力（bar）とマシン水流（ml/s）。</string>
+    <string name="legacy_detail_missing_heading">不足しているデータ</string>
+    <string name="legacy_detail_missing_body">マシン温度：未提供\n累計注水量：未提供\nネイティブ重量：未提供\nネイティブ終了確認：未提供</string>
+    <string name="legacy_detail_limits_heading">解釈上の制限</string>
+    <string name="legacy_detail_limits_body">元のwFlow/wTrendは保存済みです。旧版の平滑化と基線処理は、ネイティブの重量や流速と同等ではありません。この記録ではマシンの実際の停止を証明できません。</string>
+</resources>
