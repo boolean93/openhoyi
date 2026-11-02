@@ -1,0 +1,48 @@
+{
+  "coffee": {
+    "commands": [
+      {"name": "brew_temperature_93c", "hex": "0402005D00", "xor": false},
+      {"name": "brew_delta_1_5c", "hex": "0502000F00", "xor": false},
+      {"name": "steam_temperature_135c", "hex": "0602008700", "xor": false},
+      {"name": "sleep_now", "hex": "2001A5A521", "xor": true},
+      {"name": "reset_cups", "hex": "0A01A5A500", "xor": false},
+      {"name": "data_ack", "hex": "4001A5A541", "xor": true},
+      {"name": "enter_ota", "hex": "A004484F5949B3", "xor": true}
+    ],
+    "notifications": [
+      {
+        "name": "settings_1_2_3",
+        "hex": "830123FF5D0F870F50002A00",
+        "expect": {"version": "1.2.3", "brewTempC": 93, "brewDeltaC": 1.5, "steamTempC": 135, "standbyMinutes": 15, "standbyTempC": 80, "cups": 42}
+      },
+      {
+        "name": "idle",
+        "hex": "4000203A2E440A08010000000000002A0000",
+        "expect": {"brewTempC": 82.5, "steamTempC": 118.44, "brewPressureBar": 1.0, "steamPressureBar": 0.8, "sleeping": true, "cups": 42}
+      },
+      {
+        "name": "extracting",
+        "hex": "800001001E5A012C2394016032",
+        "expect": {"slot": 1, "elapsedSeconds": 30, "pressureBar": 9.0, "totalWaterMl": 30.0, "brewTempC": 91.08, "waterFlowMlPerSecond": 0.1, "valveOpen": true, "brewWait": true}
+      }
+    ]
+  },
+  "scales": {
+    "commands": [
+      {"name": "felicita_tare", "hex": "54", "xor": false},
+      {"name": "difluid_enable", "hex": "DFDF01000101C1", "xor": false},
+      {"name": "difluid_unit", "hex": "DFDF01040100C4", "xor": false},
+      {"name": "difluid_tare", "hex": "DFDF03020101C5", "xor": false},
+      {"name": "bookoo_buzzer", "hex": "030A02000308", "xor": true},
+      {"name": "bookoo_auto_off", "hex": "030A0300141E", "xor": true},
+      {"name": "bookoo_init_tare_timer", "hex": "030A0700000E", "xor": true},
+      {"name": "bookoo_flow_smoothing", "hex": "030A08010000", "xor": true},
+      {"name": "bookoo_tare", "hex": "030A01000008", "xor": true}
+    ],
+    "notifications": [
+      {"name": "felicita_12_34g", "protocol": "F", "hex": "04D2", "expect": {"weightGrams": 12.34}},
+      {"name": "acaia_12_34g", "protocol": "A", "hex": "EFDD0C0005D20400000200", "expect": {"weightGrams": 12.34}},
+      {"name": "bookoo_12_34g_1_23mls", "protocol": "BOOKOO", "hex": "030B00000000000004D200007B000000000000A5", "expect": {"weightGrams": 12.34, "flowMlPerSecond": 1.23}}
+    ]
+  }
+}
