@@ -160,9 +160,16 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             .put("visibilitySemantics","exact_hierarchy_clip_only; not_system_window_or_IME_occlusion_proof")
             .put("globalVisible",shown).put("complete",mapping && view.width>0 && view.height>0 && derived==full)
     }
-    private fun observation(view: View): JSONObject {
+    /** One synchronous main-thread geometry read; never shared with another native frame. */
+    private class ObservationRead {
+        val views=java.util.IdentityHashMap<View,JSONObject>()
+        val texts=java.util.IdentityHashMap<TextView,JSONObject>()
+    }
+    private fun observation(view:View):JSONObject = observation(view,ObservationRead())
+    private fun observation(view: View, read:ObservationRead): JSONObject {
+        read.views[view]?.let {return it}
         val visible=visibility(view)
-        val texts = nodes(view).filterIsInstance<TextView>().map { text ->
+        val texts = nodes(view).filterIsInstance<TextView>().map { text -> read.texts.getOrPut(text) {
             val textVisibility=visibility(text)
             val layout = text.layout
             JSONObject().put("semanticId", text.tag).put("text", text.text.toString()).put("fullViewVisible", textVisibility.getBoolean("complete")).put("visibility",textVisibility)
@@ -174,8 +181,8 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
                 .put("horizontalLayoutLines",layout?.let { actual -> JSONArray((0 until actual.lineCount).map { index ->
                     JSONObject().put("line",index).put("leftPx",actual.getLineLeft(index)).put("rightPx",actual.getLineRight(index))
                 }) } ?: JSONObject.NULL)
-        }
-        return visible.put("semanticId",view.tag).put("textLineBoxes",JSONArray(texts))
+        } }
+        return visible.put("semanticId",view.tag).put("textLineBoxes",JSONArray(texts)).also {read.views[view]=it}
     }
     private fun whole(value: JSONObject): Boolean = value.getBoolean("complete") && value.getJSONArray("textLineBoxes").let { lines ->
         (0 until lines.length()).all { index -> val line = lines.getJSONObject(index)
@@ -537,10 +544,13 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
         }
     }
     private fun geometry(activity: Activity): JSONObject {
+        check(android.os.Looper.myLooper()===android.os.Looper.getMainLooper())
+        val read=ObservationRead()
+        val windows=android.view.inspector.WindowInspector.getGlobalWindowViews()
         val content=root(activity);val insets=requireNotNull(content.rootWindowInsets)
         val origin=IntArray(2);content.getLocationOnScreen(origin)
         val config=activity.resources.configuration;val bars=insets.getInsets(WindowInsets.Type.systemBars())
-        val charts=android.view.inspector.WindowInspector.getGlobalWindowViews().flatMap(::nodes)
+        val charts=windows.flatMap(::nodes)
             .filterIsInstance<ScaleTrendView>().filter {it.isShown}
         return JSONObject().put("windowMetricsBoundsPx",rect(activity.windowManager.currentWindowMetrics.bounds))
             .put("appOriginPx",JSONArray(origin.toList())).put("appSizePx",JSONArray(listOf(content.width,content.height)))
@@ -548,10 +558,10 @@ internal class ScaleVisualMigrationChecks(private val test: Instrumentation) {
             .put("imeVisible",insets.isVisible(WindowInsets.Type.ime())).put("densityDpi",config.densityDpi)
             .put("fontScale",config.fontScale).put("locale",config.locales.toLanguageTags())
             .put("uiModeNightMeaning",if(config.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK==android.content.res.Configuration.UI_MODE_NIGHT_YES)"dark" else "light")
-            .put("nodes",JSONArray(nodes(content).filter {it.tag is String || it is TextView}.map(::observation)))
-            .put("charts",JSONArray(charts.map {JSONObject().put("rect",observation(it)).put("canvasEvidence",JSONArray(it.visualEvidence.toString()))}))
-            .put("attachedWindows",JSONArray(android.view.inspector.WindowInspector.getGlobalWindowViews().map {view ->
-                JSONObject().put("class",view.javaClass.name).put("hasWindowFocus",view.hasWindowFocus()).put("nodes",JSONArray(nodes(view).filter {it.tag is String || it is TextView}.map(::observation)))
+            .put("nodes",JSONArray(nodes(content).filter {it.tag is String || it is TextView}.map {observation(it,read)}))
+            .put("charts",JSONArray(charts.map {JSONObject().put("rect",observation(it,read)).put("canvasEvidence",JSONArray(it.visualEvidence.toString()))}))
+            .put("attachedWindows",JSONArray(windows.map {view ->
+                JSONObject().put("class",view.javaClass.name).put("hasWindowFocus",view.hasWindowFocus()).put("nodes",JSONArray(nodes(view).filter {it.tag is String || it is TextView}.map {observation(it,read)}))
             }))
             .put("productLayoutEvidence",when(activity) {
                 is MainActivity->(activity.supportFragmentManager.primaryNavigationFragment as? ScaleFragment)?.let {JSONObject(it.productLayoutEvidence.toString())} ?: JSONObject.NULL
