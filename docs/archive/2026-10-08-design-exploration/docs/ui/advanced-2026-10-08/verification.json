@@ -1,0 +1,240 @@
+{
+  "selectedPages": 28,
+  "independentPNGs": true,
+  "groups": {
+    "冲煮与实时状态": 7,
+    "曲线与分享": 6,
+    "记录与复盘": 4,
+    "咖啡豆库存与联动": 6,
+    "独立电子秤": 3,
+    "应用与咖啡机设置": 2
+  },
+  "allSelectedFilesVerified": true,
+  "inspection": "已目视检查生成结果，并迭代修正曲线语义、库存状态与读数一致性。局部文字、图表刻度和导航选中态仍需正式设计精校。",
+  "files": [
+    {
+      "index": 1,
+      "file": "01-brew-preparation-v2.png",
+      "bytes": 1249369,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 2,
+      "file": "02-device-manager-v2.png",
+      "bytes": 1320661,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 3,
+      "file": "03-extraction-live-tablet.png",
+      "bytes": 1280799,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 4,
+      "file": "04-extraction-live-phone-dark.png",
+      "bytes": 1365365,
+      "width": 992,
+      "height": 1586,
+      "pngValid": true
+    },
+    {
+      "index": 5,
+      "file": "05-target-history-reference-v2.png",
+      "bytes": 1617565,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 6,
+      "file": "06-shot-summary.png",
+      "bytes": 1319687,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 28,
+      "file": "28-live-connection-unknown.png",
+      "bytes": 1356472,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 7,
+      "file": "07-curve-library.png",
+      "bytes": 1435980,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 8,
+      "file": "08-curve-detail.png",
+      "bytes": 1329264,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 9,
+      "file": "09-curve-editor-v2.png",
+      "bytes": 1247932,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 10,
+      "file": "10-curve-share-v2.png",
+      "bytes": 1276963,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 11,
+      "file": "11-curve-import-v2.png",
+      "bytes": 1147461,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 12,
+      "file": "12-curve-import-preview.png",
+      "bytes": 1339565,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 13,
+      "file": "13-brew-journal.png",
+      "bytes": 1347772,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 14,
+      "file": "14-shot-detail.png",
+      "bytes": 1345986,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 15,
+      "file": "15-shot-review-editor.png",
+      "bytes": 1322257,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 16,
+      "file": "16-shot-comparison.png",
+      "bytes": 1315158,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 17,
+      "file": "17-bean-inventory.png",
+      "bytes": 1284470,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 18,
+      "file": "18-bean-batch-detail.png",
+      "bytes": 1277383,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 19,
+      "file": "19-bean-stock-entry-v2.png",
+      "bytes": 1435627,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 20,
+      "file": "20-stock-ledger-adjustment.png",
+      "bytes": 1226869,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 21,
+      "file": "21-bean-dose-selection.png",
+      "bytes": 1324633,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 22,
+      "file": "22-dose-consumption-confirm-v3.png",
+      "bytes": 1294148,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 23,
+      "file": "23-scale-workspace-v2.png",
+      "bytes": 1540039,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 24,
+      "file": "24-scale-connect.png",
+      "bytes": 1300585,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 25,
+      "file": "25-scale-link-settings.png",
+      "bytes": 1250501,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 26,
+      "file": "26-app-preferences.png",
+      "bytes": 1196926,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    },
+    {
+      "index": 27,
+      "file": "27-machine-settings.png",
+      "bytes": 1321181,
+      "width": 1586,
+      "height": 992,
+      "pngValid": true
+    }
+  ]
+}
