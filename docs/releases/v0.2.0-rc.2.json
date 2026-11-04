@@ -1,0 +1,21 @@
+{
+  "tag": "v0.2.0-rc.2",
+  "sourceCommit": "3f9df291ad23127faf16038d73492efa3e975e2d",
+  "approved": true,
+  "versionCode": 52,
+  "signerCertificateSha256": "c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54",
+  "apkSha256": "1ef3fcf474ef0ab0aa9a715f268a53d68bacf0c12954c5bac225d118bb188691",
+  "approvalReference": "2026-11-04 user explicitly requested publication of the Debug APK with a README disclaimer; subsequent delegated instruction confirmed GitHub prerelease with honest unverified hardware/upgrade limits.",
+  "validationEvidence": "README PR https://github.com/boolean93/openhoyi/pull/13 merged; source tree identical to checked PR head 3a4aa224df043d4b22c6f62294a68f35123b8660. Required verify https://github.com/boolean93/openhoyi/actions/runs/41751216790, lifecycle https://github.com/boolean93/openhoyi/actions/runs/41751216832, upgrade https://github.com/boolean93/openhoyi/actions/runs/41751216623 and branch-policy https://github.com/boolean93/openhoyi/actions/runs/41751216728 passed. assembleDebug code52/name0.2.0-rc.2 succeeded at sourceCommit; apk_distribution.py verifies actual package io.openhoyi.mobile, debuggable=true, one original Android Debug signer and APK SHA256. Debug publication is explicitly requested; formal release signing preflight does not certify this Debug artifact. See release asset debug-manifest.json.",
+  "upgradeEvidence": "Actual installed Debug APK was read from the tablet without launching app; code51, SHA256 e206dd8bedf0b62f04c02f6ff74fd22573b0497211e118375baf747319a1d035. Actual previous/new APK package and certificate match and code52 > code51; identityAndVersionCompatible=true. Candidate installationVerified=false and dataPreservationVerified=false. Existing Mock same-source upgrade CI passed, not a claim of Debug hardware upgrade. Tablet was not overwritten because its code51 includes uncommitted experimental flow features absent from this release source. User-directed prerelease explicitly discloses these limits.",
+  "rollbackPlan": "Issue a new corrected versionCode with the same signing certificate and compatible data readers; preserve history and unknown-operation records. Do not uninstall, clear data, force downgrade, or assume an older APK understands newer data.",
+  "buildVariant": "debug",
+  "versionName": "0.2.0-rc.2",
+  "packageName": "io.openhoyi.mobile",
+  "debuggable": true,
+  "signingMode": "existing-local-android-debug",
+  "sourceCommitVerified": false,
+  "hardwareAcceptanceVerified": false,
+  "installationVerified": false,
+  "dataPreservationVerified": false
+}
