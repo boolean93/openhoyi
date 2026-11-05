@@ -50,7 +50,7 @@ OpenHOYI 是面向 **HOYI 咖啡机**的开源 Android 应用，使用 Kotlin �
 
 | 应用 / 构建 | 用途 | Android 包名 |
 |---|---|---|
-| **OpenHOYI Alpha（Debug）** | 连接真实设备，试用曲线、萃取与历史等功能 | `io.openhoyi.mobile` |
+| **OpenHOYI（主包）** | 供用户使用，连接真实设备 | `io.openhoyi.mobile` |
 | **Mock** | 使用模拟设备，体验功能与调试界面 | `io.openhoyi.mobile.mock` |
 | **OpenHOYI Lab** | 协议采集与连接诊断 | `io.openhoyi.lab` |
 
