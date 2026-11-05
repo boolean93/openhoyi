@@ -9,8 +9,10 @@ data class ScaleCapabilities(
     val battery:Boolean = false,
     val deviceTimer:Boolean = false,
     val validatedWeightControl:Boolean = false,
+    /** Independently verified automatic tare policy; explicit tare alone never grants this. */
+    val automaticTare:Boolean = false,
 )
-enum class ScaleEvidence { VERIFIED_TRANSPORT, OFFLINE_CANDIDATE, LIVE_READ_ONLY }
+enum class ScaleEvidence { VERIFIED_TRANSPORT, OFFLINE_CANDIDATE, LIVE_READ_ONLY, DOCUMENTED_TRANSPORT }
 
 data class ScaleObservation(
     val hundredthsGram:Int,
@@ -20,13 +22,15 @@ data class ScaleObservation(
     val deviceFlowHundredths:Int? = null,
     val batteryPercent:Int? = null,
     val raw:ByteFrame,
+    /** Secondary sensor value, not a derived beverage/input-weight interpretation. */
+    val secondaryHundredthsGram:Int? = null,
 ) {
     val eligibleForControl:Boolean get() = evidence==ScaleEvidence.VERIFIED_TRANSPORT &&
         capabilities.weight && capabilities.validatedWeightControl
 }
 
 object ScaleObservationDecoder {
-    val bookooCapabilities=ScaleCapabilities(tare=true,deviceFlow=true,validatedWeightControl=true)
+    val bookooCapabilities=ScaleCapabilities(tare=true,deviceFlow=true,validatedWeightControl=true,automaticTare=true)
     fun bookoo(bytes:ByteArray,receivedAtMs:Long):DecodeResult<ScaleObservation> =
         when(val decoded=BookooCodec.decode(bytes)) {
             is DecodeResult.Valid -> DecodeResult.Valid(ScaleObservation(decoded.value.weightHundredthsGram,

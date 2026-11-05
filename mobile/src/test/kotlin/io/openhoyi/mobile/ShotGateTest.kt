@@ -3,13 +3,16 @@ package io.openhoyi.mobile
 import io.openhoyi.protocol.ByteFrame
 import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.IdleTelemetry
+import io.openhoyi.protocol.ScaleCapabilities
+import io.openhoyi.protocol.ScaleEvidence
+import io.openhoyi.protocol.ScaleObservation
 import io.openhoyi.session.DeviceState
 import io.openhoyi.session.ExtractionState
 import org.junit.Assert.*
 import org.junit.Test
 
 class ShotGateTest {
-    private val gate = ShotGate(DefaultStringResources::resolve)
+    private val gate = ShotGate(DefaultStringResources::resolve, mockMode = true)
     private val weighted = CurveCatalog.profiles[2]
     private val flow = CurveCatalog.profiles[1]
     private val idleFrame = IdleTelemetry(0, 0, 0, 0, 0, 0, 0, 0, ByteFrame(byteArrayOf()))
@@ -18,7 +21,7 @@ class ShotGateTest {
         shot: ExtractionState = ExtractionState.IDLE, coffeeFrame: IdleTelemetry? = idleFrame,
         coffeeAt: Long? = 1000): String? = gate.startBlock(profile, coffee, coffeeFrame, coffeeAt, scale, weightAt, now, shot)
     @Test fun structuredStartRejectionStaysBlockedWithEmptyOrChangedCopy() {
-        val noDisplay = ShotGate { _, _ -> error("Eligibility must not resolve display") }
+        val noDisplay = ShotGate({ _, _ -> error("Eligibility must not resolve display") })
         for (coffee in DeviceState.entries) for (state in ExtractionState.entries) {
             val message = noDisplay.startBlockMessage(flow, coffee, idleFrame, 1000,
                 DeviceState.READY, 1000, 2000, state, validated = true)
@@ -110,5 +113,16 @@ class ShotGateTest {
         assertNull(block(flow, coffeeFrame = idleFrame.copy(alarmBits = 1 shl 14)))
         assertEquals("等待咖啡机新鲜待机数据", block(flow,
             coffeeFrame = idleFrame.copy(alarmBits = 0), coffeeAt = 1000, now = 2501))
+    }
+    @Test fun mockBypassIsCentralAndRealModeRequiresEligibleObservation() {
+        val eligible = ScaleObservation(1000, 1000, ScaleCapabilities(validatedWeightControl = true),
+            ScaleEvidence.VERIFIED_TRANSPORT, raw = ByteFrame(byteArrayOf()))
+        fun resource(mock: Boolean, observation: ScaleObservation?): Int? =
+            ShotGate(DefaultStringResources::resolve, mockMode = mock).startBlockMessage(
+                weighted, DeviceState.READY, idleFrame, 1000, DeviceState.READY, 1000, 2000,
+                ExtractionState.IDLE, validated = true, scaleObservation = observation)?.resourceId
+        assertEquals(R.string.scale_control_unverified, resource(false, null))
+        assertNull(resource(false, eligible))
+        assertNull(resource(true, null))
     }
 }

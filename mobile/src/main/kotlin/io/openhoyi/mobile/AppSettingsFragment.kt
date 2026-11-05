@@ -81,7 +81,8 @@ class AppSettingsFragment : Fragment() {
                 R.string.scale_capability_flow to actual.deviceFlow, R.string.scale_capability_battery to actual.battery,
                 R.string.scale_capability_timer to actual.deviceTimer).joinToString("\n") { (label, available) ->
                 getString(R.string.scale_capability_format, getString(label), getString(if (!available) R.string.scale_capability_no
-                    else if (snapshot.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY) R.string.scale_capability_read_only else R.string.scale_capability_yes))
+                    else if (snapshot.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.LIVE_READ_ONLY) R.string.scale_capability_read_only
+                    else if (snapshot.scaleObservation?.evidence == io.openhoyi.protocol.ScaleEvidence.DOCUMENTED_TRANSPORT) R.string.scale_capability_documented else R.string.scale_capability_yes))
             }
         scaleCapabilities?.let {view->if(view.text.toString()!=capabilitiesText)view.text=capabilitiesText}
     }

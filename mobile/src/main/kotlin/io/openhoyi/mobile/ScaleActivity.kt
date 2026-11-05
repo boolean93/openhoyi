@@ -237,9 +237,12 @@ class ScaleActivity:ScaleOwnerActivity() {
             live==null->R.string.scale_stale
             live.evidence==ScaleEvidence.OFFLINE_CANDIDATE->R.string.scale_offline_evidence
             live.evidence==ScaleEvidence.LIVE_READ_ONLY->R.string.scale_read_only_live
+            live.evidence==ScaleEvidence.DOCUMENTED_TRANSPORT->R.string.scale_documented_live
             else->R.string.scale_live
         }))
-        deviceStatus.setIfChanged(freshness.text.toString())
+        deviceStatus.setIfChanged(freshness.text.toString()+live?.secondaryHundredthsGram?.let {
+            "\n"+getString(R.string.scale_secondary_value,String.format(Locale.getDefault(),"%.2f",it/100.0))
+        }.orEmpty())
         if (::trend.isInitialized) trend.present(service?.scaleTrendAt(now).orEmpty(), now, freshness.text.toString())
         battery.setIfChanged(live?.batteryPercent?.takeIf {live.capabilities.battery && it in 0..100}
             ?.let {getString(R.string.scale_battery_value,it)} ?: getString(R.string.scale_battery_unavailable))

@@ -55,6 +55,14 @@ class ExtractionStartGateTest {
         assertNull(block(target = 0, now = 2501, coffeeAt = 2500, weightAt = null))
     }
 
+    @Test fun readyDocumentedTransportCannotAuthorizeTargetWeightStart() {
+        assertEquals(ExtractionStartGate.Block.SCALE_CONTROL_UNVERIFIED,
+            ExtractionStartGate.block(2700,true,DeviceState.READY,idle,1000,DeviceState.READY,1000,2000,
+                ExtractionState.IDLE,scaleControlValidated=false))
+        assertNull(ExtractionStartGate.block(0,true,DeviceState.READY,idle,1000,DeviceState.READY,1000,2000,
+            ExtractionState.IDLE,scaleControlValidated=false))
+    }
+
     @Test fun sleepAndFaultsBlockWhileTailWaterRemainsAdvisory() {
         assertEquals(ExtractionStartGate.Block.ASLEEP, block(frame = idle.copy(sleepStateRaw = 1)))
         assertEquals(ExtractionStartGate.Block.SLEEP_UNKNOWN, block(frame = idle.copy(sleepStateRaw = 2)))

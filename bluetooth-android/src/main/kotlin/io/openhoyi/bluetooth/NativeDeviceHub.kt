@@ -86,7 +86,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             scaleObservation={sample->
                 val request=scaleRequest
                 if(ownsScale(ticket,request)) {
-                    if(sample.evidence==ScaleEvidence.VERIFIED_TRANSPORT && sample.capabilities.weight && sample.capabilities.tare)
+                    if(sample.evidence in setOf(ScaleEvidence.VERIFIED_TRANSPORT,ScaleEvidence.DOCUMENTED_TRANSPORT) &&
+                        sample.capabilities.weight && sample.capabilities.tare)
                         standaloneTare.sample(++scaleSampleSerial,sample.hundredthsGram)
                     if(ownsScale(ticket,request))extraction.weight(sample)
                     if(ownsScale(ticket,request))onScaleObservation(sample)
