@@ -1252,7 +1252,7 @@ class MobileService : Service() {
         val blocked = shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt,
             snapshot.scaleState, snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true,
-            scaleControlValidated = snapshot.scaleObservation?.eligibleForControl == true)
+            scaleObservation = snapshot.scaleObservation)
         if (blocked != null) return blocked
         requireNotNull(profile)
         val actual = currentCorrectedBrewTemperature() ?: return getString(R.string.service_shot_temperature_waiting)
@@ -1413,7 +1413,7 @@ class MobileService : Service() {
         val blocked = shotGate.startBlockMessage(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
             snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), current.extraction.state,
             validated = profile?.let(library::validated) == true,
-            scaleControlValidated = snapshot.scaleObservation?.eligibleForControl == true)
+            scaleObservation = snapshot.scaleObservation)
         if (blocked != null) {
             event(ResourceMessage(R.string.service_shot_start_blocked, blocked), "shot.rejected")
             return blocked.render { id, args -> getString(id, *args) }

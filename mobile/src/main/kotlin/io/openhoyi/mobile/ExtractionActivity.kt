@@ -354,7 +354,7 @@ class ExtractionActivity : ThemedActivity() {
         val blocked = owner.tareStartBlock ?: shotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
             owner.snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), owner.shotState,
             validated = profile?.let(library::validated) == true,
-            scaleControlValidated = BuildConfig.MOCK_MODE || owner.snapshot.scaleObservation?.eligibleForControl == true)
+            scaleObservation = owner.snapshot.scaleObservation)
         if (blocked != null) { toast(blocked); render(); return }
         requireNotNull(profile)
         owner.studioStartBlock(profile)?.let { toast(it); render(); return }
@@ -419,7 +419,7 @@ class ExtractionActivity : ThemedActivity() {
             else owner?.tareStartBlock ?: shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
                 snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), state,
                 validated = profile?.let(library::validated) == true,
-                scaleControlValidated = BuildConfig.MOCK_MODE || snapshot.scaleObservation?.eligibleForControl == true)
+                scaleObservation = snapshot.scaleObservation)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
             getString(R.string.extraction_disconnect_advice_suffix) else
             owner?.manualSafetyMessage?.let { "\n$it" }.orEmpty()
