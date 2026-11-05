@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources xmlns:tools="http://schemas.android.com/tools">
+<resources>
     <string name="scale_title">电子秤</string>
     <string name="scale_subtitle">独立称重，不需要连接咖啡机</string>
     <string name="scale_unavailable">— g</string>
@@ -38,9 +38,8 @@
     <string name="scale_offline_evidence">泰摩 DOT / Basic3 Link、旧协议 ULTRA、Felicita、Acaia 和 DiFluid 已有协议依据，待实机验收；旧款 timemore scale 为实验性只读。旧 Felicita 绑定保持只读，重新扫描选择后可手动去皮。未经验证的秤不支持目标重量联动、自动去皮或称豆取粉量。</string>
     <string name="scale_documented_live">已有协议依据，待实机验收；无目标重量联动或称豆采集</string>
     <string name="scale_capability_documented">已有协议依据，待实机验收</string>
-    <!-- zh/en copy only by owner decision; other locales intentionally fall back to Chinese. -->
-    <string name="scale_control_unverified" tools:ignore="MissingTranslation">此秤尚未验证目标重量联动，不能启动重量目标曲线</string>
-    <string name="scale_secondary_value" tools:ignore="MissingTranslation">次传感器 %1$s g（实验性）</string>
+    <string name="scale_control_unverified">此秤尚未验证目标重量联动，不能启动重量目标曲线</string>
+    <string name="scale_secondary_value">次传感器 %1$s g（实验性）</string>
     <string name="scale_settings_subtitle">仅调整本 App 的显示；不发送设备设置命令</string>
     <string name="scale_precision">显示到 0.1 g（关闭时显示到 0.01 g）</string>
     <string name="scale_capabilities_title">当前协议能力</string>

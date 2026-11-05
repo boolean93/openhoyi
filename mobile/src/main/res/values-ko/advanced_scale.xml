@@ -38,6 +38,9 @@
     <string name="scale_offline_evidence">TIMEMORE DOT / Basic3 Link 및 구형 ULTRA, Felicita, Acaia, DiFluid는 실험적 지원이며 실기기 검증 전입니다. 미검증 저울은 목표 무게 제어, 자동 영점 조정, 원두 무게 수집을 지원하지 않습니다. 저장된 Felicita 읽기 전용 선택은 유지됩니다. 수동 영점 조정을 쓰려면 다시 검색하여 선택하세요.</string>
     <string name="scale_documented_live">프로토콜 근거 있음, 실기기 검증 전. 목표 무게 제어 및 원두 수집 없음</string>
     <string name="scale_capability_documented">프로토콜 근거 있음, 실기기 검증 전</string>
+    <!-- English fallback pending translation; zh/en copy only by owner decision. -->
+    <string name="scale_control_unverified">Weight-target control is not verified for this scale; weight-target curves cannot start</string>
+    <string name="scale_secondary_value">Secondary sensor %1$s g (experimental)</string>
     <string name="scale_settings_subtitle">이 앱의 표시만 변경하며 기기 설정 명령은 보내지 않습니다</string>
     <string name="scale_precision">0.1 g 단위로 표시(끄면 0.01 g 단위)</string>
     <string name="scale_capabilities_title">현재 프로토콜 기능</string>
