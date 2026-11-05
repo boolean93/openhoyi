@@ -35,7 +35,9 @@
     <string name="scale_owner_required">Сначала разрешите доступ к Bluetooth и включите его в управлении подключениями</string>
     <string name="scale_owner_failed">Сеанс Bluetooth ещё не запущен. Откройте управление подключениями.</string>
     <string name="scale_connection_manager">Открыть управление подключениями</string>
-    <string name="scale_offline_evidence">Felicita: экспериментальное подключение только для чтения, без проверки на устройстве. ACAIA / DIFLUID доступны только для офлайн-разбора, без подключения и управления.</string>
+    <string name="scale_offline_evidence">TIMEMORE DOT / Basic3 Link и старые профили ULTRA, Felicita, Acaia, DiFluid экспериментальны и ждут проверки на устройствах. Для непроверенных весов недоступны управление по целевому весу, автоматическое тарирование и получение веса зёрен. Сохранённый режим Felicita «только чтение» не меняется; для ручного тарирования выполните поиск и выберите весы заново.</string>
+    <string name="scale_documented_live">Протокол документирован, проверка устройства не выполнена; без управления по весу и получения веса зёрен</string>
+    <string name="scale_capability_documented">Протокол документирован, проверка устройства не выполнена</string>
     <string name="scale_settings_subtitle">Меняется только отображение в приложении; команды настройки устройству не отправляются</string>
     <string name="scale_precision">Показывать с точностью до 0.1 г (до 0.01 г, если выключено)</string>
     <string name="scale_capabilities_title">Возможности текущего протокола</string>

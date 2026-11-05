@@ -5,10 +5,19 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ScaleAdvertisementClassifierTest {
-    @Test fun publicFelicitaNameSelectsOnlyItsExperimentalReadOnlyAdapter() {
-        assertEquals(FelicitaReadOnlyScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId("FELICITA"))
-        assertEquals(FelicitaReadOnlyScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId("felicita arc"))
-        assertFalse(FelicitaReadOnlyScaleProtocolAdapter.transportVerified)
+    @Test fun freshFelicitaSelectionUsesNewManualTareProfileButOldPersistedProfileStaysReadOnly() {
+        assertEquals(FelicitaScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId("FELICITA"))
+        assertEquals(FelicitaScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId("felicita arc"))
+        assertFalse(FelicitaScaleProtocolAdapter.transportVerified)
+        assertTrue(FelicitaReadOnlyScaleProtocolAdapter.readOnlyTransport)
+    }
+    @Test fun legacyExecutableScanAliasesSelectFixedProfilesWithoutGrantingBookooControlToUltra() {
+        for(name in listOf("PROCHBT","ACAIA"))assertEquals(AcaiaLegacyScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId(name))
+        for(name in listOf("LUNAR","PEARL","PYXIS","Acaia Lunar"))assertEquals(AcaiaPearlScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId(name))
+        for(name in listOf("Microbalance","difluid"))assertEquals(DiFluidScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId(name))
+        assertEquals(DiFluidTiScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId("Mb Ti"))
+        assertEquals(BookooUltraLegacyScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId("ULTRA"))
+        assertFalse(BookooUltraLegacyScaleProtocolAdapter.capabilities.validatedWeightControl)
     }
     @Test fun timemoreNamesChooseOnlyEvidencedModelsWithoutGuessingFamilyOrNonBleProducts() {
         for(name in listOf("TIMEMORE DOT","DOT","TES017","Timemore-DOT-1234"))
@@ -22,6 +31,6 @@ class ScaleAdvertisementClassifierTest {
     @Test fun existingBookooNamesKeepTheirProtocolAndOtherFamiliesAreNotGuessed() {
         assertEquals(BookooScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId("BOOKOO MINI"))
         assertEquals(BookooScaleProtocolAdapter.id,ScaleAdvertisementClassifier.protocolId("bookoo"))
-        for(name in listOf("ACAIA","DiFluid Microbalance","HOYI","","unknown"))assertNull(ScaleAdvertisementClassifier.protocolId(name))
+        for(name in listOf("HOYI","","unknown"))assertNull(ScaleAdvertisementClassifier.protocolId(name))
     }
 }

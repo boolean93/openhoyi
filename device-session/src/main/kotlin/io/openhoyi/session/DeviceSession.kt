@@ -27,7 +27,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(role!=DeviceRole.COFFEE) {
             if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified && !scaleAdapter.documentedTransport &&
                 scaleAdapter.notifyEndpoint!=null && scaleAdapter.writeEndpoint==null &&
-                scaleAdapter.initializationCommands.isEmpty() && scaleAdapter.tareCommand==null &&
+                scaleAdapter.initializationCommands.isEmpty() && scaleAdapter.tareCommand==null && scaleAdapter.heartbeat==null &&
                 !scaleAdapter.capabilities.tare && !scaleAdapter.capabilities.validatedWeightControl) {
                 "Read-only scale adapter cannot expose control or characteristic writes"
             } else {
@@ -36,9 +36,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                     "Documented scale transport is not validated for machine control or automatic tare"
                 }
                 require((scaleAdapter.transportVerified || scaleAdapter.documentedTransport) && scaleAdapter.writeEndpoint!=null &&
-                    scaleAdapter.notifyEndpoint!=null && scaleAdapter.initializationCommands.isNotEmpty()) { "Offline scale candidates cannot connect" }
-                require(scaleAdapter.initializationCommands.first().delayMs>=0 &&
+                    scaleAdapter.notifyEndpoint!=null) { "Offline scale candidates cannot connect" }
+                require((scaleAdapter.initializationCommands.firstOrNull()?.delayMs ?: 0)>=0 &&
                     scaleAdapter.initializationCommands.zipWithNext().all {(a,b)->b.delayMs>a.delayMs}) { "Invalid scale initialization timing" }
+                require(scaleAdapter.heartbeat?.intervalMs?.let {it in 1000..30_000} != false) { "Invalid scale heartbeat interval" }
             }
         }
     }
@@ -78,6 +79,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var initNext=0
     private var initDue=0L
     private var initBusy=false
+    private var heartbeatDue:Long?=null
+    private var heartbeatBusy=false
     private var scaleDecoder=scaleAdapter.newDecoder() ?: scaleAdapter::decode
     private class ScaleTare(val callback:(OperationResult)->Unit) {
         var dispatched=false
@@ -164,8 +167,8 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 withResponse=if(strictTimemore)false else write?.write ?: true
                 if(!initializationState(expected,DeviceState.SUBSCRIBING))return@step
                 step(expected,GattOperation.Subscribe(notifyEndpoint,!notify.notify),5000){
-                    if(subscriptionOnly) {
-                        initializationState(expected,DeviceState.SYNCHRONIZING,5000)
+                    if(subscriptionOnly || (role==DeviceRole.BOOKOO && scaleAdapter.initializationCommands.isEmpty())) {
+                        scaleInitialized(expected)
                         return@step
                     }
                     if(!initializationState(expected,DeviceState.INITIALIZING,10_000))return@step
@@ -198,6 +201,11 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     fun onNotification(generation:Long,endpoint:Endpoint,bytes:ByteArray) {
         if(this.generation!=generation||!queue.active||endpoint!=notifyEndpoint)return
         val now=clock()
+        if(role==DeviceRole.BOOKOO) {
+            // No pre-subscription unit/status packet may seed the new decoder's trusted state.
+            if(state !in listOf(DeviceState.INITIALIZING,DeviceState.SYNCHRONIZING,DeviceState.READY))return
+            if(state!=DeviceState.READY && now>=stageDeadline){fail("protocol initialization timeout");return}
+        }
         if(role==DeviceRole.COFFEE)when(val decoded=HoyiCodec.decode(bytes)) {
             is DecodeResult.Valid -> {
                 val frame=decoded.value
@@ -266,9 +274,33 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             val expected=generation
             step(expected,GattOperation.Write(requireNotNull(writeEndpoint),cmd.frame.toByteArray(),withResponse),5000){
                 initBusy=false;initNext++
-                if(initNext==commands.size)initializationState(expected,DeviceState.SYNCHRONIZING,5000)
+                if(initNext==commands.size)scaleInitialized(expected)
                 else initDue=clock()+(commands[initNext].delayMs-commands[initNext-1].delayMs)
             }
+        }
+        tickScaleHeartbeat()
+    }
+    private fun scaleInitialized(expected:Long) {
+        if(!ownsInitialization(expected))return
+        // Publish before observers: a synchronous valid reading may already advance to READY.
+        // A reentrant disconnect/replacement detaches this due time in endConnection.
+        heartbeatDue=scaleAdapter.heartbeat?.let {clock()+it.intervalMs}
+        initializationState(expected,DeviceState.SYNCHRONIZING,5000)
+    }
+    private fun tickScaleHeartbeat() {
+        val heartbeat=scaleAdapter.heartbeat ?: return
+        val due=heartbeatDue ?: return
+        if(role!=DeviceRole.BOOKOO || heartbeatBusy || clock()<due ||
+            state !in listOf(DeviceState.SYNCHRONIZING,DeviceState.READY))return
+        val expected=generation
+        heartbeatBusy=true;heartbeatDue=null
+        queue.enqueue(GattOperation.Write(requireNotNull(writeEndpoint),heartbeat.command.frame.toByteArray(),withResponse),5000,
+            beforeDispatch={ownsInitialization(expected) && state in listOf(DeviceState.SYNCHRONIZING,DeviceState.READY)}) {result->
+            // Never let a detached heartbeat re-arm or clear the replacement owner's pending work.
+            if(!ownsInitialization(expected))return@enqueue
+            heartbeatBusy=false
+            if(result is OperationResult.Success)heartbeatDue=clock()+heartbeat.intervalMs
+            else fail("scale heartbeat failed: $result")
         }
     }
     private fun send(command:EncodedCommand,expectedRole:DeviceRole,urgent:Boolean=false,
@@ -484,6 +516,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val expected=generation
         // Detach old session work before invoking any observer that may reconnect.
         val detachedSleep=sleepWrite;sleepWrite=null;initBusy=false
+        heartbeatDue=null;heartbeatBusy=false
         val detachedTare=scaleTare;scaleTare=null
         activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
         try { setState(terminal) }

@@ -32,7 +32,9 @@ class ScaleProtocolAdapterTest {
             val observation=(adapter.decode(bytes,10) as DecodeResult.Valid).value
             assertFalse(observation.eligibleForControl)
         }
-        assertEquals(listOf(BookooScaleProtocolAdapter,TimemoreDotScaleProtocolAdapter,TimemoreBasicLinkScaleProtocolAdapter),ScaleProtocolRegistry.connectable)
+        assertEquals(listOf(BookooScaleProtocolAdapter,BookooUltraLegacyScaleProtocolAdapter,FelicitaScaleProtocolAdapter,
+            TimemoreDotScaleProtocolAdapter,TimemoreBasicLinkScaleProtocolAdapter,AcaiaLegacyScaleProtocolAdapter,
+            AcaiaPearlScaleProtocolAdapter,DiFluidScaleProtocolAdapter,DiFluidTiScaleProtocolAdapter),ScaleProtocolRegistry.connectable)
     }
     @Test fun adapterDoesNotExpandWriteWhitelist() {
         val adapter=BookooScaleProtocolAdapter

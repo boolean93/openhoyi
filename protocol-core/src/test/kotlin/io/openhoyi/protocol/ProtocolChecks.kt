@@ -10,6 +10,7 @@ private fun rejected(block: () -> Unit) { verify(runCatching(block).exceptionOrN
 fun main() {
     timemoreChecks()
     runFelicitaNotificationChecks()
+    legacyLiveScaleChecks()
     // Legacy scale formats are offline candidates only. They must never feed the live stop policy.
     val acaiaPositive = LegacyScaleCandidateCodec.decode(LegacyScaleFamily.ACAIA,
         hex("EFDD0C08053930000002000000"))

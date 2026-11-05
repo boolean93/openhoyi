@@ -2,6 +2,8 @@ package io.openhoyi.session
 
 import io.openhoyi.protocol.*
 
+data class ScaleHeartbeat(val command:EncodedCommand,val intervalMs:Long)
+
 sealed interface ScaleProtocolEvent {
     data object ReadingInvalidated:ScaleProtocolEvent
     data class TareAcknowledgement(val success:Boolean):ScaleProtocolEvent
@@ -24,8 +26,11 @@ interface ScaleProtocolAdapter {
     val initializationCommands:List<TimedCommand>
     val tareCommand:EncodedCommand?
     val transportVerified:Boolean
-    /** Public protocol evidence permits narrowly whitelisted transport, not weight control. */
+    /** Independently documented protocol evidence permits whitelisted transport, not weight control.
+     * This can be public vendor documentation or a recorded legacy protocol, not hardware proof. */
     val documentedTransport:Boolean get()=false
+    /** One fixed keepalive; session serializes it with all writes and never retries failures. */
+    val heartbeat:ScaleHeartbeat? get()=null
     val requiresWriteWithoutResponse:Boolean get()=false
     /** Stateful protocols return a fresh decoder per generation; null uses this adapter's decode.
      * Do not bind ::decode here: Kotlin interface delegation can bind it to the delegate instead
@@ -62,7 +67,9 @@ class OfflineScaleProtocolAdapter(val family:LegacyScaleFamily):ScaleProtocolAda
     override fun permitsWrite(operation:GattOperation.Write)=false
 }
 object ScaleProtocolRegistry {
-    val connectable:List<ScaleProtocolAdapter> = listOf(BookooScaleProtocolAdapter,TimemoreDotScaleProtocolAdapter,TimemoreBasicLinkScaleProtocolAdapter)
+    val connectable:List<ScaleProtocolAdapter> = listOf(BookooScaleProtocolAdapter,BookooUltraLegacyScaleProtocolAdapter,
+        FelicitaScaleProtocolAdapter,TimemoreDotScaleProtocolAdapter,TimemoreBasicLinkScaleProtocolAdapter,
+        AcaiaLegacyScaleProtocolAdapter,AcaiaPearlScaleProtocolAdapter,DiFluidScaleProtocolAdapter,DiFluidTiScaleProtocolAdapter)
     val offlineCandidates:List<ScaleProtocolAdapter> = LegacyScaleFamily.entries.map(::OfflineScaleProtocolAdapter)
     val readOnlyCandidates:List<ScaleProtocolAdapter> = listOf(FelicitaReadOnlyScaleProtocolAdapter,TimemoreLegacyReadOnlyScaleProtocolAdapter)
 }
