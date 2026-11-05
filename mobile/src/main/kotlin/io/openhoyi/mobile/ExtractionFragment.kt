@@ -429,7 +429,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
         val profile = selected()?.let { library.resolve(it.id, owner.snapshot.scaleState == DeviceState.READY, presetSlot) }
         val blocked = owner.tareStartBlock ?: shotGate.startBlock(profile, owner.snapshot.coffeeState, owner.snapshot.coffee, owner.snapshot.coffeeAt, owner.snapshot.scaleState,
             owner.snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), owner.shotState,
-            validated = profile?.let(library::validated) == true)
+            validated = profile?.let(library::validated) == true,
+            scaleObservation = owner.snapshot.scaleObservation)
         if (blocked != null) { toast(blocked); render(); return }
         requireNotNull(profile)
         owner.studioStartBlock(profile)?.let { toast(it); render(); return }
@@ -496,7 +497,8 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             else if (item != null && profile == null) getString(R.string.extraction_invalid_curve_block)
             else owner?.tareStartBlock ?: shotGate.startBlock(profile, snapshot.coffeeState, snapshot.coffee, snapshot.coffeeAt, snapshot.scaleState,
                 snapshot.weightAt, MobileMonotonicClock.elapsedRealtime(), state,
-                validated = profile?.let(library::validated) == true)
+                validated = profile?.let(library::validated) == true,
+                scaleObservation = snapshot.scaleObservation)
         val unknownAdvice = if (state == ExtractionState.OUTCOME_UNKNOWN && snapshot.coffeeState != io.openhoyi.session.DeviceState.READY)
             getString(R.string.extraction_disconnect_advice_suffix) else
             owner?.manualSafetyMessage?.let { "\n$it" }.orEmpty()

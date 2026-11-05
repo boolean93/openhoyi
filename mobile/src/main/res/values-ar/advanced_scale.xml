@@ -35,7 +35,12 @@
     <string name="scale_owner_required">امنح إذن Bluetooth وفعّله أولًا في إدارة الاتصالات</string>
     <string name="scale_owner_failed">لم تبدأ جلسة Bluetooth بعد. افتح إدارة الاتصالات.</string>
     <string name="scale_connection_manager">فتح إدارة الاتصالات</string>
-    <string name="scale_offline_evidence">يدعم Felicita اتصالًا تجريبيًا للقراءة فقط دون اختبار على جهاز حقيقي. يظل ACAIA / DIFLUID للتحليل دون اتصال فقط، بلا اتصال أو تحكم.</string>
+    <string name="scale_offline_evidence">دعم TIMEMORE DOT / Basic3 Link وملفات ULTRA وFelicita وAcaia وDiFluid القديمة تجريبي وبانتظار اختبار الأجهزة. لا تدعم الموازين غير المختبرة التحكم بالوزن المستهدف أو التصفير التلقائي أو التقاط وزن البن. تبقى اختيارات Felicita المحفوظة للقراءة فقط؛ أعد البحث والاختيار لتفعيل التصفير اليدوي.</string>
+    <string name="scale_documented_live">بروتوكول موثق، بانتظار اختبار الجهاز؛ دون تحكم بالوزن المستهدف أو التقاط وزن البن</string>
+    <string name="scale_capability_documented">بروتوكول موثق، بانتظار اختبار الجهاز</string>
+    <!-- English fallback pending translation; zh/en copy only by owner decision. -->
+    <string name="scale_control_unverified">Weight-target control is not verified for this scale; weight-target curves cannot start</string>
+    <string name="scale_secondary_value">Secondary sensor %1$s g (experimental)</string>
     <string name="scale_settings_subtitle">تغيير العرض في هذا التطبيق فقط؛ لا تُرسل أوامر إعدادات إلى الجهاز</string>
     <string name="scale_precision">عرض بدقة 0.1 غ (0.01 غ عند الإيقاف)</string>
     <string name="scale_capabilities_title">قدرات البروتوكول الحالي</string>

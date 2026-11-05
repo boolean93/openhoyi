@@ -10,7 +10,7 @@
 - 推送与合并：检查工作树 → 本地最小验证及 Astra 复核 → 普通推送工作分支 → PR 到 develop → branch-policy、verify、lifecycle、upgrade 以及新增页面检查通过 → PR 合并。不绕过保护，不直推 develop/main。
 - 部署：仓库 Pages build_type 设置为 workflow；合入 develop 后由官方 configure/upload/deploy-pages Actions 发布 site；仅 develop 的 push 或 develop 的手动运行具有部署权限。PR 仅验证，不部署。仓库主页指向部署 URL。
 - 验证证据：`python3 -m unittest discover -s scripts -p test_product_pages.py -v` 四项通过；`git diff --check`、`python3 scripts/git_policy.py branch` 通过。Chromium 在 1440/768/390/360 宽度均无横向溢出，禁 JS 下构建锚点和键盘 skip link 通过；本地截图/记录在 `build/product-pages-evidence/`（忽略目录，不加入网站）。页面 9 个唯一外链目标均 HTTP 200。实际 GPT-6 Astra 已查看桌面/手机截图并独立只读复核 HTML/CSS/工作流，结论：无阻塞问题，可进入 PR/上线流程；不代表用户最终确认或硬件验收。PR CI 和最终部署结果记录于 PR 与 Actions，不在部署前预填成功。
-- 协议与设备风险：不修改 Android、协议、设备会话、控制门禁、未知记录和重试；网页不连接蓝牙、不发送设备命令。兼容信息以已合入 develop 的 README/验收文档为准，不把其他分支未合并适配宣称已支持。
+- 协议与设备风险：本任务不修改 Android、协议、设备会话、控制门禁、未知记录和重试；网页不连接蓝牙、不发送设备命令。兼容信息以已合入 develop 的 README/验收文档为准。首次 CI 期间 #14 已合入 develop（f64d197）；通过普通 merge 同步其改动，保留其 README 重写，仅追加网站入口；页面同步已合入的 Felicita/TIMEMORE/Acaia/DiFluid 接入范围，明确这些接入仍待实机验证，并更新 README 锚点。未把协议接入当实机验收。
 - 发布：用户明确授权介绍站部署。无 APK 发版、无版本标签、无签名或升级变更、无安装或硬件操作，不宣称完成硬件验收。
 - 回退：通过新 revert PR 撤回网页改动，CI 通过合入后重新部署；紧急时可在 GitHub Pages 设置取消发布网站。不删除设备数据，不改写共享历史。
 - 未完成与阻塞：Pages 已启用 `build_type=workflow`、HTTPS 强制开启，`github-pages` environment 仅允许 develop 部署（API 已核对）。尚待 PR 四项必需检查、合并、首次部署与线上验证；目标地址 `https://boolean93.github.io/openhoyi/`，未验证前不声明上线成功。

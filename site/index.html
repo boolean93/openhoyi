@@ -28,7 +28,7 @@
           <div class="eyebrow"><span class="status-dot" aria-hidden="true"></span> OPEN SOURCE / ANDROID <span class="alpha-tag">ALPHA</span></div>
           <h1 id="hero-title">看懂每一次<br><span>萃取。</span></h1>
           <p class="hero-description">从曲线到杯中，<br>让每一杯咖啡都有迹可循。</p>
-          <p class="hero-detail">面向 HOYI 咖啡机的开源 Android 应用。通过蓝牙连接咖啡机与 BOOKOO 电子秤，观察实时数据，选择萃取曲线，回看每一杯。</p>
+          <p class="hero-detail">面向 HOYI 咖啡机的开源 Android 应用。通过蓝牙连接咖啡机与电子秤，观察实时数据，选择萃取曲线，回看每一杯。</p>
           <div class="hero-actions"><a class="button button-mint" href="https://github.com/boolean93/openhoyi">查看源码 <span aria-hidden="true">↗</span></a><a class="button button-outline" href="#start">从源码构建 <span aria-hidden="true">↓</span></a></div>
           <p class="hero-note">仍在打磨，不是正式产品。<a href="#alpha">先了解 Alpha 限制 <span aria-hidden="true">↗</span></a></p>
         </div>
@@ -64,11 +64,11 @@
     </section>
 
     <section class="compatibility-section" id="compatibility" aria-labelledby="compatibility-title"><div class="wrap compatibility-layout">
-      <div><p class="eyebrow section-index">02 / COMPATIBILITY</p><h2 id="compatibility-title">先确认，<br>再连接。</h2><p class="body-muted">设备适配有明确边界。<br>不把“可以扫描到”当作“兼容”。</p><a class="text-link" href="https://github.com/boolean93/openhoyi/blob/develop/README.md#设备与兼容性">阅读兼容性说明 <span aria-hidden="true">↗</span></a></div>
+      <div><p class="eyebrow section-index">02 / COMPATIBILITY</p><h2 id="compatibility-title">先确认，<br>再连接。</h2><p class="body-muted">设备适配有明确边界。<br>不把“可以扫描到”当作“兼容”。</p><a class="text-link" href="https://github.com/boolean93/openhoyi/blob/develop/README.md#支持什么">阅读兼容性说明 <span aria-hidden="true">↗</span></a></div>
       <div class="compatibility-list"><dl>
         <div><dt><span>01</span> 手机 / 平板</dt><dd>Android 8.0 及以上<span>API 26+，需要支持 BLE 蓝牙</span></dd></div>
         <div><dt><span>02</span> 咖啡机</dt><dd>HOYI · 固件 1.1.3<span>控制仅对已采集验证的 1.1.3 固件开放；其他固件只读或不支持</span></dd></div>
-        <div><dt><span>03</span> 电子秤</dt><dd>BOOKOO<span>当前已采集的协议范围；不代表品牌全系列兼容，其他电子秤尚未适配</span></dd></div>
+        <div><dt><span>03</span> 电子秤</dt><dd>BOOKOO + 更多协议接入<span>BOOKOO 有实机连接记录；Felicita、TIMEMORE、Acaia、DiFluid 已接入，待实机验证。具体型号、功能与只读限制以适配表为准，不代表品牌全系列兼容。</span></dd></div>
         <div><dt><span>04</span> 萃取曲线</dt><dd>已校验的工厂与采集曲线<span>导入的个人曲线暂只读，不开放启动</span></dd></div>
       </dl><p class="compatibility-note">当前仅提供 Android 应用，无 iOS、桌面或网页版控制端。</p></div>
     </div></section>
@@ -88,7 +88,7 @@ git clone --branch develop \
 cd openhoyi
 
 <span class="code-comment"># 构建 Android Alpha 应用</span>
-./gradlew :mobile:assembleDebug</code></pre><div class="build-notes"><p><strong>初次试用？</strong> 先阅读 <a href="https://github.com/boolean93/openhoyi/blob/develop/README.md#从源码构建">构建与连接说明</a>。主包用于真实设备，Lab 用于协议诊断；Mock 仅模拟体验，不能代替硬件验收。</p><p>覆盖安装需保持签名一致、版本码递增并保留数据。不要用卸载、清数据或降级绕过冲突。<a href="https://github.com/boolean93/openhoyi/blob/develop/docs/plans/apk-distribution.md">安装与升级边界 ↗</a></p></div></div>
+./gradlew :mobile:assembleDebug</code></pre><div class="build-notes"><p><strong>初次试用？</strong> 先阅读 <a href="https://github.com/boolean93/openhoyi/blob/develop/README.md#本地构建">构建与连接说明</a>。主包用于真实设备，Lab 用于协议诊断；Mock 仅模拟体验，不能代替硬件验收。</p><p>覆盖安装需保持签名一致、版本码递增并保留数据。不要用卸载、清数据或降级绕过冲突。<a href="https://github.com/boolean93/openhoyi/blob/develop/docs/plans/apk-distribution.md">安装与升级边界 ↗</a></p></div></div>
     </div></section>
   </main>
   <footer class="footer wrap"><div><a class="brand" href="#"><img src="./assets/mark.svg" width="28" height="28" alt=""><span>Open<span class="brand-light">HOYI</span></span></a><p>为每一次萃取，留下一点理解。</p></div><div class="footer-links"><a href="https://github.com/boolean93/openhoyi">源码</a><a href="https://github.com/boolean93/openhoyi/issues">Issues</a><a href="https://github.com/boolean93/openhoyi/blob/develop/LICENSE">GPL v2</a><a href="#alpha">使用风险</a></div><p class="footer-bottom">独立开源实验项目 · 非制造商官方产品 <span>本网站仅作静态介绍，不连接设备、不采集设备数据。</span></p></footer>

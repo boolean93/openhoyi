@@ -1,4 +1,5 @@
 """Small, dependency-free checks for the public static product site."""
+import re
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
@@ -60,7 +61,14 @@ class ProductPagesTest(unittest.TestCase):
                     # Resolve repository file links against this exact source tree.
                     prefix = "/boolean93/openhoyi/blob/develop/"
                     if url.path.startswith(prefix):
-                        self.assertTrue((ROOT / unquote(url.path[len(prefix):])).is_file())
+                        target = ROOT / unquote(url.path[len(prefix):])
+                        self.assertTrue(target.is_file())
+                        if target.suffix == ".md" and url.fragment:
+                            anchors = {
+                                re.sub(r"[^\w\- ]", "", line.lstrip("# ").lower()).replace(" ", "-")
+                                for line in target.read_text().splitlines() if line.startswith("#")
+                            }
+                            self.assertIn(unquote(url.fragment), anchors)
                 elif url.path:
                     asset = (SITE / url.path).resolve()
                     self.assertTrue(asset.is_relative_to(SITE.resolve()))
@@ -74,7 +82,7 @@ class ProductPagesTest(unittest.TestCase):
             self.assertFalse(any(key.startswith("on") for key in attrs))
         for text in ("Alpha", "Android 8.0", "1.1.3", "BOOKOO", "非 App 截图",
                      "非实时数据", "不连接或控制设备", "目标重量自动停止",
-                     "仍待完整验收", "损坏", "保留机器本身的停止手段"):
+                     "仍待完整验收", "待实机验证", "损坏", "保留机器本身的停止手段"):
             self.assertIn(text, self.html)
         css = (SITE / "styles.css").read_text()
         self.assertIn("prefers-reduced-motion", css)

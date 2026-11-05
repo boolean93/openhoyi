@@ -9,7 +9,7 @@ object OutboundWritePolicy {
     fun permits(role:DeviceRole,operation:GattOperation.Write,
         scaleAdapter:ScaleProtocolAdapter = BookooScaleProtocolAdapter):Boolean {
         val bytes=operation.bytes
-        if(role==DeviceRole.BOOKOO) return scaleAdapter.transportVerified && scaleAdapter.permitsWrite(operation)
+        if(role==DeviceRole.BOOKOO) return (scaleAdapter.transportVerified || scaleAdapter.documentedTransport) && scaleAdapter.permitsWrite(operation)
         if(operation.endpoint!=KnownGatt.coffeeWrite || bytes.isEmpty())return false
         return runCatching { coffee(bytes) }.getOrDefault(false)
     }

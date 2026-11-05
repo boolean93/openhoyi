@@ -25,16 +25,21 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private val customPressureStartPermit:(StartParameters)->Boolean = {false}) {
     init {
         if(role!=DeviceRole.COFFEE) {
-            if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified &&
+            if(scaleAdapter.readOnlyTransport) require(!scaleAdapter.transportVerified && !scaleAdapter.documentedTransport &&
                 scaleAdapter.notifyEndpoint!=null && scaleAdapter.writeEndpoint==null &&
-                scaleAdapter.initializationCommands.isEmpty() && scaleAdapter.tareCommand==null &&
+                scaleAdapter.initializationCommands.isEmpty() && scaleAdapter.tareCommand==null && scaleAdapter.heartbeat==null &&
                 !scaleAdapter.capabilities.tare && !scaleAdapter.capabilities.validatedWeightControl) {
                 "Read-only scale adapter cannot expose control or characteristic writes"
             } else {
-                require(scaleAdapter.transportVerified && scaleAdapter.writeEndpoint!=null &&
-                    scaleAdapter.notifyEndpoint!=null && scaleAdapter.initializationCommands.isNotEmpty()) { "Offline scale candidates cannot connect" }
-                require(scaleAdapter.initializationCommands.first().delayMs>=0 &&
+                require(!scaleAdapter.documentedTransport || (!scaleAdapter.transportVerified &&
+                    !scaleAdapter.capabilities.validatedWeightControl && !scaleAdapter.capabilities.automaticTare)) {
+                    "Documented scale transport is not validated for machine control or automatic tare"
+                }
+                require((scaleAdapter.transportVerified || scaleAdapter.documentedTransport) && scaleAdapter.writeEndpoint!=null &&
+                    scaleAdapter.notifyEndpoint!=null) { "Offline scale candidates cannot connect" }
+                require((scaleAdapter.initializationCommands.firstOrNull()?.delayMs ?: 0)>=0 &&
                     scaleAdapter.initializationCommands.zipWithNext().all {(a,b)->b.delayMs>a.delayMs}) { "Invalid scale initialization timing" }
+                require(scaleAdapter.heartbeat?.intervalMs?.let {it in 1000..30_000} != false) { "Invalid scale heartbeat interval" }
             }
         }
     }
@@ -74,6 +79,46 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     private var initNext=0
     private var initDue=0L
     private var initBusy=false
+    private var heartbeatDue:Long?=null
+    private var heartbeatBusy=false
+    private var scaleDecoder=scaleAdapter.newDecoder() ?: scaleAdapter::decode
+    private class ScaleTare(val callback:(OperationResult)->Unit) {
+        var dispatched=false
+        var written:OperationResult?=null
+        var acknowledgement:Boolean?=null
+        var deadline=Long.MAX_VALUE
+    }
+    private var scaleTare:ScaleTare?=null
+    private fun finishScaleTare(request:ScaleTare,result:OperationResult) {
+        if(scaleTare!==request)return
+        scaleTare=null
+        request.callback(result)
+    }
+    private fun completeScaleTare(request:ScaleTare) {
+        // Notifications and GATT callbacks can arrive before a delayed tick. Never extend an
+        // expired acknowledgement window just because the timeout task has not run yet.
+        if(request.dispatched && clock()>=request.deadline) {
+            finishScaleTare(request,OperationResult.Unknown("scale tare acknowledgement timeout"))
+            return
+        }
+        val written=request.written ?: return
+        if(written !is OperationResult.Success)finishScaleTare(request,written)
+        else request.acknowledgement?.let { success ->
+            finishScaleTare(request,if(success)written else OperationResult.Failed("scale rejected tare"))
+        }
+    }
+    private fun scaleEvent(expected:Long,event:ScaleProtocolEvent) {
+        if(!ownsInitialization(expected))return
+        when(event) {
+            ScaleProtocolEvent.ReadingInvalidated->if(state==DeviceState.READY)
+                initializationState(expected,DeviceState.SYNCHRONIZING,5000)
+            is ScaleProtocolEvent.TareAcknowledgement->scaleTare?.takeIf {it.dispatched}?.let {
+                // A negative acknowledgement wins over duplicates until this request completes.
+                if(it.acknowledgement!=false)it.acknowledgement=event.success
+                completeScaleTare(it)
+            }
+        }
+    }
     private class SleepWrite(val frames: List<EncodedCommand>, val generation: Long,
         val expected:WeeklySleepSchedule, val target:WeeklySleepSchedule, val baselineAt:Long,
         val beforeDispatch:()->Boolean,
@@ -107,19 +152,23 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(connectionRequest!=request)return
         lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback();activeAddress=address
         val expected=queue.open()
+        scaleDecoder=scaleAdapter.newDecoder {event->scaleEvent(expected,event)} ?: scaleAdapter::decode
         if(!initializationState(expected,DeviceState.CONNECTING,22_000))return
         step(expected,GattOperation.Connect(address),22_000) {
             if(!initializationState(expected,DeviceState.DISCOVERING))return@step
             step(expected,GattOperation.Discover,10_000){ result ->
-                val write=result.characteristics.singleOrNull{it.endpoint==writeEndpoint&&(it.write||it.writeWithoutResponse)}
-                val notify=result.characteristics.singleOrNull{it.endpoint==notifyEndpoint&&(it.notify||it.indicate)}
+                val strictTimemore=role!=DeviceRole.COFFEE && scaleAdapter.requiresWriteWithoutResponse
+                val write=result.characteristics.singleOrNull{it.endpoint==writeEndpoint &&
+                    (if(strictTimemore)it.writeWithoutResponse else it.write||it.writeWithoutResponse)}
+                val notify=result.characteristics.singleOrNull{it.endpoint==notifyEndpoint &&
+                    (if(strictTimemore)it.notify else it.notify||it.indicate)}
                 val subscriptionOnly=role!=DeviceRole.COFFEE && scaleAdapter.readOnlyTransport
                 if((!subscriptionOnly && write==null)||notify==null){fail("required GATT characteristics missing or ambiguous");return@step}
-                withResponse=write?.write ?: true
+                withResponse=if(strictTimemore)false else write?.write ?: true
                 if(!initializationState(expected,DeviceState.SUBSCRIBING))return@step
                 step(expected,GattOperation.Subscribe(notifyEndpoint,!notify.notify),5000){
-                    if(subscriptionOnly) {
-                        initializationState(expected,DeviceState.SYNCHRONIZING,5000)
+                    if(subscriptionOnly || (role==DeviceRole.BOOKOO && scaleAdapter.initializationCommands.isEmpty())) {
+                        scaleInitialized(expected)
                         return@step
                     }
                     if(!initializationState(expected,DeviceState.INITIALIZING,10_000))return@step
@@ -152,6 +201,11 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     fun onNotification(generation:Long,endpoint:Endpoint,bytes:ByteArray) {
         if(this.generation!=generation||!queue.active||endpoint!=notifyEndpoint)return
         val now=clock()
+        if(role==DeviceRole.BOOKOO) {
+            // No pre-subscription unit/status packet may seed the new decoder's trusted state.
+            if(state !in listOf(DeviceState.INITIALIZING,DeviceState.SYNCHRONIZING,DeviceState.READY))return
+            if(state!=DeviceState.READY && now>=stageDeadline){fail("protocol initialization timeout");return}
+        }
         if(role==DeviceRole.COFFEE)when(val decoded=HoyiCodec.decode(bytes)) {
             is DecodeResult.Valid -> {
                 val frame=decoded.value
@@ -178,9 +232,10 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
                 }
             }
             else -> diagnostic("coffee decode: ${decoded::class.simpleName}")
-        }else when(val decoded=scaleAdapter.decode(bytes,now)) {
+        }else when(val decoded=scaleDecoder(bytes,now)) {
             is DecodeResult.Valid -> {
-                val expectedEvidence=if(scaleAdapter.readOnlyTransport)ScaleEvidence.LIVE_READ_ONLY else ScaleEvidence.VERIFIED_TRANSPORT
+                if(!ownsInitialization(generation))return
+                val expectedEvidence=scaleAdapter.observationEvidence
                 if(decoded.value.evidence!=expectedEvidence) {diagnostic("scale evidence rejected");return}
                 if(state==DeviceState.SYNCHRONIZING)setState(DeviceState.READY)
                 if(this.generation!=generation||!queue.active)return
@@ -202,6 +257,7 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
     fun tick() {
         queue.tick()
         if(!queue.active)return
+        scaleTare?.let {if(clock()>=it.deadline)finishScaleTare(it,OperationResult.Unknown("scale tare acknowledgement timeout"))}
         sleepWrite?.let { write ->
             if(write.secondDue?.let { clock() >= it } == true && write.generation == generation) {
                 write.secondDue = null
@@ -218,9 +274,33 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
             val expected=generation
             step(expected,GattOperation.Write(requireNotNull(writeEndpoint),cmd.frame.toByteArray(),withResponse),5000){
                 initBusy=false;initNext++
-                if(initNext==commands.size)initializationState(expected,DeviceState.SYNCHRONIZING,5000)
+                if(initNext==commands.size)scaleInitialized(expected)
                 else initDue=clock()+(commands[initNext].delayMs-commands[initNext-1].delayMs)
             }
+        }
+        tickScaleHeartbeat()
+    }
+    private fun scaleInitialized(expected:Long) {
+        if(!ownsInitialization(expected))return
+        // Publish before observers: a synchronous valid reading may already advance to READY.
+        // A reentrant disconnect/replacement detaches this due time in endConnection.
+        heartbeatDue=scaleAdapter.heartbeat?.let {clock()+it.intervalMs}
+        initializationState(expected,DeviceState.SYNCHRONIZING,5000)
+    }
+    private fun tickScaleHeartbeat() {
+        val heartbeat=scaleAdapter.heartbeat ?: return
+        val due=heartbeatDue ?: return
+        if(role!=DeviceRole.BOOKOO || heartbeatBusy || clock()<due ||
+            state !in listOf(DeviceState.SYNCHRONIZING,DeviceState.READY))return
+        val expected=generation
+        heartbeatBusy=true;heartbeatDue=null
+        queue.enqueue(GattOperation.Write(requireNotNull(writeEndpoint),heartbeat.command.frame.toByteArray(),withResponse),5000,
+            beforeDispatch={ownsInitialization(expected) && state in listOf(DeviceState.SYNCHRONIZING,DeviceState.READY)}) {result->
+            // Never let a detached heartbeat re-arm or clear the replacement owner's pending work.
+            if(!ownsInitialization(expected))return@enqueue
+            heartbeatBusy=false
+            if(result is OperationResult.Success)heartbeatDue=clock()+heartbeat.intervalMs
+            else fail("scale heartbeat failed: $result")
         }
     }
     private fun send(command:EncodedCommand,expectedRole:DeviceRole,urgent:Boolean=false,
@@ -320,7 +400,24 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         if(!scaleAdapter.capabilities.tare || command==null) {
             callback(OperationResult.Failed("scale tare not supported by verified adapter"));return
         }
-        send(command,DeviceRole.BOOKOO,beforeDispatch=beforeDispatch,callback=callback)
+        if(!scaleAdapter.requiresTareAcknowledgement) {
+            send(command,DeviceRole.BOOKOO,beforeDispatch=beforeDispatch,callback=callback)
+            return
+        }
+        if(scaleTare!=null){callback(OperationResult.Failed("scale tare pending"));return}
+        val pending=ScaleTare(callback)
+        val expected=generation
+        scaleTare=pending
+        send(command,DeviceRole.BOOKOO,beforeDispatch={
+            val allowed=ownsInitialization(expected) && scaleTare===pending && beforeDispatch()
+            if(allowed){pending.dispatched=true;pending.deadline=clock()+5000}
+            allowed
+        }) {result->
+            if(scaleTare===pending) {
+                pending.written=result
+                completeScaleTare(pending)
+            }
+        }
     }
     private fun sendFromIdle(command:EncodedCommand,beforeDispatch:()->Boolean,callback:(OperationResult)->Unit) {
         if (!canControlFromIdle()) {
@@ -419,11 +516,16 @@ class DeviceSession(val role:DeviceRole,driver:GattDriver,private val clock:()->
         val expected=generation
         // Detach old session work before invoking any observer that may reconnect.
         val detachedSleep=sleepWrite;sleepWrite=null;initBusy=false
+        heartbeatDue=null;heartbeatBusy=false
+        val detachedTare=scaleTare;scaleTare=null
         activeAddress=null;lastIdle=null;lastIdleAtMs=null;lastSettingsAtMs=null;lastSettings=null;clearSleepReadback()
         try { setState(terminal) }
         finally {
             try { detachedSleep?.let { notifySleepResult(it,OperationResult.Unknown(sleepReason)) } }
-            finally { if(generation==expected)queue.disconnect(reason) }
+            finally {
+                try {detachedTare?.callback?.invoke(OperationResult.Unknown("scale disconnected before tare acknowledgement"))}
+                finally { if(generation==expected)queue.disconnect(reason) }
+            }
         }
     }
     private fun fail(reason:String){

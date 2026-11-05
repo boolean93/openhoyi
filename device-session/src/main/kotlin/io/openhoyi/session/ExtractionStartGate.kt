@@ -11,12 +11,12 @@ import io.openhoyi.protocol.IdleTelemetry
 object ExtractionStartGate {
     enum class Block {
         CURVE_MISSING, CURVE_UNVERIFIED, EXTRACTION_UNSETTLED, COFFEE_NOT_READY,
-        IDLE_NOT_FRESH, ASLEEP, SLEEP_UNKNOWN, SCALE_NOT_READY, WEIGHT_NOT_FRESH, ALARM,
+        IDLE_NOT_FRESH, ASLEEP, SLEEP_UNKNOWN, SCALE_NOT_READY, WEIGHT_NOT_FRESH, SCALE_CONTROL_UNVERIFIED, ALARM,
     }
 
     fun block(targetHundredthsGram: Int?, validated: Boolean, coffee: DeviceState,
         coffeeFrame: HoyiMessage?, coffeeAt: Long?, scale: DeviceState, weightAt: Long?,
-        now: Long, shot: ExtractionState): Block? = when {
+        now: Long, shot: ExtractionState, scaleControlValidated: Boolean = true): Block? = when {
         targetHundredthsGram == null -> Block.CURVE_MISSING
         !validated -> Block.CURVE_UNVERIFIED
         DeviceConnectionGate.unsettled(shot) -> Block.EXTRACTION_UNSETTLED
@@ -25,6 +25,7 @@ object ExtractionStartGate {
         coffeeFrame.sleepStateRaw == 1 -> Block.ASLEEP
         coffeeFrame.sleepStateRaw != 0 -> Block.SLEEP_UNKNOWN
         targetHundredthsGram > 0 && scale != DeviceState.READY -> Block.SCALE_NOT_READY
+        targetHundredthsGram > 0 && !scaleControlValidated -> Block.SCALE_CONTROL_UNVERIFIED
         targetHundredthsGram > 0 && !TelemetryFreshness.isFresh(weightAt, now) -> Block.WEIGHT_NOT_FRESH
         !CoffeeAlarmPolicy.permitsNewControl(coffeeFrame.alarmBits) -> Block.ALARM
         else -> null
