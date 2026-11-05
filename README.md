@@ -1,5 +1,7 @@
 # OpenHOYI
 
+[产品介绍网站](https://boolean93.github.io/openhoyi/) · [功能状态](docs/native-feature-status.md) · [实机验收记录](docs/alpha-acceptance.md)
+
 面向 **HOYI 咖啡机**的开源 Android 应用，使用 Kotlin 原生技术全新重写。
 
 通过蓝牙连接咖啡机和电子秤，查看萃取中的温度、压力、流量和重量，选择萃取曲线，回看每一杯的记录。

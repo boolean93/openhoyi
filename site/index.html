@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#241c18">
+  <meta name="description" content="OpenHOYI，面向 HOYI 咖啡机的开源 Android 应用。连接咖啡机与电子秤，观察实时萃取，选择曲线，回看每一杯。当前处于 Alpha 阶段。">
+  <meta property="og:title" content="OpenHOYI · 看懂每一次萃取">
+  <meta property="og:description" content="连接、观察、记录。为 HOYI 咖啡机而写的开源 Android 应用，当前处于 Alpha 阶段。">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://boolean93.github.io/openhoyi/">
+  <title>OpenHOYI · 看懂每一次萃取</title>
+  <link rel="icon" type="image/svg+xml" href="./assets/mark.svg">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+  <header class="header">
+    <a class="brand" href="#" aria-label="OpenHOYI 首页"><img src="./assets/mark.svg" width="34" height="34" alt=""><span>Open<span class="brand-light">HOYI</span></span></a>
+    <nav aria-label="主导航"><a href="#experience">体验</a><a href="#compatibility">兼容性</a><a href="#alpha">Alpha 须知</a></nav>
+    <a class="header-github" href="https://github.com/boolean93/openhoyi">GitHub <span aria-hidden="true">↗</span></a>
+  </header>
+
+  <main id="main">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-inner wrap">
+        <div class="hero-copy">
+          <div class="eyebrow"><span class="status-dot" aria-hidden="true"></span> OPEN SOURCE / ANDROID <span class="alpha-tag">ALPHA</span></div>
+          <h1 id="hero-title">看懂每一次<br><span>萃取。</span></h1>
+          <p class="hero-description">从曲线到杯中，<br>让每一杯咖啡都有迹可循。</p>
+          <p class="hero-detail">面向 HOYI 咖啡机的开源 Android 应用。通过蓝牙连接咖啡机与 BOOKOO 电子秤，观察实时数据，选择萃取曲线，回看每一杯。</p>
+          <div class="hero-actions"><a class="button button-mint" href="https://github.com/boolean93/openhoyi">查看源码 <span aria-hidden="true">↗</span></a><a class="button button-outline" href="#start">从源码构建 <span aria-hidden="true">↓</span></a></div>
+          <p class="hero-note">仍在打磨，不是正式产品。<a href="#alpha">先了解 Alpha 限制 <span aria-hidden="true">↗</span></a></p>
+        </div>
+        <figure class="instrument">
+          <div class="instrument-top"><span class="instrument-label">EXTRACTION / 萃取观察</span><span class="sample-label">示意数据</span></div>
+          <div class="instrument-reading"><div><span class="reading-label">压力 / PRESSURE</span><p>8.6 <span>bar</span></p></div><span class="reading-time">00:24<span>萃取时间 / s</span></span></div>
+          <svg class="chart" viewBox="0 0 480 210" role="img" aria-labelledby="chart-title chart-description">
+            <title id="chart-title">萃取压力与重量曲线示意</title><desc id="chart-description">示例压力先上升后缓降，重量逐渐增加。仅用于说明数据观察，不是实测记录。</desc>
+            <defs><linearGradient id="pressure-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9ddc7" stop-opacity=".18"/><stop offset="100%" stop-color="#a9ddc7" stop-opacity="0"/></linearGradient></defs>
+            <g class="chart-grid"><path d="M30 25H458 M30 70H458 M30 115H458 M30 160H458"/><path d="M30 25V160 M137 25V160 M244 25V160 M351 25V160 M458 25V160"/></g>
+            <g class="chart-labels"><text x="9" y="29">9</text><text x="9" y="74">6</text><text x="9" y="119">3</text><text x="9" y="164">0</text><text x="27" y="191">0</text><text x="130" y="191">8</text><text x="235" y="191">16</text><text x="342" y="191">24</text><text x="446" y="191">32 s</text></g>
+            <path d="M30 160 C55 158 60 125 80 123 S115 126 130 102 S155 37 180 35 S235 36 267 40 S320 50 351 55 S420 67 458 80 V160H30Z" fill="url(#pressure-fill)"/>
+            <path d="M30 160 C55 158 60 125 80 123 S115 126 130 102 S155 37 180 35 S235 36 267 40 S320 50 351 55 S420 67 458 80" fill="none" stroke="#a9ddc7" stroke-width="3" stroke-linecap="round"/>
+            <path d="M30 160H110 C155 159 180 149 214 134 S281 109 314 92 S389 55 458 28" fill="none" stroke="#d9b18b" stroke-width="2.5" stroke-linecap="round"/>
+            <path d="M351 20V167" stroke="#c7bdb3" stroke-opacity=".4" stroke-dasharray="3 5"/><circle cx="351" cy="55" r="5" fill="#a9ddc7" stroke="#302721" stroke-width="3"/>
+          </svg>
+          <div class="chart-legend"><span><i class="mint-dot"></i>压力</span><span><i class="tan-dot"></i>重量</span><span class="legend-caption">观察变化，而不只看终点</span></div>
+          <div class="instrument-metrics"><div><span>水温</span><strong>93.0 <small>°C</small></strong></div><div><span>杯中重量</span><strong>28.4 <small>g</small></strong></div><div><span>秤流速</span><strong>1.8 <small>g/s</small></strong></div></div>
+          <figcaption><span aria-hidden="true">※</span> 界面示意 · 非 App 截图 · 非实时数据<br>本网站不连接或控制设备</figcaption>
+        </figure>
+      </div>
+      <div class="hero-footer wrap"><span>为好奇心而写，为每一杯而记录。</span><span>KOTLIN NATIVE <span aria-hidden="true">/</span> GPL v2 <span aria-hidden="true">/</span> COMMUNITY BUILT</span></div>
+    </section>
+
+    <section class="section wrap" id="experience" aria-labelledby="experience-title">
+      <div class="section-heading"><div><p class="eyebrow section-index">01 / THE EXPERIENCE</p><h2 id="experience-title">从连接开始，<br>到下一杯的灵感。</h2></div><p class="section-intro">把设备、曲线与记录放在一起。<br>少一些来回切换，多一点对萃取的理解。</p></div>
+      <div class="feature-grid">
+        <article class="feature"><span class="feature-number">01 — CONNECT</span><div class="feature-art connection-art" aria-hidden="true"><span>HOYI</span><i>·····</i><span>Android</span><i>·····</i><span>BOOKOO</span></div><h3>让设备说同一种语言</h3><p>蓝牙连接咖啡机和电子秤，集中查看连接状态、机器告警与实时读数。机器水流与秤流速分开呈现，信息不混淆。</p><span class="feature-foot">咖啡机 + 电子秤，双设备连接</span></article>
+        <article class="feature"><span class="feature-number">02 — OBSERVE</span><div class="feature-art curve-art" aria-hidden="true"><svg viewBox="0 0 240 64"><path d="M0 56H240 M0 29H240" stroke="currentColor" opacity=".15"/><path d="M2 55H32L53 38H84L102 10H154L186 22L237 33" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="102" cy="10" r="4" fill="currentColor"/></svg></div><h3>找到属于这一杯的曲线</h3><p>浏览 100 条工厂曲线与 3 条已采集曲线，设置 5 个快捷槽位。萃取时观察压力、温度、水流、秤流速与重量。</p><span class="feature-foot">启动前确认，萃取中可请求手动停止</span></article>
+        <article class="feature"><span class="feature-number">03 — REMEMBER</span><div class="feature-art journal-art" aria-hidden="true"><span><i></i> THIS SHOT</span><span><i></i> LAST SHOT</span><span><i></i> YOUR NEXT IDEA</span></div><h3>把每一次尝试留下来</h3><p>离线回看萃取历史与采样曲线，导出历史 ZIP。旧版历史可手动导入，在独立的只读入口中查看。</p><span class="feature-foot">记录可回看，问题有日志可追溯</span></article>
+      </div>
+      <p class="section-note">上述为代码已实现的功能范围，不代表全部通过实机验收。<a href="https://github.com/boolean93/openhoyi/blob/develop/docs/native-feature-status.md">查看功能状态 <span aria-hidden="true">↗</span></a></p>
+    </section>
+
+    <section class="compatibility-section" id="compatibility" aria-labelledby="compatibility-title"><div class="wrap compatibility-layout">
+      <div><p class="eyebrow section-index">02 / COMPATIBILITY</p><h2 id="compatibility-title">先确认，<br>再连接。</h2><p class="body-muted">设备适配有明确边界。<br>不把“可以扫描到”当作“兼容”。</p><a class="text-link" href="https://github.com/boolean93/openhoyi/blob/develop/README.md#设备与兼容性">阅读兼容性说明 <span aria-hidden="true">↗</span></a></div>
+      <div class="compatibility-list"><dl>
+        <div><dt><span>01</span> 手机 / 平板</dt><dd>Android 8.0 及以上<span>API 26+，需要支持 BLE 蓝牙</span></dd></div>
+        <div><dt><span>02</span> 咖啡机</dt><dd>HOYI · 固件 1.1.3<span>控制仅对已采集验证的 1.1.3 固件开放；其他固件只读或不支持</span></dd></div>
+        <div><dt><span>03</span> 电子秤</dt><dd>BOOKOO<span>当前已采集的协议范围；不代表品牌全系列兼容，其他电子秤尚未适配</span></dd></div>
+        <div><dt><span>04</span> 萃取曲线</dt><dd>已校验的工厂与采集曲线<span>导入的个人曲线暂只读，不开放启动</span></dd></div>
+      </dl><p class="compatibility-note">当前仅提供 Android 应用，无 iOS、桌面或网页版控制端。</p></div>
+    </div></section>
+
+    <section class="section wrap alpha-section" id="alpha" aria-labelledby="alpha-title">
+      <div class="section-heading"><div><p class="eyebrow section-index">03 / A WORK IN PROGRESS</p><h2 id="alpha-title">开放源码，<br>也坦诚边界。</h2></div><p class="section-intro">OpenHOYI 仍处于 Alpha 阶段。<br>它是个人开发的开源实验项目，<br>不是经过完整验证的正式产品。</p></div>
+      <div class="alpha-grid"><article class="alpha-card"><span class="card-label">已有的实机记录</span><h3>每一个结论，都有范围。</h3><ul><li>咖啡机与 BOOKOO 双设备连接、持续收数</li><li>部分已知曲线的受监护萃取</li><li>手动停止请求与机器实际停水的对应记录</li></ul><a class="text-link" href="https://github.com/boolean93/openhoyi/blob/develop/docs/alpha-acceptance.md">阅读实机验收记录 <span aria-hidden="true">↗</span></a></article>
+      <article class="alpha-card pending-card"><span class="card-label">仍待完整验收</span><h3>不把“已实现”说成“已验证”。</h3><ul><li>目标重量自动停止</li><li>设置写入、异常恢复与连接稳定性</li><li>更多设备状态、曲线与边界场景</li></ul><a class="text-link" href="https://github.com/boolean93/openhoyi/blob/develop/docs/coverage.md">查看覆盖与验证进度 <span aria-hidden="true">↗</span></a></article></div>
+      <aside class="safety-note" aria-labelledby="safety-title"><span class="safety-icon" aria-hidden="true">!</span><div><h3 id="safety-title">试用时，请留在机器旁。</h3><p>本项目与咖啡机制造商无关联，也未获得其认证。应用会发送蓝牙控制指令，软件或协议缺陷可能导致控制异常、设备不可用甚至损坏。请保留机器本身的停止手段；结果未知时，先核对机器实际状态，不要反复发送指令。</p><p>软件按“现状”提供，不作保证；风险与责任边界见 <a href="https://github.com/boolean93/openhoyi/blob/develop/README.md#免责声明与使用风险">完整免责声明</a> 及 <a href="https://github.com/boolean93/openhoyi/blob/develop/LICENSE">GPL v2 许可</a>，不限制法律规定不得排除的责任。</p></div></aside>
+    </section>
+
+    <section class="start-section" id="start" aria-labelledby="start-title"><div class="wrap start-layout">
+      <div class="start-copy"><p class="eyebrow">04 / MAKE IT YOURS</p><h2 id="start-title">下一杯，<br>一起打磨。</h2><p>如果你理解 Alpha 的使用风险，<br>可以从源码构建，或参与项目改进。</p><div class="start-actions"><a class="button button-mint" href="https://github.com/boolean93/openhoyi">探索 GitHub <span aria-hidden="true">↗</span></a><a class="light-link" href="https://github.com/boolean93/openhoyi/issues">反馈问题 <span aria-hidden="true">↗</span></a></div><p class="contribution-note">欢迎代码、体验反馈与设备适配证据。<br>较大改动先开 Issue，PR 提交至 develop。<br><a href="https://github.com/boolean93/openhoyi/blob/develop/docs/git-workflow.md">了解贡献流程 ↗</a></p></div>
+      <div class="build-panel"><div class="build-heading"><span>从源码构建 / ALPHA</span><span>JDK 17 · SDK 35</span></div><pre tabindex="0" aria-label="源码构建命令"><code><span class="code-comment"># 获取集成分支</span>
+git clone --branch develop \
+  https://github.com/boolean93/openhoyi.git
+cd openhoyi
+
+<span class="code-comment"># 构建 Android Alpha 应用</span>
+./gradlew :mobile:assembleDebug</code></pre><div class="build-notes"><p><strong>初次试用？</strong> 先阅读 <a href="https://github.com/boolean93/openhoyi/blob/develop/README.md#从源码构建">构建与连接说明</a>。主包用于真实设备，Lab 用于协议诊断；Mock 仅模拟体验，不能代替硬件验收。</p><p>覆盖安装需保持签名一致、版本码递增并保留数据。不要用卸载、清数据或降级绕过冲突。<a href="https://github.com/boolean93/openhoyi/blob/develop/docs/plans/apk-distribution.md">安装与升级边界 ↗</a></p></div></div>
+    </div></section>
+  </main>
+  <footer class="footer wrap"><div><a class="brand" href="#"><img src="./assets/mark.svg" width="28" height="28" alt=""><span>Open<span class="brand-light">HOYI</span></span></a><p>为每一次萃取，留下一点理解。</p></div><div class="footer-links"><a href="https://github.com/boolean93/openhoyi">源码</a><a href="https://github.com/boolean93/openhoyi/issues">Issues</a><a href="https://github.com/boolean93/openhoyi/blob/develop/LICENSE">GPL v2</a><a href="#alpha">使用风险</a></div><p class="footer-bottom">独立开源实验项目 · 非制造商官方产品 <span>本网站仅作静态介绍，不连接设备、不采集设备数据。</span></p></footer>
+</body>
+</html>

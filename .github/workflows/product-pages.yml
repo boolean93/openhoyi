@@ -1,0 +1,57 @@
+name: Product Pages
+
+on:
+  pull_request:
+    paths:
+      - 'site/**'
+      - 'scripts/test_product_pages.py'
+      - '.github/workflows/product-pages.yml'
+  push:
+    branches: [develop]
+    paths:
+      - 'site/**'
+      - 'scripts/test_product_pages.py'
+      - '.github/workflows/product-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: product-pages-${{ github.event_name == 'pull_request' && github.ref || 'deploy' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Validate static product site
+        run: python3 -m unittest discover -s scripts -p test_product_pages.py -v
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/develop'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+      - name: Deploy product site
+        id: deployment
+        uses: actions/deploy-pages@v4
