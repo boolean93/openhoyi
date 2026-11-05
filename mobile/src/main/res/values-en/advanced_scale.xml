@@ -38,6 +38,9 @@
     <string name="scale_offline_evidence">TIMEMORE DOT / Basic3 Link and legacy ULTRA, Felicita, Acaia and DiFluid profiles are experimental, pending hardware acceptance. Unverified scales have no weight-target control, automatic tare or bean capture. Saved read-only Felicita selections remain read-only; scan and select again to enable manual tare.</string>
     <string name="scale_documented_live">Documented protocol, pending hardware acceptance; no weight-target control or bean capture</string>
     <string name="scale_capability_documented">Documented protocol, pending hardware acceptance</string>
+    <!-- zh/en copy only by owner decision; other locales use English fallback until translated. -->
+    <string name="scale_control_unverified">Weight-target control is not verified for this scale; weight-target curves cannot start</string>
+    <string name="scale_secondary_value">Secondary sensor %1$s g (experimental)</string>
     <string name="scale_settings_subtitle">Changes display in this app only; no device settings commands are sent</string>
     <string name="scale_precision">Display to 0.1 g (0.01 g when off)</string>
     <string name="scale_capabilities_title">Current protocol capabilities</string>
