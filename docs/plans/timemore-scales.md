@@ -31,3 +31,17 @@
 - 沿用上述分支 / PR，起点 `b1af99c`；只改 README 与本记录，安全门禁、实机证据与未适配范围不变。贡献部分提供可执行的分支、构建、相称验证与 PR 步骤。
 - 技术来源保留在本记录：[官方 v1.0.3 固定版本](https://github.com/TIMEMORE-COFFEE/open-scale-protocol/blob/e31dce5087494ea3d572a89e689e48dc014eee2c/Timemore%20Black%20Mirror%20SCALE%20BLE%20Protocol.md)；MIT 社区参考 [dot.cpp](https://github.com/gaggimate/esp-arduino-ble-scales/blob/main/src/scales/dot.cpp) / [timemore.cpp](https://github.com/gaggimate/esp-arduino-ble-scales/blob/main/src/scales/timemore.cpp)。协议推断与待办仍以上述风险和验收记录为准。
 - 本轮检查：`git diff --check`、分支策略检查通过；README 11 个及本记录 1 个本地链接均存在，表格 / 代码块结构通过。已核对四个正文重点的顺序、文末免责声明与单句协议来源，diff 仅两个文档；无构建或设备操作。发布、安装与回退边界同上。
+
+### 秤排序与迁移完整性核查（同日）
+
+- 用户要求兼容表按 BOOKOO → Felicita → TIMEMORE 排序，并核实旧版其他蓝牙秤是否完整迁移。
+- 从 `87f046d` 继续同一 README / 适配任务，沿用功能分支和 PR；初始工作树干净，已 fetch。Lead 只调整文档并核查原生接入；独立只读工作者核查旧版可执行扫描、初始化、通知和去皮分支，不修改旧项目。
+- 范围：核查与如实记录缺口，不以增加离线解码冒充连接支持，不在本轮直接扩展未经设计 / 验证的设备写入。仅修改 README 与本记录；验证采用文档及源码对照，不构建、不安装、不操作设备；推送、回退与发布边界同上。
+- 核查结论：旧版兼容未完整迁移，缺口不是 README 漏列。旧版可执行链路包含四个品牌族、A/AP/F/D/BOOKOO 五类分支；泰摩为原生新增，不代表旧族迁移完成。
+  - BOOKOO：主要链路已接入，但旧版还识别仅含 `ULTRA` 的广播名，原生分类器未纳入该别名；不能据此承诺全部 ULTRA 型号兼容。连接即去皮并计时帧是原生有意移除，不算漏迁。
+  - Felicita：旧版有显式去皮（`encodeTare` 的 F 分支）；原生仅 ASCII 只读连接，缺去皮。旧版初始化 F 分支只发就绪事件，不存在需要补迁的初始化写帧；旧版两处重量解码不一致，不能直接照搬。
+  - Acaia：旧版 A 分支识别 `PROCHBT` / `ACAIA`，AP 分支识别 `PEARL` / `LUNAR` / `PYXIS`，分别走两套 GATT，有初始化、订阅与心跳；原生只有离线候选，尚无实时连接。旧版 `encodeTare` 只匹配 A，不匹配 AP，不能承诺 AP 原有去皮能力。
+  - DiFluid：旧版 `Microbalance` / `difluid` 与 `Mb Ti` 分别选 EE / DD 服务，有初始化、通知与去皮分支；原生只有离线候选，尚无实时连接。旧版猜偏移与失败遍历写入不能不经验证原样迁入。
+- 证据：旧版格式化 JS 的 `ConnectScaleBle`（61820–61863）、扫描白名单（70744–70767）、初始化（62809–62933）与 `encodeTare`（63135–63188）；Lead 另核对原始 `1.2.4.apk` 内实际连接分支包含上述全部广播名，提取 JS 与本地 raw 文件逐字节相同，SHA-256 为 `70ccac9c2bb3705b446cbc9a338f68706506901be05d18d6c84cdae0b7a1cbe1`。旧版分支存在不等于各型号实机可用；Acaia 旧解码还存在裸 `Message` 引用问题，不应直接宣称旧实现正确。
+- 原生证据：[注册表与适配器](../../device-session/src/main/kotlin/io/openhoyi/session/ScaleProtocolAdapter.kt)、[扫描分类器](../../bluetooth-android/src/main/kotlin/io/openhoyi/bluetooth/ScaleAdvertisementClassifier.kt)和[连接选择策略](../../device-session/src/main/kotlin/io/openhoyi/session/SingleScaleConnectionSlot.kt)共同确认：离线候选没有 GATT 端点，不进入可连接选择，Acaia / DiFluid 也不进入扫描列表。缺口如实写入 README，不扩大现有支持承诺。
+- 验证：`git diff --check`、`python3 scripts/git_policy.py branch` 通过；README 11 个及本记录 4 个本地链接、表格与代码块结构通过，BOOKOO → Felicita → TIMEMORE 顺序及仅两份文档的改动范围检查通过。独立只读审计已返回，未执行新硬件验收。
