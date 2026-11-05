@@ -32,7 +32,7 @@ class ScaleProtocolAdapterTest {
             val observation=(adapter.decode(bytes,10) as DecodeResult.Valid).value
             assertFalse(observation.eligibleForControl)
         }
-        assertEquals(listOf(BookooScaleProtocolAdapter),ScaleProtocolRegistry.connectable)
+        assertEquals(listOf(BookooScaleProtocolAdapter,TimemoreDotScaleProtocolAdapter,TimemoreBasicLinkScaleProtocolAdapter),ScaleProtocolRegistry.connectable)
     }
     @Test fun adapterDoesNotExpandWriteWhitelist() {
         val adapter=BookooScaleProtocolAdapter
@@ -114,6 +114,20 @@ class ScaleProtocolAdapterTest {
         controller.weight(WeightReading(0,1000))
         val parameters=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
         assertFalse(controller.start(parameters,3400,0));assertEquals(0,scale.tares);assertEquals(0,coffee.starts)
+    }
+    @Test fun manualTareCapabilityDoesNotEnableAutomaticTareDuringFlowOnlyExtraction() {
+        var tares=0
+        val scale=object:ScaleControl {
+            override val ready=true;override val startAllowed=true
+            override val capabilities=TimemoreDotScaleProtocolAdapter.capabilities
+            override fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit) {tares++;done(OperationResult.Success())}
+        }
+        var now=1000L
+        val coffee=Coffee();val controller=ExtractionController(coffee,scale,{now})
+        val parameters=StartParameters(true,true,3,7,92,136,false,0,20,35,18,0,150,5,400,130,0)
+        assertTrue(controller.start(parameters,0,0));assertEquals(1,coffee.starts)
+        now=2500;controller.tick()
+        assertEquals(0,tares)
     }
     @Test fun offlineObservationCannotPopulateExtractionPreflight() {
         val coffee=Coffee();val scale=object:ScaleControl {

@@ -4,7 +4,7 @@
 
 通过蓝牙连接咖啡机和电子秤，查看萃取中的温度、压力、流量和重量，选择萃取曲线，回看每一杯的记录。
 
-电子秤目前仅支持 **BOOKOO**。项目将蓝牙协议、设备会话与萃取控制分层，并设计了可扩展的电子秤接入架构，未来计划支持多种蓝牙电子秤与 HOYI 咖啡机联动。其他电子秤尚未适配。
+电子秤支持 **BOOKOO**，并新增 **泰摩 TIMEMORE DOT（TES017）/ Basic3 Link（TES016）** 的公开协议接入，以及旧款 `timemore scale` 双传感器协议的实验性只读连接。**新增泰摩适配尚未实机验收，不代表全型号或全部固件兼容**；目标重量联动、自动去皮和称豆取粉量暂不对泰摩开放。
 
 > **当前处于 Alpha 阶段。** 已有双设备连接、受监护萃取和手动停止的实机记录；目标重量自动停止、设置写入和异常恢复仍待完整验收。试用时请在机器旁看守，并保留机器上的手动停止手段。详见 [实机验收记录](docs/alpha-acceptance.md)。
 
@@ -33,11 +33,29 @@ Debug / Alpha 版本仅供了解风险的用户自行评估和试用，不是经
 |---|---|
 | 手机 / 平板 | Android 8.0（API 26）及以上，支持 BLE |
 | 咖啡机 | HOYI；控制功能仅对已采集验证的固件 **1.1.3** 开放 |
-| 电子秤 | 目前仅支持已采集协议的 BOOKOO 设备；计划扩展其他蓝牙电子秤 |
+| 电子秤 | BOOKOO；泰摩 DOT / Basic3 Link（官方协议接入，待实机）；旧款泰摩 / Felicita（实验性只读） |
 | 萃取曲线 | 启动入口限于已校验的工厂曲线及采集曲线；导入的个人曲线暂只读 |
 | 其他平台 | 当前仓库提供 Android 应用 |
 
 其他咖啡机固件处于只读或不支持范围，请勿据此推断兼容。BOOKOO 的负值帧已有解码测试，但仍缺少已知负重量的实物对照。
+
+### 泰摩支持范围与协议来源
+
+| 型号 / 协议 | 软件接入范围 | 证据与限制 |
+|---|---|---|
+| DOT（TES017） | FFF0 / FFF1 通知 / FFF2 无响应写；重量、设备流速、电量、显式去皮 | 官方协议接入，未实机验收；先设克并读取单位，确认克后才接收重量 |
+| Basic3 Link（TES016） | 与 DOT 共用公开协议，单独保存协议选择 | 官方仓库明确列出型号；仍须逐固件核验，未实机验收 |
+| 旧款广播名 `timemore scale`（181D / 2A9D） | 实验性只读；严格九字节双 int32LE，主重量取第二通道，次传感器值另行显示 | 社区实现存在 int16 / int32 差异；不发送激活、心跳或去皮，部分固件可能订阅后没有数据；不能推断全部 Black Mirror 2 / DUO 兼容 |
+
+新代协议依据泰摩公开的 **[open-scale-protocol](https://github.com/TIMEMORE-COFFEE/open-scale-protocol)**，具体参见 [Black Mirror SCALE BLE Protocol v1.0.3](https://github.com/TIMEMORE-COFFEE/open-scale-protocol/blob/e31dce5087494ea3d572a89e689e48dc014eee2c/Timemore%20Black%20Mirror%20SCALE%20BLE%20Protocol.md)。感谢泰摩公开协议；本项目为独立实现，非厂商认证。协议仓库未声明独立开源许可证，此处只链接引用，不转载全文。
+
+- 重量按 0.1 g 转换，CRC 使用 init `FFFF`、反射多项式 `A001`、大端尾码。官方重量章节未写明缩放，CRC 也缺少完整向量；这些具体解释参考 [MIT 社区实现](https://github.com/gaggimate/esp-arduino-ble-scales/blob/main/src/scales/dot.cpp)，仍待真实读数与数据包对照。旧款格式参考同仓库 [timemore.cpp](https://github.com/gaggimate/esp-arduino-ble-scales/blob/main/src/scales/timemore.cpp)，不混用有分歧的格式。
+- 新代不自动去皮、不远程启动计时、不更改秤工作模式、不恢复出厂或清除配对。单位设置成功 ACK 不是克单位读回；去皮 GATT 写成功也不是归零，需协议接受及后续有效零重量观察。缺失 ACK、超时或断线结果保持未知，不自动重发。
+- 通知允许部分固件保留的零 CRC；非零校验失败、异常长度、溢出、过载均拒绝成为有效重量。单位改为 oz / 未知后撤销克授权和实时状态；每次连接重新确认单位，不跨设备复用缓冲。
+- 仅匹配明确型号 / 协议广播名，再检查实际 GATT。无名称广播不会仅凭通用 FFF0 被猜成泰摩；请按秤说明进入可发现 / 配对状态，并断开其他 App。名称不匹配的新固件需收集脱敏广播与 GATT 证据后再补充。
+- 非蓝牙 Basic2、Nano、Mini 等设备不因此获得连接能力；未列出的 Basic4 或其他型号不按名称相似直接宣称兼容。所有泰摩目标重量启动 / 自动停水、自动去皮及称豆取粉量仍关闭；App 本地计时照常独立工作。
+
+上述离线编解码、会话测试及构建均不等同硬件验收；需补齐型号、固件、正负重量对照、单位、去皮实际动作、断线重连和旧款双通道验证。
 
 ## 选择哪个应用
 
@@ -108,7 +126,7 @@ adb install -r mobile/build/outputs/apk/debug/mobile-debug.apk
 |---|---|
 | `mobile` | Alpha 应用：连接、曲线、萃取、历史和设置 |
 | `app` | Lab 应用：诊断、采集和日志导出 |
-| `protocol-core` | HOYI / BOOKOO 协议编解码，无 Android 依赖 |
+| `protocol-core` | HOYI / BOOKOO / TIMEMORE 协议编解码及其他秤离线候选，无 Android 依赖 |
 | `device-session` | 设备会话、命令队列、重连和控制状态机，无 Android 依赖 |
 | `bluetooth-android` | Android BLE 扫描、GATT 与设备会话桥接 |
 | `trace-core` | 两个应用共用的日志与 ZIP 导出，无 Android 依赖 |

@@ -1,14 +1,20 @@
 package io.openhoyi.bluetooth
 
-import io.openhoyi.session.BookooScaleProtocolAdapter
-import io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter
+import io.openhoyi.session.*
+import java.util.Locale
 
 /** Advertisement names are discovery hints, never proof of protocol or firmware compatibility. */
 object ScaleAdvertisementClassifier {
-    fun protocolId(name:String):String? =
-        when {
+    fun protocolId(name:String):String? {
+        val normalized=name.lowercase(Locale.ROOT).replace(Regex("[-_\\s]+")," ").trim()
+        return when {
             name.contains("BOOKOO",ignoreCase=true)->BookooScaleProtocolAdapter.id
             name.contains("FELICITA",ignoreCase=true)->FelicitaReadOnlyScaleProtocolAdapter.id
+            // Names are hints only; exact endpoints and gram readback remain mandatory.
+            Regex("(?:timemore )?(?:dot|tes017)(?: [a-z0-9]+)?").matches(normalized)->TimemoreDotScaleProtocolAdapter.id
+            Regex("(?:timemore )?(?:basic ?3 link|tes016)(?: [a-z0-9]+)?").matches(normalized)->TimemoreBasicLinkScaleProtocolAdapter.id
+            normalized=="timemore scale"->TimemoreLegacyReadOnlyScaleProtocolAdapter.id
             else->null
         }
+    }
 }

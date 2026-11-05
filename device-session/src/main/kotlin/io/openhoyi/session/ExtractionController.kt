@@ -21,7 +21,7 @@ interface ScaleControl {
     val ready:Boolean
     val startAllowed:Boolean
     // Compatibility default for existing control implementations; live session overrides with evidence.
-    val capabilities:ScaleCapabilities get()=ScaleCapabilities(tare=true,validatedWeightControl=true)
+    val capabilities:ScaleCapabilities get()=ScaleCapabilities(tare=true,validatedWeightControl=true,automaticTare=true)
     fun tare(beforeDispatch:()->Boolean,done:(OperationResult)->Unit)
 }
 class CoffeeSessionControl(private val session:DeviceSession):CoffeeControl {
@@ -193,7 +193,7 @@ class ExtractionController(private val coffee:CoffeeControl,private val scale:Sc
         val now=clock()
         // Flow-only profiles retain the observed legacy tare timing; weight-target profiles
         // complete tare before any machine start frame is sent.
-        if(target==0&&!postStartTareSent&&scale.capabilities.tare&&scale.ready&&now-started>=1500){
+        if(target==0&&!postStartTareSent&&scale.capabilities.tare&&scale.capabilities.automaticTare&&scale.ready&&now-started>=1500){
             postStartTareSent=true
             val tareShot=serial
             scale.tare({tareShot==serial && state==ExtractionState.RUNNING && coffee.ready}) { }

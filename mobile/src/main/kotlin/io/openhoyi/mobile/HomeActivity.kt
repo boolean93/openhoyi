@@ -871,8 +871,10 @@ class HomeActivity : ThemedActivity() {
         if (keys != candidateKeys) {
             candidateKeys = keys; candidates.removeAllViews()
             s.candidates.forEach { device ->
-                if (device.scaleProtocolId == io.openhoyi.session.FelicitaReadOnlyScaleProtocolAdapter.id)
+                if (device.scaleProtocolId?.let(io.openhoyi.session.ScaleSelectionPolicy::adapter)?.readOnlyTransport == true)
                     HoyiUi.label(this, candidates, getString(R.string.scale_read_only_live), 14, muted = true)
+                if (device.scaleProtocolId?.let(io.openhoyi.session.ScaleSelectionPolicy::adapter)?.documentedTransport == true)
+                    HoyiUi.label(this, candidates, getString(R.string.scale_documented_live), 14, muted = true)
                 button(candidates, getString(R.string.home_candidate, device.advertisedName, getString(if (device.candidateRole == DeviceRole.COFFEE) R.string.home_coffee else R.string.home_scale))) { choose(device) }
             }
         }

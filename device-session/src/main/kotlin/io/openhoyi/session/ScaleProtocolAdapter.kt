@@ -2,6 +2,18 @@ package io.openhoyi.session
 
 import io.openhoyi.protocol.*
 
+sealed interface ScaleProtocolEvent {
+    data object ReadingInvalidated:ScaleProtocolEvent
+    data class TareAcknowledgement(val success:Boolean):ScaleProtocolEvent
+}
+
+/** Expected evidence is derived at the call site, not delegated with another adapter's properties. */
+val ScaleProtocolAdapter.observationEvidence:ScaleEvidence get()=when {
+    readOnlyTransport->ScaleEvidence.LIVE_READ_ONLY
+    documentedTransport->ScaleEvidence.DOCUMENTED_TRANSPORT
+    else->ScaleEvidence.VERIFIED_TRANSPORT
+}
+
 /** Protocol boundary owned by the existing scale DeviceSession. Offline candidates have no
  * endpoints, initialization or writes, and cannot be supplied to a connectable session. */
 interface ScaleProtocolAdapter {
@@ -12,6 +24,14 @@ interface ScaleProtocolAdapter {
     val initializationCommands:List<TimedCommand>
     val tareCommand:EncodedCommand?
     val transportVerified:Boolean
+    /** Public protocol evidence permits narrowly whitelisted transport, not weight control. */
+    val documentedTransport:Boolean get()=false
+    val requiresWriteWithoutResponse:Boolean get()=false
+    /** Stateful protocols return a fresh decoder per generation; null uses this adapter's decode.
+     * Do not bind ::decode here: Kotlin interface delegation can bind it to the delegate instead
+     * of the overriding adapter (for example the subscription-only Felicita adapter). */
+    fun newDecoder(onEvent:(ScaleProtocolEvent)->Unit={}):((ByteArray,Long)->DecodeResult<ScaleObservation>)? = null
+    val requiresTareAcknowledgement:Boolean get()=false
     /** Explicit documented subscription-only transport; never permits a characteristic write. */
     val readOnlyTransport:Boolean get()=false
     fun decode(bytes:ByteArray,receivedAtMs:Long):DecodeResult<ScaleObservation>
@@ -42,9 +62,9 @@ class OfflineScaleProtocolAdapter(val family:LegacyScaleFamily):ScaleProtocolAda
     override fun permitsWrite(operation:GattOperation.Write)=false
 }
 object ScaleProtocolRegistry {
-    val connectable:List<ScaleProtocolAdapter> = listOf(BookooScaleProtocolAdapter)
+    val connectable:List<ScaleProtocolAdapter> = listOf(BookooScaleProtocolAdapter,TimemoreDotScaleProtocolAdapter,TimemoreBasicLinkScaleProtocolAdapter)
     val offlineCandidates:List<ScaleProtocolAdapter> = LegacyScaleFamily.entries.map(::OfflineScaleProtocolAdapter)
-    val readOnlyCandidates:List<ScaleProtocolAdapter> = listOf(FelicitaReadOnlyScaleProtocolAdapter)
+    val readOnlyCandidates:List<ScaleProtocolAdapter> = listOf(FelicitaReadOnlyScaleProtocolAdapter,TimemoreLegacyReadOnlyScaleProtocolAdapter)
 }
 
 /** Published FFE0/FFE1 ASCII notification shape, not all Felicita models/firmware.
