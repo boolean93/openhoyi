@@ -1,5 +1,7 @@
 # OpenHOYI
 
+[产品介绍网站](https://boolean93.github.io/openhoyi/) · [功能状态](docs/native-feature-status.md) · [实机验收记录](docs/alpha-acceptance.md)
+
 ## 这是什么
 
 OpenHOYI 是面向 **HOYI 咖啡机**的开源 Android 应用，使用 Kotlin 原生开发。
