@@ -38,9 +38,6 @@
     <string name="scale_offline_evidence">TIMEMORE DOT / Basic3 Link y los perfiles antiguos ULTRA, Felicita, Acaia y DiFluid son experimentales, pendientes de pruebas físicas. Las básculas no verificadas no permiten control por peso objetivo, tara automática ni captura de peso del café. Las selecciones Felicita de solo lectura se conservan; vuelve a buscar y seleccionar para habilitar la tara manual.</string>
     <string name="scale_documented_live">Protocolo documentado, pendiente de pruebas físicas; sin control por peso objetivo ni captura de café</string>
     <string name="scale_capability_documented">Protocolo documentado, pendiente de pruebas físicas</string>
-    <!-- English fallback pending translation; zh/en copy only by owner decision. -->
-    <string name="scale_control_unverified">Weight-target control is not verified for this scale; weight-target curves cannot start</string>
-    <string name="scale_secondary_value">Secondary sensor %1$s g (experimental)</string>
     <string name="scale_settings_subtitle">Solo cambia la visualización en esta app; no envía órdenes de configuración al dispositivo</string>
     <string name="scale_precision">Mostrar con precisión de 0.1 g (0.01 g al desactivar)</string>
     <string name="scale_capabilities_title">Funciones del protocolo actual</string>

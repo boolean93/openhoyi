@@ -38,9 +38,6 @@
     <string name="scale_offline_evidence">TIMEMORE DOT / Basic3 Link และโปรไฟล์เก่า ULTRA, Felicita, Acaia, DiFluid เป็นการรองรับแบบทดลอง รอทดสอบกับอุปกรณ์จริง เครื่องชั่งที่ยังไม่ยืนยันไม่รองรับการควบคุมตามน้ำหนักเป้าหมาย การหักน้ำหนักอัตโนมัติ หรือเก็บน้ำหนักเมล็ดกาแฟ การเลือก Felicita แบบอ่านอย่างเดียวที่บันทึกไว้จะคงเดิม โปรดสแกนและเลือกใหม่เพื่อใช้การหักน้ำหนักด้วยตนเอง</string>
     <string name="scale_documented_live">มีหลักฐานโปรโตคอล รอทดสอบกับอุปกรณ์จริง ไม่มีการควบคุมน้ำหนักเป้าหมายหรือเก็บน้ำหนักเมล็ด</string>
     <string name="scale_capability_documented">มีหลักฐานโปรโตคอล รอทดสอบกับอุปกรณ์จริง</string>
-    <!-- English fallback pending translation; zh/en copy only by owner decision. -->
-    <string name="scale_control_unverified">Weight-target control is not verified for this scale; weight-target curves cannot start</string>
-    <string name="scale_secondary_value">Secondary sensor %1$s g (experimental)</string>
     <string name="scale_settings_subtitle">ปรับเฉพาะการแสดงผลในแอปนี้ ไม่ส่งคำสั่งตั้งค่าไปยังอุปกรณ์</string>
     <string name="scale_precision">แสดงละเอียดถึง 0.1 กรัม (0.01 กรัมเมื่อปิด)</string>
     <string name="scale_capabilities_title">ความสามารถของโปรโตคอลปัจจุบัน</string>

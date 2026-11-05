@@ -38,9 +38,6 @@
     <string name="scale_offline_evidence">TIMEMORE DOT / Basic3 Linkと旧ULTRA、Felicita、Acaia、DiFluidは実験的対応で、実機検証待ちです。未検証の秤では重量目標制御・自動風袋引き・豆量取得は利用できません。保存済みFelicitaの読み取り専用設定は維持されます。手動風袋引きには再スキャンして選択してください。</string>
     <string name="scale_documented_live">プロトコル資料に基づく対応、実機検証待ち。重量目標制御・豆量取得なし</string>
     <string name="scale_capability_documented">プロトコル資料に基づく対応、実機検証待ち</string>
-    <!-- English fallback pending translation; zh/en copy only by owner decision. -->
-    <string name="scale_control_unverified">Weight-target control is not verified for this scale; weight-target curves cannot start</string>
-    <string name="scale_secondary_value">Secondary sensor %1$s g (experimental)</string>
     <string name="scale_settings_subtitle">このアプリの表示のみを変更します。機器の設定コマンドは送信しません。</string>
     <string name="scale_precision">0.1 g単位で表示（オフの場合は0.01 g単位）</string>
     <string name="scale_capabilities_title">現在のプロトコルの機能</string>
