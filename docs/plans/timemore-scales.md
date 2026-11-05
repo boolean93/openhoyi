@@ -24,3 +24,10 @@
 - 推送：只提交 README 与本记录，普通推送至既有 PR；不自动合并，必需 CI 规则不变。
 - 发布与回退：不发版、不安装，不改签名/版本/数据；必要时追加文档还原提交，保留所有设备未知记录。此前经用户另行授权的平板双包安装不构成泰摩硬件验收。
 - 验证结果：按 `ScaleProtocolRegistry`、`ScaleAdvertisementClassifier`、`alpha-acceptance.md` 及构建配置核对范围；`git diff --check`、`python3 scripts/git_policy.py branch` 通过。README 14 个、本记录 1 个本地文件链接均存在；Markdown 表格列数、代码围栏与折叠块配对检查通过。最终 diff 仅包含 README 与本记录，未运行应用或硬件测试。
+
+### 阅读结构收敛（同日，用户追加要求）
+
+- 按“这是什么 → 可以做什么 → 支持什么 → 如何贡献代码”重排；免责声明置于全文末尾，协议来源在 README 仅保留一句，不再展开 CRC、GATT 和应答细节。
+- 沿用上述分支 / PR，起点 `b1af99c`；只改 README 与本记录，安全门禁、实机证据与未适配范围不变。贡献部分提供可执行的分支、构建、相称验证与 PR 步骤。
+- 技术来源保留在本记录：[官方 v1.0.3 固定版本](https://github.com/TIMEMORE-COFFEE/open-scale-protocol/blob/e31dce5087494ea3d572a89e689e48dc014eee2c/Timemore%20Black%20Mirror%20SCALE%20BLE%20Protocol.md)；MIT 社区参考 [dot.cpp](https://github.com/gaggimate/esp-arduino-ble-scales/blob/main/src/scales/dot.cpp) / [timemore.cpp](https://github.com/gaggimate/esp-arduino-ble-scales/blob/main/src/scales/timemore.cpp)。协议推断与待办仍以上述风险和验收记录为准。
+- 本轮检查：`git diff --check`、分支策略检查通过；README 11 个及本记录 1 个本地链接均存在，表格 / 代码块结构通过。已核对四个正文重点的顺序、文末免责声明与单句协议来源，diff 仅两个文档；无构建或设备操作。发布、安装与回退边界同上。
