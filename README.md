@@ -44,15 +44,7 @@ OpenHOYI 是面向 **HOYI 咖啡机**的开源 Android 应用，使用 Kotlin �
 | **Acaia AP**（`LUNAR` / `PEARL` / `PYXIS`） | 已接入，待实机验证 | 确认克单位后的重量；暂不提供去皮 |
 | **DiFluid**（`Microbalance` / `difluid` / `Mb Ti`） | 已接入，待实机验证 | 自带克单位的重量、手动去皮；协议最低固件 Microbalance **V300** / Ti **V010** |
 
-适配以具体广播名、GATT 和通知协议为准，不代表品牌全系列或全部固件兼容。BOOKOO 的负重量、断线恢复及目标重量自动停止仍待完整验收；其余未验收协议不开放目标重量联动、自动去皮与称豆取粉量。旧款泰摩不发送初始化、心跳或去皮命令，部分固件可能无法持续出数，两个通道的物理含义仍待确认。
-
-广播名 `ULTRA` 的旧版兼容路径仍保留，但未经实机验证，不属于上表已采集的 BOOKOO 协议范围。
-
-暂不提供秤端计时控制或 Acaia AP 去皮；DiFluid 不支持缺少单位字段的旧通知格式。手动去皮以写入后的新鲜近零读数确认，蓝牙写入成功不代表设备已归零。
-
-未列出的泰摩型号（如 Basic4）不在已适配范围，旧款协议不代表所有 Black Mirror 2 / DUO 均兼容。没有蓝牙能力的电子秤无法通过软件获得蓝牙连接能力。
-
-泰摩参考官方 [open-scale-protocol](https://github.com/TIMEMORE-COFFEE/open-scale-protocol)，DiFluid 参考[官方协议](https://github.com/DiFluid/difluid-sdk-demo/blob/master/docs/protocolMicrobalance.md)，旧版兼容依据与限制见[协议兼容记录](docs/plans/legacy-scale-parity.md)及[泰摩接入记录](docs/plans/timemore-scales.md)。
+适配范围以表中型号与协议为准，不代表品牌全系列兼容。
 
 ### 应用与构建
 
