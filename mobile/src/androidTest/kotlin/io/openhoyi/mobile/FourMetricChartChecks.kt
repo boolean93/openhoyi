@@ -68,7 +68,7 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                     probe.measure(View.MeasureSpec.makeMeasureSpec(actual.width, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(actual.height, View.MeasureSpec.EXACTLY))
                     probe.layout(0, 0, actual.width, actual.height)
-                    val expected = listOf("PRESSURE", "WATER", "WEIGHT", "TEMPERATURE")
+                    val expected = listOf("PRESSURE", "WATER", "FLOW", "TEMPERATURE")
                     val controls = descendants(probe).filter { it.tag?.toString()?.startsWith("chart-metric:") == true }
                     check(controls.map { it.tag } == expected.map { "chart-metric:$it" }) {
                         "$name: expected usable four-metric legend, got ${controls.map { it.tag }}"
@@ -91,11 +91,11 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                                     minOf(a.getDouble(3),b.getDouble(3)) <= maxOf(a.getDouble(1),b.getDouble(1))) { "$name: permanent axis glyph collision" }
                             }
                         }
-                        for (metric in ChartMetric.entries) {
+                        for (metric in liveMetrics) {
                             check(ops.count { it.optString("role") == "axis-unit" && it.optString("metric") == metric.name } == 1)
                             val metricTicks = ops.filter { it.optString("role") == "axis-tick" && it.optString("metric") == metric.name }
                             check(metricTicks.size >= 2)
-                            val projection = FourMetricChartProjection.build(points,reference)
+                            val projection = FourMetricChartProjection.build(points,reference, liveFlow = true)
                             val range = projection.series.firstOrNull { it.metric == metric }?.range ?: ChartRange(0f,50f)
                             check(metricTicks.map { it.getString("text").toFloat() }.let { it.minOrNull() == range.low && it.maxOrNull() == range.high })
                         }
@@ -104,16 +104,17 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                         check(control.width >= HoyiUi.dp(activity, 48) && control.height >= HoyiUi.dp(activity, 48))
                         check(!control.contentDescription.isNullOrBlank())
                         val metric = ChartMetric.valueOf(control.tag.toString().substringAfter(':'))
-                        val value = ChartInspection.values(points.last())[metric]
+                        val value = ChartInspection.values(points.last(), true, CupFlowProjection.values(points).lastOrNull())[metric]
                         val reading = value?.let { java.util.Locale.ROOT.let { locale ->
                             String.format(locale, "%.1f", it)
                         } } ?: "—"
                         val tileName = requireNotNull(probe.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/name"))
                         LanguageUiLayoutChecks.textFits(tileName,"$name metric name")
                         check(tileName.visibility == View.VISIBLE && tileName.width > 0 && tileName.height > 0)
-                        check(tileName.text.toString() == if (metric == ChartMetric.WEIGHT) activity.getString(R.string.task_extraction_scale) else when(metric) {
+                        check(tileName.text.toString() == if (metric == ChartMetric.FLOW) activity.getString(R.string.task_chart_flow) else when(metric) {
                             ChartMetric.PRESSURE -> activity.getString(R.string.task_chart_pressure)
                             ChartMetric.WATER -> activity.getString(R.string.task_chart_water)
+                            ChartMetric.FLOW -> activity.getString(R.string.task_chart_flow)
                             ChartMetric.TEMPERATURE -> activity.getString(R.string.task_chart_temperature)
                             else -> error("unreachable")
                         })
@@ -125,8 +126,8 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                         }
                         LanguageUiLayoutChecks.textFits(number, "$name current metric")
                         LanguageUiLayoutChecks.textFits(unit, "$name current unit")
-                        if (value == null && metric == ChartMetric.WEIGHT) {
-                            check(!control.isEnabled && control.contentDescription.contains(activity.getString(R.string.task_chart_missing_scale))) {
+                        if (value == null && metric == ChartMetric.FLOW) {
+                            check(!control.isEnabled && control.contentDescription.contains(activity.getString(R.string.task_chart_flow_unavailable))) {
                                 "$name: missing scale reading must remain explicit and cannot focus a nonexistent axis"
                             }
                         } else check(control.performClick() && control.isSelected) { "$name: legend cannot focus ${control.tag}" }
@@ -180,9 +181,9 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                             check(FourMetricChartProjection.pauseBaselines(gap).isEmpty())
                         }
                         if (name == "machine-only") {
-                            check(FourMetricChartProjection.build(points, reference).series.none { it.metric == ChartMetric.WEIGHT })
+                            check(FourMetricChartProjection.build(points, reference, liveFlow = true).series.single { it.metric == ChartMetric.FLOW }.current.isEmpty())
                             check((0 until evidence.length()).map { evidence.getJSONObject(it) }.none {
-                                it.optString("operation") == "path" && it.optString("metric") == ChartMetric.WEIGHT.name
+                                it.optString("operation") == "path" && it.optString("metric") == ChartMetric.FLOW.name
                             }) { "$name: missing weight must have no drawn line" }
                         }
                         File(directory, "$name.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
@@ -227,12 +228,13 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                 val observations = lifecycleProbe.points.toList()
                 val livePlot = requireNotNull(lifecycleProbe.findViewWithTag<View>("chart-plot"))
                 val latestBefore = livePlot.contentDescription.toString()
-                lifecycleProbe.unavailableLiveMetrics = ChartMetric.entries.toSet()
-                ChartMetric.entries.forEach { metric ->
+                lifecycleProbe.unavailableLiveMetrics = liveMetrics.toSet()
+                liveMetrics.forEach { metric ->
                     val nameId = when (metric) {
                         ChartMetric.PRESSURE -> R.string.task_chart_pressure
                         ChartMetric.WATER -> R.string.task_chart_water
                         ChartMetric.WEIGHT -> R.string.task_extraction_scale
+                        ChartMetric.FLOW -> R.string.task_chart_flow
                         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
                     }
                     val unit = if (metric == ChartMetric.WATER) "mL" else metric.unit
@@ -267,7 +269,7 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                     "Font 1.3 must retain one metric row when all four natural content widths fit" }
                 check(enlargedLive.getChildAt(0).height == HoyiUi.dp(activity,96)) {
                     "Wide compact header and metric strip must share the 96dp budget" }
-                ChartMetric.entries.filter { it != ChartMetric.PRESSURE }.forEach { metric ->
+                liveMetrics.filter { it != ChartMetric.PRESSURE }.forEach { metric ->
                     val number = requireNotNull(enlargedLive.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/number"))
                     val unit = requireNotNull(enlargedLive.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/unit"))
                     val name = requireNotNull(enlargedLive.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/name"))

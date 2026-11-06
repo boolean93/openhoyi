@@ -43,7 +43,7 @@ class BrewComparisonActivity : ThemedActivity() {
             else intent.getStringExtra(FIRST_SHOT_ID) ?: entries.getOrNull(0)?.observation?.id
         secondId = if (savedInstanceState?.containsKey(SECOND_SHOT_ID) == true) savedInstanceState.getString(SECOND_SHOT_ID)
             else intent.getStringExtra(SECOND_SHOT_ID) ?: entries.getOrNull(1)?.observation?.id
-        selectedMetric = savedInstanceState?.getString(METRIC)?.let { name -> ChartMetric.entries.firstOrNull { it.name == name } }
+        selectedMetric = savedInstanceState?.getString(METRIC)?.let { name -> historicalMetrics.firstOrNull { it.name == name } }
             ?: ChartMetric.PRESSURE
         if (entries.size < 2) {
             HoyiUi.label(this, body, getString(R.string.journal_compare_need_two), 17)
@@ -297,6 +297,7 @@ class BrewComparisonActivity : ThemedActivity() {
         ChartMetric.PRESSURE -> R.string.task_comparison_pressure
         ChartMetric.WATER -> R.string.task_comparison_water
         ChartMetric.WEIGHT -> R.string.task_comparison_weight
+        ChartMetric.FLOW -> R.string.task_chart_flow
         ChartMetric.TEMPERATURE -> R.string.task_comparison_temperature
     })
     private fun TextView.setIfChanged(value: String) { if (text.toString() != value) text = value }

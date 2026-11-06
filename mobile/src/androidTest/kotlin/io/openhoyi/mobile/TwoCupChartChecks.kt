@@ -57,7 +57,7 @@ internal class TwoCupChartChecks(private val test: Instrumentation) {
                     }
                 }
                 measure(320)
-                for (metric in ChartMetric.entries) {
+                for (metric in historicalMetrics) {
                     chart.metric = metric
                     measure(320)
                     val series = requireNotNull(chart.focusedSeries)

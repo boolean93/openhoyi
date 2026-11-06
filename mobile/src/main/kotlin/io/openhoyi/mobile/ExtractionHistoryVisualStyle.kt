@@ -31,19 +31,19 @@ internal class ExtractionHistoryVisualStyle(val context: Context) {
     fun metric(metric: ChartMetric) = when (metric) {
         ChartMetric.PRESSURE -> palette.pressure
         ChartMetric.WATER -> water
-        ChartMetric.WEIGHT -> weight
+        ChartMetric.WEIGHT, ChartMetric.FLOW -> weight
         ChartMetric.TEMPERATURE -> temperature
     }
     /** The live four-line palette; History keeps its established metric colors. */
     fun liveMetric(metric: ChartMetric) = pick(when (metric) {
         ChartMetric.PRESSURE -> "#176BD1"
         ChartMetric.WATER -> "#C05A13"
-        ChartMetric.WEIGHT -> "#168A55"
+        ChartMetric.WEIGHT, ChartMetric.FLOW -> "#168A55"
         ChartMetric.TEMPERATURE -> "#654ACC"
     }, when (metric) {
         ChartMetric.PRESSURE -> "#80B4FF"
         ChartMetric.WATER -> "#FFAE78"
-        ChartMetric.WEIGHT -> "#64DEA3"
+        ChartMetric.WEIGHT, ChartMetric.FLOW -> "#64DEA3"
         ChartMetric.TEMPERATURE -> "#A994FF"
     })
     fun choiceAdapter(activity: ThemedActivity, labels: List<String>) = object : android.widget.ArrayAdapter<String>(activity, android.R.layout.simple_spinner_dropdown_item, labels) {
@@ -104,6 +104,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         ChartMetric.PRESSURE -> R.string.task_chart_pressure
         ChartMetric.WATER -> R.string.task_chart_water
         ChartMetric.WEIGHT -> R.string.task_extraction_scale
+        ChartMetric.FLOW -> R.string.task_chart_flow
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
     })
     private fun displayUnit(metric: ChartMetric) = if (liveMode && metric == ChartMetric.WATER) "mL" else metric.unit
@@ -111,6 +112,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         ChartMetric.PRESSURE -> R.string.task_chart_pressure
         ChartMetric.WATER -> R.string.task_chart_water
         ChartMetric.WEIGHT -> R.string.task_extraction_scale
+        ChartMetric.FLOW -> R.string.task_chart_flow
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
     }) + " · " + displayUnit(metric)
     private fun column(series: MetricChartSeries, compact: Boolean = false): Float = ((0..4).map {
@@ -123,7 +125,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         val selected = data.series.filter { comparison && it.metric == focused || !comparison }
         val all = !comparison && (liveMode || allAxes(width, data))
         val leftAxes = if (all) selected.filter { it.metric == ChartMetric.TEMPERATURE || it.metric == ChartMetric.PRESSURE } else selected.filter { it.metric == focused }
-        val rightAxes = if (all) selected.filter { it.metric == ChartMetric.WEIGHT || it.metric == ChartMetric.WATER } else emptyList()
+        val rightAxes = if (all) selected.filter { it.metric == ChartMetric.WEIGHT || it.metric == ChartMetric.FLOW || it.metric == ChartMetric.WATER } else emptyList()
         val left = dp(8f) + leftAxes.sumOf { column(it, compactAxes).toDouble() }.toFloat()
         val tailWidth = 0f // Live endpoint names live in the persistent metric tiles.
         val right = width - dp(8f) - rightAxes.sumOf { column(it, compactAxes).toDouble() }.toFloat() - tailWidth
@@ -158,7 +160,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         val all = !comparison && (liveMode || allAxes(width, data))
         val series = if (comparison || !all) data.series.filter { it.metric == focused } else data.series
         val leftAxes = if (all) listOf(ChartMetric.TEMPERATURE, ChartMetric.PRESSURE).mapNotNull { m -> series.firstOrNull { it.metric == m } } else series
-        val rightAxes = if (all) listOf(ChartMetric.WEIGHT, ChartMetric.WATER).mapNotNull { m -> series.firstOrNull { it.metric == m } } else emptyList()
+        val rightAxes = if (all) listOf(if (liveMode) ChartMetric.FLOW else ChartMetric.WEIGHT, ChartMetric.WATER).mapNotNull { m -> series.firstOrNull { it.metric == m } } else emptyList()
         val rows = ((box.height() / (line + dp(if (liveMode) 18f else 8f))).toInt() + 1)
             .coerceIn(2, if (liveMode) 3 else 5)
         val texts = mutableListOf<Label>()
