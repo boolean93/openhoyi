@@ -404,17 +404,41 @@ def publish_one(api, ledger, item, directory):
     print(f"Published {tag} for {source}; no installation performed.")
 
 
+def artifact_directories(root, plans):
+    """download-artifact v7 flattens a lone match, but names multiple matches."""
+    named = {item["code"]: root / f"develop-apk-{item['attempt']}-{item['code']}" for item in plans}
+    flat = root / "distribution.json"
+    if flat.is_file():
+        if any((directory / "distribution.json").is_file() for directory in named.values()):
+            raise PublisherError("Ambiguous flat and named artifact layouts")
+        manifest = json.loads(flat.read_text())
+        if not isinstance(manifest, dict):
+            raise PublisherError("Flattened artifact manifest is not an object")
+        matches = [item for item in plans if item["code"] == manifest.get("versionCode")]
+        if len(matches) != 1:
+            raise PublisherError("Flattened artifact does not match exactly one current plan")
+        item = matches[0]
+        validate_manifest(manifest, item["source"], item["code"], item["versionName"], item["certificate"])
+        return {item["code"]: root}
+    return {code: directory for code, directory in named.items() if (directory / "distribution.json").is_file()}
+
+
 def publish():
     configuration()
     api, identity = services()
     check_protection(api)
     ledger = Ledger(api, *identity)
     plans = json.loads(Path(os.environ["PLANS_FILE"]).read_text())
-    for item in sorted(plans, key=lambda item: item["code"]):
+    # Validate every attempt before any publication, even when a build is missing.
+    for item in plans:
         check_attempt(item, identity)
-        # Only this very run AND attempt, never old/failed-attempt or PR output.
-        directory = Path(os.environ["ARTIFACTS_ROOT"], f"develop-apk-{item['attempt']}-{item['code']}")
-        if not (directory / "distribution.json").is_file():
+    # Only this very run AND attempt, never old/failed-attempt or PR output.
+    directories = artifact_directories(Path(os.environ["ARTIFACTS_ROOT"]), plans)
+    if not directories:
+        raise PublisherError("No built artifacts available; reservations retained, nothing published")
+    for item in sorted(plans, key=lambda item: item["code"]):
+        directory = directories.get(item["code"])
+        if directory is None:
             print(f"Build {item['code']} unavailable; reservation retained, not published.")
             continue
         publish_one(api, ledger, item, directory)
