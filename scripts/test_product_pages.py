@@ -32,7 +32,7 @@ class Page(HTMLParser):
             self.assets.append(attrs.get("src", ""))
         if tag == "source":
             self.assets.append(attrs.get("srcset", ""))
-        if tag == "link":
+        if tag == "link" and attrs.get("rel") != "canonical":
             self.assets.append(attrs.get("href", ""))
 
 
@@ -45,6 +45,9 @@ class ProductPagesTest(unittest.TestCase):
     def test_metadata_and_accessibility(self):
         self.assertIn(("html", {"lang": "zh-CN"}), self.page.tags)
         self.assertEqual(sum(tag == "h1" for tag, _ in self.page.tags), 1)
+        self.assertTrue(any(tag == "link" and a.get("rel") == "canonical"
+                            and a.get("href") == "https://boolean93.github.io/openhoyi/"
+                            for tag, a in self.page.tags))
         for name in ("viewport", "description"):
             self.assertTrue(any(tag == "meta" and a.get("name") == name
                                 and a.get("content") for tag, a in self.page.tags))
@@ -81,20 +84,53 @@ class ProductPagesTest(unittest.TestCase):
                 elif url.fragment:
                     self.assertIn(unquote(url.fragment), self.page.ids)
 
-    def test_static_only_and_explicit_risk_boundaries(self):
+    def test_local_enhancement_and_explicit_risk_boundaries(self):
+        scripts = []
         for tag, attrs in self.page.tags:
-            self.assertNotIn(tag, ("script", "iframe", "form"))
+            self.assertNotIn(tag, ("iframe", "form"))
             self.assertFalse(any(key.startswith("on") for key in attrs))
-        for text in ("Alpha", "Android 8.0", "1.1.3", "BOOKOO", "App 实际界面", "Mock 模拟数据", "非硬件验收",
-                     "非实时数据", "不连接或控制设备", "目标重量自动停止",
-                     "仍待完整验收", "待实机验证", "损坏", "保留机器本身的停止手段"):
+            if tag == "script":
+                scripts.append(attrs)
+        # Only the auditable, local progressive enhancement is permitted.
+        self.assertEqual(scripts, [{"src": "./product.js", "defer": None}])
+        js = (SITE / "product.js").read_text()
+        self.assertNotRegex(js, r"\b(fetch|XMLHttpRequest|WebSocket|bluetooth|eval)\b")
+        self.assertNotIn("https://", js)
+        self.assertLess(len(js.encode()), 8_000)
+        for text in ("Alpha", "Android 8.0", "1.1.3", "BOOKOO", "真实平板界面", "Mock 模拟", "非硬件验收",
+                     "不是网站实时数据", "网站不连接设备", "目标重量自动停止",
+                     "仍待完整验收", "其他适配待验", "损坏", "保留机器本身的停止手段"):
             self.assertIn(text, self.html)
         css = (SITE / "styles.css").read_text()
         self.assertIn("prefers-reduced-motion", css)
         self.assertIn(":focus-visible", css)
         self.assertNotIn("@import", css)
-        self.assertNotIn("url(", css)
+        urls = re.findall(r'url\([\"\']?([^\"\')]+)', css)
+        self.assertEqual(urls, ["./assets/fonts/openhoyi-sans.woff2"])
+        font = SITE / urls[0]
+        self.assertEqual(font.read_bytes()[:4], b"wOF2")
+        self.assertLess(font.stat().st_size, 250_000)
+        self.assertEqual((SITE / "assets/fonts/OFL.txt").read_bytes(),
+                         (ROOT / "mobile/src/main/assets/licenses/NotoSansSC-OFL.txt").read_bytes())
         self.assertTrue((SITE / ".nojekyll").is_file())
+
+    def test_progressive_product_guide(self):
+        tabs = [(a["id"], a["href"], a["data-scene-tab"])
+                for tag, a in self.page.tags if "data-scene-tab" in a]
+        self.assertEqual(tabs, [("tab-" + s, "#" + s, s)
+                                for s in ("connect", "observe", "remember")])
+        # All scenes remain real, visible HTML without JavaScript.
+        for tag, attrs in self.page.tags:
+            if attrs.get("id") in ("connect", "observe", "remember"):
+                self.assertNotIn("hidden", attrs)
+        for section in ("image-source", "alpha", "installation"):
+            self.assertTrue(any(tag == "details" and a.get("id") == section
+                                for tag, a in self.page.tags))
+        self.assertTrue(any(tag == "dialog" and a.get("aria-labelledby") == "viewer-title"
+                            for tag, a in self.page.tags))
+        self.assertIn("各项量程不同，不比较线条高低", self.html)
+        self.assertIn("青虚线", self.html)
+        self.assertIn("橙点线", self.html)
 
     def test_product_screenshots_and_provenance(self):
         screens = SITE / "assets/screens"
