@@ -1,0 +1,7 @@
+{
+  "repository": "boolean93/openhoyi",
+  "startAfterCommit": "67d8adef4fca919ec0e451ec17c26223d271152d",
+  "baseVersion": "0.2.0",
+  "minimumKnownVersionCode": 52,
+  "approvalReference": "docs/plans/develop-apk-publishing.md#验收标准"
+}

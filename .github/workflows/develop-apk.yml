@@ -1,0 +1,171 @@
+name: Develop APK prerelease
+
+on:
+  push:
+    branches: [develop]
+  workflow_run:
+    workflows: [Branch policy, Verify native app, Verify Mock lifecycle, Verify Mock upgrade data]
+    branches: [develop]
+    types: [completed]
+  workflow_dispatch:
+
+# The concurrency group serializes publication, NOT a reliable per-PR queue.
+# The controller replays first-parent history and the persistent CAS ledger.
+concurrency:
+  group: openhoyi-apk-distribution
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DEVELOP_APK_ENABLED: ${{ vars.DEVELOP_APK_ENABLED }}
+  HOYI_RELEASE_CERT_SHA256: ${{ vars.HOYI_RELEASE_CERT_SHA256 }}
+  HOYI_DISTRIBUTION_VERSION_FLOOR: ${{ vars.HOYI_DISTRIBUTION_VERSION_FLOOR }}
+
+jobs:
+  plan:
+    if: >-
+      github.repository == 'boolean93/openhoyi' && github.ref == 'refs/heads/develop' &&
+      (github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'develop' &&
+       github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      has_work: ${{ steps.queue.outputs.has_work }}
+      matrix: ${{ steps.queue.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: queue
+        name: Gate merged commits and reserve versions in protected CAS ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/develop_release.py plan
+      - if: steps.queue.outputs.has_work == 'true'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: develop-plans-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/develop-plans.json
+          if-no-files-found: error
+          retention-days: 14
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.has_work == 'true'
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # This job can read source/previous public APK but cannot publish a release.
+    permissions:
+      contents: read
+    env:
+      PLAN_JSON: ${{ toJSON(matrix) }}
+      SOURCE_ROOT: ${{ github.workspace }}/source
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ matrix.source }}
+          path: source
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6; no shared build cache
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Download exact previous public APK before exposing signing secrets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 controller/scripts/develop_release.py download-previous
+      - name: Build and verify persistent-key release APK
+        env:
+          GRADLE_USER_HOME: ${{ runner.temp }}/gradle
+          HOYI_RELEASE_KEYSTORE_BASE64: ${{ secrets.HOYI_RELEASE_KEYSTORE_BASE64 }}
+          HOYI_RELEASE_STORE_PASSWORD: ${{ secrets.HOYI_RELEASE_STORE_PASSWORD }}
+          HOYI_RELEASE_KEY_ALIAS: ${{ secrets.HOYI_RELEASE_KEY_ALIAS }}
+          HOYI_RELEASE_KEY_PASSWORD: ${{ secrets.HOYI_RELEASE_KEY_PASSWORD }}
+        run: python3 controller/scripts/develop_release.py build
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: develop-apk-${{ github.run_attempt }}-${{ matrix.code }}
+          path: |
+            ${{ runner.temp }}/develop-dist/${{ matrix.code }}/OpenHOYI-*.apk
+            ${{ runner.temp }}/develop-dist/${{ matrix.code }}/distribution.json
+            ${{ runner.temp }}/develop-dist/${{ matrix.code }}/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [plan, build]
+    if: >-
+      always() && !cancelled() && needs.plan.result == 'success' &&
+      needs.plan.outputs.has_work == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+      actions: read
+    # No signing secrets are made available to this job.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7; this run only
+        with:
+          name: develop-plans-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/plans
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7; no run-id/repository/token override
+        with:
+          pattern: develop-apk-${{ github.run_attempt }}-*
+          path: ${{ runner.temp }}/packages
+      - name: Recheck actual APKs and CI, stage complete drafts, publish in version order
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PLANS_FILE: ${{ runner.temp }}/plans/develop-plans.json
+          ARTIFACTS_ROOT: ${{ runner.temp }}/packages
+        run: python3 scripts/develop_release.py publish
+
+  cleanup:
+    needs: [plan, build, publish]
+    if: always() && needs.plan.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Release own lease or recover confirmed-completed owner only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/develop_release.py release-lease
