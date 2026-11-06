@@ -10,7 +10,7 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
-APK = "https://github.com/boolean93/openhoyi/releases/download/v0.2.0-rc.2/OpenHOYI-debug-0.2.0-rc.2.apk"
+RELEASES = "https://github.com/boolean93/openhoyi/releases"
 PAGES = "https://boolean93.github.io/openhoyi/"
 
 
@@ -130,32 +130,34 @@ class ProductPagesTest(unittest.TestCase):
                 self.assertIn(f"./assets/screens/originals/{name}", self.page.links)
                 self.assertTrue(0 <= x <= screen["width"] and 0 <= y <= screen["height"])
 
-    def test_download_entry_and_alpha_limits(self):
-        apk_links = [link for link in self.page.links if link.endswith(".apk")]
-        self.assertEqual(apk_links, [APK])
+    def test_download_entry_points_at_releases(self):
+        # The page must not pin one APK: releases change, and a stale link misleads users.
+        self.assertEqual([link for link in self.page.links if link.endswith(".apk")], [])
+        self.assertEqual(self.page.links.count(RELEASES), 2)
         download = self.html.split('id="download"', 1)[1].split("</section>", 1)[0]
-        before_apk = download.split(f'href="{APK}"', 1)[0]
-        self.assertNotIn("<details", before_apk)
-        self.assertIn("不是稳定版", before_apk)  # Readable before the file leaves the page.
+        before_button = download.split(f'href="{RELEASES}"', 1)[0]
+        self.assertNotIn("<details", before_button)
+        self.assertIn("不是稳定版", before_button)  # Readable before the link leaves the page.
         caveats = download.split('class="caveats"', 1)[1].split("</ul>", 1)[0]
         self.assertEqual(caveats.count("<li>"), 3)  # Keep the page short: three plain lines only.
-        for text in ("只支持 BOOKOO", "留在机器旁", "不要反复发送指令", "界面可能不同"):
+        for text in ("支持范围会随版本变化", "留在机器旁", "不要反复发送指令", "界面可能不同"):
             self.assertIn(text, caveats)
-        for text in ("19,307,368", "io.openhoyi.mobile", "版本码 52",
-                     "1ef3fcf474ef0ab0aa9a715f268a53d68bacf0c12954c5bac225d118bb188691",
-                     "不要依赖按目标重量自动停水", "设备不可用或损坏",
-                     "源码提交映射由构建方声明"):
+        for text in ("io.openhoyi.mobile", "SHA-256", "不要依赖按目标重量自动停水",
+                     "设备不可用或损坏", "源码提交映射由构建方声明"):
             self.assertIn(text, download)
-        self.assertIn("https://github.com/boolean93/openhoyi/releases/tag/v0.2.0-rc.2", self.page.links)
         self.assertNotIn("download=", self.html)  # Let the browser handle cross-origin files.
 
-    def test_age_of_download_is_disclosed_against_developer_scale_support(self):
+    def test_support_range_follows_each_release(self):
         compatibility = self.html.split('id="compatibility"', 1)[1].split("</section>", 1)[0]
         download = self.html.split('id="download"', 1)[1].split("</section>", 1)[0]
-        for text in ("开发版已接入 8 款品牌与型号", "本页可下载的测试版只支持 BOOKOO",
-                     "构建于 2026-11-04，只包含 BOOKOO"):
+        for text in ("开发版已接入 8 款品牌与型号", "不同版本包含的型号不同",
+                     "以你下载版本的说明为准"):
             self.assertIn(text, compatibility)
-        self.assertIn("这一版只支持 BOOKOO 电子秤", download)
+        self.assertIn("以下载版本的发布说明为准", compatibility)
+        self.assertIn("支持范围会随版本变化", download)
+        for dropped in ("本页可下载的测试版只支持 BOOKOO", "构建于 2026-11-04，只包含 BOOKOO",
+                        "releases/download/v0.2.0-rc.2"):
+            self.assertNotIn(dropped, self.html)
         self.assertNotIn("完整采样曲线", self.html)  # Curves may be partial after a crash.
         for text in ("最近 30 天的", "最多 500 条"):
             self.assertIn(text, self.html)
