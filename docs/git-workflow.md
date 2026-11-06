@@ -27,7 +27,7 @@ slug仅小写字母、数字与单横杠，不嵌套；版本为无前导零的�
 3. 新克隆/新工作树启用本地提前检查：`git config --local core.hooksPath .githooks`。先检查现有hook设置；已有用户hook不得默默替换，改由组合调用本hook。本地hook可以被绕过，不能代替服务端保护。
 4. 执行与改动相关的验证，只提交本任务文件。`git push -u origin feature/scale-reconnect`，不使用force或no-verify。
 5. PR目标默认develop，正文必须有非空的规划与范围、验证证据、协议与设备风险、发布与回退，并链接仓库内实际存在的规划。
-6. main/develop合并要求branch-policy、verify、lifecycle、upgrade四项检查，基线更新后需重新通过，讨论须解决。CI不按路径跳过必需检查，避免文档PR永久等待。单人仓库不要求无法自批的人工review计数，但协议改动必须在PR记录独立代码审查与设备证据。不能将模拟写入等同物理停水。
+6. main/develop合并的PR必需检查只有branch-policy、verify两项，必须由精确头提交产生并通过，基线更新后需重新通过，讨论须解决。lifecycle、upgrade及visual AVD不再作为PR必需项：lifecycle/upgrade只在受保护分支push与手动入口运行，作为合并后及Develop自动预发布的前置证据；visual AVD改为手动。日常PR不运行任何AVD，见下节。单人仓库不要求无法自批的人工review计数，但协议改动必须在PR记录独立代码审查与设备证据。不能将模拟写入等同物理停水。
 7. PR通过后合并；合并完成才清理工作分支。release/hotfix先完成双主干回合。删除远端分支通过GitHub审核清理，本地hook不开放删除推送。
 
 ## 发布规则
@@ -54,8 +54,16 @@ slug仅小写字母、数字与单横杠，不嵌套；版本为无前导零的�
 - 附件必须齐备并回读验哈希，预存预期哈希后才能将 draft 一次性公开；不覆盖已公开附件。未知写入结果先核对服务端记录，已公开且哈希一致则只读跳过；不一致停止，失败号码/裸标签/草稿保留审计，新产物用新号。不得因 token 不足换源码、放宽保护或偷偷引入 PAT。
 - 操作与恢复见 [Develop 发布配置指南](develop-apk.md)。只提交 workflow/保护 JSON 不代表已启用；必须核对远端实际保护和签名配置。暂停只阻止新规划，已进入执行的任务必须等待结束或取消并确认结束，不能把修改变量当瞬时撤销。
 
+## PR 快速门禁与 AVD 分层
+
+- 必需context固定为`branch-policy`、`verify`，不使用workflow级`paths`过滤，避免文档/站点PR永久pending。
+- `verify`按PR完整`base...head`diff做严格allowlist分类：仅`docs/**/*.md`（`docs/releases/**`全部除外）、`README.md`、`AGENTS.md`，或仅`site/**`、`scripts/test_product_pages.py`时跑对应快速检查，不setup Android/Gradle；混合site+docs跑两者。`docs/`下脚本、JSON等非Markdown文件、未知路径、代码/CI改动、空diff、分类异常、base/head缺失或浅克隆一律回退完整非AVD验证，不得fail-open。路径按`git -z`返回的真实路径原样判断，不做去空白、反斜杠转斜杠等改写；非规范或含控制字符的路径保守回退完整验证。
+- 完整`verify`保留JVM/unit/编译、localization资源、lint及release signing guard；受保护分支push始终完整执行，不能拿PR轻量成功替代发布证据。
+- `lifecycle`、`upgrade`只保留`main`/`develop`/`release/**`/`hotfix/**`push与`workflow_dispatch`；合并后运行，不阻塞PR。其它visual workflow改为手动，不删除测试脚本、断言或证据上传。
+- Develop自动测试APK仍要求同SHA、同仓库、develop一阶push的四项workflow（`branch-policy`、`verify`、`lifecycle`、`upgrade`）最新attempt成功且实际job不得skipped；PR/fork/标签/手动CI成功不能替代。详见[Develop自动测试APK](develop-apk.md)。
+
 ## 强制检查与边界
 
-`python3 -m unittest discover -s scripts -p test_git_policy.py` 验证规则；`python3 scripts/git_policy.py branch`检查当前工作分支。GitHub rulesets阻止main/develop直接合入、强推和删除，并要求四项检查；版本标签禁止更新和删除。管理员修改仓库规则、绕过本地hook或故意伪造证据不属于本脚本能保证的范围。治理修改也必须走chore PR，不得为了临时通过关闭保护。
+`python3 -m unittest discover -s scripts -p test_git_policy.py` 验证规则；`python3 scripts/git_policy.py branch`检查当前工作分支。GitHub rulesets阻止main/develop直接合入、强推和删除，并要求`branch-policy`、`verify`两项检查；版本标签禁止更新和删除。`lifecycle`、`upgrade`保留为受保护分支push的发布前置workflow，不列入PR必需context。管理员修改仓库规则、绕过本地hook或故意伪造证据不属于本脚本能保证的范围。治理修改也必须走chore PR，不得为了临时通过关闭保护。
 
 GitHub 服务端规则的可审查配置保存在 [integration.json](../.github/rulesets/integration.json)、[releases.json](../.github/rulesets/releases.json)、[develop-apk-tags.json](../.github/rulesets/develop-apk-tags.json) 与 [develop-apk-ledger.json](../.github/rulesets/develop-apk-ledger.json)；配置更新须按仓库 API 返回核对，不把 JSON 文件存在当远端已启用。首次建立develop是迁移引导操作，在安装保护与hook之前仅推送既有c3710e3基线，此后不保留直推例外。

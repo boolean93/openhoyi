@@ -1,8 +1,6 @@
 name: Verify bean workflow visual migration UI
 
 on:
-  pull_request:
-    branches: [develop]
   workflow_dispatch:
 
 concurrency:

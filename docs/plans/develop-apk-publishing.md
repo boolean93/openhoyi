@@ -8,7 +8,7 @@
 
 ## 验收标准
 
-1. 固定合入源码 SHA；只处理本仓库 develop 一阶历史中的提交，并要求同 SHA 的 push 事件 branch-policy、verify、lifecycle、upgrade 全部成功；PR/fork/标签/手动测试成功不冒充。
+1. 固定合入源码 SHA；只处理本仓库 develop 一阶历史中的提交，并要求同 SHA 的 push 事件 branch-policy、verify、lifecycle、upgrade 全部成功；PR/fork/标签/手动测试成功不冒充。PR 日常门禁只需 branch-policy/verify，lifecycle/upgrade 合入后运行，不改变本通道的四项同 SHA push 要求。
 2. 连续合入不因 Actions pending 覆盖而遗漏：以 develop 一阶历史、受保护 CAS 分配账本、不可变 dev 标签及实际公开发布记录补扫待发布提交；工作流事件只负责唤醒。失败或未完成 CI 的提交不发布，后续成功提交可继续。运行与工件还绑定 run/attempt，整条重跑重新分配失败号，不混用旧产物。
 3. 持久签名来自 Secrets，不生成临时证书；初始版本下限与既有公开 APK/已分发版本核对。跨通道共享版本高水位，保留失败分配，不复用已分配版本；公开前再次检查。正式发版窗口需暂停并排空 Develop 发布，正式版/RC 也必须高于此前已分发版本，不能原样晋升较低版本 RC。
 4. 构建实际 release 变体并核对包名、签名、分配的版本、非 debuggable、哈希及原始源码声明；公开清单保留 `sourceCommitVerified=false`，安装/数据/硬件未验证，不虚构证明。
