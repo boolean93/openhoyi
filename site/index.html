@@ -27,40 +27,53 @@
         <div class="hero-copy">
           <div class="eyebrow"><span class="status-dot" aria-hidden="true"></span> OPEN SOURCE / ANDROID <span class="alpha-tag">ALPHA</span></div>
           <h1 id="hero-title">看懂每一次<br><span>萃取。</span></h1>
-          <p class="hero-description">从曲线到杯中，<br>让每一杯咖啡都有迹可循。</p>
-          <p class="hero-detail">面向 HOYI 咖啡机的开源 Android 应用。通过蓝牙连接咖啡机与电子秤，观察实时数据，选择萃取曲线，回看每一杯。</p>
+          <p class="hero-description">连接咖啡机与电子秤，<br>观察萃取，回看每一杯。</p>
+        </div>
+        <figure class="hero-showcase screen-figure">
+          <div class="screen-heading"><span>OPENHOYI / 萃取观察</span><span>MOCK DEMO</span></div>
+          <a class="device-frame" href="./assets/screens/extraction.png" aria-label="查看萃取观察完整原图">
+            <picture>
+              <source media="(max-width: 720px)" srcset="./assets/screens/extraction-detail.png" width="1390" height="1069">
+              <img src="./assets/screens/extraction.png" width="2560" height="1600" fetchpriority="high" alt="App 实际萃取观察界面，模拟压力、注水、秤读数与温度曲线；小屏为平板截图局部放大">
+            </picture>
+          </a>
+          <figcaption>
+            <span>App 实际界面 · Mock 模拟数据 · 非硬件验收</span>
+            <span class="mobile-detail">平板截图局部放大，并非手机端布局。</span>
+            <a href="./assets/screens/extraction.png">查看完整原图 <span aria-hidden="true">↗</span></a>
+          </figcaption>
+        </figure>
+        <div class="hero-links">
+          <p class="hero-detail">面向 HOYI 咖啡机的开源 Android 应用。</p>
           <div class="hero-actions"><a class="button button-mint" href="https://github.com/boolean93/openhoyi">查看源码 <span aria-hidden="true">↗</span></a><a class="button button-outline" href="#start">从源码构建 <span aria-hidden="true">↓</span></a></div>
           <p class="hero-note">仍在打磨，不是正式产品。<a href="#alpha">先了解 Alpha 限制 <span aria-hidden="true">↗</span></a></p>
         </div>
-        <figure class="instrument">
-          <div class="instrument-top"><span class="instrument-label">EXTRACTION / 萃取观察</span><span class="sample-label">示意数据</span></div>
-          <div class="instrument-reading"><div><span class="reading-label">压力 / PRESSURE</span><p>8.6 <span>bar</span></p></div><span class="reading-time">00:24<span>萃取时间 / s</span></span></div>
-          <svg class="chart" viewBox="0 0 480 210" role="img" aria-labelledby="chart-title chart-description">
-            <title id="chart-title">萃取压力与重量曲线示意</title><desc id="chart-description">示例压力先上升后缓降，重量逐渐增加。仅用于说明数据观察，不是实测记录。</desc>
-            <defs><linearGradient id="pressure-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#a9ddc7" stop-opacity=".18"/><stop offset="100%" stop-color="#a9ddc7" stop-opacity="0"/></linearGradient></defs>
-            <g class="chart-grid"><path d="M30 25H458 M30 70H458 M30 115H458 M30 160H458"/><path d="M30 25V160 M137 25V160 M244 25V160 M351 25V160 M458 25V160"/></g>
-            <g class="chart-labels"><text x="9" y="29">9</text><text x="9" y="74">6</text><text x="9" y="119">3</text><text x="9" y="164">0</text><text x="27" y="191">0</text><text x="130" y="191">8</text><text x="235" y="191">16</text><text x="342" y="191">24</text><text x="446" y="191">32 s</text></g>
-            <path d="M30 160 C55 158 60 125 80 123 S115 126 130 102 S155 37 180 35 S235 36 267 40 S320 50 351 55 S420 67 458 80 V160H30Z" fill="url(#pressure-fill)"/>
-            <path d="M30 160 C55 158 60 125 80 123 S115 126 130 102 S155 37 180 35 S235 36 267 40 S320 50 351 55 S420 67 458 80" fill="none" stroke="#a9ddc7" stroke-width="3" stroke-linecap="round"/>
-            <path d="M30 160H110 C155 159 180 149 214 134 S281 109 314 92 S389 55 458 28" fill="none" stroke="#d9b18b" stroke-width="2.5" stroke-linecap="round"/>
-            <path d="M351 20V167" stroke="#c7bdb3" stroke-opacity=".4" stroke-dasharray="3 5"/><circle cx="351" cy="55" r="5" fill="#a9ddc7" stroke="#302721" stroke-width="3"/>
-          </svg>
-          <div class="chart-legend"><span><i class="mint-dot"></i>压力</span><span><i class="tan-dot"></i>重量</span><span class="legend-caption">观察变化，而不只看终点</span></div>
-          <div class="instrument-metrics"><div><span>水温</span><strong>93.0 <small>°C</small></strong></div><div><span>杯中重量</span><strong>28.4 <small>g</small></strong></div><div><span>秤流速</span><strong>1.8 <small>g/s</small></strong></div></div>
-          <figcaption><span aria-hidden="true">※</span> 界面示意 · 非 App 截图 · 非实时数据<br>本网站不连接或控制设备</figcaption>
-        </figure>
       </div>
       <div class="hero-footer wrap"><span>为好奇心而写，为每一杯而记录。</span><span>KOTLIN NATIVE <span aria-hidden="true">/</span> GPL v2 <span aria-hidden="true">/</span> COMMUNITY BUILT</span></div>
     </section>
 
     <section class="section wrap" id="experience" aria-labelledby="experience-title">
       <div class="section-heading"><div><p class="eyebrow section-index">01 / THE EXPERIENCE</p><h2 id="experience-title">从连接开始，<br>到下一杯的灵感。</h2></div><p class="section-intro">把设备、曲线与记录放在一起。<br>少一些来回切换，多一点对萃取的理解。</p></div>
-      <div class="feature-grid">
-        <article class="feature"><span class="feature-number">01 — CONNECT</span><div class="feature-art connection-art" aria-hidden="true"><span>HOYI</span><i>·····</i><span>Android</span><i>·····</i><span>BOOKOO</span></div><h3>让设备说同一种语言</h3><p>蓝牙连接咖啡机和电子秤，集中查看连接状态、机器告警与实时读数。机器水流与秤流速分开呈现，信息不混淆。</p><span class="feature-foot">咖啡机 + 电子秤，双设备连接</span></article>
-        <article class="feature"><span class="feature-number">02 — OBSERVE</span><div class="feature-art curve-art" aria-hidden="true"><svg viewBox="0 0 240 64"><path d="M0 56H240 M0 29H240" stroke="currentColor" opacity=".15"/><path d="M2 55H32L53 38H84L102 10H154L186 22L237 33" fill="none" stroke="currentColor" stroke-width="2.5"/><circle cx="102" cy="10" r="4" fill="currentColor"/></svg></div><h3>找到属于这一杯的曲线</h3><p>浏览 100 条工厂曲线与 3 条已采集曲线，设置 5 个快捷槽位。萃取时观察压力、温度、水流、秤流速与重量。</p><span class="feature-foot">启动前确认，萃取中可请求手动停止</span></article>
-        <article class="feature"><span class="feature-number">03 — REMEMBER</span><div class="feature-art journal-art" aria-hidden="true"><span><i></i> THIS SHOT</span><span><i></i> LAST SHOT</span><span><i></i> YOUR NEXT IDEA</span></div><h3>把每一次尝试留下来</h3><p>离线回看萃取历史与采样曲线，导出历史 ZIP。旧版历史可手动导入，在独立的只读入口中查看。</p><span class="feature-foot">记录可回看，问题有日志可追溯</span></article>
-      </div>
-      <p class="section-note">上述为代码已实现的功能范围，不代表全部通过实机验收。<a href="https://github.com/boolean93/openhoyi/blob/develop/docs/native-feature-status.md">查看功能状态 <span aria-hidden="true">↗</span></a></p>
+      <nav class="journey-nav" aria-label="产品场景"><a href="#connect">01 连接 <span aria-hidden="true">↓</span></a><a href="#observe">02 观察 <span aria-hidden="true">↓</span></a><a href="#remember">03 回看 <span aria-hidden="true">↓</span></a></nav>
+      <article class="scene" id="connect" aria-labelledby="connect-title">
+        <div class="scene-copy"><p class="eyebrow section-index">01 — CONNECT</p><h3 id="connect-title">先看设备，<br>是否已经就绪。</h3><p>咖啡机与电子秤的连接状态放在一起。冲泡与蒸汽锅炉分开呈现，温度、压力一眼可见，不必在设备间来回切换。</p><span class="scene-foot">双设备状态 / 锅炉读数 / 5 个快捷槽位</span></div>
+        <figure class="screen-figure">
+          <a class="device-frame" href="./assets/screens/home.png" aria-label="查看设备首页完整原图"><picture><source media="(max-width: 720px)" srcset="./assets/screens/home-detail.png" width="1238" height="1088"><img src="./assets/screens/home.png" width="2560" height="1600" loading="lazy" alt="App 设备首页，模拟咖啡机与电子秤连接，以及冲泡和蒸汽锅炉温度、压力；小屏为局部放大"></picture></a>
+          <figcaption><span>App 实际界面 · Mock 模拟数据 · 非硬件验收</span><span class="mobile-detail">平板截图局部放大，并非手机端布局。</span><a href="./assets/screens/home.png">查看完整原图 <span aria-hidden="true">↗</span></a></figcaption>
+        </figure>
+      </article>
+      <article class="scene scene-observe" id="observe" aria-labelledby="observe-title">
+        <div class="scene-copy"><p class="eyebrow section-index">02 — OBSERVE</p><h3 id="observe-title">不只看终点，<br>也看这一杯的变化。</h3><p>选择曲线后，观察压力、温度、机器水流、秤流速与重量。图中用模拟采样展示压力上升、秤读数累积的过程。</p><span class="scene-foot">100 条工厂曲线 + 3 条已采集曲线<br>启动前确认，萃取中可请求手动停止</span><a class="text-link" href="#hero-title">回看首屏萃取界面 <span aria-hidden="true">↑</span></a></div>
+        <div class="observation-notes" aria-label="萃取界面阅读提示"><div><span>01 / 压力</span><h4>从预浸到升压</h4><p>蓝色曲线对应压力；不把机器水流当成秤流速。</p></div><div><span>02 / 秤读数</span><h4>把杯中变化一起看</h4><p>绿色曲线是秤读数，和温度、累计注水分开标注。</p></div><p class="observation-boundary">首屏为同一场景的实际界面。非实时数据，本网站不连接或控制设备。</p></div>
+      </article>
+      <article class="scene" id="remember" aria-labelledby="remember-title">
+        <div class="scene-copy"><p class="eyebrow section-index">03 — REMEMBER</p><h3 id="remember-title">让上一杯，<br>成为下一杯的起点。</h3><p>离线回看时长、结束时秤读数与采样曲线，留下个人复盘。历史可导出 ZIP，旧版记录可手动导入，在独立的只读入口查看。</p><span class="scene-foot">本机历史 / 采样曲线 / 个人复盘</span></div>
+        <figure class="screen-figure">
+          <a class="device-frame" href="./assets/screens/history.png" aria-label="查看历史复盘完整原图"><picture><source media="(max-width: 720px)" srcset="./assets/screens/history-detail.png" width="1230" height="1160"><img src="./assets/screens/history.png" width="2560" height="1600" loading="lazy" alt="App 模拟萃取详情，30 秒、36 克以及压力、累计注水、秤读数、温度采样曲线；小屏为局部放大"></picture></a>
+          <figcaption><span>App 实际界面 · Mock 模拟数据 · 非硬件验收</span><span class="mobile-detail">平板截图局部放大，并非手机端布局。</span><a href="./assets/screens/history.png">查看完整原图 <span aria-hidden="true">↗</span></a></figcaption>
+        </figure>
+      </article>
+      <aside class="image-provenance" id="image-source" aria-labelledby="image-source-title"><h3 id="image-source-title">这些画面，来自真实 App。</h3><p>截图采自开源版本的 CI Mock 环境，数据为模拟夹具，并非实机或实时记录。小屏仅对原图连续区域放大，没有重绘界面、拼接数据或冒充手机布局。点击图片可看完整平板原图。</p><p>截图构建源码为 ceea7ab，所属 CI 的 PR head 为 eec69b0；并非当前分支的实时画面。<a href="https://github.com/boolean93/openhoyi/actions/runs/42077967071">萃取截图来源 ↗</a> · <a href="https://github.com/boolean93/openhoyi/actions/runs/42077966841">首页与复盘来源 ↗</a> · <a href="./assets/screens/provenance.json">来源与裁切记录 ↗</a></p><p>相关视觉 CI 并未全部通过；展示界面不等于宣称测试通过。上述为代码已实现的功能范围，不代表全部通过实机验收。<a href="https://github.com/boolean93/openhoyi/blob/develop/docs/native-feature-status.md">查看功能状态 ↗</a></p></aside>
     </section>
 
     <section class="compatibility-section" id="compatibility" aria-labelledby="compatibility-title"><div class="wrap compatibility-layout">

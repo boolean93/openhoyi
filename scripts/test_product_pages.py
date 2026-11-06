@@ -1,5 +1,8 @@
 """Small, dependency-free checks for the public static product site."""
+import hashlib
+import json
 import re
+import struct
 import unittest
 from html.parser import HTMLParser
 from pathlib import Path
@@ -27,6 +30,8 @@ class Page(HTMLParser):
             self.links.append(attrs.get("href", ""))
         if tag in ("img", "script"):
             self.assets.append(attrs.get("src", ""))
+        if tag == "source":
+            self.assets.append(attrs.get("srcset", ""))
         if tag == "link":
             self.assets.append(attrs.get("href", ""))
 
@@ -80,7 +85,7 @@ class ProductPagesTest(unittest.TestCase):
         for tag, attrs in self.page.tags:
             self.assertNotIn(tag, ("script", "iframe", "form"))
             self.assertFalse(any(key.startswith("on") for key in attrs))
-        for text in ("Alpha", "Android 8.0", "1.1.3", "BOOKOO", "非 App 截图",
+        for text in ("Alpha", "Android 8.0", "1.1.3", "BOOKOO", "App 实际界面", "Mock 模拟数据", "非硬件验收",
                      "非实时数据", "不连接或控制设备", "目标重量自动停止",
                      "仍待完整验收", "待实机验证", "损坏", "保留机器本身的停止手段"):
             self.assertIn(text, self.html)
@@ -90,6 +95,44 @@ class ProductPagesTest(unittest.TestCase):
         self.assertNotIn("@import", css)
         self.assertNotIn("url(", css)
         self.assertTrue((SITE / ".nojekyll").is_file())
+
+    def test_product_screenshots_and_provenance(self):
+        screens = SITE / "assets/screens"
+        provenance = json.loads((screens / "provenance.json").read_text())
+        self.assertEqual(provenance["kind"], "actual-app-screenshots")
+        self.assertRegex(provenance["sourceSha"], r"^[0-9a-f]{40}$")
+        self.assertRegex(provenance["ciHeadSha"], r"^[0-9a-f]{40}$")
+        self.assertEqual(provenance["ciConclusion"], "failure")
+        self.assertIn("相关视觉 CI 并未全部通过", self.html)
+        self.assertIn("并非手机端布局", self.html)
+        self.assertEqual({s["name"] for s in provenance["screens"]},
+                         {"extraction", "home", "history"})
+        originals = set()
+        for screen in provenance["screens"]:
+            originals.add("./assets/screens/" + screen["original"])
+            x1, y1, x2, y2 = screen["cropPx"]
+            self.assertTrue(0 <= x1 < x2 <= screen["width"])
+            self.assertTrue(0 <= y1 < y2 <= screen["height"])
+            for file_key, hash_key, size in (
+                ("original", "sha256", (screen["width"], screen["height"])),
+                ("responsiveDetail", "detailSha256", (x2 - x1, y2 - y1)),
+            ):
+                asset = (screens / screen[file_key]).resolve()
+                self.assertTrue(asset.is_relative_to(screens.resolve()))
+                data = asset.read_bytes()
+                self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+                self.assertEqual(struct.unpack(">II", data[16:24]), size)
+                self.assertEqual(hashlib.sha256(data).hexdigest(), screen[hash_key])
+                self.assertIn("./assets/screens/" + screen[file_key], self.page.assets)
+        self.assertTrue(originals.issubset(self.page.links))
+        self.assertEqual(sum(tag == "picture" for tag, _ in self.page.tags), 3)
+        for scene in ("connect", "observe", "remember", "image-source"):
+            self.assertIn(scene, self.page.ids)
+        # Intrinsic dimensions prevent layout shifts and distorted screenshots.
+        for tag, attrs in self.page.tags:
+            if tag in ("img", "source") and "/screens/" in (attrs.get("src", "") + attrs.get("srcset", "")):
+                self.assertGreater(int(attrs["width"]), 0)
+                self.assertGreater(int(attrs["height"]), 0)
 
     def test_deployment_scope(self):
         workflow = (ROOT / ".github/workflows/product-pages.yml").read_text()
