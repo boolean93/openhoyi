@@ -16,7 +16,7 @@ internal class ComparisonMetricTabs(private val activity: ThemedActivity, select
         tag = "comparison-metric"
         background = visual?.palette?.let { it.shape(it.page, true, 12) }
             ?: HoyiUi.shape(activity, R.color.mobile_background, 12, R.color.mobile_border)
-        ChartMetric.entries.forEach { metric ->
+        historicalMetrics.forEach { metric ->
             buttons[metric] = HoyiUi.button(activity, this, label(metric)) {
                 if (selectedMetric != metric) {
                     selectedMetric = metric

@@ -299,19 +299,15 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     }
 
     private fun rebuildProjection() {
-        data = FourMetricChartProjection.build(points, reference, previousRanges, livePauseBaseline = liveChart)
+        data = FourMetricChartProjection.build(points, reference, previousRanges, livePauseBaseline = liveChart, liveFlow = liveChart)
         if (liveChart) {
             liveTimeEnd = LiveChartGeometry.continuousTimeEnd(liveTimeEnd, data.timeEndMs)
-            if (data.series.none { it.metric == ChartMetric.WEIGHT }) {
-                val range = previousRanges[ChartMetric.WEIGHT] ?: ChartRange(0f, 50f)
-                data = data.copy(series = data.series + MetricChartSeries(ChartMetric.WEIGHT, emptyList(), emptyList(), range))
-            }
             data = data.copy(timeEndMs = liveTimeEnd)
         }
         renderTimeEnd = data.timeEndMs
         previousRanges = data.series.associate { it.metric to it.range }
         if (data.series.none { it.metric == selected }) selected = null
-        val metrics = if (embeddedHistory) data.series.map { it.metric } else ChartMetric.entries
+        val metrics = if (embeddedHistory) data.series.map { it.metric } else if (liveChart) liveMetrics else historicalMetrics
         buttons.keys.filter { it !in metrics }.toList().forEach { metric ->
             legend.removeView(buttons.remove(metric))
         }
@@ -418,10 +414,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             liveRanges[metric]?.let { if (it.text.toString() != range) it.text = range }
             val name = if (metric == ChartMetric.WEIGHT) context.getString(R.string.task_extraction_scale) else metricName(metric)
             button.contentDescription = "$name $value ${displayUnit(metric)}; $range; " +
+                (if (metric == ChartMetric.FLOW) context.getString(R.string.task_chart_flow_source) + "; " else "") +
                 (if (paused) context.getString(R.string.live_pressure_pause_explanation) + "; " else "") +
-                (if (metric == ChartMetric.WEIGHT && latest == null) context.getString(R.string.task_chart_missing_scale) + "; " else "") +
+                (if (metric == ChartMetric.FLOW && latest == null) context.getString(R.string.task_chart_flow_unavailable) + "; " else "") +
                 context.getString(R.string.task_chart_hint)
-            button.isEnabled = series != null && (metric != ChartMetric.WEIGHT || latest != null)
+            button.isEnabled = series != null && (metric != ChartMetric.FLOW || latest != null)
             return
         }
         if (series == null) {
@@ -531,6 +528,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         if (points.isEmpty() || inspectionDialog != null) return
         // A live append must not move the observation under a user's finger.
         val samples = points.toList()
+        val inspectedFlow = if (liveChart) CupFlowProjection.values(samples) else emptyList()
         val body = LinearLayout(context).apply {
             orientation = VERTICAL
             setPadding(dp(20f).toInt(), dp(12f).toInt(), dp(20f).toInt(), dp(12f).toInt())
@@ -554,10 +552,14 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             inspectedTime = point.elapsedMs
             val title = context.getString(R.string.task_chart_sample_time,
                 String.format(Locale.ROOT, "%.2f", point.elapsedMs / 1000.0))
-            readout.text = (listOf(title) + ChartInspection.values(point).map { (metric, value) ->
+            readout.text = (listOf(title) + ChartInspection.values(point, liveChart, inspectedFlow.getOrNull(index)).map { (metric, value) ->
                 val displayed = value?.let { String.format(Locale.ROOT,
-                    if (metric == ChartMetric.WEIGHT || metric == ChartMetric.TEMPERATURE) "%.2f" else "%.1f", it) + " " + metric.unit }
-                    ?: context.getString(if (metric == ChartMetric.PRESSURE) R.string.task_chart_not_brewing else R.string.task_chart_missing_scale)
+                    if (metric == ChartMetric.WEIGHT || metric == ChartMetric.FLOW || metric == ChartMetric.TEMPERATURE) "%.2f" else "%.1f", it) + " " + metric.unit }
+                    ?: context.getString(when (metric) {
+                        ChartMetric.PRESSURE -> R.string.task_chart_not_brewing
+                        ChartMetric.FLOW -> R.string.task_chart_flow_unavailable
+                        else -> R.string.task_chart_missing_scale
+                    })
                 "${metricName(metric)}: $displayed"
             }).joinToString("\n\n")
             if (android.os.Build.VERSION.SDK_INT >= 30) slider.stateDescription = title
@@ -582,6 +584,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         ChartMetric.PRESSURE -> R.string.task_chart_pressure
         ChartMetric.WATER -> R.string.task_chart_water
         ChartMetric.WEIGHT -> R.string.task_chart_weight
+        ChartMetric.FLOW -> R.string.task_chart_flow
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
     })
     private fun metricColor(metric: ChartMetric): Int {
@@ -591,7 +594,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         return Color.parseColor(when (metric) {
             ChartMetric.PRESSURE -> if (dark) "#80B4FF" else "#176BD1"
             ChartMetric.WATER -> if (dark) "#FFAE78" else "#C05A13"
-            ChartMetric.WEIGHT -> if (dark) "#64DEA3" else "#168A55"
+            ChartMetric.WEIGHT, ChartMetric.FLOW -> if (dark) "#64DEA3" else "#168A55"
             ChartMetric.TEMPERATURE -> if (dark) "#A994FF" else "#654ACC"
         })
     }

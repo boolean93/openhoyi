@@ -622,7 +622,7 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             ?: LiveTelemetry.scale(snapshot.weight, snapshot.scaleState, snapshot.weightAt, now)?.weightHundredthsGram
         chart.unavailableLiveMetrics = buildSet {
             if (frame == null) addAll(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.TEMPERATURE))
-            if (scale == null) add(ChartMetric.WEIGHT)
+            if (scale == null) add(ChartMetric.FLOW)
         }
         // Connected but stale scales stay explicitly unknown; no cup/tare evidence is inferred.
         val scaleQuantity = scale != null || snapshot.scaleState == DeviceState.READY

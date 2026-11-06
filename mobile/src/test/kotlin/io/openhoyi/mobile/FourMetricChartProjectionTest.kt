@@ -10,6 +10,44 @@ class FourMetricChartProjectionTest {
 
     private fun FourMetricChartData.series(metric: ChartMetric) = series.single { it.metric == metric }
 
+    @Test fun liveUsesScaleDerivativeForCurrentAndReferenceWithoutChangingHistory() {
+        val points = listOf(point(0, weight = 0), point(500, weight = 100), point(1000, weight = 200))
+        val live = FourMetricChartProjection.build(points, points, liveFlow = true)
+        assertEquals(liveMetrics, live.series.map { it.metric })
+        val flow = live.series(ChartMetric.FLOW)
+        assertEquals(listOf(ChartValue(500, 2f), ChartValue(1000, 2f)), flow.current.single())
+        assertEquals(flow.current, flow.reference)
+        assertEquals(ChartRange(0f, 5f), flow.range)
+        val history = FourMetricChartProjection.build(points, points)
+        assertEquals(historicalMetrics, history.series.map { it.metric })
+        assertEquals(listOf(0f, 1f, 2f), history.series(ChartMetric.WEIGHT).current.single().map { it.value })
+        assertEquals(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.FLOW, ChartMetric.TEMPERATURE),
+            ChartInspection.values(points.last(), true, 2f).keys.toList())
+    }
+
+    @Test fun liveMissingScaleKeepsEmptyFlowAxisAndDerivativeGaps() {
+        val empty = FourMetricChartProjection.build(listOf(point(0, weight = null)), emptyList(), liveFlow = true)
+        assertEquals(liveMetrics, empty.series.map { it.metric })
+        assertTrue(empty.series(ChartMetric.FLOW).current.isEmpty())
+        assertEquals(ChartRange(0f, 5f), empty.series(ChartMetric.FLOW).range)
+        val points = listOf(point(0, weight = 0), point(500, weight = 100),
+            point(1000, weight = null), point(1500, weight = 200), point(2000, weight = 300),
+            point(2500, weight = 100), point(3000, weight = 200),
+            point(3500, weight = 300, brewing = false), point(4000, weight = 400), point(4500, weight = 500))
+        val live = FourMetricChartProjection.build(points, emptyList(), liveFlow = true)
+        assertEquals(listOf(listOf(500L), listOf(2000L), listOf(3000L), listOf(4500L)),
+            live.series(ChartMetric.FLOW).current.map { segment -> segment.map { it.elapsedMs } })
+    }
+
+    @Test fun liveFlowRangeExpandsAndDoesNotShrinkWithinShot() {
+        val high = FourMetricChartProjection.build(listOf(point(0, weight = 0), point(1000, weight = 620)),
+            emptyList(), liveFlow = true)
+        assertEquals(ChartRange(0f, 7f), high.series(ChartMetric.FLOW).range)
+        val next = FourMetricChartProjection.build(emptyList(), emptyList(),
+            high.series.associate { it.metric to it.range }, liveFlow = true)
+        assertEquals(high.series(ChartMetric.FLOW).range, next.series(ChartMetric.FLOW).range)
+    }
+
     @Test fun exactPhysicalValuesNeverUseFlow() {
         val data = FourMetricChartProjection.build(listOf(point(1000)), emptyList())
         assertEquals(listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.WEIGHT,

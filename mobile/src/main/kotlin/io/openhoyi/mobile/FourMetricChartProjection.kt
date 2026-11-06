@@ -8,7 +8,11 @@ internal enum class ChartMetric(val unit: String, val floor: Float, val ceiling:
     WATER("ml", 0f, 60f, 10f),
     WEIGHT("g", 0f, 50f, 10f),
     TEMPERATURE("°C", 80f, 100f, 5f),
+    FLOW("g/s", 0f, 5f, 1f),
 }
+
+internal val historicalMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.WEIGHT, ChartMetric.TEMPERATURE)
+internal val liveMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.FLOW, ChartMetric.TEMPERATURE)
 
 internal data class ChartValue(val elapsedMs: Long, val value: Float)
 internal data class ChartRange(val low: Float, val high: Float)
@@ -32,7 +36,7 @@ internal data class FourMetricChartData(
 internal object FourMetricChartProjection {
     /**
      * [previousRanges] belongs to the caller's same-shot display session; reset it for a new shot.
-     * Weight is the raw observed scale reading, not an inferred beverage yield.
+     * Historical weight remains raw scale weight. Live flow is the display-only scale derivative.
      * timeEndMs is an axis bound, while observedThroughMs describes only current observations.
      */
     fun build(
@@ -40,10 +44,11 @@ internal object FourMetricChartProjection {
         reference: List<ShotPoint>,
         previousRanges: Map<ChartMetric, ChartRange> = emptyMap(),
         livePauseBaseline: Boolean = false,
+        liveFlow: Boolean = false,
     ): FourMetricChartData {
         validate(points)
         validate(reference)
-        val series = ChartMetric.entries.mapNotNull { metric ->
+        val series = (if (liveFlow) liveMetrics else historicalMetrics).mapNotNull { metric ->
             val current = segments(points, metric, livePauseBaseline)
             val historic = segments(reference, metric)
             if (metric == ChartMetric.WEIGHT && current.isEmpty() && historic.isEmpty()) {
@@ -90,6 +95,7 @@ internal object FourMetricChartProjection {
         ChartMetric.PRESSURE -> (point.pressureTenthsBar / 10f).takeUnless { point.brewing == false }
         ChartMetric.WATER -> point.waterTenthsMl / 10f
         ChartMetric.WEIGHT -> point.weightHundredthsGram?.div(100f)
+        ChartMetric.FLOW -> null // Derived from the complete sample timeline in segments().
         ChartMetric.TEMPERATURE -> point.temperatureHundredthsC / 100f
     }
 
@@ -113,11 +119,13 @@ internal object FourMetricChartProjection {
 
     private fun segments(samples: List<ShotPoint>, metric: ChartMetric, livePauseBaseline: Boolean = false): List<List<ChartValue>> {
         val result = mutableListOf<MutableList<ChartValue>>()
+        val flow = if (metric == ChartMetric.FLOW) CupFlowProjection.values(samples) else emptyList()
         var previous: ShotPoint? = null
         var active: MutableList<ChartValue>? = null
         val pauses = if (livePauseBaseline && metric == ChartMetric.PRESSURE) pauseBaselines(samples) else emptySet()
-        for (point in samples) {
-            val actual = if (point.elapsedMs in pauses) 0f else value(point, metric)
+        for ((index, point) in samples.withIndex()) {
+            val actual = if (metric == ChartMetric.FLOW) flow[index]
+                else if (point.elapsedMs in pauses) 0f else value(point, metric)
             if (actual == null) {
                 active = null
                 previous = point
