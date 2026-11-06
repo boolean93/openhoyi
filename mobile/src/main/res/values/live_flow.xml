@@ -1,0 +1,5 @@
+<resources>
+    <string name="task_chart_flow">流速</string>
+    <string name="task_chart_flow_unavailable">秤重估算杯流速，等待有效样本</string>
+    <string name="task_chart_flow_source">秤重估算杯流速</string>
+</resources>

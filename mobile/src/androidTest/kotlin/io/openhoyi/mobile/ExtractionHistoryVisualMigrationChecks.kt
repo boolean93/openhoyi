@@ -632,7 +632,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     "Normal running guidance must remain complete in compact chrome without a duplicate full-width row" }
                 val stop=root(activity).findViewWithTag<View>("product/extraction/stop")
                 check(stop.isEnabled && stop.isShown && stop.height>=HoyiUi.dp(activity,56) && whole(observation(stop))) { "M5 actual running stop action not complete/fixed" }
-                ChartMetric.entries.map { "product/extraction/metric/$it/number" }.forEach { tag ->
+                liveMetrics.map { "product/extraction/metric/$it/number" }.forEach { tag ->
                     val value=requireNotNull(root(activity).findViewWithTag<TextView>(tag)); check(value.text.toString()!="—" && whole(observation(value)))
                 }
                 val gauge = requireNotNull(root(activity).findViewWithTag<View>("product/extraction/pressure-gauge"))
@@ -664,8 +664,8 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     try { liveGauge.present(pressure,maximum,false); layoutGauge() }
                     catch (restore: Throwable) { if (phaseFailure!=null) phaseFailure.addSuppressed(restore) else throw restore }
                 }
-                val expectedUnits = listOf("bar", "mL", "g", "°C")
-                ChartMetric.entries.forEachIndexed { index, metric ->
+                val expectedUnits = listOf("bar", "mL", "g/s", "°C")
+                liveMetrics.forEachIndexed { index, metric ->
                     val prefix = "product/extraction/metric/$metric"
                     val number = requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/number"))
                     val unit = requireNotNull(root(activity).findViewWithTag<TextView>("$prefix/unit"))
@@ -688,7 +688,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                     root(activity).findViewWithTag<View>("product/extraction/quantity/number") == null)
                 val currentPaths = (0 until chart.visualEvidence.length()).map { chart.visualEvidence.getJSONObject(it) }
                     .filter { it.optString("operation") == "path" && !it.optBoolean("reference") }
-                check(currentPaths.map { it.getString("metric") }.toSet() == ChartMetric.entries.map { it.name }.toSet())
+                check(currentPaths.map { it.getString("metric") }.toSet() == liveMetrics.map { it.name }.toSet())
                 currentPaths.forEach { path ->
                     check(path.getString("interpolation") == "monotone-hermite")
                     check(path.getJSONArray("cubicControlsPx").length() == path.getJSONArray("verticesPx").length() - 1)
@@ -1467,11 +1467,11 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private fun comparisonBusiness(initial: Activity, scope: Scope, folder: File) {
         var activity=initial; val original=scope.journal.exportJson(); val cases=JSONArray()
         val first=scope.firstId; val second=scope.secondId
-        for(metric in ChartMetric.entries) {
+        for(metric in historicalMetrics) {
             main {
                 val label=activity.getString(when(metric) {
                     ChartMetric.PRESSURE->R.string.task_comparison_pressure; ChartMetric.WATER->R.string.task_comparison_water
-                    ChartMetric.WEIGHT->R.string.task_comparison_weight; ChartMetric.TEMPERATURE->R.string.task_comparison_temperature })
+                    ChartMetric.WEIGHT->R.string.task_comparison_weight; ChartMetric.FLOW->R.string.task_chart_flow; ChartMetric.TEMPERATURE->R.string.task_comparison_temperature })
                 check(nodes(root(activity)).filterIsInstance<TextView>().single { it.isClickable && it.text.toString()==label }.performClick())
                 check((field(activity,"chart") as TwoCupChartView).metric==metric)
             }
@@ -1522,7 +1522,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                                 left>=maxOf(viewport.getInt(0),clip.getInt(0)) && right<=minOf(viewport.getInt(2),clip.getInt(2)) &&
                                 top>=maxOf(viewport.getInt(1),clip.getInt(1)) && bottom<=minOf(viewport.getInt(3),clip.getInt(3)))
                     }))
-            })).put("controls",JSONArray(ChartMetric.entries.map { metric ->
+            })).put("controls",JSONArray(historicalMetrics.map { metric ->
                 val button=requireNotNull(chart.findViewWithTag<Button>("chart-metric:$metric"))
                 JSONObject().put("identity",System.identityHashCode(button)).put("semanticId",button.tag)
                     .put("widthDp",button.width/activity.resources.displayMetrics.density)
@@ -1558,7 +1558,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
                 y=minOf(maximum,y+maxOf(1,header.height/2))
             }
             // Exact native reveals cover atomic controls/lines that straddle the sweep steps.
-            ChartMetric.entries.forEachIndexed { index,metric ->
+            historicalMetrics.forEachIndexed { index,metric ->
                 val covered=(0 until pages.length()).any { pages.getJSONObject(it).getJSONObject("snapshot")
                     .getJSONArray("controls").getJSONObject(index).getJSONObject("layout").getBoolean("complete") }
                 if(!covered) {
@@ -2532,7 +2532,7 @@ internal class ExtractionHistoryVisualMigrationChecks(private val test: Instrume
     private fun chartMetricAction(activity: Activity, metric: ChartMetric) {
         val label=activity.getString(when(metric) {
             ChartMetric.PRESSURE->R.string.task_comparison_pressure; ChartMetric.WATER->R.string.task_comparison_water
-            ChartMetric.WEIGHT->R.string.task_comparison_weight; ChartMetric.TEMPERATURE->R.string.task_comparison_temperature })
+            ChartMetric.WEIGHT->R.string.task_comparison_weight; ChartMetric.FLOW->R.string.task_chart_flow; ChartMetric.TEMPERATURE->R.string.task_comparison_temperature })
         main { check(nodes(root(activity)).filterIsInstance<TextView>().single { it.isClickable && it.text.toString()==label }.performClick()) }
     }
     /** Additional real page states, never another contribution to the four-page/16-profile main matrix. */

@@ -50,7 +50,7 @@ internal object TwoCupComparisonPageChecks {
             if (activity.resources.configuration.let {
                 it.screenWidthDp >= 1000 && it.screenHeightDp >= 600 && it.fontScale <= 1.05f
             }) {
-                (ChartMetric.entries.map(::metricButton) + listOf(swap, root.findViewWithTag<View>("comparison-first"),
+                (historicalMetrics.map(::metricButton) + listOf(swap, root.findViewWithTag<View>("comparison-first"),
                     root.findViewWithTag<View>("comparison-second"))).forEach { control ->
                     val bounds = android.graphics.Rect()
                     check(control.isShown && control.getGlobalVisibleRect(bounds) &&
@@ -62,7 +62,7 @@ internal object TwoCupComparisonPageChecks {
             }
         }
         try {
-            for (metric in ChartMetric.entries) {
+            for (metric in historicalMetrics) {
                 main { selectMetric(metric) }
                 test.waitForIdleSync()
                 await { chart.metric == metric && !chart.isLayoutRequested }
@@ -114,7 +114,7 @@ internal object TwoCupComparisonPageChecks {
                     val entries = (activity.application as MobileApplication).journalResult.getOrThrow().entries()
                     firstSelector.setSelection(entries.indexOfFirst { it.observation.id == first } + 1)
                 }
-                selectMetric(ChartMetric.entries[originalMetric])
+                selectMetric(historicalMetrics.single { it.ordinal == originalMetric })
             }
             test.waitForIdleSync()
             await { id("firstId") == first && id("secondId") == second && chart.metric.ordinal == originalMetric }

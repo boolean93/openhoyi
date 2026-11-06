@@ -12,10 +12,11 @@ internal object ChartInspection {
         if (after == points.size) return points.lastIndex
         return if (target - points[after - 1].elapsedMs <= points[after].elapsedMs - target) after - 1 else after
     }
-    fun values(point: ShotPoint): Map<ChartMetric, Float?> = linkedMapOf(
+    fun values(point: ShotPoint, liveFlow: Boolean = false, flow: Float? = null): Map<ChartMetric, Float?> = linkedMapOf(
         ChartMetric.PRESSURE to (point.pressureTenthsBar / 10f).takeUnless { point.brewing == false },
         ChartMetric.WATER to point.waterTenthsMl / 10f,
-        ChartMetric.WEIGHT to point.weightHundredthsGram?.div(100f),
+        (if (liveFlow) ChartMetric.FLOW else ChartMetric.WEIGHT) to
+            (if (liveFlow) flow else point.weightHundredthsGram?.div(100f)),
         ChartMetric.TEMPERATURE to point.temperatureHundredthsC / 100f,
     )
 }

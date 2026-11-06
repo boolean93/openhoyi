@@ -53,7 +53,7 @@ internal class LiveMotionReplayChecks(private val test: Instrumentation) {
                         if(recording) {
                             fun field(name:String)=view.javaClass.getDeclaredField(name).apply { isAccessible=true }.get(view)
                             val shown=JSONObject()
-                            for(metric in ChartMetric.entries) shown.put(metric.name,view.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/number")?.text?.toString())
+                            for(metric in liveMetrics) shown.put(metric.name,view.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/number")?.text?.toString())
                             frames.put(JSONObject().put("frameNs",at).put("revealMs",field("revealThroughMs") as Long? ?: latest)
                                 .put("latestReceivedMs",latest).put("axisMs",field("renderTimeEnd")).put("displayedValues",shown))
                             Choreographer.getInstance().postFrameCallback(callback)

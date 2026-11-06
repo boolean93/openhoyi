@@ -42,7 +42,7 @@ internal class LiveNarrowChartChecks(private val test: Instrumentation) {
                         check(plot.getDouble(2)-plot.getDouble(0)>=96*density)
                         check(plot.getDouble(3)-plot.getDouble(1)>=96*density)
                         val glyphs = ops.filter { it.optString("role") in setOf("axis-unit","axis-tick") }
-                        for(metric in ChartMetric.entries) {
+                        for(metric in liveMetrics) {
                             check(glyphs.count { it.optString("role")=="axis-unit" && it.optString("metric")==metric.name }==1)
                             val ticks=glyphs.filter { it.optString("role")=="axis-tick" && it.optString("metric")==metric.name }.map { it.getString("text").toFloat() }
                             check(ticks.size>=2 && ticks.minOrNull()==metric.floor && ticks.maxOrNull()==metric.ceiling)
@@ -80,8 +80,8 @@ internal class LiveNarrowChartChecks(private val test: Instrumentation) {
                             }
                         }
                         if(missingScale) {
-                            check(ops.none { it.optString("operation")=="path" && it.optString("metric")==ChartMetric.WEIGHT.name })
-                            check(chart.findViewWithTag<android.widget.TextView>("product/extraction/metric/WEIGHT/number").text.toString()=="—")
+                            check(ops.none { it.optString("operation")=="path" && it.optString("metric")==ChartMetric.FLOW.name })
+                            check(chart.findViewWithTag<android.widget.TextView>("product/extraction/metric/FLOW/number").text.toString()=="—")
                         }
                         val id="live-isolated-360dp-font1.3-height$heightDp-missing$missingScale"
                         File(directory,"$id.png").outputStream().use { check(bitmap.compress(Bitmap.CompressFormat.PNG,100,it)) }
