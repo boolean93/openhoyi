@@ -154,6 +154,22 @@
 1. 读回并保存当前 ruleset JSON：
    `gh api repos/boolean93/openhoyi/rulesets/24759469 > /tmp/integration-ruleset.before.json`
 2. 从 GET 结果只取 `name`、`target`、`enforcement`、`bypass_actors`、`conditions`、`rules` 构造 PUT body（不发送 `_links`、`id`、`node_id`、`source`、`created_at`、`updated_at` 等只读字段），只把 `required_status_checks` 的 contexts 改为 `[{"context":"branch-policy"},{"context":"verify"}]`；保留 `pull_request` 的 `allowed_merge_methods`、`require_extra_approval_for_unattributed_changes` 等现有参数；生成 `/tmp/integration-ruleset.target.json`。
+
+   ```bash
+   python3 - <<'PY'
+   import json
+   from pathlib import Path
+   before = json.loads(Path('/tmp/integration-ruleset.before.json').read_text())
+   body = {key: before[key] for key in
+           ('name', 'target', 'enforcement', 'bypass_actors', 'conditions', 'rules')}
+   for rule in body['rules']:
+       if rule['type'] == 'required_status_checks':
+           rule['parameters']['required_status_checks'] = [
+               {'context': 'branch-policy'}, {'context': 'verify'}]
+   Path('/tmp/integration-ruleset.target.json').write_text(
+       json.dumps(body, indent=2) + "\n")
+   PY
+   ```
 3. `gh api --method PUT repos/boolean93/openhoyi/rulesets/24759469 --input /tmp/integration-ruleset.target.json`
 4. 读回核对：
    `gh api repos/boolean93/openhoyi/rulesets/24759469 --jq '{name,enforcement,bypass_actors,conditions,rules}'`
