@@ -99,11 +99,17 @@ class ProductPagesTest(unittest.TestCase):
     def test_product_screenshots_and_provenance(self):
         screens = SITE / "assets/screens"
         provenance = json.loads((screens / "provenance.json").read_text())
-        self.assertEqual(provenance["kind"], "actual-app-screenshots")
-        self.assertRegex(provenance["sourceSha"], r"^[0-9a-f]{40}$")
-        self.assertRegex(provenance["ciHeadSha"], r"^[0-9a-f]{40}$")
-        self.assertEqual(provenance["ciConclusion"], "failure")
-        self.assertIn("相关视觉 CI 并未全部通过", self.html)
+        self.assertEqual(provenance["schema"], 2)
+        self.assertEqual(provenance["kind"], "actual-tablet-screenshots")
+        self.assertIsNone(provenance["sourceSha"])
+        self.assertIs(provenance["sourceCommitVerified"], False)
+        self.assertEqual(provenance["captureMethod"], "adb exec-out screencap -p")
+        self.assertEqual(provenance["device"]["model"], "M2105K81AC")
+        self.assertEqual(provenance["installedApp"]["package"], "io.openhoyi.mobile.mock")
+        self.assertRegex(provenance["installedApp"]["apkSha256"], r"^[0-9a-f]{64}$")
+        for text in ("平板实际截图", "源码提交映射未核验", "0.1.0（53）", "只裁去系统栏"):
+            self.assertIn(text, self.html)
+        self.assertNotIn("截图采自开源版本的 CI Mock 环境", self.html)
         self.assertIn("并非手机端布局", self.html)
         self.assertEqual({s["name"] for s in provenance["screens"]},
                          {"extraction", "home", "history"})
@@ -113,8 +119,11 @@ class ProductPagesTest(unittest.TestCase):
             x1, y1, x2, y2 = screen["cropPx"]
             self.assertTrue(0 <= x1 < x2 <= screen["width"])
             self.assertTrue(0 <= y1 < y2 <= screen["height"])
+            self.assertRegex(screen["capturedAt"], r"^2026-11-06T")
+            self.assertEqual(screen["displayCropPx"], [0, 60, 2560, 1564])
             for file_key, hash_key, size in (
                 ("original", "sha256", (screen["width"], screen["height"])),
+                ("display", "displaySha256", (2560, 1504)),
                 ("responsiveDetail", "detailSha256", (x2 - x1, y2 - y1)),
             ):
                 asset = (screens / screen[file_key]).resolve()
@@ -123,7 +132,11 @@ class ProductPagesTest(unittest.TestCase):
                 self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
                 self.assertEqual(struct.unpack(">II", data[16:24]), size)
                 self.assertEqual(hashlib.sha256(data).hexdigest(), screen[hash_key])
-                self.assertIn("./assets/screens/" + screen[file_key], self.page.assets)
+                asset_url = "./assets/screens/" + screen[file_key]
+                if file_key == "original":
+                    self.assertIn(asset_url, self.page.links)
+                else:
+                    self.assertIn(asset_url, self.page.assets)
         self.assertTrue(originals.issubset(self.page.links))
         self.assertEqual(sum(tag == "picture" for tag, _ in self.page.tags), 3)
         for scene in ("connect", "observe", "remember", "image-source"):
@@ -131,8 +144,9 @@ class ProductPagesTest(unittest.TestCase):
         # Intrinsic dimensions prevent layout shifts and distorted screenshots.
         for tag, attrs in self.page.tags:
             if tag in ("img", "source") and "/screens/" in (attrs.get("src", "") + attrs.get("srcset", "")):
-                self.assertGreater(int(attrs["width"]), 0)
-                self.assertGreater(int(attrs["height"]), 0)
+                image_path = attrs.get("src") or attrs["srcset"]
+                dimensions = struct.unpack(">II", (SITE / image_path).read_bytes()[16:24])
+                self.assertEqual((int(attrs["width"]), int(attrs["height"])), dimensions)
 
     def test_deployment_scope(self):
         workflow = (ROOT / ".github/workflows/product-pages.yml").read_text()

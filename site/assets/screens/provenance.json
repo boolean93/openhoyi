@@ -1,68 +1,95 @@
 {
-  "schema": 1,
-  "kind": "actual-app-screenshots",
-  "data": "Mock simulated fixture data; not hardware acceptance or live data",
-  "sourceSha": "ceea7ab858444b169b89207d18e4463d9a442349",
-  "ciHeadSha": "eec69b03d2c7291d64b5578eee288c0eea6f3855",
-  "ciConclusion": "failure",
-  "notice": "Existing screenshot artifacts from non-required visual CI jobs. Publication does not claim those jobs passed. Responsive details are single contiguous, unretouched tablet crops, not phone layouts.",
+  "schema": 2,
+  "kind": "actual-tablet-screenshots",
+  "data": "Mock simulated data on a physical tablet; not hardware acceptance or a live website feed",
+  "captureMethod": "adb exec-out screencap -p",
+  "device": {
+    "model": "M2105K81AC",
+    "androidRelease": "13",
+    "captureWidth": 2560,
+    "captureHeight": 1600
+  },
+  "installedApp": {
+    "package": "io.openhoyi.mobile.mock",
+    "versionName": "0.1.0",
+    "versionCode": 53,
+    "apkSha256": "43e54777818586ddfffbec39704eba070d0c0b0a3a916a63e34b34b6823d4a3b"
+  },
+  "sourceSha": null,
+  "sourceCommitVerified": false,
+  "notice": "Already-installed development APK; exact source commit not verified. Originals are unmodified adb screenshots. Desktop images remove only system bars. Mobile images are single contiguous crops of the originals, never composited or redrawn; they are not phone layouts.",
   "screens": [
     {
       "name": "extraction",
-      "original": "extraction.png",
-      "sha256": "4ac433ceae6ccea28d78f45de084a995a68b7c1c10a6440212b13959339f0288",
+      "original": "originals/extraction.png",
       "width": 2560,
       "height": 1600,
-      "responsiveDetail": "extraction-detail.png",
-      "detailSha256": "15763b88f665d3a3b850fa1131410ce7681e50ba8fe527fc33e03f0cee70110b",
-      "cropPx": [
-        250,
-        235,
-        1640,
-        1304
+      "capturedAt": "2026-11-06T00:56:55.462641+00:00",
+      "display": "extraction.png",
+      "displayCropPx": [
+        0,
+        60,
+        2560,
+        1564
       ],
-      "ciRun": "42077967071",
-      "ciUrl": "https://github.com/boolean93/openhoyi/actions/runs/42077967071",
-      "artifactId": "13439148540",
-      "artifactPath": "extraction-history/raw-device/ceea7ab858444b169b89207d18e4463d9a442349/tablet-user-landscape-light-font-1.3/extraction/window.png"
+      "responsiveDetail": "extraction-detail.png",
+      "cropPx": [
+        270,
+        90,
+        2210,
+        1410
+      ],
+      "sha256": "f8c6b8090dcdd568af20ee6f1ebf25d14b58e0b1c1a1eb7c5c3ac6c8e4a4e610",
+      "displaySha256": "8d45d8bc83a9bc0712852c2dab7cec91ba0df8b26e965541294d1e65ba744819",
+      "detailSha256": "96a877522016904945c2c9aa1c76e5e9268b62561c22c775f9faa49846c2c185"
     },
     {
       "name": "home",
-      "original": "home.png",
-      "sha256": "d7014c123667d4ca65bd00a4b84a01123b9a765c2128394729322f50a322498f",
+      "original": "originals/home.png",
       "width": 2560,
       "height": 1600,
+      "capturedAt": "2026-11-06T00:55:16.018213+00:00",
+      "display": "home.png",
+      "displayCropPx": [
+        0,
+        60,
+        2560,
+        1564
+      ],
       "responsiveDetail": "home-detail.png",
-      "detailSha256": "84df874ae5db1165744187287f7ce50a8b18bd866440f1a2558140ecc7a4cc57",
       "cropPx": [
         1304,
-        72,
-        2542,
-        1160
+        204,
+        2524,
+        1016
       ],
-      "ciRun": "42077966841",
-      "ciUrl": "https://github.com/boolean93/openhoyi/actions/runs/42077966841",
-      "artifactId": "13440940483",
-      "artifactPath": "single-screen/tablet-user-landscape/single-screen-window-checks/zh-Hans-light-HomeActivity.png"
+      "sha256": "1dbe92d655d5ff0e5ca28e0eda8e1d8053da63abde3121b15756d161bbf5110f",
+      "displaySha256": "55b642929b60552b71b67b6d09c595c8b3c415653e89f039155cb742f3270fa3",
+      "detailSha256": "b1d5d9dd7a2e14a822050ab005357c7073339282eeb124b3b5cceda098acf71b"
     },
     {
       "name": "history",
-      "original": "history.png",
-      "sha256": "4d14c6cb30925fced1efd2972286e6e5941d65730b6536e41b4edc7ec4d910b7",
+      "original": "originals/history.png",
       "width": 2560,
       "height": 1600,
-      "responsiveDetail": "history-detail.png",
-      "detailSha256": "0799dd01ee6a94d44109bd0db3e2dd537cff63f6279d3d889fe382a64b9b7ed9",
-      "cropPx": [
-        36,
-        130,
-        1266,
-        1290
+      "capturedAt": "2026-11-06T00:54:29.044395+00:00",
+      "display": "history.png",
+      "displayCropPx": [
+        0,
+        60,
+        2560,
+        1564
       ],
-      "ciRun": "42077966841",
-      "ciUrl": "https://github.com/boolean93/openhoyi/actions/runs/42077966841",
-      "artifactId": "13440940483",
-      "artifactPath": "single-screen/tablet-user-landscape/single-screen-window-checks/zh-Hans-light-HistoryDetailActivity.png"
+      "responsiveDetail": "history-detail.png",
+      "cropPx": [
+        1224,
+        220,
+        2524,
+        1270
+      ],
+      "sha256": "b26ad4de1d0e30b149d5a5a302c019f73bef9fe88a5bc9af5afabb797d1f1f24",
+      "displaySha256": "3d5b09e153e5637ad8a37ce3c2f4309dfcba4d27660c8cc0b62a5eccb64e04c3",
+      "detailSha256": "7ec9fb0ba2a437d52a8d0d3423004df25623e39525448c04c19eab83b1aa0603"
     }
   ]
 }
