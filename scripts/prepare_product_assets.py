@@ -1,72 +1,48 @@
 #!/usr/bin/env python3
-"""Prepare original decorative geometry and a licensed, local website font subset.
+"""Prepare readable continuous feature crops; development only, requires Pillow.
 
-Development only; the published site has no Python/runtime dependencies.
-Use fonttools==4.60.1 and Brotli (WOFF2 support), e.g. the workspace-local
-build/font-tools directory. Source font and OFL are already bundled by the App.
-The geometry is decorative, not an image of a real device or a measurement.
+The site uses system fonts. Original screenshots and the original nine image
+files are never overwritten. No redraw, stitching, rescaling or device access.
 """
+import hashlib
+import json
 from pathlib import Path
-import math
-import shutil
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-ASSETS = ROOT / "site" / "assets"
+SCREENS = ROOT / "site/assets/screens"
+PREVIEWS = (
+    ("curve-preview.png", "home.png", (250, 1025, 715, 1455),
+     "1dbe92d655d5ff0e5ca28e0eda8e1d8053da63abde3121b15756d161bbf5110f"),
+    ("history-preview.png", "history.png", (275, 335, 875, 620),
+     "b26ad4de1d0e30b149d5a5a302c019f73bef9fe88a5bc9af5afabb797d1f1f24"),
+)
 
 
-def geometry():
-    paths = []
-    for i in range(17):
-        rx, ry = 161 - i * 5.9, 107 - i * 3.92
-        angle = math.radians(29)
-        x = 173 + rx * math.cos(angle)
-        top, bottom = 127 - ry * math.sin(angle), 127 + ry * math.sin(angle)
-        color = "#a3452b" if i == 10 else "#526058"
-        paths.append(
-            f'<path d="M{x + 11:.2f} {top:.2f}H{x:.2f}'
-            f'A{rx:.2f} {ry:.2f} 0 1 0 {x:.2f} {bottom:.2f}'
-            f'h11" stroke="{color}"/>'
-        )
-    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 260" '
-           'fill="none" stroke-width=".65">\n'
-           '<!-- Original abstract open-ring study, not a technical diagram. -->\n'
-           + '\n'.join(paths) + '\n</svg>\n')
-    (ASSETS / "study-ring.svg").write_text(svg, encoding="utf-8")
-
-
-def font():
-    from fontTools import subset
-    from fontTools.ttLib import TTFont
-
-    source = ROOT / "mobile/src/main/res/font/noto_sans_sc_variable.ttf"
-    output = ASSETS / "fonts"
-    output.mkdir(exist_ok=True)
-    text = ''.join((ROOT / file).read_text(encoding="utf-8") for file in
-                   ["site/index.html", "site/product.js"])
-    options = subset.Options()
-    options.hinting = False
-    options.name_IDs = [0, 1, 2, 3, 4, 5, 6, 13, 14, 16, 17]
-    options.name_languages = [0x409]
-    options.layout_features = ['*']
-    item = TTFont(source)
-    worker = subset.Subsetter(options=options)
-    worker.populate(text=text, unicodes=range(0x20, 0x7F))
-    worker.subset(item)
-    names = {1: "OpenHOYI Sans", 3: "OpenHOYISans-WebsiteSubset",
-             4: "OpenHOYI Sans", 6: "OpenHOYISans-WebsiteSubset",
-             16: "OpenHOYI Sans"}
-    for record in item["name"].names:
-        if record.nameID in names:
-            record.string = names[record.nameID].encode(record.getEncoding())
-    item.flavor = "woff2"
-    target = output / "openhoyi-sans.woff2"
-    item.save(target)
-    shutil.copyfile(ROOT / "mobile/src/main/assets/licenses/NotoSansSC-OFL.txt",
-                    output / "OFL.txt")
-    print(f"Font: {target.relative_to(ROOT)} ({target.stat().st_size:,} bytes), "
-          f"{len(item.getBestCmap())} codepoints; OFL copied unchanged")
+def main():
+    records = []
+    for filename, original_name, crop, expected_hash in PREVIEWS:
+        source = SCREENS / "originals" / original_name
+        source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+        if source_hash != expected_hash:
+            raise ValueError("Original screenshot changed; do not reuse crop coordinates")
+        target = SCREENS / filename
+        with Image.open(source) as original:
+            detail = original.crop(crop)
+            detail.save(target, optimize=True)
+            width, height = detail.size
+        records.append({
+            "source": "originals/" + original_name, "sourceSha256": source_hash,
+            "file": filename, "cropPx": list(crop), "width": width, "height": height,
+            "sha256": hashlib.sha256(target.read_bytes()).hexdigest(),
+        })
+        print(f"Prepared {filename}: {width}×{height}; original unchanged")
+    metadata = {"kind": "continuous-tablet-details", "description":
+                "平板Mock模拟演示，非手机截图；每张均为单一原图连续矩形裁切，无重绘、拼接或缩放。",
+                "previews": records}
+    (SCREENS / "feature-previews.json").write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
-    geometry()
-    font()
+    main()

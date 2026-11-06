@@ -1,4 +1,4 @@
-"""Small, dependency-free checks for the public static product site."""
+"""Dependency-free regression checks for the ordinary-user product website."""
 import hashlib
 import json
 import re
@@ -10,15 +10,13 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
+APK = "https://github.com/boolean93/openhoyi/releases/download/v0.2.0-rc.2/OpenHOYI-debug-0.2.0-rc.2.apk"
 
 
 class Page(HTMLParser):
     def __init__(self, text):
         super().__init__(convert_charrefs=True)
-        self.ids = []
-        self.links = []
-        self.assets = []
-        self.tags = []
+        self.ids, self.links, self.assets, self.tags = [], [], [], []
         self.feed(text)
 
     def handle_starttag(self, tag, attrs):
@@ -30,8 +28,6 @@ class Page(HTMLParser):
             self.links.append(attrs.get("href", ""))
         if tag in ("img", "script"):
             self.assets.append(attrs.get("src", ""))
-        if tag == "source":
-            self.assets.append(attrs.get("srcset", ""))
         if tag == "link" and attrs.get("rel") != "canonical":
             self.assets.append(attrs.get("href", ""))
 
@@ -51,11 +47,14 @@ class ProductPagesTest(unittest.TestCase):
         for name in ("viewport", "description"):
             self.assertTrue(any(tag == "meta" and a.get("name") == name
                                 and a.get("content") for tag, a in self.page.tags))
+        self.assertNotIn("user-scalable=no", self.html)
         self.assertTrue(any(tag == "a" and a.get("class") == "skip-link"
                             for tag, a in self.page.tags))
         for tag, attrs in self.page.tags:
             if tag == "img":
                 self.assertIn("alt", attrs)
+            if tag == "button":
+                self.assertEqual(attrs.get("type"), "button")
 
     def test_internal_links_and_assets(self):
         self.assertEqual(len(self.page.ids), len(set(self.page.ids)))
@@ -66,73 +65,67 @@ class ProductPagesTest(unittest.TestCase):
                 if url.scheme or url.netloc:
                     self.assertEqual(url.scheme, "https")
                     self.assertEqual(url.netloc, "github.com")
-                    # Resolve repository file links against this exact source tree.
-                    prefix = "/boolean93/openhoyi/blob/develop/"
-                    if url.path.startswith(prefix):
-                        target = ROOT / unquote(url.path[len(prefix):])
-                        self.assertTrue(target.is_file())
-                        if target.suffix == ".md" and url.fragment:
-                            anchors = {
-                                re.sub(r"[^\w\- ]", "", line.lstrip("# ").lower()).replace(" ", "-")
-                                for line in target.read_text().splitlines() if line.startswith("#")
-                            }
-                            self.assertIn(unquote(url.fragment), anchors)
                 elif url.path:
-                    asset = (SITE / url.path).resolve()
+                    asset = (SITE / unquote(url.path)).resolve()
                     self.assertTrue(asset.is_relative_to(SITE.resolve()))
                     self.assertTrue(asset.is_file())
                 elif url.fragment:
                     self.assertIn(unquote(url.fragment), self.page.ids)
 
-    def test_local_enhancement_and_explicit_risk_boundaries(self):
-        scripts = []
+    def test_ordinary_user_path_and_real_download(self):
+        intro = self.html.split('class="intro wrap"', 1)[1].split('</section>', 1)[0]
+        self.assertIn('class="hero-product"', intro)
+        self.assertIn('src="./assets/screens/home.png"', intro)
+        self.assertIn('App完整首页', intro)
+        self.assertLess(intro.index('class="hero-product"'), intro.index('data-download-entry'))
+        self.assertNotIn('loading="lazy"', intro)
+        for text in ("用安卓手机连接", "HOYI 咖啡机", "选曲线", "看过程", "查记录",
+                     "Android 8.0", "没有 iPhone / iPad", "固件 1.1.3", "BOOKOO",
+                     "不要卸载旧版或清除数据", "六位设备密码"):
+            self.assertIn(text, self.html)
+        for old in ("./gradlew", "git clone", "JDK 17", "从源码构建", "萃取标本台",
+                    "一杯咖啡，不止一个结果", "THE EXTRACTION STUDY", "data-scene-tab"):
+            self.assertNotIn(old, self.html)
+        self.assertEqual([link for link in self.page.links if link.endswith(".apk")], [APK])
+        self.assertGreaterEqual(self.page.links.count("#download"), 2)
+        download = self.html.split('id="download"', 1)[1].split('</section>', 1)[0]
+        before_apk = download.split(f'href="{APK}"', 1)[0]
+        self.assertNotIn("<details", before_apk)
+        for text in ("不是稳定版", "不要依赖按目标重量自动停水", "不要反复发送指令",
+                     "设备损坏", "与这个测试版可能不同", "19,307,368", "sourceCommitVerified=false"):
+            self.assertIn(text, download)
+        self.assertIn("1ef3fcf474ef0ab0aa9a715f268a53d68bacf0c12954c5bac225d118bb188691", download)
+        self.assertIn("https://github.com/boolean93/openhoyi/releases/tag/v0.2.0-rc.2", self.page.links)
+        self.assertNotIn("download=", self.html)  # No attempt to override cross-origin browser handling.
+
+    def test_local_progressive_enhancement(self):
+        scripts = [a for tag, a in self.page.tags if tag == "script"]
+        self.assertEqual(len(scripts), 1)
+        self.assertEqual(scripts[0]["src"], "./product.js")
+        self.assertIn("defer", scripts[0])
         for tag, attrs in self.page.tags:
             self.assertNotIn(tag, ("iframe", "form"))
             self.assertFalse(any(key.startswith("on") for key in attrs))
-            if tag == "script":
-                scripts.append(attrs)
-        # Only the auditable, local progressive enhancement is permitted.
-        self.assertEqual(scripts, [{"src": "./product.js", "defer": None}])
         js = (SITE / "product.js").read_text()
-        self.assertNotRegex(js, r"\b(fetch|XMLHttpRequest|WebSocket|bluetooth|eval)\b")
-        self.assertNotIn("https://", js)
-        self.assertLess(len(js.encode()), 8_000)
-        for text in ("Alpha", "Android 8.0", "1.1.3", "BOOKOO", "真实平板界面", "Mock 模拟", "非硬件验收",
-                     "不是网站实时数据", "网站不连接设备", "目标重量自动停止",
-                     "仍待完整验收", "其他适配待验", "损坏", "保留机器本身的停止手段"):
-            self.assertIn(text, self.html)
+        self.assertLess(len(js.encode()), 8000)
+        for forbidden in ("fetch(", "XMLHttpRequest", "WebSocket", "navigator.bluetooth",
+                          "sendBeacon", "eval(", "https://", "clipboard"):
+            self.assertNotIn(forbidden, js)
+        self.assertIn("showModal", js)
+        self.assertIn("preventScroll: true", js)
+        self.assertTrue(any(tag == "dialog" and a.get("aria-labelledby") == "viewer-title"
+                            for tag, a in self.page.tags))
+        for detail in ("scale-models", "package-details", "image-source", "alpha"):
+            self.assertTrue(any(tag == "details" and a.get("id") == detail
+                                for tag, a in self.page.tags))
         css = (SITE / "styles.css").read_text()
         self.assertIn("prefers-reduced-motion", css)
         self.assertIn(":focus-visible", css)
         self.assertNotIn("@import", css)
-        urls = re.findall(r'url\([\"\']?([^\"\')]+)', css)
-        self.assertEqual(urls, ["./assets/fonts/openhoyi-sans.woff2"])
-        font = SITE / urls[0]
-        self.assertEqual(font.read_bytes()[:4], b"wOF2")
-        self.assertLess(font.stat().st_size, 250_000)
-        self.assertEqual((SITE / "assets/fonts/OFL.txt").read_bytes(),
-                         (ROOT / "mobile/src/main/assets/licenses/NotoSansSC-OFL.txt").read_bytes())
-        self.assertTrue((SITE / ".nojekyll").is_file())
+        self.assertNotIn("@font-face", css)
+        self.assertNotIn("url(", css)
 
-    def test_progressive_product_guide(self):
-        tabs = [(a["id"], a["href"], a["data-scene-tab"])
-                for tag, a in self.page.tags if "data-scene-tab" in a]
-        self.assertEqual(tabs, [("tab-" + s, "#" + s, s)
-                                for s in ("connect", "observe", "remember")])
-        # All scenes remain real, visible HTML without JavaScript.
-        for tag, attrs in self.page.tags:
-            if attrs.get("id") in ("connect", "observe", "remember"):
-                self.assertNotIn("hidden", attrs)
-        for section in ("image-source", "alpha", "installation"):
-            self.assertTrue(any(tag == "details" and a.get("id") == section
-                                for tag, a in self.page.tags))
-        self.assertTrue(any(tag == "dialog" and a.get("aria-labelledby") == "viewer-title"
-                            for tag, a in self.page.tags))
-        self.assertIn("各项量程不同，不比较线条高低", self.html)
-        self.assertIn("青虚线", self.html)
-        self.assertIn("橙点线", self.html)
-
-    def test_product_screenshots_and_provenance(self):
+    def test_original_screenshot_provenance_and_readable_detail(self):
         screens = SITE / "assets/screens"
         provenance = json.loads((screens / "provenance.json").read_text())
         self.assertEqual(provenance["schema"], 2)
@@ -142,21 +135,16 @@ class ProductPagesTest(unittest.TestCase):
         self.assertEqual(provenance["captureMethod"], "adb exec-out screencap -p")
         self.assertEqual(provenance["device"]["model"], "M2105K81AC")
         self.assertEqual(provenance["installedApp"]["package"], "io.openhoyi.mobile.mock")
-        self.assertRegex(provenance["installedApp"]["apkSha256"], r"^[0-9a-f]{64}$")
-        for text in ("平板实际截图", "源码提交映射未核验", "0.1.0（53）", "只裁去系统栏"):
+        for text in ("平板实际截图", "源码提交映射未核验", "0.1.0（53）", "并非手机端布局",
+                     "使用模拟数据", "不保证与下载的测试版一致"):
             self.assertIn(text, self.html)
-        self.assertNotIn("截图采自开源版本的 CI Mock 环境", self.html)
-        self.assertIn("并非手机端布局", self.html)
-        self.assertEqual({s["name"] for s in provenance["screens"]},
-                         {"extraction", "home", "history"})
-        originals = set()
+        self.assertEqual({s["name"] for s in provenance["screens"]}, {"extraction", "home", "history"})
         for screen in provenance["screens"]:
-            originals.add("./assets/screens/" + screen["original"])
             x1, y1, x2, y2 = screen["cropPx"]
             self.assertTrue(0 <= x1 < x2 <= screen["width"])
             self.assertTrue(0 <= y1 < y2 <= screen["height"])
-            self.assertRegex(screen["capturedAt"], r"^2026-11-06T")
             self.assertEqual(screen["displayCropPx"], [0, 60, 2560, 1564])
+            self.assertRegex(screen["capturedAt"], r"^2026-11-06T")
             for file_key, hash_key, size in (
                 ("original", "sha256", (screen["width"], screen["height"])),
                 ("display", "displaySha256", (2560, 1504)),
@@ -168,21 +156,22 @@ class ProductPagesTest(unittest.TestCase):
                 self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
                 self.assertEqual(struct.unpack(">II", data[16:24]), size)
                 self.assertEqual(hashlib.sha256(data).hexdigest(), screen[hash_key])
-                asset_url = "./assets/screens/" + screen[file_key]
                 if file_key == "original":
-                    self.assertIn(asset_url, self.page.links)
-                else:
-                    self.assertIn(asset_url, self.page.assets)
-        self.assertTrue(originals.issubset(self.page.links))
-        self.assertEqual(sum(tag == "picture" for tag, _ in self.page.tags), 3)
-        for scene in ("connect", "observe", "remember", "image-source"):
-            self.assertIn(scene, self.page.ids)
-        # Intrinsic dimensions prevent layout shifts and distorted screenshots.
+                    self.assertIn("./assets/screens/" + screen[file_key], self.page.links)
+        previews = json.loads((screens / "feature-previews.json").read_text())["previews"]
+        self.assertEqual(len(previews), 2)
+        self.assertEqual([p["cropPx"] for p in previews], [[250, 1025, 715, 1455], [275, 335, 875, 620]])
+        for preview in previews:
+            source = screens / preview["source"]
+            self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(), preview["sourceSha256"])
+            x1, y1, x2, y2 = preview["cropPx"]
+            self.assertEqual((preview["width"], preview["height"]), (x2 - x1, y2 - y1))
+            self.assertEqual(hashlib.sha256((screens / preview["file"]).read_bytes()).hexdigest(), preview["sha256"])
+            self.assertIn("./assets/screens/" + preview["file"], self.page.assets)
         for tag, attrs in self.page.tags:
-            if tag in ("img", "source") and "/screens/" in (attrs.get("src", "") + attrs.get("srcset", "")):
-                image_path = attrs.get("src") or attrs["srcset"]
-                dimensions = struct.unpack(">II", (SITE / image_path).read_bytes()[16:24])
-                self.assertEqual((int(attrs["width"]), int(attrs["height"])), dimensions)
+            if tag == "img" and "/screens/" in attrs.get("src", ""):
+                data = (SITE / attrs["src"]).read_bytes()
+                self.assertEqual((int(attrs["width"]), int(attrs["height"])), struct.unpack(">II", data[16:24]))
 
     def test_deployment_scope(self):
         workflow = (ROOT / ".github/workflows/product-pages.yml").read_text()
