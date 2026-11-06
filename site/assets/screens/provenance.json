@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 3,
   "kind": "actual-tablet-screenshots",
   "data": "Mock simulated data on a physical tablet; not hardware acceptance or a live website feed",
   "captureMethod": "adb exec-out screencap -p",
@@ -17,7 +17,7 @@
   },
   "sourceSha": null,
   "sourceCommitVerified": false,
-  "notice": "Already-installed development APK; exact source commit not verified. Originals are unmodified adb screenshots. Desktop images remove only system bars. Mobile images are single contiguous crops of the originals, never composited or redrawn; they are not phone layouts.",
+  "notice": "Already-installed development APK; exact source commit not verified. Originals are unmodified adb screenshots. Published images remove only the system bars and are never composited or redrawn; they are not phone layouts.",
   "screens": [
     {
       "name": "extraction",
@@ -32,16 +32,8 @@
         2560,
         1564
       ],
-      "responsiveDetail": "extraction-detail.png",
-      "cropPx": [
-        270,
-        90,
-        2210,
-        1410
-      ],
       "sha256": "f8c6b8090dcdd568af20ee6f1ebf25d14b58e0b1c1a1eb7c5c3ac6c8e4a4e610",
-      "displaySha256": "8d45d8bc83a9bc0712852c2dab7cec91ba0df8b26e965541294d1e65ba744819",
-      "detailSha256": "96a877522016904945c2c9aa1c76e5e9268b62561c22c775f9faa49846c2c185"
+      "displaySha256": "8d45d8bc83a9bc0712852c2dab7cec91ba0df8b26e965541294d1e65ba744819"
     },
     {
       "name": "home",
@@ -56,16 +48,8 @@
         2560,
         1564
       ],
-      "responsiveDetail": "home-detail.png",
-      "cropPx": [
-        1304,
-        204,
-        2524,
-        1016
-      ],
       "sha256": "1dbe92d655d5ff0e5ca28e0eda8e1d8053da63abde3121b15756d161bbf5110f",
-      "displaySha256": "55b642929b60552b71b67b6d09c595c8b3c415653e89f039155cb742f3270fa3",
-      "detailSha256": "b1d5d9dd7a2e14a822050ab005357c7073339282eeb124b3b5cceda098acf71b"
+      "displaySha256": "55b642929b60552b71b67b6d09c595c8b3c415653e89f039155cb742f3270fa3"
     },
     {
       "name": "history",
@@ -80,16 +64,8 @@
         2560,
         1564
       ],
-      "responsiveDetail": "history-detail.png",
-      "cropPx": [
-        1224,
-        220,
-        2524,
-        1270
-      ],
       "sha256": "b26ad4de1d0e30b149d5a5a302c019f73bef9fe88a5bc9af5afabb797d1f1f24",
-      "displaySha256": "3d5b09e153e5637ad8a37ce3c2f4309dfcba4d27660c8cc0b62a5eccb64e04c3",
-      "detailSha256": "7ec9fb0ba2a437d52a8d0d3423004df25623e39525448c04c19eab83b1aa0603"
+      "displaySha256": "3d5b09e153e5637ad8a37ce3c2f4309dfcba4d27660c8cc0b62a5eccb64e04c3"
     }
   ]
 }

@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+
   const revealDetails = (hash) => {
     if (!hash || hash[0] !== '#') return;
     const target = document.getElementById(hash.slice(1));
@@ -10,8 +11,10 @@
   });
   window.addEventListener('hashchange', () => revealDetails(window.location.hash));
   revealDetails(window.location.hash);
+
   const viewer = document.querySelector('#image-viewer');
   if (!viewer || typeof viewer.showModal !== 'function') return;
+
   const image = viewer.querySelector('[data-viewer-image]');
   const title = viewer.querySelector('[data-viewer-title]');
   const original = viewer.querySelector('[data-viewer-original]');
@@ -19,21 +22,25 @@
   const close = viewer.querySelector('[data-viewer-close]');
   const scroll = viewer.querySelector('.viewer-scroll');
   let returnFocus = null;
-  let focusX = 1300, focusY = 800;
+  let focusX = 1200;
+  let focusY = 700;
+
   const resetScale = () => {
     viewer.dataset.originalSize = 'false';
     scale.setAttribute('aria-pressed', 'false');
     scale.textContent = '放大查看';
-    scroll.scrollTop = scroll.scrollLeft = 0;
+    scroll.scrollTop = 0;
+    scroll.scrollLeft = 0;
   };
+
   scale.hidden = false;
   document.querySelectorAll('[data-view-image]').forEach((link) => {
     link.addEventListener('click', (event) => {
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
       returnFocus = link;
-      focusX = Number(link.dataset.focusX) || 1300;
-      focusY = Number(link.dataset.focusY) || 800;
+      focusX = Number(link.dataset.focusX) || 1200;
+      focusY = Number(link.dataset.focusY) || 700;
       title.textContent = link.dataset.imageTitle;
       image.src = link.href;
       image.alt = `${link.dataset.imageTitle}，使用模拟数据，非手机截图`;
@@ -43,19 +50,25 @@
       close.focus();
     });
   });
+
   scale.addEventListener('click', () => {
     const enlarged = viewer.dataset.originalSize !== 'true';
     viewer.dataset.originalSize = String(enlarged);
     scale.setAttribute('aria-pressed', String(enlarged));
-    scale.textContent = enlarged ? '适应窗口' : '放大查看';
+    scale.textContent = enlarged ? '适应宽度' : '放大查看';
     scroll.scrollLeft = enlarged ? Math.max(0, focusX - scroll.clientWidth / 2) : 0;
     scroll.scrollTop = enlarged ? Math.max(0, focusY - scroll.clientHeight / 2) : 0;
   });
+
   close.addEventListener('click', () => viewer.close());
   viewer.addEventListener('click', (event) => {
     if (event.target !== viewer) return;
     const box = viewer.getBoundingClientRect();
-    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) viewer.close();
+    const outside = event.clientX < box.left || event.clientX > box.right ||
+      event.clientY < box.top || event.clientY > box.bottom;
+    if (outside) viewer.close();
   });
-  viewer.addEventListener('close', () => returnFocus?.focus({ preventScroll: true }));
+  viewer.addEventListener('close', () => {
+    if (returnFocus) returnFocus.focus({ preventScroll: true });
+  });
 })();
