@@ -1,6 +1,8 @@
 # Develop 自动测试 APK
 
-PR 合入 develop 后，同一源码提交的四项必需 CI 全部成功，才生成 **Release 构建的测试包**，上传到 GitHub Releases 的独立预发布通道。它不是稳定版，不会自动安装，也不代表设备协议已实机验收。
+PR 合入 develop 后，同一源码提交的 `branch-policy`、`verify`、`lifecycle`、`upgrade` 四个 push workflow 全部成功，才生成 **Release 构建的测试包**，上传到 GitHub Releases 的独立预发布通道。它不是稳定版，不会自动安装，也不代表设备协议已实机验收。
+
+PR 本身只要求 `branch-policy`、`verify` 两项快速检查；`lifecycle`/`upgrade` AVD 在 develop push 合并后运行，不阻塞 PR，也不能用 PR 的轻量成功替代本通道要求的同 SHA push 证据。
 
 ## 一次性配置
 
@@ -33,7 +35,7 @@ c0f426397c43ff9a8a4ecd3d1159b124584161b6163c375338e84ca6966a0f54
 - [Develop 标签规则](../.github/rulesets/develop-apk-tags.json)：`refs/tags/dev-*` 不允许更新/删除。
 - [分配账本规则](../.github/rulesets/develop-apk-ledger.json)：`refs/heads/automation/apk-publishing` 不允许删除或非 fast-forward；允许自动化正常追加。
 
-JSON 只是待部署配置。控制器每次规划/公开都检查**远端实际配置**，没有保护就拒绝。不要更改现有四项必需检查、免除分支保护或为了上传增加 PAT。原本的版本标签 gate 不接受手工 `dev-*`，由本通道专用校验创建。
+JSON 只是待部署配置。控制器每次规划/公开都检查**远端实际配置**，没有保护就拒绝。不要更改本发布门禁的四项 push workflow、免除分支保护或为了上传增加 PAT。原本的版本标签 gate 不接受手工 `dev-*`，由本通道专用校验创建。
 
 本实现使用 Actions `GITHUB_TOKEN`：控制器/发布器只有 `contents:write`、`actions:read`，签名构建只有 `contents:read`。签名 Secrets 只提供给 build 的签名 step；publisher 无 key。workflow 不监听 PR，不下载 PR 工件，不使用共享 Gradle cache。当前使用仓库级 Secret，若改用 environment，须另核实其 develop 分支/工作流限制和权限，不要以隐式新建 environment 当保护已配置。
 

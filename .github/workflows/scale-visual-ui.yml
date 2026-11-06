@@ -1,8 +1,6 @@
 name: Verify scale visual migration UI
 
 on:
-  pull_request:
-    branches: [develop]
   workflow_dispatch:
 
 concurrency:

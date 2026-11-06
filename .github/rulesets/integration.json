@@ -15,7 +15,7 @@
       "required_review_thread_resolution": true
     }},
     {"type": "required_status_checks", "parameters": {
-      "required_status_checks": [{"context": "branch-policy"}, {"context": "verify"}, {"context": "lifecycle"}, {"context": "upgrade"}],
+      "required_status_checks": [{"context": "branch-policy"}, {"context": "verify"}],
       "strict_required_status_checks_policy": true,
       "do_not_enforce_on_create": false
     }}

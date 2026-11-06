@@ -1,8 +1,6 @@
 name: Verify task frame UI
 
 on:
-  pull_request:
-    branches: [develop]
   workflow_dispatch:
 
 concurrency:

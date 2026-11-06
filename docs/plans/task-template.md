@@ -7,7 +7,7 @@
 - 工作分支：feature/fix/chore/docs/<slug> 或 release/hotfix/X.Y.Z。
 - PR目标：develop；仅release/hotfix可进入main，修正还须回合develop。
 - 改动文件与步骤：
-- 推送与合并：检查工作树 → 本地验证 → 普通推送工作分支 → 填写PR → 四项CI通过 → PR合并。
+- 推送与合并：检查工作树 → 本地验证 → 普通推送工作分支 → 填写PR → branch-policy、verify两项PR必需检查通过 → PR合并。合并后develop push的lifecycle/upgrade AVD只作发布/验收证据，不阻塞PR；日常PR不运行AVD。
 - 验证证据：命令、日志、精确源码CI；实际运行与编译分开。
 - 协议与设备风险：编码/单位/队列/门禁/未知记录/重试/停止的影响及证据；无影响也明确写。
 - 发布：不发版，或版本/批准/签名/升级/实机验收/发布记录。

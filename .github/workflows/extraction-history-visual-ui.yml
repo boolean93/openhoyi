@@ -1,8 +1,6 @@
 name: Verify extraction and history visual migration UI
 
 on:
-  pull_request:
-    branches: [develop]
   workflow_dispatch:
 
 concurrency:

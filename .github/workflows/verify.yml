@@ -17,26 +17,54 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          # Full history is required for the fail-closed PR base...head diff.
+          fetch-depth: 0
           persist-credentials: false
+      - name: Classify pull request path scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        run: python3 scripts/pr_verify_scope.py classify
+      - name: Fast site checks for allowlisted site PR
+        if: steps.scope.outputs.mode == 'fast' && steps.scope.outputs.site == 'true'
+        run: python3 -m unittest discover -s scripts -p test_product_pages.py -v
+      - name: Fast documentation checks for allowlisted docs PR
+        if: steps.scope.outputs.mode == 'fast' && steps.scope.outputs.docs == 'true'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || '' }}
+        run: python3 scripts/pr_verify_scope.py check-docs
+      - name: Verify fast gate classification and workflow policy
+        if: steps.scope.outputs.mode == 'fast'
+        run: |
+          python3 -m unittest discover -s scripts -p test_pr_verify_scope.py
+          python3 -m unittest discover -s scripts -p test_ci_workflow_policy.py
       - name: Verify staged translation catalogs
+        if: steps.scope.outputs.mode == 'full'
         run: |
           python3 -m unittest discover -s scripts -p test_git_policy.py
           python3 -m unittest discover -s scripts -p test_apk_distribution.py
           python3 -m unittest discover -s scripts -p 'test_develop_release*.py'
           python3 -m unittest discover -s scripts -p test_mock_upgrade.py
           python3 -m unittest discover -s scripts -p test_mock_ui_tap.py
+          python3 -m unittest discover -s scripts -p test_pr_verify_scope.py
+          python3 -m unittest discover -s scripts -p test_ci_workflow_policy.py
           python3 -m unittest discover -s localization/tests
           python3 localization/validate_catalog.py
           python3 localization/android_resources.py --check
       - uses: actions/setup-java@v6
+        if: steps.scope.outputs.mode == 'full'
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
       - uses: android-actions/setup-android@v4
+        if: steps.scope.outputs.mode == 'full'
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - name: Verify protocol, session, transport, and apps
+        if: steps.scope.outputs.mode == 'full'
         run: |
           ./gradlew --no-daemon --console=plain \
             :bean-core:test \
@@ -52,6 +80,7 @@ jobs:
             :mobile:assembleMock \
             :mobile:lintDebug
       - name: Verify compiled language resources and variant names
+        if: steps.scope.outputs.mode == 'full'
         run: |
           python3 localization/verify_apk_resources.py \
             --aapt2 "$ANDROID_HOME/build-tools/35.0.0/aapt2" \
@@ -59,6 +88,27 @@ jobs:
             --alpha mobile/build/outputs/apk/debug/mobile-debug.apk \
             --mock mobile/build/outputs/apk/mock/mobile-mock.apk
       - name: Verify external release signing guards and disposable APK
+        if: steps.scope.outputs.mode == 'full'
         run: |
           python3 scripts/check_release_configuration.py \
             --assemble-fixture --sdk "$ANDROID_HOME"
+      - name: Confirm a verification path actually ran
+        if: always() && steps.scope.outcome == 'success'
+        env:
+          MODE: ${{ steps.scope.outputs.mode }}
+          SITE: ${{ steps.scope.outputs.site }}
+          DOCS: ${{ steps.scope.outputs.docs }}
+        run: |
+          case "$MODE" in
+            full) ;;
+            fast)
+              if [ "$SITE" != "true" ] && [ "$DOCS" != "true" ]; then
+                echo "fast mode selected without a fast check" >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "unknown verification mode: $MODE" >&2
+              exit 1
+              ;;
+          esac
