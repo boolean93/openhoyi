@@ -25,7 +25,7 @@
 
 严格快速 allowlist：
 
-- docs：`docs/**`、`README.md`、`AGENTS.md`
+- docs：`docs/**/*.md`（`docs/releases/**` 全部除外，即使 Markdown）、`README.md`、`AGENTS.md`；`docs/` 下的脚本、JSON、图片、HTML 等非 Markdown 文件不属于快速 allowlist
 - site：`site/**`、`scripts/test_product_pages.py`
 
 规则：
@@ -36,6 +36,7 @@
 - 任一未知路径（含 app/code/CI/workflow/脚本/根文件）→ 完整非 AVD 验证：保留现有 Python/localization 测试、Gradle JVM/unit/compile、资源校验和 release signing guard。
 - 空 diff、分类异常、base/head 缺失、浅克隆、git diff 解析失败 → 完整非 AVD 验证，不 fail-open。
 - 处理重命名/删除：`git diff --name-status -z --find-renames` 同时纳入 rename 旧/新路径；删除路径仍参与分类。fork PR 使用事件中的 base/head SHA；checkout 使用 `fetch-depth: 0`，不可用则回退完整验证。
+- 路径按 `git -z` 解码后的真实仓库相对路径原样分类：不 `strip()`、不把反斜杠改成 `/`、不裁剪 `./`；含控制字符、首尾空白、反斜杠、绝对路径、`..` 等非规范路径视为未知并回退完整验证，且不丢弃该未知路径。`GITHUB_OUTPUT` 的 `reason` 清除 CR/LF 等控制字符后再写出。
 - `push`（含 develop/main/release/hotfix）与 `workflow_dispatch` 永远完整验证，保证 Develop 自动预发布看到的 `verify` 不是 PR 轻量成功。
 
 ### 3. AVD 分层

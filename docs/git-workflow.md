@@ -57,7 +57,7 @@ slug仅小写字母、数字与单横杠，不嵌套；版本为无前导零的�
 ## PR 快速门禁与 AVD 分层
 
 - 必需context固定为`branch-policy`、`verify`，不使用workflow级`paths`过滤，避免文档/站点PR永久pending。
-- `verify`按PR完整`base...head`diff做严格allowlist分类：仅`docs/**`、`README.md`、`AGENTS.md`或仅`site/**`、`scripts/test_product_pages.py`时跑对应快速检查，不setup Android/Gradle；混合site+docs跑两者。未知路径、代码/CI改动、空diff、分类异常、base/head缺失或浅克隆一律回退完整非AVD验证，不得fail-open。
+- `verify`按PR完整`base...head`diff做严格allowlist分类：仅`docs/**/*.md`（`docs/releases/**`全部除外）、`README.md`、`AGENTS.md`，或仅`site/**`、`scripts/test_product_pages.py`时跑对应快速检查，不setup Android/Gradle；混合site+docs跑两者。`docs/`下脚本、JSON等非Markdown文件、未知路径、代码/CI改动、空diff、分类异常、base/head缺失或浅克隆一律回退完整非AVD验证，不得fail-open。路径按`git -z`返回的真实路径原样判断，不做去空白、反斜杠转斜杠等改写；非规范或含控制字符的路径保守回退完整验证。
 - 完整`verify`保留JVM/unit/编译、localization资源、lint及release signing guard；受保护分支push始终完整执行，不能拿PR轻量成功替代发布证据。
 - `lifecycle`、`upgrade`只保留`main`/`develop`/`release/**`/`hotfix/**`push与`workflow_dispatch`；合并后运行，不阻塞PR。其它visual workflow改为手动，不删除测试脚本、断言或证据上传。
 - Develop自动测试APK仍要求同SHA、同仓库、develop一阶push的四项workflow（`branch-policy`、`verify`、`lifecycle`、`upgrade`）最新attempt成功且实际job不得skipped；PR/fork/标签/手动CI成功不能替代。详见[Develop自动测试APK](develop-apk.md)。

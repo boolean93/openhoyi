@@ -2,9 +2,13 @@
 """Classify pull request changes for the fast, non-AVD verify gate.
 
 The classifier is deliberately fail-closed: only a strict site/docs allowlist
-may use the fast checks. Everything else, including an empty/unknown diff,
-shallow history, missing commits or malformed git output, falls back to the
-complete non-AVD verification path.
+may use the fast checks. Documentation fast checks only cover Markdown files
+under ``docs/`` (never ``docs/releases/``) plus the root README.md/AGENTS.md;
+docs scripts, JSON and other assets stay on the full path. Paths are classified
+exactly as ``git -z`` reports them: no stripping or separator rewriting, and
+non-canonical/control-character paths are treated as unknown. Everything else,
+including an empty/unknown diff, shallow history, missing commits or malformed
+git output, falls back to the complete non-AVD verification path.
 """
 from __future__ import annotations
 
@@ -18,9 +22,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DOCS_PREFIXES = ("docs/",)
+DOCS_MARKDOWN_SUFFIX = ".md"
+# Release records carry approval fields; even Markdown changes there stay full.
+DOCS_EXCLUDED_PREFIXES = ("docs/releases/",)
 DOCS_FILES = frozenset({"README.md", "AGENTS.md"})
 SITE_PREFIXES = ("site/",)
 SITE_FILES = frozenset({"scripts/test_product_pages.py"})
+
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
 
 
 class ScopeError(Exception):
@@ -35,29 +44,60 @@ class Scope:
     reason: str = ""
 
 
+def is_canonical_path(path: str) -> bool:
+    """Return True only for a plain repository-relative path.
+
+    ``git diff -z`` already reports real paths, so nothing is rewritten here.
+    Leading/trailing whitespace, backslashes, control characters, absolute
+    paths, trailing slashes and ``.``/``..``/empty segments are not canonical
+    and must stay outside the fast allowlist.
+    """
+    value = str(path)
+    if not value or value != value.strip():
+        return False
+    if "\\" in value or _CONTROL_CHARS.search(value):
+        return False
+    if any("\ud800" <= char <= "\udfff" for char in value):
+        return False  # undecodable byte from git -z, not a valid UTF-8 path
+    if value.startswith("/") or value.endswith("/"):
+        return False
+    return all(segment not in ("", ".", "..") for segment in value.split("/"))
+
+
 def normalize_path(path: str) -> str:
-    value = str(path).replace("\\", "/").strip()
-    while value.startswith("./"):
-        value = value[2:]
-    return value
+    """Return the path unchanged when canonical, else an empty string.
+
+    No stripping, separator rewriting or ``./`` trimming is performed.
+    Callers must treat an empty result as unknown, never as allowlisted.
+    """
+    value = str(path)
+    return value if is_canonical_path(value) else ""
 
 
 def is_docs(path: str) -> bool:
     value = normalize_path(path)
-    return value in DOCS_FILES or any(value.startswith(prefix) for prefix in DOCS_PREFIXES)
+    if not value:
+        return False
+    if value in DOCS_FILES:
+        return True
+    if not value.startswith(DOCS_PREFIXES) or not value.endswith(DOCS_MARKDOWN_SUFFIX):
+        return False
+    return not any(value.startswith(prefix) for prefix in DOCS_EXCLUDED_PREFIXES)
 
 
 def is_site(path: str) -> bool:
     value = normalize_path(path)
+    if not value:
+        return False
     return value in SITE_FILES or any(value.startswith(prefix) for prefix in SITE_PREFIXES)
 
 
 def classify_paths(paths: list[str]) -> Scope:
     """Classify a full changed-path list without consulting the network."""
-    cleaned = []
+    cleaned: list[str] = []
     for path in paths:
-        value = normalize_path(path)
-        if value and value not in cleaned:
+        value = str(path)
+        if value not in cleaned:
             cleaned.append(value)
     if not cleaned:
         return Scope("full", reason="no changed paths")
@@ -133,12 +173,12 @@ def changed_entries(base: str, head: str, root: Path) -> list[tuple[str, list[st
 
 
 def changed_paths(base: str, head: str, root: Path) -> list[str]:
+    """Return every real path from the diff, including non-canonical ones."""
     paths: list[str] = []
     for _status, names in changed_entries(base, head, root):
         for name in names:
-            value = normalize_path(name)
-            if value and value not in paths:
-                paths.append(value)
+            if name not in paths:
+                paths.append(name)
     return paths
 
 
@@ -200,12 +240,22 @@ def _event_pull_request_shas(event_path: str) -> tuple[str, str]:
         return "", ""
 
 
+def _output_safe(value: str, limit: int = 500) -> str:
+    """Keep GITHUB_OUTPUT single-line and UTF-8 encodable.
+
+    Replace CR/LF and every other control character (plus undecodable-path
+    surrogates) before writing or printing the classification reason.
+    """
+    cleaned = "".join(char if char.isprintable() else " " for char in str(value))
+    return cleaned[:limit]
+
+
 def _write_scope(scope: Scope) -> None:
     values = {
         "mode": scope.mode,
         "site": "true" if scope.site else "false",
         "docs": "true" if scope.docs else "false",
-        "reason": scope.reason.replace("\n", " ")[:500],
+        "reason": _output_safe(scope.reason),
     }
     output = os.environ.get("GITHUB_OUTPUT")
     if output:
