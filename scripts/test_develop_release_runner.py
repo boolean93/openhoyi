@@ -169,6 +169,79 @@ class DevelopReleaseRunnerTests(unittest.TestCase):
                     mock.patch.object(runner, "inventory", return_value=[]) as inventory:
                 yield api, ledger, item, directory, inspect, inventory
 
+    def test_publish_flat_named_and_partial_single_artifact_downloads(self):
+        for layout in ("flat", "named", "partial-flat"):
+            with self.subTest(layout=layout), self.publication() as (api, ledger, item, directory, inspect, _):
+                item.update(workflowRun=123, attempt=1)
+                plans = [item]
+                root = directory
+                if layout == "named":
+                    root = directory / "packages"
+                    target = root / f"develop-apk-1-{CODE}"
+                    target.mkdir(parents=True)
+                    for name in ("OpenHOYI-test.apk", "distribution.json", "SHA256SUMS.txt"):
+                        (target / name).write_bytes((directory / name).read_bytes())
+                if layout == "partial-flat":
+                    missing = {**item, "code": CODE - 1, "source": "c" * 40, "versionName": "1.0.0-dev.41"}
+                    plans.insert(0, missing)
+                    held = {**reservation(), "versionCode": CODE - 1, "sourceCommit": missing["source"],
+                            "versionName": missing["versionName"]}
+                    ledger.state["allocations"][str(CODE - 1)] = held
+                plan_file = directory / "plans.json"
+                plan_file.write_text(json.dumps(plans))
+                with mock.patch.dict(os.environ, PLANS_FILE=str(plan_file), ARTIFACTS_ROOT=str(root)), \
+                        mock.patch.object(runner, "configuration"), \
+                        mock.patch.object(runner, "services", return_value=(api, (123, 1))), \
+                        mock.patch.object(runner, "check_protection"), \
+                        mock.patch.object(runner, "Ledger", return_value=ledger):
+                    runner.publish()
+                self.assertFalse(api.release["draft"])
+                self.assertTrue(api.release["prerelease"])
+                self.assertEqual(len(api.assets), 3)
+                self.assertEqual(ledger.state["allocations"][str(CODE)]["status"], "published")
+                inspect.assert_called_once()  # Directory compatibility does not bypass real APK inspection.
+                if layout == "partial-flat":
+                    self.assertEqual(ledger.state["allocations"][str(CODE - 1)], held)
+
+    def test_flat_artifact_identity_and_ambiguous_layout_are_rejected(self):
+        for failure in ("version", "source", "mixed"):
+            with self.subTest(failure=failure), self.publication() as (api, ledger, item, directory, inspect, _):
+                item.update(workflowRun=123, attempt=1)
+                path = directory / "distribution.json"
+                manifest = json.loads(path.read_text())
+                if failure == "mixed":
+                    named = directory / f"develop-apk-1-{CODE}"
+                    named.mkdir()
+                    (named / path.name).write_bytes(path.read_bytes())
+                else:
+                    manifest["versionCode" if failure == "version" else "declaredSourceCommit"] = (
+                        CODE + 1 if failure == "version" else "c" * 40)
+                    path.write_text(json.dumps(manifest))
+                with self.assertRaises((runner.PublisherError, ValueError)):
+                    runner.artifact_directories(directory, [item])
+                inspect.assert_not_called()
+                self.assertEqual(api.calls, [])
+                self.assertEqual(ledger.writes, [])
+
+    def test_no_artifacts_fails_instead_of_green_no_publication(self):
+        with self.publication() as (api, ledger, item, directory, inspect, _):
+            item.update(workflowRun=123, attempt=1)
+            plan_file = directory / "plans.json"
+            plan_file.write_text(json.dumps([item]))
+            empty = directory / "empty-packages"
+            empty.mkdir()
+            with mock.patch.dict(os.environ, PLANS_FILE=str(plan_file), ARTIFACTS_ROOT=str(empty)), \
+                    mock.patch.object(runner, "configuration"), \
+                    mock.patch.object(runner, "services", return_value=(api, (123, 1))), \
+                    mock.patch.object(runner, "check_protection"), \
+                    mock.patch.object(runner, "Ledger", return_value=ledger):
+                with self.assertRaisesRegex(runner.PublisherError, "No built artifacts"):
+                    runner.publish()
+            self.assertEqual(ledger.state, state())
+            self.assertEqual(ledger.writes, [])
+            self.assertEqual(api.calls, [])
+            inspect.assert_not_called()
+
     def test_pages_complete_and_second_page_failure_is_not_done(self):
         for key in (None, "workflow_runs"):
             with self.subTest(key=key):
