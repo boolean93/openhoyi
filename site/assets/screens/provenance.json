@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "kind": "actual-app-screenshots",
+  "data": "Mock simulated fixture data; not hardware acceptance or live data",
+  "sourceSha": "ceea7ab858444b169b89207d18e4463d9a442349",
+  "ciHeadSha": "eec69b03d2c7291d64b5578eee288c0eea6f3855",
+  "ciConclusion": "failure",
+  "notice": "Existing screenshot artifacts from non-required visual CI jobs. Publication does not claim those jobs passed. Responsive details are single contiguous, unretouched tablet crops, not phone layouts.",
+  "screens": [
+    {
+      "name": "extraction",
+      "original": "extraction.png",
+      "sha256": "4ac433ceae6ccea28d78f45de084a995a68b7c1c10a6440212b13959339f0288",
+      "width": 2560,
+      "height": 1600,
+      "responsiveDetail": "extraction-detail.png",
+      "detailSha256": "15763b88f665d3a3b850fa1131410ce7681e50ba8fe527fc33e03f0cee70110b",
+      "cropPx": [
+        250,
+        235,
+        1640,
+        1304
+      ],
+      "ciRun": "42077967071",
+      "ciUrl": "https://github.com/boolean93/openhoyi/actions/runs/42077967071",
+      "artifactId": "13439148540",
+      "artifactPath": "extraction-history/raw-device/ceea7ab858444b169b89207d18e4463d9a442349/tablet-user-landscape-light-font-1.3/extraction/window.png"
+    },
+    {
+      "name": "home",
+      "original": "home.png",
+      "sha256": "d7014c123667d4ca65bd00a4b84a01123b9a765c2128394729322f50a322498f",
+      "width": 2560,
+      "height": 1600,
+      "responsiveDetail": "home-detail.png",
+      "detailSha256": "84df874ae5db1165744187287f7ce50a8b18bd866440f1a2558140ecc7a4cc57",
+      "cropPx": [
+        1304,
+        72,
+        2542,
+        1160
+      ],
+      "ciRun": "42077966841",
+      "ciUrl": "https://github.com/boolean93/openhoyi/actions/runs/42077966841",
+      "artifactId": "13440940483",
+      "artifactPath": "single-screen/tablet-user-landscape/single-screen-window-checks/zh-Hans-light-HomeActivity.png"
+    },
+    {
+      "name": "history",
+      "original": "history.png",
+      "sha256": "4d14c6cb30925fced1efd2972286e6e5941d65730b6536e41b4edc7ec4d910b7",
+      "width": 2560,
+      "height": 1600,
+      "responsiveDetail": "history-detail.png",
+      "detailSha256": "0799dd01ee6a94d44109bd0db3e2dd537cff63f6279d3d889fe382a64b9b7ed9",
+      "cropPx": [
+        36,
+        130,
+        1266,
+        1290
+      ],
+      "ciRun": "42077966841",
+      "ciUrl": "https://github.com/boolean93/openhoyi/actions/runs/42077966841",
+      "artifactId": "13440940483",
+      "artifactPath": "single-screen/tablet-user-landscape/single-screen-window-checks/zh-Hans-light-HistoryDetailActivity.png"
+    }
+  ]
+}
