@@ -151,7 +151,7 @@ def main():
         catalogs = {tag: validator.decode_json((directory / f"{tag}.json").read_text()) for tag in validator.LANGUAGES}
         source, catalogs = extend_resources(source, catalogs, validator.ROOT / "mobile/src/main/res")
         result = {"literalRoundTrips": verify_literal_encoding(args.aapt2, args.android_jar)}
-        for name, apk, brand in [("alpha", args.alpha, "OpenHoyi"), ("mock", args.mock, "Hoyi Mock")]:
+        for name, apk, brand in [("alpha", args.alpha, "OpenHOYI"), ("mock", args.mock, "HOYI Mock")]:
             dump = subprocess.run([str(args.aapt2), "dump", "resources", str(apk)], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode("utf-8")
             result[name] = {"matchedStrings": verify(parse_dump(dump), source, catalogs, brand)}
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
