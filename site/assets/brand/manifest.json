@@ -1,0 +1,39 @@
+{
+  "kind": "site-app-icons",
+  "description": "由 docs/ui/app-icons 的 1254x1254 设计稿等比缩放生成，未重绘。",
+  "sources": [
+    {
+      "file": "docs/ui/app-icons/icon-release.png",
+      "sha256": "b1fe97f597673b26eebcd0d5738538b704e8b54c75488caccd3ea7ccc20534ca"
+    }
+  ],
+  "outputs": [
+    {
+      "file": "icon-release-256.png",
+      "source": "icon-release.png",
+      "sourceSha256": "b1fe97f597673b26eebcd0d5738538b704e8b54c75488caccd3ea7ccc20534ca",
+      "width": 256,
+      "height": 256,
+      "roundedCorners": false,
+      "sha256": "6adaa82aa4ccdb7c5e89b006a915b4e45dd4b536d3069c07393faf86ffb920e2"
+    },
+    {
+      "file": "favicon-32.png",
+      "source": "icon-release.png",
+      "sourceSha256": "b1fe97f597673b26eebcd0d5738538b704e8b54c75488caccd3ea7ccc20534ca",
+      "width": 32,
+      "height": 32,
+      "roundedCorners": true,
+      "sha256": "dd55f7e80998a167028e24b0089bb769a047eee86747c98ad9b0b7dcb555262e"
+    },
+    {
+      "file": "apple-touch-icon-180.png",
+      "source": "icon-release.png",
+      "sourceSha256": "b1fe97f597673b26eebcd0d5738538b704e8b54c75488caccd3ea7ccc20534ca",
+      "width": 180,
+      "height": 180,
+      "roundedCorners": false,
+      "sha256": "75affdb188e1f4fe7687a7e0b7f78ec65532eca8f4f4582bc373b0a8ab4e493c"
+    }
+  ]
+}

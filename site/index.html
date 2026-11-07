@@ -6,17 +6,18 @@
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#ffffff">
   <title>OpenHOYI — HOYI 咖啡机的增强控制器</title>
-  <meta name="description" content="OpenHOYI 是开源的 HOYI 咖啡机增强控制器：用蓝牙连接咖啡机和电子秤，在平板上选萃取曲线、看实时数据、回看每一杯。支持 Android 8.0 及以上，提供测试版下载。">
+  <meta name="description" content="OpenHOYI 是开源的 HOYI 咖啡机增强控制器：用蓝牙连接咖啡机和电子秤，在平板上选萃取曲线、看实时数据、回看每一杯。支持 Android 8.0 及以上，可在 GitHub Releases 下载。">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="zh_CN">
   <meta property="og:title" content="OpenHOYI — HOYI 咖啡机的增强控制器">
-  <meta property="og:description" content="选曲线、看过程、查记录。用平板连接 HOYI 咖啡机，下载安卓测试版。">
+  <meta property="og:description" content="选曲线、看过程、查记录。用平板连接 HOYI 咖啡机，下载安卓版。">
   <meta property="og:url" content="https://boolean93.github.io/openhoyi/">
   <meta property="og:image" content="https://boolean93.github.io/openhoyi/assets/screens/home.png">
   <meta property="og:image:alt" content="OpenHOYI 首页：咖啡机已连接，显示锅炉温度与压力">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="https://boolean93.github.io/openhoyi/">
-  <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/brand/favicon-32.png">
+  <link rel="apple-touch-icon" href="./assets/brand/apple-touch-icon-180.png">
   <link rel="stylesheet" href="./styles.css">
   <script src="./product.js" defer></script>
 </head>
@@ -38,11 +39,12 @@
   <main id="main">
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero-inner">
-        <p class="eyebrow">开源 · Android · 测试版</p>
+        <img class="hero-icon" src="./assets/brand/icon-release-256.png" width="256" height="256" alt="OpenHOYI 应用图标：黑色底、白色 Open HOYI 字标" fetchpriority="high">
+        <p class="eyebrow">开源 · Android</p>
         <h1 id="hero-title">更懂你的<br>HOYI app</h1>
         <p class="lede">OpenHOYI 是开源的安卓应用，也是 HOYI 咖啡机的增强控制器。蓝牙连上咖啡机和电子秤，在平板上选曲线、看实时数据、回看每一杯。</p>
         <div class="actions">
-          <a class="button" href="#download" data-download-entry>下载测试版</a>
+          <a class="button" href="#download" data-download-entry>下载</a>
           <a class="link" href="#features">了解功能<span class="glyph" aria-hidden="true">↓</span></a>
         </div>
         <p class="hero-aside">独立开发 · 非 HOYI 官方应用</p>
@@ -50,16 +52,15 @@
           <a class="shot" href="./assets/screens/originals/home.png" data-view-image data-image-title="App 首页 · 平板演示" data-focus-x="1914" data-focus-y="610">
             <img src="./assets/screens/home.png" width="2560" height="1504" alt="OpenHOYI 首页：左侧是功能导航，中间是咖啡机，右侧显示冲煮温度 93.00°C、压力 0.0 bar，蒸汽温度 120.00°C、压力 0.8 bar，底部是五个快捷曲线和开始萃取按钮" fetchpriority="high">
           </a>
-          <figcaption>真实 App 界面 · 平板演示，模拟数据<span class="phone-hint"> · 点击放大</span></figcaption>
         </figure>
       </div>
     </section>
 
     <section class="stats" aria-label="产品概览">
       <div class="stats-inner">
-        <div><p class="stat-value">100</p><p class="stat-label">条工厂曲线</p></div>
-        <div><p class="stat-value">5</p><p class="stat-label">个首页快捷槽位</p></div>
-        <div><p class="stat-value">30</p><p class="stat-label">天本机记录</p></div>
+        <div><p class="stat-value">100<span class="stat-unit">条</span></p><p class="stat-label">工厂曲线</p></div>
+        <div><p class="stat-value">5<span class="stat-unit">个</span></p><p class="stat-label">首页快捷槽位</p></div>
+        <div><p class="stat-value">30<span class="stat-unit">天</span></p><p class="stat-label">本机记录</p></div>
       </div>
     </section>
 
@@ -77,7 +78,6 @@
             <a class="shot" href="./assets/screens/originals/extraction.png" data-view-image data-image-title="萃取过程 · 平板演示" data-focus-x="1240" data-focus-y="750">
               <img src="./assets/screens/extraction.png" width="2560" height="1504" alt="萃取中的界面：左侧导航与实时读数，压力曲线升到 9 bar 后保持平稳，秤读数 17.3 克、累计注水 14.7 毫升，底部是立即停止萃取按钮" loading="lazy">
             </a>
-            <figcaption>平板演示，模拟数据<span class="phone-hint"> · 点击放大</span></figcaption>
           </figure>
         </article>
 
@@ -90,7 +90,6 @@
             <a class="shot" href="./assets/screens/originals/history.png" data-view-image data-image-title="历史记录 · 平板演示" data-focus-x="1874" data-focus-y="745">
               <img src="./assets/screens/history.png" width="2560" height="1504" alt="历史记录：左侧是记录列表，右侧显示 2026-11-04 的一次萃取，时长 32.1 秒、结束时秤读数 22.40 克，下方是压力、注水与秤读数的采样曲线" loading="lazy">
             </a>
-            <figcaption>平板演示，模拟数据<span class="phone-hint"> · 点击放大</span></figcaption>
           </figure>
         </article>
       </div>
@@ -172,8 +171,8 @@
       <div class="wrap">
         <div class="download">
           <p class="eyebrow">下载</p>
-          <h2 id="download-title">Android 测试版</h2>
-          <p class="note">连接真实设备的测试版，不是稳定版。</p>
+          <h2 id="download-title">Android 版</h2>
+          <p class="note">连接真实设备，不是稳定版。</p>
           <a class="button" href="https://github.com/boolean93/openhoyi/releases" data-download-entry rel="noopener">前往 GitHub Releases</a>
           <p class="note">在 Releases 里选择最新版本，APK 仅适用于安卓设备</p>
 
@@ -247,7 +246,7 @@
           <details class="disclosure" id="image-source">
             <summary>页面截图是怎么来的？</summary>
             <div class="disclosure-body">
-              <p>本页是 M2105K81AC 平板实际截图，采自开发中的 Mock 演示包 0.1.0（53），并非手机端布局，也不是网站实时数据；截图使用模拟数据，不保证与下载的测试版一致。</p>
+              <p>本页是 M2105K81AC 平板实际截图，采自开发中的演示包 0.1.0（53），并非手机端布局，也不是网站实时数据；截图使用模拟数据，不保证与下载版本一致。</p>
               <p>原图保留未修改，局部图是原图的连续矩形裁切，没有重绘界面。截图对应的源码提交映射未核验，模拟数据不代表硬件验收。</p>
               <p><a class="link" href="./assets/screens/provenance.json">原始截图来源记录</a></p>
             </div>

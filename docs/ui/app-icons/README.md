@@ -27,7 +27,7 @@ Android adaptive icon（`minSdk 26`，无需旧版 PNG 图标）：
   不存在二次缩放模糊。
 - `scripts/generate_app_icons.py` 固定了上面两张设计稿的 sha256；被替换成缩放或重编码
   副本时会直接失败，避免用错源图。
-- OpenHOYI Lab（`io.openhoyi.lab`）与网站 `site/assets/mark.svg` 本次未改。
+- OpenHOYI Lab（`io.openhoyi.lab`）未改。网站介绍页只使用这里的正式版设计稿：由 `scripts/prepare_site_brand.py` 生成 `site/assets/brand/`（favicon、apple-touch-icon、首屏用图），不重绘；Mock 图标属于开发者测试工具，不上网站。
 
 ## 预览
 
