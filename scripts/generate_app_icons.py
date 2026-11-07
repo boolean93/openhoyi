@@ -12,9 +12,16 @@ foreground is cut out: the wordmark, plus the "Mock" badge on the Mock art.
 The flat background colors live in mobile/src/{main,mock}/res/values/
 ic_mobile.xml, so no background bitmaps are produced.
 
+The source files are pinned by sha256: --check and normal runs fail if a
+resized or re-encoded copy replaced the user-provided 1254x1254 art.
+
 Outputs (overwritten):
   mobile/src/{main,mock}/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_mobile_foreground.png
-  docs/ui/app-icons/launcher-preview.png  (approximate mask preview for review)
+  docs/ui/app-icons/launcher-preview.png
+
+The preview is rendered twice: the 512 px mask previews come straight from the
+1254x1254 art (so a retina view or zoom stays sharp), and the 168 px row is
+composed from the committed mipmap layers at ~56 dp / 3x launcher scale.
 
 Usage:
   python3 scripts/generate_app_icons.py            # write outputs
@@ -25,6 +32,7 @@ Requires Pillow and NumPy. Deterministic: same input art -> same pixels.
 from __future__ import annotations
 
 import argparse
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -57,6 +65,13 @@ ICONS = {
         "source": ART / "icon-mock.png",
         "res": ROOT / "mobile" / "src" / "mock" / "res",
     },
+}
+
+# sha256 of the 1254x1254 files the user supplied on 2026-11-07. Pinned so a
+# downscaled or re-encoded stand-in cannot silently replace the design source.
+SOURCE_SHA256 = {
+    "icon-release.png": "b1fe97f597673b26eebcd0d5738538b704e8b54c75488caccd3ea7ccc20534ca",
+    "icon-mock.png": "15738c03c3aa8735b201d9668b27b986ac32a8fd4d24eec434ae915b29535b1e",
 }
 
 
@@ -101,6 +116,20 @@ def cut_out(source: Image.Image) -> tuple[Image.Image, tuple[int, int, int]]:
     return foreground, background
 
 
+def verified_source(path: Path) -> Image.Image:
+    """Open a pinned design file, rejecting resized or re-encoded substitutes."""
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    expected = SOURCE_SHA256[path.name]
+    if digest != expected:
+        raise SystemExit(
+            f"{path}: sha256 {digest} does not match the pinned design art {expected}"
+        )
+    image = Image.open(path)
+    if image.size != (1254, 1254):
+        raise SystemExit(f"{path}: expected 1254x1254, got {image.size}")
+    return image
+
+
 def layer_for(density: float, foreground: Image.Image) -> Image.Image:
     canvas_px = round(CANVAS_DP * density)
     design_px = round(VIEWPORT_DP * density)
@@ -124,52 +153,107 @@ def mask(size: int, shape: str) -> Image.Image:
     return image.resize((size, size), Image.LANCZOS)
 
 
-def masked_icon(background: tuple[int, int, int], foreground: Image.Image, shape: str) -> Image.Image:
-    """Compose the adaptive layers, crop the 72dp viewport, apply a launcher mask."""
-    density = DENSITIES["xxxhdpi"]
-    viewport = round(VIEWPORT_DP * density)
-    canvas = round(CANVAS_DP * density)
-    icon = Image.new("RGB", (canvas, canvas), background)
-    icon.paste(foreground, (0, 0), foreground)
-    inset = (canvas - viewport) // 2
-    square = icon.crop((inset, inset, inset + viewport, inset + viewport))
-    result = Image.new("RGBA", (viewport, viewport), (0, 0, 0, 0))
-    result.paste(square, (0, 0), mask(viewport, shape))
+def masked_from_source(source: Image.Image, shape: str, size: int) -> Image.Image:
+    """Mask preview straight from the 1254 px art, so zooming stays sharp."""
+    design = source.convert("RGB").resize((size, size), Image.LANCZOS)
+    result = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    result.paste(design, (0, 0), mask(size, shape))
     return result
 
 
-def build_preview(layers: dict[str, Image.Image], backgrounds: dict[str, tuple[int, int, int]]) -> Image.Image:
-    cell = 288
+def masked_from_layers(
+    background: tuple[int, int, int],
+    layer: Image.Image,
+    shape: str,
+    size: int,
+) -> Image.Image:
+    """Launcher-scale preview composed exactly like the committed adaptive layers."""
+    density = DENSITIES["xxxhdpi"]
+    canvas_px = round(CANVAS_DP * density)
+    viewport_px = round(VIEWPORT_DP * density)
+    icon = Image.new("RGB", (canvas_px, canvas_px), background)
+    icon.paste(layer, (0, 0), layer)
+    inset = (canvas_px - viewport_px) // 2
+    square = icon.crop((inset, inset, inset + viewport_px, inset + viewport_px))
+    square = square.resize((size, size), Image.LANCZOS)
+    result = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    result.paste(square, (0, 0), mask(size, shape))
+    return result
+
+
+def build_preview(
+    sources: dict[str, Image.Image],
+    layers: dict[str, Image.Image],
+    backgrounds: dict[str, tuple[int, int, int]],
+) -> Image.Image:
+    page_rgb = (238, 234, 226)
+    cell = 512
     gap = 24
     margin = 32
-    caption = 42
-    row_gap = 26
-    width = margin * 2 + cell * 2 + gap
-    height = margin + (cell + caption) * 2 + row_gap + 8
-    page = Image.new("RGB", (width, height), (238, 234, 226))
+    caption = 46
+    row_gap = 28
+    strip_icon = 168
+    strip_gap = 44
+    strip_label = 40
+    columns = ("source", "circle", "squircle")
+    width = margin * 2 + cell * len(columns) + gap * (len(columns) - 1)
+    height = (
+        margin
+        + 2 * (cell + caption + row_gap)
+        + strip_gap
+        + strip_label
+        + strip_icon
+        + 40
+        + margin
+    )
+    page = Image.new("RGB", (width, height), page_rgb)
     draw = ImageDraw.Draw(page)
-    font = ImageFont.load_default(size=18)
-    captions = {
-        ("release", "circle"): "Official · circle mask",
-        ("release", "squircle"): "Official · squircle mask",
-        ("mock", "circle"): "Mock · circle mask",
-        ("mock", "squircle"): "Mock · squircle mask",
+    heading = ImageFont.load_default(size=24)
+    labels = ImageFont.load_default(size=20)
+    names = {"release": "Official app", "mock": "Mock build"}
+    column_labels = {
+        "source": "design source",
+        "circle": "circle mask",
+        "squircle": "squircle mask",
     }
-    centers = []
     for row, name in enumerate(("release", "mock")):
         top = margin + row * (cell + caption + row_gap)
-        for column, shape in enumerate(("circle", "squircle")):
+        for column, shape in enumerate(columns):
             left = margin + column * (cell + gap)
-            icon = masked_icon(backgrounds[name], layers[name], shape)
-            page.paste(icon, (left, top), icon)
-            centers.append((left, top))
+            if shape == "source":
+                icon = sources[name].convert("RGB").resize((cell, cell), Image.LANCZOS)
+                page.paste(icon, (left, top))
+            else:
+                icon = masked_from_source(sources[name], shape, cell)
+                page.paste(icon, (left, top), icon)
             draw.text(
-                (left + cell // 2, top + cell + 8),
-                captions[(name, shape)],
+                (left + cell // 2, top + cell + 10),
+                f"{names[name]} · {column_labels[shape]}",
                 fill=(60, 60, 60),
                 anchor="ma",
-                font=font,
+                font=labels,
             )
+
+    strip_top = margin + 2 * (cell + caption + row_gap) + strip_gap
+    draw.text(
+        (margin, strip_top),
+        "Launcher scale · 168 px = 56 dp at 3x · composed from the committed mipmap layers",
+        fill=(60, 60, 60),
+        font=heading,
+    )
+    left = margin
+    for name in ("release", "mock"):
+        for shape in ("circle", "squircle"):
+            icon = masked_from_layers(backgrounds[name], layers[name], shape, strip_icon)
+            page.paste(icon, (left, strip_top + strip_label), icon)
+            draw.text(
+                (left + strip_icon // 2, strip_top + strip_label + strip_icon + 10),
+                f"{names[name]} · {shape}",
+                fill=(90, 90, 90),
+                anchor="ma",
+                font=labels,
+            )
+            left += strip_icon + gap
     return page
 
 
@@ -193,13 +277,13 @@ def main() -> int:
     args = parser.parse_args()
 
     cutouts = {}
+    sources = {}
     backgrounds = {}
     layers = {}
     stale = []
     for name, config in ICONS.items():
-        source = Image.open(config["source"])
-        if source.size != (1254, 1254):
-            raise SystemExit(f"{config['source']}: expected 1254x1254, got {source.size}")
+        source = verified_source(config["source"])
+        sources[name] = source
         foreground, background = cut_out(source)
         cutouts[name] = foreground
         backgrounds[name] = background
@@ -220,7 +304,7 @@ def main() -> int:
         path.parent.mkdir(parents=True, exist_ok=True)
         layer.save(path, optimize=True)
 
-    preview = build_preview(layers, backgrounds)
+    preview = build_preview(sources, layers, backgrounds)
     if args.check:
         if not PREVIEW.is_file():
             stale.append(str(PREVIEW.relative_to(ROOT)))

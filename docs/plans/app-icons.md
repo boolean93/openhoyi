@@ -58,3 +58,18 @@ revert 本 PR 即恢复旧 vector 图标与 manifest 引用，无数据或协议
 ## 未完成与阻塞
 
 无阻塞。真机 launcher 观感待用户确认，必要时以源码后续提交微调映射比例。
+
+## 追加：预览清晰度与源文件哈希（2026-11-07）
+
+用户反馈 launcher icon "有点糊"，并再次指定 `icon_mock.png` / `icon_release.png`。核对结论：
+
+- 仓库 `docs/ui/app-icons/` 两张设计稿与用户指定文件 sha256 完全一致；生成的 launcher 图层与"把设计稿直接 LANCZOS 缩放到 108dp 画布"的平均像素差为 0.044/255（正式）、0.30/255（Mock），p99 为 2~3，仅边缘像素不同，不存在二次缩放模糊。
+- 观感偏差来自旧 `launcher-preview.png` 每格仅 288px：在 2×/3× 屏幕或放大查看时被再次放大，看起来比 1254px 设计稿糊。
+
+本次追加（分支 `fix/app-icons-preview`，来源 `origin/develop@ae6f9e5`）：
+
+- `scripts/generate_app_icons.py` 固定两张设计稿的 sha256；正常生成和 `--check` 都会校验，替换成缩放或重编码副本会直接失败。
+- 预览改为 512px/格、直接由 1254px 原图渲染（新增 design source 列），并追加 168px（≈56dp @3×）launcher 实际比例行（由已提交 mipmap 图层合成）。
+- launcher 前景/背景资源像素不变（改动仅脚本、README、预览图）。
+- 验证：`python3 scripts/generate_app_icons.py --check` 通过；预览 1648×1528；保真度测量如上；CI 以 `branch-policy`、`verify` 为准。
+- 回退：revert 本 PR 即恢复旧预览与脚本；launcher 资源本来未变。
