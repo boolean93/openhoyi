@@ -22,7 +22,8 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     private val onScaleSelectionRemembered:(address:String,protocolId:String)->Unit={_,_->},
     customPressureStartPermit:(StartParameters)->Boolean={false},
     private val onCoffeeReconnect:(String)->Boolean={false},
-    rememberedScaleSuppressed:Boolean=false) : AutoCloseable {
+    rememberedScaleSuppressed:Boolean=false,
+    private val automaticAllowed:(DeviceRole)->Boolean={true}) : AutoCloseable {
     init {check(Looper.myLooper()==Looper.getMainLooper())}
     private val handler=Handler(Looper.getMainLooper())
     private var remembered=ScaleSelectionPolicy.remembered(rememberedScaleAddress,rememberedScaleProtocolId)
@@ -34,6 +35,10 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     private val scaleSlot=SingleScaleConnectionSlot<ScaleOwner>()
     private var automaticScaleAttempts=0
     private var closed=false
+    private var automaticScaleConnecting=false
+    private var automaticCoffeeConnecting=false
+    private var foreground=false
+    private var coffeeWasReady=false
     private val standaloneTare=if(tareStorage==null)StandaloneTare { SystemClock.elapsedRealtime() }
         else StandaloneTare(tareStorage) { SystemClock.elapsedRealtime() }
     private var scaleSampleSerial=0L
@@ -44,6 +49,9 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     private val coffee:AndroidDevice by lazy { AndroidDevice(context,DeviceRole.COFFEE,
         stateChanged={state->
             val now=SystemClock.elapsedRealtime()
+            if(state==DeviceState.READY && !coffeeWasReady)reconnect.requestSoon(now)
+            coffeeWasReady=state==DeviceState.READY
+            if(state in listOf(DeviceState.READY,DeviceState.FAILED,DeviceState.UNSUPPORTED))automaticCoffeeConnecting=false
             when(state){
                 DeviceState.READY->coffee.session.address?.let { coffeeReconnect.rememberReady(it,now) }
                 DeviceState.FAILED->coffeeReconnect.connectionFailed(now)
@@ -68,6 +76,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             stateChanged={state->
                 val request=scaleRequest
                 if(ownsScale(ticket,request)) {
+                    if(state in listOf(DeviceState.READY,DeviceState.FAILED,DeviceState.UNSUPPORTED))automaticScaleConnecting=false
                     if(state!=DeviceState.READY)standaloneTare.disconnected()
                     if(ownsScale(ticket,request) && state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED))
                         extraction.scaleDisconnected()
@@ -100,10 +109,15 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     val scaleAddress:String? get()=scaleSlot.current?.owner?.device?.session?.let { it.address.takeIf { _->it.state==DeviceState.READY } }
     val coffeeFirmware:CoffeeFirmware? get()=coffee.session.observedFirmware
     val coffeeAddress:String? get()=coffee.session.address.takeIf { coffee.session.state==DeviceState.READY }
-    private fun bluetoothReady():Boolean=runCatching {
-        scanner.missingPermissions().isEmpty() &&
-            (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter?.isEnabled==true
-    }.getOrDefault(false)
+    private fun bluetoothReady():Boolean=scanner.environmentReady()
+    val environmentReady:Boolean get()=bluetoothReady()
+    val automaticScanning:Boolean get()=scanner.automaticScanning
+    /** Display-only: automatic reconnect is armed and still looking for the remembered scale. */
+    val automaticScaleWaiting:Boolean get(){
+        val state=scaleSlot.current?.owner?.device?.session?.state?:DeviceState.DISCONNECTED
+        return foreground && environmentReady && remembered!=null && reconnect.recoveryEnabled && !scaleSlot.blocked &&
+            state!=DeviceState.READY && state!=DeviceState.CONNECTING && state!=DeviceState.UNSUPPORTED
+    }
     private val ticker=object:Runnable {
         override fun run(){
             if(closed)return
@@ -117,7 +131,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
             val coffeeAddress=coffeeReconnect.desiredAddress
             if(coffeeAddress!=null && coffee.session.state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)) {
                 val result=coffeeReconnect.dispatch(now,
-                    DeviceConnectionGate.mayConnectCoffee(extraction.state,coffeeControl.startAddress,coffeeAddress),
+                    automaticAllowed(DeviceRole.COFFEE) && DeviceConnectionGate.mayConnectCoffee(extraction.state,coffeeControl.startAddress,coffeeAddress),
                     bluetoothReady(),onCoffeeReconnect)
                 when(result){
                     CoffeeReconnectPolicy.Dispatch.STARTED->diagnostic("coffee.auto_reconnect.attempt")
@@ -127,7 +141,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                 }
             }
             val idleScale=state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)
-            if(!scaleSlot.blocked&&idleScale&&reconnect.recoveryEnabled&&DeviceConnectionGate.mayChangeScale(extraction.state)) {
+            if(!scaleSlot.blocked&&idleScale&&reconnect.recoveryEnabled&&automaticAllowed(DeviceRole.BOOKOO)&&!scanner.manualScanning&&DeviceConnectionGate.mayChangeScale(extraction.state)) {
                 val selection=remembered
                 if(selection==null) reconnect.manualDisconnect()
                 else {
@@ -139,7 +153,16 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
                     if(reconnect.shouldAttempt(now,false))try {
                         val request=scaleRequest
                         diagnostic("scale.auto_reconnect.attempt=${++automaticScaleAttempts}")
-                        if(!closed && request==scaleRequest)connectScale(selection.address,selection.protocolId,explicit=false)
+                        scanner.start(AutoConnectTiming.SCAN_MS,ScanCoordinator.Owner.AUTOMATIC,selection,
+                            onDevice={ found ->
+                                if(found.address.equals(selection.address,true) && found.scaleProtocolId==selection.protocolId &&
+                                    !closed && foreground && request==scaleRequest && remembered==selection &&
+                                    automaticAllowed(DeviceRole.BOOKOO) && DeviceConnectionGate.mayChangeScale(extraction.state) &&
+                                    scaleSlot.current?.owner?.device?.session?.state in listOf(DeviceState.DISCONNECTED,DeviceState.FAILED)) {
+                                    scanner.cancel(ScanCoordinator.Owner.AUTOMATIC)
+                                    connectScale(selection.address,selection.protocolId,explicit=false)
+                                }
+                            },onFinished={reconnect.attemptFinished(SystemClock.elapsedRealtime())})
                     }catch(error:RuntimeException) {
                         reconnect.attemptFinished(SystemClock.elapsedRealtime())
                         diagnostic("remembered scale reconnect failed: ${error.javaClass.simpleName}")
@@ -156,6 +179,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         check(DeviceConnectionGate.mayConnectCoffee(extraction.state,coffeeControl.startAddress,address)) {
             "unsettled extraction: coffee connection change blocked"
         }
+        automaticCoffeeConnecting=!explicit
         if(explicit)coffeeReconnect.explicitConnect(address)
         coffee.session.connect(address,authentication)
     }
@@ -167,8 +191,9 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         val selection=ScaleSelection(address,protocolId)
         if(candidate==selection && scaleSlot.current?.owner?.device?.session?.state !in listOf(
                 null,DeviceState.DISCONNECTED,DeviceState.FAILED,DeviceState.UNSUPPORTED))return false
-        if(explicit)reconnect.explicitConnect(SystemClock.elapsedRealtime())
+        if(explicit){scanner.cancel(ScanCoordinator.Owner.AUTOMATIC);reconnect.explicitConnect(SystemClock.elapsedRealtime())}
         val request=++scaleRequest
+        automaticScaleConnecting=!explicit
         candidate=selection
         standaloneTare.disconnected()
         extraction.scaleDisconnected()
@@ -183,14 +208,46 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
         scale.session.connect(address)
         return ownsScale(lease.ticket,request)
     }
+    /** Caller owns durable preference removal; transport callbacks cannot revive an old scan. */
+    fun setRememberedScale(selection:ScaleSelection?){
+        usable()
+        check(DeviceConnectionGate.mayChangeScale(extraction.state))
+        if(selection==remembered)return
+        require(selection==null || ScaleSelectionPolicy.remembered(selection.address,selection.protocolId)==selection)
+        scanner.cancel(ScanCoordinator.Owner.AUTOMATIC)
+        if(automaticScaleConnecting){
+            automaticScaleConnecting=false;++scaleRequest;candidate=null
+            scaleSlot.current?.owner?.device?.session?.disconnect()
+        }
+        remembered=selection
+        reconnect.targetChanged(selection!=null,SystemClock.elapsedRealtime())
+    }
     fun foreground(){
-        usable();automaticScaleAttempts=0
+        usable();foreground=true;automaticScaleAttempts=0
         val now=SystemClock.elapsedRealtime()
         reconnect.foreground(now,remembered!=null)
         coffeeReconnect.foreground(now)
-        if(remembered!=null)diagnostic("scale.auto_reconnect.window_open=600s")
+        if(remembered!=null)diagnostic("scale.auto_reconnect.waiting")
     }
-    fun background(keepCoffeeRecovery:Boolean=false){usable();reconnect.background();if(!keepCoffeeRecovery)coffeeReconnect.background();scanner.close();diagnostic("scale.auto_reconnect.window_closed")}
+    fun background(keepCoffeeRecovery:Boolean=false){usable();foreground=false;cancelAutomaticConnections();reconnect.background();if(!keepCoffeeRecovery)coffeeReconnect.background();scanner.close();diagnostic("scale.auto_reconnect.window_closed")}
+    private fun cancelAutomaticConnections(){
+        if(automaticScaleConnecting && !automaticAllowed(DeviceRole.BOOKOO)){
+            automaticScaleConnecting=false;++scaleRequest;candidate=null
+            scaleSlot.current?.owner?.device?.session?.disconnect()
+            reconnect.attemptFinished(SystemClock.elapsedRealtime())
+        }
+        if(automaticCoffeeConnecting && !automaticAllowed(DeviceRole.COFFEE)){
+            automaticCoffeeConnecting=false;coffee.session.disconnect()
+            coffeeReconnect.connectionFailed(SystemClock.elapsedRealtime())
+        }
+    }
+    fun refreshAutomaticIntent(scalePaused:Boolean,coffeePaused:Boolean){
+        usable()
+        cancelAutomaticConnections()
+        reconnect.setPaused(scalePaused)
+        coffeeReconnect.setPaused(coffeePaused)
+        if(!automaticAllowed(DeviceRole.BOOKOO)||!bluetoothReady())scanner.cancel(ScanCoordinator.Owner.AUTOMATIC)
+    }
     fun disableCoffeeRecovery(){usable();coffeeReconnect.disable()}
     fun ensureKnownCoffee(address:String){
         usable();require(android.bluetooth.BluetoothAdapter.checkBluetoothAddress(address))
@@ -199,7 +256,7 @@ class NativeDeviceHub(private val context:Context,rememberedScaleAddress:String?
     }
     fun disconnectScale(){
         usable();check(DeviceConnectionGate.mayDisconnect(extraction.state)){"unsettled extraction: disconnect blocked"}
-        ++scaleRequest;candidate=null;reconnect.manualDisconnect();scaleSlot.current?.owner?.device?.session?.disconnect()
+        ++scaleRequest;scanner.cancel(ScanCoordinator.Owner.AUTOMATIC);candidate=null;reconnect.manualDisconnect();scaleSlot.current?.owner?.device?.session?.disconnect()
     }
     fun tareScale(done:(OperationResult)->Unit)=tareScale({true},done)
     fun tareScale(beforeDispatch:()->Boolean,done:(OperationResult)->Unit){

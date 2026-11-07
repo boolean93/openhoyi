@@ -54,16 +54,16 @@ fun policyChecks():Int {
         check(p.checkHealth(4,60000)==null)
         check(p.sample(4,WeightReading(5000,61000),61000)==null)
     }
-    case("remembered scale reconnect works without coffee and remains bounded") {
+    case("remembered scale reconnect works without coffee and waits beyond ten minutes") {
         val r=ReconnectPolicy();r.foreground(100,hasRememberedScale=false)
         check(!r.shouldAttempt(100,scaleReady=false))
         r.foreground(100,hasRememberedScale=true)
         check(r.shouldAttempt(100,scaleReady=false));r.attemptFinished(100)
-        check(!r.shouldAttempt(101,scaleReady=false));check(r.shouldAttempt(5100,scaleReady=false))
+        check(!r.shouldAttempt(101,scaleReady=false));check(r.shouldAttempt(10100,scaleReady=false))
         r.manualDisconnect();check(!r.shouldAttempt(9000,scaleReady=false))
         r.foreground(10000,true);check(!r.shouldAttempt(10000,scaleReady=false))
-        r.explicitConnect();check(r.shouldAttempt(10000,scaleReady=false))
-        check(!r.shouldAttempt(610000,scaleReady=false))
+        r.explicitConnect();check(r.shouldAttempt(20100,scaleReady=false));r.attemptFinished(20100)
+        check(r.shouldAttempt(610000,scaleReady=false))
     }
     case("remembered scale retries after a terminal disconnect instead of remaining in flight") {
         val r=ReconnectPolicy();r.foreground(100,true)
@@ -71,8 +71,8 @@ fun policyChecks():Int {
         r.observeScaleState(101,DeviceState.CONNECTING)
         check(!r.shouldAttempt(101,false))
         r.observeScaleState(200,DeviceState.DISCONNECTED)
-        check(!r.shouldAttempt(5199,false))
-        check(r.shouldAttempt(5200,false))
+        check(!r.shouldAttempt(10099,false))
+        check(r.shouldAttempt(10100,false))
     }
     case("first verified scale connection enables recovery after physical failure") {
         val r=ReconnectPolicy();r.foreground(0,hasRememberedScale=false)
@@ -89,11 +89,11 @@ fun policyChecks():Int {
     case("successful scale reconnect resets failure backoff but avoids immediate flapping") {
         val r=ReconnectPolicy();r.foreground(100,true)
         check(r.shouldAttempt(100,false));r.observeScaleState(200,DeviceState.FAILED)
-        check(r.shouldAttempt(5200,false));r.observeScaleState(5300,DeviceState.READY)
-        check(!r.shouldAttempt(5301,false))
-        r.observeScaleState(10300,DeviceState.FAILED)
-        check(r.shouldAttempt(10300,false));r.observeScaleState(10400,DeviceState.FAILED)
-        check(r.shouldAttempt(15400,false))
+        check(r.shouldAttempt(10100,false));r.observeScaleState(10200,DeviceState.READY)
+        check(!r.shouldAttempt(10201,false))
+        r.observeScaleState(20300,DeviceState.FAILED)
+        check(r.shouldAttempt(20300,false));r.observeScaleState(20400,DeviceState.FAILED)
+        check(r.shouldAttempt(30300,false))
     }
     case("unsupported remembered scale stops automatic retries") {
         val r=ReconnectPolicy();r.foreground(100,true)
@@ -115,7 +115,7 @@ fun policyChecks():Int {
         check(r.shouldAttempt(200)=="AA:BB:CC:DD:EE:01")
         r.connectionFailed(300)
         check(r.shouldAttempt(5299)==null)
-        check(r.shouldAttempt(5300)=="AA:BB:CC:DD:EE:01")
+        check(r.shouldAttempt(10300)=="AA:BB:CC:DD:EE:01")
         r.manualDisconnect();r.background();r.foreground(6000)
         check(r.shouldAttempt(6000)==null)
         r.explicitConnect("AA:BB:CC:DD:EE:01");r.rememberReady("AA:BB:CC:DD:EE:01",6000);r.connectionFailed(6100)
@@ -132,26 +132,26 @@ fun policyChecks():Int {
         r.rememberReady("AA:BB:CC:DD:EE:02",500);r.connectionFailed(600)
         check(r.shouldAttempt(600)=="AA:BB:CC:DD:EE:02")
     }
-    case("coffee physical failure after long ready opens one bounded episode") {
+    case("coffee physical failure continues waiting beyond old budget") {
         val r=CoffeeReconnectPolicy();r.foreground(0)
         r.rememberReady("AA:BB:CC:DD:EE:01",0)
         r.connectionFailed(700_000)
         check(r.shouldAttempt(700_000)=="AA:BB:CC:DD:EE:01")
         r.connectionFailed(700_100)
         r.background();r.foreground(1_300_100)
-        check(r.shouldAttempt(1_300_100)==null)
+        check(r.shouldAttempt(1_300_100)=="AA:BB:CC:DD:EE:01")
         r.rememberReady("AA:BB:CC:DD:EE:01",1_300_200)
         r.connectionFailed(2_000_000)
         check(r.shouldAttempt(2_000_000)=="AA:BB:CC:DD:EE:01")
     }
-    case("scale physical failure after long ready opens one bounded episode") {
+    case("scale physical failure continues waiting beyond old budget") {
         val r=ReconnectPolicy();r.foreground(0,true)
         check(r.shouldAttempt(0,false));r.observeScaleState(100,DeviceState.READY)
         r.observeScaleState(700_000,DeviceState.FAILED)
         check(r.shouldAttempt(700_000,false))
         r.observeScaleState(700_100,DeviceState.FAILED)
         r.background();r.foreground(1_300_100,true)
-        check(!r.shouldAttempt(1_300_100,false))
+        check(r.shouldAttempt(1_300_100,false))
         r.observeScaleState(1_300_200,DeviceState.READY)
         r.observeScaleState(2_000_000,DeviceState.FAILED)
         check(r.shouldAttempt(2_000_000,false))
@@ -162,7 +162,7 @@ fun policyChecks():Int {
         coffee.environmentUnavailable();check(coffee.shouldAttempt(100)==null)
         coffee.environmentAvailable();check(coffee.shouldAttempt(200)=="AA:BB:CC:DD:EE:01")
         coffee.connectionFailed(300);coffee.environmentUnavailable();coffee.environmentAvailable()
-        check(coffee.shouldAttempt(600_100)==null)
+        check(coffee.shouldAttempt(600_100)=="AA:BB:CC:DD:EE:01")
         val scale=ReconnectPolicy();scale.foreground(0,true)
         scale.environmentUnavailable();check(!scale.shouldAttempt(0,false))
         scale.environmentAvailable();check(scale.shouldAttempt(1,false))

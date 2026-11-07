@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class AppVisibilityTest {
+    @Test fun lockingScreenHidesEvenStartedPagesAndUnlockRestoresOnce() {
+        val visibility=AppVisibility();val events=mutableListOf<Boolean>()
+        visibility.observe("service",events::add);visibility.started("home")
+        visibility.interactive(false);visibility.interactive(false)
+        assertFalse(visibility.visible)
+        visibility.interactive(true)
+        assertEquals(listOf(false,true,false,true),events)
+    }
+
     @Test fun recreationKeepsOneForegroundWindowUntilActualBackground() {
         val visibility = AppVisibility()
         val events = mutableListOf<Boolean>()

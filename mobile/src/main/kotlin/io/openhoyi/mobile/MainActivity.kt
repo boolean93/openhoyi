@@ -34,7 +34,23 @@ class MainActivity : ThemedActivity() {
     private var pendingShow = false
     private var pageId = View.generateViewId()
     private var service: MobileService? = null
-    private var bound = false
+    private val bound: Boolean get() = serviceBinding.bound
+    private val serviceBinding: VisibleServiceBinding by lazy {
+        VisibleServiceBinding((application as MobileApplication).serviceAvailability,
+            bind = { create ->
+                val accepted = bindService(Intent(this, MobileService::class.java), connection,
+                    if (create) BIND_AUTO_CREATE else 0)
+                // Android retains the dispatcher even when no existing service accepted the bind.
+                if (!accepted) unbindService(connection)
+                accepted
+            },
+            unbind = { unbindService(connection) },
+            onReleased = { service = null; publishService() },
+            onAvailable = {
+                // Binding can precede onStartCommand. Re-evaluate once the owner really runs.
+                if (service?.running == true) { service?.ensureKnownDevices(); publishService() }
+            })
+    }
     private var scanAfterBind = false
     private var reconnectScaleAfterBind: Pair<String, String>? = null
     private var lastPresentedManualShotId: String? = null
@@ -53,6 +69,7 @@ class MainActivity : ThemedActivity() {
     private fun dismissTransientDialogs() { transientDialogs.forEach { it.dismiss() }; transientDialogs.clear() }
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName, binder: IBinder) {
+            if (!bound) return // Ignore a delivery after the visible binding lease was released.
             service = (binder as MobileService.LocalBinder).service
             service?.ensureKnownDevices()
             reconnectScaleAfterBind?.let { (address, protocol) ->
@@ -63,11 +80,8 @@ class MainActivity : ThemedActivity() {
             publishService()
         }
         override fun onServiceDisconnected(name: ComponentName) { service = null; publishService() }
-        override fun onBindingDied(name: ComponentName) {
-            if (bound) { unbindService(this); bound = false }
-            service = null
-            publishService()
-        }
+        override fun onBindingDied(name: ComponentName) { serviceBinding.release() }
+        override fun onNullBinding(name: ComponentName) { serviceBinding.release() }
     }
 
     internal fun observeService(observer: (MobileService?) -> Unit) {
@@ -122,14 +136,10 @@ class MainActivity : ThemedActivity() {
             if (!startRememberedScaleService()) reconnectScaleAfterBind = null
         }
     }
-    internal fun releaseServiceBinding() {
-        if (bound) { unbindService(connection); bound = false }
-        service = null
-        publishService()
-    }
+    internal fun releaseServiceBinding() { serviceBinding.release() }
 
-    private fun bindExisting() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, 0) }
-    private fun bindCreated() { if (!bound) bound = bindService(Intent(this, MobileService::class.java), connection, BIND_AUTO_CREATE) }
+    private fun bindExisting() { serviceBinding.bindExisting() }
+    private fun bindCreated() { serviceBinding.bindCreated() }
     private fun startRememberedScaleService(): Boolean {
         if (BuildConfig.MOCK_MODE) {
             startService(Intent(this, MobileService::class.java))
@@ -141,7 +151,9 @@ class MainActivity : ThemedActivity() {
             prefs.getString("scale", null), prefs.getString("scaleProtocol", null))
             ?.takeIf { BluetoothAdapter.checkBluetoothAddress(it.address) }
         val knownCoffee = MobileService.hasRememberedCoffee(this)
-        if (selection == null && !knownCoffee) return false
+        val auto=(application as MobileApplication).autoConnect
+        val knownScale=selection!=null && (reconnectScaleAfterBind!=null || auto.enabled(DeviceRole.BOOKOO)&&!auto.paused(DeviceRole.BOOKOO))
+        if (!knownScale && !knownCoffee) return false
         if (missingBle().isNotEmpty()) return false
         val adapter = getSystemService(BluetoothManager::class.java)?.adapter ?: return false
         return try {
@@ -217,18 +229,19 @@ class MainActivity : ThemedActivity() {
 
     override fun onStart() {
         super.onStart()
+        serviceBinding.start()
         if (!startRememberedScaleService()) bindExisting()
     }
 
     override fun onStop() {
-        if (bound) { unbindService(connection); bound = false }
-        service = null
-        publishService()
+        serviceBinding.stop()
         super.onStop()
     }
 
     override fun onResume() {
         super.onResume()
+        (application as MobileApplication).autoConnect.refresh()
+        if(service==null) { if(!startRememberedScaleService())bindExisting() }
         foreground = true
         handler.post(manualPresentation)
     }

@@ -37,7 +37,7 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             states[role]=style.text("—",TaskProductVisualStyle.auxiliary,secondary=true).also {style.add(words,it,4)}
             val actions=LinearLayout(host).apply {orientation=LinearLayout.HORIZONTAL;isBaselineAligned=false}
             HoyiUi.button(host,actions,host.getString(R.string.home_visual_change)) {
-                roleFilter=role;rendered="";render(owner)
+                owner?.beginDeviceSelection();roleFilter=role;rendered="";render(owner)
                 candidates.post {candidates.requestRectangleOnScreen(android.graphics.Rect(0,0,candidates.width,minOf(candidates.height,style.dp(120))),false)}
             }.apply {visual.action(this,outline=true)}
             HoyiUi.button(host,actions,host.getString(label)) {
@@ -136,5 +136,5 @@ internal class SettingsDeviceControls(private val host:MainActivity, private val
             style.add(candidates,visual.pair(words,connect,"settings/devices/candidate/${candidate.address}"));visual.divider(candidates)
         }
     }
-    fun close(){dialog?.dismiss();dialog=null;owner=null}
+    fun close(){dialog?.dismiss();dialog=null;owner?.endDeviceSelection();owner=null}
 }
