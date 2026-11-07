@@ -378,6 +378,22 @@ h3 {
 /* FAQ */
 .faq { margin-top: clamp(30px, 4vw, 44px); border-top: 1px solid var(--line); }
 
+/* Sponsor and community */
+.support-grid { display: grid; gap: 44px; margin-top: clamp(32px, 5vw, 56px); }
+.support-card img {
+  width: min(212px, 56vw);
+  height: auto;
+  margin-bottom: 22px;
+  border-radius: 18px;
+  border: 1px solid var(--hairline);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05), 0 18px 44px rgba(0, 0, 0, 0.1);
+}
+.support-card p { margin-top: 8px; max-width: 26em; font-size: 15px; color: var(--body); }
+.support-note { font-size: 13px; color: var(--muted); }
+@media (min-width: 760px) {
+  .support-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: clamp(40px, 6vw, 88px); }
+}
+
 /* Footer */
 .footer { padding-block: 44px 56px; background: var(--soft); }
 .footer-inner { display: grid; gap: 14px; }
