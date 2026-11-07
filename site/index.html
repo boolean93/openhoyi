@@ -16,7 +16,8 @@
   <meta property="og:image:alt" content="OpenHOYI 首页：咖啡机已连接，显示锅炉温度与压力">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="canonical" href="https://boolean93.github.io/openhoyi/">
-  <link rel="icon" href="./assets/mark.svg" type="image/svg+xml">
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/brand/favicon-32.png">
+  <link rel="apple-touch-icon" href="./assets/brand/apple-touch-icon-180.png">
   <link rel="stylesheet" href="./styles.css">
   <script src="./product.js" defer></script>
 </head>
@@ -38,6 +39,7 @@
   <main id="main">
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero-inner">
+        <img class="hero-icon" src="./assets/brand/icon-release-256.png" width="256" height="256" alt="OpenHOYI 应用图标：黑色底、白色 Open HOYI 字标" fetchpriority="high">
         <p class="eyebrow">开源 · Android · 测试版</p>
         <h1 id="hero-title">更懂你的<br>HOYI app</h1>
         <p class="lede">OpenHOYI 是开源的安卓应用，也是 HOYI 咖啡机的增强控制器。蓝牙连上咖啡机和电子秤，在平板上选曲线、看实时数据、回看每一杯。</p>
@@ -93,6 +95,31 @@
             <figcaption>平板演示，模拟数据<span class="phone-hint"> · 点击放大</span></figcaption>
           </figure>
         </article>
+      </div>
+    </section>
+
+    <section class="section" id="builds" aria-labelledby="builds-title">
+      <div class="wrap">
+        <p class="eyebrow">构建</p>
+        <h2 id="builds-title">两种构建，一眼分清</h2>
+        <p class="builds-lede">正式版连接真实咖啡机；Mock 演示包用模拟设备，方便试界面和截图。两个 App 的图标颜色不同，可以同时安装。</p>
+        <div class="builds">
+          <article class="build">
+            <img src="./assets/brand/icon-release-256.png" width="256" height="256" alt="正式版图标：黑色底、白色 Open HOYI 字标" loading="lazy">
+            <div>
+              <h3>OpenHOYI</h3>
+              <p>连接真实咖啡机和电子秤，是页面上说的测试版。</p>
+            </div>
+          </article>
+          <article class="build">
+            <img src="./assets/brand/icon-mock-256.png" width="256" height="256" alt="Mock 演示包图标：橙色底、白色 Open HOYI 字标和深色 Mock 徽标" loading="lazy">
+            <div>
+              <h3>OpenHOYI Mock<span class="mock-tag">Mock</span></h3>
+              <p>模拟设备与数据，用于试用、演示和截图。</p>
+            </div>
+          </article>
+        </div>
+        <p class="note">本页截图来自 Mock 演示包（橙色图标），数据是模拟的，不是真实设备记录。</p>
       </div>
     </section>
 

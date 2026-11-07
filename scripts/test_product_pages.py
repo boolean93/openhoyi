@@ -225,6 +225,29 @@ class ProductPagesTest(unittest.TestCase):
         for name in referenced:
             self.assertTrue((SITE / name).is_file(), name)
 
+    def test_brand_icons_follow_the_committed_design(self):
+        brand = SITE / "assets/brand"
+        manifest = json.loads((brand / "manifest.json").read_text())
+        self.assertEqual(manifest["kind"], "site-app-icons")
+        for source in manifest["sources"]:
+            path = ROOT / source["file"]
+            self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), source["sha256"])
+        for output in manifest["outputs"]:
+            path = brand / output["file"]
+            data = path.read_bytes()
+            self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+            self.assertEqual(struct.unpack(">II", data[16:24]),
+                             (output["width"], output["height"]))
+            self.assertEqual(hashlib.sha256(data).hexdigest(), output["sha256"])
+        for href in ("./assets/brand/favicon-32.png", "./assets/brand/apple-touch-icon-180.png"):
+            self.assertIn(f'href="{href}"', self.html)
+        for src in ("./assets/brand/icon-release-256.png", "./assets/brand/icon-mock-256.png"):
+            self.assertIn(f'src="{src}"', self.html)
+        unused = {path.name for path in brand.iterdir()
+                  if path.name not in ("manifest.json",)
+                  and f"./assets/brand/{path.name}" not in self.html}
+        self.assertEqual(unused, set())
+
     def test_deployment_scope(self):
         workflow = (ROOT / ".github/workflows/product-pages.yml").read_text()
         self.assertIn("github.ref == 'refs/heads/develop'", workflow)
