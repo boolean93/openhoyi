@@ -16,6 +16,9 @@ class MobileApplication : Application() {
         private set
     private lateinit var languageContext: AppLanguageContextProvider
     internal val visibility = AppVisibility()
+    internal val serviceAvailability = ServiceAvailability()
+    internal lateinit var autoConnect:DeviceAutoConnectOwner
+        private set
     internal val feedbackPreferences by lazy {
         BrewFeedbackPreference(object : BrewFeedbackPreference.Storage {
             override fun read(): Boolean = getSharedPreferences("brew_feedback", MODE_PRIVATE).getBoolean("enabled", false)
@@ -29,7 +32,13 @@ class MobileApplication : Application() {
         if (BuildConfig.MOCK_MODE) visibility.observe("mock-lifecycle-diagnostics") {
             android.util.Log.i("OpenHoyiLifecycle", if (it) "visible" else "hidden")
         }
+        autoConnect=DeviceAutoConnectOwner(this)
         registerActivityLifecycleCallbacks(AppVisibilityCallbacks(visibility))
+    }
+
+    override fun onTerminate(){
+        autoConnect.close()
+        super.onTerminate()
     }
 
     override fun attachBaseContext(base: Context) {

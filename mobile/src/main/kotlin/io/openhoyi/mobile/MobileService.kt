@@ -114,6 +114,8 @@ class MobileService : Service() {
         val machine:MachineWriteRecoveryState.Ownership?)
     private var appRecoveryOwner:AppRecoveryOwner?=null
     val manualShotActive: Boolean get() = passiveShot.active
+    /** Display-only projection for the task shell; gates remain with the connection owners. */
+    val automaticScaleWaiting: Boolean get() = hub?.automaticScaleWaiting == true
     private val shotRecovery by lazy { ShotRecoveryState(RecoveryPreferenceStorage.shot(this)) }
     private val restartShotWarning: String get() = getString(R.string.machine_recovery_shot_restart)
     private val machineWriteRecovery by lazy { MachineWriteRecoveryState(RecoveryPreferenceStorage.machine(this)) }
@@ -317,10 +319,28 @@ class MobileService : Service() {
     private var safetyNotificationDirty = false
     private var manualSafetyResource: Int? = null
     val manualSafetyMessage: String? get() = manualSafetyResource?.let { getString(it) }
+    private val autoConnect get()=(application as MobileApplication).autoConnect
+    private var selectingDevice=false
+    fun beginDeviceSelection(){selectingDevice=true;hub?.refreshAutomaticIntent(autoConnect.paused(DeviceRole.BOOKOO),autoConnect.paused(DeviceRole.COFFEE))}
+    fun endDeviceSelection(){
+        selectingDevice=false
+        hub?.scanner?.cancel(io.openhoyi.bluetooth.ScanCoordinator.Owner.MANUAL)
+        snapshot=snapshot.copy(scanning=false)
+    }
+    private fun automaticAllowed(role:DeviceRole):Boolean = io.openhoyi.session.AutomaticConnectionGate.allows(
+        role,autoConnect.enabled(role),autoConnect.paused(role),appVisibility.visible,
+        selectingDevice || snapshot.scanning,manualShotActive,shotState,shotRecovery.pending,
+        machineWriteRecovery.kind!=null,cupResetBusy || scheduleBusy || brewPreparation.active)
+    private fun refreshAutomaticIntent(){
+        hub?.refreshAutomaticIntent(autoConnect.paused(DeviceRole.BOOKOO),autoConnect.paused(DeviceRole.COFFEE))
+        initialKnownCoffeeChecked=false
+        ensureKnownDevices()
+    }
     private var automaticScaleOnly = false
     private val stopAutomaticScale = object : Runnable {
         override fun run() {
             if (!automaticScaleOnly || !running) return
+            if(appVisibility.visible){handler.postDelayed(this,30_000);return}
             if (snapshot.coffeeState == DeviceState.READY || snapshot.scaleState == DeviceState.READY ||
                 snapshot.scanning || snapshot.scaleState !in setOf(DeviceState.DISCONNECTED, DeviceState.FAILED)) {
                 handler.postDelayed(this, 30_000)
@@ -342,6 +362,7 @@ class MobileService : Service() {
     private val leaveForeground = object : Runnable {
         override fun run() {
             if (appVisibility.visible || !hubForeground) return
+            selectingDevice=false
             hub?.background(keepCoffeeRecovery=ShotGate.active(shotState)||manualShotActive)
             hubForeground = false
             snapshot = snapshot.copy(scanning = false)
@@ -457,6 +478,7 @@ class MobileService : Service() {
         beanDoseCaptureAt(MobileMonotonicClock.elapsedRealtime())
     }
     private fun onDeviceState(role: DeviceRole, state: DeviceState) {
+        if(state==DeviceState.READY)selectingDevice=false
         if (role == DeviceRole.BOOKOO && state != DeviceState.READY) {
             scaleConnectionEpoch++; beanDoseCapture.reset()
             scaleTrend.observe(null, state, MobileMonotonicClock.elapsedRealtime())
@@ -639,13 +661,15 @@ class MobileService : Service() {
         history = runCatching { app.history }.getOrNull()
         if (mock == null && shotRecovery.pending) manualSafetyResource = R.string.machine_recovery_shot_restart
         handler.post(watchShot)
+        app.autoConnect.onChanged=::refreshAutomaticIntent
         app.visibility.observe(ownerId, ::onAppVisibilityChanged)
     }
     override fun onBind(intent: Intent): IBinder = binder
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP) { shutdown(); return START_NOT_STICKY }
         if (running) {
-            if (intent?.action != AUTO_SCALE) manualDeviceUse()
+            if (intent?.action !in setOf(AUTO_SCALE,AUTO_KNOWN_DEVICES)) manualDeviceUse()
+            refreshAutomaticIntent()
             return START_NOT_STICKY
         }
         if (mock != null) {
@@ -653,6 +677,7 @@ class MobileService : Service() {
             snapshot = mock.sample(MobileMonotonicClock.elapsedRealtime())
             handler.post(mockTick)
             event(ResourceMessage(R.string.service_event_mock_started), "mock.started")
+            (application as MobileApplication).serviceAvailability.started(ownerId)
             return START_NOT_STICKY
         }
         automaticScaleOnly = intent?.action == AUTO_SCALE || intent?.action == AUTO_KNOWN_DEVICES
@@ -705,16 +730,19 @@ class MobileService : Service() {
                     if(recentReadyCoffeeAddress?.equals(address,ignoreCase=true)!=true)false
                     else connectRememberedCoffee(address,automatic=true)
                 },
-                rememberedScaleSuppressed=prefs.getBoolean("scaleAutoSuppressed",false),
+                rememberedScaleSuppressed=autoConnect.paused(DeviceRole.BOOKOO),
+                automaticAllowed=::automaticAllowed,
             )
             running = true
             event(ResourceMessage(R.string.service_event_started))
             refreshSafetyNotification()
+            refreshAutomaticIntent()
             scheduleAutomaticScaleStop()
             if (appVisibility.visible) {
                 hub?.foreground()
                 hubForeground = true
             }
+            (application as MobileApplication).serviceAvailability.started(ownerId)
         } catch (error: RuntimeException) {
             event(ResourceMessage(R.string.service_event_startup_failed, error.javaClass.simpleName))
             shutdown()
@@ -723,6 +751,7 @@ class MobileService : Service() {
     }
     private fun onAppVisibilityChanged(visible: Boolean) {
         if (visible) {
+            refreshAutomaticIntent()
             handler.removeCallbacks(leaveForeground)
             if (!hubForeground && hub != null) {
                 hub?.foreground()
@@ -746,6 +775,7 @@ class MobileService : Service() {
         }
         val current = hub ?: return
         manualDeviceUse()
+        beginDeviceSelection()
         if (snapshot.scanning) return
         snapshot = snapshot.copy(scanning = true, candidates = emptyList(), message = resolvedMessage(ResourceMessage(R.string.service_scanning)))
         Log.i(TAG, "scan start")
@@ -763,7 +793,7 @@ class MobileService : Service() {
         if(mock!=null || !running || initialKnownCoffeeChecked)return
         initialKnownCoffeeChecked=true
         val prefs=getSharedPreferences("devices",MODE_PRIVATE)
-        if(prefs.getBoolean("coffeeAutoSuppressed",false))return
+        if(!autoConnect.enabled(DeviceRole.COFFEE)||autoConnect.paused(DeviceRole.COFFEE))return
         val address=recentReadyCoffeeAddress ?: return
         if(!shotRecovery.matchesDevice(address) || !machineWriteRecovery.matchesDevice(address))return
         if(!coffeeCredentialRetries.mayUse(address))return
@@ -771,6 +801,7 @@ class MobileService : Service() {
         hub?.ensureKnownCoffee(address)
     }
     private fun connectRememberedCoffee(address: String,automatic:Boolean): Boolean {
+        if(automatic && !automaticAllowed(DeviceRole.COFFEE))return false
         if (mock != null || !shotRecovery.matchesDevice(address) ||
             !machineWriteRecovery.matchesDevice(address)) return false
         if(!coffeeCredentialRetries.mayUse(address)){if(automatic)hub?.disableCoffeeRecovery();return false}
@@ -810,7 +841,7 @@ class MobileService : Service() {
             event(ResourceMessage(R.string.service_coffee_connect_failed, error.javaClass.simpleName), "coffee.connect_failed")
             return false
         }
-        if(!automatic)getSharedPreferences("devices",MODE_PRIVATE).edit().putBoolean("coffeeAutoSuppressed",false).commit()
+        if(!automatic)autoConnect.pause(DeviceRole.COFFEE,false)
         return true
     }
     fun connectScale(address: String, protocolId: String = io.openhoyi.session.BookooScaleProtocolAdapter.id) {
@@ -827,7 +858,7 @@ class MobileService : Service() {
         } catch (_: RuntimeException) {
             event(ResourceMessage(R.string.service_event_communication_error), "scale.connect_failed"); return
         }
-        getSharedPreferences("devices",MODE_PRIVATE).edit().putBoolean("scaleAutoSuppressed",false).commit()
+        autoConnect.pause(DeviceRole.BOOKOO,false)
         snapshot = snapshot.copy(weight = null, weightAt = null,
             scaleObservation = null, scaleCapabilities = null)
         scaleTrend.clear() // A selected scale starts a new display history, not a mixed-device line.
@@ -851,10 +882,10 @@ class MobileService : Service() {
         event(ResourceMessage(R.string.service_disconnect, role.name))
         if (role == DeviceRole.COFFEE) {
             hub?.disconnectCoffee()
-            getSharedPreferences("devices",MODE_PRIVATE).edit().putBoolean("coffeeAutoSuppressed",true).commit()
+            autoConnect.pause(DeviceRole.COFFEE,true)
         } else {
             hub?.disconnectScale()
-            getSharedPreferences("devices",MODE_PRIVATE).edit().putBoolean("scaleAutoSuppressed",true).commit()
+            autoConnect.pause(DeviceRole.BOOKOO,true)
         }
     }
     fun tareScale(): String? {
@@ -1774,6 +1805,7 @@ class MobileService : Service() {
             running = false
             handler.removeCallbacks(mockTick)
             snapshot = MobileSnapshot(message = resolvedMessage(ResourceMessage(R.string.service_event_mock_stopped)))
+            (application as MobileApplication).serviceAvailability.stopped(ownerId)
             stopSelf()
             return
         }
@@ -1813,10 +1845,13 @@ class MobileService : Service() {
         snapshot = snapshot.copy(coffeeState = DeviceState.DISCONNECTED, scaleState = DeviceState.DISCONNECTED,
             coffee = null, coffeeAt = null, alarmBits = null, alarmAt = null, scanning = false,
             weight = null, weightAt = null, scaleObservation = null, scaleCapabilities = null)
+        (application as MobileApplication).serviceAvailability.stopped(ownerId)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
     override fun onDestroy() {
+        running = false
+        (application as MobileApplication).serviceAvailability.stopped(ownerId)
         (application as MobileApplication).feedbackPreferences.unobserve(ownerId)
         appVisibility.unobserve(ownerId)
         finishBrewFeedback(false)
@@ -1832,6 +1867,7 @@ class MobileService : Service() {
         handler.removeCallbacks(leaveForeground)
         handler.removeCallbacks(stopAutomaticScale)
         closeDeviceOwner()
+        autoConnect.onChanged=null
         super.onDestroy()
     }
     companion object {
@@ -1844,7 +1880,7 @@ class MobileService : Service() {
         private const val SAFETY_NOTIFICATION = 2
         fun hasRememberedCoffee(context:Context):Boolean =
             context.getSharedPreferences("devices",Context.MODE_PRIVATE).let { prefs ->
-                !prefs.getBoolean("coffeeAutoSuppressed",false) && !prefs.getString("coffee",null).isNullOrBlank()
+                prefs.getBoolean("coffeeAutoEnabled",true) && !prefs.getBoolean("coffeeAutoSuppressed",false) && !prefs.getString("coffee",null).isNullOrBlank()
             }
     }
 }

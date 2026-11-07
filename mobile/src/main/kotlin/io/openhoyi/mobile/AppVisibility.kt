@@ -6,7 +6,9 @@ internal class AppVisibility {
     private val started = mutableSetOf<String>()
     private val rebuilding = mutableSetOf<String>()
     private val observers = mutableMapOf<String, (Boolean) -> Unit>()
-    val visible: Boolean get() = started.isNotEmpty() || rebuilding.isNotEmpty()
+    private var interactive=true
+    val visible: Boolean get() = interactive && (started.isNotEmpty() || rebuilding.isNotEmpty())
+    fun interactive(value:Boolean)=change {interactive=value}
 
     fun observe(owner: String, observer: (Boolean) -> Unit) {
         observers[owner] = observer

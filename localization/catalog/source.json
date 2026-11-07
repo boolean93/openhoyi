@@ -1,8 +1,8 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "311626624cf3bec32aeb834d51d0736941fb325a86fc10290c3a8d9924d7d519",
+  "sha256": "21fe00efa6168ec1b46f8e1405e1d406b95f7cd70cd682db893a7e4f18ca37fb",
   "strings": {
-    "app_name": "OpenHOYI Alpha",
+    "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
     "history_export_zip": "导出历史与曲线 ZIP",
     "history_import_legacy": "导入旧版历史 JSON",

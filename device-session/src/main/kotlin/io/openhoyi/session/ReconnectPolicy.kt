@@ -1,30 +1,38 @@
 package io.openhoyi.session
 
-private const val RECOVERY_BUDGET_MS=600_000L
+private const val RECOVERY_BUDGET_MS=AutoConnectTiming.FAST_PHASE_MS
 
-/** One remembered scale; a READY link's next physical failure starts a fresh bounded episode. */
+/** One remembered scale; a READY link's next physical failure starts a fresh recovery episode. */
 class ReconnectPolicy {
     private var until=0L
     private var next=0L
+    private var lastAttempt= -AutoConnectTiming.FAST_INTERVAL_MS
+    fun requestSoon(now:Long){ next=maxOf(lastAttempt+AutoConnectTiming.FAST_INTERVAL_MS,now) }
     private var foreground=false
     private var hasRememberedScale=false
+    private var unsupported=false
     private var suppressed=false
     private var environmentPaused=false
     private var attempting=false
     private var failures=0
     private var readyBeforeFailure=false
     private var failureEpisode=false
-    val recoveryEnabled:Boolean get()=foreground && hasRememberedScale && !suppressed
+    val recoveryEnabled:Boolean get()=foreground && hasRememberedScale && !suppressed && !unsupported
 
     fun foreground(now:Long,hasRememberedScale:Boolean){
         foreground=true;this.hasRememberedScale=hasRememberedScale
         if(!failureEpisode && !readyBeforeFailure){until=now+RECOVERY_BUDGET_MS;next=now;failures=0}
     }
+    fun targetChanged(present:Boolean,now:Long){
+        hasRememberedScale=present;attempting=false;unsupported=false;readyBeforeFailure=false;failureEpisode=false
+        until=now+RECOVERY_BUDGET_MS;next=now
+    }
     fun background(){foreground=false;attempting=false}
+    fun setPaused(value:Boolean){suppressed=value}
     fun manualDisconnect(){suppressed=true;attempting=false;readyBeforeFailure=false}
-    fun disable(){suppressed=true;attempting=false}
+    fun disable(){unsupported=true;attempting=false}
     fun explicitConnect(now:Long?=null){
-        suppressed=false;attempting=false;failureEpisode=false;readyBeforeFailure=false
+        suppressed=false;unsupported=false;attempting=false;failureEpisode=false;readyBeforeFailure=false
         if(now!=null){until=now+RECOVERY_BUDGET_MS;next=now;failures=0}
     }
     fun environmentUnavailable():Boolean {
@@ -32,9 +40,9 @@ class ReconnectPolicy {
     }
     fun environmentAvailable(){environmentPaused=false}
     fun shouldAttempt(now:Long,scaleReady:Boolean):Boolean {
-        if(!foreground||!hasRememberedScale||suppressed||environmentPaused||attempting||
-            readyBeforeFailure||scaleReady||now>=until||now<next)return false
-        attempting=true;return true
+        if(!foreground||!hasRememberedScale||suppressed||unsupported||environmentPaused||attempting||
+            readyBeforeFailure||scaleReady||now<next||now<lastAttempt+AutoConnectTiming.FAST_INTERVAL_MS)return false
+        attempting=true;lastAttempt=now;return true
     }
     fun observeScaleState(now:Long,state:DeviceState){
         when(state){
@@ -59,16 +67,15 @@ class ReconnectPolicy {
         attempting=false
         if(succeeded){failures=0;next=now+5000;return}
         failures=(failures+1).coerceAtMost(4)
-        next=now+(5000L shl (failures-1)).coerceAtMost(30_000)
+        next=lastAttempt+if(now<until)AutoConnectTiming.FAST_INTERVAL_MS else AutoConnectTiming.WAIT_INTERVAL_MS
     }
 }
 
-/** Only the remembered machine is eligible; repeated failures never extend one episode. */
+/** Only the remembered machine is eligible; credential blocks survive foreground events. */
 class CoffeeReconnectPolicy {
     enum class Dispatch { NONE, STARTED, REJECTED, UNAVAILABLE }
     var desiredAddress:String?=null
         private set
-    private var until=0L
     private var next=0L
     private var foreground=false
     private var failed=false
@@ -86,7 +93,7 @@ class CoffeeReconnectPolicy {
     fun ensureKnown(address:String,now:Long){
         if(suppressed||credentialBlocked||desiredAddress!=null)return
         desiredAddress=address;failed=true;readyBeforeFailure=false
-        until=now+RECOVERY_BUDGET_MS;next=now;failures=0
+        next=now;failures=0
     }
     fun rememberReady(address:String,now:Long){
         desiredAddress=address;failed=false;readyBeforeFailure=true
@@ -95,8 +102,7 @@ class CoffeeReconnectPolicy {
     fun connectionFailed(now:Long){
         if(desiredAddress==null||suppressed)return
         if(readyBeforeFailure){
-            readyBeforeFailure=false;until=now+RECOVERY_BUDGET_MS
-            next=now;failures=0
+            readyBeforeFailure=false;next=now;failures=0
         }else if(attempting){
             failures=(failures+1).coerceAtMost(4)
             next=now+(5000L shl (failures-1)).coerceAtMost(30_000)
@@ -105,13 +111,13 @@ class CoffeeReconnectPolicy {
     }
     fun shouldAttempt(now:Long):String? {
         if(!foreground||!failed||suppressed||credentialBlocked||environmentPaused||
-            attempting||now>=until||now<next)return null
+            attempting||now<next)return null
         val address=desiredAddress ?: return null
         attempting=true;return address
     }
     /** Shared by the Android hub and the deterministic callback tests. */
     fun dispatch(now:Long,canConnect:Boolean,environmentReady:Boolean,connect:(String)->Boolean):Dispatch {
-        if(!canConnect||!recoveryEnabled||now>=until)return Dispatch.NONE
+        if(!canConnect||!recoveryEnabled)return Dispatch.NONE
         if(!environmentReady)return if(environmentUnavailable())Dispatch.UNAVAILABLE else Dispatch.NONE
         environmentAvailable()
         val address=shouldAttempt(now) ?: return Dispatch.NONE
@@ -128,6 +134,10 @@ class CoffeeReconnectPolicy {
     }
     fun environmentAvailable(){environmentPaused=false}
     fun disable(){credentialBlocked=true;attempting=false}
+    fun setPaused(value:Boolean){
+        if(suppressed && !value && desiredAddress!=null){failed=true;readyBeforeFailure=false}
+        suppressed=value
+    }
     fun manualDisconnect(){suppressed=true;failed=false;attempting=false}
     fun explicitConnect(address:String){
         if(desiredAddress!=null && !desiredAddress.equals(address,ignoreCase=true))desiredAddress=null

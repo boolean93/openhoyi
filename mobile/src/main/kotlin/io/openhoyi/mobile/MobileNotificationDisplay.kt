@@ -18,7 +18,7 @@ internal class MobileNotificationDisplay(private val context: Context) {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         return Notification.Builder(context, channel)
             .setSmallIcon(android.R.drawable.stat_sys_data_bluetooth)
-            .setContentTitle(if (warning == null) "OpenHOYI Alpha" else context.getString(R.string.notification_attention))
+            .setContentTitle(if (warning == null) context.getString(R.string.app_name) else context.getString(R.string.notification_attention))
             .setContentText(warning ?: context.getString(R.string.notification_running))
             .setStyle(warning?.let { Notification.BigTextStyle().bigText(it) })
             .setContentIntent(open).setOngoing(true)

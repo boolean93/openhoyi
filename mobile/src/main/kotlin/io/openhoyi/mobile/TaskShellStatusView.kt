@@ -279,7 +279,8 @@ internal class TaskShellStatusView(
             prefs.getString("scale", null), prefs.getString("scaleProtocol", null))
             ?.takeIf { BluetoothAdapter.checkBluetoothAddress(it.address) } != null
         val suppressed = prefs.getBoolean("scaleAutoSuppressed", false)
-        val scaleLabel = host.getString(TaskShellDeviceStatus.scale(state, suppressed))
+        val scaleLabel = host.getString(if (state != DeviceState.READY && owner?.automaticScaleWaiting == true)
+            R.string.device_state_connecting else TaskShellDeviceStatus.scale(state, suppressed))
         val scaleLine = "● $scaleLabel"
         if (scaleStatus.text.toString() != scaleLine) {
             val colored = SpannableString(scaleLine)
