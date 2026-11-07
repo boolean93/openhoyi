@@ -20,9 +20,25 @@ Android adaptive icon（`minSdk 26`，无需旧版 PNG 图标）：
 - 前景：`mobile/src/{main,mock}/res/mipmap-*/ic_mobile_foreground.png`，由 `scripts/generate_app_icons.py`
   从设计稿按纯色背景抠出字标（Mock 版含徽标）。设计稿正方形对应 72dp 可见区域，
   108dp 图层四周各留 18dp 背景出血，内容居中。
-- 前景最大半径：正式版 30.2dp；Mock（含徽标）37.0dp。圆形遮罩可见半径 36dp，
+- 前景最大半径：正式版约 30.2dp；Mock（含徽标）约 36.9dp。圆形遮罩可见半径 36dp，
   Mock 徽标最外缘在纯圆遮罩下最多裁约 1dp；用户平板（HyperOS 类圆角方形遮罩）完整显示。
+- 前景 PNG 是设计稿的直接 LANCZOS 缩放：与"把设计稿直接缩放到同一 108dp 画布"比较，
+  像素平均差 0.044/255（正式）、0.30/255（Mock），p99 为 2~3，仅边缘像素有差别，
+  不存在二次缩放模糊。
+- `scripts/generate_app_icons.py` 固定了上面两张设计稿的 sha256；被替换成缩放或重编码
+  副本时会直接失败，避免用错源图。
 - OpenHOYI Lab（`io.openhoyi.lab`）与网站 `site/assets/mark.svg` 本次未改。
+
+## 预览
+
+`launcher-preview.png` 分两部分：
+
+- 上：设计稿原图（design source）、圆形遮罩与圆角方形遮罩预览，512px/格，直接由
+  1254px 原图生成，屏幕放大或 zoom 查看时保持清晰。
+- 下：按已提交 mipmap 图层合成的 168px（≈56dp @3×）launcher 实际比例行，
+  用于判断桌面图标大小下的观感；168px 以下是 1:1，不是系统截图。
+
+预览只用于人工复核，不是系统实际渲染截图。
 
 ## 重新生成
 
@@ -31,5 +47,4 @@ python3 scripts/generate_app_icons.py          # 重新生成前景 PNG 与 laun
 python3 scripts/generate_app_icons.py --check  # 检查提交物是否与设计稿一致
 ```
 
-需要 Pillow 与 NumPy。`launcher-preview.png` 是近似遮罩预览（圆 / 超椭圆），
-只用于人工复核，不是系统实际渲染截图。
+需要 Pillow 与 NumPy；`--check` 同时校验源设计稿哈希、mipmap 图层与预览图。
