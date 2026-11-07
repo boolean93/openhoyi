@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Made from docs/ui/app-icons/icon-mock.png by scripts/generate_app_icons.py. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_mobile_background" />
+    <foreground android:drawable="@mipmap/ic_mobile_foreground" />
+</adaptive-icon>
