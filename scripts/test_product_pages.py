@@ -92,7 +92,6 @@ class ProductPagesTest(unittest.TestCase):
         hero = self.html.split('class="hero"', 1)[1].split("</section>", 1)[0]
         self.assertIn('class="hero-figure"', hero)
         self.assertIn('data-download-entry', hero)
-        self.assertIn("真实 App 界面", hero)
         h1 = re.search(r"<h1[^>]*>(.*?)</h1>", self.html, re.S).group(1)
         self.assertIn("更懂你的", h1)
         self.assertIn("HOYI app", h1)
@@ -194,7 +193,7 @@ class ProductPagesTest(unittest.TestCase):
         self.assertEqual(self.provenance["device"]["model"], "M2105K81AC")
         self.assertEqual(self.provenance["installedApp"]["package"], "io.openhoyi.mobile.mock")
         for text in ("平板实际截图", "源码提交映射未核验", "0.1.0（53）", "并非手机端布局",
-                     "使用模拟数据", "不保证与下载的测试版一致"):
+                     "使用模拟数据", "不保证与下载版本一致"):
             self.assertIn(text, self.html)
         self.assertEqual({s["name"] for s in self.provenance["screens"]}, {"extraction", "home", "history"})
         for screen in self.provenance["screens"]:
@@ -241,8 +240,10 @@ class ProductPagesTest(unittest.TestCase):
             self.assertEqual(hashlib.sha256(data).hexdigest(), output["sha256"])
         for href in ("./assets/brand/favicon-32.png", "./assets/brand/apple-touch-icon-180.png"):
             self.assertIn(f'href="{href}"', self.html)
-        for src in ("./assets/brand/icon-release-256.png", "./assets/brand/icon-mock-256.png"):
-            self.assertIn(f'src="{src}"', self.html)
+        self.assertIn('src="./assets/brand/icon-release-256.png"', self.html)
+        # The Mock build is a developer tool; the user-facing page must not surface it.
+        self.assertNotIn("Mock", self.html)
+        self.assertNotIn("mock", self.html)
         unused = {path.name for path in brand.iterdir()
                   if path.name not in ("manifest.json",)
                   and f"./assets/brand/{path.name}" not in self.html}

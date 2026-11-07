@@ -17,13 +17,11 @@ DESIGN_DIR = ROOT / "docs/ui/app-icons"
 OUT_DIR = ROOT / "site/assets/brand"
 SOURCES = {
     "icon-release.png": "b1fe97f597673b26eebcd0d5738538b704e8b54c75488caccd3ea7ccc20534ca",
-    "icon-mock.png": "15738c03c3aa8735b201d9668b27b986ac32a8fd4d24eec434ae915b29535b1e",
 }
 # (output file, source file, size, rounded?) — rounded corners are masked from
 # the square design so the 32px favicon keeps clean edges in browser tabs.
 OUTPUTS = (
     ("icon-release-256.png", "icon-release.png", (256, 256), False),
-    ("icon-mock-256.png", "icon-mock.png", (256, 256), False),
     ("favicon-32.png", "icon-release.png", (32, 32), True),
     ("apple-touch-icon-180.png", "icon-release.png", (180, 180), False),
 )

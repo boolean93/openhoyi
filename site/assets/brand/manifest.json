@@ -5,10 +5,6 @@
     {
       "file": "docs/ui/app-icons/icon-release.png",
       "sha256": "b1fe97f597673b26eebcd0d5738538b704e8b54c75488caccd3ea7ccc20534ca"
-    },
-    {
-      "file": "docs/ui/app-icons/icon-mock.png",
-      "sha256": "15738c03c3aa8735b201d9668b27b986ac32a8fd4d24eec434ae915b29535b1e"
     }
   ],
   "outputs": [
@@ -20,15 +16,6 @@
       "height": 256,
       "roundedCorners": false,
       "sha256": "6adaa82aa4ccdb7c5e89b006a915b4e45dd4b536d3069c07393faf86ffb920e2"
-    },
-    {
-      "file": "icon-mock-256.png",
-      "source": "icon-mock.png",
-      "sourceSha256": "15738c03c3aa8735b201d9668b27b986ac32a8fd4d24eec434ae915b29535b1e",
-      "width": 256,
-      "height": 256,
-      "roundedCorners": false,
-      "sha256": "3478649a4c5464e9c22c1ae7254ba9056f5ae065f8570b3a61630ad2cc89e669"
     },
     {
       "file": "favicon-32.png",

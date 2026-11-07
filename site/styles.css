@@ -187,15 +187,6 @@ h3 {
 }
 .shot img { width: 100%; transition: transform 0.5s cubic-bezier(0.2, 0.6, 0.2, 1); }
 .shot:hover img { transform: scale(1.012); }
-figcaption {
-  margin-top: 14px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--muted);
-  text-align: center;
-}
-.phone-hint { display: none; }
-
 /* Stats */
 .stats { margin-top: clamp(56px, 9vw, 104px); }
 .stats-inner {
@@ -212,6 +203,13 @@ figcaption {
   line-height: 1.1;
   letter-spacing: -0.03em;
 }
+.stat-unit {
+  margin-left: 4px;
+  font-size: 0.42em;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+}
 .stat-label { margin-top: 6px; font-size: 14px; color: var(--muted); }
 
 /* Sections */
@@ -223,35 +221,6 @@ figcaption {
 .feature-copy { max-width: 40em; }
 .feature-copy p { margin-top: 12px; max-width: 34em; color: var(--body); }
 .feature-figure { margin: clamp(26px, 3.5vw, 40px) 0 0; }
-
-/* Official vs Mock builds */
-.builds-lede { margin-top: 16px; max-width: 34em; color: var(--body); }
-.builds { display: grid; gap: 0; margin-top: clamp(28px, 4vw, 44px); }
-.build {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding-block: 26px;
-  border-top: 1px solid var(--line);
-}
-.build img {
-  width: 72px;
-  height: 72px;
-  flex-shrink: 0;
-  border-radius: 22.37%;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 10px 24px rgba(0, 0, 0, 0.12);
-}
-.build h3 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 1.0625rem; }
-.build p { margin-top: 4px; font-size: 14px; color: var(--muted); }
-.mock-tag {
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: #26282b;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
 
 /* Capabilities */
 .capabilities {
@@ -494,7 +463,6 @@ body:has(.viewer[open]) { overflow: hidden; }
 /* Tablet and up */
 @media (min-width: 760px) {
   .actions { gap: 12px 32px; }
-  .builds { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 48px; }
   .capabilities { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 48px; }
   .specs > div { grid-template-columns: 200px minmax(0, 1fr); align-items: baseline; gap: 32px; }
   .scales > div { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr) auto; align-items: baseline; column-gap: 24px; }
@@ -520,7 +488,6 @@ body:has(.viewer[open]) { overflow: hidden; }
   .viewer-scroll { padding: 10px 14px; }
   .viewer-note { padding: 10px 14px; }
   .hero { padding-inline: 20px; }
-  .phone-hint { display: inline; }
   .nav-links { gap: 16px; }
   .nav-links a { font-size: 13px; padding: 15px 0; }
 }
