@@ -76,7 +76,6 @@ class CoffeeReconnectPolicy {
     enum class Dispatch { NONE, STARTED, REJECTED, UNAVAILABLE }
     var desiredAddress:String?=null
         private set
-    private var until=0L
     private var next=0L
     private var foreground=false
     private var failed=false
@@ -94,7 +93,7 @@ class CoffeeReconnectPolicy {
     fun ensureKnown(address:String,now:Long){
         if(suppressed||credentialBlocked||desiredAddress!=null)return
         desiredAddress=address;failed=true;readyBeforeFailure=false
-        until=now+RECOVERY_BUDGET_MS;next=now;failures=0
+        next=now;failures=0
     }
     fun rememberReady(address:String,now:Long){
         desiredAddress=address;failed=false;readyBeforeFailure=true
@@ -103,11 +102,10 @@ class CoffeeReconnectPolicy {
     fun connectionFailed(now:Long){
         if(desiredAddress==null||suppressed)return
         if(readyBeforeFailure){
-            readyBeforeFailure=false;until=now+RECOVERY_BUDGET_MS
-            next=now;failures=0
+            readyBeforeFailure=false;next=now;failures=0
         }else if(attempting){
             failures=(failures+1).coerceAtMost(4)
-            next=now+if(now<until)AutoConnectTiming.FAST_INTERVAL_MS else AutoConnectTiming.WAIT_INTERVAL_MS
+            next=now+(5000L shl (failures-1)).coerceAtMost(30_000)
         }
         attempting=false;failed=true
     }
@@ -129,7 +127,7 @@ class CoffeeReconnectPolicy {
     }
     fun rejected(now:Long){if(attempting){
         attempting=false;failures=(failures+1).coerceAtMost(4)
-        next=now+if(now<until)AutoConnectTiming.FAST_INTERVAL_MS else AutoConnectTiming.WAIT_INTERVAL_MS
+        next=now+(5000L shl (failures-1)).coerceAtMost(30_000)
     }}
     fun environmentUnavailable():Boolean {
         val changed=!environmentPaused;environmentPaused=true;return changed
