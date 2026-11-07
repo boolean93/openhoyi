@@ -2,7 +2,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <application android:name=".MobileApplication" android:label="@string/app_name" android:theme="@style/MobileTheme" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@drawable/ic_mobile" android:supportsRtl="true">
+    <application android:name=".MobileApplication" android:label="@string/app_name" android:theme="@style/MobileTheme" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:icon="@mipmap/ic_mobile" android:supportsRtl="true">
         <activity android:name=".CurveEditorActivity" android:exported="false" />
         <activity android:name=".CurveShareActivity" android:exported="false" />
         <activity android:name=".CurveImportActivity" android:exported="false" />
