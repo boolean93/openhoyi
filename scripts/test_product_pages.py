@@ -249,6 +249,25 @@ class ProductPagesTest(unittest.TestCase):
                   and f"./assets/brand/{path.name}" not in self.html}
         self.assertEqual(unused, set())
 
+    def test_support_channels_are_linked(self):
+        expected = {
+            "assets/sponsor/wechat-pay.png": (1180, 1607),
+            "assets/community/wechat-group.png": (1090, 1523),
+        }
+        for relative, size in expected.items():
+            with self.subTest(asset=relative):
+                data = (SITE / relative).read_bytes()
+                self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
+                self.assertEqual(struct.unpack(">II", data[16:24]), size)
+                self.assertIn(f'src="./{relative}"', self.html)
+                self.assertIn(f'width="{size[0]}" height="{size[1]}"', self.html)
+        for text in ("请我喝杯咖啡", "OpenHOYI 交流群", "自愿赞助", "群二维码会过期"):
+            self.assertIn(text, self.html)
+        readme = (ROOT / "README.md").read_text()
+        self.assertIn("## 赞助与交流", readme)
+        for relative in expected:
+            self.assertIn(f"site/{relative}", readme)
+
     def test_deployment_scope(self):
         workflow = (ROOT / ".github/workflows/product-pages.yml").read_text()
         self.assertIn("github.ref == 'refs/heads/develop'", workflow)

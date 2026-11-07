@@ -118,6 +118,17 @@ adb install -r mobile/build/outputs/apk/debug/mobile-debug.apk
 
 涉及启动、停止、去皮或设置写入时，还需要机器回报与实际动作的证据；GATT 写入成功本身不代表设备已经执行。更多开发资料见[架构说明](docs/architecture.md)、[Lab 使用说明](docs/native-lab.md)与[旧版曲线迁移](docs/legacy-curve-import.md)。
 
+## 赞助与交流
+
+如果 OpenHOYI 帮到了你，可以请我喝杯咖啡；遇到问题或想聊用法，也欢迎进群。赞助完全自愿，不影响功能与支持。
+
+<p>
+  <img src="site/assets/sponsor/wechat-pay.png" alt="微信支付收款码" width="220">
+  <img src="site/assets/community/wechat-group.png" alt="OpenHOYI 微信交流群二维码" width="220">
+</p>
+
+群二维码会过期；失效后请到 [issues](https://github.com/boolean93/openhoyi/issues) 留言。
+
 ## 许可证
 
 项目采用 [GNU GPL v2](LICENSE) 许可证，使用、修改或分发前请阅读许可条款。
