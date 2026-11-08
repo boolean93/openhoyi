@@ -1413,7 +1413,8 @@ class MobileService : Service() {
             }
             activeShotTargetHundredthsGram = profile.targetHundredthsGram
             series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
-            activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile)
+            activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
+                (application as MobileApplication).curves.find(profile.id)?.customDocument)
             beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
             if (scenarioOwner == null) event(ResourceMessage(R.string.service_shot_mock_started, profile.name), "mock.shot_started")
             else event(ResourceMessage(R.string.service_shot_requested, profile.name), "mock.synthetic_shot_requested")
@@ -1494,7 +1495,8 @@ class MobileService : Service() {
         if (machineWriteRecovery.kind == MachineWriteRecoveryState.Kind.BREW_WAIT)
             brewWaitShotStarted = true
         series.begin(shotId, MobileMonotonicClock.elapsedRealtime(), profile.id)
-        activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile)
+        activeShotRecipe = ShotRecipeSnapshot.capture(shotId, profile,
+            (application as MobileApplication).curves.find(profile.id)?.customDocument)
         beginBrewFeedback(shotId, if (slot == 7) 8 else slot, profile.parameters.preinfusionSeconds)
         if (current.extraction.state == ExtractionState.OUTCOME_UNKNOWN) {
             finishBrewFeedback(false)
@@ -1583,7 +1585,14 @@ class MobileService : Service() {
         history?.entries?.map(ShotHistory.Entry::id)?.toSet()?.let(app.samples::prune)
     }
     private fun recordMachinePoint(frame: io.openhoyi.protocol.ExtractionTelemetry, atMs: Long) {
-        if (CurveUseEvidence.matches(frame)) runCatching { history?.observeRunning() }
+        if (CurveUseEvidence.matches(frame)) runCatching {
+            val observedId = history?.observeRunning()
+            val recipe = activeShotRecipe?.takeIf { it.traceId == observedId }
+            val fingerprint = recipe?.draftFingerprint
+            if (recipe != null && fingerprint != null)
+                (application as MobileApplication).curveUsageResult.getOrThrow()
+                    .attachFingerprint(recipe.traceId, fingerprint)
+        }
             .onFailure { event(ResourceMessage(R.string.service_shot_history_failed), "curve.usage_observation_failed") }
         observeBrewFeedback(frame, atMs)
         val observation = LiveTelemetry.scale(snapshot.scaleObservation, snapshot.scaleState, atMs)

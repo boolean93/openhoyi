@@ -16,4 +16,8 @@
     <string name="home_visual_more_recipes">다른 레시피 ›</string>
     <string name="home_visual_panel_title">준비 및 기기 상세</string>
     <string name="home_visual_bean_label">커피 원두</string>
+    <string name="home_last_heading">지난 잔에 사용한 곡선</string>
+    <string name="home_last_reuse">다시 사용</string>
+    <string name="home_last_unavailable">지난 곡선을 사용할 수 없음</string>
+    <string name="home_last_draft_changed">지난 사용자 곡선의 설정을 확인할 수 없음</string>
 </resources>
