@@ -20,6 +20,8 @@ internal enum class ChartMetric(
 ) {
     PRESSURE("bar", 4f, 0f, 2f, 0f, 10f, true),
     WATER("ml", 10f, 0f, 10f, 0f, 40f, true),
+    // WEIGHT is history-only; liveMetrics has no weight axis, so its initial range is unused
+    // there but kept uniform with the other metrics' policy fields.
     WEIGHT("g", 10f, 0f, 10f, 0f, 40f, true),
     TEMPERATURE("°C", 5f, 90f, 95f, 88f, 98f, false),
     FLOW("g/s", 2f, 0f, 1f, 0f, 4f, true),
@@ -52,8 +54,11 @@ internal data class FourMetricChartData(
 internal object FourMetricChartProjection {
     /**
      * [previousRanges] belongs to the caller's same-shot display session; reset it for a new shot.
-     * The realtime projection starts from the small per-metric defaults and grows only from
-     * observed values; the history/comparison projection adapts to the whole observed cup.
+     * The realtime projection starts from the small per-metric defaults and grows only from the
+     * current cup's observed values; the reference cup is still drawn but must not pre-size the
+     * axes. With no current observation yet (idle preview) the reference cup supplies the axis and
+     * time extent so the previous curve stays fully previewable. The history/comparison projection
+     * adapts to the whole observed cup (current + reference).
      * Historical weight remains raw scale weight. Live flow is the display-only scale derivative.
      * timeEndMs is an axis bound, while observedThroughMs describes only current observations.
      */
@@ -66,13 +71,17 @@ internal object FourMetricChartProjection {
     ): FourMetricChartData {
         validate(points)
         validate(reference)
+        // A live cup with no observations yet previews the reference cup; once the current cup
+        // has any point, its own progress alone drives both axes.
+        val referenceDrivesLiveAxes = liveFlow && points.isEmpty()
         val series = (if (liveFlow) liveMetrics else historicalMetrics).mapNotNull { metric ->
             val current = segments(points, metric, livePauseBaseline)
             val historic = segments(reference, metric)
             if (metric == ChartMetric.WEIGHT && current.isEmpty() && historic.isEmpty()) {
                 return@mapNotNull null
             }
-            val values = (current + historic).flatten().map { it.value }
+            val axisValues = if (!liveFlow || referenceDrivesLiveAxes) current + historic else current
+            val values = axisValues.flatten().map { it.value }
             val old = previousRanges[metric]
             if (old != null) {
                 require(old.low.isFinite() && old.high.isFinite() && old.low < old.high)
@@ -80,8 +89,9 @@ internal object FourMetricChartProjection {
             val axis = axis(metric, values, old, live = liveFlow)
             MetricChartSeries(metric, current, historic, axis.range, axis.step)
         }
-        val observedEnd = maxOf(1000L, points.lastOrNull()?.elapsedMs ?: 0L,
-            reference.lastOrNull()?.elapsedMs ?: 0L)
+        val referenceEnd = if (!liveFlow || referenceDrivesLiveAxes)
+            reference.lastOrNull()?.elapsedMs ?: 0L else 0L
+        val observedEnd = maxOf(1000L, points.lastOrNull()?.elapsedMs ?: 0L, referenceEnd)
         return FourMetricChartData(
             series,
             points.lastOrNull()?.elapsedMs,

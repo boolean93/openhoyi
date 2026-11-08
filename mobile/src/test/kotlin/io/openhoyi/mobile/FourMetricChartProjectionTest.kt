@@ -266,6 +266,35 @@ class FourMetricChartProjectionTest {
         assertEquals(highs.sorted(), highs)
     }
 
+    @Test fun liveReferenceDoesNotPreSizeAxesOrTime() {
+        val current = listOf(point(0, pressure = 30), point(5_000, pressure = 30))
+        val reference = listOf(point(0, pressure = 90), point(40_000, pressure = 90))
+        val live = FourMetricChartProjection.build(current, reference, liveFlow = true)
+        // The 40 s / 9 bar reference must not pre-size a 5 s / 3 bar current cup.
+        assertEquals(5_000L, live.timeEndMs)
+        val pressure = live.series(ChartMetric.PRESSURE)
+        assertTrue("reference pre-sized the live pressure axis: ${pressure.range}",
+            pressure.range.high < 9f)
+        assertTrue(pressure.reference.flatten().any { it.value == 9f })
+    }
+
+    @Test fun idleLivePreviewStillUsesTheReferenceCup() {
+        val reference = listOf(point(0, pressure = 90), point(40_000, pressure = 90))
+        val idle = FourMetricChartProjection.build(emptyList(), reference, liveFlow = true)
+        assertEquals(40_000L, idle.timeEndMs)
+        assertTrue(idle.series(ChartMetric.PRESSURE).range.high >= 9f)
+        assertTrue(idle.series(ChartMetric.PRESSURE).reference.isNotEmpty())
+    }
+
+    @Test fun historyKeepsReferenceInTheWholeCupAxes() {
+        val current = listOf(point(0, pressure = 30), point(5_000, pressure = 30))
+        val reference = listOf(point(0, pressure = 90), point(40_000, pressure = 90))
+        val history = FourMetricChartProjection.build(current, reference)
+        assertTrue("history axis must include the reference duration", history.timeEndMs >= 40_000L)
+        assertTrue("history axis must include the reference pressure",
+            history.series(ChartMetric.PRESSURE).range.high >= 9f)
+    }
+
     @Test fun livePressureRangeNeverShrinksWithinTheSameShot() {
         val peak = FourMetricChartProjection.build(listOf(point(0, pressure = 0),
             point(1000, pressure = 160)), emptyList(), liveFlow = true)
