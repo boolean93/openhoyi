@@ -114,6 +114,8 @@ class MobileService : Service() {
     private var passiveRecoveryOwner:ShotRecoveryState.Ownership?=null
     /** True when this passive round wrote the durable shot-recovery guard (not a pre-existing one). */
     private var passiveArmedRecovery = false
+    /** Wall-clock start backfilled from the first passive frame, used when the cup is committed. */
+    private var passiveStartedWallMs = 0L
     /** True when this passive round failed to arm its guard and therefore set its own warning. */
     private var passiveArmFailed = false
     /** Warning shown before this round armed, restored only when the uncommitted round is dropped. */
@@ -547,9 +549,9 @@ class MobileService : Service() {
                 manualSafetyResource = R.string.service_event_manual_disconnect_warning
                 event(ResourceMessage(R.string.service_event_manual_unknown), "shot.passive_unknown")
             } else {
-                // A short passive water release was never a cup, so it must not leave an
-                // unknown shot, navigation state or reminder behind. Only drop the guard it armed.
-                discardPassiveRecovery(requireDeviceMatch = false)
+                // A short passive water release was never a cup: drop its provisional chart and
+                // this round's guard without abandoning history or raising an unknown warning.
+                discardPassiveSeries(requireDeviceMatch = false)
             }
         }
         event("${role.name}: ${state.name}")
@@ -614,8 +616,8 @@ class MobileService : Service() {
             lastShotState !in setOf(ExtractionState.IDLE, ExtractionState.ENDED_OBSERVED)
         val passiveEvents = if (snapshot.coffeeState == DeviceState.READY)
             passiveShot.observe(frame, observedAt, appShotInProgress) else emptyList()
-        // Started only arms the machine-in-motion guard. History, series identity, feedback and
-        // navigation stay untouched until Committed, so a short passive water release is invisible.
+        // Water is flowing now, so the realtime chart and navigation start at Started under a
+        // provisional identity. Only Committed keeps a manual identity and a history entry.
         passiveEvents.forEach { passiveEvent ->
             when (passiveEvent) {
                 is PassiveShotDetector.Event.Started -> {
@@ -634,35 +636,41 @@ class MobileService : Service() {
                         manualSafetyResource = R.string.service_event_shot_record_failed
                     passiveCommitted = false
                     passiveHistoryId = null
-                    refreshSafetyNotification()
-                }
-                is PassiveShotDetector.Event.Committed -> {
-                    passiveCommitted = true
-                    // The cup began at the first buffered frame, not at commit time; keep the
-                    // durable history metadata aligned with the observed start.
-                    val startedWallMs = System.currentTimeMillis() - (observedAt - passiveEvent.first.atMs)
-                    passiveHistoryId = runCatching { history?.begin("manual", atMs = startedWallMs, slot = 6) }
-                        .onFailure { event(ResourceMessage(R.string.service_event_manual_history_unwritable), "shot.history_error") }.getOrNull()
-                    val id = passiveHistoryId ?: java.util.UUID.randomUUID().toString()
-                    series.begin(id, passiveEvent.first.atMs, "manual")
-                    manualPresentation.started(id)
+                    // The cup began at the first observed frame; keep durable history aligned.
+                    passiveStartedWallMs = System.currentTimeMillis() -
+                        (observedAt - passiveEvent.first.atMs)
+                    val provisionalId = java.util.UUID.randomUUID().toString()
+                    series.begin(provisionalId, passiveEvent.first.atMs, "manual")
+                    manualPresentation.started(provisionalId)
                     val feedbackSlot = passiveEvent.first.frame.slotOrPhase
-                    beginBrewFeedback(id, feedbackSlot, if (feedbackSlot == 6) 0 else null, appShot = false)
+                    beginBrewFeedback(provisionalId, feedbackSlot, if (feedbackSlot == 6) 0 else null,
+                        appShot = false)
                     recordMachinePoint(passiveEvent.first.frame, passiveEvent.first.atMs)
                     recordMachinePoint(passiveEvent.second.frame, passiveEvent.second.atMs)
-                    passiveEvent.points.forEach { recordMachinePoint(it.frame, it.atMs) }
-                    passiveHistoryId?.let {
+                    refreshSafetyNotification()
+                }
+                PassiveShotDetector.Event.Committed -> {
+                    passiveCommitted = true
+                    val historyId = runCatching {
+                        history?.begin("manual", atMs = passiveStartedWallMs, slot = 6)
+                    }.onFailure {
+                        event(ResourceMessage(R.string.service_event_manual_history_unwritable),
+                            "shot.history_error")
+                    }.getOrNull()
+                    if (historyId != null) {
+                        passiveHistoryId = historyId
+                        series.rebind(historyId)
                         runCatching { history?.transition(ExtractionState.RUNNING, "机器手动萃取", null) }
                             .onFailure { event(ResourceMessage(R.string.service_event_manual_history_failed), "shot.history_error") }
+                        event(ResourceMessage(R.string.service_event_manual_started), "shot.passive_started")
                     }
-                    event(ResourceMessage(R.string.service_event_manual_started), "shot.passive_started")
                 }
                 is PassiveShotDetector.Event.Point -> recordMachinePoint(passiveEvent.value.frame,
                     passiveEvent.value.atMs)
                 PassiveShotDetector.Event.Ended -> {
                     val committed = passiveCommitted
-                    passiveCommitted = false
                     if (committed) {
+                        passiveCommitted = false
                         manualPresentation.ended()
                         clearPassiveRecovery(requireDeviceMatch = true)
                         val weight = snapshot.weight?.weightHundredthsGram?.takeIf {
@@ -679,9 +687,7 @@ class MobileService : Service() {
                         if(!appVisibility.visible && !ShotGate.active(shotState))hub?.background()
                         event(ResourceMessage(R.string.service_event_manual_ended), "shot.passive_ended")
                     } else {
-                        // A short passive water release ends silently: no history, series identity,
-                        // navigation or reminder, and no touching a record owned by an earlier shot.
-                        discardPassiveRecovery(requireDeviceMatch = true)
+                        discardPassiveSeries(requireDeviceMatch = true)
                     }
                 }
                 PassiveShotDetector.Event.Interrupted -> Unit
@@ -703,6 +709,22 @@ class MobileService : Service() {
         passiveRecoveryOwner = null
         passiveArmFailed = false
         passiveSafetyBeforeArm = null
+    }
+
+    /**
+     * Ends a provisional passive series that never became a cup: the realtime chart identity and
+     * points are released (the page falls back to the selected curve), no history entry is written
+     * and only this round's recovery guard is cleared.
+     */
+    private fun discardPassiveSeries(requireDeviceMatch: Boolean) {
+        passiveCommitted = false
+        manualPresentation.ended()
+        finishBrewFeedback(false)
+        finishSeries(false)
+        series.clear()
+        passiveHistoryId = null
+        passiveStartedWallMs = 0L
+        discardPassiveRecovery(requireDeviceMatch)
     }
 
     /**
@@ -1937,8 +1959,9 @@ class MobileService : Service() {
                 passiveHistoryId?.let { id -> runCatching { history?.abandon(id, "设备服务停止") } }
                 saveSeriesCheckpoint(force = true)
                 finishSeries(false)
-            } else discardPassiveRecovery(requireDeviceMatch = false)
+            } else discardPassiveSeries(requireDeviceMatch = false)
             passiveHistoryId = null
+            passiveStartedWallMs = 0L
             passiveArmedRecovery = false
             passiveMayClearRecovery = false
             passiveRecoveryOwner = null

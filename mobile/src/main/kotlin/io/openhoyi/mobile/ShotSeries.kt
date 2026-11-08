@@ -42,6 +42,29 @@ class ShotSeries {
         recorded.clear()
     }
 
+    /**
+     * Replaces only the display identity, keeping the observed points, curve id and start time.
+     * Used when a passive series starts under a provisional id and is later persisted as a
+     * history entry without restarting the realtime chart.
+     */
+    fun rebind(shotId: String) {
+        require(shotId.isNotBlank())
+        if (id == null) return
+        id = shotId
+        traceIdentity = shotId
+    }
+
+    /** Drops a provisional passive identity and its points so the page falls back to selection. */
+    fun clear() {
+        id = null
+        traceIdentity = null
+        curveId = null
+        startedAtMs = 0L
+        minimumGapMs = 0L
+        lastCheckpointAtMs = null
+        recorded.clear()
+    }
+
     /** The first observed point and then at most one snapshot per five seconds. */
     fun checkpoint(atElapsedMs: Long, force: Boolean = false): Pair<String, List<ShotPoint>>? {
         val shotId = id ?: return null

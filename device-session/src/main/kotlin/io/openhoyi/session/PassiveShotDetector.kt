@@ -7,11 +7,12 @@ import io.openhoyi.protocol.IdleTelemetry
 /**
  * Observes machine-initiated extraction without ever issuing a device command.
  *
- * [Event.Started] is emitted as soon as two consistent valve-open frames are observed so the
- * machine-in-motion gates stay armed, but the observation only becomes a cup at
+ * [Event.Started] is emitted as soon as two consistent valve-open frames are observed, so the
+ * machine-in-motion gates stay armed and a realtime chart can begin immediately. Every active
+ * frame is also surfaced as [Event.Point]; the observation only becomes a cup at
  * [Event.Committed] once the extraction lasts at least [minimumShotSeconds]. Shorter passive
- * water releases (for example flushing the brew head before an App shot) still report Started
- * and Ended, yet never create history, series identity or navigation on their own.
+ * water releases (for example flushing the brew head before an App shot) still report Started,
+ * Points and Ended, yet never create history or keep a manual identity after they end.
  */
 class PassiveShotDetector(
     private val minimumShotSeconds: Int = MIN_MANUAL_CUP_SECONDS,
@@ -25,15 +26,10 @@ class PassiveShotDetector(
     sealed interface Event {
         data class Started(val first: TimedFrame, val second: TimedFrame) : Event
         /**
-         * At most one per active observation. [points] holds the passive frames observed after
-         * [second] (including the frame that reached the threshold), so a caller that ignored
-         * the pre-commit stream can replay the whole cup in order.
+         * At most one per active observation, emitted after the [Point] for the threshold frame.
+         * The caller already recorded the realtime points, so no frames are replayed here.
          */
-        data class Committed(
-            val first: TimedFrame,
-            val second: TimedFrame,
-            val points: List<TimedFrame>,
-        ) : Event
+        data object Committed : Event
         data class Point(val value: TimedFrame) : Event
         data object Ended : Event
         data object Interrupted : Event
@@ -43,8 +39,6 @@ class PassiveShotDetector(
     private var lastActiveAtMs: Long? = null
     private var lastObservedAtMs: Long? = null
     private var first: TimedFrame? = null
-    private var second: TimedFrame? = null
-    private var buffered = mutableListOf<TimedFrame>()
     private var committed = false
     var active = false
         private set
@@ -52,7 +46,10 @@ class PassiveShotDetector(
     /** True once the current observation was long enough to count as a cup. */
     val isCommitted: Boolean get() = committed
 
-    /** Empty means no transition; a single observation may yield Started followed by Committed. */
+    /**
+     * Empty means no transition. A threshold frame returns Point then Committed; a frame that
+     * yields Started in a long-running observation may append Committed as well.
+     */
     fun observe(frame: HoyiMessage, atMs: Long, appShotInProgress: Boolean): List<Event> {
         if (atMs < 0 || lastObservedAtMs?.let { atMs <= it } == true) return emptyList()
         lastObservedAtMs = atMs
@@ -64,14 +61,14 @@ class PassiveShotDetector(
             val timed = TimedFrame(frame, atMs)
             if (active) {
                 if (frame.valveOpen) lastActiveAtMs = atMs
-                if (committed) return listOf(Event.Point(timed))
-                buffered += timed
-                // Only an open valve can promote the observation to a cup. A closing frame is
-                // still buffered for replay but must not cross the threshold on its own.
-                if (!frame.valveOpen || !due(frame, atMs)) return emptyList()
-                committed = true
-                return listOf(Event.Committed(requireNotNull(first), requireNotNull(second),
-                    buffered.toList()))
+                val events = mutableListOf<Event>(Event.Point(timed))
+                // Only an open valve can promote the observation to a cup; a closing frame is
+                // still a realtime point but must not cross the threshold on its own.
+                if (!committed && frame.valveOpen && due(frame, atMs)) {
+                    committed = true
+                    events += Event.Committed
+                }
+                return events
             }
             if (!frame.valveOpen || frame.brewWait) { candidate = null; return emptyList() }
             val previous = candidate
@@ -85,13 +82,11 @@ class PassiveShotDetector(
             candidate = null
             lastActiveAtMs = atMs
             first = previous
-            second = timed
             committed = false
-            buffered = mutableListOf()
             val events = mutableListOf<Event>(Event.Started(previous, timed))
             if (due(frame, atMs)) {
                 committed = true
-                events += Event.Committed(previous, timed, emptyList())
+                events += Event.Committed
             }
             return events
         }
@@ -129,8 +124,6 @@ class PassiveShotDetector(
     private fun reset() {
         active = false
         first = null
-        second = null
-        buffered = mutableListOf()
         committed = false
         lastActiveAtMs = null
     }
