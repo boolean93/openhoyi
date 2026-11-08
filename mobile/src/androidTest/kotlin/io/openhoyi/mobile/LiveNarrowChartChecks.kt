@@ -42,10 +42,12 @@ internal class LiveNarrowChartChecks(private val test: Instrumentation) {
                         check(plot.getDouble(2)-plot.getDouble(0)>=96*density)
                         check(plot.getDouble(3)-plot.getDouble(1)>=96*density)
                         val glyphs = ops.filter { it.optString("role") in setOf("axis-unit","axis-tick") }
+                        val projection = FourMetricChartProjection.build(chart.points, emptyList(), liveFlow = true)
                         for(metric in liveMetrics) {
                             check(glyphs.count { it.optString("role")=="axis-unit" && it.optString("metric")==metric.name }==1)
                             val ticks=glyphs.filter { it.optString("role")=="axis-tick" && it.optString("metric")==metric.name }.map { it.getString("text").toFloat() }
-                            check(ticks.size>=2 && ticks.minOrNull()==metric.floor && ticks.maxOrNull()==metric.ceiling)
+                            val range = requireNotNull(projection.series.firstOrNull { it.metric == metric }).range
+                            check(ticks.size>=2 && ticks.minOrNull()==range.low && ticks.maxOrNull()==range.high)
                             val name = requireNotNull(chart.findViewWithTag<android.widget.TextView>("product/extraction/metric/$metric/name"))
                             check(name.visibility==View.VISIBLE && name.width>0)
                             LanguageUiLayoutChecks.textFits(name,"narrow $metric")

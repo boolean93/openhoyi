@@ -28,10 +28,9 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                         val width = (widthDp * density).toInt()
                         val height = (220 * density).toInt()
                         val fixture = "historical ${language.tag}/$widthDp/$dark"
-                        val chart = ShotChartView(context).apply {
-                            points = listOf(ShotPoint(0, 20, 999, 0, 9200, 0, 999),
-                                ShotPoint(1000, 100, 999, 300, 9200, 3000, 999))
-                        }
+                        val points = listOf(ShotPoint(0, 20, 999, 0, 9200, 0, 999),
+                            ShotPoint(1000, 100, 999, 300, 9200, 3000, 999))
+                        val chart = ShotChartView(context).apply { this.points = points }
                         fun layout() {
                             chart.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
                                 View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
@@ -43,11 +42,17 @@ internal class ChartLegendChecks(private val test: Instrumentation) {
                             Triple("WATER", R.string.task_chart_water, "ml"),
                             Triple("WEIGHT", R.string.task_chart_weight, "g"),
                             Triple("TEMPERATURE", R.string.task_chart_temperature, "°C"))
-                        val endpoints = mapOf(
-                            "PRESSURE" to ("0.0" to "12.0"),
-                            "WATER" to ("0.0" to "60.0"),
-                            "WEIGHT" to ("0.0" to "50.0"),
-                            "TEMPERATURE" to ("80.0" to "100.0"))
+                        // Dynamic axes: the expected legend endpoints are the projected range,
+                        // not a historical fixed scale.
+                        val projection = FourMetricChartProjection.build(points, emptyList())
+                        fun endpoint(metric: String): Pair<String, String> {
+                            val range = requireNotNull(projection.series.firstOrNull {
+                                it.metric.name == metric
+                            }).range
+                            return String.format(java.util.Locale.ROOT, "%.1f", range.low) to
+                                String.format(java.util.Locale.ROOT, "%.1f", range.high)
+                        }
+                        val endpoints = expected.associate { it.first to endpoint(it.first) }
                         val controls = descendants(chart).filterIsInstance<Button>().filter { it.tag.toString().startsWith("chart-metric:") }
                         check(controls.map { it.tag } == expected.map { "chart-metric:${it.first}" }) { "$fixture missing metric" }
                         controls.zip(expected).forEach { (control, metric) ->

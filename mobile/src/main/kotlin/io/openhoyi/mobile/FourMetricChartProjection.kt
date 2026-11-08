@@ -1,14 +1,26 @@
 package io.openhoyi.mobile
 
-import kotlin.math.ceil
-import kotlin.math.floor
-
-internal enum class ChartMetric(val unit: String, val floor: Float, val ceiling: Float, val step: Float) {
-    PRESSURE("bar", 0f, 12f, 1f),
-    WATER("ml", 0f, 60f, 10f),
-    WEIGHT("g", 0f, 50f, 10f),
-    TEMPERATURE("°C", 80f, 100f, 5f),
-    FLOW("g/s", 0f, 5f, 1f),
+/**
+ * Fixed physical units and the display-only seed/minimum-span policy per metric.
+ *
+ * [seedLow]/[seedHigh] are the initial realtime range when the page has no recipe hint; a shipped
+ * recipe can override it through [ChartAxisSeed]/`seedRanges`. [minSpan] stops a nearly flat cup
+ * from being magnified into a misleading huge swing, and [anchorZero] keeps the low-frequency
+ * physical scales (pressure/water/weight/flow) anchored around zero while temperature keeps its
+ * observed interval.
+ */
+internal enum class ChartMetric(
+    val unit: String,
+    val minSpan: Float,
+    val seedLow: Float,
+    val seedHigh: Float,
+    val anchorZero: Boolean,
+) {
+    PRESSURE("bar", 4f, 0f, 10f, true),
+    WATER("ml", 10f, 0f, 40f, true),
+    WEIGHT("g", 10f, 0f, 40f, true),
+    TEMPERATURE("°C", 5f, 88f, 98f, false),
+    FLOW("g/s", 2f, 0f, 4f, true),
 }
 
 internal val historicalMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.WEIGHT, ChartMetric.TEMPERATURE)
@@ -21,6 +33,8 @@ internal data class MetricChartSeries(
     val current: List<List<ChartValue>>,
     val reference: List<List<ChartValue>>,
     val range: ChartRange,
+    /** Major-tick step of [range]; range.low/high are exact multiples of it. */
+    val step: Float,
 )
 
 internal data class FourMetricChartData(
@@ -36,6 +50,8 @@ internal data class FourMetricChartData(
 internal object FourMetricChartProjection {
     /**
      * [previousRanges] belongs to the caller's same-shot display session; reset it for a new shot.
+     * [seedRanges] carries the App recipe targets (see [ChartAxisSeed]) and only applies to the
+     * realtime projection; the history/comparison projection adapts to the whole observed cup.
      * Historical weight remains raw scale weight. Live flow is the display-only scale derivative.
      * timeEndMs is an axis bound, while observedThroughMs describes only current observations.
      */
@@ -43,11 +59,17 @@ internal object FourMetricChartProjection {
         points: List<ShotPoint>,
         reference: List<ShotPoint>,
         previousRanges: Map<ChartMetric, ChartRange> = emptyMap(),
+        seedRanges: Map<ChartMetric, ChartRange> = emptyMap(),
         livePauseBaseline: Boolean = false,
         liveFlow: Boolean = false,
     ): FourMetricChartData {
         validate(points)
         validate(reference)
+        seedRanges.forEach { (metric, range) ->
+            require(range.low.isFinite() && range.high.isFinite() && range.low < range.high) {
+                "Chart seed range for $metric must be finite and increasing"
+            }
+        }
         val series = (if (liveFlow) liveMetrics else historicalMetrics).mapNotNull { metric ->
             val current = segments(points, metric, livePauseBaseline)
             val historic = segments(reference, metric)
@@ -59,24 +81,58 @@ internal object FourMetricChartProjection {
             if (old != null) {
                 require(old.low.isFinite() && old.high.isFinite() && old.low < old.high)
             }
-            val low = minOf(metric.floor, values.minOrNull() ?: metric.floor, old?.low ?: metric.floor)
-            val high = maxOf(metric.ceiling, values.maxOrNull() ?: metric.ceiling, old?.high ?: metric.ceiling)
-            // Float division/multiplication can round inward at large magnitudes.
-            val roundedLow = floor(low / metric.step) * metric.step
-            val roundedHigh = ceil(high / metric.step) * metric.step
-            MetricChartSeries(metric, current, historic, ChartRange(
-                minOf(low, roundedLow),
-                maxOf(high, roundedHigh),
-            ))
+            val axis = axis(metric, values, old, seedRanges[metric], live = liveFlow)
+            MetricChartSeries(metric, current, historic, axis.range, axis.step)
         }
+        val observedEnd = maxOf(1000L, points.lastOrNull()?.elapsedMs ?: 0L,
+            reference.lastOrNull()?.elapsedMs ?: 0L)
         return FourMetricChartData(
             series,
             points.lastOrNull()?.elapsedMs,
-            maxOf(1000L, points.lastOrNull()?.elapsedMs ?: 0L, reference.lastOrNull()?.elapsedMs ?: 0L),
+            // The realtime x axis stays continuous (LiveChartGeometry animates it); historical and
+            // comparison charts snap their end to a whole time step so every tick is readable.
+            if (liveFlow) observedEnd else ChartAxisScale.timeAxis(observedEnd, roundUp = true).endMs,
             resets(points),
             resets(reference),
             if (livePauseBaseline) pauseBaselines(points) else emptySet(),
         )
+    }
+
+    private fun axis(metric: ChartMetric, values: List<Float>, old: ChartRange?,
+        seed: ChartRange?, live: Boolean): ChartAxisScale.YAxis {
+        if (live) {
+            val base = seed ?: ChartRange(metric.seedLow, metric.seedHigh)
+            val low = minOf(base.low, values.minOrNull() ?: base.low, old?.low ?: base.low)
+            val high = maxOf(base.high, values.maxOrNull() ?: base.high, old?.high ?: base.high)
+            return ChartAxisScale.yAxis(low, high, targetDivisions = 5)
+        }
+        var low: Float
+        var high: Float
+        if (values.isEmpty()) {
+            low = minOf(metric.seedLow, old?.low ?: metric.seedLow)
+            high = maxOf(metric.seedHigh, old?.high ?: metric.seedHigh)
+        } else {
+            low = values.min()
+            high = values.max()
+            if (metric.anchorZero) {
+                low = minOf(low, 0f)
+                high = maxOf(high, 0f)
+            }
+            if (high - low < metric.minSpan) {
+                if (metric.anchorZero) {
+                    high = low + metric.minSpan
+                } else {
+                    val center = (low + high) / 2f
+                    low = center - metric.minSpan / 2f
+                    high = center + metric.minSpan / 2f
+                }
+            }
+            old?.let {
+                low = minOf(low, it.low)
+                high = maxOf(high, it.high)
+            }
+        }
+        return ChartAxisScale.yAxis(low, high, targetDivisions = 5)
     }
 
     private fun validate(samples: List<ShotPoint>) {
