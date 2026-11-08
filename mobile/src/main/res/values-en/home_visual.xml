@@ -16,4 +16,8 @@
     <string name="home_visual_more_recipes">More recipes ›</string>
     <string name="home_visual_panel_title">Preparation and device details</string>
     <string name="home_visual_bean_label">Coffee beans</string>
+    <string name="home_last_heading">Curve used for the last cup</string>
+    <string name="home_last_reuse">Use again</string>
+    <string name="home_last_unavailable">Last cup\'s curve is unavailable</string>
+    <string name="home_last_draft_changed">Last custom curve\'s settings cannot be verified</string>
 </resources>

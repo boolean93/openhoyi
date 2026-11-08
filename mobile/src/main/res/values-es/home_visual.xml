@@ -16,4 +16,8 @@
     <string name="home_visual_more_recipes">Más recetas ›</string>
     <string name="home_visual_panel_title">Preparación y dispositivos</string>
     <string name="home_visual_bean_label">Café en grano</string>
+    <string name="home_last_heading">Curva de la última taza</string>
+    <string name="home_last_reuse">Usar de nuevo</string>
+    <string name="home_last_unavailable">La curva anterior no está disponible</string>
+    <string name="home_last_draft_changed">No se pueden verificar los ajustes de la última curva personalizada</string>
 </resources>

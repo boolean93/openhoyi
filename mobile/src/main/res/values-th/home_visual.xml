@@ -16,4 +16,8 @@
     <string name="home_visual_more_recipes">สูตรเพิ่มเติม ›</string>
     <string name="home_visual_panel_title">รายละเอียดการเตรียมและอุปกรณ์</string>
     <string name="home_visual_bean_label">เมล็ดกาแฟ</string>
+    <string name="home_last_heading">กราฟที่ใช้กับแก้วล่าสุด</string>
+    <string name="home_last_reuse">ใช้อีกครั้ง</string>
+    <string name="home_last_unavailable">กราฟของแก้วล่าสุดใช้ไม่ได้</string>
+    <string name="home_last_draft_changed">ยืนยันค่ากราฟกำหนดเองครั้งล่าสุดไม่ได้</string>
 </resources>
