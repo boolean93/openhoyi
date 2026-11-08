@@ -114,6 +114,10 @@ class MobileService : Service() {
     private var passiveRecoveryOwner:ShotRecoveryState.Ownership?=null
     /** True when this passive round wrote the durable shot-recovery guard (not a pre-existing one). */
     private var passiveArmedRecovery = false
+    /** True when this passive round failed to arm its guard and therefore set its own warning. */
+    private var passiveArmFailed = false
+    /** Warning shown before this round armed, restored only when the uncommitted round is dropped. */
+    private var passiveSafetyBeforeArm: Int? = null
     private data class AppRecoveryOwner(val hub:NativeDeviceHub,val address:String,val shot:ShotRecoveryState.Ownership,
         val machine:MachineWriteRecoveryState.Ownership?)
     private var appRecoveryOwner:AppRecoveryOwner?=null
@@ -617,12 +621,15 @@ class MobileService : Service() {
                 is PassiveShotDetector.Event.Started -> {
                     val previousRecovery = shotRecovery.pending
                     if (!previousRecovery) manualSafetyResource = null
+                    val safetyBeforeArm = manualSafetyResource
                     val currentAddress = hub?.coffeeAddress
                     val armed = shotRecovery.arm(currentAddress)
                     passiveArmedRecovery = armed && !previousRecovery
                     passiveMayClearRecovery = armed &&
                         shotRecovery.mayClearAfterPassiveShot(previousRecovery, currentAddress)
                     passiveRecoveryOwner=if(passiveMayClearRecovery)shotRecovery.captureOwnership() else null
+                    passiveArmFailed = !armed
+                    passiveSafetyBeforeArm = if (armed) null else safetyBeforeArm
                     if (!armed)
                         manualSafetyResource = R.string.service_event_shot_record_failed
                     passiveCommitted = false
@@ -694,6 +701,8 @@ class MobileService : Service() {
         passiveArmedRecovery = false
         passiveMayClearRecovery = false
         passiveRecoveryOwner = null
+        passiveArmFailed = false
+        passiveSafetyBeforeArm = null
     }
 
     /**
@@ -709,6 +718,13 @@ class MobileService : Service() {
         passiveArmedRecovery = false
         passiveMayClearRecovery = false
         passiveRecoveryOwner = null
+        // A dropped short release must not leave the arm-failure warning this round raised.
+        if (passiveArmFailed && manualSafetyResource == R.string.service_event_shot_record_failed) {
+            manualSafetyResource = passiveSafetyBeforeArm
+            refreshSafetyNotification()
+        }
+        passiveArmFailed = false
+        passiveSafetyBeforeArm = null
     }
 
     override fun onCreate() {

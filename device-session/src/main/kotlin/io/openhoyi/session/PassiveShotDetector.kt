@@ -66,7 +66,9 @@ class PassiveShotDetector(
                 if (frame.valveOpen) lastActiveAtMs = atMs
                 if (committed) return listOf(Event.Point(timed))
                 buffered += timed
-                if (!due(frame, atMs)) return emptyList()
+                // Only an open valve can promote the observation to a cup. A closing frame is
+                // still buffered for replay but must not cross the threshold on its own.
+                if (!frame.valveOpen || !due(frame, atMs)) return emptyList()
                 committed = true
                 return listOf(Event.Committed(requireNotNull(first), requireNotNull(second),
                     buffered.toList()))

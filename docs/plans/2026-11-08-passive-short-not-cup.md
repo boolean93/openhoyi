@@ -15,19 +15,25 @@
     - 阈值使用「首帧之后的机器 elapsedSeconds 增量」为主、「首帧之后观测时长」为辅（兜底冻结计数），避免上一杯残留阀开尾帧（elapsed 已 20–30 s）用绝对值立刻误提交。
     - 单一常量 `MIN_MANUAL_CUP_SECONDS = 12`（空放通常 ≤10 s，见用户反馈；单测可注入，真机验收后可调）。
     - 提交前帧只在 Committed 时回放；提交后 Point 事件保持原有语义；Ended 仍只由新鲜 idle > 2.8 s 判定，不做静默超时推断。
+    - 独立复核加固 R1：只有阀门开启帧才能把观测推过阈值；阀位关闭的 0x80 帧仍缓冲用于回放，但不得单独触发 Committed。
   - `mobile/src/main/kotlin/io/openhoyi/mobile/MobileService.kt`
     - Started 只 arm `shotRecovery` 并记录「本轮 own 的 recovery 标记」，不写 history/series/feedback/导航。
     - Committed 一次性提交：`history.begin("manual", atMs=首帧墙钟, slot=6)`（失败回退 UUID）→ `series.begin(first.atMs, "manual")` → 回放缓存帧 → `manualPresentation.started` → `beginBrewFeedback` → `history.transition(RUNNING, "机器手动萃取")` → 原 `shot.passive_started` 事件。
     - `Ended` 未提交：静默丢弃，不写 history、不 `finishSeries`、不清上一杯 series 身份、不导航、不发「手动萃取结束」提示；只释放本轮 own 的 recovery 标记（沿用原清理判据与 `shot_clear_failed` 兜底）；已提交保持原结束逻辑（ENDED_OBSERVED、`finishSeries(true)`、结束事件）。
     - `Interrupted` 两条路径（`onDeviceState` 断连、`onDestroy`）：未提交静默重置并只清本轮 own 标记，不 abandon history、不发未知结果提醒；已提交保持 abandon/finishSeries/unknown 提醒。
     - 未提交不清除观测前已 pending 的旧 recovery 标记（ownership token 限定本轮写入的记录）。
+    - 独立复核小修 R3：Started 时若 `shotRecovery.arm` 失败会设 `shot_record_failed` 提示；未提交就 Ended/断连/服务销毁丢弃时，仅清除本轮自己设的这一提示（armFailed 标志 + 记录 arm 前提示，必要时恢复），提交成功的杯保持原提示语义不变。
+    - R4 文档：更新 `docs/mobile-alpha.md` 手动萃取段落（Started 立即布门禁，但 elapsedSeconds 增量 ≥12 秒才记 manual 一杯/历史/导航；短时空放不计杯不导航；阈值待真机校准）。
   - `device-session/src/test/kotlin/io/openhoyi/session/PassiveShotDetectorTest.kt`
-    - 更新既有用例到事件列表 API，并补：短被动 Started→Ended 从不 Committed；长被动恰好一次 Committed 且回放缓存帧；上一杯残留阀开尾帧不因绝对值误提交；乱序帧不误提交；断连不误提交且后续观测不继承；冻结 elapsed 用观测时长兜底。
+    - 更新既有用例到事件列表 API，并补：短被动 Started→Ended 从不 Committed；长被动恰好一次 Committed 且回放缓存帧；上一杯残留阀开尾帧不因绝对值误提交；乱序帧不误提交；断连不误提交且后续观测不继承；冻结 elapsed 用观测时长兜底；阀位关闭帧即使增量过阈值也不得单独提交（R1，随后阀开过阈值帧才提交并回放该关闭帧）。
   - `docs/plans/2026-11-08-passive-short-not-cup.md`（本文件）。
 - 推送与合并：检查工作树 → 本地最小验证 → 普通推送 `fix/passive-short-not-cup` → Lead 创建 PR → `branch-policy`、`verify` 通过 → PR 合并。不 force、不 `--no-verify`、不直推 develop、不合并、不创建 PR。
 - 验证证据：
-  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :device-session:test` → BUILD SUCCESSFUL（含 `PassiveShotDetectorTest` 10 个用例；Session checks 101 passed）。
-  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :mobile:testDebugUnitTest` → BUILD SUCCESSFUL（含 mobile main 编译）。
+  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline --rerun-tasks :device-session:test :mobile:testDebugUnitTest` → BUILD SUCCESSFUL；`PassiveShotDetectorTest` 11/11 通过，device-session Session checks 101 passed，device-session + mobile 单测聚合 1126 例、0 失败。
+  - 真实抓包事实（Lead 用本机 2026-09-20 协议录制核对，固件 1.1.3，来源 `captures/2026-09-20`）：
+    - 空放（无 App 启动命令）：4 秒/23.3 ml、4 秒/22.4 ml、9 秒/49.4 ml，phase=7，最后帧阀位仍开，结束后约 0.2–0.9 秒直接转为 0x40 idle。
+    - App 发起真实萃取：18/34/44 秒、63–70 ml，phase=8。
+    - 结论：12 秒阈值对本机有实际余量（空放 ≤9 秒，真实萃取 ≥18 秒）；真实序列未见“阀位已关的 0x80 尾帧”，R1 加固仍保留以防其他固件/时序。
   - 说明：本次环境 JDK 17 + Android SDK 已就绪；因会话沙盒不能写 `~/.gradle`，使用工作区外本地 `GRADLE_USER_HOME` 复用现有缓存离线构建，未改动仓库文件。
   - 未做：真机/平板实测（需用户上平板验收），Mock 无空放入口不能替代硬件验收。
 - 协议与设备风险：
@@ -41,4 +47,5 @@
 - 回退：回退本 PR 的代码提交即可恢复原行为；无数据 schema 变更，不清理历史/未知记录，不以卸载或清数据代替恢复。
 - 未完成与阻塞：
   - 真机/平板验收（阈值 12 s 与短空放均需真机确认；用户已愿意上平板实测）。
+  - 已知小回归 R2（功能不破坏，待后续/真机确认）：真实拨杆手动萃取 ≥12 秒时，导航到萃取页与“机器手动萃取进行中”提示会延迟到第 12 秒（Started 只布门禁，不建视图身份）；提交时回放缓存帧按提交时刻校验秤新鲜度，图表前 12 秒的秤重量/秤流速为空。
   - 独立只读复核（Astra）进行中，以 Lead 记录为准。
