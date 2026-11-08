@@ -66,7 +66,12 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var steamBoilerTarget: TextView
     private lateinit var brewBoilerToggle: Button
     private lateinit var steamBoilerToggle: Button
-    private lateinit var quickRecipeTitle: TextView
+    private lateinit var lastCurveName: TextView
+    private lateinit var lastCurvePreview: CurveLibrarySparklineView
+    private lateinit var lastCurveDivider: View
+    private var lastCurveState: HomeLastCurve = HomeLastCurve.Empty
+    private var lastCurveDirty = true
+    private var previousCupActive = false
     private lateinit var quickLaunch: Button
     private lateinit var quickRow: LinearLayout
     private lateinit var machineConnect: Button
@@ -223,11 +228,11 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         }
         val spaciousHome = resources.configuration.screenWidthDp >= 800 && resources.configuration.screenHeightDp > 420
         val boilerRow = MachineHomeView(host, spaciousHome).apply { tag = "product/home/boilers" }
-        content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 4 else 8) })
+        content.addView(boilerRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 0 else 8) })
         fun boiler(label: Int, tagName: String, change: () -> MachineSettingChange): List<View> {
             val card = productStyle.column("product/home/$tagName").apply {
-                setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else if (shortHome) 2 else 4),
-                    dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else if (shortHome) 2 else 4))
+                setPadding(dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else if (shortHome) 0 else 4),
+                    dp(if (spaciousHome) 16 else 8), dp(if (spaciousHome) 8 else if (shortHome) 0 else 4))
                 background = productStyle.shape(productStyle.surface, true)
             }
             boilerRow.addBoiler(card)
@@ -274,37 +279,58 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             MachineSettingChange.SteamHeating(!(service?.snapshot?.settings?.steamHeating ?: false))
         }.let { (value, pressure, target, toggle) -> steamBoilerTemperature=value as TextView; steamBoilerPressure=pressure as TextView;
             steamBoilerTarget=target as TextView; steamBoilerToggle=toggle as Button }
-        quickRow = if (spaciousHome) productStyle.column("product/home/quick-extraction")
-            else productStyle.row("product/home/quick-extraction")
-        quickRow.gravity = android.view.Gravity.CENTER_VERTICAL
-        content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 4 else 8) })
+        quickRow = productStyle.column("product/home/quick-extraction")
+        content.addView(quickRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(if (shortHome) 0 else 8) })
         if (spaciousHome) quickRow.addView(productStyle.text(getString(R.string.home_quick_curves),
             TaskProductVisualStyle.section, "product/home/quick-title"))
-        val launchRow = if (spaciousHome) productStyle.row().apply {
+        val lastCurveRow = productStyle.row("product/home/last-curve").apply {
             gravity = android.view.Gravity.CENTER_VERTICAL
-        } else quickRow
-        quickRecipeTitle = productStyle.text(getString(R.string.home_curve_missing), TaskProductVisualStyle.action,
-            "product/home/quick-recipe").also { launchRow.addView(it, LinearLayout.LayoutParams(0, -2, 1f)) }
-        quickRecipeTitle.maxLines = 1
-        quickRecipeTitle.ellipsize = android.text.TextUtils.TruncateAt.END
-        quickRecipeTitle.setOnClickListener {
-            AlertDialog.Builder(host).setTitle(getString(R.string.home_current_curve))
-                .setMessage(selectionDetails).setPositiveButton(android.R.string.ok, null).let(::showTransient)
+            minimumHeight = dp(48)
+            setPadding(dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0),
+                dp(if (shortHome) 4 else 12), dp(if (spaciousHome) 8 else 0))
+            background = productStyle.shape(productStyle.surface, true)
         }
-        quickLaunch = button(launchRow, getString(R.string.home_curve_select), primary = true) {
-            val library = (application as MobileApplication).curves
-            val item = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
-            if (service?.let { ShotGate.active(it.shotState) || it.manualShotActive } == true) host.showExtraction()
-            else if (item != null && library.canStart(item)) host.showExtraction(confirmStart = true)
-            else host.select(TaskDestination.CURVES)
-        }.apply { tag = "product/home/quick-launch"; layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) } }
-        if (spaciousHome) quickRow.addView(launchRow, LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(8)
+        quickRow.addView(lastCurveRow, LinearLayout.LayoutParams(-1, -2).apply {
+            if (spaciousHome) topMargin = dp(8)
         })
+        lastCurvePreview = CurveLibrarySparklineView(host, productStyle).apply {
+            visibility = View.GONE
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+            tag = "product/home/last-curve/preview"
+        }
+        lastCurveRow.addView(lastCurvePreview, LinearLayout.LayoutParams(dp(if (shortHome) 96 else 160),
+            dp(if (shortHome) 40 else 48)))
+        lastCurveDivider = View(host).apply {
+            setBackgroundColor(productStyle.border)
+            visibility = View.GONE
+        }
+        lastCurveRow.addView(lastCurveDivider, LinearLayout.LayoutParams(dp(1), dp(if (shortHome) 36 else 48)).apply {
+            marginStart = dp(if (shortHome) 4 else 12)
+            marginEnd = dp(if (shortHome) 8 else 16)
+        })
+        val lastWords = productStyle.column()
+        lastCurveRow.addView(lastWords, LinearLayout.LayoutParams(0, -2, 1f))
+        val lastHeading = productStyle.text(getString(R.string.home_last_heading),
+            TaskProductVisualStyle.Type(if (shortHome) 11 else 14, 400, if (shortHome) 16 else 20),
+            secondary = true)
+        lastWords.addView(lastHeading)
+        lastCurveName = productStyle.text(getString(R.string.history_no_local),
+            TaskProductVisualStyle.Type(if (shortHome) 13 else 18, 500, if (shortHome) 18 else 26),
+            "product/home/quick-recipe").apply {
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        lastWords.addView(lastCurveName)
+        quickLaunch = button(lastCurveRow, getString(R.string.home_curve_select), primary = true) {
+            useLastCurve()
+        }.apply {
+            tag = "product/home/quick-launch"
+            layoutParams = LinearLayout.LayoutParams(-2, dp(48)).apply { marginStart = dp(8) }
+        }
         val presetRow = productStyle.row("product/home/direct-presets")
-        quickRow.addView(presetRow, if (spaciousHome) LinearLayout.LayoutParams(-1, -2).apply {
-            topMargin = dp(8)
-        } else LinearLayout.LayoutParams(0, -2, 3f).apply { marginStart = dp(8) })
+        quickRow.addView(presetRow, LinearLayout.LayoutParams(-1, -2).apply {
+            topMargin = dp(if (shortHome) 0 else 8)
+        })
         directPresets = (1..5).map { slot ->
             val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 80 else 48) }
             presetRow.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
@@ -593,6 +619,7 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         // Assignment happens on the library page; returning here refreshes tiles once.
         // Telemetry renders every 250 ms and must not rescan the entire curve catalog.
         presetVisualsDirty = true
+        lastCurveDirty = true
         visible = true
         host.observeService(serviceObserver)
         handler.post(refresh)
@@ -853,12 +880,16 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val selected = getSharedPreferences("curves", MODE_PRIVATE).getString("selected", null)?.let(library::find)
         val cupActive = shotActive || owner?.manualShotActive == true
         quickRow.visibility = if (cupActive) View.GONE else View.VISIBLE
+        if (!cupActive && (lastCurveDirty || previousCupActive)) {
+            showLastCurve(resolveLastCurve())
+            lastCurveDirty = false
+        }
+        previousCupActive = cupActive
         recentCurves.updateAvailability()
         val displayed = if (cupActive) owner?.chartCurveId?.let(library::find) else selected
         val title = displayed?.name ?: getString(if (cupActive && owner?.chartCurveId == "manual") R.string.extraction_manual_label
             else if (cupActive) R.string.task_brew_curve_unknown else R.string.home_curve_missing)
         selection.show(title)
-        quickRecipeTitle.show(title)
         recipeDescription.show(displayed?.let { HomeRecipePresentation.from(it).description(host) }
             ?: getString(R.string.home_visual_unknown_mode))
         displayed?.let(recipeMetrics::present)
@@ -886,8 +917,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
             !library.canStart(selected) -> getString(R.string.home_curve_replace)
             else -> getString(R.string.home_curve_prepare)
         })
-        quickLaunch.show(if (!cupActive && selected != null && library.canStart(selected))
-            getString(R.string.extraction_start) else brewButton.text.toString())
         browseCurvesButton.visibility = View.VISIBLE
         val profile = displayed?.let { library.resolve(it.id, s.scaleState == DeviceState.READY) }
         temperatureSummary.show(getString(R.string.task_brew_temperature,
@@ -960,6 +989,59 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private fun label(state: DeviceState): String = when (state) {
         DeviceState.READY -> getString(R.string.home_connected); DeviceState.DISCONNECTED -> getString(R.string.device_state_disconnected); DeviceState.FAILED -> getString(R.string.device_state_failed)
         DeviceState.UNSUPPORTED -> getString(R.string.home_firmware_readonly); else -> getString(R.string.device_state_connecting)
+    }
+    private fun resolveLastCurve(): HomeLastCurve {
+        val app = application as MobileApplication
+        // Loading history also migrates positively observed recent uses into the permanent ledger.
+        val history = runCatching { app.history }.getOrNull() ?: return HomeLastCurve.DataUnavailable
+        val ledger = app.curveUsageResult.getOrNull() ?: return HomeLastCurve.DataUnavailable
+        val journal = app.journalResult.getOrNull() ?: return HomeLastCurve.DataUnavailable
+        val manualAt = journal.entries().firstOrNull { it.observation.curveId == "manual" }
+            ?.observation?.startedAtMs
+        val recentObserved = history.entries.firstOrNull { it.curveId != "manual" && it.observedRunning }
+            ?.let { CurveUsage(it.id, it.curveId, it.startedAtMs) }
+        return HomeLastCurve.from(ledger.latest(), manualAt, app.curves.items, recentObserved) {
+            app.curves.canStart(it)
+        }
+    }
+    private fun showLastCurve(state: HomeLastCurve) {
+        lastCurveState = state
+        val ready = state as? HomeLastCurve.Ready
+        val label = when (state) {
+            HomeLastCurve.Empty -> getString(R.string.task_brew_usage_empty)
+            HomeLastCurve.Manual -> getString(R.string.extraction_manual_label)
+            HomeLastCurve.DataUnavailable -> getString(R.string.task_brew_usage_unavailable)
+            is HomeLastCurve.Unavailable -> getString(if (state.reason == HomeLastCurve.Reason.MUTABLE_DRAFT)
+                R.string.home_last_draft_changed else R.string.home_last_unavailable)
+            is HomeLastCurve.Ready -> state.item.name
+        }
+        lastCurveName.show(label)
+        lastCurveName.setTextColor(if (ready == null) productStyle.muted else productStyle.ink)
+        val preview = ready?.preview
+        lastCurvePreview.visibility = if (preview == null) View.GONE else View.VISIBLE
+        lastCurveDivider.visibility = lastCurvePreview.visibility
+        if (preview != null) {
+            lastCurvePreview.preview = preview
+            lastCurvePreview.scale = CurveStageParameters.SharedScale.from((application as MobileApplication).curves.items)
+        }
+        quickLaunch.show(getString(if (ready == null) R.string.home_curve_select else R.string.home_last_reuse))
+        quickLaunch.contentDescription = getString(R.string.home_last_heading) + " · " + label + " · " + quickLaunch.text
+    }
+    private fun useLastCurve() {
+        val latest = resolveLastCurve()
+        if (latest != lastCurveState) {
+            showLastCurve(latest)
+            return
+        }
+        val ready = latest as? HomeLastCurve.Ready ?: run {
+            host.select(TaskDestination.CURVES)
+            return
+        }
+        // slot 7 resolves the persisted selection again in ExtractionFragment and MobileService.
+        val saved = getSharedPreferences("curves", MODE_PRIVATE).edit()
+            .putString("selected", ready.item.id).commit()
+        if (!saved) { toast(getString(R.string.task_brew_usage_unavailable)); return }
+        host.showExtraction(slot = 7, confirmStart = true)
     }
     private fun TextView.show(value: String) { if (text.toString() != value) text = value }
     private fun TextView.showMetric(value: String) {

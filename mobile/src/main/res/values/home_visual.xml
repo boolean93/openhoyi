@@ -16,4 +16,8 @@
     <string name="home_visual_more_recipes">更多配方 ›</string>
     <string name="home_visual_panel_title">准备与设备详情</string>
     <string name="home_visual_bean_label">咖啡豆</string>
+    <string name="home_last_heading">上一杯使用的曲线</string>
+    <string name="home_last_reuse">再次使用</string>
+    <string name="home_last_unavailable">上一杯曲线已不可用</string>
+    <string name="home_last_draft_changed">上一杯自定义曲线参数无法确认</string>
 </resources>

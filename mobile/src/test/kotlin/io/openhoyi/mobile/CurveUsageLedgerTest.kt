@@ -61,4 +61,36 @@ class CurveUsageLedgerTest {
         val ledger = CurveUsageLedger(Memory())
         assertThrows(IllegalArgumentException::class.java) { ledger.record("manual-shot", "manual", 1000) }
     }
+    @Test fun latestObservedUseComesFromPermanentRecordsByStartTime() {
+        val disk = Memory()
+        val ledger = CurveUsageLedger(disk)
+        assertNull(ledger.latest())
+        ledger.record("shot-newer", "capture-2", 3000)
+        ledger.record("shot-older", "capture-1", 1000)
+        assertEquals(CurveUsage("shot-newer", "capture-2", 3000), ledger.latest())
+        assertEquals(ledger.latest(), CurveUsageLedger(disk).latest())
+    }
+    @Test fun observedDraftFingerprintSurvivesRestartAndCannotBeReplaced() {
+        val disk = Memory()
+        val ledger = CurveUsageLedger(disk)
+        val fingerprint = "a".repeat(64)
+        ledger.record("shot-1", "draft-curve", 1000)
+        assertTrue(ledger.attachFingerprint("shot-1", fingerprint))
+        assertFalse(ledger.attachFingerprint("shot-1", fingerprint))
+        assertFalse(ledger.record("shot-1", "draft-curve", 1000))
+        assertEquals(CurveUsage("shot-1", "draft-curve", 1000, fingerprint), ledger.latest())
+        assertEquals(ledger.latest(), CurveUsageLedger(disk).latest())
+        assertThrows(IllegalArgumentException::class.java) {
+            ledger.attachFingerprint("shot-1", "b".repeat(64))
+        }
+        assertEquals(fingerprint, ledger.latest()?.fingerprint)
+    }
+    @Test fun failedFingerprintWriteLeavesPriorRecordIntact() {
+        val disk = Memory()
+        val ledger = CurveUsageLedger(disk)
+        ledger.record("shot-1", "draft-curve", 1000)
+        disk.fail = true
+        assertThrows(IllegalStateException::class.java) { ledger.attachFingerprint("shot-1", "a".repeat(64)) }
+        assertNull(ledger.latest()?.fingerprint)
+    }
 }

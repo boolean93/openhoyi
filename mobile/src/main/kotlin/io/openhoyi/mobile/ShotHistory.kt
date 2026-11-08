@@ -107,9 +107,9 @@ class ShotHistory(
     }
 
     /** Fresh valve-open extraction telemetry, not a successful command callback, establishes use. */
-    fun observeRunning() {
+    fun observeRunning(): String? {
         val index = records.indexOfFirst { it.id == activeId }
-        if (index < 0 || records[index].curveId == "manual") return
+        if (index < 0 || records[index].curveId == "manual") return null
         val entry = records[index]
         if (!entry.observedRunning) {
             records[index] = entry.copy(observedRunning = true)
@@ -117,6 +117,7 @@ class ShotHistory(
             notifyChanged(records[index])
         }
         onObservedUse(records[index])
+        return records[index].id
     }
 
     /** A disconnected passive shot has no session to reconcile; retain UNKNOWN and free the next slot. */

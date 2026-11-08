@@ -5,6 +5,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ShotHistoryTest {
+    @Test fun observedUseReturnsOnlyTheActiveNonManualShotIdentity() {
+        val disk = Memory()
+        var next = 0
+        val history = ShotHistory(disk, now = { 1_000_000L }, newId = { "shot-${++next}" })
+        assertNull(history.observeRunning())
+        history.begin("capture-1")
+        assertEquals("shot-1", history.observeRunning())
+        history.transition(ExtractionState.IDLE, null, null)
+        assertNull(history.observeRunning())
+        history.begin("manual", slot = 6)
+        assertNull(history.observeRunning())
+    }
     @Test fun customRecipeHistoryUsesBoundedUuidIdentityAndTemporarySlot() {
         val disk=Memory()
         val history=ShotHistory(disk,now={1_000_000L},newId={"custom-shot"})
