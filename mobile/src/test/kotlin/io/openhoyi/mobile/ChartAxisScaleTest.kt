@@ -87,6 +87,22 @@ class ChartAxisScaleTest {
         assertEquals(listOf(0L, 120_000L, 240_000L, 360_000L, 480_000L, 600_000L), long.majorTicks)
     }
 
+    @Test fun previousNiceStepAlwaysStaysInTheNiceStepSet() {
+        assertEquals(2f, ChartAxisScale.previousNiceStep(2.5f), 1e-6f)
+        assertEquals(2.5f, ChartAxisScale.previousNiceStep(5f), 1e-6f)
+        assertEquals(1f, ChartAxisScale.previousNiceStep(2f), 1e-6f)
+        assertEquals(0.5f, ChartAxisScale.previousNiceStep(1f), 1e-6f)
+        assertEquals(5f, ChartAxisScale.previousNiceStep(10f), 1e-6f)
+        assertEquals(0.05f, ChartAxisScale.previousNiceStep(0.1f), 1e-6f)
+    }
+
+    @Test fun negativeZeroBoundsDoNotFormatAsMinusZero() {
+        val axis = ChartAxisScale.yAxis(-0.0f, 10f)
+        assertEquals(0, java.lang.Float.floatToRawIntBits(axis.range.low))
+        assertEquals(0, java.lang.Float.floatToRawIntBits(
+            ChartAxisScale.majorTicks(axis.range, axis.step).first()))
+    }
+
     @Test fun invalidInputsAreRejectedRatherThanGuessed() {
         listOf<() -> Unit>({ ChartAxisScale.niceStep(0f) }, { ChartAxisScale.niceStep(-1f) },
             { ChartAxisScale.niceStep(Float.NaN) }, { ChartAxisScale.yAxis(Float.NaN, 1f) },

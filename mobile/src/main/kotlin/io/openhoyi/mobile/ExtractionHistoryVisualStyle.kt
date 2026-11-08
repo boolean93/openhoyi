@@ -207,7 +207,6 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         timeAxis.majorTicks.forEach { tick ->
             val isEnd = tick == timeAxis.endMs
             val tickPx = box.left + box.width() * (tick.toDouble() / timeAxis.endMs).toFloat()
-            if (!isEnd && tickPx > box.right - dp(20f)) return@forEach
             val align = when {
                 tick == 0L -> Paint.Align.LEFT
                 isEnd -> Paint.Align.RIGHT
@@ -218,15 +217,22 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
                 else seconds(tick)
             timeLabels += Label(label, tickX, timeBaseline, align, style.palette.muted, "time-tick")
         }
-        // Always keep 0 and the end label; drop intermediates that would touch a neighbour.
-        timeLabels.forEachIndexed { index, candidate ->
-            if (index == 0 || index == timeLabels.lastIndex) { texts += candidate; return@forEachIndexed }
-            val ink = glyph(candidate)
-            val collides = texts.filter { it.role == "time-tick" }.any { kept ->
-                val other = glyph(kept)
-                ink.left < other.right + dp(8f) && other.left < ink.right + dp(8f)
+        // Keep the first and last labels as anchors; an intermediate label is kept only when its
+        // real glyph keeps the 8dp gap to every kept label, including the usually wider end label.
+        // The end label itself is placed before the intermediates so it always participates.
+        if (timeLabels.isNotEmpty()) {
+            val first = timeLabels.first()
+            val last = timeLabels.last()
+            texts += first
+            if (last !== first) texts += last
+            timeLabels.subList(1, maxOf(1, timeLabels.lastIndex)).forEach { candidate ->
+                val ink = glyph(candidate)
+                val collides = texts.filter { it.role == "time-tick" }.any { kept ->
+                    val other = glyph(kept)
+                    ink.left < other.right + dp(8f) && other.left < ink.right + dp(8f)
+                }
+                if (!collides) texts += candidate
             }
-            if (!collides) texts += candidate
         }
         if (!comparison && !liveMode) texts += Label(context.getString(R.string.live_time_axis), box.centerX(), height - dp(2f) - fm.descent, Paint.Align.CENTER, style.palette.muted, "time-unit")
         if (data.observedThroughMs == null && data.series.all { it.reference.isEmpty() }) {

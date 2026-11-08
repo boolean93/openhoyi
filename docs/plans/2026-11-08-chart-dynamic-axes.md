@@ -5,7 +5,7 @@
   - 用户已选方案：范围只扩不缩；实时初始范围按配方目标（曲线不跳）；历史详情按整杯自适应；网格按数值自适应（主刻度带数字 + 次网格线）。对比页复用同一适配。
   - 范围：实时萃取页、历史详情（共用 `ProductHistoryChartRenderer` / `FourMetricChartProjection`）、对比页共用适配。纯显示层，不改协议帧、出站命令、采样/存储/历史数据。
 - 来源分支/基线提交：`develop` + `a5290b0`（feat(mobile): show last used curve on home (#30)）。
-- 工作分支：`feat/chart-dynamic-axis`（工作树 `openhoyi-chart-axis`）。
+- 工作分支：`feature/chart-dynamic-axis`（工作树 `openhoyi-chart-axis`）。
 - PR 目标：`develop`。
 - 改动文件与步骤：
   - 新增 `mobile/src/main/kotlin/io/openhoyi/mobile/ChartAxisScale.kt`（纯逻辑）：
@@ -23,14 +23,14 @@
   - `ExtractionHistoryVisualStyle.kt`（`ProductHistoryChartRenderer`）：
     - Y 轴主刻度来自 `series.step` 的真实数值（首末=range 边界），按绘制高度标注 2–6 个（放不下时只减少带数字行，网格线仍保留）；轴列宽按实际主刻度文本计算，避免裁切。
     - 横向网格：聚焦指标的主刻度全画；半步次网格更淡更细；保留 `gridSegmentPlan`/`line` 证据与 textProtection 一一对应。
-    - 纵向网格：按 nice 时间步长画主/次竖线；时间标签 0/中间主刻度/末端，末端保留 live/对比“<秒数> s”语义、历史保留 time-unit 行，标签按 8dp 间距自动跳过重叠但仍保留线和端点。
+    - 纵向网格：按 nice 时间步长画主/次竖线；时间标签覆盖所有 nice 主刻度（0、5s、10s…），按 8dp 间距碰撞跳过重叠（首末标签始终保留并参与碰撞比较），末端保留 live/对比“<秒数> s”语义、历史保留 time-unit 行；跳过标签不删网格线。
   - `mobile/src/test/kotlin/io/openhoyi/mobile/ChartAxisScaleTest.kt`（新增）：niceStep/yAxis/主次刻度/时间轴/零宽/非法输入。
   - `ChartAxisSeedTest.kt`（新增）：配方种子、最小跨度、手动空种子、流量曲线不臆造压力峰值。
   - `FourMetricChartProjectionTest.kt`：更新动态范围期望；补种子初始范围、只扩不缩、历史忽略种子、最小跨度（温度 91–94→90–95）、非法种子。
   - androidTest 兼容（不运行，已编译）：`LiveNarrowChartChecks` 轴端点改为与 `FourMetricChartProjection` 的动态 range 对比；`ChartLegendChecks` 图例范围改为投影 range 而非固定 0–12/0–60/0–50/80–100。`FourMetricChartChecks` 既有约束（每指标 axis-tick≥2 且首末==range 边界、轴文字不重叠、live 无 time-unit、末位 time-tick 以 “ s” 结尾、visualEvidence 结构）保持不变。
-- 推送与合并：检查工作树 → 本地最小验证 → 普通推送 `feat/chart-dynamic-axis` → Lead 创建 PR → `branch-policy`、`verify` 通过 → PR 合并。不 force、不 `--no-verify`、不直推 develop、不合并、不创建 PR。
+- 推送与合并：检查工作树 → 本地最小验证 → 普通推送 `feature/chart-dynamic-axis` → Lead 创建 PR → `branch-policy`、`verify` 通过 → PR 合并。不 force、不 `--no-verify`、不直推 develop、不合并、不创建 PR。
 - 验证证据：
-  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline --rerun-tasks :mobile:testDebugUnitTest :device-session:test` → BUILD SUCCESSFUL（mobile+device-session 聚合 1153 例 / 166 suites，0 failed，1 既有跳过；device-session Session checks 101 passed）。新增 `ChartAxisScaleTest` 11/11、`ChartAxisSeedTest` 7/7，`FourMetricChartProjectionTest` 27/27。
+  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline --rerun-tasks :mobile:testDebugUnitTest :device-session:test` → BUILD SUCCESSFUL（mobile+device-session 聚合 1155 例 / 166 suites，0 failed，1 既有跳过；device-session Session checks 101 passed）。新增 `ChartAxisScaleTest` 13/13、`ChartAxisSeedTest` 7/7，`FourMetricChartProjectionTest` 27/27。
   - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :mobile:compileMockKotlin` → BUILD SUCCESSFUL。
   - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :mobile:compileMockAndroidTestKotlin` → BUILD SUCCESSFUL（只编译 androidTest，不运行 AVD）。
   - 说明：会话沙盒不能写 `~/.gradle`，使用工作区外本地 `GRADLE_USER_HOME` 复制现有缓存离线构建，未改仓库配置。

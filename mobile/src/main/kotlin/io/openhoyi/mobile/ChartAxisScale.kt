@@ -57,8 +57,8 @@ internal object ChartAxisScale {
         }
         var step = niceStep((observedHigh - observedLow) / targetDivisions)
         repeat(16) {
-            val niceLow = normalize(floor(observedLow / step) * step)
-            val niceHigh = normalize(ceil(observedHigh / step) * step)
+            val niceLow = noNegativeZero(floor(observedLow / step) * step)
+            val niceHigh = noNegativeZero(ceil(observedHigh / step) * step)
             val divisions = ((niceHigh - niceLow) / step).roundToInt()
             // Up to one extra division keeps temperature on whole degrees instead of 2.5 steps;
             // the renderer labels only as many rows as the plot height can hold.
@@ -67,7 +67,7 @@ internal object ChartAxisScale {
         }
         // Extremely wide floats: keep the observed values inside a finite range.
         val padded = max(abs(observedLow), abs(observedHigh)) * 0.25f
-        return YAxis(ChartRange(normalize(observedLow - padded), normalize(observedHigh + padded)),
+        return YAxis(ChartRange(noNegativeZero(observedLow - padded), noNegativeZero(observedHigh + padded)),
             ((observedHigh - observedLow) + 2 * padded) / targetDivisions)
     }
 
@@ -80,7 +80,7 @@ internal object ChartAxisScale {
         require(step.isFinite() && step > 0f)
         val divisions = ((range.high - range.low) / step).roundToInt().coerceAtLeast(1)
         return (0..divisions).map { index ->
-            if (index == divisions) range.high else normalize(range.low + step * index)
+            if (index == divisions) range.high else noNegativeZero(range.low + step * index)
         }
     }
 
@@ -89,7 +89,7 @@ internal object ChartAxisScale {
         val half = step / 2f
         if (!half.isFinite() || half <= 0f) return emptyList()
         val count = ((range.high - range.low) / half).roundToInt()
-        return (1 until count).filter { it % 2 == 1 }.map { normalize(range.low + half * it) }
+        return (1 until count).filter { it % 2 == 1 }.map { noNegativeZero(range.low + half * it) }
     }
 
     /** Human-readable time step for about [targetDivisions] main divisions. */
@@ -123,6 +123,18 @@ internal object ChartAxisScale {
     data class TimeAxis(val endMs: Long, val stepMs: Long, val majorTicks: List<Long>, val minorTicks: List<Long>)
 
     private fun nextNiceStep(step: Float): Float = niceStep(step * 1.01f)
-    private fun previousNiceStep(step: Float): Float = niceStep(step / 1.01f).let { if (it >= step) step / 2f else it }
-    private fun normalize(value: Float): Float = if (value == 0f) 0f else value
+
+    /** Next smaller step from {1, 2, 2.5, 5, 10} x 10^k; used only when a span is too coarse. */
+    internal fun previousNiceStep(step: Float): Float {
+        require(step.isFinite() && step > 0f) { "step must be positive and finite" }
+        // Float pow() can return a neighbouring exponent's value within a few ulps, so compare
+        // with a small relative margin instead of raw equality.
+        val boundary = step - step * 1e-4f
+        var exponent = floor(log10(step.toDouble())).toInt()
+        NICE_MANTISSAS.map { it * 10f.pow(exponent) }.lastOrNull { it < boundary }?.let { return it }
+        exponent--
+        return NICE_MANTISSAS.map { it * 10f.pow(exponent) }.lastOrNull { it < boundary } ?: (step / 10f)
+    }
+    /** Keeps the numeric value but drops a negative zero so a history label cannot read "-0.0". */
+    internal fun noNegativeZero(value: Float): Float = value + 0f
 }
