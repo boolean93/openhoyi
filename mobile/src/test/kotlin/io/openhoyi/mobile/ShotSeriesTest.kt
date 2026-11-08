@@ -43,18 +43,6 @@ class ShotSeriesTest {
         assertEquals("history-id", series.finish()?.first)
     }
 
-    @Test fun clearDropsProvisionalIdentitySoThePageFallsBackToSelection() {
-        val series = ShotSeries()
-        series.begin("provisional", 1_000, "manual")
-        series.machine(frameOf(), 1_100, null, null)
-        series.clear()
-        assertNull(series.traceIdentity)
-        assertNull(series.curveId)
-        assertTrue(series.points.isEmpty())
-        assertNull(series.checkpoint(9_000, force = true))
-        assertNull(series.finish())
-    }
-
     private fun frameOf() = ExtractionTelemetry(1, 2, 93, 120, 9200, 24, 0x40, 0, ByteFrame(byteArrayOf()))
 
     @Test fun recordsMachineTelemetryAndOnlyFreshScaleWeight() {

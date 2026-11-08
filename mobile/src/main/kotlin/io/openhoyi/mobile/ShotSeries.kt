@@ -54,17 +54,6 @@ class ShotSeries {
         traceIdentity = shotId
     }
 
-    /** Drops a provisional passive identity and its points so the page falls back to selection. */
-    fun clear() {
-        id = null
-        traceIdentity = null
-        curveId = null
-        startedAtMs = 0L
-        minimumGapMs = 0L
-        lastCheckpointAtMs = null
-        recorded.clear()
-    }
-
     /** The first observed point and then at most one snapshot per five seconds. */
     fun checkpoint(atElapsedMs: Long, force: Boolean = false): Pair<String, List<ShotPoint>>? {
         val shotId = id ?: return null

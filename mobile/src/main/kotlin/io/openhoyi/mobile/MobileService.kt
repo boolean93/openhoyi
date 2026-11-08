@@ -712,16 +712,16 @@ class MobileService : Service() {
     }
 
     /**
-     * Ends a provisional passive series that never became a cup: the realtime chart identity and
-     * points are released (the page falls back to the selected curve), no history entry is written
-     * and only this round's recovery guard is cleared.
+     * Ends a provisional passive series that never became a cup: no history entry is written and
+     * only this round's recovery guard is cleared. finishSeries(false) clears only the active id,
+     * so the page keeps showing the just-observed realtime curve and its manual identity until the
+     * next series.begin (an App shot or another passive release) replaces them.
      */
     private fun discardPassiveSeries(requireDeviceMatch: Boolean) {
         passiveCommitted = false
         manualPresentation.ended()
         finishBrewFeedback(false)
         finishSeries(false)
-        series.clear()
         passiveHistoryId = null
         passiveStartedWallMs = 0L
         discardPassiveRecovery(requireDeviceMatch)
