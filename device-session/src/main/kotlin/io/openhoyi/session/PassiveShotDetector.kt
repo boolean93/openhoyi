@@ -8,8 +8,9 @@ import io.openhoyi.protocol.IdleTelemetry
  * Observes machine-initiated extraction without ever issuing a device command.
  *
  * [Event.Started] is emitted as soon as two consistent valve-open frames are observed, so the
- * machine-in-motion gates stay armed and a realtime chart can begin immediately. Every active
- * frame is also surfaced as [Event.Point]; the observation only becomes a cup at
+ * machine-in-motion gates stay armed and a realtime chart can begin immediately. While the
+ * observation is active and no App shot is in progress, every frame is also surfaced as
+ * [Event.Point]; the observation only becomes a cup at
  * [Event.Committed] once the extraction lasts at least [minimumShotSeconds]. Shorter passive
  * water releases (for example flushing the brew head before an App shot) still report Started,
  * Points and Ended, yet never create history or keep a manual identity after they end.

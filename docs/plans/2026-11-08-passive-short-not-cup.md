@@ -25,7 +25,7 @@
     - Started：先 arm `shotRecovery` 并记录「本轮 own 的 recovery 标记」（并保留 R3 提示清理逻辑）；立即用临时 UUID 执行 `series.begin(provisionalId, first.atMs, "manual")` → `manualPresentation.started(provisionalId)`（立刻导航到实时曲线）→ `beginBrewFeedback` → 录制 first/second 两帧。不写 history。
     - Point：`recordMachinePoint` 实时记录图表/采样检查点。
     - Committed（增量 ≥12 s 且阀开）：`history.begin("manual", atMs=首帧墙钟回填, slot=6)`（失败保留临时 id 并报 `history_unwritable`）→ 成功后 `series.rebind(historyId)` → `history.transition(RUNNING, "机器手动萃取")` → 发 `shot.passive_started` 事件。不回放帧。
-    - `Ended` 未提交（短空放）：`manualPresentation.ended()` → `finishBrewFeedback(false)` → `finishSeries(false)`（prune 清掉临时 id 采样）→ `series.clear()` → 只释放本轮 own 的 recovery 标记（沿用原清理判据与 `shot_clear_failed` 兜底）；不写 history、不发 manual_ended、不留名字。
+    - `Ended` 未提交（短空放）：`manualPresentation.ended()` → `finishBrewFeedback(false)` → `finishSeries(false)` → `series.clear()` → 只释放本轮 own 的 recovery 标记（沿用原清理判据与 `shot_clear_failed` 兜底）；不写 history、不发 manual_ended、不留名字。临时采样文件不在历史/导出中可见，`prune` 只会清理超过 30 天的孤儿文件，因此短空放期间落盘的 `samples-<临时UUID>.tsv` 可能最多留存约 30 天（磁盘小垃圾，非历史/导出数据）。
     - `Ended` 已提交：完全保持基线结束逻辑（ENDED_OBSERVED、`finishSeries(true)`、manual_ended、background、recovery 清理）。
     - `Interrupted` 两条路径（`onDeviceState` 断连、`onDestroy`）：未提交 → 同上丢弃（用 `ended` 而非 `disconnected`，不 abandon history、不发未知结果提醒）；已提交 → 保持基线 abandon/`finishSeries(false)`/disconnect warning/unknown 提醒。
     - 未提交不清除观测前已 pending 的旧 recovery 标记（ownership token 限定本轮写入的记录）。
@@ -52,7 +52,7 @@
   - 立即导航依赖 Started（两条一致阀开帧）：若某固件在 App 萃取结束后仍残留阀开 0x80 尾帧，可能短暂弹出“机器手动萃取”实时曲线；本机 2026-09-20 录制未见该尾帧，真机验收关注。
   - 阈值用「首帧之后增量」而非 elapsedSeconds 绝对值，以避开上一杯残留阀开尾帧（elapsed 已 20–30 s）误提交；代价是 App 在被动手动萃取进行中才连上时，从连上首帧起算增量，可能少记或不记该杯（安全优先取舍）。
   - `history.begin` 仍要求 `activeId==null`：上一杯若停在 OUTCOME_UNKNOWN，提交会抛异常（保留临时 series id，仅报 history_unwritable；既有缺陷，本任务不扩大范围修复）。
-  - 未提交丢弃只 clear 临时 series，不触碰上一杯已 finish 的历史/采样；`finishSeries(false)` 的 prune 只删除不在历史中的临时 id 采样。
+  - 未提交丢弃只 clear 临时 series，不触碰上一杯已 finish 的历史/采样；短空放期间 checkpoint 仍可能落盘 `samples-<临时UUID>.tsv`，`ShotSamplesStore.prune` 只会删除超过 30 天且不在历史保留集合中的孤儿文件，因此该临时采样文件可能最多留存约 30 天（历史列表与导出均不可见）。
 - 发布：不发版。不打标签、不构建/发布 APK、不安装、不操作机器。
 - 回退：回退本任务相关提交即可恢复原行为；无数据 schema 变更，不清理历史/未知记录，不以卸载或清数据代替恢复。
 - 未完成与阻塞：
