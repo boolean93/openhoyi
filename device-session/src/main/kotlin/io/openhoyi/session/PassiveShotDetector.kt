@@ -4,11 +4,36 @@ import io.openhoyi.protocol.ExtractionTelemetry
 import io.openhoyi.protocol.HoyiMessage
 import io.openhoyi.protocol.IdleTelemetry
 
-/** Observes machine-initiated extraction without ever issuing a device command. */
-class PassiveShotDetector {
+/**
+ * Observes machine-initiated extraction without ever issuing a device command.
+ *
+ * [Event.Started] is emitted as soon as two consistent valve-open frames are observed so the
+ * machine-in-motion gates stay armed, but the observation only becomes a cup at
+ * [Event.Committed] once the extraction lasts at least [minimumShotSeconds]. Shorter passive
+ * water releases (for example flushing the brew head before an App shot) still report Started
+ * and Ended, yet never create history, series identity or navigation on their own.
+ */
+class PassiveShotDetector(
+    private val minimumShotSeconds: Int = MIN_MANUAL_CUP_SECONDS,
+) {
+    init {
+        require(minimumShotSeconds > 0) { "minimumShotSeconds must be positive" }
+    }
+
     data class TimedFrame(val frame: ExtractionTelemetry, val atMs: Long)
+
     sealed interface Event {
         data class Started(val first: TimedFrame, val second: TimedFrame) : Event
+        /**
+         * At most one per active observation. [points] holds the passive frames observed after
+         * [second] (including the frame that reached the threshold), so a caller that ignored
+         * the pre-commit stream can replay the whole cup in order.
+         */
+        data class Committed(
+            val first: TimedFrame,
+            val second: TimedFrame,
+            val points: List<TimedFrame>,
+        ) : Event
         data class Point(val value: TimedFrame) : Event
         data object Ended : Event
         data object Interrupted : Event
@@ -17,52 +42,103 @@ class PassiveShotDetector {
     private var candidate: TimedFrame? = null
     private var lastActiveAtMs: Long? = null
     private var lastObservedAtMs: Long? = null
+    private var first: TimedFrame? = null
+    private var second: TimedFrame? = null
+    private var buffered = mutableListOf<TimedFrame>()
+    private var committed = false
     var active = false
         private set
 
-    fun observe(frame: HoyiMessage, atMs: Long, appShotInProgress: Boolean): Event? {
-        if (atMs < 0 || lastObservedAtMs?.let { atMs <= it } == true) return null
+    /** True once the current observation was long enough to count as a cup. */
+    val isCommitted: Boolean get() = committed
+
+    /** Empty means no transition; a single observation may yield Started followed by Committed. */
+    fun observe(frame: HoyiMessage, atMs: Long, appShotInProgress: Boolean): List<Event> {
+        if (atMs < 0 || lastObservedAtMs?.let { atMs <= it } == true) return emptyList()
         lastObservedAtMs = atMs
         if (appShotInProgress) {
             if (!active) candidate = null
-            return null
+            return emptyList()
         }
         if (frame is ExtractionTelemetry) {
             val timed = TimedFrame(frame, atMs)
             if (active) {
                 if (frame.valveOpen) lastActiveAtMs = atMs
-                return Event.Point(timed)
+                if (committed) return listOf(Event.Point(timed))
+                buffered += timed
+                if (!due(frame, atMs)) return emptyList()
+                committed = true
+                return listOf(Event.Committed(requireNotNull(first), requireNotNull(second),
+                    buffered.toList()))
             }
-            if (!frame.valveOpen || frame.brewWait) { candidate = null; return null }
-            val first = candidate
+            if (!frame.valveOpen || frame.brewWait) { candidate = null; return emptyList() }
+            val previous = candidate
             candidate = timed
-            if (first == null || atMs <= first.atMs || atMs - first.atMs > 1500 ||
-                frame.elapsedSeconds < first.frame.elapsedSeconds ||
-                frame.totalWaterTenthsMl < first.frame.totalWaterTenthsMl ||
-                (frame.elapsedSeconds == first.frame.elapsedSeconds &&
-                    frame.totalWaterTenthsMl == first.frame.totalWaterTenthsMl)) return null
+            if (previous == null || atMs <= previous.atMs || atMs - previous.atMs > 1500 ||
+                frame.elapsedSeconds < previous.frame.elapsedSeconds ||
+                frame.totalWaterTenthsMl < previous.frame.totalWaterTenthsMl ||
+                (frame.elapsedSeconds == previous.frame.elapsedSeconds &&
+                    frame.totalWaterTenthsMl == previous.frame.totalWaterTenthsMl)) return emptyList()
             active = true
             candidate = null
             lastActiveAtMs = atMs
-            return Event.Started(first, timed)
+            first = previous
+            second = timed
+            committed = false
+            buffered = mutableListOf()
+            val events = mutableListOf<Event>(Event.Started(previous, timed))
+            if (due(frame, atMs)) {
+                committed = true
+                events += Event.Committed(previous, timed, emptyList())
+            }
+            return events
         }
         if (frame is IdleTelemetry) {
             candidate = null
             if (active && lastActiveAtMs?.let { atMs > it && atMs - it > 2800 } == true) {
-                active = false
-                lastActiveAtMs = null
-                return Event.Ended
+                reset()
+                return listOf(Event.Ended)
             }
         }
-        return null
+        return emptyList()
     }
 
     fun disconnected(): Event? {
         lastObservedAtMs = null
         candidate = null
         lastActiveAtMs = null
-        if (!active) return null
-        active = false
+        if (!active) { reset(); return null }
+        reset()
         return Event.Interrupted
+    }
+
+    /**
+     * Only progress observed after [first] counts: machine-reported seconds must advance by the
+     * threshold and the observed span is a fallback for a frozen elapsed counter. An absolute
+     * elapsedSeconds check would instantly commit valve-open tail frames left over from the
+     * previous App cup, which already report 20-30 seconds.
+     */
+    private fun due(frame: ExtractionTelemetry, atMs: Long): Boolean {
+        val startedFirst = first ?: return false
+        return frame.elapsedSeconds - startedFirst.frame.elapsedSeconds >= minimumShotSeconds ||
+            atMs - startedFirst.atMs >= minimumShotSeconds * 1000L
+    }
+
+    private fun reset() {
+        active = false
+        first = null
+        second = null
+        buffered = mutableListOf()
+        committed = false
+        lastActiveAtMs = null
+    }
+
+    companion object {
+        /**
+         * 空放等短时被动出水不计为一杯；真机验收后可调。
+         * Flushing the brew head normally releases water for less than ten seconds, so a cup is
+         * only committed after twelve seconds of passive extraction.
+         */
+        const val MIN_MANUAL_CUP_SECONDS = 12
     }
 }

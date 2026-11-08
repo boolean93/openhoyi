@@ -1,0 +1,44 @@
+# 短时被动出水不计为一杯，且不污染下一次 App 萃取
+
+- 需求与范围：
+  - 用户反馈：App 先萃一杯，机器空放几十毫升水洗冲煮头，之后从 App 再萃一杯时，萃取页头部显示「机器手动萃取」。
+  - 用户确认：第二杯由 App 发起；名字在打开/回到萃取页、还没点开始时出现；「萃取时间很短就不算一杯，也不影响下次萃取」；真实拨杆（机器发起）手动萃取路径不能被破坏。
+  - 根因：`PassiveShotDetector` 两条一致 valveOpen 帧即 Started；`MobileService.onCoffeeFrame` 在 Started 立即写 history（manual/slot=6）、`series.begin(..., "manual")`、`manualPresentation.started` 并导航，结束后仍保留 manual 曲线身份。空放被当成一杯。
+  - 范围：device-session 被动识别增加「达到最短时长才 Committed」；mobile 服务仅在 Committed 时创建 history/series/反馈/导航；未提交的 Ended/Interrupted 静默丢弃。不改协议帧、不改出站命令、不新增设备写入、不改 App 发起萃取路径。
+- 来源分支/基线提交：`develop` + `1d604fa`（feat(site): 增加赞助与交流群入口 (#27)）。
+- 工作分支：`fix/passive-short-not-cup`（工作树 `openhoyi-fix-passive-short`）。
+- PR 目标：`develop`。
+- 改动文件与步骤：
+  - `device-session/src/main/kotlin/io/openhoyi/session/PassiveShotDetector.kt`
+    - 新增 `Event.Committed`（携带首帧、次帧与提交前缓存帧）；`observe` 返回事件列表。
+    - Started 仍在两条一致 0x80 帧后立即产生，`active` 门禁语义不变（`manualShotActive` 继续阻止 App 启动/去皮/写设置/自动连接等）。
+    - 阈值使用「首帧之后的机器 elapsedSeconds 增量」为主、「首帧之后观测时长」为辅（兜底冻结计数），避免上一杯残留阀开尾帧（elapsed 已 20–30 s）用绝对值立刻误提交。
+    - 单一常量 `MIN_MANUAL_CUP_SECONDS = 12`（空放通常 ≤10 s，见用户反馈；单测可注入，真机验收后可调）。
+    - 提交前帧只在 Committed 时回放；提交后 Point 事件保持原有语义；Ended 仍只由新鲜 idle > 2.8 s 判定，不做静默超时推断。
+  - `mobile/src/main/kotlin/io/openhoyi/mobile/MobileService.kt`
+    - Started 只 arm `shotRecovery` 并记录「本轮 own 的 recovery 标记」，不写 history/series/feedback/导航。
+    - Committed 一次性提交：`history.begin("manual", atMs=首帧墙钟, slot=6)`（失败回退 UUID）→ `series.begin(first.atMs, "manual")` → 回放缓存帧 → `manualPresentation.started` → `beginBrewFeedback` → `history.transition(RUNNING, "机器手动萃取")` → 原 `shot.passive_started` 事件。
+    - `Ended` 未提交：静默丢弃，不写 history、不 `finishSeries`、不清上一杯 series 身份、不导航、不发「手动萃取结束」提示；只释放本轮 own 的 recovery 标记（沿用原清理判据与 `shot_clear_failed` 兜底）；已提交保持原结束逻辑（ENDED_OBSERVED、`finishSeries(true)`、结束事件）。
+    - `Interrupted` 两条路径（`onDeviceState` 断连、`onDestroy`）：未提交静默重置并只清本轮 own 标记，不 abandon history、不发未知结果提醒；已提交保持 abandon/finishSeries/unknown 提醒。
+    - 未提交不清除观测前已 pending 的旧 recovery 标记（ownership token 限定本轮写入的记录）。
+  - `device-session/src/test/kotlin/io/openhoyi/session/PassiveShotDetectorTest.kt`
+    - 更新既有用例到事件列表 API，并补：短被动 Started→Ended 从不 Committed；长被动恰好一次 Committed 且回放缓存帧；上一杯残留阀开尾帧不因绝对值误提交；乱序帧不误提交；断连不误提交且后续观测不继承；冻结 elapsed 用观测时长兜底。
+  - `docs/plans/2026-11-08-passive-short-not-cup.md`（本文件）。
+- 推送与合并：检查工作树 → 本地最小验证 → 普通推送 `fix/passive-short-not-cup` → Lead 创建 PR → `branch-policy`、`verify` 通过 → PR 合并。不 force、不 `--no-verify`、不直推 develop、不合并、不创建 PR。
+- 验证证据：
+  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :device-session:test` → BUILD SUCCESSFUL（含 `PassiveShotDetectorTest` 10 个用例；Session checks 101 passed）。
+  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :mobile:testDebugUnitTest` → BUILD SUCCESSFUL（含 mobile main 编译）。
+  - 说明：本次环境 JDK 17 + Android SDK 已就绪；因会话沙盒不能写 `~/.gradle`，使用工作区外本地 `GRADLE_USER_HOME` 复用现有缓存离线构建，未改动仓库文件。
+  - 未做：真机/平板实测（需用户上平板验收），Mock 无空放入口不能替代硬件验收。
+- 协议与设备风险：
+  - 不改帧编解码、不发出站命令、不新增重试/清记录；被动识别仅观察通知。
+  - Started 仍立即 `manualShotActive=true`，App 启动/去皮/设置写入/自动连接/断连安全门禁不变；仅延迟 history/series/导航到 Committed。
+  - 未提交断连/服务销毁无法确认机器最终是否继续出水，按用户「短时不算一杯」语义静默丢弃；若真实长萃取的观测在提交前中断，将不会产生历史记录（保守取舍，真机验收关注）。
+  - 阈值用「首帧之后增量」而非 elapsedSeconds 绝对值，以避开上一杯残留阀开尾帧（elapsed 已 20–30 s）误提交；代价是 App 在被动手动萃取进行中才连上时，从连上首帧起算增量，可能少记或不记该杯（安全优先取舍）。
+  - `history.begin` 仍要求 `activeId==null`：上一杯若停在 OUTCOME_UNKNOWN，提交会抛异常并回退 UUID/series（既有缺陷，本任务不扩大范围修复）。
+  - 上一杯 App 萃取结束后，萃取页空闲仍显示上一杯曲线名属既有显示设计；本任务只保证不再显示 manual。
+- 发布：不发版。不打标签、不构建/发布 APK、不安装、不操作机器。
+- 回退：回退本 PR 的代码提交即可恢复原行为；无数据 schema 变更，不清理历史/未知记录，不以卸载或清数据代替恢复。
+- 未完成与阻塞：
+  - 真机/平板验收（阈值 12 s 与短空放均需真机确认；用户已愿意上平板实测）。
+  - 独立只读复核（Astra）进行中，以 Lead 记录为准。
