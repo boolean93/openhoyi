@@ -89,7 +89,10 @@ class HomeFragment : androidx.fragment.app.Fragment() {
     private lateinit var brewButton: Button
     private lateinit var browseCurvesButton: Button
     private lateinit var presetButtons: List<Button>
-    private lateinit var directPresetButtons: List<Button>
+    private data class DirectPresetVisual(val button: Button, val name: TextView,
+                                          val sparkline: CurveLibrarySparklineView)
+    private lateinit var directPresets: List<DirectPresetVisual>
+    private var presetVisualsDirty = true
     private lateinit var candidates: LinearLayout
     private lateinit var scanButton: Button
     private lateinit var coffeeDisconnect: Button
@@ -302,28 +305,41 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         quickRow.addView(presetRow, if (spaciousHome) LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(8)
         } else LinearLayout.LayoutParams(0, -2, 3f).apply { marginStart = dp(8) })
-        directPresetButtons = (1..5).map { slot ->
-            button(presetRow, slot.toString()) { host.showExtraction(slot, confirmStart = true) }.apply {
+        directPresets = (1..5).map { slot ->
+            val tile = FrameLayout(host).apply { minimumHeight = dp(if (spaciousHome) 80 else 48) }
+            presetRow.addView(tile, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                if (slot > 1) marginStart = dp(if (spaciousHome) 8 else 4)
+            })
+            val button = productStyle.button(Button(host), outline = spaciousHome).apply {
                 tag = "product/home/direct-preset/$slot"
-                if (spaciousHome) productStyle.button(this, outline = true)
-                minimumHeight = dp(if (spaciousHome) 80 else 48); maxLines = Int.MAX_VALUE
-                ellipsize = null
-                textSize = if (spaciousHome) 14f else 11f
-                if (shortHome) {
-                    // Keep two readable lines at the existing 11sp instead of inheriting
-                    // the 24sp action line height. Full recipe remains in accessibility
-                    // and in the existing confirmation before any extraction starts.
-                    val buttonColors = textColors
-                    val buttonGravity = gravity
-                    productStyle.apply(this, TaskProductVisualStyle.Type(11, 500, 16))
-                    setTextColor(buttonColors); gravity = buttonGravity
-                    minHeight = dp(48); minimumHeight = dp(48)
-                    maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
-                }
-                layoutParams = LinearLayout.LayoutParams(0, -2, 1f).apply {
-                    if (slot > 1) marginStart = dp(if (spaciousHome) 8 else 4)
-                }
+                setOnClickListener { host.showExtraction(slot, confirmStart = true) }
             }
+            tile.addView(button, FrameLayout.LayoutParams(-1, -1))
+            val contents = LinearLayout(host).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = android.view.Gravity.CENTER
+                setPadding(dp(4), dp(if (shortHome) 1 else 6), dp(4), dp(if (shortHome) 1 else 6))
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            }
+            tile.addView(contents, FrameLayout.LayoutParams(-1, -2, android.view.Gravity.CENTER))
+            val slotLabel = productStyle.text(getString(R.string.home_slot, slot.toString()),
+                TaskProductVisualStyle.Type(if (shortHome) 11 else 14, 400, if (shortHome) 16 else 20),
+                secondary = true).apply { gravity = android.view.Gravity.CENTER }
+            contents.addView(slotLabel, LinearLayout.LayoutParams(-1, -2))
+            val sparkline = CurveLibrarySparklineView(host, productStyle).apply {
+                visibility = View.GONE
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                tag = "product/home/direct-preset/$slot/preview"
+            }
+            contents.addView(sparkline, LinearLayout.LayoutParams(-1, dp(if (shortHome) 24 else 32)))
+            val name = productStyle.text("", TaskProductVisualStyle.Type(if (shortHome) 11 else 14,
+                500, if (shortHome) 16 else 20)).apply {
+                gravity = android.view.Gravity.CENTER
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+            contents.addView(name, LinearLayout.LayoutParams(-1, -2))
+            DirectPresetVisual(button, name, sparkline)
         }
         val machineChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
         val scaleChip = LinearLayout(host).apply { orientation = LinearLayout.HORIZONTAL; gravity = android.view.Gravity.CENTER_VERTICAL }
@@ -574,6 +590,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         super.onResume()
         feedbackUi.start()
         recentCurves.refresh()
+        // Assignment happens on the library page; returning here refreshes tiles once.
+        // Telemetry renders every 250 ms and must not rescan the entire curve catalog.
+        presetVisualsDirty = true
         visible = true
         host.observeService(serviceObserver)
         handler.post(refresh)
@@ -903,20 +922,28 @@ class HomeFragment : androidx.fragment.app.Fragment() {
                     app.languagePreferences.current.locale).format(java.util.Date(it))
             } ?: "—")
         } + "\n" + getString(R.string.task_brew_history_entry))
-        val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
-        presetButtons.forEachIndexed { index, button ->
-            val slot = index + 1
-            val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null))
-            val item = library.find(id)
-            val label = getString(R.string.home_slot_curve, slot.toString(), item?.name ?: id)
-            if (button.text.toString() != label) button.text = label
-            directPresetButtons[index].apply {
-                contentDescription = label
-                isEnabled = item?.let(library::canStart) == true
-                val shortLabel = getString(R.string.home_slot, slot.toString()) + "\n" +
-                    (item?.name ?: getString(R.string.home_slot_unconfigured))
-                if (text.toString() != shortLabel) text = shortLabel
+        if (presetVisualsDirty) {
+            val presetPrefs = getSharedPreferences("presets", MODE_PRIVATE)
+            val presetScale = CurveStageParameters.SharedScale.from(library.items)
+            presetButtons.forEachIndexed { index, button ->
+                val slot = index + 1
+                val id = PresetSlots.curveId(slot, presetPrefs.getString(PresetSlots.key(slot), null))
+                val item = library.find(id)
+                val label = getString(R.string.home_slot_curve, slot.toString(), item?.name ?: id)
+                if (button.text.toString() != label) button.text = label
+                val visual = directPresets[index]
+                visual.button.contentDescription = label
+                visual.button.isEnabled = item?.let(library::canStart) == true
+                visual.name.show(item?.name ?: getString(R.string.home_slot_unconfigured))
+                visual.name.setTextColor(if (visual.button.isEnabled) productStyle.accent else productStyle.onDisabled)
+                val thumbnail = HomePresetPreview.from(item, presetScale)
+                visual.sparkline.visibility = if (thumbnail == null) View.GONE else View.VISIBLE
+                if (thumbnail != null) {
+                    if (visual.sparkline.preview != thumbnail.preview) visual.sparkline.preview = thumbnail.preview
+                    if (visual.sparkline.scale != thumbnail.scale) visual.sparkline.scale = thumbnail.scale
+                }
             }
+            presetVisualsDirty = false
         }
         val keys = s.candidates.map { "${it.address}:${it.advertisedName}:${it.scaleProtocolId}" }
         if (keys != candidateKeys) {
