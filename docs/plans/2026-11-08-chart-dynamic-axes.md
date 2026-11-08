@@ -24,7 +24,8 @@
   - `ExtractionOverlayView.kt`：liveTimeEnd/renderTimeEnd 初始与 traceIdentity 重置值改为 5s；`rebuildProjection` 用 `LiveChartGeometry.liveTimeEnd` 更新轴末端；删除配方种子相关的 `expectedRanges` 属性。
   - 新增 `LiveAxisAnimation.kt`（纯逻辑）：实时轴插值状态（每指标 range low/high/step + timeEnd），`interpolate`/`apply` 生成插值后的 `FourMetricChartData`，不修改点/参考/reset/pause 数据；`sameTarget` 判断运行中动画的目标是否与新目标完全一致；时长 380ms（350–450ms 内）。
   - `ExtractionOverlayView` 轴动画：维护 `renderedRanges`/`renderedSteps`/`renderTimeEnd`，`rebuildProjection` 产生新目标时若是 liveChart、attached、已有上一帧渲染状态且非首次观测，则用 ValueAnimator + DecelerateInterpolator 平滑过渡并在结束 snap；新杯/traceIdentity、选择曲线变化、首次有数据、未 attached（probe）直接 snap；`previousRanges` 仍按目标单调更新；曲线 reveal 动画保留并行。
-  - 轴动画状态机（Astra F1）：取消动画前先把字段置 null，`onAnimationCancel` 只清理不 snap，只有自然 `onAnimationEnd` 且仍是当前动画时才 snap；新目标与运行中目标完全一致时不取消/不重启；目标变化时从当前插值状态（renderedRanges/renderTimeEnd）平滑重定向，绝不先 snap；点更新（`points` setter）只重置 reveal 动画，不再每次取消轴动画（避免 250ms 数据流把 380ms 动画截断后瞬跳）。图例 range 文本改为动画结束才刷新（避免先跳到目标）；动画期间轴列宽用目标刻度计算（`ProductHistoryChartRenderer.layoutAxis`）避免横向抖动。
+  - 轴动画状态机（Astra F1）：取消动画前先把字段置 null，`onAnimationCancel` 只清理不 snap，只有自然 `onAnimationEnd` 且仍是当前动画时才 snap；新目标与运行中目标完全一致时不取消/不重启；目标变化时从当前插值状态（renderedRanges/renderTimeEnd）平滑重定向，绝不先 snap；点更新（`points` setter）只重置 reveal 动画，不再每次取消轴动画（避免 250ms 数据流把 380ms 动画截断后瞬跳）。图例 range 文本在每次 rebuild 时按当前插值 data 刷新、动画结束再按目标刷新（不会在动画开始瞬间跳到目标）；动画期间轴列宽取 max(目标刻度, 当前插值刻度)（`ProductHistoryChartRenderer.layoutAxis`）避免插值文本越界或横向抖动。
+  - 轴动画 F2/F5：维护 `axisLatestTarget`（每次 rebuild/新点更新），动画帧与结束 snap 都用最新投影数据，动画期间到达的新采样立即以当前插值轴重绘（不再停住等下一次 rebuild）；`dismissInspection`/`onDetachedFromWindow` 时停止 reveal 并立即结束轴动画 snap 到最新目标，避免隐藏/脱离后继续跑动画。
   - `ExtractionFragment.kt` / `ExtractionActivity.kt`：删除 `chart.expectedRanges = ChartAxisSeed.from(...)` 赋值与随之无用的代码。
   - `ExtractionHistoryVisualStyle.kt`（`ProductHistoryChartRenderer`）：
     - Y 轴主刻度来自 `series.step` 的真实数值（首末=range 边界），按绘制高度标注 2–6 个（放不下时只减少带数字行，网格线仍保留）；轴列宽按实际主刻度文本计算，避免裁切。

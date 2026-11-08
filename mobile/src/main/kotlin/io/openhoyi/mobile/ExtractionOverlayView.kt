@@ -169,6 +169,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         }
     }
     private var axisTargetState: LiveAxisAnimation.AxisState? = null
+    /** Newest projected cup while an axis animation runs, so every frame draws current samples. */
+    private var axisLatestTarget: FourMetricChartData? = null
     private fun renderedAxisState() = if (renderedRanges.isEmpty()) LiveAxisAnimation.state(data)
         else LiveAxisAnimation.AxisState(renderedRanges, renderedSteps, renderTimeEnd)
 
@@ -182,6 +184,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     private fun snapAxis(target: FourMetricChartData) {
         cancelAxisAnimation()
+        axisLatestTarget = target
         data = target
         renderTimeEnd = target.timeEndMs
         renderedRanges = target.series.associate { it.metric to it.range }
@@ -195,6 +198,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         // A later observation usually repeats the same axis target; let the running animation
         // finish instead of cancelling and restarting on every frame of data.
         if (axisAnimator != null && LiveAxisAnimation.sameTarget(axisTargetState, to)) {
+            axisLatestTarget = target
             data = LiveAxisAnimation.apply(target, renderedAxisState())
             plot.invalidate()
             return
@@ -209,6 +213,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         to: LiveAxisAnimation.AxisState, target: FourMetricChartData) {
         cancelAxisAnimation()
         axisTargetState = to
+        axisLatestTarget = target
         data = LiveAxisAnimation.apply(target, from)
         val animator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
             duration = LiveAxisAnimation.DURATION_MS
@@ -218,7 +223,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 renderedRanges = state.ranges
                 renderedSteps = state.steps
                 renderTimeEnd = state.timeEndMs
-                data = LiveAxisAnimation.apply(target, state)
+                // Draw the newest observed samples with the interpolated axis, not the snapshot
+                // captured when this transition started.
+                data = LiveAxisAnimation.apply(axisLatestTarget ?: target, state)
                 plot.postInvalidateOnAnimation()
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
@@ -230,7 +237,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                     if (axisAnimator === animation) {
                         axisAnimator = null
                         axisTargetState = null
-                        snapAxis(target)
+                        snapAxis(axisLatestTarget ?: target)
                     }
                 }
             })
@@ -629,12 +636,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     override fun onDetachedFromWindow() {
         dismissInspection()
+        finishAxisAnimation()
         super.onDetachedFromWindow()
+    }
+
+    /** A hidden/detached chart must not keep a transition running; settle it immediately. */
+    private fun finishAxisAnimation() {
+        if (axisAnimator == null) return
+        axisLatestTarget?.let(::snapAxis)
     }
 
     /** Fragment show/hide does not detach this view, so the host closes inspection on pause. */
     fun dismissInspection() {
         stopRevealTransition()
+        finishAxisAnimation()
         inspectionDialog?.dismiss()
     }
 

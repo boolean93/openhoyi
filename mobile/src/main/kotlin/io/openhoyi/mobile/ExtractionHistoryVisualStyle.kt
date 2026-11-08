@@ -126,13 +126,19 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
      */
     internal var layoutAxis: LiveAxisAnimation.AxisState? = null
 
-    /** Widest actual main-tick label drives the axis column, so a dynamic tick can never clip. */
+    /**
+     * Widest actual main-tick label drives the axis column, so a dynamic tick can never clip.
+     * While the axis animates the target labels reserve room, but the current interpolated labels
+     * are also measured so a transient wider value (e.g. "1.25") cannot overflow the gutter.
+     */
     private fun column(series: MetricChartSeries, compact: Boolean = false): Float {
-        val range = layoutAxis?.ranges?.get(series.metric) ?: series.range
-        val step = layoutAxis?.steps?.get(series.metric) ?: series.step
-        return (ChartAxisScale.majorTicks(range, step).map { tickText(series, it) } +
-            (if (compact) displayUnit(series.metric) else axisTitle(series.metric))
-            ).maxOf(::extent) + dp(if (liveMode) 12f else 16f)
+        val current = ChartAxisScale.majorTicks(series.range, series.step).map { tickText(series, it) }
+        val target = layoutAxis?.ranges?.get(series.metric)?.let { range ->
+            ChartAxisScale.majorTicks(range, layoutAxis?.steps?.get(series.metric) ?: series.step)
+                .map { tickText(series, it) }
+        }.orEmpty()
+        return (current + target + (if (compact) displayUnit(series.metric) else axisTitle(series.metric)))
+            .maxOf(::extent) + dp(if (liveMode) 12f else 16f)
     }
     private fun tickText(series: MetricChartSeries, value: Float): String =
         if (liveMode) axisNumber(value) else number(value)
