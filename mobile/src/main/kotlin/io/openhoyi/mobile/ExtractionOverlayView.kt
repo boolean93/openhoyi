@@ -68,12 +68,12 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             inspectedTime = null
             previousRanges = emptyMap()
             lastPointUpdateAt = null
-            liveTimeEnd = 30_000L
+            liveTimeEnd = 5_000L
             rebuildProjection()
             // The Activity sets identity before replacing points; do not retain the old cup range.
             previousRanges = emptyMap()
             lastPointUpdateAt = null
-            liveTimeEnd = 30_000L
+            liveTimeEnd = 5_000L
         }
     var referenceLabel: String? = null
         set(value) { if (field != value) { field = value; updateDescription() } }
@@ -98,16 +98,6 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var inspectedTime: Long? = null
     private var inspectionDialog: AlertDialog? = null
     private var previousRanges: Map<ChartMetric, ChartRange> = emptyMap()
-    /** Recipe-target seeds for the live axis; a new recipe is a new initial range, not a union. */
-    var expectedRanges: Map<ChartMetric, ChartRange> = emptyMap()
-        set(value) {
-            if (field == value) return
-            field = value
-            if (!liveChart) return
-            previousRanges = emptyMap()
-            stopRenderTransition()
-            rebuildProjection()
-        }
     private var data = FourMetricChartProjection.build(emptyList(), emptyList())
     private var selected: ChartMetric? = null
     private val focusMetric get() = selected ?: ChartMetric.PRESSURE
@@ -116,8 +106,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private val liveValues = linkedMapOf<ChartMetric, Pair<TextView, TextView>>()
     private val liveRanges = linkedMapOf<ChartMetric, TextView>()
     private val liveChart get() = visual != null && !embeddedHistory
-    private var liveTimeEnd = 30_000L
-    private var renderTimeEnd = 30_000L
+    private var liveTimeEnd = 5_000L
+    private var renderTimeEnd = 5_000L
     private var revealThroughMs: Long? = null
     private var lastPointUpdateAt: Long? = null
     private var renderAnimator: android.animation.ValueAnimator? = null
@@ -310,9 +300,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     private fun rebuildProjection() {
         data = FourMetricChartProjection.build(points, reference, previousRanges,
-            seedRanges = expectedRanges, livePauseBaseline = liveChart, liveFlow = liveChart)
+            livePauseBaseline = liveChart, liveFlow = liveChart)
         if (liveChart) {
-            liveTimeEnd = LiveChartGeometry.continuousTimeEnd(liveTimeEnd, data.timeEndMs)
+            liveTimeEnd = LiveChartGeometry.liveTimeEnd(liveTimeEnd, data.timeEndMs)
             data = data.copy(timeEndMs = liveTimeEnd)
         }
         renderTimeEnd = data.timeEndMs

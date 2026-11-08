@@ -581,10 +581,6 @@ class ExtractionActivity : ThemedActivity() {
             "$progress\n$advice"
         } else if (target == 0 && profile != null) getString(R.string.extraction_no_weight_advice) else "")
         chart.traceIdentity = owner?.chartTraceIdentity
-        // The live axis starts from the selected recipe target; a machine-only manual cup
-        // has no recipe, so it falls back to the per-metric default seeds.
-        chart.expectedRanges = ChartAxisSeed.from(
-            if (owner?.manualShotActive == true || owner?.chartCurveId == "manual") null else profile)
         val rawPoints=owner?.chartPoints ?: emptyList()
         val points = ExtractionReference.align(rawPoints).points
         if (chart.points != points) chart.points = points

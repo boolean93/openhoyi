@@ -2,7 +2,8 @@
 
 - 需求与范围：
   - 用户平板实测反馈：萃取曲线横纵坐标「格子粒度不够细」，且坐标应「根据数值动态缩放」。
-  - 用户已选方案：范围只扩不缩；实时初始范围按配方目标（曲线不跳）；历史详情按整杯自适应；网格按数值自适应（主刻度带数字 + 次网格线）。对比页复用同一适配。
+  - 用户已选方案（初版）：范围只扩不缩；历史详情按整杯自适应；网格按数值自适应（主刻度带数字 + 次网格线）。对比页复用同一适配。
+  - 用户真机复验修正（本版）：反馈「萃取曲线似乎只是改了单位密度，坐标并不会随着萃取进度变化」。根因：实时 X 轴被 `LiveChartGeometry.continuousTimeEnd = maxOf(previous, 30_000, projected)` 钉死在 0–30s；实时 Y 轴被配方种子（压力 0–10 等）预填满，整杯一开始就是最终范围。改为观测驱动、只扩不缩：X 从 5s 起按阶段边界扩展，Y 从小初始范围随观测值扩展；历史/对比不变。
   - 范围：实时萃取页、历史详情（共用 `ProductHistoryChartRenderer` / `FourMetricChartProjection`）、对比页共用适配。纯显示层，不改协议帧、出站命令、采样/存储/历史数据。
 - 来源分支/基线提交：`develop` + `a5290b0`（feat(mobile): show last used curve on home (#30)）。
 - 工作分支：`feature/chart-dynamic-axis`（工作树 `openhoyi-chart-axis`）。
@@ -11,26 +12,26 @@
   - 新增 `mobile/src/main/kotlin/io/openhoyi/mobile/ChartAxisScale.kt`（纯逻辑）：
     - `niceStep(low, high, targetDivisions≈5)`：从 {1, 2, 2.5, 5, 10}×10^k 取步长；`yAxis` 向外取整，保证 `range.low/high` 恰为首末主刻度、包含全部观测值、2–6 个主分隔；同值数据给有限区间；非法输入抛 `IllegalArgumentException`。
     - `majorTicks` / `minorTicks`（半步细网格）。
-    - 时间轴 `timeAxis`：nice 秒步长（1/2/5/10/15/20/30/60s，超长按整分钟）；历史/对比把 timeEnd 向上取整到主步长，实时保持原有连续末端（不破坏 LiveChartGeometry 动画与既有计时测试）。
+    - 时间轴 `timeAxis`：nice 秒步长（1/2/5/10/15/20/30/60s，超长按整分钟）；历史/对比把 timeEnd 向上取整到主步长；实时末端由 `LiveChartGeometry` 的阶段边界提供（见下），保留渲染过渡动画。
   - `FourMetricChartProjection.kt`：
-    - `ChartMetric` 由固定 floor/ceiling/step 改为每指标 `minSpan`（压力 4 bar、水量/重量 10、温度 5 °C、流速 2）与默认种子范围（压力 0–10、水量 0–40、重量 0–40、温度 88–98、流速 0–4），并标记低频物理量锚 0、温度不锚 0。
-    - `build` 新增 `seedRanges`（仅实时生效）与 `MetricChartSeries.step`。
-    - 实时：`种子 ∪ 配方目标 ∪ previousRanges ∪ 已观测值`，只扩不缩；历史：整杯 min/max + 最小跨度，空数据用默认种子；`previousRanges` 非法仍拒绝。
+    - `ChartMetric` 由固定 floor/ceiling/step 改为每指标 `minSpan`（压力 4 bar、水量/重量 10、温度 5 °C、流速 2）、小的实时初始范围（压力 0–2、水量 0–10、重量 0–10、温度 90–95、流速 0–1）与历史空数据回退（沿用 0–10/0–40/0–40/88–98/0–4），并标记低频物理量锚 0、温度不锚 0。
+    - `MetricChartSeries` 暴露 `step`；`build` 不再接收配方种子。
+    - 实时：`初始范围 ∪ previousRanges ∪ 已观测值`，只扩不缩（压力 0→9 会经历 0–2→0–3→0–5→0–10 一类阶梯）；历史：整杯 min/max + 最小跨度；`previousRanges` 非法仍拒绝。
     - 历史/对比 `timeEndMs` 向上取整到时间主步长；实时保持观测末端。
-  - 新增 `ChartAxisSeed.kt`（纯逻辑）：由选中曲线生成实时种子——压力取分段目标峰值+1 bar、重量取目标重量+余量、水量≈目标重量×1.5+10、温度取设定温度±5；手动/未知曲线返回空（用默认种子）；流量不设种子。
-  - `ExtractionOverlayView.kt`：新增 `expectedRanges` 属性（配方变化=新的初始范围，重置 previousRanges），`rebuildProjection` 传入 `seedRanges`。
-  - `ExtractionFragment.kt` / `ExtractionActivity.kt`：`render()` 中用当前选中曲线/配方设置 `chart.expectedRanges`；机器手动（`chartCurveId=="manual"` 或 `manualShotActive`）不套配方种子。
+  - `LiveChartGeometry.kt`：`continuousTimeEnd`/`timeEnd` 改为 `stagedTimeEnd` + `liveTimeEnd`——新杯 5s 起，≤30s 按 5s、30–60s 按 10s、60–90s 按 15s、90–180s 按 30s、之后按整分钟的阶段边界，只在跨边界时变化；`liveTimeEnd` 在同一杯内只扩不缩。
+  - `ExtractionOverlayView.kt`：liveTimeEnd/renderTimeEnd 初始与 traceIdentity 重置值改为 5s；`rebuildProjection` 用 `LiveChartGeometry.liveTimeEnd` 更新轴末端；删除配方种子相关的 `expectedRanges` 属性。
+  - `ExtractionFragment.kt` / `ExtractionActivity.kt`：删除 `chart.expectedRanges = ChartAxisSeed.from(...)` 赋值与随之无用的代码。
   - `ExtractionHistoryVisualStyle.kt`（`ProductHistoryChartRenderer`）：
     - Y 轴主刻度来自 `series.step` 的真实数值（首末=range 边界），按绘制高度标注 2–6 个（放不下时只减少带数字行，网格线仍保留）；轴列宽按实际主刻度文本计算，避免裁切。
     - 横向网格：聚焦指标的主刻度全画；半步次网格更淡更细；保留 `gridSegmentPlan`/`line` 证据与 textProtection 一一对应。
     - 纵向网格：按 nice 时间步长画主/次竖线；时间标签覆盖所有 nice 主刻度（0、5s、10s…），按 8dp 间距碰撞跳过重叠（首末标签始终保留并参与碰撞比较），末端保留 live/对比“<秒数> s”语义、历史保留 time-unit 行；跳过标签不删网格线。
   - `mobile/src/test/kotlin/io/openhoyi/mobile/ChartAxisScaleTest.kt`（新增）：niceStep/yAxis/主次刻度/时间轴/零宽/非法输入。
-  - `ChartAxisSeedTest.kt`（新增）：配方种子、最小跨度、手动空种子、流量曲线不臆造压力峰值。
-  - `FourMetricChartProjectionTest.kt`：更新动态范围期望；补种子初始范围、只扩不缩、历史忽略种子、最小跨度（温度 91–94→90–95）、非法种子。
-  - androidTest 兼容（不运行，已编译）：`LiveNarrowChartChecks` 轴端点改为与 `FourMetricChartProjection` 的动态 range 对比；`ChartLegendChecks` 图例范围改为投影 range 而非固定 0–12/0–60/0–50/80–100。`FourMetricChartChecks` 既有约束（每指标 axis-tick≥2 且首末==range 边界、轴文字不重叠、live 无 time-unit、末位 time-tick 以 “ s” 结尾、visualEvidence 结构）保持不变。
+  - `LiveChartGeometryTest.kt`：更新为阶段时间轴用例（5→10→15→…→300s、跨 30s 不钉死、只扩不缩）。
+  - `FourMetricChartProjectionTest.kt`：更新动态范围期望；补实时小初始范围、压力随观测阶梯扩展、同杯只扩不缩、温度最小跨度（91–94→90–95）、历史整杯自适应。
+  - androidTest 兼容（不运行，已编译）：`LiveNarrowChartChecks` 轴端点改为与 `FourMetricChartProjection` 的动态 range 对比；`ChartLegendChecks` 图例范围改为投影 range 而非固定 0–12/0–60/0–50/80–100。androidTest 同步修正（只编译）：`FourMetricChartChecks` 新一杯时间轴重置断言由 30s 改为 5s；`LiveChartTimingChecks` 跨 30s 后的动画末轴范围改为 30–40s 阶段；其余约束（每指标 axis-tick≥2 且首末==range 边界、轴文字不重叠、live 无 time-unit、末位 time-tick 以 “ s” 结尾、visualEvidence 结构、字形不重叠）保持不变。
 - 推送与合并：检查工作树 → 本地最小验证 → 普通推送 `feature/chart-dynamic-axis` → Lead 创建 PR → `branch-policy`、`verify` 通过 → PR 合并。不 force、不 `--no-verify`、不直推 develop、不合并、不创建 PR。
 - 验证证据：
-  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline --rerun-tasks :mobile:testDebugUnitTest :device-session:test` → BUILD SUCCESSFUL（mobile+device-session 聚合 1155 例 / 166 suites，0 failed，1 既有跳过；device-session Session checks 101 passed）。新增 `ChartAxisScaleTest` 13/13、`ChartAxisSeedTest` 7/7，`FourMetricChartProjectionTest` 27/27。
+  - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline --rerun-tasks :mobile:testDebugUnitTest :device-session:test` → BUILD SUCCESSFUL（mobile+device-session 聚合 1147 例 / 165 suites，0 failed，1 既有跳过；device-session Session checks 101 passed）。`ChartAxisScaleTest` 13/13、`FourMetricChartProjectionTest` 26/26、`LiveChartGeometryTest` 7/7。
   - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :mobile:compileMockKotlin` → BUILD SUCCESSFUL。
   - `GRADLE_USER_HOME=<workspace-local> ./gradlew --offline :mobile:compileMockAndroidTestKotlin` → BUILD SUCCESSFUL（只编译 androidTest，不运行 AVD）。
   - 说明：会话沙盒不能写 `~/.gradle`，使用工作区外本地 `GRADLE_USER_HOME` 复制现有缓存离线构建，未改仓库配置。
@@ -39,7 +40,8 @@
   - 仅 Canvas/哈希显示层：不读写设备、不改采样存储、不改历史数据与导出；轴范围不影响任何门禁/启动/停止判断。
   - 动态范围会让同一杯的曲线在不同屏幕/字体下显示不同刻度，但观测值、时间轴映射与证据 JSON 结构不变；历史详情与对比页均包含全部整杯数据（不裁切）。
   - 网格线数量增加（主+次），绘制仍在一次 Canvas pass 内；高度预算 `HistoryPlotBudget`/`minimumAxisHeight` 未改动，窄屏 fallback 不破。
-  - 实时 only-expand 依赖同一 traceIdentity 的 previousRanges；新一杯/新配方会重置，避免上一杯范围残留。
+  - 实时 X 轴阶段边界只在跨边界时变化，避免逐帧抖动；末端标签显示当前阶段边界秒数（如 "10.0 s"），不是逐帧观测值，但会随进度按阶段前进。
+  - 实时 only-expand 依赖同一 traceIdentity 的 previousRanges（新一杯/换 identity 重置）；Y 初始范围较小，首帧前压力可能显示 0–2、水量 0–10 等，随后随观测值扩展。
 - 发布：不发版。不打标签、不构建/发布 APK、不安装、不操作机器；平板验收 APK 由 Lead 另建。
 - 回退：回退本任务提交即可恢复固定轴范围与旧网格；无数据 schema/存储变更，不清理历史或采样。
 - 未完成与阻塞：

@@ -17,7 +17,7 @@ class FourMetricChartProjectionTest {
         val flow = live.series(ChartMetric.FLOW)
         assertEquals(listOf(ChartValue(500, 2f), ChartValue(1000, 2f)), flow.current.single())
         assertEquals(flow.current, flow.reference)
-        assertEquals(ChartRange(0f, 4f), flow.range)
+        assertEquals(ChartRange(0f, 2f), flow.range)
         val history = FourMetricChartProjection.build(points, points)
         assertEquals(historicalMetrics, history.series.map { it.metric })
         assertEquals(listOf(0f, 1f, 2f), history.series(ChartMetric.WEIGHT).current.single().map { it.value })
@@ -29,7 +29,7 @@ class FourMetricChartProjectionTest {
         val empty = FourMetricChartProjection.build(listOf(point(0, weight = null)), emptyList(), liveFlow = true)
         assertEquals(liveMetrics, empty.series.map { it.metric })
         assertTrue(empty.series(ChartMetric.FLOW).current.isEmpty())
-        assertEquals(ChartRange(0f, 4f), empty.series(ChartMetric.FLOW).range)
+        assertEquals(ChartRange(0f, 1f), empty.series(ChartMetric.FLOW).range)
         val points = listOf(point(0, weight = 0), point(500, weight = 100),
             point(1000, weight = null), point(1500, weight = 200), point(2000, weight = 300),
             point(2500, weight = 100), point(3000, weight = 200),
@@ -236,36 +236,44 @@ class FourMetricChartProjectionTest {
             }
     }
 
-    @Test fun liveSeedRangeIsTheInitialRangeBeforeAnySample() {
-        val seed = ChartAxisSeed.ranges(peakPressureTenthsBar = 90, targetWeightHundredthsGram = 2700,
-            temperatureC = 92).filterKeys { it in liveMetrics }
-        val data = FourMetricChartProjection.build(emptyList(), emptyList(), seedRanges = seed,
-            liveFlow = true)
-        assertEquals(ChartRange(0f, 10f), data.series(ChartMetric.PRESSURE).range)
-        assertTrue(data.series(ChartMetric.WATER).range.high >= 50.5f)
-        assertEquals(0f, data.series(ChartMetric.WATER).range.low, 0f)
-        // 92 C +-5 is 87..97; whole-degree steps round it outward to 86..98.
-        assertEquals(ChartRange(86f, 98f), data.series(ChartMetric.TEMPERATURE).range)
+    @Test fun liveStartsFromSmallPerMetricRangesBeforeAnySample() {
+        val live = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+        assertEquals(ChartRange(0f, 2f), live.series(ChartMetric.PRESSURE).range)
+        assertEquals(ChartRange(0f, 10f), live.series(ChartMetric.WATER).range)
+        assertEquals(ChartRange(0f, 1f), live.series(ChartMetric.FLOW).range)
+        assertEquals(ChartRange(90f, 95f), live.series(ChartMetric.TEMPERATURE).range)
     }
 
-    @Test fun liveSeedOnlyExpandsAndObservedPeaksWin() {
-        val recipe = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 10f))
-        val expanded = FourMetricChartProjection.build(listOf(point(0, pressure = 150),
-            point(1000, pressure = 160)), emptyList(), seedRanges = recipe, liveFlow = true)
-        val range = expanded.series(ChartMetric.PRESSURE).range
-        assertTrue(range.low <= 0f && range.high >= 16f)
-        val previous = expanded.series.associate { it.metric to it.range }
-        val later = FourMetricChartProjection.build(listOf(point(0, pressure = 20)), emptyList(),
-            previous, seedRanges = recipe, liveFlow = true)
-        assertEquals(range, later.series(ChartMetric.PRESSURE).range)
+    @Test fun livePressureAxisExpandsInObservedDrivenStepsWithProgress() {
+        var previous = FourMetricChartProjection.build(emptyList(), emptyList(), liveFlow = true)
+            .series.associate { it.metric to it.range }
+        var lastHigh = previous.getValue(ChartMetric.PRESSURE).high
+        val highs = mutableListOf(lastHigh)
+        for (pressureTenths in listOf(30, 50, 60, 90)) {
+            val data = FourMetricChartProjection.build(listOf(point(0, pressure = 0),
+                point(1000, pressure = pressureTenths)), emptyList(), previous, liveFlow = true)
+            val range = data.series(ChartMetric.PRESSURE).range
+            assertTrue("observed ${pressureTenths / 10f} bar must be inside $range",
+                range.low <= 0f && range.high >= pressureTenths / 10f)
+            assertTrue("axis must not shrink: $lastHigh -> ${range.high}",
+                range.high >= lastHigh)
+            lastHigh = range.high
+            highs += range.high
+            previous = data.series.associate { it.metric to it.range }
+        }
+        assertTrue("pressure axis must move with progress, got $highs",
+            highs.distinct().size >= 3)
+        assertEquals(highs.sorted(), highs)
     }
 
-    @Test fun historyIgnoresRecipeSeedsAndAdaptsToTheWholeCup() {
-        val seed = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 10f))
-        val data = FourMetricChartProjection.build(listOf(point(0, pressure = 20)), emptyList(),
-            seedRanges = seed)
-        assertTrue(data.series(ChartMetric.PRESSURE).range.high >= 2f)
-        assertEquals(ChartRange(0f, 4f), data.series(ChartMetric.PRESSURE).range)
+    @Test fun livePressureRangeNeverShrinksWithinTheSameShot() {
+        val peak = FourMetricChartProjection.build(listOf(point(0, pressure = 0),
+            point(1000, pressure = 160)), emptyList(), liveFlow = true)
+        val previous = peak.series.associate { it.metric to it.range }
+        val later = FourMetricChartProjection.build(listOf(point(0, pressure = 50)), emptyList(),
+            previous, liveFlow = true)
+        assertEquals(peak.series(ChartMetric.PRESSURE).range,
+            later.series(ChartMetric.PRESSURE).range)
     }
 
     @Test fun nearlyFlatTemperatureUsesTheFiveDegreeMinimumSpan() {
@@ -273,15 +281,6 @@ class FourMetricChartProjectionTest {
             point(1000, temperature = 9400)), emptyList())
         assertEquals(ChartRange(90f, 95f), data.series(ChartMetric.TEMPERATURE).range)
         assertEquals(1f, data.series(ChartMetric.TEMPERATURE).step, 0f)
-    }
-
-    @Test fun invalidSeedRangesAreRejected() {
-        listOf(ChartRange(5f, 5f), ChartRange(6f, 5f), ChartRange(Float.NaN, 10f)).forEach { invalid ->
-            expectInvalid {
-                FourMetricChartProjection.build(emptyList(), emptyList(),
-                    seedRanges = mapOf(ChartMetric.PRESSURE to invalid), liveFlow = true)
-            }
-        }
     }
 
     private fun expectInvalid(block: () -> Unit) {

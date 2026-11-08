@@ -1,26 +1,28 @@
 package io.openhoyi.mobile
 
 /**
- * Fixed physical units and the display-only seed/minimum-span policy per metric.
+ * Fixed physical units and the display-only range policy per metric.
  *
- * [seedLow]/[seedHigh] are the initial realtime range when the page has no recipe hint; a shipped
- * recipe can override it through [ChartAxisSeed]/`seedRanges`. [minSpan] stops a nearly flat cup
- * from being magnified into a misleading huge swing, and [anchorZero] keeps the low-frequency
- * physical scales (pressure/water/weight/flow) anchored around zero while temperature keeps its
- * observed interval.
+ * [initialLow]/[initialHigh] are the small realtime starting range; the observed values then
+ * drive it outward (only-expand). [emptyLow]/[emptyHigh] keep the established history fallback for
+ * a cup without samples. [minSpan] stops a nearly flat cup from being magnified into a misleading
+ * huge swing, and [anchorZero] keeps the low-frequency physical scales (pressure/water/weight/flow)
+ * anchored around zero while temperature keeps its observed interval.
  */
 internal enum class ChartMetric(
     val unit: String,
     val minSpan: Float,
-    val seedLow: Float,
-    val seedHigh: Float,
+    val initialLow: Float,
+    val initialHigh: Float,
+    val emptyLow: Float,
+    val emptyHigh: Float,
     val anchorZero: Boolean,
 ) {
-    PRESSURE("bar", 4f, 0f, 10f, true),
-    WATER("ml", 10f, 0f, 40f, true),
-    WEIGHT("g", 10f, 0f, 40f, true),
-    TEMPERATURE("°C", 5f, 88f, 98f, false),
-    FLOW("g/s", 2f, 0f, 4f, true),
+    PRESSURE("bar", 4f, 0f, 2f, 0f, 10f, true),
+    WATER("ml", 10f, 0f, 10f, 0f, 40f, true),
+    WEIGHT("g", 10f, 0f, 10f, 0f, 40f, true),
+    TEMPERATURE("°C", 5f, 90f, 95f, 88f, 98f, false),
+    FLOW("g/s", 2f, 0f, 1f, 0f, 4f, true),
 }
 
 internal val historicalMetrics = listOf(ChartMetric.PRESSURE, ChartMetric.WATER, ChartMetric.WEIGHT, ChartMetric.TEMPERATURE)
@@ -50,8 +52,8 @@ internal data class FourMetricChartData(
 internal object FourMetricChartProjection {
     /**
      * [previousRanges] belongs to the caller's same-shot display session; reset it for a new shot.
-     * [seedRanges] carries the App recipe targets (see [ChartAxisSeed]) and only applies to the
-     * realtime projection; the history/comparison projection adapts to the whole observed cup.
+     * The realtime projection starts from the small per-metric defaults and grows only from
+     * observed values; the history/comparison projection adapts to the whole observed cup.
      * Historical weight remains raw scale weight. Live flow is the display-only scale derivative.
      * timeEndMs is an axis bound, while observedThroughMs describes only current observations.
      */
@@ -59,17 +61,11 @@ internal object FourMetricChartProjection {
         points: List<ShotPoint>,
         reference: List<ShotPoint>,
         previousRanges: Map<ChartMetric, ChartRange> = emptyMap(),
-        seedRanges: Map<ChartMetric, ChartRange> = emptyMap(),
         livePauseBaseline: Boolean = false,
         liveFlow: Boolean = false,
     ): FourMetricChartData {
         validate(points)
         validate(reference)
-        seedRanges.forEach { (metric, range) ->
-            require(range.low.isFinite() && range.high.isFinite() && range.low < range.high) {
-                "Chart seed range for $metric must be finite and increasing"
-            }
-        }
         val series = (if (liveFlow) liveMetrics else historicalMetrics).mapNotNull { metric ->
             val current = segments(points, metric, livePauseBaseline)
             val historic = segments(reference, metric)
@@ -81,7 +77,7 @@ internal object FourMetricChartProjection {
             if (old != null) {
                 require(old.low.isFinite() && old.high.isFinite() && old.low < old.high)
             }
-            val axis = axis(metric, values, old, seedRanges[metric], live = liveFlow)
+            val axis = axis(metric, values, old, live = liveFlow)
             MetricChartSeries(metric, current, historic, axis.range, axis.step)
         }
         val observedEnd = maxOf(1000L, points.lastOrNull()?.elapsedMs ?: 0L,
@@ -99,18 +95,20 @@ internal object FourMetricChartProjection {
     }
 
     private fun axis(metric: ChartMetric, values: List<Float>, old: ChartRange?,
-        seed: ChartRange?, live: Boolean): ChartAxisScale.YAxis {
+        live: Boolean): ChartAxisScale.YAxis {
         if (live) {
-            val base = seed ?: ChartRange(metric.seedLow, metric.seedHigh)
-            val low = minOf(base.low, values.minOrNull() ?: base.low, old?.low ?: base.low)
-            val high = maxOf(base.high, values.maxOrNull() ?: base.high, old?.high ?: base.high)
+            // Observation-driven start: a small default range that only expands with data.
+            val low = minOf(metric.initialLow, values.minOrNull() ?: metric.initialLow,
+                old?.low ?: metric.initialLow)
+            val high = maxOf(metric.initialHigh, values.maxOrNull() ?: metric.initialHigh,
+                old?.high ?: metric.initialHigh)
             return ChartAxisScale.yAxis(low, high, targetDivisions = 5)
         }
         var low: Float
         var high: Float
         if (values.isEmpty()) {
-            low = minOf(metric.seedLow, old?.low ?: metric.seedLow)
-            high = maxOf(metric.seedHigh, old?.high ?: metric.seedHigh)
+            low = minOf(metric.emptyLow, old?.low ?: metric.emptyLow)
+            high = maxOf(metric.emptyHigh, old?.high ?: metric.emptyHigh)
         } else {
             low = values.min()
             high = values.max()

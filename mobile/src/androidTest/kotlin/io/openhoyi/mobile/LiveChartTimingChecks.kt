@@ -28,7 +28,7 @@ internal class LiveChartTimingChecks(private val test: Instrumentation) {
                     val reveal = field(view,"revealThroughMs") as Long
                     val axis = field(view,"renderTimeEnd") as Long
                     check(reveal in 29_901L..30_099L)
-                    check(axis in 30_001L..30_099L)
+                    check(axis in 30_001L..39_999L)
                     view.points = view.points + view.points.last().copy(elapsedMs = 30_300)
                     check(field(view,"revealThroughMs") == reveal)
                     check(field(view,"renderTimeEnd") == axis)
