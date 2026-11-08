@@ -27,6 +27,9 @@ internal object LiveAxisAnimation {
         timeEndMs = data.timeEndMs,
     )
 
+    /** True when [current] already targets exactly [target], so a running animation can finish. */
+    fun sameTarget(current: AxisState?, target: AxisState): Boolean = current == target
+
     /** Linear interpolation; [fraction] is clamped so callers can pass animator values safely. */
     fun interpolate(from: AxisState, to: AxisState, fraction: Float): AxisState {
         val f = fraction.coerceIn(0f, 1f)

@@ -55,7 +55,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 liveTimeEnd = 5_000L
                 snapAxisOnNextBuild = true
             }
-            stopRenderTransition()
+            // Keep a running axis animation; the rebuild only retargets it when needed.
+            stopRevealTransition()
             field = value; rebuildProjection()
             if (liveChart && old.isNotEmpty() && value.size > old.size && value.take(old.size) == old &&
                 value.last().elapsedMs-old.last().elapsedMs <= 1500 &&
@@ -134,10 +135,18 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var axisAnimator: android.animation.ValueAnimator? = null
     private var pendingTraceReset = false
     private var snapAxisOnNextBuild = false
+    private fun stopRevealTransition() {
+        val oldRender = renderAnimator
+        renderAnimator = null
+        oldRender?.cancel()
+        revealThroughMs = null
+    }
     private fun stopRenderTransition() {
-        renderAnimator?.cancel(); renderAnimator = null
-        axisAnimator?.cancel(); axisAnimator = null
-        revealThroughMs = null; renderTimeEnd = data.timeEndMs
+        stopRevealTransition()
+        // Cancelling the axis animation must not snap it to its target: keep the last interpolated
+        // state so the next target redraws from what is actually on screen.
+        cancelAxisAnimation()
+        renderTimeEnd = data.timeEndMs
     }
     /** Curve reveal only; the realtime axis has its own animation (see rebuildProjection). */
     private fun startRenderTransition(oldObserved: Long, updateGap: Long) {
@@ -159,8 +168,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             start()
         }
     }
+    private var axisTargetState: LiveAxisAnimation.AxisState? = null
+    private fun renderedAxisState() = if (renderedRanges.isEmpty()) LiveAxisAnimation.state(data)
+        else LiveAxisAnimation.AxisState(renderedRanges, renderedSteps, renderTimeEnd)
+
+    /** Stops a running axis animation while preserving the currently rendered interpolated axis. */
+    private fun cancelAxisAnimation() {
+        val old = axisAnimator
+        axisAnimator = null
+        axisTargetState = null
+        old?.cancel()
+    }
+
     private fun snapAxis(target: FourMetricChartData) {
-        axisAnimator?.cancel(); axisAnimator = null
+        cancelAxisAnimation()
         data = target
         renderTimeEnd = target.timeEndMs
         renderedRanges = target.series.associate { it.metric to it.range }
@@ -168,14 +189,28 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         if (liveChart) buttons.forEach { (metric, button) -> updateLegendText(metric, button) }
         plot.invalidate()
     }
+
     private fun animateAxis(target: FourMetricChartData) {
-        val from = if (renderedRanges.isEmpty()) LiveAxisAnimation.state(data)
-            else LiveAxisAnimation.AxisState(renderedRanges, renderedSteps, renderTimeEnd)
         val to = LiveAxisAnimation.state(target)
-        if (from == to) { snapAxis(target); return }
-        axisAnimator?.cancel()
-        data = target
-        axisAnimator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
+        // A later observation usually repeats the same axis target; let the running animation
+        // finish instead of cancelling and restarting on every frame of data.
+        if (axisAnimator != null && LiveAxisAnimation.sameTarget(axisTargetState, to)) {
+            data = LiveAxisAnimation.apply(target, renderedAxisState())
+            plot.invalidate()
+            return
+        }
+        val from = renderedAxisState()
+        if (axisAnimator != null) cancelAxisAnimation()
+        if (LiveAxisAnimation.sameTarget(from, to)) { snapAxis(target); return }
+        startAxisAnimation(from, to, target)
+    }
+
+    private fun startAxisAnimation(from: LiveAxisAnimation.AxisState,
+        to: LiveAxisAnimation.AxisState, target: FourMetricChartData) {
+        cancelAxisAnimation()
+        axisTargetState = to
+        data = LiveAxisAnimation.apply(target, from)
+        val animator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
             duration = LiveAxisAnimation.DURATION_MS
             interpolator = android.view.animation.DecelerateInterpolator()
             addUpdateListener { animation ->
@@ -187,19 +222,28 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 plot.postInvalidateOnAnimation()
             }
             addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    // Keep the last interpolated frame; the caller decides the next target.
+                    if (axisAnimator === animation) { axisAnimator = null; axisTargetState = null }
+                }
                 override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (axisAnimator === animation) snapAxis(target)
+                    if (axisAnimator === animation) {
+                        axisAnimator = null
+                        axisTargetState = null
+                        snapAxis(target)
+                    }
                 }
             })
-            start()
         }
+        axisAnimator = animator
+        animator.start()
     }
     var unavailableLiveMetrics: Set<ChartMetric> = emptySet()
         set(value) {
             if (field == value) return
             field = value
             if (liveChart) {
-                stopRenderTransition(); plot.invalidate()
+                stopRevealTransition(); plot.invalidate()
                 buttons.forEach { (metric, button) -> updateLegendText(metric, button) }
                 updateDescription()
             }
@@ -590,7 +634,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     /** Fragment show/hide does not detach this view, so the host closes inspection on pause. */
     fun dismissInspection() {
-        stopRenderTransition()
+        stopRevealTransition()
         inspectionDialog?.dismiss()
     }
 
@@ -803,6 +847,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             productRenderer?.let {
+                // While the axis animates, keep the gutter width on the target labels.
+                it.layoutAxis = if (liveChart && axisAnimator != null) axisTargetState else null
                 val rendered = if (liveChart) data.copy(timeEndMs = renderTimeEnd.coerceAtLeast(1)) else data
                 plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
                     if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet(), simpleLivePresentation=liveCompactChrome))

@@ -120,11 +120,20 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         ChartMetric.FLOW -> R.string.task_chart_flow
         ChartMetric.TEMPERATURE -> R.string.task_chart_temperature
     }) + " · " + displayUnit(metric)
+    /**
+     * Target layout state while the realtime axis animates. Tick labels still interpolate, but the
+     * axis column width stays on the final labels so the gutter does not jitter horizontally.
+     */
+    internal var layoutAxis: LiveAxisAnimation.AxisState? = null
+
     /** Widest actual main-tick label drives the axis column, so a dynamic tick can never clip. */
-    private fun column(series: MetricChartSeries, compact: Boolean = false): Float = (
-        ChartAxisScale.majorTicks(series.range, series.step).map { tickText(series, it) } +
+    private fun column(series: MetricChartSeries, compact: Boolean = false): Float {
+        val range = layoutAxis?.ranges?.get(series.metric) ?: series.range
+        val step = layoutAxis?.steps?.get(series.metric) ?: series.step
+        return (ChartAxisScale.majorTicks(range, step).map { tickText(series, it) } +
             (if (compact) displayUnit(series.metric) else axisTitle(series.metric))
-        ).maxOf(::extent) + dp(if (liveMode) 12f else 16f)
+            ).maxOf(::extent) + dp(if (liveMode) 12f else 16f)
+    }
     private fun tickText(series: MetricChartSeries, value: Float): String =
         if (liveMode) axisNumber(value) else number(value)
     private fun compactAxes(width: Int, data: FourMetricChartData) = liveMode && width - data.series.sumOf { column(it).toDouble() } - dp(24f) < dp(96f)

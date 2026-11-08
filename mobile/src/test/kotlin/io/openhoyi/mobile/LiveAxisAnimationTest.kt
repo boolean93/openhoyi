@@ -75,6 +75,25 @@ class LiveAxisAnimationTest {
         }
     }
 
+    @Test fun sameTargetDetectsIdenticalTargetsOnly() {
+        val a = LiveAxisAnimation.state(data(10_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
+        val b = LiveAxisAnimation.state(data(10_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
+        val c = LiveAxisAnimation.state(data(10_000, series(ChartMetric.PRESSURE, 0f, 8f, 2.5f)))
+        assertTrue(LiveAxisAnimation.sameTarget(a, b))
+        assertFalse(LiveAxisAnimation.sameTarget(a, c))
+        assertFalse(LiveAxisAnimation.sameTarget(null, a))
+    }
+
+    @Test fun redirectionStartsFromTheCurrentInterpolatedState() {
+        val from = LiveAxisAnimation.state(data(5_000, series(ChartMetric.PRESSURE, 0f, 2f, 0.5f)))
+        val firstTarget = LiveAxisAnimation.state(data(10_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
+        val current = LiveAxisAnimation.interpolate(from, firstTarget, 0.5f)
+        val secondTarget = LiveAxisAnimation.state(data(15_000, series(ChartMetric.PRESSURE, 0f, 12f, 2.5f)))
+        val redirected = LiveAxisAnimation.interpolate(current, secondTarget, 0.5f)
+        assertEquals(8.5f, redirected.ranges.getValue(ChartMetric.PRESSURE).high, 1e-4f)
+        assertEquals(11_250L, redirected.timeEndMs)
+    }
+
     @Test fun animationDurationStaysInTheRequestedSmoothRange() {
         assertTrue(LiveAxisAnimation.DURATION_MS in 350L..450L)
     }
