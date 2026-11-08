@@ -44,21 +44,35 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         set(value) {
             if (field == value) return
             val old = field
-            val oldAxis = renderTimeEnd
             val oldReveal = revealThroughMs ?: old.lastOrNull()?.elapsedMs
             val now = android.os.SystemClock.elapsedRealtime()
             val updateGap = lastPointUpdateAt?.let { now - it } ?: 250L
             if (value != old) lastPointUpdateAt = now
+            if (pendingTraceReset) {
+                // The Activity sets a new cup identity before replacing its points; start the new
+                // cup at 5 s once the new observations actually arrive.
+                pendingTraceReset = false
+                liveTimeEnd = 5_000L
+                snapAxisOnNextBuild = true
+            }
             stopRenderTransition()
             field = value; rebuildProjection()
             if (liveChart && old.isNotEmpty() && value.size > old.size && value.take(old.size) == old &&
                 value.last().elapsedMs-old.last().elapsedMs <= 1500 &&
                 value.drop(old.size).all { it.brewing == old.last().brewing && it.statusBits == old.last().statusBits } &&
                 ChartMetric.PRESSURE !in unavailableLiveMetrics)
-                startRenderTransition(oldReveal ?: old.last().elapsedMs,oldAxis, updateGap)
+                startRenderTransition(if (oldReveal != null) minOf(oldReveal, value.last().elapsedMs)
+                    else old.last().elapsedMs, updateGap)
         }
     var reference: List<ShotPoint> = emptyList()
-        set(value) { if (field == value) return; stopRenderTransition(); field = value; rebuildProjection() }
+        set(value) {
+            if (field == value) return
+            stopRenderTransition()
+            // A curve selection change is a new static preview context, not a progress step.
+            snapAxisOnNextBuild = true
+            field = value
+            rebuildProjection()
+        }
     var traceIdentity: String? = null
         set(value) {
             if (field == value) return
@@ -69,8 +83,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             previousRanges = emptyMap()
             lastPointUpdateAt = null
             liveTimeEnd = 5_000L
+            // The Activity sets identity before replacing points; do not animate or retain the
+            // old cup range, and defer the real 5 s time reset to the points replacement.
+            pendingTraceReset = true
+            snapAxisOnNextBuild = true
             rebuildProjection()
-            // The Activity sets identity before replacing points; do not retain the old cup range.
             previousRanges = emptyMap()
             lastPointUpdateAt = null
             liveTimeEnd = 5_000L
@@ -111,29 +128,67 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var revealThroughMs: Long? = null
     private var lastPointUpdateAt: Long? = null
     private var renderAnimator: android.animation.ValueAnimator? = null
+    /** Currently rendered axis state; [data] holds the same values while an animation runs. */
+    private var renderedRanges: Map<ChartMetric, ChartRange> = emptyMap()
+    private var renderedSteps: Map<ChartMetric, Float> = emptyMap()
+    private var axisAnimator: android.animation.ValueAnimator? = null
+    private var pendingTraceReset = false
+    private var snapAxisOnNextBuild = false
     private fun stopRenderTransition() {
         renderAnimator?.cancel(); renderAnimator = null
+        axisAnimator?.cancel(); axisAnimator = null
         revealThroughMs = null; renderTimeEnd = data.timeEndMs
     }
-    private fun startRenderTransition(oldObserved: Long, oldAxis: Long, updateGap: Long) {
+    /** Curve reveal only; the realtime axis has its own animation (see rebuildProjection). */
+    private fun startRenderTransition(oldObserved: Long, updateGap: Long) {
         val target = data.observedThroughMs ?: return
-        val endAxis = data.timeEndMs
         revealThroughMs = oldObserved
-        renderTimeEnd = oldAxis
         renderAnimator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
             duration = LiveChartGeometry.revealDuration(updateGap)
             interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener { animation ->
                 val fraction = animation.animatedValue as Float
                 revealThroughMs = oldObserved + ((target-oldObserved)*fraction).toLong()
-                renderTimeEnd = oldAxis + ((endAxis-oldAxis)*fraction).toLong()
                 plot.postInvalidateOnAnimation()
             }
             addListener(object: android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (renderAnimator === animation) {
-                        renderAnimator = null; revealThroughMs = null; renderTimeEnd = endAxis; plot.invalidate()
-                    }
+                    if (renderAnimator === animation) { renderAnimator = null; revealThroughMs = null; plot.invalidate() }
+                }
+            })
+            start()
+        }
+    }
+    private fun snapAxis(target: FourMetricChartData) {
+        axisAnimator?.cancel(); axisAnimator = null
+        data = target
+        renderTimeEnd = target.timeEndMs
+        renderedRanges = target.series.associate { it.metric to it.range }
+        renderedSteps = target.series.associate { it.metric to it.step }
+        if (liveChart) buttons.forEach { (metric, button) -> updateLegendText(metric, button) }
+        plot.invalidate()
+    }
+    private fun animateAxis(target: FourMetricChartData) {
+        val from = if (renderedRanges.isEmpty()) LiveAxisAnimation.state(data)
+            else LiveAxisAnimation.AxisState(renderedRanges, renderedSteps, renderTimeEnd)
+        val to = LiveAxisAnimation.state(target)
+        if (from == to) { snapAxis(target); return }
+        axisAnimator?.cancel()
+        data = target
+        axisAnimator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
+            duration = LiveAxisAnimation.DURATION_MS
+            interpolator = android.view.animation.DecelerateInterpolator()
+            addUpdateListener { animation ->
+                val state = LiveAxisAnimation.interpolate(from, to, animation.animatedValue as Float)
+                renderedRanges = state.ranges
+                renderedSteps = state.steps
+                renderTimeEnd = state.timeEndMs
+                data = LiveAxisAnimation.apply(target, state)
+                plot.postInvalidateOnAnimation()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (axisAnimator === animation) snapAxis(target)
                 }
             })
             start()
@@ -299,16 +354,30 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     }
 
     private fun rebuildProjection() {
-        data = FourMetricChartProjection.build(points, reference, previousRanges,
+        val projected = FourMetricChartProjection.build(points, reference, previousRanges,
             livePauseBaseline = liveChart, liveFlow = liveChart)
+        val target: FourMetricChartData
         if (liveChart) {
-            liveTimeEnd = LiveChartGeometry.liveTimeEnd(liveTimeEnd, data.timeEndMs)
-            data = data.copy(timeEndMs = liveTimeEnd)
-        }
-        renderTimeEnd = data.timeEndMs
-        previousRanges = data.series.associate { it.metric to it.range }
-        if (data.series.none { it.metric == selected }) selected = null
-        val metrics = if (embeddedHistory) data.series.map { it.metric } else if (liveChart) liveMetrics else historicalMetrics
+            target = if (pendingTraceReset) {
+                // Identity changed while the Activity still holds the previous cup's points:
+                // preview at the new 5 s budget without letting the old duration grow it.
+                liveTimeEnd = 5_000L
+                projected.copy(timeEndMs = 5_000L)
+            } else {
+                liveTimeEnd = LiveChartGeometry.liveTimeEnd(liveTimeEnd, projected.timeEndMs)
+                projected.copy(timeEndMs = liveTimeEnd)
+            }
+        } else target = projected
+        // previousRanges tracks the committed target only; animation frames never feed back.
+        previousRanges = target.series.associate { it.metric to it.range }
+        // Snap for static contexts, unattached probes, identity/selection changes and the first
+        // observation; only progress-driven live changes animate.
+        val snap = !liveChart || !isAttachedToWindow || snapAxisOnNextBuild ||
+            data.observedThroughMs == null || target.observedThroughMs == null
+        snapAxisOnNextBuild = false
+        if (snap) snapAxis(target) else animateAxis(target)
+        if (target.series.none { it.metric == selected }) selected = null
+        val metrics = if (embeddedHistory) target.series.map { it.metric } else if (liveChart) liveMetrics else historicalMetrics
         buttons.keys.filter { it !in metrics }.toList().forEach { metric ->
             legend.removeView(buttons.remove(metric))
         }
