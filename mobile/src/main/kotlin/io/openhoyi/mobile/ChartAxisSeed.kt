@@ -36,7 +36,7 @@ internal object ChartAxisSeed {
         val targets = linkedMapOf<ChartMetric, ChartRange>()
         peakPressureTenthsBar?.takeIf { it in 1..120 }?.let { peak ->
             // 9-10 bar peaks stay on the 0-10 target; only a genuinely higher recipe rounds up
-            // to the next 2.5 bar boundary (e.g. 10.5 -> 12.5), never through a 1.1 multiplier.
+            // to the next nice boundary (e.g. 10.5 -> 12), never through a 1.1 multiplier.
             ChartAxisScale.niceBoundary(maxOf(peak / 10f, 10f))?.let { boundary ->
                 targets[ChartMetric.PRESSURE] = ChartRange(0f, boundary.high)
             }
