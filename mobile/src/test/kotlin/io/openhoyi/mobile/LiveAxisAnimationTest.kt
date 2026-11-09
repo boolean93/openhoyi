@@ -94,6 +94,26 @@ class LiveAxisAnimationTest {
         assertEquals(11_250L, redirected.timeEndMs)
     }
 
+    private fun dataAt(startMs: Long, endMs: Long, vararg series: MetricChartSeries) =
+        FourMetricChartData(series.toList(), observedThroughMs = endMs, timeEndMs = endMs,
+            waterResetsMs = emptyList(), referenceWaterResetsMs = emptyList(), timeStartMs = startMs)
+
+    @Test fun windowStartInterpolatesTogetherWithTheEnd() {
+        val from = LiveAxisAnimation.state(dataAt(0, 10_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
+        val to = LiveAxisAnimation.state(dataAt(15_000, 25_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
+        val mid = LiveAxisAnimation.interpolate(from, to, 0.5f)
+        assertEquals(7_500L, mid.timeStartMs)
+        assertEquals(17_500L, mid.timeEndMs)
+        assertEquals(7_500L, LiveAxisAnimation.apply(dataAt(15_000, 25_000,
+            series(ChartMetric.PRESSURE, 0f, 8f, 2f)), mid).timeStartMs)
+    }
+
+    @Test fun sameTargetIncludesTheWindowStart() {
+        val a = LiveAxisAnimation.state(dataAt(0, 10_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
+        val b = LiveAxisAnimation.state(dataAt(1_000, 11_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
+        assertFalse(LiveAxisAnimation.sameTarget(a, b))
+    }
+
     @Test fun animationDurationStaysInTheRequestedSmoothRange() {
         assertTrue(LiveAxisAnimation.DURATION_MS in 350L..450L)
     }

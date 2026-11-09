@@ -217,19 +217,26 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         // "<seconds> s" endpoint contract in live/comparison charts.
         // projection already snapped historical/comparison timeEndMs; never re-round here so the
         // grid, labels and the plotted data share exactly the same x mapping.
-        val timeAxis = ChartAxisScale.timeAxis(timeEnd, roundUp = false)
+        val timeStart = data.timeStartMs
+        val timeSpan = (timeEnd - timeStart).coerceAtLeast(1L)
+        val timeAxis = ChartAxisScale.timeWindowAxis(timeStart, timeEnd)
+        fun timePx(ms: Long): Float =
+            box.left + box.width() * ((ms - timeStart).toDouble() / timeSpan).toFloat()
         val timeLabels = mutableListOf<Label>()
         timeAxis.majorTicks.forEach { tick ->
             val isEnd = tick == timeAxis.endMs
-            val tickPx = box.left + box.width() * (tick.toDouble() / timeAxis.endMs).toFloat()
+            val tickPx = timePx(tick)
             val align = when {
-                tick == 0L -> Paint.Align.LEFT
                 isEnd -> Paint.Align.RIGHT
+                tick == 0L || tickPx <= box.left + dp(1f) -> Paint.Align.LEFT
                 else -> Paint.Align.CENTER
             }
             val tickX = when (align) { Paint.Align.LEFT -> box.left; Paint.Align.RIGHT -> box.right; else -> tickPx }
-            val label = if (isEnd) seconds(timeAxis.endMs) + if (comparison || liveMode) " s" else ""
-                else seconds(tick)
+            val label = when {
+                isEnd -> seconds(timeAxis.endMs) + if (comparison || liveMode) " s" else ""
+                tick == 0L -> "0"
+                else -> seconds(tick)
+            }
             timeLabels += Label(label, tickX, timeBaseline, align, style.palette.muted, "time-tick")
         }
         // Keep the first and last labels as anchors; an intermediate label is kept only when its
@@ -293,18 +300,16 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
             }
         }
         timeAxis.minorTicks.forEachIndexed { index, tick ->
-            val tickPx = box.left + box.width() * (tick.toDouble() / timeAxis.endMs).toFloat()
-            gridLine("vm$index", tickPx, box.top, tickPx, box.bottom, minorGrid)
+            gridLine("vm$index", timePx(tick), box.top, timePx(tick), box.bottom, minorGrid)
         }
         timeAxis.majorTicks.forEachIndexed { index, tick ->
-            val tickPx = box.left + box.width() * (tick.toDouble() / timeAxis.endMs).toFloat()
-            gridLine("v$index", tickPx, box.top, tickPx, box.bottom)
+            gridLine("v$index", timePx(tick), box.top, timePx(tick), box.bottom)
         }
         canvas.drawLine(box.left, box.top, box.left, box.bottom, axis)
         evidence.put(JSONObject().put("operation", "line").put("role", "axis").put("endpointsPx", JSONArray(listOf(box.left,box.top,box.left,box.bottom))))
         canvas.drawLine(box.left, box.bottom, box.right, box.bottom, axis)
         evidence.put(JSONObject().put("operation", "line").put("role", "axis").put("endpointsPx", JSONArray(listOf(box.left,box.bottom,box.right,box.bottom))))
-        fun px(ms: Long) = box.left + box.width() * (ms.toDouble() / timeEnd).toFloat()
+        fun px(ms: Long) = timePx(ms)
         fun py(value: Float, range: ChartRange) = box.bottom - box.height() * (value - range.low) / (range.high - range.low)
         canvas.save(); canvas.clipRect(box)
         fun segments(item: MetricChartSeries, historic: Boolean) {

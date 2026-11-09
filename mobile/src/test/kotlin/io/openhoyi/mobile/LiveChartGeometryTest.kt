@@ -4,30 +4,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LiveChartGeometryTest {
-    @Test fun liveTimeAxisStartsAtFiveSecondsAndExpandsOnlyAtStageBoundaries() {
-        assertEquals(5_000L, LiveChartGeometry.stagedTimeEnd(0))
-        assertEquals(5_000L, LiveChartGeometry.stagedTimeEnd(1_000))
-        assertEquals(5_000L, LiveChartGeometry.stagedTimeEnd(5_000))
-        assertEquals(10_000L, LiveChartGeometry.stagedTimeEnd(5_001))
-        assertEquals(15_000L, LiveChartGeometry.stagedTimeEnd(10_001))
-        assertEquals(30_000L, LiveChartGeometry.stagedTimeEnd(29_999))
-        assertEquals(40_000L, LiveChartGeometry.stagedTimeEnd(30_001))
-        assertEquals(50_000L, LiveChartGeometry.stagedTimeEnd(49_999))
-        assertEquals(60_000L, LiveChartGeometry.stagedTimeEnd(60_000))
-        assertEquals(75_000L, LiveChartGeometry.stagedTimeEnd(60_001))
-        assertEquals(90_000L, LiveChartGeometry.stagedTimeEnd(90_000))
-        assertEquals(120_000L, LiveChartGeometry.stagedTimeEnd(90_001))
-        assertEquals(180_000L, LiveChartGeometry.stagedTimeEnd(180_000))
-        assertEquals(240_000L, LiveChartGeometry.stagedTimeEnd(180_001))
-        assertEquals(300_000L, LiveChartGeometry.stagedTimeEnd(299_999))
-    }
-
-    @Test fun liveTimeEndOnlyExpandsWithinACupSoPanelsDoNotJitter() {
-        assertEquals(5_000L, LiveChartGeometry.liveTimeEnd(5_000, 1_000))
-        assertEquals(40_000L, LiveChartGeometry.liveTimeEnd(30_000, 30_001))
-        assertEquals(30_000L, LiveChartGeometry.liveTimeEnd(30_000, 20_000))
-        assertEquals(75_000L, LiveChartGeometry.liveTimeEnd(60_000, 61_000))
-    }
     @Test fun revealUsesActualCadenceWithBoundedRecoveryAfterLongGap() {
         assertEquals(196L, LiveChartGeometry.revealDuration(196))
         assertEquals(250L, LiveChartGeometry.revealDuration(250))

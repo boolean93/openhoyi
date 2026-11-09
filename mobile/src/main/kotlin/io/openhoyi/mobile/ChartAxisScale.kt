@@ -120,6 +120,30 @@ internal object ChartAxisScale {
         return TimeAxis(end, step, major, minor)
     }
 
+    /**
+     * Windowed time grid for the scrolling realtime chart. A zero start keeps the established
+     * whole-axis behaviour; a scrolled 10 s window uses a coarser step so moving labels stay
+     * readable, and its first major tick is the first nice multiple at/after [startMs].
+     */
+    fun timeWindowAxis(startMs: Long, endMs: Long): TimeAxis {
+        require(startMs >= 0 && endMs > startMs) { "time window must be increasing" }
+        if (startMs == 0L) return timeAxis(endMs, roundUp = false)
+        val step = niceTimeStepMs(endMs - startMs, targetDivisions = 2)
+        val first = ((startMs + step - 1) / step) * step
+        val major = mutableListOf<Long>()
+        var tick = first
+        while (tick < endMs) { major += tick; tick += step }
+        major += endMs
+        val minor = mutableListOf<Long>()
+        val half = step / 2
+        var minorTick = half
+        while (minorTick < endMs) {
+            if (minorTick > startMs && minorTick % step != 0L) minor += minorTick
+            minorTick += half
+        }
+        return TimeAxis(endMs, step, major, minor)
+    }
+
     data class TimeAxis(val endMs: Long, val stepMs: Long, val majorTicks: List<Long>, val minorTicks: List<Long>)
 
     private fun nextNiceStep(step: Float): Float = niceStep(step * 1.01f)

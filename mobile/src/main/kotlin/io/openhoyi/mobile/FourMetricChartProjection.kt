@@ -48,6 +48,8 @@ internal data class FourMetricChartData(
     val waterResetsMs: List<Long>,
     val referenceWaterResetsMs: List<Long>,
     val pauseBaselineMs: Set<Long> = emptySet(),
+    /** Left edge of the displayed time window; the realtime chart scrolls a fixed 10 s window. */
+    val timeStartMs: Long = 0L,
 )
 
 /** Display-only projection: no interpolation, sampling changes, or inferred cup tare. */
@@ -92,15 +94,34 @@ internal object FourMetricChartProjection {
         val referenceEnd = if (!liveFlow || referenceDrivesLiveAxes)
             reference.lastOrNull()?.elapsedMs ?: 0L else 0L
         val observedEnd = maxOf(1000L, points.lastOrNull()?.elapsedMs ?: 0L, referenceEnd)
+        // The realtime chart shows a fixed 10 s window: the first 10 s fill from the left and then
+        // the window scrolls, keeping the newest observation pinned to the right edge. An idle
+        // preview with no current observation still shows the full reference cup from zero.
+        val timeStart: Long
+        val timeEnd: Long
+        if (liveFlow) {
+            if (referenceDrivesLiveAxes) {
+                // Idle preview: show the whole previous reference cup (one static switch when the
+                // first current observation starts the scrolling window).
+                timeStart = 0L
+                timeEnd = maxOf(10_000L, reference.lastOrNull()?.elapsedMs ?: 0L)
+            } else {
+                timeEnd = maxOf(10_000L, points.lastOrNull()?.elapsedMs ?: 0L)
+                timeStart = if (timeEnd > 10_000L) timeEnd - 10_000L else 0L
+            }
+        } else {
+            // Historical/comparison charts snap the whole-cup end to a readable time step.
+            timeStart = 0L
+            timeEnd = ChartAxisScale.timeAxis(observedEnd, roundUp = true).endMs
+        }
         return FourMetricChartData(
             series,
             points.lastOrNull()?.elapsedMs,
-            // The realtime x axis stays continuous (LiveChartGeometry animates it); historical and
-            // comparison charts snap their end to a whole time step so every tick is readable.
-            if (liveFlow) observedEnd else ChartAxisScale.timeAxis(observedEnd, roundUp = true).endMs,
+            timeEnd,
             resets(points),
             resets(reference),
             if (livePauseBaseline) pauseBaselines(points) else emptySet(),
+            timeStart,
         )
     }
 

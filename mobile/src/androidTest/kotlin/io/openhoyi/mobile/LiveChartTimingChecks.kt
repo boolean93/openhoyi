@@ -30,7 +30,11 @@ internal class LiveChartTimingChecks(private val test: Instrumentation) {
                     check(reveal in 29_901L..30_099L)
                     // Unattached androidTest probes snap instead of animating the axis; the
                     // reveal animation itself is still exercised above.
-                    check(axis == 40_000L) { "unattached probe must see the staged target axis" }
+                    // The realtime chart now scrolls a fixed 10 s window: 30.1 s observed is
+                    // 20.1-30.1 s, and unattached probes snap to that target.
+                    check(axis == 30_100L) { "unattached probe must see the 10 s window end" }
+                    val windowStart = field(view, "renderTimeStart") as Long
+                    check(windowStart == 20_100L) { "unattached probe must see the 10 s window start" }
                     view.points = view.points + view.points.last().copy(elapsedMs = 30_300)
                     check(field(view,"revealThroughMs") == reveal)
                     check(field(view,"renderTimeEnd") == axis)

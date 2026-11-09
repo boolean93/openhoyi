@@ -7,31 +7,6 @@ internal object LiveChartGeometry {
     data class Cubic(val start: ChartValue, val control1: ChartValue, val control2: ChartValue, val end: ChartValue)
     fun revealDuration(updateGap: Long): Long = updateGap.coerceIn(80L, 500L)
 
-    /**
-     * Stable realtime time-axis boundaries: 5 s steps up to 30 s, then 10 s to 60 s, 15 s to
-     * 90 s, 30 s to 180 s and whole minutes afterwards. The axis only changes when a boundary
-     * is crossed, so the plot does not jitter every frame.
-     */
-    private val LIVE_TIME_BOUNDARIES_MS = longArrayOf(
-        5_000L, 10_000L, 15_000L, 20_000L, 25_000L, 30_000L,
-        40_000L, 50_000L, 60_000L,
-        75_000L, 90_000L,
-        120_000L, 150_000L, 180_000L,
-    )
-
-    /** Smallest staged boundary that still contains [observedEndMs]; a new cup starts at 5 s. */
-    fun stagedTimeEnd(observedEndMs: Long): Long {
-        require(observedEndMs >= 0) { "observed end must be nonnegative" }
-        if (observedEndMs <= 5_000L) return 5_000L
-        LIVE_TIME_BOUNDARIES_MS.firstOrNull { observedEndMs <= it }?.let { return it }
-        val over = observedEndMs - 180_000L
-        return 180_000L + ((over + 59_999L) / 60_000L) * 60_000L
-    }
-
-    /** Realtime axis never shrinks within one cup; [previous] is the last rendered boundary. */
-    fun liveTimeEnd(previous: Long, observedEndMs: Long): Long =
-        maxOf(previous, stagedTimeEnd(observedEndMs))
-
     /** Fritsch–Carlson limited Hermite: exact endpoints, no invented extrema. */
     fun cubics(segment: List<ChartValue>): List<Cubic> {
         if (segment.size < 2) return emptyList()

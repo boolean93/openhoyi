@@ -271,7 +271,8 @@ class FourMetricChartProjectionTest {
         val reference = listOf(point(0, pressure = 90), point(40_000, pressure = 90))
         val live = FourMetricChartProjection.build(current, reference, liveFlow = true)
         // The 40 s / 9 bar reference must not pre-size a 5 s / 3 bar current cup.
-        assertEquals(5_000L, live.timeEndMs)
+        assertEquals(0L, live.timeStartMs)
+        assertEquals(10_000L, live.timeEndMs)
         val pressure = live.series(ChartMetric.PRESSURE)
         assertTrue("reference pre-sized the live pressure axis: ${pressure.range}",
             pressure.range.high < 9f)
@@ -281,6 +282,7 @@ class FourMetricChartProjectionTest {
     @Test fun idleLivePreviewStillUsesTheReferenceCup() {
         val reference = listOf(point(0, pressure = 90), point(40_000, pressure = 90))
         val idle = FourMetricChartProjection.build(emptyList(), reference, liveFlow = true)
+        assertEquals(0L, idle.timeStartMs)
         assertEquals(40_000L, idle.timeEndMs)
         assertTrue(idle.series(ChartMetric.PRESSURE).range.high >= 9f)
         assertTrue(idle.series(ChartMetric.PRESSURE).reference.isNotEmpty())
@@ -293,6 +295,36 @@ class FourMetricChartProjectionTest {
         assertTrue("history axis must include the reference duration", history.timeEndMs >= 40_000L)
         assertTrue("history axis must include the reference pressure",
             history.series(ChartMetric.PRESSURE).range.high >= 9f)
+    }
+
+    @Test fun liveTimeWindowFillsToTenSecondsThenScrolls() {
+        fun window(ms: Long): Pair<Long, Long> {
+            val data = FourMetricChartProjection.build(listOf(point(ms)), emptyList(), liveFlow = true)
+            return data.timeStartMs to data.timeEndMs
+        }
+        assertEquals(0L to 10_000L, window(5_000))
+        assertEquals(2_000L to 12_000L, window(12_000))
+        assertEquals(15_000L to 25_000L, window(25_000))
+        assertEquals(10_000L, window(9_999).second)
+        assertEquals(0L, window(9_999).first)
+    }
+
+    @Test fun liveTimeWindowEndIsMonotonicAndAlwaysTenSecondsWideAfterTenSeconds() {
+        var previousEnd = 0L
+        for (elapsedMs in listOf(0L, 2_000L, 5_000L, 10_000L, 12_500L, 20_000L, 33_333L, 60_000L)) {
+            val data = FourMetricChartProjection.build(listOf(point(elapsedMs)), emptyList(), liveFlow = true)
+            assertTrue("end must not move backwards at $elapsedMs",
+                data.timeEndMs >= previousEnd)
+            assertTrue("window must be 10 s wide once elapsed: $elapsedMs",
+                data.timeEndMs - data.timeStartMs >= 10_000L)
+            previousEnd = data.timeEndMs
+        }
+    }
+
+    @Test fun historyKeepsZeroStartAndWholeCupEnd() {
+        val data = FourMetricChartProjection.build(listOf(point(0), point(25_000)), emptyList())
+        assertEquals(0L, data.timeStartMs)
+        assertTrue(data.timeEndMs >= 25_000L)
     }
 
     @Test fun livePressureRangeNeverShrinksWithinTheSameShot() {

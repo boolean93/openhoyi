@@ -49,10 +49,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val updateGap = lastPointUpdateAt?.let { now - it } ?: 250L
             if (value != old) lastPointUpdateAt = now
             if (pendingTraceReset) {
-                // The Activity sets a new cup identity before replacing its points; start the new
-                // cup at 5 s once the new observations actually arrive.
+                // The Activity sets a new cup identity before replacing its points; once the new
+                // observations arrive the fresh 0-10 s window is applied without animation.
                 pendingTraceReset = false
-                liveTimeEnd = 5_000L
                 snapAxisOnNextBuild = true
             }
             // Keep a running axis animation; the rebuild only retargets it when needed.
@@ -83,15 +82,13 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             inspectedTime = null
             previousRanges = emptyMap()
             lastPointUpdateAt = null
-            liveTimeEnd = 5_000L
             // The Activity sets identity before replacing points; do not animate or retain the
-            // old cup range, and defer the real 5 s time reset to the points replacement.
+            // old cup range, and defer the fresh 0-10 s window to the points replacement.
             pendingTraceReset = true
             snapAxisOnNextBuild = true
             rebuildProjection()
             previousRanges = emptyMap()
             lastPointUpdateAt = null
-            liveTimeEnd = 5_000L
         }
     var referenceLabel: String? = null
         set(value) { if (field != value) { field = value; updateDescription() } }
@@ -124,8 +121,8 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private val liveValues = linkedMapOf<ChartMetric, Pair<TextView, TextView>>()
     private val liveRanges = linkedMapOf<ChartMetric, TextView>()
     private val liveChart get() = visual != null && !embeddedHistory
-    private var liveTimeEnd = 5_000L
-    private var renderTimeEnd = 5_000L
+    private var renderTimeStart = 0L
+    private var renderTimeEnd = 10_000L
     private var revealThroughMs: Long? = null
     private var lastPointUpdateAt: Long? = null
     private var renderAnimator: android.animation.ValueAnimator? = null
@@ -146,6 +143,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         // Cancelling the axis animation must not snap it to its target: keep the last interpolated
         // state so the next target redraws from what is actually on screen.
         cancelAxisAnimation()
+        renderTimeStart = data.timeStartMs
         renderTimeEnd = data.timeEndMs
     }
     /** Curve reveal only; the realtime axis has its own animation (see rebuildProjection). */
@@ -172,7 +170,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     /** Newest projected cup while an axis animation runs, so every frame draws current samples. */
     private var axisLatestTarget: FourMetricChartData? = null
     private fun renderedAxisState() = if (renderedRanges.isEmpty()) LiveAxisAnimation.state(data)
-        else LiveAxisAnimation.AxisState(renderedRanges, renderedSteps, renderTimeEnd)
+        else LiveAxisAnimation.AxisState(renderedRanges, renderedSteps, renderTimeEnd, renderTimeStart)
 
     /** Stops a running axis animation while preserving the currently rendered interpolated axis. */
     private fun cancelAxisAnimation() {
@@ -186,6 +184,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         cancelAxisAnimation()
         axisLatestTarget = target
         data = target
+        renderTimeStart = target.timeStartMs
         renderTimeEnd = target.timeEndMs
         renderedRanges = target.series.associate { it.metric to it.range }
         renderedSteps = target.series.associate { it.metric to it.step }
@@ -222,6 +221,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
                 val state = LiveAxisAnimation.interpolate(from, to, animation.animatedValue as Float)
                 renderedRanges = state.ranges
                 renderedSteps = state.steps
+                renderTimeStart = state.timeStartMs
                 renderTimeEnd = state.timeEndMs
                 // Draw the newest observed samples with the interpolated axis, not the snapshot
                 // captured when this transition started.
@@ -407,18 +407,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private fun rebuildProjection() {
         val projected = FourMetricChartProjection.build(points, reference, previousRanges,
             livePauseBaseline = liveChart, liveFlow = liveChart)
-        val target: FourMetricChartData
-        if (liveChart) {
-            target = if (pendingTraceReset) {
-                // Identity changed while the Activity still holds the previous cup's points:
-                // preview at the new 5 s budget without letting the old duration grow it.
-                liveTimeEnd = 5_000L
-                projected.copy(timeEndMs = 5_000L)
-            } else {
-                liveTimeEnd = LiveChartGeometry.liveTimeEnd(liveTimeEnd, projected.timeEndMs)
-                projected.copy(timeEndMs = liveTimeEnd)
-            }
-        } else target = projected
+        // The live time window (0-10 s filling, then a scrolling 10 s window) comes from the
+        // projection; history/comparison keep their whole-cup end.
+        val target: FourMetricChartData = projected
         // previousRanges tracks the committed target only; animation frames never feed back.
         previousRanges = target.series.associate { it.metric to it.range }
         // Snap for static contexts, unattached probes, identity/selection changes and the first
@@ -827,7 +818,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (event.actionMasked == MotionEvent.ACTION_UP && plotBounds.contains(event.x, event.y) && points.isNotEmpty()) {
                 val fraction = ((event.x - plotBounds.left) / plotBounds.width()).coerceIn(0f, 1f)
-                val time = (fraction.toDouble() * (if (liveChart) renderTimeEnd else data.timeEndMs)).toLong()
+                val start = if (liveChart) renderTimeStart else data.timeStartMs
+                val end = if (liveChart) renderTimeEnd else data.timeEndMs
+                val time = start + (fraction.toDouble() * (end - start)).toLong()
                 inspectedTime = ChartInspection.nearestIndex(points, time)?.let { points[it].elapsedMs }
             }
             return super.onTouchEvent(event)
@@ -864,7 +857,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             productRenderer?.let {
                 // While the axis animates, keep the gutter width on the target labels.
                 it.layoutAxis = if (liveChart && axisAnimator != null) axisTargetState else null
-                val rendered = if (liveChart) data.copy(timeEndMs = renderTimeEnd.coerceAtLeast(1)) else data
+                val rendered = if (liveChart)
+                    data.copy(timeStartMs = renderTimeStart, timeEndMs = renderTimeEnd.coerceAtLeast(1))
+                else data
                 plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
                     if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet(), simpleLivePresentation=liveCompactChrome))
                 return

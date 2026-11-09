@@ -80,6 +80,21 @@ class ChartAxisScaleTest {
         assertEquals(listOf(0L, 10_000L, 20_000L, 30_000L, 30_100L), live.majorTicks)
     }
 
+    @Test fun windowedTimeAxisStartsAtTheFirstNiceMultipleInsideTheWindow() {
+        val scrolled = ChartAxisScale.timeWindowAxis(15_000, 25_000)
+        assertEquals(5_000L, scrolled.stepMs)
+        assertEquals(listOf(15_000L, 20_000L, 25_000L), scrolled.majorTicks)
+        assertEquals(listOf(17_500L, 22_500L), scrolled.minorTicks)
+        val rolled = ChartAxisScale.timeWindowAxis(2_000, 12_000)
+        assertEquals(listOf(5_000L, 10_000L, 12_000L), rolled.majorTicks)
+        assertEquals(listOf(2_500L, 7_500L), rolled.minorTicks)
+    }
+
+    @Test fun windowedTimeAxisAtZeroKeepsTheWholeAxisBehaviour() {
+        assertEquals(ChartAxisScale.timeAxis(10_000, roundUp = false),
+            ChartAxisScale.timeWindowAxis(0, 10_000))
+    }
+
     @Test fun longTimeAxisFallsBackToWholeMinuteSteps() {
         val long = ChartAxisScale.timeAxis(600_000, roundUp = true)
         assertEquals(120_000L, long.stepMs)

@@ -19,12 +19,15 @@ internal object LiveAxisAnimation {
         val ranges: Map<ChartMetric, ChartRange>,
         val steps: Map<ChartMetric, Float>,
         val timeEndMs: Long,
+        /** Realtime window start; 0 for history/comparison. */
+        val timeStartMs: Long = 0L,
     )
 
     fun state(data: FourMetricChartData): AxisState = AxisState(
         ranges = data.series.associate { it.metric to it.range },
         steps = data.series.associate { it.metric to it.step },
         timeEndMs = data.timeEndMs,
+        timeStartMs = data.timeStartMs,
     )
 
     /** True when [current] already targets exactly [target], so a running animation can finish. */
@@ -44,7 +47,8 @@ internal object LiveAxisAnimation {
             val start = from.steps[metric] ?: return@mapValues target
             max(lerp(start, target, f), MIN_STEP)
         }
-        return AxisState(ranges, steps, lerpTime(from.timeEndMs, to.timeEndMs, f))
+        return AxisState(ranges, steps, lerpTime(from.timeEndMs, to.timeEndMs, f),
+            lerpTime(from.timeStartMs, to.timeStartMs, f))
     }
 
     /**
@@ -58,6 +62,7 @@ internal object LiveAxisAnimation {
                 series.copy(range = range, step = state.steps[series.metric] ?: series.step)
             },
             timeEndMs = state.timeEndMs,
+            timeStartMs = state.timeStartMs,
         )
 
     private fun lerp(start: Float, end: Float, fraction: Float): Float =
