@@ -94,21 +94,19 @@ internal object FourMetricChartProjection {
         val referenceEnd = if (!liveFlow || referenceDrivesLiveAxes)
             reference.lastOrNull()?.elapsedMs ?: 0L else 0L
         val observedEnd = maxOf(1000L, points.lastOrNull()?.elapsedMs ?: 0L, referenceEnd)
-        // The realtime chart shows a fixed 10 s window: the first 10 s fill from the left and then
-        // the window scrolls, keeping the newest observation pinned to the right edge. An idle
-        // preview with no current observation still shows the full reference cup from zero.
+        // The realtime chart keeps the whole cup visible: a 10 s minimum end, then continuous
+        // scale-out as the observed duration grows. An idle preview with no current observation
+        // still shows the full reference cup from zero.
         val timeStart: Long
         val timeEnd: Long
         if (liveFlow) {
-            if (referenceDrivesLiveAxes) {
-                // Idle preview: show the whole previous reference cup (one static switch when the
-                // first current observation starts the scrolling window).
-                timeStart = 0L
-                timeEnd = maxOf(10_000L, reference.lastOrNull()?.elapsedMs ?: 0L)
-            } else {
-                timeEnd = maxOf(10_000L, points.lastOrNull()?.elapsedMs ?: 0L)
-                timeStart = if (timeEnd > 10_000L) timeEnd - 10_000L else 0L
-            }
+            // The realtime time axis always starts at 0: the first 10 s stay 0-10 and after that
+            // the end continuously follows the observed duration, so the whole cup stays visible
+            // and is smoothly compressed instead of the window scrolling.
+            timeStart = 0L
+            timeEnd = if (referenceDrivesLiveAxes)
+                maxOf(10_000L, reference.lastOrNull()?.elapsedMs ?: 0L)
+            else maxOf(10_000L, points.lastOrNull()?.elapsedMs ?: 0L)
         } else {
             // Historical/comparison charts snap the whole-cup end to a readable time step.
             timeStart = 0L

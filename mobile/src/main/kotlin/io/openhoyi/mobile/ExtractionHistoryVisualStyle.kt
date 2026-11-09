@@ -219,7 +219,7 @@ internal class ProductHistoryChartRenderer(private val context: Context, private
         // grid, labels and the plotted data share exactly the same x mapping.
         val timeStart = data.timeStartMs
         val timeSpan = (timeEnd - timeStart).coerceAtLeast(1L)
-        val timeAxis = ChartAxisScale.timeWindowAxis(timeStart, timeEnd)
+        val timeAxis = ChartAxisScale.timeAxis(timeEnd, roundUp = false)
         fun timePx(ms: Long): Float =
             box.left + box.width() * ((ms - timeStart).toDouble() / timeSpan).toFloat()
         val timeLabels = mutableListOf<Label>()

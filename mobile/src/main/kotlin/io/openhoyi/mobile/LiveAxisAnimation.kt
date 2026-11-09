@@ -14,6 +14,28 @@ import kotlin.math.roundToLong
 internal object LiveAxisAnimation {
     /** Kept within the requested 350-450 ms range and short enough not to slow the UI timer. */
     const val DURATION_MS = 380L
+    /** A time-only scroll matches the observation cadence so the left move stays uniform. */
+    const val SCROLL_MIN_MS = 200L
+    const val SCROLL_MAX_MS = 300L
+
+    /** How a new axis target should be animated. */
+    enum class TransitionKind { NONE, SCROLL, RANGE }
+
+    data class Transition(val kind: TransitionKind, val durationMs: Long)
+
+    /**
+     * A time-window-only change (the y ranges and steps are identical) scrolls with a constant
+     * cadence; any y-axis change keeps the 380 ms decelerating transition.
+     */
+    fun transition(from: AxisState, to: AxisState, updateGapMs: Long): Transition {
+        if (from == to) return Transition(TransitionKind.NONE, 0L)
+        val timeOnly = from.ranges == to.ranges && from.steps == to.steps
+        return if (timeOnly) Transition(TransitionKind.SCROLL, scrollDurationMs(updateGapMs))
+        else Transition(TransitionKind.RANGE, DURATION_MS)
+    }
+
+    /** Linear scroll duration aligned with the observation cadence, clamped to 200-300 ms. */
+    fun scrollDurationMs(updateGapMs: Long): Long = updateGapMs.coerceIn(SCROLL_MIN_MS, SCROLL_MAX_MS)
 
     data class AxisState(
         val ranges: Map<ChartMetric, ChartRange>,

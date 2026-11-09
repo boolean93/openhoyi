@@ -94,24 +94,34 @@ class LiveAxisAnimationTest {
         assertEquals(11_250L, redirected.timeEndMs)
     }
 
-    private fun dataAt(startMs: Long, endMs: Long, vararg series: MetricChartSeries) =
-        FourMetricChartData(series.toList(), observedThroughMs = endMs, timeEndMs = endMs,
-            waterResetsMs = emptyList(), referenceWaterResetsMs = emptyList(), timeStartMs = startMs)
+    private fun windowState(startMs: Long, endMs: Long,
+        pressure: ChartRange = ChartRange(0f, 8f)) =
+        LiveAxisAnimation.AxisState(mapOf(ChartMetric.PRESSURE to pressure),
+            mapOf(ChartMetric.PRESSURE to 2f), endMs, startMs)
 
-    @Test fun windowStartInterpolatesTogetherWithTheEnd() {
-        val from = LiveAxisAnimation.state(dataAt(0, 10_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
-        val to = LiveAxisAnimation.state(dataAt(15_000, 25_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
-        val mid = LiveAxisAnimation.interpolate(from, to, 0.5f)
-        assertEquals(7_500L, mid.timeStartMs)
-        assertEquals(17_500L, mid.timeEndMs)
-        assertEquals(7_500L, LiveAxisAnimation.apply(dataAt(15_000, 25_000,
-            series(ChartMetric.PRESSURE, 0f, 8f, 2f)), mid).timeStartMs)
+    @Test fun timeOnlyChangesScrollLinearlyWithTheObservationCadence() {
+        val from = windowState(0, 10_000)
+        val to = windowState(1_000, 11_000)
+        val plan = LiveAxisAnimation.transition(from, to, 250)
+        assertEquals(LiveAxisAnimation.TransitionKind.SCROLL, plan.kind)
+        assertEquals(250L, plan.durationMs)
+        assertEquals(200L, LiveAxisAnimation.transition(from, to, 50).durationMs)
+        assertEquals(300L, LiveAxisAnimation.transition(from, to, 900).durationMs)
+        assertEquals(250L, LiveAxisAnimation.scrollDurationMs(250))
     }
 
-    @Test fun sameTargetIncludesTheWindowStart() {
-        val a = LiveAxisAnimation.state(dataAt(0, 10_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
-        val b = LiveAxisAnimation.state(dataAt(1_000, 11_000, series(ChartMetric.PRESSURE, 0f, 8f, 2f)))
-        assertFalse(LiveAxisAnimation.sameTarget(a, b))
+    @Test fun valueChangesUseTheDeceleratingRangeTransition() {
+        val from = windowState(0, 10_000, ChartRange(0f, 2f))
+        val to = windowState(1_000, 11_000, ChartRange(0f, 8f))
+        val plan = LiveAxisAnimation.transition(from, to, 250)
+        assertEquals(LiveAxisAnimation.TransitionKind.RANGE, plan.kind)
+        assertEquals(LiveAxisAnimation.DURATION_MS, plan.durationMs)
+    }
+
+    @Test fun identicalAxesNeedNoTransition() {
+        val state = windowState(1_000, 11_000)
+        assertEquals(LiveAxisAnimation.TransitionKind.NONE,
+            LiveAxisAnimation.transition(state, state, 250).kind)
     }
 
     @Test fun animationDurationStaysInTheRequestedSmoothRange() {

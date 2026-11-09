@@ -48,9 +48,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             val now = android.os.SystemClock.elapsedRealtime()
             val updateGap = lastPointUpdateAt?.let { now - it } ?: 250L
             if (value != old) lastPointUpdateAt = now
+            lastUpdateGapMs = updateGap
             if (pendingTraceReset) {
                 // The Activity sets a new cup identity before replacing its points; once the new
-                // observations arrive the fresh 0-10 s window is applied without animation.
+                // observations arrive the fresh 0-10 s window is applied. An attached idle preview
+                // may animate into it, probes/other contexts snap.
                 pendingTraceReset = false
                 snapAxisOnNextBuild = true
             }
@@ -132,6 +134,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private var axisAnimator: android.animation.ValueAnimator? = null
     private var pendingTraceReset = false
     private var snapAxisOnNextBuild = false
+    private var lastUpdateGapMs = 250L
     private fun stopRevealTransition() {
         val oldRender = renderAnimator
         renderAnimator = null
@@ -205,18 +208,23 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         val from = renderedAxisState()
         if (axisAnimator != null) cancelAxisAnimation()
         if (LiveAxisAnimation.sameTarget(from, to)) { snapAxis(target); return }
-        startAxisAnimation(from, to, target)
+        val plan = LiveAxisAnimation.transition(from, to, lastUpdateGapMs)
+        if (plan.kind == LiveAxisAnimation.TransitionKind.NONE) { snapAxis(target); return }
+        startAxisAnimation(from, to, target, plan)
     }
 
     private fun startAxisAnimation(from: LiveAxisAnimation.AxisState,
-        to: LiveAxisAnimation.AxisState, target: FourMetricChartData) {
+        to: LiveAxisAnimation.AxisState, target: FourMetricChartData,
+        plan: LiveAxisAnimation.Transition) {
         cancelAxisAnimation()
         axisTargetState = to
         axisLatestTarget = target
         data = LiveAxisAnimation.apply(target, from)
         val animator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
-            duration = LiveAxisAnimation.DURATION_MS
-            interpolator = android.view.animation.DecelerateInterpolator()
+            duration = plan.durationMs
+            interpolator = if (plan.kind == LiveAxisAnimation.TransitionKind.SCROLL)
+                android.view.animation.LinearInterpolator()
+            else android.view.animation.DecelerateInterpolator()
             addUpdateListener { animation ->
                 val state = LiveAxisAnimation.interpolate(from, to, animation.animatedValue as Float)
                 renderedRanges = state.ranges
@@ -413,7 +421,7 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         // previousRanges tracks the committed target only; animation frames never feed back.
         previousRanges = target.series.associate { it.metric to it.range }
         // Snap for static contexts, unattached probes, identity/selection changes and the first
-        // observation; only progress-driven live changes animate.
+        // observation; progress-driven live changes animate.
         val snap = !liveChart || !isAttachedToWindow || snapAxisOnNextBuild ||
             data.observedThroughMs == null || target.observedThroughMs == null
         snapAxisOnNextBuild = false

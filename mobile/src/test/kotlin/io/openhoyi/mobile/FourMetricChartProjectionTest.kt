@@ -297,26 +297,25 @@ class FourMetricChartProjectionTest {
             history.series(ChartMetric.PRESSURE).range.high >= 9f)
     }
 
-    @Test fun liveTimeWindowFillsToTenSecondsThenScrolls() {
+    @Test fun liveTimeAxisStartsAtTenSecondsThenFollowsTheObservedDuration() {
         fun window(ms: Long): Pair<Long, Long> {
             val data = FourMetricChartProjection.build(listOf(point(ms)), emptyList(), liveFlow = true)
             return data.timeStartMs to data.timeEndMs
         }
         assertEquals(0L to 10_000L, window(5_000))
-        assertEquals(2_000L to 12_000L, window(12_000))
-        assertEquals(15_000L to 25_000L, window(25_000))
-        assertEquals(10_000L, window(9_999).second)
-        assertEquals(0L, window(9_999).first)
+        assertEquals(0L to 10_000L, window(9_999))
+        assertEquals(0L to 12_000L, window(12_000))
+        assertEquals(0L to 25_000L, window(25_000))
+        assertEquals(0L to 31_500L, window(31_500))
     }
 
-    @Test fun liveTimeWindowEndIsMonotonicAndAlwaysTenSecondsWideAfterTenSeconds() {
+    @Test fun liveTimeEndIsMonotonicAndAtLeastTenSeconds() {
         var previousEnd = 0L
-        for (elapsedMs in listOf(0L, 2_000L, 5_000L, 10_000L, 12_500L, 20_000L, 33_333L, 60_000L)) {
+        for (elapsedMs in listOf(0L, 2_000L, 5_000L, 10_000L, 12_500L, 20_000L, 31_500L, 60_000L)) {
             val data = FourMetricChartProjection.build(listOf(point(elapsedMs)), emptyList(), liveFlow = true)
-            assertTrue("end must not move backwards at $elapsedMs",
-                data.timeEndMs >= previousEnd)
-            assertTrue("window must be 10 s wide once elapsed: $elapsedMs",
-                data.timeEndMs - data.timeStartMs >= 10_000L)
+            assertEquals(0L, data.timeStartMs)
+            assertEquals(maxOf(10_000L, elapsedMs), data.timeEndMs)
+            assertTrue("end must not move backwards at $elapsedMs", data.timeEndMs >= previousEnd)
             previousEnd = data.timeEndMs
         }
     }
