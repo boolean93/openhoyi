@@ -219,6 +219,11 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
                 check(frame.mode == TaskNavigationMode.RAIL)
                 val scroll = frame.findViewWithTag<android.widget.ScrollView>("task-rail-scroll")
                 val column = scroll.getChildAt(0) as android.widget.LinearLayout
+                val inset = if (activity.resources.configuration.smallestScreenWidthDp >= 600) HoyiUi.dp(activity, 4) else 0
+                val contentWidth = HoyiUi.dp(activity, 104)
+                check(scroll.paddingLeft == inset && scroll.paddingRight == inset)
+                check(scroll.width == contentWidth + 2 * inset && column.width == contentWidth)
+                check(frame.navigation.width == contentWidth && status.width == contentWidth) { "Rail content width changed" }
                 check(status.parent === column && frame.navigation.parent === column) { "Devices left the navigation rail" }
                 check(status.top >= frame.navigation.bottom && scroll.right <= frame.pageContent.left)
                 if (heightDp == 668) check(column.height <= scroll.height) { "Tablet rail should fit without scrolling" }

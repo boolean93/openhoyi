@@ -12,7 +12,10 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
     val pageContent = LinearLayout(activity).apply { orientation = VERTICAL }
     val navigation = if (onDestination === NO_ACTION) TaskNavigationView(activity, productVisualStyle)
         else TaskNavigationView(activity, productVisualStyle, destinationProvider, onDestination)
-    private val railScroll = ScrollView(activity).apply { tag = "task-rail-scroll"; isFillViewport = true }
+    private val railScroll = ScrollView(activity).apply {
+        tag = "task-rail-scroll"; isFillViewport = true
+        setBackgroundColor(activity.getColor(R.color.task_shell_surface))
+    }
     private val railColumn = LinearLayout(activity).apply { tag = "task-rail-column"; orientation = VERTICAL }
     private var shellStatus: View? = null
     private val fallbackTools = TaskNavigationView.createToolsHost(activity, if (onDestination === NO_ACTION) { destination ->
@@ -71,6 +74,11 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
             (policy.toolsInTopBar || policy.navigation == TaskNavigationMode.RAIL && fullRailHeight > height)
         mode = policy.navigation
         toolsInTopBar = compactTools
+        val railInset = if (allDestinations && activity is MainActivity && mode == TaskNavigationMode.RAIL &&
+            resources.configuration.smallestScreenWidthDp >= 600) HoyiUi.dp(activity, 4) else 0
+        val railOuterWidth = HoyiUi.dp(activity, railWidthDp) + 2 * railInset
+        if (railScroll.paddingLeft != railInset || railScroll.paddingRight != railInset)
+            railScroll.setPadding(railInset, 0, railInset, 0)
         val statusHeight = if (mode == TaskNavigationMode.RAIL)
             (shellStatus as? TaskShellStatusView)?.requiredRailHeight(HoyiUi.dp(activity, railWidthDp)) ?: 0 else 0
         navigation.render(mode, allDestinations || mode == TaskNavigationMode.RAIL && !compactTools,
@@ -85,13 +93,15 @@ internal class TaskPageFrame private constructor(private val activity: Activity,
             orientation = if (mode == TaskNavigationMode.RAIL) HORIZONTAL else VERTICAL
             if (mode == TaskNavigationMode.RAIL) {
                 railColumn.addView(navigation, 0, LayoutParams(-1, 0, 1f))
-                addView(railScroll, LayoutParams(HoyiUi.dp(activity, railWidthDp), -1))
+                addView(railScroll, LayoutParams(railOuterWidth, -1))
                 addView(pageContent, LayoutParams(0, -1, 1f))
             } else {
                 addView(pageContent, LayoutParams(-1, 0, 1f))
                 addView(navigation, LayoutParams(-1, -2))
             }
         }
+        if (mode == TaskNavigationMode.RAIL && railScroll.layoutParams.width != railOuterWidth)
+            railScroll.layoutParams = LayoutParams(railOuterWidth, -1)
         shellStatus?.let { status ->
             val railStatus = mode == TaskNavigationMode.RAIL
             val target = if (railStatus) railColumn else pageContent
