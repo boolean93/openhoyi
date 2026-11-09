@@ -84,7 +84,16 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
                 test.runOnMainSync {
                     val services = mutableListOf<MobileService>()
                     var hub: NativeDeviceHub? = null
+                    val autoOwner = app.autoConnect
+                    val autoPrefs = field(autoOwner, "prefs")
+                    val autoSession = field(autoOwner, "session")
+                    val originalAutoPrefs = autoPrefs.get(autoOwner)
+                    val originalAutoSession = autoSession.get(autoOwner)
+                    val fixtureSession = DeviceUseSession(DeviceUseSession.Saved(1,
+                        DeviceUseSession.Stamp(0, 0, 0), coffeePaused = true, scalePaused = false))
                     try {
+                        autoPrefs.set(autoOwner, devicesPrefs)
+                        autoSession.set(autoOwner, fixtureSession)
                         fun attach(): MobileService = MobileService().also { instance ->
                             services += instance
                             ContextWrapper::class.java.getDeclaredMethod("attachBaseContext", Context::class.java)
@@ -289,16 +298,29 @@ internal class ServiceWriteDisconnectionChecks(private val test: Instrumentation
                             else before.getValue("devices")) {
                             "Detached reconnect changed unexpected device memory or suppression fields"
                         }
+                        check(fixtureSession.saved?.coffeePaused == !replaced) {
+                            "Only a successful explicit reconnect may resume this fixture's coffee session"
+                        }
                         check(systemLookups == 0 && permissionChecks == 0 && componentCalls == 0)
                         checkedFixtures++
                     } catch (error: Throwable) { failure = error }
                     finally {
-                        hub?.let { owner ->
-                            listOf("coffee", "scale").forEach { name -> runCatching { hubDevice(owner, name).close() } }
-                            runCatching { owner.scanner.close() }
-                            (field(owner, "handler").get(owner) as Handler).removeCallbacks(field(owner, "ticker").get(owner) as Runnable)
+                        try {
+                            hub?.let { owner ->
+                                listOf("coffee", "scale").forEach { name -> runCatching { hubDevice(owner, name).close() } }
+                                runCatching { owner.scanner.close() }
+                                (field(owner, "handler").get(owner) as Handler).removeCallbacks(field(owner, "ticker").get(owner) as Runnable)
+                            }
+                            services.forEach { (field(it, "handler").get(it) as Handler).removeCallbacksAndMessages(null) }
+                        } finally {
+                            try {
+                                autoPrefs.set(autoOwner, originalAutoPrefs)
+                                check(autoPrefs.get(autoOwner) === originalAutoPrefs)
+                            } finally {
+                                autoSession.set(autoOwner, originalAutoSession)
+                                check(autoSession.get(autoOwner) === originalAutoSession)
+                            }
                         }
-                        services.forEach { (field(it, "handler").get(it) as Handler).removeCallbacksAndMessages(null) }
                     }
                 }
                 check(systemLookups == 0 && permissionChecks == 0 && componentCalls == 0)
