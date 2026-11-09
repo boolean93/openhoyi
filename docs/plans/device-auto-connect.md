@@ -40,6 +40,7 @@
 - 新增每角色长期 autoEnabled（默认 true），与 session pause 分离。旧 coffeeAutoSuppressed/scaleAutoSuppressed 是旧“断开”产生的，不可迁成永久 autoEnabled=false；兼容迁为本次暂停，保证后续新会话可恢复。不得触碰设备未确认写入和萃取恢复记录。
 - SettingsDeviceControls 等现有设备设置入口提供咖啡机/电子秤自动连接开关及简短说明；关闭开关停止自动任务，不主动打断现有 READY 连接或萃取。手动连接允许，但不得隐式改回长期开关。
 - 如接入“忘记设备”，必须沿用/增加统一的安全门禁，取消该目标的自动扫描和连接、清除常用目标，不清除未知恢复记录；若现有代码没有此操作，不为本任务扩张做大型设备管理 UI，但策略必须支持目标移除/替换立即失效。
+- Mock 构建不持久化自动连接会话记账（`DeviceAutoConnectOwner.refresh()` 在 `BuildConfig.MOCK_MODE` 时直接返回）：Mock 没有 BLE，visibility 回调若改写 `devices` 偏好会污染生命周期/语言 instrumentation 的 preserved prefs 检查；只读的 `enabled()`/`paused()` 保持可用，真机行为不变。
 
 ### C. 唯一 Android 调度与扫描所有权（bluetooth-android + mobile）
 
