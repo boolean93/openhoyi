@@ -356,7 +356,9 @@
     <string name="home_permission_required">"连接设备需要蓝牙权限"</string>
     <string name="home_password_hint">"六位设备密码"</string>
     <string name="home_connect_coffee_title">"连接咖啡机"</string>
-    <string name="home_password_message">"首次连接需要输入设备密码。连接成功后会加密保存在本机，下次无需重复输入；连续连接失败时会重新询问。"</string>
+    <string name="home_password_message">"首次连接需要输入设备密码。连接成功后会加密保存在本机，下次无需重复输入。"</string>
+    <string name="home_connect_with_password">"输入密码连接"</string>
+    <string name="service_coffee_credential_unavailable">"暂时无法读取本机保存的密码，请稍后重试。"</string>
     <string name="home_connect">"连接"</string>
     <string name="home_password_error">"请输入六位数字"</string>
     <string name="home_lever_mock">"Mock 版本不修改机器拨杆模式"</string>

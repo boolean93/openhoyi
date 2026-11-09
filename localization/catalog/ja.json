@@ -294,7 +294,7 @@
   "home_permission_required": "デバイス接続にBluetooth権限が必要",
   "home_password_hint": "デバイスの6桁パスワード",
   "home_connect_coffee_title": "コーヒーマシンに接続",
-  "home_password_message": "初回接続時はデバイスのパスワードが必要です。接続後に暗号化して端末内へ保存し、次回は入力不要です。接続失敗が続くと再度尋ねます。",
+  "home_password_message": "初回接続時はデバイスのパスワードが必要です。接続後に暗号化して端末内へ保存し、次回は入力不要です。",
   "home_connect": "接続",
   "home_password_error": "6桁の数字を入力してください",
   "home_lever_mock": "Mock版はマシンのレバーモードを変更しません",
@@ -959,5 +959,7 @@
   "settings_section_schedule": "待機とスケジュール",
   "settings_section_feedback": "抽出フィードバック",
   "settings_section_maintenance": "メンテナンスと診断",
-  "settings_section_about": "アプリについて"
+  "settings_section_about": "アプリについて",
+  "home_connect_with_password": "パスワードを入力して接続",
+  "service_coffee_credential_unavailable": "保存されたパスワードを一時的に読み込めません。しばらくしてから再試行してください。"
 }

@@ -298,6 +298,7 @@
     <string name="home_coffee_status">"Coffee machine · %1$s%2$s"</string>
     <string name="home_connect">"Connect"</string>
     <string name="home_connect_coffee_title">"Connect coffee machine"</string>
+    <string name="home_connect_with_password">"Connect with password"</string>
     <string name="home_connected">"Connected"</string>
     <string name="home_controls_collapse">"Collapse device controls"</string>
     <string name="home_controls_expand">"Expand device controls"</string>
@@ -333,7 +334,7 @@
     <string name="home_not_connected_initial">"Not connected yet"</string>
     <string name="home_password_error">"Enter six digits"</string>
     <string name="home_password_hint">"Six-digit device password"</string>
-    <string name="home_password_message">"Enter the device password for the first connection. After a successful connection, it is encrypted and saved locally for future connections; repeated connection failures will prompt for it again."</string>
+    <string name="home_password_message">"Enter the device password for the first connection. After a successful connection, it is encrypted and saved locally for future connections."</string>
     <string name="home_permission_expired">"Bluetooth permission has expired"</string>
     <string name="home_permission_required">"Bluetooth permission is required to connect devices"</string>
     <string name="home_quick_curves">"Quick curves"</string>
@@ -630,6 +631,7 @@
     <string name="recovery_event_sleep_schedule_recovery_waiting">"Connect original coffee machine and wait for two new weekly schedule report parts and awake standby before clearing reminder"</string>
     <string name="service_coffee_connect_failed">"Failed to connect coffee machine: %1$s"</string>
     <string name="service_coffee_connect_remembered">"Connecting coffee machine with locally saved password"</string>
+    <string name="service_coffee_credential_unavailable">"The saved password is temporarily unavailable. Please try again later."</string>
     <string name="service_coffee_mock">"Mock coffee machine ready; no Bluetooth connection"</string>
     <string name="service_connection_cancel_preheat">"Canceling preheat; confirm outcome before switching coffee machine"</string>
     <string name="service_connection_cups_busy">"Waiting for total cup count zero report; cannot switch coffee machine yet"</string>

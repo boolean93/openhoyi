@@ -294,7 +294,7 @@
   "home_permission_required": "เชื่อมต่ออุปกรณ์ต้องมีสิทธิ์บลูทูธ",
   "home_password_hint": "รหัสผ่านอุปกรณ์ 6 หลัก",
   "home_connect_coffee_title": "เชื่อมต่อเครื่องชงกาแฟ",
-  "home_password_message": "การเชื่อมต่อครั้งแรกต้องกรอกรหัสอุปกรณ์ เมื่อเชื่อมต่อสำเร็จจะเข้ารหัสเก็บในเครื่อง ครั้งต่อไปไม่ต้องกรอกซ้ำ หากเชื่อมต่อล้มเหลวหลายครั้งจะถามอีก",
+  "home_password_message": "การเชื่อมต่อครั้งแรกต้องกรอกรหัสอุปกรณ์ เมื่อเชื่อมต่อสำเร็จจะเข้ารหัสเก็บในเครื่อง ครั้งต่อไปไม่ต้องกรอกซ้ำ",
   "home_connect": "เชื่อมต่อ",
   "home_password_error": "ป้อนตัวเลข 6 หลัก",
   "home_lever_mock": "เวอร์ชัน Mock ไม่แก้โหมดคันโยกเครื่อง",
@@ -959,5 +959,7 @@
   "settings_section_schedule": "สแตนด์บายและกำหนดเวลา",
   "settings_section_feedback": "ผลตอบรับการชง",
   "settings_section_maintenance": "การบำรุงรักษาและการวินิจฉัย",
-  "settings_section_about": "เกี่ยวกับ"
+  "settings_section_about": "เกี่ยวกับ",
+  "home_connect_with_password": "เชื่อมต่อด้วยรหัสผ่าน",
+  "service_coffee_credential_unavailable": "ไม่สามารถอ่านรหัสผ่านที่บันทึกไว้ได้ชั่วคราว โปรดลองอีกครั้งภายหลัง"
 }
