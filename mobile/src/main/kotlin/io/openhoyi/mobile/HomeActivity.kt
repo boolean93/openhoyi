@@ -603,7 +603,7 @@ class HomeActivity : ThemedActivity() {
             return
         }
         if (device.candidateRole == DeviceRole.BOOKOO) { device.scaleProtocolId?.let { service?.connectScale(device.address, it) }; return }
-        if (service?.connectRememberedCoffee(device.address) == true) return
+        if (service?.connectRememberedCoffee(device.address) != RememberedCoffeeConnection.PASSWORD_REQUIRED) return
         val input = EditText(this).apply {
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
             filters = arrayOf(InputFilter.LengthFilter(6)); hint = getString(R.string.home_password_hint)

@@ -298,6 +298,7 @@
     <string name="home_coffee_status">"Кофемашина · %1$s%2$s"</string>
     <string name="home_connect">"Подключить"</string>
     <string name="home_connect_coffee_title">"Подключить кофемашину"</string>
+    <string name="home_connect_with_password">"Подключиться с паролем"</string>
     <string name="home_connected">"Подключено"</string>
     <string name="home_controls_collapse">"Свернуть управление устройствами"</string>
     <string name="home_controls_expand">"Развернуть управление устройствами"</string>
@@ -333,7 +334,7 @@
     <string name="home_not_connected_initial">"Ещё не подключено"</string>
     <string name="home_password_error">"Введите шесть цифр"</string>
     <string name="home_password_hint">"Шестизначный пароль устройства"</string>
-    <string name="home_password_message">"При первом подключении введите пароль устройства. После успешного подключения он сохраняется локально в зашифрованном виде, и вводить его снова не нужно. После нескольких неудачных подключений пароль будет запрошен снова."</string>
+    <string name="home_password_message">"При первом подключении введите пароль устройства. После успешного подключения он сохраняется локально в зашифрованном виде, и вводить его снова не нужно."</string>
     <string name="home_permission_expired">"Разрешение Bluetooth утратило силу"</string>
     <string name="home_permission_required">"Для подключения устройств требуется разрешение Bluetooth"</string>
     <string name="home_quick_curves">"Быстрые профили"</string>
@@ -630,6 +631,7 @@
     <string name="recovery_event_sleep_schedule_recovery_waiting">"Подключите ту же кофемашину и дождитесь двух новых частей недельного расписания и бодрствующего ожидания перед удалением уведомления"</string>
     <string name="service_coffee_connect_failed">"Не удалось подключить кофемашину: %1$s"</string>
     <string name="service_coffee_connect_remembered">"Подключение кофемашины с локально сохранённым паролем"</string>
+    <string name="service_coffee_credential_unavailable">"Сохранённый пароль временно недоступен. Повторите попытку позже."</string>
     <string name="service_coffee_mock">"Кофемашина Mock готова; Bluetooth не подключён"</string>
     <string name="service_connection_cancel_preheat">"Нагрев отменяется; подтвердите результат перед сменой кофемашины"</string>
     <string name="service_connection_cups_busy">"Ожидание ответа об обнулении счётчика чашек; смена кофемашины пока недоступна"</string>

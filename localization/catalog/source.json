@@ -1,6 +1,6 @@
 {
   "source": "mobile/src/main/res/values/strings.xml",
-  "sha256": "21fe00efa6168ec1b46f8e1405e1d406b95f7cd70cd682db893a7e4f18ca37fb",
+  "sha256": "811cbd09d6d43a1240284412881931c15ed03967686f3204f2aa24528ba54e89",
   "strings": {
     "app_name": "OpenHOYI",
     "theme_dark_mode": "深色模式",
@@ -312,7 +312,7 @@
     "home_permission_required": "连接设备需要蓝牙权限",
     "home_password_hint": "六位设备密码",
     "home_connect_coffee_title": "连接咖啡机",
-    "home_password_message": "首次连接需要输入设备密码。连接成功后会加密保存在本机，下次无需重复输入；连续连接失败时会重新询问。",
+    "home_password_message": "首次连接需要输入设备密码。连接成功后会加密保存在本机，下次无需重复输入。",
     "home_connect": "连接",
     "home_password_error": "请输入六位数字",
     "home_lever_mock": "Mock 版本不修改机器拨杆模式",
@@ -962,6 +962,8 @@
     "settings_section_schedule": "待机与计划",
     "settings_section_feedback": "萃取反馈",
     "settings_section_maintenance": "维护与诊断",
-    "settings_section_about": "关于"
+    "settings_section_about": "关于",
+    "home_connect_with_password": "输入密码连接",
+    "service_coffee_credential_unavailable": "暂时无法读取本机保存的密码，请稍后重试。"
   }
 }
