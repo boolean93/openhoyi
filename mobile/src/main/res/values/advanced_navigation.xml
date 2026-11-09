@@ -1,3 +1,4 @@
 <resources>
     <string name="ui_beans">豆子</string>
+    <string name="task_scale_bottom_tab">秤</string>
 </resources>

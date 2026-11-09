@@ -1,0 +1,9 @@
+<resources>
+    <color name="task_shell_surface">#171E20</color>
+    <color name="task_shell_ink">#F3F1EA</color>
+    <color name="task_shell_muted">#B5C6C1</color>
+    <color name="task_shell_card">#1D292B</color>
+    <color name="task_shell_border">#516B66</color>
+    <color name="task_shell_disabled">#293434</color>
+    <color name="task_shell_disabled_ink">#81958F</color>
+</resources>

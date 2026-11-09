@@ -7,7 +7,6 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.RippleDrawable
-import android.graphics.drawable.StateListDrawable
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
@@ -35,17 +34,19 @@ internal class TaskShellStatusView(
     onDisconnectScale: () -> Unit,
 ) : LinearLayout(host) {
     private val style = TaskProductVisualStyle(host)
+    private val chrome = TaskShellVisualStyle(host)
     private var mode: TaskNavigationMode? = null
     private val divider = View(host).apply { tag = "task-shell-divider"; setBackgroundColor(style.border) }
     private fun statusText(id: String, ink: Boolean = false) = TextView(host).apply {
         tag = id
         style.apply(this, TaskProductVisualStyle.Type(14, if (ink) 500 else 400, 20), !ink)
+        setTextColor(if (ink) chrome.ink else chrome.muted)
         gravity = Gravity.CENTER; setSingleLine(false); maxLines = Int.MAX_VALUE; ellipsize = null
     }
     private fun group(id: String) = LinearLayout(host).apply {
         tag = id; orientation = VERTICAL; gravity = Gravity.CENTER_HORIZONTAL
         setPadding(0, style.dp(4), 0, style.dp(4))
-        background = style.shape(style.selected, radius = 10)
+        background = chrome.cardBackground()
     }
     private val coffeeGroup = group("task-shell-coffee-group")
     private val scaleGroup = group("task-shell-scale-group")
@@ -53,6 +54,20 @@ internal class TaskShellStatusView(
     private val coffeeStatus = statusText("task-shell-coffee-status")
     private val scaleName = statusText("task-shell-scale-name", true).apply { text = host.getString(R.string.home_scale) }
     private val scaleStatus = statusText("task-shell-scale")
+    private fun facts(id: String, name: TextView, status: TextView) = LinearLayout(host).apply {
+        tag = id; orientation = VERTICAL; gravity = Gravity.CENTER
+        minimumHeight = style.dp(48)
+        isClickable = true; isFocusable = true
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        background = RippleDrawable(ColorStateList.valueOf(style.border), null,
+            style.shape(android.graphics.Color.WHITE, radius = 8))
+        name.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        status.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        addView(name, LayoutParams(-1, -2)); addView(status, LayoutParams(-1, -2))
+        setOnClickListener { host.openSettingsSection("devices") }
+    }
+    private val coffeeFacts = facts("task-shell-coffee-facts", coffeeName, coffeeStatus)
+    private val scaleFacts = facts("task-shell-scale-facts", scaleName, scaleStatus)
     private fun action(id: String, click: () -> Unit) = Button(host).apply {
         tag = id; style.button(this); setOnClickListener { click() }
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
@@ -62,11 +77,7 @@ internal class TaskShellStatusView(
             .coerceAtLeast(0).toFloat(), 1f)
         isSingleLine = false; maxLines = Int.MAX_VALUE; ellipsize = null
         gravity = Gravity.CENTER; minHeight = style.dp(48); minimumHeight = style.dp(48)
-        background = StateListDrawable().apply {
-            addState(intArrayOf(-android.R.attr.state_enabled), style.shape(style.disabled, true, 8))
-            addState(intArrayOf(), RippleDrawable(ColorStateList.valueOf(style.selected),
-                style.shape(style.surface, true, 8), style.shape(android.graphics.Color.WHITE, radius = 8)))
-        }
+        chrome.action(this)
         setPadding(style.dp(4), style.dp(4), style.dp(4), style.dp(4))
     }
     private val sleep = action("task-shell-sleep", onSleep)
@@ -80,12 +91,10 @@ internal class TaskShellStatusView(
     private var disconnectIcon = ""
 
     init {
-        setBackgroundColor(style.surface)
-        coffeeGroup.addView(coffeeName, LayoutParams(-1, -2))
-        coffeeGroup.addView(coffeeStatus, LayoutParams(-1, -2))
+        setBackgroundColor(chrome.surface)
+        coffeeGroup.addView(coffeeFacts, LayoutParams(-1, -2))
         coffeeGroup.addView(sleep, actionParams())
-        scaleGroup.addView(scaleName, LayoutParams(-1, -2))
-        scaleGroup.addView(scaleStatus, LayoutParams(-1, -2))
+        scaleGroup.addView(scaleFacts, LayoutParams(-1, -2))
         scaleGroup.addView(reconnect, actionParams())
         scaleGroup.addView(disconnect, actionParams())
         renderMode(TaskNavigationMode.BOTTOM)
@@ -117,7 +126,7 @@ internal class TaskShellStatusView(
         if (button === sleep && sleepIcon == kind || button === reconnect && reconnectIcon == kind ||
             button === disconnect && disconnectIcon == kind) return
         val drawable = HomeVisualIcon.drawable(host, kind, button.currentTextColor,
-            currentTint = { button.currentTextColor }).apply { setBounds(0, 0, style.dp(20), style.dp(20)) }
+            currentTint = { button.currentTextColor }, strokeDp = chrome.iconStrokeDp, solidAccents = chrome.solidIcons).apply { setBounds(0, 0, style.dp(20), style.dp(20)) }
         val label = button.text.toString().removePrefix("\uFFFC")
         button.text = SpannableString("\uFFFC$label").apply {
             setSpan(ActionIconSpan(button, drawable), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -138,6 +147,20 @@ internal class TaskShellStatusView(
         if (tooltipText?.toString() != value) tooltipText = value
     }
 
+    private fun typography(rail: Boolean) {
+        fun metrics(view: TextView, size: Int, lineSp: Int) {
+            view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size.toFloat())
+            val line = style.sp(lineSp).toInt()
+            if (android.os.Build.VERSION.SDK_INT >= 28) view.setLineHeight(line)
+            else view.setLineSpacing((line - view.paint.fontMetricsInt.descent + view.paint.fontMetricsInt.ascent)
+                .coerceAtLeast(0).toFloat(), 1f)
+            if (view !is Button) view.minHeight = line
+        }
+        listOf(coffeeName, scaleName).forEach { metrics(it, if (rail) 16 else 14, if (rail) 24 else 20) }
+        listOf(coffeeStatus, scaleStatus).forEach { metrics(it, if (rail) 15 else 14, if (rail) 22 else 20) }
+        listOf(sleep, reconnect, disconnect).forEach { metrics(it, if (rail) 16 else 14, if (rail) 24 else 20) }
+    }
+
     /** Rail eligibility must be independent of the currently attached fallback arrangement. */
     fun requiredRailHeight(width: Int): Int {
         val inner = (width - style.dp(16)).coerceAtLeast(0)
@@ -146,29 +169,30 @@ internal class TaskShellStatusView(
             view.measure(MeasureSpec.makeMeasureSpec(available.coerceAtLeast(0), MeasureSpec.EXACTLY), heightSpec)
             return view.measuredHeight
         }
-        fun groupHeight(name: TextView, status: TextView, vararg actions: Button): Int =
-            style.dp(8) + natural(name, inner) + natural(status, inner) + style.dp(4) +
+        fun groupHeight(facts: LinearLayout, name: TextView, status: TextView, vararg actions: Button): Int =
+            style.dp(8) + maxOf(facts.minimumHeight, natural(name, inner) + natural(status, inner)) + style.dp(4) +
                 (actions.filter { it.visibility != GONE }.maxOfOrNull { natural(it, inner - style.dp(8)) } ?: 0)
-        return style.dp(29 + 8) + groupHeight(coffeeName, coffeeStatus, sleep) +
-            groupHeight(scaleName, scaleStatus, reconnect, disconnect)
+        val temporaryRailTypography = mode != TaskNavigationMode.RAIL
+        if (temporaryRailTypography) typography(true)
+        return try {
+            style.dp(29 + 8) + groupHeight(coffeeFacts, coffeeName, coffeeStatus, sleep) +
+                groupHeight(scaleFacts, scaleName, scaleStatus, reconnect, disconnect)
+        } finally { if (temporaryRailTypography) typography(false) }
     }
 
-    private fun arrangeGroup(group: LinearLayout, name: TextView, status: TextView, vararg actions: Button) {
+    private fun arrangeGroup(group: LinearLayout, facts: LinearLayout, vararg actions: Button) {
         // Reparent only on a presentation transition; the labels and action instances stay stable.
-        listOf(name, status, *actions).forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        listOf(facts, *actions).forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
         group.removeAllViews()
         val rail = mode == TaskNavigationMode.RAIL
         group.orientation = if (rail) VERTICAL else HORIZONTAL
         group.gravity = Gravity.CENTER_VERTICAL
         if (rail) {
-            group.addView(name, LayoutParams(-1, -2))
-            group.addView(status, LayoutParams(-1, -2))
+            facts.setPadding(0, 0, 0, 0)
+            group.addView(facts, LayoutParams(-1, -2))
             actions.forEach { group.addView(it, actionParams()) }
         } else {
-            val facts = LinearLayout(host).apply {
-                orientation = VERTICAL; setPadding(style.dp(8), 0, style.dp(8), 0)
-            }
-            facts.addView(name, LayoutParams(-1, -2)); facts.addView(status, LayoutParams(-1, -2))
+            facts.setPadding(style.dp(8), 0, style.dp(8), 0)
             group.addView(facts, LayoutParams(0, -2, 1f))
             actions.forEach { group.addView(it, LayoutParams(-2, -2).apply { marginEnd = style.dp(4) }) }
         }
@@ -176,9 +200,9 @@ internal class TaskShellStatusView(
 
     fun renderMode(next: TaskNavigationMode) {
         if (mode == next) return
-        mode = next; removeAllViews()
-        arrangeGroup(coffeeGroup, coffeeName, coffeeStatus, sleep)
-        arrangeGroup(scaleGroup, scaleName, scaleStatus, reconnect, disconnect)
+        mode = next; typography(next == TaskNavigationMode.RAIL); removeAllViews()
+        arrangeGroup(coffeeGroup, coffeeFacts, sleep)
+        arrangeGroup(scaleGroup, scaleFacts, reconnect, disconnect)
         orientation = if (next == TaskNavigationMode.RAIL) VERTICAL else HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setPadding(style.dp(8), if (next == TaskNavigationMode.RAIL) style.dp(12) else style.dp(4),
@@ -288,6 +312,8 @@ internal class TaskShellStatusView(
                 host.getColor(R.color.mobile_success) else style.muted), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             scaleStatus.text = colored
         }
+        coffeeFacts.contentDescription = "${coffeeName.text} · $status · ${host.getString(R.string.home_device_connection)}"
+        scaleFacts.contentDescription = "${scaleName.text} · $scaleLabel · ${host.getString(R.string.home_device_connection)}"
         val connected = state == DeviceState.READY
         reconnect.visibility = if (connected) View.GONE else View.VISIBLE
         disconnect.visibility = if (connected) View.VISIBLE else View.GONE

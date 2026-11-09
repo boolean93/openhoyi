@@ -71,7 +71,9 @@ internal object LanguageUiLayoutChecks {
                 check(item.layoutDirection == expectedDirection) { "$fixture incorrect item direction" }
                 val label = descendants(item).filterIsInstance<TextView>().single()
                 val expectedLabel = activity.getString(requireNotNull(labels[expectedDestinations[index]]))
-                check(label.text.toString().isNotBlank() && label.text.toString() == expectedLabel &&
+                val visibleLabel = if (expectedMode == TaskNavigationMode.BOTTOM && expectedDestinations[index] == TaskDestination.SCALE)
+                    activity.getString(R.string.task_scale_bottom_tab) else expectedLabel
+                check(label.text.toString().isNotBlank() && label.text.toString() == visibleLabel &&
                     item.contentDescription.toString() == expectedLabel) { "$fixture incorrect navigation label at $index" }
                 checkScaled(label, "$widthDp/${expectedDestinations[index]}")
                 textFits(label, fixture)
