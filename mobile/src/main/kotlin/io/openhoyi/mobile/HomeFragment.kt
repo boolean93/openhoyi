@@ -995,12 +995,9 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         // Loading history also migrates positively observed recent uses into the permanent ledger.
         val history = runCatching { app.history }.getOrNull() ?: return HomeLastCurve.DataUnavailable
         val ledger = app.curveUsageResult.getOrNull() ?: return HomeLastCurve.DataUnavailable
-        val journal = app.journalResult.getOrNull() ?: return HomeLastCurve.DataUnavailable
-        val manualAt = journal.entries().firstOrNull { it.observation.curveId == "manual" }
-            ?.observation?.startedAtMs
         val recentObserved = history.entries.firstOrNull { it.curveId != "manual" && it.observedRunning }
             ?.let { CurveUsage(it.id, it.curveId, it.startedAtMs) }
-        return HomeLastCurve.from(ledger.latest(), manualAt, app.curves.items, recentObserved) {
+        return HomeLastCurve.from(ledger.latest(), app.curves.items, recentObserved) {
             app.curves.canStart(it)
         }
     }
@@ -1009,7 +1006,6 @@ class HomeFragment : androidx.fragment.app.Fragment() {
         val ready = state as? HomeLastCurve.Ready
         val label = when (state) {
             HomeLastCurve.Empty -> getString(R.string.task_brew_usage_empty)
-            HomeLastCurve.Manual -> getString(R.string.extraction_manual_label)
             HomeLastCurve.DataUnavailable -> getString(R.string.task_brew_usage_unavailable)
             is HomeLastCurve.Unavailable -> getString(if (state.reason == HomeLastCurve.Reason.MUTABLE_DRAFT)
                 R.string.home_last_draft_changed else R.string.home_last_unavailable)

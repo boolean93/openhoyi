@@ -2,19 +2,15 @@ package io.openhoyi.mobile
 
 internal sealed interface HomeLastCurve {
     data object Empty : HomeLastCurve
-    data object Manual : HomeLastCurve
     data object DataUnavailable : HomeLastCurve
     enum class Reason { MISSING, NOT_STARTABLE, MUTABLE_DRAFT }
     data class Unavailable(val reason: Reason) : HomeLastCurve
     data class Ready(val item: CurveLibraryItem, val preview: CurveStageParameters.Preview?) : HomeLastCurve
 
     companion object {
-        fun from(latest: CurveUsage?, manualStartedAtMs: Long?, items: List<CurveLibraryItem>,
+        fun from(latest: CurveUsage?, items: List<CurveLibraryItem>,
                  recentObserved: CurveUsage? = null,
                  canStart: (CurveLibraryItem) -> Boolean): HomeLastCurve {
-            val newestCurveAt = maxOf(latest?.startedAtMs ?: -1, recentObserved?.startedAtMs ?: -1)
-            if (manualStartedAtMs != null && manualStartedAtMs >= newestCurveAt)
-                return Manual
             if (recentObserved != null && (latest == null ||
                     recentObserved.startedAtMs > latest.startedAtMs ||
                     (recentObserved.startedAtMs == latest.startedAtMs && recentObserved.shotId != latest.shotId)))
