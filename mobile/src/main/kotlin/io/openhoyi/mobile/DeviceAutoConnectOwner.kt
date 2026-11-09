@@ -45,6 +45,12 @@ internal class DeviceAutoConnectOwner(private val app:MobileApplication) {
         check(prefs.edit().putBoolean(if(role==DeviceRole.COFFEE)"coffeeAutoSuppressed" else "scaleAutoSuppressed",value).commit())
     }
     fun refresh(notify:Boolean=true){
+        // Mock has no BLE devices, and the session bookkeeping below rewrites the "devices"
+        // preferences on every visibility callback. That pollutes the lifecycle/language
+        // instrumentation checks (preserved prefs are compared after Activity recreate) and has
+        // no runtime value in Mock; read-only enabled()/paused() stay available for the UI.
+        // Real devices keep the original behaviour.
+        if(BuildConfig.MOCK_MODE)return
         val interactive=app.getSystemService(PowerManager::class.java).isInteractive &&
             !app.getSystemService(KeyguardManager::class.java).isKeyguardLocked
         app.visibility.interactive(interactive)
