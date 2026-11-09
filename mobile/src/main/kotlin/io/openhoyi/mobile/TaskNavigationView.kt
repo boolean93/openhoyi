@@ -10,6 +10,7 @@ import android.widget.*
 internal class TaskNavigationView(private val activity: Activity, private val productVisualStyle: TaskProductVisualStyle? = null,
     private val destinationProvider: () -> TaskDestination? = { TaskNavigationModel.forPage(activity.javaClass.simpleName) },
     private val onDestination: (TaskDestination) -> Unit = { open(activity, it) }) : LinearLayout(activity) {
+    private val chrome = TaskShellVisualStyle(activity)
     private var rendered: Triple<TaskNavigationMode, Boolean, Boolean>? = null
     fun refreshSelection() { rendered = null; requestLayout() }
     fun render(mode: TaskNavigationMode, includeTools: Boolean, compactRail: Boolean = false) {
@@ -19,7 +20,7 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
         removeAllViews()
         orientation = if (mode == TaskNavigationMode.RAIL) VERTICAL else HORIZONTAL
         gravity = Gravity.CENTER
-        setBackgroundColor(productVisualStyle?.surface ?: activity.getColor(R.color.mobile_surface))
+        setBackgroundColor(chrome.surface)
         val styledRail = productVisualStyle != null && mode == TaskNavigationMode.RAIL
         val shellRail = styledRail && activity is MainActivity
         val shortRail = shellRail && compactRail
@@ -39,11 +40,10 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 addView(View(activity), LayoutParams(-1, 0, 1f))
             }
             val active = destinationProvider() == destination
-            val tint = productVisualStyle?.let { if (active) it.accent else it.muted }
-                ?: activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
+            val tint = if (active) chrome.selectedInk else chrome.ink
             val item = LinearLayout(activity).apply {
                 tag = "task-nav:${destination.name}"
-                orientation = if (shortRail) HORIZONTAL else VERTICAL
+                orientation = if (mode == TaskNavigationMode.RAIL) HORIZONTAL else VERTICAL
                 gravity = Gravity.CENTER
                 minimumHeight = HoyiUi.dp(activity, if (shellRail) if (shortRail) 48 else 60 else if (styledRail) 64 else 48)
                 minimumWidth = HoyiUi.dp(activity, 48)
@@ -53,8 +53,7 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 isSelected = active
                 isClickable = true
                 isFocusable = true
-                if (active) background = productVisualStyle?.shape(productVisualStyle.selected)
-                    ?: HoyiUi.shape(activity, R.color.mobile_accent_soft, 10)
+                background = chrome.navigationBackground(active)
                 setOnClickListener { onDestination(destination) }
             }
             val glyph: View = if (productVisualStyle != null) HomeVisualIcon(activity, when (destination) {
@@ -64,18 +63,22 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 TaskDestination.BEANS -> "bean"
                 TaskDestination.SCALE -> "scale"
                 TaskDestination.SETTINGS -> "settings"
-            }, tint) else ImageView(activity).apply {
+            }, tint, strokeDp = chrome.iconStrokeDp, solidAccents = chrome.solidIcons) else ImageView(activity).apply {
                 setImageResource(icon(destination)); imageTintList = ColorStateList.valueOf(tint)
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }
             val glyphSize = HoyiUi.dp(activity, if (styledRail && (!shellRail || !shortRail)) 24 else 20)
             item.addView(glyph, LayoutParams(glyphSize, glyphSize))
             item.addView(TextView(activity).apply {
-                text = activity.getString(labelId); textSize = if (shellRail) 12f else 14f; gravity = Gravity.CENTER
-                productVisualStyle?.apply(this, TaskProductVisualStyle.auxiliary)
+                text = activity.getString(if (mode == TaskNavigationMode.BOTTOM && destination == TaskDestination.SCALE)
+                    R.string.task_scale_bottom_tab else labelId); textSize = if (mode == TaskNavigationMode.RAIL) 16f else 14f; gravity = Gravity.CENTER
+                productVisualStyle?.apply(this, TaskProductVisualStyle.Type(
+                    if (mode == TaskNavigationMode.RAIL) 16 else 14, 500,
+                    if (mode == TaskNavigationMode.RAIL) 24 else 22))
+                typeface = TaskTypography.face(activity, 500)
                 if (shellRail) {
-                    setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
-                    val line = productVisualStyle!!.sp(20).toInt()
+                    setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
+                    val line = productVisualStyle!!.sp(24).toInt()
                     if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(line)
                     else setLineSpacing((line - paint.fontMetricsInt.descent + paint.fontMetricsInt.ascent)
                         .coerceAtLeast(0).toFloat(), 1f)
@@ -83,9 +86,8 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 }
                 gravity = Gravity.CENTER
                 setTextColor(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LayoutParams(if (shortRail) -2 else -1, -2).apply {
-                if (shortRail) marginStart = HoyiUi.dp(activity, 8)
-                else if (styledRail) topMargin = HoyiUi.dp(activity, 8)
+            }, LayoutParams(if (mode == TaskNavigationMode.RAIL) -2 else -1, -2).apply {
+                if (mode == TaskNavigationMode.RAIL) marginStart = HoyiUi.dp(activity, 8)
             })
             addView(item, if (mode == TaskNavigationMode.RAIL) LayoutParams(-1, -2).apply {
                 if (styledRail && destination != items.first() && destination != TaskDestination.SCALE) topMargin = HoyiUi.dp(activity, 8)

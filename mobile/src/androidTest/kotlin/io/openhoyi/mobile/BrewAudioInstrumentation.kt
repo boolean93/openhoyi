@@ -37,6 +37,7 @@ class BrewAudioInstrumentation : Instrumentation() {
     private var taskFrameChecks = false
     private var mainNavigationChecks = false
     private var settingsNavigationOnly = false
+    private var inlineNavigationOnly = false
     private var singleScreenChecks = false
     private var historyFooterArguments: Bundle? = null
     private var customExecution = false
@@ -67,8 +68,9 @@ class BrewAudioInstrumentation : Instrumentation() {
         fourMetricChartChecks = arguments?.getString("fourMetricChartChecks") == "true"
         liveStatusChromeChecks = arguments?.getString("liveStatusChromeChecks") == "true"
         taskFrameChecks = arguments?.getString("taskFrameChecks") == "true"
-        mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings")
+        mainNavigationChecks = arguments?.getString("mainNavigationChecks") in setOf("true", "settings", "inline")
         settingsNavigationOnly = arguments?.getString("mainNavigationChecks") == "settings"
+        inlineNavigationOnly = arguments?.getString("mainNavigationChecks") == "inline"
         singleScreenChecks = arguments?.getString("singleScreenChecks") == "true"
         historyFooterArguments = arguments?.takeIf {it.getString("historyFooterChecks")=="true"}?.let(::Bundle)
         customExecution = arguments?.getString("customExecution") == "true"
@@ -186,8 +188,12 @@ class BrewAudioInstrumentation : Instrumentation() {
                 return
             }
             if (mainNavigationChecks) {
-                if (settingsNavigationOnly) MainNavigationChecks(this).runSettingsOnly() else MainNavigationChecks(this).run()
-                report.putString("stream", "MAIN_NAVIGATION_CHECKS_PASSED rounds=20 tabs=6 singleHost=true curveFilterRetained=true serviceContinuous=true manualShell=true noBle=true\n")
+                when {
+                    inlineNavigationOnly -> MainNavigationChecks(this).runInlineOnly()
+                    settingsNavigationOnly -> MainNavigationChecks(this).runSettingsOnly()
+                    else -> MainNavigationChecks(this).run()
+                }
+                report.putString("stream", "MAIN_NAVIGATION_CHECKS_COMPLETED\n")
                 finish(Activity.RESULT_OK, report)
                 return
             }

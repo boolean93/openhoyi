@@ -1,0 +1,9 @@
+<resources>
+    <color name="task_shell_surface">@color/mobile_surface</color>
+    <color name="task_shell_ink">#263238</color>
+    <color name="task_shell_muted">#536362</color>
+    <color name="task_shell_card">#F3F7F6</color>
+    <color name="task_shell_border">#BDCFCB</color>
+    <color name="task_shell_disabled">#E8EDEC</color>
+    <color name="task_shell_disabled_ink">#85938F</color>
+</resources>

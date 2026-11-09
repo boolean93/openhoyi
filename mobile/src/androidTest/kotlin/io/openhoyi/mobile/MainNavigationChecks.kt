@@ -152,6 +152,195 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         } finally { test.runOnMainSync { activity.finish() }; test.waitForIdleSync() }
     }
 
+    private fun shellThemeStates(activity: MainActivity) {
+        for (night in listOf(false, true)) {
+            val config = android.content.res.Configuration(activity.resources.configuration).apply {
+                uiMode = (uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or
+                    if (night) android.content.res.Configuration.UI_MODE_NIGHT_YES else android.content.res.Configuration.UI_MODE_NIGHT_NO
+            }
+            val context = android.view.ContextThemeWrapper(activity.createConfigurationContext(config), R.style.MobileTheme)
+            val chrome = TaskShellVisualStyle(context)
+            val action = android.widget.Button(context)
+            chrome.action(action)
+            action.isEnabled = true
+            val enabledInk = action.currentTextColor
+            action.isEnabled = false
+            check(action.currentTextColor != enabledInk && action.currentTextColor != chrome.surface) {
+                "Device action needs a distinct readable disabled state: night=$night"
+            }
+            action.isEnabled = true
+            check(action.currentTextColor == enabledInk)
+            val size = HoyiUi.dp(activity, 24)
+            fun paintedPixels(icon: HomeVisualIcon): Int {
+                icon.layout(0, 0, size, size)
+                val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+                try {
+                    icon.draw(android.graphics.Canvas(bitmap))
+                    return (0 until size).sumOf { x -> (0 until size).count { y -> bitmap.getPixel(x,y) ushr 24 > 0 } }
+                } finally { bitmap.recycle() }
+            }
+            val regular = paintedPixels(HomeVisualIcon(context, "bean", chrome.ink))
+            val shell = paintedPixels(HomeVisualIcon(context, "bean", chrome.ink, chrome.iconStrokeDp, chrome.solidIcons))
+            check(shell > regular) { "Shell glyph should have more visual weight: night=$night" }
+        }
+    }
+
+    /** Same view tree crosses rail/short-rail/phone/rail without touching device controls. */
+    private fun adaptiveRailPlacement(activity: MainActivity) {
+        val frame = TaskPageFrame.host(activity, TaskProductVisualStyle(activity), { TaskDestination.BREW }, {})
+        val status = TaskShellStatusView(activity, { error("Unexpected sleep") }, { error("Unexpected scale") },
+            { error("Unexpected reconnect") }, { error("Unexpected disconnect") })
+        frame.installShellStatus(status)
+        val draft = EditText(activity).apply { setText("unsent draft"); setSelection(3) }
+        frame.pageContent.addView(draft)
+        for ((widthDp, heightDp) in listOf(1137 to 668, 1137 to 240, 360 to 640, 1137 to 668)) {
+            val width = HoyiUi.dp(activity, widthDp)
+            val height = HoyiUi.dp(activity, heightDp)
+            frame.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY))
+            frame.layout(0, 0, width, height)
+            check(draft.parent === frame.pageContent && draft.text.toString() == "unsent draft" && draft.selectionStart == 3)
+            check(descendants(frame.navigation).count { it.tag?.toString()?.startsWith("task-nav:") == true } == 6)
+            fun font(view: android.widget.TextView, sizeSp: Int) {
+                val expected = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    sizeSp.toFloat(), activity.resources.displayMetrics)
+                check(kotlin.math.abs(view.textSize - expected) < 0.5f) { "${view.tag} incorrect size after $widthDp/$heightDp" }
+            }
+            val rail = widthDp >= 600
+            descendants(frame.navigation).filterIsInstance<android.widget.TextView>().forEach { font(it, if (rail) 16 else 14) }
+            for (tag in listOf("task-shell-coffee-name", "task-shell-scale-name", "task-shell-sleep",
+                "task-shell-scale-reconnect", "task-shell-scale-disconnect")) {
+                font(requireNotNull(status.findViewWithTag<android.widget.TextView>(tag)), if (rail) 16 else 14)
+            }
+            for (tag in listOf("task-shell-coffee-status", "task-shell-scale")) {
+                font(requireNotNull(status.findViewWithTag<android.widget.TextView>(tag)), if (rail) 15 else 14)
+            }
+            if (widthDp >= 600) {
+                check(frame.mode == TaskNavigationMode.RAIL)
+                val scroll = frame.findViewWithTag<android.widget.ScrollView>("task-rail-scroll")
+                val column = scroll.getChildAt(0) as android.widget.LinearLayout
+                val inset = if (activity.resources.configuration.smallestScreenWidthDp >= 600) HoyiUi.dp(activity, 4) else 0
+                val contentWidth = HoyiUi.dp(activity, 104)
+                check(scroll.paddingLeft == inset && scroll.paddingRight == inset)
+                check(scroll.width == contentWidth + 2 * inset && column.width == contentWidth)
+                check(frame.navigation.width == contentWidth && status.width == contentWidth) { "Rail content width changed" }
+                check(status.parent === column && frame.navigation.parent === column) { "Devices left the navigation rail" }
+                check(status.top >= frame.navigation.bottom && scroll.right <= frame.pageContent.left)
+                if (heightDp == 668) check(column.height <= scroll.height) { "Tablet rail should fit without scrolling" }
+                else check(column.height > scroll.height) { "Short rail must scroll as a whole" }
+                val targets = descendants(column).filter {
+                    it.tag?.toString()?.startsWith("task-nav:") == true ||
+                        it.tag in setOf("task-shell-coffee-facts", "task-shell-scale-facts", "task-shell-sleep",
+                            "task-shell-scale-reconnect", "task-shell-scale-disconnect") && it.visibility == View.VISIBLE
+                }
+                for (target in targets) {
+                    val bounds = Rect(0, 0, target.width, target.height)
+                    column.offsetDescendantRectToMyCoords(target, bounds)
+                    scroll.scrollTo(0, bounds.top)
+                    check(bounds.top >= scroll.scrollY && bounds.bottom <= scroll.scrollY + scroll.height) {
+                        "${target.tag} is unreachable in ${widthDp}x$heightDp"
+                    }
+                }
+                scroll.scrollTo(0, 0)
+            } else {
+                check(frame.mode == TaskNavigationMode.BOTTOM && status.parent === frame.pageContent)
+                check(frame.navigation.parent === frame)
+            }
+        }
+    }
+
+    /** Small UI regression: no extraction or device action is invoked. */
+    fun runInlineOnly() {
+        check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
+        val host = MainPageTestHost.launch(test)
+        val activity = host.activity
+        try {
+            test.runOnMainSync {
+                shellThemeStates(activity)
+                adaptiveRailPlacement(activity)
+                for ((mode, compact, widthDp) in listOf(
+                    Triple(TaskNavigationMode.RAIL, false, 80),
+                    Triple(TaskNavigationMode.RAIL, true, 104),
+                    Triple(TaskNavigationMode.BOTTOM, false, 360))) {
+                    var selected = TaskDestination.BREW
+                    val nav = TaskNavigationView(activity, TaskProductVisualStyle(activity),
+                        destinationProvider = { selected }, onDestination = { selected = it })
+                    nav.render(mode, includeTools = true, compactRail = compact)
+                    val width = HoyiUi.dp(activity, widthDp)
+                    nav.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                    nav.layout(0, 0, width, nav.measuredHeight)
+                    for (item in descendants(nav).filterIsInstance<android.widget.LinearLayout>()
+                        .filter { it.tag?.toString()?.startsWith("task-nav:") == true }) {
+                        val glyph = item.getChildAt(0)
+                        val label = item.getChildAt(1) as android.widget.TextView
+                        if (mode == TaskNavigationMode.RAIL) {
+                            check(item.orientation == android.widget.LinearLayout.HORIZONTAL)
+                            check(glyph.right <= label.left && label.right <= item.width) { "${item.tag} overlaps or overflows" }
+                            check(kotlin.math.abs((glyph.top + glyph.bottom) - (label.top + label.bottom)) <= 2)
+                        } else {
+                            check(item.orientation == android.widget.LinearLayout.VERTICAL) { "${item.tag} is not stacked in bottom mode" }
+                            check(glyph.bottom <= label.top && label.bottom <= item.height)
+                            check(kotlin.math.abs((glyph.left + glyph.right) - (label.left + label.right)) <= 2)
+                        }
+                        check(label.width > 0 && label.layout.getEllipsisCount(label.lineCount - 1) == 0)
+                        check(label.layout.height <= label.height && label.layout.getLineEnd(label.lineCount - 1) == label.text.length)
+                        val destination = TaskDestination.valueOf(item.tag.toString().substringAfter(':'))
+                        val fullLabel = if (destination == TaskDestination.SCALE) activity.getString(R.string.scale_title) else label.text
+                        check(item.isFocusable && item.contentDescription == fullLabel)
+                        if (destination == TaskDestination.SCALE) {
+                            val expected = if (mode == TaskNavigationMode.BOTTOM && activity.resources.configuration.locales[0].language == "zh")
+                                "秤" else activity.getString(R.string.scale_title)
+                            check(label.text.toString() == expected) { "Wrong scale label in $mode: ${label.text}" }
+                        }
+                        check(item.isSelected == (destination == TaskDestination.BREW))
+                        check(item.performClick() && selected == destination)
+                    }
+                }
+            }
+            for ((device, textTag) in listOf("coffee" to "name", "coffee" to "status", "scale" to "name", "scale" to "")) {
+                host.select(TaskDestination.BEANS)
+                test.runOnMainSync {
+                    val root = activity.window.decorView
+                    val suffix = if (textTag.isEmpty()) "" else "-$textTag"
+                    val text = descendants(root).single { it.tag == "task-shell-$device$suffix" }
+                    val facts = text.parent as android.widget.LinearLayout
+                    check(facts.tag == "task-shell-$device-facts" && facts.isClickable && facts.isFocusable)
+                    check(facts.orientation == android.widget.LinearLayout.VERTICAL && facts.childCount == 2)
+                    check(facts.height >= HoyiUi.dp(activity, 48))
+                    check(facts.performClick())
+                }
+                test.waitForIdleSync()
+                val settings = host.active("root:SETTINGS") as AppSettingsFragment
+                fun assertDevicesAnchor() {
+                    test.runOnMainSync {
+                        val root = requireNotNull(settings.view)
+                        val heading = descendants(root).single { it.tag == "settings/heading/devices" }
+                        val scroll = descendants(root).single { it.tag == "settings/document/scroll" } as android.widget.ScrollView
+                        val visible = Rect()
+                        check(heading.getGlobalVisibleRect(visible) && scroll.scrollY == 0) { "$device text did not target devices" }
+                    }
+                }
+                assertDevicesAnchor()
+                test.runOnMainSync { settings.openSection("machine") }
+                test.waitForIdleSync()
+                test.runOnMainSync {
+                    val scroll = requireNotNull(settings.view).findViewWithTag<android.widget.ScrollView>("settings/document/scroll")
+                    check(scroll.scrollY > 0) { "Machine section did not move away from devices before repeated entry" }
+                }
+                test.runOnMainSync {
+                    check(descendants(activity.window.decorView).single { it.tag == "task-shell-$device-facts" }.performClick())
+                }
+                test.waitForIdleSync()
+                assertDevicesAnchor()
+                test.runOnMainSync { activity.onBackPressedDispatcher.onBackPressed() }
+                test.waitForIdleSync()
+                host.active("root:BEANS")
+            }
+            test.sendStatus(0, Bundle().apply { putString("stream", "NAV_INLINE_CHECKS_PASSED adaptiveRail=true draftRetained=true layouts=3 deviceTextEntries=4 repeatedAnchor=true backOrigin=true noExtraction=true\n") })
+        } finally { test.runOnMainSync { activity.finish() }; test.waitForIdleSync() }
+    }
+
     /** Bounded, non-extracting settings regression for a user's Mock tablet. */
     fun runSettingsOnly() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
