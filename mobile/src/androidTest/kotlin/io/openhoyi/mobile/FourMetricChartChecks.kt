@@ -221,7 +221,7 @@ internal class FourMetricChartChecks(private val test: Instrumentation) {
                 check(axisEnd() == 90_000L)
                 lifecycleProbe.traceIdentity = "new-cup"
                 lifecycleProbe.points = samples.take(2)
-                check(axisEnd() == 30_000L) { "New cup retained the previous cup time budget" }
+                check(axisEnd() == 10_000L) { "New cup did not reset to the 10 s realtime window" }
                 val liveNumber = requireNotNull(lifecycleProbe.findViewWithTag<android.widget.TextView>(
                     "product/extraction/metric/PRESSURE/number"))
                 check(liveNumber.text.toString() != "—")

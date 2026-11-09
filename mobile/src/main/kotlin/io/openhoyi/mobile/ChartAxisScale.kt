@@ -1,0 +1,213 @@
+package io.openhoyi.mobile
+
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.log10
+import kotlin.math.max
+import kotlin.math.pow
+import kotlin.math.roundToInt
+
+/**
+ * Display-only axis arithmetic shared by the realtime and history charts.
+ *
+ * Values are rounded outward to a "nice" step from {1, 2, 2.5, 5, 10} x 10^k so the first and
+ * last major ticks always equal [ChartRange.low] and [ChartRange.high]. Time ticks use a fixed set
+ * of human-readable seconds steps. Nothing here samples, interpolates or changes stored data.
+ */
+internal object ChartAxisScale {
+    private val NICE_MANTISSAS = listOf(1f, 2f, 2.5f, 5f, 10f)
+    private val NICE_TIME_STEPS_SECONDS = listOf(1, 2, 5, 10, 15, 20, 30, 60)
+
+    /** Smallest nice step >= [rawStep]; [rawStep] must be positive and finite. */
+    fun niceStep(rawStep: Float): Float {
+        require(rawStep.isFinite() && rawStep > 0f) { "rawStep must be positive and finite" }
+        var exponent = floor(log10(rawStep.toDouble())).toInt()
+        var step = NICE_MANTISSAS.map { it * 10f.pow(exponent) }.firstOrNull { it >= rawStep }
+        while (step == null) {
+            exponent++
+            step = NICE_MANTISSAS.map { it * 10f.pow(exponent) }.firstOrNull { it >= rawStep }
+        }
+        return step
+    }
+
+    /** Nice step for a span that should hold about [targetDivisions] main divisions. */
+    fun niceStep(low: Float, high: Float, targetDivisions: Int = 5): Float {
+        require(targetDivisions > 0)
+        require(low.isFinite() && high.isFinite() && high > low) { "axis span must be finite and positive" }
+        return niceStep((high - low) / targetDivisions)
+    }
+
+    /** An axis range together with the major-tick step that produced it. */
+    data class YAxis(val range: ChartRange, val step: Float)
+
+    /**
+     * Outward-rounded axis containing [low]..[high] with 2..[targetDivisions] divisions.
+     * A lower/upper bound is never placed inside an observed value.
+     */
+    fun yAxis(low: Float, high: Float, targetDivisions: Int = 5): YAxis {
+        require(targetDivisions >= 2)
+        require(low.isFinite() && high.isFinite()) { "axis bounds must be finite" }
+        val observedLow = minOf(low, high)
+        val observedHigh = maxOf(low, high)
+        if (observedHigh - observedLow <= 0f) {
+            // A zero-width sample still gets a real axis instead of a division by zero.
+            val pad = max(abs(observedLow) * 0.1f, 1f)
+            return yAxis(observedLow - pad, observedHigh + pad, targetDivisions)
+        }
+        var step = niceStep((observedHigh - observedLow) / targetDivisions)
+        repeat(16) {
+            val niceLow = noNegativeZero(floor(observedLow / step) * step)
+            val niceHigh = noNegativeZero(ceil(observedHigh / step) * step)
+            val divisions = ((niceHigh - niceLow) / step).roundToInt()
+            // Up to one extra division keeps temperature on whole degrees instead of 2.5 steps;
+            // the renderer labels only as many rows as the plot height can hold.
+            if (divisions in 2..targetDivisions + 1) return YAxis(ChartRange(niceLow, niceHigh), step)
+            step = if (divisions > targetDivisions) nextNiceStep(step) else previousNiceStep(step)
+        }
+        // Extremely wide floats: keep the observed values inside a finite range.
+        val padded = max(abs(observedLow), abs(observedHigh)) * 0.25f
+        return YAxis(ChartRange(noNegativeZero(observedLow - padded), noNegativeZero(observedHigh + padded)),
+            ((observedHigh - observedLow) + 2 * padded) / targetDivisions)
+    }
+
+    fun yRange(low: Float, high: Float, targetDivisions: Int = 5): ChartRange =
+        yAxis(low, high, targetDivisions).range
+
+    /** Smallest multiple of [step] that is >= [value]; keeps recipe targets on nice boundaries. */
+    fun niceCeil(value: Float, step: Float): Float {
+        require(value.isFinite() && step.isFinite() && step > 0f)
+        val rounded = ceil(value / step) * step
+        return if (rounded == 0f) 0f else rounded
+    }
+
+    data class NiceBoundary(val high: Float, val step: Float)
+
+    /**
+     * Rounds [rawHigh] to the smallest boundary that both covers it and divides into 2-6 nice
+     * major ticks: choose a nice step and k=ceil(rawHigh/step) in 2..6, minimise high=k*step,
+     * then prefer the larger k (smaller step) on ties. Examples: 35 -> 40 (step 10), 45 -> 50,
+     * 55 -> 60, 80 -> 80 (step 20), 10 -> 10 (step 2), 12.5 -> 12.5 (step 2.5), 17.5 -> 20
+     * (step 5). Null for non-positive/non-finite input; callers then omit the target.
+     */
+    fun niceBoundary(rawHigh: Float, minDivisions: Int = 2,
+        maxDivisions: Int = 6): NiceBoundary? {
+        if (!rawHigh.isFinite() || rawHigh <= 0f) return null
+        val magnitude = floor(log10(rawHigh.toDouble())).toInt()
+        var best: NiceBoundary? = null
+        for (exponent in (magnitude - 4)..(magnitude + 1)) {
+            val scale = 10f.pow(exponent)
+            for (mantissa in NICE_MANTISSAS) {
+                val step = mantissa * scale
+                if (!step.isFinite() || step <= 0f) continue
+                for (divisions in maxDivisions downTo minDivisions) {
+                    val high = step * divisions
+                    if (high + 1e-4f < rawHigh) continue
+                    val current = best
+                    if (current == null || high < current.high - 1e-4f ||
+                        (kotlin.math.abs(high - current.high) <= 1e-4f && step < current.step)) {
+                        best = NiceBoundary(high, step)
+                    }
+                }
+            }
+        }
+        return best
+    }
+
+    /** True when [value] is one of {1, 2, 2.5, 5, 10} x 10^k within float tolerance. */
+    fun isNiceStep(value: Float): Boolean {
+        if (!value.isFinite() || value <= 0f) return false
+        val exponent = floor(log10(value.toDouble())).toInt()
+        val scale = 10f.pow(exponent)
+        val mantissa = value / scale
+        return NICE_MANTISSAS.any { kotlin.math.abs(it - mantissa) <= 1e-3f * it }
+    }
+
+    /**
+     * Step for a range whose bounds were already chosen as nice boundaries: prefer the most
+     * divisions (2-6) whose step is still a nice step, so adopting a recipe target never changes
+     * the tick step by a cliff.
+     */
+    fun stepForNiceRange(range: ChartRange, maxDivisions: Int = 6): Float {
+        require(range.high > range.low)
+        val span = range.high - range.low
+        for (divisions in maxDivisions downTo 2) {
+            val candidate = span / divisions
+            if (isNiceStep(candidate)) return candidate
+        }
+        return stepForRange(range, maxDivisions.coerceAtLeast(2))
+    }
+
+    /** Step that divides an existing nice range into 2-6 divisions; used when a range is kept. */
+    fun stepForRange(range: ChartRange, targetDivisions: Int = 5): Float {
+        require(range.low.isFinite() && range.high.isFinite() && range.high > range.low)
+        val span = range.high - range.low
+        val step = niceStep(span / targetDivisions.toFloat())
+        val divisions = (span / step).roundToInt().coerceAtLeast(2)
+        return span / divisions.toFloat()
+    }
+
+    /** Major ticks of [range], always starting at low and ending exactly at high. */
+    fun majorTicks(range: ChartRange, step: Float): List<Float> {
+        require(range.low.isFinite() && range.high.isFinite() && range.high > range.low)
+        require(step.isFinite() && step > 0f)
+        val divisions = ((range.high - range.low) / step).roundToInt().coerceAtLeast(1)
+        return (0..divisions).map { index ->
+            if (index == divisions) range.high else noNegativeZero(range.low + step * index)
+        }
+    }
+
+    /** Unlabeled half-step grid lines between the major ticks. */
+    fun minorTicks(range: ChartRange, step: Float): List<Float> {
+        val half = step / 2f
+        if (!half.isFinite() || half <= 0f) return emptyList()
+        val count = ((range.high - range.low) / half).roundToInt()
+        return (1 until count).filter { it % 2 == 1 }.map { noNegativeZero(range.low + half * it) }
+    }
+
+    /** Human-readable time step for about [targetDivisions] main divisions. */
+    fun niceTimeStepMs(spanMs: Long, targetDivisions: Int = 6): Long {
+        require(spanMs > 0 && targetDivisions > 0)
+        val rawSeconds = spanMs / 1000.0 / targetDivisions
+        val seconds = NICE_TIME_STEPS_SECONDS.firstOrNull { it >= rawSeconds }
+            ?: (ceil(rawSeconds / 60.0) * 60).toInt()
+        return seconds.coerceAtLeast(1) * 1000L
+    }
+
+    /**
+     * Time grid. [roundUp] keeps a full final major tick (history/comparison); the realtime chart
+     * keeps its existing continuous end so a growing cup never jumps its x axis.
+     */
+    fun timeAxis(timeEndMs: Long, targetDivisions: Int = 6, roundUp: Boolean = false): TimeAxis {
+        require(timeEndMs > 0) { "time end must be positive" }
+        val span = timeEndMs.coerceAtLeast(1_000L)
+        val step = niceTimeStepMs(span, targetDivisions)
+        val end = if (roundUp) ceil(span / step.toDouble()).toLong() * step else span
+        val major = mutableListOf<Long>()
+        var tick = 0L
+        while (tick <= end) { major += tick; tick += step }
+        if (major.last() != end) major += end
+        val minor = mutableListOf<Long>()
+        var half = step / 2
+        while (half < end) { if (half % step != 0L) minor += half; half += step / 2 }
+        return TimeAxis(end, step, major, minor)
+    }
+
+    data class TimeAxis(val endMs: Long, val stepMs: Long, val majorTicks: List<Long>, val minorTicks: List<Long>)
+
+    private fun nextNiceStep(step: Float): Float = niceStep(step * 1.01f)
+
+    /** Next smaller step from {1, 2, 2.5, 5, 10} x 10^k; used only when a span is too coarse. */
+    internal fun previousNiceStep(step: Float): Float {
+        require(step.isFinite() && step > 0f) { "step must be positive and finite" }
+        // Float pow() can return a neighbouring exponent's value within a few ulps, so compare
+        // with a small relative margin instead of raw equality.
+        val boundary = step - step * 1e-4f
+        var exponent = floor(log10(step.toDouble())).toInt()
+        NICE_MANTISSAS.map { it * 10f.pow(exponent) }.lastOrNull { it < boundary }?.let { return it }
+        exponent--
+        return NICE_MANTISSAS.map { it * 10f.pow(exponent) }.lastOrNull { it < boundary } ?: (step / 10f)
+    }
+    /** Keeps the numeric value but drops a negative zero so a history label cannot read "-0.0". */
+    internal fun noNegativeZero(value: Float): Float = value + 0f
+}

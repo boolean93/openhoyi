@@ -4,13 +4,6 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class LiveChartGeometryTest {
-    @Test fun continuousDomainIncludesReferenceCrossesThirtyWithoutBucketAndDoesNotShrink() {
-        assertEquals(30_000L, LiveChartGeometry.continuousTimeEnd(0, 1_000))
-        assertEquals(30_001L, LiveChartGeometry.continuousTimeEnd(30_000, 30_001))
-        assertEquals(75_321L, LiveChartGeometry.continuousTimeEnd(30_000, 75_321))
-        assertEquals(75_321L, LiveChartGeometry.continuousTimeEnd(75_321, 32_000))
-        assertEquals(30_000L, LiveChartGeometry.continuousTimeEnd(0, 2_000))
-    }
     @Test fun revealUsesActualCadenceWithBoundedRecoveryAfterLongGap() {
         assertEquals(196L, LiveChartGeometry.revealDuration(196))
         assertEquals(250L, LiveChartGeometry.revealDuration(250))
@@ -65,12 +58,5 @@ class LiveChartGeometryTest {
         }
         assertEquals(listOf(10f,30f,70f,90f),LiveChartGeometry.labelCenters(listOf(0f,0f,100f,100f),10f,90f,20f))
         assertNull(LiveChartGeometry.labelCenters(listOf(0f,0f,100f,100f),10f,60f,20f))
-    }
-    @Test fun timeBudgetIsStableWithinThirtySecondBlocksAndIncludesLongReferences() {
-        assertEquals(30000L, LiveChartGeometry.timeEnd(0))
-        assertEquals(30000L, LiveChartGeometry.timeEnd(24600))
-        assertEquals(30000L, LiveChartGeometry.timeEnd(30000))
-        assertEquals(60000L, LiveChartGeometry.timeEnd(30001))
-        assertEquals(90000L, LiveChartGeometry.timeEnd(81000))
     }
 }

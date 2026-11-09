@@ -44,21 +44,37 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         set(value) {
             if (field == value) return
             val old = field
-            val oldAxis = renderTimeEnd
             val oldReveal = revealThroughMs ?: old.lastOrNull()?.elapsedMs
             val now = android.os.SystemClock.elapsedRealtime()
             val updateGap = lastPointUpdateAt?.let { now - it } ?: 250L
             if (value != old) lastPointUpdateAt = now
-            stopRenderTransition()
+            lastUpdateGapMs = updateGap
+            if (pendingTraceReset) {
+                // The Activity sets a new cup identity before replacing its points; once the new
+                // observations arrive the fresh 0-10 s window is applied. An attached idle preview
+                // may animate into it, probes/other contexts snap.
+                pendingTraceReset = false
+                snapAxisOnNextBuild = true
+            }
+            // Keep a running axis animation; the rebuild only retargets it when needed.
+            stopRevealTransition()
             field = value; rebuildProjection()
             if (liveChart && old.isNotEmpty() && value.size > old.size && value.take(old.size) == old &&
                 value.last().elapsedMs-old.last().elapsedMs <= 1500 &&
                 value.drop(old.size).all { it.brewing == old.last().brewing && it.statusBits == old.last().statusBits } &&
                 ChartMetric.PRESSURE !in unavailableLiveMetrics)
-                startRenderTransition(oldReveal ?: old.last().elapsedMs,oldAxis, updateGap)
+                startRenderTransition(if (oldReveal != null) minOf(oldReveal, value.last().elapsedMs)
+                    else old.last().elapsedMs, updateGap)
         }
     var reference: List<ShotPoint> = emptyList()
-        set(value) { if (field == value) return; stopRenderTransition(); field = value; rebuildProjection() }
+        set(value) {
+            if (field == value) return
+            stopRenderTransition()
+            // A curve selection change is a new static preview context, not a progress step.
+            snapAxisOnNextBuild = true
+            field = value
+            rebuildProjection()
+        }
     var traceIdentity: String? = null
         set(value) {
             if (field == value) return
@@ -68,12 +84,16 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
             inspectedTime = null
             previousRanges = emptyMap()
             lastPointUpdateAt = null
-            liveTimeEnd = 30_000L
+            // The Activity sets identity before replacing points; do not animate or retain the
+            // old cup range, and defer the fresh 0-10 s window to the points replacement.
+            pendingTraceReset = true
+            snapAxisOnNextBuild = true
+            lastYExpansionAt = 0L
+            previousSteps = emptyMap()
+            yExpansionStarted = false
             rebuildProjection()
-            // The Activity sets identity before replacing points; do not retain the old cup range.
             previousRanges = emptyMap()
             lastPointUpdateAt = null
-            liveTimeEnd = 30_000L
         }
     var referenceLabel: String? = null
         set(value) { if (field != value) { field = value; updateDescription() } }
@@ -106,45 +126,160 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     private val liveValues = linkedMapOf<ChartMetric, Pair<TextView, TextView>>()
     private val liveRanges = linkedMapOf<ChartMetric, TextView>()
     private val liveChart get() = visual != null && !embeddedHistory
-    private var liveTimeEnd = 30_000L
-    private var renderTimeEnd = 30_000L
+    private var renderTimeStart = 0L
+    private var renderTimeEnd = 10_000L
     private var revealThroughMs: Long? = null
     private var lastPointUpdateAt: Long? = null
     private var renderAnimator: android.animation.ValueAnimator? = null
-    private fun stopRenderTransition() {
-        renderAnimator?.cancel(); renderAnimator = null
-        revealThroughMs = null; renderTimeEnd = data.timeEndMs
+    /** Currently rendered axis state; [data] holds the same values while an animation runs. */
+    private var renderedRanges: Map<ChartMetric, ChartRange> = emptyMap()
+    private var renderedSteps: Map<ChartMetric, Float> = emptyMap()
+    private var axisAnimator: android.animation.ValueAnimator? = null
+    private var pendingTraceReset = false
+    private var snapAxisOnNextBuild = false
+    private var lastUpdateGapMs = 250L
+    /** Realtime Y axes may batch at most one expansion per interval; clipping ignores it. */
+    private var lastYExpansionAt = 0L
+    private val yExpansionIntervalMs = 3_000L
+    private var previousSteps: Map<ChartMetric, Float> = emptyMap()
+    /** False until this cup's first Y expansion, which synchronises all recipe-targeted axes. */
+    private var yExpansionStarted = false
+    private fun stopRevealTransition() {
+        val oldRender = renderAnimator
+        renderAnimator = null
+        oldRender?.cancel()
+        revealThroughMs = null
     }
-    private fun startRenderTransition(oldObserved: Long, oldAxis: Long, updateGap: Long) {
+    private fun stopRenderTransition() {
+        stopRevealTransition()
+        // Cancelling the axis animation must not snap it to its target: keep the last interpolated
+        // state so the next target redraws from what is actually on screen.
+        cancelAxisAnimation()
+        renderTimeStart = data.timeStartMs
+        renderTimeEnd = data.timeEndMs
+    }
+    /** Curve reveal only; the realtime axis has its own animation (see rebuildProjection). */
+    private fun startRenderTransition(oldObserved: Long, updateGap: Long) {
         val target = data.observedThroughMs ?: return
-        val endAxis = data.timeEndMs
         revealThroughMs = oldObserved
-        renderTimeEnd = oldAxis
         renderAnimator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
             duration = LiveChartGeometry.revealDuration(updateGap)
             interpolator = android.view.animation.LinearInterpolator()
             addUpdateListener { animation ->
                 val fraction = animation.animatedValue as Float
                 revealThroughMs = oldObserved + ((target-oldObserved)*fraction).toLong()
-                renderTimeEnd = oldAxis + ((endAxis-oldAxis)*fraction).toLong()
                 plot.postInvalidateOnAnimation()
             }
             addListener(object: android.animation.AnimatorListenerAdapter() {
                 override fun onAnimationEnd(animation: android.animation.Animator) {
-                    if (renderAnimator === animation) {
-                        renderAnimator = null; revealThroughMs = null; renderTimeEnd = endAxis; plot.invalidate()
-                    }
+                    if (renderAnimator === animation) { renderAnimator = null; revealThroughMs = null; plot.invalidate() }
                 }
             })
             start()
         }
     }
+    private var axisTargetState: LiveAxisAnimation.AxisState? = null
+    /** Newest projected cup while an axis animation runs, so every frame draws current samples. */
+    private var axisLatestTarget: FourMetricChartData? = null
+    private fun renderedAxisState() = if (renderedRanges.isEmpty()) LiveAxisAnimation.state(data)
+        else LiveAxisAnimation.AxisState(renderedRanges, renderedSteps, renderTimeEnd, renderTimeStart)
+
+    /** Stops a running axis animation while preserving the currently rendered interpolated axis. */
+    private fun cancelAxisAnimation() {
+        val old = axisAnimator
+        axisAnimator = null
+        axisTargetState = null
+        old?.cancel()
+    }
+
+    private fun snapAxis(target: FourMetricChartData) {
+        cancelAxisAnimation()
+        axisLatestTarget = target
+        data = target
+        renderTimeStart = target.timeStartMs
+        renderTimeEnd = target.timeEndMs
+        renderedRanges = target.series.associate { it.metric to it.range }
+        renderedSteps = target.series.associate { it.metric to it.step }
+        if (liveChart) buttons.forEach { (metric, button) -> updateLegendText(metric, button) }
+        plot.invalidate()
+    }
+
+    private fun animateAxis(target: FourMetricChartData) {
+        val to = LiveAxisAnimation.state(target)
+        // A later observation usually repeats the same axis target; let the running animation
+        // finish instead of cancelling and restarting on every frame of data.
+        if (axisAnimator != null && LiveAxisAnimation.sameTarget(axisTargetState, to)) {
+            axisLatestTarget = target
+            data = LiveAxisAnimation.apply(target, renderedAxisState())
+            plot.invalidate()
+            return
+        }
+        val from = renderedAxisState()
+        if (axisAnimator != null) cancelAxisAnimation()
+        if (LiveAxisAnimation.sameTarget(from, to)) { snapAxis(target); return }
+        val plan = LiveAxisAnimation.transition(from, to, lastUpdateGapMs)
+        if (plan.kind == LiveAxisAnimation.TransitionKind.NONE) { snapAxis(target); return }
+        startAxisAnimation(from, to, target, plan)
+    }
+
+    private fun startAxisAnimation(from: LiveAxisAnimation.AxisState,
+        to: LiveAxisAnimation.AxisState, target: FourMetricChartData,
+        plan: LiveAxisAnimation.Transition) {
+        cancelAxisAnimation()
+        axisTargetState = to
+        axisLatestTarget = target
+        data = LiveAxisAnimation.apply(target, from)
+        val animator = android.animation.ValueAnimator.ofFloat(0f,1f).apply {
+            duration = plan.durationMs
+            interpolator = if (plan.kind == LiveAxisAnimation.TransitionKind.SCROLL)
+                android.view.animation.LinearInterpolator()
+            else android.view.animation.DecelerateInterpolator()
+            addUpdateListener { animation ->
+                val state = LiveAxisAnimation.interpolate(from, to, animation.animatedValue as Float)
+                renderedRanges = state.ranges
+                renderedSteps = state.steps
+                renderTimeStart = state.timeStartMs
+                renderTimeEnd = state.timeEndMs
+                // Draw the newest observed samples with the interpolated axis, not the snapshot
+                // captured when this transition started.
+                data = LiveAxisAnimation.apply(axisLatestTarget ?: target, state)
+                plot.postInvalidateOnAnimation()
+            }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationCancel(animation: android.animation.Animator) {
+                    // Keep the last interpolated frame; the caller decides the next target.
+                    if (axisAnimator === animation) { axisAnimator = null; axisTargetState = null }
+                }
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    if (axisAnimator === animation) {
+                        axisAnimator = null
+                        axisTargetState = null
+                        snapAxis(axisLatestTarget ?: target)
+                    }
+                }
+            })
+        }
+        axisAnimator = animator
+        animator.start()
+    }
+    /** Recipe target ranges: the realtime Y axes prefer landing on these on their first expansion. */
+    var expectedRanges: Map<ChartMetric, ChartRange> = emptyMap()
+        set(value) {
+            if (field == value) return
+            field = value
+            if (!liveChart) return
+            lastYExpansionAt = 0L
+            // A late recipe resolution (profile still loading / selection changed) must still get
+            // the cup's first synchronised expansion.
+            yExpansionStarted = false
+            rebuildProjection()
+        }
     var unavailableLiveMetrics: Set<ChartMetric> = emptySet()
         set(value) {
             if (field == value) return
             field = value
             if (liveChart) {
-                stopRenderTransition(); plot.invalidate()
+                stopRevealTransition(); plot.invalidate()
                 buttons.forEach { (metric, button) -> updateLegendText(metric, button) }
                 updateDescription()
             }
@@ -299,15 +434,45 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
     }
 
     private fun rebuildProjection() {
-        data = FourMetricChartProjection.build(points, reference, previousRanges, livePauseBaseline = liveChart, liveFlow = liveChart)
-        if (liveChart) {
-            liveTimeEnd = LiveChartGeometry.continuousTimeEnd(liveTimeEnd, data.timeEndMs)
-            data = data.copy(timeEndMs = liveTimeEnd)
+        val now = android.os.SystemClock.elapsedRealtime()
+        val allowYExpansion = lastYExpansionAt == 0L || now - lastYExpansionAt >= yExpansionIntervalMs
+        fun project(expandAllLiveAxes: Boolean) = FourMetricChartProjection.build(points, reference,
+            previousRanges, livePauseBaseline = liveChart, liveFlow = liveChart,
+            allowLiveExpansion = allowYExpansion, expectedLiveRanges = expectedRanges,
+            previousSteps = previousSteps, expandAllLiveAxes = expandAllLiveAxes)
+        var projected = project(false)
+        if (liveChart && !yExpansionStarted && points.isNotEmpty() && projected.series.any { series ->
+                val before = previousRanges[series.metric] ?: ChartAxisScale.yAxis(
+                    series.metric.initialLow, series.metric.initialHigh, targetDivisions = 5).range
+                series.range != before
+            }) {
+            // The cup's first Y expansion expands every recipe-targeted axis in this same pass, so
+            // the four axes move together once instead of each finding its own trigger moment.
+            projected = project(true)
+            yExpansionStarted = true
+            lastYExpansionAt = now
         }
-        renderTimeEnd = data.timeEndMs
-        previousRanges = data.series.associate { it.metric to it.range }
-        if (data.series.none { it.metric == selected }) selected = null
-        val metrics = if (embeddedHistory) data.series.map { it.metric } else if (liveChart) liveMetrics else historicalMetrics
+        // The live time window (0-10 s filling, then a scrolling 10 s window) comes from the
+        // projection; history/comparison keep their whole-cup end.
+        val target: FourMetricChartData = projected
+        // previousRanges tracks the committed target only; animation frames never feed back.
+        // An expansion (optional or clipping) starts a new 3 s batch window so the next optional
+        // expansion is evaluated for every live metric at once.
+        val expanded = liveChart && points.isNotEmpty() && target.series.any { series ->
+            val before = previousRanges[series.metric]
+            before == null || before != series.range
+        }
+        previousRanges = target.series.associate { it.metric to it.range }
+        previousSteps = target.series.associate { it.metric to it.step }
+        if (expanded) lastYExpansionAt = now
+        // Snap for static contexts, unattached probes, identity/selection changes and the first
+        // observation; progress-driven live changes animate.
+        val snap = !liveChart || !isAttachedToWindow || snapAxisOnNextBuild ||
+            data.observedThroughMs == null || target.observedThroughMs == null
+        snapAxisOnNextBuild = false
+        if (snap) snapAxis(target) else animateAxis(target)
+        if (target.series.none { it.metric == selected }) selected = null
+        val metrics = if (embeddedHistory) target.series.map { it.metric } else if (liveChart) liveMetrics else historicalMetrics
         buttons.keys.filter { it !in metrics }.toList().forEach { metric ->
             legend.removeView(buttons.remove(metric))
         }
@@ -515,12 +680,20 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
 
     override fun onDetachedFromWindow() {
         dismissInspection()
+        finishAxisAnimation()
         super.onDetachedFromWindow()
+    }
+
+    /** A hidden/detached chart must not keep a transition running; settle it immediately. */
+    private fun finishAxisAnimation() {
+        if (axisAnimator == null) return
+        axisLatestTarget?.let(::snapAxis)
     }
 
     /** Fragment show/hide does not detach this view, so the host closes inspection on pause. */
     fun dismissInspection() {
-        stopRenderTransition()
+        stopRevealTransition()
+        finishAxisAnimation()
         inspectionDialog?.dismiss()
     }
 
@@ -698,7 +871,9 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         override fun onTouchEvent(event: MotionEvent): Boolean {
             if (event.actionMasked == MotionEvent.ACTION_UP && plotBounds.contains(event.x, event.y) && points.isNotEmpty()) {
                 val fraction = ((event.x - plotBounds.left) / plotBounds.width()).coerceIn(0f, 1f)
-                val time = (fraction.toDouble() * (if (liveChart) renderTimeEnd else data.timeEndMs)).toLong()
+                val start = if (liveChart) renderTimeStart else data.timeStartMs
+                val end = if (liveChart) renderTimeEnd else data.timeEndMs
+                val time = start + (fraction.toDouble() * (end - start)).toLong()
                 inspectedTime = ChartInspection.nearestIndex(points, time)?.let { points[it].elapsedMs }
             }
             return super.onTouchEvent(event)
@@ -733,7 +908,11 @@ internal class ExtractionOverlayView(context: Context, private val visual: Extra
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             productRenderer?.let {
-                val rendered = if (liveChart) data.copy(timeEndMs = renderTimeEnd.coerceAtLeast(1)) else data
+                // While the axis animates, keep the gutter width on the target labels.
+                it.layoutAxis = if (liveChart && axisAnimator != null) axisTargetState else null
+                val rendered = if (liveChart)
+                    data.copy(timeStartMs = renderTimeStart, timeEndMs = renderTimeEnd.coerceAtLeast(1))
+                else data
                 plotBounds.set(it.draw(canvas, width, height, rendered, focusMetric, selected, false, inspectedTime,
                     if (liveChart) revealThroughMs else null, if (liveChart) unavailableLiveMetrics else emptySet(), simpleLivePresentation=liveCompactChrome))
                 return

@@ -659,6 +659,9 @@ class ExtractionFragment : androidx.fragment.app.Fragment() {
             "$progress\n$advice"
         } else if (target == 0 && profile != null) getString(R.string.extraction_no_weight_advice) else "")
         chart.traceIdentity = owner?.chartTraceIdentity
+        // The selected recipe defines the final Y scale; manual/unknown cups keep the margin policy.
+        chart.expectedRanges = if (owner?.manualShotActive == true || owner?.chartCurveId == "manual")
+            emptyMap() else ChartAxisSeed.from(profile)
         val rawPoints=owner?.chartPoints ?: emptyList()
         val points = ExtractionReference.align(rawPoints).points
         if (chart.points != points) chart.points = points

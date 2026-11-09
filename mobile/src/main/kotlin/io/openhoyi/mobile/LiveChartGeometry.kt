@@ -5,9 +5,7 @@ import kotlin.math.sqrt
 /** Rendering only: each input is already one evidence-contiguous segment. */
 internal object LiveChartGeometry {
     data class Cubic(val start: ChartValue, val control1: ChartValue, val control2: ChartValue, val end: ChartValue)
-    fun continuousTimeEnd(previous: Long, projected: Long): Long = maxOf(previous, 30_000L, projected)
     fun revealDuration(updateGap: Long): Long = updateGap.coerceIn(80L, 500L)
-    fun timeEnd(observedEnd: Long): Long = maxOf(30_000L, ((observedEnd + 29_999L) / 30_000L) * 30_000L)
 
     /** Fritsch–Carlson limited Hermite: exact endpoints, no invented extrema. */
     fun cubics(segment: List<ChartValue>): List<Cubic> {
