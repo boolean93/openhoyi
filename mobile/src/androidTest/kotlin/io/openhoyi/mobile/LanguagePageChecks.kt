@@ -369,14 +369,25 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                 is AppSettingsFragment -> TaskDestination.SETTINGS
                 else -> error("Unknown active task Fragment")
             }
+            val rail = if (frame.mode == TaskNavigationMode.RAIL)
+                requireNotNull(frame.findViewWithTag<ScrollView>("task-rail-scroll")) else null
+            fun checkReachable(item: View, label: TextView? = null) {
+                val originalY = rail?.scrollY ?: 0
+                try {
+                    if (rail != null) item.requestRectangleOnScreen(Rect(0, 0, item.width, item.height), true)
+                    fullyVisible(item, fixture)
+                    if (label != null) fullyVisible(label, fixture)
+                } finally {
+                    rail?.scrollTo(0, originalY)
+                }
+            }
             targets.take(4).forEachIndexed { index, item ->
                 check(item.isClickable && item.isFocusable && item.width >= HoyiUi.dp(activity, 48) && item.height >= HoyiUi.dp(activity, 48))
                 check(item.isSelected == (TaskNavigationModel.primary[index] == selected))
-                fullyVisible(item, fixture)
                 val label = descendants(item).filterIsInstance<TextView>().single()
                 check(label.text.toString() == activity.getString(labels[index]))
                 LanguageUiLayoutChecks.textFits(label, fixture)
-                fullyVisible(label, fixture)
+                checkReachable(item, label)
             }
             if (frame.toolsInTopBar) {
                 val menu = descendants(content).single { it.tag == "task-tools-menu" && it.isShown }
@@ -384,10 +395,10 @@ internal class LanguagePageChecks(private val test: Instrumentation) {
                 check(menu.width >= HoyiUi.dp(activity, 48) && menu.height >= HoyiUi.dp(activity, 48))
             } else {
                 check(targets.drop(4).map { it.tag } == TaskNavigationModel.tools.map { "task-nav:${it.name}" })
-                targets.drop(4).forEach { fullyVisible(it, fixture) }
+                targets.drop(4).forEach { checkReachable(it) }
             }
             // Root content and fixed actions may not cross the visible task navigation.
-            val navigationBounds = Rect().also { check(frame.navigation.getGlobalVisibleRect(it)) }
+            val navigationBounds = Rect().also { check((rail ?: frame.navigation).getGlobalVisibleRect(it)) }
             check(!Rect.intersects(contentBounds, navigationBounds)) { "$fixture content overlaps navigation" }
         } else {
             check(activity is MachineSettingsActivity) { "$fixture unexpected secondary page: ${activity.javaClass.simpleName}" }
