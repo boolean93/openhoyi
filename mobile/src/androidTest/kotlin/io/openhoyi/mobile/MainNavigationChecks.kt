@@ -152,6 +152,84 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
         } finally { test.runOnMainSync { activity.finish() }; test.waitForIdleSync() }
     }
 
+    /** Small UI regression: no extraction or device action is invoked. */
+    fun runInlineOnly() {
+        check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")
+        val host = MainPageTestHost.launch(test)
+        val activity = host.activity
+        try {
+            test.runOnMainSync {
+                for ((mode, compact, widthDp) in listOf(
+                    Triple(TaskNavigationMode.RAIL, false, 80),
+                    Triple(TaskNavigationMode.RAIL, true, 104),
+                    Triple(TaskNavigationMode.BOTTOM, false, 360))) {
+                    var selected = TaskDestination.BREW
+                    val nav = TaskNavigationView(activity, TaskProductVisualStyle(activity),
+                        destinationProvider = { selected }, onDestination = { selected = it })
+                    nav.render(mode, includeTools = true, compactRail = compact)
+                    val width = HoyiUi.dp(activity, widthDp)
+                    nav.measure(View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+                    nav.layout(0, 0, width, nav.measuredHeight)
+                    for (item in descendants(nav).filterIsInstance<android.widget.LinearLayout>()
+                        .filter { it.tag?.toString()?.startsWith("task-nav:") == true }) {
+                        val glyph = item.getChildAt(0)
+                        val label = item.getChildAt(1) as android.widget.TextView
+                        check(item.orientation == android.widget.LinearLayout.HORIZONTAL) { "${item.tag} is not inline in $mode/$compact" }
+                        check(glyph.right <= label.left && label.right <= item.width) { "${item.tag} overlaps or overflows" }
+                        check(kotlin.math.abs((glyph.top + glyph.bottom) - (label.top + label.bottom)) <= 2)
+                        check(label.width > 0 && label.layout.getEllipsisCount(label.lineCount - 1) == 0)
+                        check(label.layout.height <= label.height && label.layout.getLineEnd(label.lineCount - 1) == label.text.length)
+                        check(item.isFocusable && item.contentDescription == label.text)
+                        val destination = TaskDestination.valueOf(item.tag.toString().substringAfter(':'))
+                        check(item.isSelected == (destination == TaskDestination.BREW))
+                        check(item.performClick() && selected == destination)
+                    }
+                }
+            }
+            for ((device, textTag) in listOf("coffee" to "name", "coffee" to "status", "scale" to "name", "scale" to "")) {
+                host.select(TaskDestination.BEANS)
+                test.runOnMainSync {
+                    val root = activity.window.decorView
+                    val suffix = if (textTag.isEmpty()) "" else "-$textTag"
+                    val text = descendants(root).single { it.tag == "task-shell-$device$suffix" }
+                    val facts = text.parent as android.widget.LinearLayout
+                    check(facts.tag == "task-shell-$device-facts" && facts.isClickable && facts.isFocusable)
+                    check(facts.orientation == android.widget.LinearLayout.VERTICAL && facts.childCount == 2)
+                    check(facts.height >= HoyiUi.dp(activity, 48))
+                    check(facts.performClick())
+                }
+                test.waitForIdleSync()
+                val settings = host.active("root:SETTINGS") as AppSettingsFragment
+                fun assertDevicesAnchor() {
+                    test.runOnMainSync {
+                        val root = requireNotNull(settings.view)
+                        val heading = descendants(root).single { it.tag == "settings/heading/devices" }
+                        val scroll = descendants(root).single { it.tag == "settings/document/scroll" } as android.widget.ScrollView
+                        val visible = Rect()
+                        check(heading.getGlobalVisibleRect(visible) && scroll.scrollY == 0) { "$device text did not target devices" }
+                    }
+                }
+                assertDevicesAnchor()
+                test.runOnMainSync { settings.openSection("machine") }
+                test.waitForIdleSync()
+                test.runOnMainSync {
+                    val scroll = requireNotNull(settings.view).findViewWithTag<android.widget.ScrollView>("settings/document/scroll")
+                    check(scroll.scrollY > 0) { "Machine section did not move away from devices before repeated entry" }
+                }
+                test.runOnMainSync {
+                    check(descendants(activity.window.decorView).single { it.tag == "task-shell-$device-facts" }.performClick())
+                }
+                test.waitForIdleSync()
+                assertDevicesAnchor()
+                test.runOnMainSync { activity.onBackPressedDispatcher.onBackPressed() }
+                test.waitForIdleSync()
+                host.active("root:BEANS")
+            }
+            test.sendStatus(0, Bundle().apply { putString("stream", "NAV_INLINE_CHECKS_PASSED layouts=3 deviceTextEntries=4 repeatedAnchor=true backOrigin=true noExtraction=true\n") })
+        } finally { test.runOnMainSync { activity.finish() }; test.waitForIdleSync() }
+    }
+
     /** Bounded, non-extracting settings regression for a user's Mock tablet. */
     fun runSettingsOnly() {
         check(BuildConfig.MOCK_MODE && test.targetContext.packageName == "io.openhoyi.mobile.mock")

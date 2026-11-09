@@ -53,6 +53,20 @@ internal class TaskShellStatusView(
     private val coffeeStatus = statusText("task-shell-coffee-status")
     private val scaleName = statusText("task-shell-scale-name", true).apply { text = host.getString(R.string.home_scale) }
     private val scaleStatus = statusText("task-shell-scale")
+    private fun facts(id: String, name: TextView, status: TextView) = LinearLayout(host).apply {
+        tag = id; orientation = VERTICAL; gravity = Gravity.CENTER
+        minimumHeight = style.dp(48)
+        isClickable = true; isFocusable = true
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
+        background = RippleDrawable(ColorStateList.valueOf(style.border), null,
+            style.shape(android.graphics.Color.WHITE, radius = 8))
+        name.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        status.importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        addView(name, LayoutParams(-1, -2)); addView(status, LayoutParams(-1, -2))
+        setOnClickListener { host.openSettingsSection("devices") }
+    }
+    private val coffeeFacts = facts("task-shell-coffee-facts", coffeeName, coffeeStatus)
+    private val scaleFacts = facts("task-shell-scale-facts", scaleName, scaleStatus)
     private fun action(id: String, click: () -> Unit) = Button(host).apply {
         tag = id; style.button(this); setOnClickListener { click() }
         setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
@@ -81,11 +95,9 @@ internal class TaskShellStatusView(
 
     init {
         setBackgroundColor(style.surface)
-        coffeeGroup.addView(coffeeName, LayoutParams(-1, -2))
-        coffeeGroup.addView(coffeeStatus, LayoutParams(-1, -2))
+        coffeeGroup.addView(coffeeFacts, LayoutParams(-1, -2))
         coffeeGroup.addView(sleep, actionParams())
-        scaleGroup.addView(scaleName, LayoutParams(-1, -2))
-        scaleGroup.addView(scaleStatus, LayoutParams(-1, -2))
+        scaleGroup.addView(scaleFacts, LayoutParams(-1, -2))
         scaleGroup.addView(reconnect, actionParams())
         scaleGroup.addView(disconnect, actionParams())
         renderMode(TaskNavigationMode.BOTTOM)
@@ -146,29 +158,26 @@ internal class TaskShellStatusView(
             view.measure(MeasureSpec.makeMeasureSpec(available.coerceAtLeast(0), MeasureSpec.EXACTLY), heightSpec)
             return view.measuredHeight
         }
-        fun groupHeight(name: TextView, status: TextView, vararg actions: Button): Int =
-            style.dp(8) + natural(name, inner) + natural(status, inner) + style.dp(4) +
+        fun groupHeight(facts: LinearLayout, name: TextView, status: TextView, vararg actions: Button): Int =
+            style.dp(8) + maxOf(facts.minimumHeight, natural(name, inner) + natural(status, inner)) + style.dp(4) +
                 (actions.filter { it.visibility != GONE }.maxOfOrNull { natural(it, inner - style.dp(8)) } ?: 0)
-        return style.dp(29 + 8) + groupHeight(coffeeName, coffeeStatus, sleep) +
-            groupHeight(scaleName, scaleStatus, reconnect, disconnect)
+        return style.dp(29 + 8) + groupHeight(coffeeFacts, coffeeName, coffeeStatus, sleep) +
+            groupHeight(scaleFacts, scaleName, scaleStatus, reconnect, disconnect)
     }
 
-    private fun arrangeGroup(group: LinearLayout, name: TextView, status: TextView, vararg actions: Button) {
+    private fun arrangeGroup(group: LinearLayout, facts: LinearLayout, vararg actions: Button) {
         // Reparent only on a presentation transition; the labels and action instances stay stable.
-        listOf(name, status, *actions).forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
+        listOf(facts, *actions).forEach { (it.parent as? android.view.ViewGroup)?.removeView(it) }
         group.removeAllViews()
         val rail = mode == TaskNavigationMode.RAIL
         group.orientation = if (rail) VERTICAL else HORIZONTAL
         group.gravity = Gravity.CENTER_VERTICAL
         if (rail) {
-            group.addView(name, LayoutParams(-1, -2))
-            group.addView(status, LayoutParams(-1, -2))
+            facts.setPadding(0, 0, 0, 0)
+            group.addView(facts, LayoutParams(-1, -2))
             actions.forEach { group.addView(it, actionParams()) }
         } else {
-            val facts = LinearLayout(host).apply {
-                orientation = VERTICAL; setPadding(style.dp(8), 0, style.dp(8), 0)
-            }
-            facts.addView(name, LayoutParams(-1, -2)); facts.addView(status, LayoutParams(-1, -2))
+            facts.setPadding(style.dp(8), 0, style.dp(8), 0)
             group.addView(facts, LayoutParams(0, -2, 1f))
             actions.forEach { group.addView(it, LayoutParams(-2, -2).apply { marginEnd = style.dp(4) }) }
         }
@@ -177,8 +186,8 @@ internal class TaskShellStatusView(
     fun renderMode(next: TaskNavigationMode) {
         if (mode == next) return
         mode = next; removeAllViews()
-        arrangeGroup(coffeeGroup, coffeeName, coffeeStatus, sleep)
-        arrangeGroup(scaleGroup, scaleName, scaleStatus, reconnect, disconnect)
+        arrangeGroup(coffeeGroup, coffeeFacts, sleep)
+        arrangeGroup(scaleGroup, scaleFacts, reconnect, disconnect)
         orientation = if (next == TaskNavigationMode.RAIL) VERTICAL else HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
         setPadding(style.dp(8), if (next == TaskNavigationMode.RAIL) style.dp(12) else style.dp(4),
@@ -288,6 +297,8 @@ internal class TaskShellStatusView(
                 host.getColor(R.color.mobile_success) else style.muted), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             scaleStatus.text = colored
         }
+        coffeeFacts.contentDescription = "${coffeeName.text} · $status · ${host.getString(R.string.home_device_connection)}"
+        scaleFacts.contentDescription = "${scaleName.text} · $scaleLabel · ${host.getString(R.string.home_device_connection)}"
         val connected = state == DeviceState.READY
         reconnect.visibility = if (connected) View.GONE else View.VISIBLE
         disconnect.visibility = if (connected) View.VISIBLE else View.GONE

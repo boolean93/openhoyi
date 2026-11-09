@@ -43,7 +43,7 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 ?: activity.getColor(if (active) R.color.mobile_accent else R.color.mobile_muted)
             val item = LinearLayout(activity).apply {
                 tag = "task-nav:${destination.name}"
-                orientation = if (shortRail) HORIZONTAL else VERTICAL
+                orientation = HORIZONTAL
                 gravity = Gravity.CENTER
                 minimumHeight = HoyiUi.dp(activity, if (shellRail) if (shortRail) 48 else 60 else if (styledRail) 64 else 48)
                 minimumWidth = HoyiUi.dp(activity, 48)
@@ -83,10 +83,7 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
                 }
                 gravity = Gravity.CENTER
                 setTextColor(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
-            }, LayoutParams(if (shortRail) -2 else -1, -2).apply {
-                if (shortRail) marginStart = HoyiUi.dp(activity, 8)
-                else if (styledRail) topMargin = HoyiUi.dp(activity, 8)
-            })
+            }, LayoutParams(-2, -2).apply { marginStart = HoyiUi.dp(activity, 8) })
             addView(item, if (mode == TaskNavigationMode.RAIL) LayoutParams(-1, -2).apply {
                 if (styledRail && destination != items.first() && destination != TaskDestination.SCALE) topMargin = HoyiUi.dp(activity, 8)
             } else LayoutParams(0, -2, 1f))
