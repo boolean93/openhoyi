@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlin.math.roundToInt
 
 class ChartAxisScaleTest {
     @Test fun niceStepUsesOnlyOneTwoTwoPointFiveFiveAndTenMantissas() {
@@ -85,6 +86,42 @@ class ChartAxisScaleTest {
         assertEquals(120_000L, long.stepMs)
         assertEquals(600_000L, long.endMs)
         assertEquals(listOf(0L, 120_000L, 240_000L, 360_000L, 480_000L, 600_000L), long.majorTicks)
+    }
+
+    @Test fun niceBoundaryRoundsToTheSmallestNiceDivisibleCover() {
+        fun boundary(raw: Float) = ChartAxisScale.niceBoundary(raw)!!
+        assertEquals(40f, boundary(35f).high, 0.001f)
+        assertEquals(10f, boundary(35f).step, 0.001f)
+        assertEquals(50f, boundary(45f).high, 0.001f)
+        assertEquals(10f, boundary(45f).step, 0.001f)
+        assertEquals(60f, boundary(55f).high, 0.001f)
+        assertEquals(10f, boundary(55f).step, 0.001f)
+        assertEquals(80f, boundary(80f).high, 0.001f)
+        assertEquals(20f, boundary(80f).step, 0.001f)
+        assertEquals(10f, boundary(10f).high, 0.001f)
+        assertEquals(2f, boundary(10f).step, 0.001f)
+        assertEquals(12.5f, boundary(12.5f).high, 0.001f)
+        assertEquals(2.5f, boundary(12.5f).step, 0.001f)
+        assertEquals(20f, boundary(17.5f).high, 0.001f)
+        assertEquals(5f, boundary(17.5f).step, 0.001f)
+    }
+
+    @Test fun niceBoundaryAlwaysGivesTwoToSixNiceDivisions() {
+        for (raw in listOf(3f, 7f, 11f, 19f, 23f, 33f, 35f, 43f, 45f, 53f, 55f, 63f, 71f,
+                99f, 101f, 137f)) {
+            val boundary = ChartAxisScale.niceBoundary(raw)!!
+            assertTrue(boundary.high >= raw - 1e-3f)
+            val divisions = (boundary.high / boundary.step).roundToInt()
+            assertTrue("raw=$raw divisions=$divisions", divisions in 2..6)
+            assertTrue("raw=$raw step=${boundary.step}", ChartAxisScale.isNiceStep(boundary.step))
+        }
+    }
+
+    @Test fun niceBoundaryRejectsNonPositiveAndNonFiniteInput() {
+        assertNull(ChartAxisScale.niceBoundary(0f))
+        assertNull(ChartAxisScale.niceBoundary(-5f))
+        assertNull(ChartAxisScale.niceBoundary(Float.NaN))
+        assertNull(ChartAxisScale.niceBoundary(Float.POSITIVE_INFINITY))
     }
 
     @Test fun previousNiceStepAlwaysStaysInTheNiceStepSet() {

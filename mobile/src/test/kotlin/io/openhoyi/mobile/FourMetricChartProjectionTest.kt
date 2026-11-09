@@ -2,6 +2,7 @@ package io.openhoyi.mobile
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlin.math.roundToInt
 
 class FourMetricChartProjectionTest {
     private fun point(ms: Long, pressure: Int = 90, water: Int = 123,
@@ -389,8 +390,8 @@ class FourMetricChartProjectionTest {
             expectedLiveRanges = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 8f)))
         val range = data.series(ChartMetric.PRESSURE).range
         assertTrue("must cover 9.2 bar: $range", range.high >= 9.2f)
-        assertEquals(12.5f, range.high, 0.001f)
-        assertEquals(2.5f, data.series(ChartMetric.PRESSURE).step, 0.001f)
+        assertEquals(12f, range.high, 0.001f)
+        assertEquals(2f, data.series(ChartMetric.PRESSURE).step, 0.001f)
     }
 
     @Test fun expandAllLeavesAxesWithoutCurrentObservationsAlone() {
@@ -416,6 +417,35 @@ class FourMetricChartProjectionTest {
         val data = FourMetricChartProjection.build(listOf(point(0, temperature = 9350)),
             emptyList(), initial, liveFlow = true, expectedLiveRanges = expected)
         assertEquals(ChartRange(90f, 95f), data.series(ChartMetric.TEMPERATURE).range)
+    }
+
+    @Test fun overshootAboveTheRecipeTargetKeepsEveryMajorTickNice() {
+        val previous = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 14f))
+        val data = FourMetricChartProjection.build(listOf(point(0, pressure = 146)), emptyList(),
+            previous, liveFlow = true,
+            expectedLiveRanges = mapOf(ChartMetric.PRESSURE to ChartRange(0f, 14f)))
+        val series = data.series(ChartMetric.PRESSURE)
+        // 14.6 bar overshoots the 14 bar target: the cover requirement rounds to 0-20 step 5,
+        // not to non-nice 17.5 or 4.375 steps.
+        assertEquals(ChartRange(0f, 20f), series.range)
+        assertEquals(5f, series.step, 0.001f)
+        assertEquals(4, (series.range.high / series.step).roundToInt())
+        assertTrue(ChartAxisScale.isNiceStep(series.step))
+    }
+
+    @Test fun waterBoundariesFromMachineTargetsStayOnNiceTicks() {
+        for (machineMl in listOf(33, 35, 43, 45, 53, 55, 75)) {
+            val expected = ChartAxisSeed.ranges(peakPressureTenthsBar = null,
+                targetWeightHundredthsGram = null, temperatureC = null,
+                maximumWaterMl = machineMl).getValue(ChartMetric.WATER)
+            val series = FourMetricChartProjection.build(emptyList(), emptyList(),
+                liveFlow = true, expectedLiveRanges = mapOf(ChartMetric.WATER to expected))
+                .series(ChartMetric.WATER)
+            val divisions = (series.range.high / series.step).roundToInt()
+            assertTrue("machine=$machineMl divisions=$divisions", divisions in 2..6)
+            assertTrue("machine=$machineMl step=${series.step}",
+                ChartAxisScale.isNiceStep(series.step))
+        }
     }
 
     @Test fun historyIgnoresExpectedLiveRanges() {

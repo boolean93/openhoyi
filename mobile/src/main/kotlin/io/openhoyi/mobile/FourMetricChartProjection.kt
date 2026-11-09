@@ -254,20 +254,23 @@ internal object FourMetricChartProjection {
             // genuine overshoot extends it on the same nice grid instead of re-running a coarse
             // yAxis() that could jump from 10 to 15.
             var targetLow = expected.low
-            var targetHigh = expected.high
-            if (observedMax != null && observedMax > targetHigh)
-                targetHigh = ChartAxisScale.niceCeil(maxOf(observedMax * 1.2f, targetHigh * 1.2f),
-                    overshootBoundary(metric))
+            var rawHigh = expected.high
+            if (observedMax != null && observedMax > rawHigh)
+                rawHigh = maxOf(observedMax * 1.2f, rawHigh * 1.2f)
             if (observedMin != null && observedMin < targetLow)
-                targetLow = -ChartAxisScale.niceCeil(maxOf(-observedMin * 1.2f, -targetLow * 1.2f),
-                    overshootBoundary(metric))
+                targetLow = -maxOf(-observedMin * 1.2f, -targetLow * 1.2f)
+            // Round the raw cover requirement to the same nice-boundary + 2-6 nice divisions rule
+            // used by the recipe seeds, so the rendered major ticks never show 8.8/11.25/17.5.
+            rawHigh = maxOf(rawHigh, high, observedMax ?: rawHigh)
+            val boundary = ChartAxisScale.niceBoundary(rawHigh)
+            val adoptedHigh = boundary?.high ?: rawHigh
             newLow = minOf(low, targetLow)
-            newHigh = maxOf(high, targetHigh)
-            val range = ChartRange(newLow, newHigh)
-            val step = if (newLow == expected.low && newHigh == expected.high)
-                ChartAxisScale.stepForNiceRange(expected)
-            else ChartAxisScale.stepForNiceRange(range)
-            return ChartAxisScale.YAxis(range, step)
+            val range = ChartRange(newLow, adoptedHigh)
+            val step = when {
+                low == 0f && newLow == 0f && boundary != null -> boundary.step
+                else -> ChartAxisScale.stepForNiceRange(range)
+            }
+            return ChartAxisScale.YAxis(range, if (step > 0f) step else ChartAxisScale.stepForNiceRange(range))
         } else if (metric.anchorZero) {
             if (highTriggered && observedMax != null)
                 newHigh = maxOf(observedMax * LIVE_EXPANSION_HEADROOM,
@@ -290,14 +293,6 @@ internal object FourMetricChartProjection {
                 newHigh = peak / LIVE_MAX_OBSERVED_FRACTION
         }
         return ChartAxisScale.yAxis(newLow, newHigh, targetDivisions)
-    }
-
-    /** Nice overshoot grid per metric, so an over-target peak cannot jump a whole tick step. */
-    private fun overshootBoundary(metric: ChartMetric): Float = when (metric) {
-        ChartMetric.PRESSURE -> 2.5f
-        ChartMetric.WATER, ChartMetric.WEIGHT -> 5f
-        ChartMetric.FLOW -> 0.5f
-        ChartMetric.TEMPERATURE -> 1f
     }
 
     private fun validate(samples: List<ShotPoint>) {

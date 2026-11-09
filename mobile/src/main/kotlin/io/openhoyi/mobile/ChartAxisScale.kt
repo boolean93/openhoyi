@@ -81,6 +81,39 @@ internal object ChartAxisScale {
         return if (rounded == 0f) 0f else rounded
     }
 
+    data class NiceBoundary(val high: Float, val step: Float)
+
+    /**
+     * Rounds [rawHigh] to the smallest boundary that both covers it and divides into 2-6 nice
+     * major ticks: choose a nice step and k=ceil(rawHigh/step) in 2..6, minimise high=k*step,
+     * then prefer the larger k (smaller step) on ties. Examples: 35 -> 40 (step 10), 45 -> 50,
+     * 55 -> 60, 80 -> 80 (step 20), 10 -> 10 (step 2), 12.5 -> 12.5 (step 2.5), 17.5 -> 20
+     * (step 5). Null for non-positive/non-finite input; callers then omit the target.
+     */
+    fun niceBoundary(rawHigh: Float, minDivisions: Int = 2,
+        maxDivisions: Int = 6): NiceBoundary? {
+        if (!rawHigh.isFinite() || rawHigh <= 0f) return null
+        val magnitude = floor(log10(rawHigh.toDouble())).toInt()
+        var best: NiceBoundary? = null
+        for (exponent in (magnitude - 4)..(magnitude + 1)) {
+            val scale = 10f.pow(exponent)
+            for (mantissa in NICE_MANTISSAS) {
+                val step = mantissa * scale
+                if (!step.isFinite() || step <= 0f) continue
+                for (divisions in maxDivisions downTo minDivisions) {
+                    val high = step * divisions
+                    if (high + 1e-4f < rawHigh) continue
+                    val current = best
+                    if (current == null || high < current.high - 1e-4f ||
+                        (kotlin.math.abs(high - current.high) <= 1e-4f && step < current.step)) {
+                        best = NiceBoundary(high, step)
+                    }
+                }
+            }
+        }
+        return best
+    }
+
     /** True when [value] is one of {1, 2, 2.5, 5, 10} x 10^k within float tolerance. */
     fun isNiceStep(value: Float): Boolean {
         if (!value.isFinite() || value <= 0f) return false

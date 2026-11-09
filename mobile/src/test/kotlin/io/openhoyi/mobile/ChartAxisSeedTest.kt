@@ -74,6 +74,6 @@ class ChartAxisSeedTest {
         assertEquals(30f, targets.getValue(ChartMetric.WEIGHT).high, 0.001f)
         assertEquals(ChartRange(90f, 94f), targets[ChartMetric.TEMPERATURE])
         assertEquals(ChartRange(0f, 2f), targets[ChartMetric.FLOW])
-        assertEquals(115f, targets.getValue(ChartMetric.WATER).high, 0.001f)
+        assertEquals(120f, targets.getValue(ChartMetric.WATER).high, 0.001f)
     }
 }

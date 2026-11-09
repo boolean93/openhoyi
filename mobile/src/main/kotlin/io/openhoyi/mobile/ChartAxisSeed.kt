@@ -37,21 +37,24 @@ internal object ChartAxisSeed {
         peakPressureTenthsBar?.takeIf { it in 1..120 }?.let { peak ->
             // 9-10 bar peaks stay on the 0-10 target; only a genuinely higher recipe rounds up
             // to the next 2.5 bar boundary (e.g. 10.5 -> 12.5), never through a 1.1 multiplier.
-            targets[ChartMetric.PRESSURE] = ChartRange(0f,
-                ChartAxisScale.niceCeil(maxOf(peak / 10f, 10f), 2.5f))
+            ChartAxisScale.niceBoundary(maxOf(peak / 10f, 10f))?.let { boundary ->
+                targets[ChartMetric.PRESSURE] = ChartRange(0f, boundary.high)
+            }
         }
         val targetGrams = targetWeightHundredthsGram?.takeIf { it > 0 }?.let { it / 100f }
         targetGrams?.let { grams ->
-            targets[ChartMetric.WEIGHT] = ChartRange(0f,
-                ChartAxisScale.niceCeil(maxOf(grams * 1.05f, 10f), 5f))
+            ChartAxisScale.niceBoundary(maxOf(grams * 1.05f, 10f))?.let { boundary ->
+                targets[ChartMetric.WEIGHT] = ChartRange(0f, boundary.high)
+            }
         }
         // Prefer the machine water target (it is what the cup actually stops on); fall back to
         // the weight-derived estimate only when no machine water target is available.
         val waterTarget = maximumWaterMl?.takeIf { it > 0 }?.let { it * 1.05f }
             ?: targetGrams?.let { it * 1.1f + 10f }
         if (waterTarget != null) {
-            targets[ChartMetric.WATER] = ChartRange(0f,
-                ChartAxisScale.niceCeil(maxOf(waterTarget, 20f), 5f))
+            ChartAxisScale.niceBoundary(maxOf(waterTarget, 20f))?.let { boundary ->
+                targets[ChartMetric.WATER] = ChartRange(0f, boundary.high)
+            }
         }
         temperatureC?.let { temperature ->
             // A tight +-2 C target keeps the actual temperature curve readable instead of flat.
@@ -60,8 +63,9 @@ internal object ChartAxisSeed {
         }
         // Flow curves are usually well under 2 g/s; a broader target flattens the curve.
         val flowTarget = flowTargetTenthsMlPerSecond?.let { it / 10f * 1.5f } ?: 0f
-        targets[ChartMetric.FLOW] = ChartRange(0f,
-            ChartAxisScale.niceCeil(maxOf(flowTarget, 2f), 0.5f))
+        ChartAxisScale.niceBoundary(maxOf(flowTarget, 2f))?.let { boundary ->
+            targets[ChartMetric.FLOW] = ChartRange(0f, boundary.high)
+        }
         return targets
     }
 }
