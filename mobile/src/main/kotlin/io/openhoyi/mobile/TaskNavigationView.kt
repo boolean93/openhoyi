@@ -71,12 +71,14 @@ internal class TaskNavigationView(private val activity: Activity, private val pr
             item.addView(glyph, LayoutParams(glyphSize, glyphSize))
             item.addView(TextView(activity).apply {
                 text = activity.getString(if (mode == TaskNavigationMode.BOTTOM && destination == TaskDestination.SCALE)
-                    R.string.task_scale_bottom_tab else labelId); textSize = if (shellRail) 12f else 14f; gravity = Gravity.CENTER
-                productVisualStyle?.apply(this, TaskProductVisualStyle.Type(14, 500, 22))
+                    R.string.task_scale_bottom_tab else labelId); textSize = if (mode == TaskNavigationMode.RAIL) 16f else 14f; gravity = Gravity.CENTER
+                productVisualStyle?.apply(this, TaskProductVisualStyle.Type(
+                    if (mode == TaskNavigationMode.RAIL) 16 else 14, 500,
+                    if (mode == TaskNavigationMode.RAIL) 24 else 22))
                 typeface = TaskTypography.face(activity, 500)
                 if (shellRail) {
-                    setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
-                    val line = productVisualStyle!!.sp(20).toInt()
+                    setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
+                    val line = productVisualStyle!!.sp(24).toInt()
                     if (android.os.Build.VERSION.SDK_INT >= 28) setLineHeight(line)
                     else setLineSpacing((line - paint.fontMetricsInt.descent + paint.fontMetricsInt.ascent)
                         .coerceAtLeast(0).toFloat(), 1f)

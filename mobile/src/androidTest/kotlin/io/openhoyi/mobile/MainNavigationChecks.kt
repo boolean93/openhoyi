@@ -201,6 +201,20 @@ internal class MainNavigationChecks(private val test: Instrumentation) {
             frame.layout(0, 0, width, height)
             check(draft.parent === frame.pageContent && draft.text.toString() == "unsent draft" && draft.selectionStart == 3)
             check(descendants(frame.navigation).count { it.tag?.toString()?.startsWith("task-nav:") == true } == 6)
+            fun font(view: android.widget.TextView, sizeSp: Int) {
+                val expected = android.util.TypedValue.applyDimension(android.util.TypedValue.COMPLEX_UNIT_SP,
+                    sizeSp.toFloat(), activity.resources.displayMetrics)
+                check(kotlin.math.abs(view.textSize - expected) < 0.5f) { "${view.tag} incorrect size after $widthDp/$heightDp" }
+            }
+            val rail = widthDp >= 600
+            descendants(frame.navigation).filterIsInstance<android.widget.TextView>().forEach { font(it, if (rail) 16 else 14) }
+            for (tag in listOf("task-shell-coffee-name", "task-shell-scale-name", "task-shell-sleep",
+                "task-shell-scale-reconnect", "task-shell-scale-disconnect")) {
+                font(requireNotNull(status.findViewWithTag<android.widget.TextView>(tag)), if (rail) 16 else 14)
+            }
+            for (tag in listOf("task-shell-coffee-status", "task-shell-scale")) {
+                font(requireNotNull(status.findViewWithTag<android.widget.TextView>(tag)), if (rail) 15 else 14)
+            }
             if (widthDp >= 600) {
                 check(frame.mode == TaskNavigationMode.RAIL)
                 val scroll = frame.findViewWithTag<android.widget.ScrollView>("task-rail-scroll")

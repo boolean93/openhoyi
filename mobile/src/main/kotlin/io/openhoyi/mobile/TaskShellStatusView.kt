@@ -147,6 +147,20 @@ internal class TaskShellStatusView(
         if (tooltipText?.toString() != value) tooltipText = value
     }
 
+    private fun typography(rail: Boolean) {
+        fun metrics(view: TextView, size: Int, lineSp: Int) {
+            view.setTextSize(TypedValue.COMPLEX_UNIT_SP, size.toFloat())
+            val line = style.sp(lineSp).toInt()
+            if (android.os.Build.VERSION.SDK_INT >= 28) view.setLineHeight(line)
+            else view.setLineSpacing((line - view.paint.fontMetricsInt.descent + view.paint.fontMetricsInt.ascent)
+                .coerceAtLeast(0).toFloat(), 1f)
+            if (view !is Button) view.minHeight = line
+        }
+        listOf(coffeeName, scaleName).forEach { metrics(it, if (rail) 16 else 14, if (rail) 24 else 20) }
+        listOf(coffeeStatus, scaleStatus).forEach { metrics(it, if (rail) 15 else 14, if (rail) 22 else 20) }
+        listOf(sleep, reconnect, disconnect).forEach { metrics(it, if (rail) 16 else 14, if (rail) 24 else 20) }
+    }
+
     /** Rail eligibility must be independent of the currently attached fallback arrangement. */
     fun requiredRailHeight(width: Int): Int {
         val inner = (width - style.dp(16)).coerceAtLeast(0)
@@ -158,8 +172,12 @@ internal class TaskShellStatusView(
         fun groupHeight(facts: LinearLayout, name: TextView, status: TextView, vararg actions: Button): Int =
             style.dp(8) + maxOf(facts.minimumHeight, natural(name, inner) + natural(status, inner)) + style.dp(4) +
                 (actions.filter { it.visibility != GONE }.maxOfOrNull { natural(it, inner - style.dp(8)) } ?: 0)
-        return style.dp(29 + 8) + groupHeight(coffeeFacts, coffeeName, coffeeStatus, sleep) +
-            groupHeight(scaleFacts, scaleName, scaleStatus, reconnect, disconnect)
+        val temporaryRailTypography = mode != TaskNavigationMode.RAIL
+        if (temporaryRailTypography) typography(true)
+        return try {
+            style.dp(29 + 8) + groupHeight(coffeeFacts, coffeeName, coffeeStatus, sleep) +
+                groupHeight(scaleFacts, scaleName, scaleStatus, reconnect, disconnect)
+        } finally { if (temporaryRailTypography) typography(false) }
     }
 
     private fun arrangeGroup(group: LinearLayout, facts: LinearLayout, vararg actions: Button) {
@@ -182,7 +200,7 @@ internal class TaskShellStatusView(
 
     fun renderMode(next: TaskNavigationMode) {
         if (mode == next) return
-        mode = next; removeAllViews()
+        mode = next; typography(next == TaskNavigationMode.RAIL); removeAllViews()
         arrangeGroup(coffeeGroup, coffeeFacts, sleep)
         arrangeGroup(scaleGroup, scaleFacts, reconnect, disconnect)
         orientation = if (next == TaskNavigationMode.RAIL) VERTICAL else HORIZONTAL
